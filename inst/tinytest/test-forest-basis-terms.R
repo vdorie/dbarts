@@ -5,7 +5,8 @@
 # R's own model frame and model matrix of ~ 0 + <basis>. Block A: the
 # grammar, and what it refuses before anything is evaluated. Block B: the
 # columns and their names. Block C: the texts whose meaning changed. Block D:
-# rows, at both doors. Block E: new rows.
+# rows, at both doors. Block E: new rows. Block F: 'subset' is read once, by
+# the data object, and every basis is cut by the rows it kept.
 
 forest <- dbartsForests$forest
 
@@ -956,6 +957,25 @@ expect_error(
   "'basis' (g) has the level 'w' at a new row, which no row of the fit had",
   fixed = TRUE
 )
+# the order of a factor's columns at new rows is the fit's, whatever order
+# the new rows' own levels come in
+ordered <- frame
+ordered$h <- factor(frame$g, levels = c("w", "u", "v"))
+orderFit <- bartFit("h", ordered)
+expect_identical(colnames(orderFit$bases[[2L]]), c("hw", "hu", "hv"))
+reordered <- newRows
+reordered$g <- c("v", "u", "w", "w", "v", "u", "v", "u", "w")
+inFitOrder <- cbind(
+  hw = as.double(reordered$g == "w"),
+  hu = as.double(reordered$g == "u"),
+  hv = as.double(reordered$g == "v")
+)
+for (levelOrder in list(c("v", "u", "w"), c("u", "v", "w"), c("w", "u", "v"))) {
+  reordered$h <- factor(reordered$g, levels = levelOrder)
+  expect_identical(replayed(orderFit, reordered), inFitOrder)
+}
+reordered$h <- reordered$g
+expect_identical(replayed(orderFit, reordered), inFitOrder)
 # a column of the data must be among the new rows
 withoutAge <- newRows
 withoutAge$age <- NULL
@@ -1121,3 +1141,309 @@ withCallingHandlers(
   }
 )
 expect_identical(countWarnings, 1L)
+
+## --- Block F: 'subset' is read once ------------------------------------------
+# The data object evaluates 'subset' once and every basis is cut by the rows
+# it kept, so a subset that draws its rows, or does something each time it is
+# read, gives a basis the fit's own rows. An `id` predictor names each row
+# the fit kept, in the fit's order.
+rowed <- frame[c("y", "x1", "x2", "dose", "age", "g")]
+rowed$id <- seq_len(n)
+row.names(rowed) <- paste0("r", seq_len(n))
+xRowed <- as.matrix(rowed[c("x1", "id")])
+yRowed <- rowed$y
+doseRows <- rowed$dose
+ageRows <- rowed$age
+gRows <- rowed$g
+gIndicators <- outer(gRows, c("u", "v", "w"), "==") + 0
+readings <- 0L
+drawRows <- function() {
+  readings <<- readings + 1L
+  sample(n, 50L)
+}
+keptLogical <- rowed$id %% 3L != 0L
+outOfOrder <- c(seq(80L, 2L, by = -3L), 5L, 5L, 41L)
+byName <- row.names(rowed)[seq(79L, 1L, by = -2L)]
+bartSettings <- list(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 3L,
+  n.burn = 0L,
+  keepTrees = TRUE,
+  verbose = FALSE,
+  seed = 23L
+)
+# each door as a call, given the data and its subset as written: a term of
+# the formula with and without a tilde, through bart(), a 'forests' list of
+# code, of tildes and of values, the matrix interface with the three, and a
+# data object carrying its bases. A second basis forest rides along.
+subsetDoors <- list(
+  term = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = g),
+      .(data),
+      subset = .(subset),
+      control = basisControl()
+    ))
+  },
+  termTilde = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id + forest(x1, basis = ~dose) + forest(x1, basis = ~g),
+      .(data),
+      subset = .(subset),
+      control = basisControl()
+    ))
+  },
+  bart = function(data, subset) {
+    as.call(c(
+      as.list(bquote(bart(
+        y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = g),
+        .(data),
+        subset = .(subset)
+      ))),
+      bartSettings
+    ))
+  },
+  list = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id,
+      .(data),
+      subset = .(subset),
+      forests = list(
+        forest(),
+        forest(x1, basis = dose),
+        forest(x1, basis = g)
+      ),
+      control = basisControl()
+    ))
+  },
+  listTilde = function(data, subset) {
+    bquote(dbarts(
+      y ~ x1 + id,
+      .(data),
+      subset = .(subset),
+      forests = list(
+        forest(),
+        forest(x1, basis = ~dose),
+        forest(x1, basis = ~g)
+      ),
+      control = basisControl()
+    ))
+  },
+  listValue = function(data, subset, rows = quote(seq_len(n))) {
+    bquote(dbarts(
+      y ~ x1 + id,
+      .(data),
+      subset = .(subset),
+      forests = list(
+        forest(),
+        do.call(forest, list("x1", basis = doseRows[.(rows)])),
+        do.call(forest, list("x1", basis = factor(gRows)[.(rows)]))
+      ),
+      control = basisControl()
+    ))
+  },
+  matrix = function(data, subset, rows = quote(seq_len(n))) {
+    bquote(dbarts(
+      xRowed[.(rows), ],
+      yRowed[.(rows)],
+      subset = .(subset),
+      forests = list(
+        forest(),
+        forest(x1, basis = doseRows[.(rows)]),
+        forest(x1, basis = gRows[.(rows)])
+      ),
+      control = basisControl()
+    ))
+  },
+  matrixTilde = function(data, subset, rows = quote(seq_len(n))) {
+    bquote(dbarts(
+      xRowed[.(rows), ],
+      yRowed[.(rows)],
+      subset = .(subset),
+      forests = list(
+        forest(),
+        forest(x1, basis = ~ doseRows[.(rows)]),
+        forest(x1, basis = ~ gRows[.(rows)])
+      ),
+      control = basisControl()
+    ))
+  },
+  matrixValue = function(data, subset, rows = quote(seq_len(n))) {
+    bquote(dbarts(
+      xRowed[.(rows), ],
+      yRowed[.(rows)],
+      subset = .(subset),
+      forests = list(
+        forest(),
+        do.call(forest, list("x1", basis = doseRows[.(rows)])),
+        do.call(forest, list("x1", basis = factor(gRows)[.(rows)]))
+      ),
+      control = basisControl()
+    ))
+  },
+  dataObject = function(data, subset, rows = quote(seq_len(n))) {
+    bquote(dbarts(
+      dbartsData(
+        y ~ x1 + id,
+        .(data),
+        subset = .(subset),
+        bases = list(NULL, doseRows[.(rows)], gIndicators[.(rows), ])
+      ),
+      control = basisControl()
+    ))
+  }
+)
+matrixDoors <- c("matrix", "matrixTilde", "matrixValue")
+samplerOf <- function(fit) if (inherits(fit, "bart")) fit$fit else fit
+drawsOf <- function(fit) {
+  if (inherits(fit, "bart")) {
+    list(fit$yhat.train, fit$sigma)
+  } else {
+    draws(fit)
+  }
+}
+subsets <- list(
+  drawn = quote(drawRows()),
+  outOfOrder = quote(outOfOrder),
+  logical = quote(keptLogical),
+  names = quote(byName)
+)
+for (door in names(subsetDoors)) {
+  for (kind in names(subsets)) {
+    if (kind == "names" && door %in% matrixDoors) {
+      # the matrix interface takes no row names for 'subset'
+      next
+    }
+    info <- paste(door, kind)
+    readings <- 0L
+    set.seed(7L)
+    fit <- eval(subsetDoors[[door]](quote(rowed), subsets[[kind]]))
+    if (kind == "drawn") {
+      expect_identical(readings, 1L, info = info)
+    }
+    sampler <- samplerOf(fit)
+    rows <- as.integer(sampler$data@x[, "id"])
+    expect_identical(
+      rows,
+      switch(
+        kind,
+        drawn = {
+          set.seed(7L)
+          sample(n, 50L)
+        },
+        outOfOrder = outOfOrder,
+        logical = which(keptLogical),
+        names = seq(79L, 1L, by = -2L)
+      ),
+      info = info
+    )
+    # the basis of exactly the fit's rows, in the fit's order
+    expect_identical(
+      as.vector(sampler$data@bases[[2L]]),
+      doseRows[rows],
+      info = info
+    )
+    expect_identical(
+      unname(sampler$data@bases[[3L]]),
+      unname(gIndicators[rows, ]),
+      info = info
+    )
+    # and the model of the data already cut by hand
+    byHand <- if (door %in% c(matrixDoors, "listValue", "dataObject")) {
+      eval(subsetDoors[[door]](quote(rowed[rows, ]), NULL, quote(rows)))
+    } else {
+      eval(subsetDoors[[door]](quote(rowed[rows, ]), NULL))
+    }
+    expect_identical(
+      unname(samplerOf(byHand)$data@bases[[2L]]),
+      unname(sampler$data@bases[[2L]]),
+      info = info
+    )
+    expect_identical(drawsOf(fit), drawsOf(byHand), info = info)
+  }
+}
+# a data object built in the call is built once
+readings <- 0L
+set.seed(7L)
+builtOnce <- dbarts(
+  dbartsData(
+    y ~ x1 + id,
+    rowed,
+    subset = drawRows(),
+    bases = list(NULL, doseRows)
+  ),
+  control = basisControl()
+)
+expect_identical(readings, 1L)
+# and a plain fit reads its subset once
+readings <- 0L
+invisible(dbarts(
+  y ~ x1 + id,
+  rowed,
+  subset = drawRows(),
+  control = basisControl()
+))
+expect_identical(readings, 1L)
+# what each term computes across rows comes from every row at the matrix
+# interface too, whatever order 'subset' keeps them in
+matrixComputed <- dbarts(
+  xRowed,
+  yRowed,
+  subset = outOfOrder,
+  forests = list(
+    forest(),
+    forest(x1, basis = scale(ageRows)),
+    forest(x1, basis = poly(doseRows, 2))
+  ),
+  control = basisControl()
+)
+expect_identical(
+  matrixComputed$data@bases[[2L]],
+  lmColumns("scale(ageRows)", rows = outOfOrder)
+)
+expect_identical(
+  matrixComputed$data@bases[[3L]],
+  lmColumns("poly(doseRows, 2)", rows = outOfOrder)
+)
+expect_equal(
+  as.vector(matrixComputed$data@bases[[2L]]),
+  ((ageRows - mean(ageRows)) / stats::sd(ageRows))[outOfOrder]
+)
+# every forest's basis is built on the kept rows, a third forest's too: a
+# level 'subset' empties is no column of it
+withoutW <- rowed$g != "w"
+thirdForest <- list(
+  term = dbarts(
+    y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = g),
+    rowed,
+    subset = withoutW,
+    control = basisControl()
+  ),
+  list = dbarts(
+    y ~ x1 + id,
+    rowed,
+    subset = withoutW,
+    forests = list(forest(), forest(x1, basis = dose), forest(x1, basis = g)),
+    control = basisControl()
+  ),
+  matrix = dbarts(
+    xRowed,
+    yRowed,
+    subset = withoutW,
+    forests = list(
+      forest(),
+      forest(x1, basis = doseRows),
+      forest(x1, basis = gRows)
+    ),
+    control = basisControl()
+  )
+)
+for (door in names(thirdForest)) {
+  expect_identical(
+    unname(thirdForest[[door]]$data@bases[[3L]]),
+    unname(gIndicators[withoutW, 1:2]),
+    info = door
+  )
+}

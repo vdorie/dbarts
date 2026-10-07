@@ -1211,12 +1211,18 @@ dbartsSpec <- function(
   if (!is.null(forestBasisDeclarations(forests))) {
     declared <- readDeclaredBases(forests, NULL, length(data@y))
     forests <- declared$forests
+    # the data object holds the rows it holds: every row of a code basis
     built <- buildFitBases(
       declared$reads,
       lapply(declared$reads, function(read) {
-        if (is.null(read$frame)) expandValueBasis(read$value)
+        if (is.null(read)) {
+          NULL
+        } else if (is.null(read$frame)) {
+          expandValueBasis(read$value)
+        } else {
+          basisRowNumbers(length(data@y))
+        }
       }),
-      NULL,
       length(data@y)
     )
     # as in dbarts(): a list in which no forest declares a basis names no

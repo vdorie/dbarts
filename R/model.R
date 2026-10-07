@@ -1501,13 +1501,17 @@ replayForestBasis <- function(term, newdata, index) {
 }
 
 ## The full (pre-'subset') row count of a formula fit's data, and the exact
-## rows 'subset' keeps in it: the length of any one variable the formula
-## names ('.' names no single column, so it is skipped for a real one), and
-## that same expression read as an ordinary vector subscript into the full
-## row sequence - the reading stats::model.frame() itself gives 'subset'.
-## NULL when there is no rule to apply: not a formula, or no 'subset' given.
-resolveFormulaBasisSubset <- function(formula, data, subsetExpr) {
-  if (!is.formula(formula) || is.null(subsetExpr)) {
+## rows 'subset' keeps in it, in the order it keeps them: the length of any
+## one variable the formula names ('.' names no single column, so it is
+## skipped for a real one), and `subset`, the VALUE the data object took of
+## the caller's expression, used as an ordinary subscript into the full row
+## sequence, row names among it - the reading stats::model.frame() itself
+## gives 'subset'. The caller's expression is evaluated once, by the data
+## object, and never here: evaluated again it could select other rows than
+## the fit's. NULL when there is no rule to apply: not a formula, or no
+## 'subset' given.
+resolveFormulaBasisSubset <- function(formula, data, subset) {
+  if (!is.formula(formula) || is.null(subset)) {
     return(NULL)
   }
   vars <- setdiff(all.vars(formula), ".")
@@ -1516,15 +1520,19 @@ resolveFormulaBasisSubset <- function(formula, data, subsetExpr) {
   }
   env <- environment(formula)
   hasData <- is.data.frame(data) || is.list(data) || is.environment(data)
-  evalHere <- if (hasData) {
-    function(expr) eval(expr, data, env)
+  first <- if (hasData) {
+    eval(as.name(vars[1L]), data, env)
   } else {
-    function(expr) eval(expr, env)
+    eval(as.name(vars[1L]), env)
   }
-  full <- NROW(evalHere(as.name(vars[1L])))
+  full <- NROW(first)
+  rows <- seq_len(full)
+  if (is.character(subset) && is.data.frame(data)) {
+    names(rows) <- row.names(data)
+  }
   list(
     full = full,
-    index = seq_len(full)[evalHere(subsetExpr)],
+    index = unname(rows[subset]),
     kept = "'subset'"
   )
 }
@@ -2545,7 +2553,21 @@ forest <- function(
     refuseSecondUnnamed()
   }
   place <- callingPlace(parent.frame())
-  written <- captureForestVars(substitute(vars))
+  matched <- match.call()
+  # An argument that a function of base R wrote for the caller - lapply()'s
+  # X[[i]], Map()'s dots[[2L]][[1L]] - is no code of the caller's: what it
+  # holds is a value handed over, and neither its text nor its names mean
+  # anything. One forwarded through dots was written by the caller of the
+  # function that forwards it.
+  written <- substitute(vars)
+  if (
+    is.language(written) &&
+      !isDotsReference(matched[["vars"]]) &&
+      isLoopMachinery(place)
+  ) {
+    written <- vars
+  }
+  written <- captureForestVars(written)
   if (inherits(written, "dbartsForestCode")) {
     # the argument's value here and now, taken once: whatever the caller's
     # variables hold later, a forest built in a loop or by lapply() keeps the
@@ -2555,11 +2577,13 @@ forest <- function(
   }
   # the basis as its caller wrote it and where: one forwarded through a
   # wrapper's dots is read where the wrapper's caller wrote it
-  declared <- match.call()[["basis"]]
+  declared <- matched[["basis"]]
   if (is.language(declared)) {
     recovered <- recoverForwardedArgument(declared, parent.frame())
     if (isDotsReference(recovered$expr)) {
-      declared <- forwardedBasisValue(substitute(basis), basis)
+      declared <- forwardedBasis(substitute(basis), function() basis, place)
+    } else if (isLoopMachinery(callingPlace(recovered$env))) {
+      declared <- basis
     } else {
       declared <- recovered$expr
       place <- callingPlace(recovered$env)
@@ -2682,6 +2706,15 @@ captureForestVars <- function(expr) {
     )
   }
   forestCode(expr)
+}
+
+## Whether `place`, the frame an argument of forest() was written in, is the
+## frame of a function of base R: lapply(), sapply(), vapply(), Map(),
+## mapply() and their like call forest() for the caller with an argument of
+## their own making. A frame of the caller's, of a package's function or of a
+## wrapper is not one.
+isLoopMachinery <- function(place) {
+  identical(topenv(place), .BaseNamespaceEnv)
 }
 
 ## The heteroscedastic variance forest's own specification, passed as the

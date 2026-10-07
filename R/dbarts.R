@@ -1192,6 +1192,12 @@ dbarts <- function(
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
+  # a data object written in the call has been built once already, to be
+  # looked at above: it is that object the fit uses, not a second build of
+  # it, whose 'subset' could draw other rows
+  if (inherits(formula, "dbartsData")) {
+    dataCall$formula <- formula
+  }
   # a basis declared on 'forests' has nowhere to ride once 'formula' is
   # already a built dbartsData: dbartsData() drops an unmatched 'bases'
   # argument in that case (its own ignored-args warning, R/data.R), which
@@ -1219,12 +1225,13 @@ dbarts <- function(
   # The bases of the model's forests, whichever door declared them, are read
   # by one function against this fit's data (readForestBasis): a term's in
   # the formula's ingestion, where which forest has one decides which is
-  # which, and a list's here. A basis covers every row of the data. One
-  # handed over as a value rides the data object's own 'bases' argument, where
-  # dbartsData() restricts it to the rows 'subset' and the na.action keep
-  # (validateForestBases's 'subsetRows' branch, R/data.R) or refuses an
-  # ambiguous shape by name. One written as code is built once those rows are
-  # known, below, on exactly them.
+  # which, and a list's here. A basis covers every row of the data, and the
+  # data object is the one place that knows which rows the fit keeps: it
+  # evaluates 'subset' and applies the na.action, once. So every basis rides
+  # its 'bases' argument and is cut there (validateForestBases, R/data.R). A
+  # value rides as itself. A basis written as code is built only on the rows
+  # kept, so the numbers of the data's rows ride in its place and come back
+  # as the kept rows, on which it is built below.
   basisRows <- NULL
   basisReads <- NULL
   if (!is.null(termIngestion)) {
@@ -1254,9 +1261,15 @@ dbarts <- function(
     function(read) !is.null(read$frame),
     logical(1L)
   )
-  if (!is.null(basisReads) && !all(basisIsCode | lengths(basisReads) == 0L)) {
+  if (!is.null(basisReads)) {
     dataCall$bases <- lapply(basisReads, function(read) {
-      if (is.null(read$frame)) expandValueBasis(read$value)
+      if (is.null(read)) {
+        NULL
+      } else if (is.null(read$frame)) {
+        expandValueBasis(read$value)
+      } else {
+        basisRowNumbers(basisRows$full)
+      }
     })
   }
   if (!is.null(multinomialCounts)) {
@@ -1431,36 +1444,13 @@ dbarts <- function(
   data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
   data@sigma <- sigest
 
-  # A basis written as code is built now, on the rows the fit keeps: those
-  # 'subset' chose of the data's, less the ones the na.action then dropped by
-  # position among them. data@bases is positional against the forests, the
-  # forest with no basis first; the values dbartsData() restricted are
-  # already in their places.
+  # A basis written as code is built now, on the rows the data object kept,
+  # whose numbers it handed back in the basis's place. data@bases is
+  # positional against the forests, the forest with no basis first; the
+  # values it cut are already in their places.
   basisRecords <- NULL
   if (any(basisIsCode)) {
-    kept <- if (missing(subset) || hazardExpandedFirst) {
-      NULL
-    } else if (is.formula(formula)) {
-      formulaSubsetRows(
-        formula,
-        basisRows$data,
-        matchedCall$subset,
-        basisRows$full
-      )
-    } else {
-      rows <- seq_len(basisRows$full)
-      if (is.character(subset)) {
-        names(rows) <- rownames(formula)
-      }
-      unname(rows[subset])
-    }
-    if (!is.null(data@na.action)) {
-      if (is.null(kept)) {
-        kept <- seq_len(basisRows$full)
-      }
-      kept <- kept[-unclass(data@na.action)]
-    }
-    built <- buildFitBases(basisReads, data@bases, kept, length(data@y))
+    built <- buildFitBases(basisReads, data@bases, length(data@y))
     data@bases <- built$bases
     basisRecords <- built$records
   }

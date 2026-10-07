@@ -2,11 +2,13 @@
 # model is built, against the data and then where the formula was written, as
 # lm() reads one. In a call of forest() the basis is bound to the call: a name
 # of a column of the data is that column, and anything else is what it was
-# where forest() was called, at that moment. Block A: where a name is found,
-# at the four doors. Block B: what is code and what is a value. Block C: what
-# is no basis. Block D: a forest keeps the basis its call was given. Block E:
-# a number written beside a column. Block F: taken once, quietly. Block G: a
-# variable called fixed.
+# where forest() was called, at that moment, with a tilde written in place or
+# without. A formula made elsewhere and held in a variable is read late, as R
+# reads a formula. Block A: where a name is found, at the four doors. Block B:
+# what is code and what is a value. Block C: what is no basis. Block D: a
+# forest keeps the basis its call was given. Block E: a number written beside
+# a column. Block F: taken once, quietly. Block G: a variable called fixed.
+# Block H: an argument a function of base R wrote for the caller.
 
 forest <- dbartsForests$forest
 
@@ -502,7 +504,12 @@ expect_error(
 # at the top level of a session the caller's frame is the workspace, whose
 # variables are copied at the call like any frame's: one changed afterwards
 # changes nothing, and one first made afterwards is not found
-workspaceNames <- c("captureShrink", "captureLate", "captureColumn")
+workspaceNames <- c(
+  "captureShrink",
+  "captureLate",
+  "captureColumn",
+  "captureScaled"
+)
 local({
   on.exit(rm(
     list = intersect(workspaceNames, ls(globalenv())),
@@ -537,6 +544,20 @@ local({
   expect_error(
     builtFit(lateAtTopLevel, frame),
     "'basis' (I(dose/captureLate)): object 'captureLate' not found in 'data' or where forest() was called",
+    fixed = TRUE
+  )
+  # nor is a function first made afterwards
+  lateFunction <- eval(
+    quote(list(
+      dbartsForests$forest(),
+      dbartsForests$forest(basis = captureScaled(dose))
+    )),
+    globalenv()
+  )
+  assign("captureScaled", function(x) x / 2, envir = globalenv())
+  expect_error(
+    builtFit(lateFunction, frame),
+    "'basis' (captureScaled(dose)): could not find function \"captureScaled\" where forest() was called",
     fixed = TRUE
   )
 })
@@ -613,14 +634,109 @@ atThirty <- dbarts:::replayForestBasis(
   2L
 )
 expect_identical(atThirty, column(newRows$dose / 30, "I(dose/k)"))
-# as is a formula, in place or held: in a loop every forest reads the last
-lazily <- list(forest())
-for (k in c(10, 30)) {
-  lazily[[length(lazily) + 1L]] <- forest(basis = ~ I(dose / k))
+# a tilde written in place changes nothing: its names are bound at the call
+# too, in a loop, by lapply() and by Map(), at the fit and at new rows
+spelled <- function() {
+  builtFit(
+    list(forest(), forest(basis = I(dose / 10)), forest(basis = I(dose / 30))),
+    frame
+  )
 }
-lazyFit <- builtFit(lazily, frame)
-expect_identical(basisOf(lazyFit, 2L), column(frame$dose / 30, "I(dose/k)"))
-expect_identical(basisOf(lazyFit, 3L), column(frame$dose / 30, "I(dose/k)"))
+tildeForms <- list(
+  loop = local({
+    built <- list(forest())
+    for (k in c(10, 30)) {
+      built[[length(built) + 1L]] <- forest(basis = ~ I(dose / k))
+    }
+    k <- 1000
+    built
+  }),
+  lapply = c(
+    list(forest()),
+    lapply(c(10, 30), function(k) forest(basis = ~ I(dose / k)))
+  ),
+  Map = c(
+    list(forest()),
+    unname(Map(
+      function(k, unused) forest(basis = ~ I(dose / k)),
+      c(10, 30),
+      c("a", "b")
+    ))
+  )
+)
+# saved and read back, they carry the numbers with them
+tildeForms$saved <- unserialize(serialize(tildeForms$loop, NULL))
+for (form in names(tildeForms)) {
+  fit <- builtFit(tildeForms[[form]], frame)
+  expect_identical(
+    basisOf(fit, 2L),
+    column(frame$dose / 10, "I(dose/k)"),
+    info = form
+  )
+  expect_identical(
+    basisOf(fit, 3L),
+    column(frame$dose / 30, "I(dose/k)"),
+    info = form
+  )
+  expect_identical(
+    labelsOf(fit),
+    c("forest1", "I(dose/k)", "I(dose/k).1"),
+    info = form
+  )
+  records <- attr(fit$control, "bartcore.forests")$basisTerms
+  expect_identical(
+    dbarts:::replayForestBasis(records[[2L]], newRows, 2L),
+    column(newRows$dose / 10, "I(dose/k)"),
+    info = form
+  )
+  expect_identical(
+    dbarts:::replayForestBasis(records[[3L]], newRows, 3L),
+    column(newRows$dose / 30, "I(dose/k)"),
+    info = form
+  )
+  expect_identical(draws(fit), draws(spelled()), info = form)
+}
+# so a name bound after the call is not found, with a tilde as without
+tildeEarly <- list(forest(), forest(basis = ~ I(dose / tildeLate)))
+tildeLate <- 10
+expect_error(
+  builtFit(tildeEarly, frame),
+  "'basis' (I(dose/tildeLate)): object 'tildeLate' not found in 'data' or where forest() was called",
+  fixed = TRUE
+)
+# a formula made elsewhere and held in a variable is read as R reads a
+# formula, when the model is built: in a loop every forest reads the last
+# number, and a later one after that
+heldLoop <- list(forest())
+for (k in c(10, 30)) {
+  heldFormula <- ~ I(dose / k)
+  heldLoop[[length(heldLoop) + 1L]] <- forest(basis = heldFormula)
+}
+heldFit <- builtFit(heldLoop, frame)
+expect_identical(basisOf(heldFit, 2L), column(frame$dose / 30, "I(dose/k)"))
+expect_identical(basisOf(heldFit, 3L), column(frame$dose / 30, "I(dose/k)"))
+heldSaved <- unserialize(serialize(heldLoop, NULL))
+k <- 5
+expect_identical(
+  basisOf(builtFit(heldLoop, frame), 2L),
+  column(frame$dose / 5, "I(dose/k)")
+)
+# as is one handed over; a saved one carries the frame it was made in, as a
+# formula does, with the number it held when it was saved
+handedLoop <- list(forest())
+for (k in c(10, 30)) {
+  handedLoop[[length(handedLoop) + 1L]] <-
+    do.call(forest, list(basis = ~ I(dose / k)))
+}
+expect_identical(
+  basisOf(builtFit(handedLoop, frame), 2L),
+  column(frame$dose / 30, "I(dose/k)")
+)
+k <- 5
+expect_identical(
+  basisOf(builtFit(heldSaved, frame), 2L),
+  column(frame$dose / 30, "I(dose/k)")
+)
 # the list's own record rebuilds the basis at new rows with the call's number
 k <- 10
 listRescaled <- builtFit(list(forest(), forest(basis = I(dose / k))), frame)
@@ -771,3 +887,134 @@ expect_identical(
   ),
   c(0, 0)
 )
+
+## --- Block H: an argument a function of base R wrote for the caller ---------
+# lapply() and Map() call forest() with code of their own, X[[i]] and
+# dots[[2L]][[1L]]. It is not the caller's code: what it holds is a value
+# handed over. Its text is no label and no column's name, and its names are
+# not looked for in the data, whose columns may well be called X, i or dots.
+loopNamed <- frame
+loopNamed$X <- frame$age
+loopNamed$i <- frame$age
+loopNamed$dots <- frame$age
+loopNamed$FUN <- frame$age
+columns <- list(w1, w2)
+valuesHandedOver <- function() {
+  builtFit(
+    list(
+      forest(),
+      do.call(forest, list("x1", basis = w1)),
+      do.call(forest, list("x1", basis = w2))
+    ),
+    loopNamed
+  )
+}
+machinery <- list(
+  lapply = c(list(forest()), lapply(columns, forest, vars = "x1")),
+  sapply = c(
+    list(forest()),
+    sapply(columns, forest, vars = "x1", simplify = FALSE)
+  ),
+  Map = c(
+    list(forest()),
+    unname(Map(forest, c("x1", "x1"), basis = columns))
+  ),
+  mapply = c(
+    list(forest()),
+    unname(mapply(forest, c("x1", "x1"), basis = columns, SIMPLIFY = FALSE))
+  )
+)
+for (form in names(machinery)) {
+  fit <- builtFit(machinery[[form]], loopNamed)
+  expect_identical(basisOf(fit, 2L), unname(column(w1, "")), info = form)
+  expect_identical(basisOf(fit, 3L), unname(column(w2, "")), info = form)
+  expect_identical(
+    labelsOf(fit),
+    c("forest1", "forest2", "forest3"),
+    info = form
+  )
+  expect_identical(draws(fit), draws(valuesHandedOver()), info = form)
+}
+# a value with a name for every column keeps them, as any value does
+namedColumns <- list(cbind(low = w1, high = w2), cbind(up = w2, down = w1))
+namedFit <- builtFit(
+  c(list(forest()), lapply(namedColumns, forest, vars = "x1")),
+  loopNamed
+)
+expect_identical(colnames(basisOf(namedFit, 2L)), c("low", "high"))
+expect_identical(colnames(basisOf(namedFit, 3L)), c("up", "down"))
+expect_identical(labelsOf(namedFit), c("forest1", "forest2", "forest3"))
+# the predictors such a function hands on are a value too, whatever the fit's
+# predictors are called
+overNames <- dbarts(
+  y ~ X + i + dots + x1,
+  loopNamed,
+  forests = c(list(forest()), lapply(c("X", "i"), forest, basis = dose)),
+  control = captureControl()
+)
+expect_identical(
+  attr(overNames$control, "bartcore.forests")$vars,
+  list(NULL, 1L, 2L)
+)
+expect_identical(basisOf(overNames, 2L), column(frame$dose, "dose"))
+# a formula such a function hands on is that formula
+formulasHandedOn <- builtFit(
+  c(
+    list(forest()),
+    unname(Map(forest, c("x1", "x1"), basis = list(~dose, ~ scale(age))))
+  ),
+  loopNamed
+)
+expect_identical(basisOf(formulasHandedOn, 2L), column(frame$dose, "dose"))
+expect_identical(
+  labelsOf(formulasHandedOn),
+  c("forest1", "dose", "scale(age)")
+)
+# code the caller wrote in a loop of their own is the caller's: a column of
+# the data hides the loop's variable, and the refusal says so
+ownLoop <- list(forest())
+for (i in 1:2) {
+  ownLoop[[i + 1L]] <- forest(basis = columns[[i]])
+}
+expect_identical(
+  basisOf(builtFit(ownLoop, frame), 3L),
+  column(w2, "columns[[i]]")
+)
+expect_error(
+  builtFit(ownLoop, loopNamed),
+  paste0(
+    "the column 'i' of 'data' hides the variable 'i' that forest() was ",
+    "called beside. To use the variable, hand its value over, as ",
+    "do.call(forest, list(basis = <value>))"
+  ),
+  fixed = TRUE
+)
+rm(i)
+# a basis forwarded through dots by a call that has returned cannot be read
+# where it was written: one that names a column of the data is refused by
+# name, where its value would have been the caller's variable
+returning <- function(...) function() forest(...)
+age <- rev(frame$age)
+returned <- list(forest(), returning(basis = scale(age))())
+expect_error(
+  builtFit(returned, frame),
+  paste0(
+    "'basis' (scale(age)) names the column 'age' of 'data' and was passed ",
+    "on through '...' from a call that is no longer running, so it cannot ",
+    "be read against the data; hand the code over, as do.call(forest, ",
+    "list(basis = quote(scale(age))))"
+  ),
+  fixed = TRUE
+)
+expect_identical(
+  unname(basisOf(builtFit(returned))),
+  unname(column(as.vector(scale(age)), ""))
+)
+expect_identical(
+  basisOf(builtFit(
+    list(forest(), do.call(forest, list(basis = quote(scale(age))))),
+    frame
+  )),
+  column(as.vector(scale(frame$age)), "scale(age)")
+)
+rm(age)

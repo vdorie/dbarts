@@ -2744,14 +2744,33 @@ dbartsData <- function(
       refuseSparseFormulaColumns(formula, data)
     }
 
-    # an out-of-range 'subset' would otherwise reach the na.action as a set
-    # of all-NA rows and be dropped in silence
-    if (!is.null(matchedCall$subset) && !dataIsMissing && is.data.frame(data)) {
-      subsetIndex <- tryCatch(
-        eval(matchedCall$subset, data, environment(formula)),
+    # 'subset' is evaluated once, here, as the model frame would evaluate it,
+    # in the data and then the formula's environment, and every reader below
+    # is given that value: the model frame, the range check and the rows a
+    # basis is cut to. A subset that draws its rows, or has a side effect, is
+    # then one draw for all of them. One that cannot be evaluated here is
+    # left for the model frame to refuse in R's own words.
+    subsetValue <- NULL
+    if (!is.null(matchedCall$subset)) {
+      taken <- tryCatch(
+        list(
+          if (dataIsMissing) {
+            eval(matchedCall$subset, environment(formula))
+          } else {
+            eval(matchedCall$subset, data, environment(formula))
+          }
+        ),
         error = function(e) NULL
       )
-      refuseOutOfRangeSubset(subsetIndex, nrow(data), rownames(data))
+      if (!is.null(taken)) {
+        subsetValue <- taken[[1L]]
+        modelFrameCall["subset"] <- list(subsetValue)
+      }
+    }
+    # an out-of-range 'subset' would otherwise reach the na.action as a set
+    # of all-NA rows and be dropped in silence
+    if (!is.null(subsetValue) && !dataIsMissing && is.data.frame(data)) {
+      refuseOutOfRangeSubset(subsetValue, nrow(data), rownames(data))
     }
 
     # terms.formula() before R 4.3 refuses a plain list holding a bare
@@ -2852,12 +2871,13 @@ dbartsData <- function(
       responseInfo <- coded[c("type", "n.levels", "levels")]
     }
     numObservations <- NROW(y)
-    # a 'bases' entry is resolved the same way a forests = declaration's
-    # basis is (validateForestBases's 'subsetRows' branch): checked against
-    # the FULL pre-'subset' data and aligned to the rows the model frame
-    # kept. A basis already at the model frame's own row count - the common
-    # case of no 'subset' at all - passes through unchanged, since 'subset'
-    # is then just the identity
+    # a 'bases' entry is checked against the FULL pre-'subset' data and cut
+    # to the rows the model frame kept (validateForestBases's 'subsetRows'
+    # branch): those the one value of 'subset' taken above selects, less the
+    # rows the na.action then dropped among them. The expression is never
+    # evaluated a second time for a basis. A basis already at the model
+    # frame's own row count - the common case of no 'subset' at all - passes
+    # through unchanged, since 'subset' is then just the identity
     subsetRows <- if (is.null(bases)) {
       NULL
     } else {
@@ -2865,7 +2885,7 @@ dbartsData <- function(
         resolveFormulaBasisSubset(
           formula,
           if (dataIsMissing) NULL else data,
-          matchedCall$subset
+          subsetValue
         ),
         naOmitted,
         numObservations

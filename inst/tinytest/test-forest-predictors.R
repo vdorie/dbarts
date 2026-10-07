@@ -167,15 +167,25 @@ expect_silent(forest(log(-1) + heldAtCall))
 stopped <- forest(stop("not now"))
 expect_null(stopped$vars$evaluated)
 expect_identical(stopped$vars$error, "not now")
-# inside 'forests' too: a basis's formula keeps the caller's frame, not the
-# frame laid over it in which the constructors resolve by bare name
+# inside 'forests' too: a basis is read in the caller's frame, not the frame
+# laid over it in which the constructors resolve by bare name
+heldBasis <- ~z
 capturedInside <- dbarts:::evalInForestVocabulary(
-  quote(forest(x1 + noSuchName, basis = ~z)),
+  quote(forest(x1 + noSuchName, basis = heldBasis)),
   dbarts:::forestConstructors["forest"],
   environment()
 )
 expect_null(capturedInside$vars$env)
-expect_identical(capturedInside$basis$env, environment())
+expect_identical(capturedInside$basis$value$held, heldBasis)
+# a basis written in place is bound to the caller's frame: what the frame
+# binds is copied, and neither frame is kept
+boundInside <- dbarts:::evalInForestVocabulary(
+  quote(forest(x1 + noSuchName, basis = ~ I(z * forestColumns))),
+  dbarts:::forestConstructors["forest"],
+  environment()
+)
+expect_identical(sort(ls(boundInside$basis$env)), c("forestColumns", "z"))
+expect_identical(parent.env(boundInside$basis$env), globalenv())
 
 ## --- Block B: one selection, six ways ---------------------------------------
 reference <- listed(quote(list(
