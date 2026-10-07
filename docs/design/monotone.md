@@ -3,7 +3,9 @@
 Status: LANDED 2026-07-19 (ee4ca79); REVISED 2026-10-01 (d701d0af, 23ec2bfa). Plan:
 docs/plans/archive/monotone-bart.md (this is its step 1). Revised by
 [monotone-exact-birth-death.md](../plans/monotone-exact-birth-death.md): two priors, "joint" (the
-default) and "leaf", each targeted exactly (sections 4 and 9).
+default) and "leaf", each targeted exactly (sections 4 and 9). Revised 2026-10-06 by
+[monotone-unforced-refusal.md](../plans/monotone-unforced-refusal.md): an unforced predictor
+update that would leave a tree out of order is refused (section 12).
 
 Users declare a monotone-increasing or -decreasing relationship for any
 subset of predictors; each tree of the forest is constrained to be monotone in
@@ -682,6 +684,56 @@ the posterior-changing baseline for this arc.
   levels and missing values included, covered by a point oracle in the
   component tests; and mixing, since a one-tree birth/death chain can stay
   over-split on an informative design, constrained or not.
+
+## 12. Predictor changes under the constraint (2026-10-06)
+
+New predictor values can leave a tree's leaf values out of the order section 2
+requires. What happens depends on whether the call may refuse.
+
+- An unforced update - the whole matrix or named columns with
+  `forceUpdate = FALSE`, and the two row-by-row forms - is refused, as one that
+  would empty a leaf is. Whole and by column the order is judged with
+  occupancy in [`Chain::revalidateTrees`](../../src/bartcore/chain.hpp), the
+  phase a repartition undoes, and a failure is
+  [`PredictorUpdateResult::rolledBack`](../../src/bartcore/sampler.hpp) for
+  either reason. Row by row a session writes each accepted cell and has
+  nothing to undo, so the refusal is at the row
+  ([`UpdateSessionImpl::orderHoldsWithMissing`](../../src/bartcore/sampler.hpp)):
+  a row bringing a column its first missing value is declined when that value
+  would leave any tree of any chain out of order, in every sampler of a joint
+  update.
+- The calls that always complete - a forced update, `setData`,
+  `setCutPoints`, a warm start and a `setState` that has to merge leaves - set
+  every leaf of such a tree to zero, drawing nothing and saying nothing
+  ([`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)).
+  No acceptance rule accounts for that move, which is why the unforced forms
+  refuse instead.
+
+Which update can do it. The order reads a tree's rules and leaf values and
+each column's cut or level count and has-missing flag, and no partition; an
+unforced update can change only the flag. A rule on a column with no missing
+value carries no direction for one, so a first missing value goes left at
+every rule on its column. On a numeric or an ordered column a leaf it reaches
+therefore starts at the lowest code, which every other such leaf shares: no
+pair is newly related. On an unordered factor it joins the left level set of
+every rule, and two leaves whose sets shared no level then share the missing
+position. A flag that clears only removes relations. So the one unforced
+change that can break the order is an unordered factor's first missing value.
+The check does not rest on that: it runs on every unforced update of a
+constrained sampler, at the cost the reset had.
+[`testMonotoneMissingRelates`](../../tests/cpp/test_monotone.cpp) holds the
+argument on 4000 random trees: setting one flag adds 71 related pairs through
+a 4-level factor and none through a numeric, an ordered or a 70-level column,
+and clearing one removes 908 and adds none. The larger run and the trial
+updates from R are in [Context](../plans/monotone-unforced-refusal.md#context),
+with the rate in fits: one tree reset in 3600 updates built to provoke it.
+
+Two things a caller should know. A refusal for order is not cured by other
+values: every update that brings the missing value is refused until the trees
+move. And a refused update, for either reason, leaves the stored state, the
+predictors and the predictions exactly an untouched sampler's but not the
+order a leaf holds its rows in, so the draws that follow agree with that
+sampler's to rounding, not bit for bit.
 
 ## Plan-vs-code note
 
