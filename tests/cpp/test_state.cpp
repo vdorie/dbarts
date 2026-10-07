@@ -1551,6 +1551,323 @@ static void testCrossGridWarmStart() {
          donorLeaves, liveLeaves);
 }
 
+// A warm start between samplers that standardize a leaf covariate
+// differently: the donor's linear coefficients are restated in the
+// recipient's standardization, so the seeded forest is the donor's function
+// on the recipient's rows, from the donor's live trees or a kept draw, on the
+// donor's grid or another; the recipient's centre, scale and lengthscale are
+// never moved; and between equal standardizations, or from a donor recording
+// none, the donor's values arrive bit for bit. A gp leaf's per-row fits hold
+// no kernel: copied on the same grid, cold on another, as before. Two chains,
+// several trees, the edited tree and chain last.
+static void testWarmStartStandardization() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 577215u;
+  const size_t n = 150, p = 2, numChains = 2, numTrees = 8, numKept = 3;
+  std::vector<double> x(n * p), xStretched(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    xStretched[i] = x[i];
+    xStretched[i + n] = 3.0 * x[i + n] + 5.0;
+    y[i] = 2.0 * x[i] + (x[i] > 0.5 ? x[i + n] : 0.0) +
+           0.2 * (runif01() - 0.5);
+  }
+
+  std::vector<ext_rng*> rngs;
+  rngs.reserve(32 * numChains);
+  auto newRngs = [&](std::uint32_t seed) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), seed + static_cast<std::uint32_t>(c));
+    }
+    return rngs.data() + rngs.size() - numChains;
+  };
+  const size_t covariates[] = {1};
+  auto make = [&](const std::vector<double>& xs, bool gp, bool keepTrees,
+                  std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numChains = numChains;
+    options.maxNumCuts = 12;
+    options.keepTrees = keepTrees;
+    options.numSamplesToStore = keepTrees ? numKept : 0;
+    options.leafCovariateColumns = covariates;
+    options.numLeafCovariates = 1;
+    options.gpLeaves = gp;
+    return createSampler(xs.data(), y.data(), n, p, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, newRngs(seed));
+  };
+  // a sampler standardized on the stretched covariate that holds the donor's
+  // rows: an in-place update keeps the creation-time constants
+  auto makeOffStandard = [&](bool gp, std::uint32_t seed) {
+    std::unique_ptr<SamplerBase> sampler = make(xStretched, gp, false, seed);
+    check(sampler->setPredictor(x.data(), true, true) ==
+            PredictorUpdateResult::accepted,
+          "warm standardization: the recipient takes the donor's rows");
+    return sampler;
+  };
+  // every donor cut point and the midpoints between them
+  auto refineGrid = [&](SamplerBase& sampler,
+                        const std::vector<std::vector<double>>& grid) {
+    std::vector<std::vector<double>> fine(p);
+    const double* pointers[p];
+    std::uint32_t counts[p];
+    size_t columns[p];
+    for (size_t j = 0; j < p; ++j) {
+      for (size_t k = 0; k < grid[j].size(); ++k) {
+        if (k > 0) fine[j].push_back(0.5 * (grid[j][k - 1] + grid[j][k]));
+        fine[j].push_back(grid[j][k]);
+      }
+      pointers[j] = fine[j].data();
+      counts[j] = static_cast<std::uint32_t>(fine[j].size());
+      columns[j] = j;
+    }
+    sampler.setCutPoints(pointers, counts, columns, p, x.data());
+  };
+  auto liveFits = [&](SamplerBase& sampler) {
+    std::vector<double> fits(n * numChains);
+    for (size_t c = 0; c < numChains; ++c)
+      sampler.fitsWithoutOffset(c, fits.data() + c * n);
+    return fits;
+  };
+  auto worstGap = [](const std::vector<double>& a,
+                     const std::vector<double>& b) {
+    double worst = 0.0;
+    for (size_t i = 0; i < a.size(); ++i)
+      worst = std::max(worst, std::fabs(a[i] - b[i]));
+    return worst;
+  };
+  auto sameConstants = [](const SamplerStateData& a,
+                          const SamplerStateData& b) {
+    for (size_t c = 0; c < a.chains.size(); ++c) {
+      const ForestStateData& fa = a.chains[c].forests[0];
+      const ForestStateData& fb = b.chains[c].forests[0];
+      if (fa.leafCovariateCenters != fb.leafCovariateCenters ||
+          fa.leafCovariateScales != fb.leafCovariateScales ||
+          fa.leafLengthscales != fb.leafLengthscales)
+        return false;
+    }
+    return true;
+  };
+  // the live trees' values bit for bit, a zero's sign included
+  auto sameLiveValues = [](const SamplerStateData& a,
+                           const SamplerStateData& b) {
+    for (size_t c = 0; c < a.chains.size(); ++c) {
+      const ForestStateData& fa = a.chains[c].forests[0];
+      const ForestStateData& fb = b.chains[c].forests[0];
+      if (fa.trees.size() != fb.trees.size() ||
+          fa.treeParams.size() != fb.treeParams.size())
+        return false;
+      for (size_t t = 0; t < fa.trees.size(); ++t) {
+        if (fa.trees[t].size() != fb.trees[t].size() ||
+            fa.treeParams[t].size() != fb.treeParams[t].size())
+          return false;
+        for (size_t i = 0; i < fa.trees[t].size(); ++i)
+          if (fa.trees[t][i].variable != fb.trees[t][i].variable ||
+              std::memcmp(&fa.trees[t][i].value, &fb.trees[t][i].value,
+                          sizeof(double)) != 0)
+            return false;
+        if (!fa.treeParams[t].empty() &&
+            std::memcmp(fa.treeParams[t].data(), fb.treeParams[t].data(),
+                        fa.treeParams[t].size() * sizeof(double)) != 0)
+          return false;
+      }
+    }
+    return true;
+  };
+  const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}, {1, -1}};
+  Results none;
+
+  // --- linear leaves
+  std::unique_ptr<SamplerBase> donor = make(x, false, true, 100);
+  donor->run(80, numKept, none);
+  SamplerStateData donorState;
+  donor->getState(donorState);
+  std::vector<double> donorFits = liveFits(*donor);
+
+  // the donor's grid, another standardization
+  {
+    std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 200);
+    SamplerStateData before, after;
+    recipient->getState(before);
+    check(recipient->data().cutPoints == donorState.cutPoints &&
+            !sameConstants(before, donorState),
+          "warm standardization: the donor's grid, another standardization");
+    // the store is not read: the donor's live trees seed both chains
+    check(recipient->installForests(donorState, liveMap) ==
+            WarmStartResult::ok,
+          "warm standardization: a donor under another standardization "
+          "installs");
+    recipient->getState(after);
+    check(worstGap(liveFits(*recipient), donorFits) < 1e-12,
+          "warm standardization: the seeded fit is the donor's function on "
+          "the recipient's rows");
+    check(sameConstants(before, after),
+          "warm standardization: the recipient keeps its standardization");
+    check(!sameLiveValues(after, donorState),
+          "warm standardization: the coefficients were restated");
+    std::vector<double> fits(n * numChains * 2);
+    Results results;
+    results.trainingFits = fits.data();
+    recipient->run(0, 2, results);
+    bool finite = true;
+    for (double fit : fits) finite = finite && std::isfinite(fit);
+    check(finite, "warm standardization: the seeded chains draw");
+  }
+
+  // a kept draw as the seed, chains crossed
+  {
+    std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 300);
+    std::vector<double> kept(n * numKept * numChains);
+    donor->predict(x.data(), n, 1, kept.data());
+    const std::vector<std::pair<size_t, int>> slotMap = {
+      {1, static_cast<int>(donor->savedSlotForDraw(numKept - 1))},
+      {0, static_cast<int>(donor->savedSlotForDraw(0))}};
+    check(recipient->installForests(donorState, slotMap) ==
+            WarmStartResult::ok,
+          "warm standardization: a kept draw installs");
+    std::vector<double> seeded = liveFits(*recipient);
+    double worst = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      worst = std::max(worst, std::fabs(
+        seeded[i] - kept[i + n * ((numKept - 1) + numKept * 1)]));
+      worst = std::max(worst, std::fabs(seeded[i + n] - kept[i]));
+    }
+    check(worst < 1e-12,
+          "warm standardization: a kept draw seeds the function it was");
+  }
+
+  // a grid that holds every donor split point and more: the same function,
+  // and the recipient's standardization is not re-derived
+  {
+    std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 400);
+    refineGrid(*recipient, donorState.cutPoints);
+    SamplerStateData before, after;
+    recipient->getState(before);
+    check(recipient->data().cutPoints != donorState.cutPoints,
+          "warm standardization: the recipient is on another grid");
+    check(recipient->installForests(donorState, liveMap) ==
+            WarmStartResult::ok,
+          "warm standardization: a donor on another grid installs");
+    recipient->getState(after);
+    check(worstGap(liveFits(*recipient), donorFits) < 1e-12,
+          "warm standardization: across grids the seeded fit is the donor's "
+          "function");
+    check(sameConstants(before, after),
+          "warm standardization: across grids the recipient's standardization "
+          "is bit for bit what it was");
+  }
+
+  // equal standardizations: no arithmetic, down to the sign of a zero in the
+  // last chain's last tree
+  {
+    SamplerStateData edited = donorState;
+    for (FlatNode& node : edited.chains[numChains - 1].forests[0].trees.back())
+      if (flatKindOf(node) == FlatKind::leaf) {
+        node.value = -0.0;
+        break;
+      }
+    std::unique_ptr<SamplerBase> recipient = make(x, false, false, 500);
+    SamplerStateData before, after;
+    recipient->getState(before);
+    check(sameConstants(before, donorState),
+          "warm standardization: the twin standardizes as the donor does");
+    check(recipient->installForests(edited, liveMap) == WarmStartResult::ok,
+          "warm standardization: an equal-standardization donor installs");
+    recipient->getState(after);
+    check(sameLiveValues(after, edited),
+          "warm standardization: between equal standardizations the installed "
+          "values are identical to the donor's");
+  }
+
+  // a donor that records no standardization is read as it always was
+  {
+    SamplerStateData unrecorded = donorState;
+    for (ChainStateData& chain : unrecorded.chains) {
+      chain.forests[0].leafCovariateCenters.clear();
+      chain.forests[0].leafCovariateScales.clear();
+    }
+    std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 600);
+    check(recipient->installForests(unrecorded, liveMap) ==
+            WarmStartResult::ok,
+          "warm standardization: a donor recording no standardization "
+          "installs");
+    SamplerStateData after;
+    recipient->getState(after);
+    check(sameLiveValues(after, donorState),
+          "warm standardization: and its values arrive as stored");
+  }
+
+  // a record that does not fit the leaf is refused with nothing touched
+  {
+    std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 700);
+    SamplerStateData before, after;
+    recipient->getState(before);
+    SamplerStateData zeroScale = donorState, tooLong = donorState,
+      halfRecord = donorState;
+    const size_t last = numChains - 1;
+    zeroScale.chains[last].forests[0].leafCovariateScales[0] = 0.0;
+    tooLong.chains[last].forests[0].leafCovariateCenters.push_back(0.0);
+    tooLong.chains[last].forests[0].leafCovariateScales.push_back(1.0);
+    halfRecord.chains[last].forests[0].leafCovariateScales.clear();
+    for (const SamplerStateData* bad : {&zeroScale, &tooLong, &halfRecord})
+      check(recipient->installForests(*bad, liveMap) ==
+              WarmStartResult::shapeMismatch,
+            "warm standardization: a malformed donor record is refused");
+    recipient->getState(after);
+    check(statesAgree(before, after),
+          "warm standardization: a refused donor leaves the recipient as it "
+          "was");
+  }
+
+  // --- gp leaves: fits copied on the donor's grid, cold on another, the
+  // kernel's constants the recipient's own on both
+  {
+    std::unique_ptr<SamplerBase> gpDonor = make(x, true, false, 800);
+    gpDonor->run(60, 0, none);
+    SamplerStateData gpDonorState;
+    gpDonor->getState(gpDonorState);
+
+    std::unique_ptr<SamplerBase> recipient = makeOffStandard(true, 900);
+    SamplerStateData before, after;
+    recipient->getState(before);
+    check(!sameConstants(before, gpDonorState),
+          "warm standardization, gp: the recipient's constants differ");
+    check(recipient->installForests(gpDonorState, liveMap) ==
+            WarmStartResult::ok,
+          "warm standardization, gp: a same-grid donor installs");
+    recipient->getState(after);
+    check(worstGap(liveFits(*recipient), liveFits(*gpDonor)) < 1e-12,
+          "warm standardization, gp: the donor's fits are copied");
+    check(sameConstants(before, after),
+          "warm standardization, gp: the kernel's constants are unchanged on "
+          "the donor's grid");
+
+    std::unique_ptr<SamplerBase> other = makeOffStandard(true, 1000);
+    refineGrid(*other, gpDonorState.cutPoints);
+    other->getState(before);
+    check(other->installForests(gpDonorState, liveMap) == WarmStartResult::ok,
+          "warm standardization, gp: a donor on another grid installs");
+    other->getState(after);
+    bool cold = true;
+    std::vector<double> totals(n);
+    for (size_t c = 0; c < numChains; ++c) {
+      other->forestTotalFits(c, 0, totals.data());
+      for (double total : totals) cold = cold && total == 0.0;
+    }
+    check(cold, "warm standardization, gp: fits start at zero on another grid");
+    check(sameConstants(before, after),
+          "warm standardization, gp: the kernel's constants are unchanged on "
+          "another grid");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: warm start across leaf standardizations\n");
+}
+
 // Warm start under a variance forest (docs/plans/variance-forest-mutation-
 // routing.md, slice S5). installForests used to reassemble a state carrying no
 // variance trees at all, so the destination adopted the donor's mean forest
@@ -3016,6 +3333,7 @@ void runStateTests(ext_rng* rng) {
   testBlockAdditiveConfinement();
   testSingleForestColumnRestriction();
   testCrossGridWarmStart();
+  testWarmStartStandardization();
   testVarianceWarmStart();
   testVarianceWarmStartSlot();
   testStaleStateMerge();

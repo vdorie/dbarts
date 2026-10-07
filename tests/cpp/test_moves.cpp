@@ -1590,6 +1590,152 @@ static void testLinearLeafMutation(ext_rng* rng) {
   printf("ok: linear leaf mutation (post-setData slope %.2f)\n", slope);
 }
 
+// A whole-data replacement re-derives a linear leaf's covariate
+// standardization, and every coefficient is restated in it: the live fit on
+// rows the replacement kept is what it was, and a kept draw replays the same
+// values at the same raw points. The replacement appends rows inside every
+// column's range and responses inside the response's, so the cut grid, every
+// route and the response transform stand and the standardization is the one
+// thing that moves. Two chains, several trees, and a ring the runs have
+// wrapped. Own generators and a restored runif01 stream.
+static void testLinearLeafSetDataConversion() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 161803u;
+  const size_t n = 160, numAdded = 50, p = 3, numChains = 2, numTrees = 8,
+    capacity = 4;
+  const size_t n2 = n + numAdded;
+  std::vector<double> x(n * p), y(n), x2(n2 * p), y2(n2);
+  double yMin = 0.0, yMax = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    x[i + 2 * n] = 10.0 * runif01();
+    y[i] = (x[i] > 0.5 ? x[i + n] : 0.0) + 0.1 * x[i + 2 * n] +
+           0.2 * (runif01() - 0.5);
+    yMin = i == 0 ? y[i] : std::min(yMin, y[i]);
+    yMax = i == 0 ? y[i] : std::max(yMax, y[i]);
+  }
+  for (size_t j = 0; j < p; ++j) {
+    double lo = x[j * n], hi = x[j * n];
+    for (size_t i = 0; i < n; ++i) {
+      x2[i + j * n2] = x[i + j * n];
+      lo = std::min(lo, x[i + j * n]);
+      hi = std::max(hi, x[i + j * n]);
+    }
+    // the appended rows crowd the top fifth of each column's range
+    for (size_t i = n; i < n2; ++i)
+      x2[i + j * n2] = hi - (hi - lo) * (0.01 + 0.19 * runif01());
+  }
+  for (size_t i = 0; i < n2; ++i)
+    y2[i] = i < n ? y[i] : yMin + (yMax - yMin) * (0.05 + 0.9 * runif01());
+
+  const size_t numTest = 30;
+  std::vector<double> xTest(numTest * p);
+  for (size_t i = 0; i < numTest; ++i) {
+    xTest[i] = 1.4 * runif01() - 0.2;
+    xTest[i + numTest] = 6.0 * runif01() - 3.0;
+    xTest[i + 2 * numTest] = 30.0 * runif01() - 10.0;
+  }
+
+  std::vector<ext_rng*> rngs(numChains);
+  for (size_t c = 0; c < numChains; ++c) {
+    rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngs[c], 4711u + static_cast<std::uint32_t>(c));
+  }
+  SamplerOptions options;
+  options.numTrees = numTrees;
+  options.numChains = numChains;
+  options.keepTrees = true;
+  options.numSamplesToStore = capacity;
+  size_t covariates[] = {1, 2};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 2;
+  std::unique_ptr<SamplerBase> sampler = createSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, rngs.data());
+  Results none;
+  sampler->run(80, capacity, none);
+  sampler->run(0, 2, none);  // the ring's oldest draw is no longer slot 0
+  check(sampler->shape().numSavedDraws == capacity &&
+          sampler->savedSlotForDraw(0) == 2,
+        "setData conversion: the store is full and wrapped");
+
+  SamplerStateData before, after;
+  sampler->getState(before);
+  std::vector<std::vector<double>> gridBefore(sampler->data().cutPoints);
+  double anchorMin, anchorMax;
+  sampler->getAnchor(anchorMin, anchorMax);
+  std::vector<double> liveBefore(n * numChains), liveAfter(n2 * numChains);
+  for (size_t c = 0; c < numChains; ++c)
+    check(sampler->fitsWithoutOffset(c, liveBefore.data() + c * n),
+          "setData conversion: live fits read");
+  std::vector<double> keptBefore(numTest * capacity * numChains),
+    keptAfter(keptBefore.size()), rowsBefore(n * capacity * numChains),
+    rowsAfter(rowsBefore.size());
+  sampler->predict(xTest.data(), numTest, 1, keptBefore.data());
+  sampler->predict(x.data(), n, 1, rowsBefore.data());
+
+  check(sampler->setData(x2.data(), y2.data(), n2, nullptr, nullptr, nullptr,
+                         0, nullptr),
+        "setData conversion: the replacement installs");
+
+  sampler->getState(after);
+  double newMin, newMax;
+  sampler->getAnchor(newMin, newMax);
+  check(sampler->data().cutPoints == gridBefore && newMin == anchorMin &&
+          newMax == anchorMax,
+        "setData conversion: the cut grid and the response transform stand");
+  bool moved = true;
+  for (size_t c = 0; c < numChains; ++c)
+    for (size_t j = 0; j < 2; ++j) {
+      const ForestStateData& a = before.chains[c].forests[0];
+      const ForestStateData& b = after.chains[c].forests[0];
+      moved = moved &&
+        std::fabs(a.leafCovariateCenters[j] - b.leafCovariateCenters[j]) >
+          0.05 * a.leafCovariateScales[j] &&
+        a.leafCovariateScales[j] != b.leafCovariateScales[j];
+    }
+  check(moved, "setData conversion: both covariates' centres and scales are "
+               "re-derived, on every chain");
+
+  double worstLive = 0.0;
+  for (size_t c = 0; c < numChains; ++c) {
+    check(sampler->fitsWithoutOffset(c, liveAfter.data() + c * n2),
+          "setData conversion: live fits read");
+    for (size_t i = 0; i < n; ++i)
+      worstLive = std::max(worstLive, std::fabs(liveAfter[i + c * n2] -
+                                                liveBefore[i + c * n]));
+  }
+  check(worstLive < 1e-12,
+        "setData conversion: the live fit on the old rows is unchanged");
+
+  sampler->predict(xTest.data(), numTest, 1, keptAfter.data());
+  sampler->predict(x.data(), n, 1, rowsAfter.data());
+  double worstKept = 0.0, spread = 0.0;
+  for (size_t i = 0; i < keptBefore.size(); ++i) {
+    worstKept = std::max(worstKept, std::fabs(keptAfter[i] - keptBefore[i]));
+    spread = std::max(spread, std::fabs(keptBefore[i] - keptBefore[0]));
+  }
+  for (size_t i = 0; i < rowsBefore.size(); ++i)
+    worstKept = std::max(worstKept, std::fabs(rowsAfter[i] - rowsBefore[i]));
+  check(spread > 1.0 && worstKept < 1e-12 * std::max(1.0, spread),
+        "setData conversion: kept draws replay unchanged at new rows and at "
+        "the old ones");
+
+  std::vector<double> fits(n2 * numChains * 3);
+  Results results;
+  results.trainingFits = fits.data();
+  sampler->run(0, 3, results);
+  bool finite = true;
+  for (double fit : fits) finite = finite && std::isfinite(fit);
+  check(finite, "setData conversion: the chains go on drawing");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: linear leaf setData conversion (live %.1e, kept %.1e)\n",
+         worstLive, worstKept);
+}
+
 // leafOf must equal the obs-to-leaf map derived independently from each tree's
 // fillBottom + index segments after EVERY sweep of a randomized run (accepted
 // and rejected moves of all kinds land across the sweeps), and again after a
@@ -2540,6 +2686,7 @@ void runMovesTests(ext_rng* rng) {
   testCategoricalMutation(rng);
   testOrderedFactorMutation(rng);
   testLinearLeafMutation(rng);
+  testLinearLeafSetDataConversion();
   testEmptyLeafVetoCountsMembers();
   testZeroWeightTreeKeepsMoving();
   testZeroWeightLeafContributesNothing();

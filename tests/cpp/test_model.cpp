@@ -904,6 +904,264 @@ static void testVarianceSavedPredict() {
   ext_rng_destroy(rng);
 }
 
+// A kept draw is the function that was drawn and stays so across a
+// re-anchor: setResponse and setOffset re-deriving the response range, and a
+// whole-data replacement, each leave predict and predictVariance returning
+// what they returned, where before they returned the kept draws in the new
+// units. Out and back returns the store to rounding, slots the runs have not
+// filled are not written, and the live fit follows the new range as it
+// always did. Two chains, several trees, a store part filled. A gp leaf's
+// kept draw carries the ratio and, having no mean term, is left alone where
+// the shift moved.
+static void testReanchorKeepsSavedDraws() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 314159u;
+  const size_t n = 120, p = 2, numChains = 2, numTrees = 6, capacity = 5,
+    numKept = 3, numTest = 25;
+  std::vector<double> x(n * p), xStretched(n * p), y(n), counts(n),
+    xTest(numTest * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    xStretched[i] = x[i];
+    xStretched[i + n] = 2.0 * x[i + n] + 1.0;
+    double f = 2.0 * x[i] + (x[i] > 0.5 ? x[i + n] : 0.0);
+    // on a grid of 1/64 with the extremes at -2 and 2, so that doubling the
+    // response about its midpoint is exact
+    y[i] = std::round(64.0 * (f - 1.0 + 0.3 * (runif01() - 0.5))) / 64.0;
+    y[i] = std::min(2.0, std::max(-2.0, y[i]));
+    counts[i] = std::floor(3.0 * std::exp(0.5 * f) + 2.0 * runif01());
+  }
+  y[0] = -2.0;
+  y[1] = 2.0;
+  for (size_t i = 0; i < numTest; ++i) {
+    xTest[i] = 1.4 * runif01() - 0.2;
+    xTest[i + numTest] = 6.0 * runif01() - 3.0;
+  }
+
+  std::vector<ext_rng*> rngs;
+  rngs.reserve(16 * numChains);
+  auto newRngs = [&](std::uint32_t seed) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), seed + static_cast<std::uint32_t>(c));
+    }
+    return rngs.data() + rngs.size() - numChains;
+  };
+  auto worstGap = [](const std::vector<double>& a,
+                     const std::vector<double>& b) {
+    double worst = 0.0;
+    for (size_t i = 0; i < a.size(); ++i)
+      worst = std::max(worst, std::fabs(a[i] - b[i]) /
+                                std::max(1.0, std::fabs(a[i])));
+    return worst;
+  };
+  // every saved leaf value and side-channel entry of a state, in order
+  auto storeValues = [](const SamplerStateData& state) {
+    std::vector<double> values;
+    for (const ChainStateData& chain : state.chains) {
+      for (const std::vector<FlatNode>& tree : chain.forests[0].savedTrees)
+        for (const FlatNode& node : tree)
+          if (flatKindOf(node) == FlatKind::leaf) values.push_back(node.value);
+      for (const std::vector<double>& params : chain.forests[0].savedTreeParams)
+        values.insert(values.end(), params.begin(), params.end());
+      for (const std::vector<FlatNode>& tree : chain.savedVarianceTrees)
+        for (const FlatNode& node : tree)
+          if (flatKindOf(node) == FlatKind::leaf) values.push_back(node.value);
+    }
+    return values;
+  };
+
+  const std::int8_t directions[p] = {1, 0};
+  const size_t covariates[] = {1};
+  struct Case {
+    const char* name;
+    ResponseFamily family;
+    bool monotone, linear, variance;
+  };
+  const Case cases[] = {
+    {"constant", ResponseFamily::gaussian, false, false, false},
+    {"nbinom", ResponseFamily::nbinom, false, false, false},
+    {"monotone", ResponseFamily::gaussian, true, false, false},
+    {"linear", ResponseFamily::gaussian, false, true, false},
+    {"variance forest", ResponseFamily::gaussian, false, false, true}};
+  double worstOverall = 0.0;
+  for (const Case& c : cases) {
+    bool isCount = c.family == ResponseFamily::nbinom;
+    const std::vector<double>& response = isCount ? counts : y;
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numChains = numChains;
+    options.keepTrees = true;
+    options.numSamplesToStore = capacity;
+    if (isCount) options.shape = 3.0;
+    if (c.monotone) options.monotoneDirections = directions;
+    if (c.linear) {
+      options.leafCovariateColumns = covariates;
+      options.numLeafCovariates = 1;
+    }
+    if (c.variance) options.numVarianceTrees = 4;
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), response.data(), n, p, nullptr, nullptr, c.family, 1.0, 3.0,
+      0.37804942330213542, options, newRngs(1000u));
+    Results none;
+    sampler->run(60, numKept, none);
+    std::string label = std::string("re-anchor, ") + c.name + ": ";
+    auto named = [&](const char* what) { return label + what; };
+
+    const size_t numDraws = numKept * numChains;
+    std::vector<double> kept(numTest * numDraws), now(kept.size()),
+      keptVariance(c.variance ? kept.size() : 0), nowVariance(keptVariance),
+      liveBefore(n * numChains), liveAfter(liveBefore.size());
+    sampler->predict(xTest.data(), numTest, 1, kept.data());
+    if (c.variance)
+      sampler->predictVariance(xTest.data(), numTest, 1, keptVariance.data());
+    for (size_t k = 0; k < numChains; ++k)
+      sampler->fitsWithoutOffset(k, liveBefore.data() + k * n);
+    SamplerStateData stateBefore;
+    sampler->getState(stateBefore);
+    double spread = 0.0;
+    for (double v : kept) spread = std::max(spread, std::fabs(v - kept[0]));
+    check(spread > 0.25, named("the kept draws vary").c_str());
+
+    auto unchanged = [&](const char* after) {
+      sampler->predict(xTest.data(), numTest, 1, now.data());
+      double worst = worstGap(kept, now);
+      if (c.variance) {
+        sampler->predictVariance(xTest.data(), numTest, 1, nowVariance.data());
+        check(worstGap(keptVariance, nowVariance) < 1e-12,
+              (label + "kept variance draws are unchanged after " + after)
+                .c_str());
+        worst = std::max(worst, worstGap(keptVariance, nowVariance));
+      }
+      check(worst < 1e-12,
+            (label + "kept draws are unchanged after " + after).c_str());
+      worstOverall = std::max(worstOverall, worst);
+    };
+
+    // setResponse(a y + b), the range re-derived
+    const double a = 3.0, b = isCount ? 0.0 : 10.0;
+    std::vector<double> moved(n);
+    for (size_t i = 0; i < n; ++i) moved[i] = a * response[i] + b;
+    double anchorMin, anchorMax, newMin, newMax;
+    sampler->getAnchor(anchorMin, anchorMax);
+    sampler->setResponse(moved.data(), true);
+    sampler->getAnchor(newMin, newMax);
+    check(newMin != anchorMin, named("the transform moved").c_str());
+    unchanged("setResponse");
+    if (!isCount) {
+      double worstLive = 0.0;
+      for (size_t k = 0; k < numChains; ++k) {
+        sampler->fitsWithoutOffset(k, liveAfter.data() + k * n);
+        for (size_t i = 0; i < n; ++i)
+          worstLive = std::max(worstLive,
+                               std::fabs(liveAfter[i + k * n] -
+                                         (a * liveBefore[i + k * n] + b)));
+      }
+      check(worstLive < 1e-10,
+            named("the live fit follows the new range").c_str());
+    }
+
+    // slots no run has filled hold what an empty slot holds
+    SamplerStateData stateMoved;
+    sampler->getState(stateMoved);
+    bool unfilledUntouched = true;
+    for (const ChainStateData& chain : stateMoved.chains) {
+      const ForestStateData& fs = chain.forests[0];
+      for (size_t t = numKept * numTrees; t < capacity * numTrees; ++t)
+        unfilledUntouched = unfilledUntouched && fs.savedTrees[t].size() == 1 &&
+          fs.savedTrees[t][0].value == 0.0;
+      for (size_t t = numKept * 4; t < chain.savedVarianceTrees.size(); ++t)
+        unfilledUntouched = unfilledUntouched &&
+          chain.savedVarianceTrees[t].size() == 1 &&
+          chain.savedVarianceTrees[t][0].value == 1.0;
+    }
+    check(unfilledUntouched,
+          named("a slot the runs have not filled is not written").c_str());
+    check(worstGap(storeValues(stateBefore), storeValues(stateMoved)) > 1e-3,
+          named("the store was rewritten").c_str());
+
+    // and back: the store returns to rounding
+    sampler->setResponse(response.data(), true);
+    unchanged("setResponse back");
+    SamplerStateData stateBack;
+    sampler->getState(stateBack);
+    check(worstGap(storeValues(stateBefore), storeValues(stateBack)) < 1e-12,
+          named("out and back returns the store").c_str());
+
+    // setOffset, the range re-derived over the response less the offset
+    std::vector<double> offset(n);
+    for (size_t i = 0; i < n; ++i)
+      offset[i] = isCount ? 0.3 + 0.2 * x[i] : -5.0 + 0.5 * x[i];
+    sampler->setOffset(offset.data(), true);
+    sampler->getAnchor(newMin, newMax);
+    check(newMin != anchorMin, named("the offset moved the transform").c_str());
+    unchanged("setOffset");
+
+    // a whole-data replacement: another response range, the second column
+    // stretched
+    for (size_t i = 0; i < n; ++i)
+      moved[i] = isCount ? 2.0 * response[i] : 0.5 * response[i] - 4.0;
+    check(sampler->setData(xStretched.data(), moved.data(), n, nullptr,
+                           nullptr, nullptr, 0, nullptr),
+          named("setData installs").c_str());
+    unchanged("setData");
+
+    // with updateScale off nothing is rewritten
+    SamplerStateData stateHeld, statePinned;
+    sampler->getState(stateHeld);
+    sampler->setResponse(response.data(), false);
+    sampler->getState(statePinned);
+    check(storeValues(stateHeld) == storeValues(statePinned),
+          named("a response swap that holds the range leaves the store")
+            .c_str());
+  }
+
+  // gp, through the engine alone: the ratio is carried where the shift holds
+  {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numChains = numChains;
+    options.keepTrees = true;
+    options.numSamplesToStore = capacity;
+    options.leafCovariateColumns = covariates;
+    options.numLeafCovariates = 1;
+    options.gpLeaves = true;
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, newRngs(2000u));
+    Results none;
+    sampler->run(60, numKept, none);
+    std::vector<double> kept(numTest * numKept * numChains), now(kept.size());
+    sampler->predict(xTest.data(), numTest, 1, kept.data());
+    SamplerStateData stateBefore, stateDoubled, stateShifted;
+    sampler->getState(stateBefore);
+
+    std::vector<double> doubled(n), shifted(n);
+    for (size_t i = 0; i < n; ++i) {
+      doubled[i] = 2.0 * y[i];  // the midpoint is 0
+      shifted[i] = 2.0 * y[i] + 1.0;
+    }
+    sampler->setResponse(doubled.data(), true);
+    sampler->predict(xTest.data(), numTest, 1, now.data());
+    sampler->getState(stateDoubled);
+    check(worstGap(storeValues(stateBefore), storeValues(stateDoubled)) > 1e-3,
+          "re-anchor, gp: the store was rewritten at an equal shift");
+    check(worstGap(kept, now) < 1e-12,
+          "re-anchor, gp: kept draws are unchanged where the shift holds");
+    worstOverall = std::max(worstOverall, worstGap(kept, now));
+
+    sampler->setResponse(shifted.data(), true);
+    sampler->getState(stateShifted);
+    check(storeValues(stateDoubled) == storeValues(stateShifted),
+          "re-anchor, gp: a moved shift leaves the store as it is");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a re-anchor keeps the saved draws (worst %.1e)\n", worstOverall);
+}
+
 // C3: the s(x) reporting channels (train/test), predict on new data, and the
 // scale-leaf state round-trip all agree with the live combined variance.
 static void testVarianceReportingStatePredict() {
@@ -2041,6 +2299,276 @@ static void testLinearLeafFormats(ext_rng* rng) {
   ext_rng_destroy(rng3);
   ext_rng_destroy(rng2);
   printf("ok: linear leaf formats\n");
+}
+
+// The coefficient conversion between two covariate standardizations
+// (convertLinearCoefficients): the same function of the raw covariates, a row
+// missing a covariate moved by that covariate's intercept term alone, and
+// what a column without spread does on each side, for coefficients a chain
+// goes on drawing from and for ones that are only replayed.
+static void testLinearCoefficientConversion() {
+  const size_t q = 2;
+  auto evaluate = [](double intercept, const double* slopes,
+                     const LeafStandardization& s, const double* x) {
+    double fit = intercept;
+    for (size_t j = 0; j < s.centers.size(); ++j)
+      if (!std::isnan(x[j]))
+        fit += slopes[j] * (x[j] - s.centers[j]) / s.scales[j];
+    return fit;
+  };
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  const LeafStandardization from{{0.3, -2.0}, {1.7, 0.4}, {1, 1}};
+  const LeafStandardization to{{-1.1, 5.0}, {0.6, 3.2}, {1, 1}};
+  const double intercept0 = 0.7, slopes0[q] = {1.3, -0.45};
+  const double points[][q] = {
+    {0.3, -2.0}, {-4.0, 9.5}, {2.25, 0.0}, {-1.1, 5.0}, {7.5, -6.25}};
+
+  // every covariate observed: the same function, both ways of converting
+  for (bool guard : {false, true}) {
+    double intercept = intercept0, slopes[q] = {slopes0[0], slopes0[1]};
+    convertLinearCoefficients(intercept, slopes, from, to, guard);
+    check(intercept != intercept0 && slopes[0] != slopes0[0] &&
+            slopes[1] != slopes0[1],
+          "conversion: every coefficient moves between unequal "
+          "standardizations");
+    bool sameFunction = true;
+    for (const double* x : points)
+      sameFunction = sameFunction &&
+        std::fabs(evaluate(intercept, slopes, to, x) -
+                  evaluate(intercept0, slopes0, from, x)) < 1e-12;
+    check(sameFunction, "conversion: the leaf is the same function of the raw "
+                        "covariates");
+
+    // a row missing covariate j is read at the centre in force, so it moves
+    // by slope_j (m'_j - m_j) / s_j and by nothing else
+    for (size_t j = 0; j < q; ++j) {
+      double x[q] = {-4.0, 9.5};
+      x[j] = nan;
+      double moved = evaluate(intercept, slopes, to, x) -
+                     evaluate(intercept0, slopes0, from, x);
+      double expected =
+        slopes0[j] * (to.centers[j] - from.centers[j]) / from.scales[j];
+      check(std::fabs(expected) > 0.1 && std::fabs(moved - expected) < 1e-12,
+            "conversion: a row missing a covariate moves by that covariate's "
+            "intercept term alone");
+    }
+
+    // there and back returns the block to rounding
+    convertLinearCoefficients(intercept, slopes, to, from, guard);
+    check(std::fabs(intercept - intercept0) < 1e-12 &&
+            std::fabs(slopes[0] - slopes0[0]) < 1e-12 &&
+            std::fabs(slopes[1] - slopes0[1]) < 1e-12,
+          "conversion: there and back returns the coefficients");
+  }
+
+  // a column whose centre, scale and mark agree is not touched, and equal
+  // standardizations run no arithmetic: a negative zero keeps its sign
+  {
+    LeafStandardization oneMoved = from;
+    oneMoved.centers[0] = 0.9;
+    oneMoved.scales[0] = 2.3;
+    double intercept = intercept0, slopes[q] = {slopes0[0], slopes0[1]};
+    convertLinearCoefficients(intercept, slopes, from, oneMoved, true);
+    check(slopes[0] != slopes0[0] && slopes[1] == slopes0[1],
+          "conversion: a column that did not move keeps its slope bit for bit");
+    for (bool guard : {false, true}) {
+      double zero = -0.0, same[q] = {slopes0[0], -0.0};
+      convertLinearCoefficients(zero, same, from, from, guard);
+      check(zero == 0.0 && std::signbit(zero) && same[0] == slopes0[0] &&
+              same[1] == 0.0 && std::signbit(same[1]),
+            "conversion: equal standardizations change no bit");
+    }
+  }
+
+  // no spread on one side, column 1: a constant column at 1000 holds the
+  // placeholder scale 1, and its slope was informed by no observation
+  const LeafStandardization flat{{0.3, 1000.0}, {1.7, 1.0}, {1, 0}};
+  const LeafStandardization varying{{-1.1, 1014.0}, {0.6, 307.0}, {1, 1}};
+  const double wide[][q] = {{0.3, 1000.0}, {-4.0, 1321.0}, {2.25, 707.5}};
+  {
+    // live, from the side without spread: the slope goes to zero and the leaf
+    // keeps the value it had at the constant
+    double intercept = intercept0, slopes[q] = {slopes0[0], slopes0[1]};
+    convertLinearCoefficients(intercept, slopes, flat, varying, true);
+    bool atConstant = slopes[1] == 0.0 && slopes[0] != 0.0;
+    for (const double* x : wide) {
+      double held[q] = {x[0], 1000.0};
+      atConstant = atConstant &&
+        std::fabs(evaluate(intercept, slopes, varying, x) -
+                  evaluate(intercept0, slopes0, flat, held)) < 1e-12;
+    }
+    check(atConstant, "conversion: a live slope drawn against a column "
+                      "without spread is dropped, the value at the constant "
+                      "kept");
+
+    // live, onto the side without spread: the same, at the new constant
+    intercept = intercept0;
+    slopes[0] = slopes0[0];
+    slopes[1] = slopes0[1];
+    convertLinearCoefficients(intercept, slopes, varying, flat, true);
+    atConstant = slopes[1] == 0.0 && slopes[0] != 0.0;
+    for (const double* x : wide) {
+      double held[q] = {x[0], 1000.0};
+      atConstant = atConstant &&
+        std::fabs(evaluate(intercept, slopes, flat, x) -
+                  evaluate(intercept0, slopes0, varying, held)) < 1e-12;
+    }
+    check(atConstant, "conversion: a live slope onto a column without spread "
+                      "is dropped, the value at the new constant kept");
+
+    // kept, either way: the formula with 1 for the placeholder, so a replay
+    // is the function that was drawn wherever it is read
+    for (bool flatFirst : {true, false}) {
+      const LeafStandardization& a = flatFirst ? flat : varying;
+      const LeafStandardization& b = flatFirst ? varying : flat;
+      intercept = intercept0;
+      slopes[0] = slopes0[0];
+      slopes[1] = slopes0[1];
+      convertLinearCoefficients(intercept, slopes, a, b, false);
+      bool sameFunction = slopes[1] != 0.0;
+      for (const double* x : wide)
+        sameFunction = sameFunction &&
+          std::fabs(evaluate(intercept, slopes, b, x) -
+                    evaluate(intercept0, slopes0, a, x)) < 1e-11;
+      check(sameFunction, "conversion: a kept draw across a column without "
+                          "spread stays the function it was");
+    }
+
+    // neither side had spread: the guard is for exactly one, so the formula
+    // runs whichever way the coefficients are used
+    LeafStandardization flatElsewhere = flat;
+    flatElsewhere.centers[1] = 1002.0;
+    for (bool guard : {false, true}) {
+      intercept = intercept0;
+      slopes[0] = slopes0[0];
+      slopes[1] = slopes0[1];
+      convertLinearCoefficients(intercept, slopes, flat, flatElsewhere, guard);
+      check(slopes[1] == slopes0[1] &&
+              std::fabs(evaluate(intercept, slopes, flatElsewhere, wide[1]) -
+                        evaluate(intercept0, slopes0, flat, wide[1])) < 1e-11,
+            "conversion: two columns without spread convert by the formula");
+    }
+  }
+  printf("ok: linear coefficient conversion\n");
+}
+
+// A leaf covariate without spread: the state records its scale as absent
+// beside a finite centre, the engine divides by 1, and the mark survives a
+// state round trip on a linear and a gp leaf alike. A state written with the
+// placeholder 1 reads as 1 and replays the same values, unmarked.
+static void testNoSpreadStandardization() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 271828u;
+  const size_t n = 120, p = 3, numChains = 2, numTrees = 6, numSamples = 3;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    x[i + 2 * n] = 1000.0;  // the second leaf covariate holds one value
+    y[i] = (x[i] > 0.5 ? x[i + n] : 0.0) + 0.2 * (runif01() - 0.5);
+  }
+  const size_t numTest = 5;
+  std::vector<double> xTest(numTest * p);
+  for (size_t i = 0; i < numTest; ++i) {
+    xTest[i] = runif01();
+    xTest[i + numTest] = 3.0 * runif01() - 1.5;
+    xTest[i + 2 * numTest] = 1000.0 + 2.5 * static_cast<double>(i);
+  }
+
+  std::vector<ext_rng*> rngs;
+  auto newRngs = [&](std::uint32_t seed) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), seed + static_cast<std::uint32_t>(c));
+    }
+    return rngs.data() + rngs.size() - numChains;
+  };
+  rngs.reserve(16 * numChains);
+
+  for (bool gp : {false, true}) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numChains = numChains;
+    options.keepTrees = true;
+    options.numSamplesToStore = numSamples;
+    size_t covariates[] = {1, 2};
+    options.leafCovariateColumns = covariates;
+    options.numLeafCovariates = 2;
+    options.gpLeaves = gp;
+    auto make = [&](std::uint32_t seed) {
+      return createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, newRngs(seed));
+    };
+    std::unique_ptr<SamplerBase> sampler = make(11);
+    Results none;
+    sampler->run(30, numSamples, none);
+
+    SamplerStateData state;
+    sampler->getState(state);
+    bool marked = true;
+    for (size_t c = 0; c < numChains; ++c) {
+      const ForestStateData& fs = state.chains[c].forests[0];
+      marked = marked && fs.leafCovariateScales.size() == 2 &&
+        std::isfinite(fs.leafCovariateScales[0]) &&
+        fs.leafCovariateScales[0] != 1.0 &&
+        std::isnan(fs.leafCovariateScales[1]) &&
+        fs.leafCovariateCenters[1] == 1000.0;
+    }
+    check(marked, "no spread: the state holds an absent scale beside a "
+                  "finite centre, on every chain");
+
+    std::vector<double> kept(numTest * numSamples * numChains),
+      replayed(kept.size());
+    sampler->predict(xTest.data(), numTest, 1, kept.data());
+    bool finite = true;
+    for (double v : kept) finite = finite && std::isfinite(v);
+    check(finite, "no spread: a marked column still replays finite values");
+
+    // the marked state restores, replays bit for bit, and is marked again
+    std::unique_ptr<SamplerBase> restored = make(23);
+    check(restoresExactly(*restored, state),
+          "no spread: a state with an absent scale restores");
+    restored->predict(xTest.data(), numTest, 1, replayed.data());
+    check(kept == replayed, "no spread: the restored sampler replays the "
+                            "kept draws bit for bit");
+    checkStructuralRoundTrip(state, *restored,
+                             "no spread: the mark survives a state round "
+                             "trip");
+
+    // the placeholder written out as 1 divides the same way and stays 1
+    SamplerStateData unmarked = state;
+    for (ChainStateData& chain : unmarked.chains)
+      chain.forests[0].leafCovariateScales[1] = 1.0;
+    std::unique_ptr<SamplerBase> plain = make(37);
+    check(restoresExactly(*plain, unmarked),
+          "no spread: a state holding the placeholder 1 restores");
+    plain->predict(xTest.data(), numTest, 1, replayed.data());
+    check(kept == replayed,
+          "no spread: an absent scale divides by 1, as the placeholder does");
+    SamplerStateData reread;
+    plain->getState(reread);
+    check(reread.chains[numChains - 1].forests[0].leafCovariateScales[1] ==
+            1.0,
+          "no spread: a scale of 1 that a state brought is not marked");
+
+    // what a scale may not be is unchanged
+    for (double bad : {0.0, -1.0, std::numeric_limits<double>::infinity()}) {
+      SamplerStateData refused = state;
+      refused.chains[numChains - 1].forests[0].leafCovariateScales[0] = bad;
+      check(!restored->setState(refused, nullptr),
+            "no spread: a zero, negative or infinite scale is still refused");
+    }
+    SamplerStateData refused = state;
+    refused.chains[numChains - 1].forests[0].leafCovariateCenters[1] =
+      std::numeric_limits<double>::quiet_NaN();
+    check(!restored->setState(refused, nullptr),
+          "no spread: an absent centre is refused");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: leaf covariate without spread\n");
 }
 
 static void testLinearLeafViews() {
@@ -9059,6 +9587,8 @@ void runModelTests(ext_rng* rng) {
   testLinearLeafStatisticsCachePrune();
   testLinearLeafEndToEnd(rng);
   testLinearLeafFormats(rng);
+  testLinearCoefficientConversion();
+  testNoSpreadStandardization();
   testLinearLeafViews();
   testAFTReduction(rng);
   testVarianceSurfaceInstall(rng);
@@ -9128,6 +9658,7 @@ void runModelTests(ext_rng* rng) {
   testVarianceReportingStatePredict();
   testVarianceEmptyBottomStateRoundTrip();
   testVarianceSavedPredict();
+  testReanchorKeepsSavedDraws();
   testVarianceM1Reduction();
   testVarianceScaleReanchorIdentity();
   testVarianceDataSwapReanchorIdentity();

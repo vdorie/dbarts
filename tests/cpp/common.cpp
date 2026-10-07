@@ -81,6 +81,15 @@ static bool sameScalar(double x, double y) {
   return (std::isnan(x) && std::isnan(y)) || x == y;
 }
 
+// a leaf covariate's scale is absent where its column had no spread
+static bool sameScales(const std::vector<double>& x,
+                       const std::vector<double>& y) {
+  if (x.size() != y.size()) return false;
+  for (size_t j = 0; j < x.size(); ++j)
+    if (!sameScalar(x[j], y[j])) return false;
+  return true;
+}
+
 bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
   if (a.chains.size() != b.chains.size()) return false;
   for (size_t c = 0; c < a.chains.size(); ++c) {
@@ -98,7 +107,7 @@ bool statesAgree(const SamplerStateData& a, const SamplerStateData& b) {
           xf.treeMasks != yf.treeMasks ||
           xf.savedTreeMasks != yf.savedTreeMasks || !sameScalar(xf.k, yf.k) ||
           xf.leafCovariateCenters != yf.leafCovariateCenters ||
-          xf.leafCovariateScales != yf.leafCovariateScales ||
+          !sameScales(xf.leafCovariateScales, yf.leafCovariateScales) ||
           xf.leafLengthscales != yf.leafLengthscales)
         return false;
     }
