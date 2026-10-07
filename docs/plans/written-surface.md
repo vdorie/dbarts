@@ -230,7 +230,7 @@ quoted, the form to write given. `<f>` is the forest's text; the push that adds 
     [2] a multi-forest model needs at least two forests, and this call's 'basis' declarations resolve to 1: a forest with a 'basis' stands beside another forest. Write the forest with no multiplier too, as y ~ forest(x1 + x2) + forest(x1 + x2, basis = z1) or forests = list(forest(), forest(basis = z1)), or use a single forest with linear() leaves; otherwise drop the basis
     [2] xbart() does not take a forest() term ('<f>'): the forests of a model are written in the formula of bart() or dbarts(), or in a 'forests' list
     [1] forest 'sd' must be a single number, not a vector of length 2: a forest states one sd, for every column of its basis; to size the columns differently, rescale them in 'basis', as I(dose / 30)
-    [1] forest 'sd' must not be named ("dose"): it is one number, for every column of a basis
+    [1] forest 'sd' must not be named ("dose"): it is one number, for every column of a basis; drop the name with unname()
     [1] forest 'sd' must be a number, not a string            (a logical, a factor, a Date, a list, a matrix)
     [1] forest 'sd' must not be NA; leave it out for the default            forest 'sd' must be positive and finite
     [1] this model has one forest, so its size is the fitting function's leaf.prior = normal(sd = ), not forest(sd = )
@@ -325,7 +325,7 @@ Each is a requirement with the test that holds it; "what fails it" is under the 
 | requirement | test | step |
 |---|---|---|
 | Only the first argument of `forest()` may be unnamed, so a later formal is an addition anywhere | `forest(x1, x2)`, `forest(x1, dose, 30)`, `forest(x1, ~ z)` in a formula, `forest(x1, dose)` in a list and `do.call(forest, list("x1", w))` are each refused with the one-unnamed-argument text | 2.2 |
-| An sd longer than one, or named, is refused wherever a number can be stated | `c(1, 2)`, `c(dose = 1, age = 2)` and `c(a = 1)` at creation, through `$setLeafPrior(forests = )` and in the front door's `normal(sd = )` | 1.2 |
+| An sd longer than one is refused wherever a number can be stated, and a named one on a forest | `c(1, 2)` and `c(dose = 1, age = 2)` at creation, through `$setLeafPrior(forests = )` and in the front door's `normal(sd = )`; `c(a = 1)` at the first two, while the front door drops the name | 1.2 |
 | A basis term that calls a reserved name is refused: `normal`, `fixed`, `student`, `cauchy`, `linear`, `gp`, `cgm`, `dart`, `chisq`, `chi`, `invchi`, `forest`, `varianceForest` | each of the thirteen as a call at the top of a basis, a caller's own `normal()` and `student()` included; and a caller's `weights2(dose)` is a column, pinned so that a wrapper under a new name fails this test | 3.2 |
 | A term divided or multiplied by a number is refused; a star between terms is refused (dec-B273) | `dose / 30`, `30 * dose`, `dose * 30`, `dose * age`, `poly(dose, 2) * age`; `I(dose / 30)` is accepted with the column named `I(dose/30)` | 3.2 |
 | Columns are named as `coef(lm(y ~ 0 + <basis>))` names them, by a complete rule | 18 shapes against `lm`; a value's names; two columns alike refused | 3.3 |
@@ -405,7 +405,7 @@ reader's sake; the implementer may name them otherwise.
 1.2 One check of a stated sd: a numeric or integer of length one, of whatever class, unnamed, finite, positive,
     nothing coerced. [`validateForestSd`](../../R/model.R) is that check, with the texts marked [1].
     [`validateLeafSd`](../../R/model.R) refuses, ahead of the checks it has, what the forest's check
-    refuses and it accepts today (a logical, a factor, a Date, a date-time, a list, a matrix, a named number, and any other
+    refuses and it accepts today (a logical, a factor, a Date, a date-time, a list, a matrix, and any other
     value that is not a number); its
     `NULL`, its `invchi()`, its other texts and the check it shares with `k` stay. Tests, same file: the
     15 values of Context at creation, through `$setLeafPrior(forests = )` and in `normal(sd = )`, one
@@ -729,6 +729,10 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   `forest` already cause. Push 3 ends both by capturing a basis unevaluated and looking in `data` first,
   and tests both (step 3.11). `$setForestBasis` refuses one numeric column only on a forest created with a
   basis; a held forest created without one keeps its value 1 across the swap, as on the tip.
+- The front door's `normal(sd = )` takes a named single number as the tip does, dropping the name, and
+  only a forest's `sd` refuses one: a number indexed out of a named vector keeps its name through arithmetic
+  (the vignettes state `normal(sd = base.mf / sqrt(K))` so), and the front door has no columns for a name
+  to refer to, so "one verdict at the three places" holds for kinds and not for names.
 - Doors that take no `forest()` term refuse it by name (step 2.8). It is not in the design. With the
   first forest written as `forest(x1 + x2)` in the help's lead example, a user will write it in `xbart`,
   and today four doors answer with four unrelated messages. The alternative is a TODO entry.

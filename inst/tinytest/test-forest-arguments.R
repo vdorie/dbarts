@@ -518,7 +518,7 @@ sdValues <- list(
   list(as.difftime(2, units = "secs"), FALSE),
   list(2 + 0i, FALSE),
   list(as.raw(2), FALSE),
-  list(c(a = 1), FALSE),
+  list(c(a = 1), c(FALSE, FALSE, TRUE)),
   list(c(a = -1), FALSE),
   list(c(a = 0), FALSE),
   list(numeric(0), FALSE),
@@ -554,7 +554,7 @@ for (entry in sdValues) {
   )
   expect_identical(
     unname(verdicts),
-    rep(entry[[2L]], 3L),
+    rep_len(entry[[2L]], 3L),
     info = label
   )
 }
@@ -589,7 +589,7 @@ for (place in c("creation", "writer")) {
   expect_match(sdMessage(matrix(2), place), "must be a number, not a matrix")
   expect_match(
     sdMessage(c(dose = 1), place),
-    "forest 'sd' must not be named (\"dose\"): it is one number",
+    "forest 'sd' must not be named (\"dose\"): it is one number, for every column of a basis; drop the name with unname()",
     fixed = TRUE
   )
   expect_match(
@@ -645,12 +645,16 @@ expect_match(
   "'sd' must be a number or invchi(), not a logical",
   fixed = TRUE
 )
-expect_match(
-  sdMessage(c(a = 1), "front"),
-  "'sd' must not be named (\"a\"): it is one number",
-  fixed = TRUE
+# a number indexed out of a named vector is a number: the name is dropped
+expect_identical(sdMessage(c(a = 1), "front"), "accepted")
+expect_identical(dbartsPriors$normal(sd = c(a = 1.5))@prior.sd, 1.5)
+expect_match(sdMessage(c(a = -1), "front"), "'sd' must be positive")
+frontSampler <- dbarts(x, y, control = argumentControl())
+frontSampler$setLeafPrior(dbartsPriors$normal(sd = c(a = 0.7)))
+expect_equal(
+  unname(frontSampler$getLeafPrior()$k.scale / frontSampler$getK()[1L]),
+  0.7
 )
-expect_match(sdMessage(c(a = -1), "front"), "must not be named")
 expect_match(sdMessage(2 + 0i, "front"), "not a complex")
 expect_match(sdMessage(as.raw(2), "front"), "not a raw")
 expect_match(sdMessage(Sys.time(), "front"), "not a date-time")

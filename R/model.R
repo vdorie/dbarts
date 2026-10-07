@@ -1307,7 +1307,8 @@ validateForestSd <- function(sd) {
     stop(
       "forest 'sd' must not be named (\"",
       names(sd),
-      "\"): it is one number, for every column of a basis"
+      "\"): it is one number, for every column of a basis; drop the name ",
+      "with unname()"
     )
   }
   if (is.na(sd) || !is.finite(sd) || sd <= 0) {
@@ -1835,9 +1836,6 @@ validateLeafSd <- function(sd) {
     kind <- sdKindRefused(sd)
     if (!is.null(kind)) {
       stop("'sd' must be a number or invchi(), not ", kind)
-    }
-    if (length(sd) == 1L && !is.null(names(sd))) {
-      stop("'sd' must not be named (\"", names(sd), "\"): it is one number")
     }
   }
   if (is(sd, "dbartsLeafHyperprior")) {
