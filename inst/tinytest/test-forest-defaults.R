@@ -400,7 +400,13 @@ expect_null(attr(unstatedBT$control, "dbarts.stated", exact = TRUE))
 # the count a later fit inherits is bartBT's own default
 expect_identical(forestInfo(unstatedBT)$control.n.trees, 200L)
 expect_identical(refusalBT(keepcall = FALSE), "created")
-countTextBT <- sub("'n.trees'", "'ntree'", countText, fixed = TRUE)
+# bartBT() has no forests to state a count on, so its refusal ends with what
+# its caller can do
+countTextBT <- paste0(
+  "'ntree' given to the fitting function is the tree count of",
+  noPlain,
+  "leave it out, or fit with dbarts()"
+)
 expect_identical(refusalBT(ntree = 200L), countTextBT)
 expect_identical(refusalBT(ntree = 20L), countTextBT)
 expect_identical(refusalBT(ntr = 20L), countTextBT)
@@ -410,6 +416,15 @@ expect_error(
   countTextBT,
   fixed = TRUE
 )
+for (case in list(
+  list(power = 3, "'power' given to the fitting function is the tree prior of"),
+  list(k = 2, "'k' given to the fitting function is the leaf prior of")
+)) {
+  expect_identical(
+    do.call(refusalBT, case[1L]),
+    paste0(case[[2L]], noPlain, "leave it out, or fit with dbarts()")
+  )
+}
 statedBT <- list(
   list("power", "tree", power = 2),
   list("base", "tree", base = 0.95),
@@ -449,6 +464,50 @@ expect_identical(
 expect_identical(
   forestTable(do.call(onBartBT, c(list(list(NULL, dose)), statedOnBT))),
   tableOf(plainBT, multiplied)
+)
+
+# bart() given a data object has no forest to state them on either: the
+# refusal ends with what the caller can do, where a formula's and dbarts()'s
+# still say to state them on a forest
+onData <- allBasis[startsWith(allBasis, "bart(dbartsData")]
+expect_length(onData, 1L)
+leaveOut <- "leave it out, or fit with dbarts()"
+expect_identical(
+  refusal(onData, n.trees = 100L),
+  paste0(
+    "'n.trees' given to the fitting function is the tree count of",
+    noPlain,
+    leaveOut
+  )
+)
+expect_identical(
+  refusal(onData, control = "dbartsControl(n.trees = 75L)"),
+  paste0(
+    "the control's 'n.trees' is the tree count of",
+    noPlain,
+    "leave it out of dbartsControl(), or fit with dbarts()"
+  )
+)
+expect_identical(
+  refusal(onData, tree.prior = "cgm(3, 0.8)"),
+  paste0(
+    "'tree.prior' given to the fitting function is the tree prior of",
+    noPlain,
+    leaveOut
+  )
+)
+expect_identical(
+  refusal(onData, leaf.prior = "normal(k = 3)"),
+  paste0(
+    "'leaf.prior' given to the fitting function is the leaf prior of",
+    noPlain,
+    leaveOut
+  )
+)
+expect_identical(refusal(allBasis[2L], n.trees = 100L), countText)
+expect_identical(
+  refusal(allBasis[4L], control = "dbartsControl(n.trees = 75L)"),
+  controlText
 )
 
 ## --- Block D: no plain forest -----------------------------------------------

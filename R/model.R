@@ -1840,11 +1840,16 @@ plainForestArgNames <- list(
 ## caller gave, NULL for none, and `argNames` that function's names for the
 ## three. Returns, for each of "n.trees", "tree.prior" and "leaf.prior" that
 ## is stated, the name it was stated under, "control" for a count the control
-## states.
+## states. `remedy` says whether the fitting function can be told to state
+## these on a forest; where it cannot (bartBT() has no `forests` and refuses
+## forest() terms, and bart() given a data object has its bases from the
+## object) the value carries a "noForestRemedy" attribute, which the refusal
+## reads.
 plainForestStated <- function(
   control,
   written,
-  argNames = plainForestArgNames
+  argNames = plainForestArgNames,
+  remedy = TRUE
 ) {
   firstWritten <- function(names) {
     hits <- names[names %in% written]
@@ -1860,7 +1865,13 @@ plainForestStated <- function(
     tree.prior = firstWritten(argNames$tree.prior),
     leaf.prior = firstWritten(argNames$leaf.prior)
   )
-  if (is.null(stated)) character(0L) else stated
+  if (is.null(stated)) {
+    stated <- character(0L)
+  }
+  if (!remedy) {
+    attr(stated, "noForestRemedy") <- TRUE
+  }
+  stated
 }
 
 ## The refusal of what the fitting function states for the forest with no
@@ -1869,7 +1880,13 @@ plainForestStated <- function(
 ## belong to. In that order, the first one stated. `stated` is
 ## plainForestStated's value.
 refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
-  refuse <- function(subject, what, remedy) {
+  # where the fitting function cannot take an argument on a forest, the caller
+  # is told what it can do: leave the argument out, or fit with dbarts()
+  noRemedy <- isTRUE(attr(stated, "noForestRemedy", exact = TRUE))
+  refuse <- function(subject, what, remedy, leaveOut = "leave it out") {
+    if (noRemedy) {
+      remedy <- paste0(leaveOut, ", or fit with dbarts()")
+    }
     stop(
       subject,
       " is ",
@@ -1895,7 +1912,8 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
       paste0(
         "state a count on a forest, as forest(x1, basis = a, n.trees = 100)",
         if (fromControl) ", and leave it out of dbartsControl()"
-      )
+      ),
+      if (fromControl) "leave it out of dbartsControl()" else "leave it out"
     )
   }
   if ("tree.prior" %in% names(stated)) {

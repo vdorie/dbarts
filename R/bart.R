@@ -1220,7 +1220,8 @@ bart <- function(
   # control, for the sampler specification to read and take off.
   attr(control, plainStatedAttr) <- plainForestStated(
     suppliedControl,
-    c(names(matchedCall), shorthandSupplied)
+    c(names(matchedCall), shorthandSupplied),
+    remedy = !inherits(formula, "dbartsData")
   )
   # the retired flat spelling of the mixture wins over the control's slot, as
   # every other flat name does - unless the control's own call NAMED that slot,
@@ -3825,7 +3826,8 @@ bartBT <- function(
       n.trees = "ntree",
       tree.prior = c("power", "base", "splitprobs"),
       leaf.prior = "k"
-    )
+    ),
+    remedy = FALSE
   )
   matchedCall <- if (keepcall) match.call() else call("NULL")
   control@call <- expandForwardedCall(matchedCall, parent.frame())
