@@ -240,8 +240,9 @@ forest(
     saved forest carries its numbers with it. A variable that does not exist
     when \code{forest()} is called is not looked for later, and is refused.
     What R or an attached package supplies, a function such as \code{scale}
-    or a constant such as \code{pi}, is not copied: it is looked up when the
-    model is fitted. With no data frame, as with the matrix interface and
+    or a constant such as \code{pi}, is not copied: a basis that names a
+    column of \code{data} looks it up when the model is fitted. With no data
+    frame, as with the matrix interface and
     \code{\link{dbartsSpec}}, there is no column to name and every variable is
     yours.
 

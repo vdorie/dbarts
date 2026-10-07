@@ -108,8 +108,8 @@ A call of `forest()` is made by the caller, in a `forests` list or ahead of the 
   in the frames from the call's own up to the workspace, is copied when `forest()` is called
   ([`bindBasisAtCall`](../../R/forestBasis.R)), a number written beside a column included, so
   `for (k in c(10, 30)) forest(basis = I(dose / k))` gives each forest its own `k`, at the fit and at
-  `predict`. What R or an attached package supplies, `scale` or `pi`, is not copied and is looked up at the
-  fit.
+  `predict`. What R or an attached package supplies, `scale` or `pi`, is not copied: code that is read
+  against the data's columns looks it up at the fit.
 - A tilde written in place changes none of this: `forest(basis = ~ I(dose / k))` is read exactly as the same
   code without the tilde.
 
