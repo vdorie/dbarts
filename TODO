@@ -885,6 +885,11 @@ items
     part). Before the merge to main; the kept-draw store in the
     engine and the state's reader, after leaf-conversions, which
     works in the same store.
+  thread-default-one: where n.threads is not stated and
+    guessNumCores() is NA, the fit runs on one thread with no message,
+    at dbartsControl, bart, bartBT, rbart_vi and xbart; a stated NA
+    stays refused; the help for n.threads and guessNumCores says so
+    (dec-B306, revising dec-A163). R only; before the merge to main.
   setstate-force-update: setState takes forceUpdate, FALSE by
     default, in setPredictor's idiom: unforced it installs a state
     that goes in cleanly and returns TRUE, or leaves the sampler
