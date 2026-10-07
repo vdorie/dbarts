@@ -891,8 +891,8 @@ makeScenarios <- function() {
   )
 
   # an amplitude-coupled two-forest bart2 fit through the S12 term route
-  # (bart2-argument-consolidation.md section 5): the canonical
-  # `zf:forest(x1 + x2)` sugar declares a second forest, modulated by a
+  # (bart2-argument-consolidation.md section 5): the term
+  # `forest(x1 + x2, basis = ~ zf)` declares a second forest, modulated by a
   # 3-level factor's own indicator basis, alongside the main x1 + x2 forest -
   # the surface's only path to a K > 1 amplitude-coupled fit from bart2's
   # formula interface, and the B2 landing's own per-forest reporting channels
@@ -910,7 +910,7 @@ makeScenarios <- function() {
     rnorm(n.tf, sd = 0.3)
   result$bart2twoforest <- list(
     data = d.tf,
-    formula = y ~ x1 + x2 + zf:forest(x1 + x2),
+    formula = y ~ x1 + x2 + forest(x1 + x2, basis = ~zf),
     binary = FALSE,
     twoforestFit = TRUE
   )
@@ -1842,8 +1842,8 @@ fitViaBart2Probit <- function(scenario) {
 }
 
 # an amplitude-coupled two-forest bart2 fit through the S12 term route
-# (bart2-argument-consolidation.md section 5): the canonical `zf:forest(x1 +
-# x2)` sugar declares a second forest, modulated by a 3-level factor's own
+# (bart2-argument-consolidation.md section 5): the term `forest(x1 + x2,
+# basis = ~ zf)` declares a second forest, modulated by a 3-level factor's own
 # indicator basis (no reference dropped), alongside the main x1 + x2 forest -
 # the only path in this file to a K > 1 amplitude-coupled fit off bart2's
 # formula interface. Such a fit refuses test = by name (section 5.4), so

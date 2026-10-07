@@ -398,7 +398,10 @@ probeBart2 <- function(family, seed) {
   }
   if (family == "bcf") {
     df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L], z = d$z, y = d$y)
-    return(do.call(bart2, c(list(y ~ x1 + x2 + z:forest(x1 + x2), df), a())))
+    return(do.call(
+      bart2,
+      c(list(y ~ x1 + x2 + forest(x1 + x2, basis = ~z), df), a())
+    ))
   }
   args <- bart2Args(family, d)
   if (is.null(args)) {

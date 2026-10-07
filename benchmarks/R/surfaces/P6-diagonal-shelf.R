@@ -216,7 +216,7 @@ for (movesetName in names(movesets)) {
             bart2,
             movesetCall(
               list(
-                y ~ x1 + x2 + pihat + z:forest(x1 + x2 + pihat),
+                y ~ x1 + x2 + pihat + forest(x1 + x2 + pihat, basis = ~z),
                 data = augmented,
                 keepTrees = TRUE,
                 n.threads = 1L,
