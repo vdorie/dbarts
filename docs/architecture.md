@@ -63,7 +63,10 @@ basis, written as the right-hand side of a model formula, is read by
 [`buildCodeBasis`](../R/forestBasis.R) whichever way it was written, on the
 rows the data object keeps. The record that rebuilds a basis at new rows, R's
 own `terms`, rides the forests' configuration on the control
-(docs/design/written-surface.md).
+(docs/design/written-surface.md). A forest's default tree count and tree
+prior go by whether it has a basis, and the control's count and the model's
+tree prior hold the first forest's, which is where the bridge reads them
+(docs/design/forest-defaults-by-kind.md).
 
 The sampler lives in C++ and the R object holds an external pointer to it, a
 `bartcore::SamplerBase`. `src/bartcore/` is header-only: it compiles into

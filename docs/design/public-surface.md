@@ -555,9 +555,10 @@ and anchors: docs/design/bcf.md, "Public creation surface".
 `amplitude.prior.variance` and `amplitude`, every one defaulting to
 NULL - "not declared" - so an omitted knob takes the engine's default and a
 declaration colliding with a top-level argument of the same name refuses
-instead of silently winning. The FIRST forest's structural knobs restate the
-fit's own `control@n.trees`, `tree.prior`, `interactions` and `blocks` rather
-than adding a second set. `forests = NULL` is byte-identical to the
+instead of silently winning. The fit's own `control@n.trees`, `tree.prior`,
+`interactions` and `blocks` are those of the forest with no basis, wherever
+it stands, and a forest with a basis takes the multiplied forest's defaults
+(docs/design/forest-defaults-by-kind.md). `forests = NULL` is byte-identical to the
 single-forest path. The `treatment=` and `setTreatment`/`bcfGlue` spellings
 floated here never landed: the shipped mechanism is `dbartsData(bases = )`
 (47cdb96a), the K-length list this section opens with.

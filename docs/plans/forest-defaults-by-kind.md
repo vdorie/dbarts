@@ -443,7 +443,7 @@ z, and "the table" is each forest's count from the engine and its base and power
     assertions that the first written forest takes the control's 15. Turned around: nothing stated, both
     forests 50, 0.25, 3; the formula and the list of the two identical in draws; the terms swapped the
     same table and other draws; the control's 15 refused. 11 further assertions take a new expectation:
-    four pins of ["forest 2 needs a 'basis'"](../../inst/tinytest/test-bcf-creation.R) and its like take
+    four pins of the text "forest 2 needs a 'basis'", which is gone, and its like take
     the two-forests text and two become creations; three pins of "on the first forest" take the reworded
     text (two in test-bcf-creation.R, one in test-formula-terms.R); two pins of the eight numbers in
     test-bcf-creation.R expect forest 1's own count and prior in the first three. Run the suite first and
@@ -692,3 +692,28 @@ takes the fitting function's count.
 - The pair script and the swap law are run at landing and not tracked: one needs the base build, the
   other is a statistical run. What stays in the suite is step 1.2's identity between two spellings the
   slice accepts.
+- Rechecked on the landed tip of written-surface (2aabf1ef) before push 1 was built. Every symbol the steps
+  name stands and every rule holds; what moved is counts and three texts.
+  - The 44 creations that state a count are 44 still, every one a count and nothing else, in six files,
+    but test-forest-labels.R has one (a control naming 5) where test-forest-arguments.R had it: that
+    file's call sits inside a refusal and creates nothing. 49 held forests of the two shapes kept (17 with
+    no basis first, 31 of two indicator columns and one of two numeric columns second) and three swaps
+    that change a held forest's width, all in test-forest-arguments.R, as counted.
+  - `bart()` takes no `forests` list, so its doors are a formula and a data object.
+  - Pair 24 of the pair script, a held factor basis first, is a shape step 1.10 refuses; the pair was run
+    with the factor drawn.
+- Calls made in building push 1, beyond the steps.
+  - The refusal of a held basis of three or more columns says "every column but the first" at the second
+    place only and "every column" elsewhere, which is what the engine would hold there.
+  - The text for `blocks` gives its own example, `forest(x1 + x2, basis = a, blocks = blocks(list("x1",
+    "x2")))`: the one for `interactions` does not fit it.
+  - Two tree priors or two leaf priors named at once (`power` and `base`) are refused under the first.
+  - `$setControl` takes the control a sampler was created under where the first forest has a basis. The
+    stored control holds the first forest's count there, and a control with the caller's own count, or
+    none, was refused as changing `n.trees`, which the base build took.
+  - `print` reads the counts from the engine while the sampler's pointer is live and from the forests'
+    record after a reload.
+  - The count given twice at `bart()` is refused for a model of one forest too, where that forest is
+    written with `basis = NULL`.
+  - No test creates a model with the hold dropped for a basis of three columns: such a basis is refused
+    two slices on.

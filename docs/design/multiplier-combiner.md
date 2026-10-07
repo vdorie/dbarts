@@ -497,9 +497,8 @@ builds on the live s rather than on the swapped response's.
 
 **Two further facts about the shipped prior, both load-bearing.** Adaptivity
 is capped at one forest, for any K: `resolveForests`
-([`resolveForests`](../../R/model.R), refusal also in
-["needs a 'basis': the amplitudes multiplying it"](../../R/model.R)) requires every forest past the first to carry a
-basis, and `forestParams` writes the LITERAL `0` for `amplitudePriorScale`
+([`resolveForests`](../../R/model.R), [`plainForest`](../../R/model.R)) takes one forest with no basis at most,
+at any place, and `forestParams` writes the LITERAL `0` for `amplitudePriorScale`
 whenever a basis is present ([`forestParams`](../../R/model.R)), which the
 bridge carries into the forest's spec
 ([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)) - forests 2..K are
