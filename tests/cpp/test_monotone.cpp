@@ -850,45 +850,53 @@ using MonotoneFacade = SamplerFacade<MonotoneConstantGaussianLeaf>;
 // The data of the missing-value tests is f, a 4-level factor with no missing
 // value, x1 uniform and y rising in x1.
 const size_t arrivalRows = 400;
-const std::int8_t arrivalDirections[2] = {0, 1};
 const ColumnKind arrivalTypes[2] = {ColumnKind::categorical,
                                     ColumnKind::numeric};
 
-// The tree: x1, constrained increasing, cut once, and each half cut on f with
-// the partition {a, b} | {c, d} labelled the other way on the other half.
-// Leaves in pre-order: (low; a, b), (low; c, d), (high; c, d), (high; a, b).
-// Without missing values the order is two pairs, each (low; S) below
-// (high; S). Once f has a missing value it goes left at both f rules and
-// relates the two left leaves, (low; a, b) below (high; c, d).
+// The hand tree: x1, constrained, cut once, and each half cut on f with the
+// partition {a, b} | {c, d} labelled the other way on the other half. Leaves
+// in pre-order: (low; a, b), (low; c, d), (high; c, d), (high; a, b). Under
+// an increasing constraint and without missing values the order is two
+// pairs, each (low; S) below (high; S). Once f has a missing value it goes
+// left at both f rules and relates the two left leaves, (low; a, b) below
+// (high; c, d). A decreasing constraint mirrors the order, and the values.
 const double breaksWithMissing[4] = {0.05, -0.05, -0.04, 0.06};
 const double holdsEitherWay[4] = {-0.05, -0.06, 0.04, 0.06};
-const double resetToZero[4] = {0.0, 0.0, 0.0, 0.0};
-using ArrivalValues = std::vector<const double*>;
 
-// A sampler of one tree per chain over the data above, chain c seeded by c
-// and holding the tree with valuesByChain[c] at its leaves.
+// Which sampler: per chain whether its hand tree's values break once f has a
+// missing value, how many trees a chain has and which of them is the hand
+// tree, the others being single leaves, and the direction on x1.
+struct ArrivalShape {
+  std::vector<bool> breaks;
+  size_t numTrees = 1, at = 0;
+  std::int8_t direction = 1;
+};
+
+// A sampler of that shape over the data above, chain c seeded by c.
 struct Arrival {
+  ArrivalShape shape;
+  std::int8_t directions[2];
   std::vector<ext_rng*> rngs;
   std::unique_ptr<MonotoneFacade> facade;
   size_t numChains;
   double cut = 0.0;
 
   Arrival(const std::vector<double>& x, const std::vector<double>& y,
-          const ArrivalValues& valuesByChain)
-      : numChains(valuesByChain.size()) {
+          const ArrivalShape& s)
+      : shape(s), directions{0, s.direction}, numChains(s.breaks.size()) {
     for (size_t c = 0; c < numChains; ++c) {
       rngs.push_back(
           ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr));
       ext_rng_setSeed(rngs.back(), 20261001u + static_cast<std::uint32_t>(c));
     }
     SamplerOptions options;
-    options.numTrees = 1;
+    options.numTrees = shape.numTrees;
     options.numChains = numChains;
     options.numThreads = 1;
     options.birthOrDeathProbability = 1.0;
     options.swapProbability = 0.0;
     options.changeProbability = 0.0;
-    options.monotoneDirections = arrivalDirections;
+    options.monotoneDirections = directions;
     options.predictors.columnTypes = arrivalTypes;
     facade = std::make_unique<MonotoneFacade>(
         x.data(), y.data(), arrivalRows, size_t(2), nullptr, nullptr,
@@ -909,10 +917,10 @@ struct Arrival {
         rule.variable = 0;
         rule.mask = masks[half];
         setFlatKind(rule, FlatKind::categoricalInline);
-        flat[2 + 3 * half].value = valuesByChain[c][2 * half];
-        flat[3 + 3 * half].value = valuesByChain[c][2 * half + 1];
+        flat[2 + 3 * half].value = installed(c, 2 * half);
+        flat[3 + 3 * half].value = installed(c, 2 * half + 1);
       }
-      state.chains[c].forests[0].trees[0] = flat;
+      state.chains[c].forests[0].trees[shape.at] = flat;
     }
     check(sampler().setState(state, nullptr),
           "monotone missing arrives: the state installs");
@@ -923,20 +931,29 @@ struct Arrival {
 
   Sampler<MonotoneConstantGaussianLeaf>& sampler() { return facade->impl(); }
   bool factorHasMissing() { return sampler().data().hasMissing[0] != 0; }
-  // chain c's leaf values in pre-order
-  std::vector<double> leaves(size_t c) {
+  // the value installed at leaf k of chain c's hand tree
+  double installed(size_t c, size_t k) const {
+    return shape.direction *
+           (shape.breaks[c] ? breaksWithMissing : holdsEitherWay)[k];
+  }
+  // whether the leaves of chain c's hand tree are the installed values, or
+  // all zero
+  bool leavesAre(size_t c, bool zero) {
     std::vector<FlatNode> live;
     std::vector<std::uint32_t> counts;
-    sampler().flattenTree(c, 0, live, counts);
-    std::vector<double> out;
+    sampler().flattenTree(c, shape.at, live, counts);
+    size_t numLeaves = 0;
+    bool same = true;
     for (const FlatNode& node : live)
-      if (node.variable == invalidVariable) out.push_back(node.value);
-    return out;
+      if (node.variable == invalidVariable) {
+        same = same && numLeaves < 4 &&
+               node.value == (zero ? 0.0 : installed(c, numLeaves));
+        ++numLeaves;
+      }
+    return same && numLeaves == 4;
   }
-  bool leavesAre(size_t c, const double* values) {
-    std::vector<double> live = leaves(c);
-    return live.size() == 4 && std::equal(live.begin(), live.end(), values);
-  }
+  bool leavesKept(size_t c) { return leavesAre(c, false); }
+  bool leavesZero(size_t c) { return leavesAre(c, true); }
   void sweep(size_t numSweeps) {
     Results none;
     sampler().run(numSweeps, 0, none);
@@ -945,7 +962,7 @@ struct Arrival {
 
 // What of b differs from a among the things a refused update leaves alone,
 // or null: the codes, has-missing flags and cut grids, and per chain the
-// generator, the tree with its leaf values, the row-to-leaf map, the cached
+// generator, every tree with its leaf values and row-to-leaf map, the cached
 // fits and sigma. At tolerance 0 all of it bit for bit; a positive tolerance
 // is for the leaf values, fits and sigma alone. The order a leaf's rows are
 // held in is left out: a refusal re-routes twice and may leave another. Each
@@ -969,41 +986,43 @@ const char* arrivalDifference(Arrival& a, Arrival& b, double tolerance) {
     ext_rng_writeSerializedState(a.rngs[c], ga.data());
     ext_rng_writeSerializedState(b.rngs[c], gb.data());
     if (ga != gb) return "generator";
-    std::vector<FlatNode> fa, fb;
-    std::vector<std::uint32_t> counts;
-    sa.flattenTree(c, 0, fa, counts);
-    sb.flattenTree(c, 0, fb, counts);
-    if (fa.size() != fb.size()) return "tree";
-    for (size_t i = 0; i < fa.size(); ++i) {
-      bool leaf = fa[i].variable == invalidVariable;
-      if (fa[i].variable != fb[i].variable || fa[i].flags != fb[i].flags ||
-          (!leaf && fa[i].mask != fb[i].mask))
-        return "tree";
-      if (leaf && !same(fa[i].value, fb[i].value)) return "leaf values";
-    }
-    const std::uint32_t* la = TestPeer::leafOf(sa.chain(c), 0);
-    const std::uint32_t* lb = TestPeer::leafOf(sb.chain(c), 0);
-    if (std::memcmp(la, lb, n * sizeof(std::uint32_t)) != 0)
-      return "row-to-leaf map";
     const std::vector<double>& ta(TestPeer::totalFitsInForest(sa.chain(c), 0));
     const std::vector<double>& tb(TestPeer::totalFitsInForest(sb.chain(c), 0));
     for (size_t i = 0; i < n; ++i)
       if (!same(ta[i], tb[i])) return "fits";
     if (!same(sa.sigma(c), sb.sigma(c))) return "sigma";
-    for (int which = 0; which < 2; ++which) {
-      const Tree& tree = (which == 0 ? sa : sb).chain(c).tree(0);
-      const std::uint32_t* leaf = which == 0 ? la : lb;
-      std::vector<std::int32_t> bottoms;
-      tree.fillBottom(0, bottoms);
-      size_t numRows = 0;
-      for (std::int32_t bottom : bottoms) {
-        const Node& node(tree.at(bottom));
-        numRows += node.numObservations();
-        for (size_t m = node.begin; m < node.end; ++m)
-          if (leaf[tree.indices[m]] != static_cast<std::uint32_t>(bottom))
-            return "partition against its map";
+    for (size_t t = 0; t < a.shape.numTrees; ++t) {
+      std::vector<FlatNode> fa, fb;
+      std::vector<std::uint32_t> counts;
+      sa.flattenTree(c, t, fa, counts);
+      sb.flattenTree(c, t, fb, counts);
+      if (fa.size() != fb.size()) return "tree";
+      for (size_t i = 0; i < fa.size(); ++i) {
+        bool leaf = fa[i].variable == invalidVariable;
+        if (fa[i].variable != fb[i].variable || fa[i].flags != fb[i].flags ||
+            (!leaf && fa[i].mask != fb[i].mask))
+          return "tree";
+        if (leaf && !same(fa[i].value, fb[i].value)) return "leaf values";
       }
-      if (numRows != n) return "partition against its map";
+      const std::uint32_t* la = TestPeer::leafOf(sa.chain(c), t);
+      const std::uint32_t* lb = TestPeer::leafOf(sb.chain(c), t);
+      if (std::memcmp(la, lb, n * sizeof(std::uint32_t)) != 0)
+        return "row-to-leaf map";
+      for (int which = 0; which < 2; ++which) {
+        const Tree& tree = (which == 0 ? sa : sb).chain(c).tree(t);
+        const std::uint32_t* leaf = which == 0 ? la : lb;
+        std::vector<std::int32_t> bottoms;
+        tree.fillBottom(0, bottoms);
+        size_t numRows = 0;
+        for (std::int32_t bottom : bottoms) {
+          const Node& node(tree.at(bottom));
+          numRows += node.numObservations();
+          for (size_t m = node.begin; m < node.end; ++m)
+            if (leaf[tree.indices[m]] != static_cast<std::uint32_t>(bottom))
+              return "partition against its map";
+        }
+        if (numRows != n) return "partition against its map";
+      }
     }
   }
   return nullptr;
@@ -1048,6 +1067,8 @@ size_t countTrue(const bool* flags, size_t n) {
 // by row, where each row bringing the value is refused and the others
 // install. Where the values stay in order it is accepted and they are kept.
 // Forced, and through setData, it is taken and such a tree is set to zero.
+// The tree is a chain's only one, or one of three and not the first, in every
+// chain or the second alone, under either direction.
 static void testMonotoneMissingArrives() {
   const double na = std::numeric_limits<double>::quiet_NaN();
   const size_t n = arrivalRows;
@@ -1065,8 +1086,8 @@ static void testMonotoneMissingArrives() {
   // `second` is another such row and `moved` a row whose level changes
   size_t row = n, second = n, moved = n;
   {
-    Arrival probe(x, y, {breaksWithMissing});
-    check(probe.leavesAre(0, breaksWithMissing) && !probe.factorHasMissing(),
+    Arrival probe(x, y, {{true}});
+    check(probe.leavesKept(0) && !probe.factorHasMissing(),
           "monotone missing arrives: in order without missing values");
     for (size_t i = 0; i < n; ++i) {
       bool moves = x[n + i] > probe.cut && x[i] < 2.0;
@@ -1125,23 +1146,27 @@ static void testMonotoneMissingArrives() {
     return result;
   };
 
-  // every chain out of order once f has a missing value, the second chain
-  // alone, and every chain in order either way
-  const ArrivalValues layouts[5] = {{breaksWithMissing},
-                                    {breaksWithMissing, breaksWithMissing},
-                                    {holdsEitherWay, breaksWithMissing},
-                                    {holdsEitherWay},
-                                    {holdsEitherWay, holdsEitherWay}};
-  static const char* const layoutNames[5] = {
-      "one chain", "two chains", "the second chain alone",
-      "in order, one chain", "in order, two chains"};
+  // out of order once f has a missing value in every chain or the second
+  // alone, and in order either way; three trees with the hand tree second or
+  // last where a check of a chain's first tree alone would pass
+  struct Layout {
+    const char* name;
+    ArrivalShape shape;
+  };
+  const Layout layouts[5] = {
+      {"one chain", {{true}}},
+      {"two chains of three trees", {{true, true}, 3, 1}},
+      {"the second chain alone, decreasing", {{false, true}, 3, 2, -1}},
+      {"in order, one chain", {{false}}},
+      {"in order, two chains, decreasing", {{false, false}, 3, 1, -1}}};
   int numRefused = 0, numAccepted = 0, numForced = 0;
-  for (int l = 0; l < 5; ++l) {
-    const ArrivalValues& values = layouts[l];
-    bool breaks = l < 3;
+  for (const Layout& layout : layouts) {
+    const ArrivalShape& shape = layout.shape;
+    size_t numChains = shape.breaks.size();
+    bool breaks = std::count(shape.breaks.begin(), shape.breaks.end(), true);
     for (int form = 0; form < 5; ++form) {
-      std::string label = std::string(layoutNames[l]) + unforcedForms[form];
-      Arrival s(x, y, values), twin(x, y, values);
+      std::string label = std::string(layout.name) + unforcedForms[form];
+      Arrival s(x, y, shape), twin(x, y, shape);
       std::vector<double> cutsBefore(s.sampler().data().cutPoints[1]);
       bool valid;
       PredictorUpdateResult result =
@@ -1152,8 +1177,7 @@ static void testMonotoneMissingArrives() {
                     (form < 4 || countTrue(installed.get(), n) == n),
                 label, "accepted");
         bool kept = s.factorHasMissing();
-        for (size_t c = 0; c < values.size(); ++c)
-          kept = kept && s.leavesAre(c, holdsEitherWay);
+        for (size_t c = 0; c < numChains; ++c) kept = kept && s.leavesKept(c);
         checkAt(kept, label, "the values are kept and the flag is set");
         // the refresh the refused forms roll back is one that moves the grid
         if (form == 2 || form == 3)
@@ -1185,8 +1209,8 @@ static void testMonotoneMissingArrives() {
     for (int form = 0; form < 3; ++form) {
       static const char* const forms[3] = {", forced whole matrix",
                                            ", forced by column", ", setData"};
-      std::string label = std::string(layoutNames[l]) + forms[form];
-      Arrival s(x, y, values);
+      std::string label = std::string(layout.name) + forms[form];
+      Arrival s(x, y, shape);
       auto& sampler = s.sampler();
       bool taken;
       if (form == 0)
@@ -1201,10 +1225,8 @@ static void testMonotoneMissingArrives() {
                                 nullptr, nullptr, 0);
       checkAt(taken && s.factorHasMissing(), label, "taken");
       bool reset = true;
-      for (size_t c = 0; c < values.size(); ++c)
-        reset = reset && s.leavesAre(c, values[c] == breaksWithMissing
-                                            ? resetToZero
-                                            : holdsEitherWay);
+      for (size_t c = 0; c < numChains; ++c)
+        reset = reset && (shape.breaks[c] ? s.leavesZero(c) : s.leavesKept(c));
       checkAt(reset, label, "a tree left out of order is zero, another kept");
       ++numForced;
     }
@@ -1216,9 +1238,8 @@ static void testMonotoneMissingArrives() {
     std::string label = first == 0 ? "jointly, the sampler in order first"
                                    : "jointly, the sampler in order second";
     const size_t columns[2] = {0, 0};
-    Arrival held(x, y, {holdsEitherWay}), broken(x, y, {breaksWithMissing});
-    Arrival heldTwin(x, y, {holdsEitherWay}),
-        brokenTwin(x, y, {breaksWithMissing});
+    Arrival held(x, y, {{false}}), broken(x, y, {{true}});
+    Arrival heldTwin(x, y, {{false}}), brokenTwin(x, y, {{true}});
     SamplerBase* samplers[2] = {held.facade.get(), broken.facade.get()};
     SamplerBase* twins[2] = {heldTwin.facade.get(), brokenTwin.facade.get()};
     if (first == 1) {
@@ -1245,7 +1266,7 @@ static void testMonotoneMissingArrives() {
   for (int form : {0, 1, 4}) {
     std::string label =
         std::string("a second missing value") + unforcedForms[form];
-    Arrival s(alreadyMissing, y, {holdsEitherWay, holdsEitherWay});
+    Arrival s(alreadyMissing, y, {{false, false}});
     checkAt(s.factorHasMissing(), label, "the column holds one from the start");
     bool valid;
     bool accepted = update(s, form, &valid, anotherMissing.data(),
@@ -1253,8 +1274,7 @@ static void testMonotoneMissingArrives() {
                         PredictorUpdateResult::accepted &&
                     valid && (form < 4 || countTrue(installed.get(), n) == n);
     bool kept = s.sampler().data().codeAt(0, row) == missingCategoryCode(4) &&
-                s.leavesAre(0, holdsEitherWay) &&
-                s.leavesAre(1, holdsEitherWay);
+                s.leavesKept(0) && s.leavesKept(1);
     checkAt(accepted && kept, label, "accepted, the values kept");
     ++numAccepted;
   }
