@@ -703,3 +703,173 @@ expect_true(all(slopes(grown) == 0))
 expect_true(worstGap(before, liveMatrix(grown)) < tolerance)
 expect_true(worstGap(kept, grown$predict(x.fresh)) < tolerance)
 expect_true(nextDrawsWithin(grown, range(y.more)))
+
+## --- 7. gp leaves that hold kept draws --------------------------------------
+## A kept gp draw replays only under the centre, scale, lengthscale and
+## response range it was drawn with, and nothing can rewrite it. A gp sampler
+## that holds one refuses setData, and setResponse and setOffset with
+## updateScale = TRUE, whatever the new values are. All were accepted: a
+## response of 3 y + 10 returned the kept draws as 3 f + 10, and one of twice
+## the spread about the same midpoint doubled them about it.
+gpControl <- function(...) control(n.burn = 20L, n.samples = 3L, ...)
+gpSampler <- function(response = y, ..., keepTrees = TRUE) {
+  dbarts(
+    x,
+    response,
+    ...,
+    control = gpControl(keepTrees = keepTrees),
+    leaf.prior = gp(columns = 2L)
+  )
+}
+# everything a refused call could have touched: the engine's state, the data
+# object, the model with its recorded range, the control, the kept draws
+held <- function(sampler) {
+  sampler$storeState()
+  list(
+    state = sampler$state,
+    data = sampler$data,
+    model = sampler$model,
+    control = sampler$control,
+    kept = keptDraws(sampler)
+  )
+}
+refusedData <- paste0(
+  "$setData: 'newData' cannot replace the data of a sampler with gp leaves ",
+  "that holds saved draws: a saved gp draw replays only under the covariate ",
+  "standardization and response range it was drawn with; make a new sampler ",
+  "instead"
+)
+refusedScale <- function(caller) {
+  paste0(
+    caller,
+    ": 'updateScale' cannot be TRUE for a sampler with gp leaves that holds ",
+    "saved draws: a saved gp draw replays only under the response range it ",
+    "was drawn with; make a new sampler, or call without ",
+    "'updateScale = TRUE'"
+  )
+}
+midpoint <- mean(range(y))
+y.binary <- as.double(y > median(y))
+refusing <- list(
+  gaussian = list(
+    make = function() gpSampler(),
+    responses = list(
+      "another range" = y.moved,
+      "the same midpoint, twice the spread" = midpoint + 2 * (y - midpoint),
+      "the response in force" = y
+    ),
+    data = list(dbartsData(x.stretched, y), dbartsData(x, y))
+  ),
+  probit = list(
+    make = function() gpSampler(y.binary, family = "probit"),
+    responses = list("flipped" = 1 - y.binary, "in force" = y.binary),
+    data = list(dbartsData(x, y.binary))
+  )
+)
+offsets <- list(
+  "another range" = -5 + x[, 1L],
+  "a constant" = rep(2, n),
+  "zero" = numeric(n),
+  "none" = NULL
+)
+for (kind in names(refusing)) {
+  sampler <- refusing[[kind]]$make()
+  invisible(sampler$run())
+  before <- held(sampler)
+  for (data in refusing[[kind]]$data) {
+    expect_error(sampler$setData(data), refusedData, fixed = TRUE, info = kind)
+    expect_identical(held(sampler), before, info = kind)
+  }
+  responses <- refusing[[kind]]$responses
+  for (onto in names(responses)) {
+    info <- paste(kind, "setResponse onto", onto)
+    expect_error(
+      sampler$setResponse(responses[[onto]], updateScale = TRUE),
+      refusedScale("$setResponse"),
+      fixed = TRUE,
+      info = info
+    )
+    expect_identical(held(sampler), before, info = info)
+  }
+  for (onto in names(offsets)) {
+    info <- paste(kind, "setOffset onto", onto)
+    expect_error(
+      sampler$setOffset(offsets[[onto]], updateScale = TRUE),
+      refusedScale("$setOffset"),
+      fixed = TRUE,
+      info = info
+    )
+    expect_identical(held(sampler), before, info = info)
+  }
+  # and the sampler runs on from where it was
+  expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = kind)
+}
+
+# holding the range is served as before, the kept draws untouched
+sampler <- gpSampler()
+invisible(sampler$run())
+before <- keptDraws(sampler)
+sampler$setResponse(y + 1)
+expect_identical(keptDraws(sampler), before)
+sampler$setResponse(y + 2, updateScale = FALSE)
+expect_identical(keptDraws(sampler), before)
+sampler$setOffset(rep(1, n))
+expect_identical(keptDraws(sampler), before)
+sampler$setOffset(NULL, updateScale = FALSE)
+expect_identical(keptDraws(sampler), before)
+# and so are the predictor calls, which name what they change
+expect_true(sampler$setPredictor(x[, 1L] / 2, 1L, forceUpdate = TRUE))
+sampler$setCutPoints(seq(0.1, 0.4, by = 0.1), 1L)
+expect_identical(dim(sampler$predict(x.new)), c(40L, 3L, 2L))
+expect_true(all(is.finite(sampler$run(0L, 2L)$train)))
+
+# with nothing kept every one of the calls is served: trees not kept, trees
+# kept and nothing run, kept draws dropped by a warm start
+gp.seed <- gpSampler()
+invisible(gp.seed$run())
+unkept <- list(
+  "trees not kept" = function() {
+    sampler <- gpSampler(keepTrees = FALSE)
+    invisible(sampler$run())
+    sampler
+  },
+  "nothing run" = function() gpSampler(),
+  "dropped by a warm start" = function() {
+    sampler <- gpSampler()
+    invisible(sampler$run())
+    sampler$installTrees(gp.seed)
+    sampler
+  }
+)
+for (kind in names(unkept)) {
+  sampler <- unkept[[kind]]()
+  live <- liveFits(sampler)
+  expect_silent(sampler$setResponse(y.moved, updateScale = TRUE), info = kind)
+  # the live fit follows the new range, as it always did
+  expect_true(max(abs(liveFits(sampler) - (3 * live + 10))) < 1e-10, kind)
+  expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = kind)
+
+  sampler <- unkept[[kind]]()
+  live <- liveFits(sampler)
+  expect_silent(sampler$setOffset(rep(-5, n), updateScale = TRUE), info = kind)
+  expect_true(max(abs(liveFits(sampler) - (live + 5))) < 1e-10, info = kind)
+
+  sampler <- unkept[[kind]]()
+  expect_silent(sampler$setData(dbartsData(x.stretched, y.moved)), info = kind)
+  expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = kind)
+}
+
+# a linear leaf's kept draws are rewritten (sections 2 and 3), so a linear
+# sampler holding them takes all three calls
+sampler <- dbarts(
+  x,
+  y,
+  leaf.prior = linear(columns = 2L),
+  control = gpControl()
+)
+invisible(sampler$run())
+before <- keptDraws(sampler)
+expect_silent(sampler$setResponse(y.moved, updateScale = TRUE))
+expect_silent(sampler$setOffset(rep(-5, n), updateScale = TRUE))
+expect_silent(sampler$setData(dbartsData(x.stretched, y.moved)))
+expect_true(worstGap(before, keptDraws(sampler)) < 1e-12)

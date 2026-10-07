@@ -451,6 +451,24 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
                                        ResponseConduit conduit,
                                        int updateScale);
 
+/// True for a sampler with Gaussian-process leaves whose store holds at least
+/// one saved draw. Such a draw is a set of kernel weights with no mean term:
+/// it replays only under the covariate standardization and response range it
+/// was drawn with, and nothing can restate it under another. A store that
+/// keeps trees and has recorded none, or one a warm start emptied, is not
+/// such a sampler.
+bool holdsSavedGPDraws(const bartcore::SamplerShape& shape);
+
+/// Errors on a sampler that holdsSavedGPDraws and is asked to re-derive its
+/// response range (any updateScale but an explicit FALSE), whatever the new
+/// response or offset and whatever the family: a refusal that read the values
+/// would pass one call and stop the next identical one a sweep later. Raised
+/// before a value is read, so the sampler and its saved draws are untouched.
+/// Both the R bridge and the flat C API guard with this, beside
+/// refuseMultiForestResponseMutation. caller labels the error.
+void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
+                               const char* caller, int updateScale);
+
 /// Errors on a weight vector its family cannot carry: probit outright (a
 /// weighted probit has no tractable latent-variable form; the R layer resolves
 /// a probit or ordinal vector of 0s and 1s to an active-row mask before it

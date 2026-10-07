@@ -50,6 +50,7 @@ using bartcore_bridge::refuseMultiForestResponseMutation;
 using bartcore_bridge::refuseMultiForestWarmStart;
 using bartcore_bridge::refuseNonBinaryMask;
 using bartcore_bridge::refusePinnedSigmaChange;
+using bartcore_bridge::refuseSavedGPDrawReanchor;
 using bartcore_bridge::refuseSparseLeafCovariate;
 using bartcore_bridge::UnwindJump;
 using bartcore_bridge::ResponseConduit;
@@ -3135,6 +3136,29 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
              conduit == ResponseConduit::response ? "a response" : "an offset");
 }
 
+// A saved gp draw is a set of kernel weights: it has no
+// mean term a new response shift could be carried into and no record of the
+// centre, scale or lengthscale it replays under, so the conversions every
+// other leaf model's saved draws get have nothing to act on. The refusal is
+// blind to the values and to the family - a probit sampler, which has no
+// range to re-derive, is refused as well - because a rule that passed the
+// re-anchors leaving the midpoint alone would let one line of calling code
+// through on one sweep and stop it on the next.
+// External linkage: the flat C API guards its setResponse and setOffset
+// entries with the same call.
+bool holdsSavedGPDraws(const bartcore::SamplerShape& shape) {
+  return shape.usesFunctionLeaves && shape.numSavedDraws > 0;
+}
+
+void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
+                               const char* caller, int updateScale) {
+  if (updateScale == FALSE || !holdsSavedGPDraws(sampler.shape())) return;
+  Rf_error("%s: 'updateScale' cannot be TRUE for a sampler with gp leaves "
+           "that holds saved draws: a saved gp draw replays only under the "
+           "response range it was drawn with; make a new sampler, or call "
+           "without 'updateScale = TRUE'", caller);
+}
+
 // The weight policy, stated once for creation and every mutation conduit: a
 // probit has no tractable weighted latent-variable form and is refused - the
 // R layer resolves a probit or ordinal vector of 0s and 1s to an active-row
@@ -5420,6 +5444,7 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   int updateScale = Rf_asLogical(updateScaleExpr);
   refuseMultiForestResponseMutation(*holder.sampler, "$setOffset",
                                     ResponseConduit::offset, updateScale);
+  refuseSavedGPDrawReanchor(*holder.sampler, "$setOffset", updateScale);
   if (!Rf_isNull(offsetExpr) &&
       (!Rf_isReal(offsetExpr) ||
        static_cast<size_t>(Rf_xlength(offsetExpr)) != shape.numObservations))
@@ -5444,6 +5469,7 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   int updateScale = Rf_asLogical(updateScaleExpr);
   refuseMultiForestResponseMutation(*holder.sampler, "$setResponse",
                                     ResponseConduit::response, updateScale);
+  refuseSavedGPDrawReanchor(*holder.sampler, "$setResponse", updateScale);
   if (!Rf_isReal(yExpr) ||
       static_cast<size_t>(Rf_xlength(yExpr)) != shape.numObservations)
     Rf_error("y must be of length equal to %lu",
@@ -5490,6 +5516,13 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
              "on the whole-data conduit, whose replacement may change the "
              "number of observations the status is stated over; change the "
              "censoring with setResponse(y, status = ) instead");
+  // the whole-data conduit always re-derives the covariate standardization
+  // and the response range, and has no argument that holds either
+  if (bartcore_bridge::holdsSavedGPDraws(shape))
+    Rf_error("$setData: 'newData' cannot replace the data of a sampler with "
+             "gp leaves that holds saved draws: a saved gp draw replays only "
+             "under the covariate standardization and response range it was "
+             "drawn with; make a new sampler instead");
 
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("$setData: 'data' is not of class 'dbartsData'");

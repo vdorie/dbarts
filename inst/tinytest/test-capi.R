@@ -1245,6 +1245,65 @@ finiteRun <- specFinite$run(0L, 2L)
 expect_true(all(is.finite(finiteRun$sigma)))
 rm(specFinite, ptrFinite, finiteRun)
 
+# a sampler with gp leaves that holds saved draws refuses a re-derived range
+# on both flat conduits, by an R error naming the entry and before anything is
+# read; holding the range answers 1 and leaves the saved draws as they were
+specKernel <- dbarts(
+  x,
+  y,
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 8L,
+    n.samples = 3L,
+    n.burn = 10L,
+    keepTrees = TRUE,
+    updateState = FALSE,
+    seed = 99L
+  ),
+  leaf.prior = gp(columns = 2L)
+)
+invisible(specKernel$run())
+ptrKernel <- specKernel$getPointer()
+kernelDraws <- specKernel$predict(x.test)
+refusedKernel <- function(entry) {
+  paste0(
+    entry,
+    ": 'updateScale' cannot be TRUE for a sampler with gp leaves that holds ",
+    "saved draws: a saved gp draw replays only under the response range it ",
+    "was drawn with; make a new sampler, or call without ",
+    "'updateScale = TRUE'"
+  )
+}
+expect_error(
+  CALL("capi_set_response", ptrKernel, 3 * y + 10, TRUE),
+  refusedKernel("dbarts_sampler_setResponse"),
+  fixed = TRUE
+)
+expect_error(
+  CALL("capi_set_offset", ptrKernel, rep(-5, n), TRUE),
+  refusedKernel("dbarts_sampler_setOffset"),
+  fixed = TRUE
+)
+expect_error(
+  CALL("capi_set_offset", ptrKernel, NULL, TRUE),
+  refusedKernel("dbarts_sampler_setOffset"),
+  fixed = TRUE
+)
+expect_identical(specKernel$predict(x.test), kernelDraws)
+expect_equal(CALL("capi_set_response", ptrKernel, y + 1, FALSE), 1L)
+expect_identical(specKernel$predict(x.test), kernelDraws)
+expect_equal(CALL("capi_set_offset", ptrKernel, rep(1, n), FALSE), 1L)
+expect_identical(specKernel$predict(x.test), kernelDraws)
+expect_equal(CALL("capi_set_offset", ptrKernel, NULL, FALSE), 1L)
+expect_identical(specKernel$predict(x.test), kernelDraws)
+# with nothing saved the same entries take the re-derived range
+specBare <- dbarts(x, y, control = control, leaf.prior = gp(columns = 2L))
+ptrBare <- specBare$getPointer()
+expect_equal(CALL("capi_set_response", ptrBare, 3 * y + 10, TRUE), 1L)
+expect_equal(CALL("capi_set_offset", ptrBare, rep(-5, n), TRUE), 1L)
+rm(specKernel, ptrKernel, kernelDraws, refusedKernel, specBare, ptrBare)
+
 # a store too large to hold raises from the flat setter rather than aborting,
 # and leaves the store at its previous capacity
 specStorage <- dbarts(x, y, control = control)
