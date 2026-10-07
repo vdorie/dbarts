@@ -1280,11 +1280,18 @@ bart <- function(
   if (family == "multinomial") {
     # a K-forest softmax has no amplitude-coupled slot for a forest() term to
     # declare; caught here since multinomial never reaches the shared
-    # dbarts() ingestion (R/formulaTerms.R) that catches every other family
+    # dbarts() ingestion (R/formulaTerms.R) that catches every other family.
+    # One forest() with its predictors and nothing else is those predictors
+    # written plainly, and is read so
     if (formulaHasForestTerm(formula)) {
-      stop(
-        "family = \"multinomial\" does not support a forest() formula term"
-      )
+      plainFormula <- loneForestFormula(formula)
+      if (is.null(plainFormula)) {
+        stop(
+          "family = \"multinomial\" does not support a forest() formula term"
+        )
+      }
+      formula <- plainFormula
+      matchedCall$formula <- plainFormula
     }
     if (!missing(weights)) {
       stop(

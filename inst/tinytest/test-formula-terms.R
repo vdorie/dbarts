@@ -65,8 +65,22 @@ refuses <- function(formula, pattern, ..., fixed = TRUE) {
     info = deparse(formula)
   )
 }
-forestInfo <- function(result) attr(result$fit$control, "bartcore.forests")
+forestInfo <- function(result) {
+  attr(result$fit$control, "bartcore.forests", exact = TRUE)
+}
 predictors <- function(result) colnames(result$fit$data@x)
+# the terms a fit stores, which predict reads new rows by
+storedTerms <- function(result) attr(result$fit$data@x, "terms")
+storedFormula <- function(result) {
+  paste(deparse(stats::formula(storedTerms(result))), collapse = " ")
+}
+# the design without the terms it was built from: two spellings of one model
+# may write those differently
+design <- function(result) {
+  x <- result$fit$data@x
+  attr(x, "terms") <- NULL
+  x
+}
 # the columns each forest splits on, by name; every column where unrestricted
 splitsOn <- function(result) {
   lapply(forestInfo(result)$vars, function(columns) {
@@ -85,7 +99,12 @@ expectSameForest <- function(formulaA, formulaB, ...) {
   fitB <- fit(formulaB, ...)
   info <- paste(deparse(formulaA), "against", deparse(formulaB))
   # nolint start: object_usage_linter. tinytest attaches expect_* at run time.
-  expect_identical(fitA$fit$data@x, fitB$fit$data@x, info = info)
+  expect_identical(design(fitA), design(fitB), info = info)
+  expect_identical(
+    attr(storedTerms(fitA), "term.labels"),
+    attr(storedTerms(fitB), "term.labels"),
+    info = info
+  )
   expect_identical(fitA$fit$data@bases, fitB$fit$data@bases, info = info)
   expect_identical(forestInfo(fitA), forestInfo(fitB), info = info)
   expect_identical(fitA$yhat.train, fitB$yhat.train, info = info)
@@ -129,23 +148,41 @@ expect_silent(dbarts::bart(
 
 ## --- Block B: a forest() is a top-level term --------------------------------
 # a forest() crossed with another term, either way round and by ':' or '*', is
-# refused with the forest() to write in its place
+# refused with the forest() to write in its place; what it says to write is
+# the model the crossing stood for, a column for each member of a sum
+indicators <- function(f) outer(as.integer(f), seq_len(nlevels(f)), "==") * 1
 crossed <- list(
-  list(y ~ x1 + x2 + z:forest(x1 + x2), "forest(x1 + x2, basis = ~ z)"),
-  list(y ~ x1 + x2 + forest(x1 + x2):z, "forest(x1 + x2, basis = ~ z)"),
-  list(y ~ x1 + x2 + zf:forest(x1 + x2), "forest(x1 + x2, basis = ~ zf)"),
+  list(y ~ x1 + x2 + z:forest(x1 + x2), "forest(x1 + x2, basis = ~ z)", z),
+  list(y ~ x1 + x2 + forest(x1 + x2):z, "forest(x1 + x2, basis = ~ z)", z),
+  list(
+    y ~ x1 + x2 + zf:forest(x1 + x2),
+    "forest(x1 + x2, basis = ~ zf)",
+    indicators(zf)
+  ),
   list(
     y ~ x1 + x2 + factor(z):forest(x1 + x2),
-    "forest(x1 + x2, basis = ~ factor(z))"
+    "forest(x1 + x2, basis = ~ factor(z))",
+    indicators(factor(z))
   ),
   list(
     y ~ x1 + x2 + (a + b):forest(x1, sd = 2),
-    "forest(x1, sd = 2, basis = ~ cbind(a, b))"
+    "forest(x1, sd = 2, basis = ~ cbind(a, b))",
+    cbind(a, b)
   ),
-  list(y ~ x1 + x2 + z * forest(x1 + x2), "forest(x1 + x2, basis = ~ z)"),
-  list(y ~ x1 + x2 + forest(x1) * z, "forest(x1, basis = ~ z)"),
-  list(y ~ x1 + x2 + scale(a):forest(x1), "forest(x1, basis = ~ scale(a))"),
-  list(y ~ x1 + x2 + z:forest(), "forest(basis = ~ z)")
+  list(
+    y ~ x1 + x2 + (log(a) + b + x3):forest(x1),
+    "forest(x1, basis = ~ cbind(log(a), b, x3))",
+    cbind(log(a), b, x3)
+  ),
+  list(y ~ x1 + x2 + z * forest(x1 + x2), "forest(x1 + x2, basis = ~ z)", z),
+  list(y ~ x1 + x2 + forest(x1) * z, "forest(x1, basis = ~ z)", z),
+  list(
+    y ~ x1 + x2 + scale(a):forest(x1),
+    "forest(x1, basis = ~ scale(a))",
+    scale(a)
+  ),
+  list(y ~ x1 + x2 + (z):forest(x1), "forest(x1, basis = ~ z)", z),
+  list(y ~ x1 + x2 + z:forest(), "forest(basis = ~ z)", z)
 )
 for (case in crossed) {
   refuses(
@@ -156,7 +193,31 @@ for (case in crossed) {
       case[[2L]]
     )
   )
+  rewritten <- fit(stats::as.formula(paste("y ~ x1 + x2 +", case[[2L]])))
+  expect_equal(
+    rewritten$fit$data@bases[[2L]],
+    matrix(as.double(case[[3L]]), n),
+    check.attributes = FALSE,
+    info = case[[2L]]
+  )
 }
+# a sum with a member that is no column of numbers has no one basis to write:
+# a factor() call, a factor column, a character column
+for (formula in list(
+  y ~ x1 + x2 + (a + factor(z)):forest(x1),
+  y ~ x1 + x2 + (a + zf):forest(x1),
+  y ~ x1 + x2 + (g + a):forest(x1)
+)) {
+  refuses(
+    formula,
+    paste0(
+      "forest(x1)': a forest() is not crossed with another term; a forest's ",
+      "multiplier is its 'basis' argument, as forest(x1 + x2, basis = ~ z)"
+    )
+  )
+}
+# and beside bart()'s own n.trees the crossing is still what is refused
+refuses(y ~ x1 + x2 + (a + zf):forest(x1, n.trees = 4L), "is not crossed with")
 # the crossing is quoted as written
 refuses(y ~ x1 + x2 + z:forest(x1 + x2), "'z:forest(x1 + x2)': a forest() is")
 # at any depth, ahead of where the crossing itself stands
@@ -207,8 +268,20 @@ refuses(
   "top-level additive term, not inside 'x1 + x2 - forest(x1, basis = ~z)'"
 )
 refuses(forest(x1) ~ x2, "left-hand side")
-# the term grammar names forest only, so a dbarts::-qualified head is not a
-# term
+# the constructor as it is written outside the arguments that resolve it is
+# the same term
+for (formula in list(
+  y ~ dbartsForests$forest(x1 + x2) + forest(x1, basis = ~z),
+  y ~ forest(x1 + x2) + dbarts::dbartsForests$forest(x1, basis = ~z),
+  y ~ dbarts:::forest(x1 + x2) + dbarts:::dbartsForests$forest(x1, basis = ~z)
+)) {
+  expectSameForest(formula, y ~ x1 + x2 + forest(x1, basis = ~z))
+}
+refuses(
+  y ~ x1 + x2 + z:dbartsForests$forest(x1),
+  "write forest(x1, basis = ~ z)"
+)
+# forest() is not exported, so a dbarts::-qualified head is no term
 expect_error(
   fit(y ~ x1 + x2 + dbarts::forest(x1 + x2, basis = ~z)),
   "not an exported object"
@@ -227,6 +300,20 @@ placements <- list(
 reference <- fit(y ~ x1 + x2 + offset(o) + forest(x1, basis = ~z))
 expect_identical(reference$fit$data@offset, o)
 expect_identical(splitsOn(reference), list(c("x1", "x2"), "x1"))
+# the fit's stored terms carry the intercept term, wherever it is written
+expect_identical(attr(storedTerms(reference), "intercept"), 1L)
+expect_identical(
+  vapply(
+    placements,
+    function(formula) attr(storedTerms(fit(formula)), "intercept"),
+    0L
+  ),
+  c(1L, 1L, 1L, 0L, 0L, 0L)
+)
+expect_identical(
+  storedFormula(fit(y ~ forest(x1 + x2) + forest(x1, basis = ~z) - 1)),
+  "~x1 + x2 - 1"
+)
 for (formula in placements) {
   placed <- fit(formula)
   expect_identical(predictors(placed), c("x1", "x2"), info = deparse(formula))
@@ -318,6 +405,70 @@ dotBrings <- fit(y ~ x1 + forest(. - z, basis = ~z), data = small)
 expect_identical(predictors(dotBrings), c("x1", "x2", "x3"))
 expect_identical(splitsOn(dotBrings), list("x1", c("x1", "x2", "x3")))
 
+# a removal at the top of the formula is the fit's, as - 1 is, wherever it
+# stands among the forests: no forest splits on the term
+removedAfter <- expectSameForest(
+  y ~ forest(.) + forest(x1, basis = ~z) - z,
+  y ~ . - z + forest(x1, basis = ~z),
+  data = small
+)
+expect_identical(predictors(removedAfter), c("x1", "x2", "x3"))
+expect_identical(splitsOn(removedAfter), list(c("x1", "x2", "x3"), "x1"))
+expectSameForest(
+  y ~ . + forest(x1, basis = ~z) - z,
+  y ~ . - z + forest(x1, basis = ~z),
+  data = small
+)
+removedFromBoth <- expectSameForest(
+  y ~ forest(x1 + x2 + x3) + forest(x1 + x3, basis = ~z) - x3,
+  y ~ x1 + x2 + forest(x1, basis = ~z)
+)
+expect_identical(splitsOn(removedFromBoth), list(c("x1", "x2"), "x1"))
+removedAlone <- fit(y ~ forest(x1 + x2) - x2)
+expect_identical(predictors(removedAlone), "x1")
+expect_identical(removedAlone$yhat.train, fit(y ~ x1)$yhat.train)
+# and a forest left with nothing is refused
+refuses(
+  y ~ x1 + x2 + forest(x3, basis = ~z) - x3,
+  paste0(
+    "'forest(x3, basis = ~z)': what the formula removes at its top leaves ",
+    "the forest no predictor to split on"
+  )
+)
+refuses(y ~ forest(x1) - x1, "the formula names no predictors")
+
+# plain terms are stored as they are written, so a fit whose forests add no
+# term stores the terms of the same formula with no forest, and predict asks
+# of new rows what it asks then: a column '.' brought in and '-' took out
+withForest <- fit(
+  y ~ . - x3 - z + forest(x1, basis = ~z),
+  data = small,
+  keepTrees = TRUE
+)
+withoutForest <- fit(y ~ . - x3 - z, data = small, keepTrees = TRUE)
+expect_identical(storedTerms(withForest), storedTerms(withoutForest))
+lacking <- small[1:5, c("x1", "x2", "z")]
+expect_error(
+  predict(withoutForest, lacking),
+  "missing variable required by the model: 'x3'",
+  fixed = TRUE
+)
+expect_error(
+  predict(withForest, lacking),
+  "missing variable required by the model: 'x3'",
+  fixed = TRUE
+)
+expect_identical(dim(predict(withForest, small[1:5, ])), c(3L, 5L))
+expect_identical(
+  storedFormula(fit(y ~ 0 + x1 + x2 + forest(x1, basis = ~z))),
+  "~0 + x1 + x2"
+)
+# the terms the forests add follow them
+expect_identical(
+  storedFormula(fit(y ~ . - x3 - z + forest(x3, basis = ~z), data = small)),
+  "~(x1 + x2 + x3 + z) - x3 - z + x3"
+)
+
 # no first argument: every predictor of the fit
 everyPredictor <- fit(y ~ x1 + x2 + forest(basis = ~z))
 expect_identical(splitsOn(everyPredictor), list(c("x1", "x2"), c("x1", "x2")))
@@ -343,10 +494,52 @@ named <- expectSameForest(
   y ~ x1 + x2 + x3 + forest(c("x1", "x3"), basis = ~z)
 )
 expect_identical(splitsOn(named)[[2L]], c("x1", "x3"))
+# and each that is a column of the data comes to the fit as the name written
+# out does, so a forest's predictors can be named with no term beside it
+broughtIn <- expectSameForest(
+  y ~ forest(c("x1", "x2")) + forest(x1, basis = ~z),
+  y ~ forest(x1 + x2) + forest(x1, basis = ~z)
+)
+expect_identical(splitsOn(broughtIn), list(c("x1", "x2"), "x1"))
+broughtBySecond <- expectSameForest(
+  y ~ x1 + forest(c("x2", "x3"), basis = ~z),
+  y ~ x1 + forest(x2 + x3, basis = ~z)
+)
+expect_identical(predictors(broughtBySecond), c("x1", "x2", "x3"))
+expect_identical(splitsOn(broughtBySecond), list("x1", c("x2", "x3")))
+namedAlone <- fit(y ~ forest(c("x1", "x2")))
+expect_identical(predictors(namedAlone), c("x1", "x2"))
+expect_identical(namedAlone$yhat.train, fit(y ~ x1 + x2)$yhat.train)
+expect_identical(
+  predictors(fit(y ~ forest(c("weird name", "x1")) + forest(x1, basis = ~z))),
+  c("weird name", "x1")
+)
+# a name that is no column of the data is a column of the design, one of a
+# term's several among them
+expectSameForest(
+  y ~ x1 + x2 + zf + forest(zf, basis = ~x1),
+  y ~ x1 + x2 + zf + forest(c("zf.u", "zf.v", "zf.w"), basis = ~x1),
+  factors = "indicators"
+)
 refuses(
   y ~ x1 + x2 + forest(c("x1", "nosuch"), basis = ~z),
-  "'vars' name not found in the design's column names: 'nosuch'"
+  paste0(
+    "'nosuch' is not a predictor of this fit (x1, x2); here a forest()'s ",
+    "first argument selects among them"
+  )
 )
+refuses(
+  y ~ x1 + x2 + forest(c("x1", "x1"), basis = ~z),
+  "names 'x1' more than once"
+)
+# a column of the data hides a variable of the caller's with its name, a
+# formula held in one among them
+local({
+  b <- ~ x1 + x2
+  hidden <- fit(y ~ x1 + forest(b, basis = ~z))
+  expect_identical(predictors(hidden), c("x1", "b"))
+  expect_identical(splitsOn(hidden), list("x1", "b"))
+})
 
 # and not positions
 positionText <- paste0(
@@ -517,6 +710,50 @@ for (family in c("probit", "logistic")) {
     family = family,
     data = binary
   )
+}
+# and alone it is the single-forest fit in every family, those that take no
+# multiplied forest among them
+familyData <- d
+familyData$yo <- cut(
+  y,
+  3L,
+  labels = c("lo", "mid", "hi"),
+  ordered_result = TRUE
+)
+familyData$yc <- stats::rpois(n, exp(x1))
+familyData$ym <- factor(rep_len(c("p", "q", "r"), n))
+familyData$time <- stats::rexp(n, exp(x1))
+familyData$status <- rep_len(c(1, 1, 0), n)
+families <- list(
+  ordinal = "yo",
+  nbinom = "yc",
+  multinomial = "ym",
+  student = "y"
+)
+if (requireNamespace("survival", quietly = TRUE)) {
+  familyData$surv <- survival::Surv(familyData$time, familyData$status)
+  families <- c(families, list(aft = "surv", hazard = "surv"))
+}
+# everything a fit reports but the call it was made by and its sampler
+reported <- function(result) {
+  result <- unclass(result)
+  result[setdiff(names(result), c("call", "fit"))]
+}
+for (family in names(families)) {
+  response <- families[[family]]
+  alone <- fit(
+    stats::as.formula(paste(response, "~ forest(x1 + x2)")),
+    family = family,
+    data = familyData
+  )
+  plainly <- fit(
+    stats::as.formula(paste(response, "~ x1 + x2")),
+    family = family,
+    data = familyData
+  )
+  expect_identical(class(alone), class(plainly), info = family)
+  expect_identical(reported(alone), reported(plainly), info = family)
+  expect_true(length(reported(alone)) > 3L, info = family)
 }
 
 # beside plain predictor terms it is refused, the plain terms named and never

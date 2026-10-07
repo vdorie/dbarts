@@ -935,19 +935,108 @@ refuseHeldFormula <- function(expr) {
   )
 }
 
+## The terms forest()'s first argument states in a 'forests' list, read as
+## the right-hand side of a model formula over the fit's predictors: '.' is
+## every predictor, '-' removes one. '.' is written out as the fit's own
+## terms before R reads the formula, so that a removal names a term as the
+## fit's formula does, log(x1) among them; a removal that names no predictor
+## is refused, where a model formula would pass it by. `termCode` is the
+## fit's terms as code, `predictors` their labels, and `refuseUnknown` the
+## caller's refusal of a label that is none of them.
+readSelectionTerms <- function(expr, termCode, predictors, refuseUnknown) {
+  shown <- paste(deparse(expr, width.cutoff = 500L), collapse = " ")
+  if (writesInterceptTerm(expr)) {
+    stop(
+      "'forest(",
+      shown,
+      ")': an intercept term (1, 0 or - 1) is the fit's and no forest's; ",
+      "write it beside the forests",
+      call. = FALSE
+    )
+  }
+  everyPredictor <- if (length(termCode) > 0L) {
+    call("(", Reduce(function(left, right) call("+", left, right), termCode))
+  }
+  # '.' stands for the predictors where a model formula expands it: at the
+  # top of the '+' and '-' chain
+  writeOut <- function(e) {
+    if (identical(e, as.name(".")) && !is.null(everyPredictor)) {
+      return(everyPredictor)
+    }
+    if (
+      is.call(e) &&
+        is.name(e[[1L]]) &&
+        as.character(e[[1L]]) %in% c("+", "-", "(")
+    ) {
+      for (i in seq_along(e)[-1L]) {
+        e[[i]] <- writeOut(e[[i]])
+      }
+    }
+    e
+  }
+  labelsOf <- function(e) {
+    rhs <- call("~", e)
+    class(rhs) <- "formula"
+    environment(rhs) <- baseenv()
+    read <- tryCatch(stats::terms(rhs), error = function(error) {
+      stop(
+        "forest()'s first argument, '",
+        shown,
+        "': ",
+        conditionMessage(error),
+        call. = FALSE
+      )
+    })
+    if (length(attr(read, "offset")) > 0L) {
+      stop(
+        "forest()'s first argument, '",
+        shown,
+        "': an offset() is the fit's and no forest's",
+        call. = FALSE
+      )
+    }
+    stripBackticks(attr(read, "term.labels"))
+  }
+  removed <- function(e) {
+    if (isBinaryCall(e, "-")) {
+      return(c(removed(e[[2L]]), labelsOf(e[[3L]])))
+    }
+    if (is.call(e) && identical(e[[1L]], as.name("-")) && length(e) == 2L) {
+      return(labelsOf(e[[2L]]))
+    }
+    if (isBinaryCall(e, "+")) {
+      return(c(removed(e[[2L]]), removed(e[[3L]])))
+    }
+    if (is.call(e) && identical(e[[1L]], as.name("(")) && length(e) == 2L) {
+      return(removed(e[[2L]]))
+    }
+    character(0L)
+  }
+  written <- writeOut(expr)
+  for (label in removed(written)) {
+    if (label %not_in% predictors) {
+      refuseUnknown(label)
+    }
+  }
+  labelsOf(written)
+}
+
 ## A forest's predictors, as forest()'s first argument states them, resolved
 ## to sorted 1-based design columns, or NULL for an unrestricted forest.
 ##
-## Code is read as the right-hand side of a model formula over the fit's
-## predictors when any name in it is one of them: '.' is every predictor, '-'
-## removes one, and a label is a column or a term's columns. A formula's
-## forest() arrives with its labels already read against the data
-## (readForestTerms). Code naming no predictor is evaluated where forest() was
-## called and gives a value. A value is names or positions; a repeat in it is
-## refused, since a vector with a value for every row, a multiplier written
-## where the predictors go, would otherwise be read as a few columns.
-## `allIsNull` makes a selection of every column NULL, the unrestricted forest
-## it is.
+## Code is the terms of a model formula over the fit's predictors when any
+## name in it is one of them, so that a predictor hides a variable of the
+## caller's with its name (readSelectionTerms). A formula's forest() arrives
+## with its labels already read against the data, and with the names its
+## value gave that are columns of the design alone (readForestTerms). Any
+## other code is the value it had where and when forest() was called, which
+## forest() kept: nothing is looked up again here, so what the caller's
+## variables hold by now changes nothing. Code that could not be evaluated
+## at the call and names no predictor is refused. A value is names or
+## positions; a repeat in it is refused, since a vector with a value for
+## every row, a multiplier written where the predictors go, would otherwise
+## be read as a few columns. `allIsNull` makes a selection of every column
+## NULL, the unrestricted forest it is.
 resolveForestVars <- function(vars, data, allIsNull = FALSE) {
   if (is.null(vars)) {
     return(NULL)
@@ -967,68 +1056,60 @@ resolveForestVars <- function(vars, data, allIsNull = FALSE) {
   }
 
   labels <- NULL
+  named <- NULL
   if (inherits(vars, "dbartsForestTerms")) {
     expr <- vars$expr
     shown <- paste(deparse(expr, width.cutoff = 500L), collapse = " ")
     labels <- vars$labels
-    written <- all.vars(expr)
-    # a term such as log(x1) is a predictor whose name is not its variable's
-    known <- unique(c(
-      ".",
-      predictors,
-      columnNames,
-      unlist(lapply(termLabels, function(label) {
-        tryCatch(all.vars(str2lang(label)), error = function(e) NULL)
-      }))
-    ))
-    if (is.null(labels) && any(written %in% known)) {
-      stub <- as.data.frame(
-        matrix(0, 0L, length(predictors), dimnames = list(NULL, predictors)),
-        optional = TRUE
-      )
-      rhs <- call("~", expr)
-      class(rhs) <- "formula"
-      environment(rhs) <- vars$env
-      read <- tryCatch(stats::terms(rhs, data = stub), error = function(e) {
+    named <- vars$columns
+    if (is.null(labels)) {
+      # the fit's terms as code; a term such as log(x1) is a predictor whose
+      # name is not its variable's
+      termCode <- if (length(termLabels) > 0L) {
+        lapply(attr(data@x, "term.labels"), function(label) {
+          tryCatch(str2lang(label), error = function(e) {
+            as.name(stripBackticks(label))
+          })
+        })
+      } else {
+        lapply(columnNames, as.name)
+      }
+      known <- unique(c(
+        ".",
+        predictors,
+        columnNames,
+        unlist(lapply(termCode, all.vars))
+      ))
+      if (any(all.vars(expr) %in% known)) {
+        labels <- readSelectionTerms(expr, termCode, predictors, refuseUnknown)
+      } else if (isTRUE(vars$evaluated)) {
+        vars <- vars$value
+        if (inherits(vars, "formula")) {
+          refuseHeldFormula(expr)
+        }
+        if (is.function(vars)) {
+          refuseUnknown(shown)
+        }
+        if (is.null(vars)) {
+          return(NULL)
+        }
+      } else if (length(vars$unbound) > 0L) {
+        refuseUnknown(vars$unbound[1L])
+      } else {
         stop(
           "forest()'s first argument, '",
           shown,
           "': ",
-          conditionMessage(e),
+          if (is.null(vars$error)) "it is no selection" else vars$error,
           call. = FALSE
         )
-      })
-      if (length(attr(read, "offset")) > 0L || attr(read, "intercept") == 0L) {
-        stop(
-          "forest()'s first argument, '",
-          shown,
-          "': an offset() and an intercept term are the fit's and no forest's",
-          call. = FALSE
-        )
-      }
-      labels <- attr(read, "term.labels")
-    }
-    if (is.null(labels)) {
-      unknown <- written[!vapply(written, exists, NA, envir = vars$env)]
-      if (length(unknown) > 0L) {
-        refuseUnknown(unknown[1L])
-      }
-      vars <- eval(expr, vars$env)
-      if (inherits(vars, "formula")) {
-        refuseHeldFormula(expr)
-      }
-      if (is.function(vars)) {
-        refuseUnknown(shown)
-      }
-      if (is.null(vars)) {
-        return(NULL)
       }
     }
   }
 
   if (!is.null(labels)) {
     columns <- integer(0L)
-    for (label in stripBackticks(labels)) {
+    for (label in c(stripBackticks(labels), named)) {
       found <- resolveTermColumns(label, columnNames, termLabels)
       if (is.null(found)) {
         refuseUnknown(label)
@@ -2307,10 +2388,33 @@ forest <- function(
   if (numUnnamed(given) > 1L) {
     refuseSecondUnnamed()
   }
+  written <- captureForestVars(substitute(vars), callingPlace(parent.frame()))
+  if (inherits(written, "dbartsForestTerms")) {
+    # the argument's value here and now, taken once: whatever the caller's
+    # variables hold later, a forest built in a loop or by lapply() keeps the
+    # selection it was given. Code that cannot be evaluated here, terms over
+    # predictors among it, is kept as code alone
+    taken <- tryCatch(
+      withCallingHandlers(list(vars), warning = function(w) {
+        invokeRestart("muffleWarning")
+      }),
+      error = function(e) e
+    )
+    if (inherits(taken, "error")) {
+      symbols <- all.vars(written$expr)
+      written$unbound <- symbols[
+        !vapply(symbols, exists, NA, envir = written$env)
+      ]
+      written$error <- conditionMessage(taken)
+    } else {
+      written["value"] <- taken
+      written$evaluated <- TRUE
+    }
+  }
   structure(
     list(
       basis = basis,
-      vars = captureForestVars(substitute(vars), callingPlace(parent.frame())),
+      vars = written,
       n.trees = n.trees,
       base = base,
       power = power,
@@ -2343,8 +2447,9 @@ refuseSecondUnnamed <- function() {
 
 ## forest()'s first argument as written. A value (names, positions, NULL) is
 ## kept as it is; code is kept unevaluated with the environment it was
-## written in. A tilde there is a multiplier written where the predictors go,
-## and is refused rather than read as predictors.
+## written in, and forest() puts beside it the value it has at the call. A
+## tilde there is a multiplier written where the predictors go, and is
+## refused rather than read as predictors.
 captureForestVars <- function(expr, env) {
   if (!is.language(expr)) {
     return(expr)

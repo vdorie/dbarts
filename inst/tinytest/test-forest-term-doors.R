@@ -54,3 +54,41 @@ expect_error(
   doorText("dbartsData"),
   fixed = TRUE
 )
+
+# at each door, for a term that stands elsewhere than the top, and for the
+# constructor as it is written outside the arguments that resolve it
+doors <- list(
+  xbart = function(formula) dbarts::xbart(formula, d, n.threads = 1L),
+  rbart_vi = function(formula) {
+    suppressWarnings(
+      dbarts::rbart_vi(formula, d, group.by = g, n.threads = 1L),
+      classes = "dbartsDeprecatedWarning"
+    )
+  },
+  bartBT = function(formula) dbarts::bartBT(formula, d, verbose = FALSE),
+  pdbart = function(formula) dbarts::pdbart(formula, d, xind = 1L, pl = FALSE),
+  pd2bart = function(formula) {
+    dbarts::pd2bart(formula, d, xind = 1:2, pl = FALSE)
+  },
+  dbartsData = function(formula) dbarts::dbartsData(formula, d)
+)
+spellings <- list(
+  list(y ~ x1 + forest(x1 + x2, basis = ~z), "forest(x1 + x2, basis = ~z)"),
+  list(y ~ x1 + I(forest(x2)), "forest(x2)"),
+  list(y ~ dbartsForests$forest(x1 + x2), "dbartsForests$forest(x1 + x2)"),
+  list(
+    y ~ x1 + dbarts::dbartsForests$forest(x2, basis = ~z),
+    "dbarts::dbartsForests$forest(x2, basis = ~z)"
+  ),
+  list(y ~ dbarts:::forest(x1 + x2), "dbarts:::forest(x1 + x2)")
+)
+for (door in names(doors)) {
+  for (spelling in spellings) {
+    expect_error(
+      doors[[door]](spelling[[1L]]),
+      paste0(door, "() does not take a forest() term ('", spelling[[2L]], "')"),
+      fixed = TRUE,
+      info = paste(door, spelling[[2L]])
+    )
+  }
+}

@@ -26,10 +26,37 @@ TERM_UNSUPPORTED_FAMILIES <- c(
   "nbinom"
 )
 
-## The term grammar names forest only: forest() is not exported, so no other
-## spelling reaches it.
+## The term grammar names forest: by bare name, or as the constructor is
+## written outside the arguments that resolve it, dbartsForests$forest and
+## dbarts:::forest, with or without the package named. forest() is not
+## exported, so dbarts::forest is no spelling of it.
 isForestCall <- function(expr) {
-  is.call(expr) && identical(expr[[1L]], as.name("forest"))
+  if (!is.call(expr)) {
+    return(FALSE)
+  }
+  head <- expr[[1L]]
+  if (identical(head, as.name("forest"))) {
+    return(TRUE)
+  }
+  if (!is.call(head) || length(head) != 3L) {
+    return(FALSE)
+  }
+  inPackage <- function(owner, name) {
+    identical(owner, as.name(name)) ||
+      (is.call(owner) &&
+        length(owner) == 3L &&
+        (identical(owner[[1L]], as.name("::")) ||
+          identical(owner[[1L]], as.name(":::"))) &&
+        identical(owner[[2L]], as.name("dbarts")) &&
+        identical(owner[[3L]], as.name(name)))
+  }
+  if (identical(head[[1L]], as.name("$"))) {
+    return(
+      identical(head[[3L]], as.name("forest")) &&
+        inPackage(head[[2L]], "dbartsForests")
+    )
+  }
+  identical(head[[1L]], as.name(":::")) && inPackage(head, "forest")
 }
 
 ## The arguments of a call that are written; x[, 1] has one that is not, and
@@ -107,27 +134,50 @@ forestCallArguments <- function(call) {
   as.list(match.call(forest, call))[-1L]
 }
 
+## The terms a '+' chain joins, in the order written.
+plusTerms <- function(expr) {
+  if (isBinaryCall(expr, "+")) {
+    return(c(plusTerms(expr[[2L]]), plusTerms(expr[[3L]])))
+  }
+  list(expr)
+}
+
 ## The basis a crossed operand stands for: a name, factor() of a name, any
-## other call on columns, or a parenthesised sum of names, which is those
-## columns side by side. NULL where the operand is itself crossed or holds a
-## forest(), for which no one forest() can be written.
-crossedOperandBasis <- function(expr) {
+## other call on columns, or a parenthesised sum, which is its members side
+## by side, one column each: cbind() of them, a basis formula being evaluated
+## as R code. NULL where no one forest() can be written for it: the operand is
+## itself crossed or holds a forest(), or the sum has a member cbind() would
+## not keep as a column of numbers, a factor() call or a column that
+## `columnOf`, where the data are at hand, finds to be neither numeric nor
+## logical.
+crossedOperandBasis <- function(expr, columnOf = NULL) {
   if (containsForestCall(expr)) {
     return(NULL)
   }
   if (
     is.call(expr) && identical(expr[[1L]], as.name("(")) && length(expr) == 2L
   ) {
-    inner <- expr[[2L]]
-    members <- all.vars(inner)
-    if (
-      length(members) >= 2L &&
-        "." %not_in% members &&
-        all(setdiff(all.names(inner), members) == "+")
-    ) {
-      return(as.call(c(quote(cbind), lapply(members, as.name))))
+    members <- plusTerms(expr[[2L]])
+    if (length(members) < 2L) {
+      return(crossedOperandBasis(expr[[2L]], columnOf))
     }
-    return(crossedOperandBasis(inner))
+    isColumn <- function(member) {
+      if (is.name(member)) {
+        if (identical(member, as.name("."))) {
+          return(FALSE)
+        }
+        column <- if (!is.null(columnOf)) columnOf(as.character(member))
+        return(is.null(column) || is.numeric(column) || is.logical(column))
+      }
+      is.call(member) &&
+        is.name(member[[1L]]) &&
+        as.character(member[[1L]]) %not_in%
+          c("factor", "as.factor", "ordered", "as.character", "-", ":", "*")
+    }
+    if (!all(vapply(members, isColumn, NA))) {
+      return(NULL)
+    }
+    return(as.call(c(quote(cbind), members)))
   }
   if (
     is.call(expr) &&
@@ -145,13 +195,18 @@ crossedOperandBasis <- function(expr) {
 ## The refusal of a forest() crossed with another term by ':' or '*'.
 ## `forestSide` is the forest() operand and `otherSide` what it is crossed
 ## with, both NULL where the forest() lies deeper in the crossing.
-refuseCrossedForest <- function(expr, forestSide = NULL, otherSide = NULL) {
+refuseCrossedForest <- function(
+  expr,
+  forestSide = NULL,
+  otherSide = NULL,
+  columnOf = NULL
+) {
   lead <- paste0(
     "'",
     shownCode(expr),
     "': a forest() is not crossed with another term; "
   )
-  basis <- if (is.null(forestSide)) NULL else crossedOperandBasis(otherSide)
+  basis <- if (!is.null(forestSide)) crossedOperandBasis(otherSide, columnOf)
   if (is.null(basis)) {
     stop(
       lead,
@@ -194,26 +249,60 @@ refuseCrossedForest <- function(expr, forestSide = NULL, otherSide = NULL) {
   )
 }
 
+## A call of one of `operators` on two operands.
+isBinaryCall <- function(expr, operators) {
+  is.call(expr) &&
+    length(expr) == 3L &&
+    is.name(expr[[1L]]) &&
+    as.character(expr[[1L]]) %in% operators
+}
+
+## The top of a right-hand side with each forest() term replaced by what
+## `replace` gives for it, in the order written, or dropped where that is
+## NULL. Everything else stays as written, a removal after the forests among
+## it. NULL when nothing is left.
+replaceForestTerms <- function(expr, replace) {
+  if (isForestCall(expr)) {
+    return(replace(expr))
+  }
+  if (isBinaryCall(expr, "+")) {
+    left <- replaceForestTerms(expr[[2L]], replace)
+    right <- replaceForestTerms(expr[[3L]], replace)
+    if (is.null(left)) {
+      return(right)
+    }
+    if (is.null(right)) {
+      return(left)
+    }
+    return(call("+", left, right))
+  }
+  if (isBinaryCall(expr, "-") && !containsForestCall(expr[[3L]])) {
+    left <- replaceForestTerms(expr[[2L]], replace)
+    if (is.null(left)) {
+      return(call("-", expr[[3L]]))
+    }
+    return(call("-", left, expr[[3L]]))
+  }
+  expr
+}
+
 ## Walks 'formula' for forest() terms. A forest() is a term of the right-hand
 ## side's top-level '+' chain and nothing else: crossed by ':' or '*', at any
 ## depth, it is refused with the form to write; on the left-hand side, in a
 ## removal, or anywhere it could only be reached by evaluating an expression,
 ## it is refused by name. Returns NULL when no forest() is present anywhere,
 ## leaving the caller's formula untouched; otherwise the forest() calls in
-## the order written and `plain`, the right-hand side without them, NULL when
-## nothing is left.
-walkFormulaTerms <- function(formula) {
+## the order written, `rhs`, the right-hand side as written, and `plain`, the
+## right-hand side without them, NULL when nothing is left. A removal at the
+## top, after the forests or before, is the fit's: it stays in `plain`.
+## `columnOf` gives a column by its name where the data are at hand, for the
+## refusal of a crossed forest.
+walkFormulaTerms <- function(formula, columnOf = NULL) {
   if (!containsForestCall(formula)) {
     return(NULL)
   }
   hits <- list()
 
-  isOperator <- function(expr, operators) {
-    is.call(expr) &&
-      length(expr) == 3L &&
-      is.name(expr[[1L]]) &&
-      as.character(expr[[1L]]) %in% operators
-  }
   refuseInside <- function(expr) {
     stop(
       "a forest() term must appear as a top-level additive term, not inside '",
@@ -226,14 +315,14 @@ walkFormulaTerms <- function(formula) {
     if (!is.call(expr)) {
       return(invisible(NULL))
     }
-    if (isOperator(expr, c(":", "*")) && containsForestCall(expr)) {
+    if (isBinaryCall(expr, c(":", "*")) && containsForestCall(expr)) {
       left <- expr[[2L]]
       right <- expr[[3L]]
       if (isForestCall(right)) {
-        refuseCrossedForest(expr, right, left)
+        refuseCrossedForest(expr, right, left, columnOf)
       }
       if (isForestCall(left)) {
-        refuseCrossedForest(expr, left, right)
+        refuseCrossedForest(expr, left, right, columnOf)
       }
       refuseCrossedForest(expr)
     }
@@ -242,34 +331,20 @@ walkFormulaTerms <- function(formula) {
     }
     invisible(NULL)
   }
-  walk <- function(expr) {
+  # every forest() that is not a term of the top '+' chain
+  refuseBuried <- function(expr) {
     if (isForestCall(expr)) {
-      hits[[length(hits) + 1L]] <<- expr
-      return(NULL)
+      return(invisible(NULL))
     }
-    if (isOperator(expr, "+")) {
-      left <- walk(expr[[2L]])
-      right <- walk(expr[[3L]])
-      if (is.null(left)) {
-        return(right)
-      }
-      if (is.null(right)) {
-        return(left)
-      }
-      return(call("+", left, right))
-    }
-    # a trailing removal is the fit's, as - 1 is; a forest() is not removed
-    if (isOperator(expr, "-") && !containsForestCall(expr[[3L]])) {
-      left <- walk(expr[[2L]])
-      if (is.null(left)) {
-        return(call("-", expr[[3L]]))
-      }
-      return(call("-", left, expr[[3L]]))
-    }
-    if (containsForestCall(expr)) {
+    if (isBinaryCall(expr, "+")) {
+      refuseBuried(expr[[2L]])
+      refuseBuried(expr[[3L]])
+    } else if (isBinaryCall(expr, "-") && !containsForestCall(expr[[3L]])) {
+      refuseBuried(expr[[2L]])
+    } else if (containsForestCall(expr)) {
       refuseInside(expr)
     }
-    expr
+    invisible(NULL)
   }
 
   hasResponse <- length(formula) == 3L
@@ -284,8 +359,12 @@ walkFormulaTerms <- function(formula) {
     )
   }
   refuseCrossed(rhs)
-  plain <- walk(rhs)
-  list(hits = hits, plain = plain)
+  refuseBuried(rhs)
+  plain <- replaceForestTerms(rhs, function(hit) {
+    hits[[length(hits) + 1L]] <<- hit
+    NULL
+  })
+  list(hits = hits, rhs = rhs, plain = plain)
 }
 
 ## The terms of a right-hand side as R's own terms() reads them, '.' expanded
@@ -356,15 +435,50 @@ processHit <- function(hit, env) {
 
 ## A forest() term's predictors read as the right-hand side of a model
 ## formula of its own, the labels kept on the specification for the fit's
-## formula and for the forest's columns. A value written in the term is names
-## of the fit's predictors and is left for the built design to resolve; a
-## position is refused, the columns having no order a formula states.
+## formula and for the forest's columns. A value written in the term is
+## names: each that is a column of the data, or with no data a variable where
+## the formula was written, is a term as the name written out is, and brings
+## its column to the fit; any other is left in `columns` for the built design
+## to resolve, a column a term of several gives among them. A position is
+## refused, the columns having no order a formula states.
 readForestTerms <- function(entry, response, data, env) {
   vars <- entry$spec$vars
   if (is.null(vars)) {
     return(entry)
   }
   shown <- shownCode(entry$call)
+  namedTerms <- function(value, expr) {
+    # an empty, missing or repeated name is the built design's to refuse
+    if (length(value) == 0L || anyNA(value) || anyDuplicated(value) > 0L) {
+      return(value)
+    }
+    isTerm <- if (is.null(data)) {
+      vapply(
+        value,
+        function(name) {
+          found <- get0(name, envir = env)
+          !is.null(found) && !is.function(found)
+        },
+        NA
+      )
+    } else {
+      value %in% names(data)
+    }
+    structure(
+      list(
+        expr = expr,
+        env = env,
+        labels = vapply(
+          value[isTerm],
+          function(name) deparse(as.name(name), backtick = TRUE),
+          "",
+          USE.NAMES = FALSE
+        ),
+        columns = value[!isTerm]
+      ),
+      class = "dbartsForestTerms"
+    )
+  }
   refusePosition <- function() {
     stop(
       "'",
@@ -379,6 +493,7 @@ readForestTerms <- function(entry, response, data, env) {
     if (!is.character(vars)) {
       refusePosition()
     }
+    entry$spec$vars <- namedTerms(vars, vars)
     return(entry)
   }
   expr <- vars$expr
@@ -388,7 +503,7 @@ readForestTerms <- function(entry, response, data, env) {
     if (!is.character(value)) {
       refusePosition()
     }
-    entry$spec$vars <- value
+    entry$spec$vars <- namedTerms(value, expr)
     return(entry)
   }
   if (is.name(expr) && !identical(expr, as.name("."))) {
@@ -453,11 +568,11 @@ readForestTerms <- function(entry, response, data, env) {
 ## fit itself uses (post-subset - the ambiguity a basis evaluated against
 ## raw, pre-subset data would otherwise carry). NULL when 'formula' has no
 ## forest() term, leaving the caller's formula handling untouched. 'family'
-## is checked against the multiplier-incompatible set here, at the point each
-## entry point has just resolved its own requested token, before any
-## family-specific dispatch (a hazard/aft remap, a diversion to bart's own
-## multinomial/ordinal/nbinom/hurdle arcs) can make that token unrecoverable
-## or unreachable.
+## is checked against the multiplier-incompatible set here, for a formula
+## with a multiplied forest, at the point each entry point has just resolved
+## its own requested token, before any family-specific dispatch (a hazard/aft
+## remap, a diversion to bart's own multinomial/ordinal/nbinom/hurdle arcs)
+## can make that token unrecoverable or unreachable.
 ##
 ## The forest with no basis is the forest with no multiplier: the plain
 ## terms, or the one forest() written without a basis, and forest 1 wherever
@@ -474,20 +589,15 @@ ingestFormulaTerms <- function(
   if (!is.formula(formula)) {
     return(NULL)
   }
-  walked <- walkFormulaTerms(formula)
+  walked <- walkFormulaTerms(formula, function(name) {
+    if ((is.data.frame(data) || is.list(data)) && name %in% names(data)) {
+      data[[name]]
+    } else {
+      get0(name, envir = environment(formula))
+    }
+  })
   if (is.null(walked)) {
     return(NULL)
-  }
-
-  if (family %in% TERM_UNSUPPORTED_FAMILIES) {
-    stop(
-      "family \"",
-      family,
-      "\" does not support a forest() formula term ('",
-      deparse(walked$hits[[1L]]),
-      "'): an amplitude-coupled fit is ",
-      "not defined for it"
-    )
   }
 
   # a term's own arguments evaluate in the formula's environment, as a
@@ -500,6 +610,18 @@ ingestFormulaTerms <- function(
   termData <- if (is.data.frame(data) || is.list(data)) data else NULL
   written <- lapply(walked$hits, processHit, env = formulaEnv)
   multiplied <- !vapply(written, function(entry) is.null(entry$spec$basis), NA)
+  # a formula whose one forest() has no basis is a single-forest fit, in every
+  # family; a multiplier is what these families have no fit for
+  if (any(multiplied) && family %in% TERM_UNSUPPORTED_FAMILIES) {
+    stop(
+      "family \"",
+      family,
+      "\" does not support a forest() formula term ('",
+      deparse(walked$hits[[which(multiplied)[1L]]]),
+      "'): an amplitude-coupled fit is ",
+      "not defined for it"
+    )
+  }
 
   # the plain terms: predictors are the forest with no multiplier; an
   # offset() and an intercept term are the fit's and no forest's
@@ -537,6 +659,58 @@ ingestFormulaTerms <- function(
     env = formulaEnv
   )
 
+  termLabels <- function(vars) {
+    if (inherits(vars, "dbartsForestTerms")) vars$labels
+  }
+
+  # the fit's terms: the right-hand side with every forest() replaced, where
+  # it stands, by its own terms. What is written at the top beside the
+  # forests is the fit's, so a removal there takes a term from every forest,
+  # and an offset() and an intercept term are read here and nowhere else
+  position <- 0L
+  full <- replaceForestTerms(walked$rhs, function(hit) {
+    position <<- position + 1L
+    labels <- termLabels(written[[position]]$spec$vars)
+    if (length(labels) > 0L) {
+      call(
+        "(",
+        Reduce(
+          function(left, right) call("+", left, right),
+          lapply(labels, str2lang)
+        )
+      )
+    }
+  })
+  fit <- if (is.null(full)) {
+    NULL
+  } else {
+    readRhsTerms(full, response, termData, formulaEnv)
+  }
+  if (length(fit$labels) == 0L) {
+    stop(
+      "the formula names no predictors: write them as plain terms or inside ",
+      "a forest(), as forest(x1 + x2)",
+      call. = FALSE
+    )
+  }
+  written <- lapply(written, function(entry) {
+    labels <- termLabels(entry$spec$vars)
+    if (length(labels) > 0L) {
+      kept <- labels[labels %in% fit$labels]
+      if (length(kept) == 0L) {
+        stop(
+          "'",
+          shownCode(entry$call),
+          "': what the formula removes at its top leaves the forest no ",
+          "predictor to split on",
+          call. = FALSE
+        )
+      }
+      entry$spec$vars$labels <- kept
+    }
+    entry
+  })
+
   entries <- if (hasPlainForest) {
     first <- forest()
     first$vars <- structure(
@@ -549,25 +723,27 @@ ingestFormulaTerms <- function(
   }
   forests <- lapply(entries, function(entry) entry$spec)
 
-  # the fit's predictors: every term any forest names, the first forest's
-  # first and then the others' in the order written, each once; then the
-  # fit's own offset() terms and intercept removal
+  # the fit's predictors in the order of the design: the first forest's terms
+  # and then the others' in the order written, each once
   labels <- unique(unlist(lapply(forests, function(spec) {
-    if (inherits(spec$vars, "dbartsForestTerms")) spec$vars$labels
+    termLabels(spec$vars)
   })))
-  if (length(labels) == 0L) {
-    stop(
-      "the formula names no predictors: write them as plain terms or inside ",
-      "a forest(), as forest(x1 + x2)",
-      call. = FALSE
+  # the fit's formula. Plain terms stay as they are written, so that a fit
+  # the terms of whose forests are all among them stores the terms it would
+  # with no forest() written, and predict asks of new rows what it asks then;
+  # the terms the other forests add follow. With no plain terms it is the
+  # fit's terms, its offset() terms and its intercept removal
+  rhs <- if (hasPlainForest) {
+    Reduce(
+      function(left, right) call("+", left, right),
+      c(list(walked$plain), lapply(setdiff(labels, plain$labels), str2lang))
     )
-  }
-  rhs <- Reduce(
-    function(left, right) call("+", left, right),
-    c(lapply(labels, str2lang), plain$offsets)
-  )
-  if (isTRUE(plain$noIntercept)) {
-    rhs <- call("-", rhs, 1)
+  } else {
+    rhs <- Reduce(
+      function(left, right) call("+", left, right),
+      c(lapply(labels, str2lang), fit$offsets)
+    )
+    if (fit$noIntercept) call("-", rhs, 1) else rhs
   }
   rewritten <- formula
   rewritten[[length(rewritten)]] <- rhs
@@ -705,11 +881,38 @@ finalizeTermForests <- function(forests, data) {
   forests
 }
 
+## A formula whose one forest() term states its predictors as terms and
+## nothing else, with those terms written in its place: the single-forest
+## formula it is, for a family that reads its formula before any forest could
+## be declared. NULL for every other formula.
+loneForestFormula <- function(formula) {
+  walked <- tryCatch(walkFormulaTerms(formula), error = function(e) NULL)
+  if (length(walked$hits) != 1L) {
+    return(NULL)
+  }
+  hit <- walked$hits[[1L]]
+  arguments <- tryCatch(forestCallArguments(hit), error = function(e) NULL)
+  if (
+    numUnnamed(as.list(hit)[-1L]) > 1L ||
+      !identical(names(arguments), "vars") ||
+      length(all.vars(arguments[["vars"]])) == 0L ||
+      writesInterceptTerm(arguments[["vars"]])
+  ) {
+    return(NULL)
+  }
+  formula[[length(formula)]] <- replaceForestTerms(walked$rhs, function(hit) {
+    call("(", arguments[["vars"]])
+  })
+  formula
+}
+
 ## The fitting function's 'n.trees' is the tree count of the forest with no
 ## basis, so a formula that writes that forest with a count of its own states
 ## one count twice. Read from the formula as written, nothing evaluated.
 refuseTreeCountGivenTwice <- function(formula) {
-  walked <- walkFormulaTerms(formula)
+  # what the formula itself refuses is the fitting function's to say, with
+  # the data at hand
+  walked <- tryCatch(walkFormulaTerms(formula), error = function(e) NULL)
   for (hit in walked$hits) {
     given <- tryCatch(names(forestCallArguments(hit)), error = function(e) NULL)
     if ("n.trees" %in% given && "basis" %not_in% given) {
