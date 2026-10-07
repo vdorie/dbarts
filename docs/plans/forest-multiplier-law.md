@@ -1022,6 +1022,15 @@ Each requirement with what holds it; "test" is the step above that fails if it i
 To be worked into the steps when the plan is rechecked before push 1 is built; where a step above says
 otherwise, this section stands.
 
+- dec-B303. The standard deviation of a numeric multiplier is taken over the rows in the likelihood when
+  the sampler is created (positive weight, not masked), unweighted, and held, where the steps above count
+  rows of weight zero. A later change of weights or of the mask does not move it. With no row in at
+  creation it is taken over every row, under the warning of dec-B302. A column constant over the rows in
+  is refused where no sd is stated. `updateBasisScale = TRUE`, when it is built, reads the rows in at
+  that call.
+
+      forest(x, basis = dose)          # default sd per sd(dose[weights > 0]), held
+
 - dec-B290. Under a gaussian response a held forest with no basis that states no sd takes the default
   `bart()` gives the one forest of an ordinary fit on the same response, a quarter of the response's
   range over the rows kept at k = 2, about 1.4 sd(y) for a normal sample of 300, and not the 2 sd(y) of
