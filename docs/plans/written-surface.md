@@ -272,6 +272,7 @@ quoted, the form to write given. `<f>` is the forest's text; the push that adds 
     [3] 'basis' (dose + factor(z)) mixes a factor with other terms: a basis is one factor, a character or a logical vector, with one coefficient per level, or numeric columns, with one each. Give the other terms a forest() of their own, or write the factor as numbers
     [3] 'basis' (<text>) has a term that is a logical matrix: a basis is a factor, a character or logical vector, or numeric
     [3] 'basis' (dose > 0) is TRUE on every row the fit keeps, so its other level has no observations and the forest would be multiplied by a constant
+    [3] 'basis' is TRUE on every row the fit keeps, so its other level has no observations and the forest would be multiplied by a constant            (a value, which has no text)
     [3] 'basis' is 'v', which holds the string "dose": a basis is a column, not its name. Write basis = dose, or from a program do.call(forest, list(basis = as.name("dose"))), or hand over the column itself
     [3] 'basis' is the single value 2: a basis has a value for every observation
     [3] 'basis' (zBasis[idx, ]) must have the same length as the data: it has 20 rows and the data 40; a basis covers every row of the data and is cut by 'subset' and the na.action with it
@@ -334,18 +335,29 @@ select nothing: a forest is still chosen by position, and the per-forest margins
   call bound. Every variable of the caller's that the code uses is copied when `forest()` is called, so
   a loop over `k` gives each forest its own `k`, at the fit and at predict, and a variable bound after
   the call is refused. A tilde WRITTEN IN PLACE as the argument, `forest(basis = ~ I(dose / k))`, is read
-  exactly as the same code without it. A HELD formula (a variable holding a formula made elsewhere, or a
-  formula handed over), a `forest()` term inside a fit's formula and `$setForestBasis` keep R's own
-  reading of a formula: late lookup in the formula's environment, at the fit and again by predict, so a
-  formula made in a loop and held in a variable sees the last value.
+  exactly as the same code without it.
+- Ruled by the maintainer after the second review of push 3 (dec-B284): a formula OBJECT given to
+  `forest()`, held in a variable or handed over, is read when `forest()` is called as well. Its names
+  are those of the environment it was made in, and every one of them the code uses is copied from there
+  at the call, so `f <- ~ W[[k]]; forest(basis = f)` in a loop gives each forest its own column. A name
+  of a column of the fit's data is still that column, read at the fit. The ruling's condition is built
+  and tested: the caller's formula is left identical to a copy taken before, in the same environment,
+  with nothing assigned there, and the record a fit keeps is an ordinary formula on which `terms()` and
+  `model.frame()` work and whose names resolve. A `forest()` term inside a fit's formula and the formula
+  given to `$setForestBasis` keep R's own reading of a formula: looked up in the formula's environment,
+  at the fit and again by predict.
 - An argument that a function of base R writes for the caller, `lapply()`'s `X[[i]]` and `Map()`'s
   `dots[[2L]][[1L]]`, is not the caller's code: its value is a value handed over, labelled and named as
   one, and its names are not looked up in the data. The two are told apart by where the argument's code
-  stands: in the frame of a function whose top environment is the base namespace it is the machinery's,
-  and anywhere else (the workspace, the caller's own function or loop, a wrapper, another package) it
-  is the caller's. An argument forwarded through dots stands where the forwarding function's caller
-  wrote it. A mapper of another package is not recognised and its argument is read as the caller's
-  code. Built for `vars` too.
+  stands and by what it names: in the frame of a function whose top environment is the base namespace,
+  code that names a variable of that frame (`X`, `i`, `dots`) is the machinery's, and anywhere else (the
+  workspace, the caller's own function or loop, a wrapper, another package) it is the caller's. A name
+  or a call that such a function was handed and passes on as it is, `Map(forest, nms, MoreArgs =
+  list(basis = quote(dose)))`, names no variable of that frame and is the caller's code, as the same
+  name handed over through `do.call` is: a column of the data is that column. An argument forwarded
+  through dots stands where the forwarding function's caller wrote it. A mapper of another package is
+  not recognised and its argument is read as the caller's code. Built for `vars` too
+  ([`isLoopMachinery`](../../R/model.R)).
 - A basis forwarded through dots by a call that has returned cannot be read where it was written. Its
   value at the call is used when its code names no column of the data; when it names one it is refused
   by name, with the `do.call()` form to write, since by its value a caller's variable would beat the
@@ -365,7 +377,7 @@ The help for `forest` carries, under its `basis` item, what `?subset` carries fo
 after the rules in short sentences (a name of a data column is that column; `+` separates columns and
 `I(a + b)` is their sum; a factor is its levels; anything that is not a data column is read where
 `forest()` is called, at that moment, with or without a tilde written in place; a formula held in a
-variable is read late, as R reads formulas; `cbind()` is refused):
+variable is read the same way and left as it was made; `cbind()` is refused):
 
     In a call of forest() that you write, a name of a column of 'data' is that column. Every other
     variable of yours that the code uses is copied when forest() is called, whether or not a tilde
@@ -376,10 +388,12 @@ variable is read late, as R reads formulas; `cbind()` is refused):
     of yours with the same name. Where the two could meet, hand the value over: do.call(forest,
     list(basis = w)) for a column you hold, list(basis = as.name(nm)) for a column of 'data' by its
     name, list(basis = f) for a one-sided formula, and list(vars = nms) for predictors by name. A
-    formula made elsewhere, held in a variable or handed over, is read as R reads a formula: when
-    the model is fitted and again by predict, so one made in a loop sees the loop's last value, and
-    a number it uses that changes between the fit and the prediction changes the prediction, with
-    no message. A forest() term inside a fit's formula is read the same late way.
+    formula made elsewhere, held in a variable or handed over, is read in the same way and at the
+    same moment: every variable it uses is copied from where the formula was made, so one made in
+    a loop gives each forest what its call saw, and the formula itself is not touched. A forest()
+    term inside a fit's formula is read with that formula, as R reads one: when the model is
+    fitted and again by predict, so a number it uses that changes between the fit and the
+    prediction changes the prediction, with no message.
 
 ## What dec-B272 requires of this slice
 
@@ -409,7 +423,8 @@ slice's, in tests/cpp; nothing in R states one and this slice adds no bridge rea
 - The unit of `sd` does not change, and the help states it as it is today, with figures in that unit.
 - The kind of a multiplier is not re-decided: what expands to level columns today does afterwards. The
   data door ([`validateForestBases`](../../R/data.R)), `data@basis.levels`, the swap table of
-  `$setForestBasis` and a value's emptied level are slice K's.
+  `$setForestBasis` and a value's emptied level among several kept are slice K's; a value left with one
+  level is refused here.
 - The reader and `extract` keep today's shapes. None of the six returns the design pins as literals is
   built here: the multiplier-law slice builds the per-column `sd` entries and `extract`'s list, after the
   unit slice so that they are written once in the response's units, and the forest-leaf-prior slice makes
@@ -804,19 +819,22 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - `predict(bases = )` takes columns and forests by position and checks no name, so a basis given with
     the fit's names in another order is accepted: forest-defaults-by-kind, its step on predict's names.
   - `$setForestBasis` with a factor whose levels are in another order keeps the recorded column names on
-    the other levels' columns, and a factor handed over as a value under a `subset` that empties a level
-    keeps an all-zero column where the same factor written as code drops it: forest-kind-by-class, which
-    gives value and code bases one builder and matches a factor to its levels by name.
+    the other levels' columns, and a factor handed over as a value under a `subset` that empties one
+    level of several kept keeps an all-zero column where the same factor written as code drops it:
+    forest-kind-by-class, which gives value and code bases one builder and matches a factor to its
+    levels by name.
   - Names that R or an attached package supplies (`pi`, `scale`, `T`) are looked up when the model is
     fitted and not when `forest()` is called, so a workspace variable of that name made in between is
     used: no slice yet; the help says so.
   - A `subset` forwarded through a wrapper's dots fails in `dbartsData`'s own model frame when it is an
     expression over the data's columns or the formula was written outside the wrapper: a defect of the
     tip, TODO `written-surface-leftovers`.
-  - On the matrix interface with family "aft", `dbarts()` reads `subset` for the censoring status and the
-    data object reads it again for the rows, so a subset that draws its rows gives the status other rows
-    than the fit: a defect of the tip found while making `subset` one reading for a basis, TODO
-    `written-surface-leftovers`.
+  - `pdbart` and `pd2bart` given data read `data` themselves, to tell the family and, for a formula
+    fit, for the rows they average over, and fit through `bart()`, which reads it again; the rows are
+    matched to the fit's by name, as they are when the data is read again from a fit's stored call. No
+    slice yet.
+  - `weights` on the formula interface is evaluated twice, once for a length check and once by the model
+    frame, whose value the fit uses. No slice yet.
 
 ## Calls made in planning
 
@@ -1100,9 +1118,10 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
     draw at every door of the formula interface and through `dbartsData(bases = )`, on the base build
     too, and at the matrix interface with a code basis on this push alone. With a subset that is the same
     each time it is read no fit moves.
-  - A tilde written in place is bound at the call, a held formula is read late, an argument a function
-    of base R writes is a value, and a basis forwarded by a call that has returned is its value or is
-    refused: "The capture rule" carries the four.
+  - A tilde written in place is bound at the call, an argument a function of base R writes is a value,
+    and a basis forwarded by a call that has returned is its value or is refused: "The capture rule"
+    carries the three. A held formula was left R's late reading by this ruling, the orchestrator's, which
+    dec-B284 replaced (the list below).
   - Where code that had a value at the call fails against the data's columns, the refusal adds which
     column hides which variable and how to hand the value over: `for (i in 1:2) forest(basis =
     columns[[i]])` beside a data column `i` is the caller's own code, read by the hiding rule, and stops
@@ -1111,6 +1130,48 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
     carry a loop of forests as an example; the seven sentences the review found saying more than is true
     are corrected (the tilde, what "at that moment" covers, a value's names, a value's emptied level,
     `basis.terms`, and three in the design note).
+- Made after the second review of push 3 (LAND AFTER FIXES, three blocking findings).
+  - One reading of `data`, ruled by the coordinator. The `data` argument and the `subset` argument are
+    each evaluated once for a fit, at every door, and everything downstream is handed the value: the
+    way the hazard and aft paths already hand on a response and the first round handed on `subset`.
+    [`dbartsData`](../../R/data.R) puts the value of `data` in the matched call that its model frame and
+    its readings of `weights` and `test` are built from, and evaluates `subset` in that value;
+    [`dbarts`](../../R/dbarts.R) hands the data object the `data` it read its bases against and, with
+    the matrix interface, the `subset` it cut the censoring status by; [`bart`](../../R/bart.R) and
+    [`rbart_vi`](../../R/rbart.R) hand on the `data` they read. The call a fit keeps is taken before and
+    shows what the caller wrote. Before, on this push: `dbarts(y ~ x, d[sample(n), ], subset = x1 >
+    0.5)` kept rows with `x1 <= 0.5`, the first round having evaluated `subset` in one reading of
+    `data` and cut another, which the base build did not do. Before, on the base build too: a basis was
+    read against one reading of `data` and the fit made on another; an aft fit on the matrix interface
+    took its censoring status from one reading of `subset` and its log times from another; and
+    `rbart_vi` read its groups from one reading of `data` and its rows from another. With a `data` and
+    a `subset` that are the same each time they are read no fit moves.
+  - dec-B284: a formula object given to `forest()` is read when `forest()` is called; "The capture
+    rule" carries it. Before, in a loop, every forest of `f <- ~ W[[k]]; forest(basis = f)` read the
+    last `k`. A formula that reaches `forest()` through dots from a call that has returned is bound the
+    same way. A forest no longer carries the environment of a formula handed over; one held in a
+    variable is kept with it, as the caller made it.
+  - A value left with one level. A factor, a character or a logical vector handed over as a value that
+    `subset` or a dropped row leaves with one level among the rows kept, and one numeric column left
+    all zeros, are refused in the words the same basis written as code is refused in
+    ([`refuseEmptiedValueBasis`](../../R/forestBasis.R)); before they were fitted with a column of ones
+    beside a column of zeros, or with a column of zeros alone. A value that keeps two or more levels
+    keeps its zero columns for the others, which is slice K's.
+  - A name or a call handed on by `Map()`'s `MoreArgs` is the caller's code ("The capture rule").
+    Before it was evaluated where `Map()` runs, so a caller's variable beat the data's column.
+  - The rows of a formula fit's data are counted from the data frame where there is one, so a formula
+    whose first variable is a number beside the response, `I(k * y) ~ x`, takes a basis under `subset`;
+    before it was refused with a count of one row. Without a data frame the first variable's length is
+    still the count.
+  - `subset` selects training rows only: the model frame that reads `weights` on `test` is built
+    without it. Before, on the base build too, the test rows' weights were cut by the training rows'
+    `subset`, which stopped the fit or, where the counts agreed, gave the test rows other rows' weights.
+  - `$setForestBasis` with a factor whose levels stand in another order is left to
+    forest-kind-by-class, which matches a swapped factor to the recorded levels by name; nothing is
+    refused here in its place.
+  - Help: `vars = "x1"` in the `lapply()` example under `basis`; what is taken from the fitted rows at
+    new rows and what is computed again; `data` beside `subset` where the help says each is evaluated
+    once; a factor left with one level among what "Rows" refuses.
 
 ## Landing note
 
