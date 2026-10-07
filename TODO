@@ -744,6 +744,19 @@ items
     refusing it on a basis of several columns (dec-B280, revising
     dec-B269 in part). Before the merge to main; about 60 lines with
     the help and tests.
+  factor-basis-refusal: a factor, character or logical basis of three
+    or more levels is refused by name in 1.0-0, drawn or held, the
+    message showing one forest for each level but the first
+    (dec-B281). Before the merge to main; planned with the forest
+    plans (docs/plans/forest-kind-by-class.md knows a basis's kind at
+    every door).
+  factor-basis-per-level: forest(x, basis = ~ arm) on a factor of three
+    or more levels becomes shorthand for one forest for each level but
+    the first, each on that level's indicator, so every level has its
+    own effect function (dec-B281). After 1.0-0 (VD 2026-10-07: "make
+    sure the sugar form that gets forests for all levels is scheduled
+    for later"). To design: the forests' labels, where sd and
+    amplitude stated on the term go, vars, and the list door.
   single-forest-vars-leftovers: two things the column restriction on a
     single declared forest left (docs/design/single-forest-vars.md). A
     zero split probability does not exclude a column once the positive
