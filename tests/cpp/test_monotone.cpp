@@ -944,12 +944,17 @@ struct Arrival {
 };
 
 // What of b differs from a among the things a refused update leaves alone,
-// or null: the codes, has-missing flags and cut grids, and per chain the tree
-// with its leaf values, the row-to-leaf map, the cached fits and sigma, all
-// bit for bit. The order a leaf's rows are held in is left out: a refusal
-// re-routes twice and may leave another. Each partition is held to its own
-// chain's map instead.
-const char* arrivalDifference(Arrival& a, Arrival& b) {
+// or null: the codes, has-missing flags and cut grids, and per chain the
+// generator, the tree with its leaf values, the row-to-leaf map, the cached
+// fits and sigma. At tolerance 0 all of it bit for bit; a positive tolerance
+// is for the leaf values, fits and sigma alone. The order a leaf's rows are
+// held in is left out: a refusal re-routes twice and may leave another. Each
+// partition is held to its own chain's map instead.
+const char* arrivalDifference(Arrival& a, Arrival& b, double tolerance) {
+  auto same = [tolerance](double u, double v) {
+    return tolerance > 0.0 ? std::fabs(u - v) <= tolerance
+                           : std::memcmp(&u, &v, sizeof(double)) == 0;
+  };
   auto& sa = a.sampler();
   auto& sb = b.sampler();
   const ColumnStore& da(sa.data());
@@ -959,23 +964,32 @@ const char* arrivalDifference(Arrival& a, Arrival& b) {
   if (da.hasMissing != db.hasMissing) return "has-missing flags";
   if (da.cutPoints != db.cutPoints) return "cut points";
   for (size_t c = 0; c < a.numChains; ++c) {
+    std::vector<unsigned char> ga(ext_rng_getSerializedStateLength(a.rngs[c]));
+    std::vector<unsigned char> gb(ga.size());
+    ext_rng_writeSerializedState(a.rngs[c], ga.data());
+    ext_rng_writeSerializedState(b.rngs[c], gb.data());
+    if (ga != gb) return "generator";
     std::vector<FlatNode> fa, fb;
     std::vector<std::uint32_t> counts;
     sa.flattenTree(c, 0, fa, counts);
     sb.flattenTree(c, 0, fb, counts);
     if (fa.size() != fb.size()) return "tree";
-    for (size_t i = 0; i < fa.size(); ++i)
+    for (size_t i = 0; i < fa.size(); ++i) {
+      bool leaf = fa[i].variable == invalidVariable;
       if (fa[i].variable != fb[i].variable || fa[i].flags != fb[i].flags ||
-          std::memcmp(&fa[i].value, &fb[i].value, sizeof(double)) != 0)
-        return fa[i].variable == invalidVariable ? "leaf values" : "tree";
+          (!leaf && fa[i].mask != fb[i].mask))
+        return "tree";
+      if (leaf && !same(fa[i].value, fb[i].value)) return "leaf values";
+    }
     const std::uint32_t* la = TestPeer::leafOf(sa.chain(c), 0);
     const std::uint32_t* lb = TestPeer::leafOf(sb.chain(c), 0);
     if (std::memcmp(la, lb, n * sizeof(std::uint32_t)) != 0)
       return "row-to-leaf map";
-    if (TestPeer::totalFitsInForest(sa.chain(c), 0) !=
-        TestPeer::totalFitsInForest(sb.chain(c), 0))
-      return "fits";
-    if (sa.sigma(c) != sb.sigma(c)) return "sigma";
+    const std::vector<double>& ta(TestPeer::totalFitsInForest(sa.chain(c), 0));
+    const std::vector<double>& tb(TestPeer::totalFitsInForest(sb.chain(c), 0));
+    for (size_t i = 0; i < n; ++i)
+      if (!same(ta[i], tb[i])) return "fits";
+    if (!same(sa.sigma(c), sb.sigma(c))) return "sigma";
     for (int which = 0; which < 2; ++which) {
       const Tree& tree = (which == 0 ? sa : sb).chain(c).tree(0);
       const std::uint32_t* leaf = which == 0 ? la : lb;
@@ -1000,17 +1014,19 @@ void checkAt(bool condition, const std::string& label, const char* what) {
   check(condition, message.c_str());
 }
 
-// a and b are twins, and are twins again after three sweeps of each: the
-// update left no fit, value, rule or generator moved
+// a and b are twins bit for bit, and three sweeps of each later draw the same
+// trees with values, fits and sigma equal to rounding. Not bit for bit then:
+// a sweep sums over a leaf's rows in the order the leaf holds them, which any
+// re-route can change, a refused update's included.
 void checkTwins(Arrival& a, Arrival& b, const std::string& label) {
   for (int pass = 0; pass < 2; ++pass) {
     if (pass == 1) {
       a.sweep(3);
       b.sweep(3);
     }
-    const char* difference = arrivalDifference(a, b);
+    const char* difference = arrivalDifference(a, b, pass == 0 ? 0.0 : 1e-12);
     std::string what = pass == 0 ? "the sampler is its twin"
-                                 : "three sweeps later it is still its twin";
+                                 : "three sweeps later it draws as its twin";
     if (difference != nullptr)
       what += std::string(", differs in ") + difference;
     checkAt(difference == nullptr, label, what.c_str());
