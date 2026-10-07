@@ -45,6 +45,8 @@ alone, and variance factors its square, split over the variance trees. Amplitude
 as they are: the leaf values beneath them carry the ratio. A constant response's transform spans 1
 upward from its value, the window from c to c + 1, and converts like any other. The replayed function agrees
 with the stored one to rounding. A state in the sampler's own units is not touched and installs bit for bit.
+A re-anchor applies the same arithmetic to the draws the sampler has kept, so they stay the functions they
+were ([leaf-conversions.md](leaf-conversions.md)).
 
 Two kinds of chain cannot take a different shift - a gp leaf's saved draws carry no mean term, and with
 amplitudes no single forest owns the location - and a state stored under another shift is refused there by
@@ -117,7 +119,8 @@ Pairs of one family that differ in a value held fixed - the Student-t df or the 
 in one and drawn in the other - install, as does a monotone sampler's state into a plain one; a plain state
 goes into a monotone sampler only when its leaf values are in order. The warm start, `installTrees`, reads no
 latents and is the way to start a sampler from a fit of another family: it takes the donor's trees and, where
-the sampler draws them, its sigma, k and DART state.
+the sampler draws them, its sigma, k and DART state. A linear leaf's coefficients are restated from the
+donor's covariate standardization into the sampler's own ([leaf-conversions.md](leaf-conversions.md)).
 
 ## Where it lives
 

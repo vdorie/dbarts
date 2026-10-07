@@ -120,15 +120,18 @@ Stage-3 deltas:
   covariates under the EXISTING standardization constants (calibration
   is sticky, like refreshCutsForColumn keeping the cut count); rollback
   regathers the restored values exactly. Whole-data setData
-  re-initializes constants the way it rebuilds the cut grid, carrying
-  the persisted parameters across as the same approximate continuation
-  the split remap embodies. Collapse merges average per coordinate.
+  re-initializes constants the way it rebuilds the cut grid and restates
+  every coefficient, live and kept, in them, so each leaf stays the
+  function of the raw covariates it was
+  ([leaf-conversions.md](leaf-conversions.md)). Collapse merges average
+  per coordinate.
   Because the constants are sticky, the chain state carries them
   (ForestStateData::leafCovariateCenters/leafCovariateScales, read by
   name and absent in older states), so a copy, a reload or a dead-pointer
   re-creation, which rebuilds over the updated values, restores the
-  constants the live sampler kept. A warm start does not copy them: it
-  reads the donor's trees on the destination's data, as setData does.
+  constants the live sampler kept. A warm start does not copy them: the
+  donor's coefficients are restated in the destination's own
+  ([leaf-conversions.md](leaf-conversions.md)).
 - Every stage-2 refusal is lifted; xbart views remain the stage-4 item
   (ColumnStore views hold no raw covariates yet), and the bridge still
   instantiates only the constant leaf.
