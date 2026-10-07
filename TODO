@@ -244,7 +244,18 @@ items
     coefficients, rewrite kept draws at a re-anchor, and refuse the
     calls on a gp sampler that holds kept draws. Plan:
     docs/plans/leaf-conversions.md.
-  repeated-cut-restore: a stored tree names a split by its cut value,
+  cut-grid-sort: setCutPoints sorts the grid it is given; a repeated
+    point and a grid that is not numeric stay refused, the first with a
+    message pointing to a denser grid (dec-B285). Before the merge to
+    main, with repeated-cut-restore.
+  cut-point-weights: a way to make some cut points likelier than
+    others, by repeating a point or by an argument of probabilities
+    beside the grid; the engine already picks uniformly among grid
+    positions, in the prior and the proposal both. After 1.0-0
+    (dec-B285). Whatever repeated-cut-restore does with equal values
+    must leave this an addition.
+  repeated-cut-restore: BEFORE THE MERGE TO MAIN (VD 2026-10-07,
+    dec-B285). A stored tree names a split by its cut value,
     and the rebuild (setState, copy(), a reload) puts it on the first
     index holding that value. On a grid that repeats a value a split
     drawn on a later copy therefore moves, and the chain no longer
