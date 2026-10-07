@@ -768,6 +768,11 @@ items
     times a weighted sum (the curve-times-modifier model of a spline
     basis is the second), with how a size is stated for each column
     (dec-B272). After 1.0-0 (dec-B282).
+  state-family-record-removal: a state stops recording its family and
+    setState, a copy and a reload stop refusing by family; the floor
+    on precisions that are not positive and finite stays (dec-B283,
+    revising dec-A174). Before the merge to main; bridge, tests, help
+    and the design note of cross-family-state-install.
   single-forest-vars-leftovers: two things the column restriction on a
     single declared forest left (docs/design/single-forest-vars.md). A
     zero split probability does not exclude a column once the positive
