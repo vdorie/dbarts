@@ -85,6 +85,26 @@ monotone(directions, prior = c("joint", "leaf"))
   ones and every factor level included; nothing is claimed where the
   constrained predictor itself is missing.
 
+  New predictor values given to a sampler (see
+  \code{\linkS4class{dbartsSampler}}) can leave a tree's leaf values out of
+  order. The calls that always complete - \code{setPredictor} with
+  \code{forceUpdate = TRUE} (its default when the whole matrix is replaced),
+  \code{setData}, \code{setCutPoints}, \code{installTrees}, and a
+  \code{setState} that has to merge leaves - set every leaf value of such a
+  tree to zero, without a message, and the next iteration draws them again;
+  that suits burn-in and is not a draw from the posterior. An unforced
+  update - \code{setPredictor} with \code{forceUpdate = FALSE} (its default
+  when columns are named) or \code{"partial"}, and
+  \code{\link{updatePredictorPerObservationJointly}} - is refused instead, as
+  one that would empty a leaf is: it returns \code{FALSE}, or \code{FALSE}
+  for each row that would do it, and the sampler is left as it was. One
+  unforced change can do this: the first missing value in an unordered factor
+  column that has none, which gives the column a position that can relate
+  leaves the order did not. While a tree is in that position every update
+  that brings the missing value is refused, whatever its other values, so
+  code that proposes again until an update is accepted should run the
+  sampler, or leave the missing value out, before the next proposal.
+
   Only numeric and ordered columns are eligible: a direction on a categorical
   (unordered factor) predictor is an error. Names, positions and every
   direction are validated against the model matrix at fit time; \code{prior}

@@ -34,7 +34,8 @@
     \code{$setPredictor(x, column, forceUpdate = "partial")}, or
     \code{\link{updatePredictorPerObservationJointly}} when several samplers share the column.
     Both return a per-observation install mask, \code{FALSE} where the new value would empty a leaf
-    and was rolled back. \strong{That mask is part of a Metropolis accept decision, not a
+    or, under a \code{\link{monotone}} constraint, leave a tree's leaf values out of order, and was
+    rolled back. \strong{That mask is part of a Metropolis accept decision, not a
     diagnostic}: a declined observation holds its old value, so the likelihood read after the call
     is its old likelihood, and treating the resulting ratio as an acceptance leaves the host's copy
     of the latent disagreeing with what the samplers hold.
