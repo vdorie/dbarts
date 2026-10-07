@@ -155,7 +155,8 @@ observations; the GP leaf regathers covariates under existing constants
 snapshot/rollback of fits already covers function-valued leaves because
 fits ARE the parameters. setData reinitializes constants like the
 rebuilt cut grid; a kept draw replays only under the constants it was
-drawn with, and a warm start leaves the destination's alone
+drawn with, so a sampler holding one refuses setData and a re-derived
+response range, and a warm start leaves the destination's alone
 ([leaf-conversions.md](leaf-conversions.md)). The standardization constants and the heuristic
 lengthscales ride the chain state (ForestStateData::leafCovariateCenters,
 leafCovariateScales, leafLengthscales), as the linear leaf's do, so a

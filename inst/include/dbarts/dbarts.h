@@ -870,7 +870,9 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// comparable. true is refused on any multi-forest sampler, at any forest count, whose per-forest leaf
 /// calibrations are stated against the transform it was built with; on a
 /// heteroscedastic sampler it restates the variance forest on the new transform
-/// as well. The swap itself is refused outright on a coupling that caches
+/// as well. true is also refused, whatever y holds, on a sampler with gp leaves
+/// that holds saved draws, which replay only under the transform they were
+/// drawn with. The swap itself is refused outright on a coupling that caches
 /// per-forest state across sweeps rather than re-deriving it. COPIED, on the
 /// copy-on-set rule above: the caller's y is free on return.
 ///
@@ -883,8 +885,9 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
 /// value is an error, as it is at setResponse. updateScale re-derives the
 /// internal response transform from the offset-adjusted response (gaussian and
 /// nbinom); pass false once burnt in so fits stay comparable. A
-/// multi-forest sampler, at any forest count, refuses true (see setResponse).
-/// COPIED, on the copy-on-set rule above: the caller's offset is free on
+/// multi-forest sampler, at any forest count, refuses true (see setResponse),
+/// as does a sampler with gp leaves that holds saved draws, whatever the
+/// offset. COPIED, on the copy-on-set rule above: the caller's offset is free on
 /// return.
 ///
 /// A CAPABILITY STATUS on dbarts_sampler_setResponse's rule: 1 on a swap, 0

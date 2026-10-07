@@ -92,9 +92,16 @@ A kept gp draw is a set of kernel weights. It replays only under the centre, sca
 drawn with, and it has no mean term that could carry a shift of the response. So it cannot be rewritten at
 `setData`, nor at a re-anchor that moves the shift; where the shift holds, the ratio is carried like any other
 leaf's. The ruling (dec-B237) is that a gp sampler holding kept draws refuses `setData` and every
-`updateScale = TRUE` by name instead of silently changing them. Those refusals are the plan's step 5 and are
-not built: until they are, such a sampler behaves as it did before this work. A gp sampler's per-row fits hold
-no kernel, so a warm start copies them on the donor's grid and starts them at zero on another, as before.
+`updateScale = TRUE` by name instead of silently changing them
+([`refuseSavedGPDrawReanchor`](../../src/R_interface_bartcore.cpp), on the R methods and on both flat C
+entries). The refusal reads neither the new values nor the family. One that passed the re-anchors leaving the
+midpoint alone would let a line of calling code through on one sweep and stop it on the next, so a response
+already in force, one of twice the spread about the same midpoint and a probit response, each of which was
+accepted and the first and last of which changed nothing, are refused with the rest. It is raised before a
+value is read: the state, the data object and the kept draws are what they were. With `updateScale = FALSE`
+both calls are served as before, and a gp sampler that holds no kept draw (trees not kept, nothing run yet, or
+the store emptied by a warm start) takes every call as before. A gp sampler's per-row fits hold no kernel, so
+a warm start copies them on the donor's grid and starts them at zero on another, as before.
 
 ## Where it is tested
 
@@ -105,7 +112,9 @@ no kernel, so a warm start copies them on the donor's grid and starts them at ze
 [`testWarmStartStandardization`](../../tests/cpp/test_state.cpp),
 [`testNoSpreadLiveConversion`](../../tests/cpp/test_state.cpp), and from R
 ["kept draws across a re-anchor"](../../inst/tinytest/test-leaf-conversions.R),
-["live coefficients across a covariate without spread"](../../inst/tinytest/test-leaf-conversions.R).
+["live coefficients across a covariate without spread"](../../inst/tinytest/test-leaf-conversions.R),
+["gp leaves that hold kept draws"](../../inst/tinytest/test-leaf-conversions.R), and through the flat entries
+["a sampler with gp leaves that holds saved draws refuses a re-derived range"](../../inst/tinytest/test-capi.R).
 
 ## Not here
 

@@ -426,6 +426,22 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   differ (7.9 where it reports 9.8 and 8.5; 6.30 where it reports 6.3). The design ran this work in series
   with the `setState` return value because both edit chain.hpp; that has landed, so the constraint is gone.
   Nothing in this slice was found done already.
+- Step 5 rechecked against the tip before building, 2026-10-07, after push 1 had landed. Every symbol it
+  cites is there under its name, and the four entries call the several-forests guard as the step says.
+  [`SamplerShape`](../../src/bartcore/facade.hpp)'s `numSavedDraws` counts the draws the runs have recorded,
+  so it is zero for a store that keeps trees and has not run and for one a warm start emptied: the plan's
+  "nothing kept". A probe on a build of the tip gave what Context says of a gp sampler holding kept draws:
+  every call accepted; 3 f + 10 to 4e-15; doubled about the midpoint at twice the spread; unchanged onto the
+  response in force and on a probit sampler; off by 5 for an offset of -5; unchanged with
+  `updateScale = FALSE`. The recheck moved nothing.
+- Calls made in building step 5. The new guard runs straight after the several-forests one on the four
+  entries, and in [`bartcore_setData`](../../src/R_interface_bartcore.cpp) after the refusals already there
+  (a sparse design, several forests, aft), so a sampler those refuse is told what it was told before.
+  "A kept draw" is one the runs have recorded, not a store that could hold one.
+  `setResponse(y, status = )` on an aft sampler is refused before the status is installed.
+  `setOffset(NULL, updateScale = TRUE)` is refused like any other offset. The flat entries' refusal is
+  tested in test-capi.R, where the consumer is compiled; everything else in test-leaf-conversions.R.
+  The design note's own Status line is left for the landing.
 
 ## Landing note
 
