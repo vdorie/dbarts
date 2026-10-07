@@ -224,6 +224,14 @@ forest(
   `"dose + age"`, or `forest<i>` for a forest with no basis or with one
   given as a value; see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  Wherever a method or an `extract` or `predict` takes a `forest`, a
+  string is a forest's label (failing an exact match, the label that is
+  the same code, so `"I(dose / 30)"` finds `I(dose/30)`), a number is
+  its position as base R reads a list element by number, and `forest<i>`
+  names position *i*, as it does on every per-forest margin. A string is
+  never a position: `"2"` is a forest labelled `"2"` or none. A string
+  that is one forest's label and another position's name, or the same
+  code as two labels, is refused.
 
   **Rows.** A basis has a value for every row of `data`, and is cut to
   the rows the fit keeps: `data` and `subset` are each evaluated once,
@@ -641,7 +649,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000419
+#> total seconds in loop: 0.000471
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 

@@ -764,35 +764,38 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - forest:
 
-  A single positive integer indexing the forests from `1`, or - for
-  `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`,
-  `getLeafPrior`, and `getK` - `NULL` (the default on all five) for
-  every forest, stacked (see ‘Value’ for each reader's stacked shape). A
-  single-forest sampler's `NULL` read is bitwise its `forest = 1` read,
-  so the default costs nothing on an ordinary sampler.
-  `setForestWeights` and `setForestBasis` have no default: a writer
-  names one target rather than reading every one. `setLeafPrior` takes
-  no `forest`: a multinomial sampler's `normal(k = )` states every
-  category forest, and a sampler whose forests carry amplitudes names
-  its forests by position in `forests`. Declared in that order, a
-  Bayesian causal forest's prognostic forest is `1` and its basis forest
-  `2`; `setForestWeights` and `setForestBasis` are both refused on a
-  sampler whose forests carry no amplitudes, but not with the same
-  message - `setForestWeights` names the missing capability, while
-  `setForestBasis` raises `"forest index out of range"` - and
-  `setForestBasis` accepts any forest of one that does. `getForestFits`
-  and `getForestVariableCounts` accept `forest = 1` on any sampler - it
-  selects the only forest - and refuse only an out-of-range index.
-  `getLeafPrior` and `getK` are likewise served on every forest of a
-  multi-forest sampler, and the calibration-map entries are that
-  forest's own. `getTrees` takes the same `forest = NULL` default,
-  stacking every forest forest-major with a leading `forest` column on a
-  sampler with several forests or one declared with `forests =`, and no
-  such column on any other (see ‘Value’); it additionally accepts an
-  integer vector of forest indices, each validated as a lone `forest`
-  argument is here and stacked in the order given. `plotTree` takes a
-  single `forest`, defaulting to the sampler's only one and required
-  when there is more than one.
+  A single positive integer indexing the forests from `1`, or a string,
+  the forest's label (see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md);
+  `forest<i>` names position *i*, and a sampler of one forest, or a
+  multinomial one, has no labels), or - for `getForestFits`,
+  `getForestAmplitudes`, `getForestVariableCounts`, `getLeafPrior`, and
+  `getK` - `NULL` (the default on all five) for every forest, stacked
+  (see ‘Value’ for each reader's stacked shape). A single-forest
+  sampler's `NULL` read is bitwise its `forest = 1` read, so the default
+  costs nothing on an ordinary sampler. `setForestWeights` and
+  `setForestBasis` have no default: a writer names one target rather
+  than reading every one. `setLeafPrior` takes no `forest`: a
+  multinomial sampler's `normal(k = )` states every category forest, and
+  a sampler whose forests carry amplitudes names its forests by position
+  in `forests`. Declared in that order, a Bayesian causal forest's
+  prognostic forest is `1` and its basis forest `2`; `setForestWeights`
+  and `setForestBasis` are both refused on a sampler whose forests carry
+  no amplitudes, but not with the same message - `setForestWeights`
+  names the missing capability, while `setForestBasis` raises
+  `"forest index out of range"` - and `setForestBasis` accepts any
+  forest of one that does. `getForestFits` and `getForestVariableCounts`
+  accept `forest = 1` on any sampler - it selects the only forest - and
+  refuse only an out-of-range index. `getLeafPrior` and `getK` are
+  likewise served on every forest of a multi-forest sampler, and the
+  calibration-map entries are that forest's own. `getTrees` takes the
+  same `forest = NULL` default, stacking every forest forest-major with
+  a leading `forest` column on a sampler with several forests or one
+  declared with `forests =`, and no such column on any other (see
+  ‘Value’); it additionally accepts a vector of forest indices or of
+  labels, each validated as a lone `forest` argument is here and stacked
+  in the order given. `plotTree` takes a single `forest`, defaulting to
+  the sampler's only one and required when there is more than one.
 
 - leaf.prior:
 
@@ -817,10 +820,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   spreads its creation took: `list(forest(sd = ), ...)` in the same
   positions, resolved inside the call as at creation (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)).
-  Names, where given, must be the creation's. A short list reaches only
-  the first forests, and a forest whose `sd` is not stated is left as it
-  is; an `sd` that is not one unnamed positive finite number is refused,
-  as at creation; every other
+  Names, where given, must be the creation's: the forest's label, or
+  `forest<i>` for position *i*. A short list reaches only the first
+  forests, and a forest whose `sd` is not stated is left as it is; an
+  `sd` that is not one unnamed positive finite number is refused, as at
+  creation; every other
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   argument, `amplitude` included, is fixed at creation (a basis changes
   through `setForestBasis`). Each `sd` lands in the channel creation

@@ -247,7 +247,15 @@ The constructor is not exported: it resolves by bare name inside the
     column names of <code>data@bases[[f]]</code> on the sampler. A forest's label,
     where its place in a <code>forests</code> list has no name, is the text of its
     basis, <code>"dose + age"</code>, or <code>forest&lt;i&gt;</code> for a forest with no basis
-    or with one given as a value; see <code><a href="dbarts.html">dbarts</a></code>.</p>
+    or with one given as a value; see <code><a href="dbarts.html">dbarts</a></code>. Wherever a method
+    or an <code>extract</code> or <code>predict</code> takes a <code>forest</code>, a string is
+    a forest's label (failing an exact match, the label that is the same code,
+    so <code>"I(dose / 30)"</code> finds <code>I(dose/30)</code>), a number is its
+    position as base R reads a list element by number, and <code>forest&lt;i&gt;</code> names position
+    <em>i</em>, as it does on every per-forest margin. A string is never a
+    position: <code>"2"</code> is a forest labelled <code>"2"</code> or none. A string
+    that is one forest's label and another position's name, or the same code
+    as two labels, is refused.</p>
 <p><strong>Rows.</strong> A basis has a value for every row of <code>data</code>, and is
     cut to the rows the fit keeps: <code>data</code> and <code>subset</code> are each
     evaluated once, for the fit, and the basis is given the same rows in the
@@ -621,7 +629,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000419</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000471</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 3 2 2 3 3 2 2 </span>

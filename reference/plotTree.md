@@ -69,11 +69,13 @@ plotTree(object, ...)
 
 - forest:
 
-  An integer, the forest to plot from (1-indexed, as
+  A number, the forest to plot from (1-indexed, as
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
-  `getTrees` accepts). For a sampler with a single forest it may be
-  omitted; a sampler with more than one (a Bayesian causal forest, or a
-  multinomial fit's own sampler) requires it.
+  `getTrees` accepts), or a string, its label (see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)). For
+  a sampler with a single forest it may be omitted; a sampler with more
+  than one (a Bayesian causal forest, or a multinomial fit's own
+  sampler) requires it.
 
 - ...:
 

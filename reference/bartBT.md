@@ -563,11 +563,15 @@ family(object, ...)
 
 - forest:
 
-  For `extract(type = "forest")` and `predict(type = "forest")`: which
-  forest(s) to return, by 1-based index or by margin name (`"forest1"`,
-  `"forest2"`, ...); `NULL` (the default) returns every forest. The
-  returned array always keeps the trailing forest margin, subset to the
-  requested forests, even when only one is selected. For
+  For `extract(type = "forest")`, `extract(type = "trees")` and
+  `predict(type = "forest")`: which forest(s) to return, by 1-based
+  position, as base R reads a list element by number, or by label (a
+  string; see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)),
+  `"forest1"`, `"forest2"`, ... being the position names every
+  per-forest margin carries; `NULL` (the default) returns every forest.
+  The returned array always keeps the trailing forest margin, subset to
+  the requested forests, even when only one is selected. For
   `extract(type = "k")` and `extract(type = "leaf.prior.sd")` on a fit
   with several forests, it selects among the named per-forest numbers
   (one number for a single forest). Selecting a forest outside those is
@@ -580,15 +584,17 @@ family(object, ...)
 
   For `predict` on an amplitude-coupled multi-forest fit: the bases each
   forest's amplitudes multiply AT the predicted rows, which off the
-  training rows only the caller knows. A length-K list, entry k either
-  `NULL` (for a forest that declared no basis, whose amplitude
-  multiplies an implicit all-ones column) or anything
+  training rows only the caller knows. A length-K list, in the forests'
+  order, entry k either `NULL` (for a forest that declared no basis,
+  whose amplitude multiplies an implicit all-ones column) or anything
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
   `basis` accepts as a value - a numeric vector or matrix, a factor, a
   character or a logical vector - expanded by the same rule and required
   to have `nrow(newdata)` rows and the width that forest's amplitudes
-  take. When exactly one forest carries a basis the bare value may be
-  given on its own, without the list: for a Bayesian causal forest,
+  take. A name on an entry is refused unless it is that forest's label
+  or `forest<i>`, since the list is read by position. When exactly one
+  forest carries a basis the bare value may be given on its own, without
+  the list: for a Bayesian causal forest,
   `bases = cbind(1 - zstar, zstar)` is the counterfactual arm being
   predicted under. Unlike at fit time, a column of all zeros and a
   single-level factor are accepted, since a constant arm is the point of
@@ -811,10 +817,13 @@ and `treeNums`. Each should be an integer vector detailing the desired
 trees to be returned. A further optional argument `newdata` routes a new
 set of predictors (in the same form accepted by `predict`) through the
 frozen trees so that the `n` column counts those observations instead of
-the training data. A last optional argument `forest` - a single index, a
-vector of them, or the default `NULL` for every forest - selects among a
-fit's forests (only an amplitude-coupled multi-forest fit - one more
-forest per additional
+the training data. A last optional argument `forest` - a single position
+or label, a vector of them, or the default `NULL` for every forest (a
+label is a string, as `extract(type = "trees", forest = "dose")` reads
+it; see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)) -
+selects among a fit's forests (only an amplitude-coupled multi-forest
+fit - one more forest per additional
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
 or `forests =` entry - or a `"bartMultinomial"` fit's K categories,
 carry more than one); see
@@ -1227,7 +1236,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.132610
+#> total seconds in loop: 0.150953
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
