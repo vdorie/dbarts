@@ -257,20 +257,33 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
    the sentences from "Student-t redraws the scale of every row at positive weight and active" to "change
    them with `setWeights`" become: "A Student-t state also records which rows were at weight zero when it
    was stored, and a restore under other weights redraws the scale of exactly the rows that enter the
-   likelihood, at weight zero then and positive now, as the same `setWeights` call would: each chain from
-   its own restored generator, in row order. Every other row keeps its stored scale, and a restore between
-   weight vectors with the same zero rows draws nothing. An entering row that is inactive under `active`
-   waits for `setActiveRows`; on a copy or a reload, where the mask is put back after the state, it is
-   redrawn at the install. A state stored before the record existed is installed as it was then, every row
-   at positive weight and active redrawn." The Saving paragraph's last two sentences become: "A weight
-   change is undone by `setWeights` with the old weights and `setState` with the stored state, in either
-   order. With the weights put back first the sampler is the stored chain bit for bit. With `setState`
-   first a Student-t sampler differs from it only at rows the change had taken to weight zero: their
-   scales are redrawn from their conditional at the stored fit as the old weights bring them back, which
-   is a valid draw and not the stored value. `setState` returns `TRUE` in both. A sampler saved or copied
-   after its weights changed without a store is re-created from the state stored under the earlier
-   weights, moved to the current ones as `setWeights` moved the live sampler; call `storeState()` after
-   the change to have it reload or copy as it stands." The Value text for `setState` stands.
+   likelihood, at weight zero then and positive now, as `setWeights` with those weights would on a sampler
+   holding the state under the weights it was stored with: each chain from its own restored generator, in
+   row order. Every other row keeps its stored scale, and a restore between weight vectors with the same
+   zero rows draws nothing. An entering row that is inactive under `active` waits for `setActiveRows`; on
+   a copy or a reload, where the mask is put back after the state, it is redrawn at the install. A state
+   that carries the digest and no such record, as one stored before the record existed does, has the scale
+   of every row at positive weight and active redrawn instead (on a copy or a reload, every row at
+   positive weight, the mask being put back afterwards); a state that carries no digest has none redrawn."
+   The Saving paragraph's last two sentences become: "A weight change is undone by `setWeights` with the
+   old weights and `setState` with the stored state, in either order, and `setState` returns `TRUE` in
+   both. With the weights put back first the sampler is the stored chain bit for bit. With `setState`
+   first it is a valid continuation of the stored chain, and the stored chain bit for bit only when
+   neither call redraws a latent. A gaussian sampler holds none, so it is. A Student-t sampler is when the
+   change left the same rows at weight zero. When the change brought a row into the likelihood or took
+   one out of it, that row's scale is redrawn - by `setState` for a row the change had brought in, by
+   `setWeights` for a row it had taken out, from its conditional at the stored fit - while every row at
+   positive weight throughout keeps its stored scale; the redraws use the chain's generator, so the draws
+   that follow come from another random stream than the stored chain's. A `logistic` sampler has its
+   latents redrawn by both calls, so in that order it is never the stored chain bit for bit. Where
+   `setWeights` installs the mask instead (see `weights`), the rows the old vector switches back in have
+   their latents redrawn in that order, as `setActiveRows` redraws them. A sampler saved or copied after
+   its weights changed without a store is re-created from the last stored state, installed under the
+   weights it then holds by the rule for a restore under other weights (see `weights`). It is a
+   continuation of the stored chain and not a copy of the live sampler: it carries no sweep made since
+   the store, and after an undo with `setState` first, when the weights are the stored ones again, it is
+   the stored chain exactly, without the scales that undo redrew. Call `storeState()` after the change to
+   have it reload or copy as it stands." The Value text for `setState` stands.
    Design record: [The saved state (follow-on)](../design/weighted-logistic.md#the-saved-state-follow-on),
    amended and dated, with the table above and the rule; the sentence in
    [active-rows-mask.md](../design/active-rows-mask.md) that says a state does not name its rows out; the
@@ -337,6 +350,23 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
 - Putting the mask back before the state on a copy or a reload, so an entering masked row waits there too.
   It moves every family's re-creation; the difference is one draw order in a corner (Student-t, a mask, a
   state stored under other weights, a row both masked and entering), right in law either way. Not planned.
+- A state of one family installed into a sampler of another. Found in review, the same on the base build
+  and this one, not fixed here. Measured on the fixture, one chain, each sampler unweighted, the
+  destination swept before the install: of the twelve pairs among gaussian, Student-t, probit and
+  logistic, four are refused (`state is not consistent with this sampler`): a Student-t, probit or
+  logistic state into a gaussian sampler, and a gaussian state into a Student-t one. The other eight
+  install.
+  - A probit state into a Student-t sampler returns `FALSE` and leaves the probit latents as scales, some
+    negative (minimum -2.62; -1.75 on the reviewer's weighted destination); the next three sweeps give
+    fits that are not finite.
+  - A probit state into a logistic sampler returns `TRUE` and leaves negative Polya-Gamma latents; the
+    next sweep did not return within 20 seconds.
+  - A logistic state into a Student-t sampler returns `FALSE`; a Student-t state into a probit or a
+    logistic sampler, a logistic state into a probit one, and a gaussian state into a probit or a
+    logistic one return `TRUE`. Their next three sweeps are finite.
+  So the Context line that a gaussian state and a Student-t sampler refuse each other holds for that
+  pair; no pair among Student-t, probit and logistic is refused. The manual asks for a state from a sampler over the same
+  data, which these are not; the refusal is what is missing. The coordinator has the text of a TODO.
 
 ## Calls made in planning
 
@@ -368,6 +398,19 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
   that redrew every row is today.
 - The manual keeps a sentence on the order of an undo, reworded: either order is right, weights first is
   bit for bit. The sentence that named one order as the only exact one goes.
+  - Corrected in review (2026-10-07). The sentence first planned here said that with `setState` first a
+    Student-t sampler "differs from it only at rows the change had taken to weight zero". It is false: a
+    change that only brings rows in takes none to zero, and the install still redraws the rows brought in
+    from the chain's generator, so those scales and every later draw differ from the stored chain's (20
+    scales, the next five draws by up to 1.6 with one chain and 2.3 with two). Step 5 now quotes the
+    sentence as corrected, each clause of it run first: weights first is the stored chain bit for bit in
+    every family tried; `setState` first is too for gaussian and for Student-t with the same zero rows,
+    and is not for Student-t when a row entered or left (20, 10 and 40 scales differ in the three cases),
+    for logistic (81 of 81) or for a 0/1 vector on probit, ordinal and nbinom (20 of 20 switched back
+    in). The review also restored the copy and reload case to the sentence on a state without the record
+    (61 redrawn against 49 live, 0 with no digest) and made the sentence on a copy made without a store
+    say that it continues the stored chain: after an undo with `setState` first it is the stored chain
+    exactly and differs from the live sampler at 40 scales.
 - The `rng:` line names a posterior-changing sequence, the undo with `setState` first. It is a correction
   and is held to the identity with `setWeights` and the uniformity test, not to a new exact gate; the
   coordinator may prefer an arm in `mask-redraw-exact.R` that proposes and rejects weights (about 150
