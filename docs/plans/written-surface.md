@@ -225,6 +225,8 @@ quoted, the form to write given. `<f>` is the forest's text; the push that adds 
     [2] the formula names no predictors: write them as plain terms or inside a forest(), as forest(x1 + x2)
     [2] '<f>': an offset() is the fit's and no forest's; write it beside the forests, as y ~ offset(off) + forest(...)
     [2] '<f>': an intercept term (1, 0 or - 1) is the fit's and no forest's; write it beside the forests
+    [2] '<f>': its terms leave the forest no predictor to split on
+    [2] '<f>': what the formula removes at its top leaves the forest no predictor to split on
     [2] a forest() term must appear as a top-level additive term, not inside '<text>'
     [2] 'n.trees' is given to the fitting function and to the forest with no basis ('<f>'), which are the same count; give one
     [2] a multi-forest model needs at least two forests, and this call's 'basis' declarations resolve to 1: a forest with a 'basis' stands beside another forest. Write the forest with no multiplier too, as y ~ forest(x1 + x2) + forest(x1 + x2, basis = z1) or forests = list(forest(), forest(basis = z1)), or use a single forest with linear() leaves; otherwise drop the basis
@@ -291,11 +293,27 @@ select nothing: a forest is still chosen by position, and the per-forest margins
 
 ## The capture rule, and the help's warning
 
-- `forest()` reads `vars` and `basis` unevaluated and keeps the code with the place it was called: the
+- `forest()` reads `vars` and `basis` as code and keeps the code with the place it was called: the
   formula's environment for a term, the caller's frame for a list (not the package's own evaluation
   frame, which binds `forest`, `fixed`, `interactions` and `blocks`).
-- A name in them is looked up in `data` first and then there, as `lm` does. With no data frame (the
-  matrix interface, `dbartsSpec`) every name is looked up where the call was made.
+- Where the caller calls `forest()` (a `forests` list, a forest built ahead of the fit), each of the two
+  is also evaluated ONCE, at the call, where it was called, when it can be, and the value is kept beside
+  the code. The evaluation is quiet: no warning escapes, and an error means only that there is no value.
+  When the model is built, code that names a column (for `vars`, a predictor of the fit; for `basis`, a
+  column of `data`) is read against the columns, so a column still hides a caller's variable of the same
+  name; any other code IS the value taken at the call, and nothing is looked up again. Code that could
+  not be evaluated at the call and names no column is refused. So a forest built in a `for` loop, by
+  `lapply(names, forest)` or by `Map()`, a variable changed or removed between `forest()` and the fit,
+  and a forest saved and read back each fit the model written. Ruled by the coordinator on 2026-10-07
+  after the review of push 2, an agent-made call recorded for the maintainer (Calls made in planning);
+  push 2 builds it for `vars` and push 3 builds `basis` the same way.
+- A term of a formula is not a call the caller makes: its code is read against `data` and then the
+  formula's environment when the model is built, as `lm` reads a formula.
+- With no data frame (the matrix interface, `dbartsSpec`) a `basis` names no column, so it is the value
+  taken at the call.
+- Open for push 3: code that names a column AND a variable, the `k` of `basis = I(dose / k)`, is read
+  against the columns, so `k` is looked up when the model is built and again by predict, as in `lm`; a
+  loop over `k` then gives every forest the last `k`. Push 3 tests the loop and settles it (step 3.1).
 - What is handed over as an object is a value and is used as it is, its class deciding its kind: through
   `do.call`, or in a call built with the value in it, as bartCause builds its forests. A name or a call
   handed over (`as.name("dose")`, `quote(scale(age))`) and a one-sided formula are code.
@@ -309,14 +327,16 @@ select nothing: a forest is still chosen by position, and the per-forest margins
 
 The help for `forest` carries, under its `basis` item, what `?subset` carries for its own arguments:
 
-    'vars' and 'basis' are read as code, not as values. A name in them is looked up in 'data' first and
-    then where forest() was called, so a column of 'data' hides a variable of yours with the same name,
-    whether that variable holds a column, a set of names or a one-sided formula. In a function that
-    builds forests, hand values over instead: do.call(forest, list(basis = w)) for a column you hold,
-    list(basis = as.name(nm)) for a column of 'data' by its name, list(basis = f) for a one-sided
-    formula, and list(vars = nms) for predictors by name. A number found where forest() was called, the
-    k of I(dose / k), is looked up again by predict, as in lm: change it between the fit and the
-    prediction and the prediction changes, with no message.
+    A name of a column is that column, and anything else is read where forest() is called, at that
+    moment. A forest built in a loop, by lapply(names, forest) or by Map() therefore keeps what each
+    call was given, whatever its variables hold when the model is fitted, and a saved forest carries
+    it. One case needs care: a column of 'data' hides a variable of yours with the same name, whether
+    that variable holds a column, a set of names or a one-sided formula. Where the two could meet,
+    hand the value over: do.call(forest, list(basis = w)) for a column you hold, list(basis =
+    as.name(nm)) for a column of 'data' by its name, list(basis = f) for a one-sided formula, and
+    list(vars = nms) for predictors by name. A number written beside a column, the k of I(dose / k),
+    is looked up when the model is fitted and again by predict, as in lm: change it between the fit
+    and the prediction and the prediction changes, with no message.
 
 ## What dec-B272 requires of this slice
 
@@ -433,14 +453,15 @@ reader's sake; the implementer may name them otherwise.
     first text, the rewrite built from the operand as the tip's reader of a colon operand builds a basis;
     that reader and its helper are gone with this push:
     retired: [`desugarBasisOperand`](../../R/formulaTerms.R), [`flattenPlusSymbols`](../../R/formulaTerms.R). A trailing
-    `- 1` is the fit's. Plain terms that are an `offset()` or an intercept token stay in the fit's formula
-    and count as no forest. Tests (test-formula-terms.R, rewritten): eight colon and star shapes refused,
+    `- 1` is the fit's, and so is any removal written at the top, after the forests or before: it takes
+    the term from every forest, and a forest it leaves with none is refused. Plain terms that are an
+    `offset()` or an intercept token stay in the fit's formula and count as no forest. Tests (test-formula-terms.R, rewritten): eight colon and star shapes refused,
     each with its rewrite (fail today: fitted); `I(forest(x1))`, a forest in a removal and on the
     left-hand side refused; six placements of `offset(off)`, `0 +` and `- 1` give identical draws (fails
     today: `- 1` refused).
 2.2 [`forest`](../../R/model.R): formals in the order of "The grammar" less what push 3 adds, `vars`
-    first; `vars` is captured as code with the place of the call. A second unnamed argument is refused at
-    both doors and through `do.call`. Tests: dec-B272's first row (fails today: in a list the second is
+    first; `vars` is captured as code with the place of the call, and its value taken once at the call
+    (The capture rule). A second unnamed argument is refused at both doors and through `do.call`. Tests: dec-B272's first row (fails today: in a list the second is
     taken as `vars`, and a first as `basis`); `forest(basis = ~ z, x1 + x2)` accepted, the one unnamed
     argument written second; `dbartsForests$forest(n.trees = 5L)` outside any argument builds what it
     builds today.
@@ -451,13 +472,17 @@ reader's sake; the implementer may name them otherwise.
     forest's first and then the others' as written, each term once, and the predictor matrix is built by
     the code that builds it today. [`finalizeTermForests`](../../R/formulaTerms.R) gives each forest the
     columns of its own terms ([`resolveTermColumns`](../../R/model.R)); a forest naming every column is
-    unrestricted. A value in a term may be names (`forest(c("x1", "x2"))`), not positions. Tests:
+    unrestricted. A value in a term may be names (`forest(c("x1", "x2"))`), not positions: a name of a
+    column of `data` is the term the name written out is and brings its column to the fit, and any other
+    is a column of the built design. Plain terms stay in the fit's formula as written, the terms the
+    forests add after them, so a fit whose forests add none stores the terms of the same formula with no
+    `forest()`. Tests:
     `y ~ x1 + x2 + forest(x3, basis = ~ z)` has predictors x1, x2, x3 and forest 2 splits on x3 alone over
     300 sweeps (fails today: refused); `forest(log(x1) + factor(g), ...)` splits on those columns; `. - z`
     inside and outside a forest; `forest(basis = ~ z)` splits on all; no predictors anywhere, a tilde on
     the predictors, a held formula and a position are refused with their texts.
 2.4 The forests of a formula. A `forest()` with no basis is the forest with no multiplier: alone it is
-    the single-forest fit; with others it is forest 1 wherever written; beside plain predictor terms, or
+    the single-forest fit, in every family; with others it is forest 1 wherever written; beside plain predictor terms, or
     twice, it is refused. Tests: `y ~ forest(x1 + x2)` against `y ~ x1 + x2`, and
     `y ~ forest(x1 + x2) + forest(x1, basis = ~ z)` against the plain-terms form and against the two
     terms swapped: identical draws (all fail today: refused); the two refusals with their texts, the
@@ -476,8 +501,10 @@ reader's sake; the implementer may name them otherwise.
     reader to state `n.trees` on each such forest.
 2.7 The list door's first argument. [`resolveForests`](../../R/model.R) and the multi-forest block of
     [`resolveSamplerSpec`](../../R/spec.R) resolve `vars` as terms over the fit's predictors when its
-    names are predictors, and otherwise evaluate it where the call was made and select by names or
-    positions ([`resolveModerators`](../../R/model.R)); a repeat in a selection is refused. Tests:
+    names are predictors, and otherwise take the value it had where and when the call was made and
+    select by names or positions ([`resolveModerators`](../../R/model.R)); a repeat in a selection is
+    refused. As terms, `.` is the fit's terms as its formula writes them, so `. - log(x1)` removes that
+    term, and a removal that names no predictor is refused. Tests:
     `forest(x1 + x3, basis = ~ z)`, `forest(. - x3, ...)`, `vars = c("x1", "x3")`, a variable holding
     that vector, positions, and a call built with the names in it give identical draws; an unknown name;
     `list(forest(z3), forest(basis = ~ dose))`, with z3 a vector of 1s and 2s per row, is refused with
@@ -485,7 +512,8 @@ reader's sake; the implementer may name them otherwise.
     silence).
 2.8 Doors that take no term. `xbart`, `rbart_vi`, `bartBT`, `pdbart`, `pd2bart` and a direct
     [`dbartsData`](../../R/data.R) refuse a formula with a `forest()` term by name
-    ([`formulaHasForestTerm`](../../R/formulaTerms.R)). Tests: the text at each (fails today: four other
+    ([`formulaHasForestTerm`](../../R/formulaTerms.R)), `dbartsForests$forest()` and `dbarts:::forest()`
+    in a formula being the same term at every door. Tests: the text at each (fails today: four other
     messages).
 2.9 Respell and records. The 9 colon lines in 8 other test files, the three benchmark lines (the
     equivalence scenario among them) and their two comments become `forest(<x>, basis = ~ <w>)`. Help:
@@ -499,7 +527,9 @@ reader's sake; the implementer may name them otherwise.
 
 ### Push 3: the basis
 
-3.1 Capture. [`forest`](../../R/model.R) reads `basis` unevaluated, as "The capture rule" says;
+3.1 Capture. [`forest`](../../R/model.R) reads `basis` as code and takes its value once at the call when
+    it can be evaluated, as "The capture rule" says and as push 2 built for `vars`: code that names a
+    column of `data` is read against the columns, any other code is the value taken at the call;
     [`forestBasisDeclarations`](../../R/model.R) carries code and values apart. Tests (a new file
     test-forest-capture.R): `basis = dose` with `dose` only in `data` at both doors (fails today: not
     found); with a second `dose` beside the call the data's is used, at both doors (fails today: the
@@ -507,7 +537,12 @@ reader's sake; the implementer may name them otherwise.
     through `do.call`, `as.name()` through `do.call` in an `lapply`, a caller's variable named `forest`;
     `NULL` held and computed; a string, a single number and a two-sided formula refused with their texts;
     a column `b` of the data beside `b <- ~ dose` uses the column, and `do.call` with the formula uses
-    dose.
+    dose. The loop tests, as test-forest-predictors.R has them for `vars`: a `for` loop over held
+    columns, `lapply(list(w1, w2), function(w) ...)` against `lapply(columns, forest, vars = ...)`,
+    `Map(forest, names, basis = list(...))`, the variable changed, set to `NULL` and removed between
+    `forest()` and the fit, and a forest saved and read back each fit the basis the call was given, by
+    `data@bases` and by identical draws against the basis spelled out; and `I(dose / k)` in a loop over
+    `k`, whose verdict push 3 settles.
 3.2 The grammar walk (`parseBasisGrammar`), before anything is evaluated: `+` separates, parentheses
     group, `:` between terms is kept, `1`, `0 +` and `- 1` are read as in `lm`; everything in "Refused
     forms" marked [3] from the star to the reserved names is refused here. Tests (test-forest-basis-terms.R,
@@ -745,7 +780,9 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   The alternative, landing the help once with push 3, leaves a tip whose help shows the colon.
 - Opus for the grammar's R code. The design said sonnet with an opus review; the reasons are on the
   `agent:` line.
-- Made while building push 2, none changing what a spelling fits.
+- Made while building push 2. None was meant to change what a spelling fits; the review of push 2 found
+  that one did (kept code looked up when the sampler was built), three spellings fitted in silence as
+  another model, and the corrections that followed are the second list below.
   - Texts added to "Refused forms". A forest whose terms cancel, `forest(. - x1 - x2)`, is refused
     ("its terms leave the forest no predictor to split on"; in a list "forest()'s first argument, '...',
     leaves the forest no predictor to split on"): read as no selection it would be the unrestricted
@@ -753,11 +790,14 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
     `forest()` can be written, gets the first text ending "as forest(x1 + x2, basis = ~ z)", and one
     that already states a basis "which this one already states". In a list, an `offset()` or an intercept
     term in the first argument has one text ("an offset() and an intercept term are the fit's and no
-    forest's"), a list forest having no term text to quote. R's own error from `terms()` on a forest's
-    first argument (`forest(x1 + 2)`) is passed on behind the forest's text.
-  - Names given by value keep the tip's text ("'vars' name not found in the design's column names"),
-    which lists every missing name and is pinned in test-single-forest-vars.R; the not-a-predictor text
-    is for terms and for a name found nowhere.
+    forest's"), a list forest having no term text to quote; after the review an intercept term in a
+    list has the formula's text, quoting `forest(<the argument>)`, and the list's own text is for an
+    `offset()` alone. R's own error from `terms()` on a forest's first argument (`forest(x1 + 2)`) is
+    passed on behind the forest's text.
+  - Names given by value in a list keep the tip's text ("'vars' name not found in the design's column
+    names"), which lists every missing name and is pinned in test-single-forest-vars.R; the
+    not-a-predictor text is for terms, for a name found nowhere and for a name given by value in a
+    formula, where the caller wrote no `vars`.
   - In a list the first argument is read as terms when ANY name in it is a predictor of the fit or a
     variable of one of its terms (`log(x1)`), so that `forest(x1 + nosuch)` names `nosuch` and does not
     go looking for a variable `x1`.
@@ -774,14 +814,63 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
     in test-single-forest-vars.R, and test-forest-arguments.R's `fixed()` given tenth by position, which
     is now the one-unnamed refusal. The tests of steps 2.2 and 2.7 are a new file,
     test-forest-predictors.R, and step 2.8's another, test-forest-term-doors.R.
-  - Kept code is looked up when the sampler is built, as the capture rule says, so a forest built in a
-    `for` loop from the loop variable, or by `lapply(names, forest)`, sees the last value; the help's
-    `vars` item says to hand values over with `do.call`. Forcing the argument once where `forest()` is
-    called would end both and was not done: it is another rule than the one ruled.
   - Found on the tip and fixed here: a formula with a call that leaves an argument empty,
     `y ~ m[, 1] + x2`, stopped in [`containsForestCall`](../../R/formulaTerms.R) with "argument \"a\" is
     missing"; and reading `bartcore.forests` off a control without `exact = TRUE` answers with
     `bartcore.forestsDeclared` on a single declared forest.
+- Made after the review of push 2 (LAND AFTER FIXES, three blocking findings).
+  - The capture rule: `forest()` takes its first argument's value once, at the call, and keeps it beside
+    the code (The capture rule). The coordinator's ruling of 2026-10-07, an agent-made call recorded for
+    the maintainer: the rule as first ruled kept code alone and looked it up when the sampler was built,
+    so `for (i in 1:2) fs[[i + 1L]] <- forest(basis = ~ z, vars = vs[i])` and
+    `lapply(c("x1", "x3"), forest, basis = ~ z)` fitted x3, x3 where the base build fits x1, x3, the push
+    was not NEUTRAL for them, and a variable changed before the fit, `Map()` and a forest saved at top
+    level went the same way. The value is the promise forced once, so it is what R would have passed:
+    through a wrapper's dots and `lapply`'s own frame too. A predictor still hides a caller's variable
+    of the same name, the choice between terms and the value being made when the fit's predictors are
+    known. A variable that does not exist at the call is not looked up later.
+  - Known and not changed in this round: the kept code still carries the place it was written, so a
+    forest built in a function travels with that function's frame when it is saved. Measured by the
+    reviewer: `forest(cols)` built in a frame holding a 16 MB object serializes to 15.36 MB, 191 bytes on
+    the base build. Nothing of it reaches a sampler or a fit, which keep resolved columns, and a formula
+    carried its environment the same way on the base build. With the value in hand the environment is
+    read for no lookup in a list; dropping it is left to push 3, which decides what a basis needs of it.
+  - A removal at the top of a formula is the fit's, as `- 1` is: the fit's terms are the right-hand side
+    with every `forest()` replaced where it stands by its own terms, read by `terms()`, and a forest
+    splits on those of its own terms that the fit keeps. The first cut applied a trailing removal to the
+    plain terms alone, so `y ~ forest(.) + forest(x1, basis = ~ z) - z` kept z in forest 1. A forest left
+    with no term is refused ("what the formula removes at its top leaves the forest no predictor to
+    split on"). A removal that names no term of a formula is passed by, as a model formula passes it.
+  - In a list a removal names a term as the fit's formula writes it: `.` is written out as the fit's
+    terms before `terms()` reads the argument, where the first cut expanded it over column names and
+    `. - log(x1)` removed nothing. A removal that names no predictor is refused there, a list selecting
+    among predictors that exist.
+  - The stored terms of a fit whose forests add no term are again those of the same formula with no
+    `forest()` written, as on the base build: the plain terms stay as written and the forests' new terms
+    follow. The first cut rebuilt the formula from labels, which moved no draw and let predict run on
+    new rows lacking a column that `.` brought in and `-` took out, where the base build, the same
+    formula with no forest, and `lm` all stop. Restored because the push is NEUTRAL and a fit's stored
+    terms are part of what it carries; with no plain terms the formula is the fit's terms, its
+    `offset()` terms and its `- 1`.
+  - Names given by value in a term, `forest(c("x1", "x2"))`, bring their columns to the fit: the form
+    the position refusal recommends now works as the first forest and alone. A formula held in a
+    variable is still refused and a character vector held in one is still R's "variable lengths
+    differ"; reading it as names would also read a character predictor found beside the formula as
+    names.
+  - The crossed refusal writes `cbind()` of a compound operand's members, calls among them, a basis
+    formula being R code until push 3: `(log(a) + b):forest(x1)` is `basis = ~ cbind(log(a), b)`, two
+    columns, where the first cut wrote the sum. A sum with a `factor()` member, or with a column the
+    data show to be a factor or a character vector, gets the text with no rewrite: `cbind()` has no
+    factor columns, and the base build refused that crossing. Checked against the base build's colon
+    fits, seven shapes, identical draws.
+  - A lone `forest()` with no basis is the single-forest fit in every family: the refusal by family is
+    made only of a formula with a multiplied forest, and [`bart`](../../R/bart.R)'s multinomial arc,
+    which reads its formula before any forest is declared, reads `y ~ forest(x1 + x2)` as the plain
+    formula it is ([`loneForestFormula`](../../R/formulaTerms.R)); with any other argument on that
+    forest multinomial keeps its refusal. hurdle.lognormal takes no formula at all.
+  - `dbartsForests$forest()` and `dbarts:::forest()`, with or without the package named, are read as
+    `forest()` in a formula, at the fitting functions and at the six doors that refuse a term.
+    `dbarts::forest()` is still R's "not an exported object".
 
 ## Landing note
 
