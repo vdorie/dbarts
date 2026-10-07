@@ -1031,6 +1031,10 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
     forest terms, and the two readers of a removal share one flattening of the chain; the intercept
     reader and the list door's `take` are left, their rules for parentheses differing by design.
   - No benchmark script writes a spelling push 3 re-reads or refuses, so none is respelled.
+  - Of the three entries "Out of scope" sends to TODO, two are added. The third, a "restarting
+    interrupted promise evaluation" warning beside the error when a wrapper passes an unevaluable basis
+    through a promise, no longer arises: the argument is evaluated once, quietly, when `forest()` is
+    called, and the fit says why it could not be.
 
 ## Landing note
 
