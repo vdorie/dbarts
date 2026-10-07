@@ -531,6 +531,47 @@ for (door in doors) {
 frame$L <- NULL
 frame$A <- NULL
 
+# a held coefficient on a basis of one numeric column is refused however the
+# column is written, and held on two columns at 0 and 1
+heldOneColumn <- paste0(
+  "forest 2: amplitude = fixed() on a basis of one numeric column is not ",
+  "supported yet"
+)
+for (text in c("dose", "I(dose / 30)", "scale(age)", "dose:age", "~ dose")) {
+  code <- str2lang(text)
+  expect_error(
+    eval(bquote(dbarts(
+      y ~ x1 + x2 + forest(x1, basis = .(code), amplitude = fixed()),
+      frame,
+      control = basisControl()
+    ))),
+    heldOneColumn,
+    fixed = TRUE,
+    info = text
+  )
+  expect_error(
+    eval(bquote(dbarts(
+      y ~ x1 + x2,
+      frame,
+      forests = list(
+        forest(),
+        forest(x1, basis = .(code), amplitude = fixed())
+      ),
+      control = basisControl()
+    ))),
+    heldOneColumn,
+    fixed = TRUE,
+    info = text
+  )
+}
+heldTwo <- dbarts(
+  y ~ x1 + x2 + forest(x1, basis = dose + age, amplitude = fixed()),
+  frame,
+  control = basisControl()
+)
+invisible(heldTwo$run(0L, 5L))
+expect_equal(heldTwo$getForestAmplitudes()[2:3, 1L], c(0, 1))
+
 ## --- Block C: the texts whose meaning changed --------------------------------
 # '+' is columns; the sum is written inside I()
 expect_identical(
@@ -768,6 +809,22 @@ matrixFit <- dbarts(
 expect_identical(
   basisOf(matrixFit),
   lmColumns("gVector", rows = noW)[, 1:2, drop = FALSE]
+)
+# and the rows its na.action drops go from the basis as from the response
+doseVector <- frame$dose
+yMissing <- frame$y
+yMissing[c(4L, 11L)] <- NA
+matrixMissing <- dbarts(
+  xMatrix,
+  yMissing,
+  subset = 3:60,
+  forests = list(forest(), forest(x1, basis = doseVector)),
+  control = basisControl()
+)
+expect_identical(length(matrixMissing$data@y), 56L)
+expect_identical(
+  as.vector(basisOf(matrixMissing)),
+  doseVector[setdiff(3:60, c(4L, 11L))]
 )
 
 ## --- Block E: new rows -------------------------------------------------------
