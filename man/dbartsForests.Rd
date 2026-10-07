@@ -15,6 +15,9 @@
   bare name the caller has assigned a value to is that value. Anywhere else -
   a specification built ahead of the call, or an argument a wrapper forces
   before passing it on - write \code{dbartsForests$interactions(...)}.
+  \code{forest()}'s first argument, the predictors a forest splits on, is kept
+  as code wherever the constructor is called and read when the model is built;
+  see \code{\link{forest}}.
 }
 \format{
   A list of functions:
@@ -29,7 +32,8 @@
       Monotone constraints and their prior; see \code{\link{monotone}}.
     }
     \item{\code{forest}}{
-      One forest of a multi-forest model; see \code{\link{forest}}.
+      One forest of a model, in a \code{forests} list or as a term of a
+      formula; see \code{\link{forest}}.
     }
     \item{\code{varianceForest}}{
       The heteroscedastic variance forest; see \code{\link{varianceForest}}.

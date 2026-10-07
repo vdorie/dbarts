@@ -4,8 +4,9 @@
 \description{
   Build the specification of one forest of a multi-forest model. Pass a list of
   these as the \code{forests} argument of \code{\link{dbarts}} or
-  \code{\link{dbartsSpec}}, which fits the mean as a weighted sum of the
-  declared ensembles. Every knob is per forest and carried on the one
+  \code{\link{dbartsSpec}}, or write each as a term of a \code{\link{bart}}
+  or \code{\link{dbarts}} formula (\sQuote{Details}); either fits the mean as
+  a weighted sum of the declared ensembles. Every knob is per forest and carried on the one
   constructor, so the fitting functions grow exactly one argument however many
   forests a model has.
 
@@ -15,12 +16,64 @@
 }
 \usage{
 forest(
-    basis = NULL, vars = NULL,
-    n.trees = NULL, base = NULL, power = NULL, sd = NULL,
+    vars = NULL, basis = NULL, sd = NULL,
+    n.trees = NULL, base = NULL, power = NULL, amplitude = NULL,
     interactions = NULL, blocks = NULL,
-    amplitude.prior.variance = NULL, amplitude = NULL)
+    amplitude.prior.variance = NULL)
 }
 \arguments{
+  \item{vars}{
+    The predictors this forest splits on, and the one argument that may be
+    given without its name: every other argument is given by name. \code{NULL},
+    or no first argument at all, leaves the forest every predictor of the fit.
+
+    In a formula given to \code{\link{bart}} or \code{\link{dbarts}} it is
+    written as the right-hand side of a model formula of the forest's own:
+    \code{forest(x1 + x2)}, \code{forest(log(x1) + factor(g))},
+    \code{forest(. - z)}, where \code{.} is every column of \code{data} but the
+    response and \code{-} removes a term. The fit's predictors are the terms
+    of all of its forests, each once, and a forest splits on the columns of its
+    own terms; a term that gives several columns, such as \code{poly(x1, 2)} or
+    a factor under \code{factors = "indicators"}, is all of them. An
+    \code{offset()} and an intercept term (\code{0 +}, \code{- 1}) belong to
+    the fit and are written beside the forests, not inside one. Predictors may
+    also be named, as \code{forest(c("x1", "x2"))}, which selects among the
+    predictors the formula's terms give the fit; a position is not taken in a
+    formula.
+
+    In a \code{forests} list it selects among the fit's predictors. When a
+    name in it is a predictor of the fit it is read as terms in the same way,
+    \code{.} being every predictor of the fit: \code{forest(x1 + x3)},
+    \code{forest(. - x2)}. Anything else is evaluated where \code{forest()}
+    was called, when the model is built, and gives the predictors' names or
+    their positions among the fit's columns: \code{forest(c("x1", "x3"))},
+    \code{forest(c(1, 3))}, or a variable holding either. A name or a position
+    given twice is refused, and so is a formula: the multiplier of a forest is
+    its \code{basis}, by name.
+
+    \code{vars} is read as code, not as a value. A name in it that is a
+    predictor of the fit is that predictor, so a predictor hides a variable of
+    yours with the same name, and any other name is looked up only when the
+    model is built, by which time a variable may have changed. In a function
+    that builds forests, hand the names over as a value instead:
+    \code{do.call(forest, list(vars = nms))}.
+
+    Any forest may be restricted, a single declared forest included: given the
+    same residual scale estimate, that fit is the fit on the named columns
+    alone, and its other columns report no splits. The estimate is taken from
+    every column unless \code{sigest} states it, so the two fits agree draw
+    for draw when it does. On a single forest a \code{dart} tree prior beside \code{vars}
+    lays its Dirichlet over the named columns, every other column reporting
+    probability 0, and \code{split.probs} keeps its ratios among the named
+    columns and must give one of them a positive probability (see
+    \code{\link{dbartsPriors}}). On the single forest of a hazard fit the
+    \code{period} column the fit appends is always allowed, named or not:
+    \code{vars} restricts the columns the caller supplied. A hazard fit with
+    several forests takes each forest's \code{vars} as written, so a
+    restricted forest there splits on \code{period} only when \code{vars}
+    names it. The restriction holds for the sampler's
+    life; \code{$setModel} refuses a model that states another, or none.
+  }
   \item{basis}{
     The data this forest's amplitudes multiply: a one-sided formula
     (\code{~ factor(z)}), evaluated against the fit's own \code{data} and then
@@ -79,25 +132,6 @@ forest(
     it at the new rows, and with \code{subset} its formula was evaluated on
     every row of \code{data}.
   }
-  \item{vars}{
-    Optional restriction of this forest to a subset of the model matrix, by
-    column name or index; \code{NULL} leaves it reading every predictor. Any
-    forest may be restricted, a single declared forest included: given the
-    same residual scale estimate, that fit is the fit on the named columns
-    alone, and its other columns report no splits. The estimate is taken from
-    every column unless \code{sigest} states it, so the two fits agree draw
-    for draw when it does. On a single forest a \code{dart} tree prior beside \code{vars}
-    lays its Dirichlet over the named columns, every other column reporting
-    probability 0, and \code{split.probs} keeps its ratios among the named
-    columns and must give one of them a positive probability (see
-    \code{\link{dbartsPriors}}). On the single forest of a hazard fit the
-    \code{period} column the fit appends is always allowed, named or not:
-    \code{vars} restricts the columns the caller supplied. A hazard fit with
-    several forests takes each forest's \code{vars} as written, so a
-    restricted forest there splits on \code{period} only when \code{vars}
-    names it. The restriction holds for the sampler's
-    life; \code{$setModel} refuses a model that states another, or none.
-  }
   \item{n.trees, base, power}{
     This forest's tree count and tree-structure prior. \code{NULL} takes the
     engine's default, which for a basis forest is 50 trees at
@@ -107,7 +141,11 @@ forest(
     and \code{tree.prior}, which they restate rather than add to. When a value
     here disagrees with an explicitly supplied \code{control@n.trees} or
     tree-prior \code{base}/\code{power}, this one governs the fit, being the
-    more specific of the two declarations.
+    more specific of the two declarations. \code{\link{bart}} refuses its own
+    \code{n.trees} beside one on a formula's forest with no \code{basis}, the
+    two being the same count. Where every forest has a \code{basis}, the
+    forest written first takes the fitting function's tree count and tree
+    prior, so state \code{n.trees} on each forest of such a model.
   }
   \item{sd}{
     This forest's prior scale, in units of the response family's own latent
@@ -248,28 +286,26 @@ forest(
   anything today's engine cannot honour is refused there by name rather than
   dropped.
 
-  A \code{forest()} call written INSIDE a \code{\link{bart}}/\code{\link{dbarts}}
-  formula - bare, or as one operand of \code{:} - declares a second forest
-  without a separate \code{forests =} list: \code{z:forest(x1 + x2)} and
-  \code{factor(z):forest(x1 + x2)} desugar to
-  \code{forest(x1 + x2, basis = ~ z)} and
-  \code{forest(x1 + x2, basis = ~ factor(z))}, a \code{(a + b):forest(x1)}
-  compound left operand (every member numeric or logical) desugars to one
-  forest with the two-column basis \code{~ cbind(a, b)}, and
-  \code{z * forest(x1)} is refused, naming both explicit spellings. In this
-  position \code{forest()}'s UNNAMED slot is a symbolic predictor SET, not
-  \code{basis}: \code{forest(x1 + x2)} means \code{vars = c("x1", "x2")},
-  read from the call and never evaluated, so the docs always spell
-  \code{basis =} by name inside a term. Every other named argument -
-  including \code{basis} itself, for the general form
-  \code{forest(x1 + x2, basis = ~ z)} - evaluates normally. A symbolic name
-  must be among the formula's own right-hand-side terms; a factor name
-  expands to every indicator column derived from it. A term's basis is
-  evaluated against the fit's model frame, after \code{subset} and any row
-  selection; a \code{basis} declared directly on \code{forests =} is instead
-  evaluated against the raw \code{data} and then restricted to the same
-  rows - the two routes reach the same rows by different timing, so a
-  \code{subset} lines them up either way.
+  In a \code{\link{bart}} or \code{\link{dbarts}} formula each
+  \code{forest()} term is one forest of the model, without a separate
+  \code{forests =} list:
+  \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z)}. A term stands at
+  the top of the formula's right-hand side, joined to the others by \code{+};
+  a \code{forest()} crossed with another term, as \code{z:forest(x1 + x2)} or
+  \code{z * forest(x1 + x2)}, is refused with the \code{forest()} to write in
+  its place. The forest with no \code{basis} is the forest with no multiplier
+  and the model's first, wherever it is written. It may be left as plain
+  terms, \code{y ~ x1 + x2 + forest(x1 + x2, basis = ~ z)}, which is the same
+  model, but a formula has one such forest: plain predictor terms beside a
+  \code{forest()} with no \code{basis}, and two such terms, are refused.
+  Alone, \code{y ~ forest(x1 + x2)} is the single-forest fit
+  \code{y ~ x1 + x2}. The other forests keep the order they are written in.
+  Every argument but the first is evaluated in the formula's environment. A
+  term's basis is evaluated against the fit's model frame, after
+  \code{subset} and any row selection; a \code{basis} declared directly on
+  \code{forests =} is instead evaluated against the raw \code{data} and then
+  restricted to the same rows - the two routes reach the same rows by
+  different timing, so a \code{subset} lines them up either way.
 }
 \value{
   A \code{dbartsForest} specification object, resolved when a sampler is built.
@@ -280,8 +316,8 @@ forest(
   \code{\link{interactions}}, \code{\link{blocks}}
 
   \code{\link{bart}}'s \sQuote{Formula Terms} section is the full term
-  grammar - colon sugar, the factor forms, the symbolic unnamed slot, and
-  the refusal list - of which the \sQuote{Details} paragraph above is the
+  grammar - the forests of a formula, a forest's predictors, and the refusal
+  list - of which the \sQuote{Details} paragraph above is the
   constructor-side summary.
 }
 \examples{
@@ -293,8 +329,7 @@ y <- 2 * x[, 1] + z * (1 + 2 * x[, 3]) + rnorm(n, 0, 0.2)
 
 sampler <- dbarts(x, y,
                   forests = list(forest(),
-                                 forest(basis = ~ factor(z),
-                                        vars = c("x1", "x3"),
+                                 forest(x1 + x3, basis = ~ factor(z),
                                         n.trees = 25L, sd = 1.5)),
                   control = dbartsControl(n.chains = 1L, n.trees = 25L,
                                           n.samples = 20L, n.burn = 20L))
@@ -312,7 +347,8 @@ indexSd <- sqrt(calibration$k.scale^2 *
 # a standardized multiplier: predict centres and scales the new rows by the
 # training rows' mean and sd of w
 d <- data.frame(y = y, x1 = x[, 1], x3 = x[, 3], w = 50 + 10 * rnorm(n))
-fit <- bart(y ~ x1 + x3 + forest(x1 + x3, basis = ~ scale(w), n.trees = 10L),
+fit <- bart(y ~ forest(x1 + x3) +
+              forest(x1 + x3, basis = ~ scale(w), n.trees = 10L),
             d, n.trees = 10L, n.samples = 10L, n.burn = 10L,
             n.chains = 1L, n.threads = 1L, keepTrees = TRUE)
 predict(fit, d[1:3, ])

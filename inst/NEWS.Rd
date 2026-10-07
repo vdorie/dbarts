@@ -364,8 +364,9 @@
             given a \code{basis} entering multiplied by it. The Bayesian
             causal forest is the two-forest case with a treatment
             indicator as the basis. In a \code{bart} or \code{dbarts}
-            formula, a term such as \code{z:forest(x1 + x2)} declares the
-            same thing. Gaussian, probit and logistic responses;
+            formula, each forest is a term:
+            \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z)}
+            declares the same thing. Gaussian, probit and logistic responses;
             \code{predict} and \code{extract} report each forest separately
             (\code{type = "forest"}) or combined.
       \item Heteroscedastic BART (Pratola et al. 2020): \code{variance = ~ x1
