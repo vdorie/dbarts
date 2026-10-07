@@ -633,6 +633,13 @@ formalFit <- NULL
 expect_identical(countWarnings(formalFit <- builtFit(formal)), 1L)
 expect_identical(evaluations, 1L)
 expect_identical(basisOf(formalFit), column(w1, "multiplier"))
+# and one that cannot be evaluated says why when the forest is fitted
+expect_silent(unevaluable <- list(forest(), throughFormal(nosuchColumn)))
+expect_error(
+  builtFit(unevaluable, frame),
+  "'basis' (multiplier): object 'nosuchColumn' not found",
+  fixed = TRUE
+)
 # code that stops is code with no value, which a fit then says
 stops <- function(value) stop("not this basis")
 expect_silent(stopped <- list(forest(), forest(basis = stops(w1))))

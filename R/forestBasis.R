@@ -629,6 +629,11 @@ readForestBasis <- function(basis, data, numRows) {
       }
       read <- code$value
     } else {
+      # an argument that could not be evaluated says why before the code that
+      # used it does
+      for (name in names(code$broken)) {
+        refuse(code$broken[[name]])
+      }
       refuseEvaluation(code$error)
     }
     if (!is.null(read$frame)) {
