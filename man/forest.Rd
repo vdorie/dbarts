@@ -319,19 +319,22 @@ forest(
     read at once, where it was made; see \code{\linkS4class{dbartsSampler}}.
   }
   \item{n.trees, base, power}{
-    This forest's tree count and tree-structure prior. \code{NULL} takes the
-    engine's default, which for a basis forest is 50 trees at
-    \code{base = 0.25}, \code{power = 3} - shallower and fewer than a
-    prognostic forest's, the modulating surface normally being the smoother of
-    the two. On the FIRST forest these are the fit's own \code{control@n.trees}
-    and \code{tree.prior}, which they restate rather than add to. When a value
-    here disagrees with an explicitly supplied \code{control@n.trees} or
-    tree-prior \code{base}/\code{power}, this one governs the fit, being the
-    more specific of the two declarations. \code{\link{bart}} refuses its own
-    \code{n.trees} beside one on a formula's forest with no \code{basis}, the
-    two being the same count. Where every forest has a \code{basis}, the
-    forest written first takes the fitting function's tree count and tree
-    prior, so state \code{n.trees} on each forest of such a model.
+    This forest's tree count and tree-structure prior. Each one stated here
+    governs this forest, and each one left out takes the default of the
+    forest's kind, whatever the forest's place. A forest with a \code{basis}
+    has 50 trees at \code{base = 0.25}, \code{power = 3} - shallower and
+    fewer than a prognostic forest's, the modulating surface normally being
+    the smoother of the two. The forest with no \code{basis} has the fitting
+    function's: \code{\link{bart}}'s \code{n.trees} or the control's, and
+    \code{tree.prior}. A value stated here on that forest governs it over the
+    control's \code{n.trees} and the tree prior's \code{base} or
+    \code{power}, being the more specific of the two declarations, while
+    \code{\link{bart}} refuses its own \code{n.trees} beside one stated here,
+    the two being the same count. Where every forest has a \code{basis} the
+    fitting function's tree count and tree prior have no forest to belong to,
+    and one that is stated is refused, the default's own value included:
+    state it on a forest. A sampler's \code{control@n.trees} and
+    \code{model@tree.prior} hold its first forest's.
   }
   \item{sd}{
     This forest's prior scale, in units of the response family's own latent
@@ -381,13 +384,15 @@ forest(
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on
     this forest. The arguments of the same names on \code{\link{dbarts}} are
-    the FIRST forest's, so declaring both there is refused as one constraint
-    given twice; a second forest's are only expressible here. Holding the two
-    forests to different structures is the calibrated-additivity idiom - an
-    additive or low-order modulating forest beside a free prognostic one. A
-    \code{blocks} partition covers the columns the forest may split on, i.e.
-    the \code{vars} subset when one is given, on the first forest as on any
-    other.
+    those of the forest with no \code{basis}, wherever it stands, so one
+    stated there and on that forest is refused as one constraint given
+    twice. A forest with a \code{basis} states its own here, and where every
+    forest has one those arguments of the fitting function are refused.
+    Holding the two forests to different structures is the
+    calibrated-additivity idiom - an additive or low-order modulating forest
+    beside a free prognostic one. A \code{blocks} partition covers the columns
+    the forest may split on, i.e. the \code{vars} subset when one is given,
+    and the forest's own tree count.
   }
   \item{amplitude.prior.variance}{
     Prior variance of the \eqn{N(0, \cdot)}{N(0, .)} amplitudes on this
@@ -422,13 +427,18 @@ forest(
     \code{basis} carries, or one for each column of its \code{basis}. Left out,
     they are drawn each sweep. \code{fixed()} holds them for the sampler's life,
     the choice being made at creation: a forest with no \code{basis} at 1, and
-    a forest on a factor, a character or a logical vector at 0 for the first
-    level and 1 for each of the others. The forest is then held out of the
-    first level and enters at full size for every other level, so it is each
-    other level's difference from the first. A basis of several numeric columns
-    is held the same way, the first column at 0, so that column is not used. A
-    basis of one numeric column would hold the forest at zero and is refused,
-    at creation and by \code{$setForestBasis}. \code{fixed} alone is taken as
+    a forest on a factor, a character or a logical vector of two levels at 0
+    for the first level and 1 for the second. The forest is then held out of
+    the first level and enters at full size for the second, so it is the
+    second level's difference from the first. For now a held forest is taken
+    in two shapes only: a forest with no \code{basis} at any place but the
+    second, and a basis of two columns as the second forest, two numeric
+    columns being held as two levels are, the first at 0, so that column is
+    not used. Every other shape is refused when held: a forest with no
+    \code{basis} put second in a \code{forests} list or in a data object's
+    \code{bases}, a basis of two columns at any other place, and a basis of
+    one column or of three or more. \code{$setForestBasis} refuses a held
+    forest a replacement of another width. \code{fixed} alone is taken as
     \code{fixed()}, and no other value is. Outside the argument that takes it
     the constructor is \code{dbartsPriors$fixed()}. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.
@@ -484,7 +494,9 @@ forest(
   a \code{forest()} crossed with another term, as \code{z:forest(x1 + x2)} or
   \code{z * forest(x1 + x2)}, is refused with the \code{forest()} to write in
   its place. The forest with no \code{basis} is the forest with no multiplier
-  and the model's first, wherever it is written. It may be left as plain
+  and the model's first, wherever it is written; a forest's default tree
+  count and tree prior go by whether it has a \code{basis} and not by where
+  it is written. It may be left as plain
   terms, \code{y ~ x1 + x2 + forest(x1 + x2, basis = z)}, which is the same
   model, but a formula has one such forest: plain predictor terms beside a
   \code{forest()} with no \code{basis}, and two such terms, are refused.
