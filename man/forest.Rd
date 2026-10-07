@@ -34,29 +34,40 @@ forest(
     response and \code{-} removes a term. The fit's predictors are the terms
     of all of its forests, each once, and a forest splits on the columns of its
     own terms; a term that gives several columns, such as \code{poly(x1, 2)} or
-    a factor under \code{factors = "indicators"}, is all of them. An
-    \code{offset()} and an intercept term (\code{0 +}, \code{- 1}) belong to
-    the fit and are written beside the forests, not inside one. Predictors may
-    also be named, as \code{forest(c("x1", "x2"))}, which selects among the
-    predictors the formula's terms give the fit; a position is not taken in a
-    formula.
+    a factor under \code{factors = "indicators"}, is all of them. Predictors
+    may also be named, as \code{forest(c("x1", "x2"))}: a name of a column of
+    \code{data} is the term that name written out is, and any other name is a
+    column of the predictors as the fit builds them, one of a factor's
+    indicator columns for instance. A position is not taken in a formula. An
+    \code{offset()} and an intercept term (\code{1}, \code{0} or \code{- 1})
+    belong to the fit and are written beside the forests, not inside one. So
+    does a removal written beside the forests: in
+    \code{y ~ forest(.) + forest(x1, basis = ~ z) - z} no forest splits on
+    \code{z}.
 
-    In a \code{forests} list it selects among the fit's predictors. When a
-    name in it is a predictor of the fit it is read as terms in the same way,
-    \code{.} being every predictor of the fit: \code{forest(x1 + x3)},
-    \code{forest(. - x2)}. Anything else is evaluated where \code{forest()}
-    was called, when the model is built, and gives the predictors' names or
-    their positions among the fit's columns: \code{forest(c("x1", "x3"))},
-    \code{forest(c(1, 3))}, or a variable holding either. A name or a position
-    given twice is refused, and so is a formula: the multiplier of a forest is
-    its \code{basis}, by name.
+    In a \code{forests} list it selects among the fit's predictors, in one of
+    two ways. When a name in it is a predictor of the fit, it is read as terms
+    in the same way: \code{forest(x1 + x3)}, \code{forest(. - x2)},
+    \code{forest(. - log(x1))}. There \code{.} is every predictor of the fit,
+    a term is written as the fit's formula writes it, and a removal that names
+    no predictor is refused. Anything else is a value: it is evaluated once,
+    where \code{forest()} is called and at that moment, and gives the
+    predictors' names or their positions among the fit's columns:
+    \code{forest(c("x1", "x3"))}, \code{forest(c(1, 3))}, or a variable
+    holding either. A name or a position given twice is refused, and so is a
+    formula: the multiplier of a forest is its \code{basis}, by name.
 
-    \code{vars} is read as code, not as a value. A name in it that is a
-    predictor of the fit is that predictor, so a predictor hides a variable of
-    yours with the same name, and any other name is looked up only when the
-    model is built, by which time a variable may have changed. In a function
-    that builds forests, hand the names over as a value instead:
-    \code{do.call(forest, list(vars = nms))}.
+    In short, a name of a predictor is that predictor, and anything else is
+    read where \code{forest()} is called, at that moment. A forest built in a
+    loop, by \code{lapply(names, forest, basis = ~ z)} or by \code{Map()}
+    therefore keeps the selection each call was given, whatever its variables
+    hold by the time the model is fitted, and a forest saved to a file carries
+    its selection with it. A variable that does not exist yet when
+    \code{forest()} is called is not looked for later. One case needs care: a
+    predictor hides a variable of yours with the same name, so in
+    \code{forest(x1)} with a predictor \code{x1} and a variable \code{x1}
+    that holds names, the predictor is meant. Where the two could meet, hand
+    the value over: \code{do.call(forest, list(vars = nms))}.
 
     Any forest may be restricted, a single declared forest included: given the
     same residual scale estimate, that fit is the fit on the named columns
@@ -299,8 +310,10 @@ forest(
   model, but a formula has one such forest: plain predictor terms beside a
   \code{forest()} with no \code{basis}, and two such terms, are refused.
   Alone, \code{y ~ forest(x1 + x2)} is the single-forest fit
-  \code{y ~ x1 + x2}. The other forests keep the order they are written in.
-  Every argument but the first is evaluated in the formula's environment. A
+  \code{y ~ x1 + x2}, in every family that takes a formula. The other forests
+  keep the order they are written in. \code{forest()} may also be written
+  there as \code{dbartsForests$forest()}. Every argument but the first is
+  evaluated in the formula's environment. A
   term's basis is evaluated against the fit's model frame, after
   \code{subset} and any row selection; a \code{basis} declared directly on
   \code{forests =} is instead evaluated against the raw \code{data} and then
