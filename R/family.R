@@ -184,7 +184,7 @@ evalInForestVocabulary <- function(expr, vocabulary, evalEnv) {
 ## hint, it is noise.
 forceCallerCode <- function(
   value,
-  hintLists = c("dbartsForests", "dbartsPriors")
+  hintLists = c("dbartsForests", "forestPriors")
 ) {
   restarted <- gettext(
     "restarting interrupted promise evaluation",
@@ -195,10 +195,15 @@ forceCallerCode <- function(
       sources <- list(
         dbartsForests = dbartsForests,
         dbartsPriors = dbartsPriors,
-        dbartsFamilies = dbartsFamilies
+        dbartsFamilies = dbartsFamilies,
+        forestPriors = dbartsPriors["fixed"]
       )[hintLists]
       name <- unlist(lapply(sources, names), use.names = FALSE)
-      topic <- rep(names(sources), lengths(sources))
+      topic <- sub(
+        "^forestPriors$",
+        "dbartsPriors",
+        rep(names(sources), lengths(sources))
+      )
       missingFunction <- gettextf(
         "could not find function \"%s\"",
         name,

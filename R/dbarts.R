@@ -2938,6 +2938,7 @@ dbartsSampler <- setRefClass(
       forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
       if (
         NCOL(values) == 1L &&
+          !is.null(data@bases[[index + 1L]]) &&
           length(forestInfo$params) > index &&
           identical(forestInfo$params[[index + 1L]][8L], 0)
       ) {

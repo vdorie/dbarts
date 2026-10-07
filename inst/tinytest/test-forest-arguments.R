@@ -415,6 +415,31 @@ expect_error(
   "dbartsPriors$fixed",
   fixed = TRUE
 )
+# the hint is for fixed alone: another constructor reads as R's own message
+expect_identical(
+  tryCatch(twoForests(sd = chisq()), error = conditionMessage),
+  "could not find function \"chisq\""
+)
+# the other forest arguments do not take fixed
+for (name in c("interactions", "blocks", "monotone")) {
+  expect_match(
+    tryCatch(
+      eval(bquote(
+        dbarts(
+          x,
+          y,
+          ..(setNames(list(quote(fixed())), name)),
+          control = argumentControl()
+        ),
+        splice = TRUE
+      )),
+      error = conditionMessage
+    ),
+    "could not find function \"fixed\"",
+    fixed = TRUE,
+    info = name
+  )
+}
 # the writer resolves it too, and refuses it as fixed at creation
 writerHeld <- twoForests()
 expect_error(
@@ -455,6 +480,12 @@ expect_identical(
 expect_identical(swapped$run(0L, 5L), twin$run(0L, 5L))
 expect_equal(swapped$getForestAmplitudes()[, 1L], c(1, 0, 1))
 expect_error(swapped$setForestBasis(2L, ~z), "one numeric column")
+# a held forest created without a basis keeps its value across a swap
+plainSwap <- heldSwap()
+plainSwap$setForestBasis(1L, x[, 1L])
+plainSwap$run(0L, 3L)
+expect_equal(ncol(plainSwap$data@bases[[1L]]), 1L)
+expect_equal(plainSwap$getForestAmplitudes()[1L, 1L], 1)
 # a drawn forest swaps as before, and a held one to a factor or two columns
 drawnSwap <- twoForests()
 drawnSwap$setForestBasis(2L, x[, 1L])

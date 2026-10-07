@@ -560,6 +560,9 @@ reader's sake; the implementer may name them otherwise.
     `basis-formula-leftovers` closes; the entries of "Out of scope" are added.
 3.10 Mutations (Verification): apply each, install, run the named test, record the failing count, revert,
     `touch` the file.
+3.11 Test, named "a variable called fixed": with the matrix interface, `fixed <- z; forest(basis = ~
+    factor(fixed))` builds the factor of `z`, and `basis = fixed` beside an attached column `fixed` is that
+    column, at both doors (fails at push 2: "unique() applies only to vectors", and the constructor).
 
 ## Verification
 
@@ -716,10 +719,16 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   statement judged differently.
 - `fixed` resolves through the vocabulary, as `interactions` does, and not by a syntactic replacement in
   the `amplitude` argument: a replacement overrides a caller's own `fixed`, and misses `forests` forwarded
-  through dots, a function literal and a bare name inside an expression. Two consequences are accepted:
-  `interactions = fixed()` finds the constructor and is refused by that argument's own check, where the
-  tip said "could not find function"; and an `attach()`ed column named `fixed` used as `basis = fixed`
-  finds the constructor, which push 3 ends by capturing a basis unevaluated and looking in `data` first.
+  through dots, a function literal and a bare name inside an expression. Three consequences are
+  accepted. `interactions`, `blocks`, `monotone` and `variance` do not take `fixed`, and `interactions =
+  fixed()` still gives `could not find function "fixed"`, with the hint to `dbartsPriors$fixed`; the hint is
+  drawn for `fixed` alone, every other missing constructor reading as on the tip. An `attach()`ed column
+  named `fixed` used as `basis = fixed` finds the constructor. With the matrix interface a caller's own
+  variable named `fixed` used inside a basis formula (`fixed <- z; forest(basis = ~ factor(fixed))`) was
+  taken on the tip and now fails with "unique() applies only to vectors", the shadowing `blocks` and
+  `forest` already cause. Push 3 ends both by capturing a basis unevaluated and looking in `data` first,
+  and tests both (step 3.11). `$setForestBasis` refuses one numeric column only on a forest created with a
+  basis; a held forest created without one keeps its value 1 across the swap, as on the tip.
 - Doors that take no `forest()` term refuse it by name (step 2.8). It is not in the design. With the
   first forest written as `forest(x1 + x2)` in the help's lead example, a user will write it in `xbart`,
   and today four doors answer with four unrelated messages. The alternative is a TODO entry.
