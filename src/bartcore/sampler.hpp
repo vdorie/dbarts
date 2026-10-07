@@ -2486,15 +2486,19 @@ private:
     /// column holds a missing value. Leaf values and rules do not move within
     /// a session and the order reads no partition, so the answer is the same
     /// for whichever row asks and is found once. Asked only while the
-    /// column's flag is clear, and leaves it clear.
+    /// column's flag is clear, and leaves it clear on every exit: the order's
+    /// reader allocates, and a flag left set by its failure would have every
+    /// later update judged against a missing value the column does not hold.
     bool orderHoldsWithMissing() {
       if (orderWithMissing_ == OrderWithMissing::unknown) {
-        std::uint8_t& flag = sampler_.data_.hasMissing[column_];
-        flag = 1;
+        struct RaisedFlag {
+          std::uint8_t& flag;
+          explicit RaisedFlag(std::uint8_t& f) : flag(f) { flag = 1; }
+          ~RaisedFlag() { flag = 0; }
+        } raised(sampler_.data_.hasMissing[column_]);
         bool holds = true;
         for (size_t c = 0; c < sampler_.chains_.size() && holds; ++c)
           holds = sampler_.chains_[c]->monotoneLeavesInOrder();
-        flag = 0;
         orderWithMissing_ =
           holds ? OrderWithMissing::holds : OrderWithMissing::breaks;
       }
