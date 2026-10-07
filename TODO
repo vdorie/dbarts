@@ -658,7 +658,9 @@ items
     position. Two pushes, R only. Changes the posterior of a model
     whose first forest has a basis and states no count or tree
     prior; 44 creations in 6 test files are respelled onto the first
-    forest and keep their draws.
+    forest and keep their draws. The first push also refuses, until
+    the multiplier law lands, each held shape the engine holds wrong
+    by its place among the forests.
     Plan: docs/plans/forest-defaults-by-kind.md.
   forest-sd-unit: before 1.0-0 (dec-B246 as revised, dec-B253,
     dec-B266), after forest-defaults-by-kind. A forest's sd is in
@@ -667,8 +669,13 @@ items
     engine divides a stated number by a unit it derives at a first
     creation (sd(y - offset) over the rows kept, 1, pi/sqrt(3)) and
     R records beside the anchor; a default does not move, and is
-    reported as the number of response units it comes to. extract's
-    leaf.prior.sd on several forests returns the reader's numbers.
+    reported as the number of response units it comes to. The
+    engine is handed the statement, an sd or none, a hold and whether
+    there is a basis, and holds the rule; the reader gives the
+    statement with sd and sd.stated beside it, and extract's
+    leaf.prior.sd on several forests is a list by label, the entry
+    itself for one forest. A named single sd is taken on every forest
+    (dec-B280, dec-B282).
     The one forest of a single-forest model takes sd as its
     leaf.prior = normal(sd = ). Engine, bridge and R. Changes the
     prior of a model that states a forest sd under a gaussian or
@@ -691,8 +698,11 @@ items
     door and a factor swapped or predicted with its levels in
     another order. The second push respells the 98 blocks of
     indicator columns in the tests as the factors they stand for,
-    bit for bit, for the multiplier law's sake; bartCause's bcf
-    passes factor(z) any day from the first push to that law.
+    bit for bit, and then refuses, at every door, swap and predict, a
+    factor of three or more levels and a basis of several numeric
+    columns (dec-B281, dec-B282); the gaussian baseline's
+    three-level scenario is rewritten and re-recorded. bartCause's
+    bcf passes factor(z) between the two pushes.
     Plan: docs/plans/forest-kind-by-class.md.
   forest-multiplier-law: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
     dec-B269, dec-B271, dec-B272, dec-B275; dec-A171), after
@@ -703,19 +713,18 @@ items
     shape is held; amplitude.prior.variance goes. A numeric column
     is used as given, its coefficient normal; a stated sd is per
     unit, and the default is sqrt(2 / K) of the response's scale for
-    one standard deviation of each column, taken by the engine once
+    one standard deviation of the column, taken by the engine once
     at creation and recorded on the data object; a swap moves no
-    prior, and a default forest keeps its width until an sd is
-    stated. The engine holds one scale a column. getLeafPrior gives
-    the statement and one sd a column, extract's leaf.prior.sd a
-    list by forest, and print a block with each column's mean and
-    sd. Four pushes: statements (neutral), held coefficients, the
-    numeric multiplier, the printed block. Changes the posterior of
-    every model with a held coefficient or a numeric multiplier and
-    of no other; glue_toggle of the BCF baseline is re-recorded; two
-    exact gates are added and the four BCF gates' oracles restated.
-    bartCause's bcf loses b.prior.variance the day the second push
-    lands. A sampler saved before the first push is refused.
+    prior. A row is dropped from a forest's update by its multiplier
+    relative to that forest's largest, so a column in small units
+    fits as any other. print gives a block with the column's mean,
+    sd and range. Three pushes: held coefficients, the numeric
+    multiplier, the printed block. Changes the posterior of every
+    model with a held coefficient or a numeric multiplier and of no
+    other; glue_toggle of the BCF baseline is re-recorded and four
+    scenarios added; one exact gate script is added, deciding by z.
+    bartCause's bcf loses b.prior.variance the day the first push
+    lands.
     Plan: docs/plans/forest-multiplier-law.md.
   factor-column-update-forms: what the joint form's fix left
     (docs/plans/factor-column-update-forms.md, landed). setPredictor by
@@ -760,16 +769,14 @@ items
     nothing is rebuilt at predict and with subset it is evaluated on
     every row (docs/plans/basis-formula-terms.md, landing note).
   named-single-sd: forest(sd = ) takes a named single number, its name
-    ignored, on a forest whose basis has one column or none, and keeps
-    refusing it on a basis of several columns (dec-B280, revising
-    dec-B269 in part). Before the merge to main; about 60 lines with
-    the help and tests.
+    ignored, on every forest (dec-B280, as dec-B282 leaves it).
+    Before the merge to main; a step of
+    docs/plans/forest-sd-unit.md.
   factor-basis-refusal: a factor, character or logical basis of three
     or more levels is refused by name in 1.0-0, drawn or held, the
     message showing one forest for each level but the first
-    (dec-B281). Before the merge to main; planned with the forest
-    plans (docs/plans/forest-kind-by-class.md knows a basis's kind at
-    every door).
+    (dec-B281). Before the merge to main; the second push of
+    docs/plans/forest-kind-by-class.md.
   factor-basis-per-level: forest(x, basis = ~ arm) on a factor of three
     or more levels becomes shorthand for one forest for each level but
     the first, each on that level's indicator, so every level has its
@@ -780,9 +787,10 @@ items
   several-column-basis-refusal: a basis of several numeric columns is
     refused by name in 1.0-0, however written (~ dose + age, a spline,
     a matrix value), the message showing one forest for each column
-    (dec-B282). Before the merge to main; planned with the forest
-    plans. bartCause's bcf hands cbind(1 - z, z) through
-    dbartsData(bases = ) and moves to factor(z) first.
+    (dec-B282). Before the merge to main; the second push of
+    docs/plans/forest-kind-by-class.md. bartCause's bcf hands
+    cbind(1 - z, z) through dbartsData(bases = ) and moves to
+    factor(z) first.
   several-column-basis-meaning: what a basis of several numeric
     columns means, shorthand for a forest each or one shared shape
     times a weighted sum (the curve-times-modifier model of a spline
