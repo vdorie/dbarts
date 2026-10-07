@@ -1,6 +1,8 @@
 # Simulation-based calibration gate (benchmarks/R/sbc.R): a matrix over the
 # families with a recorded SBC verdict -- the gaussian constant-leaf baseline
-# plus the five family tiers (docs/plans/sbc-family-tiers.md) and the three
+# plus the probit-k arm (k drawn under its default hyperprior,
+# docs/plans/check-shape-fixes.md), the five family tiers
+# (docs/plans/sbc-family-tiers.md) and the three
 # arms docs/design/aft-status-setter.md carries: aft, and the two
 # heteroscedastic ones composing a variance forest with the gaussian and aft
 # arms, and the two 20-tree monotone arms, one per prior. Rank uniformity
@@ -9,11 +11,11 @@
 # workflow_dispatch-triggered run that turns visibly red on a FLAG.
 #
 # Admission: sbc.R Bonferroni's the ecdf band's alpha to 0.05/M over the
-# matrix's TOTAL functional count (M = 77), so a full matrix passes with
+# matrix's TOTAL functional count (M = 84), so a full matrix passes with
 # probability ~0.95 on a fresh stream rather than each arm alarming
-# independently at 5%. M sums the ten Bonferroni'd arms (gaussian, ordinal,
-# nbinom, t, multinomial, aft, hetero, hetero-aft, monotone-leaf,
-# monotone-joint); the matrix runs an eleventh
+# independently at 5%. M sums the eleven Bonferroni'd arms (gaussian, probit-k,
+# ordinal, nbinom, t, multinomial, aft, hetero, hetero-aft, monotone-leaf,
+# monotone-joint); the matrix runs a twelfth
 # job, discrete-selfcheck, which is outside that count. fail-fast is off so one arm's
 # FLAG never hides another's.
 # A widening M can only turn a recorded FLAG into a PASS, so admitting an arm
@@ -25,7 +27,8 @@
 # the gate stays non-blocking.
 #
 # Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
-# laptop (ordinal 6.6 min, nbinom 8.5 min, t 2.6 min, multinomial 7.3 min,
+# laptop (probit-k 9.4 min at R=100, thin 1000, with the 30000-sweep burn the
+# script gives it, ordinal 6.6 min, nbinom 8.5 min, t 2.6 min, multinomial 7.3 min,
 # aft 79 s, hetero 2.2 min, hetero-aft 4.4 min at R=200; gaussian 5 min at
 # R=100); the monotone arms' are ~3x their GitHub runner job time (leaf 12.6
 # min, joint 8.2 min at R=200). nbinom is the
@@ -88,6 +91,15 @@ jobs:
             samples: 200
             thin: 30
             timeout: 15
+          # k drawn under chi(1.5, 2) on probit, the one arm that checks the
+          # k step. k and its leaves are a funnel that mixes slowly (ACF 0.1 at
+          # lags of 100 to 600 sweeps), so thin 1000; sbc.R gives the arm a
+          # 30000-sweep burn. At thin 300 the k ranks piled at the top.
+          - config: probit-k
+            reps: 100
+            samples: 100
+            thin: 1000
+            timeout: 30
           - config: ordinal
             reps: 200
             samples: 150

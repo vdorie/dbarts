@@ -11,6 +11,7 @@
 #   Rscript benchmarks/R/sbc.R                 # baseline gaussian, R=200
 #   Rscript benchmarks/R/sbc.R gaussian 200 200 30
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
+#   Rscript benchmarks/R/sbc.R probit-k 100 100 1000  # k drawn under chi(1.5, 2)
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
 #   Rscript benchmarks/R/sbc.R aft 200 150 30 <burn> # aft/survival, reused
@@ -459,6 +460,49 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
   suppressWarnings(do.call(dbarts, args))
 }
 
+# --- k drawn under its hyperprior ------------------------------------------
+
+# The probit-k arm lets the sampler draw the leaf scale k under the default
+# binary hyperprior chi(1.5, 2) (docs/plans/check-shape-fixes.md): k = scale *
+# sqrt(chisq(df)), median 1.906 for (1.5, 2). The sampler has no entry that
+# draws k from its prior, and the leaf draw is made at its current k, so the
+# harness draws k itself and installs it as a fixed value (setLeafPrior, whose
+# write leaves every other part of the prior alone) before the leaf draw.
+sbcConfigProbitK <- function(df = 1.5, scale = 2, ...) {
+  config <- sbcConfig(
+    family = "probit",
+    nodePrior = dbartsPriors$normal(dbartsPriors$chi(df, scale)),
+    ...
+  )
+  config$drawsK <- TRUE
+  config$kDf <- df
+  config$kScale <- scale
+  config
+}
+
+sbcKDraw <- function(config) {
+  config$kScale * sqrt(rchisq(1L, config$kDf))
+}
+
+# The hand-back the replication relies on: after a fixed k is installed, the
+# hyperprior written again keeps that k as the current value and is drawn from
+# there (k moves over a run). A sampler that reset k on the write, or kept it
+# fixed, would make every rank of k a draw from the wrong law.
+sbcCheckKHandBack <- function(config, seed = 99L) {
+  set.seed(seed)
+  sampler <- sbcMakeSampler(config, 20L, 5L, seed)
+  sampler$setLeafPrior(dbartsPriors$normal(k = 0.7))
+  sampler$setLeafPrior(config$nodePrior)
+  kBefore <- as.numeric(sampler$getK())
+  sampler$setResponse(as.double(rbinom(config$n, 1L, 0.5)))
+  res <- sampler$run(50L, 20L)
+  list(
+    kBefore = kBefore,
+    kSpread = sd(as.numeric(res$k)),
+    pass = isTRUE(all.equal(kBefore, 0.7)) && sd(as.numeric(res$k)) > 0
+  )
+}
+
 # --- one replication -------------------------------------------------------
 
 # The engine's INTERNAL-scale total fits at the current state (the stored leaf
@@ -499,6 +543,12 @@ sbcRecoverFitMap <- function(sampler, config) {
 sbcReplication <- function(sampler, config, drawSigma, L, burn, fitMap = NULL) {
   # 1. theta0 from the prior (forest + leaves via the engine's own machinery)
   sampler$sampleTreesFromPrior()
+  # a drawn k: the leaf draw is made at the sampler's current k, so theta0's k
+  # is installed first, as a fixed one
+  if (isTRUE(config$drawsK)) {
+    k0 <- sbcKDraw(config)
+    sampler$setLeafPrior(dbartsPriors$normal(k = k0))
+  }
   sampler$sampleLeafParametersFromPrior()
   f0Train <- if (is.null(fitMap)) {
     as.numeric(sampler$predict(config$x))
@@ -514,7 +564,15 @@ sbcReplication <- function(sampler, config, drawSigma, L, burn, fitMap = NULL) {
 
   # 3. overdispersed init: a second, independent prior draw, then refit
   sampler$sampleTreesFromPrior()
+  if (isTRUE(config$drawsK)) {
+    # the start is a second, independent draw of k; handing the hyperprior
+    # back keeps that k as the chain's current value and lets the fit draw it
+    sampler$setLeafPrior(dbartsPriors$normal(k = sbcKDraw(config)))
+  }
   sampler$sampleLeafParametersFromPrior()
+  if (isTRUE(config$drawsK)) {
+    sampler$setLeafPrior(config$nodePrior)
+  }
   if (config$hasSigma) {
     sampler$setSigma(config$sigest)
   }
@@ -530,6 +588,9 @@ sbcReplication <- function(sampler, config, drawSigma, L, burn, fitMap = NULL) {
   }
   if (config$hasSigma) {
     ranks["sigma"] <- sum(as.numeric(res$sigma) < sig0)
+  }
+  if (isTRUE(config$drawsK)) {
+    ranks["k"] <- sum(as.numeric(res$k) < k0)
   }
   # watch rows: f at designated TRAINING rows, ranked through the recorded
   # training fits -- used to point functionals at NA-bearing rows so the
@@ -2758,7 +2819,7 @@ rankUniformity <- function(
 # the ecdf band's alpha Bonferroni'd over the matrix's TOTAL functional count,
 # so a full-matrix pass has probability ~0.95 on a fresh stream rather than each
 # arm alarming independently at its own nominal 5%. M is
-# gaussian 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6 + aft 9 +
+# gaussian 7 + probit-k 7 + ordinal 10 + nbinom 3 + t 4 + multinomial 6 + aft 9 +
 # hetero 8 + hetero-aft 10 + monotone-leaf 10 + monotone-joint 10. aft counts
 # its censored-latent functional even though a replication that draws an empty
 # censored set contributes no rank there: the count is of functionals READ, not
@@ -2766,6 +2827,7 @@ rankUniformity <- function(
 # widen or narrow the whole matrix's band by the luck of one draw.
 sbcMatrixConfigs <- c(
   "gaussian",
+  "probit-k",
   "ordinal",
   "nbinom",
   "t",
@@ -2777,7 +2839,7 @@ sbcMatrixConfigs <- c(
   "monotone-leaf",
   "monotone-joint"
 )
-sbcMatrixFunctionals <- 7L + 10L + 3L + 4L + 6L + 9L + 8L + 10L + 10L + 10L
+sbcMatrixFunctionals <- 7L + 7L + 10L + 3L + 4L + 6L + 9L + 8L + 10L + 10L + 10L
 sbcMatrixAlpha <- 0.05 / sbcMatrixFunctionals
 
 # The one-tree monotone arms and their twin are diagnostics, read per
@@ -2941,6 +3003,13 @@ if (sys.nframe() == 0L) {
   # step can draw a FRESH stream at settings otherwise held fixed. Absent, the
   # driver's own pinned seed keeps every recorded run reproducible.
   runSeed <- if (length(args) >= 6L) as.integer(args[6]) else NULL
+  # probit-k: k and the leaves it scales are a funnel, and k mixes slowly (its
+  # autocorrelation reaches 0.1 at lags of 100 to 600 sweeps); at thin 1000
+  # and this burn its ranks are uniform, where thin 300 and a burn of 10000
+  # piled 15% of them at the top. Recommended: R=100 L=100 thin=1000.
+  if (is.null(burnSweeps) && which == "probit-k") {
+    burnSweeps <- 30000
+  }
 
   # Step-1 self-check mode: the discrete rank against a closed-form conjugate
   # posterior. No engine involved, so it runs in seconds and gates the two grid
@@ -3086,6 +3155,8 @@ if (sys.nframe() == 0L) {
       cfg$weights <- rgamma(cfg$n, 2, 2)
     }
     cfg
+  } else if (which == "probit-k") {
+    sbcConfigProbitK()
   } else {
     sbcConfig(family = which)
   }
@@ -3243,6 +3314,16 @@ if (sys.nframe() == 0L) {
       ))
       selfCheckPass["latent"] <- isTRUE(lc$pass)
     }
+  }
+  if (isTRUE(config$drawsK)) {
+    kc <- sbcCheckKHandBack(config)
+    cat(sprintf(
+      "  k handed back: %.3f (installed 0.7); sd of k over a run %.3f -> %s\n",
+      kc$kBefore,
+      kc$kSpread,
+      if (kc$pass) "PASS" else "FAIL"
+    ))
+    selfCheckPass["k"] <- isTRUE(kc$pass)
   }
   if (isLinear || isGP) {
     fc <- sbcCheckFitConsistency(config)
