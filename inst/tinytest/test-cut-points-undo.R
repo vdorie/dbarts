@@ -291,15 +291,6 @@ expect_identical(cutPointsOf(sampler), own)
 # whole numbers are numbers
 expect_silent(sampler$setCutPoints(c(0L, 1L), 1L))
 expect_identical(cutPointsOf(sampler)[[1L]], c(0, 1))
-# a column named more than once has every one of its entries read, the
-# design having as many columns as the call has entries or not
-expect_silent(sampler$setCutPoints(list(0.2, 0.4, 0.6), c(1L, 1L, 1L)))
-expect_identical(cutPointsOf(sampler)[[1L]], 0.6)
-expect_error(
-  sampler$setCutPoints(list(0.2, "0.4", 0.6), c(1L, 1L, 1L)),
-  pattern = notNumeric,
-  fixed = TRUE
-)
 
 # The list a sampler reports has an entry per column, a factor's included.
 # Given the whole list, what sits in a factor column's place is not read: it
@@ -349,6 +340,15 @@ withCallingHandlers(
 )
 expect_identical(warnings, character())
 expect_identical(cutPointsOf(sampler), set)
+# entries are dropped by position only when no column is named: a column
+# named three times on this design of three columns has each entry read
+expect_silent(sampler$setCutPoints(list(0.2, 0.4, 0.6), c(1L, 1L, 1L)))
+expect_identical(cutPointsOf(sampler), c(list(0.6), own[-1L]))
+expect_error(
+  sampler$setCutPoints(list(0.2, "0.4", 0.6), c(1L, 1L, 1L)),
+  pattern = notNumeric,
+  fixed = TRUE
+)
 # a data frame is a list of columns, and is taken as that list is
 expect_silent(
   sampler$setCutPoints(data.frame(a = c(0.3, 0.6), f = c("x", "y"), o = 1:2))
