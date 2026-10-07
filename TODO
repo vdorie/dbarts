@@ -244,6 +244,13 @@ items
     coefficients, rewrite kept draws at a re-anchor, and refuse the
     calls on a gp sampler that holds kept draws. Plan:
     docs/plans/leaf-conversions.md.
+  weekly-full-exact-gates: the monotone enumeration gate runs its
+    quick mode on every push and its full mode nowhere in CI, the
+    full mode passing the job's 40 minutes. Run the full mode on a
+    weekly schedule with a longer limit, beside the weekly equivalence
+    and rchk runs (dec-A132, VD 2026-10-07); a schedule fires only
+    once the workflow is on main. Decide there whether the other exact
+    gates' full modes join it.
   monotone-direction-abbreviations: a direction word of monotone() is
     matched as base R matches a choice, a unique abbreviation taken, by
     pmatch (match.arg with several.ok drops what it cannot match, so
