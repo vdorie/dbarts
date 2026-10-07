@@ -58,7 +58,7 @@ dbartsControl(
      A non-negative integer determining how many samples, if any, are thrown away at the beginning of a run of the sampler.
    }
    \item{n.trees}{
-     A positive integer giving the number of trees used in the sum-of-trees formulation. Default 75, dbarts's own historical choice; BayesTree's and \code{\link{bartBT}}'s default is 200. In a model of several forests it is the count of the forest with no \code{basis} and is refused, when named, where every forest has one; see \code{\link{forest}}. The control a sampler holds has the count of the sampler's first forest.
+     A positive integer giving the number of trees used in the sum-of-trees formulation. Default 75, dbarts's own historical choice; BayesTree's and \code{\link{bartBT}}'s default is 200. In a model of several forests it is the count of the forest with no \code{basis} and is refused, when named, where every forest has one; see \code{\link{forest}}. The control a sampler holds has the count of the sampler's first forest. Given to a new fit as it is, such a control hands on the count the sampler's forest with no \code{basis} had, or the default where it had none, and not the count it shows; a count the caller then writes into it is taken as stated, unless it is the very count the control already shows, which cannot be told from no edit.
    }
    \item{n.chains}{
      A positive integer detailing the number of independent chains for the sampler to use.
