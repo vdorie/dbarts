@@ -617,8 +617,9 @@ items
     new rows; z:forest(x) and update.amplitude go (amplitude =
     fixed()); one unnamed argument; a longer or named sd, a star, a
     term times or over a number and a prior's name on a basis term
-    are refused by name. Three pushes, the first (the two
-    arguments) landed. Plan: docs/plans/written-surface.md.
+    are refused by name. Three pushes; the first two (the two
+    arguments, the forests of a formula) landed, the basis is left.
+    Plan: docs/plans/written-surface.md.
   forest-defaults-by-kind: before 1.0-0 (dec-B274). A forest with a
     basis takes the multiplied forest's default tree count and tree
     prior wherever it is written, at both doors; with no forest
@@ -657,7 +658,9 @@ items
     runs. benchmarks/R/composition-matrix.R stops on the tip before
     any cell runs: its header lookup finds no row for bart2() in
     docs/design/feature-matrix.md since the rename to bart, so the
-    matrix gates nothing until that is fixed.
+    matrix gates nothing until that is fixed. A formula predictor with
+    a non-syntactic name and no space, such as a column named x1:x2
+    written backticked, stops in dbartsData.
   forest-after-merge: built after the merge to main, for 1.0-0 still
     (dec-B276, VD 2026-10-06): setForestBasis(updateBasisScale = TRUE),
     which re-derives a default sd from a replaced column during

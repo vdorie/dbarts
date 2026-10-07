@@ -1,6 +1,7 @@
 # written-surface: a model of several forests is written one way, forest by forest
 
-Status: PLANNED (dec-B266 to dec-B275; dec-B246 as revised). Push 1 LANDED 2026-10-06 (42b62a54 to f7f73d6e).
+Status: PLANNED (dec-B266 to dec-B275; dec-B246 as revised). Push 1 LANDED 2026-10-06 (42b62a54 to f7f73d6e). Push 2 LANDED
+2026-10-07 (9babcca7 to 9b64051f).
 
 agent: three pushes. Push 1 (two arguments): sonnet implementer, opus reviewer. Pushes 2 and 3 (the
 grammar): opus implementer for the R code, sonnet for the respelled tests and the help once the code is
@@ -1002,3 +1003,50 @@ rebuilt and `R CMD check --as-cran` with the Date NOTE alone. Neutral: the revie
 fits, the old spelling on the base build against the new on the push's, were identical, as were the 15
 scenarios of the bcf compare, and the four bcf exact gates passed in `quick`. bartCause's `bcf()` was
 respelled the same day.
+
+Push 2 (the forests of a formula) landed 2026-10-07 as 9babcca7 to 9b64051f on bartcore, 16 commits, 4140
+lines added and 685 removed over 32 files against a planned 1800; R, the manual, tests and three benchmark
+lines, nothing under src/. Three reviews by one reviewer told to refute, each LAND AFTER FIXES, and four
+rounds of corrections; the last round's corrections were read and its failing cases rerun by the
+coordinator on the landing build. Every finding that blocked was a different model fitted without a
+message.
+
+What the reviews changed (dec-A173).
+- A forest's first argument was kept as code and looked up when the sampler was built, so forests made in
+  a loop or by `lapply` all took the last value, where the base build took each. `forest()` now evaluates
+  its first argument once, at the call, when it can, and keeps the value beside the code: code that names
+  a predictor is terms, and otherwise the value taken at the call is the selection. The same rule is
+  written for push 3's basis.
+- A removal at the top of a formula was dropped, or void, when the first forest was written out. The
+  forest with no basis now has exactly the terms R gives the formula with that forest's call replaced by
+  its contents and every forest with a basis deleted, so the written and the plain spelling of one model
+  go through one reduced formula; 36 written spellings were fitted against their plain ones. A removal
+  never touches a forest that has a basis.
+- In a list, `+`, `-` and `.` work on the fit's predictors, a term matched by its label as the fit holds
+  it, bare or backticked, on a formula fit and a matrix fit alike; a term that matches no predictor, a
+  bare numeral, and a logical or factor given as a selection are refused by name.
+- An unnamed column, its name empty or missing, is reached by position and by `.` and never by name;
+  with duplicate names `.` is every column and the shared name is refused.
+- A term's columns are read from the design's layout, one run of columns per term in term order, and no
+  longer by a prefix of the name, which had `. - g` drop a column named `g.total`.
+- A lone written forest is the single-forest fit in every family, the multinomial included.
+- Warnings raised when the first argument is evaluated are kept and raised once by a fit that uses the
+  value.
+
+Known and left: a forest keeps the value it evaluated when its code turns out to be terms (15.3 MB a
+forest at two million rows when the terms name vectors in the caller's frame; nothing reaches the fit),
+and a saved forest carries the frame it was made in; `vars = x2[1:2]` is refused when x2 is also a
+predictor; a removal at the top that names no plain term is passed by, as R passes it by; `basis =
+I(dose / k)` in a loop over k sees the last k until push 3. Found on the tip and not fixed: a formula
+predictor with a non-syntactic name and no space, such as a column named `x1:x2`, stops in `dbartsData`
+(TODO `install-doors-noted`).
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own (shipped mode), run in
+series: tests/cpp 350 ok, 0 failed; the full tinytest suite 16143 results, 0 failed, 227 files; lintr no
+lints; air, rc-codoc, win-drift, doc-freshness and the mutation battery's anchors clean; `R CMD build`
+with every vignette rebuilt and `R CMD check --as-cran` with the Date NOTE alone. Neutral: 148 pairs of
+seeded fits by the implementer and 50 by the reviewer, the old spelling on the base build against the new
+on the push's, identical wherever the same text is one model on both; on a reference build after the last
+round the four snapshot files and the three bitwise compares at 55, 15 and 11 scenarios, all identical.
+No consumer needed an edit: against the landed build bartCause ran 1412 expectations, stan4bart 582
+results, bairrtt 207 and treatSens 306, none failing.
