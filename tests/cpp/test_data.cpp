@@ -232,33 +232,12 @@ static void testColumnStoreColumnSubset() {
   for (size_t i = 0; i < rows.size() && gatherMatches; ++i)
     gatherMatches = raw[i] == x[rows[i] + n];
   double mean, sd, parentMean, parentSd;
-  bool hasSpread = false, parentHasSpread = false;
-  standardizationMomentsForColumn(x.data() + n, n, &parentMean, &parentSd,
-                                  &parentHasSpread);
+  standardizationMomentsForColumn(x.data() + n, n, &parentMean, &parentSd);
   gatherMatches = gatherMatches &&
-    gatherView.suppliedStandardization(0, &mean, &sd, &hasSpread) &&
-    mean == parentMean && sd == parentSd && hasSpread && parentHasSpread;
+    gatherView.suppliedStandardization(0, &mean, &sd) && mean == parentMean &&
+    sd == parentSd;
   check(gatherMatches,
         "subset view gathers a leaf covariate through the column map");
-
-  // a column that holds one value has no spread: the placeholder 1 beside
-  // the mark, which a view inherits from its parent
-  std::vector<double> xFlat(x);
-  for (size_t i = 0; i < n; ++i) xFlat[i + n] = 1000.0;
-  ColumnStore flatParent, flatView;
-  size_t flatColumns[] = {1};
-  built(flatParent.build(xFlat.data(), n, p, 25, false, types.data(),
-                         flatColumns, 1));
-  flatView.buildFromParent(flatParent, rows.data(), rows.size(),
-                           testRows.data(), testRows.size(), gatherLocal, 1,
-                           gatherSubset.data(), gatherSubset.size());
-  standardizationMomentsForColumn(xFlat.data() + n, n, &parentMean, &parentSd,
-                                  &parentHasSpread);
-  hasSpread = true;
-  check(parentMean == 1000.0 && parentSd == 1.0 && !parentHasSpread &&
-          flatView.suppliedStandardization(0, &mean, &sd, &hasSpread) &&
-          mean == 1000.0 && sd == 1.0 && !hasSpread,
-        "a column without spread is marked, and a view inherits the mark");
 
   rngState = savedRngState;
   printf("ok: column store column subset\n");

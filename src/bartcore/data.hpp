@@ -141,14 +141,11 @@ struct DenseColumnValues {
 
 /// Mean and sample sd of the observed (non-missing) values of a raw column:
 /// the leaf-covariate standardization constants. A constant (or all-missing)
-/// column keeps sd 1, and hasSpread_, when non-null, receives false for it:
-/// that 1 is a placeholder to divide by, not a scale the values had. One
-/// definition shared by LinearGaussianLeaf and the view gather in
-/// buildFromParent, so a full-rows view standardizes bit-identically to a
-/// sampler over the raw data.
+/// column keeps sd 1. One definition shared by LinearGaussianLeaf and the
+/// view gather in buildFromParent, so a full-rows view standardizes
+/// bit-identically to a sampler over the raw data.
 inline void standardizationMomentsForColumn(const double* column, size_t n,
-                                            double* mean_, double* sd_,
-                                            bool* hasSpread_ = nullptr) {
+                                            double* mean_, double* sd_) {
   double total = 0.0;
   size_t numObserved = 0;
   for (size_t i = 0; i < n; ++i) {
@@ -165,11 +162,9 @@ inline void standardizationMomentsForColumn(const double* column, size_t n,
   double sd = numObserved > 1
     ? std::sqrt(sumOfSquares / static_cast<double>(numObserved - 1))
     : 0.0;
-  bool hasSpread = sd > 0.0;
-  if (!hasSpread) sd = 1.0;
+  if (!(sd > 0.0)) sd = 1.0;
   *mean_ = mean;
   *sd_ = sd;
-  if (hasSpread_ != nullptr) *hasSpread_ = hasSpread;
 }
 
 /// A column's semantic kind, which fixes how its values are read. A numeric
@@ -916,9 +911,6 @@ struct ColumnStore {
   std::vector<double> gatheredRawTestValues;  // column-major, numTestObservations x its columns
   std::vector<double> gatheredMeans;
   std::vector<double> gatheredSds;
-  // per gathered slot, whether the parent's column had spread; a 1 in
-  // gatheredSds beside a 0 here is the placeholder of a column without
-  std::vector<std::uint8_t> gatheredHasSpread;
 
   // Owned dense block of a mixed build, holding its REAL-VALUED dense-backed
   // columns and packed per predictor over the columns it serves; every
@@ -1032,17 +1024,12 @@ struct ColumnStore {
   /// Parent-derived standardization constants for column j, when the store
   /// is a view that gathered them; false tells the caller to compute its own
   /// (the top-level store standardizes from its own gathered values).
-  /// hasSpread, when non-null, receives whether the parent's column had
-  /// spread (standardizationMomentsForColumn).
-  bool suppliedStandardization(size_t j, double* mean, double* sd,
-                               bool* hasSpread = nullptr) const {
+  bool suppliedStandardization(size_t j, double* mean, double* sd) const {
     if (!isView) return false;
     std::int32_t slot = gatheredSlotForColumn(j);
     if (slot < 0) return false;
     *mean = gatheredMeans[static_cast<size_t>(slot)];
     *sd = gatheredSds[static_cast<size_t>(slot)];
-    if (hasSpread != nullptr)
-      *hasSpread = gatheredHasSpread[static_cast<size_t>(slot)] != 0;
     return true;
   }
 
@@ -1643,7 +1630,6 @@ struct ColumnStore {
     gatheredRawTestValues.clear();
     gatheredMeans.clear();
     gatheredSds.clear();
-    gatheredHasSpread.clear();
   }
 
   /// Reset the per-column source storage to the dense-empty baseline: every
@@ -1666,7 +1652,6 @@ struct ColumnStore {
     gatheredRawTestValues.clear();
     gatheredMeans.clear();
     gatheredSds.clear();
-    gatheredHasSpread.clear();
     // no CSC-backed columns until a CSC/mixed build re-sizes these; a dense
     // build leaves them empty and never reaches the mutation-owned path
     ownedCscRows.clear();
@@ -2228,7 +2213,6 @@ struct ColumnStore {
       gatheredRawTestValues.resize(gatheredRawTestValues.size() + numTestRows);
       gatheredMeans.resize(slot + 1);
       gatheredSds.resize(slot + 1);
-      gatheredHasSpread.resize(slot + 1);
       double* values = gatheredRawValues.data() + slot * numRows;
       for (size_t i = 0; i < numRows; ++i)
         values[i] = parentColumn[rows[i]];
@@ -2236,14 +2220,11 @@ struct ColumnStore {
       for (size_t i = 0; i < numTestRows; ++i)
         testValues[i] = parentColumn[testRows[i]];
       double mean, sd;
-      bool hasSpread;
-      if (!parent.suppliedStandardization(parentColumnIndex, &mean, &sd,
-                                          &hasSpread))
+      if (!parent.suppliedStandardization(parentColumnIndex, &mean, &sd))
         standardizationMomentsForColumn(parentColumn, parent.numObservations,
-                                        &mean, &sd, &hasSpread);
+                                        &mean, &sd);
       gatheredMeans[slot] = mean;
       gatheredSds[slot] = sd;
-      gatheredHasSpread[slot] = hasSpread ? 1 : 0;
     }
     for (size_t j = 0; j < numPredictors; ++j) {
       xint_t missingCode = splitsBySubset(j)

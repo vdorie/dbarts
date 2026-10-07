@@ -2292,9 +2292,11 @@ inline void solveUnitLowerTriangularTransposed(const double* m, std::size_t p,
 }
 
 /// A leaf-covariate standardization: per designated column the centre, the
-/// scale its values are divided by, and whether the column's observed values
-/// had spread when the pair was derived. A column without spread divides by 1,
-/// a placeholder no observation set.
+/// scale its values are divided by, and whether the column has spread. A
+/// column without spread sits at its centre on every training row and is
+/// divided by 1, a placeholder no observation set: the leaf reads zero for it
+/// throughout, so its slope adds nothing to any training fit and no
+/// observation informs it.
 struct LeafStandardization {
   std::vector<double> centers, scales;
   std::vector<std::uint8_t> hasSpread;
@@ -2324,6 +2326,18 @@ struct LeafStandardization {
     return result;
   }
 };
+
+/// Whether a standardized training column - \p n values, \p stride apart -
+/// has spread under the scale \p sd it was divided by
+/// (LeafStandardization): false where sd is the placeholder 1 and every row
+/// reads zero.
+inline bool standardizedColumnHasSpread(const double* u, std::size_t n,
+                                        std::size_t stride, double sd) {
+  if (sd != 1.0) return true;
+  for (std::size_t i = 0; i < n; ++i)
+    if (u[i * stride] != 0.0) return true;
+  return false;
+}
 
 /// Rewrites one linear leaf's coefficients - its intercept and one slope per
 /// covariate - from the standardization \p from to \p to, so that the leaf is
@@ -2403,9 +2417,17 @@ struct LinearGaussianLeaf {
   const std::vector<std::size_t>& covariateColumns() const { return columns_; }
   const std::vector<double>& covariateMeans() const { return means_; }
   const std::vector<double>& covariateSds() const { return sds_; }
-  /// The centres, scales and no-spread marks in force.
+  /// The centres and scales in force and, read off the gathered training
+  /// covariates, which columns have spread: the mark is therefore true of
+  /// whatever values and constants the leaf holds when it is asked. One pass
+  /// over the training rows per column still at the placeholder scale.
   LeafStandardization standardization() const {
-    return LeafStandardization{means_, sds_, hasSpread_};
+    LeafStandardization result{means_, sds_, {}};
+    result.hasSpread.resize(numCovariates_);
+    for (std::size_t j = 0; j < numCovariates_; ++j)
+      result.hasSpread[j] = standardizedColumnHasSpread(
+        u_.data() + j, numObservations_, numCovariates_, sds_[j]);
+    return result;
   }
 
   /// Gather and standardize the designated columns from the store's raw
@@ -2433,18 +2455,14 @@ struct LinearGaussianLeaf {
     numObservations_ = data.numObservations;
     means_.assign(numColumns, 0.0);
     sds_.assign(numColumns, 1.0);
-    hasSpread_.assign(numColumns, 1);
     u_.resize(numObservations_ * numColumns);
     for (std::size_t j = 0; j < numColumns; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double mean, sd;
-      bool hasSpread;
-      if (!data.suppliedStandardization(columns_[j], &mean, &sd, &hasSpread))
-        standardizationMomentsForColumn(column, numObservations_, &mean, &sd,
-                                        &hasSpread);
+      if (!data.suppliedStandardization(columns_[j], &mean, &sd))
+        standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
       means_[j] = mean;
       sds_[j] = sd;
-      hasSpread_[j] = hasSpread ? 1 : 0;
       for (std::size_t i = 0; i < numObservations_; ++i)
         u_[i * numColumns + j] =
           isNA(column[i]) ? 0.0 : (column[i] - mean) / sds_[j];
@@ -2469,20 +2487,16 @@ struct LinearGaussianLeaf {
   }
 
   /// Install saved standardization constants, numCovariates() of each with
-  /// every sd finite and positive or, for a column that had no spread, not a
-  /// number (it then divides by 1 and keeps the mark), and regather the
+  /// every sd finite and positive or, for a column a state recorded without
+  /// spread, not a number (it then divides by 1), and regather the
   /// training and test covariates under them: a restore reads its slopes on
   /// the scale they were drawn on.
   void restoreCalibration(const ColumnStore& data, const double* means,
                           const double* sds) {
     means_.assign(means, means + numCovariates_);
     sds_.assign(sds, sds + numCovariates_);
-    hasSpread_.assign(numCovariates_, 1);
     for (std::size_t j = 0; j < numCovariates_; ++j)
-      if (std::isnan(sds_[j])) {
-        sds_[j] = 1.0;
-        hasSpread_[j] = 0;
-      }
+      if (std::isnan(sds_[j])) sds_[j] = 1.0;
     regatherTrainingCovariates(data);
     rebuildTestCovariates(data);
   }
@@ -2828,9 +2842,6 @@ private:
   std::size_t numTestObservations_ = 0;
   std::vector<std::size_t> columns_;
   std::vector<double> means_, sds_;
-  // per covariate, whether the column had spread when sds_ was derived; one
-  // without holds the placeholder 1 there
-  std::vector<std::uint8_t> hasSpread_;
   std::vector<double> u_;      // standardized, row-major n x q
   std::vector<double> uTest_;  // standardized, column-major numTest x q
   mutable std::vector<TreeStatisticsCache> statisticsCaches_;
@@ -2885,9 +2896,17 @@ struct GPGaussianLeaf {
   const std::vector<std::size_t>& covariateColumns() const { return columns_; }
   const std::vector<double>& covariateMeans() const { return means_; }
   const std::vector<double>& covariateSds() const { return sds_; }
-  /// The centres, scales and no-spread marks in force.
+  /// The centres and scales in force and, read off the gathered training
+  /// covariates, which columns have spread: the mark is therefore true of
+  /// whatever values and constants the leaf holds when it is asked. One pass
+  /// over the training rows per column still at the placeholder scale.
   LeafStandardization standardization() const {
-    return LeafStandardization{means_, sds_, hasSpread_};
+    LeafStandardization result{means_, sds_, {}};
+    result.hasSpread.resize(numCovariates_);
+    for (std::size_t j = 0; j < numCovariates_; ++j)
+      result.hasSpread[j] = standardizedColumnHasSpread(
+        u_.data() + j * numObservations_, numObservations_, 1, sds_[j]);
+    return result;
   }
   const std::vector<double>& lengthscales() const { return lengthscales_; }
   /// Whether the kernel lengthscales were supplied at creation rather than
@@ -2924,18 +2943,14 @@ struct GPGaussianLeaf {
     numObservations_ = data.numObservations;
     means_.assign(numColumns, 0.0);
     sds_.assign(numColumns, 1.0);
-    hasSpread_.assign(numColumns, 1);
     u_.resize(numObservations_ * numColumns);
     for (std::size_t j = 0; j < numColumns; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double mean, sd;
-      bool hasSpread;
-      if (!data.suppliedStandardization(columns_[j], &mean, &sd, &hasSpread))
-        standardizationMomentsForColumn(column, numObservations_, &mean, &sd,
-                                        &hasSpread);
+      if (!data.suppliedStandardization(columns_[j], &mean, &sd))
+        standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
       means_[j] = mean;
       sds_[j] = sd;
-      hasSpread_[j] = hasSpread ? 1 : 0;
       double* u = u_.data() + j * numObservations_;
       for (std::size_t i = 0; i < numObservations_; ++i)
         u[i] = isNA(column[i]) ? 0.0 : (column[i] - mean) / sds_[j];
@@ -2964,20 +2979,16 @@ struct GPGaussianLeaf {
 
   /// Install saved standardization constants and, when non-null,
   /// lengthscales, numCovariates() of each with every lengthscale finite and
-  /// positive and every sd so too or, for a column that had no spread, not a
-  /// number (it then divides by 1 and keeps the mark), and regather the
+  /// positive and every sd so too or, for a column a state recorded without
+  /// spread, not a number (it then divides by 1), and regather the
   /// training and test covariates under them: a restore reads its function
   /// values and kernels on the scale they were drawn on.
   void restoreCalibration(const ColumnStore& data, const double* means,
                           const double* sds, const double* lengthscales) {
     means_.assign(means, means + numCovariates_);
     sds_.assign(sds, sds + numCovariates_);
-    hasSpread_.assign(numCovariates_, 1);
     for (std::size_t j = 0; j < numCovariates_; ++j)
-      if (std::isnan(sds_[j])) {
-        sds_[j] = 1.0;
-        hasSpread_[j] = 0;
-      }
+      if (std::isnan(sds_[j])) sds_[j] = 1.0;
     if (lengthscales != nullptr)
       lengthscales_.assign(lengthscales, lengthscales + numCovariates_);
     regatherTrainingCovariates(data);
@@ -3694,9 +3705,6 @@ private:
   mutable GPFallbackTally tally_;
   std::vector<std::size_t> columns_;
   std::vector<double> means_, sds_;
-  // per covariate, whether the column had spread when sds_ was derived; one
-  // without holds the placeholder 1 there
-  std::vector<std::uint8_t> hasSpread_;
   std::vector<double> lengthscales_, suppliedLengthscales_;
   std::vector<double> u_;      // standardized, column-major n x q
   std::vector<double> uTest_;  // standardized, column-major numTest x q

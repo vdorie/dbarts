@@ -2568,9 +2568,10 @@ static void testNoSpreadStandardization() {
           "no spread: an absent scale divides by 1, as the placeholder does");
     SamplerStateData reread;
     plain->getState(reread);
-    check(reread.chains[numChains - 1].forests[0].leafCovariateScales[1] ==
-            1.0,
-          "no spread: a scale of 1 that a state brought is not marked");
+    check(std::isnan(
+            reread.chains[numChains - 1].forests[0].leafCovariateScales[1]),
+          "no spread: a scale of 1 brought for a column at its centre is "
+          "stored as absent again");
 
     // what a scale may not be is unchanged
     for (double bad : {0.0, -1.0, std::numeric_limits<double>::infinity()}) {
@@ -2645,6 +2646,25 @@ static void testLinearLeafViews() {
           "view standardization constants come from the parent's full data");
     check(!parent.suppliedStandardization(1, &mean, &sd),
           "raw-data stores supply no gathered constants");
+
+    // a view of a column that holds one value takes its centre and the
+    // placeholder 1 from the parent, and a leaf over it reads no spread
+    std::vector<double> xFlat(x);
+    for (size_t i = 0; i < n; ++i) xFlat[i + n] = 1000.0;
+    ColumnStore flatParent, flatView;
+    built(flatParent.build(xFlat.data(), n, p, options.maxNumCuts, false,
+                           nullptr, covariates, 1));
+    flatView.buildFromParent(flatParent, rows.data(), rows.size(),
+                             testRows.data(), testRows.size(), covariates, 1);
+    LinearGaussianLeaf leaf, flatLeaf;
+    leaf.initialize(view, covariates, 1);
+    flatLeaf.initialize(flatView, covariates, 1);
+    check(leaf.standardization().hasSpread[0] &&
+            !flatLeaf.standardization().hasSpread[0] &&
+            flatLeaf.covariateMeans()[0] == 1000.0 &&
+            flatLeaf.covariateSds()[0] == 1.0,
+          "a view of a column without spread is without spread, and one of "
+          "a column with it is not");
   }
 
   // a full-rows linear view runs bitwise identically to the raw-data path
