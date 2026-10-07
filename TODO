@@ -757,6 +757,17 @@ items
     sure the sugar form that gets forests for all levels is scheduled
     for later"). To design: the forests' labels, where sd and
     amplitude stated on the term go, vars, and the list door.
+  several-column-basis-refusal: a basis of several numeric columns is
+    refused by name in 1.0-0, however written (~ dose + age, a spline,
+    a matrix value), the message showing one forest for each column
+    (dec-B282). Before the merge to main; planned with the forest
+    plans. bartCause's bcf hands cbind(1 - z, z) through
+    dbartsData(bases = ) and moves to factor(z) first.
+  several-column-basis-meaning: what a basis of several numeric
+    columns means, shorthand for a forest each or one shared shape
+    times a weighted sum (the curve-times-modifier model of a spline
+    basis is the second), with how a size is stated for each column
+    (dec-B272). After 1.0-0 (dec-B282).
   single-forest-vars-leftovers: two things the column restriction on a
     single declared forest left (docs/design/single-forest-vars.md). A
     zero split probability does not exclude a column once the positive
