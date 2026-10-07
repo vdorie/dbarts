@@ -314,6 +314,14 @@ expect_identical(
   storedFormula(fit(y ~ forest(x1 + x2) + forest(x1, basis = ~z) - 1)),
   "~x1 + x2 - 1"
 )
+# after a forest that names no term too
+expect_identical(
+  attr(
+    storedTerms(fit(y ~ forest(basis = ~z) - 1 + forest(x1 + x2))),
+    "intercept"
+  ),
+  0L
+)
 for (formula in placements) {
   placed <- fit(formula)
   expect_identical(predictors(placed), c("x1", "x2"), info = deparse(formula))
