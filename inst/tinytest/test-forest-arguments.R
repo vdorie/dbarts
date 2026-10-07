@@ -198,7 +198,7 @@ for (bad in list(c(1, 1), NA_real_, NaN)) {
     "'value' must be a single positive number"
   )
 }
-expect_error(twoForests(amplitude = dbartsPriors$fixed(TRUE)))
+expect_error(twoForests(amplitude = dbartsPriors$fixed(TRUE)), ".")
 for (refused in list(quote(dbartsPriors$normal()), "fixed", FALSE)) {
   expect_error(
     eval(bquote(dbarts(
