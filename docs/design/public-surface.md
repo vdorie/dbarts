@@ -200,17 +200,22 @@ an additive addition does NOT bump the version or the floor. Only a
 non-additive change to an existing block's encoding - one that cannot be
 expressed as a new name - bumps both. A REQUIRED block (or one required for
 the sampler's configuration: tree.params for vector leaves, tree.masks for
-pooled categoricals, latents for binary) is refused NAMING the block when the
-sampler needs it but the state omits it. The stamp stays for provenance and as
+pooled categoricals) is refused NAMING the block when the sampler needs it
+but the state omits it. A latent block is not such a block: a state without
+one, as a gaussian state is, is not refused by a binary sampler for lacking
+it, and is refused there only as a state of another family, when it says
+which family stored it (state-not-model.md, "The family a state was stored
+under"). The stamp stays for provenance and as
 the floor's input; a state at or past the floor loads, only a genuinely older
 encoding is refused. Pre-1.0 states are not a compat target and cannot even
 structurally reach the by-name reader (they lack the forests block).
 The rule governs the TOP-LEVEL ATTRIBUTES on the same terms - they are read
 by name too, and an unknown one is ignored - so `weights.digest` (2026-08-24,
-weighted-logistic.md) and `weights.zero` (2026-10-06, the same document; on
-Student-t states only) are additive additions that move neither the
-version nor the floor: a state lacking either restores exactly as it did
-before that attribute existed.
+weighted-logistic.md), `weights.zero` (2026-10-06, the same document; on
+Student-t states only) and `family` (2026-10-07, state-not-model.md; on
+every state) are additive additions that move neither the version nor the
+floor: a state lacking one of them is read exactly as it was before that
+attribute existed.
 
 Landed (2026-07-04): reporting format for categorical rules in
 `getTrees`/`plotTree`. The flat format stores the direction mask as a

@@ -24,6 +24,7 @@ nothing else, and installing one should leave the model alone.
 | `cutPoints`, a leaf's covariate standardization, a heuristic gp lengthscale | the frame the trees and slopes are read through | scratch, frozen | installed as is |
 | a supplied gp lengthscale | the kernel | model | kept; saved draws under another are refused |
 | weights and censoring digests | which data the latents were drawn against | data, by digest | compared; mismatches are reconciled |
+| `family` | which response family's chain this is | model, by name | compared with the sampler's; never installed |
 
 Not carried: the leaf scale, a fixed amplitude prior variance or fixed amplitudes, the tree prior, the move
 probabilities, the sigma prior, the variance forest's leaf prior, the monotone directions and the bases. A state
@@ -77,6 +78,54 @@ It does not hold in four places.
   leaf prior (`setLeafPrior`), but there is no writer for a fixed df, shape or concentration after creation,
   so the question does not arise for them.
 
+## The family a state was stored under
+
+Added 2026-10-07 ([cross-family-state-install.md](../plans/cross-family-state-install.md)).
+
+The blocks of a state do not say which response family drew them. A probit state, a logistic one and a hazard
+one hold the same blocks, and the latent block is a latent response under probit, ordinal and aft and a
+precision - a Student-t scale, a Polya-Gamma variate - under Student-t, logistic and negative binomial. Before
+the record, `setState` took most states of another family. Measured on 60 rows, 5 trees and one chain, each
+ordered pair in a process of its own, an install and then 23 sweeps (rows: the state; columns: the sampler;
+"refused" is `state is not consistent with this sampler`):
+
+| state | gaussian | Student-t | probit | logistic | ordinal | nbinom | aft | multinomial |
+|---|---|---|---|---|---|---|---|---|
+| gaussian | - | refused | runs | runs | refused | refused | runs | refused |
+| Student-t | refused | - | runs | runs | refused | runs | runs | refused |
+| probit | refused | not finite | - | no return | refused | refused | runs | refused |
+| logistic | refused | runs | runs | - | refused | refused | runs | refused |
+| ordinal | refused | not finite | runs | no return | - | refused | runs | refused |
+| nbinom | refused | runs | runs | runs | refused | - | runs | refused |
+| aft | refused | not finite | runs | no return | refused | no return | - | refused |
+| multinomial | refused | refused | refused | refused | refused | refused | refused | - |
+
+Of the 56 pairs 31 were refused, 18 installed and ran, 3 left fits that were not finite and 4 a sweep that did
+not return. Every breaking pair put latent responses, many of them negative, where the sampler holds
+precisions; the hazard and two-forest forms of probit broke a logistic sampler as the plain pair did.
+
+The rule. Every state carries a top-level attribute `family`, one string: the family the sampler runs, as the
+`family` argument spells it. A hazard sampler writes its link's family, the model it runs on its expanded
+rows. The leaf model, the forests and a variance forest are not in it. The record is model by name: it is
+compared with the sampler's own and never installed, as the two digests are, so a state still carries no
+model. On an install, by `setState`, by `copy` and by a reload alike:
+
+1. The record is the sampler's family: the state is installed by the other rules.
+2. The record is another family's: the state is refused, naming both families, before anything else of it is
+   read. A state of another family is named as that whatever else about it differs.
+3. The record is present and is not one string: the state is refused as malformed.
+4. There is no record, as on a state stored before it existed: the state is installed by the other rules.
+5. Whatever the record says, a Student-t, logistic or negative-binomial sampler refuses a latent block holding
+   a value that is not positive and finite. The other families' latents are real numbers and are not judged.
+
+After any of these refusals the sampler, its stored state and its generators are as they were. Every pair of
+different families is refused, the 18 that ran included. A gaussian state holds no latents and used to install
+into a probit, logistic or aft sampler; it is refused with the rest, because a chain's trees mean something
+only under the family they were drawn in, which is the line dec-B254 draws for `setModel`. Pairs of one family
+that differ in a value held fixed - the Student-t df or the negative-binomial shape, fixed in one and drawn in
+the other - or in a leaf constraint install as before. The warm start, `installTrees`, reads neither the
+record nor the latents, and is the way to start a sampler from a fit of another family.
+
 ## Where it lives
 
 The writer and the install rule: [`Chain::getState`](../../src/bartcore/chain.hpp),
@@ -86,4 +135,9 @@ The writer and the install rule: [`Chain::getState`](../../src/bartcore/chain.hp
 [`Sampler::setAnchor`](../../src/bartcore/sampler.hpp), [`unitsDiffer`](../../src/bartcore/sampler.hpp),
 [`convertStateUnits`](../../src/bartcore/chain.hpp) and [`moveScale`](../../src/bartcore/chain.hpp). The record:
 [`recordAnchor`](../../R/dbarts.R), [`applyAnchor`](../../R/dbarts.R) and
-[`recreatePointer`](../../R/dbarts.R).
+[`recreatePointer`](../../R/dbarts.R). The family record:
+[`stateFamilyName`](../../src/R_interface_bartcore.cpp), written by
+[`storeState`](../../src/R_interface_bartcore.cpp) and compared first in
+[`setState`](../../src/R_interface_bartcore.cpp); the floor on precisions:
+[`ResponseModel::canHoldLatents`](../../src/bartcore/model.hpp), asked by
+[`Chain::stateIsValid`](../../src/bartcore/chain.hpp).
