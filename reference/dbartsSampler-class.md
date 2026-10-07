@@ -763,12 +763,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)).
   Names, where given, must be the creation's. A short list reaches only
   the first forests, and a forest whose `sd` is not stated is left as it
-  is; every other
+  is; an `sd` that is not one unnamed positive finite number is refused,
+  as at creation; every other
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
-  argument is fixed at creation (a basis changes through
-  `setForestBasis`). Each `sd` lands in the channel creation gave it -
-  the half-Cauchy median of a forest created without a basis, the
-  leaf-scale factor of one created with one - and is recorded on the
+  argument, `amplitude` included, is fixed at creation (a basis changes
+  through `setForestBasis`). Each `sd` lands in the channel creation
+  gave it - the half-Cauchy median of a forest created without a basis,
+  the leaf-scale factor of one created with one - and is recorded on the
   `control` attribute creation reads, so every re-creation builds with
   it. Give exactly one of `leaf.prior` and `forests`.
 

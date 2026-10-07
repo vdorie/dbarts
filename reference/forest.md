@@ -20,7 +20,7 @@ forest(
     basis = NULL, vars = NULL,
     n.trees = NULL, base = NULL, power = NULL, sd = NULL,
     interactions = NULL, blocks = NULL,
-    amplitude.prior.variance = NULL, update.amplitude = NULL)
+    amplitude.prior.variance = NULL, amplitude = NULL)
 ```
 
 ## Arguments
@@ -149,7 +149,11 @@ forest(
   \\K = 2\\ is the fixed point of both statements, \\\sqrt{2/2} = 1\\. A
   value declared here overrides its default and keeps its per-forest
   reading at every \\K\\, so `sd = 1` on each basis forest recovers the
-  pre-\\K\\-aware model exactly. It must be positive and finite.
+  pre-\\K\\-aware model exactly. It is one unnamed number, positive and
+  finite, the same for every column of the forest's `basis`; a vector of
+  any other length, a named number and anything that is not a number are
+  refused. A model of one forest states its size as the fitting
+  function's `leaf.prior = normal(sd = )`.
 
   It is the one argument a live sampler restates:
   `$setLeafPrior(forests = list(forest(sd = ), ...))` writes it in the
@@ -207,13 +211,23 @@ forest(
   `forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))`,
   or use one forest with `linear()` leaves.
 
-- update.amplitude:
+- amplitude:
 
-  Whether this forest's amplitudes are redrawn each sweep, default
-  `TRUE`. `FALSE` fixes them at their prior center for the sampler's
-  life; the choice is made at creation and cannot be toggled afterwards.
-  Declaring it needs a model with amplitudes, so it is refused on a
-  single-forest `forests`.
+  The law of this forest's amplitudes: the one a forest with no `basis`
+  carries, or one for each column of its `basis`. Left out, they are
+  drawn each sweep. `fixed()` holds them for the sampler's life, the
+  choice being made at creation: a forest with no `basis` at 1, and a
+  forest on a factor, a character or a logical vector at 0 for the first
+  level and 1 for each of the others. The forest is then held out of the
+  first level and enters at full size for every other level, so it is
+  each other level's difference from the first. A basis of several
+  numeric columns is held the same way, the first column at 0, so that
+  column is not used. A basis of one numeric column would hold the
+  forest at zero and is refused, at creation and by `$setForestBasis`.
+  `fixed` alone is taken as `fixed()`, and no other value is. Outside
+  the argument that takes it the constructor is `dbartsPriors$fixed()`.
+  It is stated for a forest of a model of several; a model of one forest
+  has no amplitude to hold.
 
 ## Details
 
@@ -355,7 +369,7 @@ fit <- bart(y ~ x1 + x3 + forest(x1 + x3, basis = ~ scale(w), n.trees = 10L),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000710
+#> total seconds in loop: 0.000413
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 3 3 1 4 2 2 2 

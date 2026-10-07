@@ -72,7 +72,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span>    basis <span class="op">=</span> <span class="cn">NULL</span>, vars <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    n.trees <span class="op">=</span> <span class="cn">NULL</span>, base <span class="op">=</span> <span class="cn">NULL</span>, power <span class="op">=</span> <span class="cn">NULL</span>, sd <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    interactions <span class="op">=</span> <span class="cn">NULL</span>, blocks <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    amplitude.prior.variance <span class="op">=</span> <span class="cn">NULL</span>, update.amplitude <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span>    amplitude.prior.variance <span class="op">=</span> <span class="cn">NULL</span>, amplitude <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -188,7 +188,11 @@ The constructor is not exported: it resolves by bare name inside the
     statements, \(\sqrt{2/2} = 1\). A value declared here
     overrides its default and keeps its per-forest reading at every \(K\),
     so <code>sd = 1</code> on each basis forest recovers the pre-\(K\)-aware
-    model exactly. It must be positive and finite.</p>
+    model exactly. It is one unnamed number, positive and finite, the same for
+    every column of the forest's <code>basis</code>; a vector of any other length,
+    a named number and anything that is not a number are refused.
+    A model of one forest states its size as the fitting function's
+    <code>leaf.prior = normal(sd = )</code>.</p>
 <p>It is the one argument a live sampler restates:
     <code>$setLeafPrior(forests = list(forest(sd = ), ...))</code> writes it in the
     channel creation gave the forest, and <code>$getLeafPrior(f)$leaf.prior</code>
@@ -237,12 +241,21 @@ The constructor is not exported: it resolves by bare name inside the
     <code>forests = list(forest(), forest(basis = ~ z1), forest(basis = ~ z2))</code>,
     or use one forest with <code>linear()</code> leaves.</p></dd>
 
-  <dt id="arg-update-amplitude">update.amplitude<a class="anchor" aria-label="anchor" href="#arg-update-amplitude"></a></dt>
-<dd><p>Whether this forest's amplitudes are redrawn each sweep, default
-    <code>TRUE</code>. <code>FALSE</code> fixes them at their prior center for the
-    sampler's life; the choice is made at creation and cannot be toggled
-    afterwards. Declaring it needs a model with amplitudes, so it is refused on
-    a single-forest <code>forests</code>.</p></dd>
+  <dt id="arg-amplitude">amplitude<a class="anchor" aria-label="anchor" href="#arg-amplitude"></a></dt>
+<dd><p>The law of this forest's amplitudes: the one a forest with no
+    <code>basis</code> carries, or one for each column of its <code>basis</code>. Left out,
+    they are drawn each sweep. <code>fixed()</code> holds them for the sampler's life,
+    the choice being made at creation: a forest with no <code>basis</code> at 1, and
+    a forest on a factor, a character or a logical vector at 0 for the first
+    level and 1 for each of the others. The forest is then held out of the
+    first level and enters at full size for every other level, so it is each
+    other level's difference from the first. A basis of several numeric columns
+    is held the same way, the first column at 0, so that column is not used. A
+    basis of one numeric column would hold the forest at zero and is refused,
+    at creation and by <code>$setForestBasis</code>. <code>fixed</code> alone is taken as
+    <code>fixed()</code>, and no other value is. Outside the argument that takes it
+    the constructor is <code>dbartsPriors$fixed()</code>. It is stated for a forest
+    of a model of several; a model of one forest has no amplitude to hold.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -380,7 +393,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000710</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000413</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 3 3 1 4 2 2 2 </span>
