@@ -17,7 +17,7 @@ and [leaf-conversions.md](leaf-conversions.md), which edit the same bridge file,
 manual page in other functions and items; shares no file with
 [factor-column-update-forms.md](factor-column-update-forms.md) or [written-surface.md](written-surface.md).
 Recommended order: after monotone-unforced-refusal, before leaf-conversions or between its pushes.
-budget: ~430 lines (bridge ~50, engine ~35, R none, tests/cpp ~70, tinytest ~230, manual, design notes,
+budget: ~380 lines (bridge none, engine ~35, R none, tests/cpp ~70, tinytest ~230, manual, design notes,
 comments and TODO ~45), upper figure 650. Plans have run 1.5-2x low; the scratch build under Context came to
 79 lines of C++.
 
@@ -207,7 +207,10 @@ its own is assigned to the field, as today for any state it refuses. The warm st
   and the ordinal category count are refused by the shape of their blocks, in other words. dec-B254 calls
   all of these structure; no such pair broke, and none is this entry's. The coordinator has the figures.
 - Latents that are not finite in a probit, ordinal or aft state: installed today and after.
-- The sweep that does not return when a precision is not positive. After this no state can bring one.
+- The sweep that does not return when a precision is not positive. After this no stored state brings one.
+  A value edited by hand to the edge of what a double holds still can: a Polya-Gamma variate of 1e-320, or
+  the largest finite double as a scale, passes the floor and breaks the sweep, within one family as across
+  two.
 
 ## Calls made in planning
 

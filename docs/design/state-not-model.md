@@ -114,7 +114,8 @@ hazard and two-forest forms of probit are refused by a logistic sampler as the p
 holds no latents and installs into a probit, logistic or aft sampler. Among the pairs of different families
 that install, most leave the sampler holding the other family's latent block as stored until its next sweep.
 Pairs of one family that differ in a value held fixed - the Student-t df or the negative-binomial shape, fixed
-in one and drawn in the other - or in a leaf constraint install. The warm start, `installTrees`, reads no
+in one and drawn in the other - install, as does a monotone sampler's state into a plain one; a plain state
+goes into a monotone sampler only when its leaf values are in order. The warm start, `installTrees`, reads no
 latents and is the way to start a sampler from a fit of another family: it takes the donor's trees and, where
 the sampler draws them, its sigma, k and DART state.
 
