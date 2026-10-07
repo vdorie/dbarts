@@ -474,4 +474,39 @@ expect_identical(
   as.integer(as.character(drawnFit$group.by)),
   drawnFrame$g[drawnRows]
 )
-rm(drawnFrame, dataDraws, drawnFit, drawnRows)
+# with the matrix interface the predictors, the response and the test rows
+# are each read once too, in the order written
+drawnTest <- drawnFrame[1:6, ]
+dataDraws <- list()
+testReadings <- 0L
+matrixFit <- rbart_vi(
+  {
+    dataDraws[[length(dataDraws) + 1L]] <- sample(40L)
+    as.matrix(drawnFrame[dataDraws[[length(dataDraws)]], c("x", "id")])
+  },
+  drawnFrame$y[dataDraws[[length(dataDraws)]]],
+  {
+    testReadings <- testReadings + 1L
+    as.matrix(drawnTest[c("x", "id")])
+  },
+  group.by = drawnFrame$g[dataDraws[[length(dataDraws)]]],
+  group.by.test = drawnTest$g,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.thin = 1L,
+  n.chains = 1L,
+  n.trees = 3L,
+  n.threads = 1L,
+  verbose = FALSE
+)
+expect_identical(length(dataDraws), 1L)
+expect_identical(testReadings, 1L)
+drawnRows <- as.integer(matrixFit$fit[[1L]]$data@x[, "id"])
+expect_identical(drawnRows, dataDraws[[1L]])
+expect_identical(matrixFit$fit[[1L]]$data@y, drawnFrame$y[drawnRows])
+expect_identical(
+  as.integer(as.character(matrixFit$group.by)),
+  drawnFrame$g[drawnRows]
+)
+rm(drawnFrame, dataDraws, drawnFit, drawnRows, drawnTest, testReadings)
+rm(matrixFit)

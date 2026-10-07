@@ -2589,6 +2589,19 @@ forest <- function(
     if (isDotsReference(recovered$expr)) {
       declared <- forwardedBasis(substitute(basis), function() basis, place)
     } else if (isLoopMachinery(callingPlace(recovered$env), recovered$expr)) {
+      # such a function indexes its variables and never passes one whole, so
+      # a bare name was handed to it, and stands for a variable of its own
+      if (is.name(recovered$expr)) {
+        stop(
+          "forest()'s 'basis' is the name '",
+          recovered$expr,
+          "', which the function of base R that called forest() was handed ",
+          "and has a variable of its own by, so the name cannot be read as ",
+          "the caller's; hand the column itself over, or write the call of ",
+          "forest() in a function of your own",
+          call. = FALSE
+        )
+      }
       declared <- basis
     } else {
       declared <- recovered$expr

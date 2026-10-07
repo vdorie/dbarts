@@ -461,6 +461,47 @@ evalx <- function(x, e) {
   eval(e, callingEnv)
 }
 
+## Hands evaluated arguments on in a call. Each of `values` is kept in a new
+## environment, and the argument of its name becomes the code that reads it
+## from there, `<environment>$name`. Wherever that code is evaluated, by a
+## function's own argument or by one that looks its argument up in data, as
+## model.frame() looks up 'subset', it gives the value, so the expression the
+## caller wrote is not evaluated a second time; and the call deparses as
+## short as it was written, where a value put in it would print every row it
+## holds in a traceback. `written`, where given, is the arguments as their
+## caller wrote them, for the call a fit keeps (writtenCall).
+handOn <- function(matched, values, written = NULL) {
+  if (length(values) == 0L) {
+    return(matched)
+  }
+  held <- list2env(values, parent = emptyenv())
+  attr(held, "dbarts.written") <- written[names(written) %in% names(values)]
+  for (name in names(values)) {
+    matched[[name]] <- call("$", held, as.name(name))
+  }
+  matched
+}
+
+## A call with every argument that was handed on with a record of what its
+## caller wrote (handOn) put back as written, for storing on a fit.
+writtenCall <- function(call) {
+  for (i in seq_along(call)[-1L]) {
+    argument <- call[[i]]
+    if (
+      is.call(argument) &&
+        identical(argument[[1L]], as.name("$")) &&
+        is.environment(argument[[2L]])
+    ) {
+      written <- attr(argument[[2L]], "dbarts.written", exact = TRUE)
+      name <- as.character(argument[[3L]])
+      if (name %in% names(written)) {
+        call[i] <- written[name]
+      }
+    }
+  }
+  call
+}
+
 ## Re-targets a matched call at 'fn', keeping the arguments 'fn' takes, plus
 ## those its caller would forward through '...' when both have dots; '...'
 ## names a fixed set of arguments to keep instead. 'callFormals' are the

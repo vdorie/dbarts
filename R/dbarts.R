@@ -726,9 +726,6 @@ dbarts <- function(
   ...
 ) {
   matchedCall <- match.call()
-  # 'data' as the caller wrote it, which tells below whether a response made
-  # of it has since taken its place in the matched call
-  writtenData <- matchedCall$data
 
   evalEnv <- parent.frame(1L)
 
@@ -1195,30 +1192,33 @@ dbarts <- function(
   }
 
   dataCall <- redirectCall(matchedCall, quoteInNamespace(dbartsData))
-  # a data object written in the call has been built once already, to be
-  # looked at above: it is that object the fit uses, not a second build of
-  # it, whose 'subset' could draw other rows
-  if (inherits(formula, "dbartsData")) {
-    dataCall$formula <- formula
-  }
-  # 'data' and 'subset' are each evaluated once for a fit, and the data
-  # object is handed the value in the expression's place: evaluated again
-  # there, a 'data' or a 'subset' that draws its rows would give the fit other
-  # rows than a basis was read against or the censoring status was cut to.
-  # 'data' has been read above, by this function's own argument. A formula's
-  # 'subset' is an expression over the data's columns, which the data object
-  # evaluates, once, in the value of 'data' it is handed; with the matrix
-  # interface it is an index, evaluated here. A response that a hazard, aft
-  # or multinomial fit has put in the place of 'data' already stands there.
-  if (!missing(data) && identical(matchedCall$data, writtenData)) {
-    dataCall["data"] <- list(data)
+  # Every argument that holds rows is evaluated once for a fit, and what this
+  # function has read is handed to the data object as its value (handOn):
+  # evaluated again there, an argument that draws its rows would give the fit
+  # other rows than the ones read here, the predictors another draw than the
+  # response, a basis or the censoring status another than either. The first
+  # argument and 'data' have been read above, in that order, by this
+  # function's own arguments: the formula, the predictors or a data object
+  # written in the call, which is built once, and the data or the response,
+  # for which a hazard or an aft fit has put the response it made of it in
+  # the call. A formula's 'subset' is an expression over the data's columns,
+  # which the data object evaluates, once, in the 'data' it is handed; with
+  # the matrix interface it is an index, evaluated here. The arguments not
+  # read here go on as written and are evaluated once there.
+  handed <- list(
+    formula = if (hazardExpandedFirst) dataCall$formula else formula
+  )
+  if ("data" %in% names(dataCall)) {
+    handed["data"] <- list(
+      if (is.language(dataCall$data)) data else dataCall$data
+    )
   }
   if (
     !is.formula(formula) &&
       !inherits(formula, "dbartsData") &&
       "subset" %in% names(dataCall)
   ) {
-    dataCall["subset"] <- list(subset)
+    handed["subset"] <- list(subset)
   }
   # a basis declared on 'forests' has nowhere to ride once 'formula' is
   # already a built dbartsData: dbartsData() drops an unmatched 'bases'
@@ -1284,7 +1284,7 @@ dbarts <- function(
     logical(1L)
   )
   if (!is.null(basisReads)) {
-    dataCall$bases <- lapply(basisReads, function(read) {
+    handed$bases <- lapply(basisReads, function(read) {
       if (is.null(read)) {
         NULL
       } else if (is.null(read$frame)) {
@@ -1295,12 +1295,13 @@ dbarts <- function(
     })
   }
   if (!is.null(multinomialCounts)) {
-    dataCall$counts <- multinomialCounts
+    handed$counts <- multinomialCounts
   }
+  dataCall <- handOn(dataCall, handed)
   data <- withMatrixResponseRestated(
     "bart()/dbarts()",
     requestedFamily,
-    if (is.null(dataCall$bases)) {
+    if (is.null(handed$bases)) {
       withBinaryResponsePrecision(family, eval(dataCall, evalEnv))
     } else {
       # the bases ride the data object's own 'bases' argument, which this caller

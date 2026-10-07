@@ -194,6 +194,9 @@ xbart <- function(
   )
   refuseResponseFreeFormula(formula, "xbart()")
   refuseForestTerm(formula, "xbart")
+  # the first argument has been read above and is handed on as its value;
+  # predictors that draw their rows are then read once, as the response is
+  dataCall <- handOn(dataCall, list(formula = formula))
   data <- withMatrixResponseRestated(
     "xbart()",
     family,

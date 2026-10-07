@@ -1239,21 +1239,29 @@ bart <- function(
   }
   control@seed <- seed
 
-  storedCall <- matchedCall
+  # what a caller that handed its arguments on by value wrote, as pdbart does
+  storedCall <- writtenCall(matchedCall)
   storedCall$family <- suppliedFamily
   control@call <- if (keepCall) {
     expandForwardedCall(storedCall, callingEnv)
   } else {
     call("NULL")
   }
-  # 'data' is evaluated once for a fit, by this function's own argument, and
-  # every call built from the matched one below is handed that value in the
-  # expression's place; the stored call, taken above, keeps the expression.
-  # 'subset' is not read here and goes on as written, to be evaluated once
+  # Every argument that holds rows is evaluated once for a fit. The first
+  # argument, where it is no formula, and 'data' have been read above, in
+  # that order, by this function's own arguments, and every call built from
+  # the matched one below is handed those values (handOn): evaluated again,
+  # predictors or a response that draw their rows would be those of other
+  # rows. The stored call, taken above, keeps the expressions. The other
+  # arguments are not read here and go on as written, to be evaluated once
   # where the rows are cut.
-  if (!missing(data)) {
-    matchedCall["data"] <- list(data)
-  }
+  matchedCall <- handOn(
+    matchedCall,
+    c(
+      if (!is.formula(formula)) list(formula = formula),
+      if (!missing(data)) list(data = data)
+    )
+  )
   # k forwarded through a wrapper's dots arrives as ..N, which the leaf prior
   # built below would force where the wrapper's caller wrote it, outside the
   # prior vocabulary; it is resolved here instead, as dbarts() resolves its

@@ -2516,14 +2516,17 @@ dbartsData <- function(
     }
 
     # 'data' is evaluated once, when this function first reads it, and that
-    # value stands in the caller's expression's place in every call built from
-    # the matched one below: the model frame and the readings of 'weights' and
-    # 'test'. Evaluated again by one of them, a 'data' that draws its rows
-    # would give that reader other rows than the ones 'subset' was read
-    # against.
+    # value is handed on (handOn) in the caller's expression's place in every
+    # call built from the matched one below: the model frame and the readings
+    # of 'weights' and 'test'. Evaluated again by one of them, a 'data' that
+    # draws its rows would give that reader other rows than the ones 'subset'
+    # was read against. What else is put in the model frame's call below is
+    # handed on the same way, so that the call names no row.
     if (!dataIsMissing) {
-      matchedCall$data <- data
+      matchedCall <- handOn(matchedCall, list(data = data))
     }
+    # 'weights' as the length check below read it, where it did
+    weightsValue <- NULL
     modelFrameArgs <- c("formula", "data", "subset", "weights", "offset")
 
     ## extract offset prematurely, if necessary
@@ -2648,7 +2651,12 @@ dbartsData <- function(
     modelFrameCall[[1L]] <- quote(stats::model.frame)
     ## this allows subset to be applied to offset, even if offset was a language construct (e.g. off + 0.1)
     if (identical(offsetGivenAsScalar, FALSE)) {
-      modelFrameCall$offset <- offset
+      modelFrameCall <- handOn(modelFrameCall, list(offset = offset))
+    }
+    # 'weights' is evaluated once: what the length check read is what the
+    # model frame is given
+    if (!is.null(weightsValue)) {
+      modelFrameCall <- handOn(modelFrameCall, list(weights = weightsValue))
     }
 
     # a sparseVector/dgCMatrix/sparseFactor column would die inside
@@ -2747,7 +2755,7 @@ dbartsData <- function(
         sparseColumns <- sparseColumns[usedSparseNames]
         data <- denseData
         modelFrameCall$formula <- formula
-        modelFrameCall$data <- data
+        modelFrameCall <- handOn(modelFrameCall, list(data = data))
       }
     } else if (!dataIsMissing && (is.list(data) || is.environment(data))) {
       refuseSparseFormulaColumns(formula, data)
@@ -2763,7 +2771,7 @@ dbartsData <- function(
     if (!is.null(matchedCall$subset)) {
       taken <- tryCatch(
         list(
-          if (dataIsMissing) {
+          subset = if (dataIsMissing) {
             eval(matchedCall$subset, environment(formula))
           } else {
             eval(matchedCall$subset, data, environment(formula))
@@ -2773,7 +2781,7 @@ dbartsData <- function(
       )
       if (!is.null(taken)) {
         subsetValue <- taken[[1L]]
-        modelFrameCall["subset"] <- list(subsetValue)
+        modelFrameCall <- handOn(modelFrameCall, taken["subset"])
       }
     }
     # an out-of-range 'subset' would otherwise reach the na.action as a set
@@ -2786,7 +2794,7 @@ dbartsData <- function(
     # classed matrix
     if (!dataIsMissing && is.list(data) && !is.data.frame(data)) {
       data <- asDataFrameableList(data)
-      modelFrameCall$data <- data
+      modelFrameCall <- handOn(modelFrameCall, list(data = data))
     }
     # a lifted sparse column never reaches model.frame, so the rows it holds
     # a missing value at ride along as a numeric column of NA and 0, which
@@ -2799,12 +2807,18 @@ dbartsData <- function(
       if (length(sparseMissingRows) > 0L) {
         sparseMissing <- numeric(nrow(data))
         sparseMissing[sparseMissingRows] <- NA_real_
-        modelFrameCall$dbartsSparseMissing <- sparseMissing
+        modelFrameCall <- handOn(
+          modelFrameCall,
+          list(dbartsSparseMissing = sparseMissing)
+        )
       }
       # the source row of each frame row, which 'subset' and na.action shape
       # as they shape the frame: the frame's row names cannot serve, since
       # a repeated row is renamed ("1.1")
-      modelFrameCall$dbartsRowIndex <- seq_len(nrow(data))
+      modelFrameCall <- handOn(
+        modelFrameCall,
+        list(dbartsRowIndex = seq_len(nrow(data)))
+      )
     }
     if (!dataIsMissing) {
       formulaVars <- all.vars(formula)
@@ -3407,9 +3421,11 @@ dbartsData <- function(
       testFormula <- as.formula(paste0(deparse(remainder), " - ", deparse(lhs)))
       environment(testFormula) <- environment(formula)
       modelFrameCall$formula <- testFormula
-      modelFrameCall$data <- test
-      # 'subset' selects training rows and never test rows
+      modelFrameCall <- handOn(modelFrameCall, list(data = test))
+      # 'subset' selects training rows and never test rows, whose weights
+      # are 'weights' as written, read in the test rows
       modelFrameCall$subset <- NULL
+      modelFrameCall$weights <- matchedCall$weights
       tryResult <- tryCatch(
         testFrame <- eval(modelFrameCall, parent.frame()),
         error = function(e) e

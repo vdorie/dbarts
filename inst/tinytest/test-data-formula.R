@@ -235,6 +235,150 @@ keptCall <- bart(
 )$call
 expect_identical(keptCall$data, quote(drawData()))
 expect_identical(keptCall$subset, quote(x1 > 0.5))
+# 'weights' is evaluated once as well, where the data is a data frame
+weightReadings <- 0L
+readWeights <- function(w) {
+  weightReadings <<- weightReadings + 1L
+  w
+}
+weighted <- dbartsData(y ~ x1 + id, onceData, weights = readWeights(w))
+expect_identical(weightReadings, 1L)
+expect_identical(weighted@weights, onceData$w)
+# With the matrix interface the predictors and the response are each
+# evaluated once, in the order written: a response that names the rows the
+# predictors drew is the response of the rows the fit holds, at every door.
+onceX <- as.matrix(onceData[c("x1", "id")])
+xDraws <- list()
+drawX <- function() {
+  rows <- sample(onceRows, 40L)
+  xDraws[[length(xDraws) + 1L]] <<- rows
+  onceX[rows, ]
+}
+ofDrawn <- function(values) values[xDraws[[length(xDraws)]]]
+onceCounts <- rpois(onceRows, 3)
+onceLevels <- factor(rep_len(c("a", "b", "c"), onceRows))
+bartSampler <- function(...) {
+  bart(
+    ...,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 3L,
+    n.samples = 2L,
+    n.burn = 0L,
+    verbose = FALSE,
+    samplerOnly = TRUE
+  )$data
+}
+matrixDoors <- list(
+  dbartsData = function() dbartsData(drawX(), ofDrawn(onceData$y)),
+  dbarts = function() {
+    dbarts(drawX(), ofDrawn(onceData$y), control = onceControl)$data
+  },
+  aft = function() {
+    dbarts(
+      drawX(),
+      cbind(exp(ofDrawn(onceData$y)), 1),
+      family = "aft",
+      control = onceControl
+    )$data
+  },
+  bart = function() bartSampler(drawX(), ofDrawn(onceData$y)),
+  nbinom = function() {
+    bartSampler(drawX(), ofDrawn(onceCounts), family = "nbinom")
+  },
+  multinomial = function() {
+    bartSampler(drawX(), ofDrawn(onceLevels), family = "multinomial")
+  },
+  bartBT = function() {
+    bartBT(
+      drawX(),
+      ofDrawn(onceData$y),
+      ntree = 3L,
+      ndpost = 2L,
+      nskip = 0L,
+      verbose = FALSE,
+      sampleronly = TRUE
+    )$data
+  }
+)
+for (door in names(matrixDoors)) {
+  xDraws <- list()
+  built <- matrixDoors[[door]]()
+  expect_identical(length(xDraws), 1L, info = door)
+  rows <- as.integer(built@x[, "id"])
+  expect_identical(rows, xDraws[[1L]], info = door)
+  expect_identical(
+    switch(
+      door,
+      multinomial = max.col(built@counts),
+      nbinom = as.integer(built@y),
+      built@y
+    ),
+    switch(
+      door,
+      multinomial = as.integer(onceLevels)[rows],
+      nbinom = onceCounts[rows],
+      aft = log(exp(onceData$y[rows])),
+      onceData$y[rows]
+    ),
+    info = door
+  )
+}
+xDraws <- list()
+invisible(xbart(
+  drawX(),
+  ofDrawn(onceData$y),
+  n.samples = 4L,
+  n.reps = 2L,
+  n.burn = c(2L, 1L),
+  n.test = 2,
+  n.trees = 3L,
+  n.threads = 1L
+))
+expect_identical(length(xDraws), 1L)
+# The values are handed on in calls that name no row: after an error inside
+# a fit, the calls on the stack are no longer for 10000 rows than for 100
+stackSize <- function(fit) {
+  calls <- NULL
+  tryCatch(
+    withCallingHandlers(fit, error = function(e) calls <<- sys.calls()),
+    error = function(e) NULL
+  )
+  sum(nchar(unlist(lapply(calls, deparse))))
+}
+stackSizes <- vapply(
+  c(100L, 10000L),
+  function(numRows) {
+    big <- data.frame(x1 = runif(numRows), x2 = runif(numRows))
+    big$y <- rnorm(numRows)
+    bigX <- as.matrix(big[c("x1", "x2")])
+    c(
+      formula = stackSize(dbarts(
+        y ~ x1 + nosuch,
+        big,
+        subset = x1 > 0.2,
+        weights = x2,
+        offset = x2,
+        control = onceControl
+      )),
+      bart = stackSize(bart(y ~ x1 + nosuch, big, verbose = FALSE)),
+      matrix = stackSize(dbarts(
+        bigX,
+        big$y,
+        subset = seq_len(50L),
+        weights = c(1, 2),
+        control = onceControl
+      )),
+      bartMatrix = stackSize(bart(bigX, big$y, weights = 1:2, verbose = FALSE))
+    )
+  },
+  numeric(4L)
+)
+expect_true(all(stackSizes > 0))
+expect_true(all(stackSizes < 20000))
+expect_true(all(abs(stackSizes[, 2L] - stackSizes[, 1L]) < 100))
+rm(weightReadings, readWeights, weighted, onceX, xDraws, drawX, ofDrawn)
+rm(onceCounts, onceLevels, bartSampler, matrixDoors, stackSize, stackSizes)
 # 'subset' selects training rows and never rows of 'test'
 onceTest <- onceData[1:25, ]
 cutBeside <- dbartsData(

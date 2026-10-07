@@ -110,7 +110,12 @@ pdbart.flag <- function(value, name) {
 
 # A data call: the caller's call rewritten into a bart call, with trees and
 # sampler kept, and evaluated where the caller wrote it, so an unevaluated
-# argument resolves as bart would resolve it there.
+# argument resolves as bart would resolve it there. The first argument and
+# the data are evaluated once, the data here, and bart is handed those values
+# (handOn) with what was written, which the fit's call keeps: the rows that
+# are averaged over are then the rows the fit was made on, whatever the
+# data's expression gives the next time it is read. Returns the data too, as
+# 'getData' gives it.
 pdbart.fitData <- function(
   object,
   getData,
@@ -154,7 +159,8 @@ pdbart.fitData <- function(
   } else {
     TRUE
   }
-  family <- pdbart.dataFamily(call, object, getData, callingEnv, caller)
+  data <- getData()
+  family <- pdbart.dataFamily(call, object, function() data, callingEnv, caller)
   pdbart.refuseFamily(family, caller)
   type <- pdbart.checkFamilyType(type, family, caller)
   if (
@@ -170,9 +176,14 @@ pdbart.fitData <- function(
   if (length(legacy) == 0L) {
     notePdbartDefaults(callingEnv)
   }
+  call <- handOn(
+    call,
+    c(list(formula = object), if (!is.null(data)) list(data = data[[1L]])),
+    written = as.list(call)
+  )
   fit <- holdingBartNotices(eval(call, callingEnv))
   pdbart.refuseFamily(pdbart.fitFamily(fit), caller)
-  namedList(fit, keepSampler)
+  namedList(fit, keepSampler, data)
 }
 
 # A fit kept without its trees or its sampler, refit through the function
@@ -240,7 +251,7 @@ pdbart.prologue <- function(
     c("bart", "bartMultinomial", "bartOrdinal", "bartNegbin", "bartHurdle")
   )
   if (!isFit && !inherits(object, "dbartsSampler")) {
-    massign[fit, keepSampler] <- pdbart.fitData(
+    massign[fit, keepSampler, data] <- pdbart.fitData(
       object,
       getData,
       matchedCall,
@@ -254,7 +265,7 @@ pdbart.prologue <- function(
       fit = fit,
       keepSampler = keepSampler,
       isSampler = FALSE,
-      getData = getData,
+      getData = function() data,
       callingEnv = callingEnv,
       dataCall = TRUE
     ))

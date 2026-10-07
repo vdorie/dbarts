@@ -331,13 +331,19 @@ rbart_vi <- function(
     dataCall$factors <- "indicators"
     dataCall$na.action <- quote(stats::na.omit)
   }
-  # 'data' is evaluated once, by this function's own argument, which
-  # 'group.by' was looked for in above, and the data object is handed that
-  # value: evaluated again, a 'data' that draws its rows would fit other rows
-  # than the groups were read from
-  if (!missing(data)) {
-    dataCall["data"] <- list(data)
-  }
+  # The arguments that hold rows are evaluated once, by this function's own
+  # arguments, in the order written: the first, 'data', which 'group.by' was
+  # looked for in above, and 'test', which 'group.by.test' was. The data
+  # object is handed those values (handOn): evaluated again, an argument that
+  # draws its rows would fit other rows than the groups were read from
+  dataCall <- handOn(
+    dataCall,
+    c(
+      list(formula = formula),
+      if (!missing(data)) list(data = data),
+      if (!missing(test)) list(test = test)
+    )
+  )
   data <- withMatrixResponseRestated(
     "rbart_vi()",
     "auto",

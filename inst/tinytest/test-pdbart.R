@@ -936,6 +936,47 @@ expect_equal(pd2$fd[, 4L], rowMeans(predict(twoOffset, atPoint)))
 rm(xTwo, yTwo, twoControl, keepTrees, twoSampler, pd2, twoFit, grid)
 rm(twoOffset, atPoint)
 
+# A data call reads its data once: the fit is made on the rows that are
+# averaged over, whatever the data's expression gives the next time it is
+# read, and the call kept shows that expression.
+simDraws <- list()
+drawSim <- function() {
+  drawn <- data.frame(x1 = runif(40L), x2 = runif(40L))
+  drawn$y <- drawn$x1 + rnorm(40L, sd = 0.1)
+  simDraws[[length(simDraws) + 1L]] <<- drawn
+  drawn
+}
+for (door in c("pdbart", "pd2bart")) {
+  # written out: an argument passed on through dots is one promise, read once
+  pd <- function(data) {
+    eval(bquote(.(as.name(door))(
+      y ~ x1 + x2,
+      .(data),
+      xind = .(if (door == "pdbart") "x1" else c("x1", "x2")),
+      pl = FALSE,
+      seed = 5L,
+      n.trees = 5L,
+      n.samples = 10L,
+      n.burn = 5L,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    )))
+  }
+  simDraws <- list()
+  drawnPd <- pd(quote(drawSim()))
+  expect_identical(length(simDraws), 1L, info = door)
+  expect_identical(drawnPd$fit$data@y, simDraws[[1L]]$y, info = door)
+  expect_identical(drawnPd$fd, pd(quote(simDraws[[1L]]))$fd, info = door)
+  expect_identical(drawnPd$bartcall$data, quote(drawSim()), info = door)
+  expect_identical(
+    drawnPd$fit$control@call$formula,
+    quote(y ~ x1 + x2),
+    info = door
+  )
+}
+rm(simDraws, drawSim, door, pd, drawnPd)
+
 rm(pdb1, x, y, levs, small, testData)
 for (key in setdiff(ls(onceState, all.names = TRUE), savedKeys)) {
   onceState[[key]] <- NULL

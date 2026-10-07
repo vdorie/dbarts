@@ -1134,6 +1134,16 @@ expect_identical(
   attr(handedOnFit$control, "bartcore.forests")$vars,
   list(NULL, 1L, 3L, 1L)
 )
+# a name handed on that is a variable of Map()'s own cannot be read as the
+# caller's, and is refused for that
+expect_error(
+  Map(forest, "x1", MoreArgs = list(basis = quote(dots))),
+  paste0(
+    "forest()'s 'basis' is the name 'dots', which the function of base R ",
+    "that called forest() was handed and has a variable of its own by"
+  ),
+  fixed = TRUE
+)
 # a value in MoreArgs is a value
 valueOn <- builtFit(
   c(list(forest()), unname(Map(forest, "x1", MoreArgs = list(basis = dose)))),
