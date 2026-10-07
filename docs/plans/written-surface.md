@@ -1026,8 +1026,7 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - A basis carried by the data object, `dbartsData(bases = )`, keeps the names its value has; the value
     rule is applied to a value given to `forest()`. The data door is slice K's.
   - The fit's `subset`, where a code basis is cut, is read as the fit's own model frame reads it: in the
-    data and then the formula's environment, row names selecting by name, and an argument forwarded
-    through a wrapper's dots read where it was written.
+    data and then the formula's environment, row names selecting by name.
   - Step 3.0's smaller item: the refusal of a buried forest is folded into the walk that replaces
     forest terms, and the two readers of a removal share one flattening of the chain; the intercept
     reader and the list door's `take` are left, their rules for parentheses differing by design.

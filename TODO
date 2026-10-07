@@ -654,10 +654,11 @@ items
     data object, dbartsData(bases = ), keeps whatever column names
     its value has, a partly named one among them, where a value given
     to forest() is named whole or not at all; the data door is the
-    kind-by-class slice's. A subset written as an expression over the
-    data's columns cannot be forwarded through a wrapper's dots: the
-    data object's own model frame evaluates it where the wrapper was
-    called. A forest built by a wrapper whose formal holds the basis,
+    kind-by-class slice's. A subset cannot be forwarded through a
+    wrapper's dots when it is an expression over the data's columns,
+    nor when the formula was written outside the wrapper: the data
+    object's own model frame reads the reference to the dots in the
+    formula's environment (the base build's too). A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
   forest-defaults-by-kind: before 1.0-0 (dec-B274, dec-B276), directly

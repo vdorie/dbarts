@@ -763,8 +763,7 @@ for (door in doors) {
   )
 }
 # 'subset' is read as the fit's own model frame reads it: row names select
-# by name, and one forwarded through a wrapper's dots is read where it was
-# written
+# by name, and one a wrapper forwards through its dots is the wrapper's
 lettered <- frame
 row.names(lettered) <- paste0("r", seq_len(n))
 namedRows <- row.names(lettered)[noW]

@@ -1441,12 +1441,10 @@ dbarts <- function(
     kept <- if (missing(subset) || hazardExpandedFirst) {
       NULL
     } else if (is.formula(formula)) {
-      # the expression as its caller wrote it, one forwarded through a
-      # wrapper's dots included
       formulaSubsetRows(
         formula,
         basisRows$data,
-        recoverForwardedArgument(matchedCall$subset, evalEnv)$expr,
+        matchedCall$subset,
         basisRows$full
       )
     } else {

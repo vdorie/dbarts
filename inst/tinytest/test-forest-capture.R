@@ -499,6 +499,47 @@ expect_error(
   "'basis' (alsoNotYet): object 'alsoNotYet' not found where forest() was called",
   fixed = TRUE
 )
+# at the top level of a session the caller's frame is the workspace, whose
+# variables are copied at the call like any frame's: one changed afterwards
+# changes nothing, and one first made afterwards is not found
+workspaceNames <- c("captureShrink", "captureLate", "captureColumn")
+local({
+  on.exit(rm(
+    list = intersect(workspaceNames, ls(globalenv())),
+    envir = globalenv()
+  ))
+  assign("captureShrink", 10, envir = globalenv())
+  assign("captureColumn", w1, envir = globalenv())
+  atTopLevel <- eval(
+    quote(list(
+      dbartsForests$forest(),
+      dbartsForests$forest(basis = I(dose / captureShrink)),
+      dbartsForests$forest(basis = captureColumn)
+    )),
+    globalenv()
+  )
+  lateAtTopLevel <- eval(
+    quote(list(
+      dbartsForests$forest(),
+      dbartsForests$forest(basis = I(dose / captureLate))
+    )),
+    globalenv()
+  )
+  assign("captureShrink", 1000, envir = globalenv())
+  assign("captureColumn", w2, envir = globalenv())
+  assign("captureLate", 5, envir = globalenv())
+  fit <- builtFit(atTopLevel, frame)
+  expect_identical(
+    basisOf(fit, 2L),
+    column(frame$dose / 10, "I(dose/captureShrink)")
+  )
+  expect_identical(basisOf(fit, 3L), column(w1, "captureColumn"))
+  expect_error(
+    builtFit(lateAtTopLevel, frame),
+    "'basis' (I(dose/captureLate)): object 'captureLate' not found in 'data' or where forest() was called",
+    fixed = TRUE
+  )
+})
 # one forest object fits the data it is given: where its name is a column it
 # is that column, and where it is not it is what the call was given
 dose <- frame$dose * 100

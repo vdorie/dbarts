@@ -313,7 +313,7 @@ basisCode <- function(expr, env) {
   }
   structure(
     list(expr = expr, env = env, label = label, formula = isFormula),
-    class = c("dbartsForestBasis", "dbartsForestCode", "dbartsForestTerms")
+    class = "dbartsForestBasis"
   )
 }
 
