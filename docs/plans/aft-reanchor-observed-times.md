@@ -190,3 +190,10 @@ Agent-made, for the maintainer's later mark.
   (`getLeafPrior` reports the first chain's), and reaches the flat entry through the shared consumer in
   test-aft.R, skipped where there is no compiler, as test-monotone.R does. No landing note is written
   here before the push.
+- Found by the mutations: from R the fourth one (the range read before the new offset is installed) is
+  seen only on a sampler made without an offset. The bridge and the flat entry copy a new offset over
+  the one in force before the engine is reached, so by then the old offset is gone and "a new offset"
+  cannot tell the two orders apart. Step 3 therefore has a third case, an offset where there was none,
+  and the flat entry's check uses it. The third mutation moves a bit only where the reordered sum does
+  not round back; adding and subtracting 1 left the engine fixture's two extremes as they were (R caught
+  it once, through the recorded range), 3.3 did not.

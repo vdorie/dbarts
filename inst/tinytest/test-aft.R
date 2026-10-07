@@ -814,15 +814,19 @@ rm(drawSubset, onceDoors, door, sampler, rows, plainOnce, hazardOnce)
 # them, whatever the chains have drawn.
 set.seed(19L)
 rangeStatus <- rbinom(n, 1L, 0.5)
+# The bridge copies an offset over the one in force before the engine is
+# reached, so only a sampler made without one tells a range read before the
+# new offset was installed from one read after.
 rangeOffsets <- list(
   "the offset in force" = 0.6 * (x[, 2L] - 0.5),
-  "a new offset" = rep(c(-0.4, 0.2), n / 2L)
+  "a new offset" = rep(c(-0.4, 0.2), n / 2L),
+  "an offset where there was none" = rep(c(-0.4, 0.2), n / 2L)
 )
-rangeSampler <- function() {
+rangeSampler <- function(made = rangeOffsets[[1L]]) {
   sampler <- dbarts(
     x,
     cbind(exp(log.t), rangeStatus),
-    offset = rangeOffsets[[1L]],
+    offset = made,
     family = "aft",
     control = dbartsControl(
       n.chains = 2L,
@@ -857,7 +861,11 @@ expectObservedTransform <- function(sampler, offset, info) {
 }
 for (case in names(rangeOffsets)) {
   offset <- rangeOffsets[[case]]
-  sampler <- rangeSampler()
+  sampler <- if (case == "an offset where there was none") {
+    rangeSampler(NULL)
+  } else {
+    rangeSampler()
+  }
   latents <- matrix(sampler$getLatents(), n)
   censored <- rangeStatus == 0L
   # each chain holds its own drawn times, above the observed ones
@@ -905,7 +913,7 @@ source(
 )
 consumer <- compileCapiConsumer("aft", "the C API consumer")
 if (is.null(consumer$skip)) {
-  sampler <- rangeSampler()
+  sampler <- rangeSampler(NULL)
   offset <- rangeOffsets[[2L]]
   expect_equal(
     consumer$CALL("capi_set_offset", sampler$getPointer(), offset, TRUE),
