@@ -58,8 +58,9 @@ plotTree(object, \dots)
     were not kept as samples).
   }
   \item{forest}{
-    An integer, the forest to plot from (1-indexed, as
-    \code{\linkS4class{dbartsSampler}}'s \code{getTrees} accepts). For a
+    A number, the forest to plot from (1-indexed, as
+    \code{\linkS4class{dbartsSampler}}'s \code{getTrees} accepts), or a string,
+    its label (see \code{\link{forest}}). For a
     sampler with a single forest it may be omitted; a sampler with more than
     one (a Bayesian causal forest, or a multinomial fit's own sampler)
     requires it.

@@ -505,8 +505,9 @@ family's real majority convention is "let `match.arg` say it"; this template
 is for checks that can't use it (non-character enums, C-side class dispatch).
 Appending `"; got '<value>'"` is now encouraged, not mandated (see below).
 
-Conformance (shape): `"'forest' must name one of '", paste0(..., collapse =
-"', '"), "'"` (["'forest' must name one of '"](../../R/generics.R)). The
+Conformance (shape): the refusal of an unknown forest was `"'forest' must name
+one of '", paste0(..., collapse = "', '"), "'"` (retired: ["'forest' must name one of '"](../../R/generics.R);
+it now says `names no forest of this model` and lists the labels). The
 monotone-direction violation is retired:
 ["monotone directions must be one of"](../../R/model.R) names the whole
 vocabulary and appends the refused value - this rule's shape.

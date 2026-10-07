@@ -1,7 +1,7 @@
 # A forest's defaults go by its kind
 
-Status: PROPOSED 2026-10-07 (dec-B274); the defaults are built, the selection of a forest by its label is
-not. Plan: [forest-defaults-by-kind.md](../plans/forest-defaults-by-kind.md). Rulings: dec-B274, dec-B241 and
+Status: PROPOSED 2026-10-07 (dec-B274); the defaults are built and landed, the selection of a forest by its
+label is built and not yet landed. Plan: [forest-defaults-by-kind.md](../plans/forest-defaults-by-kind.md). Rulings: dec-B274, dec-B241 and
 dec-B246 as dec-B274 restates them, dec-B281 and dec-B282 for the held shapes, in docs/decisions.md.
 
 ## The rule
@@ -98,3 +98,30 @@ own for every shape, `amplitude = fixed()` is taken only where that is the value
 
 `$setForestBasis` refuses a held forest a replacement of another width, a forest created with no basis
 taking none. Nothing is held anew and no held value changes.
+
+## Selecting a forest
+
+Every place that takes a forest takes its label as well as its position: the sampler's nine methods
+(`getLeafPrior`, `getK`, `getForestFits`, `getForestAmplitudes`, `getForestVariableCounts`, `getTrees`,
+`plotTree`, `setForestWeights`, `setForestBasis`), `extract` with `type = "forest"`, `"k"`, `"leaf.prior.sd"`
+and `"trees"`, and `predict(type = "forest")`. One function reads the argument,
+[`selectForest`](../../R/bartcore.R), and both the sampler and a fit go through it.
+
+- A number is a position, as base R reads a list element by number, and goes to the code that read it before, with its texts.
+- A string is never a position. It is the forest with that label; failing that, the forest whose label is
+  the same code, so `"I(dose / 30)"` finds `I(dose/30)`; and `forest<i>` is forest i, the name position i
+  has on every per-forest margin, so `"forest2"` selects what it did.
+- A string that is one forest's label and another position's name, or the same code as two labels, is
+  refused naming both. `"2"` is the forest labelled `"2"` or no forest, and the refusal says a position is
+  given as a number.
+- `NA`, an empty string, a factor, a logical and a list are refused by name. `TRUE`, a factor and a list
+  were read as numbers before.
+- A sampler of one forest, one declared with a single `forests` entry, and a multinomial one record no
+  labels: `forest<i>` is taken where the number is, and any other string is refused.
+- The margins of a fit keep their names, `forest1`, `forest2`; a label is mapped to its position and never
+  matched against them. What comes back is what the position gives, to the bit, and nothing is renamed by
+  label. `extract(type = "trees")` and `plotTree` hand their forest to the sampler.
+
+A list given forest by forest is read by position. A name on an entry of `predict(bases = )` or of
+`$setLeafPrior(forests = )` must be that position's label or `forest<i>`, and any other is refused, so that a
+list in another order is not read in silence as the order of its positions.

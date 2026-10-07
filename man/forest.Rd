@@ -197,7 +197,15 @@ forest(
     column names of \code{data@bases[[f]]} on the sampler. A forest's label,
     where its place in a \code{forests} list has no name, is the text of its
     basis, \code{"dose + age"}, or \code{forest<i>} for a forest with no basis
-    or with one given as a value; see \code{\link{dbarts}}.
+    or with one given as a value; see \code{\link{dbarts}}. Wherever a method
+    or an \code{extract} or \code{predict} takes a \code{forest}, a string is
+    a forest's label (failing an exact match, the label that is the same code,
+    so \code{"I(dose / 30)"} finds \code{I(dose/30)}), a number is its
+    position as base R reads a list element by number, and \code{forest<i>} names position
+    \emph{i}, as it does on every per-forest margin. A string is never a
+    position: \code{"2"} is a forest labelled \code{"2"} or none. A string
+    that is one forest's label and another position's name, or the same code
+    as two labels, is refused.
 
     \strong{Rows.} A basis has a value for every row of \code{data}, and is
     cut to the rows the fit keeps: \code{data} and \code{subset} are each
