@@ -719,21 +719,40 @@ pair is newly related. On an unordered factor it joins the left level set of
 every rule, and two leaves whose sets shared no level then share the missing
 position. A flag that clears only removes relations. So the one unforced
 change that can break the order is an unordered factor's first missing value.
-The check does not rest on that: it runs on every unforced update of a
-constrained sampler, at the cost the reset had.
+A factor of more than 63 levels is the exception to "goes left": its rules
+keep their side for a missing value when the column loses its missing values,
+so a value the column regains can go right at an old rule and relate the two
+right-hand leaves. The check does not rest on the argument, which is what
+covers that case: it runs on every unforced update of a constrained sampler,
+at the cost the reset had.
 [`testMonotoneMissingRelates`](../../tests/cpp/test_monotone.cpp) holds the
-argument on 4000 random trees: setting one flag adds 71 related pairs through
-a 4-level factor and none through a numeric, an ordered or a 70-level column,
-and clearing one removes 908 and adds none. The larger run and the trial
-updates from R are in [Context](../plans/monotone-unforced-refusal.md#context),
-with the rate in fits: one tree reset in 3600 updates built to provoke it.
+argument on 4000 random trees over stores that never held a missing value:
+setting one flag adds 71 related pairs through a 4-level factor and none
+through a numeric, an ordered or a 70-level column, and clearing one removes
+908 and adds none. The larger run and the trial updates from R are in
+[Context](../plans/monotone-unforced-refusal.md#context), with the rate in
+fits: one tree reset in 3600 updates built to provoke it. The regained value
+of a 70-level factor is built by hand in
+["a factor of more than 63 levels that regains a missing value"](../../inst/tinytest/test-monotone-unforced.R).
 
-Two things a caller should know. A refusal for order is not cured by other
-values: every update that brings the missing value is refused until the trees
-move. And a refused update, for either reason, leaves the stored state, the
-predictors and the predictions exactly an untouched sampler's but not the
-order a leaf holds its rows in, so the draws that follow agree with that
-sampler's to rounding, not bit for bit.
+From R only two calls reach the refusal: `setPredictor` replacing the whole
+matrix, numeric with the factor as codes, with `forceUpdate = FALSE`, and
+`updatePredictorPerObservationJointly` given codes. A named column, with or
+without `"partial"`, stops on a factor's first missing value by name before
+the engine is called.
+
+Three things a caller should know. A refusal for order is not cured by other
+values, and running the sampler need not cure it: every update that brings
+the missing value is refused while some tree would be out of order with it,
+and on data that hold the crossing the missing position forbids the same
+proposal was still refused after 500 sweeps on 10 of 10 seeds, where one sweep
+cured it on data without the crossing. The way in is a forced update, at the
+cost of the reset. A refused update, for either reason, leaves the stored
+state, the predictors, the predictions and the cached fits exactly an
+untouched sampler's but not the order a leaf holds its rows in, so the draws
+that follow agree with that sampler's to rounding, not bit for bit. And a
+row-by-row call draws its scan order whether or not a row is refused, so it
+never leaves the generator as it was.
 
 ## Plan-vs-code note
 

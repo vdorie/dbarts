@@ -351,6 +351,12 @@ with the new values. Either failure refuses it.
   joint form given labels reads them as codes; a data frame given as the whole matrix fails in a coercion.
   None is this slice's; the coordinator has the measurements and the text of a backlog entry.
 - The order a leaf's rows are held in after a refused update. Every refusal leaves it, today's included.
+- What the joint form does to `data@x`. Any `updatePredictorPerObservationJointly` call on a factor column
+  turns that column of `data@x` from a factor into numeric codes, on every sampler, plain ones included,
+  and whether or not a row is installed; so a call that refuses every changed row still changes
+  `data@x`. It does so on the base build too. A defect of the joint form's handling of factors, not
+  something for the help to describe: it goes with the joint form's fix (dec-B279). The tinytest reads
+  the column through a helper that takes either form.
 
 ## Calls made in planning
 
@@ -417,3 +423,23 @@ with the new values. Either failure refuses it.
   - TODO is untouched, its entry naming this plan already. The design note's Status line names the plan
     without a commit, which the landing adds.
   - Size: about 1100 lines added against 450 planned; tests/cpp is 510 of them and the tinytest 370.
+- Made after the first review (2026-10-07), rebased over state-zero-weight-rows.
+  - The rule's "every tree" and both directions are tested: tests/cpp runs chains of three trees with the
+    hand tree second or last, out of order in the second chain alone, and a decreasing constraint with the
+    mirrored values; the tinytest has three trees and two chains, and a decreasing sampler. The earlier
+    two-chain one-tree cases became these.
+  - The reset kept in [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp) is pinned by a
+    warm start from a donor on another cut grid, in place of the same-grid one.
+  - A factor of more than 63 levels keeps its rules' sides for a missing value when the column loses its
+    missing values, so a regained value can go right: Context's "goes left at every rule" is false for
+    it. The ungated check refuses it correctly; the tinytest builds the case and the design note says so.
+  - The whole-matrix tinytest gives twenty rows the missing value, which makes a rollback that skips the
+    re-route show in the draws.
+  - The merge pins of step 5 moved from a numeric fixture onto the factor fixture, 70 lines shorter.
+  - The help said named columns and `"partial"` return `FALSE` for this; from R they stop with the
+    by-name error, and only the whole matrix of codes and the joint form return `FALSE`. It also said
+    the sampler is left as it was by a row call, which draws its scan order regardless, and told the user
+    to run the sampler, which need not cure it (500 sweeps, 10 of 10 seeds, on data that hold the
+    crossing). ?monotone now says what each call does and names the forced update as the way in.
+  - The session's flag is raised and cleared by a scope guard, so a failed allocation in the reader
+    cannot leave it set.
