@@ -639,19 +639,6 @@ items
     refused; installTrees keeps taking any family's trees. About 430
     lines. Serial with leaf-conversions.
     Plan: docs/plans/cross-family-state-install.md.
-  monotone-unforced-refusal: before 1.0-0 (dec-B278, VD 2026-10-06). An
-    unforced predictor update that would leave a monotone tree's leaf
-    values out of order is refused and rolled back, as one that empties
-    a leaf is: FALSE from the whole-matrix and column forms, FALSE for
-    the row from forceUpdate = "partial" and
-    updatePredictorPerObservationJointly. The one such update is an
-    unordered factor column's first missing value, today accepted with
-    the tree reset to zero; from R it arrives through the whole-matrix
-    form given codes and the joint form, the column forms refusing it
-    by name already. Forced updates, setData, setCutPoints, a warm
-    start and a setState that merges keep the silent reset. The help
-    states both, and tests/cpp testMonotoneMissingArrives turns over.
-    About 450 lines. Serial with leaf-conversions. Plan: docs/plans/monotone-unforced-refusal.md.
   factor-column-update-forms: before 1.0-0 for the joint form
     (dec-B279, VD 2026-10-06). updatePredictorPerObservationJointly
     takes codes from 0 and reads a factor through R's codes from 1:

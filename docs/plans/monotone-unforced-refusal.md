@@ -1,6 +1,6 @@
 # monotone-unforced-refusal: an unforced update that would put a monotone tree out of order is refused
 
-Status: PLANNED (dec-B278).
+Status: LANDED 2026-10-07 (20561107 to aff20de7; dec-B278).
 
 agent: opus implementer, one (engine, tests); opus reviewer.
 rng: by call sequence.
@@ -444,3 +444,41 @@ with the new values. Either failure refuses it.
   - The session's flag is raised and cleared by a scope guard, so a failed allocation in the reader
     cannot leave it set.
   - Size after this round: about 1290 lines added; tests/cpp 610, the tinytest 450, the help 55.
+
+## Landing note
+
+Landed 2026-10-07 as 20561107 to aff20de7 on bartcore, 15 commits, 1286 lines added over 12 files against
+a planned 450 to 800; 983 of them are tests and 120 are under src/. One review told to refute: LAND AFTER
+FIXES, with no defect found in the engine or the bridge. Every correction was made; one was declined, as
+below.
+
+What the review changed. No test had more than one tree in a chain, and a version that judged only the
+first tree passed all of them; the tests now run several trees with the tree out of order second or last,
+in every chain and in the second alone, under an increasing and a decreasing constraint, on every update
+form. The reset this plan keeps in the remapped rebuild is reached by `installTrees` from a donor on
+another cut grid, and without it an unconstrained donor's fit fell along the constrained predictor on six
+of six seeds; it has a test. A factor of more than 63 levels that regains a missing value is tested, and
+the design note no longer says a missing value goes left at every rule there. The help said the column
+forms return `FALSE` for this; from R they stop with the error they always gave for a factor's first
+missing value, and only the whole matrix of codes with `forceUpdate = FALSE` and the joint row form
+return `FALSE`. The help now says what each form does and leaves, and that a refused update may never be
+accepted by running the sampler longer (500 sweeps, 10 of 10 seeds), the forced update being the way in.
+The row session raises and clears the column's flag through a scope guard.
+
+Declined, and left to [factor-column-update-forms.md](factor-column-update-forms.md): any joint row call
+on a factor column leaves the R-side copy of that column as codes. Every reader of it was since checked
+and takes either form.
+
+After a refusal the sampler is bit for bit what it was, generator and cached fits included; the draws
+that follow can differ from an untouched twin's in their last digits (up to 4.3e-14 measured, against
+1.25e-14 for the refusal of an emptied leaf before this slice), because a refusal can change the order a
+leaf holds its rows in. The tests hold later draws to 1e-12.
+
+Gates at landing, on a clean copy of the rebased tree in a library of its own (shipped mode), run in
+series: tests/cpp 350 ok, 0 failed; the full tinytest suite 14850 results, 0 failed, 224 files; lintr no
+lints; air, rc-codoc, win-drift, doc-freshness and the mutation battery's anchors clean; `R CMD build`
+with every vignette rebuilt and `R CMD check --as-cran` with the Date NOTE alone. By the implementer after
+the review's corrections: the four snapshot files on a reference build; the three bitwise compares at 55,
+15 and 11 scenarios, all identical; the exact gates in `quick`, 28 of 28, and the four monotone gates;
+tests/cpp and five test files clean under ASan and UBSan; a seeded digest of 140 accepted and refused
+updates equal on the base and the slice; 29 mutations, none surviving.
