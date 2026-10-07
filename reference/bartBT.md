@@ -230,10 +230,14 @@ family(object, ...)
 
 - ntree:
 
-  The number of trees in the sum-of-trees formulation. Like every count
-  on this page (`nskip`, `ndpost`, `numcut`, `keepevery`, `printevery`,
-  `nthread`, `nchain`, `printcutoffs`), a fractional value is refused,
-  naming the argument, rather than silently truncated; see
+  The number of trees in the sum-of-trees formulation. Where the data
+  object carries `bases`, it is the count of the forest with no basis, a
+  forest with one taking 50 trees, and it is refused, when given, where
+  every forest has a basis; see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md). Like
+  every count on this page (`nskip`, `ndpost`, `numcut`, `keepevery`,
+  `printevery`, `nthread`, `nchain`, `printcutoffs`), a fractional value
+  is refused, naming the argument, rather than silently truncated; see
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   for the shared whole-number rule.
 
@@ -1223,7 +1227,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217287
+#> total seconds in loop: 0.216303
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

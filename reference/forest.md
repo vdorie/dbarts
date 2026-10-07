@@ -357,20 +357,25 @@ forest(
 
 - n.trees, base, power:
 
-  This forest's tree count and tree-structure prior. `NULL` takes the
-  engine's default, which for a basis forest is 50 trees at
-  `base = 0.25`, `power = 3` - shallower and fewer than a prognostic
-  forest's, the modulating surface normally being the smoother of the
-  two. On the FIRST forest these are the fit's own `control@n.trees` and
-  `tree.prior`, which they restate rather than add to. When a value here
-  disagrees with an explicitly supplied `control@n.trees` or tree-prior
-  `base`/`power`, this one governs the fit, being the more specific of
-  the two declarations.
+  This forest's tree count and tree-structure prior. Each one stated
+  here governs this forest, and each one left out takes the default of
+  the forest's kind, whatever the forest's place. A forest with a
+  `basis` has 50 trees at `base = 0.25`, `power = 3` - shallower and
+  fewer than a prognostic forest's, the modulating surface normally
+  being the smoother of the two. The forest with no `basis` has the
+  fitting function's:
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s
+  `n.trees` or the control's, and `tree.prior`. A value stated here on
+  that forest governs it over the control's `n.trees` and the tree
+  prior's `base` or `power`, being the more specific of the two
+  declarations, while
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) refuses
-  its own `n.trees` beside one on a formula's forest with no `basis`,
-  the two being the same count. Where every forest has a `basis`, the
-  forest written first takes the fitting function's tree count and tree
-  prior, so state `n.trees` on each forest of such a model.
+  its own `n.trees` beside one stated here, the two being the same
+  count. Where every forest has a `basis` the fitting function's tree
+  count and tree prior have no forest to belong to, and one that is
+  stated is refused, the default's own value included: state it on a
+  forest. A sampler's `control@n.trees` and `model@tree.prior` hold its
+  first forest's.
 
 - sd:
 
@@ -426,13 +431,15 @@ forest(
   and [`blocks`](https://vdorie.github.io/dbarts/reference/blocks.md)
   constraints on this forest. The arguments of the same names on
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) are
-  the FIRST forest's, so declaring both there is refused as one
-  constraint given twice; a second forest's are only expressible here.
-  Holding the two forests to different structures is the
-  calibrated-additivity idiom - an additive or low-order modulating
-  forest beside a free prognostic one. A `blocks` partition covers the
-  columns the forest may split on, i.e. the `vars` subset when one is
-  given, on the first forest as on any other.
+  those of the forest with no `basis`, wherever it stands, so one stated
+  there and on that forest is refused as one constraint given twice. A
+  forest with a `basis` states its own here, and where every forest has
+  one those arguments of the fitting function are refused. Holding the
+  two forests to different structures is the calibrated-additivity
+  idiom - an additive or low-order modulating forest beside a free
+  prognostic one. A `blocks` partition covers the columns the forest may
+  split on, i.e. the `vars` subset when one is given, and the forest's
+  own tree count.
 
 - amplitude.prior.variance:
 
@@ -469,17 +476,21 @@ forest(
   carries, or one for each column of its `basis`. Left out, they are
   drawn each sweep. `fixed()` holds them for the sampler's life, the
   choice being made at creation: a forest with no `basis` at 1, and a
-  forest on a factor, a character or a logical vector at 0 for the first
-  level and 1 for each of the others. The forest is then held out of the
-  first level and enters at full size for every other level, so it is
-  each other level's difference from the first. A basis of several
-  numeric columns is held the same way, the first column at 0, so that
-  column is not used. A basis of one numeric column would hold the
-  forest at zero and is refused, at creation and by `$setForestBasis`.
-  `fixed` alone is taken as `fixed()`, and no other value is. Outside
-  the argument that takes it the constructor is `dbartsPriors$fixed()`.
-  It is stated for a forest of a model of several; a model of one forest
-  has no amplitude to hold.
+  forest on a factor, a character or a logical vector of two levels at 0
+  for the first level and 1 for the second. The forest is then held out
+  of the first level and enters at full size for the second, so it is
+  the second level's difference from the first. For now a held forest is
+  taken in two shapes only: a forest with no `basis` at any place but
+  the second, and a basis of two columns as the second forest, two
+  numeric columns being held as two levels are, the first at 0, so that
+  column is not used. Every other shape is refused when held: a forest
+  with no `basis` put second in a `forests` list or in a data object's
+  `bases`, a basis of two columns at any other place, and a basis of one
+  column or of three or more. `$setForestBasis` refuses a held forest a
+  replacement of another width. `fixed` alone is taken as `fixed()`, and
+  no other value is. Outside the argument that takes it the constructor
+  is `dbartsPriors$fixed()`. It is stated for a forest of a model of
+  several; a model of one forest has no amplitude to hold.
 
 ## Details
 
@@ -530,8 +541,9 @@ term stands at the top of the formula's right-hand side, joined to the
 others by `+`; a `forest()` crossed with another term, as
 `z:forest(x1 + x2)` or `z * forest(x1 + x2)`, is refused with the
 `forest()` to write in its place. The forest with no `basis` is the
-forest with no multiplier and the model's first, wherever it is written.
-It may be left as plain terms,
+forest with no multiplier and the model's first, wherever it is written;
+a forest's default tree count and tree prior go by whether it has a
+`basis` and not by where it is written. It may be left as plain terms,
 `y ~ x1 + x2 + forest(x1 + x2, basis = z)`, which is the same model, but
 a formula has one such forest: plain predictor terms beside a `forest()`
 with no `basis`, and two such terms, are refused. Alone,
@@ -629,7 +641,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000705
+#> total seconds in loop: 0.000694
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 

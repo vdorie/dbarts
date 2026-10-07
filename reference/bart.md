@@ -810,7 +810,9 @@ print(x, ...)
   prior is not on this list: it is a setting of the families that draw a
   residual scale and rides the family object instead -
   `family = gaussian(sigma = chisq(3, 0.9))`,
-  `family = gaussian(sigma = fixed(1))`; see `family` below.
+  `family = gaussian(sigma = fixed(1))`; see `family` below. In a model
+  of several forests they are those of the forest with no `basis`; see
+  ‘Formula Terms’.
 
 - monotone:
 
@@ -843,6 +845,8 @@ print(x, ...)
   attached, and a bare name the caller has bound to a value is that
   value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
+  In a model of several forests it constrains the forest with no
+  `basis`; see ‘Formula Terms’.
 
 - blocks:
 
@@ -858,6 +862,8 @@ print(x, ...)
   name inside this argument, whatever the caller has attached, and a
   bare name the caller has bound to a value is that value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
+  In a model of several forests it constrains the forest with no
+  `basis`; see ‘Formula Terms’.
 
 - variance:
 
@@ -896,7 +902,9 @@ print(x, ...)
 
 - n.trees:
 
-  The number of trees in the sum-of-trees formulation.
+  The number of trees in the sum-of-trees formulation. In a model of
+  several forests it is the count of the forest with no `basis`; see
+  ‘Formula Terms’.
 
 - n.samples:
 
@@ -1346,9 +1354,14 @@ forest wherever it is written, and `bart`'s own `n.trees`, `tree.prior`,
 `interactions` and `blocks` are its: `n.trees`, `interactions` or
 `blocks` stated both on that term and as `bart`'s argument is refused as
 one thing given twice. The other forests keep the order they are written
-in. In a formula whose forests all have a `basis`, the forest written
-first takes the fitting function's tree count and tree prior, so state
-`n.trees` on each forest of such a formula.
+in, and each has 50 trees under `cgm(3, 0.25)` unless it states its own,
+whichever is written first. In a formula whose forests all have a
+`basis` those arguments of `bart` have no forest to belong to: each one
+that is stated is refused by name, its default's own value included, as
+are `leaf.prior`, `k` and a `control` that names `n.trees`. A
+`tree.prior`, `leaf.prior` or `k` written as `NULL` is named, and
+refused as any other is. State a count and a tree prior on a forest, as
+`forest(x1, basis = z, n.trees = 100)`.
 
 A forest's first argument is the predictors it splits on, written as the
 right-hand side of a model formula of its own: names joined by `+`,
@@ -2039,7 +2052,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001721
+#> total seconds in loop: 0.001751
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2087,7 +2100,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002093
+#> total seconds in loop: 0.002103
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 2 2 1 2 2 3 2 

@@ -196,6 +196,8 @@ dbarts(
   An expression of the form `cgm` or `cgm(power, base, split.probs)`
   setting the tree prior used in fitting, or a prior object built with
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md).
+  In a model of several forests it is the prior of the forest with no
+  `basis`; see `forests`.
 
 - leaf.prior:
 
@@ -218,7 +220,8 @@ dbarts(
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) accepts
   the same specifications through its own `leaf.prior` argument. See
   “Response scaling” below for how `k` interacts with the response's
-  internal scaling.
+  internal scaling. In a model of several forests it is the leaf prior
+  of the forest with no `basis`; see `forests`.
 
 - monotone:
 
@@ -263,6 +266,8 @@ dbarts(
   argument, whatever the caller has attached, and a bare name the caller
   has bound to a value is that value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
+  In a model of several forests it constrains the forest with no
+  `basis`; see `forests`.
 
 - blocks:
 
@@ -285,6 +290,8 @@ dbarts(
   caller has attached, and a bare name the caller has bound to a value
   is that value; see
   [`dbartsForests`](https://vdorie.github.io/dbarts/reference/dbartsForests.md).
+  In a model of several forests it constrains the forest with no
+  `basis`; see `forests`.
 
 - variance:
 
@@ -349,11 +356,18 @@ dbarts(
   of any width; the two-forest case with a two-level factor basis is the
   Bayesian causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\: a
   prognostic forest \\\mu\\ over every predictor and a modulating forest
-  \\\tau\\ over the columns its `vars` allows. Every forest past the
-  first needs a `basis`, the amplitudes multiplying it being what
-  distinguish it from the first. A single declared forest carrying a
-  basis is refused: for varying coefficients declare an intercept forest
-  plus one basis forest per covariate,
+  \\\tau\\ over the columns its `vars` allows. At most one forest has no
+  `basis`, at any place in the list, the amplitudes multiplying a basis
+  being what distinguish the others from it. A forest's default tree
+  count and tree prior go by whether it has a `basis`: the forest with
+  none takes the control's `n.trees` and this function's `tree.prior`,
+  and a forest with one takes 50 trees under `cgm(3, 0.25)`, wherever
+  each stands. Where every forest has a `basis`, a control that names
+  `n.trees` and a named `tree.prior`, `leaf.prior`, `interactions` or
+  `blocks` have no forest to belong to and are refused, the default's
+  own value included; state them on a forest. A single declared forest
+  carrying a basis is refused: for varying coefficients declare an
+  intercept forest plus one basis forest per covariate,
   `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
   use one forest with `linear()` leaves. A `basis` is written as the
   right-hand side of a model formula, without the tilde, and read as
@@ -413,7 +427,8 @@ dbarts(
 
   An object inheriting from `dbartsControl`, created by the
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
-  function.
+  function. In a model of several forests its `n.trees` is the count of
+  the forest with no `basis`; see `forests`.
 
 - sigest:
 

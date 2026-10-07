@@ -726,18 +726,21 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   level dropped - a two-level factor giving the pair whose amplitudes
   are \\(b_0, b_1)\\ - and a numeric vector or matrix is already those
   columns, which is the same expansion `forest` applies at creation. Any
-  forest takes a basis of any width. Columns are taken by position: the
-  names the basis was created with stay, whatever names the replacement
-  has, and a replacement that has those names in another order is
-  refused, since it would put each column under the other's name. A
-  replacement of another width brings its own names. The forest's label
-  does not change. Unlike creation, a factor basis may leave a level
-  empty, its column all zeros and its amplitude moving under its prior
-  alone until a row takes it again, so a swap inside a larger sampler
-  can leave a level momentarily unobserved; a numeric column of all
-  zeros is still refused. `setForestBasis` is the *sole* route by which
-  a basis changes after creation, and it applies only to a sampler whose
-  forests carry amplitudes, built with `forests = ` (see
+  forest takes a basis of any width, but one whose amplitudes are held
+  (`amplitude = fixed()`): it keeps the width it was created with, a
+  forest created with no basis taking none, and a replacement of another
+  width is refused. Columns are taken by position: the names the basis
+  was created with stay, whatever names the replacement has, and a
+  replacement that has those names in another order is refused, since it
+  would put each column under the other's name. A replacement of another
+  width brings its own names. The forest's label does not change. Unlike
+  creation, a factor basis may leave a level empty, its column all zeros
+  and its amplitude moving under its prior alone until a row takes it
+  again, so a swap inside a larger sampler can leave a level momentarily
+  unobserved; a numeric column of all zeros is still refused.
+  `setForestBasis` is the *sole* route by which a basis changes after
+  creation, and it applies only to a sampler whose forests carry
+  amplitudes, built with `forests = ` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   amplitudes are preserved and remapped: a width-preserving install
   leaves every one of them bitwise, and a width change carries each
@@ -763,24 +766,25 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   names one target rather than reading every one. `setLeafPrior` takes
   no `forest`: a multinomial sampler's `normal(k = )` states every
   category forest, and a sampler whose forests carry amplitudes names
-  its forests by position in `forests`. A Bayesian causal forest's
-  prognostic forest is `1` and its basis forest `2`; `setForestWeights`
-  and `setForestBasis` are both refused on a sampler whose forests carry
-  no amplitudes, but not with the same message - `setForestWeights`
-  names the missing capability, while `setForestBasis` raises
-  `"forest index out of range"` - and `setForestBasis` accepts any
-  forest of one that does. `getForestFits` and `getForestVariableCounts`
-  accept `forest = 1` on any sampler - it selects the only forest - and
-  refuse only an out-of-range index. `getLeafPrior` and `getK` are
-  likewise served on every forest of a multi-forest sampler, and the
-  calibration-map entries are that forest's own. `getTrees` takes the
-  same `forest = NULL` default, stacking every forest forest-major with
-  a leading `forest` column on a sampler with several forests or one
-  declared with `forests =`, and no such column on any other (see
-  ‘Value’); it additionally accepts an integer vector of forest indices,
-  each validated as a lone `forest` argument is here and stacked in the
-  order given. `plotTree` takes a single `forest`, defaulting to the
-  sampler's only one and required when there is more than one.
+  its forests by position in `forests`. Declared in that order, a
+  Bayesian causal forest's prognostic forest is `1` and its basis forest
+  `2`; `setForestWeights` and `setForestBasis` are both refused on a
+  sampler whose forests carry no amplitudes, but not with the same
+  message - `setForestWeights` names the missing capability, while
+  `setForestBasis` raises `"forest index out of range"` - and
+  `setForestBasis` accepts any forest of one that does. `getForestFits`
+  and `getForestVariableCounts` accept `forest = 1` on any sampler - it
+  selects the only forest - and refuse only an out-of-range index.
+  `getLeafPrior` and `getK` are likewise served on every forest of a
+  multi-forest sampler, and the calibration-map entries are that
+  forest's own. `getTrees` takes the same `forest = NULL` default,
+  stacking every forest forest-major with a leading `forest` column on a
+  sampler with several forests or one declared with `forests =`, and no
+  such column on any other (see ‘Value’); it additionally accepts an
+  integer vector of forest indices, each validated as a lone `forest`
+  argument is here and stacked in the order given. `plotTree` takes a
+  single `forest`, defaulting to the sampler's only one and required
+  when there is more than one.
 
 - leaf.prior:
 
@@ -1459,11 +1463,11 @@ trailing chain dimension is dropped, so `train` is a plain n.obs x
 n.samples matrix and `sigma` a plain vector of length n.samples. On a
 multi-forest (`forests`) sampler `varcount` gains a forest axis between
 the predictors and the samples - n.predictors x n.forests x n.samples x
-n.chains, forest-major within a draw and the prognostic forest first -
-so each forest's own per-draw split counts arrive from one call rather
-than only the reported forest's; a single-forest sampler's array keeps
-exactly its n.predictors x n.samples x n.chains shape, and the same
-widening is what a `family = "multinomial"` sampler's per-category
+n.chains, forest-major within a draw and the forests in the model's
+order - so each forest's own per-draw split counts arrive from one call
+rather than only the reported forest's; a single-forest sampler's array
+keeps exactly its n.predictors x n.samples x n.chains shape, and the
+same widening is what a `family = "multinomial"` sampler's per-category
 counts ride. This is the RAW run shape; the packaged fit
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) builds
 reshapes it draws-first with the forest names on the trailing margin, as
@@ -1471,26 +1475,26 @@ it does for the multinomial channel. `$getForestVariableCounts` reads
 the same quantity for the CURRENT state, one forest at a time. A
 Bayesian causal forest adds two more: `forestFits`, an n.obs x n.forests
 x n.samples x n.chains array of each forest's fitted values on the
-internal scale (the prognostic \\\mu\\ first, the treatment \\\tau\\
-second), and `glue`, a sum(q) x n.samples x n.chains array of the
-amplitudes each draw combines them through, stacked forest-major and as
-wide as each forest's own basis (a Bayesian causal forest's \\(a, b_0,
-b_1)\\, three rows), so both surfaces and their recombination come from
-a single call; `train` carries the combination \\a \mu(x_i) + b\_{z_i}
-\tau(x_i)\\ on the response scale, or on the latent scale when the
-sampler was built under `"probit"` or `"logistic"`, and `test` is filled
-with `NaN` (there is no test treatment vector to combine off-sample). No
-other model reports either element. A `"nbinom"` sampler adds one of its
-own: `shape`, the negative-binomial \\r\\ each draw is conditioned on,
-shaped exactly as `sigma` (a length n.samples vector at one chain, an
-n.samples x n.chains matrix otherwise) because it is the count analog of
-it - fixed at the value the sampler was created with under a fixed
-`shape`, and that sweep's grid draw otherwise. It is written from the
-same state `storeState` serializes and consumes no random numbers, so
-reading it costs a run nothing. No other family carries the element at
-all: it is absent from the list, not `NULL` within it, so `run()$shape`
-is `NULL` on every non-`"nbinom"` sampler and a test of the channel must
-be `!is.null(...)` rather than a comparison, which `NULL` would satisfy
+internal scale (the forests in the model's order), and `glue`, a sum(q)
+x n.samples x n.chains array of the amplitudes each draw combines them
+through, stacked forest-major and as wide as each forest's own basis (a
+Bayesian causal forest's \\(a, b_0, b_1)\\, three rows), so both
+surfaces and their recombination come from a single call; `train`
+carries the combination \\a \mu(x_i) + b\_{z_i} \tau(x_i)\\ on the
+response scale, or on the latent scale when the sampler was built under
+`"probit"` or `"logistic"`, and `test` is filled with `NaN` (there is no
+test treatment vector to combine off-sample). No other model reports
+either element. A `"nbinom"` sampler adds one of its own: `shape`, the
+negative-binomial \\r\\ each draw is conditioned on, shaped exactly as
+`sigma` (a length n.samples vector at one chain, an n.samples x n.chains
+matrix otherwise) because it is the count analog of it - fixed at the
+value the sampler was created with under a fixed `shape`, and that
+sweep's grid draw otherwise. It is written from the same state
+`storeState` serializes and consumes no random numbers, so reading it
+costs a run nothing. No other family carries the element at all: it is
+absent from the list, not `NULL` within it, so `run()$shape` is `NULL`
+on every non-`"nbinom"` sampler and a test of the channel must be
+`!is.null(...)` rather than a comparison, which `NULL` would satisfy
 vacuously. A sampler built with `family = student()` adds `resid.df` on
 exactly the same terms - the degrees of freedom \\\nu\\ each draw is
 conditioned on, shaped as `sigma`, written from settled state and
