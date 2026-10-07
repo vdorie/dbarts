@@ -297,7 +297,7 @@ expect_identical(
 ## --- Block C: what is no basis ----------------------------------------------
 # NULL, held or computed, states none: the list is then a list of two forests
 # with nothing to tell them apart
-noBasis <- "forest 2 needs a 'basis'"
+noBasis <- "forests 1 and 2 have no 'basis'"
 nothing <- NULL
 useZ <- FALSE
 expect_error(listFit(quote(nothing)), noBasis, fixed = TRUE)

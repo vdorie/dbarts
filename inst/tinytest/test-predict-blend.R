@@ -28,16 +28,16 @@ n.samples <- 6L
 # keepTrees is installed for the SAMPLING run only, after burn-in, as bart()
 # installs it: the saved-tree store then holds exactly the recorded draws, in
 # order, which is what pairs each draw's forests with its own amplitudes below.
-keptControlPredictBlend <- function(n.chains = 1L) {
+keptControlPredictBlend <- function(n.chains = 1L, ...) {
   dbartsControl(
     n.threads = 1L,
-    n.trees = 8L,
     n.chains = n.chains,
     n.samples = n.samples,
     n.burn = 2L,
     keepTrees = FALSE,
     updateState = FALSE,
-    seed = 811L
+    seed = 811L,
+    ...
   )
 }
 
@@ -47,14 +47,22 @@ fitFromPredictBlend <- function(
   family = "auto",
   n.chains = 1L,
   combineChains = TRUE,
-  keepTrees = TRUE
+  keepTrees = TRUE,
+  n.trees = 8L
 ) {
+  # the control's count is the count of the forest with no basis; a model in
+  # which every forest has a basis hands over NULL and states its own
+  control <- if (is.null(n.trees)) {
+    keptControlPredictBlend(n.chains)
+  } else {
+    keptControlPredictBlend(n.chains, n.trees = n.trees)
+  }
   sampler <- dbarts(
     x,
     response,
     forests = forests,
     family = family,
-    control = keptControlPredictBlend(n.chains)
+    control = control
   )
   burn <- dbarts:::runWithBurnIn(sampler, sampler$control, keepTrees)
   dbarts:::packageBartResults(
@@ -142,10 +150,18 @@ expect_true(
   max(abs(blendAtTraining(wideFit, type = "bart") - wideFit$yhat.train)) < 1e-12
 )
 # forest 1 carrying a basis of its own rather than the implicit column
-bothBasesFit <- fitFromPredictBlend(list(
-  dbarts::dbartsForests$forest(basis = ~w),
-  dbarts::dbartsForests$forest(basis = ~ factor(z))
-))
+bothBasesFit <- fitFromPredictBlend(
+  list(
+    dbarts::dbartsForests$forest(
+      basis = ~w,
+      n.trees = 8L,
+      base = 0.95,
+      power = 2
+    ),
+    dbarts::dbartsForests$forest(basis = ~ factor(z))
+  ),
+  n.trees = NULL
+)
 expect_identical(dim(bothBasesFit$bases[[1L]]), c(n, 1L))
 expect_true(
   max(abs(

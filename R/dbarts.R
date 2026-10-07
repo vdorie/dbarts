@@ -726,6 +726,9 @@ dbarts <- function(
   ...
 ) {
   matchedCall <- match.call()
+  # the argument names as the caller wrote them, before a retired one is
+  # restated under its successor
+  writtenArgs <- names(matchedCall)
 
   evalEnv <- parent.frame(1L)
 
@@ -1520,7 +1523,8 @@ dbarts <- function(
     evalEnv = evalEnv,
     residPrior = residPrior,
     familySpec = familySpec,
-    basisRecords = basisRecords
+    basisRecords = basisRecords,
+    written = writtenArgs
   )
 
   sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)
@@ -2511,6 +2515,21 @@ dbartsSampler <- setRefClass(
         attr(newControl, attrName) <- attr(control, attrName)
       }
 
+      # Where the first forest has a basis the stored control's count is that
+      # forest's, and the control the sampler was created under held another,
+      # which rides the forests' record: the plain forest's, or the fitting
+      # function's own. A new control holding that count names no change.
+      createdUnder <- attr(
+        control,
+        "bartcore.forests",
+        exact = TRUE
+      )$control.n.trees
+      if (
+        !is.null(createdUnder) && identical(newControl@n.trees, createdUnder)
+      ) {
+        newControl@n.trees <- control@n.trees
+      }
+
       # settings fixed at creation: the generators, anything shaping the cut
       # grid, and the four engine limits, which the sampler reads once when it
       # is created and never again. Accepting one here would leave the stored
@@ -2933,7 +2952,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestBasis = function(forest, basis, updateState = NULL) {
-      "Changes the basis the named forest's amplitudes multiply, at any forest and any width. forest indexes from 1, as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. A factor expands to its level indicators, one amplitude per level, with no reference level dropped, and may leave a level empty (a swap can leave one momentarily unobserved); a numeric vector or matrix is already those columns, and one of all zeros is refused. Columns are taken by position: the names the basis was created with stay, whatever names the replacement has, and a replacement that has those names in another order is refused. A replacement of another width brings its own names. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+      "Changes the basis the named forest's amplitudes multiply, at any forest and any width, a forest whose amplitudes are held keeping the width it was created with. forest indexes from 1, as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. A factor expands to its level indicators, one amplitude per level, with no reference level dropped, and may leave a level empty (a swap can leave one momentarily unobserved); a numeric vector or matrix is already those columns, and one of all zeros is refused. Columns are taken by position: the names the basis was created with stay, whatever names the replacement has, and a replacement that has those names in another order is refused. A replacement of another width brings its own names. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -2970,14 +2989,16 @@ dbartsSampler <- setRefClass(
         }
       }
 
+      # a held coefficient's value goes by the width its forest was created
+      # with, a forest with no basis having none
       forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      currentWidth <- if (is.null(current)) 0L else ncol(current)
       if (
-        NCOL(values) == 1L &&
-          !is.null(data@bases[[index + 1L]]) &&
+        ncol(values) != currentWidth &&
           length(forestInfo$params) > index &&
           identical(forestInfo$params[[index + 1L]][8L], 0)
       ) {
-        refuseHeldOneColumn(index + 1L)
+        refuseHeldWidthChange(index + 1L, currentWidth, ncol(values))
       }
 
       ptr <- getPointer()

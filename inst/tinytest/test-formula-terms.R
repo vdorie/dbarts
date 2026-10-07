@@ -908,17 +908,23 @@ expect_identical(
   lapply(between$fit$data@bases, dim),
   list(NULL, c(n, 1L), c(n, 2L))
 )
-# predict rebuilds each forest's basis by the forest's position
-for (formula in list(
-  y ~ forest(x1, basis = ~ scale(a)) + forest(x1 + x2),
-  y ~ forest(x1, basis = ~ scale(a)) + forest(x2, basis = ~ factor(z))
+# predict rebuilds each forest's basis by the forest's position; where every
+# forest has a basis the fitting function's count has no forest to be the
+# count of, and the first forest states its own
+for (entry in list(
+  list(y ~ forest(x1, basis = ~ scale(a)) + forest(x1 + x2), 3L),
+  list(
+    y ~ forest(x1, basis = ~ scale(a), n.trees = 3L, base = 0.95, power = 2) +
+      forest(x2, basis = ~ factor(z)),
+    NULL
+  )
 )) {
-  kept <- fit(formula, keepTrees = TRUE)
+  kept <- fit(entry[[1L]], keepTrees = TRUE, n.trees = entry[[2L]])
   expect_equal(
     predict(kept, d),
     kept$yhat.train,
     check.attributes = FALSE,
-    info = deparse(formula)
+    info = deparse(entry[[1L]])
   )
 }
 # under 'subset', weights and an offset
@@ -1075,7 +1081,7 @@ expect_false(identical(
 refuses(
   y ~ forest(x1 + x2, interactions = interactions(max.order = 1L)) +
     forest(x1, basis = ~z),
-  "'interactions' is declared both at the top level and on the first forest",
+  "'interactions' is given to the fitting function and to the forest with no basis",
   interactions = dbarts::dbartsForests$interactions(max.order = 2L)
 )
 constrainedAlone <- fit(
@@ -1130,20 +1136,34 @@ expect_identical(
 )
 
 ## --- Block F: every forest multiplied ---------------------------------------
-# the forests keep the order written, the first taking the fitting function's
-# tree count and tree prior, as a 'forests' list of the two does
-allMultiplied <- function(...) {
+# the forests keep the order written and each takes the multiplied forest's
+# tree count and tree prior, whichever is written first, as a 'forests' list
+# of the two does; the fitting function's count has no forest to be the count
+# of
+allMultiplied <- function(..., n.trees = NULL) {
+  settings <- list(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 20L,
+    updateState = FALSE,
+    verbose = FALSE,
+    seed = 9L
+  )
   dbarts::dbarts(
     ...,
-    control = dbarts::dbartsControl(
-      n.chains = 1L,
-      n.threads = 1L,
-      n.trees = 15L,
-      n.samples = 20L,
-      updateState = FALSE,
-      verbose = FALSE,
-      seed = 9L
+    control = do.call(
+      dbarts::dbartsControl,
+      c(settings, if (!is.null(n.trees)) list(n.trees = n.trees))
     )
+  )
+}
+engineTreeCounts <- function(sampler) {
+  vapply(
+    seq_along(sampler$data@bases),
+    function(index) {
+      dbarts:::bartcoreForestTreeCount(sampler$getPointer(), index - 1L)
+    },
+    0L
   )
 }
 written <- allMultiplied(y ~ forest(x1, basis = ~a) + forest(x2, basis = ~b), d)
@@ -1157,9 +1177,15 @@ reversed <- allMultiplied(
   d
 )
 expect_identical(colnames(written$data@x), c("x1", "x2"))
-expect_identical(written$control@n.trees, 15L)
+expect_identical(engineTreeCounts(written), c(50L, 50L))
+expect_identical(written$control@n.trees, 50L)
+expect_identical(written$model@tree.prior@base, 0.25)
+expect_identical(written$model@tree.prior@power, 3)
 writtenInfo <- attr(written$control, "bartcore.forests")
-expect_identical(writtenInfo$params[[2L]][[1L]], 50)
+expect_identical(
+  lapply(writtenInfo$params, function(forest) forest[1:3]),
+  list(c(50, 0.25, 3), c(50, 0.25, 3))
+)
 expect_identical(writtenInfo$vars, list(1L, 2L))
 expect_identical(
   written$data@bases,
@@ -1178,9 +1204,26 @@ listedRun <- listed$run(0L, 20L)
 expect_identical(writtenRun$train, listedRun$train)
 expect_identical(writtenRun$sigma, listedRun$sigma)
 expect_identical(written$getForestAmplitudes(), listed$getForestAmplitudes())
-# the two terms swapped are another model
+# the two terms swapped are the same forests in the other order, each under
+# the same count and prior, and other draws: forests are swept in order
 expect_identical(colnames(reversed$data@x), c("x2", "x1"))
+expect_identical(engineTreeCounts(reversed), c(50L, 50L))
+expect_identical(
+  attr(reversed$control, "bartcore.forests")$params,
+  rev(writtenInfo$params)
+)
+expect_identical(reversed$data@bases, rev(written$data@bases))
 expect_false(identical(reversed$run(0L, 20L)$train, writtenRun$train))
+# a count on the control has no forest to be the count of
+expect_error(
+  allMultiplied(
+    y ~ forest(x1, basis = ~a) + forest(x2, basis = ~b),
+    d,
+    n.trees = 15L
+  ),
+  "the control's 'n.trees' is the tree count of the forest with no basis, and every forest of this model has a basis",
+  fixed = TRUE
+)
 
 ## --- Block G: what else is refused ------------------------------------------
 # an all-zero basis column

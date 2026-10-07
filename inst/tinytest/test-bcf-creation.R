@@ -20,16 +20,18 @@ mu <- 2 * sin(pi * x[, 1L]) + x[, 2L]
 tau <- 1 + 2 * x[, 3L]
 y <- mu + z * tau + rnorm(n, sd = 0.2)
 
-seededControlBcfCreation <- function(...) {
+uncountedControlBcfCreation <- function(...) {
   dbartsControl(
     n.chains = 2L,
     n.threads = 1L,
-    n.trees = 50L,
     n.samples = 10L,
     updateState = FALSE,
     seed = 17L,
     ...
   )
+}
+seededControlBcfCreation <- function(...) {
+  uncountedControlBcfCreation(n.trees = 50L, ...)
 }
 
 # the declaration every refusal below is attached to: a plain first forest and
@@ -345,7 +347,7 @@ offSlot <- dbartsSpec(
 # whether the forest carries a basis
 expect_equal(
   attr(offSlot$control, "bartcore.forests")$params,
-  list(c(50, 0.25, 3, 1, 1, 1, 2, 1), c(50, 0.25, 3, 1, 0.674, 0.5, 0, 1))
+  list(c(50, 0.95, 2, 1, 1, 1, 2, 1), c(50, 0.25, 3, 1, 0.674, 0.5, 0, 1))
 )
 # the same transport under a LATENT family, which no assertion above has
 # run: `sd` still reaches slot 4 on a forest carrying a basis and slot 7 on one
@@ -362,7 +364,7 @@ latentSlots <- dbartsSpec(
 expect_equal(latentSlots$model@family, "logistic")
 expect_equal(
   attr(latentSlots$control, "bartcore.forests")$params,
-  list(c(50, 0.25, 3, 1, 1, 1, 3.5, 1), c(50, 0.25, 3, 1.25, 0.674, 0.5, 0, 1))
+  list(c(50, 0.95, 2, 1, 1, 1, 3.5, 1), c(50, 0.25, 3, 1.25, 0.674, 0.5, 0, 1))
 )
 # and a basis declared alongside subset reaches dbartsData's own alignment
 subsetForests <- dbarts(
@@ -678,12 +680,17 @@ threeLevel <- dbarts(
 expect_equal(ncol(threeLevel$data@bases[[2L]]), 3L)
 expect_equal(nrow(threeLevel$getForestAmplitudes(2L)), 3L)
 expect_true(all(rowSums(threeLevel$data@bases[[2L]]) == 1))
-# the FIRST forest takes a basis too, and its amplitude block widens with it
+# the FIRST forest takes a basis too, and its amplitude block widens with it.
+# No forest of the model is without a basis, so the count and the tree prior
+# are stated on a forest and the control names no count
 firstForestBasis <- dbarts(
   x,
   y,
-  forests = list(forest(basis = ~ factor(z)), forest(basis = ~ factor(z))),
-  control = control
+  forests = list(
+    forest(basis = ~ factor(z), n.trees = 50L, base = 0.95, power = 2),
+    forest(basis = ~ factor(z))
+  ),
+  control = uncountedControlBcfCreation()
 )
 expect_equal(nrow(firstForestBasis$getForestAmplitudes(1L)), 2L)
 expect_equal(dim(firstForestBasis$run(0L, 3L)$glue), c(4L, 3L, 2L))
@@ -729,10 +736,16 @@ priorOnFirst <- dbarts(
   x,
   y,
   forests = list(
-    forest(basis = ~ factor(z), amplitude.prior.variance = 1),
+    forest(
+      basis = ~ factor(z),
+      amplitude.prior.variance = 1,
+      n.trees = 50L,
+      base = 0.95,
+      power = 2
+    ),
     forest(basis = ~ factor(z))
   ),
-  control = control
+  control = uncountedControlBcfCreation()
 )
 expect_equal(
   attr(priorOnFirst$control, "bartcore.forests")$params[[1L]][6L],
@@ -839,7 +852,7 @@ expect_error(
     interactions = interactions(max.order = 2L),
     control = control
   ),
-  "both at the top level and on the first forest"
+  "is given to the fitting function and to the forest with no basis"
 )
 expect_error(
   dbarts(
@@ -859,11 +872,11 @@ expect_error(
     blocks = blocks(groups = list(c("x1", "x2"), c("x3", "x4"))),
     control = control
   ),
-  "both at the top level and on the first forest"
+  "is given to the fitting function and to the forest with no basis"
 )
-# a forest past the first with no basis, and no basis reaching the data any
-# other way, is not a distinct forest at all - RESTATED per forest under K, so
-# the refusal names the one that is missing rather than "the second"
+# two forests with no basis, and no basis reaching the data any other way,
+# are not distinct forests - RESTATED per forest under K, so the refusal names
+# the two by position
 expect_error(
   dbarts(
     x,
@@ -871,7 +884,7 @@ expect_error(
     forests = list(forest(), forest(n.trees = 25L)),
     control = control
   ),
-  "forest 2 needs a 'basis'"
+  "forests 1 and 2 have no 'basis'"
 )
 expect_error(
   dbarts(
@@ -880,7 +893,7 @@ expect_error(
     forests = list(forest(), forest(basis = ~ factor(z)), forest()),
     control = control
   ),
-  "forest 3 needs a 'basis'"
+  "forests 1 and 3 have no 'basis'"
 )
 # the shape of the argument itself
 expect_error(
@@ -1167,8 +1180,11 @@ expect_identical(
 # builds through dbartsSpec()
 firstForestSpecBuild <- dbartsSpec(
   prebuiltData,
-  control,
-  forests = list(forest(basis = ~ factor(z)), forest(basis = ~ factor(z)))
+  uncountedControlBcfCreation(),
+  forests = list(
+    forest(basis = ~ factor(z), n.trees = 50L, base = 0.95, power = 2),
+    forest(basis = ~ factor(z))
+  )
 )
 expect_equal(
   firstForestSpecBuild$data@bases[[1L]],
@@ -1243,8 +1259,11 @@ expect_silent(dbartsData(x, y, bases = list(NULL, zBasis)))
 dataBasisOnFirst <- dbartsData(x, y, bases = list(zBasis, zBasis))
 amplitudeExcused <- dbarts(
   dataBasisOnFirst,
-  forests = list(forest(amplitude.prior.variance = 2), forest()),
-  control = control
+  forests = list(
+    forest(amplitude.prior.variance = 2, n.trees = 50L, base = 0.95, power = 2),
+    forest()
+  ),
+  control = uncountedControlBcfCreation()
 )
 expect_equal(
   attr(amplitudeExcused$control, "bartcore.forests")$params[[1L]][6L],
@@ -1269,26 +1288,31 @@ expect_error(
 # data object
 amplitudeExcusedBoth <- dbarts(
   dataBasisOnFirst,
-  forests = list(forest(), forest(amplitude.prior.variance = 3)),
-  control = control
+  forests = list(
+    forest(n.trees = 50L, base = 0.95, power = 2),
+    forest(amplitude.prior.variance = 3)
+  ),
+  control = uncountedControlBcfCreation()
 )
 expect_equal(
   attr(amplitudeExcusedBoth$control, "bartcore.forests")$params[[2L]][6L],
   3
 )
-# forest 1's excuse does not extend to a second forest that has no basis
-# anywhere either - the exclusion is per forest, not blanket
+# a second forest that has no basis anywhere is the model's forest with no
+# basis, which may stand at any place: it takes the control's count and the
+# fitting function's tree prior, and the first forest the multiplied forest's
 dataBasisOnFirstOnly <- dbartsData(x, y, bases = list(zBasis, NULL))
-expect_error(
-  dbarts(
-    dataBasisOnFirstOnly,
-    forests = list(forest(amplitude.prior.variance = 2), forest()),
-    control = control
-  ),
-  "forest 2 needs a 'basis'"
+plainSecond <- dbarts(
+  dataBasisOnFirstOnly,
+  forests = list(forest(amplitude.prior.variance = 2), forest()),
+  control = uncountedControlBcfCreation(n.trees = 20L)
 )
-# and an amplitude.prior.variance declared on THAT unexcused forest answers
-# the amplitude refusal instead, since the amplitude-prior check runs first
+expect_equal(
+  attr(plainSecond$control, "bartcore.forests")$params,
+  list(c(50, 0.25, 3, 1, 0.674, 2, 0, 1), c(20, 0.95, 2, 1, 1, 1, 2, 1))
+)
+# forest 1's excuse does not extend to it: an amplitude.prior.variance
+# declared on THAT forest answers the amplitude refusal
 expect_error(
   dbarts(
     dataBasisOnFirstOnly,
@@ -1315,11 +1339,11 @@ expect_error(
 # refused as the forests = route refuses them ---
 expect_error(
   dbarts(dbartsData(x, y, bases = list(NULL, NULL)), control = control),
-  "forest 2 needs a 'basis'"
+  "forests 1 and 2 have no 'basis'"
 )
 expect_error(
   dbartsSpec(dbartsData(x, y, bases = list(NULL, NULL, zBasis)), control),
-  "forest 2 needs a 'basis'"
+  "forests 1 and 2 have no 'basis'"
 )
 
 # --- xbart and rbart_vi fit one forest: a data object carrying bases is
@@ -1347,10 +1371,16 @@ for (basesArg in list(list(NULL, zBasis), list(zBasis))) {
 }
 
 # a lone basis on the FIRST forest of a data object is a one-element refusal,
-# and past the first a NULL element is refused by name
-expect_error(
-  dbartsSpec(dbartsData(x, y, bases = list(zBasis, NULL)), control),
-  "forest 2 needs a 'basis'"
+# and a NULL element past the first is the forest with no basis: the control's
+# slot holds the first forest's count and the control's own goes to the second
+plainSecondSpec <- dbartsSpec(
+  dbartsData(x, y, bases = list(zBasis, NULL)),
+  uncountedControlBcfCreation(n.trees = 20L)
+)
+expect_identical(plainSecondSpec$control@n.trees, 50L)
+expect_equal(
+  attr(plainSecondSpec$control, "bartcore.forests")$params[[2L]][1:3],
+  c(20, 0.95, 2)
 )
 # the clause names the declaration when the caller wrote forests =
 expect_error(

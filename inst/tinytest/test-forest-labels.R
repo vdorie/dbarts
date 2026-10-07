@@ -166,9 +166,23 @@ expect_identical(
   )))),
   c("forest1", "dose.1", "dose", "dose.2")
 )
-# every forest of a formula with a basis keeps the order written
+# every forest of a formula with a basis keeps the order written; with no
+# forest for the control's count to be the count of, the first states its own
 expect_identical(
-  labelsOf(termFit(y ~ forest(x1, basis = dose) + forest(x2, basis = age))),
+  labelsOf(dbarts(
+    y ~ forest(x1, basis = dose, n.trees = 5L, base = 0.95, power = 2) +
+      forest(x2, basis = age),
+    frame,
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.samples = 3L,
+      n.burn = 1L,
+      updateState = FALSE,
+      verbose = FALSE,
+      seed = 67L
+    )
+  )),
   c("dose", "age")
 )
 # the fit carries them, always

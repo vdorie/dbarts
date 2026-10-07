@@ -394,10 +394,21 @@ expect_identical(swappedResult$train, twinResult$train)
 # dropped anchor is a 81 percent miss).
 ones <- matrix(1, n, 1L)
 zBasis <- cbind(1 - z, z)
+# No forest of this model is without a basis, so the count and the tree prior
+# are stated on a forest and the control names no count.
 declared <- dbarts(
   dbartsData(x, yBinary, bases = list(3 * ones, 5 * zBasis)),
-  forests = list(forest(sd = 2.5), forest(sd = 0.4)),
-  control = seededControlForestBasisR5()
+  forests = list(
+    forest(sd = 2.5, n.trees = 25L, base = 0.95, power = 2),
+    forest(sd = 0.4)
+  ),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 6L,
+    updateState = FALSE,
+    seed = 41L
+  )
 )
 expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
 expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 5), tolerance = 1e-12)

@@ -283,8 +283,22 @@ resolveSamplerSpec <- function(
   evalEnv,
   residPrior = NULL,
   familySpec = NULL,
-  basisRecords = NULL
+  basisRecords = NULL,
+  written = names(matchedCall)
 ) {
+  # a control taken from a fit whose first forest has a basis holds that
+  # forest's tree count, where the bridge reads it. The count this call is to
+  # inherit rides the forests' record and goes back on the slot before the
+  # record is cleared with the rest: a multiplied forest's count is never the
+  # next fit's
+  carriedTreeCount <- attr(
+    control,
+    "bartcore.forests",
+    exact = TRUE
+  )$control.n.trees
+  if (!is.null(carriedTreeCount)) {
+    control@n.trees <- carriedTreeCount
+  }
   # a caller-supplied control may have been taken from another fit, and the
   # bartcore.* attributes are that fit's model configuration; this call
   # attaches its own, so none of the incoming ones is honored
@@ -301,6 +315,14 @@ resolveSamplerSpec <- function(
   attr(control, "bartcore.forestsDeclared") <- if (length(forests) > 0L) {
     TRUE
   }
+  # what the caller stated of the arguments that are the forest with no
+  # basis's own: bart()'s record of its own caller where it built this
+  # control, and otherwise the control and the names 'written' in this call
+  stated <- attr(control, plainStatedAttr, exact = TRUE)
+  if (is.null(stated)) {
+    stated <- plainForestStated(control, written)
+  }
+  attr(control, plainStatedAttr) <- NULL
 
   # a factor/logical/character response declares a classification model. The
   # single-forest engine here fits only the 2-level (probit) case; 3+ levels
@@ -474,32 +496,65 @@ resolveSamplerSpec <- function(
   }
 
   # the multi-forest declaration: forests = list(forest(),
-  # forest(basis = ~ factor(z))) names the ensembles the mean is a weighted sum
-  # of, and every knob is per forest. The FIRST forest's structural knobs are
-  # this fit's own - its tree count is control@n.trees and its structure prior
-  # is tree.prior - so they are applied to those here, before anything reads
-  # them; its interactions/blocks are the top-level arguments of those names,
-  # which is why declaring both refuses. The rest ride the forests control
-  # attribute below.
+  # forest(basis = factor(z))) names the ensembles the mean is a weighted sum
+  # of, and every knob is per forest. A forest's defaults go by its KIND, read
+  # here from the bases the model ends with. The forest with no basis, the
+  # plain one, takes the fitting function's tree count, tree prior,
+  # 'interactions' and 'blocks' wherever it stands, and a forest with a basis
+  # the multiplied forest's defaults and its own constraints. The bridge reads
+  # the FIRST forest's tree count from control@n.trees and its structure prior
+  # from the model, so that forest's are written there, here, before anything
+  # reads them. The rest ride the forests control attribute below.
   # PER FOREST, not one flag for the model: forest f is excused from declaring
   # a basis only when one reaches it some other way, the dbartsData(bases = )
   # route being the supported one. On the fitting path the declarations have
-  # already been expanded onto the data object, so this reads them back and a
-  # forest that declared none is refused by name.
+  # already been expanded onto the data object, so this reads them back.
   declaredBases <- if (is.null(bases)) data@bases else bases
-  forestSpec <- resolveForests(
-    forests,
-    interactions,
-    blocks,
-    hasBasis = if (is.null(declaredBases)) {
-      logical(0L)
-    } else {
-      !vapply(declaredBases, is.null, logical(1L))
-    }
-  )
+  declaredHasBasis <- if (is.null(declaredBases)) {
+    logical(0L)
+  } else {
+    !vapply(declaredBases, is.null, logical(1L))
+  }
+  forestSpec <- resolveForests(forests, interactions, blocks, declaredHasBasis)
   firstForest <- if (is.null(forestSpec)) NULL else forestSpec[[1L]]
+  # a model with no bases has one forest, which is the plain one
+  plain <- if (is.null(declaredBases)) 1L else plainForest(declaredHasBasis)
+  # ahead of every other reading of these arguments, so that each is told
+  # where it belongs and not what a model of several forests cannot take
+  if (plain == 0L && length(declaredBases) > 1L) {
+    refuseStatedWithNoPlainForest(stated, interactions, blocks)
+  }
+  plainSpec <- if (plain > 0L && length(forestSpec) >= plain) {
+    forestSpec[[plain]]
+  }
+  # bart()'s own 'n.trees' and the plain forest's are one count; the control's
+  # beside the forest's own leaves the forest's to govern
+  if (
+    identical(unname(stated["n.trees"]), "n.trees") &&
+      !is.null(plainSpec$n.trees)
+  ) {
+    stop(
+      "'n.trees' is given to the fitting function and to the forest with no ",
+      "basis, which are the same count; give one",
+      call. = FALSE
+    )
+  }
+  # the fitting function's own, read once before any forest's statement is
+  # written over the slot
+  fitTreeCount <- control@n.trees
+  fitInteractions <- interactions
+  fitBlocks <- blocks
+  firstIsPlain <- plain == 1L
   if (!is.null(firstForest$n.trees)) {
     control@n.trees <- firstForest$n.trees
+  } else if (!firstIsPlain) {
+    control@n.trees <- multipliedForestDefaults$n.trees
+  }
+  # the model carries the first forest's constraints: its own, and the fitting
+  # function's where it is the plain forest
+  if (!firstIsPlain) {
+    interactions <- NULL
+    blocks <- NULL
   }
   if (!is.null(firstForest$interactions)) {
     interactions <- firstForest$interactions
@@ -552,13 +607,25 @@ resolveSamplerSpec <- function(
   }
   priors <- eval(parsePriorsCall)
 
-  # the first forest's structure prior is this fit's tree.prior, so a knob
-  # declared on it restates that prior's half rather than adding a second one
+  # the plain forest's count and tree prior: the fitting function's, read
+  # before the first forest's are written over the model's
+  fitTree <- list(
+    n.trees = fitTreeCount,
+    base = priors$tree.prior@base,
+    power = priors$tree.prior@power
+  )
+  # the model's tree prior is the first forest's: a knob declared on that
+  # forest restates its half, and one left out takes the default of the
+  # forest's kind
   if (!is.null(firstForest$base)) {
     priors$tree.prior@base <- firstForest$base
+  } else if (!firstIsPlain) {
+    priors$tree.prior@base <- multipliedForestDefaults$base
   }
   if (!is.null(firstForest$power)) {
     priors$tree.prior@power <- firstForest$power
+  } else if (!firstIsPlain) {
+    priors$tree.prior@power <- multipliedForestDefaults$power
   }
 
   # The tree-move mixture rides the control. A caller that named it flat -
@@ -872,20 +939,6 @@ resolveSamplerSpec <- function(
         }
       )
     }
-    # a forest past the first with no basis has nothing to distinguish it from
-    # the first; the forests = route refuses this in resolveForests, and the
-    # data route (bases = list(NULL, NULL)) never reaches it
-    for (index in seq_len(numForests)[-1L]) {
-      if (is.null(data@bases[[index]])) {
-        stop(
-          "forest ",
-          index,
-          " needs a 'basis': the amplitudes multiplying it are what ",
-          "distinguishes it from the first; give it a basis or drop it from ",
-          "the data object's 'bases'"
-        )
-      }
-    }
     # the families the calibration map has a latent scale to state its node
     # scales against, and whose own parameter block is shown to interleave with
     # the amplitude block. A fixed error scale is what makes the binary
@@ -985,29 +1038,18 @@ resolveSamplerSpec <- function(
       specs <- c(specs, rep(list(NULL), numForests - length(specs)))
     }
     hasBasis <- !vapply(data@bases, is.null, logical(1L))
-    # a held coefficient is 0 on a basis's first column and 1 on the rest, so
-    # a forest held on one numeric column is multiplied by zero
-    for (index in which(hasBasis)) {
-      if (
-        identical(specs[[index]]$amplitude, "fixed") &&
-          NCOL(data@bases[[index]]) == 1L
-      ) {
-        refuseHeldOneColumn(index)
+    # a coefficient is held only where the engine holds it at the value the
+    # help states, which goes by the width of the basis and the position
+    for (index in seq_len(numForests)) {
+      if (identical(specs[[index]]$amplitude, "fixed")) {
+        refuseHeldShape(
+          index,
+          if (hasBasis[index]) NCOL(data@bases[[index]]) else 0L
+        )
       }
     }
-    treeCounts <- vapply(
-      seq_len(numForests),
-      function(index) {
-        if (index == 1L) {
-          control@n.trees
-        } else if (is.null(specs[[index]]$n.trees)) {
-          50L
-        } else {
-          as.integer(specs[[index]]$n.trees)
-        }
-      },
-      integer(1L)
-    )
+    params <- forestParams(specs, hasBasis, family, fitTree)
+    treeCounts <- vapply(params, function(forest) as.integer(forest[1L]), 0L)
     forestColumns <- lapply(
       seq_len(numForests),
       function(index) {
@@ -1028,19 +1070,26 @@ resolveSamplerSpec <- function(
     attr(control, "bartcore.forests") <- list(
       # one length-8 numeric per forest; the family selects the basis-free
       # channel's default median and the count the K-aware leaf scale factor
-      params = forestParams(specs, hasBasis, family),
+      params = params,
       # resolved 1-based column indices per forest, or NULL for unrestricted
       vars = forestColumns,
       # one label for each forest; see forestLabels()
       labels = labels,
-      # the first forest takes the fit's own interactions()/blocks() arguments,
-      # already resolved above; the rest take their own, resolved against the
-      # columns they may split on
+      # the first forest's constraints are the model's, already resolved
+      # above; the rest take their own, and the plain forest the fitting
+      # function's where it states none, each resolved against the columns
+      # and the tree count of the forest it lands on
       interactions = c(
         list(interactionSpec),
         lapply(
-          specs[-1L],
-          function(spec) resolveInteractions(spec$interactions, data)
+          seq_len(numForests)[-1L],
+          function(index) {
+            own <- specs[[index]]$interactions
+            resolveInteractions(
+              if (is.null(own) && index == plain) fitInteractions else own,
+              data
+            )
+          }
         )
       ),
       blocks = c(
@@ -1048,8 +1097,9 @@ resolveSamplerSpec <- function(
         lapply(
           seq_len(numForests)[-1L],
           function(index) {
+            own <- specs[[index]]$blocks
             resolveBlocks(
-              specs[[index]]$blocks,
+              if (is.null(own) && index == plain) fitBlocks else own,
               data,
               treeCounts[index],
               availableColumns = forestColumns[[index]]
@@ -1065,6 +1115,19 @@ resolveSamplerSpec <- function(
     if (!is.null(basisRecords)) {
       forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
       forestInfo$basisTerms <- basisRecords
+      attr(control, "bartcore.forests") <- forestInfo
+    }
+    # where the first forest has a basis the control's slot holds a multiplied
+    # forest's count, so the count a later fit given this control inherits is
+    # kept beside it: the plain forest's as it runs, or the fitting function's
+    # own where no forest is plain. Inert to the run
+    if (!firstIsPlain) {
+      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      forestInfo$control.n.trees <- if (plain > 0L) {
+        treeCounts[plain]
+      } else {
+        fitTreeCount
+      }
       attr(control, "bartcore.forests") <- forestInfo
     }
   }

@@ -1214,6 +1214,14 @@ bart <- function(
     )
   }
   control <- eval(controlCall, envir = callingEnv)
+  # The control built here always names a tree count and the call handed to
+  # dbarts() always a tree prior, so what this function's own caller stated
+  # of the arguments that are the forest with no basis's is recorded on the
+  # control, for the sampler specification to read and take off.
+  attr(control, plainStatedAttr) <- plainForestStated(
+    suppliedControl,
+    c(names(matchedCall), shorthandSupplied)
+  )
   # the retired flat spelling of the mixture wins over the control's slot, as
   # every other flat name does - unless the control's own call NAMED that slot,
   # which is one setting written twice and is refused by name. A slot merely

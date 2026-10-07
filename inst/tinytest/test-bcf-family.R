@@ -24,16 +24,29 @@ yRare <- rbinom(n, 1L, 0.1)
 yContinuous <- eta + rnorm(n, sd = 0.3)
 counts <- rpois(n, 2)
 
-seededControlBcfFamily <- function(...) {
+uncountedControlBcfFamily <- function(...) {
   dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
-    n.trees = 25L,
     n.samples = 4L,
     updateState = FALSE,
     seed = 29L,
     ...
   )
+}
+seededControlBcfFamily <- function(...) {
+  uncountedControlBcfFamily(n.trees = 25L, ...)
+}
+# A model in which every forest has a basis takes no tree count from the
+# control and no tree prior from the fitting function. Its first forest states
+# the count and the tree prior the other fits of this file run under.
+everyForestHasBasis <- function(bases) !any(vapply(bases, is.null, NA))
+statedOnFirst <- function(forests = NULL) {
+  if (is.null(forests)) {
+    forests <- list(dbarts::dbartsForests$forest())
+  }
+  forests[[1L]][c("n.trees", "base", "power")] <- list(25L, 0.95, 2)
+  forests
 }
 
 # every entry non-NULL, so both/all forests take the fixed-variance channel:
@@ -57,11 +70,12 @@ pinScales <- list(
   dbarts::dbartsForests$forest(sd = 0.4)
 )
 
-basisSampler <- function(y, bases, family = "auto", ...) {
+basisSampler <- function(y, bases, family = "auto", forests = NULL, ...) {
   dbarts(
     dbartsData(x, y, bases = bases),
-    control = seededControlBcfFamily(),
+    control = uncountedControlBcfFamily(),
     family = family,
+    forests = statedOnFirst(forests),
     ...
   )
 }
@@ -85,7 +99,8 @@ for (bases in list(unitBases2, unitBases3, scaledBases)) {
   params <- attr(
     dbartsSpec(
       dbartsData(x, yContinuous, bases = bases),
-      seededControlBcfFamily()
+      uncountedControlBcfFamily(),
+      forests = statedOnFirst()
     )$control,
     "bartcore.forests"
   )$params
@@ -295,12 +310,14 @@ expect_identical(rownames(countsAll), colnames(x))
 # confusion among those slots at all. Only gaussian, where slot 7 is 2,
 # discriminates position. That is the same "unit values silently vacate
 # pins" hazard arriving through the new default introduced here. ---
-transportParams <- function(y, bases, family, ...) {
+transportParams <- function(y, bases, family, forests = NULL, ...) {
+  allBasis <- everyForestHasBasis(bases)
   attr(
     dbartsSpec(
       dbartsData(x, y, bases = bases),
-      seededControlBcfFamily(),
+      if (allBasis) uncountedControlBcfFamily() else seededControlBcfFamily(),
       family = family,
+      forests = if (allBasis) statedOnFirst(forests) else forests,
       ...
     )$control,
     "bartcore.forests"
@@ -531,6 +548,7 @@ rm(
   declaredShape,
   doorSpec,
   eta,
+  everyForestHasBasis,
   factors,
   family,
   fit,
@@ -563,8 +581,10 @@ rm(
   scales,
   seededControlBcfFamily,
   spec,
+  statedOnFirst,
   transportParams,
   twoForests,
+  uncountedControlBcfFamily,
   unitBases2,
   unitBases3,
   unitBases4,

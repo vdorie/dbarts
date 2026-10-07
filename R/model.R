@@ -1631,6 +1631,67 @@ refuseHeldOneColumn <- function(index) {
   )
 }
 
+## What a held coefficient may sit on. The engine holds a coefficient where it
+## starts it, by the forest's position: the second forest's first column at 0
+## and its others at 1, every other forest's at 1. So a held forest is taken
+## only where that is the value the help states: a forest with no basis at
+## any place but the second, and a basis of two columns at the second. `width`
+## is the number of columns of the forest's basis, 0 for a forest with none.
+refuseHeldShape <- function(index, width) {
+  if (width == 1L) {
+    refuseHeldOneColumn(index)
+  }
+  if (width == 0L && index == 2L) {
+    stop(
+      "forest 2: amplitude = fixed() on a forest with no basis is not ",
+      "supported yet where it is the second forest; it would hold the forest ",
+      "at zero. Put the forest with no basis first, or let the coefficient be ",
+      "drawn",
+      call. = FALSE
+    )
+  }
+  if (width == 2L && index != 2L) {
+    stop(
+      "forest ",
+      index,
+      ": amplitude = fixed() on a basis of two columns is not supported yet ",
+      "unless the forest is the second; it would hold both coefficients at 1. ",
+      "Put the forest second, or let the coefficients be drawn",
+      call. = FALSE
+    )
+  }
+  if (width > 2L) {
+    stop(
+      "forest ",
+      index,
+      ": amplitude = fixed() on a basis of ",
+      width,
+      " columns is not supported; it would hold every column",
+      if (index == 2L) " but the first",
+      " at 1. Let the coefficients be drawn",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+## The refusal of a swap that changes the width of a held forest's basis: the
+## value a coefficient is held at goes by the width the forest was created
+## with.
+refuseHeldWidthChange <- function(index, from, to) {
+  stop(
+    "$setForestBasis cannot change the width of forest ",
+    index,
+    "'s basis (",
+    from,
+    " to ",
+    to,
+    "): its coefficients are held (amplitude = fixed()), and the held value ",
+    "is defined for that width only; make a new sampler",
+    call. = FALSE
+  )
+}
+
 ## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which
 ## holds it at the value its forest's shape gives it. Returns "fixed" for the
 ## hold. A bare fixed is fixed(), as a constructor given where a value is.
@@ -1722,15 +1783,148 @@ validateForestSd <- function(sd) {
   as.double(sd)
 }
 
+## The position of the forest with no basis among a model's forests, or 0
+## where every forest has one. `hasBasis` says of each forest whether the
+## model ends with a basis for it. This is the one place a forest's kind is
+## asked: its tree count and tree prior default by it and the fitting
+## function's 'interactions' and 'blocks' go to it, whatever its position. A
+## model has at most one forest with no basis.
+plainForest <- function(hasBasis) {
+  bare <- which(!hasBasis)
+  if (length(bare) > 1L) {
+    stop(
+      "forests ",
+      paste(bare[-length(bare)], collapse = ", "),
+      " and ",
+      bare[length(bare)],
+      " have no 'basis': a model has one forest with no multiplier, and ",
+      "every other forest states a 'basis'",
+      call. = FALSE
+    )
+  }
+  if (length(bare) == 1L) bare else 0L
+}
+
+## The tree count and tree prior of a forest with a basis that states none.
+multipliedForestDefaults <- list(n.trees = 50L, base = 0.25, power = 3)
+
+## The attribute bart() stamps on the control it builds with what its own
+## caller stated (plainForestStated). That control always names a tree count
+## and the call bart() hands dbarts() always a tree prior, so dbarts() cannot
+## read either from what it is given. Not a bartcore.* attribute, which is fit
+## state: the sampler specification takes it off the control it resolves.
+plainStatedAttr <- "dbarts.stated"
+
+## Whether a control states a tree count: its constructor's call named one,
+## or the slot is not that constructor's default. A slot edited back to the
+## default and a control made by new() read as not stated.
+controlStatesTreeCount <- function(control) {
+  "n.trees" %in%
+    controlSuppliedSlots(control) ||
+    !identical(control@n.trees, formals(dbarts::dbartsControl)$n.trees)
+}
+
+## What the caller of a fitting function stated of the three arguments that
+## are the forest with no basis's own: the tree count, the tree prior and the
+## leaf prior. Stated means named, the default's own value included. `written`
+## holds the argument names the caller wrote and `control` the control the
+## caller gave, NULL for none. Returns, for each of "n.trees", "tree.prior"
+## and "leaf.prior" that is stated, the name it was stated under, "control"
+## for a count the control states.
+plainForestStated <- function(control, written) {
+  firstWritten <- function(names) {
+    hits <- names[names %in% written]
+    if (length(hits) > 0L) hits[[1L]]
+  }
+  stated <- c(
+    n.trees = if ("n.trees" %in% written) {
+      "n.trees"
+    } else if (!is.null(control) && controlStatesTreeCount(control)) {
+      "control"
+    },
+    tree.prior = firstWritten(c("tree.prior", "power", "base", "split.probs")),
+    leaf.prior = firstWritten(c("leaf.prior", "k", "node.prior"))
+  )
+  if (is.null(stated)) character(0L) else stated
+}
+
+## The refusal of what the fitting function states for the forest with no
+## basis in a model that has none: each of the tree count, the tree prior, the
+## leaf prior, 'interactions' and 'blocks' that is stated has no forest to
+## belong to. In that order, the first one stated. `stated` is
+## plainForestStated's value.
+refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
+  refuse <- function(subject, what, remedy) {
+    stop(
+      subject,
+      " is ",
+      what,
+      " the forest with no basis, and every forest of this model has a ",
+      "basis; ",
+      remedy,
+      call. = FALSE
+    )
+  }
+  given <- function(argument) {
+    paste0("'", argument, "' given to the fitting function")
+  }
+  if ("n.trees" %in% names(stated)) {
+    fromControl <- identical(stated[["n.trees"]], "control")
+    refuse(
+      if (fromControl) "the control's 'n.trees'" else given("n.trees"),
+      "the tree count of",
+      paste0(
+        "state a count on a forest, as forest(x1, basis = a, n.trees = 100)",
+        if (fromControl) ", and leave it out of dbartsControl()"
+      )
+    )
+  }
+  if ("tree.prior" %in% names(stated)) {
+    refuse(
+      given(stated[["tree.prior"]]),
+      "the tree prior of",
+      "state it on a forest, as forest(x1, basis = a, base = 0.25, power = 3)"
+    )
+  }
+  if ("leaf.prior" %in% names(stated)) {
+    refuse(
+      given(stated[["leaf.prior"]]),
+      "the leaf prior of",
+      "state a forest's size on the forest, as forest(x1, basis = a, sd = 2)"
+    )
+  }
+  if (!is.null(interactions)) {
+    refuse(
+      given("interactions"),
+      "a constraint on",
+      paste0(
+        "state it on a forest, as forest(x1, basis = a, interactions = ",
+        "interactions(max.order = 1))"
+      )
+    )
+  }
+  if (!is.null(blocks)) {
+    refuse(
+      given("blocks"),
+      "a constraint on",
+      paste0(
+        "state it on a forest, as forest(x1 + x2, basis = a, blocks = ",
+        "blocks(list(\"x1\", \"x2\")))"
+      )
+    )
+  }
+  invisible(NULL)
+}
+
 ## Resolve a `forests` declaration into the per-forest knobs a sampler
 ## specification carries, or NULL for the single-forest path. Returns a LIST of
 ## K validated knob lists, one per forest, so nothing downstream is keyed on
 ## two. Everything the engine cannot honour refuses here, by name, rather than
-## being dropped: an amplitude prior only where a basis is, a basis somewhere
-## on every forest past the first, and the amplitude knobs only where an
-## amplitude exists at all. `interactions` and `blocks` are the fit's own
-## top-level arguments, which address the FIRST forest under the same spelling
-## a forest() uses, so supplying both is ambiguous rather than layered.
+## being dropped: an amplitude prior only where a basis is, one forest with no
+## basis at most, and the amplitude knobs only where an amplitude exists at
+## all. `interactions` and `blocks` are the fit's own top-level arguments,
+## which address the forest with NO BASIS under the same spelling a forest()
+## uses, so supplying both is ambiguous rather than layered.
 ## `hasBasis` is a per-forest logical recording whether a basis reached that
 ## forest some other way, the dbartsData(bases = ) route being a supported one.
 resolveForests <- function(forests, interactions, blocks, hasBasis) {
@@ -1751,12 +1945,12 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   resolved <- lapply(forests, validateForestKnobs)
   numForests <- length(resolved)
 
+  withBasis <- logical(numForests)
   for (index in seq_len(numForests)) {
     spec <- resolved[[index]]
-    excused <- length(hasBasis) >= index && hasBasis[index]
-    if (
-      is.null(spec$basis) && !excused && !is.null(spec$amplitude.prior.variance)
-    ) {
+    withBasis[index] <- !is.null(spec$basis) ||
+      (length(hasBasis) >= index && hasBasis[index])
+    if (!withBasis[index] && !is.null(spec$amplitude.prior.variance)) {
       stop(
         "'amplitude.prior.variance' is the prior on a basis forest's ",
         "amplitudes, and forest ",
@@ -1764,15 +1958,8 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
         " has no 'basis'"
       )
     }
-    if (index >= 2L && is.null(spec$basis) && !excused) {
-      stop(
-        "forest ",
-        index,
-        " needs a 'basis': the amplitudes multiplying it are what ",
-        "distinguishes it from the first"
-      )
-    }
   }
+  plain <- plainForest(withBasis)
 
   first <- resolved[[1L]]
   if (numForests == 1L) {
@@ -1789,17 +1976,17 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
       )
     }
   }
-  if (!is.null(first$interactions) && !is.null(interactions)) {
-    stop(
-      "'interactions' is declared both at the top level and on the first ",
-      "forest, which are the same constraint; give one"
-    )
-  }
-  if (!is.null(first$blocks) && !is.null(blocks)) {
-    stop(
-      "'blocks' is declared both at the top level and on the first forest, ",
-      "which are the same constraint; give one"
-    )
+  for (name in c("interactions", "blocks")) {
+    top <- if (name == "interactions") interactions else blocks
+    if (plain > 0L && !is.null(resolved[[plain]][[name]]) && !is.null(top)) {
+      stop(
+        "'",
+        name,
+        "' is given to the fitting function and to the forest with no basis, ",
+        "which are the same constraint; give one",
+        call. = FALSE
+      )
+    }
   }
   resolved
 }
@@ -1808,9 +1995,11 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## FOREST, in the order the C bridge reads them: the forest's tree count and
 ## structure prior, the leaf-scale factor and divisor the calibration map
 ## reads, the amplitude prior's variance and half-Cauchy scale, and the
-## amplitude update flag. Forest 1 takes its tree count and structure prior
-## from the fit's own control/tree.prior instead, so its first three are
-## carried but unread.
+## amplitude update flag. The first three are what the forest runs under, at
+## every position: its own statement, else the default of its kind, `plain`
+## holding the fitting function's count, base and power for the forest with no
+## basis. The bridge reads forest 1's three from the control and the model's
+## tree prior, which hold the same numbers.
 ##
 ## Which of the two magnitude channels a forest's `sd` reaches is decided by
 ## whether it carries a BASIS. A forest WITHOUT one has a plain scalar
@@ -1824,7 +2013,7 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## The fixed-variance channel's leaf scale factor is K-AWARE, sqrt(2/K): that
 ## keeps the prior on the combined location invariant to how the caller
 ## decomposed the mean across forests, the identity at K = 2.
-forestParams <- function(specs, hasBasis, family) {
+forestParams <- function(specs, hasBasis, family, plain) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
   }
@@ -1833,10 +2022,11 @@ forestParams <- function(specs, hasBasis, family) {
   lapply(seq_along(specs), function(index) {
     spec <- specs[[index]]
     withBasis <- hasBasis[index]
+    kind <- if (withBasis) multipliedForestDefaults else plain
     as.double(c(
-      declared(spec$n.trees, 50L),
-      declared(spec$base, 0.25),
-      declared(spec$power, 3),
+      declared(spec$n.trees, kind$n.trees),
+      declared(spec$base, kind$base),
+      declared(spec$power, kind$power),
       if (withBasis) declared(spec$sd, leafScaleDefault) else 1,
       if (withBasis) 0.674 else 1,
       if (withBasis) declared(spec$amplitude.prior.variance, 0.5) else 1,

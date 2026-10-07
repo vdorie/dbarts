@@ -3810,6 +3810,29 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
   result
 }
 
+# The tree count of each forest of a kept sampler, in the forests' order. The
+# control's slot is the first forest's alone, so the forests of a model of
+# several are read from the engine, or from the forests' record, which holds
+# the same counts, where the sampler's pointer did not survive a reload.
+fitTreeCounts <- function(fit) {
+  forestInfo <- attr(fit$control, "bartcore.forests", exact = TRUE)
+  if (is.null(forestInfo)) {
+    return(fit$control@n.trees)
+  }
+  if (!.Call(C_dbarts_bartcore_isValidPointer, fit$pointer)) {
+    return(vapply(
+      forestInfo$params,
+      function(forest) as.integer(forest[1L]),
+      0L
+    ))
+  }
+  vapply(
+    seq_along(forestInfo$params),
+    function(index) bartcoreForestTreeCount(fit$pointer, index - 1L),
+    0L
+  )
+}
+
 # family/chain-count/tree-count/burn-in/kept-draws synopsis for print.bart,
 # built only from fields that exist regardless of keepCall and keepSampler -
 # so a fit created with keepCall = FALSE still prints something useful. n.trees and
@@ -3850,7 +3873,7 @@ fitSynopsis <- function(x) {
   cat("family: ", x$family, "\n", sep = "")
   cat("n.chains: ", n.chains, "\n", sep = "")
   if (!is.null(control)) {
-    cat("n.trees: ", control@n.trees, "\n", sep = "")
+    cat("n.trees: ", toString(fitTreeCounts(fit)), "\n", sep = "")
     cat("n.burn: ", control@n.burn, "\n", sep = "")
   }
   if (!is.na(n.kept)) {
