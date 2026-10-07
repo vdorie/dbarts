@@ -67,7 +67,7 @@ All numbers below were run on the tip's build; a column is numeric unless said o
   ["cutPointsOf"](../../inst/tinytest/test-quantile-grid.R) and
   [test-sampler-degenerate-cuts.R](../../inst/tinytest/test-sampler-degenerate-cuts.R) do.
 - Existing pins that move:
-  ["strictly increasing"](../../inst/tinytest/test-bartcore.R) expects `setCutPoints(c(0.5, 0.5), 1L)` to
+  ["a cut point may appear only once"](../../inst/tinytest/test-bartcore.R) expects `setCutPoints(c(0.5, 0.5), 1L)` to
   be refused. Existing pins that stay: a named factor column is refused
   (["categorical predictor"](../../inst/tinytest/test-bartcore.R),
   ["cannot set cut points for an ordered factor predictor"](../../inst/tinytest/test-data-categorical.R));
