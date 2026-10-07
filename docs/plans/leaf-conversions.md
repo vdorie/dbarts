@@ -368,6 +368,11 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   gained the zero-weight record, the state gained a `family` attribute beside the blocks step 1 touches,
   `Chain::stateIsValid` gained a check of the latents, and the predictor transaction no longer reseeds a
   monotone tree. None is in a function a step edits, and no rule, refusal or message changes.
+- Rebased onto the tip after the review, 2026-10-07. Since the recheck above the state stopped recording a
+  family, so the attribute named there is gone again; `setCutPoints` sorts a grid and refuses a repeated
+  point; and the R front end evaluates a fit's rows once. None is in a function a step edits. One conflict, in
+  [state-not-model.md](../design/state-not-model.md), where the warm start's sentence was added to a paragraph
+  the tip had rewritten.
 - Which kept draws a rewrite touches. The chain writes the ring of saved slots but only the sampler knows
   how many of them the runs have filled, so [`Chain::setResponse`](../../src/bartcore/chain.hpp),
   `Chain::setOffset` and `Chain::applyNewData` are handed the filled slots

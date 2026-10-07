@@ -7532,8 +7532,7 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   // the leaf.covariate.* and leaf.lengthscales blocks are a linear or gp
   // leaf's standardization constants and kernel lengthscales, NULL on every
   // other leaf, likewise appended and read as OPTIONAL. A scale of NA is a
-  // column that had no spread: the leaf divides by 1 there and remembers that
-  // no observation set it.
+  // column without spread: the leaf divides by 1 there.
 
   // append-only slot registry: new blocks go before SLOT_COUNT and do NOT bump
   // the format version (an old state simply lacks the name and decodes as

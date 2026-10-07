@@ -4764,7 +4764,7 @@ public:
 
   /// Whether a state's leaf-covariate calibration block fits this forest's
   /// leaf: absent, or one finite center and one scale per designated column,
-  /// the scale finite and positive or, for a column that had no spread, not a
+  /// the scale finite and positive or, for a column without spread, not a
   /// number; and under gp absent or, beside the centers, one finite positive
   /// lengthscale per column. A leaf without covariates takes no block.
   static bool leafCalibrationIsValid(const Forest<L, ResidT>& forest,
