@@ -141,20 +141,25 @@ struct DenseColumnValues {
 
 /// Mean and sample sd of the observed (non-missing) values of a raw column:
 /// the leaf-covariate standardization constants. A constant (or all-missing)
-/// column keeps sd 1. One definition shared by LinearGaussianLeaf and the
-/// view gather in buildFromParent, so a full-rows view standardizes
-/// bit-identically to a sampler over the raw data.
+/// column keeps sd 1 and is centred at its one value exactly, so it reads
+/// zero on every row: a mean taken through the sum can miss that value by
+/// rounding, which would leave a rounding-sized spread to divide by. One
+/// definition shared by LinearGaussianLeaf and the view gather in
+/// buildFromParent, so a full-rows view standardizes bit-identically to a
+/// sampler over the raw data.
 inline void standardizationMomentsForColumn(const double* column, size_t n,
                                             double* mean_, double* sd_) {
-  double total = 0.0;
+  double total = 0.0, first = 0.0;
   size_t numObserved = 0;
+  bool isConstant = true;
   for (size_t i = 0; i < n; ++i) {
     if (isNA(column[i])) continue;
+    if (numObserved == 0) first = column[i];
+    else if (column[i] != first) isConstant = false;
     total += column[i];
     ++numObserved;
   }
-  double mean = numObserved > 0 ? total / static_cast<double>(numObserved)
-                                : 0.0;
+  double mean = isConstant ? first : total / static_cast<double>(numObserved);
   double sumOfSquares = 0.0;
   for (size_t i = 0; i < n; ++i)
     if (!isNA(column[i]))
