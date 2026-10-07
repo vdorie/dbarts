@@ -199,6 +199,17 @@ items
     handler for interrupts and errors, as the poll does, an interrupt
     cancelling the run and an error keeping its message. The entry has
     no caller in R/ today.
+  warm-start-salvage: bart(warm.start = ) takes all it can from a
+    donor: a donor tree the recipient cannot hold (a split on a column
+    its forest may not use, an order a monotone leaf forbids) is
+    collapsed at that split to one leaf and the fit proceeds, where
+    today the whole donor is refused; installTrees gains a force
+    argument, without which it accepts or refuses the donor whole, as
+    built (dec-B295, VD 2026-10-07). Before 1.0-0; designed with
+    warm-start-tree-count, the same question for a donor of another
+    tree count. To design: the argument's name and default, what is
+    returned, a collapsed leaf's value, and what stays refused under
+    force.
   warm-start-tree-count: a warm start (bart's warm.start, the sampler's
     installTrees) from a donor with another tree count, partially
     populated: a smaller recipient takes some of the donor's trees, a
