@@ -6165,7 +6165,8 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
   bartcore::SamplerShape shape = holder.sampler->shape();
   // the session's cell guard caches every forest AND the variance forest,
   // pruned to the trees the column can move, so every sampler shape takes this
-  // entry: a row installs only where no leaf of any tree would empty
+  // entry: a row installs only where no leaf of any tree would empty and no
+  // monotone tree's leaf values would be left out of order
   refuseMutationOnView(
     *holder.sampler, "$setPredictor");
   size_t numObservations = shape.numObservations;
@@ -6196,13 +6197,12 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
     REAL(xExpr), static_cast<size_t>(column - 1), installed.get());
   PutRNGstate();
 
-  // The sequential guard admits no empty leaves, so an invalid rebuild is an
-  // internal invariant violation; fail loudly rather than leave the sampler
-  // in an invalid state.
+  // The sequential guard admits no empty leaf and no monotone tree out of
+  // order, so an invalid rebuild is an internal invariant violation; fail
+  // loudly rather than leave the sampler in an invalid state.
   if (!treesAreValid) {
     installed.reset();  // free before longjmp
-    Rf_error("$setPredictor produced a tree with an "
-             "empty leaf");
+    Rf_error("$setPredictor left a tree invalid");
   }
 
   SEXP result = PROTECT(
@@ -6269,8 +6269,7 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
 
     if (!treesAreValid) {
       installed.reset();  // free before longjmp
-      Rf_error("updatePredictorPerObservationJointly() produced a tree "
-               "with an empty leaf");
+      Rf_error("updatePredictorPerObservationJointly() left a tree invalid");
     }
 
     SEXP result = PROTECT(
