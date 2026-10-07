@@ -65,6 +65,20 @@ as written and flagged in the notes for the coordinator.
   documented": step 1.4's alignment is dropped, its texts about a level go, and the second and third
   changed sequences go with them.
 
+## Ruled after this plan was amended
+
+To be worked into the steps at the recheck before push 1 is built; where a step says otherwise, this
+section stands.
+
+- dec-B289. Levels are matched by name at a swap and at predict: the assumption above is the ruling.
+- dec-B308. A factor basis drops a level no kept row has, without a message, in every spelling and at
+  every door that takes a factor; the refusal "... drop it with droplevels()" for a value goes, with its
+  text, its pin and the rows of "The rule" and "Refused forms" that carry it. The size of the basis is
+  judged after the drop. A numeric column that is zero on every kept row is not covered by the ruling
+  and stays as planned.
+
+      forests = list(forest(), forest(basis = arm)), subset = arm != "c"   # created, two levels
+
 ## Goal
 
 A forest multiplies nothing, the levels of a factor, or a numeric column, and which of the three follows
