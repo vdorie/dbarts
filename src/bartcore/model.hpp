@@ -2333,11 +2333,17 @@ struct LeafStandardization {
 /// centre in force, so its fit moves by that intercept term and by nothing
 /// else. A column whose centre, scale and mark agree is not touched.
 ///
-/// \p guardNoSpread is for coefficients a chain goes on drawing from. Where
-/// exactly one side had no spread in column j, no observation informed
-/// slope_j against the placeholder scale, or none can any longer, so the
-/// slope is set to zero and the intercept takes the function's value at that
-/// side's centre, the one value the column held there. Off, the formula runs
+/// \p guardNoSpread is for coefficients a chain goes on drawing from, and
+/// changes what a column j without spread on either side does. Such a side
+/// reads zero on every training row, so there the intercept alone is the
+/// fit and slope_j is a draw no observation informed.
+/// - Off a side without spread the intercept is left: it is the fit. Onto
+///   one, from a side with spread, it takes the function's value at the new
+///   centre, the one value the column holds there.
+/// - With spread on exactly one side the slope is set to zero: an uninformed
+///   one is not multiplied onto a real scale, and an informed one has
+///   nothing left to multiply. With spread on neither it is left as drawn.
+/// So between two sides without spread nothing moves. Off, the formula runs
 /// with the placeholder 1, which keeps a draw that is only replayed the
 /// function it was.
 inline void convertLinearCoefficients(double& intercept, double* slopes,
@@ -2350,10 +2356,9 @@ inline void convertLinearCoefficients(double& intercept, double* slopes,
       continue;
     double shift =
       slopes[j] * (to.centers[j] - from.centers[j]) / from.scales[j];
-    if (guardNoSpread && from.hasSpread[j] != to.hasSpread[j]) {
-      // at the old side's centre the slope's term is zero
-      if (!to.hasSpread[j]) intercept += shift;
-      slopes[j] = 0.0;
+    if (guardNoSpread && !(from.hasSpread[j] && to.hasSpread[j])) {
+      if (from.hasSpread[j]) intercept += shift;
+      if (from.hasSpread[j] != to.hasSpread[j]) slopes[j] = 0.0;
     } else {
       intercept += shift;
       slopes[j] *= to.scales[j] / from.scales[j];

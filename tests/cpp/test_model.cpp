@@ -2434,20 +2434,40 @@ static void testLinearCoefficientConversion() {
                           "spread stays the function it was");
     }
 
-    // neither side had spread: the guard is for exactly one, so the formula
-    // runs whichever way the coefficients are used
+    // neither side had spread: every training row read zero before and reads
+    // zero after, so a live block is left bit for bit, the sign of a zero
+    // included, while a kept one takes the formula with 1 on both sides
     LeafStandardization flatElsewhere = flat;
-    flatElsewhere.centers[1] = 1002.0;
-    for (bool guard : {false, true}) {
-      intercept = intercept0;
+    flatElsewhere.centers[1] = 2000.0;
+    for (double start : {intercept0, -0.0}) {
+      intercept = start;
       slopes[0] = slopes0[0];
       slopes[1] = slopes0[1];
-      convertLinearCoefficients(intercept, slopes, flat, flatElsewhere, guard);
-      check(slopes[1] == slopes0[1] &&
-              std::fabs(evaluate(intercept, slopes, flatElsewhere, wide[1]) -
-                        evaluate(intercept0, slopes0, flat, wide[1])) < 1e-11,
-            "conversion: two columns without spread convert by the formula");
+      convertLinearCoefficients(intercept, slopes, flat, flatElsewhere, true);
+      check(std::memcmp(&intercept, &start, sizeof(double)) == 0 &&
+              slopes[0] == slopes0[0] && slopes[1] == slopes0[1],
+            "conversion: between two columns without spread a live block "
+            "does not move");
     }
+    intercept = intercept0;
+    convertLinearCoefficients(intercept, slopes, flat, flatElsewhere, false);
+    check(slopes[1] == slopes0[1] &&
+            std::fabs(intercept - intercept0 - 1000.0 * slopes0[1]) < 1e-9 &&
+            std::fabs(evaluate(intercept, slopes, flatElsewhere, wide[1]) -
+                      evaluate(intercept0, slopes0, flat, wide[1])) < 1e-9,
+          "conversion: between two columns without spread a kept draw "
+          "converts by the formula");
+
+    // a column with spread only in what it is divided by, or only in where
+    // its rows sit, is not one without: marked on both sides it converts by
+    // the formula, live too
+    LeafStandardization moved = flat, movedElsewhere = flatElsewhere;
+    moved.hasSpread[1] = movedElsewhere.hasSpread[1] = 1;
+    intercept = intercept0;
+    convertLinearCoefficients(intercept, slopes, moved, movedElsewhere, true);
+    check(std::fabs(intercept - intercept0 - 1000.0 * slopes0[1]) < 1e-9,
+          "conversion: a live block on a placeholder scale whose rows are "
+          "off the centre converts by the formula");
   }
   printf("ok: linear coefficient conversion\n");
 }
