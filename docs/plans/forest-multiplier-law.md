@@ -1035,6 +1035,13 @@ otherwise, this section stands.
       forest(x1 + x2, amplitude = fixed())            # own sd range(y) / 4, as bart()'s forest
       forest(x1 + x2, amplitude = fixed(), sd = 2 * sd(y))   # what bartCause's bcf passes
 
+- dec-B291. The default sd of a forest with a basis does not depend on the number of forests: it is 1 on
+  the response's scale (sd(y) under gaussian, the link's unit otherwise), per standard deviation of the
+  column for a number, where the steps above have sqrt(2 / K). At two forests the number is unchanged.
+  Every step, test, gate arm, help sentence and refusal text that carries sqrt(2 / K) is reworked; the
+  same holds for [forest-sd-unit.md](forest-sd-unit.md) and
+  [forest-defaults-by-kind.md](forest-defaults-by-kind.md) wherever they state the default.
+
 ## Calls made in planning
 
 The coordinator's calls on the critique, each to be recorded in the ledger at landing:

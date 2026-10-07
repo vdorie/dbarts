@@ -791,6 +791,13 @@ items
     docs/plans/forest-kind-by-class.md. bartCause's bcf hands
     cbind(1 - z, z) through dbartsData(bases = ) and moves to
     factor(z) first.
+  forests-shared-total: a short way to say that some or all of a
+    model's forests share one prior total, each taking an equal part,
+    for forests that work together on one quantity and for probit and
+    logistic fits of many forests (dec-B291, the maintainer's
+    request). Not designed. Bears on it: a model takes one forest with
+    no basis today, so forests that simply add are written with a
+    constant basis column.
   several-column-basis-meaning: what a basis of several numeric
     columns means, shorthand for a forest each or one shared shape
     times a weighted sum (the curve-times-modifier model of a spline
