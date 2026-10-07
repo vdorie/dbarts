@@ -4074,6 +4074,15 @@ template <typename L> constexpr LeafModelKind leafModelKindOf() {
     return LeafModelKind::constant;
 }
 
+/// Whether each of \p values' \p n entries is finite and above zero: what a
+/// block of precisions (Student-t scales, Polya-Gamma variates) must be. The
+/// comparison is false for NaN.
+inline bool allPositiveAndFinite(const double* values, std::size_t n) {
+  for (std::size_t i = 0; i < n; ++i)
+    if (!(values[i] > 0.0 && values[i] < HUGE_VAL)) return false;
+  return true;
+}
+
 /// Response families the sampler can run; gaussian fits the response
 /// directly, the binary families fit a latent working response, aft fits
 /// log survival times (right-censored observations carry latent log-times),
@@ -4327,6 +4336,16 @@ public:
   virtual void reapplySurvivalStatus(ext_rng*, const double*, double) {}
 
   virtual const double* latents() const { return nullptr; }
+
+  /// Whether \p latents, \p numObservations stored values, is a block this
+  /// family can hold in latents(). True by default: a latent response is any
+  /// real number. A family whose latents are precisions overrides it, since
+  /// its sweep divides by them and draws against them. Asked of a state
+  /// before it is installed; reads nothing of the model's own.
+  virtual bool canHoldLatents(const double* /*latents*/,
+                              std::size_t /*numObservations*/) const {
+    return true;
+  }
 
   /// The current training offset (borrowed), or null. Recorded training
   /// fits add it back, keeping them on the original scale.
@@ -5311,6 +5330,10 @@ public:
   }
 
   const double* latents() const override { return omega_.data(); }
+  bool canHoldLatents(const double* latents,
+                      std::size_t numObservations) const override {
+    return allPositiveAndFinite(latents, numObservations);
+  }
 
   void restoreLatents(const double* latents) override {
     std::memcpy(omega_.data(), latents, numObservations_ * sizeof(double));
@@ -6009,6 +6032,10 @@ public:
   }
 
   const double* latents() const override { return lambda_.data(); }
+  bool canHoldLatents(const double* latents,
+                      std::size_t numObservations) const override {
+    return allPositiveAndFinite(latents, numObservations);
+  }
   void restoreLatents(const double* latents) override {
     std::memcpy(lambda_.data(), latents, numObservations_ * sizeof(double));
     recompose();
@@ -6382,6 +6409,10 @@ public:
   }
 
   const double* latents() const override { return omega_.data(); }
+  bool canHoldLatents(const double* latents,
+                      std::size_t numObservations) const override {
+    return allPositiveAndFinite(latents, numObservations);
+  }
 
   /// Rebuild the working response from the restored omega AND the current r
   /// and c. RESTORE CONTRACT: restoreShape and restoreScale MUST run

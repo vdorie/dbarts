@@ -795,6 +795,112 @@ static void testStateValidation(ext_rng* rng) {
   printf("ok: state validation\n");
 }
 
+/// A latent block of precisions - Student-t scales, the Polya-Gamma variates
+/// of a logistic or negative-binomial sampler - is refused when one value is
+/// not positive and finite, and the refusal leaves the sampler holding what it
+/// held; the smallest positive value installs. A probit sampler's latents are
+/// responses and take any sign. Draws no value from the shared generator.
+static void testStateLatentFloor() {
+  const size_t n = 60;
+  std::vector<double> x(n * 2), real(n), binary(n), count(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>((i * 37) % n) / static_cast<double>(n);
+    x[n + i] = static_cast<double>((i * 11) % n) / static_cast<double>(n);
+    real[i] = x[i] + 0.2 * std::sin(static_cast<double>(i));
+    binary[i] = (x[i] > 0.5) != (i % 7 == 0) ? 1.0 : 0.0;
+    count[i] = std::floor(4.0 * x[i]) + static_cast<double>(i % 3);
+  }
+  struct Case {
+    const char* name;
+    ResponseFamily family;
+    const double* y;
+    double residualDf, shape;
+    bool precisions;
+  };
+  const double absent = std::numeric_limits<double>::quiet_NaN();
+  const Case cases[] = {
+    {"student-t", ResponseFamily::gaussian, real.data(), 4.0, absent, true},
+    {"student-t, df drawn", ResponseFamily::gaussian, real.data(), 0.0, absent,
+     true},
+    {"logistic", ResponseFamily::logistic, binary.data(), absent, absent, true},
+    {"nbinom", ResponseFamily::nbinom, count.data(), absent, 3.0, true},
+    {"nbinom, shape drawn", ResponseFamily::nbinom, count.data(), absent, -1.0,
+     true},
+    {"probit", ResponseFamily::probit, binary.data(), absent, absent, false}};
+  const double refused[] = {0.0, -1.0, absent,
+                            std::numeric_limits<double>::infinity(),
+                            -std::numeric_limits<double>::infinity()};
+  for (const Case& c : cases) {
+    std::string name(c.name);
+    SamplerOptions options;
+    options.numTrees = 5;
+    options.residualDf = c.residualDf;
+    options.shape = c.shape;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261007u);
+    ConstantLeafSampler sampler(x.data(), c.y, n, 2, nullptr, nullptr,
+                                c.family, 1.0, 3.0, 0.37804942330213542,
+                                options, &rng);
+    Results empty;
+    sampler.run(10, 0, empty);
+    SamplerStateData state;
+    sampler.getState(state);
+    check(state.chains[0].latents.size() == n,
+          (name + ": the state carries a latent per row").c_str());
+    if (state.chains[0].latents.size() != n) {
+      ext_rng_destroy(rng);
+      continue;
+    }
+
+    if (!c.precisions) {
+      SamplerStateData negative(state);
+      negative.chains[0].latents[n / 2] = -2.5;
+      check(sampler.setState(negative, nullptr),
+            (name + ": a negative latent installs").c_str());
+      SamplerStateData held;
+      sampler.getState(held);
+      check(held.chains[0].latents == negative.chains[0].latents,
+            (name + ": and is the latent the sampler holds").c_str());
+      ext_rng_destroy(rng);
+      continue;
+    }
+
+    bool positive = true;
+    for (double value : state.chains[0].latents)
+      if (!(value > 0.0) || !std::isfinite(value)) positive = false;
+    check(positive, (name + ": its own precisions are positive").c_str());
+
+    // every row is asked, the first and the last included
+    const size_t rows[] = {0, n / 2, n - 1};
+    for (size_t row : rows) {
+      for (double value : refused) {
+        SamplerStateData bad(state);
+        bad.chains[0].latents[row] = value;
+        check(!sampler.setState(bad, nullptr),
+              (name + ": a precision that is not positive and finite is "
+                      "refused").c_str());
+        SamplerStateData after;
+        sampler.getState(after);
+        check(statesAgree(state, after),
+              (name + ": and the refusal leaves the state as it was").c_str());
+      }
+    }
+    check(sampler.setState(state, nullptr),
+          (name + ": its own state installs after the refusals").c_str());
+
+    SamplerStateData tiny(state);
+    tiny.chains[0].latents[n / 2] = 1.0e-300;
+    check(sampler.setState(tiny, nullptr),
+          (name + ": the smallest positive precision installs").c_str());
+    SamplerStateData held;
+    sampler.getState(held);
+    check(held.chains[0].latents == tiny.chains[0].latents,
+          (name + ": and is the precision the sampler holds").c_str());
+    ext_rng_destroy(rng);
+  }
+  printf("ok: state latent floor\n");
+}
+
 // A column whose range is one value (constant, or narrower than its uniform
 // spacing) gets a grid of equal cuts, and an infinite value must not stretch
 // the uniform grid: the store's own grids restore, while NaN or an over-long
@@ -2904,6 +3010,7 @@ void runStateTests(ext_rng* rng) {
   testStateRoundTripLatents(rng);
   testStateRoundTripStudentT(rng);
   testStateValidation(rng);
+  testStateLatentFloor();
   testDegenerateGridRestores(rng);
   testInteractionContainment();
   testBlockAdditiveConfinement();

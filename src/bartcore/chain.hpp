@@ -3986,6 +3986,12 @@ public:
     if (!state.latents.empty() &&
         (response_->latents() == nullptr || state.latents.size() != n))
       return false;
+    // and holds values the family's latents can take: a block of precisions
+    // with one that is not positive and finite leaves a sweep that returns
+    // fits that are not finite, or does not return
+    if (!state.latents.empty() &&
+        !response_->canHoldLatents(state.latents.data(), n))
+      return false;
     // a t sampler needs its mixing precisions (lambda, in latents); a state
     // from a gaussian sampler carries none and cannot continue the mixture.
     // The df is judged only where this sampler draws it and the state holds
