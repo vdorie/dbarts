@@ -1132,7 +1132,8 @@ struct ColumnStore {
   /// Fills column j's numCuts[j] cuts from the grid's M midpoints, midpoint i
   /// lying between sorted distinct values i and i + 1: cut k is midpoint
   /// floor((2k + 1) M / (2c)) for c = numCuts[j], the centre of the k-th of c
-  /// equal shares of the midpoints. The cuts strictly ascend and leave at most
+  /// equal shares of the midpoints. The cuts ascend, strictly unless two
+  /// midpoints round to one double, and leave at most
   /// floor(M / (2c)) + 1 distinct values beyond either end cut; at c == M they
   /// are every midpoint in order. Requires c <= M, which creation satisfies by
   /// taking the induced count and a refresh by its feasibility check.

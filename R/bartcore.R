@@ -930,22 +930,26 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
     column <- coerceOrError(column, "integer")
   }
 
-  if (!is.list(cuts)) {
-    cuts <- list(cuts)
-  }
-  # the entries the bridge skips are dropped unread, so whatever a caller
-  # left in a factor column's place neither warns nor fails in a coercion
-  isRead <- rep_len(TRUE, length(cuts))
+  # a data frame is a list of columns and is taken as one
+  cuts <- if (is.list(cuts)) as.list(cuts) else list(cuts)
+  # a list of another length is the bridge's to refuse, and goes to it with
+  # no entry read. Of one of the right length, the entries the bridge skips
+  # are dropped unread, so nothing in a factor column's place warns or fails,
+  # and every other entry is a vector of numbers: as.double would take a
+  # factor's codes, a Date or a logical as a grid
   varTypes <- sampler$data@varTypes
-  if (is.null(column) && length(cuts) == length(varTypes)) {
-    isRead <- varTypes == ORDINAL_VARIABLE
-  }
-  cuts[!isRead] <- list(NULL)
-  cuts[isRead] <- lapply(cuts[isRead], function(cut) {
-    tryCatch(as.double(cut), error = function(e) {
+  numEntries <- if (is.null(column)) length(varTypes) else length(column)
+  if (length(cuts) == numEntries) {
+    isRead <- rep_len(TRUE, numEntries)
+    if (is.null(column)) {
+      isRead <- varTypes == ORDINAL_VARIABLE
+    }
+    if (!all(vapply(cuts[isRead], is.numeric, NA))) {
       stop("$setCutPoints: 'cuts' must be numeric", call. = FALSE)
-    })
-  })
+    }
+    cuts[!isRead] <- list(NULL)
+    cuts[isRead] <- lapply(cuts[isRead], as.double)
+  }
 
   # the engine re-quantizes the transient borrow of the current predictors
   .Call(

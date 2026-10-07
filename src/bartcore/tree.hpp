@@ -183,9 +183,9 @@ enum class FlatKind : std::uint8_t {
 /// leaves carry their parameter. The same format serves saved-tree storage,
 /// external reporting, and state serialization: a cut value maps back to its
 /// index exactly where the column's cut points are distinct, being stored as
-/// the doubles they were computed as; where a grid repeats a value, as the
-/// store's own does over a column narrower than its spacing, the value names
-/// the first index holding it. An inline mask (up to 63 categories) rides in the
+/// the doubles they were computed as; where a grid repeats a value, as one
+/// the store built or a state brought may, the value names the first index
+/// holding it. An inline mask (up to 63 categories) rides in the
 /// payload word directly, category bits only; a pooled column's wider mask
 /// keeps numMaskWords words at maskOffset in a per-tree side channel,
 /// pre-order sequential. The missing direction lives in flags for either

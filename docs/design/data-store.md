@@ -28,18 +28,22 @@ directly on the store as parallel vectors, one entry per predictor:
   categorical column (which has no cut grid at all).
   `refreshCutsForColumn` (the mutation re-cut) keeps a numeric column's
   count fixed and leaves a factor column of either kind alone.
-  `setCutPointsForColumn` (the setCutPoints surface and a state install,
-  refused on a factor column) sets it to the length of the grid it is
-  given, and a whole-data replacement derives a numeric column's grid
-  again from `requestedNumCuts[j]`.
+  `setCutPointsForColumn` sets it to the length of the grid it is given,
+  for `setCutPoints`, which refuses a factor column, and for a state
+  install, in which an ordered factor keeps its level midpoints whatever
+  grid the state carries for it. A whole-data replacement derives a
+  numeric column's grid again from `requestedNumCuts[j]`.
 - `categoryCounts[j]` - the fixed level count K of a factor column of
   either kind, 0 for a numeric one. Fixed at build: every mask tier,
   reserved missing code and category histogram width derives from it.
 - `cutPoints[j]` - the thresholds in non-decreasing order (empty for
-  categoricals). The uniform rule repeats a value over a column narrower
-  than its spacing, a constant one included; a caller's grid
-  (`setCutPoints`) strictly increases unless it is, value for value, the
-  grid the column holds, because a stored split names its cut by value and
+  categoricals). A grid can repeat a value: the uniform rule builds one
+  over a constant column and over one narrower than its spacing, the
+  quantile rule where two midpoints round to one double, a column refreshed
+  without its cuts keeps the grid of the values it had, and a state install
+  takes any non-decreasing grid. A caller's grid (`setCutPoints`) strictly
+  increases unless it is, bit for bit, the grid the column holds (a -0 for
+  a 0 is another grid), because a stored split names its cut by value and
   a repeated value does not say which index it was drawn on. An
   ordered factor's are the K - 1 midpoints between consecutive declared
   level codes, so its code is its own level index and every adjacent

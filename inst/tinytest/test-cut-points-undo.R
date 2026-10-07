@@ -1,8 +1,9 @@
 # A cut grid changed with setCutPoints can be put back on any design, and
 # leaves nothing behind: a later setData derives the grid n.cuts names
 # whatever grid was set before it, as a copy and a reload do. A caller's own
-# grid strictly increases; the grid a column holds is taken back as it is,
-# repeated points included. The grid in force is read from the stored state.
+# grid strictly increases; the grid a column holds, bit for bit, is taken
+# back as it is, repeated points included. The grid in force is read from the
+# stored state.
 
 cutPointsOf <- function(sampler) {
   sampler$storeState()
@@ -44,8 +45,9 @@ for (useQuantiles in c(FALSE, TRUE)) {
   control <- controlWith(10L)
 
   # the undo leaves no residue: a longer grid set and put back, the state
-  # restored, and the sampler derives at setData what an untouched twin, its
-  # own copy and its reload derive, and draws what the twin draws
+  # restored, and the sampler derives at setData what a twin that restored
+  # its own state, its own copy and its reload derive, and draws what the
+  # twin draws
   sampler <- warmed(x, y, control = control)
   twin <- warmed(x, y, control = control)
   stored <- sampler$state
@@ -146,6 +148,44 @@ for (useQuantiles in c(FALSE, TRUE)) {
   grid <- cutPointsOf(sampler)[[1L]]
   expect_identical(length(grid), 50L, info = rule)
   expect_false(identical(grid, longer), info = rule)
+
+  # a sparse column counts its refresh for itself, and keeps the count it
+  # holds as a dense one does
+  if (requireNamespace("Matrix", quietly = TRUE)) {
+    sparseColumn <- function() {
+      Matrix::Matrix(
+        cbind(s = ifelse(runif(n) < 0.5, 0, runif(n))),
+        sparse = TRUE
+      )
+    }
+    # the residual scale is stated so none is estimated on a sparse design
+    sampler <- dbarts(
+      cbind(
+        Matrix::Matrix(x[, 1L, drop = FALSE], sparse = TRUE),
+        sparseColumn()
+      ),
+      y,
+      control = control,
+      sigest = sd(y)
+    )
+    for (count in c(50L, 3L)) {
+      info <- paste(rule, "sparse", count)
+      set <- seq(0.01, 0.99, length.out = count)
+      sampler$setCutPoints(set, 2L)
+      refreshed <- outcomeOf(
+        sampler$setPredictor(
+          sparseColumn(),
+          2L,
+          forceUpdate = TRUE,
+          updateCutPoints = TRUE
+        )
+      )
+      expect_identical(refreshed, TRUE, info = info)
+      grid <- cutPointsOf(sampler)[[2L]]
+      expect_identical(length(grid), count, info = info)
+      expect_false(identical(grid, set), info = info)
+    }
+  }
 }
 
 # The uniform rule repeats a point over a column it cannot spread a grid
@@ -202,6 +242,13 @@ for (cuts in list(rep(2, 100L), own[[3L]], own[[2L]][-1L])) {
   expect_error(sampler$setCutPoints(cuts, 2L), pattern = refusal, fixed = TRUE)
 }
 expect_identical(cutPointsOf(sampler), own)
+# the held grid is the one that matches bit for bit: over a column of zeros
+# it is zeros, and the same count of negative zeros is another grid
+zeros <- dbarts(cbind(a, zero = 0), y, control = control)
+held <- cutPointsOf(zeros)[[2L]]
+expect_identical(held, rep(0, 100L))
+expect_silent(zeros$setCutPoints(held, 2L))
+expect_error(zeros$setCutPoints(-held, 2L), pattern = refusal, fixed = TRUE)
 
 # A strictly increasing grid is taken on either kind of column. The constant
 # column's old grid is then no longer the one it holds, so setCutPoints
@@ -216,15 +263,43 @@ expect_error(sampler$setCutPoints(own), pattern = refusal, fixed = TRUE)
 expect_true(sampler$setState(stored))
 expect_identical(cutPointsOf(sampler), own)
 
-# what is not a grid is refused by name
+# A grid is a vector of numbers. What as.double would turn into one is
+# refused by name with the rest, by column and as an entry of the whole
+# list: a factor would go in as its codes and a Date as its day count.
 notNumeric <- "$setCutPoints: 'cuts' must be numeric"
-expect_error(sampler$setCutPoints(mean, 1L), pattern = notNumeric, fixed = TRUE)
+notGrids <- list(
+  mean,
+  c("0.2", "0.4"),
+  c(FALSE, TRUE),
+  factor(c("u", "v")),
+  as.Date(c("2020-01-01", "2020-01-02")),
+  NULL
+)
+for (cuts in notGrids) {
+  expect_error(
+    sampler$setCutPoints(list(cuts), 1L),
+    pattern = notNumeric,
+    fixed = TRUE
+  )
+  expect_error(
+    sampler$setCutPoints(c(list(cuts), own[-1L])),
+    pattern = notNumeric,
+    fixed = TRUE
+  )
+}
+expect_identical(cutPointsOf(sampler), own)
+# whole numbers are numbers
+expect_silent(sampler$setCutPoints(c(0L, 1L), 1L))
+expect_identical(cutPointsOf(sampler)[[1L]], c(0, 1))
+# a column named more than once has every one of its entries read, the
+# design having as many columns as the call has entries or not
+expect_silent(sampler$setCutPoints(list(0.2, 0.4, 0.6), c(1L, 1L, 1L)))
+expect_identical(cutPointsOf(sampler)[[1L]], 0.6)
 expect_error(
-  sampler$setCutPoints(list(own[[1L]], mean, own[[3L]])),
+  sampler$setCutPoints(list(0.2, "0.4", 0.6), c(1L, 1L, 1L)),
   pattern = notNumeric,
   fixed = TRUE
 )
-expect_identical(cutPointsOf(sampler), own)
 
 # The list a sampler reports has an entry per column, a factor's included.
 # Given the whole list, what sits in a factor column's place is not read: it
@@ -259,11 +334,26 @@ expect_error(
   sampler$setCutPoints(0.5, "o"),
   pattern = "cannot set cut points for an ordered factor predictor"
 )
-expect_error(
-  sampler$setCutPoints(own[-3L]),
-  pattern = "requires one cut point vector per column"
+# a list of another length is refused, shorter or longer, before any entry
+# is read: nothing in it is coerced and nothing warns
+wrongLength <- "requires one cut point vector per column"
+warnings <- character()
+withCallingHandlers(
+  for (cuts in list(own[-3L], c(own, list(1)), list(levels(f), mean))) {
+    expect_error(sampler$setCutPoints(cuts), pattern = wrongLength)
+  },
+  warning = function(w) {
+    warnings <<- c(warnings, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  }
 )
+expect_identical(warnings, character())
 expect_identical(cutPointsOf(sampler), set)
+# a data frame is a list of columns, and is taken as that list is
+expect_silent(
+  sampler$setCutPoints(data.frame(a = c(0.3, 0.6), f = c("x", "y"), o = 1:2))
+)
+expect_identical(cutPointsOf(sampler), c(list(c(0.3, 0.6)), own[-1L]))
 
 # a design of factor columns alone leaves a whole list nothing to install:
 # the call returns and the sampler is as it was
@@ -275,8 +365,10 @@ sampler$storeState()
 expect_identical(sampler$state, stored)
 
 # The whole undo on a design with a constant column and a factor: a grid is
-# changed, the stored state's whole list handed back and the state restored,
-# and the sampler continues as a twin that restored its own state.
+# changed and the stored state's whole list handed back, which puts every
+# grid back before the state is restored. The restore and the continuation
+# after it are pins that hold without the hand-back too, a state bringing its
+# own grid: the sampler continues as a twin that restored its own state.
 design <- data.frame(y, a, const, f, o)
 sampler <- warmed(y ~ a + const + f + o, design, control = control)
 twin <- warmed(y ~ a + const + f + o, design, control = control)

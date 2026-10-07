@@ -497,6 +497,12 @@ static void testRequestedCutCount() {
     check(store.cutPoints == twin.cutPoints &&
             store.train.codes == twin.train.codes,
           "setData derives the grid of a store that never held the longer one");
+    // and set shorter, keep it, setData
+    store.setCutPointsForColumn(0, shorter, 3, replacement.data());
+    check(store.setData(x.data(), n) && twin.setData(x.data(), n),
+          "the stores take the first values back");
+    check(store.numCuts[0] == asked && store.cutPoints == twin.cutPoints,
+          "setData derives the asked count over a shorter set grid");
 
     // a refresh keeps the count the column holds, above the asked one or
     // below it, wherever the new values have enough distinct ones
@@ -514,6 +520,43 @@ static void testRequestedCutCount() {
             "a refresh keeps the set count");
       check(refreshed.cutPoints[1] != std::vector<double>(set, set + held),
             "the refresh re-cut the column rather than keep the set grid");
+
+      // a CSC-backed column counts for itself, in the feasibility check over
+      // a replacement's entries and in the re-cut from the installed slice
+      std::vector<int> rows, newRows;
+      std::vector<double> values, newValues;
+      for (size_t i = 0; i < n; ++i) {
+        if (i % 4 != 0) {
+          rows.push_back(static_cast<int>(i));
+          values.push_back(x[i]);
+        }
+        if (i % 5 != 0) {
+          newRows.push_back(static_cast<int>(i));
+          newValues.push_back(replacement[i]);
+        }
+      }
+      const int pointers[2] = { 0, static_cast<int>(rows.size()) };
+      const std::int32_t cscColumn = ~0;
+      PredictorSource source;
+      source.numRows = n;
+      source.numColumns = 1;
+      source.cscColumnPointers = pointers;
+      source.cscRowIndices = rows.data();
+      source.cscValues = values.data();
+      source.columnSources = &cscColumn;
+      ColumnStore sparse;
+      built(sparse.build(source, nullptr, asked, useQuantiles));
+      sparse.setCutPointsForColumn(0, set, held, nullptr);
+      check(sparse.columnIsCscBacked(0) && sparse.numCuts[0] == held &&
+              sparse.cutsWouldRemainValidCsc(0, newValues.data(),
+                                             newValues.size(), 0.0),
+            "a CSC column with enough distinct values can refresh a set grid");
+      sparse.mutateCscColumnFromCsc(0, newRows.data(), newValues.data(),
+                                    newRows.size(), 0.0, true);
+      check(sparse.numCuts[0] == held && sparse.requestedNumCuts[0] == asked,
+            "a CSC refresh keeps the set count");
+      check(sparse.cutPoints[0] != std::vector<double>(set, set + held),
+            "the CSC refresh re-cut the column rather than keep the set grid");
     }
   }
 
@@ -1858,7 +1901,7 @@ void testIngestionRefusals() {
             "a level count past the kind's ceiling is refused");
       if (kinds[j] == ColumnKind::orderedFactor)
         check(fits.numCuts[0] == ceiling - 1 &&
-                fits.numCuts[0] == maxNumCutsRepresentable,
+                ceiling - 1 == maxNumCutsRepresentable,
               "the widest midpoint grid is exactly what the cut index holds");
     }
     check(maxLevelsForKind(ColumnKind::categorical) ==

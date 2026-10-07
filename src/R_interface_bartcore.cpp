@@ -6114,6 +6114,8 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       }
 
       SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(k));
+      // the R method refuses an entry that is not numeric first and hands
+      // doubles over; this holds the entry for any other caller
       if (!Rf_isReal(cutsExpr))
         Rf_error("$setCutPoints: 'cuts' must be numeric");
       R_xlen_t numCuts = Rf_xlength(cutsExpr);
@@ -6131,8 +6133,9 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
       // a stored split names its cut by value, and on a grid that repeats a
       // value a restore cannot tell which index it was drawn on, so a caller's
       // grid strictly increases. The grid the column holds, bit for bit, is
-      // taken as it is: the store builds equal neighbours itself over a
-      // column whose range is a single value, and an undo hands that back
+      // taken as it is: a grid the store built or a state brought may hold
+      // equal neighbours, and an undo hands that back. A -0 for a 0 is
+      // another grid
       const double* cuts = REAL(cutsExpr);
       const std::vector<double>& held =
         holder.sampler->data().cutPoints[column];
