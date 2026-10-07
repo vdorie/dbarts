@@ -389,8 +389,10 @@ variable is read the same way and left as it was made; `cbind()` is refused):
     list(basis = w)) for a column you hold, list(basis = as.name(nm)) for a column of 'data' by its
     name, list(basis = f) for a one-sided formula, and list(vars = nms) for predictors by name. A
     formula made elsewhere, held in a variable or handed over, is read in the same way and at the
-    same moment: every variable it uses is copied from where the formula was made, so one made in
-    a loop gives each forest what its call saw, and the formula itself is not touched. A forest()
+    same moment: every variable it uses is copied from where the formula was made, as it is when
+    forest() is called, so a loop that makes a formula and calls forest() with it gives each
+    forest its own, while formulas given to forest() only after the loop all see its last value;
+    the formula itself is not touched. A forest()
     term inside a fit's formula is read with that formula, as R reads one: when the model is
     fitted and again by predict, so a number it uses that changes between the fit and the
     prediction changes the prediction, with no message.
@@ -829,12 +831,11 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - A `subset` forwarded through a wrapper's dots fails in `dbartsData`'s own model frame when it is an
     expression over the data's columns or the formula was written outside the wrapper: a defect of the
     tip, TODO `written-surface-leftovers`.
-  - `pdbart` and `pd2bart` given data read `data` themselves, to tell the family and, for a formula
-    fit, for the rows they average over, and fit through `bart()`, which reads it again; the rows are
-    matched to the fit's by name, as they are when the data is read again from a fit's stored call. No
-    slice yet.
-  - `weights` on the formula interface is evaluated twice, once for a length check and once by the model
-    frame, whose value the fit uses. No slice yet.
+  - `pdbart` and `pd2bart` given a fit read the data its stored call names again, for the rows they
+    average over, matched to the fit's by name: a fit keeps no data, and a call whose data is another
+    each time it is read cannot be read back. No slice.
+  - `bartBT` hands its arguments to `dbarts()` as values in the call, so a traceback from inside it
+    prints them. No slice yet.
 
 ## Calls made in planning
 
@@ -1134,8 +1135,8 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - One reading of `data`, ruled by the coordinator. The `data` argument and the `subset` argument are
     each evaluated once for a fit, at every door, and everything downstream is handed the value: the
     way the hazard and aft paths already hand on a response and the first round handed on `subset`.
-    [`dbartsData`](../../R/data.R) puts the value of `data` in the matched call that its model frame and
-    its readings of `weights` and `test` are built from, and evaluates `subset` in that value;
+    [`dbartsData`](../../R/data.R) hands the value of `data` to its model frame and to its readings of
+    `weights` and `test`, and evaluates `subset` in that value;
     [`dbarts`](../../R/dbarts.R) hands the data object the `data` it read its bases against and, with
     the matrix interface, the `subset` it cut the censoring status by; [`bart`](../../R/bart.R) and
     [`rbart_vi`](../../R/rbart.R) hand on the `data` they read. The call a fit keeps is taken before and
@@ -1172,6 +1173,31 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - Help: `vars = "x1"` in the `lapply()` example under `basis`; what is taken from the fitted rows at
     new rows and what is computed again; `data` beside `subset` where the help says each is evaluated
     once; a factor left with one level among what "Rows" refuses.
+- Made after the third review of push 3 (LAND AFTER FIXES, one blocking finding, made by the round
+  before).
+  - Every argument that holds rows is evaluated once for a fit, ruled by the coordinator: the first
+    argument when it is not a formula, `data`, `test`, `weights`, `offset`, `offset.test`, `subset` and
+    `group.by`, at every door, the first argument before `data`, as written. The round before handed on
+    `data` alone, so with the matrix interface `dbarts(X[i <- sample(n, 100), ], y[i])` took its
+    response from one reading and its predictors from the next, where both builds before it read the
+    pair again together. Now [`dbarts`](../../R/dbarts.R), [`bart`](../../R/bart.R),
+    [`rbart_vi`](../../R/rbart.R) and [`xbart`](../../R/xbart.R) hand on the first argument as well,
+    `rbart_vi` its `test`, and the data object reads `weights` once.
+  - How a value is handed on. Not as the value in the call, which a traceback would print row for row,
+    and not as a name bound in a frame the call is then evaluated in: a formula written in the call
+    would take that frame, and with it the data, for its environment. [`handOn`](../../R/utility.R)
+    keeps the values in an environment of their own and puts in the call the code that reads one from
+    it, `<environment>$data`: it gives the value wherever it is evaluated, by a function's argument or
+    by `model.frame()` looking `subset` up in the data, and deparses in a few characters. Everything the
+    data object puts in its model frame's call goes the same way. After an error inside a fit the calls
+    on the stack are no longer for 10000 rows than for 100, which a test holds.
+  - `pdbart` and `pd2bart` given data evaluate it once and hand it, with the first argument, to
+    `bart()`, so the rows averaged over are the rows fitted; `bart()` stores the call as written
+    ([`writtenCall`](../../R/utility.R)). Before, the fit was of a second reading.
+  - A name that `Map()` is handed in `MoreArgs` and that is a variable of `mapply()`'s own, `dots` or
+    `FUN`, is refused saying so; before it was refused in words about the variable's value.
+  - Help: the basis is read when `forest()` is called, with the loop that calls it inside; formulas
+    given to `forest()` after a loop see the loop's last value.
 
 ## Landing note
 

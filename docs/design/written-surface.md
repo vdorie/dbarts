@@ -71,19 +71,23 @@ the environment its names are looked up in, and from there one function reads it
 ([`readForestBasis`](../../R/forestBasis.R)) and one builds it ([`buildCodeBasis`](../../R/forestBasis.R)). The
 two doors cannot disagree about a basis because neither has code of its own for one.
 
-Rows are decided once, and in one place. The `data` argument and the `subset` argument are each evaluated once
-for a fit, by the function the caller called, and whatever is built below is handed the value and never the
-expression: `bart()` hands its `data` to `dbarts()`, `dbarts()` hands the data object the `data` it read the
-bases against, and the data object puts that value in its model frame's call. The data object evaluates
-`subset` in that one value of `data` and applies the na.action; with the matrix interface `subset` is an index,
-which `dbarts()` evaluates and hands on, having cut an aft fit's censoring status by it. The call a fit keeps
-shows what the caller wrote. Every basis rides the data object's `bases` argument and is cut there. A value
+Rows are decided once, and in one place. Every argument that holds rows, the first when it is not a formula,
+`data`, `test`, `subset`, `weights` and the offsets, is evaluated once for a fit, the first before `data`, and
+what a function has read it hands on as the value and never as the expression again: `bart()` to `dbarts()`,
+`dbarts()` to the data object, the data object to its model frame, `pdbart()` to `bart()`. A value is handed on
+by [`handOn`](../../R/utility.R): it is kept in an environment of its own, and the call holds the code that
+reads it from there, which gives the value wherever R evaluates it and prints in a few characters, so a
+traceback names no row. The data object evaluates `subset` in the one value of `data` and applies the
+na.action; with the matrix interface `subset` is an index, which `dbarts()` evaluates and hands on, having cut
+an aft fit's censoring status by it. The call a fit keeps shows what the caller wrote. Every basis rides the
+data object's `bases` argument and is cut there. A value
 rides as itself. For a basis written as code the numbers of the data's rows ride in its place
 ([`basisRowNumbers`](../../R/forestBasis.R)) and come back as the rows the fit kept, in the fit's order
 ([`buildFitBases`](../../R/forestBasis.R)). So a `data` or a `subset` that draws its rows, `data =
 d[sample(nrow(d)), ]` or `subset = sample(n, 100)`, gives the response, the predictors and every basis one
-draw. Read a second time either gave a basis another draw's rows, without a message, which the two reviews of
-this push found, the first for `subset` and the second for `data`.
+draw, and predictors and a response that share a draw, `dbarts(x[i <- sample(n, 100), ], y[i])`, stay a pair.
+Read a second time an argument gave some part of the fit another draw's rows, without a message, which the
+reviews of this push found: the first for `subset`, the second for `data`, the third for the predictors.
 
 A basis written as code is read over every row of the data the fit was given, and only on the rows kept is it
 decided which levels have a row, whether a value is missing and whether a column is all zeros. What a term
@@ -124,7 +128,8 @@ A call of `forest()` is made by the caller, in a `forests` list or ahead of the 
   code without the tilde.
 - A formula made elsewhere, held in a variable or handed over, changes only where the names are looked for:
   in the environment the formula was made in. They are copied from there when `forest()` is called, so
-  `f <- ~ W[[k]]; forest(basis = f)` in a loop gives each forest its own column. The formula is not touched:
+  `f <- ~ W[[k]]; forest(basis = f)` in a loop gives each forest its own column; formulas given to `forest()`
+  only after the loop all see its last value, a formula holding no value. The formula is not touched:
   it stays identical to a copy taken before, in the same environment, and nothing is assigned there. The
   record a fit keeps of such a basis is an ordinary formula, R's `terms`, whose environment holds the copies.
 
@@ -184,7 +189,7 @@ first three is still written, inside `I()`: `I(dose + age)`, `I(dose - 1)`, `I(1
 old text.
 
 A model whose text is in none of these families, and whose `data` and `subset` are the same each time they are
-read, draws what it drew: 235 comparisons of seeded fits over three families and an aft fit, one and two
+read, draws what it drew: 238 comparisons of seeded fits over three families and an aft fit, one and two
 chains, both doors, held and drawn coefficients, factor, two-column and value bases, `subset`, weights, an
 offset and a test set. Two things are exceptions by design. A `data` or a `subset` that draws its rows: the
 build before gave a basis, or an aft fit's censoring status, the rows of a second draw, and given the drawn
