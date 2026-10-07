@@ -35,12 +35,14 @@ refused, so that it cannot come to mean 50 in silence ([`plainForestStated`](../
 |---|---|---|---|
 | `bart()` | `n.trees` named, or a `control` that states one | `tree.prior`, or the retired `power`, `base` or `split.probs` | `leaf.prior` or `k` |
 | `dbarts()`, `dbartsSpec()` | a control that states one | `tree.prior` | `leaf.prior`, or the retired `node.prior` |
+| `bartBT()` | `ntree` | `power`, `base` or `splitprobs` | `k` |
 
 A control states a count when its constructor's call named `n.trees` or its slot is not the constructor's
 default. A slot edited back to 75 and a control made by `new()` read as not stated: that is the limit of
-what can be told. `bart()` builds its own control and always hands `dbarts()` a tree prior, so it records
-what its own caller stated on the control it hands over, and the record is taken off when the sampler's
-specification is resolved.
+what can be told. `bart()` and `bartBT()` each build their own control and always hand `dbarts()` a tree
+prior, so each records what its own caller stated, under its own names, on the control it hands over, and
+the record is taken off when the sampler's specification is resolved. `bartBT()` reaches a model of
+several forests through a data object's `bases` alone.
 
 `bart()` refuses its own `n.trees` beside one on the plain forest, judged on the model, so a forest
 written with `basis = NULL` is the plain forest too. At `dbarts()` the forest's own count governs over the
@@ -56,19 +58,22 @@ first forest's included ([`forestParams`](../../R/model.R)).
 A control taken from a fit and given to another never carries a multiplied forest's count. Where the first
 forest has a basis the forests' record keeps the count the next fit is to inherit, the plain forest's as
 it ran or the fitting function's own where no forest was plain, and it goes back on the control before
-that fit reads it. `$setControl` takes the control a sampler was created under as well as the sampler's
+that fit reads it. It goes back only while the control still holds the first forest's count: any other
+count there is the caller's edit and stands as a stated count does, the plain forest's in the next fit
+and refused where every forest of it has a basis. An edit to the first forest's own count cannot be told
+from none. `$setControl` takes the control a sampler was created under as well as the sampler's
 own. `print` of a fit gives a count for each forest, `n.trees: 50, 75`.
 
 ## What changes
 
 One sequence of calls: a model in which every forest has a basis, with no tree count and no tree prior
 given to the fitting function, whose first forest leaves any of the three unstated. That forest ran under
-75, 0.95 and 2 and now runs under 50, 0.25 and 3. The same call with the three numbers written on that
-forest, fitted on the build before this one, gives identical draws: six such pairs, across a list, a
-formula, a data object, `bart` under probit and `dbartsSpec` under logistic. Every fit of one forest, and
-every fit of several whose plain forest is first, draws what it drew: 33 pairs identical. Twelve calls
-that state a count, a tree prior, `interactions` or `blocks` beside forests that all have a basis are
-refused now and, respelled onto the first forest, draw what they drew.
+75, 0.95 and 2 and now runs under 50, 0.25 and 3; at `bartBT()`, whose count is 200, under 200. The same
+call with the three numbers written on that forest, fitted on the build before this one, gives identical
+draws: six such pairs, across a list, a formula, a data object, `bart` under probit and `dbartsSpec` under
+logistic. Every fit of one forest, and every fit of several whose plain forest is first, draws what it
+drew: 33 pairs identical. Twelve calls that state a count, a tree prior, `interactions` or `blocks` beside
+forests that all have a basis are refused now and, respelled onto the first forest, draw what they drew.
 
 The same model in the other order has the same law. Sixteen seeds each way, 400 sweeps discarded and 800
 kept, 150 rows: two multiplied forests in either order differ in mean sigma by 0.57 standard errors, and
