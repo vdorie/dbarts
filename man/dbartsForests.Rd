@@ -17,7 +17,9 @@
   before passing it on - write \code{dbartsForests$interactions(...)}.
   \code{forest()}'s first argument, the predictors a forest splits on, is
   read as terms when it names a predictor of the fit and otherwise takes the
-  value it has where and when the constructor is called; see
+  value it has where and when the constructor is called. Its \code{basis} is
+  read the same way: a name of a column of the fit's data is that column, and
+  anything else is what it was where and when the constructor is called; see
   \code{\link{forest}}.
 }
 \format{

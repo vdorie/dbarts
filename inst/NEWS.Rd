@@ -365,7 +365,7 @@
             causal forest is the two-forest case with a treatment
             indicator as the basis. In a \code{bart} or \code{dbarts}
             formula, each forest is a term:
-            \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = ~ z)}
+            \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)}
             declares the same thing. Gaussian, probit and logistic responses;
             \code{predict} and \code{extract} report each forest separately
             (\code{type = "forest"}) or combined.
