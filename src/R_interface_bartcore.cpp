@@ -7459,10 +7459,10 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
 //
 // The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
 // same way and for the same reason: they are read by name too, and a reader
-// ignores one it does not know. "weights.digest", "weights.zero" and
-// "survival.digest" are such additions - a state written before any of them
-// carries none, and setState then behaves as it did before the attribute
-// existed. Making one REQUIRED behind a floor bump would buy no compatibility
+// ignores one it does not know. "weights.digest", "weights.zero",
+// "survival.digest" and "family" are such additions - a state written before
+// any of them carries none, and setState then behaves as it did before the
+// attribute existed. Making one REQUIRED behind a floor bump would buy no compatibility
 // and orphan in-flight states for nothing.
 static const int stateFormatVersion = 1;
 
@@ -7495,6 +7495,27 @@ std::uint64_t decodeStateDigest(const Rbyte* bytes) {
   for (std::size_t i = 0; i < stateDigestBytes; ++i)
     digest |= static_cast<std::uint64_t>(bytes[i]) << (8 * i);
   return digest;
+}
+
+/// The response family \p shape's sampler runs, as the family argument spells
+/// it: what a state records of the chains it holds and setState compares with
+/// its own. The engine's family is gaussian for a Student-t sampler and the
+/// coupling's for a multinomial one, so the two marks that tell those apart
+/// are read before it. A hazard sampler is named by its link, the model it
+/// runs on its expanded rows.
+static const char* stateFamilyName(const bartcore::SamplerShape& shape) {
+  if (shape.supportsCountsMutation) return "multinomial";
+  if (shape.carriesResidualDf) return "student";
+  using RF = bartcore::ResponseFamily;
+  switch (shape.family) {
+  case RF::gaussian: return "gaussian";
+  case RF::probit: return "probit";
+  case RF::logistic: return "logistic";
+  case RF::aft: return "aft";
+  case RF::ordinal: return "ordinal";
+  case RF::nbinom: return "nbinom";
+  }
+  return "gaussian"; // unreached: ResponseFamily is exhausted above
 }
 
 SEXP storeState(bartcore::SamplerBase& sampler) {
@@ -7760,6 +7781,11 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   // disagree by the time a state is installed
   setAttribByName(resultExpr, "survival.digest",
                   encodeStateDigest(sampler.survivalDigest()));
+  // which family's chains these are: the trees and the latent block mean
+  // something only under the family that drew them, and no block says which.
+  // Compared by setState and never installed, as the digests are
+  setAttribByName(resultExpr, "family",
+                  Rf_mkString(stateFamilyName(sampler.shape())));
   setAttribByName(resultExpr, "packageVersion", Rf_mkString(PACKAGE_VERSION));
   SEXP classExpr = PROTECT(Rf_mkString("bartcoreState"));
   Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
@@ -7884,6 +7910,32 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   bartcore::SamplerStateData state;
   state.chains.resize(shape.numChains);
 
+  // Which family stored the state, against this sampler's own. Asked before
+  // anything else of the state is read, so a state of another family is
+  // refused as that whatever else about it differs, and before the engine is
+  // handed anything. ABSENT (a state written before the attribute existed) is
+  // not known, never a mismatch: such a state is judged by its blocks alone.
+  // The stored name is the caller's and is printed to a bounded width; the
+  // buffer outlives the final Rf_error as blockError does.
+  char familyError[160];
+  SEXP familyExpr = Rf_getAttrib(stateExpr, Rf_install("family"));
+  if (!Rf_isNull(familyExpr)) {
+    if (TYPEOF(familyExpr) != STRSXP || Rf_xlength(familyExpr) != 1 ||
+        STRING_ELT(familyExpr, 0) == NA_STRING) {
+      errorMessage = "malformed family in bartcore state";
+    } else {
+      const char* storedFamily = CHAR(STRING_ELT(familyExpr, 0));
+      const char* ownFamily = stateFamilyName(shape);
+      if (std::strcmp(storedFamily, ownFamily) != 0) {
+        std::snprintf(familyError, sizeof familyError,
+                      "state is not consistent with this sampler: its family "
+                      "is \"%.32s\" and the sampler's is \"%s\"",
+                      storedFamily, ownFamily);
+        errorMessage = familyError;
+      }
+    }
+  }
+
   // Whether the stored latents were shaped by other weights than the ones in
   // force here. ABSENT (a state written before the attribute existed) is not a
   // mismatch: it reconciles nothing and behaves exactly as this reader did
@@ -7891,7 +7943,7 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   bool weightsDiffer = false;
   SEXP weightsDigestExpr =
     Rf_getAttrib(stateExpr, Rf_install("weights.digest"));
-  if (!Rf_isNull(weightsDigestExpr)) {
+  if (errorMessage == NULL && !Rf_isNull(weightsDigestExpr)) {
     if (TYPEOF(weightsDigestExpr) != RAWSXP ||
         static_cast<size_t>(Rf_xlength(weightsDigestExpr)) != stateDigestBytes)
       errorMessage = "malformed weights digest in bartcore state";
