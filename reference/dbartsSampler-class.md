@@ -242,6 +242,31 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   An object inheriting from
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
+  Draws the sampler has saved (`keepTrees`) stay the functions they
+  were, so `predict` returns the same values for them before and after
+  the call. To that end a `linear` leaf's coefficients, saved and
+  current, are rewritten into the centre and scale the new data gives
+  its leaf covariates, and every saved draw into the response scale the
+  new data gives. A row whose leaf covariate is missing is read at that
+  covariate's centre, so what a linear leaf predicts for it follows the
+  centre to the new data's. A leaf covariate that holds a single value
+  is centred at it and divided by 1, so a leaf reads zero for it on
+  every row and its slope adds nothing to the fit. Where a covariate is
+  such a column before the call or after it, a current slope has nothing
+  to be rewritten onto and is set to zero: off such a column each leaf
+  keeps the value it had, onto one it takes the value its function has
+  at the new constant. Where it is such a column on both sides the
+  current coefficients are left as they are. A column that
+  `setPredictor` has since given other values is read as what it then
+  holds: one moved to another single value no longer sits at its centre
+  and is rewritten as any other column is, by the formula, which keeps
+  the function of the covariate. The data fixed that function at one
+  point only, so new data that spread the covariate widely can carry the
+  current fit far from where it was until the sampler has run on them.
+  Saved draws are rewritten by the formula in every case, with 1 for the
+  scale. The saved draws of a Gaussian-process (`gp`) leaf cannot be
+  rewritten: they are replayed under the new data's centre, scale and
+  response scale, and so change.
 
 - y:
 
@@ -346,7 +371,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the new offset (`setOffset`) or response (`setResponse`). Defaults to
   `FALSE`, locking the scale set at creation; should only be `TRUE`
   during burn-in, as re-anchoring mid-run makes the fits across
-  iterations no longer comparable. `TRUE` is refused by a multi-forest
+  iterations no longer comparable. Draws already saved (`keepTrees`) are
+  rewritten into the new scale, a heteroscedastic sampler's variance
+  draws included, so `predict` returns the values it returned before the
+  call; the current fit follows the new scale. The saved draws of a
+  Gaussian-process (`gp`) leaf are the exception when the new scale has
+  another midpoint: they hold no term that could carry it, and come back
+  in the new scale's units. `TRUE` is refused by a multi-forest
   (`forests`) sampler, whose calibration map is pinned at creation -
   whatever its response family, and whether or not there is a transform
   to re-anchor - and is never restated. A heteroscedastic (`variance`)
@@ -953,7 +984,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `dbartsSampler`, or a `bart` object fit with `keepSampler = TRUE`. The
   donor must share this sampler's predictors, tree count, and DART
   setting; a different cut grid is allowed, its splits remapped onto
-  this sampler's grid.
+  this sampler's grid, and so is a different centre and scale of a
+  `linear` leaf's covariates (see ‘Warm starts’).
 
 - samples:
 
@@ -1216,7 +1248,9 @@ to roll a re-anchoring `setResponse(y2, updateScale = TRUE)` back,
 re-anchor to the old response with `setResponse(y, updateScale = TRUE)`
 and then `setState` the saved state. The cut grid and a linear or
 Gaussian-process leaf's covariate standardization come with the state as
-they are.
+they are. A leaf covariate that held a single value when its
+standardization was derived has no scale: the state records `NA` for it,
+and the covariate is divided by 1.
 
 The case weights are not in the state, so a restore is reconciled
 against the DESTINATION's own rather than governed by the source's:
@@ -1362,24 +1396,37 @@ fit in a larger sampler. Only the donor's trees, and its `sigma`, `k`
 and DART state where this sampler draws them, transfer: the sampler
 keeps its own model, as `setState` does, and a donor stored in other
 response units is converted into this sampler's, so it seeds the
-function it held. Each chain keeps its own random-number stream and
-redraws everything else, so several chains seeded from one donor stay
-overdispersed. A donor with a different tree count or DART setting is
-refused rather than silently reshaped; a donor fit on a different cut
-grid is instead remapped onto this sampler's grid, collapsing any splits
-the grid starves, the same way a data replacement remaps existing
-splits. A warm start biases the early draws toward the donor, so it
-shortens burn-in rather than removing it; keep drawing a non-zero number
-of burn-in samples before treating the chain as converged. Single-forest
-samplers only: a sampler carrying two or more forests (a Bayesian causal
-forest or any other amplitude model, and a multinomial sampler's K
-category forests) refuses the call by name, reporting its forest count,
-because the install is not tested at more than one forest - it
-reassembles the trees from a saved sample but takes the amplitudes from
-the donor's current state. Use `growFromRoot` to initialize such a
-sampler instead. A variance forest is not one of the counted forests, so
-a heteroscedastic sampler takes a warm start as any single-forest one
-does.
+function it held. The same holds for a `linear` leaf whose covariates
+the donor centred and scaled differently: the donor's coefficients are
+converted, the seeded forest is the donor's function of those
+covariates, and this sampler keeps its own centre and scale, as a
+Gaussian-process leaf keeps its own centre, scale and lengthscale,
+whichever cut grid the donor is on. A covariate that holds a single
+value on one side has no slope to carry, so the slope starts at zero:
+where the single value is the donor's each leaf starts at the donor's
+fit, and where it is this sampler's each leaf starts at the value the
+donor's function has there. Where it holds a single value on both sides
+the donor's coefficients arrive as they are, the slope adding nothing to
+either fit. A single value here is one the covariate is centred at; a
+donor column that `setPredictor` moved to another single value is
+converted by the formula, as under `setData`. Each chain keeps its own
+random-number stream and redraws everything else, so several chains
+seeded from one donor stay overdispersed. A donor with a different tree
+count or DART setting is refused rather than silently reshaped; a donor
+fit on a different cut grid is instead remapped onto this sampler's
+grid, collapsing any splits the grid starves, the same way a data
+replacement remaps existing splits. A warm start biases the early draws
+toward the donor, so it shortens burn-in rather than removing it; keep
+drawing a non-zero number of burn-in samples before treating the chain
+as converged. Single-forest samplers only: a sampler carrying two or
+more forests (a Bayesian causal forest or any other amplitude model, and
+a multinomial sampler's K category forests) refuses the call by name,
+reporting its forest count, because the install is not tested at more
+than one forest - it reassembles the trees from a saved sample but takes
+the amplitudes from the donor's current state. Use `growFromRoot` to
+initialize such a sampler instead. A variance forest is not one of the
+counted forests, so a heteroscedastic sampler takes a warm start as any
+single-forest one does.
 
 `growFromRoot` instead builds the sampler's initial forest by
 XBART-style root-down stochastic tree construction (He, Yalov and Hahn
