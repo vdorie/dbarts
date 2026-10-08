@@ -258,6 +258,13 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
+  gp-reanchor-message: the refusal of updateScale = TRUE by a gp
+    sampler that holds saved draws says to re-derive the scale during
+    burn-in, before draws are saved (burn-in sweeps, or keepTrees off
+    until the scale is fixed), or to make a new sampler, in place of
+    "a saved gp draw replays only under the response range it was
+    drawn with" (dec-B330). Bridge text, test-capi.R and
+    test-leaf-conversions.R. Before 1.0-0.
   leaf-slope-formula-single-value: at setData and a warm start a
     linear leaf's live slope is converted by the formula onto and off
     a covariate that holds one value at its centre, where today it is
