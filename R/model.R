@@ -1433,7 +1433,7 @@ expandForestBasis <- function(
   }
   # an all-zero column has no observation for its amplitude to multiply, so it
   # is not a degenerate prior but a missing predictor wearing one
-  if (!atPrediction && any(colSums(basis != 0) == 0L)) {
+  if (!atPrediction && !allowEmptyLevels && any(colSums(basis != 0) == 0L)) {
     stop("a 'basis' column of all zeros contributes nothing to a forest")
   }
   basis

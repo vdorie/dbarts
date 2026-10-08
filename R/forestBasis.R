@@ -821,7 +821,8 @@ basisColumns <- function(
   frame,
   label,
   levels = NULL,
-  atPrediction = FALSE
+  atPrediction = FALSE,
+  allowEmptyColumns = FALSE
 ) {
   if (any(vapply(frame, anyNA, NA))) {
     stop("a 'basis' cannot be NA")
@@ -931,7 +932,11 @@ basisColumns <- function(
   given <- colnames(design)
   refuseSharedBasisNames(given, label)
   basis <- matrix(as.double(design), nrow(design), ncol(design))
-  basis <- expandForestBasis(basis, atPrediction = atPrediction)
+  basis <- expandForestBasis(
+    basis,
+    atPrediction = atPrediction,
+    allowEmptyLevels = atPrediction || allowEmptyColumns
+  )
   colnames(basis) <- given
   list(basis = basis, levels = NULL)
 }
@@ -953,11 +958,16 @@ cutBasisFrame <- function(frame, rows) {
 ## terms with their environment, the levels of the frame's factors, the levels
 ## kept, the basis's text, the columns of the data it names and the number of
 ## rows it was read over.
-buildCodeBasis <- function(read, rows = NULL) {
+buildCodeBasis <- function(read, rows = NULL, allowEmptyColumns = FALSE) {
   frame <- read$frame
   terms <- attr(frame, "terms")
   kept <- if (is.null(rows)) frame else cutBasisFrame(frame, rows)
-  built <- basisColumns(terms, kept, read$label)
+  built <- basisColumns(
+    terms,
+    kept,
+    read$label,
+    allowEmptyColumns = allowEmptyColumns
+  )
   list(
     basis = built$basis,
     record = list(
@@ -1221,7 +1231,8 @@ refuseEmptiedValueBasis <- function(value, kept) {
 ## of a forest() is, with no data, so its names are found where it was
 ## written; anything else is a value. A level that no row has keeps its
 ## column, a replacement being free to leave one unobserved for a while, so
-## a factor's columns here are every level's.
+## a factor's columns here are every level's, and a numeric column of all zeros
+## is taken as a level no row holds is (dec-B346); creation refuses both.
 replacementForestBasis <- function(basis, numRows) {
   if (!inherits(basis, "formula")) {
     refuseSingleBasisValue(basis)
@@ -1252,5 +1263,5 @@ replacementForestBasis <- function(basis, numRows) {
     )
     return(expanded)
   }
-  buildCodeBasis(read)$basis
+  buildCodeBasis(read, allowEmptyColumns = TRUE)$basis
 }

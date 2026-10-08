@@ -58,14 +58,29 @@ expect_equal(dim(glue), c(3L, 1L))
 expect_true(all(is.finite(glue)))
 expect_true(glue[2L, 1L] != glue[3L, 1L])
 
-# an all-zero basis column has no rows for its amplitude to multiply:
-# $setForestBasis refuses it before the engine or data@bases is touched
-basesBefore <- bcSampler$data@bases
+# an all-zero basis column has no rows for its amplitude to multiply, which a
+# swap takes as it takes a factor level no row holds (dec-B346): the forest's
+# part on it is drawn under its prior until a row returns. Creation refuses it
+zeroBasis <- cbind(rep(1, n), rep(0, n))
+bcSampler$setForestBasis(2L, zeroBasis)
+expect_identical(unname(bcSampler$data@bases[[2L]]), zeroBasis)
+expect_true(all(is.finite(bcSampler$run(0L, 2L)$train)))
+expect_true(all(is.finite(bcSampler$getForestAmplitudes())))
+bcSampler$setForestBasis(2L, cbind(rep(1, n), rep(c(0, 1), length.out = n)))
+expect_true(all(is.finite(bcSampler$run(0L, 2L)$train)))
 expect_error(
-  bcSampler$setForestBasis(2L, cbind(rep(1, n), rep(0, n))),
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), forest(basis = zeroBasis)),
+    control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
+  ),
   "all zeros"
 )
-expect_identical(bcSampler$data@bases, basesBefore)
+# a formula basis of one numeric column of zeros is taken the same way
+bcSampler$setForestBasis(2L, ~ rep(0, n))
+expect_identical(ncol(bcSampler$data@bases[[2L]]), 1L)
+bcSampler$setForestBasis(2L, ~ factor(z))
 
 # out-of-range forest index errors
 expect_error(bcSampler$getForestFits(3L), "out of range")
