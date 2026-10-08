@@ -321,6 +321,18 @@ items
     and splits on period only where it is named. The test in
     test-single-forest-vars.R that pins the literal reading changes.
     A forest constant over time has no spelling in 1.0-0.
+  leaf-covariate-cap-removed: before 1.0-0 (dec-B366, VD 2026-10-08).
+    Linear and gp leaves take any number of covariates: the per-leaf
+    scratch (LinearGaussianLeaf::maxNumCovariates,
+    maxFunctionLeafCovariates in tree.hpp) is sized at creation in
+    place of a stack array of 8; the R refusal goes, and the limits
+    table in dbartsControl.Rd loses its row. No draw changes at 8 or
+    fewer; a speed check at small q against the stack form.
+  perturb-width-control: before 1.0-0 (dec-B366, VD 2026-10-08). The
+    perturb move's window (perturbWidth in moves.hpp, 1 grid position)
+    becomes a dbartsControl setting beside proposal.probs, a whole
+    number of grid positions, default 1, which changes no draw; the
+    limits table's row says it is settable.
   leaf-prior-spelling-keeps-spread: before 1.0-0 (dec-B356, VD
     2026-10-08). setLeafPrior switching a drawn leaf prior between
     normal(k = ) and normal(sd = invchi()) keeps each chain's spread
