@@ -447,9 +447,9 @@ static void testSetCutPointsOrphan() {
 }
 
 // The store keeps the count asked for at build beside the count each column
-// holds, and nothing else: a set grid changes the held count alone, a
-// derivation counts from the asked count whatever grid was set before it, and
-// a refresh re-cuts at the held count, above the asked one or below it.
+// holds, and nothing else: a set grid changes the held count alone, and a
+// derivation counts from the asked count whatever grid was set before it
+// (a refresh among them: testRefreshDerivesAsCreation).
 static void testRequestedCutCount() {
   const size_t n = 200, p = 2;
   const std::uint32_t asked = 20;
@@ -503,61 +503,6 @@ static void testRequestedCutCount() {
           "the stores take the first values back");
     check(store.numCuts[0] == asked && store.cutPoints == twin.cutPoints,
           "setData derives the asked count over a shorter set grid");
-
-    // a refresh keeps the count the column holds, above the asked one or
-    // below it, wherever the new values have enough distinct ones
-    for (std::uint32_t held : { 50u, 3u }) {
-      const double* set = held == 50u ? longer.data() : shorter;
-      ColumnStore refreshed;
-      built(refreshed.build(x.data(), n, p, asked, useQuantiles));
-      refreshed.setCutPointsForColumn(1, set, held, x.data());
-      size_t column = 1;
-      check(refreshed.cutsWouldRemainValid(1, replacement.data() + n),
-            "a column with enough distinct values can refresh a set grid");
-      refreshed.setColumns(replacement.data() + n, &column, 1, true);
-      check(refreshed.numCuts[1] == held &&
-              refreshed.requestedNumCuts[1] == asked,
-            "a refresh keeps the set count");
-      check(refreshed.cutPoints[1] != std::vector<double>(set, set + held),
-            "the refresh re-cut the column rather than keep the set grid");
-
-      // a CSC-backed column counts for itself, in the feasibility check over
-      // a replacement's entries and in the re-cut from the installed slice
-      std::vector<int> rows, newRows;
-      std::vector<double> values, newValues;
-      for (size_t i = 0; i < n; ++i) {
-        if (i % 4 != 0) {
-          rows.push_back(static_cast<int>(i));
-          values.push_back(x[i]);
-        }
-        if (i % 5 != 0) {
-          newRows.push_back(static_cast<int>(i));
-          newValues.push_back(replacement[i]);
-        }
-      }
-      const int pointers[2] = { 0, static_cast<int>(rows.size()) };
-      const std::int32_t cscColumn = ~0;
-      PredictorSource source;
-      source.numRows = n;
-      source.numColumns = 1;
-      source.cscColumnPointers = pointers;
-      source.cscRowIndices = rows.data();
-      source.cscValues = values.data();
-      source.columnSources = &cscColumn;
-      ColumnStore sparse;
-      built(sparse.build(source, nullptr, asked, useQuantiles));
-      sparse.setCutPointsForColumn(0, set, held, nullptr);
-      check(sparse.columnIsCscBacked(0) && sparse.numCuts[0] == held &&
-              sparse.cutsWouldRemainValidCsc(0, newValues.data(),
-                                             newValues.size(), 0.0),
-            "a CSC column with enough distinct values can refresh a set grid");
-      sparse.mutateCscColumnFromCsc(0, newRows.data(), newValues.data(),
-                                    newRows.size(), 0.0, true);
-      check(sparse.numCuts[0] == held && sparse.requestedNumCuts[0] == asked,
-            "a CSC refresh keeps the set count");
-      check(sparse.cutPoints[0] != std::vector<double>(set, set + held),
-            "the CSC refresh re-cut the column rather than keep the set grid");
-    }
   }
 
   printf("ok: requested cut count\n");
@@ -600,15 +545,16 @@ static void testQuantileCutPoints() {
   check(continuousCutsMatch,
         "continuous quantile cuts spread over the sorted uniques");
 
-  // refresh feasibility: fewer uniques than existing cuts is invalid
+  // a numeric column passes the precheck whatever its values: its grid is
+  // derived from them, shorter where they supply fewer points
   std::vector<double> coarse(n);
   for (size_t i = 0; i < n; ++i) coarse[i] = static_cast<double>(i % 4);
-  check(!store.cutsWouldRemainValid(1, coarse.data()),
-        "coarser column fails the quantile feasibility check");
+  check(store.cutsWouldRemainValid(1, coarse.data()),
+        "coarser column passes the precheck");
   std::vector<double> finer(n);
   for (size_t i = 0; i < n; ++i) finer[i] = static_cast<double>(i % 25);
   check(store.cutsWouldRemainValid(1, finer.data()),
-        "finer column passes the quantile feasibility check");
+        "finer column passes the precheck");
 
   printf("ok: quantile cut points\n");
 }
@@ -736,7 +682,7 @@ static void testQuantileGridSpread() {
                    subset.cutPoints == dense.cutPoints;
   check(storagesAgree, "one quantile grid whatever the column's storage");
 
-  // a refresh spreads the held count: 4 cuts onto 50 distinct values, 10
+  // a refresh spreads the asked count: 4 cuts onto 50 distinct values, 10
   // onto 60
   bool refreshSpreads = true;
   const size_t fromLevels[2] = { 5, 11 }, ontoLevels[2] = { 50, 60 };
@@ -751,11 +697,12 @@ static void testQuantileGridSpread() {
     // the dense path, the journaled path of a column-subset transaction, and
     // a CSC-backed column refreshed from a dense and from a CSC replacement
     ColumnStore plain, journaled, cscFromDense, cscFromCsc;
+    const std::uint32_t asked = static_cast<std::uint32_t>(held);
     for (ColumnStore* s : { &plain, &journaled })
-      built(s->build(narrow.data(), n, 1, 100, true));
+      built(s->build(narrow.data(), n, 1, asked, true));
     for (ColumnStore* s : { &cscFromDense, &cscFromCsc })
       built(s->build(cscSource(pointers, rows, values, &cscColumn), nullptr,
-                     100, true));
+                     asked, true));
     refreshSpreads &= plain.numCuts[0] == held &&
                       cscFromCsc.numCuts[0] == held &&
                       cscFromCsc.columnIsCscBacked(0) &&
@@ -781,10 +728,414 @@ static void testQuantileGridSpread() {
     // 10 held cuts over 59 midpoints: the last leaves 3 values above it
     if (r == 1) refreshSpreads &= plain.cutPoints[0][held - 1] == 56.5;
   }
-  check(refreshSpreads, "a quantile refresh spreads the held count");
+  check(refreshSpreads, "a quantile refresh spreads the asked count");
 
   rngState = savedRngState;
   printf("ok: quantile grid spread\n");
+}
+
+namespace {
+
+// a single CSC column over the nonzero cells of a dense one, NaN stored
+struct OneCscColumn {
+  std::vector<int> rows;
+  std::vector<double> values;
+  int pointers[2] = { 0, 0 };
+  std::int32_t marker = ~0;
+  PredictorSource source;
+  OneCscColumn(const double* column, size_t n) {
+    for (size_t i = 0; i < n; ++i)
+      if (column[i] != 0.0) {
+        rows.push_back(static_cast<int>(i));
+        values.push_back(column[i]);
+      }
+    pointers[1] = static_cast<int>(rows.size());
+    source.numRows = n;
+    source.numColumns = 1;
+    source.cscColumnPointers = pointers;
+    source.cscRowIndices = rows.data();
+    source.cscValues = values.data();
+    source.columnSources = &marker;
+  }
+};
+
+bool strictlyIncreases(const std::vector<double>& cuts) {
+  if (cuts.empty()) return false;
+  for (size_t k = 1; k < cuts.size(); ++k)
+    if (!(cuts[k] > cuts[k - 1])) return false;
+  return true;
+}
+
+// the six columns the cut-grid tests share, n rows each: five adjacent
+// doubles, a constant, a constant beside missing values, all missing, 0/1
+// and distinct values over (0, 1)
+enum { narrowColumn, constantColumn, constantMissingColumn, allMissingColumn,
+       binaryColumn, ordinaryColumn, numGridColumns };
+std::vector<double> gridColumns(size_t n) {
+  std::vector<double> x(n * numGridColumns);
+  double ulp = std::numeric_limits<double>::epsilon();
+  for (size_t i = 0; i < n; ++i) {
+    x[i + narrowColumn * n] = 1.0 + ulp * static_cast<double>(i % 5);
+    x[i + constantColumn * n] = 3.0;
+    x[i + constantMissingColumn * n] = i % 5 == 0 ? std::nan("") : 3.0;
+    x[i + allMissingColumn * n] = std::nan("");
+    x[i + binaryColumn * n] = static_cast<double>(i % 2);
+    double step = 0.6180339887498949 * static_cast<double>(i + 1);
+    x[i + ordinaryColumn * n] = step - std::floor(step);
+  }
+  return x;
+}
+
+}  // namespace
+
+// No derivation leaves a grid with equal neighbours, whatever the rule, the
+// storage or the path - creation, a whole-data replacement, a refresh - and
+// a column whose values supply fewer points than asked holds fewer. The
+// 0/1 and the ordinary column's grids are the ones the fill computes with
+// nothing dropped.
+static void testDistinctCutGrids() {
+  const size_t n = 200;
+  const std::uint32_t asked = 100;
+  std::vector<double> x = gridColumns(n);
+  std::vector<double> other(n * numGridColumns);
+  for (size_t i = 0; i < other.size(); ++i) {
+    double step = 0.7548776662466927 * static_cast<double>(i + 1);
+    other[i] = step - std::floor(step);
+  }
+  const std::uint32_t uniformCounts[numGridColumns] = { 5, 1, 1, 1, asked,
+                                                        asked };
+  const std::uint32_t quantileCounts[numGridColumns] = { 3, 1, 1, 1, 1, asked };
+
+  for (bool useQuantiles : { false, true }) {
+    const std::uint32_t* counts = useQuantiles ? quantileCounts : uniformCounts;
+    const char* rule = useQuantiles ? "quantile" : "uniform";
+    char line[160];
+    ColumnStore created;
+    built(created.build(x.data(), n, numGridColumns, asked, useQuantiles));
+    bool distinct = true, counted = true;
+    for (size_t j = 0; j < numGridColumns; ++j) {
+      distinct &= strictlyIncreases(created.cutPoints[j]) &&
+                  created.cutPoints[j].size() == created.numCuts[j];
+      counted &= created.numCuts[j] == counts[j] &&
+                 created.requestedNumCuts[j] == asked;
+    }
+    snprintf(line, sizeof line, "%s creation: every grid strictly increases",
+             rule);
+    check(distinct, line);
+    snprintf(line, sizeof line,
+             "%s creation: 5 or 3 points over five adjacent doubles, one over "
+             "a single value or none, the asked count otherwise", rule);
+    check(counted, line);
+    check(created.cutPoints[constantColumn][0] == 3.0 &&
+            created.cutPoints[constantMissingColumn][0] == 3.0 &&
+            created.cutPoints[allMissingColumn][0] == 0.0,
+          "a constant column's point is its value, an all-missing one's 0");
+
+    // the grids nothing is dropped from, computed here
+    const std::vector<double>& ordinary = created.cutPoints[ordinaryColumn];
+    const double* values = x.data() + ordinaryColumn * n;
+    bool asFilled = true;
+    if (useQuantiles) {
+      std::vector<double> sorted(values, values + n);
+      std::sort(sorted.begin(), sorted.end());
+      for (std::uint32_t k = 0; k < asked; ++k) {
+        size_t index = (2 * static_cast<size_t>(k) + 1) * (n - 1) / (2 * asked);
+        asFilled &= ordinary[k] == 0.5 * (sorted[index] + sorted[index + 1]);
+      }
+      asFilled &= created.cutPoints[binaryColumn][0] == 0.5;
+    } else {
+      double lo = *std::min_element(values, values + n);
+      double hi = *std::max_element(values, values + n);
+      double increment = (hi - lo) / static_cast<double>(asked + 1);
+      for (std::uint32_t k = 0; k < asked; ++k) {
+        asFilled &= ordinary[k] == lo + static_cast<double>(k + 1) * increment;
+        asFilled &= created.cutPoints[binaryColumn][k] ==
+          0.0 + static_cast<double>(k + 1) *
+            (1.0 / static_cast<double>(asked + 1));
+      }
+    }
+    snprintf(line, sizeof line,
+             "%s creation: the ordinary and the 0/1 grid are the fill's own",
+             rule);
+    check(asFilled, line);
+
+    // setData and a refresh onto the same values from a store built on others
+    ColumnStore replaced, refreshed;
+    built(replaced.build(other.data(), n, numGridColumns, asked, useQuantiles));
+    built(refreshed.build(other.data(), n, numGridColumns, asked,
+                          useQuantiles));
+    check(replaced.setData(x.data(), n), "the store takes the replacement");
+    refreshed.setPredictors(
+      densePredictorSource(x.data(), n, numGridColumns), true);
+    snprintf(line, sizeof line,
+             "%s: setData and a refresh derive creation's grids and codes",
+             rule);
+    check(replaced.cutPoints == created.cutPoints &&
+            replaced.numCuts == created.numCuts &&
+            replaced.train.codes == created.train.codes &&
+            refreshed.cutPoints == created.cutPoints &&
+            refreshed.numCuts == created.numCuts &&
+            refreshed.train.codes == created.train.codes,
+          line);
+
+    // CSC-backed: created, and refreshed from a dense and a CSC replacement
+    bool cscAgrees = true;
+    for (size_t j = 0; j < numGridColumns; ++j) {
+      OneCscColumn column(x.data() + j * n, n);
+      OneCscColumn start(other.data() + j * n, n);
+      ColumnStore csc, fromDense, fromCsc;
+      built(csc.build(column.source, nullptr, asked, useQuantiles));
+      built(fromDense.build(start.source, nullptr, asked, useQuantiles));
+      built(fromCsc.build(start.source, nullptr, asked, useQuantiles));
+      fromDense.mutateCscColumnFromDense(0, x.data() + j * n, true);
+      fromCsc.mutateCscColumnFromCsc(0, column.rows.data(),
+                                     column.values.data(), column.rows.size(),
+                                     0.0, true);
+      for (const ColumnStore* store : { &csc, &fromDense, &fromCsc })
+        cscAgrees &= store->columnIsCscBacked(0) &&
+                     store->cutPoints[0] == created.cutPoints[j] &&
+                     store->numCuts[0] == created.numCuts[j];
+    }
+    snprintf(line, sizeof line,
+             "%s: a CSC column's grid is the dense one, created and refreshed",
+             rule);
+    check(cscAgrees, line);
+  }
+  printf("ok: no derived cut grid repeats a point\n");
+}
+
+// A refresh derives the grid a creation would for the values: the count the
+// column held - shorter, longer, or set by hand - does not enter, the
+// precheck passes any numeric column, and a column refreshed onto a single
+// value holds one point.
+static void testRefreshDerivesAsCreation() {
+  const size_t n = 200, p = 2;
+  const std::uint32_t asked = 20;
+  std::vector<double> x(n * p), replacement(n * p), few(n * p), one(n * p, 2.5);
+  for (size_t i = 0; i < n * p; ++i) {
+    double step = 0.6180339887498949 * static_cast<double>(i + 1);
+    x[i] = step - std::floor(step);
+    step = 0.7548776662466927 * static_cast<double>(i + 1);
+    replacement[i] = step - std::floor(step);
+    few[i] = static_cast<double>(i % 6);
+  }
+  std::vector<double> longer(50);
+  for (size_t k = 0; k < longer.size(); ++k)
+    longer[k] = (static_cast<double>(k) + 0.5) / 50.0;
+  const double shorter[] = {0.25, 0.5, 0.75};
+  const size_t column = 1;
+
+  for (bool useQuantiles : { false, true }) {
+    ColumnStore onMany, onFew, onOne;
+    built(onMany.build(replacement.data(), n, p, asked, useQuantiles));
+    built(onFew.build(few.data(), n, p, asked, useQuantiles));
+    built(onOne.build(one.data(), n, p, asked, useQuantiles));
+    check(onMany.numCuts[1] == asked && onOne.numCuts[1] == 1 &&
+            onFew.numCuts[1] == (useQuantiles ? 5u : asked),
+          "creation: the asked count, one point over one value, and five "
+          "under the quantile rule over six values");
+
+    // from a grid set longer and shorter than the asked count
+    for (std::uint32_t held : { 50u, 3u }) {
+      const double* set = held == 50u ? longer.data() : shorter;
+      ColumnStore refreshed;
+      built(refreshed.build(x.data(), n, p, asked, useQuantiles));
+      refreshed.setCutPointsForColumn(1, set, held, x.data());
+      check(refreshed.numCuts[1] == held &&
+              refreshed.cutsWouldRemainValid(1, replacement.data() + n),
+            "a set grid is held and any numeric column passes the precheck");
+      refreshed.setColumns(replacement.data() + n, &column, 1, true);
+      check(refreshed.numCuts[1] == asked &&
+              refreshed.requestedNumCuts[1] == asked &&
+              refreshed.cutPoints[1] == onMany.cutPoints[1],
+            "a refresh over a set grid derives creation's grid");
+    }
+    // from one point to many, from many to few and to one, and back
+    ColumnStore store;
+    built(store.build(one.data(), n, p, asked, useQuantiles));
+    store.setColumns(replacement.data() + n, &column, 1, true);
+    check(store.cutPoints[1] == onMany.cutPoints[1] &&
+            store.numCuts[1] == asked,
+          "a refresh from one point derives creation's grid");
+    store.setColumns(few.data() + n, &column, 1, true);
+    check(store.cutPoints[1] == onFew.cutPoints[1] &&
+            store.numCuts[1] == onFew.numCuts[1],
+          "a refresh onto six values derives creation's grid");
+    store.setColumns(one.data() + n, &column, 1, true);
+    check(store.cutPoints[1] == std::vector<double>{2.5} &&
+            store.numCuts[1] == 1,
+          "a refresh onto a single value leaves one point");
+    store.setColumns(replacement.data() + n, &column, 1, true);
+    bool sameCodes = true;
+    for (size_t i = 0; i < n; ++i)
+      sameCodes &= store.codeAt(1, i) == onMany.codeAt(1, i);
+    check(store.cutPoints[1] == onMany.cutPoints[1] && sameCodes,
+          "and back onto many values, grid and codes are creation's");
+    // without the refresh the grid is kept
+    store.setColumns(few.data() + n, &column, 1, false);
+    check(store.cutPoints[1] == onMany.cutPoints[1],
+          "an update that does not refresh keeps the grid");
+
+    // a CSC-backed column, set long, refreshed from CSC entries
+    OneCscColumn start(x.data(), n), next(replacement.data(), n);
+    ColumnStore sparse, sparseTwin;
+    built(sparse.build(start.source, nullptr, asked, useQuantiles));
+    built(sparseTwin.build(next.source, nullptr, asked, useQuantiles));
+    sparse.setCutPointsForColumn(0, longer.data(), 50, nullptr);
+    check(sparse.columnIsCscBacked(0) && sparse.numCuts[0] == 50 &&
+            sparse.cutsWouldRemainValidCsc(0, next.values.data(),
+                                           next.values.size(), 0.0),
+          "a CSC column holds a set grid and passes the precheck");
+    sparse.mutateCscColumnFromCsc(0, next.rows.data(), next.values.data(),
+                                  next.rows.size(), 0.0, true);
+    check(sparse.numCuts[0] == asked &&
+            sparse.cutPoints[0] == sparseTwin.cutPoints[0],
+          "a CSC refresh over a set grid derives creation's grid");
+  }
+  printf("ok: a refresh derives the grid a creation would\n");
+}
+
+// The two rules that move a tree's splits onto a replaced grid, and the form
+// of each that merges nothing and can be put back.
+static void testSplitPlacement() {
+  check(Tree::rescaledSplitIndex(0, 7, 7) == 0 &&
+          Tree::rescaledSplitIndex(3, 7, 7) == 3 &&
+          Tree::rescaledSplitIndex(6, 7, 7) == 6 &&
+          Tree::rescaledSplitIndex(65532, 65533, 65533) == 65532,
+        "an unchanged count leaves every position");
+  check(Tree::rescaledSplitIndex(0, 1, 20) == 10 &&
+          Tree::rescaledSplitIndex(19, 20, 5) == 4 &&
+          Tree::rescaledSplitIndex(0, 20, 5) == 0 &&
+          Tree::rescaledSplitIndex(5, 7, 3) == 2 &&
+          Tree::rescaledSplitIndex(3, 7, 3) == 1 &&
+          Tree::rescaledSplitIndex(1, 7, 3) == 0,
+        "a changed count rescales to the centre of the position's share");
+  bool ordered = true;
+  for (int32_t i = 1; i < 100; ++i)
+    for (size_t m : { size_t(1), size_t(7), size_t(100), size_t(250) })
+      ordered &= Tree::rescaledSplitIndex(i - 1, 100, m) <=
+                   Tree::rescaledSplitIndex(i, 100, m) &&
+                 Tree::rescaledSplitIndex(i, 100, m) < static_cast<int32_t>(m);
+  check(ordered, "rescaling keeps order and stays on the grid");
+
+  // quantile grids over 1..8 give cuts {1.5, ..., 7.5}: a root at index 5,
+  // its left child at 3, that child's left child at 1
+  const size_t n = 8;
+  std::vector<double> x(n), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) x[i] = static_cast<double>(i + 1);
+  auto grow = [&](ColumnStore& store, std::vector<index_t>& indices,
+                  Tree& tree) {
+    built(store.build(x.data(), n, 1, 7, true));
+    tree.initialize(indices.data(), n);
+    Rule rule;
+    rule.variableIndex = 0;
+    rule.setSplitIndex(5);
+    tree.birth(store, 0, rule, y.data(), nullptr);
+    rule.setSplitIndex(3);
+    tree.birth(store, tree.at(0).leftChild, rule, y.data(), nullptr);
+    rule.setSplitIndex(1);
+    tree.birth(store, tree.at(tree.at(0).leftChild).leftChild, rule, y.data(),
+               nullptr);
+  };
+  auto positions = [](const Tree& tree) {
+    std::vector<int32_t> out;
+    for (int32_t i = 0; !tree.at(i).isBottom(); i = tree.at(i).leftChild)
+      out.push_back(tree.at(i).rule.splitIndex());
+    return out;
+  };
+  auto noneOutside = [](const Tree& tree, const ColumnStore& store) {
+    for (int32_t i = 0; !tree.at(i).isBottom(); i = tree.at(i).leftChild)
+      if (tree.splitIsOutsideInterval(store, i)) return false;
+    return true;
+  };
+  // four values give 3 cuts {1.5, 2.5, 3.5}, three give 2 cuts {1.5, 2.5}
+  std::vector<double> four(n), three(n);
+  for (size_t i = 0; i < n; ++i) {
+    four[i] = static_cast<double>(i % 4 + 1);
+    three[i] = static_cast<double>(i % 3 + 1);
+  }
+
+  for (SplitPlacement placement :
+       { SplitPlacement::byPosition, SplitPlacement::byValue }) {
+    bool byPosition = placement == SplitPlacement::byPosition;
+    const char* label = byPosition ? "by position" : "by value";
+    char line[160];
+    ColumnStore store;
+    std::vector<index_t> indices(n);
+    Tree tree;
+    grow(store, indices, tree);
+    std::vector<std::vector<double>> oldCuts(store.cutPoints);
+    std::vector<Tree::SplitUndo> undo;
+
+    // a column with no old grid is left alone
+    std::vector<std::vector<double>> none(1);
+    check(tree.tryMapOldCutPointsOntoNew(store, none, placement, undo) &&
+            undo.empty() && positions(tree) == std::vector<int32_t>{5, 3, 1},
+          "a column handed no old grid keeps its splits");
+
+    // onto 3 cuts: positions 5, 3, 1 of 7 rescale to 2, 1, 0; by value the
+    // cuts 6.5, 4.5, 2.5 go to 3.5 (2), then inside [0, 2) to 2.5 (1), then
+    // inside [0, 1) to 1.5 (0)
+    check(store.setData(four.data(), n), "the store takes four values");
+    bool held = tree.tryMapOldCutPointsOntoNew(store, oldCuts, placement, undo);
+    snprintf(line, sizeof line,
+             "%s: three splits move onto a grid of three points, recorded",
+             label);
+    check(held && positions(tree) == std::vector<int32_t>{2, 1, 0} &&
+            undo.size() == 3 && noneOutside(tree, store),
+          line);
+    for (size_t k = undo.size(); k-- > 0;)
+      undo[k].tree->at(undo[k].nodeIndex).rule.setSplitIndex(
+        undo[k].splitIndex);
+    undo.clear();
+    snprintf(line, sizeof line, "%s: the record puts every position back",
+             label);
+    check(positions(tree) == std::vector<int32_t>{5, 3, 1}, line);
+
+    // onto 2 cuts the third split has no position left: the form that
+    // merges nothing fails, the other merges it
+    check(store.setData(three.data(), n), "the store takes three values");
+    held = tree.tryMapOldCutPointsOntoNew(store, oldCuts, placement, undo);
+    snprintf(line, sizeof line,
+             "%s: an emptied interval fails the move that merges nothing",
+             label);
+    check(!held && undo.size() == 2, line);
+    for (size_t k = undo.size(); k-- > 0;)
+      undo[k].tree->at(undo[k].nodeIndex).rule.setSplitIndex(
+        undo[k].splitIndex);
+    check(positions(tree) == std::vector<int32_t>{5, 3, 1},
+          "and its record puts the two moved positions back");
+    std::vector<double> params(tree.nodes.size(), 0.0);
+    tree.mapOldCutPointsOntoNew(store, oldCuts, params, 1, placement);
+    snprintf(line, sizeof line,
+             "%s: the merging move leaves two splits, none outside its "
+             "interval or past the grid", label);
+    check(positions(tree) == std::vector<int32_t>{1, 0} &&
+            noneOutside(tree, store),
+          line);
+  }
+
+  // where the two rules part: seven cuts onto seven others. By position
+  // nothing moves; by value each split follows its threshold
+  ColumnStore store;
+  std::vector<index_t> indices(n);
+  Tree tree;
+  grow(store, indices, tree);
+  std::vector<std::vector<double>> oldCuts(store.cutPoints);
+  std::vector<double> shifted(n);
+  for (size_t i = 0; i < n; ++i) shifted[i] = x[i] + 2.0;
+  check(store.setData(shifted.data(), n), "the store takes shifted values");
+  std::vector<Tree::SplitUndo> undo;
+  check(tree.tryMapOldCutPointsOntoNew(store, oldCuts,
+                                       SplitPlacement::byPosition, undo) &&
+          undo.empty() && positions(tree) == std::vector<int32_t>{5, 3, 1},
+        "by position, an unchanged count moves nothing");
+  // new cuts 3.5..9.5: 6.5 is index 3, 4.5 index 1, 2.5 clamps to index 0
+  check(tree.tryMapOldCutPointsOntoNew(store, oldCuts, SplitPlacement::byValue,
+                                       undo) &&
+          positions(tree) == std::vector<int32_t>{3, 1, 0} && undo.size() == 3,
+        "by value, each split takes the point nearest its threshold");
+  printf("ok: split placement by position and by value\n");
 }
 
 static void testMapOldCutPointsOntoNew() {
@@ -2744,6 +3095,9 @@ void runDataTests() {
   testCodeForOrdinalBoundaries();
   testSetCutPointsOrphan();
   testRequestedCutCount();
+  testDistinctCutGrids();
+  testRefreshDerivesAsCreation();
+  testSplitPlacement();
   testQuantileCutPoints();
   testQuantileGridSpread();
   testMapOldCutPointsOntoNew();

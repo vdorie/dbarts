@@ -1870,55 +1870,94 @@ public:
   /// (ColumnStore::mutateColumnFromSource): a CSC column onto a CSC-backed
   /// one as its entries, never densified, and a CSC or coded column onto a
   /// dense-backed one through one reused column of scratch.
-  PredictorUpdateResult setPredictor(const PredictorSource& newX,
-                                     bool forceUpdate, bool updateCutPoints) {
+  ///
+  /// updateCutPoints re-derives each numeric column's grid for its new
+  /// values, as creation would; placement then says where the splits on a
+  /// column whose grid changed go (runPredictorTransaction).
+  PredictorUpdateResult setPredictor(
+      const PredictorSource& newX, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     WholeMatrixUpdate strategy{data_, newX};
-    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
+    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints,
+                                   placement);
   }
 
   /// Overwrite a subset of columns in place; view column k, numObservations
   /// rows, fills store column columns[k]. Same transaction and view semantics
   /// as setPredictor; a column named twice is applied in order and, on a
   /// reject, restored exactly.
-  PredictorUpdateResult updatePredictor(const PredictorSource& newColumns,
-                                        const size_t* columns,
-                                        size_t numColumns, bool forceUpdate,
-                                        bool updateCutPoints) {
+  PredictorUpdateResult updatePredictor(
+      const PredictorSource& newColumns, const size_t* columns,
+      size_t numColumns, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     SubsetUpdate strategy{data_, newColumns, columns, numColumns};
-    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints);
+    return runPredictorTransaction(strategy, forceUpdate, updateCutPoints,
+                                   placement);
   }
 
   /// Dense convenience spellings: plain column-major blocks over the store's
   /// own row count.
-  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
-                                     bool updateCutPoints) {
+  PredictorUpdateResult setPredictor(
+      const double* newX, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     return setPredictor(densePredictorSource(newX, data_.numObservations,
                                              data_.numPredictors),
-                        forceUpdate, updateCutPoints);
+                        forceUpdate, updateCutPoints, placement);
   }
-  PredictorUpdateResult updatePredictor(const double* newColumns,
-                                        const size_t* columns,
-                                        size_t numColumns, bool forceUpdate,
-                                        bool updateCutPoints) {
+  PredictorUpdateResult updatePredictor(
+      const double* newColumns, const size_t* columns, size_t numColumns,
+      bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     return updatePredictor(
       densePredictorSource(newColumns, data_.numObservations, numColumns),
-      columns, numColumns, forceUpdate, updateCutPoints);
+      columns, numColumns, forceUpdate, updateCutPoints, placement);
   }
 
-  /// Install externally chosen cut points (non-decreasing) for a subset of
-  /// columns and unconditionally refresh the trees: splits that fall out of
-  /// range or lose their observations collapse into their parents, exactly
-  /// as a forced predictor update does.
+  /// Install externally chosen cut points (strictly increasing) for a subset
+  /// of columns and unconditionally refresh the trees: each split on a named
+  /// column goes where placement says (splitsToMove), and one whose interval
+  /// empties or that loses its observations collapses into its parent,
+  /// exactly as in a forced predictor update.
   /// currentPredictors is the call-time predictor matrix the columns
   /// re-quantize from (data@x); null for CSC/mixed stores, whose columns read
   /// their retained slices instead.
   void setCutPoints(const double* const* newCutPoints,
                     const std::uint32_t* numCutPoints, const size_t* columns,
-                    size_t numColumns, const double* currentPredictors) {
+                    size_t numColumns, const double* currentPredictors,
+                    SplitPlacement placement = SplitPlacement::byPosition) {
+    std::vector<std::vector<double>> oldCutPoints(data_.numPredictors);
+    for (size_t k = 0; k < numColumns; ++k)
+      if (oldCutPoints[columns[k]].empty())
+        oldCutPoints[columns[k]] = data_.cutPoints[columns[k]];
     for (size_t k = 0; k < numColumns; ++k)
       data_.setCutPointsForColumn(columns[k], newCutPoints[k], numCutPoints[k],
                                   currentPredictors);
-    for (auto& chain : chains_) chain->forceRefreshTrees();
+    const std::vector<std::vector<double>>* moved =
+      splitsToMove(oldCutPoints, placement);
+    for (auto& chain : chains_) chain->forceRefreshTrees(moved, placement);
+  }
+
+  /// Narrows \p oldCutPoints, the grids some columns held before a change
+  /// (empty for every other column), to the columns whose splits must move
+  /// onto the grid now held: by position one whose count changed, by value
+  /// one whose grid changed at all. Null when no column is left, so a change
+  /// that moves no split takes the path of one that replaced no grid.
+  const std::vector<std::vector<double>>* splitsToMove(
+      std::vector<std::vector<double>>& oldCutPoints,
+      SplitPlacement placement) const {
+    bool any = false;
+    for (size_t j = 0; j < oldCutPoints.size(); ++j) {
+      std::vector<double>& old = oldCutPoints[j];
+      if (old.empty()) continue;
+      const std::vector<double>& held = data_.cutPoints[j];
+      bool same = old.size() == held.size() &&
+        (placement == SplitPlacement::byPosition ||
+         std::memcmp(old.data(), held.data(),
+                     old.size() * sizeof(double)) == 0);
+      if (same) old.clear();
+      else any = true;
+    }
+    return any ? &oldCutPoints : nullptr;
   }
 
   /// Install one column's new values observation-by-observation in random
@@ -2200,14 +2239,28 @@ private:
   /// swap), which prunes the trees of forests past the first that cannot be
   /// affected; the survivor lists travel from phase one to phase two inside
   /// the handoff, so both phases quantify over the same set.
-  bool revalidateAllChains(const size_t* columns, size_t numColumns) {
+  ///
+  /// movedCutPoints, when non-null, holds the old grid of each column whose
+  /// splits move onto the grid now held (splitsToMove); phase one moves them
+  /// and fails where a split's interval is empty. A failure puts every moved
+  /// position back before it returns, so the caller's restore of the store
+  /// and a repartition leave the trees as they were.
+  bool revalidateAllChains(
+      const size_t* columns, size_t numColumns,
+      const std::vector<std::vector<double>>* movedCutPoints = nullptr,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     size_t numChains = chains_.size();
     std::vector<typename Chain<L, ResidT>::ForestRevalidation> state(numChains);
 
     bool allValid = true;
     for (size_t c = 0; c < numChains && allValid; ++c)
-      allValid = chains_[c]->revalidateTrees(state[c], columns, numColumns);
-    if (!allValid) return false;
+      allValid = chains_[c]->revalidateTrees(state[c], columns, numColumns,
+                                             movedCutPoints, placement);
+    if (!allValid) {
+      for (size_t c = 0; c < numChains; ++c)
+        Chain<L, ResidT>::undoSplitMoves(state[c]);
+      return false;
+    }
 
     for (size_t c = 0; c < numChains; ++c)
       chains_[c]->rebuildFitsFromParameters(state[c]);
@@ -2227,6 +2280,7 @@ private:
     std::vector<xint_t> oldCodes;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
+    std::vector<std::uint32_t> oldNumCuts;
     // CSC/mixed rollback: a sparse column's storage lives outside train.codes
     // (rank bitmaps in sparseColumns, the borrowed/owned slice in sources, the
     // mutation-owned nonzero buffers), so snapshot it alongside the codes when
@@ -2246,7 +2300,11 @@ private:
       oldCodes = std::move(data.train.codes);
       data.train.codes.assign(oldCodes.size(), 0);
       oldHasMissing = data.hasMissing;
-      if (updateCuts) oldCuts = data.cutPoints;
+      if (updateCuts) {
+        // a refreshed grid may hold another count than the one it replaces
+        oldCuts = data.cutPoints;
+        oldNumCuts = data.numCuts;
+      }
       csc = data.builtFromCsc;
       if (csc) {
         oldSparseColumns = data.train.sparseColumns;
@@ -2260,7 +2318,10 @@ private:
     void restore(bool updateCuts) {
       data.train.codes = std::move(oldCodes);
       data.hasMissing = std::move(oldHasMissing);
-      if (updateCuts) data.cutPoints = std::move(oldCuts);
+      if (updateCuts) {
+        data.cutPoints = std::move(oldCuts);
+        data.numCuts = std::move(oldNumCuts);
+      }
       if (csc) {
         data.train.sparseColumns = std::move(oldSparseColumns);
         data.train.sources = std::move(oldSources);
@@ -2283,6 +2344,7 @@ private:
     size_t count;
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
+    std::vector<std::uint32_t> oldNumCuts;
     std::vector<ColumnStore::ColumnCodeRollback> records;
     // CSC-backed columns of the subset snapshot their sparse storage here
     // instead of the dense per-cell journal (which has no codes[] to journal
@@ -2301,12 +2363,16 @@ private:
       std::vector<double> scratch;
       oldHasMissing.resize(count);
       oldCuts.resize(updateCuts ? count : 0);
+      oldNumCuts.resize(updateCuts ? count : 0);
       records.resize(count);
       cscRecords.resize(count);
       for (size_t k = 0; k < count; ++k) {
         size_t j = columns[k];
         oldHasMissing[k] = data.hasMissing[j];
-        if (updateCuts) oldCuts[k] = data.cutPoints[j];
+        if (updateCuts) {
+          oldCuts[k] = data.cutPoints[j];
+          oldNumCuts[k] = data.numCuts[j];
+        }
         bool csc = data.columnIsCscBacked(j);
         if (csc) data.snapshotCscColumn(j, cscRecords[k]);
         data.mutateColumnFromSource(j, source, k, updateCuts, scratch,
@@ -2324,7 +2390,10 @@ private:
         else
           data.restoreColumn(j, records[k]);
         data.hasMissing[j] = oldHasMissing[k];
-        if (updateCuts) data.cutPoints[j] = std::move(oldCuts[k]);
+        if (updateCuts) {
+          data.cutPoints[j] = std::move(oldCuts[k]);
+          data.numCuts[j] = oldNumCuts[k];
+        }
       }
     }
   };
@@ -2339,10 +2408,20 @@ private:
   /// mixed store, the owned dense block of the columns the strategy touches
   /// (the strategy's own records carry no raw). The strategy owns the codes,
   /// missing flags, and cut grids it moves.
+  ///
+  /// A refreshed grid is derived from the new values alone, so it may differ
+  /// from the one it replaces in its points and in their count. Where it
+  /// does, placement moves the column's splits onto it (splitsToMove): by
+  /// position each keeps its place, rescaled when the count changed and
+  /// untouched otherwise; by value each takes the point nearest its old
+  /// threshold. Either stays inside the interval the split's ancestors leave.
+  /// A split whose interval is empty after the move is merged under
+  /// forceUpdate and rolls the transaction back otherwise, the moved
+  /// positions put back with the grids.
   template <typename Strategy>
-  PredictorUpdateResult runPredictorTransaction(Strategy& strategy,
-                                                bool forceUpdate,
-                                                bool updateCutPoints) {
+  PredictorUpdateResult runPredictorTransaction(
+      Strategy& strategy, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     std::vector<double> scratch;
     for (size_t k = 0; k < strategy.numColumns(); ++k) {
       size_t j = strategy.columns ? strategy.columns[k] : k;
@@ -2354,9 +2433,22 @@ private:
         return PredictorUpdateResult::invalidCutPoints;
     }
 
+    // the grid each refreshed numeric column holds before the change
+    std::vector<std::vector<double>> oldCutPoints;
+    if (updateCutPoints) {
+      oldCutPoints.resize(data_.numPredictors);
+      for (size_t k = 0; k < strategy.numColumns(); ++k) {
+        size_t j = strategy.columns ? strategy.columns[k] : k;
+        if (!data_.isFactor(j) && oldCutPoints[j].empty())
+          oldCutPoints[j] = data_.cutPoints[j];
+      }
+    }
+
     if (forceUpdate) {
       strategy.applyForced(updateCutPoints);
-      for (auto& chain : chains_) chain->forceRefreshTrees();
+      const std::vector<std::vector<double>>* moved =
+        updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
+      for (auto& chain : chains_) chain->forceRefreshTrees(moved, placement);
       requantizeTestColumns(strategy, updateCutPoints);
       return PredictorUpdateResult::accepted;
     }
@@ -2366,7 +2458,10 @@ private:
     data_.snapshotOwnedDenseColumns(strategy.columns, strategy.numColumns(),
                                     oldOwnedDense);
     strategy.snapshotApply(updateCutPoints);
-    if (!revalidateAllChains(strategy.columns, strategy.numColumns())) {
+    const std::vector<std::vector<double>>* moved =
+      updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
+    if (!revalidateAllChains(strategy.columns, strategy.numColumns(), moved,
+                             placement)) {
       data_.gatheredRawValues = std::move(oldGatheredRaw);
       data_.restoreOwnedDenseColumns(oldOwnedDense);
       strategy.restore(updateCutPoints);

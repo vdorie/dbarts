@@ -3,7 +3,8 @@
 # than the cut count plus one takes every midpoint; a longer one takes the cut
 # count of them, spread evenly over all the midpoints, so both ends of the
 # column are reached. Every entry point builds that one grid, and a refresh
-# through setPredictor spreads the count the column already holds.
+# through setPredictor derives it again from the new values, counting from
+# n.cuts whatever number of points the column held.
 
 cutPointsOf <- function(sampler) {
   sampler$storeState()
@@ -155,10 +156,13 @@ for (door in names(doors)) {
   )
 }
 
-# a refresh spreads the count the column holds over the new values' midpoints
-# and raises nothing: 10 cuts from 11 distinct values, refreshed onto 60
+# a refresh spreads n.cuts over the new values' midpoints, whatever count the
+# column holds, and raises nothing: 10 cuts from 11 distinct values, refreshed
+# onto 60 under n.cuts = 10 and, below, under n.cuts = 100
 xRefresh <- cbind(rep(seq_len(11L), length.out = n), x[, 1L])
-sampler <- dbarts(xRefresh, y, control = control)
+controlTen <- control
+controlTen@n.cuts <- 10L
+sampler <- dbarts(xRefresh, y, control = controlTen)
 expect_identical(cutPointsOf(sampler)[[1L]], seq_len(10L) + 0.5)
 replacement <- rep(seq_len(60L), length.out = n)
 refreshWarnings <- warningsOf(
@@ -166,23 +170,32 @@ refreshWarnings <- warningsOf(
     replacement,
     1L,
     forceUpdate = TRUE,
-    updateCutPoints = TRUE
+    updateCutPoints = "position"
   )
 )
 expect_identical(length(refreshWarnings), 0L)
 refreshed <- cutPointsOf(sampler)
 expect_identical(refreshed[[1L]], spreadMidpoints(replacement, 10L))
 expect_identical(refreshed[[1L]], c(3, 9, 15, 21, 27, 33, 39, 45, 51, 57) + 0.5)
-expect_identical(refreshed[[2L]], spreadMidpoints(x[, 1L], 100L))
-# fewer distinct values than cuts held is still refused
-expect_error(
-  sampler$setPredictor(
-    rep(seq_len(5L), length.out = n),
-    1L,
-    updateCutPoints = TRUE
-  ),
-  pattern = "induced cut points in new predictor less than previous"
-)
-expect_identical(cutPointsOf(sampler)[[1L]], refreshed[[1L]])
+expect_identical(refreshed[[2L]], spreadMidpoints(x[, 1L], 10L))
+# under n.cuts = 100 the same refresh takes every midpoint of the 60 values,
+# where the column held 10 cuts
+sampler <- dbarts(xRefresh, y, control = control)
+expect_identical(cutPointsOf(sampler)[[1L]], seq_len(10L) + 0.5)
+expect_true(sampler$setPredictor(
+  replacement,
+  1L,
+  forceUpdate = TRUE,
+  updateCutPoints = "position"
+))
+expect_identical(cutPointsOf(sampler)[[1L]], seq_len(59L) + 0.5)
+# fewer distinct values than cuts held shrink the grid to their midpoints
+expect_true(sampler$setPredictor(
+  rep(seq_len(5L), length.out = n),
+  1L,
+  forceUpdate = TRUE,
+  updateCutPoints = "position"
+))
+expect_identical(cutPointsOf(sampler)[[1L]], seq_len(4L) + 0.5)
 
 rm(sampler, fitModern, fitLegacy, fitShim, fitGrouped, pd, pd2, doors)

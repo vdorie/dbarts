@@ -5997,6 +5997,32 @@ SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptrExpr) {
 // write in place into the matrix the sampler currently borrows, so they
 // alias the R-side data.
 
+// What a predictor update does to cut grids and the splits on them, as the R
+// methods hand it over: 0 keeps every grid, 1 re-derives the grids and keeps
+// each split's position, 2 re-derives them and moves each split by value.
+// setCutPoints takes 1 or 2 for the grid it is given. R resolves the word, so
+// any other value is a caller that is not the package.
+static int splitRuleFromExpression(SEXP ruleExpr, const char* method,
+                                   bool allowNone) {
+  int rule = Rf_isInteger(ruleExpr) && Rf_xlength(ruleExpr) == 1
+    ? INTEGER(ruleExpr)[0] : NA_INTEGER;
+  if (rule == NA_INTEGER || rule < (allowNone ? 0 : 1) || rule > 2)
+    Rf_error("%s: unrecognized rule for cut points and splits", method);
+  return rule;
+}
+static bartcore::SplitPlacement splitPlacementFromRule(int rule) {
+  return rule == 2 ? bartcore::SplitPlacement::byValue
+                   : bartcore::SplitPlacement::byPosition;
+}
+
+// A numeric column's grid is derived from whatever values it is given, so the
+// one refusal left to a predictor update is a factor value off its level
+// table; validateSourceColumnValues names the cell first for every caller
+// here, and this holds the engine's own check.
+static const char* const predictorLevelRefusal =
+  "$setPredictor: a factor column was given a value that is not one of its "
+  "levels";
+
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr) {
   // the parsed buffers are owned across validateSourceColumnValues, whose
@@ -6030,12 +6056,13 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
     for (size_t j = 0; j < shape.numPredictors; ++j)
       validateSourceColumnValues(holder.sampler->data(), j, view, j);
 
+    int rule = splitRuleFromExpression(updateCutPointsExpr, "$setPredictor",
+                                       true);
     bartcore::PredictorUpdateResult result = holder.sampler->setPredictor(
-      view, Rf_asLogical(forceUpdateExpr) == TRUE,
-      Rf_asLogical(updateCutPointsExpr) == TRUE);
+      view, Rf_asLogical(forceUpdateExpr) == TRUE, rule != 0,
+      splitPlacementFromRule(rule));
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
-      Rf_error("number of induced cut points in new predictor less than "
-               "previous: old splits would be invalid");
+      Rf_error("%s", predictorLevelRefusal);
     // the engine re-quantized the values into owned codes and retains no
     // pointer; the R method reassigns sampler$data@x, which keeps the current
     // source alive
@@ -6090,26 +6117,30 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     for (size_t k = 0; k < numColumns; ++k)
       validateSourceColumnValues(holder.sampler->data(), columns[k], view, k);
 
+    int rule = splitRuleFromExpression(updateCutPointsExpr, "$setPredictor",
+                                       true);
     bartcore::PredictorUpdateResult result = holder.sampler->updatePredictor(
       view, columns.data(), numColumns,
-      Rf_asLogical(forceUpdateExpr) == TRUE,
-      Rf_asLogical(updateCutPointsExpr) == TRUE);
+      Rf_asLogical(forceUpdateExpr) == TRUE, rule != 0,
+      splitPlacementFromRule(rule));
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
-      Rf_error("number of induced cut points in new predictor less than "
-               "previous: old splits would be invalid");
+      Rf_error("%s", predictorLevelRefusal);
     return Rf_ScalarLogical(
       result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
   });
 }
 
 SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
-                           SEXP columnsExpr, SEXP currentPredictorsExpr) {
+                           SEXP columnsExpr, SEXP currentPredictorsExpr,
+                           SEXP splitsExpr) {
   // the by-value scratch is freed by the wrapper on the Rf_error jump
   return unwindProtect([&, cutPoints = std::vector<const double*>{},
                         numCutPoints = std::vector<std::uint32_t>{},
                         columns = std::vector<size_t>{}]() mutable -> SEXP {
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     refuseMutationOnView(*holder.sampler, "$setCutPoints");
+    bartcore::SplitPlacement placement = splitPlacementFromRule(
+      splitRuleFromExpression(splitsExpr, "$setCutPoints", false));
     size_t numPredictors = holder.sampler->shape().numPredictors;
     // dense columns re-quantize from the supplied data@x; CSC/mixed columns
     // read their retained slices, so a non-matrix source is passed as null
@@ -6193,7 +6224,7 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
 
     holder.sampler->setCutPoints(cutPoints.data(), numCutPoints.data(),
                                  columns.data(), columns.size(),
-                                 currentPredictors);
+                                 currentPredictors, placement);
     return R_NilValue;
   });
 }

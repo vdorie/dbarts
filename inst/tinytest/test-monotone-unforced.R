@@ -186,7 +186,7 @@ expect_identical(
   observe(sampler$setPredictor(
     xRescaled,
     forceUpdate = FALSE,
-    updateCutPoints = TRUE
+    updateCutPoints = "position"
   )),
   outcome(FALSE)
 )
@@ -403,11 +403,19 @@ completes(
 sampler <- emptied()
 expect_false(sampler$setState(handState(sampler, list(holds))))
 expect_identical(leaves(sampler), holds[1:3])
-# setCutPoints completes in silence too: a grid without the x1 cut leaves
-# the tree a single leaf
+# setCutPoints completes in silence too: on a shorter grid the x1 split
+# keeps its place, rescaled, and the tree its leaves; a grid of one point
+# below every x1 value leaves the split a side no row reaches, and the tree
+# a single leaf
 sampler <- make()
 expect_identical(
   observe(sampler$setCutPoints(c(0.25, 0.75), "x1")),
+  outcome(NULL, visible = FALSE)
+)
+expect_identical(length(leaves(sampler)), 4L)
+sampler <- make()
+expect_identical(
+  observe(sampler$setCutPoints(min(x1) - 1, "x1")),
   outcome(NULL, visible = FALSE)
 )
 expect_identical(leaves(sampler), numeric())

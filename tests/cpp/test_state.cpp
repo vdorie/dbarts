@@ -920,13 +920,14 @@ static void testDegenerateGridRestores(ext_rng* rng) {
   check(std::isfinite(cuts0.front()) && std::isfinite(cuts0.back()) &&
           cuts0.back() < 1.0,
         "the uniform grid spans the finite values only");
-  check(cuts1.size() > 1 && cuts1.front() == cuts1.back(),
-        "a constant column's uniform grid repeats one value");
+  check(cuts1.size() == 1 && cuts1[0] == 0.0 &&
+          sampler.data().numCuts[1] == 1,
+        "a constant column's uniform grid is one point at its value");
 
   SamplerStateData state;
   sampler.getState(state);
-  check(sampler.setState(state, nullptr),
-        "a state carrying a repeated grid restores");
+  check(restoresExactly(sampler, state),
+        "a state carrying a one-point grid restores as stored");
 
   SamplerStateData bad(state);
   bad.cutPoints[0][1] = std::numeric_limits<double>::quiet_NaN();
@@ -940,9 +941,11 @@ static void testDegenerateGridRestores(ext_rng* rng) {
         "setState rejects a grid past the representable count");
   check(sampler.setState(state, nullptr), "the original state still restores");
 
-  check(cutGridIsValid(cuts1.data(), cuts1.size(), false) &&
-          !cutGridIsValid(cuts1.data(), cuts1.size(), true),
-        "a repeated grid is valid only non-strictly");
+  const double repeated[] = {0.0, 0.5, 0.5, 1.0};
+  check(cutGridIsValid(cuts1.data(), cuts1.size(), true) &&
+          !cutGridIsValid(repeated, 4, true) &&
+          cutGridIsValid(repeated, 2, true),
+        "a grid is strictly valid only where it strictly increases");
   printf("ok: degenerate grid restores\n");
 }
 

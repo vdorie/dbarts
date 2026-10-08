@@ -55,7 +55,7 @@ sampler.cuts$setPredictor(
   u.new,
   column = 1L,
   forceUpdate = TRUE,
-  updateCutPoints = TRUE
+  updateCutPoints = "position"
 )
 ssr.mutated <- sampler.cuts$getSumsOfSquaredResiduals()
 own.grid <- uniformGrid(u.new, sampler.cuts$data@n.cuts[1L])
@@ -70,7 +70,7 @@ sampler.dense$setPredictor(
   u.new,
   column = 1L,
   forceUpdate = TRUE,
-  updateCutPoints = TRUE
+  updateCutPoints = "position"
 )
 ssr.dense <- sampler.dense$getSumsOfSquaredResiduals()
 sampler.dense$setCutPoints(list(own.grid), 1L)

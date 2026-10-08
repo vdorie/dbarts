@@ -97,6 +97,11 @@ constexpr xint_t missingCategoryCode(std::uint32_t numCategories) {
 
 inline bool isNA(double value) { return value != value; }
 
+/// Where the splits on a column go when its cut grid is replaced: each keeps
+/// its position, rescaled when the grid's count changes, or moves to the new
+/// point nearest its old threshold's value.
+enum class SplitPlacement { byPosition, byValue };
+
 /// Whether an ordinal column's grid of numCuts points is one the store can
 /// hold: 1 to maxNumCutsRepresentable cuts, none NaN, and increasing -
 /// strictly when strict, otherwise allowing equal neighbours, which the store
@@ -782,8 +787,10 @@ struct CodeBlock {
 /// Classic dense column store: borrowed column-major doubles quantized once
 /// into per-column integer codes against per-column cut points, either
 /// uniformly spaced over the column's range or at unique-value midpoints
-/// (quantile mode). numCuts is fixed once built; recomputing cuts for new
-/// values keeps the count so existing split indices stay in range. A
+/// (quantile mode). A grid holds each point once, so a column whose values
+/// cannot supply the count asked for holds fewer, and re-deriving a grid for
+/// new values may change its count: the caller moves the trees' split
+/// indices onto it. A
 /// categorical column has no cut grid at all - numCuts 0, cutPoints empty,
 /// its (fixed) category count in categoryCounts, and codes the values
 /// themselves.
@@ -828,10 +835,10 @@ struct ColumnStore {
   // many cut points it has.
   std::vector<std::uint32_t> categoryCounts;
   // per column, the cut count asked for at build. Fixed once built: every
-  // derivation of a numeric column's grid (build, setData) counts from it,
-  // whatever grid the column held before. It is the only count kept beside
-  // numCuts: a refresh re-cuts at the count the column holds, so a grid set
-  // longer than the request leaves nothing behind once it is replaced.
+  // derivation of a numeric column's grid (build, setData, a refresh) counts
+  // from it, whatever grid the column held before, so a grid set longer or
+  // derived shorter than the request leaves nothing behind once it is
+  // replaced. numCuts[j] is at most this for a derived grid.
   std::vector<std::uint32_t> requestedNumCuts;
   // per column, whether any training value is missing; gates the extra
   // missing-direction draw in rules and the NA-aware partition kernel.
@@ -1065,9 +1072,7 @@ struct ColumnStore {
 
   /// Quantile-mode support: sorted unique finite values of a column and the
   /// number of cuts they induce, their midpoints capped at the maxCuts the
-  /// collector is given: the asked count for a derivation, and for a refresh
-  /// the count the column holds, which is all its feasibility check compares
-  /// against.
+  /// collector is given, the count asked for.
   struct QuantileGrid {
     std::vector<double> sortedUnique;
     std::uint32_t inducedNumCuts = 0;
@@ -1137,16 +1142,17 @@ struct ColumnStore {
   /// Fills column j's numCuts[j] cuts from the grid's M midpoints, midpoint i
   /// lying between sorted distinct values i and i + 1: cut k is midpoint
   /// floor((2k + 1) M / (2c)) for c = numCuts[j], the centre of the k-th of c
-  /// equal shares of the midpoints. The cuts ascend, strictly unless two
-  /// midpoints round to one double, and leave at most
+  /// equal shares of the midpoints. The cuts ascend and leave at most
   /// floor(M / (2c)) + 1 distinct values beyond either end cut; at c == M they
-  /// are every midpoint in order. Requires c <= M, which creation satisfies by
-  /// taking the induced count and a refresh by its feasibility check.
+  /// are every midpoint in order. Two midpoints that round to one double are
+  /// kept once, numCuts[j] falling with them. Requires c <= M, which the
+  /// induced count satisfies.
   void fillCutsFromQuantileGrid(size_t j, const QuantileGrid& grid) {
     cutPoints[j].resize(numCuts[j]);
     if (grid.sortedUnique.size() < 2) {  // degenerate: no midpoint to take
       double value = grid.sortedUnique.empty() ? 0.0 : grid.sortedUnique[0];
       std::fill(cutPoints[j].begin(), cutPoints[j].end(), value);
+      dropRepeatedCuts(j);
       return;
     }
     // 64 bits hold (2k + 1) M: a count is at most maxNumCutsRepresentable, so
@@ -1159,6 +1165,15 @@ struct ColumnStore {
       cutPoints[j][k] =
         0.5 * (grid.sortedUnique[index] + grid.sortedUnique[index + 1]);
     }
+    dropRepeatedCuts(j);
+  }
+
+  /// Drops the equal neighbours of column j's ascending grid and sets
+  /// numCuts[j] to what is left, so the grid holds each point once.
+  void dropRepeatedCuts(size_t j) {
+    std::vector<double>& cuts = cutPoints[j];
+    cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+    numCuts[j] = static_cast<std::uint32_t>(cuts.size());
   }
 
   /// An ordered factor's grid: K - 1 cuts at the midpoints between
@@ -1181,11 +1196,17 @@ struct ColumnStore {
       cutPoints[j][k] = static_cast<double>(k) + 0.5;
   }
 
+  /// The uniform rule's count and fill, the one place both are decided:
+  /// requestedNumCuts[j] evenly spaced points inside [xMin, xMax], each kept
+  /// once, so a range narrower than the points resolve holds fewer and a
+  /// range of no width one point at its value.
   void fillCutsOverRange(size_t j, double xMin, double xMax) {
+    numCuts[j] = requestedNumCuts[j];
     cutPoints[j].resize(numCuts[j]);
     double increment = (xMax - xMin) / static_cast<double>(numCuts[j] + 1);
     for (std::uint32_t k = 0; k < numCuts[j]; ++k)
       cutPoints[j][k] = xMin + static_cast<double>(k + 1) * increment;
+    dropRepeatedCuts(j);
   }
 
   /// The range is over the column's FINITE values, so an infinite value codes
@@ -1285,9 +1306,7 @@ struct ColumnStore {
   /// declared count short of an observed code would strand that code past its
   /// own grid. A categorical column then keeps no cuts at all, and an ordered
   /// factor takes the midpoint grid of that level table rather than a uniform
-  /// or quantile grid over its observed values. A numeric column's grid counts
-  /// from requestedNumCuts[j] and not from the count the column holds, so a
-  /// grid set longer than the request does not reach a later derivation.
+  /// or quantile grid over its observed values (deriveNumericCuts).
   ///
   /// keepCategoryCount holds a factor column's creation-time level count
   /// against a whole-data replacement, whose new values are a new sample of
@@ -1318,95 +1337,56 @@ struct ColumnStore {
       cutPoints[j].clear();
     } else if (types[j] == ColumnKind::orderedFactor) {
       fillCutsAtLevelMidpoints(j);
-    } else if (useQuantiles) {
+    } else {
       // a numeric column's grid is over its real values, which build widens a
       // coded column back to before it gets here
-      QuantileGrid grid = columnIsCscBacked(j)
+      deriveNumericCuts(j, columnIsCscBacked(j) ? nullptr : column.values);
+    }
+    return true;
+  }
+
+  /// A numeric column's grid from its values: \p values dense, or null to
+  /// read CSC-backed column j's retained slice. The one derivation creation,
+  /// a whole-data replacement and a refresh share, so the three give one grid
+  /// for one column of values. It counts from requestedNumCuts[j] and not
+  /// from the count the column holds, and holds each point once, so the grid
+  /// has as many points as the values supply up to that count: fewer over a
+  /// range narrower than the uniform rule's points resolve or with few
+  /// distinct values under the quantile rule, and one over a single value or
+  /// none.
+  void deriveNumericCuts(size_t j, const double* values) {
+    if (useQuantiles) {
+      QuantileGrid grid = values == nullptr
         ? quantileGridForCscColumn(j, requestedNumCuts[j])
-        : quantileGridForColumn(column.values, requestedNumCuts[j]);
+        : quantileGridForColumn(values, requestedNumCuts[j]);
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
-    } else {
-      numCuts[j] = requestedNumCuts[j];
-      if (columnIsCscBacked(j)) fillCutsUniformlyCsc(j);
-      else fillCutsUniformly(j, column.values);
-    }
-    return true;
-  }
-
-  /// No two observed values differ, so a fixed-count uniform grid of two or
-  /// more cuts would repeat a value rather than strictly ascend.
-  bool valuesAreDegenerate(const double* values) const {
-    size_t i = 0;
-    while (i < numObservations && isNA(values[i])) ++i;
-    if (i >= numObservations) return true;
-    double first = values[i];
-    for (++i; i < numObservations; ++i)
-      if (!isNA(values[i]) && values[i] != first) return false;
-    return true;
-  }
-
-  /// Recompute cuts for a column's current values, keeping numCuts[j] fixed.
-  /// Refuses (returns false, keeping the old grid) when the fixed count cannot
-  /// yield a strictly ascending grid: quantile mode with fewer induced cuts
-  /// than existing (with more, the existing count is spread over all the
-  /// midpoints), or a degenerate range under two or more uniform cuts
-  /// (a re-cut there would repeat a value). A forced update then routes the
-  /// new values through the retained grid and collapses what empties.
-  /// A factor column of either kind has nothing to refresh: its grid follows
-  /// its level table rather than its values, so re-deriving one from a
-  /// replacement column would make the grid depend on call history - and for
-  /// an ordered factor would replace the level midpoints with a uniform or
-  /// quantile grid over the replacement's observed range, merging every level
-  /// that range does not separate. The caller pre-checked the values against
-  /// the table.
-  bool refreshCutsForColumn(size_t j, const double* column) {
-    if (isFactor(j)) return true;
-    if (useQuantiles) {
-      QuantileGrid grid = quantileGridForColumn(column, numCuts[j]);
-      if (grid.inducedNumCuts < numCuts[j]) return false;
-      fillCutsFromQuantileGrid(j, grid);
-    } else {
-      if (numCuts[j] >= 2 && valuesAreDegenerate(column)) return false;
-      fillCutsUniformly(j, column);
-    }
-    return true;
-  }
-
-  /// valuesAreDegenerate over CSC-backed column j's retained slice: no two
-  /// observed logical values differ, the implicit zero counting when any row
-  /// is absent. Numeric columns only.
-  bool cscColumnIsDegenerate(size_t j) const {
-    const CscColumnSlice& slice = train.sources[j].slice;
-    bool seeded = slice.numNonzero < numObservations;
-    double first = 0.0;
-    for (size_t k = 0; k < slice.numNonzero; ++k) {
-      double value = slice.values[k];
-      if (isNA(value)) continue;
-      if (!seeded) {
-        first = value;
-        seeded = true;
-      } else if (value != first) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  /// refreshCutsForColumn over CSC-backed column j's retained slice, with the
-  /// same refusals; the creation builders read the slice, so the grid is the
-  /// one the dense refresh cuts over the materialized column.
-  bool refreshCutsForCscColumn(size_t j) {
-    if (isFactor(j)) return true;
-    if (useQuantiles) {
-      QuantileGrid grid = quantileGridForCscColumn(j, numCuts[j]);
-      if (grid.inducedNumCuts < numCuts[j]) return false;
-      fillCutsFromQuantileGrid(j, grid);
-    } else {
-      if (numCuts[j] >= 2 && cscColumnIsDegenerate(j)) return false;
+    } else if (values == nullptr) {
       fillCutsUniformlyCsc(j);
+    } else {
+      fillCutsUniformly(j, values);
     }
-    return true;
+  }
+
+  /// Re-derive a column's grid for its current values, as creation would
+  /// (deriveNumericCuts): the count the column held does not enter, and the
+  /// new grid may be shorter or longer, so the caller moves the trees' splits
+  /// onto it. A factor column of either kind has nothing to refresh: its grid
+  /// follows its level table rather than its values, so re-deriving one from
+  /// a replacement column would make the grid depend on call history - and
+  /// for an ordered factor would replace the level midpoints with a uniform
+  /// or quantile grid over the replacement's observed range, merging every
+  /// level that range does not separate. The caller pre-checked the values
+  /// against the table.
+  void refreshCutsForColumn(size_t j, const double* column) {
+    if (!isFactor(j)) deriveNumericCuts(j, column);
+  }
+
+  /// refreshCutsForColumn over CSC-backed column j's retained slice; the
+  /// creation builders read the slice, so the grid is the one the dense
+  /// refresh cuts over the materialized column.
+  void refreshCutsForCscColumn(size_t j) {
+    if (!isFactor(j)) deriveNumericCuts(j, nullptr);
   }
 
   /// cutsWouldRemainValid over one CSC source column not yet installed: its
@@ -1422,27 +1402,19 @@ struct ColumnStore {
         return false;
       for (size_t k = 0; k < numNonzero; ++k)
         if (!categoricalValueIsValid(j, values[k])) return false;
-      return true;
     }
-    if (!useQuantiles) return true;
-    return quantileGridForEntries(values, numNonzero, implicitPresent,
-                                  numCuts[j])
-             .inducedNumCuts >= numCuts[j];
+    return true;
   }
 
-  /// Non-mutating feasibility check for values not yet installed: quantile
-  /// refresh feasibility for numeric columns, level-code validity for factor
-  /// columns of either kind - whose grid is fixed by the level table, so the
-  /// question is membership in it rather than an induced-cut-count comparison.
+  /// Non-mutating feasibility check for values not yet installed: level-code
+  /// validity for a factor column of either kind, whose grid is fixed by the
+  /// level table. A numeric column always passes: its grid is derived from
+  /// whatever values it is given.
   bool cutsWouldRemainValid(size_t j, const double* values) const {
-    if (isFactor(j)) {
+    if (isFactor(j))
       for (size_t i = 0; i < numObservations; ++i)
         if (!categoricalValueIsValid(j, values[i])) return false;
-      return true;
-    }
-    if (!useQuantiles) return true;
-    return quantileGridForColumn(values, numCuts[j]).inducedNumCuts >=
-           numCuts[j];
+    return true;
   }
 
   /// Install externally chosen cut points (non-decreasing) for a column and
@@ -2688,8 +2660,8 @@ struct ColumnStore {
 
   /// Whole-data replacement: new values for the same predictors, possibly a
   /// new number of observations, read for the call only. Threshold cuts are
-  /// rebuilt from scratch, so unlike refreshCutsForColumn a quantile-mode count
-  /// may shrink and the caller remaps existing splits onto the new grid; a
+  /// rebuilt from scratch, so a column's count may change and the caller
+  /// remaps existing splits onto the new grid; a
   /// factor column's level count stays fixed whichever kind it is. Dense
   /// stores only (setData is refused on CSC/mixed).
   ///

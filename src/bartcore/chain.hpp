@@ -2865,7 +2865,19 @@ public:
     std::vector<std::vector<std::size_t>> survivors;
     TreeParameters varianceParams;
     std::vector<std::size_t> varianceSurvivors;
+    // every split position phase one moved, mean and variance, in the order
+    // moved; a failed transaction puts them back (undoSplitMoves)
+    std::vector<Tree::SplitUndo> splitUndo;
   };
+
+  /// Puts back every split position a failed revalidation moved, last first.
+  static void undoSplitMoves(ForestRevalidation& state) {
+    for (std::size_t k = state.splitUndo.size(); k-- > 0;) {
+      const Tree::SplitUndo& move = state.splitUndo[k];
+      move.tree->at(move.nodeIndex).rule.setSplitIndex(move.splitIndex);
+    }
+    state.splitUndo.clear();
+  }
 
   /// Leaf parameters of tree t in transferable form: recovered from the
   /// fits for scalar leaves, copied from the persisted blocks for vector
@@ -2991,11 +3003,20 @@ public:
   /// does not take. A single-forest chain therefore runs exactly the loop it
   /// always ran.
   ///
-  /// Writes no fit, leaf value or rule, so a repartition against the restored
-  /// store undoes it. The order is judged here for that reason: the rebuild
-  /// phase is not undone.
-  bool revalidateTrees(ForestRevalidation& state, const std::size_t* touched,
-                       std::size_t numTouched) {
+  /// movedCutPoints, when non-null, is the old grid of each column whose
+  /// splits move onto the grid the store now holds, empty for every other
+  /// column: each surviving tree's splits are moved first, by placement, with
+  /// nothing merged, and a split whose interval is empty fails the tree.
+  ///
+  /// Writes no fit and no leaf value, and no rule but the positions it
+  /// records in state, so undoSplitMoves and a repartition against the
+  /// restored store undo it. The order is judged here for that reason: the
+  /// rebuild phase is not undone.
+  bool revalidateTrees(
+      ForestRevalidation& state, const std::size_t* touched,
+      std::size_t numTouched,
+      const std::vector<std::vector<double>>* movedCutPoints = nullptr,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     state.params.resize(forests_.size());
     state.survivors.resize(forests_.size());
     std::vector<std::uint32_t> census;
@@ -3010,6 +3031,12 @@ public:
       for (size_t k = 0; k < survivors.size() && allValid; ++k) {
         size_t t = survivors[k];
         recoverLeafParameters(forest, t, params[t]);
+        if (movedCutPoints != nullptr &&
+            !forest.trees[t].tryMapOldCutPointsOntoNew(
+              data_, *movedCutPoints, placement, state.splitUndo)) {
+          allValid = false;
+          break;
+        }
         forest.trees[t].repartitionSubtree(data_, 0);
         // a factor column's first missing value gives its axis a position
         // that can relate leaves the order did not
@@ -3020,7 +3047,8 @@ public:
     // the variance forest, appended after the forests_ body: a homoscedastic
     // chain never takes the branch, so its path is the one it always ran
     if (allValid && varianceForest_ != nullptr)
-      allValid = revalidateVarianceTrees(state, touched, numTouched, census);
+      allValid = revalidateVarianceTrees(state, touched, numTouched, census,
+                                         movedCutPoints, placement);
     return allValid;
   }
 
@@ -3033,12 +3061,14 @@ public:
   /// old leaves' slots.
   ///
   /// Collapses nothing, drops no missing directions and scatters nothing: this
-  /// half must be undoable by a repartition alone, and factorByTree and
-  /// combinedVariance stay untouched so a rollback restores the state exactly.
-  bool revalidateVarianceTrees(ForestRevalidation& state,
-                               const std::size_t* touched,
-                               std::size_t numTouched,
-                               std::vector<std::uint32_t>& census) {
+  /// half must be undoable by undoSplitMoves and a repartition alone, and
+  /// factorByTree and combinedVariance stay untouched so a rollback restores
+  /// the state exactly. movedCutPoints and placement are revalidateTrees'.
+  bool revalidateVarianceTrees(
+      ForestRevalidation& state, const std::size_t* touched,
+      std::size_t numTouched, std::vector<std::uint32_t>& census,
+      const std::vector<std::vector<double>>* movedCutPoints,
+      SplitPlacement placement) {
     VarianceForest& vf = *varianceForest_;
     varianceSurvivors(touched, numTouched, census, state.varianceSurvivors);
     TreeParameters& params = state.varianceParams;
@@ -3048,6 +3078,10 @@ public:
     for (std::size_t k = 0; k < survivors.size() && allValid; ++k) {
       std::size_t j = survivors[k];
       recoverVarianceLeafValues(vf, j, params[j]);
+      if (movedCutPoints != nullptr &&
+          !vf.trees[j].tryMapOldCutPointsOntoNew(data_, *movedCutPoints,
+                                                 placement, state.splitUndo))
+        return false;
       vf.trees[j].repartitionSubtree(data_, 0);
       allValid = vf.trees[j].bottomNodesAreOccupied();
     }
@@ -3330,9 +3364,20 @@ public:
   /// leaves behind, merging leaf parameters into the collapsed node.
   /// Function-valued leaves keep their per-observation fits (they remain a
   /// coherent state under any partition) and collapse structure only.
-  void forceRefreshTrees() {
+  ///
+  /// movedCutPoints, when non-null, is the old grid of each column whose
+  /// splits move onto the grid the store now holds, empty for every other
+  /// column; each tree's splits are moved by placement before it is
+  /// re-routed, a split whose interval is empty merging there
+  /// (Tree::mapOldCutPointsOntoNew).
+  void forceRefreshTrees(
+      const std::vector<std::vector<double>>* movedCutPoints = nullptr,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     size_t n = data_.numObservations;
     dropStaleMissingDirections();
+    // every tree still holds the partition its fits were drawn on, so a
+    // merge at the move weighs leaves by their rows, as the collapse does
+    const Tree::LiveRows liveRows{response_->workingWeights()};
 
     for (Forest<L, ResidT>& forest : forests_) {
       misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
@@ -3341,8 +3386,11 @@ public:
         forest.leaf.regatherTrainingCovariates(data_);
         std::vector<double> dummyParams;
         for (size_t t = 0; t < forest.numTrees; ++t) {
-          forest.trees[t].repartitionSubtree(data_, 0);
           dummyParams.assign(forest.trees[t].nodes.size(), 0.0);
+          if (movedCutPoints != nullptr)
+            forest.trees[t].mapOldCutPointsOntoNew(
+              data_, *movedCutPoints, dummyParams, 1, placement, &liveRows);
+          forest.trees[t].repartitionSubtree(data_, 0);
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              dummyParams);
           addTreeFitsToTotal(forest, t);
@@ -3351,6 +3399,9 @@ public:
         std::vector<double> paramByNode;
         for (size_t t = 0; t < forest.numTrees; ++t) {
           recoverParametersFromFits(forest, t, paramByNode);
+          if (movedCutPoints != nullptr)
+            forest.trees[t].mapOldCutPointsOntoNew(
+              data_, *movedCutPoints, paramByNode, 1, placement, &liveRows);
           forest.trees[t].repartitionSubtree(data_, 0);
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              paramByNode);
@@ -3363,6 +3414,10 @@ public:
         forest.leaf.regatherTrainingCovariates(data_);
         size_t numParams = forest.leaf.numParams();
         for (size_t t = 0; t < forest.numTrees; ++t) {
+          if (movedCutPoints != nullptr)
+            forest.trees[t].mapOldCutPointsOntoNew(
+              data_, *movedCutPoints, forest.paramsByTree[t], numParams,
+              placement, &liveRows);
           forest.trees[t].repartitionSubtree(data_, 0);
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              forest.paramsByTree[t], numParams);
@@ -3372,12 +3427,13 @@ public:
       }
     }
 
-    // the variance forest lives outside forests_ and needs the same re-route;
-    // the grid is installed rather than rebuilt on every path that reaches
-    // here (setCutPoints, a forced predictor swap), so no remap. Appended, and
-    // called per site rather than from dropStaleMissingDirections, which three
-    // paths share (refreshVarianceForest drops its own directions).
-    if (varianceForest_) refreshVarianceForest(nullptr);
+    // the variance forest lives outside forests_ and needs the same re-route
+    // and the same move. Appended, and called per site rather than from
+    // dropStaleMissingDirections, which three paths share
+    // (refreshVarianceForest drops its own directions).
+    if (varianceForest_)
+      refreshVarianceForest(movedCutPoints, nullptr, false, placement,
+                            &liveRows);
   }
 
   // Saved-tree (keepTrees) storage: a circular buffer of capacity slots,
@@ -5721,10 +5777,16 @@ private:
   /// resized the storage (resizeVarianceStorage), so the trees must be
   /// re-pointed at the moved index buffer; the paths that install a grid over
   /// unchanged data leave it false.
+  ///
+  /// placement is the rule the splits of oldCutPoints' columns move by and
+  /// liveRows how a merge at that move weighs leaves
+  /// (Tree::mapOldCutPointsOntoNew).
   void refreshVarianceForest(
       const std::vector<std::vector<double>>* oldCutPoints,
       const TreeParameters* recoveredFactors = nullptr,
-      bool numObservationsChanged = false) {
+      bool numObservationsChanged = false,
+      SplitPlacement placement = SplitPlacement::byValue,
+      const Tree::LiveRows* liveRows = nullptr) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
     std::vector<double> leafValues;
@@ -5744,7 +5806,8 @@ private:
       tree.dropStaleMissingDirections(data_);
       if (oldCutPoints != nullptr)
         tree.mapOldCutPointsOntoNew<GeometricMerge>(data_, *oldCutPoints,
-                                                    leafValues);
+                                                    leafValues, 1, placement,
+                                                    liveRows);
       if (numObservationsChanged)
         tree.resetObservations(vf.indexBuffer.data() + j * n, n);
       tree.repartitionSubtree(data_, 0);

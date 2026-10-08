@@ -3077,10 +3077,10 @@ dbartsSampler <- setRefClass(
       x,
       column,
       forceUpdate,
-      updateCutPoints = FALSE,
+      updateCutPoints = "none",
       updateState = NULL
     ) {
-      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateState follows control@updateState; see setData."
+      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateCutPoints is \"none\", which keeps each cut grid, or \"position\" or \"value\", which derive the grid a new sampler would have for the values and say where the splits on it go: each on its position, rescaled when the number of points changes, or each to the point nearest its threshold. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
@@ -3098,14 +3098,20 @@ dbartsSampler <- setRefClass(
       # verdict visible; a bare value here would always be visible
       if (result$visible) result$value else invisible(result$value)
     },
-    setCutPoints = function(cuts, column, updateState = NULL) {
-      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing, when the entries of factor columns are not read. A grid out of order is sorted, and a point may appear only once, so for more splits near a value give a denser grid there; the one exception is the grid the column already holds, which is taken as it is, repeats included. Forces the change by pruning any leaves that end up empty. A later setData derives at most n.cuts cut points again, whatever grid was set. updateState follows control@updateState; see setData."
+    setCutPoints = function(
+      cuts,
+      column,
+      updateState = NULL,
+      splits = "position"
+    ) {
+      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing, when the entries of factor columns are not read. A grid out of order is sorted, and a point may appear only once, so for more splits near a value give a denser grid there. splits says where the splits on a column go: \"position\" keeps each on its position, rescaled when the number of points changes, and \"value\" moves each to the point nearest its threshold. Forces the change by pruning any leaves that end up empty. A later setData derives at most n.cuts cut points again, whatever grid was set. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       bartcoreSamplerSetCutPoints(
         .self,
         cuts,
-        column = if (missing(column)) NULL else column
+        column = if (missing(column)) NULL else column,
+        splits = splits
       )
       if (resolveUpdateState(updateState, control)) {
         storeState()

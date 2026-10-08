@@ -1145,23 +1145,78 @@ public:
       indices[i] = static_cast<index_t>(i);
   }
 
-  /// After a from-scratch cut rebuild, remap every rule's splitIndex onto the
-  /// new cut whose value is nearest the old cut, restricted to the ancestor-
-  /// constrained interval; a subtree whose interval empties collapses to a
-  /// leaf with the plain mean of its leaf parameters. paramByNode is indexed
-  /// by arena id, paramStride doubles per node, merged per coordinate. Merge
-  /// selects the space the mean is taken in, as for collapseEmptyNodes.
+  /// The rows a merge weighs leaves by where a tree's partition is still the
+  /// one its fits were drawn on (mapOldCutPointsOntoNew).
+  struct LiveRows {
+    const double* weights;  // per observation, null for unit weights
+  };
+
+  /// After a column's cut grid is replaced, remap every rule's splitIndex
+  /// onto the new grid: by value, the new cut nearest the old cut's value,
+  /// or by position, the new position under the centre of the old one's
+  /// share of its grid (rescaledSplitIndex). Either is restricted to the
+  /// ancestor-constrained interval; a subtree whose interval empties
+  /// collapses to a leaf with the plain mean of its leaf parameters. A column
+  /// whose entry of oldCutPoints is empty keeps its rules as they are, so a
+  /// caller moves only the columns it names. paramByNode is indexed by arena
+  /// id, paramStride doubles per node, merged per coordinate. Merge selects
+  /// the space the mean is taken in, as for collapseEmptyNodes.
+  ///
+  /// The merge weighs each leaf by the node statistics the last sweep left
+  /// (rowWeights null), which is all a whole-data replacement has, the rows
+  /// being new; or, where the tree's partition is still the one its fits
+  /// were drawn on (rowWeights non-null), by the rows each leaf holds, as
+  /// collapseEmptyNodes weighs them, so the result does not depend on when
+  /// the tree was last swept.
   template <typename Merge = ArithmeticMerge>
   void mapOldCutPointsOntoNew(const ColumnStore& data,
                               const std::vector<std::vector<double>>& oldCutPoints,
                               std::vector<double>& paramByNode,
-                              size_t paramStride = 1) {
+                              size_t paramStride = 1,
+                              SplitPlacement placement = SplitPlacement::byValue,
+                              const LiveRows* rowWeights = nullptr) {
     std::vector<int32_t> minIndices(data.numPredictors, 0);
     std::vector<int32_t> maxIndices(data.numPredictors);
     for (size_t j = 0; j < data.numPredictors; ++j)
       maxIndices[j] = static_cast<int32_t>(data.numCuts[j]);
     mapCutPointsBelow<Merge>(0, data, oldCutPoints, paramByNode,
-                             minIndices.data(), maxIndices.data(), paramStride);
+                             minIndices.data(), maxIndices.data(), paramStride,
+                             placement, rowWeights);
+  }
+
+  /// One rule's position before a move that may be undone.
+  struct SplitUndo {
+    Tree* tree;
+    int32_t nodeIndex;
+    int32_t splitIndex;
+  };
+
+  /// mapOldCutPointsOntoNew for a transaction that may be put back: every
+  /// rule moves as it does there, but nothing is merged, and each position
+  /// changed is appended to \p undo first. False when some rule's interval
+  /// is empty, with the moves made until then recorded.
+  bool tryMapOldCutPointsOntoNew(
+      const ColumnStore& data,
+      const std::vector<std::vector<double>>& oldCutPoints,
+      SplitPlacement placement, std::vector<SplitUndo>& undo) {
+    std::vector<int32_t> minIndices(data.numPredictors, 0);
+    std::vector<int32_t> maxIndices(data.numPredictors);
+    for (size_t j = 0; j < data.numPredictors; ++j)
+      maxIndices[j] = static_cast<int32_t>(data.numCuts[j]);
+    return tryMapCutPointsBelow(0, data, oldCutPoints, minIndices.data(),
+                                maxIndices.data(), placement, undo);
+  }
+
+  /// Where position \p oldIndex of a grid of \p oldCount points goes on one
+  /// of \p newCount: the point under the centre of its share of the old grid.
+  /// The identity when the counts are equal, and never decreasing in
+  /// oldIndex. 64 bits hold the product: both counts are at most
+  /// maxNumCutsRepresentable.
+  static int32_t rescaledSplitIndex(int32_t oldIndex, size_t oldCount,
+                                    size_t newCount) {
+    return static_cast<int32_t>(
+      (2 * static_cast<std::uint64_t>(oldIndex) + 1) * newCount /
+      (2 * static_cast<std::uint64_t>(oldCount)));
   }
 
   /// Drop a rule's missing direction once its column routes no missing
@@ -1368,27 +1423,102 @@ private:
     return dropped;
   }
 
+  /// The position the rule at \p nodeIndex takes on its column's new grid,
+  /// inside [minIndex, maxIndex), which must not be empty.
+  int32_t mappedSplitIndex(const ColumnStore& data, int32_t nodeIndex,
+                           const std::vector<double>& oldCuts,
+                           int32_t minIndex, int32_t maxIndex,
+                           SplitPlacement placement) const {
+    int32_t varIndex = at(nodeIndex).rule.variableIndex;
+    int32_t oldIndex = at(nodeIndex).rule.splitIndex();
+    if (placement == SplitPlacement::byPosition) {
+      int32_t newIndex = rescaledSplitIndex(
+        oldIndex, oldCuts.size(), data.numCuts[static_cast<size_t>(varIndex)]);
+      if (newIndex < minIndex) return minIndex;
+      return newIndex > maxIndex - 1 ? maxIndex - 1 : newIndex;
+    }
+
+    double oldCut = oldCuts[static_cast<size_t>(oldIndex)];
+    const double* cuts = data.cutPoints[static_cast<size_t>(varIndex)].data();
+
+    // the first new cut below the old cut's value, then the nearer neighbor
+    int32_t firstLessThan = oldIndex < maxIndex ? oldIndex : maxIndex - 1;
+    while (firstLessThan < maxIndex && cuts[firstLessThan] < oldCut)
+      ++firstLessThan;
+    if (firstLessThan < maxIndex)
+      while (firstLessThan >= minIndex && cuts[firstLessThan] >= oldCut)
+        --firstLessThan;
+
+    if (firstLessThan >= maxIndex - 1) return maxIndex - 1;
+    if (firstLessThan < minIndex) return minIndex;
+    if (oldCut - cuts[firstLessThan] < cuts[firstLessThan + 1] - oldCut)
+      return firstLessThan;
+    return firstLessThan + 1;  // includes an exact value match
+  }
+
+  /// mapCutPointsBelow without the merge: false at the first empty interval.
+  bool tryMapCutPointsBelow(int32_t nodeIndex, const ColumnStore& data,
+                            const std::vector<std::vector<double>>& oldCutPoints,
+                            int32_t* minIndices, int32_t* maxIndices,
+                            SplitPlacement placement,
+                            std::vector<SplitUndo>& undo) {
+    if (at(nodeIndex).isBottom()) return true;
+    int32_t varIndex = at(nodeIndex).rule.variableIndex;
+    int32_t left = at(nodeIndex).leftChild;
+    if (data.splitsBySubset(static_cast<size_t>(varIndex)) ||
+        oldCutPoints[static_cast<size_t>(varIndex)].empty())
+      return tryMapCutPointsBelow(left, data, oldCutPoints, minIndices,
+                                  maxIndices, placement, undo) &&
+             tryMapCutPointsBelow(left + 1, data, oldCutPoints, minIndices,
+                                  maxIndices, placement, undo);
+
+    int32_t minIndex = minIndices[varIndex];
+    int32_t maxIndex = maxIndices[varIndex];
+    if (minIndex > maxIndex - 1) return false;
+    int32_t oldIndex = at(nodeIndex).rule.splitIndex();
+    int32_t newIndex = mappedSplitIndex(
+      data, nodeIndex, oldCutPoints[static_cast<size_t>(varIndex)], minIndex,
+      maxIndex, placement);
+    if (newIndex != oldIndex) {
+      undo.push_back({this, nodeIndex, oldIndex});
+      at(nodeIndex).rule.setSplitIndex(newIndex);
+    }
+
+    maxIndices[varIndex] = newIndex;
+    bool held = tryMapCutPointsBelow(left, data, oldCutPoints, minIndices,
+                                     maxIndices, placement, undo);
+    maxIndices[varIndex] = maxIndex;
+    if (!held) return false;
+    minIndices[varIndex] = newIndex + 1;
+    held = tryMapCutPointsBelow(left + 1, data, oldCutPoints, minIndices,
+                                maxIndices, placement, undo);
+    minIndices[varIndex] = minIndex;
+    return held;
+  }
+
   /// minIndices are inclusive, maxIndices exclusive; both are saved and
   /// restored around the recursion. Categorical rules have nothing to remap
   /// (category counts are fixed across data replacement) and pass through to
-  /// their children.
+  /// their children, as do the rules of a column with no old grid.
   template <typename Merge>
   void mapCutPointsBelow(int32_t nodeIndex, const ColumnStore& data,
                          const std::vector<std::vector<double>>& oldCutPoints,
                          std::vector<double>& paramByNode,
                          int32_t* minIndices, int32_t* maxIndices,
-                         size_t paramStride) {
+                         size_t paramStride, SplitPlacement placement,
+                         const LiveRows* rowWeights) {
     if (at(nodeIndex).isBottom()) return;
 
     int32_t varIndex = at(nodeIndex).rule.variableIndex;
 
-    if (data.splitsBySubset(static_cast<size_t>(varIndex))) {
+    if (data.splitsBySubset(static_cast<size_t>(varIndex)) ||
+        oldCutPoints[static_cast<size_t>(varIndex)].empty()) {
       mapCutPointsBelow<Merge>(at(nodeIndex).leftChild, data, oldCutPoints,
                                paramByNode, minIndices, maxIndices,
-                               paramStride);
+                               paramStride, placement, rowWeights);
       mapCutPointsBelow<Merge>(at(nodeIndex).leftChild + 1, data, oldCutPoints,
                                paramByNode, minIndices, maxIndices,
-                               paramStride);
+                               paramStride, placement, rowWeights);
       return;
     }
 
@@ -1405,7 +1535,14 @@ private:
       std::vector<double> paramTotals(paramStride, 0.0);
       std::vector<double> paramSums(paramStride, 0.0);
       for (int32_t i : bottoms) {
-        double weight = at(i).sumWeights;
+        const Node& leaf(at(i));
+        double weight = rowWeights == nullptr
+          ? leaf.sumWeights
+          : (rowWeights->weights == nullptr
+               ? static_cast<double>(leaf.numObservations())
+               : misc_sumIndexedVectorElements(rowWeights->weights,
+                                               indices + leaf.begin,
+                                               leaf.numObservations()));
         weightTotal += weight;
         const double* params =
           paramByNode.data() + static_cast<size_t>(i) * paramStride;
@@ -1426,38 +1563,21 @@ private:
       return;
     }
 
-    double oldCut =
-      oldCutPoints[static_cast<size_t>(varIndex)]
-                  [static_cast<size_t>(at(nodeIndex).rule.splitIndex())];
-    const double* cuts = data.cutPoints[static_cast<size_t>(varIndex)].data();
-
-    // the first new cut below the old cut's value, then the nearer neighbor
-    int32_t firstLessThan = at(nodeIndex).rule.splitIndex() < maxIndex
-      ? at(nodeIndex).rule.splitIndex()
-      : maxIndex - 1;
-    while (firstLessThan < maxIndex && cuts[firstLessThan] < oldCut)
-      ++firstLessThan;
-    if (firstLessThan < maxIndex)
-      while (firstLessThan >= minIndex && cuts[firstLessThan] >= oldCut)
-        --firstLessThan;
-
-    int32_t newIndex;
-    if (firstLessThan >= maxIndex - 1) newIndex = maxIndex - 1;
-    else if (firstLessThan < minIndex) newIndex = minIndex;
-    else if (oldCut - cuts[firstLessThan] < cuts[firstLessThan + 1] - oldCut)
-      newIndex = firstLessThan;
-    else newIndex = firstLessThan + 1;  // includes an exact value match
-
+    int32_t newIndex = mappedSplitIndex(
+      data, nodeIndex, oldCutPoints[static_cast<size_t>(varIndex)], minIndex,
+      maxIndex, placement);
     at(nodeIndex).rule.setSplitIndex(newIndex);
 
     maxIndices[varIndex] = newIndex;
     mapCutPointsBelow<Merge>(at(nodeIndex).leftChild, data, oldCutPoints,
-                             paramByNode, minIndices, maxIndices, paramStride);
+                             paramByNode, minIndices, maxIndices, paramStride,
+                             placement, rowWeights);
     maxIndices[varIndex] = maxIndex;
 
     minIndices[varIndex] = newIndex + 1;
     mapCutPointsBelow<Merge>(at(nodeIndex).leftChild + 1, data, oldCutPoints,
-                             paramByNode, minIndices, maxIndices, paramStride);
+                             paramByNode, minIndices, maxIndices, paramStride,
+                             placement, rowWeights);
     minIndices[varIndex] = minIndex;
   }
 

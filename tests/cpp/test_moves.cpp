@@ -191,12 +191,28 @@ static void testSetPredictorTransaction(ext_rng* rng) {
       break;
     }
 
-  // rejected with updateCutPoints: cuts must be restored too
-  std::vector<double> cuts0Before(sampler.data().cutPoints[0]);
-  check(sampler.setPredictor(xConstant.data(), false, true) ==
-          PredictorUpdateResult::rolledBack,
-        "degenerate setPredictor with new cuts rejected");
-  check(sampler.data().cutPoints[0] == cuts0Before, "rollback restores cuts");
+  // rejected with updateCutPoints, under either placement: the refreshed
+  // grids are one point each, and the cuts, their counts and every split
+  // position must be restored too
+  std::vector<std::vector<double>> cutsBefore(sampler.data().cutPoints);
+  std::vector<std::uint32_t> countsBefore(sampler.data().numCuts);
+  SamplerStateData stateBefore, stateAfter;
+  sampler.getState(stateBefore);
+  for (SplitPlacement placement :
+       { SplitPlacement::byPosition, SplitPlacement::byValue }) {
+    check(sampler.setPredictor(xConstant.data(), false, true, placement) ==
+            PredictorUpdateResult::rolledBack,
+          "degenerate setPredictor with new cuts rejected");
+    check(sampler.data().cutPoints == cutsBefore &&
+            sampler.data().numCuts == countsBefore,
+          "rollback restores cuts and their counts");
+    sampler.getState(stateAfter);
+    check(storageDigest(sampler.data()) == codesBefore &&
+            TestPeer::treeFits(sampler.chain(0)) == treeFitsBefore &&
+            sameFlatTrees(stateBefore.chains[0].forests[0].trees,
+                          stateAfter.chains[0].forests[0].trees),
+          "rollback restores codes, fits and every split");
+  }
 
   // the sampler remains usable
   std::vector<double> sigmaDraws(10);
@@ -250,9 +266,8 @@ static void testSetPredictorForced(ext_rng* rng) {
   printf("ok: forced setPredictor\n");
 }
 
-// A forced re-cut over a near-constant column once built a non-ascending
-// uniform grid getState serialized and setState then refused. The re-cut now
-// refuses, keeping the old ascending grid, so the own-state round-trips.
+// A forced re-cut over a constant column leaves the one point a creation
+// gives it, every split on the column merged, and the own-state round-trips.
 static void testDegenerateReCutRoundTrips(ext_rng* rng) {
   const size_t n = 200;
   std::vector<double> x, y;
@@ -260,19 +275,30 @@ static void testDegenerateReCutRoundTrips(ext_rng* rng) {
   std::unique_ptr<ConstantLeafSampler> samplerPtr = makeBurnedInSampler(x, y, n, rng);
   ConstantLeafSampler& sampler(*samplerPtr);
 
-  std::vector<double> cutsBefore(sampler.data().cutPoints[0]);
   std::vector<double> xDegenerate(x);
   for (size_t i = 0; i < n; ++i) xDegenerate[i] = 0.5;  // column 0 constant
   check(sampler.setPredictor(xDegenerate.data(), true, true) ==
           PredictorUpdateResult::accepted,
         "forced re-cut over a constant column accepted");
-  check(sampler.data().cutPoints[0] == cutsBefore,
-        "degenerate re-cut keeps the old ascending grid");
+  check(sampler.data().cutPoints[0] == std::vector<double>{0.5} &&
+          sampler.data().numCuts[0] == 1,
+        "degenerate re-cut leaves one point at the value");
+  bool merged = true;
+  for (size_t t = 0; t < 25; ++t) {
+    const Tree& tree = sampler.chain(0).tree(t);
+    std::vector<int32_t> subtree;
+    tree.fillSubtree(0, subtree);
+    for (int32_t i : subtree)
+      merged &= tree.at(i).isBottom() || tree.at(i).rule.variableIndex != 0;
+    merged &= tree.bottomNodesAreOccupied();
+  }
+  check(merged, "no split is left on the constant column");
 
   SamplerStateData st, st2;
   sampler.getState(st);
   // a same-spec restore skips re-quantization, so no raw is consulted
-  check(sampler.setState(st, nullptr), "state over a degenerate column restores");
+  check(restoresExactly(sampler, st),
+        "state over a degenerate column restores as stored");
   sampler.getState(st2);
   check(statesAgree(st, st2), "degenerate-column state round trip agrees");
   printf("ok: degenerate re-cut round trip\n");
@@ -582,16 +608,63 @@ static void testQuantilePredictorUpdate(ext_rng* rng) {
 
   check(sampler.data().numCuts[0] == 9, "sampler builds quantile cuts");
 
-  // a coarser column with updateCutPoints must be refused without mutating
+  // a coarser column with updateCutPoints is never refused for its count:
+  // unforced it is accepted with the three points its values induce, or
+  // rolled back with nothing changed
   std::vector<xint_t> codesBefore(storageDigest(sampler.data()));
+  std::vector<double> cutsBefore(sampler.data().cutPoints[0]);
+  SamplerStateData stateBefore, stateAfter;
+  sampler.getState(stateBefore);
   std::vector<double> coarse(n);
   for (size_t i = 0; i < n; ++i) coarse[i] = static_cast<double>(i % 4);
   size_t columnIndex = 0;
-  check(sampler.updatePredictor(coarse.data(), &columnIndex, 1, false, true) ==
-          PredictorUpdateResult::invalidCutPoints,
-        "coarser quantile column update refused");
-  check(storageDigest(sampler.data()) == codesBefore,
-        "refused quantile update mutates nothing");
+  PredictorUpdateResult refreshed =
+    sampler.updatePredictor(coarse.data(), &columnIndex, 1, false, true);
+  sampler.getState(stateAfter);
+  bool rolledBack = refreshed == PredictorUpdateResult::rolledBack &&
+    storageDigest(sampler.data()) == codesBefore &&
+    sampler.data().cutPoints[0] == cutsBefore &&
+    sampler.data().numCuts[0] == 9 && statesAgree(stateBefore, stateAfter);
+  bool accepted = refreshed == PredictorUpdateResult::accepted &&
+    sampler.data().cutPoints[0] == std::vector<double>{0.5, 1.5, 2.5} &&
+    sampler.data().numCuts[0] == 3;
+  check(rolledBack || accepted,
+        "coarser quantile column update shrinks the grid or changes nothing");
+  if (accepted) {
+    check(sampler.updatePredictor(x.data(), &columnIndex, 1, true, true) ==
+            PredictorUpdateResult::accepted &&
+            sampler.data().cutPoints[0] == cutsBefore,
+          "the first values forced back derive the first grid");
+    sampler.getState(stateBefore);
+    codesBefore = storageDigest(sampler.data());
+  }
+  // forced, the grid is the three points and the state restores as stored
+  {
+    std::unique_ptr<ConstantLeafSampler> twin =
+      std::make_unique<ConstantLeafSampler>(
+        x.data(), y.data(), n, size_t(2), nullptr, nullptr,
+        ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options, &rng);
+    twin->run(40, 0, empty);
+    check(twin->updatePredictor(coarse.data(), &columnIndex, 1, true, true) ==
+            PredictorUpdateResult::accepted &&
+            twin->data().cutPoints[0] == std::vector<double>{0.5, 1.5, 2.5},
+          "a forced coarser quantile update leaves the three induced points");
+    SamplerStateData forced;
+    twin->getState(forced);
+    bool onGrid = true;
+    for (size_t t = 0; t < 25; ++t) {
+      const Tree& tree = twin->chain(0).tree(t);
+      std::vector<int32_t> subtree;
+      tree.fillSubtree(0, subtree);
+      for (int32_t i : subtree)
+        onGrid &= tree.at(i).isBottom() || tree.at(i).rule.variableIndex != 0 ||
+                  (tree.at(i).rule.splitIndex() < 3 &&
+                   !tree.splitIsOutsideInterval(twin->data(), i));
+      onGrid &= tree.bottomNodesAreOccupied();
+    }
+    check(onGrid && restoresExactly(*twin, forced),
+          "every split is on the shorter grid and the state restores as stored");
+  }
 
   // same column without cut refresh follows normal transaction semantics
   PredictorUpdateResult result =
@@ -609,6 +682,390 @@ static void testQuantilePredictorUpdate(ext_rng* rng) {
   check(sigmaFinite, "sampler runs after quantile updates");
 
   printf("ok: quantile predictor updates\n");
+}
+
+namespace {
+
+// every split on column j in every live tree of chain 0, mean then variance,
+// as (tree, node, position); a variance tree's index follows the mean trees'
+struct SplitAt {
+  size_t tree;
+  int32_t node, position;
+  bool operator==(const SplitAt& o) const {
+    return tree == o.tree && node == o.node && position == o.position;
+  }
+};
+template <typename S>
+std::vector<SplitAt> splitsOnColumn(S& sampler, size_t j) {
+  std::vector<SplitAt> out;
+  auto& chain = sampler.chain(0);
+  size_t id = 0;
+  auto collect = [&](const Tree& tree) {
+    std::vector<int32_t> subtree;
+    tree.fillSubtree(0, subtree);
+    for (int32_t i : subtree)
+      if (!tree.at(i).isBottom() &&
+          static_cast<size_t>(tree.at(i).rule.variableIndex) == j)
+        out.push_back({id, i, tree.at(i).rule.splitIndex()});
+    ++id;
+  };
+  for (size_t f = 0; f < chain.numForests(); ++f)
+    for (size_t t = 0; t < chain.numTreesInForest(f); ++t)
+      collect(chain.treeInForest(f, t));
+  if (chain.hasVarianceForest())
+    for (size_t t = 0; t < chain.numVarianceTrees(); ++t)
+      collect(chain.varianceTree(t));
+  return out;
+}
+template <typename S>
+const Tree& liveTree(S& sampler, size_t id) {
+  auto& chain = sampler.chain(0);
+  size_t numMean = chain.numTreesInForest(0);
+  return id < numMean ? chain.treeInForest(0, id)
+                      : chain.varianceTree(id - numMean);
+}
+// whether every tree is occupied with no split on column j past the grid or
+// outside its interval
+template <typename S>
+bool splitsStand(S& sampler, size_t j) {
+  auto& chain = sampler.chain(0);
+  size_t numTrees = chain.numTreesInForest(0) +
+    (chain.hasVarianceForest() ? chain.numVarianceTrees() : 0);
+  for (size_t id = 0; id < numTrees; ++id)
+    if (!liveTree(sampler, id).bottomNodesAreOccupied()) return false;
+  for (const SplitAt& split : splitsOnColumn(sampler, j))
+    if (split.position >= static_cast<int32_t>(sampler.data().numCuts[j]) ||
+        liveTree(sampler, split.tree)
+          .splitIsOutsideInterval(sampler.data(), split.node))
+      return false;
+  return true;
+}
+
+// a heteroscedastic sampler with strong signal in column 0, burned in
+struct RefreshFixture {
+  static constexpr size_t n = 200;
+  std::vector<double> x, y;
+  ext_rng* rng;
+  std::unique_ptr<ConstantLeafSampler> sampler;
+  explicit RefreshFixture(bool placeholder = false) : x(n * 2), y(n) {
+    std::uint64_t saved = rngState;
+    rngState = 5150u;
+    for (double& v : x) v = runif01();
+    for (size_t i = 0; i < n; ++i)
+      y[i] = 4.0 * (x[i] > 0.5 ? 1.0 : 0.0) + 2.0 * x[i] +
+        (x[i] > 0.3 ? 1.0 : 0.3) * (runif01() - 0.5);
+    if (placeholder)
+      for (size_t i = 0; i < n; ++i) x[i + n] = 0.0;
+    rngState = saved;
+    rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rng, 8086u);
+    SamplerOptions options;
+    options.numTrees = 12;
+    options.numVarianceTrees = 4;
+    sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, size_t(2), nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options, &rng);
+    Results empty;
+    sampler->run(60, 0, empty);
+  }
+  ~RefreshFixture() { ext_rng_destroy(rng); }
+  // what a rolled-back transaction must leave as it was
+  struct Image {
+    std::vector<xint_t> codes;
+    std::vector<std::vector<double>> cuts;
+    std::vector<std::uint32_t> counts;
+    std::vector<SplitAt> splits;
+    SamplerStateData state;
+  };
+  Image image() {
+    Image out;
+    out.codes = storageDigest(sampler->data());
+    out.cuts = sampler->data().cutPoints;
+    out.counts = sampler->data().numCuts;
+    out.splits = splitsOnColumn(*sampler, 0);
+    sampler->getState(out.state);
+    return out;
+  }
+  bool unchangedFrom(const Image& before) {
+    Image now = image();
+    return now.codes == before.codes && now.cuts == before.cuts &&
+           now.counts == before.counts && now.splits == before.splits &&
+           statesAgree(before.state, now.state);
+  }
+  bool hasMeanAndVarianceSplits() {
+    bool mean = false, variance = false;
+    for (const SplitAt& split : splitsOnColumn(*sampler, 0))
+      (split.tree < 12 ? mean : variance) = true;
+    return mean && variance;
+  }
+};
+
+}  // namespace
+
+// A refresh under the position rule. With the count unchanged no position
+// moves; with it changed each is rescaled, forced (what cannot stand merged)
+// and unforced (accepted with every position the rescaled one, or rolled
+// back with points, counts, codes and trees as before); a column of one
+// point grows to the asked count.
+static void testRefreshCountChange() {
+  const size_t n = RefreshFixture::n;
+  size_t column = 0;
+  double ulp = std::numeric_limits<double>::epsilon();
+  std::vector<double> narrow(n), scaled(n);
+
+  {  // an unchanged count: the affine image keeps every code and position
+    RefreshFixture f;
+    check(f.hasMeanAndVarianceSplits(),
+          "refresh by position: mean and variance trees split on the column");
+    for (size_t i = 0; i < n; ++i) scaled[i] = 2.0 * f.x[i] + 1.0;
+    RefreshFixture::Image before = f.image();
+    check(f.sampler->updatePredictor(scaled.data(), &column, 1, false, true) ==
+            PredictorUpdateResult::accepted &&
+            f.sampler->data().numCuts[0] == before.counts[0] &&
+            f.sampler->data().cutPoints[0] != before.cuts[0] &&
+            splitsOnColumn(*f.sampler, 0) == before.splits,
+          "refresh by position: an unchanged count keeps every position");
+  }
+  {  // a shrink to five points, unforced: a split rescaled onto the last
+     // point sends every row left, so the transaction rolls back whole
+    RefreshFixture f;
+    for (size_t i = 0; i < n; ++i)
+      narrow[i] = 1.0 + ulp * static_cast<double>(i % 5);
+    RefreshFixture::Image before = f.image();
+    check(f.sampler->updatePredictor(narrow.data(), &column, 1, false, true) ==
+            PredictorUpdateResult::rolledBack,
+          "refresh by position: an unforced shrink the trees cannot hold "
+          "rolls back");
+    check(f.unchangedFrom(before),
+          "refresh by position: the rollback restores points, counts, codes "
+          "and every split");
+    // forced: five points, every split on them inside its interval
+    check(f.sampler->updatePredictor(narrow.data(), &column, 1, true, true) ==
+            PredictorUpdateResult::accepted &&
+            f.sampler->data().numCuts[0] == 5 &&
+            f.sampler->data().cutPoints[0].size() == 5,
+          "refresh by position: a forced shrink leaves the five points");
+    check(splitsStand(*f.sampler, 0),
+          "refresh by position: no split past the shorter grid or outside "
+          "its interval, no empty leaf");
+    SamplerStateData forced;
+    f.sampler->getState(forced);
+    check(restoresExactly(*f.sampler, forced),
+          "refresh by position: the shrunken sampler restores as stored");
+    Results empty;
+    f.sampler->run(10, 0, empty);
+    f.sampler->getState(forced);
+    bool finite = true;
+    for (const std::vector<FlatNode>& tree : forced.chains[0].forests[0].trees)
+      for (const FlatNode& node : tree) finite &= std::isfinite(node.value);
+    check(finite && restoresExactly(*f.sampler, forced),
+          "refresh by position: it runs on and restores itself");
+  }
+  {  // a count that doubles, unforced: a grid set at 50 points, refreshed to
+     // the 100 a creation derives; position i goes to 2 i + 1
+    RefreshFixture f;
+    std::vector<double> fifty(50);
+    for (size_t k = 0; k < 50; ++k)
+      fifty[k] = (static_cast<double>(k) + 0.5) / 50.0;
+    const double* grids[] = { fifty.data() };
+    std::uint32_t count = 50;
+    f.sampler->setCutPoints(grids, &count, &column, 1, f.x.data());
+    RefreshFixture::Image before = f.image();
+    std::vector<double> values(f.x.begin(), f.x.begin() + n);
+    PredictorUpdateResult result =
+      f.sampler->updatePredictor(values.data(), &column, 1, false, true);
+    std::vector<SplitAt> after = splitsOnColumn(*f.sampler, 0);
+    bool rescaled = result == PredictorUpdateResult::accepted &&
+      f.sampler->data().numCuts[0] == 100 && after.size() == before.splits.size();
+    for (size_t k = 0; rescaled && k < after.size(); ++k)
+      rescaled = after[k].tree == before.splits[k].tree &&
+                 after[k].node == before.splits[k].node &&
+                 after[k].position == 2 * before.splits[k].position + 1;
+    check(!before.splits.empty() && rescaled,
+          "refresh by position: an unforced growth rescales every position");
+  }
+  {  // from the one point of a placeholder column
+    RefreshFixture f(true);
+    check(f.sampler->data().numCuts[1] == 1 &&
+            splitsOnColumn(*f.sampler, 1).empty(),
+          "refresh by position: a placeholder column holds one point, no split");
+    std::vector<double> latent(n);
+    for (size_t i = 0; i < n; ++i) {
+      double step = 0.6180339887498949 * static_cast<double>(i + 1);
+      latent[i] = step - std::floor(step);
+    }
+    column = 1;
+    check(f.sampler->updatePredictor(latent.data(), &column, 1, false, true) ==
+            PredictorUpdateResult::accepted &&
+            f.sampler->data().numCuts[1] == 100,
+          "refresh by position: one point grows to the asked count, unforced");
+    SamplerStateData grown;
+    f.sampler->getState(grown);
+    check(restoresExactly(*f.sampler, grown),
+          "refresh by position: the grown sampler restores as stored");
+  }
+  printf("ok: a refresh that changes a column's count rescales positions\n");
+}
+
+// A refresh under the value rule: each split moves to the new point nearest
+// its old threshold inside its interval, forced and unforced; an unforced
+// refresh the trees cannot hold puts them back; a refresh that leaves the
+// grid as it was moves nothing.
+static void testRefreshByValue() {
+  const size_t n = RefreshFixture::n;
+  size_t column = 0;
+  std::vector<double> shifted(n);
+
+  // every surviving split of `after` sits on the point of its interval
+  // nearest the threshold its node held before
+  auto nearest = [&](RefreshFixture& f, const RefreshFixture::Image& before,
+                     size_t* numMoved) {
+    const std::vector<double>& cuts = f.sampler->data().cutPoints[0];
+    const std::vector<double>& oldCuts = before.cuts[0];
+    std::vector<SplitAt> after = splitsOnColumn(*f.sampler, 0);
+    for (const SplitAt& split : after) {
+      const SplitAt* old = nullptr;
+      for (const SplitAt& b : before.splits)
+        if (b.tree == split.tree && b.node == split.node) old = &b;
+      if (old == nullptr) return false;
+      double threshold = oldCuts[static_cast<size_t>(old->position)];
+      int32_t left, right;
+      liveTree(*f.sampler, split.tree)
+        .splitInterval(f.sampler->data(), split.node, 0, &left, &right);
+      if (split.position < left || split.position > right) return false;
+      double held = std::fabs(cuts[static_cast<size_t>(split.position)] -
+                              threshold);
+      for (int32_t i = left; i <= right; ++i)
+        if (std::fabs(cuts[static_cast<size_t>(i)] - threshold) < held)
+          return false;
+      if (split.position != old->position) ++*numMoved;
+    }
+    return true;
+  };
+
+  {  // the grid as it was: nothing moves, forced or not
+    RefreshFixture f;
+    RefreshFixture::Image before = f.image();
+    std::vector<double> values(f.x.begin(), f.x.begin() + n);
+    check(f.sampler->updatePredictor(values.data(), &column, 1, false, true,
+                                     SplitPlacement::byValue) ==
+            PredictorUpdateResult::accepted &&
+            f.unchangedFrom(before),
+          "refresh by value: the same values leave grid and trees as they were");
+  }
+  {  // shifted by three and a half points' spacing: by position nothing
+     // would move; by value each threshold stays near where it was
+    RefreshFixture f, twin;
+    double spacing = f.sampler->data().cutPoints[0][1] -
+                     f.sampler->data().cutPoints[0][0];
+    for (size_t i = 0; i < n; ++i) shifted[i] = f.x[i] + 3.5 * spacing;
+    RefreshFixture::Image before = f.image();
+    check(twin.sampler->updatePredictor(shifted.data(), &column, 1, true, true) ==
+            PredictorUpdateResult::accepted &&
+            splitsOnColumn(*twin.sampler, 0) == before.splits,
+          "refresh by position: the shifted grid keeps every position");
+    check(f.sampler->updatePredictor(shifted.data(), &column, 1, true, true,
+                                     SplitPlacement::byValue) ==
+            PredictorUpdateResult::accepted &&
+            f.sampler->data().cutPoints == twin.sampler->data().cutPoints,
+          "refresh by value: forced, the grid is the one position derives");
+    size_t numMoved = 0;
+    check(nearest(f, before, &numMoved) && numMoved > 0 &&
+            splitsStand(*f.sampler, 0),
+          "refresh by value: forced, each surviving split is on the point "
+          "nearest its old threshold inside its interval");
+    SamplerStateData forced;
+    f.sampler->getState(forced);
+    check(restoresExactly(*f.sampler, forced),
+          "refresh by value: the forced sampler restores as stored");
+  }
+  {  // unforced, shifted by half a point's spacing: accepted with every
+     // split moved by value and no tree's shape changed, or put back whole
+    RefreshFixture f;
+    double spacing = f.sampler->data().cutPoints[0][1] -
+                     f.sampler->data().cutPoints[0][0];
+    for (size_t i = 0; i < n; ++i) shifted[i] = f.x[i] + 1.5 * spacing;
+    RefreshFixture::Image before = f.image();
+    PredictorUpdateResult result = f.sampler->updatePredictor(
+      shifted.data(), &column, 1, false, true, SplitPlacement::byValue);
+    size_t numMoved = 0;
+    bool accepted = result == PredictorUpdateResult::accepted &&
+      splitsOnColumn(*f.sampler, 0).size() == before.splits.size() &&
+      nearest(f, before, &numMoved) && numMoved > 0 &&
+      splitsStand(*f.sampler, 0);
+    bool rolledBack = result == PredictorUpdateResult::rolledBack &&
+      f.unchangedFrom(before);
+    check(accepted || rolledBack,
+          "refresh by value: unforced, every split moved or nothing changed");
+  }
+  {  // unforced, shifted far past the old grid: every threshold lies below
+     // the new points, a nested split has no point left, and the trees are
+     // put back with the grid
+    RefreshFixture f;
+    for (size_t i = 0; i < n; ++i) shifted[i] = f.x[i] + 10.0;
+    RefreshFixture::Image before = f.image();
+    check(f.sampler->updatePredictor(shifted.data(), &column, 1, false, true,
+                                     SplitPlacement::byValue) ==
+            PredictorUpdateResult::rolledBack,
+          "refresh by value: an unforced refresh the trees cannot hold "
+          "rolls back");
+    check(f.unchangedFrom(before),
+          "refresh by value: the rollback restores points, counts, codes "
+          "and every split");
+    Results empty;
+    f.sampler->run(5, 0, empty);
+    SamplerStateData after;
+    f.sampler->getState(after);
+    check(restoresExactly(*f.sampler, after),
+          "refresh by value: the sampler runs on after the rollback");
+  }
+  {  // setCutPoints takes the same choice: onto the first fifty of a hundred
+     // points' values, by value each threshold keeps its value where the
+     // grid still holds it
+    RefreshFixture f, twin;
+    std::vector<double> half;
+    for (size_t k = 0; k < 100; k += 2)
+      half.push_back(f.sampler->data().cutPoints[0][k]);
+    const double* grids[] = { half.data() };
+    std::uint32_t count = 50;
+    RefreshFixture::Image before = f.image();
+    f.sampler->setCutPoints(grids, &count, &column, 1, f.x.data(),
+                            SplitPlacement::byValue);
+    size_t numMoved = 0;
+    check(nearest(f, before, &numMoved) && numMoved > 0 &&
+            splitsStand(*f.sampler, 0),
+          "setCutPoints by value: each surviving split is on the given point "
+          "nearest its threshold");
+    twin.sampler->setCutPoints(grids, &count, &column, 1, twin.x.data());
+    bool rescaled = splitsStand(*twin.sampler, 0);
+    for (const SplitAt& split : splitsOnColumn(*twin.sampler, 0))
+      for (const SplitAt& b : before.splits)
+        if (b.tree == split.tree && b.node == split.node) {
+          int32_t left, right;
+          liveTree(*twin.sampler, split.tree)
+            .splitInterval(twin.sampler->data(), split.node, 0, &left, &right);
+          int32_t target = b.position / 2;  // floor((2 i + 1) 50 / 200)
+          target = target < left ? left : (target > right ? right : target);
+          rescaled &= split.position == target;
+        }
+    check(rescaled,
+          "setCutPoints by position: a halved grid halves every position");
+    // an unchanged count keeps every position, whatever the points
+    RefreshFixture same;
+    std::vector<double> moved(same.sampler->data().cutPoints[0]);
+    for (double& cut : moved) cut += 0.25;
+    const double* movedGrids[] = { moved.data() };
+    count = 100;
+    RefreshFixture::Image sameBefore = same.image();
+    same.sampler->setCutPoints(movedGrids, &count, &column, 1, same.x.data());
+    bool kept = true;
+    for (const SplitAt& split : splitsOnColumn(*same.sampler, 0))
+      for (const SplitAt& b : sameBefore.splits)
+        if (b.tree == split.tree && b.node == split.node)
+          kept &= split.position == b.position;
+    check(kept, "setCutPoints by position: an unchanged count keeps positions");
+  }
+  printf("ok: a refresh by value moves splits to the nearest point\n");
 }
 
 static void testSetCutPoints(ext_rng* rng) {
@@ -2679,6 +3136,8 @@ void runMovesTests(ext_rng* rng) {
   testJointPerObservationUpdate();
   testPerObservationMissingCommit(rng);
   testQuantilePredictorUpdate(rng);
+  testRefreshCountChange();
+  testRefreshByValue();
   testSetCutPoints(rng);
   testDegenerateRootGuard();
   testMultiChainMutation();

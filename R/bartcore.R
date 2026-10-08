@@ -578,6 +578,55 @@ codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
   codes
 }
 
+## What a change of a column's cut grid does to the grid and to the splits
+## on it, in the words setPredictor's updateCutPoints and setCutPoints' splits
+## take and the codes the bridge reads: "none" keeps the grid, "position"
+## keeps each split's position on the new one, rescaled when its count
+## changes, and "value" moves each split to the new point nearest its
+## threshold.
+cutPointRuleCodes <- c(none = 0L, position = 1L, value = 2L)
+
+## One word of choices, matched as match.arg matches; anything else is
+## refused by the argument's name.
+matchCutPointRule <- function(x, choices, name) {
+  if (is.character(x) && length(x) == 1L && !is.na(x)) {
+    matched <- pmatch(x, choices)
+    if (!is.na(matched)) {
+      return(choices[[matched]])
+    }
+  }
+  stop(
+    "'",
+    name,
+    "' must be one of ",
+    paste0('"', choices, '"', collapse = ", "),
+    call. = FALSE
+  )
+}
+
+## setPredictor's updateCutPoints as one of its three words. 0.9-x took a
+## logical, TRUE re-deriving the grid with every split left on its position:
+## one is still taken, with a warning once in a session.
+resolveUpdateCutPoints <- function(updateCutPoints) {
+  if (
+    is.logical(updateCutPoints) &&
+      length(updateCutPoints) == 1L &&
+      !is.na(updateCutPoints)
+  ) {
+    warnOnce(
+      "tombstone.updateCutPoints.logical",
+      "'updateCutPoints' is now one of \"none\", \"position\" or \"value\"; ",
+      "TRUE was taken as \"position\" and FALSE as \"none\". A logical is no ",
+      "longer taken in dbarts ",
+      tombstoneExpiry,
+      ".",
+      class = "dbartsDeprecatedWarning"
+    )
+    return(if (updateCutPoints) "position" else "none")
+  }
+  matchCutPointRule(updateCutPoints, names(cutPointRuleCodes), "updateCutPoints")
+}
+
 bartcoreSamplerSetPredictor <- function(
   sampler,
   x,
@@ -585,6 +634,8 @@ bartcoreSamplerSetPredictor <- function(
   forceUpdate,
   updateCutPoints
 ) {
+  updateCutPoints <- resolveUpdateCutPoints(updateCutPoints)
+
   # read once: each sampler$data is a typed reference-class field's active
   # binding, a few microseconds a read, against a rejected update's whole
   # cost of under a hundred. Nothing below writes data@x before its last read.
@@ -637,7 +688,7 @@ bartcoreSamplerSetPredictor <- function(
         "sparse column wholesale with a non-partial update"
       )
     }
-    if (isTRUE(coerceOrError(updateCutPoints, "logical"))) {
+    if (updateCutPoints != "none") {
       stop("partial updates cannot also update cut points")
     }
 
@@ -668,7 +719,7 @@ bartcoreSamplerSetPredictor <- function(
   if (length(forceUpdate) != 1L || is.na(forceUpdate)) {
     stop("'forceUpdate' must be TRUE, FALSE or \"partial\"")
   }
-  updateCutPoints <- coerceOrError(updateCutPoints, "logical")
+  updateCutPoints <- cutPointRuleCodes[[updateCutPoints]]
 
   # no BCF pre-check here either: a transactional whole-matrix or column
   # update revalidates every forest and rolls the whole change back if any
@@ -1029,7 +1080,8 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   invisible(NULL)
 }
 
-bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
+bartcoreSamplerSetCutPoints <- function(sampler, cuts, column, splits) {
+  splits <- matchCutPointRule(splits, c("position", "value"), "splits")
   # a missing column stays NULL: the bridge then takes one entry per column
   # and skips those of factor columns
   column <- resolveColumnIndex(sampler$data@x, column, "current X")
@@ -1069,7 +1121,8 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column) {
     sampler$getPointer(),
     cuts,
     column,
-    rawPredictorMatrix(sampler$data@x)
+    rawPredictorMatrix(sampler$data@x),
+    cutPointRuleCodes[[splits]]
   )
   invisible(NULL)
 }

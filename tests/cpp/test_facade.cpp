@@ -120,15 +120,17 @@ public:
            const double* ot),
           (x, y, n, w, o, xt, nt, ot))
   SPY_RET(PredictorUpdateResult, setPredictor,
-          (const PredictorSource& s, bool f, bool u), (s, f, u))
+          (const PredictorSource& s, bool f, bool u, SplitPlacement sp),
+          (s, f, u, sp))
   SPY_RET(PredictorUpdateResult, updatePredictor,
           (const PredictorSource& s, const std::size_t* c, std::size_t nc,
-           bool f, bool u),
-          (s, c, nc, f, u))
+           bool f, bool u, SplitPlacement sp),
+          (s, c, nc, f, u, sp))
   SPY_VOID(setCutPoints,
            (const double* const* nc, const std::uint32_t* n,
-            const std::size_t* c, std::size_t ncol, const double* cur),
-           (nc, n, c, ncol, cur))
+            const std::size_t* c, std::size_t ncol, const double* cur,
+            SplitPlacement sp),
+           (nc, n, c, ncol, cur, sp))
   SPY_RET(bool, updatePredictorPerObservation,
           (const double* c, std::size_t j, bool* i), (c, j, i))
   SPY_RET(std::unique_ptr<PredictorUpdateSession>, beginPredictorUpdate,

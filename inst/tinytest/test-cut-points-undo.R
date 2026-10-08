@@ -1,9 +1,9 @@
 # A cut grid changed with setCutPoints can be put back on any design, and
 # leaves nothing behind: a later setData derives the grid n.cuts names
 # whatever grid was set before it, as a copy and a reload do. A caller's own
-# grid is sorted and holds each point once; the grid a column holds, bit for
-# bit and in whatever order it is given, is taken back as it is, repeated points included. The grid in force is read from the
-# stored state.
+# grid is sorted and holds each point once, as every grid a sampler derives
+# does, so the grids a sampler reports go back into it whole. The grid in
+# force is read from the stored state.
 
 cutPointsOf <- function(sampler) {
   sampler$storeState()
@@ -101,20 +101,24 @@ for (useQuantiles in c(FALSE, TRUE)) {
   sampler$setData(newData)
   expect_identical(cutPointsOf(sampler), derived, info = rule)
 
-  # the counts that stay: a refresh keeps the count the column holds, below
-  # n.cuts and above it, and setData replaces a shorter grid by n.cuts points
+  # no count stays: a refresh derives the grid setData derives for the
+  # values, over a set grid below n.cuts and above it, and setData replaces a
+  # shorter grid by n.cuts points
   for (count in c(3L, 50L)) {
     info <- paste(rule, count)
     set <- seq(0.01, 0.99, length.out = count)
     sampler <- dbarts(x, y, control = control)
     sampler$setCutPoints(set, 1L)
     refreshed <- outcomeOf(
-      sampler$setPredictor(xNew[, 1L], 1L, updateCutPoints = TRUE)
+      sampler$setPredictor(
+        xNew[, 1L],
+        1L,
+        forceUpdate = TRUE,
+        updateCutPoints = "position"
+      )
     )
     expect_identical(refreshed, TRUE, info = info)
-    grid <- cutPointsOf(sampler)[[1L]]
-    expect_identical(length(grid), count, info = info)
-    expect_false(identical(grid, set), info = info)
+    expect_identical(cutPointsOf(sampler)[[1L]], derived[[1L]], info = info)
   }
   sampler <- dbarts(x, y, control = control)
   sampler$setCutPoints(c(0.25, 0.5, 0.75), 1L)
@@ -123,7 +127,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
 
   # states that come and go leave a longer grid as it was: one on a shorter
   # grid installed and the longer grid set again, then one refused, and the
-  # column still refreshes at the count it holds
+  # column still refreshes to the grid a derivation gives it
   sampler <- warmed(x, y, control = control)
   sampler$setCutPoints(longer, 1L)
   donor <- warmed(x, y, control = control)
@@ -141,16 +145,14 @@ for (useQuantiles in c(FALSE, TRUE)) {
       xNew[, 1L],
       1L,
       forceUpdate = TRUE,
-      updateCutPoints = TRUE
+      updateCutPoints = "position"
     )
   )
   expect_false(is.character(refreshed), info = rule)
-  grid <- cutPointsOf(sampler)[[1L]]
-  expect_identical(length(grid), 50L, info = rule)
-  expect_false(identical(grid, longer), info = rule)
+  expect_identical(cutPointsOf(sampler)[[1L]], derived[[1L]], info = rule)
 
-  # a sparse column counts its refresh for itself, and keeps the count it
-  # holds as a dense one does
+  # a sparse column counts its refresh for itself, from n.cuts as a dense one
+  # does
   if (requireNamespace("Matrix", quietly = TRUE)) {
     sparseColumn <- function() {
       Matrix::Matrix(
@@ -177,19 +179,19 @@ for (useQuantiles in c(FALSE, TRUE)) {
           sparseColumn(),
           2L,
           forceUpdate = TRUE,
-          updateCutPoints = TRUE
+          updateCutPoints = "position"
         )
       )
       expect_null(refreshed, info = info)
       grid <- cutPointsOf(sampler)[[2L]]
-      expect_identical(length(grid), count, info = info)
-      expect_false(identical(grid, set), info = info)
+      expect_identical(length(grid), 20L, info = info)
+      expect_false(is.unsorted(grid, strictly = TRUE), info = info)
     }
   }
 }
 
-# The uniform rule repeats a point over a column it cannot spread a grid
-# over, a constant one or one narrower than doubles resolve; the sampler
+# The uniform rule holds one point over a constant column and five over one
+# narrower than doubles resolve, where it once repeated them; the sampler
 # takes the grid such a column holds back, by column and as the whole list.
 control <- dbartsControl(
   n.chains = 1L,
@@ -212,18 +214,17 @@ y <- sin(4 * a) + (f == "b") + as.integer(o) / 2 + rnorm(n, 0, 0.3)
 sampler <- warmed(cbind(a, const, narrow), y, control = control)
 stored <- sampler$state
 own <- attr(stored, "cutPoints")
-expect_identical(lengths(own), c(100L, 100L, 100L))
-distinct <- lengths(lapply(own, unique))
-expect_identical(distinct[1L:2L], c(100L, 1L))
-expect_true(distinct[3L] > 1L && distinct[3L] < 100L)
+expect_identical(lengths(own), c(100L, 1L, 5L))
+expect_identical(lengths(lapply(own, unique)), c(100L, 1L, 5L))
+expect_identical(own[[2L]], 1)
 expect_silent(sampler$setCutPoints(own[[2L]], 2L))
 expect_silent(sampler$setCutPoints(own[[3L]], 3L))
 expect_silent(sampler$setCutPoints(own))
 expect_identical(cutPointsOf(sampler), own)
 
-# Any other grid with equal neighbours is refused, on a column whose own grid
-# repeats a point as on one whose grid does not, and so is a missing value, by
-# column and as an entry of the whole list. The grid is left as it was.
+# A grid with equal neighbours is refused on any column, and so is a missing
+# value, by column and as an entry of the whole list. The grid is left as it
+# was.
 refusal <- paste(
   "$setCutPoints: a cut point may appear only once in 'cuts'; for more",
   "splits near a value, give a denser grid around it"
@@ -250,17 +251,21 @@ for (cuts in list(c(0.2, NaN), c(0.2, NA), c(0.6, NaN, 0.5))) {
     fixed = TRUE
   )
 }
-for (cuts in list(rep(2, 100L), own[[3L]], own[[2L]][-1L])) {
+for (cuts in list(
+  rep(2, 100L),
+  rep(own[[2L]], 2L),
+  rep(own[[3L]], each = 2L)
+)) {
   expect_error(sampler$setCutPoints(cuts, 2L), pattern = refusal, fixed = TRUE)
 }
 expect_identical(cutPointsOf(sampler), own)
-# the held grid is the one that matches bit for bit: over a column of zeros
-# it is zeros, and the same count of negative zeros is another grid
+# over a column of zeros the grid is one zero; a zero beside a negative zero
+# is one point given twice
 zeros <- dbarts(cbind(a, zero = 0), y, control = control)
 held <- cutPointsOf(zeros)[[2L]]
-expect_identical(held, rep(0, 100L))
+expect_identical(held, 0)
 expect_silent(zeros$setCutPoints(held, 2L))
-expect_error(zeros$setCutPoints(-held, 2L), pattern = refusal, fixed = TRUE)
+expect_error(zeros$setCutPoints(c(-0, 0), 2L), pattern = refusal, fixed = TRUE)
 
 # A grid out of order is sorted and taken, by column, as an entry of the whole
 # list and as a data frame: the sampler holds the sorted grid and draws what
@@ -273,31 +278,44 @@ for (grid in list(c(0.75, 0.25, 0.5), c(0.5, 0.75, 0.25))) {
   expect_identical(cutPointsOf(shuffled), cutPointsOf(sorted))
   expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
 }
+# a twin and not a copy from here: after two changes that keep most splits a
+# copy draws its original's draws to rounding only, its leaves holding their
+# rows in another order
 sorted <- warmed(cbind(a, const, narrow), y, control = control)
-shuffled <- sorted$copy()
+shuffled <- warmed(cbind(a, const, narrow), y, control = control)
 sorted$setCutPoints(c(0.25, 0.5, 0.75), 1L)
 shuffled$setCutPoints(list(c(0.75, 0.25, 0.5)), 1L)
 expect_identical(cutPointsOf(shuffled), cutPointsOf(sorted))
 sorted$setCutPoints(own)
-shuffled$setCutPoints(data.frame(
-  own[[1L]][100L:1L],
-  own[[2L]],
-  own[[3L]][100L:1L]
-))
+shuffled$setCutPoints(list(rev(own[[1L]]), own[[2L]], rev(own[[3L]])))
 expect_identical(cutPointsOf(shuffled), own)
 expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
-rm(grid, sorted, shuffled)
+# a data frame is the list of its columns
+sorted <- warmed(cbind(a, b = a^2), y, control = control)
+shuffled <- warmed(cbind(a, b = a^2), y, control = control)
+both <- cutPointsOf(sorted)
+sorted$setCutPoints(both)
+shuffled$setCutPoints(data.frame(rev(both[[1L]]), rev(both[[2L]])))
+expect_identical(cutPointsOf(shuffled), both)
+expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
+rm(grid, sorted, shuffled, both)
 
-# A grid of distinct points is taken on either kind of column. The constant
-# column's old grid is then no longer the one it holds, so setCutPoints
-# refuses it, and the stored state brings it back.
+# A grid of distinct points is taken on either kind of column, the grids the
+# sampler first held among them; with each point given twice they are
+# refused, and the stored state brings grids and trees back.
 expect_silent(sampler$setCutPoints(c(0.25, 0.5, 0.75), 1L))
 expect_silent(sampler$setCutPoints(c(0.5, 1.5), 2L))
 expect_identical(
   cutPointsOf(sampler),
   list(c(0.25, 0.5, 0.75), c(0.5, 1.5), own[[3L]])
 )
-expect_error(sampler$setCutPoints(own), pattern = refusal, fixed = TRUE)
+expect_error(
+  sampler$setCutPoints(lapply(own, rep, each = 2L)),
+  pattern = refusal,
+  fixed = TRUE
+)
+expect_silent(sampler$setCutPoints(own))
+expect_identical(cutPointsOf(sampler), own)
 expect_true(sampler$setState(stored))
 expect_identical(cutPointsOf(sampler), own)
 
@@ -412,7 +430,7 @@ sampler <- warmed(y ~ a + const + f + o, design, control = control)
 twin <- warmed(y ~ a + const + f + o, design, control = control)
 stored <- sampler$state
 sampler$setCutPoints(c(0.3, 0.6), 1L)
-expect_identical(lengths(cutPointsOf(sampler)), c(2L, 100L, 0L, 2L))
+expect_identical(lengths(cutPointsOf(sampler)), c(2L, 1L, 0L, 2L))
 expect_silent(sampler$setCutPoints(attr(stored, "cutPoints")))
 expect_identical(cutPointsOf(sampler), attr(stored, "cutPoints"))
 expect_true(sampler$setState(stored))

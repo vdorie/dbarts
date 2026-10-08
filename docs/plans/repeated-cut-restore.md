@@ -578,8 +578,10 @@ The implementer's unless marked, reversible, and open for the maintainer's mark.
 4. Under `"position"` a column whose count did not change is not touched, and under `"value"` a
    column whose refreshed grid is bit for bit the old one is not: such a refresh runs the base
    build's path.
-5. A forced refresh under `"value"` merges an emptied interval with the weights `setData`'s move
-   uses, the routine being shared.
+5. A forced refresh and `setCutPoints` merge an emptied interval weighing each leaf by the rows it
+   held before the change, as the merge of an empty leaf weighs them. `setData`'s move, the same
+   routine, keeps weighing by the statistics the last sweep left, which is all it has; they differ
+   between a sampler and its copy, and a copy must draw what its original draws after one call.
 6. The step-3 check for a rule past a column's grid in the unforced validation is not built: under
    rule 6 no refresh and no `setCutPoints` leaves one.
 7. The orchestrator's readings, not the maintainer's words: an explicit `FALSE` warns as `TRUE`

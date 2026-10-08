@@ -2473,9 +2473,8 @@ struct LinearGaussianLeaf {
   /// Regather the training covariates under the existing standardization
   /// constants, for the predictor-mutation surface (including rollback,
   /// which restores the old raw values): the prior's calibration is sticky
-  /// across in-place value changes, the way refreshCutsForColumn keeps the
-  /// cut count. Whole-data replacement re-initializes instead, refreshing
-  /// the constants the way setData rebuilds the cut grid.
+  /// across in-place value changes. Whole-data replacement re-initializes
+  /// instead, refreshing the constants the way setData rebuilds the cut grid.
   void regatherTrainingCovariates(const ColumnStore& data) {
     clearStatisticsCache();
     for (std::size_t j = 0; j < numCovariates_; ++j) {

@@ -204,7 +204,7 @@ expect_true(pinned$setPredictor(
   xPinJitter[, 1L],
   column = 1L,
   forceUpdate = FALSE,
-  updateCutPoints = FALSE
+  updateCutPoints = "none"
 ))
 expect_true(pinned$setPredictor(xPinJitter, forceUpdate = FALSE))
 # the DECLINE arm, beside each: a two-level replacement column empties leaves,
@@ -215,7 +215,7 @@ expect_false(pinned$setPredictor(
   xPinTwoLevel,
   column = 1L,
   forceUpdate = FALSE,
-  updateCutPoints = FALSE
+  updateCutPoints = "none"
 ))
 expect_true(any(
   !pinned$setPredictor(

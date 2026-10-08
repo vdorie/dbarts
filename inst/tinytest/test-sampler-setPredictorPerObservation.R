@@ -350,7 +350,7 @@ expect_error(
     x2,
     1L,
     forceUpdate = "partial",
-    updateCutPoints = TRUE
+    updateCutPoints = "position"
   ),
   "partial updates cannot also update cut points"
 )

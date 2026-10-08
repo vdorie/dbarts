@@ -3884,7 +3884,8 @@ static void testSparseMutationDirectStore() {
         "a categorical CSC replacement matches the dense path, either reference");
 
   // the precheck over entries answers what the dense check answers over the
-  // materialized column: quantile counts, level codes, the implicit level
+  // materialized column: any numeric column passes, however few distinct
+  // values it holds, and a factor's level codes and implicit level are read
   {
     CscFixture fixture;
     fixture.build(n, { 0.05, 0.6 });
@@ -3903,8 +3904,7 @@ static void testSparseMutationDirectStore() {
         CscOf csc(dense.data(), n, 1);
         bool sparse = s.cutsWouldRemainValidCsc(j, csc.values.data(),
                                                 csc.values.size(), 0.0);
-        agree &= sparse == s.cutsWouldRemainValid(j, dense.data()) &&
-                 sparse == !coarse;
+        agree &= sparse == s.cutsWouldRemainValid(j, dense.data()) && sparse;
       }
     CscCategoricalFixture factor;
     factor.build(n, 6, 0.92);
@@ -4177,8 +4177,8 @@ static void testSparseMutationDirectSampler() {
           "a mixed replacement matches the dense block: store and draws");
   }
 
-  // a refused middle column, whole and subset: by the precheck nothing is
-  // written; by revalidation everything written is put back
+  // a refused middle column, whole and subset: everything written is put
+  // back, the refreshed grids and their counts with it when they refresh
   {
     CscFixture fixture;
     fixture.build(n, { 0.08, 0.3, 0.1 });
@@ -4217,7 +4217,7 @@ static void testSparseMutationDirectSampler() {
     StoreImage before(s.data());
     std::vector<double> fitsBefore(TestPeer::treeFits(s.chain(0)));
     const PredictorUpdateResult expected[] = {
-      PredictorUpdateResult::invalidCutPoints,
+      PredictorUpdateResult::rolledBack,
       PredictorUpdateResult::rolledBack };
     for (int refusal = 0; refusal < 2; ++refusal) {
       bool updateCuts = refusal == 0;

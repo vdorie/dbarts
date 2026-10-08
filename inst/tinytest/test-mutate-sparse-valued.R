@@ -51,7 +51,7 @@ expectTwinsAgree <- function(
   dense.arg,
   column = NULL,
   forceUpdate = TRUE,
-  updateCutPoints = FALSE,
+  updateCutPoints = "none",
   ctrl = control
 ) {
   mutate <- function(value) {
@@ -140,7 +140,7 @@ expect_true(.Call(
   sampler.bridge$getPointer(),
   sparseBlock(a.new),
   TRUE,
-  FALSE
+  0L
 ))
 
 a.one <- sparseBlock(a.new[, 2L, drop = FALSE])
@@ -362,7 +362,7 @@ for (ctrl in list(control, quantile.control)) {
     y.a,
     sparseBlock(a.fine),
     a.fine,
-    updateCutPoints = TRUE,
+    updateCutPoints = "position",
     ctrl = ctrl
   )
   expectTwinsAgree(
@@ -371,7 +371,7 @@ for (ctrl in list(control, quantile.control)) {
     sparseBlock(b.cut),
     b.cut,
     column = c(1L, 3L),
-    updateCutPoints = TRUE,
+    updateCutPoints = "position",
     ctrl = ctrl
   )
 }
@@ -476,8 +476,8 @@ expectRefusalLeavesTwin(
   y.a,
   sparseBlock(three.empty),
   list(NULL, 1:3),
-  TRUE,
-  "induced cut points",
+  "position",
+  NULL,
   quantile.control
 )
 expectRefusalLeavesTwin(
@@ -485,7 +485,7 @@ expectRefusalLeavesTwin(
   y.a,
   sparseBlock(three.empty),
   list(NULL, 1:3),
-  FALSE,
+  "none",
   NULL
 )
 off.table <- sparseBlock(cbind(a.new[, 3L], c(9, rep(0, n - 1L)), a.new[, 2L]))
@@ -494,7 +494,7 @@ expectRefusalLeavesTwin(
   y.b,
   off.table,
   list(c(3L, 4L, 1L)),
-  FALSE,
+  "none",
   "column 'f' is categorical"
 )
 
@@ -527,7 +527,7 @@ for (design in list(x.a, a.values)) {
     y.a,
     sparseBlock(cbind(a.near[, 1L], 0)),
     list(c(1L, 1L)),
-    FALSE,
+    "none",
     NULL
   )
 }
@@ -593,7 +593,7 @@ signedCuts <- function(value) {
         value,
         column = 1L,
         forceUpdate = TRUE,
-        updateCutPoints = TRUE
+        updateCutPoints = "position"
       )
     },
     quantile.control

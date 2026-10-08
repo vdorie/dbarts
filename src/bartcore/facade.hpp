@@ -232,39 +232,41 @@ public:
   /// are not read - the STORE's type decides what an absent row reads (the
   /// argument's reference code on a categorical column, 0 otherwise). An
   /// invalid level code, or a reference past the level count when any row is
-  /// absent, returns invalidCutPoints with nothing written.
-  virtual PredictorUpdateResult setPredictor(const PredictorSource& newX,
-                                             bool forceUpdate,
-                                             bool updateCutPoints) = 0;
+  /// absent, returns invalidCutPoints with nothing written. placement says
+  /// where the splits on a column go when updateCutPoints replaces its grid.
+  virtual PredictorUpdateResult setPredictor(
+    const PredictorSource& newX, bool forceUpdate, bool updateCutPoints,
+    SplitPlacement placement = SplitPlacement::byPosition) = 0;
   /// Overwrite store columns columns[0..numColumns) from argument columns
   /// 0..numColumns of the view, under setPredictor's preconditions. A column
   /// named twice is applied in order and, on a reject, restored exactly.
   virtual PredictorUpdateResult updatePredictor(
     const PredictorSource& newColumns, const std::size_t* columns,
-    std::size_t numColumns, bool forceUpdate, bool updateCutPoints) = 0;
+    std::size_t numColumns, bool forceUpdate, bool updateCutPoints,
+    SplitPlacement placement = SplitPlacement::byPosition) = 0;
   /// Dense convenience spellings (the dbarts.h shape): plain column-major
   /// blocks over the store's own row count.
-  PredictorUpdateResult setPredictor(const double* newX, bool forceUpdate,
-                                     bool updateCutPoints) {
+  PredictorUpdateResult setPredictor(
+      const double* newX, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     const ColumnStore& store = data();
     return setPredictor(densePredictorSource(newX, store.numObservations,
                                              store.numPredictors),
-                        forceUpdate, updateCutPoints);
+                        forceUpdate, updateCutPoints, placement);
   }
-  PredictorUpdateResult updatePredictor(const double* newColumns,
-                                        const std::size_t* columns,
-                                        std::size_t numColumns,
-                                        bool forceUpdate,
-                                        bool updateCutPoints) {
+  PredictorUpdateResult updatePredictor(
+      const double* newColumns, const std::size_t* columns,
+      std::size_t numColumns, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) {
     return updatePredictor(
       densePredictorSource(newColumns, data().numObservations, numColumns),
-      columns, numColumns, forceUpdate, updateCutPoints);
+      columns, numColumns, forceUpdate, updateCutPoints, placement);
   }
-  virtual void setCutPoints(const double* const* newCutPoints,
-                            const std::uint32_t* numCutPoints,
-                            const std::size_t* columns,
-                            std::size_t numColumns,
-                            const double* currentPredictors) = 0;
+  virtual void setCutPoints(
+    const double* const* newCutPoints, const std::uint32_t* numCutPoints,
+    const std::size_t* columns, std::size_t numColumns,
+    const double* currentPredictors,
+    SplitPlacement placement = SplitPlacement::byPosition) = 0;
   virtual bool updatePredictorPerObservation(const double* newColumn,
                                              std::size_t column,
                                              bool* installed) = 0;
@@ -599,25 +601,25 @@ public:
   // re-expose them so a dense caller still resolves
   using SamplerBase::setPredictor;
   using SamplerBase::updatePredictor;
-  PredictorUpdateResult setPredictor(const PredictorSource& newX,
-                                     bool forceUpdate,
-                                     bool updateCutPoints) override {
-    return impl_.setPredictor(newX, forceUpdate, updateCutPoints);
+  PredictorUpdateResult setPredictor(
+      const PredictorSource& newX, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) override {
+    return impl_.setPredictor(newX, forceUpdate, updateCutPoints, placement);
   }
   PredictorUpdateResult updatePredictor(
-    const PredictorSource& newColumns, const std::size_t* columns,
-    std::size_t numColumns, bool forceUpdate,
-    bool updateCutPoints) override {
+      const PredictorSource& newColumns, const std::size_t* columns,
+      std::size_t numColumns, bool forceUpdate, bool updateCutPoints,
+      SplitPlacement placement = SplitPlacement::byPosition) override {
     return impl_.updatePredictor(newColumns, columns, numColumns, forceUpdate,
-                                 updateCutPoints);
+                                 updateCutPoints, placement);
   }
-  void setCutPoints(const double* const* newCutPoints,
-                    const std::uint32_t* numCutPoints,
-                    const std::size_t* columns,
-                    std::size_t numColumns,
-                    const double* currentPredictors) override {
+  void setCutPoints(
+      const double* const* newCutPoints, const std::uint32_t* numCutPoints,
+      const std::size_t* columns, std::size_t numColumns,
+      const double* currentPredictors,
+      SplitPlacement placement = SplitPlacement::byPosition) override {
     impl_.setCutPoints(newCutPoints, numCutPoints, columns, numColumns,
-                       currentPredictors);
+                       currentPredictors, placement);
   }
   bool updatePredictorPerObservation(const double* newColumn,
                                      std::size_t column,

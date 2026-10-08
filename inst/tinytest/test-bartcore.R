@@ -77,7 +77,7 @@ expect_false(sampler.mut$setPredictor(x.degenerate, forceUpdate = FALSE))
 expect_false(sampler.mut$setPredictor(
   x.degenerate,
   forceUpdate = FALSE,
-  updateCutPoints = TRUE
+  updateCutPoints = "position"
 ))
 result.mut <- sampler.mut$run(0L, 5L)
 expect_true(all(is.finite(result.mut$train)))
@@ -104,7 +104,7 @@ expect_true(all(is.finite(result.perobs$train)))
 sampler.mut$setPredictor(
   x.degenerate,
   forceUpdate = TRUE,
-  updateCutPoints = TRUE
+  updateCutPoints = "position"
 )
 expect_identical(unname(sampler.mut$data@x), x.degenerate)
 result.forced <- sampler.mut$run(0L, 2L)
@@ -153,15 +153,27 @@ expect_equal(dim(result.quants$train), c(n, 100L))
 fitMean.quants <- rowMeans(result.quants$train)
 expect_true(mean((fitMean.quants - f)^2) < 0.25 * mean((mean(y) - f)^2))
 
-# a coarser column cannot refresh quantile cuts: refused before any change
-expect_error(
-  sampler.quants$setPredictor(
-    round(x.quants[, 3L] * 2) / 2,
-    3L,
-    updateCutPoints = TRUE
-  ),
-  pattern = "induced cut points"
+# a coarser column refreshes quantile cuts to the fewer points its values
+# induce: unforced it is taken or declined, forced it is taken
+coarse.quants <- round(x.quants[, 3L] * 2) / 2
+refreshed.quants <- sampler.quants$setPredictor(
+  coarse.quants,
+  3L,
+  updateCutPoints = "position"
 )
+expect_true(isTRUE(refreshed.quants) || isFALSE(refreshed.quants))
+expect_true(sampler.quants$setPredictor(
+  coarse.quants,
+  3L,
+  forceUpdate = TRUE,
+  updateCutPoints = "position"
+))
+sampler.quants$storeState()
+expect_identical(
+  length(attr(sampler.quants$state, "cutPoints")[[3L]]),
+  length(unique(coarse.quants)) - 1L
+)
+expect_true(all(is.finite(sampler.quants$run(0L, 2L)$train)))
 
 # explicit cut points: installing a coarse grid collapses orphaned splits
 sampler.mut$setCutPoints(c(0.25, 0.5, 0.75), 1L)
