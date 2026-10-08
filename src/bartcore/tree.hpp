@@ -182,12 +182,10 @@ enum class FlatKind : std::uint8_t {
 /// replays against raw predictors without the store that quantized them;
 /// leaves carry their parameter. The same format serves saved-tree storage,
 /// external reporting, and state serialization: a cut value maps back to its
-/// index exactly where the column's cut points are distinct, being stored as
-/// the doubles they were computed as; where a grid repeats a value, as one
-/// the store built or a state brought may, the value names the first index
-/// holding it. An inline mask (up to 63 categories) rides in the
-/// payload word directly, category bits only; a pooled column's wider mask
-/// keeps numMaskWords words at maskOffset in a per-tree side channel,
+/// index exactly, a column's cut points being distinct and stored as the
+/// doubles they were computed as. An inline mask (up to 63 categories) rides
+/// in the payload word directly, category bits only; a pooled column's wider
+/// mask keeps numMaskWords words at maskOffset in a per-tree side channel,
 /// pre-order sequential. The missing direction lives in flags for either
 /// kind.
 struct FlatNode {

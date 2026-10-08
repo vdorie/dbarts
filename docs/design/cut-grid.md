@@ -42,6 +42,8 @@ to `setCutPoints`. The caller chooses ([`SplitPlacement`](../../src/bartcore/dat
   position. With the number of points unchanged nothing is touched, which is what 0.9-34 did. With it changed
   position i of n, from 0, goes to floor((2 i + 1) m / (2 n)) of m, the point under the centre of its share of
   the old grid ([`Tree::rescaledSplitIndex`](../../src/bartcore/tree.hpp)).
+  At `setCutPoints` 0.9-34 kept the index on a grid of another length and merged a split past its end, so
+  that call draws differently from the release (dec-B311).
 - by value, `"value"`: a split moves to the new point nearest its old threshold, the move `setData` and a warm
   start from another grid make ([`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp)).
 

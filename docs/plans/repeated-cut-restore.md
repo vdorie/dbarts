@@ -19,8 +19,13 @@ rng: by fit and by call.
   shrinks where it failed or kept the old grid, and a refreshed grid drops repeats. Where the count
   changes each split's position is rescaled (rule 6). A refresh whose count does not change keeps
   every position and is NEUTRAL, bit for bit.
-- New surface: `updateCutPoints = "value"` moves each split to the point nearest its old threshold.
-  No call of the base build reaches it.
+- POSTERIOR-CHANGING after `setCutPoints` under its default, `splits = "position"`, on a grid of
+  another length than the column holds: each split's position is rescaled (rule 6), where 0.9-34 and
+  the base build keep its index and merge a split past the end of a shorter grid. So that call draws
+  differently from the release; ruled as built (dec-B311). On a grid of the held length it is NEUTRAL,
+  bit for bit.
+- New surface: `updateCutPoints = "value"` and `setCutPoints(splits = "value")` move each split to the
+  point nearest its old threshold. No call of the base build reaches them.
 - NEUTRAL, bit for bit, for every other fit and call. That includes a column of few distinct values
   that are far apart (a 0/1 column under the uniform rule keeps its `n.cuts` distinct points), a
   constant column under the quantile rule (one point already), and a constant column with no missing
@@ -232,9 +237,10 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
    - `setCutPoints`, asked of the maintainer the same day against always by value and always by
      position: "The same choice as the refresh, same words." It gains `splits`, after `updateState`
      so positional calls keep their meaning: `"position"` (the default; with the count unchanged
-     today's behaviour bit for bit, with it changed the position rescaled, where today the index is
-     kept and a split past the end merged) or `"value"`. It stays forced: what cannot stand is
-     merged, and there is no unforced form.
+     today's behaviour bit for bit, with it changed the position rescaled, where today and in
+     0.9-34 the index is kept and a split past the end merged) or `"value"`. Shown that the release
+     keeps the index there, against the rescale as built, the maintainer on 2026-10-07: "Rescale, as
+     built." (dec-B311). It stays forced: what cannot stand is merged, and there is no unforced form.
 
    ```r
    s$setPredictor(x, 2L, updateCutPoints = "position")   # TRUE's rule
@@ -256,8 +262,13 @@ planning that shapes the build is how a rule's points are counted (call 2).
   (dec-B296 leaves them out of its rule).
 - State format: no block added, renamed or changed; [`stateFormatVersion`](../../src/R_interface_bartcore.cpp)
   and the floor stay at 1.
-- [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) does not move; no facade virtual changes;
-  `--preclean` on every engine commit all the same.
+- [`DBARTS_C_API_HASH`](../../inst/include/dbarts/dbarts.h) does not move. Three facade virtuals gain
+  a trailing argument, the placement of the splits
+  ([`SamplerBase::setPredictor`](../../src/bartcore/facade.hpp),
+  [`SamplerBase::updatePredictor`](../../src/bartcore/facade.hpp),
+  [`SamplerBase::setCutPoints`](../../src/bartcore/facade.hpp)): the bridge holds a sampler through
+  the facade and has no other way to hand the rule down (Calls made in building, 4; ruled out here
+  before rule 6). `--preclean` on every engine commit.
 - A refusal leaves the sampler, its stored state and its generators as they were.
 - The line the mutation battery anchors in [`runPredictorTransaction`](../../src/bartcore/sampler.hpp)
   stays as it is.
@@ -307,9 +318,11 @@ planning that shapes the build is how a rule's points are counted (call 2).
    routine that merges nothing, records each position it changes and fails on an empty interval;
    a failed transaction puts the recorded positions back before the grid. The bridge's two entries
    read the rule from the argument that carried the flag, so no entry gains an argument. In R
-   one reader of `updateCutPoints` gives the word, warns once for a logical in the idiom of
-   [`noOpThreadMethod`](../../R/tombstones.R), and refuses the rest; the partial update refuses any
-   word but `"none"`. [`Sampler::setCutPoints`](../../src/bartcore/sampler.hpp) takes the same rule
+   [`resolveUpdateCutPoints`](../../R/tombstones.R) reads a logical as its word and warns once, in
+   the idiom of [`noOpThreadMethod`](../../R/tombstones.R) and as a row of
+   [`dbartsTombstones`](../../R/tombstones.R), and
+   [`matchCutPointRule`](../../R/bartcore.R) matches the word and refuses the rest; the partial
+   update refuses any word but `"none"`. [`Sampler::setCutPoints`](../../src/bartcore/sampler.hpp) takes the same rule
    and hands the forced refresh the old grids of the columns it names; its bridge entry gains the
    argument and [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd) gains `splits`,
    matched as `updateCutPoints`' words are. The message of
@@ -478,8 +491,11 @@ so a column whose range cannot hold `n.cuts` distinct points gets fewer where 0.
 constant column gets one, and fits on such a column change; `setPredictor(updateCutPoints = TRUE)`
 derives up to `n.cuts` points from the new values whatever the column held, and no longer stops when
 they induce fewer; `updateCutPoints` takes `"none"`, `"position"` and `"value"`, a logical being
-taken with a warning until 1.1-0. The existing item on quantile cut points, which says a refresh spreads the cut
-points a column has, is amended to match.
+taken with a warning until 1.1-0; `setCutPoints` takes the same choice as `splits`, and by position
+rescales where 0.9-34 kept the index. The existing item on quantile cut points, which named a refresh
+onto more distinct values than the column's cut points could separate, is amended in the fix round:
+such a refresh now derives up to `n.cuts` of them. The item that lists what expires in 1.1-0 names the
+logical.
 
 ## Out of scope, and where it goes
 
@@ -589,8 +605,47 @@ The implementer's unless marked, reversible, and open for the maintainer's mark.
    between a sampler and its copy, and a copy must draw what its original draws after one call.
 6. The step-3 check for a rule past a column's grid in the unforced validation is not built: under
    rule 6 no refresh and no `setCutPoints` leaves one.
-7. The orchestrator's readings, not the maintainer's words: an explicit `FALSE` warns as `TRUE`
-   does; the word is matched as `match.arg` matches, a unique abbreviation taken.
+7. The orchestrator's readings, not the maintainer's words, awaiting his mark: a position is
+   rescaled when a refresh changes a column's count, where the release has no such case, and by the
+   formula of call 2; an explicit `FALSE` warns as `TRUE` does; the word is matched as `match.arg`
+   matches, a unique abbreviation taken; `setCutPoints` stays forced. The rescale at `setCutPoints`
+   on a grid of another length is not among them: there the release keeps the index, and the
+   maintainer ruled "Rescale, as built." (dec-B311; rule 6).
 8. The bridge reads the rule from the argument that carried the logical, as an integer code, so
    neither predictor entry changes its arity; the `setCutPoints` entry gains one argument. The flat C header carries no predictor update and does
    not move.
+
+## Calls made in the fix round
+
+After the review, by the implementer who took the slice over; reversible, open for the maintainer's mark.
+
+1. The logical's reader moves to the tombstone file and does one thing, a logical to its word with the
+   warning; the word is matched by the caller. Deleting the tombstones leaves a call that no longer
+   resolves, as for the thread methods. Its row of
+   [`dbartsTombstones`](../../R/tombstones.R) is ["logical updateCutPoints"](../../R/tombstones.R),
+   kind `behaviour`, owner `dbartsSampler`. The tombstone test asks the news list for functions,
+   methods and arguments only; the logical is named there all the same.
+2. The news item on quantile cut points is amended, not the plan: against 0.9-34 a refresh onto more
+   distinct values no longer keeps the lowest ones, and it no longer keeps the column's count either.
+3. How a forced merge weighs leaves is pinned twice.
+   [`testMapOldCutPointsLiveRowsMerge`](../../tests/cpp/test_data.cpp) merges two leaves of one row and
+   five under node statistics set the other way round, with unit weights and with weights of 4 and
+   2.5. From R,
+   ["a forced merge weighs each leaf by the rows it holds"](../../inst/tinytest/test-cut-grid-distinct.R)
+   gives a column of a weighted fit one point and works every tree out by hand from the trees as they
+   were, for a sampler and for its copy. It holds all twenty trees to the shape worked out, so it
+   also pins that the re-routing after the move merges nothing in that fixture.
+4. ["an unforced refresh moves the splits of every forest"](../../inst/tinytest/test-cut-grid-distinct.R)
+   sets a column of a two-forest sampler to every other point of its grid and refreshes it onto the
+   values it holds: each split's position doubles and its threshold stays, so the trees are identical
+   where every forest was moved.
+5. Checks tightened beyond the lines the review named: at `setCutPoints` on a finer grid each split is
+   held to twice its position, as the split-by-split check on a grid of the held count is; the
+   unforced refresh by value in [`testRefreshByValue`](../../tests/cpp/test_moves.cpp) is held to the
+   outcome it has, taken; the composition test gathers the column's splits over twenty single draws
+   and holds them to the one point. The `expect_equal` on a rolled-back sampler's next draws stays.
+6. The equivalence harness passes `"none"` where it passed `FALSE`; its compares stay bitwise.
+
+Mutants run for these, each a build of the fixed tree: node statistics for rows at the merge, counts
+for weights at the merge, and an unforced refresh that moves the first forest only. Each fails the
+check named for it in 3 and 4.

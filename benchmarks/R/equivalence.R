@@ -694,7 +694,7 @@ makeScenarios <- function() {
   )
 
   # a transactional proposal built to be ROLLED BACK: a two-level replacement
-  # column at updateCutPoints = FALSE collapses every observation onto two
+  # column at updateCutPoints = "none" collapses every observation onto two
   # values of the existing grid, which empties leaves in any tree splitting on
   # it, so the transaction is refused (0/5 probe seeds accept). LIMITATION,
   # stated because the scenario cannot state it itself: this gates that a
@@ -1612,7 +1612,7 @@ fitViaSamplerApi <- function(scenario) {
         mutate[["column"]]$values,
         column = mutate[["column"]]$index,
         forceUpdate = FALSE,
-        updateCutPoints = FALSE
+        updateCutPoints = "none"
       )
     }
     if (!is.null(mutate[["partial"]])) {

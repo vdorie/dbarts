@@ -1418,8 +1418,9 @@ struct ColumnStore {
   /// Install externally chosen cut points (strictly increasing) for a column and
   /// re-quantize its codes against them; x is the call-time predictor matrix
   /// the raw is read from (ignored for CSC-backed columns, which use their
-  /// retained slice). The cut count may shrink or grow, and existing splits
-  /// beyond the new range are the caller's problem (the sampler collapses them).
+  /// retained slice). The cut count may shrink or grow; the splits already on
+  /// the column are the caller's to move onto the new grid (the sampler does,
+  /// by position or by value, and merges what cannot stand).
   void setCutPointsForColumn(size_t j, const double* cuts,
                              std::uint32_t numCutPoints, const double* x) {
     // a factor column's grid is the level table's, fixed at build: an
