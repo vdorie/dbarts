@@ -156,3 +156,37 @@ expect_equal(
   dim(predict(fit.numeric, cbind(a = 0.5, b = 0.5))),
   c(5L, 1L)
 )
+
+# the sampler's own predict method and bart(test = ) on a design with a factor
+# column refuse a matrix by name as well
+sampler.fit <- make()
+invisible(sampler.fit$run())
+expect_error(
+  sampler.fit$predict(as.matrix(sampler.fit$data@x)[1:5, ]),
+  "'x.test' is a numeric matrix, but the predictor 'f' is a factor",
+  fixed = TRUE
+)
+expect_equal(length(sampler.fit$predict(predictors[1:5, ])), 5L)
+expect_error(
+  dbarts(
+    y ~ a + f + b,
+    frame,
+    test = as.matrix(sampler.fit$data@x)[1:5, ],
+    control = control
+  ),
+  "the predictor 'f' is a factor"
+)
+expect_error(
+  suppressWarnings(bart(
+    predictors,
+    frame$y,
+    test = as.matrix(sampler.fit$data@x)[1:5, ],
+    n.trees = 5L,
+    n.burn = 2L,
+    n.samples = 2L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )),
+  "the predictor 'f' is a factor"
+)

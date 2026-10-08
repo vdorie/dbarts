@@ -674,12 +674,22 @@ expect_null(sampler.bound$data@x.test)
 # a DENSE x.test view of the same CSC-trained column takes the declared K too
 test.dense.over <- cbind(rnorm(3L), c(0, 1, 7))
 colnames(test.dense.over) <- c("x1", "f")
+# (a dense matrix of codes is refused by name on a design with a factor column,
+# dec-B360; the engine's bound is the backstop for the package's own callers,
+# which hold codes it made, so it is reached here under withCodedPredictors)
+expect_error(
+  dbarts:::withCodedPredictors(dbarts(
+    dbartsData(train.bound, y.bound, test = test.dense.over),
+    control = boundControl
+  )),
+  pattern = codeMessage
+)
 expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = test.dense.over),
     control = boundControl
   ),
-  pattern = codeMessage
+  pattern = "the predictor 'f' is a factor"
 )
 
 # a DENSE-trained categorical column bounds a CSC test container the same way
@@ -1112,10 +1122,10 @@ train.na <- data.frame(
 test.dense.na <- cbind(rnorm(3L), c(0, NA, 2))
 colnames(test.dense.na) <- c("x1", "f")
 expect_inherits(
-  dbarts(
+  dbarts:::withCodedPredictors(dbarts(
     dbartsData(train.na, y.bound, test = test.dense.na),
     control = boundControl
-  ),
+  )),
   "dbartsSampler"
 )
 

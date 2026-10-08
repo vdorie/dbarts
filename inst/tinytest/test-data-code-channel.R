@@ -52,7 +52,12 @@ attr(x.test.chan, "varTypes") <- c(1L, 2L, 0L)
 # the data objects agree on the kinds and on the level tables the grids come
 # from, which is what makes the fits below comparable at all
 data.frame.chan <- dbarts::dbartsData(df.chan, y.chan, df.test.chan)
-data.matrix.chan <- dbarts::dbartsData(x.chan, y.chan, x.test.chan)
+# (an older data object's matrix of codes beside its level tables is the one
+# place a matrix of codes is read as codes, so it runs under the package's own
+# allowance, dec-B360)
+data.matrix.chan <- dbarts:::withCodedPredictors(
+  dbarts::dbartsData(x.chan, y.chan, x.test.chan)
+)
 expect_equal(data.frame.chan@varTypes, data.matrix.chan@varTypes)
 expect_equal(data.frame.chan@varTypes, c(1L, 2L, 0L))
 
@@ -74,12 +79,12 @@ sampler.frame.chan <- dbarts::dbarts(
 fit.frame.chan <- sampler.frame.chan$run(10L, 20L)
 
 set.seed(7L)
-sampler.matrix.chan <- dbarts::dbarts(
+sampler.matrix.chan <- dbarts:::withCodedPredictors(dbarts::dbarts(
   x.chan,
   y.chan,
   x.test.chan,
   control = control.chan
-)
+))
 fit.matrix.chan <- sampler.matrix.chan$run(10L, 20L)
 
 # bitwise: the channel changes how the values cross the bridge, nothing about

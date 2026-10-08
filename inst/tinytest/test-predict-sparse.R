@@ -76,7 +76,15 @@ rm(levels.rev, test.dense.rev, test.sparse.rev)
 
 # a plain dense matrix test set takes the frozen dense entry, untouched
 x.mat <- extract(sampler, "predictors")
-pred.mat <- sampler$predict(x.mat[1:10L, , drop = FALSE])
+# (the entry the package's own callers use for codes it made; a user's matrix
+# of codes is refused by name on a design with a factor column, dec-B360)
+expect_error(
+  sampler$predict(x.mat[1:10L, , drop = FALSE]),
+  "the predictor 'g' is a factor"
+)
+pred.mat <- dbarts:::withCodedPredictors(
+  sampler$predict(x.mat[1:10L, , drop = FALSE])
+)
 expect_true(is.numeric(pred.mat))
 expect_false(anyNA(pred.mat))
 

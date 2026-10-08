@@ -1657,7 +1657,7 @@ samplePriorPredictive <- function(
   for (i in seq_len(n.samples)) {
     draw$sampleTreesFromPrior(updateState = FALSE)
     draw$sampleLeafParametersFromPrior(updateState = FALSE)
-    fit <- draw$predict(xt, offset.test, n.threads)
+    fit <- withCodedPredictors(draw$predict(xt, offset.test, n.threads))
     # multi-chain samplers draw an independent prior stream per chain; prior
     # draws are chain-free, so only the first chain's stream is kept
     if (length(dim(fit)) > 1L) {
@@ -2469,6 +2469,7 @@ dbartsSampler <- setRefClass(
     },
     predict = function(x.test, offset.test, n.threads = control@n.threads) {
       "Using existing sampler to predict for new data without re-running. n.threads is a per-call worker count that does not persist, defaulting to the sampler's own: the replay is partitioned by (chain, saved draw), each partition writing its own rows, so the answer is identical bit for bit at every value."
+      refuseMatrixOfCodes(x.test, data@x, "'x.test'")
       x.test <- validateXTest(x.test, data@x)
       if (is.null(x.test)) {
         stop("x.test cannot be NULL")

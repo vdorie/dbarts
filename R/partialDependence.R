@@ -1239,11 +1239,13 @@ pdbart.drawsAt <- function(sampler, rows, settings) {
   if (sampler$control@keepTrees) {
     for (i in seq_along(settings)) {
       x.test <- setRow(settings[[i]])
-      pred <- if (is.null(rows$offset)) {
-        sampler$predict(x.test)
-      } else {
-        sampler$predict(x.test, rows$offset)
-      }
+      pred <- withCodedPredictors(
+        if (is.null(rows$offset)) {
+          sampler$predict(x.test)
+        } else {
+          sampler$predict(x.test, rows$offset)
+        }
+      )
       .Call(C_dbarts_assignInPlace, fd, i, pdbart.drawMeans(pred, n.chains))
     }
     return(list(fd = fd, samples = NULL))
@@ -1530,14 +1532,16 @@ pdbart.hazardAverage <- function(
       rep(seq_len(numPeriods), each = size)
     )
     colnames(x) <- columns
-    latent <- if (is.null(offset)) {
-      sampler$predict(x)
-    } else {
-      sampler$predict(
-        x,
-        if (length(offset) == 1L) offset else rep(offset[chunk], numPeriods)
-      )
-    }
+    latent <- withCodedPredictors(
+      if (is.null(offset)) {
+        sampler$predict(x)
+      } else {
+        sampler$predict(
+          x,
+          if (length(offset) == 1L) offset else rep(offset[chunk], numPeriods)
+        )
+      }
+    )
     survival <- 1 - link(t(matrix(latent, nrow = size * numPeriods)))
     dim(survival) <- c(numDraws, size, numPeriods)
     if (numPeriods > 1L) {
@@ -1989,13 +1993,13 @@ pd2bart <- function(
         grid
       )
       if (sampler$control@keepTrees) {
-        fdr <- pdbart.drawsByRow(
+        fdr <- pdbart.drawsByRow(withCodedPredictors(
           if (length(offset) == 0L) {
             sampler$predict(gridRows)
           } else {
             sampler$predict(gridRows, rep_len(offset[1L], nrow(gridRows)))
           }
-        )
+        ))
       } else {
         withCodedPredictors(sampler$setTestPredictor(gridRows))
         samples <- sampler$run(0L, sampler$control@n.samples)

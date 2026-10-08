@@ -3311,6 +3311,7 @@ dbartsData <- function(
   testRowNames <- NULL
   if (!testIsMissing && !is.null(test)) {
     testRowNames <- observationRowNames(test)
+    refuseMatrixOfCodes(test, x, "'test'")
     x.test <- validateXTest(test, x)
   }
 

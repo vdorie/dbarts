@@ -118,11 +118,18 @@ expect_error(
 test.over <- cbind(rnorm(3L), c(0, 1, 4))
 colnames(test.over) <- c("x1", "g")
 expect_error(
+  dbarts:::withCodedPredictors(dbarts(
+    dbartsData(train.gap, y.gap, test = test.over),
+    control = control
+  )),
+  pattern = "categorical test predictors must hold existing category codes"
+)
+expect_error(
   dbarts(
     dbartsData(train.gap, y.gap, test = test.over),
     control = control
   ),
-  pattern = "categorical test predictors must hold existing category codes"
+  pattern = "the predictor 'g' is a factor"
 )
 
 # SYMMETRY with the sparse route: the same values given as a sparseFactor
