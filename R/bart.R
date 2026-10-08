@@ -660,8 +660,9 @@ buildSamplerPriors <- function(
     tree.prior <- treePriorObj
   } else {
     priorCall <- quote(cgm(power, base, split.probs))
-    priorCall[[2L]] <- power
-    priorCall[[3L]] <- base
+    # NULL is the default, and assigning it into a call would delete the slot
+    priorCall[[2L]] <- if (is.null(power)) 2.0 else power
+    priorCall[[3L]] <- if (is.null(base)) 0.95 else base
     priorCall[[4L]] <- if (splitProbsSupplied) {
       splitProbs
     } else {

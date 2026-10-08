@@ -918,6 +918,42 @@ suppressWarnings({
 expect_equal(fitPower$fit$model@tree.prior@power, 3)
 expect_equal(fitPowerNested$fit$model@tree.prior@power, 3)
 expect_equal(fitPowerRenamed$fit$model@tree.prior@power, 3)
+# a NULL power or base is the default, at bart and bartBT
+suppressWarnings({
+  fitDefault <- shadowFit(xCons, yCons)
+  fitNullPower <- shadowFit(xCons, yCons, power = NULL)
+  fitNullBase <- shadowFit(xCons, yCons, base = NULL)
+  bartBTNullPower <- dbarts::bartBT(
+    xCons,
+    yCons,
+    ntree = 5L,
+    ndpost = 5L,
+    nskip = 2L,
+    nchain = 1L,
+    nthread = 1L,
+    verbose = FALSE,
+    power = NULL
+  )
+  bartBTNullBase <- dbarts::bartBT(
+    xCons,
+    yCons,
+    ntree = 5L,
+    ndpost = 5L,
+    nskip = 2L,
+    nchain = 1L,
+    nthread = 1L,
+    verbose = FALSE,
+    base = NULL
+  )
+})
+expect_equal(fitNullPower$fit$model@tree.prior@power, 2)
+expect_equal(fitNullPower$fit$model@tree.prior@base, 0.95)
+expect_equal(fitNullBase$fit$model@tree.prior@power, 2)
+expect_equal(fitNullBase$fit$model@tree.prior@base, 0.95)
+expect_identical(fitNullPower$yhat.train, fitDefault$yhat.train)
+expect_identical(fitNullBase$yhat.train, fitDefault$yhat.train)
+expect_identical(dim(bartBTNullPower$yhat.train), c(5L, nrow(xCons)))
+expect_identical(dim(bartBTNullBase$yhat.train), c(5L, nrow(xCons)))
 expect_equal(fitSdf$fit$model@resid.prior@df, 5)
 expect_equal(fitResid$fit$model@resid.prior@df, 5)
 expect_equal(fitResid$fit$model@resid.prior@quantile, 0.75)
