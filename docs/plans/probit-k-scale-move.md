@@ -1,14 +1,14 @@
 # probit-k-scale-move: a parameter-expansion step for k under probit
 
-Status: PLANNED 2026-10-08 (dec-B371; TODO probit-k-mixing). Queued behind the engine small-rulings slice
-(Interactions).
+Status: PLANNED 2026-10-08 (dec-B371; TODO probit-k-mixing); REVISED 2026-10-08 from its blind critique. Queued
+behind the engine small-rulings slice (Interactions).
 
 agent: opus implementer, one; blind critique of this plan first; one opus reviewer who runs the mutants below.
 rng: POSTERIOR-CHANGING by the README's rule (a default changes: every single-forest probit fit with a drawn k
 takes a new kernel); the stationary distribution is unchanged by construction and the exact gate is what shows
 it. NEUTRAL, bit for bit, everywhere else (Scope).
 window: before 1.0-0; engine slices stay serial.
-budget: ~1750 lines (code ~300, tests ~330, gate and measurement ~420, docs ~380, help and records ~120; the
+budget: ~1850 lines (code ~300, tests ~430, gate and measurement ~420, docs ~380, help and records ~120; the
 re-recorded baseline is data).
 
 ## Goal
@@ -38,7 +38,8 @@ tier is "Changes draws" ([Process by risk](README.md#process-by-risk)).
 - The k draw: [`ChiKHyperprior`](../../src/bartcore/model.hpp) (the engine's one k hyperprior; `invchi()` reaches
   it too). Defaults: [`drawsLeafKByDefault`](../../R/spec.R) draws k for probit, logistic and nbinom.
 - The switch's idiom: `treeShift`, through [`resolveTreeShift`](../../R/dbarts.R),
-  [`controlArgumentFromSlot`](../../R/dbarts.R), the `levelGibbs` slot in [A_class.R](../../R/A_class.R),
+  [`controlArgumentFromSlot`](../../R/dbarts.R) and `setControl`'s creation-fixed list (both special-case the
+  `levelGibbs` slot's name, which this slice avoids), the slot in [A_class.R](../../R/A_class.R),
   [`parseControl`](../../src/R_interface_bartcore.cpp), [`printInitialSummary`](../../src/R_interface_bartcore.cpp),
   [`optionsFromParsed`](../../src/R_interface_bartcore.cpp) and [`SamplerOptions`](../../src/bartcore/chain.hpp).
 
@@ -54,9 +55,13 @@ v = log alpha,
     log p(v) = (n - nu) v - (R / 2) e^(2v) + Q e^v - C e^(-2v)
 
 The truncation is invariant for alpha > 0; empty leaves sit at zero and stay there; an inactive row is not in the
-model, so its latent is neither counted nor scaled. Without an offset alpha^2 is generalized inverse Gaussian;
-with one it is not, so v is drawn by one slice step with stepping out (Neal 2003) from v = 0, a fixed width, each
-evaluation O(1).
+model, so its latent is neither counted nor scaled. A leaf whose members are all inactive is drawn from its prior
+and scales like any other. Without an offset alpha^2 is generalized inverse Gaussian; with one it is not, so v is
+drawn by one slice step from the current point v = 0 (Neal 2003, section 4): the level y = log p(0) - E with E
+standard exponential; stepping out from an interval of fixed width w placed at random around 0, with the step
+limit m split at random into J = floor(m U) steps left and m - 1 - J right (or no limit); then shrinkage toward 0.
+A fixed symmetric limit breaks reversibility and is not allowed. Each evaluation is O(1). One slice step is a
+reversible kernel for the conditional, not an independent draw from it.
 
 Exactness, in brief: the step is a Gibbs draw of the orbit coordinate given the orbit-invariant coordinates
 (k z, k mu, trees), the generalized Gibbs step of Liu and Sabatti (2000) on a group with Haar measure
@@ -78,10 +83,12 @@ Reached through: `bart`, `dbarts` and `xbart` on a 0/1 response, `hazard` (one f
 `hurdle.lognormal`, `rbart_vi`'s binary fit (its intercepts arrive as the offset, the Q term) - each where k is
 drawn, the default. Measured on the current tip: modern `bart` and `dbarts` draw k on a binary response, as do
 the hazard fit and the hurdle zero part; `bartBT` (and `bart` called with BayesTree names, forwarded to it)
-fixes k.
+fixes k by default, but takes the step when given `k = chi(...)`, with no control to turn it off (bartBT.Rd says
+so).
 
 Bitwise unchanged: every other family (logistic, nbinom, gaussian, Student-t, aft, ordinal, multinomial); probit
-with a fixed k (bartBT's default included); BCF, amplitude-coupled and multi-forest hazard fits; linear, gp and
+with a fixed k (bartBT's default included), and a fit with n <= nu under an infinite scale (such as
+test-binaryResponse-hyperprior.R's chi(1000, Inf) runaway); BCF, amplitude-coupled and multi-forest hazard fits; linear, gp and
 monotone leaves; `treeScale = "never"`; grow-from-root's sweeps (an initializer; the move is in the sampling
 sweep only). Declines inside an eligible fit (stale maps, every row inactive, k infinite) consume no draw at that
 sweep.
@@ -90,11 +97,13 @@ sweep.
 
 Engine (chain.hpp, model.hpp; names are proposals, cited by symbol once landed):
 - `SamplerOptions` gains `bool scaleExpansion = true`, commented beside `levelGibbs`.
-- A free function template `sliceFromZero(ext_rng*, logDensity, width)` with a named width constant (0.25, the
-  prototype's); the shrink loop terminates because v = 0 is always in the slice.
-- `Chain::scaleExpansionApplies(forest)` (the predicate above, no generator) and `Chain::drawScaleExpansion(forest)`,
-  called in `runSweeps` after the level step. One pass over the rows for n, R, Q (reading `latents()`, `offset()`,
-  and `workingWeights()`, which is the mask under probit); one slice draw; then each tree's occupied bottom nodes
+- A free function template `sliceFromZero(ext_rng*, logDensity, width, stepLimit)` implementing the step above,
+  with named constants for the width (0.25, the prototype's) and the limit (1000); shrinkage terminates because
+  v = 0 is always in the slice.
+- `Chain::scaleExpansionApplies(forest)` (the predicate above, no generator) and
+  `Chain::drawScaleExpansion(forest, double* alphaOut = nullptr)`, called in `runSweeps` after the level step; the
+  out-parameter, as `drawLevelShift`'s `shiftOut`, is what tests/cpp reads. One pass over the rows for n, R, Q
+  (reading `latents()`, `offset()` and `workingWeights()`, which is the mask under probit); one slice draw; then each tree's occupied bottom nodes
   multiplied by alpha (walked as `drawLevelShift` walks them), k divided by alpha, the latents scaled, and
   `totalFits` re-derived from the leaves ([`rebuildTotalFitsFromTrees`](../../src/bartcore/chain.hpp)), never
   multiplied in place.
@@ -103,42 +112,64 @@ Engine (chain.hpp, model.hpp; names are proposals, cited by symbol once landed):
   working response (working = alpha z - o, not alpha (z - o)), in place, so the sweep's `y` pointer stays valid.
 - No new chain state, no state-format change, no facade virtual, nothing in dbarts.h (no ABI event).
 
-Bridge: `parseControl` reads the slot into `ParsedControl`, `optionsFromParsed` into the option,
-`printInitialSummary` prints "scale expansion step: auto|never" after the level-step line.
+Bridge: `parseControl` reads the `treeScale` slot's word into a bool in `ParsedControl`, `optionsFromParsed`
+into the option, `printInitialSummary` prints "scale expansion step: auto|never" after the level-step line.
 
-R: a `scaleExpansion` slot, logical TRUE ("auto") or FALSE ("never"), plain TRUE/FALSE validity; `dbartsControl`
-gains `treeScale = c("auto", "never")` after `treeShift`, resolved by a `resolveTreeScale` beside
-`resolveTreeShift`; `controlArgumentFromSlot` maps it back; `$setControl` adds it to the creation-fixed list
-(restating the value is accepted, as for treeShift).
+R: `dbartsControl` gains `treeScale = c("auto", "never")` after `treeShift`, matched as `match.arg` does (a
+partial match taken, anything else refused naming `treeScale`). The slot is named after the argument, `treeScale`,
+holding the word ("auto" or "never"; validity refuses anything else), so `controlArgumentFromSlot` needs no case
+for it and `$setControl`'s creation-fixed list names it directly (restating the value is accepted, as for
+treeShift). The working name is pending (Open calls); named this way, a rename is a mechanical rewrite of one
+token across R, the bridge's slot read, help and tests.
 
 Help: [dbartsControl.Rd](../../man/dbartsControl.Rd) usage and a `treeScale` item (what the step does, that the
 posterior is the same, where it applies, fixed at creation); the control-settings lists in
-[bart.Rd](../../man/bart.Rd) (both places), [xbart.Rd](../../man/xbart.Rd) and the setControl paragraph in
-[dbartsSampler-class.Rd](../../man/dbartsSampler-class.Rd).
+[bart.Rd](../../man/bart.Rd) (both places), [xbart.Rd](../../man/xbart.Rd), the setControl paragraph in
+[dbartsSampler-class.Rd](../../man/dbartsSampler-class.Rd), and [bartBT.Rd](../../man/bartBT.Rd) beside its
+treeShift sentence: `bartBT` has no control, so a `bartBT(k = chi(...))` fit on a binary response always takes the
+step, which changes the sampled values and not the posterior.
 
 ## Tests
 
 tests/cpp, in test_ensemble.cpp (beside the level-step conditional test, reached from
-[`runEnsembleTests`](../../tests/cpp/test_ensemble.cpp)), through [`TestPeer`](../../tests/cpp/test_peer.hpp):
-1. Conditional: a burned-in probit drawn-k sampler with an offset and a mask, state frozen and restored between
-   2e5 draws; the drawn log alpha against the target CDF of the four constants by trapezoid quadrature, KS bound
-   at p = 1e-3 (D < 1.95 / sqrt(N)).
-2. Mapping, one move: k' alpha = k; mu' = alpha mu on occupied leaves, empty leaves 0; z' = alpha z on active
-   rows, inactive latents unchanged; working = z' - o; `totalFits` equal to the tree-order sum bitwise; ratios to
-   1e-14. This, not (1), catches k or the latents left unscaled after a correct draw.
+[`runEnsembleTests`](../../tests/cpp/test_ensemble.cpp)), through [`TestPeer`](../../tests/cpp/test_peer.hpp). The
+fixture is a burned-in probit drawn-k sampler with an offset, a mask, two or more trees and at least one empty
+leaf. The test's reference constants (n, R, Q, C) are computed from the raw state - `latents()`, the offset, the
+mask, the leaves re-summed in tree order, `kHyperprior` - never by the move's own code.
+1. Conditional, in invariance form (a slice step from a fixed v = 0 is not a draw from the target: the critique's
+   probe gave D = 0.038 against a bound of 0.0044). For each of 2e5 replications: draw v0 from the target by
+   inverse-CDF quadrature (trapezoid) of the frozen state's constants, move the frozen state to the orbit point
+   e^v0 (latents, leaves, k), take one move, and read the resulting v from the latents and the leaves (not from k
+   alone). KS of those v against the target, bound at p = 1e-3 (D < 1.95 / sqrt(N)); the critique's probe passed
+   at D = 0.0021.
+2. Mapping, one move, alpha from the out-parameter: k' alpha = k; mu' = alpha mu on every occupied leaf of every
+   tree, empty leaves 0; z' = alpha z on active rows, inactive latents unchanged; working = z' - o; `totalFits`
+   equal to the tree-order sum bitwise; ratios to 1e-14. This, not (1), catches k or the latents left unscaled
+   after a correct draw, and leaves scaled in one tree only.
 3. Inertness: option off, fixed k, logistic, a stale map, every row inactive, k infinite, and C = 0 with n <= nu
    consume no generator draw (the next uniform is unchanged).
-4. The slice helper on a one-dimensional density with a closed-form CDF, KS.
+4. The slice helper, in the same invariance form, on a one-dimensional density with a closed-form CDF: v0 drawn
+   exactly, one step, KS on the result; once at the shipped width and limit and once at a narrow width and a
+   step limit of 3, where the limit binds (at the shipped 0.25 and 1000 it never does, so only this run can
+   catch a limit that is not split at random).
 
-tinytest, a new file inst/tinytest/test-probit-scale-move.R: vocabulary
-(the two words, a partial match, NA, length 2 and other words refused naming `treeScale`), the default, the
-setControl refusal and restating, a control rebuilt by a front door keeps it; "auto" and "never" draw bitwise the
-same on gaussian, logistic, nbinom, probit at fixed k, a linear-leaf probit with a drawn k, multinomial and a BCF
-probit fit; they differ on a drawn-k probit fit through bart, dbarts, hazard and the hurdle zero part; an offset,
-a mask installed mid-run and chi(1.5, Inf) run finite; storeState and setState, copy and a saveRDS reload
-continue. Entries in [test-argument-surface.R](../../inst/tinytest/test-argument-surface.R),
-[test-control-valuesAreUsed.R](../../inst/tinytest/test-control-valuesAreUsed.R) and
-[test-na-as-none.R](../../inst/tinytest/test-na-as-none.R) beside treeShift's.
+tinytest, a new file inst/tinytest/test-probit-scale-move.R:
+- Vocabulary: the two words, a partial match, NA, length 2 and other words refused naming `treeScale`; the
+  default; the setControl refusal and restating; a control rebuilt by a front door keeps it.
+- Inert: "auto" and "never" draw bitwise the same on gaussian, logistic, nbinom, probit at fixed k, a
+  linear-leaf probit with a drawn k, multinomial and a BCF probit fit.
+- Taken: they differ on a drawn-k probit fit through bart, dbarts, hazard and the hurdle zero part, and a
+  bartBT(k = chi(1.5, 2)) fit differs from a matching dbarts sampler run with "never"; on a two-chain drawn-k
+  sampler EACH chain differs, and n.threads 1 and 2 draw bitwise the same.
+- An "auto" fit with keepTrees: the saved trees replayed reproduce every draw's training and test fits, so the
+  move sits ahead of every recorded channel.
+- An offset, a mask installed mid-run and chi(1.5, Inf) run finite.
+- State: the setting survives storeState, copy and a saveRDS reload, the reloaded state agrees with the stored
+  one, and a sampler restored by setState from a store and a reload of the same store continue bitwise
+  identically.
+- Entries in [test-argument-surface.R](../../inst/tinytest/test-argument-surface.R),
+  [test-control-valuesAreUsed.R](../../inst/tinytest/test-control-valuesAreUsed.R) and
+  [test-na-as-none.R](../../inst/tinytest/test-na-as-none.R) beside treeShift's.
 
 ## The exact gate
 
@@ -177,20 +208,24 @@ Against the [MANIFEST](../../benchmarks/baselines/MANIFEST), on the reference bu
 - bcf-equivalence-1b7d730c 15 of 15 and multinomial-equivalence-80b1c8d4 11 of 11 bitwise; no re-record.
 - The four snapshot files pass unchanged: test-reproducibility-binaryResponse.R fits through bartBT at k = 4.5
   (checked: no k is drawn), so the design's expected regeneration does not arise. A snapshot that moves is a stop.
+- test-binaryResponse-hyperprior.R's chi(1, Inf) fits (BayesTree names, through bartBT) take the step; its
+  statistical expectations must still pass, and its chi(1000, Inf) runaway declines and draws bitwise.
 - Every existing exact gate passes; the probit ones (hazard-, hurdle-, mask-redraw-, categorical-exact) fix k at 2
   and so draw bitwise; hazard-reduction and hurdle-reduction move both sides together and must stay bitwise equal.
 - Hot path: bench-sampler.R compare (maintainer-run, quiet machine). run-binary-n1000-p10-t75 takes the move and
-  sits at a different k, so it may pass 1.05 from different trees; the move's own cost is criterion 3 below.
+  sits at a different k, so it may pass 1.05 from different trees; the move's own cost is criterion 3 below. If it
+  does, its MANIFEST row gains a note saying so (or the maintainer re-records the speed baseline).
 
 ## The probit-k SBC arm
 
 No harness change: the arm's dbarts sampler takes the default "auto". The arm keeps R = 600, 99 draws at thin
-1000, 30,000 burn (Open call 2). On landing: benchmarks/README.md's "Until the k mixing move lands" paragraph and
-the end-bin reading for k go; the probit-k comments in sbc.R ([`sbcConfigProbitK`](../../benchmarks/R/sbc.R) and
-the burn default) and in sbc.yaml are rewritten. TODO workflow-text-edits adds `SBC_EXPECTED_FLAGS: k` to the
-probit-k job until this lands: if it has landed, this slice deletes that line; if not, its probit-k clause is
-struck from that TODO item. Either way this slice edits sbc.yaml, so its push starts the full matrix, which is the
-confirmation run (criterion 5).
+1000, 30,000 burn, an agent call recorded in the ledger at landing: with the move every dataset keeps 50 or more
+effective draws of 99, median 98; at thin 300, 8 percent fall under 50. On landing: benchmarks/README.md's "Until
+the k mixing move lands" paragraph and the end-bin reading for k go; the probit-k comments in sbc.R
+([`sbcConfigProbitK`](../../benchmarks/R/sbc.R) and the burn default) and in sbc.yaml are rewritten. TODO
+workflow-text-edits adds `SBC_EXPECTED_FLAGS: k` to the probit-k job until this lands: if it has landed, this
+slice deletes that line; if not, its probit-k clause is struck from that TODO item. Either way this slice edits
+sbc.yaml, so its push starts the full matrix, which is the confirmation run (criterion 5).
 
 ## Docs and records
 
@@ -201,15 +236,17 @@ confirmation run (criterion 5).
   move.
 - docs/architecture.md, One sweep: step 2 gains the move.
 - inst/NEWS.Rd, NEW FEATURES, the tree-moves item (scope: against 0.9-34, users' view): "Binary fits under the
-  probit link that draw \code{k} - the default for \code{bart}, \code{dbarts} and \code{xbart} - take a further
-  step each iteration that rescales the latent variables, the leaf values and \code{k} together, drawn from its
-  exact conditional distribution. \code{k} and the fit's overall scale mix far faster, most where the response is
-  nearly separated, where a chain could otherwise hold \code{k} for tens of thousands of iterations; the posterior
-  is unchanged. \code{dbartsControl(treeScale = )} turns it off." Parse-gated as the README's checklist says.
+  probit link that draw \code{k} - the default for \code{bart}, \code{dbarts}, \code{xbart} and the hazard fit -
+  take a further step each iteration that rescales the latent variables, the leaf values and \code{k} together,
+  drawn from its exact conditional distribution. \code{k} and the fit's overall scale mix far faster, most where
+  the response is nearly separated, where a chain could otherwise hold \code{k} for tens of thousands of
+  iterations; the posterior is unchanged. \code{dbartsControl(treeScale = )} turns it off." Parse-gated as the
+  README's checklist says.
 - TODO: probit-k-mixing removed; dec-B390's entry reads "now that probit-k-scale-move has landed"; a new item:
   "k-mixing-pg-families: measure k's mixing under logistic and nbinom (Polya-Gamma, k drawn by default) by
   benchmarks/R/probit-k-mixing.R's census on a logistic arm and an nbinom arm. (b) does not apply there; if k is
-  slow, the collapsed move (c) of docs/design/probit-k-scale-move.md generalizes. Window: Open call 3."
+  slow, the collapsed move (c) of docs/design/probit-k-scale-move.md generalizes, and the choice of fix goes to
+  the maintainer. Before 1.0-0."
 - Ledger entry for the calls made; this plan's Status and Landing; INDEX rows.
 
 ## Order of work
@@ -236,9 +273,12 @@ compares and snapshots above; every exact-gates.yaml gate in quick mode plus the
 
 Mutants, each must fail a test or the gate: the Jacobian exponent off by two (p = n - nu + 2); the latents not
 scaled; k not scaled; the Q term dropped; inactive rows counted in n or their latents scaled; working rebuilt as
-alpha (z - o); `totalFits` multiplied in place instead of re-derived (the mapping test's bitwise sum); the move
-declining always (the gate's mixing bound, the tinytest "differ" checks); a generator draw taken before an
-ineligible forest declines (inertness, bitwise tinytests); the C = 0, n <= nu guard removed (tests/cpp 3).
+alpha (z - o); `totalFits` multiplied in place instead of re-derived (the mapping test's bitwise sum); only tree
+0's leaves scaled (mapping test); the move taken on chain 0 only, or through scratch shared across chains (the
+two-chain and thread-count tinytests); the move placed after the test-fit writes and before the saved-tree writes
+(the keepTrees replay); a fixed symmetric step limit in the slice (tests/cpp 4); the move declining always (the
+gate's mixing bound, the tinytest "differ" checks); a generator draw taken before an ineligible forest declines
+(inertness, bitwise tinytests); the C = 0, n <= nu guard removed (tests/cpp 3).
 
 ## Stop conditions
 
@@ -257,29 +297,39 @@ meanwhile.
 
 ## Interactions
 
-- Engine small-rulings (docs/plans/small-rulings-1008-engine.md, on its own branch): it adds `Chain::scaleDrawnK`
-  writing a drawn k at a host call and edits chain.hpp (`SamplerOptions` beside `perturbProbability`, beside
-  `setForestFixedK`, the conversion sites) and facade.hpp. Engine slices land serially; it lands FIRST. Its
-  verdicts are pinned to the current MANIFEST with no re-record and unchanged snapshots, and they hold only if it
-  lands on today's baselines; this slice re-records once, on a tip already carrying it, and its partition is then
-  read against one baseline. It is smaller and its plan is written; this one still needs its critique. The hunks
-  are textually disjoint and share no code: `scaleDrawnK` keeps the spread at a host call, this move scales k with
-  the leaves and latents inside a sweep, and neither calls the other.
+- Engine small-rulings (docs/plans/small-rulings-1008-engine.md, being implemented on its own branch): engine
+  slices land serially, and it lands FIRST. Its verdicts are pinned to the current MANIFEST with no re-record and
+  unchanged snapshots, which hold only if it lands on today's baselines; this slice then re-records once, on a
+  tip already carrying it. The two share no code: `Chain::scaleDrawnK` keeps the spread at a host call, this move
+  scales k with the leaves and latents inside a sweep, and neither calls the other. Files both touch, to rebase
+  onto its tip:
+  - src/bartcore/chain.hpp: `SamplerOptions` (its `perturbWidth` beside `perturbProbability`, this slice's flag
+    beside `levelGibbs`); its other hunks (`scaleDrawnK` beside `setForestFixedK`, the conversion sites) are
+    away from `runSweeps`' level step. src/bartcore/model.hpp: its leaf-model edits against this slice's
+    `ResponseModel` and `ProbitResponse` edits. facade.hpp is its alone (a new virtual: `--preclean`).
+  - src/R_interface_bartcore.cpp: its `parseProposalProbs` and fill sites against this slice's `parseControl`,
+    `optionsFromParsed` and `printInitialSummary` hunks.
+  - R/dbarts.R: `dbartsControl` formals and the `newValidated` call (its `n.perturb.cuts` after
+    proposal.probs, this slice's `treeScale` after `treeShift`), and `setControl` (its `mixtureMoved`, this
+    slice's creation-fixed list). R/A_class.R: the slot list, prototype and validity.
+  - man/dbartsControl.Rd (usage, items, the engine-limits section) and man/dbartsSampler-class.Rd (its
+    setLeafPrior and newData items, this slice's setControl paragraph).
+  - inst/NEWS.Rd: the same tree-moves item.
+  - tests/cpp/test_peer.hpp (each adds accessors); inst/tinytest/test-argument-surface.R and
+    test-control-valuesAreUsed.R, if its new control argument is entered there as treeShift's is;
+    benchmarks/README.md (different sections); docs/plans/INDEX.md.
 - workflow-text-edits: the SBC arm section.
 - dec-B390: the binary hyperprior study is rerun after the main merge on chains carrying this move.
 
 ## Open calls
 
-1. The switch's name and vocabulary. (a) `treeScale = c("auto", "never")`, word-valued, fixed at creation,
-   guarded by setControl - treeShift's idiom, named for what the step does to the trees as treeShift is
-   (recommended). (b) `scaleExpansion = TRUE/FALSE`, a logical like useQuantiles, naming the method. (c) A name
-   on k: avoid, since `k.scale` already names the leaf prior's reference value (dec-B201). (d) No switch: the move
-   is exact and costs nothing, but then no fit can reproduce the draws without it or isolate it in a diagnosis;
-   not recommended. Whatever the name, there is no "always": an eligible forest has nothing to skip, an
-   ineligible one has no move to force.
-2. The arm's thin after landing. Keep 1000 (recommended: with the move every dataset keeps 50 or more effective
-   draws of 99, median 98; at thin 300, 8 percent fall under 50, the end-bin excess returning) or 300 (a third of
-   the 67-minute job). The TODO's "probably at a smaller thin" was written before the measurement.
-3. The window for the logistic and nbinom measurement. Before 1.0-0 (recommended: both draw k by default, the
-   same user-facing risk; a census of compute only, whose answer says whether a door is owed before release) or
-   after.
+1. The switch's name and vocabulary, pending with the maintainer; `treeScale` is the working name. (a)
+   `treeScale = c("auto", "never")`, word-valued, fixed at creation, guarded by setControl - treeShift's idiom,
+   named for what the step does to the trees as treeShift is (recommended). (b) `scaleExpansion = TRUE/FALSE`, a
+   logical like useQuantiles, naming the method. (c) A name on k: avoid, since `k.scale` already names the leaf
+   prior's reference value (dec-B201). (d) No switch: the move is exact and costs nothing, but then no fit can
+   reproduce the draws without it or isolate it in a diagnosis; not recommended. Whatever the name, there is no
+   "always": an eligible forest has nothing to skip, an ineligible one has no move to force.
+
+Settled since the first draft: the arm's thin stays 1000 (agent call, The probit-k SBC arm); the logistic and
+nbinom measurement is before 1.0-0, a slow result bringing the choice of fix to the maintainer (TODO above).
