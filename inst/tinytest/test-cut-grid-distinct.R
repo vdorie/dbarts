@@ -85,7 +85,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
   ctl <- controlWith(20L, useQuantiles)
   sampler <- dbarts(cbind(z, latent = 0), y, control = ctl)
   expect_identical(cutPointsOf(sampler)[[2L]], 0, info = rule)
-  expect_true(
+  expect_null(
     sampler$setPredictor(
       w,
       2L,
@@ -101,7 +101,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
   expect_identical(lengths(cutPointsOf(sampler)), c(20L, 20L), info = rule)
 
   # a refresh never fails for want of distinct points: the grid shrinks
-  expect_true(
+  expect_null(
     sampler$setPredictor(
       narrow,
       2L,
@@ -116,7 +116,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
     info = rule
   )
   # and onto a single value it is one point
-  expect_true(
+  expect_null(
     sampler$setPredictor(
       const,
       2L,
@@ -153,7 +153,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
   expect_identical(cutPointsOf(replaced), created, info = rule)
   for (word in refreshWords) {
     refreshed <- dbarts(others, y, control = ctl)
-    expect_true(
+    expect_null(
       refreshed$setPredictor(
         columns,
         forceUpdate = TRUE,
@@ -196,7 +196,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
       control = ctl,
       sigest = sd(y)
     )
-    expect_true(
+    expect_null(
       sparse$setPredictor(
         Matrix::Matrix(plain, sparse = TRUE),
         forceUpdate = TRUE,
@@ -229,7 +229,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
     for (word in refreshWords) {
       info <- paste(rule, case, word)
       sampler <- dbarts(cbind(z, v = from), y, control = ctl)
-      expect_true(
+      expect_null(
         sampler$setPredictor(
           onto,
           2L,
@@ -242,9 +242,9 @@ for (useQuantiles in c(FALSE, TRUE)) {
     }
     # without a refresh the grid is kept
     sampler <- dbarts(cbind(z, v = from), y, control = ctl)
-    expect_true(sampler$setPredictor(onto, 2L, forceUpdate = TRUE), info = case)
+    expect_null(sampler$setPredictor(onto, 2L, forceUpdate = TRUE), info = case)
     expect_identical(cutPointsOf(sampler)[[2L]], createdOn(from), info = case)
-    expect_true(
+    expect_null(
       sampler$setPredictor(
         onto,
         2L,
@@ -258,7 +258,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
   # over a grid set at 60 points
   sampler <- dbarts(cbind(z, v = w), y, control = ctl)
   sampler$setCutPoints(seq(-2, 2, length.out = 60L), 2L)
-  expect_true(
+  expect_null(
     sampler$setPredictor(
       exp(w),
       2L,
@@ -300,7 +300,7 @@ for (word in refreshWords) {
   # forced, the grid is the five points, the sampler runs on, and its state
   # goes back in as stored, into itself and into a copy and a reload
   sampler <- warmed(cbind(z, w))
-  expect_true(
+  expect_null(
     sampler$setPredictor(
       narrow,
       1L,
@@ -501,20 +501,20 @@ for (bad in list(
 abbreviated <- warmed(cbind(z, w))
 spelled <- warmed(cbind(z, w))
 for (pair in list(c("p", "position"), c("val", "value"), c("no", "none"))) {
-  expect_identical(
+  expect_null(
     abbreviated$setPredictor(
       exp(w),
       2L,
       forceUpdate = TRUE,
       updateCutPoints = pair[1L]
     ),
-    spelled$setPredictor(
-      exp(w),
-      2L,
-      forceUpdate = TRUE,
-      updateCutPoints = pair[2L]
-    ),
     info = pair[2L]
+  )
+  spelled$setPredictor(
+    exp(w),
+    2L,
+    forceUpdate = TRUE,
+    updateCutPoints = pair[2L]
   )
   expect_identical(
     cutPointsOf(abbreviated),
@@ -579,7 +579,8 @@ for (fragment in c(
     info = fragment
   )
 }
-expect_identical(c(viaTrue, viaFalse, again), c(TRUE, TRUE, TRUE))
+# forced, each returns NULL
+expect_identical(list(viaTrue, viaFalse, again), list(NULL, NULL, NULL))
 worded$setPredictor(
   exp(w),
   2L,
@@ -618,7 +619,7 @@ oldGrid <- cutPointsOf(positioned)[[2L]]
 spacing <- oldGrid[2L] - oldGrid[1L]
 shifted <- w + 3.5 * spacing
 expect_true(nrow(before) > 3L)
-expect_true(positioned$setPredictor(
+expect_null(positioned$setPredictor(
   shifted,
   2L,
   forceUpdate = TRUE,
@@ -631,7 +632,7 @@ expect_identical(
   match(afterPosition$value, newGrid),
   match(before$value, oldGrid)
 )
-expect_true(valued$setPredictor(
+expect_null(valued$setPredictor(
   shifted,
   2L,
   forceUpdate = TRUE,

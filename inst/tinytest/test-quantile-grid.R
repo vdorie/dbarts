@@ -182,7 +182,7 @@ expect_identical(refreshed[[2L]], spreadMidpoints(x[, 1L], 10L))
 # where the column held 10 cuts
 sampler <- dbarts(xRefresh, y, control = control)
 expect_identical(cutPointsOf(sampler)[[1L]], seq_len(10L) + 0.5)
-expect_true(sampler$setPredictor(
+expect_null(sampler$setPredictor(
   replacement,
   1L,
   forceUpdate = TRUE,
@@ -190,7 +190,7 @@ expect_true(sampler$setPredictor(
 ))
 expect_identical(cutPointsOf(sampler)[[1L]], seq_len(59L) + 0.5)
 # fewer distinct values than cuts held shrink the grid to their midpoints
-expect_true(sampler$setPredictor(
+expect_null(sampler$setPredictor(
   rep(seq_len(5L), length.out = n),
   1L,
   forceUpdate = TRUE,

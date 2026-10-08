@@ -117,7 +117,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
         updateCutPoints = "position"
       )
     )
-    expect_identical(refreshed, TRUE, info = info)
+    expect_null(refreshed, info = info)
     expect_identical(cutPointsOf(sampler)[[1L]], derived[[1L]], info = info)
   }
   sampler <- dbarts(x, y, control = control)

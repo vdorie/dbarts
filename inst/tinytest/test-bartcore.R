@@ -162,7 +162,7 @@ refreshed.quants <- sampler.quants$setPredictor(
   updateCutPoints = "position"
 )
 expect_true(isTRUE(refreshed.quants) || isFALSE(refreshed.quants))
-expect_true(sampler.quants$setPredictor(
+expect_null(sampler.quants$setPredictor(
   coarse.quants,
   3L,
   forceUpdate = TRUE,
