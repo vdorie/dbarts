@@ -314,6 +314,11 @@ items
     setTestPredictor and predict (dec-B360), which take a matrix of
     codes on a factor fit today (predict(fit, cbind(a = 0.5, f = 2))
     reads 2 as the second level).
+  hazard-max-rows-cost: before 1.0-0 (dec-B367, VD 2026-10-08). The
+    help of hazard(max.rows = ) and its refusal state what a row costs:
+    about 210 bytes a row shared plus about 630 a row a chain at 75
+    trees (one stored value a row a tree), so 1e7 rows is about 8.5 GB
+    on one chain and 27 GB on bart()'s four. The default stays 1e7.
   hazard-period-every-forest: before 1.0-0 (dec-B365, VD 2026-10-08).
     Every forest of a hazard fit may split on its period column
     whatever its vars, as a single forest already may; today each of
