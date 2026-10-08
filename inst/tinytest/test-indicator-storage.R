@@ -253,6 +253,7 @@ mi4 <- dbarts:::makeIndicatorModelMatrix(d4)
 expect_true(dbarts:::predictorSourceIsSparse(mi4))
 expect_true(ncol(mi4) > n4)
 sparseVsDense(y4, d4, NULL, NULL)
+expect_silent(dbarts:::sparseResidualStandardError(y4, mi4, NULL, NULL))
 # and the fit that reaches it raises no warning for a design the user did not
 # make dependent
 expect_silent(dbarts(
