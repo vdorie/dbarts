@@ -97,7 +97,8 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
   one-sided. Full mode takes 73 s on the laptop (two threads), 40 s at 2000 draws.
 - k arm, R = 600, L = 99, thin 1000, burn 30000: 67 minutes on the laptop (6.7 s a replication, two runs at once on
   a loaded machine), so 134 at twice that, inside the 180-minute limit. Correct sampler: all seven functionals pass,
-  k's chi-square p 0.70 and ecdf difference 0.041 of a 0.082 band. Shape of the k^2 conditional + 1/2: k flags, ecdf
+  k's chi-square p 0.012 (above the 6e-4 flag) and ecdf difference 0.038 of a 0.080 band, the end bins at 48 and
+  47 against 30 expected (the CLI run at the workflow's command with SBC_FAIL_ON_FLAG=true exited 0). Shape of the k^2 conditional + 1/2: k flags, ecdf
   difference 0.142 of 0.082 and chi-square p 0.000, 86 of 600 ranks in the lowest bin against 30. Power: the band
   at R = 600 is 0.082 and the ecdf's noise at its worst point about 0.02, so a true gap g is flagged with
   probability about pnorm((g - 0.082) / 0.02), 80% at g = 0.10; the +1/2 error's gap is 0.10 to 0.2 (mean rank 45
