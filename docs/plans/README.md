@@ -161,10 +161,12 @@ tiers takes the higher.
 
 ## Landing
 
-The landing record is two edits: append the plan's `## Landing` (or
-`## Landing note`) note, and bump the matching `docs/design/<x>.md`
-`Status:` line to `LANDED <date> (<commit>)`. The design Status line is
-the record most often missed; check it explicitly at every landing.
+The landing record is the plan's `## Landing` (or `## Landing note`)
+note, its Status, the ledger entry for the calls made and TODO. The
+matching `docs/design/<x>.md` `Status:` line (`LANDED <date> (<commit>)`)
+and the indexes are brought up to date in batches (Process by risk); the
+design Status line is the record most often missed, so the batch checks
+every landing since the last one.
 release-candidate-review.md inserts its landing notes newest-first
 under its "## Landing notes" heading; every other plan file appends at
 the end. Never insert into the middle of a note sequence another doc
@@ -292,10 +294,9 @@ lists; this is the shape):
   and pass on x86-64 Linux within their tolerance; exact-gates runs them
   there too, after its cross-host compares.
 - exact-gates: `docs/**`, `TODO`, `**.md`, the MANIFEST, `inst/NEWS.Rd`.
-  It does not ignore the rest of benchmarks/ and cancels an in-progress
-  run on the same branch, so a records push that touches benchmarks/
-  right after a slice push cancels the slice's run; space the pushes or
-  rerun. Its gate loop runs on the shipped build; the two cross-host
+  It does not ignore the rest of benchmarks/. On bartcore each commit is
+  its own concurrency group, so a later push no longer cancels a slice's
+  run; on other branches a newer push still supersedes an older one. Its gate loop runs on the shipped build; the two cross-host
   equivalence compares that follow get their own reference install, the
   tier-1 bound being tighter than the shipped draw path holds off-host.
 - lint: `docs/**`, `TODO`, `**.md`, `benchmarks/baselines/**`.

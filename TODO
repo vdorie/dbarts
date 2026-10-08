@@ -366,6 +366,24 @@ items
     unless the caller supplied a sparse column (bartXViz, maple and
     riAFTBART call it). Tests: sigma and return type identical with and
     without Matrix and across the threshold.
+  law-wording-sweep: before 1.0-0 (VD 2026-10-08, no "law" for a
+    distribution or a rule). About 870 whole-word uses of "law" in 181
+    tracked files: docs, R and man text, comments, the TODO item name
+    coefficient-law-opt-in; identifiers where not public. Replace with
+    distribution, prior, rule or formula as fits. Docs/text tier.
+  copy-untouched-updatestate: copy() of an untouched sampler made with
+    updateState = FALSE does not continue as its source (draws differed
+    by up to 0.77, found 2026-10-07, not rerun). Verify, then fix or
+    record why. Before the merge.
+  copy-after-nsamples-edit: copy() errors after control's n.samples is
+    edited where a save and reload works (found 2026-10-07, not rerun).
+    Verify, then fix. Before the merge.
+  state-grid-replaces-sampler: a state's cut grid replaces the sampler's
+    on install, against dec-B231 (a grid is data, never installed by a
+    state). Before the merge; with state-frame-prior's grid half.
+  suite-stray-warnings: the full tinytest suite raises about 244 warnings
+    outside expectations (count from 2026-10-07). Pin or remove each, per
+    gate hygiene. Before the merge.
   leaf-covariate-cap-removed: before 1.0-0 (dec-B366, VD 2026-10-08).
     Linear and gp leaves take any number of covariates: the per-leaf
     scratch (LinearGaussianLeaf::maxNumCovariates,
