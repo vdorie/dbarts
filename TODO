@@ -207,9 +207,14 @@ items
     argument, without which it accepts or refuses the donor whole, as
     built (dec-B295, VD 2026-10-07). Before 1.0-0; designed with
     warm-start-tree-count, the same question for a donor of another
-    tree count. To design: the argument's name and default, what is
-    returned, a collapsed leaf's value, and what stays refused under
-    force.
+    tree count. Ruled since: a part only one side has, DART's
+    weights or a variance forest, does not transfer and the trees do
+    (dec-B324); a constant donor seeds linear leaves exactly and a
+    linear donor constant ones at the covariates' centre, gp refused
+    (dec-B325); bart says what was taken in one verbose line
+    (dec-B326); forced forms return NULL (dec-B310). To design: the
+    argument's name and default, a collapsed leaf's value, and what
+    stays refused under force.
   warm-start-tree-count: a warm start (bart's warm.start, the sampler's
     installTrees) from a donor with another tree count, partially
     populated: a smaller recipient takes some of the donor's trees, a
@@ -218,9 +223,10 @@ items
     path for what 0.9-34's setControl did when given another n.trees,
     which 1.0-0 refuses (VD 2026-10-05, dec-B247: "maybe we can add only
     partially populating trees from another model in the warm-starts to
-    handle the big -> small, small -> big scenarios"). To design: which
-    trees a smaller recipient takes, and whether leaf values are rescaled
-    for the recipient's count.
+    handle the big -> small, small -> big scenarios"). Ruled: a smaller recipient
+    takes the donor's trees whose fits vary most over its rows, values
+    as they are; a larger one takes them all, the rest single leaves at
+    0 (dec-B323).
   warm-start-undo-test: Sampler::installForests undoes a refused warm
     start by snapshotting each touched chain's state and setting it back
     (restoreTouched), and nothing tests it. Every refusal it guards is
