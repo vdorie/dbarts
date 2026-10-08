@@ -324,6 +324,14 @@ items
     scale, a relative one following updateScale = TRUE. With or after
     the slice of response-scale-rows that adds the re-derivation
     arguments.
+  hazard-periods-rows-in: a hazard fit's default periods are the
+    distinct observed times of the subjects in the likelihood at
+    creation, where today a subject at weight 0 gives its time too
+    and adds rows to the subjects in (dec-B315, VD 2026-10-08). A
+    subject at weight 0 is expanded on that grid, its time in the
+    interval it falls in, one past the last period at risk throughout
+    with no event. R only; with the creation slice of
+    response-scale-rows, whose rule it follows.
   default-rule-per-gap: BEFORE THE MERGE TO MAIN (dec-B313, VD
     2026-10-08). Under the default rule a column with fewer distinct
     values than n.cuts gets one cut point in each gap between them, as
