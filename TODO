@@ -696,7 +696,7 @@ items
     (dec-B273); defaults go by a forest's kind (dec-B274); extract
     returns a list by forest of vectors named by column (dec-B275).
     Landed: written-surface, forest-defaults-by-kind. Planned:
-    forest-sd-unit, forest-kind-by-class, forest-multiplier-law. Not
+    forest-sd-unit, forest-kind-by-class, forest-multiplier. Not
     yet planned: tree.prior on forest() and the variance forest, the
     reader's normal() objects.
   written-surface-leftovers: what the basis left, none planned. A
@@ -762,7 +762,7 @@ items
     bartCause's sd.moderate defaults to NULL the same day.
     Plan: docs/plans/forest-sd-unit.md.
   forest-kind-by-class: before 1.0-0 (dec-B260), after forest-sd-unit
-    and before the multiplier law. What a forest multiplies is
+    and before the multiplier slice. What a forest multiplies is
     decided by the class of its basis and nothing else, at every
     door: dbartsData(bases = ) takes a factor and reads a logical
     vector as levels, as forest(basis = ) does. A factor's levels
@@ -781,7 +781,7 @@ items
     three-level scenario is rewritten and re-recorded. bartCause's
     bcf passes factor(z) between the two pushes.
     Plan: docs/plans/forest-kind-by-class.md.
-  forest-multiplier-law: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
+  forest-multiplier: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
     dec-B269, dec-B271, dec-B272, dec-B275; dec-A171), after
     forest-kind-by-class. Each kind of forest gets one law. A held
     coefficient has the value its kind gives it wherever the forest
@@ -802,7 +802,7 @@ items
     scenarios added; one exact gate script is added, deciding by z.
     bartCause's bcf loses b.prior.variance the day the first push
     lands.
-    Plan: docs/plans/forest-multiplier-law.md.
+    Plan: docs/plans/forest-multiplier.md.
   factor-column-update-forms: what the joint form's fix left
     (docs/plans/factor-column-update-forms.md, landed). setPredictor by
     column and forceUpdate = "partial" read a factor given for a
@@ -883,8 +883,8 @@ items
     two-level factor's coefficients installs into one that holds them,
     in silence: the trees arrive, the coefficients stay 0 and 1, and
     the install reports itself exact (test-state-not-model.R pins the
-    rule as "fixed amplitudes"; critique of forest-multiplier-law,
-    section 10). After the multiplier law's held push it is the one
+    rule as "fixed amplitudes"; critique of forest-multiplier,
+    section 10). After the multiplier slice's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
   response-scale-rows: what a fit takes from the response to place or
@@ -898,7 +898,7 @@ items
     dec-A140; dec-B327). A sampler created with no row in takes them
     over every row, with a warning (dec-B302). A linear or gp leaf's
     covariate centre and scale follow the same rule (dec-B304), and a
-    multiplier's scale does in the multiplier law's plan (dec-B303).
+    multiplier's scale does in the multiplier plan (dec-B303).
     Cut points still span every row. Changes the
     draws of every fit created with rows at weight 0. Before 1.0-0,
     and before the merge if it can be: design first, with the

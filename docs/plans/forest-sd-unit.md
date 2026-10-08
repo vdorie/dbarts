@@ -3,7 +3,7 @@
 Status: PLANNED (dec-B246 as revised, dec-B253, dec-B266; dec-B269 as dec-B280 and dec-B282 revise it).
 Follows [forest-defaults-by-kind.md](forest-defaults-by-kind.md) and push 3 of
 [written-surface.md](written-surface.md), neither of which has landed. Amended 2026-10-07 after the
-critique of the multiplier law: this slice takes in what was that law's first push (the engine is handed
+critique of the multiplier slice: this slice takes in what was that law's first push (the engine is handed
 what was stated and holds the rule), gives the reader and `extract` the shape they keep, and takes a
 named single sd (dec-B280). Amended again 2026-10-07 for dec-B296: the unit is taken over the rows in
 the likelihood when the sampler is created, by slice B of [response-scale-rows.md](response-scale-rows.md),
@@ -39,7 +39,7 @@ defines the classes.
   forest and in the writer, its name dropped.
 - Not a released object: a sampler saved by an earlier build of this branch holds eight numbers a forest
   and is refused by the bridge's check of the record's length.
-window: pre-release, after forest-defaults-by-kind and before the kind by class and the multiplier law, so
+window: pre-release, after forest-defaults-by-kind and before the kind by class and the multiplier slice, so
 that every later test, pinned string and help page states an sd once, in the unit it keeps, and reads it
 back in the shape it keeps. Serial with any other work in [`forestParams`](../../R/model.R), the
 multi-forest block of [`resolveSamplerSpec`](../../R/spec.R), [`reportLeafPrior`](../../R/dbarts.R),
@@ -115,7 +115,7 @@ the coefficient is held.
   So s is in units of L. It is the size of the forest's contribution where the forest has no basis or a
   factor and its coefficient is drawn. It is not where the coefficient is held (a held forest with no
   basis has size L whatever s is; a held factor 1.48 s L) or the basis is numeric (0.71 s L at a row whose
-  basis has the median nonzero norm). Those are the multiplier law's to change; this slice changes the
+  basis has the median nonzero norm). Those are the multiplier slice's to change; this slice changes the
   unit of s and nothing in that table but its last factor. (Rows for a factor of three levels and for
   two numeric columns were measured and agree; both shapes are refused before the release, dec-B281 and
   dec-B282, and are left out.)
@@ -167,7 +167,7 @@ the coefficient is held.
   `sd(y - offset)`): no file stops and 15 assertions fail in 7 files: pins of the stored numbers behind a
   stated sd (5), of the reader's `leaf.prior`, `leaf.scale.factor` and `amplitude.prior.scale` (5), of
   `k.scale` against a stated multiple (2) and of `extract` (3). For the change of shape, measured on the
-  multiplier law's stand-in: 72 assertions pin the eight stored numbers by position (test-bcf-family.R
+  multiplier slice's stand-in: 72 assertions pin the eight stored numbers by position (test-bcf-family.R
   46, test-forest-arguments.R 16, test-bcf-creation.R 8, test-multiforest-leaf-prior-writer.R 2). The two
   sets overlap in the first five. In tests/cpp the fixtures of
   [`testForestMapWriters`](../../tests/cpp/test_sampler.cpp),
@@ -233,11 +233,11 @@ Before and after, per door. "Several" is a model of several forests.
 | `$getLeafPrior()`'s `leaf.prior` | `forest(sd = )` in units of L, stated or not | the statement: `forest(sd = )` in the response's units, or `forest()` |
 | its `sd`, `sd.stated` | absent | the number in force, in the response's units; whether it was stated |
 | its `k.scale`, `response.scale`, `response.shift` | the response's units | unchanged |
-| its `amplitude.prior.scale`, `leaf.scale.factor`, `leaf.scale.divisor`, `amplitude.prior.variance`, `basis.row.norm`, `prior.sd.of` | the engine's channels, in units of L | unchanged, and said to be so; the multiplier law removes or renames them |
+| its `amplitude.prior.scale`, `leaf.scale.factor`, `leaf.scale.divisor`, `amplitude.prior.variance`, `basis.row.norm`, `prior.sd.of` | the engine's channels, in units of L | unchanged, and said to be so; the multiplier slice removes or renames them |
 | `$getLeafPrior()` with no forest | a list with no names | named by label |
 | `extract(type = "leaf.prior.sd")`, several | a vector `forest1`, `forest2` of each forest's own standard deviation before its coefficient | a list by label of each forest's `sd`; for one forest the number |
 | the same on one forest; `extract(type = "k")` | | unchanged |
-| `print`, `show`, the verbose summary | no forest's sd | unchanged; the printed block is the multiplier law's |
+| `print`, `show`, the verbose summary | no forest's sd | unchanged; the printed block is the multiplier slice's |
 | `$setForestBasis` | the forest's own scale is derived again from the new block's row norm, under the number in force | unchanged, the number in force being the stated one or the default |
 | `predict`, `fitted`, a state stored or installed | do not read a prior | unchanged |
 | `copy()`, a reload, `new("dbartsSampler", control, model, data)` | built from the eight numbers and the anchor | built from the statement, the anchor and the unit: the same prior, bit for bit |
@@ -275,12 +275,12 @@ reason, that the two sds are different things, stops being true. The fourth is t
 - The law is resolved in one function of the engine and nowhere in R; a forest's law is resolved once
   for each construction, by the chain, and the combiner is handed the result.
 - The engine learns nothing of a forest's kind here beyond whether it has a basis, which is all the
-  tip's rule reads. The kind's route from the data object is the multiplier law's held push's.
+  tip's rule reads. The kind's route from the data object is the multiplier slice's held push's.
 - The conversion is made in one place, the engine, against one recorded number. R divides nothing and
   multiplies nothing: it hands over what was written and reports what the engine returns.
 - A stated number is kept as written, so that the reader returns it bit for bit.
 - The reader's `sd` is one unnamed number a forest in this slice. A numeric forest's takes its column's
-  name with the multiplier law, when it becomes that many units per unit of the column.
+  name with the multiplier slice, when it becomes that many units per unit of the column.
 - The forests' record holds four numbers a forest (tree count, base, power, the hold), `sd` and, where
   one is stated, the coefficient variance, each one number or NA a forest, the anchor and the unit.
 - The flat C header, the stored state and every state block are untouched.
@@ -298,7 +298,7 @@ factor zf, dose, an offset column and weights of which ten are 0.
 1. The engine: the statement, the law and the unit. [`ForestSpec`](../../src/bartcore/combiner.hpp)
    loses its four derived numbers and states: `sd`, in the response's units, not a number where none is
    stated; the hold it has; and the coefficient variance, not a number where none is stated (the
-   multiplier law's held push removes it). For fixtures and for
+   multiplier slice's held push removes it). For fixtures and for
    [`expandForestSpecs`](../../src/bartcore/combiner.hpp), whose two-forest spelling states BCF's sizes
    as multiples of L, it may state a multiple of L in place of `sd`; nothing R reaches sets that.
    [`AmplitudeSpec`](../../src/bartcore/combiner.hpp) gains `unit`, not a number where the engine is to
@@ -325,7 +325,7 @@ factor zf, dose, an offset column and weights of which ten are 0.
    - `testForestLawStatements`: for K = 2 and 3, a forest with no basis and one with a two-level block
      that state nothing have, under each family, the leaf scale, the coefficients' variance and the
      half-Cauchy median of the tip's expressions written out with literals, to the bit. These literals
-     survive the multiplier law. A numeric column's law is held by the restated fixtures alone, which
+     survive the multiplier slice. A numeric column's law is held by the restated fixtures alone, which
      that law rewrites.
    - `testForestSdUnit`, beside [`testForestMapWriters`](../../tests/cpp/test_sampler.cpp): one fixture
      of three forests (none, a two-level block, a column of numbers) per family, with a response whose
@@ -573,7 +573,7 @@ Not a hot-path change: the law is resolved when a forest is built or restated, n
 
 No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released changes.
 
-## What this leaves for the multiplier law
+## What this leaves for the multiplier slice
 
 - What an sd is the size of where the coefficient is held or the basis is numeric: the table of "Context"
   with its rows off 1 is still true after this slice, in the response's units. The help says so, in those
@@ -605,7 +605,7 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
   assertions), by running the logging build again; that no baseline scenario has gained a stated sd;
   that [`resolveForests`](../../R/model.R) still holds the one-forest refusal step 5 removes; the names
   of the functions cited here.
-- Order with the two slices after it: this one, then the kind by class, then the multiplier law. This
+- Order with the two slices after it: this one, then the kind by class, then the multiplier slice. This
   slice and the kind by class share R files and are serial; neither needs the other. They are not one
   slice: this one changes arithmetic in the engine and a prior, that one is R only. It is not folded
   into the law's pushes that change a prior either: the law's cleanest gate is that forests with no
@@ -618,7 +618,7 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
   of several: refused here with the form to write. It belongs with the reader's `normal()` objects and
   `$setLeafPrior`'s single form, in TODO `forest-prior-args`.
 - The kind by class, with the refusal of a factor of three or more levels and of several numeric
-  columns; the multiplier law with everything listed above; `leaf.prior = normal(sd = )` on `forest()`
+  columns; the multiplier slice with everything listed above; `leaf.prior = normal(sd = )` on `forest()`
   and `updateBasisScale`, after the merge to main (dec-B276).
 - A way to put a stated forest back to its default: none exists before `normal()` objects are traded.
 - To TODO as a new entry: the verbose summary of a model of several forests prints one tree count and
@@ -629,7 +629,7 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
 - The slice stands alone, before the kind by class and the law. Its draws do move, for a stated sd left
   as written, so it is not a renaming that could ride with either; the reasons against folding it are
   under "What waits on what".
-- The multiplier law's first push as first planned is folded in here (the critique's finding 7, taken by
+- The multiplier slice's first push as first planned is folded in here (the critique's finding 7, taken by
   the coordinator). That push handed the engine the statement and moved no draw; this slice as first
   planned added a stated sd beside four derived numbers it kept, a reader that returned a default as a
   number, a skip of an equal write, a reading of records saved before it and `extract` as a vector, and

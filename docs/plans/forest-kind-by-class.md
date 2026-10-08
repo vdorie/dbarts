@@ -39,7 +39,7 @@ defines the classes.
   written; a swap or a prediction that gives a forest either. On push 3's build the suite creates 243
   such forests in 12 files (Context); each is rewritten onto a shape that stays or goes with the test of
   a shape that does not.
-window: pre-release, after the sd unit and before the multiplier law, which makes a factor and a block of
+window: pre-release, after the sd unit and before the multiplier slice, which makes a factor and a block of
 numbers two different priors: until it lands a factor and its indicator columns handed over as numbers
 are one fit, so this is the only tip on which every such block in the tests, the benchmarks and bartCause
 can be respelled and the respelling proved bit for bit. Serial with any other work in
@@ -298,7 +298,7 @@ Before and after, per door.
 | `$setForestBasis` | any class, any forest, levels by position | the table | the table; no forest changes width |
 | `predict(bases = )` | any class at the fit's width, levels by position | the table | the table |
 | `predict` from a formula term's stored record; `fitted`; `extract` | | unchanged | unchanged |
-| `$getLeafPrior`, `$setLeafPrior`, `print`, `show` | say nothing of a kind | unchanged | unchanged; the reader's entry and the printed block are the multiplier law's |
+| `$getLeafPrior`, `$setLeafPrior`, `print`, `show` | say nothing of a kind | unchanged | unchanged; the reader's entry and the printed block are the multiplier slice's |
 | `copy()`, a reload, `new("dbartsSampler", control, model, data)` | carry the block | carry the block and its levels: the same kind | a data object edited to a refused size is refused |
 | a state stored or installed | carries no basis | unchanged | unchanged |
 | the engine | a coefficient for each column of any block | unchanged | unchanged: nothing is narrowed there |
@@ -353,7 +353,7 @@ both apply.
 - The class is read in one function at creation and the table applied by one function afterwards; the
   size is refused by one function; no door has a copy of any of the three.
 - `data@bases[[f]]` stays a bare numeric matrix, with the names push 3 gives it and no other attribute.
-- No law changes: until the multiplier law a factor of two levels and a 0/1 number keep the fits they
+- No law changes: until the multiplier slice a factor of two levels and a 0/1 number keep the fits they
   have.
 - What push 3 fixed for later stays fixed (dec-B272): how the columns of a basis of several terms are
   named, and every refusal of a spelling that could later state a size for each column. A basis of
@@ -499,7 +499,7 @@ B.1 Its own commit on dbarts-1.0, after push 1 has landed on bartcore. R/bcf.R:
     because `bcf()` takes a logical treatment, which `factor(z, levels = 0:1)` would turn into missing
     values. The comment above it loses its sentence about the column order of `cbind`, the order now
     being that of the levels 0, 1. Its hand-built samplers hand the factor over in the same commit, so
-    that they stay the comparator of `bcf()` under the multiplier law: tests/testthat/test-14-bcf.R in
+    that they stay the comparator of `bcf()` under the multiplier slice: tests/testthat/test-14-bcf.R in
     its three places (the builder's `bases = `, the aligned block, and the block already cut to the kept
     rows, which keeps its refusal for its length) and test-03-responseFit.R in its one. Its pin of the
     second column of the aligned block against the kept treatment stands: a factor's block is still
@@ -597,7 +597,7 @@ Second commit, the refusal.
     - test-bcf-family.R, 50 creations through the data door: its arms on three groups and on a block
       times a constant go. They pin the tip's row norm on shapes that no longer exist; what they pin of
       a two-level block is held by the two-column arms the first commit made factors. Its 54 constant
-      columns are one numeric column and stay until the multiplier law.
+      columns are one numeric column and stay until the multiplier slice.
     - test-forest-capture.R 12 and test-forest-labels.R 5 creations, with 10 swaps: a basis of
       `dose + age` used only as some basis becomes `I(dose + age)` or one of its columns, the label and
       the capture under test unchanged; the tests of a swap's column order go with the refusal.
@@ -726,7 +726,7 @@ Not a hot-path change: nothing a sweep runs is touched.
 No new item: forests, `dbartsData(bases = )` and `$setForestBasis` are new in 1.0-0 and nothing released
 changes.
 
-## What this leaves for the multiplier law
+## What this leaves for the multiplier slice
 
 - The law itself. After this slice a factor and a number differ in what they are called, in what a swap
   and a prediction take, and in nothing the sampler draws. The law gives a number its own coefficient
@@ -774,7 +774,7 @@ changes.
 - On forest-defaults-by-kind: a forest with no basis may stand anywhere in a list and in a data
   object's `bases`, so "none" is never "forest 1" (step 1.4's last test); `<f>` may be selected by label;
   its interim refusals of held shapes, three of whose texts push 2 replaces or retires and two of which
-  wait for the multiplier law.
+  wait for the multiplier slice.
 - On the sd unit: nothing but the order of edits to shared files, and its reworded text for a longer
   `sd`.
 - On bartCause: step B.1, between the pushes. Push 2 is not pushed before it.
@@ -784,14 +784,14 @@ changes.
   would then have to read; that no baseline scenario but `bart2twoforest`, no exact gate and no help
   example fits a refused size (searched at the tip and on push 3's build); the names of the functions
   cited here.
-- Order: the sd unit, this slice, the multiplier law. This slice and the law are not one: the law is
+- Order: the sd unit, this slice, the multiplier slice. This slice and the law are not one: the law is
   posterior-changing for every numeric multiplier, and the respelling of push 2 can be proved bit for
   bit only on a tip where the kind is recorded and the law has not moved. This slice and the sd unit
   are not one either: that one changes engine arithmetic.
 
 ## Out of scope, and where it goes
 
-- The multiplier law, with everything listed above; `updateBasisScale`, after the merge to main
+- The multiplier slice, with everything listed above; `updateBasisScale`, after the merge to main
   (dec-B276).
 - A forest for each level of a factor of three or more (TODO `factor-basis-per-level`), and what several
   numeric columns mean (TODO `several-column-basis-meaning`): after the release.
@@ -818,7 +818,7 @@ changes.
 - The kind is stored once, on the data, as the levels; the forests' configuration gains nothing. The
   design put the levels on the data and a `kinds` entry in the configuration. With levels matched by
   name neither a forest's kind nor its levels can change after creation, so a second copy could only
-  disagree with the first. The multiplier law's bridge reads the data object already.
+  disagree with the first. The multiplier slice's bridge reads the data object already.
 - The levels are a slot and not an attribute of the block, as the design has it: the prototype's
   attribute broke 7 pins of `data@bases` and none of them is this slice's to change.
 - The empty check sits where the data object has its rows, and again where `dbartsSpec()` installs a

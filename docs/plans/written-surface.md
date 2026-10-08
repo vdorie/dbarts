@@ -41,7 +41,7 @@ rng: stated per text, as the process contract defines the classes.
 - Refusals and acceptances, no draws involved: texts the tip accepts and the slice refuses, and the
   reverse, are listed under "Refused forms" and "Context".
 window: pre-release, first of the forest-prior-args slices: the sd unit (N), the kind by class (K), the
-multiplier law (L) and everything after them write their tests and help in this spelling. Serial with any
+multiplier slice (L) and everything after them write their tests and help in this spelling. Serial with any
 other work in [R/formulaTerms.R](../../R/formulaTerms.R), [`forest`](../../R/model.R),
 [`resolveForests`](../../R/model.R), [`expandForestBasis`](../../R/model.R),
 [`replayForestBasis`](../../R/model.R), [`setForestBasis`](../../R/dbarts.R) or the multi-forest block of
@@ -185,7 +185,7 @@ said.
            amplitude = NULL, interactions = NULL, blocks = NULL, amplitude.prior.variance = NULL)
 
 Those are the formals after push 3. `base` and `power` become `tree.prior` and `leaf.prior` arrives in
-later slices; `amplitude.prior.variance` goes with the multiplier law. Only `vars` may be given unnamed.
+later slices; `amplitude.prior.variance` goes with the multiplier slice. Only `vars` may be given unnamed.
 "Door" below is a formula or a `forests` list; "plain terms" are a formula's terms outside any `forest()`.
 
 | written | means |
@@ -206,7 +206,7 @@ later slices; `amplitude.prior.variance` goes with the multiplier law. Only `var
 | `basis = 1 + dose`; `0 + dose`, `dose - 1` | a constant column and dose; dose |
 | `basis = ~ dose + age`, `basis = b` where `b <- ~ dose + age` | the same as without the tilde |
 | `sd = 2` | one unnamed number, the size of the forest for every column of its basis; its unit is unchanged by this slice |
-| `amplitude = fixed()`, a bare `fixed` | the coefficient is held, 1 for a forest with no basis, 0 for a basis's first column and 1 for the rest; what `update.amplitude = FALSE` is today. `fixed(1)` is taken and not advertised. On a basis of one numeric column it is refused until the multiplier-law slice holds that column at 1 |
+| `amplitude = fixed()`, a bare `fixed` | the coefficient is held, 1 for a forest with no basis, 0 for a basis's first column and 1 for the rest; what `update.amplitude = FALSE` is today. `fixed(1)` is taken and not advertised. On a basis of one numeric column it is refused until the multiplier slice holds that column at 1 |
 
 One written forest and the fitting function's own arguments:
 
@@ -428,7 +428,7 @@ slice's, in tests/cpp; nothing in R states one and this slice adds no bridge rea
   `$setForestBasis` and a value's emptied level among several kept are slice K's; a value left with one
   level is refused here.
 - The reader and `extract` keep today's shapes. None of the six returns the design pins as literals is
-  built here: the multiplier-law slice builds the per-column `sd` entries and `extract`'s list, after the
+  built here: the multiplier slice builds the per-column `sd` entries and `extract`'s list, after the
   unit slice so that they are written once in the response's units, and the forest-leaf-prior slice makes
   `leaf.prior` a `normal()` object. `$setLeafPrior(forests = list(forest(sd = )))` stays the writer.
 - An all-multiplied formula is accepted and no top-level argument is refused for it (dec-B274's refusal
@@ -472,7 +472,7 @@ reader's sake; the implementer may name them otherwise.
     constructor, a bare name the caller has bound is the caller's value, and `forests` forwarded through a
     wrapper's dots resolves it. `fixed` is not added to the public `dbartsForests`; outside the argument
     it is `dbartsPriors$fixed()`, and a constructor missing where it is forced says so. A held coefficient
-    on a basis of one numeric column is refused until the multiplier-law slice holds that column at 1: at
+    on a basis of one numeric column is refused until the multiplier slice holds that column at 1: at
     creation, every door, with the [1] text naming the forest by its position (`resolveSamplerSpec`), and
     by `$setForestBasis` on a forest that holds its coefficient, before anything is installed.
     [`resolveForestSpreads`](../../R/dbarts.R) names `amplitude` in its fixed-at-creation text.
@@ -1207,7 +1207,7 @@ reviews by one reviewer told to refute, LAND AFTER FIXES twice and then LAND; fi
 
 What the reviews and the landing run changed (dec-A171).
 - A held coefficient on a basis of one column is held at 0 on the tip, so the forest drops out of the fit
-  in silence. Until the multiplier-law slice makes that value 1, `amplitude = fixed()` on such a basis is
+  in silence. Until the multiplier slice makes that value 1, `amplitude = fixed()` on such a basis is
   refused at creation at every door, and by `$setForestBasis` on a forest created with a basis. A forest
   with no basis (held at 1), a factor and a basis of several columns (held at 0 for the first and 1 for
   the rest) are untouched, and the help says what each holds.

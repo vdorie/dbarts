@@ -3,7 +3,7 @@
 Status: LANDED 2026-10-07 (dec-B274, dec-B276; dec-B241 and dec-B246 as dec-B274 restates them): push 1 as
 8ae00bdb to 16069daf, push 2, selecting a forest by its label, as 13829fb9 to 3ef31f97. Followed push 3 of
 [written-surface.md](written-surface.md). Amended 2026-10-07 after the critique of
-the multiplier law and dec-B281 and dec-B282: push 1 gains the interim refusal of the held shapes the tip
+the multiplier slice and dec-B281 and dec-B282: push 1 gains the interim refusal of the held shapes the tip
 gets wrong (step 1.10).
 
 agent: two pushes. Push 1 (the defaults): opus implementer for the R code, sonnet for the respelled tests
@@ -37,7 +37,7 @@ defines the classes.
   swaps in one test file do the second.
 - Push 2 moves no draw: it adds a way to name a forest.
 window: pre-release, directly after written-surface push 3 and before the sd unit, the kind by class and
-the multiplier law, so that the tips on which written order decides a model are written-surface's alone.
+the multiplier slice, so that the tips on which written order decides a model are written-surface's alone.
 Serial with any other work in [`resolveForests`](../../R/model.R), [`forestParams`](../../R/model.R), the
 multi-forest block of [`resolveSamplerSpec`](../../R/spec.R),
 [`buildHostSamplerCall`](../../R/bart.R), [`resolveForestIndex`](../../R/bartcore.R),
@@ -60,7 +60,7 @@ trees, `base = 0.25`, `power = 3`), wherever either is written, in a formula, in
 data object's `bases` alike. Where no forest is without a basis, what the fitting function states for
 that forest (a tree count, a tree prior, a leaf prior, `interactions`, `blocks`) is refused by name and
 the model is accepted. Every method that takes a forest takes its label as well as its position. Until
-the multiplier law lands, a coefficient is held only where the tip holds it at the value the help
+the multiplier slice lands, a coefficient is held only where the tip holds it at the value the help
 states.
 
 ## Context
@@ -222,7 +222,7 @@ The same shapes after the slice, in the table of Context:
 | every forest with a basis, something stated to the fitting function | every door | refused, naming the argument | |
 | two forests with no basis; one forest with a basis | list, data object | refused | |
 
-## A held coefficient, until the multiplier law
+## A held coefficient, until the multiplier slice
 
 Interim, by the width of the forest's basis and the forest's position, which is all every door knows at
 this tip: `dbartsData(bases = )` has no record of a basis's class until
@@ -230,12 +230,12 @@ this tip: `dbartsData(bases = )` has no record of a basis's class until
 
 | held forest | position | the tip holds it at | this slice | afterwards |
 |---|---|---|---|---|
-| no basis | first; third or later | 1 | accepted | the multiplier law makes its `sd` exact |
-| no basis | second | 0: the forest leaves the model | refused | accepted at 1, by the multiplier law's first push |
+| no basis | first; third or later | 1 | accepted | the multiplier slice makes its `sd` exact |
+| no basis | second | 0: the forest leaves the model | refused | accepted at 1, by the multiplier slice's first push |
 | a basis of two columns | second | (0, 1) | accepted | a two-level factor: unchanged. Two numeric columns: the basis itself is refused for good (dec-B282, forest-kind-by-class push 2) |
-| a basis of two columns | any other | (1, 1): no contrast | refused | a two-level factor: accepted at (0, 1), by the multiplier law's first push. Two numeric columns: refused for good |
+| a basis of two columns | any other | (1, 1): no contrast | refused | a two-level factor: accepted at (0, 1), by the multiplier slice's first push. Two numeric columns: refused for good |
 | a basis of three or more columns | any | (0, 1, 1, ...) or all 1 | refused | refused for good: the basis itself is, drawn or held (dec-B281, dec-B282, forest-kind-by-class push 2) |
-| a basis of one column | any | refused already (dec-A171) | unchanged | accepted at 1, by the multiplier law's second push |
+| a basis of one column | any | refused already (dec-A171) | unchanged | accepted at 1, by the multiplier slice's second push |
 | any, at `$setForestBasis` | | the new width's values by position | another width refused | for good: after forest-kind-by-class push 2 no forest changes width |
 
 So two of these refusals are interim (a forest with no basis second; a two-level factor away from the
@@ -322,7 +322,7 @@ arrives on it; that slice changes the example.
   both builds accept the model.
 - `forest()`'s formals are untouched. Nothing of `tree.prior` or `leaf.prior` on `forest()`, of
   `updateBasisScale`, or of `dbarts()`'s own `n.trees` rides along.
-- No reader, `extract` or margin is renamed by label; dec-B275's list is the multiplier-law slice's.
+- No reader, `extract` or margin is renamed by label; dec-B275's list is the multiplier slice's.
 - A number given as `forest` does what it does today, in every method, with today's texts.
 - The two mutation-battery anchors in [`writeForestSpreads`](../../R/dbarts.R) are not edited.
 - No consumer is edited. bartCause's `bcf()` holds the two shapes step 1.10 keeps.
@@ -451,7 +451,7 @@ z, and "the table" is each forest's count from the engine and its base and power
     repair what it shows.
 1.10 The held shapes the tip gets wrong, interim. Where [`resolveSamplerSpec`](../../R/spec.R) refuses
     a held single column today ([`refuseHeldOneColumn`](../../R/model.R)), one function
-    (`refuseHeldShape`) applies the table of "A held coefficient, until the multiplier law" to every
+    (`refuseHeldShape`) applies the table of "A held coefficient, until the multiplier slice" to every
     held forest, by `NCOL()` of its final basis and its position; and where
     [`setForestBasis`](../../R/dbarts.R) refuses one column on a held forest it refuses any width but
     the forest's own. Nothing is held anew and no value changes. Tests, a new block of
@@ -475,7 +475,7 @@ z, and "the table" is each forest's count from the engine and its base and power
   the swap law's figures.
     docs/design/public-surface.md and docs/architecture.md where they give forest 1 the fit's count. TODO:
     this entry closes; `forest-prior-args` names it landed. man/forest.Rd's `amplitude` item says which
-    held forests are taken until the multiplier law lands, in the table's words; the design note
+    held forests are taken until the multiplier slice lands, in the table's words; the design note
     records the table with which rows are interim.
 1.12 Mutations (Verification): apply each, install, run the named test, record the failing count, revert,
     `touch` the file.
@@ -622,7 +622,7 @@ takes the fitting function's count.
 - The unit of `sd` with the reader's and `extract`'s lists named by label, the kind by class at the data
   door with the refusal of a basis of three or more levels or of several numeric columns, the multiplier
   law with the held values by kind and the printed block: their slices, in TODO `forest-prior-args`.
-- What a held coefficient is where step 1.10 refuses it: the multiplier law's first push, which lifts
+- What a held coefficient is where step 1.10 refuses it: the multiplier slice's first push, which lifts
   the two interim rows.
 - `updateBasisScale` and `leaf.prior = normal(sd = )` on `forest()`: after the merge to main (dec-B276).
 - To TODO as new entries: a named `bases` list read by name and not only checked; the names of a data
@@ -664,7 +664,7 @@ takes the fitting function's count.
   silence, and the same all-basis model the refusal of a count its caller never wrote. What a control
   from a plain-first fit carries is the tip's and is not changed.
 - `print` gives a count per forest (step 1.8). The one line would print a multiplied forest's 50 as the
-  fit's. The designed block with labels and sizes stays the multiplier-law slice's.
+  fit's. The designed block with labels and sizes stays the multiplier slice's.
 - A string is never a position. The nine sampler methods take `"2"` as forest 2 at the tip, and
   `TRUE`, a factor and a list by coercion, `factor("dose")` reaching forest 1 where `dose` is forest 2;
   all four are refused. None is in a test, a help page or a consumer (searched).
@@ -682,7 +682,7 @@ takes the fitting function's count.
 - Two pushes: the defaults change a model and the selection changes none, and they are reviewed against
   different risks.
 - The held shapes the tip gets wrong are refused here, by width and position (step 1.10). The critique of
-  the multiplier law found them accepted on every tip until that law's held push, four slices on; the
+  the multiplier slice found them accepted on every tip until that law's held push, four slices on; the
   coordinator took the finding and placed the refusal in this push, the one that first lets a forest
   with no basis stand second. By width and position and not by class: at this tip the data door cannot
   tell a factor's two indicator columns from two numbers, and a rule by class would refuse bartCause's

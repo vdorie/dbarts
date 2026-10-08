@@ -1,4 +1,4 @@
-# forest-multiplier-law: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
+# forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
 Status: PLANNED (dec-B253 and dec-B246 as revised; dec-B260 to dec-B265; dec-B269 as dec-B280 and dec-B282
 revise it; dec-B271, dec-B272, dec-B275, dec-B276, dec-B281, dec-B282; dec-A171). Follows
@@ -607,7 +607,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     coefficient makes `sd` exact; that a held forest with no basis has the drawn default, 2 sd(y) under a
     continuous response), the `sd` item's sentences for a held forest, the Details paragraph on the
     budget. [`dbartsSampler$getLeafPrior`](../../man/dbartsSampler-class.Rd) with its docstring. A new
-    docs/design/forest-multiplier-law.md with its index row: the rule's held half, the changed sequences
+    docs/design/forest-multiplier.md with its index row: the rule's held half, the changed sequences
     with their oracles, the re-recorded scenario, what the engine keeps general. docs/design/bcf.md and
     multiplier-combiner.md where they give the 0.674 to a held forest or name the variance. TODO:
     `forest-prior-args`.
@@ -790,7 +790,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     [`dbartsSampler$getLeafPrior`](../../man/dbartsSampler-class.Rd) and
     [`dbartsSampler$setLeafPrior`](../../man/dbartsSampler-class.Rd) with their docstrings: a swap moves
     no prior; the entries. The `extract` page's `leaf.prior.sd` item: a numeric forest's number carries
-    its column's name. docs/design/forest-multiplier-law.md completed: the rule, the scale and its
+    its column's name. docs/design/forest-multiplier.md completed: the rule, the scale and its
     record on every path, the relative bound and what it caps, what a state and a saved sampler hold,
     the changed sequences with their oracles, and the additions left with the reason each is one.
     docs/design/multiplier-combiner.md rewritten around the rule and the bound; nameable-calibration.md,

@@ -2,7 +2,7 @@
 
 Status: PLANNED (dec-B296, dec-B302; revises dec-A140). This file plans slice B, creation. Slice A is
 [aft-reanchor-observed-times.md](aft-reanchor-observed-times.md). Slices C and D are stated at the end
-and have no steps yet. dec-B303 stays in [forest-multiplier-law.md](forest-multiplier-law.md).
+and have no steps yet. dec-B303 stays in [forest-multiplier.md](forest-multiplier.md).
 
 agent: one push. Opus implementer for the engine and its tests; sonnet for the R code, the tinytest
 file, the gate scripts and the help once the engine is fixed; opus reviewer told to refute, and to read
