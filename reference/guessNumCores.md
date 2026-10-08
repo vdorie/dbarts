@@ -27,8 +27,9 @@ itself.
 ## Value
 
 An integer, or `NA` if no clear answer was obtained. The fitting
-functions take their default `n.threads` from this value and refuse an
-`NA`, so on such a system `n.threads` must be given.
+functions take their default `n.threads` from this value, and where it
+is `NA` the default is one thread, with no message; an `n.threads` that
+is stated as `NA` is refused.
 
 ## Author
 

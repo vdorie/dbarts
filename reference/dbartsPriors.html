@@ -73,7 +73,7 @@ The residual priors chisq and fixed are what a family
     <div class="section level2">
     <h2 id="format">Format<a class="anchor" aria-label="anchor" href="#format"></a></h2>
     <p>A list of functions:</p><dl><dt><code>cgm(power = 2, base = 0.95, split.probs = NULL)</code></dt>
-<dd><p>The Chipman, George, and McCulloch tree prior. <code>split.probs</code>
+<dd><p>The Chipman, George, and McCulloch tree prior; a <code>NULL</code> <code>power</code> or <code>base</code> is the default. <code>split.probs</code>
       weights the choice of split variable: <code>NULL</code> is uniform, a named
       vector assigns by column or term name (with an optional
       <code>".default"</code> element), an unnamed vector assigns by position.
@@ -83,7 +83,8 @@ The residual priors chisq and fixed are what a family
 
     <dt><code>dart(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL,
                      alpha = 1, update.alpha = TRUE, update.delay = NULL)</code></dt>
-<dd><p>The CGM structure prior with DART (Linero 2018): a Dirichlet prior
+<dd><p>The CGM structure prior with DART (Linero 2018); a <code>NULL</code>
+      <code>power</code> or <code>base</code> is the default. A Dirichlet prior
       over the split-variable probabilities inducing variable selection.
       <code>alpha</code> is the concentration, optionally sampled
       (<code>update.alpha</code>) on a grid with a Beta(<code>a</code>, <code>b</code>) prior

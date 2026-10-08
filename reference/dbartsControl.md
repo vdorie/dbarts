@@ -227,7 +227,8 @@ dbartsControl(
   [`predict`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   own fan-out. Defaults to
   [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md)
-  capped at `n.chains`; a larger, explicit budget is accepted, and
+  capped at `n.chains`, or to one where the cores cannot be counted (a
+  stated `NA` is refused); a larger, explicit budget is accepted, and
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) warn once
   per fit, naming both counts, that the excess goes unused for sampling.

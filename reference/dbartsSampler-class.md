@@ -1556,11 +1556,12 @@ constraint, leave a tree's leaf values out of order. A refused update is
 rolled back, whether it named columns or replaced the whole matrix: the
 sampler's trees, fits, predictors and random number generator are as
 they were before the call. A forced update always installs and returns
-`TRUE` invisibly. When `forceUpdate` is `"partial"`, instead returns a
-logical vector of length equal to the number of observations, `TRUE`
-where that observation's new value was installed and `FALSE` where it
-was rolled back to its previous value to keep every tree of every forest
-valid.
+`NULL` invisibly: the value says whether a valid update was made, which
+has no meaning when it is forced. When `forceUpdate` is `"partial"`,
+instead returns a logical vector of length equal to the number of
+observations, `TRUE` where that observation's new value was installed
+and `FALSE` where it was rolled back to its previous value to keep every
+tree of every forest valid.
 
 For `setState`, invisibly, `TRUE` when nothing had to be changed to
 install the state and `FALSE` otherwise. It is `FALSE` when, in any tree

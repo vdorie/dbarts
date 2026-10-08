@@ -307,7 +307,7 @@
 <dd><p>Integer specifying how many independent tree sets and fits should be calculated. Default 4; <code><a href="bartBT.html">bartBT</a></code>'s default is 1, BayesTree's historical single-chain convention.</p></dd>
 
    <dt id="arg-n-threads">n.threads<a class="anchor" aria-label="anchor" href="#arg-n-threads"></a></dt>
-<dd><p>A positive integer giving a total thread budget, distinct from <code>n.chains</code>: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so a budget above <code>n.chains</code> buys the sampler's own sweep nothing. The surplus still feeds the test-fit pool and <code>predict</code>'s own fan-out, and a fit warns once, naming both counts, when an explicit budget exceeds the chain count. Defaults to <code><a href="guessNumCores.html">guessNumCores</a></code> capped at <code>n.chains</code>.</p>
+<dd><p>A positive integer giving a total thread budget, distinct from <code>n.chains</code>: chains run in parallel across it, but tree sampling itself uses at most one thread per chain, so a budget above <code>n.chains</code> buys the sampler's own sweep nothing. The surplus still feeds the test-fit pool and <code>predict</code>'s own fan-out, and a fit warns once, naming both counts, when an explicit budget exceeds the chain count. Defaults to <code><a href="guessNumCores.html">guessNumCores</a></code> capped at <code>n.chains</code>, or to one where the cores cannot be counted; a stated <code>NA</code> is refused.</p>
 <p>On <code>predict</code>, <code>n.threads</code> is a per-call worker count for the saved-tree replay, defaulting to the fit's own: the replay is partitioned by (chain, posterior draw), each partition writing its own rows and nothing being reduced across workers, so the answer is identical bit for bit at every value and only the time taken changes.</p></dd>
 
    <dt id="arg-combinechains">combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains"></a></dt>
@@ -605,7 +605,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001321</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001745</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
@@ -653,7 +653,7 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001408</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.002084</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1 2 2 2 1 2 2 3 2 </span>

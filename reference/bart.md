@@ -942,7 +942,8 @@ print(x, ...)
   pool and `predict`'s own fan-out, and a fit warns once, naming both
   counts, when an explicit budget exceeds the chain count. Defaults to
   [`guessNumCores`](https://vdorie.github.io/dbarts/reference/guessNumCores.md)
-  capped at `n.chains`.
+  capped at `n.chains`, or to one where the cores cannot be counted; a
+  stated `NA` is refused.
 
   On `predict`, `n.threads` is a per-call worker count for the
   saved-tree replay, defaulting to the fit's own: the replay is
@@ -2052,7 +2053,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001321
+#> total seconds in loop: 0.001745
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2100,7 +2101,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001408
+#> total seconds in loop: 0.002084
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 2 2 1 2 2 3 2 

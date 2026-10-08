@@ -18,25 +18,26 @@ A list of functions:
 
 - `cgm(power = 2, base = 0.95, split.probs = NULL)`:
 
-  The Chipman, George, and McCulloch tree prior. `split.probs` weights
-  the choice of split variable: `NULL` is uniform, a named vector
-  assigns by column or term name (with an optional `".default"`
-  element), an unnamed vector assigns by position. Entries must be
-  non-negative and finite, with at least one positive. Named or
-  positional probabilities are matched to the data when a sampler is
-  built.
+  The Chipman, George, and McCulloch tree prior; a `NULL` `power` or
+  `base` is the default. `split.probs` weights the choice of split
+  variable: `NULL` is uniform, a named vector assigns by column or term
+  name (with an optional `".default"` element), an unnamed vector
+  assigns by position. Entries must be non-negative and finite, with at
+  least one positive. Named or positional probabilities are matched to
+  the data when a sampler is built.
 
 - `dart(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL, alpha = 1, update.alpha = TRUE, update.delay = NULL)`:
 
-  The CGM structure prior with DART (Linero 2018): a Dirichlet prior
-  over the split-variable probabilities inducing variable selection.
-  `alpha` is the concentration, optionally sampled (`update.alpha`) on a
-  grid with a Beta(`a`, `b`) prior on `alpha / (alpha + rho)`; `rho`
-  defaults to the number of predictors. `NA` is a missing value, not a
-  spelling of the default, and is refused for `rho` and `update.delay`
-  alike. Updates hold until `update.delay` iterations have passed
-  (default: half the control's burn-in), so the forest is
-  likelihood-informed when counts first enter the Dirichlet.
+  The CGM structure prior with DART (Linero 2018); a `NULL` `power` or
+  `base` is the default. A Dirichlet prior over the split-variable
+  probabilities inducing variable selection. `alpha` is the
+  concentration, optionally sampled (`update.alpha`) on a grid with a
+  Beta(`a`, `b`) prior on `alpha / (alpha + rho)`; `rho` defaults to the
+  number of predictors. `NA` is a missing value, not a spelling of the
+  default, and is refused for `rho` and `update.delay` alike. Updates
+  hold until `update.delay` iterations have passed (default: half the
+  control's burn-in), so the forest is likelihood-informed when counts
+  first enter the Dirichlet.
 
 - `normal(k = NULL, sd = NULL)`:
 
