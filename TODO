@@ -378,6 +378,17 @@ items
     becomes a dbartsControl setting beside proposal.probs, a whole
     number of grid positions, default 1, which changes no draw; the
     limits table's row says it is settable.
+  constant-response-window: before 1.0-0 (dec-B386, VD 2026-10-08). A
+    constant response's transform is c - 0.5 to c + 0.5, not c to
+    c + 1, at creation, at a re-derivation and when a stored (c, c) is
+    read (model.hpp's readRange and restoreScale set range 1 with min
+    left at c; chain.hpp and combiner.hpp read the pair). Draws change
+    for constant responses only. Engine batch.
+  treatsens-default-chains: before 1.0-0 (dec-B387, VD 2026-10-08). On
+    treatSens's dbarts-1.0 branch, the null treatment model's pdbart
+    calls (R/treatSensBART.R) and cibart's dbartsControl (R/cibart.R)
+    drop n.chains = 1L, taking the default chains on threads with
+    n.samples = ceiling(nsim / n.chains) per chain.
   state-install-keeps-spread: before 1.0-0 (dec-B384, VD 2026-10-08).
     setState, a copy and a reload install a drawn leaf scale as the
     state's spread in force, k re-expressed against the recipient's
