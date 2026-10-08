@@ -2161,6 +2161,10 @@ Record: this register. Marked: blank. [dec-B351]
 Under dec-B256 a user's interrupt during a run raises R's interrupt condition. Run by the triage on 2026-10-08: a real SIGINT two seconds into a fit reaches a tryCatch interrupt handler at once on the branch, and on 0.9-34 only once the fit has finished; setTimeLimit's error stays an error, caught by try(), on both. Shown copying R's top level, recommended, against invoking the abort restart alone, which drops a browser() session and skips the options, and calling R's own interrupt entry, not documented API on every platform, the maintainer on 2026-10-08: "A. Copy R's top level (as built)." The rule: an unhandled interrupt runs options(interrupt = ) if set, else prints the blank line and runs options(error = ), then leaves by the first of the browser, tryRestart and abort restarts; a handled one does none of it; a time limit is re-raised as the error it is. What is still not polled is queued as interrupt-gaps. Built. Confirms that call of dec-A161. See also: [dec-A161], [dec-B256].
 Record: this register. Marked: blank. [dec-B352]
 
+**A held coefficient on a one-column numeric basis is refused until the held multiplier is built**
+forest(x1, basis = z, amplitude = fixed()) held the coefficient at 0 on the tip, as update.amplitude = FALSE had, so the forest dropped out of the fit in silence; the planned multiplier slice (forest-multiplier) gives it 1. Run by the triage on 2026-10-08: on a numeric z the call stops, naming the zero and pointing to a factor for a column of two values; on factor(z) it fits. Shown refusing until then, recommended, against holding at 0 and building the held value 1 ahead of the slice, the maintainer on 2026-10-08: "You can refuse until the feature is built." The maintainer also asked that fixed() take a value other than 1 and that the slice not be called a law; the held value is brought separately. Built. Confirms that call of dec-A171. See also: [dec-A171], [dec-B253], [dec-B271].
+Record: this register. Marked: blank. [dec-B353]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
