@@ -228,13 +228,18 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
      the column, the grid and the trees as they were; a forced one merges what cannot stand.
    - A logical is taken until 1.1-0 with a warning once per session, `TRUE` as `"position"` and
      `FALSE` as `"none"`; `NA` and anything else is refused by name.
-   - `setCutPoints` is not covered: it keeps positions and merges a split past a shorter grid, as
-     today. Open.
+   - `setCutPoints`, asked of the maintainer the same day against always by value and always by
+     position: "The same choice as the refresh, same words." It gains `splits`, after `updateState`
+     so positional calls keep their meaning: `"position"` (the default; with the count unchanged
+     today's behaviour bit for bit, with it changed the position rescaled, where today the index is
+     kept and a split past the end merged) or `"value"`. It stays forced: what cannot stand is
+     merged, and there is no unforced form.
 
    ```r
    s$setPredictor(x, 2L, updateCutPoints = "position")   # TRUE's rule
    s$setPredictor(x, 2L, updateCutPoints = "value")      # splits follow their thresholds
    s$setPredictor(x, 2L, updateCutPoints = TRUE)         # "position", with a warning once
+   s$setCutPoints(cuts, 2L, splits = "value")            # the default is "position"
    ```
 
 What the rulings leave open is under Calls made in planning and Calls made in building; the one of
@@ -255,8 +260,8 @@ planning that shapes the build is how a rule's points are counted (call 2).
 - A refusal leaves the sampler, its stored state and its generators as they were.
 - The line the mutation battery anchors in [`runPredictorTransaction`](../../src/bartcore/sampler.hpp)
   stays as it is.
-- No R argument is added: `updateCutPoints` takes three words where it took a logical (rule 6).
-  `setCutPoints` keeps dec-B285's sort and refusal.
+- `updateCutPoints` takes three words where it took a logical, and `setCutPoints` gains `splits`
+  (rule 6); no other R argument is added. `setCutPoints` keeps dec-B285's sort and refusal.
 
 ## Steps
 
@@ -302,7 +307,10 @@ planning that shapes the build is how a rule's points are counted (call 2).
    read the rule from the argument that carried the flag, so no entry gains an argument. In R
    one reader of `updateCutPoints` gives the word, warns once for a logical in the idiom of
    [`noOpThreadMethod`](../../R/tombstones.R), and refuses the rest; the partial update refuses any
-   word but `"none"`. The message of
+   word but `"none"`. [`Sampler::setCutPoints`](../../src/bartcore/sampler.hpp) takes the same rule
+   and hands the forced refresh the old grids of the columns it names; its bridge entry gains the
+   argument and [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd) gains `splits`,
+   matched as `updateCutPoints`' words are. The message of
    [`bartcore_setPredictor`](../../src/R_interface_bartcore.cpp) and
    [`bartcore_updatePredictor`](../../src/R_interface_bartcore.cpp) for
    [`PredictorUpdateResult`](../../src/bartcore/sampler.hpp)'s refusal, which only a factor value
@@ -359,6 +367,9 @@ planning that shapes the build is how a rule's points are counted (call 2).
      the point nearest its old threshold. A logical warns once and only once in a session, counted
      in process as the thread methods' warning is; `NA`, a number, two words and an unknown word are
      refused by name; an abbreviation is taken; the partial update refuses both words.
+   - `setCutPoints(splits = )`: `"position"` on a grid of the held count draws what the base build
+     draws; on a longer and a shorter grid every position is the rescaled one; `"value"` leaves each
+     threshold on the given point nearest it; an unknown word is refused.
    - Restores are exact: on a narrow column, with and without missing values, and a constant column
      beside missing values, through `setState`, `copy` and a reload, the printed trees are the stored
      ones, `setState` returns `TRUE`, the state stored again is identical and two restored samplers
@@ -502,7 +513,7 @@ Each is the planner's, reversible, and open for the maintainer's mark.
    dropped: the uniform rule's `n.cuts` evenly spaced points, the quantile rule's chosen midpoints.
    So a column of few values far apart keeps its grid and its bits. The alternative, one point per
    gap between distinct values under the uniform rule too, changes every fit with a discrete column.
-3. Replaced by rule 6 on 2026-10-08, for a refresh; it stands for `setCutPoints`. As planned: A
+3. Replaced by rule 6 on 2026-10-08, for a refresh and for `setCutPoints`. As planned: A
    refresh that changes a column's count keeps each split's position, as a refresh and
    `setCutPoints` do today. A split past a shorter grid is merged when the update is forced; when it
    is not, the call returns `FALSE` with column and grid as they were, as for any column the trees
@@ -570,9 +581,9 @@ The implementer's unless marked, reversible, and open for the maintainer's mark.
 5. A forced refresh under `"value"` merges an emptied interval with the weights `setData`'s move
    uses, the routine being shared.
 6. The step-3 check for a rule past a column's grid in the unforced validation is not built: under
-   rule 6 no refresh leaves one, and `setCutPoints` is always forced.
+   rule 6 no refresh and no `setCutPoints` leaves one.
 7. The orchestrator's readings, not the maintainer's words: an explicit `FALSE` warns as `TRUE`
    does; the word is matched as `match.arg` matches, a unique abbreviation taken.
 8. The bridge reads the rule from the argument that carried the logical, as an integer code, so
-   neither `.Call` entry changes its arity. The flat C header carries no predictor update and does
+   neither predictor entry changes its arity; the `setCutPoints` entry gains one argument. The flat C header carries no predictor update and does
    not move.
