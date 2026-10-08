@@ -21,7 +21,7 @@ rbart_vi(
     power = 2.0, base = 0.95,
     n.trees = 75L,
     n.samples = 1500L, n.burn = 1500L,
-    n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
+    n.chains = 4L, n.threads = defaultNThreads(n.chains),
     combineChains = FALSE,
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 5L, keepTrainingFits = TRUE,

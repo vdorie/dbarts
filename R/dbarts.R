@@ -358,7 +358,8 @@ hazardPredictorNames <- function(x) {
 ## function's own defaults are what apply, not A_class.R's prototype;
 ## only `binary` and `call`, which this constructor never sets, fall
 ## through to it. n.threads is deliberately one of the explicit ones:
-## this default probes guessNumCores() capped to n.chains (dec-B115 -
+## this default is defaultNThreads(): guessNumCores() capped to n.chains
+## (dec-B115 -
 ## within-chain threading does not ship, so a budget above n.chains buys
 ## tree sampling nothing and is worth warning about, not defaulting to),
 ## while the prototype's is the conservative n.threads = 1L for a bare
@@ -419,7 +420,7 @@ dbartsControl <- function(
   n.burn = 200L,
   n.trees = 75L,
   n.chains = 4L,
-  n.threads = min(dbarts::guessNumCores(), n.chains),
+  n.threads = defaultNThreads(n.chains),
   n.thin = 1L,
   printEvery = 100L,
   printCutoffs = 0L,

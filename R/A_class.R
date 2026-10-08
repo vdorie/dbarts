@@ -326,12 +326,19 @@ methods::setClass(
   )
 )
 
-## the thread defaults are guessNumCores(), which is NA when the cores
-## cannot be counted, so an NA budget names that cause and its remedy
+## the thread defaults are guessNumCores() capped to the chain count, which
+## is NA when the cores cannot be counted; a default that is NA is one thread
+## (dec-B306), so an NA that reaches the control was stated, and is refused
+## with what its writer needs
+defaultNThreads <- function(n.chains = Inf) {
+  cores <- dbarts::guessNumCores()
+  if (is.na(cores)) 1L else min(cores, n.chains)
+}
+
 naThreadsMessage <- paste0(
   "'n.threads' must be a positive integer, not NA; guessNumCores() returns ",
-  "NA when it cannot count this system's cores, and 'n.threads' must then ",
-  "be given"
+  "NA when it cannot count this system's cores, and 'n.threads' is then one ",
+  "unless it is given a count"
 )
 
 methods::setValidity("dbartsControl", function(object) {

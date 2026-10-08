@@ -59,7 +59,7 @@ rbart_vi <- function(
   n.samples = 1500L,
   n.burn = 1500L,
   n.chains = 4L,
-  n.threads = min(dbarts::guessNumCores(), n.chains),
+  n.threads = defaultNThreads(n.chains),
   combineChains = FALSE,
   n.cuts = 100L,
   useQuantiles = FALSE,

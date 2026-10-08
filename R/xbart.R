@@ -11,7 +11,7 @@ xbart <- function(
   n.reps = 40L,
   n.burn = c(200L, 150L),
   loss = c("rmse", "log", "mcr"),
-  n.threads = dbarts::guessNumCores(),
+  n.threads = defaultNThreads(),
   n.trees = 75L,
   k = NULL,
   sd = NULL,

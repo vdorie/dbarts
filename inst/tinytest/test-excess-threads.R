@@ -85,4 +85,107 @@ withCallingHandlers(
 )
 expect_equal(nExcess, 1L)
 
+# dec-B306: where the cores cannot be counted, guessNumCores() is NA and an
+# n.threads that is not stated is one, with no message, at every door that
+# defaults it; a stated NA is still refused. guessNumCores is replaced in the
+# namespace for the length of the block, in process.
+ns <- asNamespace("dbarts")
+realGuess <- get("guessNumCores", ns)
+replaceGuess <- function(value) {
+  unlockBinding("guessNumCores", ns)
+  assign("guessNumCores", value, ns)
+  lockBinding("guessNumCores", ns)
+}
+warnState <- dbarts:::onceWarnState
+onceKeys <- c(dbarts:::frontDoorDefaultsKey, "tombstone.rbart_vi")
+onceOnEntry <- mget(onceKeys, warnState, ifnotfound = list(NULL))
+for (key in onceKeys) {
+  warnState[[key]] <- TRUE
+}
+groupData <- data.frame(
+  y = testData$y,
+  x = testData$x[, 1L],
+  g = rep_len(1:3, length(testData$y))
+)
+replaceGuess(function(logical = FALSE) NA_integer_)
+noCores <- tryCatch(
+  {
+    expect_identical(dbarts::guessNumCores(), NA_integer_)
+    expect_identical(dbarts::dbartsControl()@n.threads, 1L)
+    expect_identical(dbarts::dbartsControl(n.chains = 3L)@n.threads, 1L)
+    expect_silent(fit <- dbarts::bart(
+      y ~ x,
+      groupData,
+      n.trees = 3L,
+      n.samples = 2L,
+      n.burn = 1L,
+      n.chains = 2L,
+      verbose = FALSE
+    ))
+    expect_silent(dbarts::bartBT(
+      testData$x,
+      testData$y,
+      ntree = 3L,
+      ndpost = 2L,
+      nskip = 1L,
+      verbose = FALSE
+    ))
+    expect_silent(dbarts::rbart_vi(
+      y ~ x,
+      groupData,
+      group.by = g,
+      n.trees = 3L,
+      n.samples = 2L,
+      n.burn = 1L,
+      n.chains = 2L,
+      n.thin = 1L,
+      verbose = FALSE
+    ))
+    expect_silent(dbarts::xbart(
+      y ~ x,
+      groupData,
+      n.trees = 3L,
+      n.reps = 1L,
+      n.samples = 2L,
+      n.burn = c(2L, 1L),
+      verbose = FALSE
+    ))
+    # a stated NA is refused, at the control and at the doors that read it
+    message <- paste0(
+      "'n.threads' must be a positive integer, not NA; guessNumCores() ",
+      "returns NA when it cannot count this system's cores, and 'n.threads' ",
+      "is then one unless it is given a count"
+    )
+    expect_error(
+      dbarts::dbartsControl(n.threads = NA_integer_),
+      message,
+      fixed = TRUE
+    )
+    expect_error(
+      dbarts::bart(y ~ x, groupData, n.threads = NA_integer_),
+      message,
+      fixed = TRUE
+    )
+    expect_error(
+      dbarts::xbart(y ~ x, groupData, n.threads = NA_integer_),
+      message,
+      fixed = TRUE
+    )
+    expect_error(
+      dbarts::rbart_vi(y ~ x, groupData, group.by = g, n.threads = NA_integer_),
+      message,
+      fixed = TRUE
+    )
+    TRUE
+  },
+  finally = {
+    replaceGuess(realGuess)
+    for (key in onceKeys) {
+      warnState[[key]] <- onceOnEntry[[key]]
+    }
+  }
+)
+expect_identical(get("guessNumCores", ns), realGuess)
+rm(ns, realGuess, replaceGuess, groupData, noCores, warnState, onceKeys, onceOnEntry, key)
+
 rm(cores, excessControl, evenControl, testData, hurdleY, nExcess)
