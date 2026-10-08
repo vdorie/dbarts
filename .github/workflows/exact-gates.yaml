@@ -78,8 +78,10 @@ on:
         type: choice
         options: [quick, full]
 
+# On bartcore each commit is its own group, so a push never cancels the
+# previous commit's run; elsewhere a newer push supersedes an older one.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/bartcore' && github.sha || github.ref }}
   cancel-in-progress: true
 
 name: exact-gates

@@ -122,6 +122,36 @@ sync, and the one that rots).
 Hot-path changes of any class additionally need bench-sampler.R compare
 on a quiet machine (maintainer-run; never concurrent with other load).
 
+## Process by risk
+
+Effort follows what a change can break (VD 2026-10-08, dec-B383). Pick
+the tier from the diff, not from the plan's size; a slice that spans two
+tiers takes the higher.
+
+- Changes draws (the engine, a prior, a default, a sampler move, an exact
+  or calibration gate): a plan with a blind critique; an implementer; one
+  opus review that runs mutants. The same reviewer checks the fix round
+  unless the fixes change engine behaviour, which takes a fresh review.
+  Local gates: the RNG class's battery above, the full tinytest suite,
+  sanitizers on tests/cpp and on the R-loaded path where new numerics are
+  reachable, `R CMD check`, and the arm64 reproducibility snapshots.
+- R surface, no draw change (arguments, messages, return shapes, help): a
+  short plan, or none where the ruling states the change; one sonnet
+  review; locally the test files the change touches, the snapshots, lint,
+  air, doc-freshness and the codoc checks. CI runs the full suite, check
+  and sanitizers.
+- Docs, text, workflows, records: no review; lint, air and doc-freshness.
+- Small rulings are batched: one R-surface slice and one engine slice for
+  a sitting's small items, not one slice each.
+- Records at a landing: the ledger entry for the calls made, the plan's
+  Status and Landing note, and TODO. The plan and design indexes and the
+  design Status lines are brought up to date in batches, before the
+  merge at the latest.
+- Pushes do not wait on CI: on bartcore each commit runs in its own
+  concurrency group, so a push no longer cancels the previous commit's
+  per-push runs. An R-surface slice may land while an engine slice's CI
+  runs; engine slices stay serial with each other.
+
 ## Landing
 
 The landing record is two edits: append the plan's `## Landing` (or
@@ -139,9 +169,10 @@ The procedure around those edits, as practiced:
    its own private R library (`R CMD INSTALL -l <lib> .` and `R_LIBS=<lib>`
    on every R call; `~/.Renviron` overrides `R_LIBS_USER`, so the prefix
    is not optional). One writer per worktree.
-2. Diff review by a second reader, then the gate battery for the change's
-   RNG class (above) run independently of the implementer, against the
-   slice's own library. `--preclean` on every engine commit: a stale
+2. Review and gates by the slice's tier (Process by risk, above): for a
+   change to draws, a second reader's review, then the gate battery for
+   the change's RNG class run independently of the implementer, against
+   the slice's own library. `--preclean` on every engine commit: a stale
    object silently fails the bitwise gates.
 3. Push the reviewed sha, fast-forward the main checkout, then a separate
    records commit carrying the real landed hash. Cherry-picking into an
@@ -150,7 +181,8 @@ The procedure around those edits, as practiced:
 4. Clean up the worktree and its library only after the push succeeded,
    chaining with `&&`, and never through a pipe: `git merge --ff-only X |
    tail -1` reports tail's exit status, not the merge's.
-5. Watch CI to green (below) before the next slice branches off the tip.
+5. Watch CI to green (below). The next engine slice branches off a tip
+   whose engine CI is green; an R-surface slice need not wait.
 
 Independent file-disjoint slices may run in parallel worktrees off one
 base, each with its own implementer and gate run; they stack by rebase in
