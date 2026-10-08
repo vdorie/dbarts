@@ -1270,9 +1270,9 @@ refusedKernel <- function(entry) {
   paste0(
     entry,
     ": 'updateScale' cannot be TRUE for a sampler with gp leaves that holds ",
-    "saved draws: a saved gp draw replays only under the response range it ",
-    "was drawn with; make a new sampler, or call without ",
-    "'updateScale = TRUE'"
+    "saved draws: re-derive the scale during burn-in, before draws are saved ",
+    "(burn-in sweeps, or keepTrees off until the scale is fixed), or make a ",
+    "new sampler"
   )
 }
 expect_error(

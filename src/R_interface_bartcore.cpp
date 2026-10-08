@@ -3154,9 +3154,9 @@ void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
                                const char* caller, int updateScale) {
   if (updateScale == FALSE || !holdsSavedGPDraws(sampler.shape())) return;
   Rf_error("%s: 'updateScale' cannot be TRUE for a sampler with gp leaves "
-           "that holds saved draws: a saved gp draw replays only under the "
-           "response range it was drawn with; make a new sampler, or call "
-           "without 'updateScale = TRUE'", caller);
+           "that holds saved draws: re-derive the scale during burn-in, "
+           "before draws are saved (burn-in sweeps, or keepTrees off until "
+           "the scale is fixed), or make a new sampler", caller);
 }
 
 // The weight policy, stated once for creation and every mutation conduit: a
