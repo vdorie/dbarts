@@ -438,6 +438,7 @@ dbartsControl <- function(
     rule_gibbs = 0,
     birth = 0.5
   ),
+  n.perturb.cuts = 1L,
   seed = NULL,
   updateState = TRUE,
   ...
@@ -506,6 +507,7 @@ dbartsControl <- function(
     # the partial spellings are filled here rather than at the slot, so the
     # stored mixture is always the resolved six the bridge reads
     proposal.probs = resolveProposalProbs(proposal.probs),
+    n.perturb.cuts = coerceOrError(n.perturb.cuts, "numeric"),
     seed = resolveSeedArg(seed, "dbartsControl", refuse = TRUE),
     updateState = as.logical(updateState)
   )
@@ -2599,10 +2601,12 @@ dbartsSampler <- setRefClass(
         )
       }
 
+      # the perturb window rides the mixture's install
       mixtureMoved <- !identical(
         newControl@proposal.probs,
         control@proposal.probs
-      )
+      ) ||
+        !identical(newControl@n.perturb.cuts, control@n.perturb.cuts)
 
       ptr <- getPointer()
       oldControl <- control

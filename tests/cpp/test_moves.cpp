@@ -2476,8 +2476,8 @@ static void testMoveValidityPredicates() {
 }
 
 // ---------------------------------------------------------------------------
-// The perturb move: a same-variable cut displacement, at most perturbWidth grid
-// positions.
+// The perturb move: a same-variable cut displacement, at most the context's
+// width in grid positions (perturbWidth by default).
 //
 // Two claims are checked here. FIRST, the interval invariance the reverse
 // window count rests on: findGoodOrdinalRules reads ancestors and descendants
@@ -2486,7 +2486,7 @@ static void testMoveValidityPredicates() {
 // |W(c')| on the unmodified tree instead of re-enumerating on T'. SECOND, what
 // the move may change: the split VARIABLE of every node and the tree's SHAPE
 // are invariant, at most one cut moves per accepted proposal, and it moves by
-// at most perturbWidth. A categorical rule has no cut to displace and is never
+// at most the width. A categorical rule has no cut to displace and is never
 // eligible, so an all-categorical tree is a no-op.
 // ---------------------------------------------------------------------------
 static void testPerturbMove() {
@@ -2576,54 +2576,65 @@ static void testPerturbMove() {
     return indices;
   };
 
-  tree.initialize(indexBuffer.data(), n);
-  tree.computeLeafStats(0, y.data(), ones.data());
-  split(0, 0, 5);
-  split(tree.at(0).leftChild, 1, 4);
-  split(tree.at(0).leftChild + 1, 0, 8);
-  split(tree.at(tree.at(0).leftChild).leftChild, 1, 1);
-
   ConstantGaussianLeaf constant{0.7};
-  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng_setSeed(rng, 20260907u);
+  int acceptedByWidth[2] = {0, 0}, longestByWidth[2] = {0, 0};
+  // the default window, then a width of three set through the context, as
+  // n.perturb.cuts sets it: no accepted move goes farther than the width, and
+  // at three some go farther than one
+  for (int32_t width : {perturbWidth, static_cast<int32_t>(3)}) {
+    ctx.perturbWidth = width;
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), ones.data());
+    split(0, 0, 5);
+    split(tree.at(0).leftChild, 1, 4);
+    split(tree.at(0).leftChild + 1, 0, 8);
+    split(tree.at(tree.at(0).leftChild).leftChild, 1, 1);
 
-  std::vector<int32_t> reference = shapeAndVariables();
-  int accepted = 0, moved = 0, longest = 0;
-  bool structurePreserved = true, dispatchedPerturb = true;
-  for (int step = 0; step < 400; ++step) {
-    std::vector<int32_t> before = cuts();
-    bool stepTaken = false;
-    StepType stepType = StepType::change;
-    // birth/death 0, swap 0, perturb 1: the dispatch's third branch is the
-    // only reachable one
-    metropolisJumpForTree(ctx, constant, rng, tree, y.data(), 1.0, &stepTaken,
-                          &stepType);
-    dispatchedPerturb &= stepType == StepType::perturb;
-    structurePreserved &= shapeAndVariables() == reference;
-    std::vector<int32_t> after = cuts();
-    int changes = 0;
-    for (size_t i = 0; i < after.size(); ++i) {
-      if (after[i] == before[i]) continue;
-      ++changes;
-      int displacement = std::abs(after[i] - before[i]);
-      if (displacement > longest) longest = displacement;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20260907u);
+
+    std::vector<int32_t> reference = shapeAndVariables();
+    int accepted = 0, moved = 0, longest = 0;
+    bool structurePreserved = true, dispatchedPerturb = true;
+    for (int step = 0; step < 400; ++step) {
+      std::vector<int32_t> before = cuts();
+      bool stepTaken = false;
+      StepType stepType = StepType::change;
+      // birth/death 0, swap 0, perturb 1: the dispatch's third branch is the
+      // only reachable one
+      metropolisJumpForTree(ctx, constant, rng, tree, y.data(), 1.0,
+                            &stepTaken, &stepType);
+      dispatchedPerturb &= stepType == StepType::perturb;
+      structurePreserved &= shapeAndVariables() == reference;
+      std::vector<int32_t> after = cuts();
+      int changes = 0;
+      for (size_t i = 0; i < after.size(); ++i) {
+        if (after[i] == before[i]) continue;
+        ++changes;
+        int displacement = std::abs(after[i] - before[i]);
+        if (displacement > longest) longest = displacement;
+      }
+      if (stepTaken) ++accepted;
+      if (changes > 0) ++moved;
+      check(changes <= 1, "a perturb proposal displaces at most one cut");
+      check(changes == 0 || stepTaken,
+            "a rejected perturb restores the rule it displaced");
     }
-    if (stepTaken) ++accepted;
-    if (changes > 0) ++moved;
-    check(changes <= 1, "a perturb proposal displaces at most one cut");
-    check(changes == 0 || stepTaken,
-          "a rejected perturb restores the rule it displaced");
-  }
-  ext_rng_destroy(rng);
+    ext_rng_destroy(rng);
 
-  check(dispatchedPerturb,
-        "the dispatch reaches perturbMove at a perturb probability of one");
-  check(structurePreserved,
-        "no perturb changes a split variable or the tree's shape");
-  check(moved > 0, "the walk actually displaces cuts");
-  check(moved == accepted, "every displacement left standing was accepted");
-  check(longest > 0 && longest <= perturbWidth,
-        "no accepted perturb moves a cut by more than perturbWidth");
+    check(dispatchedPerturb,
+          "the dispatch reaches perturbMove at a perturb probability of one");
+    check(structurePreserved,
+          "no perturb changes a split variable or the tree's shape");
+    check(moved > 0, "the walk actually displaces cuts");
+    check(moved == accepted, "every displacement left standing was accepted");
+    check(longest > 0 && longest <= width,
+          "no accepted perturb moves a cut by more than the width");
+    check(width == 1 || longest > 1, "a wider window moves a cut farther");
+    acceptedByWidth[width == 1 ? 0 : 1] = accepted;
+    longestByWidth[width == 1 ? 0 : 1] = longest;
+  }
+  ctx.perturbWidth = perturbWidth;
 
   // ---- a categorical rule has no cut, so it is never eligible ----
   ColumnKind type = ColumnKind::categorical;
@@ -2658,8 +2669,10 @@ static void testPerturbMove() {
         "an all-categorical tree offers perturb no eligible node");
 
   printf("ok: perturb move (interval invariance over %d installed rules, "
-         "%d of 400 proposals accepted, longest displacement %d)\n",
-         upper - lower + 1, accepted, longest);
+         "accepted of 400 at widths 1 and 3: %d and %d, longest displacement "
+         "%d and %d)\n",
+         upper - lower + 1, acceptedByWidth[0], acceptedByWidth[1],
+         longestByWidth[0], longestByWidth[1]);
 }
 
 

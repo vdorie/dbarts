@@ -157,6 +157,7 @@ struct Forest {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  int32_t perturbWidth = ::bartcore::perturbWidth;
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   bool updateK = false;
@@ -255,6 +256,7 @@ struct ForestStructureSpec {
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
          ruleGibbsProbability = 0.0, birthProbability = 0.5;
+  int32_t perturbWidth = ::bartcore::perturbWidth;
   // optional split-variable restriction (borrowed 0-based column indices,
   // consumed at construction): the columns this forest may split on. Null or
   // count 0 leaves every column available - the default, byte-for-byte
@@ -391,6 +393,7 @@ struct MultinomialForestSpec {
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
          ruleGibbsProbability = 0.0, birthProbability = 0.5;
+  int32_t perturbWidth = ::bartcore::perturbWidth;
   // optional column, interaction and block-additive constraints, the same
   // fields with the same contracts as ForestStructureSpec's (borrowed, consumed
   // at construction), installed identically on every category forest. The

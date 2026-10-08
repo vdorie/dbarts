@@ -343,6 +343,7 @@ struct ParsedModel {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  int32_t perturbWidth = bartcore::perturbWidth;
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
@@ -1486,6 +1487,20 @@ void parseProposalProbs(ParsedModel& model, SEXP controlExpr) {
     Rf_error("rule proposal probabilities must sum to 1.0");
   if (!(model.birthProbability > 0.0) || !(model.birthProbability < 1.0))
     Rf_error("probability of birth in birth/death rule must be in (0, 1)");
+
+  // the perturb window, a double so it can hold Inf; anything at or above
+  // the cut cap is the cap, exactly so, the window being clipped to the
+  // node's interval, and the cap keeps current + width inside int32_t
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.perturb.cuts"));
+  if (TYPEOF(slotExpr) != REALSXP || XLENGTH(slotExpr) != 1)
+    Rf_error("'n.perturb.cuts' must be a single number");
+  double width = REAL(slotExpr)[0];
+  if (ISNAN(width) || !(width >= 1.0) || width != std::floor(width))
+    Rf_error("'n.perturb.cuts' must be a positive whole number or Inf");
+  model.perturbWidth =
+    width >= static_cast<double>(bartcore::maxNumCutsRepresentable)
+      ? static_cast<int32_t>(bartcore::maxNumCutsRepresentable)
+      : static_cast<int32_t>(width);
   UNPROTECT(1);
 }
 
@@ -2186,6 +2201,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.swapProbability = model.swapProbability;
   options.changeProbability = model.changeProbability;
   options.perturbProbability = model.perturbProbability;
+  options.perturbWidth = model.perturbWidth;
   options.ruleGibbsProbability = model.ruleGibbsProbability;
   options.birthProbability = model.birthProbability;
   options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
@@ -2581,6 +2597,7 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     forest.forest.swapProbability = model.swapProbability;
     forest.forest.changeProbability = model.changeProbability;
     forest.forest.perturbProbability = model.perturbProbability;
+    forest.forest.perturbWidth = model.perturbWidth;
     forest.forest.ruleGibbsProbability = model.ruleGibbsProbability;
     forest.forest.birthProbability = model.birthProbability;
 
@@ -3754,6 +3771,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   spec.forest.swapProbability = model.swapProbability;
   spec.forest.changeProbability = model.changeProbability;
   spec.forest.perturbProbability = model.perturbProbability;
+  spec.forest.perturbWidth = model.perturbWidth;
   spec.forest.ruleGibbsProbability = model.ruleGibbsProbability;
   spec.forest.birthProbability = model.birthProbability;
   // the column restriction, interactions() and blocks() apply to every
@@ -5902,6 +5920,7 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
     parameters.swapProbability = model.swapProbability;
     parameters.changeProbability = model.changeProbability;
     parameters.perturbProbability = model.perturbProbability;
+    parameters.perturbWidth = model.perturbWidth;
     parameters.ruleGibbsProbability = model.ruleGibbsProbability;
     parameters.birthProbability = model.birthProbability;
     parameters.nodeScale = model.nodeScale;

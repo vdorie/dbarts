@@ -424,8 +424,8 @@ mutations <- list(
     "m24",
     "src/bartcore/moves.hpp",
     paste0(
-      "  int32_t reverseCount = std::min(upper, target + perturbWidth) -\n",
-      "                         std::max(lower, target - perturbWidth);\n",
+      "  int32_t reverseCount = std::min(upper, target + width) -\n",
+      "                         std::max(lower, target - width);\n",
       "  double logProposalCorrection =\n",
       "    std::log(static_cast<double>(forwardCount)) -\n",
       "    std::log(static_cast<double>(reverseCount));"
@@ -439,7 +439,7 @@ mutations <- list(
   mk(
     "m25",
     "src/bartcore/moves.hpp",
-    "  int32_t forwardLow = std::max(lower, current - perturbWidth);",
+    "  int32_t forwardLow = std::max(lower, current - width);",
     "  int32_t forwardLow = current;",
     "KILL_EXPECTED",
     kScript("benchmarks/R/perturb-balance.R"),

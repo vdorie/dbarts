@@ -286,6 +286,9 @@ methods::setClass(
     ## the structure move a sweep proposes and, within a birth/death move,
     ## birth against death
     proposal.probs = "numeric",
+    ## the most cut positions a perturb proposal moves a split either way; a
+    ## double so that it can hold Inf, which the bridge reads as the cut cap
+    n.perturb.cuts = "numeric",
     seed = "integer",
     updateState = "logical",
     call = "language"
@@ -320,6 +323,7 @@ methods::setClass(
       rule_gibbs = 0,
       birth = 0.5
     ),
+    n.perturb.cuts = 1,
     seed = NA_integer_,
     updateState = TRUE,
     call = quote(call("NA"))
@@ -518,6 +522,15 @@ methods::setValidity("dbartsControl", function(object) {
   birth <- object@proposal.probs[["birth"]]
   if (is.na(birth) || birth <= 0.0 || birth >= 1.0) {
     return("birth probability for birth/death step must be in (0, 1)")
+  }
+  width <- object@n.perturb.cuts
+  if (
+    length(width) != 1L ||
+      is.na(width) ||
+      width < 1 ||
+      (is.finite(width) && width != trunc(width))
+  ) {
+    return("'n.perturb.cuts' must be a single positive whole number or Inf")
   }
 
   if (is.na(object@updateState)) {

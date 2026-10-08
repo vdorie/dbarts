@@ -114,8 +114,9 @@ cap.
 
 ## Perturb width
 
-Value 1, at [`perturbWidth`](../../src/bartcore/moves.hpp). Origin, from the
-comment at its definition: a compile-time constant rather than a knob,
+Value 1, at [`perturbWidth`](../../src/bartcore/moves.hpp), now the default
+of the `n.perturb.cuts` setting. Origin, from the comment at its definition
+when this was measured: a compile-time constant rather than a knob,
 because "acceptance falls off steeply with the displacement and no caller can
 set it from evidence", and a width arm therefore needs a private build. That
 is what was done: an archived copy of the tree per width, the constant edited
@@ -143,9 +144,10 @@ Two chains would be needed to separate the sigma column from noise.
 Verdict: does NOT bind. The measurement reproduces the comment's premise and
 finds no mixing the wider window buys back.
 
-NOT exposed: nothing measured wants a wider window, and a setting no evidence
-supports is worse than a constant. This note carries the numbers; the
-comment at the definition states the constraint without them.
+What became of it: exposed by ruling (dec-B366, named by dec-B391) as
+`dbartsControl(n.perturb.cuts = )`, default 1, so a width arm no longer needs
+a private build; the sweep sets it by control. The default stays where these
+numbers put it.
 
 ## Test-fit parallel cutoff
 

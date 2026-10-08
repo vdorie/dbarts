@@ -79,6 +79,8 @@ struct SamplerOptions {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  // the perturb window half-width in grid positions, at most the cut cap
+  int32_t perturbWidth = ::bartcore::perturbWidth;
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   // an exact Gibbs step on each forest's LEVEL fibre, taken once per sweep
@@ -295,6 +297,8 @@ struct ModelParameters {
   double swapProbability = 0.0;
   double changeProbability = 0.4;
   double perturbProbability = 0.0;
+  // the perturb window half-width in grid positions, at most the cut cap
+  int32_t perturbWidth = ::bartcore::perturbWidth;
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
@@ -556,6 +560,7 @@ struct VarianceForest {
   double birthOrDeathProbability = 0.6, swapProbability = 0.0,
          changeProbability = 0.4, perturbProbability = 0.0,
          ruleGibbsProbability = 0.0, birthProbability = 0.5;
+  int32_t perturbWidth = ::bartcore::perturbWidth;
   ConstantVarianceLeaf leaf;
   CGMTreePrior treePrior;
   std::vector<Tree> trees;
@@ -786,6 +791,7 @@ public:
     forest.swapProbability = options.swapProbability;
     forest.changeProbability = options.changeProbability;
     forest.perturbProbability = options.perturbProbability;
+    forest.perturbWidth = options.perturbWidth;
     forest.ruleGibbsProbability = options.ruleGibbsProbability;
     forest.birthProbability = options.birthProbability;
     forest.updateK = options.updateK;
@@ -1799,6 +1805,7 @@ public:
                         forestWeights,
                         forest.k,
                         forest.scratch};
+        ctx.perturbWidth = forest.perturbWidth;
         // an all-zero mixture freezes the structures: no move is proposed and
         // no draw is taken for one, so the leaf, sigma and latent draws below
         // sit at the stream positions they would under any other sweep. Read
@@ -2354,6 +2361,7 @@ public:
     forest.swapProbability = model.swapProbability;
     forest.changeProbability = model.changeProbability;
     forest.perturbProbability = model.perturbProbability;
+    forest.perturbWidth = model.perturbWidth;
     forest.ruleGibbsProbability = model.ruleGibbsProbability;
     forest.birthProbability = model.birthProbability;
     // the same conversion creation runs, re-derived against the CURRENT
@@ -5432,6 +5440,7 @@ private:
     vf.swapProbability = options.swapProbability;
     vf.changeProbability = options.changeProbability;
     vf.perturbProbability = options.perturbProbability;
+    vf.perturbWidth = options.perturbWidth;
     vf.ruleGibbsProbability = options.ruleGibbsProbability;
     vf.birthProbability = options.birthProbability;
     vf.treePrior.base = options.varianceBase;
@@ -5573,6 +5582,7 @@ private:
                       userWeights,
                       1.0,  // k: unread by the scale leaf's marginal
                       vf.scratch};
+      ctx.perturbWidth = vf.perturbWidth;
       bool stepTaken = false;
       StepType stepType = StepType::change;
       int32_t changedNode = invalidNode;
@@ -6778,6 +6788,7 @@ private:
     forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
     forest.perturbProbability = spec.perturbProbability;
+    forest.perturbWidth = spec.perturbWidth;
     forest.ruleGibbsProbability = spec.ruleGibbsProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;
@@ -6836,6 +6847,7 @@ private:
     forest.swapProbability = spec.swapProbability;
     forest.changeProbability = spec.changeProbability;
     forest.perturbProbability = spec.perturbProbability;
+    forest.perturbWidth = spec.perturbWidth;
     forest.ruleGibbsProbability = spec.ruleGibbsProbability;
     forest.birthProbability = spec.birthProbability;
     forest.updateK = false;

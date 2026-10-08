@@ -377,7 +377,8 @@ controlFormalsAdded <- c(
   "testFitParallelCutoff",
   "predictParallelCutoff",
   "sparseDensityThreshold",
-  "proposal.probs"
+  "proposal.probs",
+  "n.perturb.cuts"
 )
 # '...' is the transition release's retired-spelling channel on this entry
 # point, not a control field
@@ -398,15 +399,16 @@ expect_true(setequal(
 expect_false("treeShift" %in% names(formals(dbarts::bart)))
 expect_false("levelGibbs" %in% names(formals(dbarts::bart)))
 expect_true("keepFits" %in% names(formals(dbarts::bart)))
-# the four engine limits are control-only for the same reason: they are tuning
-# and representation limits of the sampler, not modeling arguments of a fit,
-# and they are reached through dbarts(control = ) rather than mirrored onto
-# every fitting function
+# the engine limits and the perturb window are control-only for the same
+# reason: they are tuning and representation limits of the sampler, not
+# modeling arguments of a fit, and they are reached through
+# dbarts(control = ) rather than mirrored onto every fitting function
 for (limit in c(
   "categoricalExhaustiveCap",
   "testFitParallelCutoff",
   "predictParallelCutoff",
-  "sparseDensityThreshold"
+  "sparseDensityThreshold",
+  "n.perturb.cuts"
 )) {
   expect_false(limit %in% names(formals(dbarts::bart)))
   expect_true(limit %in% names(formals(dbarts::dbartsControl)))

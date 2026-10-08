@@ -159,6 +159,10 @@ plus its Rd, validity and refusals. **RECOMMEND A**, any width arm run on a priv
 (`R_MAKEVARS_USER` appending to `CPPFLAGS`, a private library); C stays additive and pre-release costs nothing if a confirmatory
 width ever proves cell-dependent.
 
+Since ruled C (dec-B366, the name by dec-B391): the window is `dbartsControl(n.perturb.cuts = )`, default 1, the most cut
+positions a perturb moves a split either way, read per forest as `MoveContext::perturbWidth` and clamped at the cut cap; a width
+arm needs no private build.
+
 ## 3. The mixture, and the surface
 
 `proposal.probs` gains `perturb` beside `birth_death`, `swap`, `change` and `birth`: the FIFTH name and the FOURTH structural

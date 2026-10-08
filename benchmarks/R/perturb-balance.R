@@ -3,7 +3,8 @@
 # Permanent detailed-balance gate for the PERTURB move (docs/design/
 # perturb-move.md section 4). The move keeps an interior node's split variable
 # and displaces only its cut, drawing uniformly from the window
-# W(c) = {j in [lo, hi] : 0 < |j - c| <= w} at w = 1 and correcting by
+# W(c) = {j in [lo, hi] : 0 < |j - c| <= w}, w the control's n.perturb.cuts
+# (1 unless the width= argument sets it), and correcting by
 # log|W(c)| - log|W(c')|. The node's own prior factors cancel exactly rather
 # than against a proposal density, so the whole Hastings term IS that window
 # ratio: it fires only at the ends of the descendant-valid interval, and a
@@ -105,7 +106,11 @@
 # which builds them for real; the interval invariance the reverse count rests
 # on is asserted in tests/cpp instead of poisoned here.
 #
-# Usage: Rscript perturb-balance.R [quick] [poison1|poison2]
+# The target does not depend on w; poison 1's does, through |W(c)|. At w = 3
+# the window spans every root cut of x2 and most of x1, so the correction
+# fires away from the ends as well.
+#
+# Usage: Rscript perturb-balance.R [quick] [poison1|poison2] [width=<w>]
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -127,7 +132,14 @@ base <- 0.95
 power <- 2
 kLeaf <- 2
 nodeScale <- 0.5 # gaussian leaf.scale default; scale = nodeScale / sqrt(1)
-windowWidth <- 1L # moves.hpp perturbWidth
+# the perturb window, dbartsControl(n.perturb.cuts = ); 1 is the default
+widthArg <- grep("^width=", args, value = TRUE)
+windowWidth <- if (length(widthArg) == 0L) {
+  1L
+} else {
+  as.integer(sub("^width=", "", widthArg[[1L]]))
+}
+stopifnot(length(widthArg) <= 1L, !is.na(windowWidth), windowWidth >= 1L)
 
 proposalProbs <- c(
   birth_death = 0.10,
@@ -412,7 +424,8 @@ runChains <- function(x, y, seed, numBurn, numKept, blockSize, mask) {
     n.thin = nThin,
     updateState = TRUE,
     seed = seed,
-    n.cuts = 100L
+    n.cuts = 100L,
+    n.perturb.cuts = windowWidth
   )
   sampler <- dbarts(
     x,

@@ -68,6 +68,16 @@ struct MoveScratch {
   std::vector<double> scanScores;
 };
 
+/// Default window half-width for the perturb move, in GRID POSITIONS: a
+/// displacement is drawn from the cuts within the width of the current one.
+/// The width in force is MoveContext::perturbWidth, set per forest from the
+/// host's control; it must be positive and at most the cut cap, which keeps
+/// current + width inside int32_t. Measured: on a perturb-dominant mixture
+/// cut acceptance falls monotonically with the window at every n tried, and
+/// effective sample size shows no consistent gain with a wider window, which
+/// is why the default stays one.
+inline constexpr int32_t perturbWidth = 1;
+
 struct MoveContext {
   const ColumnStore& data;
   const CGMTreePrior& treePrior;
@@ -83,6 +93,8 @@ struct MoveContext {
   // ParamScoringLeafModel (monotone reads frozen neighbor mu here); null and
   // unread for the conjugate leaves, which integrate every leaf out.
   const double* leafParams = nullptr;
+  // the perturb window half-width, in grid positions; read by perturbMove only
+  int32_t perturbWidth = ::bartcore::perturbWidth;
 };
 
 /// A branch's score: whether any of its leaves is empty (Tree::leafIsEmpty),
@@ -1813,20 +1825,8 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
   return alpha;
 }
 
-/// Window half-width for the perturb move, in GRID POSITIONS: a displacement
-/// is drawn from the cuts within perturbWidth of the current one. A
-/// compile-time constant rather than a knob - acceptance falls off steeply
-/// with the displacement and no caller can set it from evidence - and a width
-/// arm therefore needs a private build. That premise is measured: on a
-/// perturb-dominant mixture cut acceptance falls monotonically with the
-/// window at every n tried, and nothing is bought back - effective sample
-/// size shows no consistent gain with a wider window either. Nothing breaks
-/// at a wider window; the mixing does not improve, which is why the width
-/// stays one and stays fixed.
-inline constexpr int32_t perturbWidth = 1;
-
 /// Perturb-move proposal kernel: displace one interior node's ordinal cut by
-/// at most perturbWidth grid positions, keeping its split VARIABLE and the
+/// at most ctx.perturbWidth grid positions, keeping its split VARIABLE and the
 /// whole tree's shape. The acceptance is changeMove's with the node's own
 /// prior factors cancelling exactly rather than against a proposal density:
 ///   alpha = exp( B(T') - B(T) + yLogL - xLogL + logProposalCorrection ),
@@ -1893,8 +1893,9 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
   findGoodOrdinalRules(ctx, tree, nodeToPerturb, variableIndex, &lower, &upper);
 
   // |W(c)|, the window less the current cut; zero at a degenerate interval
-  int32_t forwardLow = std::max(lower, current - perturbWidth);
-  int32_t forwardCount = std::min(upper, current + perturbWidth) - forwardLow;
+  const int32_t width = ctx.perturbWidth;
+  int32_t forwardLow = std::max(lower, current - width);
+  int32_t forwardCount = std::min(upper, current + width) - forwardLow;
   if (forwardCount <= 0) {
     BARTCORE_CENSUS_NOOP("perturb", tree, nodeToPerturb);
     return -1.0;
@@ -1905,8 +1906,8 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     ext_rng_simulateIntegerUniformInRange(rng, 0, forwardCount));
   if (target >= current) ++target;
 
-  int32_t reverseCount = std::min(upper, target + perturbWidth) -
-                         std::max(lower, target - perturbWidth);
+  int32_t reverseCount = std::min(upper, target + width) -
+                         std::max(lower, target - width);
   double logProposalCorrection =
     std::log(static_cast<double>(forwardCount)) -
     std::log(static_cast<double>(reverseCount));

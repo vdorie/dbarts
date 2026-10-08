@@ -175,9 +175,18 @@ jobs:
             fail=1
           fi
           echo "::endgroup::"
-          # and its two arms on a column whose cut grid would repeat a point
-          # were equal neighbours kept: four adjacent doubles, and one value
-          # beside missing ones
+          # perturb-balance at a window of three, set by n.perturb.cuts
+          echo "::group::perturb-balance.R width=3"
+          if Rscript benchmarks/R/perturb-balance.R ${GATE_ARG} width=3; then
+            echo "PASS perturb-balance.R width=3"
+          else
+            echo "::error::gate perturb-balance.R width=3 FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
+          # bd-balance's two arms on a column whose cut grid would repeat a
+          # point were equal neighbours kept: four adjacent doubles, and one
+          # value beside missing ones
           for arm in narrow constmissing; do
             echo "::group::bd-balance.R $arm"
             if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} $arm; then

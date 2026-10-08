@@ -333,12 +333,10 @@ constant-person-period-rows and constant-xint-caps. Each prints a table, takes
 
     Rscript benchmarks/R/constant-predict-parallel-cutoff.R quick
 
-Run the timing ones on a quiet machine, one at a time. Two constants are
-compile-time with no knob: constant-perturb-width measures the build it is run
-against and takes `width=<w>` only as a table label, so a width arm means a
-scratch copy of the tree with the constant edited, installed into a private
-library - never the working tree. The xint sweep is a probe of what each
-channel does at its cap, not a timing run.
+Run the timing ones on a quiet machine, one at a time. constant-perturb-width
+sets the window by `dbartsControl(n.perturb.cuts = )`, sweeping 1, 2 and 4 or
+the one `width=<w>` names. The xint sweep is a probe of what each channel does
+at its cap, not a timing run.
 
 ## R/move-census.R - the move census (measurement, not a gate)
 

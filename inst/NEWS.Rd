@@ -454,7 +454,8 @@
             \code{$installTrees} and \code{$growFromRoot}. Neither changes
             the posterior, only where the chains start.
       \item Tree moves. \code{proposal.probs} gains two optional moves,
-            \code{"perturb"} (shift one split point) and
+            \code{"perturb"} (shift one split point, by at most
+            \code{dbartsControl(n.perturb.cuts = )} cut positions) and
             \code{"rule_gibbs"} (redraw a split rule from its conditional
             distribution), both off by default, and accepts all-zero
             structural probabilities, holding the trees' shapes fixed while
