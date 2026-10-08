@@ -2221,6 +2221,10 @@ Record: this register. Marked: blank. [dec-B366]
 A discrete-time hazard fit expands each subject into a row per period at risk; with the default grid of every distinct event time the expansion grows about with the square of the subjects, and an expansion over max.rows is refused, naming hazard(breaks = ) and hazard(max.rows = ). Run by the triage on 2026-10-08: 300 subjects expand to 45150 rows, refused at max.rows = 1000 with that message; peak memory at 75 trees measured about 210 bytes a row shared plus about 630 a row for each chain, one stored value a row a tree, so ten million rows take about 8.5 GB on one chain and 27 GB on bart()'s four. BART's surv.bart has no cap. The maintainer asked whether a gigabyte, the orchestrator's unmeasured estimate, is modest and a higher default makes sense; shown the measurement and keeping 1e7 with the cost stated, recommended, lowering it to 2e6, and raising it, the maintainer on 2026-10-08: "Use your recommendation for this issue." The rule: max.rows defaults to 1e7 and is settable; the help and the refusal give the cost, about 0.85 KB a row a chain at 75 trees and growing with the trees. Not built for the stated cost. Confirms that call of dec-A22. See also: [dec-A22].
 Record: this register. Marked: blank. [dec-B367]
 
+**An infinite case weight is refused by name**
+Run by the triage on 2026-10-08 with one weight of Inf in fifty: the branch stops, "'weights' must all be finite", on every entry that takes weights; 0.9-34 stopped, "unable to obtain a starting estimate of sigma; provide one instead", a message that points away from the cause; lm stops, "NA/NaN/Inf in 'x'". Shown refusing by name, recommended, against 0.9-34's indirect failure, the maintainer on 2026-10-08: "A. Refuse by name (as built)." The rule: an infinite case weight is refused, naming the weights. Built. Confirms that call of dec-A157. See also: [dec-A157].
+Record: this register. Marked: blank. [dec-B368]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
