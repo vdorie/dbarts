@@ -1348,7 +1348,8 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
         }
         x.test <- makeIndicatorModelMatrix(
           x.test,
-          if (!is.null(drop)) drop else TRUE
+          if (!is.null(drop)) drop else TRUE,
+          storage = "dense"
         )
       }
     }

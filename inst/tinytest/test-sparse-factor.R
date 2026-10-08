@@ -1225,11 +1225,13 @@ rm(
   fit.sf.xy.na
 )
 
-# WIDE-FACTOR AUTO-SPARSE (dec-B100): a factors = "indicators" fit
-# dummy-expands a factor with more than sparseIndicatorLevelCutoff (100)
-# levels as a dgCMatrix-backed block automatically, with no user-facing
-# argument. dbarts.sparseIndicators, unexported and undocumented, forces
-# either path so the SAME factor can be put through both.
+# INDICATOR STORAGE (dec-B100, dec-B370): a factors = "indicators" fit
+# dummy-expands a factor one indicator column at a time, sparse where the
+# column is at or below the engine's sparseDensityThreshold of nonzero entries
+# and dense above it, with no user-facing argument; the storage changes no
+# value and no return type (test-indicator-storage.R). dbarts.sparseIndicators,
+# unexported and undocumented, forces either path so the SAME factor can be put
+# through both.
 set.seed(71L)
 n.wide <- 300L
 K.wide <- 150L
@@ -1238,16 +1240,18 @@ z.wide <- rnorm(n.wide)
 y.wide <- rnorm(n.wide)
 d.wide <- data.frame(f = f.wide, z = z.wide, y = y.wide)
 
-mm.auto <- dbarts:::makeModelMatrixFromDataFrame(d.wide[c("f", "z")])
+mm.auto <- dbarts:::makeIndicatorModelMatrix(d.wide[c("f", "z")])
 expect_inherits(mm.auto, "dbartsMixedMatrix")
 expect_true(dbarts:::predictorSourceIsSparse(mm.auto))
 
-# a factor at or below the cutoff stays dense automatically
-f.narrow <- factor(sample.int(20L, n.wide, replace = TRUE))
-mm.narrow <- dbarts:::makeModelMatrixFromDataFrame(
+# a factor whose indicator columns are all denser than the threshold stays
+# dense automatically, and so does the exported builder's whole result
+f.narrow <- factor(sample.int(3L, n.wide, replace = TRUE))
+mm.narrow <- dbarts:::makeIndicatorModelMatrix(
   data.frame(f = f.narrow, z = z.wide)
 )
 expect_true(is.matrix(mm.narrow))
+expect_true(is.matrix(makeModelMatrixFromDataFrame(d.wide[c("f", "z")])))
 
 # the override forces either path regardless of level count, and the two
 # still describe the same predictor values
@@ -1259,11 +1263,11 @@ withSparseOption <- function(mode, expr) {
 }
 mm.forcedDense <- withSparseOption(
   "dense",
-  dbarts:::makeModelMatrixFromDataFrame(d.wide[c("f", "z")])
+  dbarts:::makeIndicatorModelMatrix(d.wide[c("f", "z")])
 )
 mm.forcedSparse <- withSparseOption(
   "sparse",
-  dbarts:::makeModelMatrixFromDataFrame(d.wide[c("f", "z")])
+  dbarts:::makeIndicatorModelMatrix(d.wide[c("f", "z")])
 )
 expect_true(is.matrix(mm.forcedDense))
 expect_true(dbarts:::predictorSourceIsSparse(mm.forcedSparse))

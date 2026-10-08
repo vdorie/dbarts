@@ -614,38 +614,53 @@ namedList <- function(...) {
   setNames(result, resultNames)
 }
 
-## The level count past which an "indicators" factor's dummy expansion is
-## built sparse (a dgCMatrix column per emitted level) instead of dense (the
-## C builder), automatically, no user-facing argument (dec-B100). Dense
-## storage is 8 bytes per observation per level; a dgCMatrix column store is
-## about 8 + 4 bytes (a value plus a row index) per observation regardless of
-## level count, so the memory gap widens linearly with the level count past
-## the cutoff, while construction TIME keeps favoring the dense C builder
-## throughout the range swept - this is a memory choice, not a speed one.
-sparseIndicatorLevelCutoff <- 100L
+## An "indicators" factor's dummy expansion is built sparse (a dgCMatrix column
+## per emitted level) or dense (the C builder) one indicator column at a time,
+## by the density of the column against sparseIndicatorDensity, the default of
+## the engine's own sparseDensityThreshold: the engine stores a column of a
+## sparse design sparse only at or below it, so a column denser than that
+## gains nothing from being built sparse. The choice is an internal storage
+## decision and changes no value, no starting sigma and no return type
+## (dec-B100, dec-B370). Dense storage is 8 bytes per observation per
+## level; a dgCMatrix column store is about 8 + 4 bytes per stored entry.
+sparseIndicatorDensity <- 0.2
 
-## dec-B100's internal override for a test that must force the SAME wide
-## factor through both paths: an unexported, undocumented option, read
-## fresh per call so a test can toggle it around two otherwise-identical
-## fits. "auto" (the default) applies sparseIndicatorLevelCutoff; "sparse"
-## and "dense" force one path regardless of level count. Matrix is a
-## Suggests, not a Depends (assembleMixedMatrix refuses outright without
-## it), so a wide factor without Matrix installed builds dense regardless
-## of level count - this switch changes only a representation an ordinary
-## "indicators" fit already worked without, and must not turn into a new
-## hard dependency for crossing a level count the caller never chose.
-sparseIndicatorModeFor <- function(numLevels) {
-  if (!requireNamespace("Matrix", quietly = TRUE)) {
-    return(FALSE)
+## Whether Matrix, a Suggests, is installed. Without it every indicator column
+## builds dense, as an ordinary "indicators" fit always worked; one place, so
+## a test can stand in for either case.
+matrixAvailable <- function() {
+  requireNamespace("Matrix", quietly = TRUE)
+}
+
+## dec-B100's internal override for a test that must force the SAME factor
+## through both paths: an unexported, undocumented option, read fresh per
+## call so a test can toggle it around two otherwise-identical fits. "auto"
+## (the default) decides each indicator column by its density; "sparse" and
+## "dense" force one path for every column. Without Matrix every column builds
+## dense, whatever the option says.
+sparseIndicatorMode <- function() {
+  if (!matrixAvailable()) {
+    return("dense")
   }
   mode <- getOption("dbarts.sparseIndicators", "auto")
-  if (identical(mode, "sparse")) {
-    return(TRUE)
-  }
-  if (identical(mode, "dense")) {
+  if (mode %in% c("sparse", "dense")) mode else "auto"
+}
+
+## Whether any indicator column of a factor can be sparse under "auto": some
+## level's density, counting the rows coded missing that every column stores,
+## is at or below the threshold. Conservative (every level counts, the
+## emitted ones decide exactly); a factor failing it builds dense without the
+## sparse slices being formed.
+factorMaySparse <- function(column, mode) {
+  if (mode == "dense") {
     return(FALSE)
   }
-  numLevels > sparseIndicatorLevelCutoff
+  if (mode == "sparse") {
+    return(TRUE)
+  }
+  codes <- as.integer(column)
+  stored <- tabulate(codes, nlevels(column)) + sum(is.na(codes))
+  any(stored <= sparseIndicatorDensity * length(codes))
 }
 
 ## One factor column's indicator expansion, built the way the C builder's own
@@ -720,12 +735,17 @@ sparseFactorIndicatorSlices <- function(column, name, dropSpec) {
 ## factors. The exported entry leaves out the training level table, which only
 ## the package's own test-set coding reads.
 makeModelMatrixFromDataFrame <- function(x, drop = TRUE) {
-  result <- makeIndicatorModelMatrix(x, drop)
+  # storage is invisible to a caller: a plain matrix unless the caller
+  # supplied a sparse column (dec-B370)
+  result <- makeIndicatorModelMatrix(x, drop, storage = "dense")
   attr(result, "indicator.levels") <- NULL
   result
 }
 
-makeIndicatorModelMatrix <- function(x, drop = TRUE) {
+## storage = "auto" lets the fit's own training design build indicator columns
+## sparse where they are sparse enough (sparseIndicatorMode); "dense" builds
+## every one dense, as the exported builder and a test set's coding do.
+makeIndicatorModelMatrix <- function(x, drop = TRUE, storage = "auto") {
   if (!is.data.frame(x)) {
     stop("x is not a dataframe")
   }
@@ -753,19 +773,28 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE) {
   }
 
   columnIsSparse <- vapply(x, isSparseDataFrameColumn, FALSE)
-  # a plain factor past sparseIndicatorLevelCutoff builds its dummy columns
-  # sparse too (dec-B100), decided per column from nlevels alone - never
-  # from a sparse S4 input, which columnIsSparse already flags
-  wideFactor <- !columnIsSparse &
-    vapply(
-      x,
-      function(column) {
-        is.factor(column) && sparseIndicatorModeFor(nlevels(column))
-      },
-      FALSE
-    )
-  isSparseBlock <- columnIsSparse | wideFactor
-  if (!any(isSparseBlock)) {
+  mode <- if (identical(storage, "dense")) "dense" else sparseIndicatorMode()
+  # a plain factor's indicator columns are built sparse one at a time, by
+  # density (dec-B370), never because of a sparse S4 input, which
+  # columnIsSparse already flags
+  factorSlices <- vector("list", length(x))
+  indicatorSparse <- vector("list", length(x))
+  for (j in which(!columnIsSparse)) {
+    column <- x[[j]]
+    if (!is.factor(column) || !factorMaySparse(column, mode)) {
+      next
+    }
+    dropSpec <- if (is.list(drop)) drop[[j]] else drop
+    slices <- sparseFactorIndicatorSlices(column, names(x)[j], dropSpec)
+    factorSlices[[j]] <- slices
+    indicatorSparse[[j]] <- if (mode == "sparse") {
+      rep.int(TRUE, length(slices$i))
+    } else {
+      lengths(slices$i) <= sparseIndicatorDensity * nrow(x)
+    }
+  }
+  anySparseIndicator <- any(vapply(indicatorSparse, any, FALSE))
+  if (!any(columnIsSparse) && !anySparseIndicator) {
     result <- .Call(C_dbarts_makeModelMatrixFromDataFrame, x, drop)
     attr(result, "term.labels") <- names(x)
     attr(result, "indicator.levels") <- levelTable
@@ -774,10 +803,17 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE) {
 
   # expand dense input columns one at a time - the C builder treats columns
   # independently, so the blocks and drop entries match a whole-frame call -
-  # and splice sparse ones in place; their drop entries are all-FALSE so the
-  # pattern replays over a fully dense test frame
-  columns <- vector("list", length(x))
-  blockNames <- vector("list", length(x))
+  # and splice sparse ones in place, a factor's indicator columns each a block
+  # of its own, sparse or dense by density; their drop entries are all-FALSE
+  # so the pattern replays over a fully dense test frame
+  columns <- list()
+  blockIsSparse <- logical()
+  blockNames <- list()
+  addBlock <- function(block, sparse, names) {
+    columns[[length(columns) + 1L]] <<- block
+    blockIsSparse[length(columns)] <<- sparse
+    blockNames[[length(columns)]] <<- names
+  }
   dropPattern <- if (is.list(drop) || isTRUE(drop)) {
     vector("list", length(x))
   } else {
@@ -796,16 +832,25 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE) {
         )
       }
       slices <- sparseColumnSlices(x[[j]], names(x)[j], nrow(x))
-      columns[[j]] <- slices
-      blockNames[[j]] <- slices$names
+      addBlock(slices, TRUE, slices$names)
       if (!is.null(dropPattern)) {
         dropPattern[[j]] <- rep.int(FALSE, length(slices$i))
       }
-    } else if (wideFactor[j]) {
-      dropSpec <- if (is.list(drop)) drop[[j]] else drop
-      slices <- sparseFactorIndicatorSlices(x[[j]], names(x)[j], dropSpec)
-      columns[[j]] <- slices
-      blockNames[[j]] <- slices$names
+    } else if (!is.null(factorSlices[[j]])) {
+      slices <- factorSlices[[j]]
+      for (k in seq_along(slices$i)) {
+        if (indicatorSparse[[j]][k]) {
+          addBlock(
+            lapply(slices[c("i", "x", "reference", "K")], `[`, k),
+            TRUE,
+            slices$names[k]
+          )
+        } else {
+          indicator <- numeric(nrow(x))
+          indicator[slices$i[[k]] + 1L] <- slices$x[[k]]
+          addBlock(indicator, FALSE, slices$names[k])
+        }
+      }
       if (!is.null(dropPattern)) {
         dropPattern[[j]] <- if (is.list(drop)) {
           drop[[j]]
@@ -819,16 +864,20 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE) {
         x[j],
         if (is.list(drop)) drop[j] else drop
       )
-      columns[[j]] <- block
-      blockNames[[j]] <- colnames(block)
+      addBlock(block, FALSE, colnames(block))
       if (!is.null(dropPattern)) {
         dropPattern[j] <- if (is.list(drop)) drop[j] else attr(block, "drop")
       }
     }
   }
-  result <- assembleMixedMatrix(columns, isSparseBlock, blockNames, nrow(x))
+  result <- assembleMixedMatrix(columns, blockIsSparse, blockNames, nrow(x))
   attr(result, "term.labels") <- names(x)
   attr(result, "indicator.levels") <- levelTable
+  # every sparse column was built here, not supplied: the starting sigma may
+  # read the design as a linear model (estimateSigmaFromLinearModel)
+  if (!any(columnIsSparse)) {
+    attr(result, "sparse.from.indicators") <- TRUE
+  }
   if (!is.null(dropPattern)) {
     names(dropPattern) <- names(x)
     attr(result, "drop") <- dropPattern
@@ -1067,7 +1116,12 @@ estimateSigmaFromLinearModel <- function(data) {
   # anyway; the marginal estimate still anchors the residual variance prior.
   # A dense container (a frame with factors) still fits; only CSC-backed
   # columns fall back to the marginal estimate.
-  if (predictorSourceIsSparse(x)) {
+  # An indicator expansion that R itself built sparse is not the caller's
+  # sparse design: its storage is invisible, so the starting sigma is the
+  # linear-model estimate whichever the storage (dec-B370).
+  if (
+    predictorSourceIsSparse(x) && !isTRUE(attr(x, "sparse.from.indicators"))
+  ) {
     warning(warningCondition(
       paste0(
         "starting sigma estimate falls back to the marginal response sd: ",
