@@ -4746,6 +4746,24 @@ SEXP bartcore_setForestK(SEXP ptrExpr, SEXP kExpr) {
   return R_NilValue;
 }
 
+// Multiplies one forest's drawn k by a positive finite factor on every chain,
+// so a leaf-prior write that moved k.scale by that factor keeps the spread in
+// force; a forest at a fixed or pinned k, and a factor of exactly 1, write
+// nothing.
+SEXP bartcore_scaleDrawnK(SEXP ptrExpr, SEXP forestExpr, SEXP factorExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerShape shape = holder.sampler->shape();
+  size_t forestIndex = forestIndexFrom(forestExpr, shape);
+  if (!Rf_isReal(factorExpr) || Rf_xlength(factorExpr) != 1)
+    Rf_error("the k factor must be a single number");
+  double factor = REAL(factorExpr)[0];
+  if (!std::isfinite(factor) || factor <= 0.0)
+    Rf_error("the k factor must be a positive finite number");
+  if (!holder.sampler->scaleDrawnK(forestIndex, factor))
+    Rf_error("the k factor names no forest of this sampler");
+  return R_NilValue;
+}
+
 // Restates one calibration-map forest's spread in the channel its amplitude
 // prior names, as forest(sd = ) does at creation.
 SEXP bartcore_setForestSd(SEXP ptrExpr, SEXP forestExpr, SEXP sdExpr) {

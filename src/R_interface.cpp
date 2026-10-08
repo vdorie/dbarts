@@ -259,6 +259,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_getLeafPrior", bartcore_getLeafPrior, 2),
   DEF_FUNC("dbarts_bartcore_setLeafPrior", bartcore_setLeafPrior, 3),
   DEF_FUNC("dbarts_bartcore_setForestK", bartcore_setForestK, 2),
+  DEF_FUNC("dbarts_bartcore_scaleDrawnK", bartcore_scaleDrawnK, 3),
   DEF_FUNC("dbarts_bartcore_setForestSd", bartcore_setForestSd, 3),
   DEF_FUNC("dbarts_bartcore_getForestVariableCounts",
            bartcore_getForestVariableCounts, 2),

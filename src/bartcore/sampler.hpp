@@ -2111,6 +2111,15 @@ public:
       written = chain->setForestFixedK(forestIndex, k) && written;
     return written;
   }
+  /// Multiplies forest forestIndex's drawn k by factor on EVERY chain; false,
+  /// writing nothing, when the index names no forest, which every chain
+  /// refuses alike. Chain::scaleDrawnK states the semantics.
+  bool scaleDrawnK(size_t forestIndex, double factor) {
+    bool written = true;
+    for (auto& chain : chains_)
+      written = chain->scaleDrawnK(forestIndex, factor) && written;
+    return written;
+  }
   /// Restates map forest forestIndex's spread on EVERY chain; false, writing
   /// nothing, on a refusal, which every chain makes on the same predicate.
   /// Chain::setForestMapSd states the semantics.

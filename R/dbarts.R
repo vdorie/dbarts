@@ -1986,6 +1986,25 @@ writeLeafPrior <- function(sampler, ptr, newModel) {
   invisible(NULL)
 }
 
+## The value a single forest's k is relative to, k.scale, in response units:
+## the spread in force on each chain is k.scale / k.
+leafKScale <- function(ptr) {
+  .Call(C_dbarts_bartcore_getLeafPrior, ptr, 0L)[[1L, "prior.scale"]]
+}
+
+## Keeps each chain's drawn spread in force across a write that moved k.scale:
+## k is re-expressed against the new k.scale, and the new prior acts from the
+## next draw of k. Every switch into a drawn prior keeps it, from a fixed k or
+## sd as from a drawn one (dec-B356, dec-B369, dec-B392, dec-B393); the engine
+## leaves a forest at a fixed k, where a stated value is taken literally.
+keepDrawnSpread <- function(ptr, kScaleBefore) {
+  factor <- leafKScale(ptr) / kScaleBefore
+  if (is.finite(factor) && factor > 0 && factor != 1) {
+    .Call(C_dbarts_bartcore_scaleDrawnK, ptr, 0L, factor)
+  }
+  invisible(NULL)
+}
+
 ## The prior vocabulary $setLeafPrior evaluates its specification in: the
 ## constructors' own, except that linear() and gp() default their columns to
 ## the sampler's, which fixes them, so a write may omit them. On a sampler of
@@ -3408,7 +3427,7 @@ dbartsSampler <- setRefClass(
       do.call(rbind, lapply(seq_len(numForests) - 1L, read))
     },
     setLeafPrior = function(leaf.prior, forests = NULL, updateState = NULL) {
-      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() law on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Under a drawn k the engine keeps its current k across the write, so a change of k.scale - between the k and sd forms, or of an invchi() scale - scales the next sweep's spread by new k.scale / old k.scale, and getK and the spread in force jump with it until the law pulls k back. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. A sampler whose forests carry amplitudes takes forests = list(forest(sd = ), ...) instead of leaf.prior, as its creation does: the same positions and names, a short list reaching the first forests, and a forest whose sd is not stated left as it is; normal() and normal(k = 2), which its creation also accepts, change nothing. Give exactly one of leaf.prior and forests. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, or for forests on the control, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
+      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() law on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Into a drawn prior each chain's spread in force is kept at the call, from a fixed k or sd as from a drawn one: k becomes k_old x new k.scale / old k.scale, so getK moves where k.scale does and the new prior acts from the next draw of k. A fixed k or sd stated is taken as written. Since the write keeps the chains' spread, on a sampler not yet run it is not the start creation under the new prior would make. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. A sampler whose forests carry amplitudes takes forests = list(forest(sd = ), ...) instead of leaf.prior, as its creation does: the same positions and names, a short list reaching the first forests, and a forest whose sd is not stated left as it is; normal() and normal(k = 2), which its creation also accepts, change nothing. Give exactly one of leaf.prior and forests. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, or for forests on the control, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
       # a forest = index would otherwise match forests = partially
       if ("forest" %in% names(sys.call())) {
         stop(
@@ -3502,7 +3521,10 @@ dbartsSampler <- setRefClass(
           as.double(newModel@leaf.hyperprior@k)
         )
       } else {
+        # both reads are under the one response transform the write leaves
+        kScaleBefore <- leafKScale(ptr)
         writeLeafPrior(.self, ptr, newModel)
+        keepDrawnSpread(ptr, kScaleBefore)
       }
       selfEnv <- parent.env(environment())
       selfEnv$model <- newModel

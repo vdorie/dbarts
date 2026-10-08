@@ -49,7 +49,7 @@ enum class FacadeVirtual {
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestWeights, forestCalibration, setForestPriorScale, setForestFixedK,
-  setForestMapSd, setActiveRows,
+  scaleDrawnK, setForestMapSd, setActiveRows,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
   currentVarianceFits, forestVariableCounts, numTreesInForest,
@@ -219,6 +219,7 @@ public:
           (std::size_t c, std::size_t f) const, (c, f))
   SPY_RET(bool, setForestPriorScale, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setForestFixedK, (std::size_t f, double k), (f, k))
+  SPY_RET(bool, scaleDrawnK, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setForestMapSd, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setActiveRows, (const double* a), (a))
   SPY_RET(bool, setCounts, (const int* c, const int* t), (c, t))
@@ -1209,6 +1210,35 @@ const Row rows[] = {
     check(f.m.impl().forestCalibration(0, 1).k == 3.0,
           "facade setForestFixedK: the impl reports the new k");
     f.m.base().setForestFixedK(1, k);
+  }},
+  {FacadeVirtual::scaleDrawnK, "scaleDrawnK", [](Fixtures& f) {
+    double fixedK = f.g.impl().forestCalibration(0, 0).k;
+    check(!f.g.base().scaleDrawnK(1, 2.5) && f.g.base().scaleDrawnK(0, 2.5) &&
+            f.g.impl().forestCalibration(0, 0).k == fixedK,
+          "facade scaleDrawnK: an absent forest refuses, a fixed k is left");
+    // a sampler drawing k: every chain's k is multiplied, and a factor of 1
+    // writes nothing
+    SamplerOptions options;
+    options.numTrees = 4;
+    options.numChains = 2;
+    options.updateK = true;
+    ext_rng* pair[2] = {f.newRng(51101u), f.newRng(51102u)};
+    std::unique_ptr<SamplerBase> drawn = createSampler(
+      f.x.data(), f.y.data(), Fixtures::n, Fixtures::p, nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options, pair);
+    Results results;
+    drawn->run(5, 0, results);
+    double k0 = drawn->forestCalibration(0, 0).k,
+      k1 = drawn->forestCalibration(1, 0).k;
+    check(drawn->scaleDrawnK(0, 2.5) &&
+            drawn->forestCalibration(0, 0).k == k0 * 2.5 &&
+            drawn->forestCalibration(1, 0).k == k1 * 2.5,
+          "facade scaleDrawnK: a drawn k is multiplied on every chain");
+    double scaled = drawn->forestCalibration(0, 0).k;
+    bool written = drawn->scaleDrawnK(0, 1.0);
+    double after = drawn->forestCalibration(0, 0).k;
+    check(written && std::memcmp(&scaled, &after, sizeof(double)) == 0,
+          "facade scaleDrawnK: a factor of 1 writes nothing");
   }},
   {FacadeVirtual::setForestMapSd, "setForestMapSd", [](Fixtures& f) {
     check(!f.g.base().setForestMapSd(0, 0.7) &&

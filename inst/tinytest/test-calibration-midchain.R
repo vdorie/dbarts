@@ -735,3 +735,78 @@ expect_true(
   max(abs(priorSdOf(roundTripCalibrationMidchain(uncaptured)) / 0.3 - 1)) <
     1e-14
 )
+
+# --- a write into a drawn prior keeps each chain's spread in force at the
+# call, k re-expressed against the new k.scale, whatever the prior before it:
+# drawn, a fixed sd or a fixed k, in either spelling. The new prior acts from
+# the next draw of k. Each case runs 200 sweeps on two chains first, so the
+# chains' spreads differ from each other and from any named value. ---
+spreadAfter <- function(from, to, response = y) {
+  sampler <- eval(bquote(dbarts(
+    x,
+    response,
+    control = midControl(),
+    leaf.prior = .(from)
+  )))
+  invisible(sampler$run(200L, 1L))
+  before <- priorSdOf(sampler)
+  eval(bquote(sampler$setLeafPrior(.(to))))
+  list(sampler = sampler, before = before, after = priorSdOf(sampler))
+}
+keepsSpread <- function(from, to, drawn = TRUE) {
+  kept <- spreadAfter(from, to)
+  info <- paste(deparse(from), "to", deparse(to))
+  # a drawn spread has moved apart on the two chains; a fixed one has not
+  expect_true(drawn == (kept$before[[1L]] != kept$before[[2L]]), info = info)
+  expect_true(
+    max(abs(kept$after / kept$before - 1)) < 1e-14,
+    info = info
+  )
+  kept$sampler
+}
+keepsSpread(quote(normal(k = chi(1.5, 2))), quote(normal(sd = invchi(3, 2))))
+keepsSpread(quote(normal(sd = invchi(3, 2))), quote(normal(k = chi(1.5, 2))))
+keepsSpread(quote(normal(sd = invchi(3, 2))), quote(normal(sd = invchi(3, 4))))
+# from a fixed sd (dec-B392), and between the spellings out of a fixed prior
+# (dec-B393): the fixed spread is the one kept
+fixedSd <- keepsSpread(
+  quote(normal(sd = 0.5)),
+  quote(normal(sd = invchi(3, 2))),
+  drawn = FALSE
+)
+expect_true(max(abs(priorSdOf(fixedSd) / 0.5 - 1)) < 1e-14)
+fixedK <- spreadAfter(quote(normal(k = 3)), quote(normal(sd = invchi(3, 2))))
+expect_true(max(abs(fixedK$after / fixedK$before - 1)) < 1e-14)
+fixedSdToK <- spreadAfter(
+  quote(normal(sd = 0.5)),
+  quote(normal(k = chi(1.5, 2)))
+)
+expect_true(max(abs(fixedSdToK$after / 0.5 - 1)) < 1e-14)
+# and the new law acts from the next draw: the spreads move on
+invisible(fixedSd$run(5L, 1L))
+expect_true(all(priorSdOf(fixedSd) != 0.5))
+# under the k spelling a changed chi() leaves k.scale, so k is left as it is
+chiScale <- dbarts(
+  x,
+  y,
+  control = midControl(),
+  leaf.prior = normal(k = chi(1.5, 2))
+)
+invisible(chiScale$run(200L, 1L))
+chiK <- chiScale$getK()
+chiScale$setLeafPrior(normal(k = chi(1.5, 4)))
+expect_identical(chiScale$getK(), chiK)
+# a fixed value stated sets the spread as written, from a drawn k
+toFixed <- spreadAfter(quote(normal(k = chi(1.5, 2))), quote(normal(sd = 0.25)))
+expect_true(max(abs(toFixed$after / 0.25 - 1)) < 1e-14)
+# a re-anchor under a drawn invchi() is not a leaf-prior write: k is left
+reanchored <- dbarts(
+  x,
+  y,
+  control = midControl(),
+  leaf.prior = normal(sd = invchi(3, 2))
+)
+invisible(reanchored$run(200L, 1L))
+reanchoredK <- reanchored$getK()
+reanchored$setResponse(2 * y + 3, updateScale = TRUE)
+expect_identical(reanchored$getK(), reanchoredK)

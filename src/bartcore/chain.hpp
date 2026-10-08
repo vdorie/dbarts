@@ -1481,6 +1481,18 @@ public:
     return true;
   }
 
+  /// Multiplies forest f's k by \p factor where the forest draws its k, so a
+  /// prior write that moved k.scale by \p factor keeps the spread
+  /// k.scale / k in force; the new hyperprior acts from the next draw of k. A
+  /// forest at a fixed or map-pinned k is not touched, nor is any forest at a
+  /// factor of exactly 1. False, writing nothing, when f names no forest.
+  bool scaleDrawnK(std::size_t f, double factor) {
+    if (f >= forests_.size()) return false;
+    if (!forests_[f].updateK || factor == 1.0) return true;
+    forests_[f].k *= factor;
+    return true;
+  }
+
   /// Restates map forest f's spread in the channel its amplitude prior names,
   /// as at creation: a scale-mixture forest takes sd as its half-Cauchy
   /// median, leaving its leaf scale and the live auxiliary; a fixed-variance

@@ -126,7 +126,13 @@ A named sd is absolute. The sampler restates the named sd's `prior.scale` after
 every channel that re-anchors the response transform
 ([`reissueNamedLeafSd`](../../R/dbarts.R)), using the latest
 `$setLeafPrior` write, which the R5 model records; a k moves with the
-data. The reader reports in the terms the prior was named in: `prior.sd`,
+data. A `$setLeafPrior` write into a drawn prior keeps each chain's spread
+in force at the call, from a fixed or a drawn prior in either spelling
+(dec-B356, dec-B369, dec-B392, dec-B393): it reads k.scale before and after
+the write and multiplies each chain's drawn k by their ratio
+([`Chain::scaleDrawnK`](../../src/bartcore/chain.hpp)), so the new prior acts
+from the next draw of k; a fixed k or sd stated sets the spread as written.
+A re-anchor's reissue moves no k. The reader reports in the terms the prior was named in: `prior.sd`,
 the sd law in force while k is drawn, and k relative to the data's
 scale, reported as `k.scale` ([`reportLeafPrior`](../../R/dbarts.R)); a fit named by an sd
 hyperprior carries draws of the sd in place of k. The two-forest and
