@@ -305,8 +305,8 @@ acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centred)
 acrossUnits("variance forest", list(variance = TRUE))
 acrossUnits("count", list(family = nbinom()), 2L * counts, counts)
 
-# a constant response's transform is units too, spanning 1 upward from its
-# value: a
+# a constant response's transform is units too, the window of width 1
+# centred on its value, recorded as (c, c): a
 # sampler on one keeps them across an install from a normal response, a state
 # stored in them replays in a normal recipient, and its own state is untouched
 makeConstant <- function(...) {

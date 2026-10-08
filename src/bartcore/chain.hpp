@@ -2189,8 +2189,8 @@ public:
 
   /// Whether (min, max) names response units this chain can hold its numbers
   /// in: any pair on a gaussian-style family, where (c, c) is a constant
-  /// response's transform, the window [c, c + 1], and an increasing one on
-  /// the count family,
+  /// response's transform, the window [c - 0.5, c + 0.5], and an increasing
+  /// one on the count family,
   /// whose state always carries one. Never on a scale-free family, which
   /// reports (0, 0).
   bool carriesUnits(double min, double max) const {
@@ -2238,7 +2238,7 @@ public:
   ///
   /// changed, when non-null, receives on success whether the rewrite moves
   /// any value, r other than 1 or d other than 0: unequal pairs can name the
-  /// same units, as a constant response's (c, c) and (c, c + 1) do.
+  /// same units, as a constant response's (c, c) and (c - 0.5, c + 0.5) do.
   bool convertStateUnits(ChainStateData& state, double min, double max,
                          bool* changed = nullptr) const {
     double fromScale, fromShift, toScale, toShift;
@@ -5233,7 +5233,8 @@ private:
 
   /// The multiplier and shift a response transform pair (getScale's) takes
   /// internal fits to the response scale with, as fitScale and fitShift
-  /// would report them under it.
+  /// would report them under it: a constant response's (c, c) is the window
+  /// centred on c, multiplier 1 and shift c.
   void unitsOf(double min, double max, double& scale, double& shift) const {
     if (family_ == ResponseFamily::nbinom) {
       scale = 1.0;
@@ -5241,7 +5242,11 @@ private:
       return;
     }
     scale = max - min;
-    if (scale == 0.0) scale = 1.0;
+    if (scale == 0.0) {
+      scale = 1.0;
+      shift = min;
+      return;
+    }
     shift = scale * 0.5 + min;
   }
 

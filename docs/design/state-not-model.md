@@ -45,8 +45,9 @@ it on the model, so a copy or a reload is re-created in it. A state stored in ot
 rewritten into the sampler's as it is installed: every leaf value is multiplied by the ratio of the two ranges
 and shifted by the difference of the shifts, split evenly over the trees; slopes and gp fits take the ratio
 alone, and variance factors its square, split over the variance trees. Amplitudes are multipliers and stay
-as they are: the leaf values beneath them carry the ratio. A constant response's transform spans 1
-upward from its value, the window from c to c + 1, and converts like any other. The replayed function agrees
+as they are: the leaf values beneath them carry the ratio. A constant response's transform is the
+window of width 1 centred on its value, c - 0.5 to c + 0.5 (dec-B386; it was c to c + 1 until 2026-10-08),
+recorded as (c, c), and converts like any other. The replayed function agrees
 with the stored one to rounding. A state in the sampler's own units is not touched and installs bit for bit.
 A re-anchor applies the same arithmetic to the draws the sampler has kept, so they stay the functions they
 were ([leaf-conversions.md](leaf-conversions.md)).

@@ -440,11 +440,13 @@ static void testStateRoundTripScaledOffset() {
   check(worst < 1.0e-12 && predictionsC != predictionsA,
         "converted state: the function is the stored one to rounding");
 
-  // unequal pairs naming the same units: a constant response's (0, 0) and a
-  // response spanning exactly (0, 1) both take multiplier 1 and shift 0.5,
-  // so the conversion moves no value and the install is the stored chain
+  // unequal pairs naming the same units: a constant response's (0, 0), the
+  // window centred on 0, and a response spanning exactly (-0.5, 0.5) both
+  // take multiplier 1 and shift 0, so the conversion moves no value and the
+  // install is the stored chain
   std::vector<double> yConstant(n, 0.0), yUnit(n);
-  for (size_t i = 0; i < n; ++i) yUnit[i] = static_cast<double>(i % 5) / 4.0;
+  for (size_t i = 0; i < n; ++i)
+    yUnit[i] = static_cast<double>(i % 5) / 4.0 - 0.5;
   ext_rng* rngD = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rngE = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngD, 80);
@@ -459,8 +461,8 @@ static void testStateRoundTripScaledOffset() {
   SamplerStateData constantState, unitState;
   constant.getState(constantState);
   unit.getAnchor(ownMin, ownMax);
-  bool pairsDiffer = constantState.chains[0].fitMax != ownMax &&
-    constantState.chains[0].fitMin == ownMin && ownMax == ownMin + 1.0;
+  bool pairsDiffer = constantState.chains[0].fitMin == 0.0 &&
+    constantState.chains[0].fitMax == 0.0 && ownMin == -0.5 && ownMax == 0.5;
   bool sameUnits = restoresExactly(unit, constantState);
   unit.getState(unitState);
   const auto& storedTrees = constantState.chains[0].forests[0].trees;

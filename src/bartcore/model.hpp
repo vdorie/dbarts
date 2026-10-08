@@ -4611,7 +4611,7 @@ public:
       std::memcpy(yRescaled_.data(), y_, numObservations_ * sizeof(double));
       if (offset_ != nullptr)
         misc_subtractVectorsInPlace(offset_, numObservations_, yRescaled_.data());
-      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -min_);
+      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -low_);
       misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
                                        1.0 / range_);
       misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
@@ -4709,7 +4709,7 @@ public:
       std::memcpy(yRescaled_.data(), y_, numObservations_ * sizeof(double));
       if (offset_ != nullptr)
         misc_subtractVectorsInPlace(offset_, numObservations_, yRescaled_.data());
-      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -min_);
+      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -low_);
       misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
                                        1.0 / range_);
       misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
@@ -4718,7 +4718,7 @@ public:
 
   double initialSigma() const override { return initialSigma_; }
   double fitScale() const override { return range_; }
-  double fitShift() const override { return range_ * 0.5 + min_; }
+  double fitShift() const override { return range_ * 0.5 + low_; }
   double sigmaScale() const override { return range_; }
 
   /// dnorm(y_i, mu_i, sigma_i) with mu the original-scale fit (fits carry any
@@ -4734,7 +4734,7 @@ public:
   void computeLogLikelihood(const double* totalFits, double sigma,
                             std::size_t numObservations,
                             double* out) const override {
-    double shift = range_ * 0.5 + min_;
+    double shift = range_ * 0.5 + low_;
     double sigmaOriginal = sigma * range_;
     for (std::size_t i = 0; i < numObservations; ++i) {
       if (weights_ != nullptr && weights_[i] == 0.0) {
@@ -4752,6 +4752,8 @@ public:
     }
   }
 
+  /// The recorded pair: a constant response's is (c, c), never the window
+  /// c - 0.5 to c + 0.5 its transform runs on.
   void getScale(double& min, double& max) const override {
     min = min_;
     max = max_;
@@ -4760,20 +4762,20 @@ public:
   /// Installs a stored transform, rebuilding the working response under it
   /// and re-anchoring the variance prior on the original scale, exactly as
   /// the mutation methods do; the chain's internal sigma is restored from
-  /// the same state afterwards, so no sigmaInOut here.
+  /// the same state afterwards, so no sigmaInOut here. A stored (c, c) is
+  /// read as the window centred on c, as readRange sets it.
   void restoreScale(double min, double max) override {
     double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
 
     min_ = min;
     max_ = max;
-    range_ = max_ - min_;
-    if (range_ == 0.0) range_ = 1.0;
+    setWindow();
 
     std::memcpy(yRescaled_.data(), y_, numObservations_ * sizeof(double));
     if (offset_ != nullptr)
       misc_subtractVectorsInPlace(offset_, numObservations_,
                                   yRescaled_.data());
-    misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -min_);
+    misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -low_);
     misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
                                      1.0 / range_);
     misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
@@ -4836,8 +4838,21 @@ private:
       if (yRescaled_[i] < min_) min_ = yRescaled_[i];
       if (yRescaled_[i] > max_) max_ = yRescaled_[i];
     }
+    setWindow();
+  }
+
+  /// The transform's window from the recorded (min_, max_): the range and its
+  /// low end, min_ itself where the range is positive. A range of zero width
+  /// is held at 1 and centred on the one value, its low end min_ - 0.5, so a
+  /// constant response maps to 0 on the working scale and its fits are
+  /// centred on it.
+  void setWindow() {
     range_ = max_ - min_;
-    if (range_ == 0.0) range_ = 1.0;
+    low_ = min_;
+    if (range_ == 0.0) {
+      range_ = 1.0;
+      low_ = min_ - 0.5;
+    }
   }
 
   /// Re-derives the range and rebuilds the working response under it. The
@@ -4852,7 +4867,7 @@ private:
     if (numObservations_ == 0) {
       min_ = 0.0;
       max_ = 0.0;
-      range_ = 1.0;
+      setWindow();
       return;
     }
     if (rangeResponse != nullptr) {
@@ -4862,7 +4877,7 @@ private:
     formOffsetAdjusted(y_);
     if (rangeResponse == nullptr) readRange();
 
-    misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -min_);
+    misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -low_);
     misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
                                      1.0 / range_);
     misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
@@ -4880,7 +4895,9 @@ private:
   // the host's variance surface s^2(x) on the working scale, or null when
   // homoscedastic; borrowed, and re-installed at every reallocation
   const double* variance_ = nullptr;
-  double min_ = 0.0, max_ = 0.0, range_ = 1.0;
+  // the recorded pair, and the window the transform reads: range_ and its low
+  // end low_, set together by setWindow and nowhere else
+  double min_ = 0.0, max_ = 0.0, range_ = 1.0, low_ = -0.5;
   double initialSigma_ = 1.0;
   ChiSquaredScalePrior sigmaSqPrior_;
 };

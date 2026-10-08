@@ -328,6 +328,10 @@
             returns for them what it returned before the call. 0.9-34
             replayed saved trees on the scale in force, so they came back
             in the new response's units.
+      \item A fit on a constant response is centred on it: the response is
+            mapped from the window half a unit either side of its value,
+            where 0.9-34 mapped it from the value to one unit above, so the
+            leaf prior sat half a unit above the data.
     }
   }
   \subsection{NEW FEATURES}{

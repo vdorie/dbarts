@@ -5687,6 +5687,37 @@ static double standardNormalCdf(double z) {
   return 0.5 * std::erfc(-z * 0.7071067811865476);
 }
 
+// A constant response's transform is the window c - 0.5 to c + 0.5 centred
+// on its value: it records (c, c), fits shift by c, and every row sits at 0 on
+// the working scale, at creation and after the stored (c, c) is read back. A
+// response with spread keeps its low end at its minimum.
+static void testConstantResponseWindow() {
+  const size_t n = 6;
+  const double c = 5.0;
+  std::vector<double> y(n, c);
+  GaussianResponse response(y.data(), nullptr, nullptr, n, 1.0, 3.0, 0.9);
+  auto centred = [&](const char* when) {
+    double min, max;
+    response.getScale(min, max);
+    bool zero = true;
+    for (size_t i = 0; i < n; ++i)
+      zero = zero && response.workingResponse()[i] == 0.0;
+    check(min == c && max == c && response.fitShift() == c &&
+            response.fitScale() == 1.0 && zero,
+          when);
+  };
+  centred("constant window: (c, c) recorded, shift c, working response 0");
+  response.restoreScale(c, c);
+  centred("constant window: a stored (c, c) is read as the same window");
+
+  std::vector<double> spread = {1.0, 3.0, 2.0, 1.5, 2.5, 3.0};
+  GaussianResponse ranged(spread.data(), nullptr, nullptr, n, 1.0, 3.0, 0.9);
+  check(ranged.fitShift() == 2.0 * 0.5 + 1.0 && ranged.fitScale() == 2.0 &&
+          ranged.workingResponse()[0] == -0.5,
+        "constant window: a response with spread runs on its own range");
+  printf("ok: constant response window\n");
+}
+
 static void testAFTReduction(ext_rng*) {
   // an all-uncensored aft fit is bit-identical to a gaussian fit on log T
   const size_t n = 180, p = 3;
@@ -9905,6 +9936,7 @@ void runModelTests(ext_rng* rng) {
   testLinearCoefficientConversion();
   testNoSpreadStandardization();
   testLinearLeafViews();
+  testConstantResponseWindow();
   testAFTReduction(rng);
   testVarianceSurfaceInstall(rng);
   testAFTCensoredMoments(rng);
