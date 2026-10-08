@@ -892,6 +892,16 @@ items
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
     leave n.threads out of the call to dbarts when the guess is NA.
+  missingness-first-seen: a column can be missing from the first
+    missing value it is given, at creation or by setPredictor, and
+    ever after (dec-B321; setData not ruled): the engine's flag no longer
+    follows the column's content, the first missing value draws each
+    existing split's direction with probability one half where today
+    it sends them left, and no direction is dropped afterwards
+    (dec-B320). predict and test data keep refusing a missing value
+    in a column that could not be missing (dec-B322). Before the merge
+    to main; with the install surface's first slice, which keeps
+    directions at setState.
   copy-merge-weight-order: after a forced setCutPoints or refresh that
     merges, a copy's merged leaf can differ from its original's by one
     unit in the last place when the leaf's weights do not sum exactly
@@ -910,7 +920,9 @@ items
     untouched and returns FALSE; forced it installs, changing what it
     must (dec-B305, revising dec-B234 and dec-A167). A conversion
     between response units and a kept store of another size are
-    clean (dec-B318); a tree that must change to fit is not; copy()
+    clean (dec-B318), and so is a split keeping its direction for
+    missing values on a column with none now (dec-B320); a tree that
+    must change to fit is not; copy()
     and a reload force. Before the merge to main. Design first, with warm-start-salvage and
     state-store-size-install, which are the same surface: what the
     forced form returns (ruled: NULL, dec-B310), one name with
