@@ -2,7 +2,7 @@
 
 Status: PLANNED (built on a branch; the plan's status is the record).
 Plan: [repeated-cut-restore.md](../plans/repeated-cut-restore.md). Rulings: dec-B285, dec-B297, dec-B298,
-dec-B299 and dec-B300 in docs/decisions.md, and the maintainer's of 2026-10-08 quoted in the plan.
+dec-B299, dec-B300, dec-B311 and dec-B312 in docs/decisions.md.
 
 A numeric predictor's cut grid is the set of thresholds a tree may split it at. The sampler picks uniformly
 among grid positions, in the tree prior and in the proposals, and a stored split names its threshold by value.
@@ -67,7 +67,7 @@ beside missing values under the uniform rule; and any refresh whose grid now dif
 no missing value goes from `n.cuts` copies to one point and draws the same, no split on it ever having been
 accepted. Every other fit is unchanged bit for bit. Under the uniform rule a column of few values far apart,
 a 0/1 column among them, holds `n.cuts` points today; that is what the grid is at this change, and the rule
-for such a column is ruled otherwise for a later one (one point per gap between distinct values).
+for such a column is ruled otherwise for a later one (dec-B313: one point per gap between distinct values).
 
 ## Checks
 

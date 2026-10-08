@@ -277,7 +277,9 @@ cutLinear <- dbarts(X, y, leaf.prior = linearLeaf, control = ctl())
 invisible(cutLinear$run(20L, 1L))
 cutLinear$setCutPoints(list(0.4), 3L)
 linCutRun <- cutLinear$run(0L, 20L)
-expect_identical(drawnCuts(cutLinear, 3L), 0.4)
+# the last draw need not split on the column: whichever splits it holds are
+# at the one point, and the count below says the run drew some
+expect_true(all(drawnCuts(cutLinear, 3L) == 0.4))
 expect_true(sum(linCutRun$varcount[3L, ]) > 0L)
 expect_true(all(is.finite(linCutRun$train)))
 

@@ -1,6 +1,6 @@
 # repeated-cut-restore: no cut grid repeats a point
 
-Status: PLANNED (dec-B285, dec-B297, dec-B298, dec-B299, dec-B300). Rewritten 2026-10-07 after the four
+Status: PLANNED (dec-B285, dec-B297, dec-B298, dec-B299, dec-B300, dec-B311, dec-B312). Rewritten 2026-10-07 after the four
 rulings; the plan this replaces kept repeated points and stored each split's position, and none of that
 is built. The file keeps its name because the TODO item, four register entries and
 [cut-points-undo.md](cut-points-undo.md) cite it.
@@ -210,8 +210,8 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
    empty one ([`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp)); it is tested here, not
    edited.
 
-6. The maintainer on 2026-10-08, asked where the splits already in the trees go when a refresh
-   re-derives a grid (the ledger id is added at landing): "Why not let it be an option? Defaulting to
+6. dec-B311 and, for the spelling, dec-B312. The maintainer on 2026-10-07, asked where the splits
+   already in the trees go when a refresh re-derives a grid: "Why not let it be an option? Defaulting to
    value.", and a minute later: "Oh, wait a sec, keep the default at relative so it stays the same
    as 0.9-34." On the spelling: "given that if it were an argument, it would only make sense if
    `updateCutPoints` was `TRUE`, it should probably be the value of the existing argument", "Sure,
@@ -291,7 +291,7 @@ planning that shapes the build is how a rule's points are counted (call 2).
    retired: [`cscColumnIsDegenerate`](../../src/bartcore/data.hpp)).
    [`WholeMatrixUpdate`](../../src/bartcore/sampler.hpp) and
    [`SubsetUpdate`](../../src/bartcore/sampler.hpp) snapshot and put back the counts with the points.
-   The splits (rule 6, amended 2026-10-08; the check for a rule past a grid that this step first
+   The splits (rule 6, amended 2026-10-07; the check for a rule past a grid that this step first
    named is not built, no refresh leaving one). The engine's two predictor entries take the rule as
    a value in place of the flag: none, position or value.
    [`runPredictorTransaction`](../../src/bartcore/sampler.hpp) keeps the old grid of each column the
@@ -515,7 +515,7 @@ Each is the planner's, reversible, and open for the maintainer's mark.
    dropped: the uniform rule's `n.cuts` evenly spaced points, the quantile rule's chosen midpoints.
    So a column of few values far apart keeps its grid and its bits. The alternative, one point per
    gap between distinct values under the uniform rule too, changes every fit with a discrete column.
-3. Replaced by rule 6 on 2026-10-08, for a refresh and for `setCutPoints`. As planned: A
+3. Replaced by rule 6 on 2026-10-07, for a refresh and for `setCutPoints`. As planned: A
    refresh that changes a column's count keeps each split's position, as a refresh and
    `setCutPoints` do today. A split past a shorter grid is merged when the update is forced; when it
    is not, the call returns `FALSE` with column and grid as they were, as for any column the trees
