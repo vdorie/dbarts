@@ -109,6 +109,13 @@
             A training row at weight 0 draws as an ordinary observation, at
             weight 1, and \code{predict(type = "ppd", weights = 0)} is
             refused, saying to pass 1.
+      \item New predictors for a fit with a factor column come as a data
+            frame, coded by label: \code{setPredictor(x)} with no
+            \code{column} takes one (0.9-34 stopped on it), as do
+            \code{setTestPredictor} and \code{predict}. A numeric matrix
+            is taken only where every predictor column is numeric, and is
+            refused by name on a fit with a factor column; \code{predict}
+            had read the codes of such a matrix as levels.
       \item Split probabilities. \code{split.probs} with a negative or
             non-finite entry, or with no positive entry, is refused, as
             \code{sample(prob = )} refuses such weights; 0.9-34 turned a

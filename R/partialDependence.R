@@ -1152,7 +1152,7 @@ pdbart.hazardSubjects <- function(sampler, frame, rows, caller) {
 # Per-draw predictions of a fit at rows, draws x rows, the chains merged in
 # turn.
 pdbart.predictDraws <- function(fit, rows, type, offset) {
-  pred <- predict(fit, rows, type = type, offset = offset)
+  pred <- withCodedPredictors(predict(fit, rows, type = type, offset = offset))
   if (is.null(dim(pred))) matrix(pred, ncol = NROW(rows)) else pred
 }
 
@@ -1249,7 +1249,9 @@ pdbart.drawsAt <- function(sampler, rows, settings) {
     return(list(fd = fd, samples = NULL))
   }
   numRows <- nrow(rows$x)
-  sampler$setTestPredictor(do.call(rbind, lapply(settings, setRow)))
+  withCodedPredictors(
+    sampler$setTestPredictor(do.call(rbind, lapply(settings, setRow)))
+  )
   samples <- sampler$run(0L, sampler$control@n.samples)
   # averaging is linear on this scale, so the rows' offsets enter as their mean
   offsetMean <- if (is.null(rows$offset)) 0 else mean(rows$offset)
@@ -1995,7 +1997,7 @@ pd2bart <- function(
           }
         )
       } else {
-        sampler$setTestPredictor(gridRows)
+        withCodedPredictors(sampler$setTestPredictor(gridRows))
         samples <- sampler$run(0L, sampler$control@n.samples)
         fdr <- pdbart.drawsByRow(samples$test) +
           if (length(offset) == 0L) 0 else offset[1L]

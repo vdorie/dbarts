@@ -664,6 +664,7 @@ preparePredictRows <- function(newdata, x.train, na.action, channels = NULL) {
     stop("newdata cannot be NULL")
   }
   rowNames <- observationRowNames(newdata)
+  refuseMatrixOfCodes(newdata, x.train, "'newdata'")
   x <- validateXTest(newdata, x.train, refuseMissing = FALSE)
   extra <- list()
   for (name in names(channels)) {

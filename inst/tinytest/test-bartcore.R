@@ -540,7 +540,14 @@ expect_error(
 )
 expect_error(
   sampler.cat$setTestPredictor(cbind(a = rep(7, 5L), b = runif(5L))),
-  pattern = "existing category codes"
+  pattern = "the predictor 'a' is a factor"
+)
+expect_error(
+  sampler.cat$setTestPredictor(data.frame(
+    a = factor(rep("7", 5L)),
+    b = runif(5L)
+  )),
+  pattern = "levels not present in the training data"
 )
 expect_error(
   sampler.cat$setCutPoints(0.5, 1L),

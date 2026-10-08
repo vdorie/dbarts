@@ -223,11 +223,15 @@ expect_error(
 )
 
 # the flat-matrix $setTestPredictor entrance
+# (a numeric matrix is refused on a design with a factor column, dec-B360,
+# so the missing value is put in a data frame of the test rows)
 testMatrix <- makeTestModelMatrix(sampler.keep$data, test.df)
-testMatrix.x2na <- testMatrix
-testMatrix.x2na[1L, "x2"] <- NA_real_
 expect_error(
-  sampler.keep$setTestPredictor(testMatrix.x2na),
+  sampler.keep$setTestPredictor(testMatrix),
+  pattern = "'g' is a factor"
+)
+expect_error(
+  sampler.keep$setTestPredictor(test.df.x2na),
   pattern = "'x2'"
 )
 

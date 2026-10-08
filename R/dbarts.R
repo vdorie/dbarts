@@ -1623,7 +1623,7 @@ samplePriorPredictive <- function(
     # the surface is read through the draw sampler's own test rows, which is
     # where the variance forest evaluates off the training data; predict()
     # cannot serve it, keepTrees being off and these trees never recorded
-    draw$setTestPredictorAndOffset(xt, NULL)
+    withCodedPredictors(draw$setTestPredictorAndOffset(xt, NULL))
   }
 
   sigmaDraws <- NULL
@@ -3076,7 +3076,7 @@ dbartsSampler <- setRefClass(
       updateCutPoints = "none",
       updateState = NULL
     ) {
-      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateCutPoints is \"none\", which keeps each cut grid, or \"position\" or \"value\", which derive the grid a new sampler would have for the values and say where the splits on it go: each on its position, rescaled when the number of points changes, or each to the point nearest its threshold. updateState follows control@updateState; see setData."
+      "Changes a single column of the predictor matrix, or the entire matrix if column is missing, where x is a data frame, coded by label as a column is, or a numeric matrix, taken only where every predictor column is numeric and refused by name on a sampler with a factor column. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateCutPoints is \"none\", which keeps each cut grid, or \"position\" or \"value\", which derive the grid a new sampler would have for the values and say where the splits on it go: each on its position, rescaled when the number of points changes, or each to the point nearest its threshold. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
@@ -3115,7 +3115,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setTestPredictor = function(x.test, column) {
-      "Changes a single column of the test predictor matrix."
+      "Changes a single column of the test predictor matrix, or the whole test set if column is missing, where x.test is a data frame or a numeric matrix, taken only where every predictor column is numeric."
 
       checkMissingPolicy(data, sourceAnyNA(x.test), "test predictors")
       bartcoreSamplerSetTestPredictor(
@@ -3126,6 +3126,7 @@ dbartsSampler <- setRefClass(
     },
     setTestPredictorAndOffset = function(x.test, offset.test) {
       "Changes the test predictor matrix, and optionally the test offset."
+      refuseMatrixOfCodes(x.test, data@x, "'x.test'")
       checkMissingPolicy(
         data,
         !is.null(x.test) && sourceAnyNA(x.test),

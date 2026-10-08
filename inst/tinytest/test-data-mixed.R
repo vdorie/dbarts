@@ -258,21 +258,32 @@ expect_error(
 # whole-matrix replacement of a mixed design: the container is spliced R-side
 # and STAYS a container, dense-backed and CSC-backed columns alike, with a
 # replaced sparse column densifying its storage
-x.whole <- x.dense.equiv
-x.whole[, 1L] <- x.whole[, 1L] * 0.9 + 0.02
-x.whole[, 3L] <- x.whole[, 3L] + 0.25
+# (a plain matrix of codes is refused on a design with a factor column,
+# dec-B359; the replacement comes as a container, or as a data frame)
+x.whole.dense <- x.dense.equiv
+x.whole.dense[, 1L] <- x.whole.dense[, 1L] * 0.9 + 0.02
+x.whole.dense[, 3L] <- x.whole.dense[, 3L] + 0.25
+expect_error(
+  sampler$setPredictor(x.whole.dense, forceUpdate = TRUE),
+  "the predictor 'f' is a factor"
+)
+x.frame.whole <- x.frame
+x.frame.whole$x1 <- x.frame$x1 * 0.9 + 0.02
+x.frame.whole$sv <- as.double(sv) + 0.25
+x.whole <- dbartsData(x.frame.whole, y)@x
 expect_silent(sampler$setPredictor(x.whole, forceUpdate = TRUE))
 expect_inherits(sampler$data@x, "dbartsMixedMatrix")
-expect_equal(unname(as.matrix(sampler$data@x)), unname(x.whole))
-expect_equal(diff(sampler$data@x$sparse@p)[1L], n)
+expect_equal(unname(as.matrix(sampler$data@x)), unname(x.whole.dense))
 # the categorical column keeps its declared levels through the splice
 expect_equal(attr(sampler$data@x, "factor.levels")[[2L]], levels(f))
 # a rejected transactional whole-matrix replacement leaves data@x untouched
 x.before <- as.matrix(sampler$data@x)
-accepted.whole <- sampler$setPredictor(
-  matrix(0, n, ncol(x.dense.equiv)),
-  forceUpdate = FALSE
-)
+x.frame.flat <- x.frame
+x.frame.flat$x1 <- 0
+x.frame.flat$f <- factor(rep("a", n), levels = levels(f))
+x.frame.flat$sv <- 0
+x.flat <- suppressWarnings(dbartsData(x.frame.flat, y))@x
+accepted.whole <- sampler$setPredictor(x.flat, forceUpdate = FALSE)
 expect_false(isTRUE(accepted.whole))
 expect_equal(as.matrix(sampler$data@x), x.before)
 

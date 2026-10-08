@@ -387,6 +387,104 @@ resolveColumnIndex <- function(source, column, what) {
   column
 }
 
+# New predictors for a design with a factor column come as a data frame, coded
+# by label (dec-B359, dec-B360); a numeric matrix is taken only where every
+# predictor column is numeric, judged by the column types, and is refused by
+# name otherwise. The one place a matrix of codes is read as codes is this
+# package's own code, which holds codes it made: it runs under
+# withCodedPredictors().
+codedPredictorState <- new.env(parent = emptyenv())
+codedPredictorState$allowed <- FALSE
+
+withCodedPredictors <- function(expr) {
+  previous <- codedPredictorState$allowed
+  codedPredictorState$allowed <- TRUE
+  on.exit(codedPredictorState$allowed <- previous)
+  expr
+}
+
+# the names of the training design's columns coded from a factor
+factorPredictorNames <- function(x.train) {
+  factorLevels <- attr(x.train, "factor.levels")
+  if (is.null(factorLevels)) {
+    return(character())
+  }
+  index <- which(!vapply(factorLevels, is.null, NA))
+  names <- colnames(x.train)
+  if (is.null(names)) paste0("column ", index) else names[index]
+}
+
+refuseMatrixOfCodes <- function(x, x.train, what) {
+  if (
+    codedPredictorState$allowed ||
+      is.null(x) ||
+      is.data.frame(x) ||
+      !is.numeric(x) ||
+      !(is.matrix(x) || is.null(dim(x)))
+  ) {
+    return(invisible(NULL))
+  }
+  factors <- factorPredictorNames(x.train)
+  if (length(factors) > 0L) {
+    stop(
+      what,
+      " is a numeric matrix, but the predictor",
+      if (length(factors) > 1L) "s",
+      " ",
+      paste0("'", factors, "'", collapse = ", "),
+      if (length(factors) > 1L) " are factors" else " is a factor",
+      "; give a data frame, whose factor columns are coded by label",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+# A data frame given as the whole of the predictors, as the numeric matrix of
+# codes the sampler takes: its columns matched to the design's by name when
+# they carry the names, else by position, the factor columns coded by label
+# and refused a number, the others refused a label.
+codePredictorFrame <- function(x.train, x) {
+  p <- ncol(x.train)
+  plain <- vapply(x, function(v) is.atomic(v) && is.null(dim(v)), NA)
+  if (!all(plain)) {
+    stop(
+      "column '",
+      names(x)[which(!plain)[1L]],
+      "' is not a vector; a sparse or matrix column is installed with ",
+      "'column'",
+      call. = FALSE
+    )
+  }
+  if (ncol(x) != p) {
+    stop("dimension of x must be equal to ", p, call. = FALSE)
+  }
+  names <- colnames(x.train)
+  if (!is.null(names) && all(names %in% colnames(x))) {
+    x <- x[names]
+  }
+  factorLevels <- attr(x.train, "factor.levels")
+  for (j in seq_len(p)) {
+    isFactor <- !is.null(factorLevels) &&
+      j <= length(factorLevels) &&
+      !is.null(factorLevels[[j]])
+    if (!isFactor && !is.numeric(x[[j]]) && !is.logical(x[[j]])) {
+      stop(
+        "column '",
+        if (is.null(names)) j else names[j],
+        "' is numeric in the sampler; give its values as numbers, not ",
+        "labels",
+        call. = FALSE
+      )
+    }
+  }
+  coded <- codeCategoricalColumnUpdate(x.train, x, seq_len(p))
+  if (!is.data.frame(coded)) {
+    return(coded)
+  }
+  matrix(unlist(lapply(coded, as.double), use.names = FALSE), nrow(coded))
+}
+
 # A column update addressing a column the training design coded from a factor
 # takes that column's labels: a factor, character vector or sparseFactor,
 # matched by label against the training levels and installed as the engine's
@@ -642,6 +740,10 @@ bartcoreSamplerSetPredictor <- function(
   column <- resolveColumnIndex(currentX, column, "current X")
   if (!is.null(column)) {
     x <- codeCategoricalColumnUpdate(currentX, x, column)
+  } else if (is.data.frame(x)) {
+    x <- codePredictorFrame(currentX, x)
+  } else {
+    refuseMatrixOfCodes(x, currentX, "'x'")
   }
 
   # a triplet, row-compressed, symmetric, triangular, logical or pattern
@@ -1122,6 +1224,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
     # bridge codes against the training cuts. The bridge clears any test offset
     # with a NULL removal.
     testRowNames <- observationRowNames(x.test)
+    refuseMatrixOfCodes(x.test, sampler$data@x, "'x.test'")
     x.test <- validateXTest(x.test, sampler$data@x)
   } else {
     column <- coerceOrError(column, "integer")

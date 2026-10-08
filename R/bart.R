@@ -801,7 +801,9 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
     }
 
     if (length(oldX.test) > 0L) {
-      sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
+      withCodedPredictors(
+        sampler$setTestPredictorAndOffset(oldX.test, oldOffset.test)
+      )
       sampler$data <- setDataRowNames(sampler$data, "test", oldTestNames)
     }
     control@keepTrainingFits <- oldKeepTrainingFits

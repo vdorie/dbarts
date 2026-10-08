@@ -313,7 +313,7 @@ withUpdateState <- Filter(
   },
   setdiff(samplerMethods, c("show", "callSuper", "copy", "initFields"))
 )
-expect_true(length(withUpdateState) >= 20L)
+expect_true(length(withUpdateState) >= 19L)
 for (name in withUpdateState) {
   formal <- formals(dbarts:::dbartsSampler$def@refMethods[[name]])
   if (

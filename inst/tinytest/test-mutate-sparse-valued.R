@@ -178,7 +178,15 @@ b.new$f <- sparseFactor(
   reference = "s2"
 )
 b.container <- dbarts:::makeCategoricalModelMatrix(b.new)
-expectTwinsAgree(b.frame, y.b, b.container, as.matrix(b.container))
+# (the dense equivalent of a design with factor columns is a data frame, coded
+# by label; a matrix of codes is refused there, dec-B359)
+b.dense <- data.frame(
+  u = b.new$u,
+  g = b.new$g,
+  s = as.double(b.new$s),
+  f = factor(as.character(b.new$f), levels = levels.f)
+)
+expectTwinsAgree(b.frame, y.b, b.container, b.dense)
 
 # a sparse argument onto the SPARSE-backed ordinal column (3), by index
 b.sparse.col <- sparseBlock(matrix(a.new[, 1L], n, 1L))

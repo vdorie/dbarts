@@ -284,7 +284,14 @@ local({
   invisible(sampler$run())
   levelsBefore <- attr(sampler$data@x, "factor.levels")
   low <- which(as.integer(frame$f) <= 3L & as.integer(frame$o) <= 3L)
-  replacement <- as.matrix(sampler$data@x)[sample(low, n.keep, TRUE), ]
+  # a matrix of codes is refused on a design with factor columns (dec-B359);
+  # the replacement is a data frame, coded by label, and the declared levels
+  # stay though the new rows miss the top ones
+  replacement <- frame[sample(low, n.keep, TRUE), c("a", "f", "o")]
+  expect_error(
+    sampler$setPredictor(as.matrix(sampler$data@x)[sample(low, n.keep, TRUE), ]),
+    "the predictors 'f', 'o' are factors"
+  )
   sampler$setPredictor(replacement, forceUpdate = TRUE)
   expect_identical(attr(sampler$data@x, "factor.levels"), levelsBefore)
   sampler$storeState()

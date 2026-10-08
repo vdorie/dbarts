@@ -3,13 +3,13 @@
 # as one that would empty a leaf is, whichever tree of whichever chain it is
 # and under either direction; the calls that always complete set every leaf
 # of such a tree to zero and say nothing. The only change that can break the
-# order is an unordered factor's first missing value, and from R it is reached
-# by one call, the whole matrix of codes with forceUpdate = FALSE: the column
-# and row forms refuse a missing label in a column that holds none, before the
-# engine is called, and the joint form takes only labels. The engine's row
-# decline of such a value, the column and single-sampler row forms included, is
-# tests/cpp (testMonotoneMissingArrives), which no R call reaches; here the
-# joint form is pinned to refuse it by name and to take a numeric column's.
+# order is an unordered factor's first missing value, and no call from R
+# reaches it: the whole form takes a data frame, coded by label, and a matrix
+# of codes is refused on a design with a factor column (dec-B359), so every
+# form refuses a missing label in a column that holds none, before the engine
+# is called. The engine's row decline of such a value is tests/cpp
+# (testMonotoneMissingArrives); here every form is pinned to refuse it by name,
+# leaving the sampler its twin, and to take a numeric column's.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -163,18 +163,32 @@ fMovedLabels <- asLabels(fMoved, levels(f))
 fMissingLabels <- asLabels(fMissing, levels(f))
 missingRefusal <- "column 'f' has missing values, which its training values do not"
 
-# ---- whole matrix of codes, unforced: refused, the sampler its twin ----
+# the whole predictors as a data frame, the codes read as labels; a missing
+# code is a missing label
+asFrame <- function(codes) {
+  data.frame(x1 = codes[, "x1"], f = asLabels(codes[, "f"], levels(f)))
+}
+
+# ---- whole data frame, unforced: a missing label refused, the sampler its twin ----
 
 sampler <- make()
 twin <- make()
 xBefore <- sampler$data@x
 expect_identical(leaves(sampler), breaks)
-expect_identical(
-  observe(sampler$setPredictor(xMissing, forceUpdate = FALSE)),
-  outcome(FALSE)
+expect_error(
+  sampler$setPredictor(asFrame(xMissing), forceUpdate = FALSE),
+  missingRefusal,
+  fixed = TRUE
 )
 expect_identical(sampler$data@x, xBefore)
 expect_identical(leaves(sampler), breaks)
+expectTwin(sampler, twin)
+# and a matrix of codes is refused on this design, by name
+expect_error(
+  sampler$setPredictor(xMissing, forceUpdate = FALSE),
+  "the predictor 'f' is a factor",
+  fixed = TRUE
+)
 expectTwin(sampler, twin)
 
 # with a cut refresh over a rescaled x1, which moves every cut point
@@ -182,13 +196,14 @@ xRescaled <- xMissing
 xRescaled[, "x1"] <- 0.25 + 0.5 * x1
 sampler <- make()
 twin <- make()
-expect_identical(
-  observe(sampler$setPredictor(
-    xRescaled,
+expect_error(
+  sampler$setPredictor(
+    asFrame(xRescaled),
     forceUpdate = FALSE,
     updateCutPoints = "position"
-  )),
-  outcome(FALSE)
+  ),
+  missingRefusal,
+  fixed = TRUE
 )
 expectTwin(sampler, twin)
 
@@ -197,9 +212,10 @@ expectTwin(sampler, twin)
 several <- function() make(list(holds, breaks), n.trees = 3L, at = 2L)
 sampler <- several()
 twin <- several()
-expect_identical(
-  observe(sampler$setPredictor(xMissing, forceUpdate = FALSE)),
-  outcome(FALSE)
+expect_error(
+  sampler$setPredictor(asFrame(xMissing), forceUpdate = FALSE),
+  missingRefusal,
+  fixed = TRUE
 )
 expect_identical(leaves(sampler), c(holds, breaks))
 expectTwin(sampler, twin)
@@ -215,11 +231,12 @@ expect_error(
 
 # a decreasing constraint, with the mirrored values
 sampler <- make(list(-breaks), direction = "decreasing")
-expect_false(sampler$setPredictor(xMissing, forceUpdate = FALSE))
+expect_error(
+  sampler$setPredictor(asFrame(xMissing), forceUpdate = FALSE),
+  missingRefusal,
+  fixed = TRUE
+)
 expect_identical(leaves(sampler), -breaks)
-sampler <- make(list(-holds), direction = "decreasing")
-expect_true(sampler$setPredictor(xMissing, forceUpdate = FALSE))
-expect_identical(leaves(sampler), -holds)
 
 # ---- the joint form: a first missing value is refused before any row moves ----
 
@@ -263,13 +280,20 @@ expect_error(
 # ---- proposing again: refused until the trees move ----
 
 # other values with the same missing row are refused too, whole and row by
-# row, each refusal having left the column without a missing value; once the
-# values are in order the first proposal is accepted
+# row, each refusal having left the column without a missing value
 sampler <- make()
-expect_false(sampler$setPredictor(xMissing, forceUpdate = FALSE))
+expect_error(
+  sampler$setPredictor(asFrame(xMissing), forceUpdate = FALSE),
+  missingRefusal,
+  fixed = TRUE
+)
 xAgain <- xMissing
 xAgain[moved, "f"] <- 2
-expect_false(sampler$setPredictor(xAgain, forceUpdate = FALSE))
+expect_error(
+  sampler$setPredictor(asFrame(xAgain), forceUpdate = FALSE),
+  missingRefusal,
+  fixed = TRUE
+)
 expect_error(
   dbarts::updatePredictorPerObservationJointly(
     list(sampler),
@@ -279,19 +303,10 @@ expect_error(
   missingRefusal,
   fixed = TRUE
 )
-expect_true(sampler$setState(handState(sampler, list(holds))))
-expect_true(sampler$setPredictor(xMissing, forceUpdate = FALSE))
-expect_identical(leaves(sampler), holds)
+expect_identical(leaves(sampler), breaks)
 
 # ---- values that stay in order: accepted and kept ----
 
-sampler <- make(list(holds))
-expect_identical(
-  observe(sampler$setPredictor(xMissing, forceUpdate = FALSE)),
-  outcome(TRUE)
-)
-expect_identical(leaves(sampler), holds)
-expect_identical(which(is.na(sampler$data@x[, "f"])), naRows)
 sampler <- make(list(holds))
 expect_true(all(
   dbarts::updatePredictorPerObservationJointly(
@@ -308,7 +323,7 @@ dfMissing$f[moved] <- NA
 xSecond <- xMissing
 xSecond[moved, "f"] <- NA
 sampler <- make(list(holds), dfMissing)
-expect_true(sampler$setPredictor(xSecond, forceUpdate = FALSE))
+expect_true(sampler$setPredictor(asFrame(xSecond), forceUpdate = FALSE))
 expect_identical(leaves(sampler), holds)
 
 # a first missing value in the constrained x1 relates no new leaves: accepted
@@ -321,7 +336,7 @@ sampler <- make()
 expect_true(sampler$setPredictor(x1Missing, "x1"))
 expect_identical(leaves(sampler), breaks)
 sampler <- make()
-expect_true(sampler$setPredictor(xFirst, forceUpdate = FALSE))
+expect_true(sampler$setPredictor(asFrame(xFirst), forceUpdate = FALSE))
 expect_identical(leaves(sampler), breaks)
 sampler <- make()
 expect_true(all(sampler$setPredictor(x1Missing, "x1", forceUpdate = "partial")))
@@ -349,8 +364,6 @@ completes <- function(call, value, onto = make(), numLeaves = 4L) {
   grid <- levelGrid[numLeaves == 4L | !is.na(levelGrid$f), ]
   expect_true(maxDrop(onto, grid) <= 1e-8)
 }
-completes(function(s) s$setPredictor(xMissing, forceUpdate = TRUE), NULL)
-completes(function(s) s$setPredictor(xMissing), NULL)
 completes(
   function(s) s$setData(dbarts::dbartsData(y ~ x1 + f, dfArrived)),
   NULL
@@ -481,13 +494,20 @@ sampler <- dbarts::dbarts(
 )
 expect_true(installPooled(sampler, holds))
 # the column loses its missing values, and the values may then cross
-expect_true(sampler$setPredictor(pooledCodes, forceUpdate = FALSE))
+asFrameH <- function(codes) {
+  data.frame(x1 = codes[, "x1"], h = asLabels(codes[, "h"], levels70))
+}
+expect_true(sampler$setPredictor(asFrameH(pooledCodes), forceUpdate = FALSE))
 crossed <- c(-0.05, 0.05, 0.06, -0.04)
 expect_true(installPooled(sampler, crossed))
 xRegained <- pooledCodes
 regained <- which(x1 <= cut & as.integer(h) <= 35L)[1L]
 xRegained[regained, "h"] <- NA
-expect_false(sampler$setPredictor(xRegained, forceUpdate = FALSE))
+expect_error(
+  sampler$setPredictor(asFrameH(xRegained), forceUpdate = FALSE),
+  "column 'h' has missing values",
+  fixed = TRUE
+)
 expect_identical(leaves(sampler), crossed)
 expect_error(
   dbarts::updatePredictorPerObservationJointly(
