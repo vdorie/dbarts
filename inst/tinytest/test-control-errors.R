@@ -89,11 +89,10 @@ expect_error(
   dbarts::dbartsControl(n.threads = "not-an-integer"),
   "'n.threads' must be coercible to type: integer"
 )
-## an NA budget is what the default becomes when the cores cannot be
-## counted, so it names that cause
+## a stated NA budget is told to leave the argument out
 expect_error(
   dbarts::dbartsControl(n.threads = NA_integer_),
-  "'n.threads' must be a positive integer, not NA; guessNumCores"
+  "'n.threads' must be a positive integer, not NA; leave it out"
 )
 expect_error(
   dbarts::dbartsControl(n.threads = 0L),

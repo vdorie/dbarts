@@ -11,7 +11,7 @@ xbart <- function(
   n.reps = 40L,
   n.burn = c(200L, 150L),
   loss = c("rmse", "log", "mcr"),
-  n.threads = defaultNThreads(),
+  n.threads = dbarts::guessNumCores(),
   n.trees = 75L,
   k = NULL,
   sd = NULL,
@@ -557,7 +557,9 @@ xbart <- function(
   if (anyNA(n.burn) || any(n.burn < 0L)) {
     stop("'n.burn' must contain non-negative integers")
   }
+  unstated <- missing(n.threads)
   n.threads <- coerceOrError(n.threads, "integer")
+  n.threads <- fallBackToOneThread(n.threads, unstated)
   if (length(n.threads) != 1L) {
     stop("'n.threads' must be of length 1")
   }

@@ -59,7 +59,7 @@ rbart_vi <- function(
   n.samples = 1500L,
   n.burn = 1500L,
   n.chains = 4L,
-  n.threads = defaultNThreads(n.chains),
+  n.threads = min(dbarts::guessNumCores(), n.chains),
   combineChains = FALSE,
   n.cuts = 100L,
   useQuantiles = FALSE,
@@ -119,7 +119,9 @@ rbart_vi <- function(
     stop("n.chains must be a non-negative integer")
   }
 
+  unstated <- missing(n.threads)
   n.threads <- coerceOrError(n.threads, "integer")[1L]
+  n.threads <- fallBackToOneThread(n.threads, unstated)
   if (is.na(n.threads)) {
     stop(naThreadsMessage)
   }
@@ -137,7 +139,7 @@ rbart_vi <- function(
   ]
   controlCall[missingDefaults] <- formals(rbart_vi)[missingDefaults]
   if ("n.threads" %in% missingDefaults) {
-    controlCall[["n.threads"]] <- eval(controlCall[["n.threads"]])
+    controlCall[["n.threads"]] <- n.threads
   }
   control <- eval(controlCall, envir = callingEnv)
   control@keepFits <- TRUE
@@ -164,8 +166,8 @@ rbart_vi <- function(
   keepSampler <- keepSampler || control@keepTrees
 
   tree.prior <- quote(cgm(power, base))
-  tree.prior[[2L]] <- power
-  tree.prior[[3L]] <- base
+  tree.prior[[2L]] <- if (is.null(power)) 2.0 else power
+  tree.prior[[3L]] <- if (is.null(base)) 0.95 else base
 
   if (!is.null(matchedCall[["k"]])) {
     leaf.prior <- quote(normal(k))

@@ -420,7 +420,7 @@ dbartsControl <- function(
   n.burn = 200L,
   n.trees = 75L,
   n.chains = 4L,
-  n.threads = defaultNThreads(n.chains),
+  n.threads = min(dbarts::guessNumCores(), n.chains),
   n.thin = 1L,
   printEvery = 100L,
   printCutoffs = 0L,
@@ -474,6 +474,8 @@ dbartsControl <- function(
       warnNAForNull("n.samples", "dbartsControl")
     }
   }
+  unstatedThreads <- missing(n.threads)
+  n.threads <- fallBackToOneThread(n.threads, unstatedThreads)
   result <- newValidated(
     "dbartsControl",
     verbose = as.logical(verbose),
@@ -1179,6 +1181,9 @@ dbarts <- function(
   # control already built, so this fires for both front doors, once per
   # fit. The row count it names is the control's own testFitParallelCutoff,
   # so a caller who moved that cutoff is told the number actually in force.
+  if (is.na(control@n.threads)) {
+    stop(naThreadsMessage, call. = FALSE)
+  }
   if (control@n.threads > control@n.chains) {
     warning(
       sprintf(
@@ -3075,7 +3080,7 @@ dbartsSampler <- setRefClass(
       updateCutPoints = FALSE,
       updateState = NULL
     ) {
-      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. updateState follows control@updateState; see setData."
+      "Changes a single column of the predictor matrix, or the entire matrix if column is missing. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")

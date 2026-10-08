@@ -43,7 +43,7 @@ bart(
     sigest = NULL, k = NULL,
     n.trees = 75L,
     n.samples = 500L, n.burn = 500L,
-    n.chains = 4L, n.threads = defaultNThreads(n.chains),
+    n.chains = 4L, n.threads = min(dbarts::guessNumCores(), n.chains),
     combineChains = TRUE,
     n.cuts = 100L, useQuantiles = FALSE,
     n.thin = 1L, keepTrainingFits = TRUE,

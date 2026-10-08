@@ -14,7 +14,7 @@ dbartsControl(
     keepTrees = FALSE, storage = c("double", "single"),
     n.samples = NULL,
     n.cuts = 100L, n.burn = 200L, n.trees = 75L, n.chains = 4L,
-    n.threads = defaultNThreads(n.chains), n.thin = 1L, printEvery = 100L,
+    n.threads = min(dbarts::guessNumCores(), n.chains), n.thin = 1L, printEvery = 100L,
     printCutoffs = 0L,
     categoricalExhaustiveCap = 10L, testFitParallelCutoff = 65536L,
     predictParallelCutoff = 50000L, sparseDensityThreshold = 0.2,

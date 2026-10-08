@@ -9,7 +9,7 @@ xbart(
     formula, data, subset, weights, offset, verbose = FALSE, n.samples = 200L,
     method = c("k-fold", "random subsample"), n.test = c(5, 0.2),
     n.reps = 40L, n.burn = c(200L, 150L),
-    loss = c("rmse", "log", "mcr"), n.threads = defaultNThreads(), n.trees = 75L,
+    loss = c("rmse", "log", "mcr"), n.threads = dbarts::guessNumCores(), n.trees = 75L,
     k = NULL, sd = NULL, power = 2, base = 0.95,
     split.probs = NULL, drop = TRUE,
     sigest = NULL,

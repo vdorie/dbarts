@@ -107,32 +107,50 @@ groupData <- data.frame(
   x = testData$x[, 1L],
   g = rep_len(1:3, length(testData$y))
 )
+# what an expression said: messages and warnings counted, printed lines kept
+said <- function(expr) {
+  value <- NULL
+  nMessages <- 0L
+  nWarnings <- 0L
+  lines <- capture.output(
+    withCallingHandlers(
+      value <- expr,
+      message = function(m) {
+        nMessages <<- nMessages + 1L
+        invokeRestart("muffleMessage")
+      },
+      warning = function(w) {
+        nWarnings <<- nWarnings + 1L
+        invokeRestart("muffleWarning")
+      }
+    )
+  )
+  list(value = value, said = c(nMessages, nWarnings, length(lines)))
+}
+nothing <- c(0L, 0L, 0L)
 replaceGuess(function(logical = FALSE) NA_integer_)
 noCores <- tryCatch(
   {
     expect_identical(dbarts::guessNumCores(), NA_integer_)
-    expect_identical(dbarts::dbartsControl()@n.threads, 1L)
-    expect_identical(dbarts::dbartsControl(n.chains = 3L)@n.threads, 1L)
-    expect_silent(
-      fit <- dbarts::bart(
-        y ~ x,
-        groupData,
-        n.trees = 3L,
-        n.samples = 2L,
-        n.burn = 1L,
-        n.chains = 2L,
-        verbose = FALSE
-      )
-    )
-    expect_silent(dbarts::bartBT(
-      testData$x,
-      testData$y,
-      ntree = 3L,
-      ndpost = 2L,
-      nskip = 1L,
+    out <- said(dbarts::dbartsControl())
+    expect_identical(out$value@n.threads, 1L)
+    expect_identical(out$said, nothing)
+    out <- said(dbarts::dbartsControl(n.chains = 3L))
+    expect_identical(out$value@n.threads, 1L)
+    expect_identical(out$said, nothing)
+    out <- said(dbarts::bart(
+      y ~ x,
+      groupData,
+      n.trees = 3L,
+      n.samples = 2L,
+      n.burn = 1L,
+      n.chains = 2L,
+      keepSampler = TRUE,
       verbose = FALSE
     ))
-    expect_silent(dbarts::rbart_vi(
+    expect_identical(out$value$fit$control@n.threads, 1L)
+    expect_identical(out$said, nothing)
+    out <- said(dbarts::rbart_vi(
       y ~ x,
       groupData,
       group.by = g,
@@ -143,7 +161,8 @@ noCores <- tryCatch(
       n.thin = 1L,
       verbose = FALSE
     ))
-    expect_silent(dbarts::xbart(
+    expect_identical(out$said, nothing)
+    out <- said(dbarts::xbart(
       y ~ x,
       groupData,
       n.trees = 3L,
@@ -152,11 +171,32 @@ noCores <- tryCatch(
       n.burn = c(2L, 1L),
       verbose = FALSE
     ))
-    # a stated NA is refused, at the control and at the doors that read it
+    expect_identical(out$said, nothing)
+    # a wrapper that hands on its dots leaves the count unstated; one that
+    # states a count of its own, NA included, is refused
+    wrapControl <- function(...) dbarts::dbartsControl(...)
+    wrapBart <- function(...) {
+      dbarts::bart(
+        y ~ x,
+        groupData,
+        n.trees = 3L,
+        n.samples = 2L,
+        n.burn = 1L,
+        n.chains = 1L,
+        keepSampler = TRUE,
+        verbose = FALSE,
+        ...
+      )
+    }
+    expect_identical(wrapControl()@n.threads, 1L)
+    expect_identical(wrapBart()$fit$control@n.threads, 1L)
+    expect_error(wrapControl(n.threads = NA_integer_), "not NA")
+    expect_error(wrapBart(n.threads = NA_integer_), "not NA")
+    # a stated NA is refused, at the control and at the doors that read it,
+    # in words that tell its writer what to do
     message <- paste0(
-      "'n.threads' must be a positive integer, not NA; guessNumCores() ",
-      "returns NA when it cannot count this system's cores, and 'n.threads' ",
-      "is then one unless it is given a count"
+      "'n.threads' must be a positive integer, not NA; leave it out to take ",
+      "the default"
     )
     expect_error(
       dbarts::dbartsControl(n.threads = NA_integer_),
@@ -178,6 +218,14 @@ noCores <- tryCatch(
       message,
       fixed = TRUE
     )
+    # a control whose count was set to NA after it was built
+    badControl <- dbarts::dbartsControl(n.trees = 3L, n.chains = 1L)
+    badControl@n.threads <- NA_integer_
+    expect_error(
+      dbarts::dbarts(y ~ x, groupData, control = badControl),
+      message,
+      fixed = TRUE
+    )
     TRUE
   },
   finally = {
@@ -192,6 +240,8 @@ rm(
   ns,
   realGuess,
   replaceGuess,
+  said,
+  nothing,
   groupData,
   noCores,
   warnState,
