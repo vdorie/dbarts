@@ -1089,14 +1089,14 @@ warnNAForNull <- function(argument, caller) {
 }
 
 ## An argument that never shipped with NA for absent refuses it now.
-refuseNAForNull <- function(argument, caller, meaning = "not given") {
+refuseNAForNull <- function(argument, caller, meaning = NULL) {
   stop(
     "'",
     argument,
     "' must not be NA on '",
     caller,
-    "': NA is a missing value; NULL is the spelling of ",
-    meaning,
+    "': NA is a missing value; use NULL instead",
+    if (is.null(meaning)) "" else paste0(", which gives ", meaning),
     call. = FALSE
   )
 }
