@@ -204,7 +204,7 @@ fitted value at the rows in. Counts, several forests, masks and Student-t reache
    `setOffset(offset in force, updateScale = TRUE, updateState = FALSE)`, before the sampler is handed
    back: it draws nothing, records the range and restates a named sd. A sampler built by hand from
    [`dbartsSpec`](../../R/spec.R) and `new("dbartsSampler", ...)` that installs `spec$active` itself was
-   created with every row in; the help of `dbartsSpec` gives the call that makes it `dbarts()`'s.
+   created with every row in; the help of `dbartsSpec` gives the call that makes it `dbarts()`'s. Revised by dec-B363: that call is `setActiveRows(spec$active, updateScale = TRUE)`, written into the help when slice C builds it, with the loop form; the `setOffset` route is not documented.
 6. tinytest, a new file test-response-scale-rows.R, fixtures with the rows out extreme in the response:
    - Inert. Two fits that differ only in the response of the rows out at creation are `identical()` at
      the rows in and within 1e-12 at the rows out, in draws, sigma and every reader: gaussian, a fixed
