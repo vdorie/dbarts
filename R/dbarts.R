@@ -2487,6 +2487,7 @@ dbartsSampler <- setRefClass(
       n.threads = control@n.threads
     ) {
       "Replays each forest separately at new data, without re-running: an n.new x n.forests x n.samples (x n.chains) array of each forest's own INTERNAL-scale total, the off-sample twin of getForestFits. Only a sampler that composes its forests through scalar amplitude glue reports per-forest fits; every other one, a multinomial sampler included, is refused by name. No glue, no response transform and no offset are folded in: the location an amplitude coupling reports is response.shift + sum_f (basis_f %*% glue_f) * (response.scale * f_f), and off the training rows the bases are the caller's, so the whole recombination is too. offset.test is refused for the same reason - a shift belongs to that recombination. Reports the saved samples under keepTrees, and otherwise the current trees, exactly as predict does. n.threads is predict's per-call worker count, with the same (chain, saved draw) partition and the same bitwise-identical result at every value."
+      refuseMatrixOfCodes(x.test, data@x, "'x.test'")
       x.test <- validateXTest(x.test, data@x)
       if (is.null(x.test)) {
         stop("x.test cannot be NULL")

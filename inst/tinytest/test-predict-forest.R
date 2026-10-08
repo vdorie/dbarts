@@ -156,6 +156,29 @@ expect_error(
   pattern = "no per-forest fits"
 )
 
+# a numeric matrix of codes on a factor design is refused by name, as predict
+# does, and a data frame of labels is coded
+dfFactor <- data.frame(x1 = x[, 1L], f = factor(sample(c("a", "b"), n, TRUE)))
+factorSampler <- dbarts(
+  y ~ x1 + f,
+  dfFactor,
+  forests = twoForests,
+  control = keptControlPredictForest(keepTrees = TRUE)
+)
+factorSampler$run(2L, n.samples)
+newFactor <- data.frame(
+  x1 = xNew[, 1L],
+  f = factor(rep(c("a", "b"), length.out = nNew))
+)
+expect_error(
+  factorSampler$predictForests(cbind(xNew[, 1L], 1)),
+  pattern = "'x.test' is a numeric matrix, but the predictor 'f' is a factor"
+)
+expect_equal(
+  dim(factorSampler$predictForests(newFactor)),
+  c(nNew, 2L, n.samples)
+)
+
 # --- a stored state round trip replays the same forests: the trees ride the
 # state, so a reloaded sampler answers identically without re-running ---
 sampler <- dbarts(
