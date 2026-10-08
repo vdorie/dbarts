@@ -258,6 +258,11 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
+  predict-training-rows: predict on a fit with no newdata returns each
+    type at the training rows from the stored draws, needing no saved
+    trees, an offset given there replacing the fit's (dec-B341), where
+    today it stops with "newdata cannot be NULL". Every family's
+    predict method, help and tests. Before 1.0-0.
   survival-offset-training-rows: survivalProbabilities given an offset
     and no newdata applies it at the training rows in place of the
     fit's, off the stored draws with no trees replayed (dec-B340),
