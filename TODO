@@ -743,7 +743,8 @@ items
   tree-mixing-proposals: research door - how is the BART posterior
     sticky, and what proposal mechanisms beyond the shipped four-move
     set would help? VD 2026-10-08: "BART trees are too sticky and we
-    need to figure out what to do." The move census ran; the same-variable cut redraw
+    need to figure out what to do." Taken up with VD after the main
+    merge (VD 2026-10-08). The move census ran; the same-variable cut redraw
     "perturb" is in the kernel at default weight zero (ab49f83a) with
     its detailed-balance gate (30472110). Its benefit stage (slice 3)
     has run and killed the move at the pre-registered w = 1, d = 0.16
