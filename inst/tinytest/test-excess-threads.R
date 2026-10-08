@@ -113,15 +113,17 @@ noCores <- tryCatch(
     expect_identical(dbarts::guessNumCores(), NA_integer_)
     expect_identical(dbarts::dbartsControl()@n.threads, 1L)
     expect_identical(dbarts::dbartsControl(n.chains = 3L)@n.threads, 1L)
-    expect_silent(fit <- dbarts::bart(
-      y ~ x,
-      groupData,
-      n.trees = 3L,
-      n.samples = 2L,
-      n.burn = 1L,
-      n.chains = 2L,
-      verbose = FALSE
-    ))
+    expect_silent(
+      fit <- dbarts::bart(
+        y ~ x,
+        groupData,
+        n.trees = 3L,
+        n.samples = 2L,
+        n.burn = 1L,
+        n.chains = 2L,
+        verbose = FALSE
+      )
+    )
     expect_silent(dbarts::bartBT(
       testData$x,
       testData$y,
@@ -186,6 +188,16 @@ noCores <- tryCatch(
   }
 )
 expect_identical(get("guessNumCores", ns), realGuess)
-rm(ns, realGuess, replaceGuess, groupData, noCores, warnState, onceKeys, onceOnEntry, key)
+rm(
+  ns,
+  realGuess,
+  replaceGuess,
+  groupData,
+  noCores,
+  warnState,
+  onceKeys,
+  onceOnEntry,
+  key
+)
 
 rm(cores, excessControl, evenControl, testData, hurdleY, nExcess)
