@@ -285,14 +285,6 @@ items
     one class is fitted with one warning saying so, where today it is
     refused (dec-B333, revising dec-A144); tests of the latent sampler
     at one class. Before 1.0-0.
-  leaf-prior-spelling-keeps-spread: before 1.0-0 (dec-B356, VD
-    2026-10-08). setLeafPrior switching a drawn leaf prior between
-    normal(k = ) and normal(sd = invchi()) keeps each chain's spread
-    in force, writing k_old x k.scale_new / k.scale_old, where today
-    it keeps k and the spread jumps; setLeafPrior's help and the R
-    docstring change with it. Open for VD: whether a changed invchi()
-    scale within the sd spelling, the same mechanism, keeps the spread
-    too.
   gp-reanchor-message: the refusal of updateScale = TRUE by a gp
     sampler that holds saved draws says to re-derive the scale during
     burn-in, before draws are saved (burn-in sweeps, or keepTrees off
@@ -306,6 +298,14 @@ items
     set to zero and the leaf keeps its value or takes its function's
     value at the new constant (dec-B329, revising dec-A177); the help
     for newData says so. Before 1.0-0.
+  leaf-prior-spelling-keeps-spread: before 1.0-0 (dec-B356, VD
+    2026-10-08). setLeafPrior switching a drawn leaf prior between
+    normal(k = ) and normal(sd = invchi()) keeps each chain's spread
+    in force, writing k_old x k.scale_new / k.scale_old, where today
+    it keeps k and the spread jumps; setLeafPrior's help and the R
+    docstring change with it. Open for VD: whether a changed invchi()
+    scale within the sd spelling, the same mechanism, keeps the spread
+    too.
   leaf-covariate-single-value-off-centre: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
     relative to the centre closes it. A slope on a column moved to
