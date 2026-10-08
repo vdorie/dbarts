@@ -167,7 +167,9 @@ expandDiscreteTimeHazard <- function(
       max.rows,
       "; coarsen the time grid with family = hazard(breaks = ) (a boundary ",
       "vector or an integer period count), or raise the cap with ",
-      "family = hazard(max.rows = )"
+      "family = hazard(max.rows = ); a row costs about 210 bytes shared ",
+      "and about 630 a chain at 75 trees (one stored value a row a tree), so ",
+      "1e7 rows is about 8.5 GB on one chain and 27 GB on bart()'s four"
     )
   }
 

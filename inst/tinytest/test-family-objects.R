@@ -410,6 +410,25 @@ expect_error(
   ),
   "max.rows"
 )
+# and the refusal states what a row costs (dec-B367)
+cost <- tryCatch(
+  dbarts::bart(
+    xSurv,
+    cbind(timeSurv, statusSurv),
+    family = hazard(max.rows = 10),
+    n.trees = 10L,
+    n.samples = 10L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  ),
+  error = conditionMessage
+)
+expect_true(grepl("about 210 bytes shared", cost, fixed = TRUE))
+expect_true(grepl("about 630 a chain at 75 trees", cost, fixed = TRUE))
+expect_true(grepl("8.5 GB on one chain and 27 GB", cost, fixed = TRUE))
+rm(cost)
 
 # --- the stored call is the caller's own ------------------------------------
 

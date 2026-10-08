@@ -120,7 +120,10 @@
       distinct observed times, a single positive integer bins at that many
       quantiles, and a numeric boundary vector gives explicit right-closed
       intervals. \code{max.rows} refuses an over-large expansion, naming
-      the coarsening levers. \code{link} selects the binary link the
+      the coarsening levers and what a row costs: about 210 bytes shared
+      plus about 630 bytes a chain at 75 trees (one stored value a row a
+      tree, so growing with the trees), which makes the default of 1e7 rows
+      about 8.5 GB on one chain and 27 GB on \code{bart}'s four. \code{link} selects the binary link the
       expanded rows are fit under, and is what the tokens
       \code{"hazard.probit"} and \code{"hazard.logistic"} name.
     }
