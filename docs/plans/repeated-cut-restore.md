@@ -467,3 +467,23 @@ Each is the planner's, reversible, and open for the maintainer's mark.
     fourteen places are thirteen here and two prechecks, the two uniform scans sharing one fill and
     the bridge's two state readers counted singly.
     The critique's findings on positions, their blocks and their verdict no longer apply.
+
+## Recheck against the tip
+
+By the implementer, at b2ddb2a4, before any code. The plan was reworked at d734af08; the second push of
+the leaf conversions, a forest's defaults by kind and selection by label have landed since.
+
+- Nothing the steps edit moved: data.hpp, tree.hpp, chain.hpp, sampler.hpp, the four tests/cpp files
+  of step 5, test-cut-points-undo.R, test-quantile-grid.R, benchmarks/ and the exact-gates workflow
+  are byte for byte those of d734af08. The bridge moved at the response setters and `setData` only (the
+  gp refusals); its two `cutPoints` readers, `bartcore_setCutPoints` and the two predictor entries are
+  as planned. Every cite of this plan resolves.
+- The planning probes, run again on a shipped build of the tip in a library of its own, print what
+  they printed: the counts of Context at creation, a refresh and `setData`, the accepted and refused
+  grids, the twelve seeded digests, and the two arms' base grids (0, 1, 2, 2, 2 in units of eps above
+  1; five copies of 1).
+- Eight tinytest files name `updateCutPoints`, seven with `TRUE`, as counted. Of the tinytest files
+  that landed since, one names a grid: test-leaf-conversions.R sets a recipient's grid with
+  `setCutPoints`; it is run with the eight.
+- No step's premise moved. Calls the implementer makes beyond the plan are listed under
+  Calls made in building, added as they are made.
