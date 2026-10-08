@@ -178,7 +178,7 @@ expect_error(
     fold$ptr,
     x.view,
     FALSE,
-    FALSE
+    0L
   ),
   pattern = "views hold none"
 )

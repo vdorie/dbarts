@@ -65,7 +65,7 @@ expect_error(
     bc.fold$ptr,
     x.fold,
     FALSE,
-    FALSE
+    0L
   ),
   pattern = "owns its predictors"
 )
@@ -76,7 +76,7 @@ expect_error(
     x.fold[, 1L],
     1L,
     FALSE,
-    FALSE
+    0L
   ),
   pattern = "owns its predictors"
 )
@@ -95,7 +95,8 @@ expect_error(
     bc.fold$ptr,
     list(c(0.25, 0.5)),
     1L,
-    NULL
+    NULL,
+    1L
   ),
   pattern = "owns its predictors"
 )
