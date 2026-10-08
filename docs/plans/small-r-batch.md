@@ -1,6 +1,6 @@
 # small-r-batch: an unstated thread count falls back to one, a forced setPredictor returns NULL, a NULL power or base is the default, two forest-selection texts are corrected
 
-Status: PLANNED (dec-B306, dec-B310; the last two items are root TODO backlog).
+Status: LANDED 2026-10-07 (7c522117 to 91826511; dec-B306, dec-B310, with dec-A182 for the calls made in it).
 
 agent: sonnet implementer, one (R, tinytest, manual); opus reviewer.
 rng: NEUTRAL, bit for bit, for every call accepted before and still accepted. A call that stopped with an
@@ -105,3 +105,21 @@ built from a clean `git archive`.
   NULL)` and `bart(base = NULL)` stay refused as naming the plain forest's prior (dec-A179), pinned by a
   test; `forceUpdate = NA` at `setPredictor` and a control whose `n.threads` slot is `NA` given to `dbarts()`
   are refused by name.
+
+## Landing note
+
+Landed 2026-10-07 as 7c522117 to 91826511, after three looks by an independent reviewer told to refute.
+The first found the code sound and two tests unable to fail: the thread test did not check that nothing
+is said, a message at every door passing it, and bartBT's two expectations read dimensions only. The
+second found the one regression of the fix round: with the fallback moved from the defaults into the
+bodies, bart() given a control and no count was refused where the cores cannot be counted, no test
+supplying a control there; six control shapes and the multinomial door are pinned now. The third could
+not break it. One call accepted before is refused: a control whose n.threads slot was set to NA by
+assignment, given beside a stated count. Gates on the rebased branch and on the reviewer's own export:
+the tinytest suite at home 18908 results and none failed, 244 warnings outside expectations as on the
+base build; twelve accepted calls bit for bit those of the base build; lintr, air, rc-codoc, win-drift,
+doc-freshness, anchors, the news parse; build and check with the Date note alone. On the landed build
+stan4bart's suite gave 582 results and bartCause's 1412 expectations, none failed. Left for the backlog:
+bartCause's bcf states a count it computes from guessNumCores() (root TODO, bartcause-thread-default);
+after a refused whole-matrix update the next draws differ from an untouched twin's at rounding (root
+TODO, refused-update-rounding); bartBT(nthread = 0) is still told of n.threads.
