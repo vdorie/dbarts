@@ -146,8 +146,7 @@ tiers takes the higher.
 - Gate-only slices (a test harness or a CI gate, no package code) take
   the R-surface tier's review, not the engine tier's: in the measured
   twelve, the one such slice took three reviews and two fix rounds and
-  none of its six blocking findings was a package defect
-  (scratch/process-measure/report.md).
+  none of its six blocking findings was a package defect.
 - Small rulings are batched: one R-surface slice and one engine slice for
   a sitting's small items, not one slice each.
 - Records at a landing: the ledger entry for the calls made, the plan's

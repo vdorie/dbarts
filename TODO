@@ -270,7 +270,7 @@ items
     Until then the arm flags about one correct run in three: mark it
     expected in sbc.yaml with the workflow-text-edits push, and read
     it by its end bins (benchmarks/README.md). Evidence:
-    scratch/k-calibration/, scratch/k-calibration-verify/.
+    docs/design/probit-k-calibration.md.
   workflow-text-edits: equivalence.yaml, rchk.yaml and valgrind.yaml
     say workflow_dispatch needs main, which it does not; sbc.yaml's
     aft job has a 15-minute limit that a slow dependency install
