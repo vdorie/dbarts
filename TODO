@@ -314,6 +314,13 @@ items
     reaches bcf-shaped models. After the forest slices. Before then
     the help says a re-derived basis scale (updateBasisScale, dec-B303)
     and the response scale may span different rows.
+  ppd-weight-zero: before 1.0-0 (dec-B372, VD 2026-10-08). On
+    gaussian, Student-t and aft fits a training row at weight 0 draws
+    its posterior predictive at weight 1 in extract(fit, "ppd") and
+    fitted(type = "ppd"), where today it is NA with R's "NAs produced"
+    (R/generics.R about 662-676, ppdNoiseScale); predict(type = "ppd",
+    weights = 0) is refused by name, saying to pass 1. Help for both.
+    Probe: scratch/minor-bite/part-2/w0b.R.
   predictor-frame-whole: before 1.0-0 (dec-B359, VD 2026-10-08).
     setPredictor(x) with no column takes a data frame, coded by label
     as the column form is, where today it fails ("'list' object cannot
