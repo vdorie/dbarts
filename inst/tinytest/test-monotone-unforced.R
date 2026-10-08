@@ -349,8 +349,8 @@ completes <- function(call, value, onto = make(), numLeaves = 4L) {
   grid <- levelGrid[numLeaves == 4L | !is.na(levelGrid$f), ]
   expect_true(maxDrop(onto, grid) <= 1e-8)
 }
-completes(function(s) s$setPredictor(xMissing, forceUpdate = TRUE), TRUE)
-completes(function(s) s$setPredictor(xMissing), TRUE)
+completes(function(s) s$setPredictor(xMissing, forceUpdate = TRUE), NULL)
+completes(function(s) s$setPredictor(xMissing), NULL)
 completes(
   function(s) s$setData(dbarts::dbartsData(y ~ x1 + f, dfArrived)),
   NULL
@@ -381,7 +381,7 @@ fEmptied <- f
 fEmptied[x1 > cut & f %in% c("a", "b")] <- "c"
 completes(
   function(s) s$setPredictor(fEmptied, "f", forceUpdate = TRUE),
-  TRUE,
+  NULL,
   numLeaves = 3L
 )
 emptied <- function() {

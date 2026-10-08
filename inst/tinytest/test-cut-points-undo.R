@@ -180,7 +180,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
           updateCutPoints = TRUE
         )
       )
-      expect_identical(refreshed, TRUE, info = info)
+      expect_null(refreshed, info = info)
       grid <- cutPointsOf(sampler)[[2L]]
       expect_identical(length(grid), count, info = info)
       expect_false(identical(grid, set), info = info)

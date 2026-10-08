@@ -255,11 +255,11 @@ expect_true(sampler.engine$setPredictor(
   "x2"
 ))
 # full-matrix setPredictor defaults to forceUpdate = TRUE, which always
-# installs and so returns TRUE, invisibly; it replaces data@x wholesale
+# installs and so returns NULL, invisibly; it replaces data@x wholesale
 forcedReturn <- withVisible(
   sampler.engine$setPredictor(matrix(runif(n * p), n, p))
 )
-expect_true(forcedReturn$value)
+expect_null(forcedReturn$value)
 expect_false(forcedReturn$visible)
 rm(forcedReturn)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$train)))
