@@ -168,6 +168,19 @@ jobs:
             fail=1
           fi
           echo "::endgroup::"
+          # and its two arms on a column whose cut grid would repeat a point
+          # were equal neighbours kept: four adjacent doubles, and one value
+          # beside missing ones
+          for arm in narrow constmissing; do
+            echo "::group::bd-balance.R $arm"
+            if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} $arm; then
+              echo "PASS bd-balance.R $arm"
+            else
+              echo "::error::gate bd-balance.R $arm FAILED"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
           exit $fail
 
       # --preclean is not optional here: R tracks no dependency from the

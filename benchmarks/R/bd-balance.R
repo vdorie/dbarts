@@ -38,13 +38,32 @@
 # whose every leaf holds a weighted row, which the arm reports its distance
 # from.
 #
-# Usage: Rscript bd-balance.R [quick] [zeroweight]
+# Two arms put the gate on a column whose cut grid would repeat a point if
+# equal neighbours were kept, where a grid holds each point once
+# (docs/design/cut-grid.md); each first asserts the grid.
+# - narrow (Rscript bd-balance.R narrow): the four cells sit on four adjacent
+#   doubles and n.cuts is 5. Five evenly spaced points over that range round
+#   to three distinct ones, which separate the cells, so the target is the
+#   enumeration above unchanged; with the two repeats kept the prior over
+#   thresholds is another one.
+# - constmissing (Rscript bd-balance.R constmissing): cells 1 and 2 hold one
+#   value and cells 3 and 4 are missing, n.cuts 5. The grid is one point, so
+#   two trees have mass: the stump, and the split of present from missing,
+#   whose rule is the one cut, at half the mass for the direction missing
+#   values take, and whose children hold no further cut. With five copies of
+#   the point the children would count as splittable and the odds move by
+#   the two factors of not splitting them.
+#
+# Usage: Rscript bd-balance.R [quick] [zeroweight | narrow | constmissing]
 
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 zeroWeightArm <- "zeroweight" %in% args
+narrowArm <- "narrow" %in% args
+constMissingArm <- "constmissing" %in% args
+stopifnot(zeroWeightArm + narrowArm + constMissingArm <= 1L)
 
 nKept <- if (quick) 100000L else 300000L
 batchSize <- if (quick) 25000L else 50000L
@@ -72,6 +91,19 @@ nodeScale <- 0.5
 
 cuts <- min(x) + seq_len(K - 1L) * (max(x) - min(x)) / K
 stopifnot(identical(findInterval(x, cuts) + 1L, cell))
+numCutsAsked <- K - 1L
+if (narrowArm) {
+  # a row goes left of a cut it does not exceed, so the cuts sit on the
+  # first three cells' values
+  x <- 1 + (cell - 1L) * .Machine$double.eps
+  cuts <- 1 + (seq_len(K - 1L) - 1L) * .Machine$double.eps
+  stopifnot(identical(findInterval(x, cuts, left.open = TRUE) + 1L, cell))
+  numCutsAsked <- 5L
+} else if (constMissingArm) {
+  x <- ifelse(cell <= 2L, 1, NA_real_)
+  cuts <- 1
+  numCutsAsked <- 5L
+}
 
 yRange <- max(y) - min(y)
 zScaled <- (y - min(y)) / yRange - 0.5
@@ -144,6 +176,22 @@ enumerate <- function(loCell, hiCell, loCut, hiCut, depth) {
 }
 
 trees <- enumerate(1L, K, 1L, K - 1L, 0L)
+if (constMissingArm) {
+  # the stump, and present against missing: one cut to choose, half the mass
+  # for sending missing values right, and neither child with a cut left
+  trees <- list(
+    list(
+      leaves = list(c(1L, K)),
+      cutsUsed = integer(0L),
+      logPrior = log(1 - base)
+    ),
+    list(
+      leaves = list(c(1L, 2L), c(3L, K)),
+      cutsUsed = 1L,
+      logPrior = log(base) - log(2)
+    )
+  )
+}
 cat(sprintf("enumerated %d trees\n", length(trees)))
 
 signatureOf <- function(cutIndices) {
@@ -197,7 +245,7 @@ ctl <- dbartsControl(
   n.thin = nThin,
   updateState = TRUE,
   seed = engineSeed,
-  n.cuts = K - 1L
+  n.cuts = numCutsAsked
 )
 sampler <- dbarts(
   matrix(x, ncol = 1L),
@@ -209,6 +257,23 @@ sampler <- dbarts(
   proposal.probs = c(birth_death = 0.99, swap = 0, change = 0.01, birth = 0.5)
 )
 stopifnot(is.null(sampler$data@offset))
+if (narrowArm || constMissingArm) {
+  grid <- attr(sampler$state, "cutPoints")[[1L]]
+  if (!identical(grid, cuts)) {
+    cat(sprintf(
+      "FAIL: the cut grid holds %d points, %d distinct, where %d were expected\n",
+      length(grid),
+      length(unique(grid)),
+      length(cuts)
+    ))
+    quit(status = 1L)
+  }
+  cat(sprintf(
+    "cut grid: %d distinct points of %d asked\n",
+    length(grid),
+    numCutsAsked
+  ))
+}
 
 # ---- the weights go in on a grown tree ----
 #
