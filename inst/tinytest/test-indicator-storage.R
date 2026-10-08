@@ -159,3 +159,64 @@ caller <- countWarnings(suppressMessages(dbarts::dbarts(
   )
 )))
 expect_true(any(grepl("sparse-backed predictor columns", caller$warnings)))
+
+# --- the starting sigma by sparse QR equals the dense fit's, rank-deficient
+# designs (the full indicator sets of two factors and an intercept), weights,
+# an offset and missing values included ---
+
+set.seed(5L)
+n2 <- 300L
+d2 <- data.frame(
+  f = factor(sample.int(40L, n2, replace = TRUE)),
+  g = factor(sample.int(30L, n2, replace = TRUE)),
+  z = rnorm(n2)
+)
+y2 <- rnorm(n2) + d2$z
+d2$g[c(4L, 90L)] <- NA
+y2[7L] <- NA
+w2 <- runif(n2, 0.5, 2)
+w2[11L] <- 0
+o2 <- rnorm(n2, 0, 0.2)
+mi2 <- dbarts:::makeIndicatorModelMatrix(d2)
+md2 <- dbarts:::makeIndicatorModelMatrix(d2, storage = "dense")
+expect_true(dbarts:::predictorSourceIsSparse(mi2))
+expect_true(is.matrix(md2))
+for (case in list(
+  list(NULL, NULL),
+  list(w2, NULL),
+  list(NULL, o2),
+  list(w2, o2)
+)) {
+  expect_equal(
+    dbarts:::sparseResidualStandardError(y2, mi2, case[[1L]], case[[2L]]),
+    dbarts:::residualStandardError(
+      y2,
+      dbarts:::sigmaDesignMatrix(md2),
+      case[[1L]],
+      case[[2L]]
+    ),
+    tolerance = 1e-8
+  )
+}
+
+# --- the density threshold is inclusive: an indicator column at exactly
+# sparseDensityThreshold of the rows is built sparse, one row more is dense ---
+
+at <- factor(rep(c("a", "b", "c"), c(20L, 41L, 39L)))
+above <- factor(rep(c("a", "b", "c"), c(21L, 40L, 39L)))
+expect_true(dbarts:::factorMaySparse(at, "auto"))
+expect_false(dbarts:::factorMaySparse(above, "auto"))
+mi.at <- dbarts:::makeIndicatorModelMatrix(data.frame(f = at))
+expect_inherits(mi.at, "dbartsMixedMatrix")
+expect_identical(mi.at$map < 0L, c(TRUE, FALSE, FALSE))
+expect_true(is.matrix(dbarts:::makeIndicatorModelMatrix(data.frame(f = above))))
+# a row coded missing is stored in every column, so it counts toward it
+at.na <- factor(rep(c("a", "b", "c", NA), c(19L, 41L, 39L, 1L)))
+expect_identical(
+  dbarts:::makeIndicatorModelMatrix(data.frame(f = at.na))$map < 0L,
+  c(TRUE, FALSE, FALSE)
+)
+above.na <- factor(rep(c("a", "b", "c", NA), c(20L, 40L, 39L, 1L)))
+expect_true(is.matrix(
+  dbarts:::makeIndicatorModelMatrix(data.frame(f = above.na))
+))

@@ -77,7 +77,8 @@ responseHasSingleClass <- function(y) {
 }
 
 ## A single-class response that a binary family fits with its one warning (a
-## hazard family refuses it): an explicit binary family, or "auto" on a categorical encoding, which resolves to one.
+## hazard family refuses it): an explicit binary family, or "auto" on a
+## categorical encoding, which resolves to one.
 refusesSingleClass <- function(data, family) {
   responseHasSingleClass(data@y) &&
     (family %in%

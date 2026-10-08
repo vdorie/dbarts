@@ -1136,13 +1136,99 @@ estimateSigmaFromLinearModel <- function(data) {
     ))
     return(sd(residual))
   }
-  sigma <- residualStandardError(
-    data@y,
-    sigmaDesignMatrix(x),
-    data@weights,
-    data@offset
-  )
+  sigma <- if (predictorSourceIsSparse(x)) {
+    sparseResidualStandardError(data@y, x, data@weights, data@offset)
+  } else {
+    residualStandardError(
+      data@y,
+      sigmaDesignMatrix(x),
+      data@weights,
+      data@offset
+    )
+  }
   floorSigmaEstimate(sigma, residual)
+}
+
+## The columns of a mixed container as one dgCMatrix, NAs mean-imputed as
+## sigmaDesignMatrix does (a stored NA takes the mean of the column's observed
+## entries, the implicit zeros counted), so that no column is densified but the
+## container's dense-backed ones.
+sparseDesignMatrix <- function(x) {
+  n <- x$numObservations
+  imputeSparse <- function(block) {
+    values <- block@x
+    if (anyNA(values)) {
+      counts <- diff(block@p)
+      column <- rep.int(seq_along(counts), counts)
+      observed <- !is.na(values)
+      sums <- rowsum(values[observed], column[observed])
+      numObserved <- n - tabulate(column[!observed], length(counts))
+      means <- numeric(length(counts))
+      means[as.integer(rownames(sums))] <- sums[, 1L]
+      means <- means / numObserved
+      values[!observed] <- means[column[!observed]]
+      block@x <- values
+    }
+    block
+  }
+  blocks <- list()
+  if (!is.null(x$dense) && length(x$dense) > 0L) {
+    dense <- sigmaDesignMatrix(do.call(cbind, lapply(x$dense, as.double)))
+    blocks[[1L]] <- methods::as(
+      methods::as(Matrix::Matrix(dense, sparse = TRUE), "generalMatrix"),
+      "CsparseMatrix"
+    )
+  }
+  if (!is.null(x$sparse) && ncol(x$sparse) > 0L) {
+    blocks[[length(blocks) + 1L]] <- imputeSparse(
+      methods::as(x$sparse, "CsparseMatrix")
+    )
+  }
+  do.call(Matrix::cbind2, blocks)
+}
+
+## residualStandardError for a sparse design: Matrix's sparse QR on the
+## intercept plus the columns of x. Its Householder steps are not safe on a
+## dependent column (the zero pivot's reflector is arbitrary and the later
+## columns are orthogonalised against it), and an indicator design is
+## dependent by construction, so a column whose pivot vanishes is dropped and
+## the QR redone until none does: a maximal independent set spans the same
+## space as lm.fit's pivoted fit, and so gives the same residual sum of
+## squares and the same rank.
+sparseResidualStandardError <- function(y, x, weights, offset) {
+  keep <- !is.na(y)
+  if (!is.null(weights)) {
+    keep <- keep & !is.na(weights)
+  }
+  if (!is.null(offset)) {
+    keep <- keep & !is.na(offset)
+  }
+  design <- Matrix::cbind2(
+    Matrix::Matrix(1, nrow(x), 1L, sparse = TRUE),
+    sparseDesignMatrix(x)
+  )
+  response <- if (is.null(offset)) y else y - offset
+  scale <- if (is.null(weights)) rep.int(1, length(y)) else sqrt(weights)
+  keep <- keep & scale > 0
+  design <- design[keep, , drop = FALSE]
+  response <- response[keep]
+  scale <- scale[keep]
+  if (!is.null(weights)) {
+    design <- Matrix::Diagonal(x = scale) %*% design
+    response <- response * scale
+  }
+  columns <- seq_len(ncol(design))
+  repeat {
+    decomposition <- Matrix::qr(design[, columns, drop = FALSE])
+    pivots <- abs(Matrix::diag(decomposition@R))
+    bad <- which(pivots <= 1e-7 * max(pivots))
+    if (length(bad) == 0L) {
+      break
+    }
+    columns <- columns[-(decomposition@q[bad[1L]] + 1L)]
+  }
+  residual <- Matrix::qr.resid(decomposition, response)
+  sqrt(sum(residual^2) / (length(response) - length(columns)))
 }
 
 ## The dense design the starting sigma's linear fit reads: NAs mean-imputed.

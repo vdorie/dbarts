@@ -269,11 +269,16 @@ expect_error(
 )
 x.frame.whole <- x.frame
 x.frame.whole$x1 <- x.frame$x1 * 0.9 + 0.02
-x.frame.whole$sv <- as.double(sv) + 0.25
+x.frame.whole$sv <- Matrix::sparseVector(
+  x = as.double(sv) + 0.25,
+  i = seq_len(n),
+  length = n
+)
 x.whole <- dbartsData(x.frame.whole, y)@x
 expect_silent(sampler$setPredictor(x.whole, forceUpdate = TRUE))
 expect_inherits(sampler$data@x, "dbartsMixedMatrix")
 expect_equal(unname(as.matrix(sampler$data@x)), unname(x.whole.dense))
+expect_equal(diff(sampler$data@x$sparse@p)[1L], n)
 # the categorical column keeps its declared levels through the splice
 expect_equal(attr(sampler$data@x, "factor.levels")[[2L]], levels(f))
 # a rejected transactional whole-matrix replacement leaves data@x untouched
