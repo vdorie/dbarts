@@ -2117,6 +2117,10 @@ Record: root TODO, predict-training-rows. Marked: blank. [dec-B341]
 survivalProbabilities(fit, times, newdata, offset, combineChains, ...) puts offset after newdata, as predict does. Run by the triage on 2026-10-08: survivalProbabilities(fit, 1, nd, FALSE) puts FALSE on offset and is refused ("'offset' must be numeric"), so a combineChains given by position is refused, not misread; survival is new in 1.0-0. Shown that order, recommended, against offset last, the maintainer on 2026-10-08: "A. offset after newdata, as built and as predict." The rule: one order of these arguments across the fit's methods. Built. Confirms that call of dec-A143. See also: [dec-A143], [dec-B340].
 Record: this register. Marked: blank. [dec-B342]
 
+**A warm start keeps the new fit's prior**
+bart(warm.start = oldFit) starts a fit from an earlier fit's trees. Run by the triage on 2026-10-08: bart(leaf.prior = normal(k = 2), warm.start = f4), f4 fitted at k = 4, runs at k = 2, where the build before ran at 4; 0.9-34 had no warm start. The maintainer had said of it on 2026-10-02 "That makes sense I think.", unmarked. Shown the donor giving its trees, and sigma and k only where the new fit draws them, recommended, against the new fit adopting the donor's prior and fixed values, the maintainer on 2026-10-08: "A. The donor gives its trees, and sigma and k only where the new fit draws them (as built)." The rule: a warm start installs the donor's trees, and its sigma and k only where the new fit draws them; the new fit's prior and fixed values stand, as a state never changes the model (dec-B195). The alternative overrode the call's own prior in silence. Built. Confirms that call of dec-A146. See also: [dec-A146], [dec-B195].
+Record: this register. Marked: blank. [dec-B343]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
