@@ -306,7 +306,7 @@ items
     with one finite value beside missing values; a 0/1 column and a
     plain constant column keep their bits. Two exact arms are added.
     After leaf-conversions, in the same engine files (dec-A178 for the
-    plan's calls). Ruled since (VD 2026-10-08): a replaced grid's
+    plan's calls). Ruled since (VD 2026-10-07): a replaced grid's
     splits keep their position, rescaled to a grid of another length,
     or move by value on request; setPredictor's updateCutPoints takes
     "none", "position" or "value", a logical warning once a session
@@ -315,7 +315,7 @@ items
   sigma-prior-setter: a setter for the residual prior in
     setLeafPrior's idiom, setSigmaPrior(chisq(df, scale)), and chisq()
     taking scale beside quant, the two not given together (dec-B314,
-    VD 2026-10-08). sigest stays an aid at creation and no call
+    VD 2026-10-07). sigest stays an aid at creation and no call
     re-estimates it. Design first: the unit of scale (an sd in the
     response's units, as a forest's sd is, or a variance), whether
     sigest beside a stated scale is refused, what the setter does to a
@@ -327,13 +327,13 @@ items
   hazard-periods-rows-in: a hazard fit's default periods are the
     distinct observed times of the subjects in the likelihood at
     creation, where today a subject at weight 0 gives its time too
-    and adds rows to the subjects in (dec-B315, VD 2026-10-08). A
+    and adds rows to the subjects in (dec-B315, VD 2026-10-07). A
     subject at weight 0 is expanded on that grid, its time in the
     interval it falls in, one past the last period at risk throughout
     with no event. R only; with the creation slice of
     response-scale-rows, whose rule it follows.
   default-rule-per-gap: BEFORE THE MERGE TO MAIN (dec-B313, VD
-    2026-10-08). Under the default rule a column with fewer distinct
+    2026-10-07). Under the default rule a column with fewer distinct
     values than n.cuts gets one cut point in each gap between them, as
     the quantile rule gives it, where today it gets n.cuts evenly
     spaced points whatever its values (100 on a 0/1 column, all making
