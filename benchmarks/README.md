@@ -276,6 +276,35 @@ the settings guard refuses to compare them against a `quick` run. Contrast the
 STATISTICAL gates (sbc.R, equivalence.R z-mode), which can false-alarm at the
 nominal level and stay schedule / workflow_dispatch only.
 
+## R/sbc.R - simulation-based calibration
+
+sbc.R draws theta0 from the sampler's own prior, simulates data, refits and
+ranks theta0 among the posterior draws; ranks are uniform for a calibrated
+sampler. .github/workflows/sbc.yaml runs a matrix of arms, M = 84 functionals,
+each band at alpha = 0.05 / 84, so a correct matrix is green about 95% of the
+time. It is a statistical test: it runs on a schedule and by hand, never per
+push.
+
+The probit-k arm draws k under chi(1.5, 2) and ranks it beside the other
+functionals. k is flagged when its ecdf difference leaves the band or its
+chi-square p (20 bins) is below the band's alpha, 6e-4. Detection floor, at
+R = 600, L = 100, thin 1000: an error of one half in the shape of the k^2
+conditional (a missing Jacobian, a leaf too many, the prior's df off by one) is
+flagged about 80% of the time; an error that scales with the number of leaves
+(every k draw 5% high) is flagged at R = 50. Smaller errors pass.
+
+By hand, before the merge to main: `schedule` waits for main, but a dispatch
+runs from any branch the file is on, so once the slice is pushed run
+
+    gh workflow run sbc.yaml --ref bartcore
+
+and read each job's report. Green is the band verdict, not the reading: for
+every arm look at the chisqP column. Of the 84 functionals expect about four
+under 0.05 and one under 0.01 (they are not independent, so read nine or more
+under 0.05, or any under 6e-4, as a finding to look at); for k, the histogram
+must not pile in the end bins. discrete-selfcheck must be green. The probit-k job takes
+67 minutes on the laptop and up to twice that on the runner.
+
 ## R/constant-*.R - the engine-constants sweeps (measurement, not gates)
 
 One script per fixed engine constant (docs/design/engine-constants.md), named

@@ -10,26 +10,32 @@
 #   gates-full  every gate exact-gates.yaml's main job runs, in full mode,
 #               the gate list read from that file so the two cannot drift.
 #               Timed on the maintainer's laptop, one core: the whole list is
-#               about 28 minutes (mask-redraw-exact 6.7 min, logistic-reference
-#               about 13 min, multinomial-exact 2.6 min, change-balance 1.9 min,
-#               the rest under a minute each); the hosted runner took about
-#               five times as long as the laptop on the monotone gate, so the
-#               limit is 240 minutes. bcf-latent-exact.R stays in quick mode,
-#               as it does under mode=full in exact-gates.yaml: its full grid
-#               is about 40 minutes on the laptop alone and was not timed here.
+#               about 31 minutes (mask-redraw-exact 6.7 min, logistic-reference
+#               about 11.5 min, multinomial-exact 2.6 min, change-balance 1.9
+#               min, the rest under a minute each). The hosted runner has run
+#               1 to 2 times the laptop's time (the quick enumeration gate 1.4
+#               to 1.8, the SBC arms 1.0 to 1.9), so the list takes about an
+#               hour there. Each gate has its own limit, 30 minutes (45 for
+#               logistic-reference), so one that hangs costs that and the rest
+#               still run; the job's 150 minutes covers the list at twice the
+#               laptop and two gates hanging. bcf-latent-exact.R stays in
+#               quick mode, as it does under mode=full in exact-gates.yaml: its
+#               full grid is about 40 minutes on the laptop alone.
 #   monotone-enumeration-full
 #               the enumeration gate, one job per prior, and the successive-
-#               conditional check beside it, both in full mode. About 14 minutes
-#               per prior on the laptop (quick: 4.5), so about 70 on the runner;
-#               the limit is 180 minutes.
+#               conditional check beside it, both in full mode. The enumeration
+#               gate is about 14 minutes per prior on the laptop (quick: 4.5),
+#               so up to 30 on the runner; its step limit is 60 minutes and the
+#               check's, 25 seconds on the laptop, 10.
 #
 # A failing gate fails the job; every gate still runs, so one run shows every
 # failure. The cross-host compares and the seeded-drift snapshot files of
 # exact-gates.yaml are not repeated: they do not depend on the mode.
 #
-# NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
-# DEFAULT branch, so neither fires until the workflow lands on main; on
-# bartcore the only trigger is a push touching this file. See valgrind.yaml.
+# NOTE: GitHub binds only `schedule` to the repository DEFAULT branch, so the
+# weekly cadence does not start until this workflow lands on main.
+# `workflow_dispatch` fires from any branch the file is on, and so does a push
+# touching it (revdep-smoke.yaml records a dispatch from bartcore).
 on:
   schedule:
     - cron: '0 4 * * 1'
@@ -46,7 +52,7 @@ permissions: read-all
 jobs:
   gates-full:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 150
 
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
@@ -90,20 +96,22 @@ jobs:
             arg=
             # quick in exact-gates.yaml's mode=full too, for the same reason
             if [ "$g" = "bcf-latent-exact.R" ]; then arg=quick; fi
+            limit=30m
+            if [ "$g" = "logistic-reference.R" ]; then limit=45m; fi
             echo "::group::$g"
-            if Rscript "benchmarks/R/$g" ${arg}; then
+            if timeout "$limit" Rscript "benchmarks/R/$g" ${arg}; then
               echo "PASS $g"
             else
-              echo "::error::gate $g FAILED"
+              echo "::error::gate $g FAILED (status $?; 124 is the $limit limit)"
               fail=1
             fi
             echo "::endgroup::"
           done
           echo "::group::bd-balance.R zeroweight"
-          if Rscript benchmarks/R/bd-balance.R zeroweight; then
+          if timeout 30m Rscript benchmarks/R/bd-balance.R zeroweight; then
             echo "PASS bd-balance.R zeroweight"
           else
-            echo "::error::gate bd-balance.R zeroweight FAILED"
+            echo "::error::gate bd-balance.R zeroweight FAILED (status $?)"
             fail=1
           fi
           echo "::endgroup::"
@@ -111,7 +119,7 @@ jobs:
 
   monotone-enumeration-full:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -145,6 +153,7 @@ jobs:
         run: R CMD INSTALL .
 
       - name: Run the monotone successive-conditional check
+        timeout-minutes: 10
         run: >-
           Rscript benchmarks/R/monotone-successive-conditional.R
           ${{ matrix.prior }} ${{ matrix.prior == 'leaf' && 'twin' || '' }}
@@ -152,6 +161,7 @@ jobs:
       # runs even when the check above fails, so one run surfaces both
       - name: Run the monotone enumeration gate
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        timeout-minutes: 60
         run: >-
           Rscript benchmarks/R/monotone-exact-enumeration.R engine
           ${{ matrix.prior }}

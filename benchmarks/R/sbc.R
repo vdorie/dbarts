@@ -11,7 +11,7 @@
 #   Rscript benchmarks/R/sbc.R                 # baseline gaussian, R=200
 #   Rscript benchmarks/R/sbc.R gaussian 200 200 30
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
-#   Rscript benchmarks/R/sbc.R probit-k 100 100 1000  # k drawn under chi(1.5, 2)
+#   Rscript benchmarks/R/sbc.R probit-k 600 100 1000  # k drawn under chi(1.5, 2)
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
 #   Rscript benchmarks/R/sbc.R aft 200 150 30 <burn> # aft/survival, reused
@@ -463,8 +463,9 @@ sbcMakeSampler <- function(config, L, thin, seed, y = NULL) {
 # --- k drawn under its hyperprior ------------------------------------------
 
 # The probit-k arm lets the sampler draw the leaf scale k under the default
-# binary hyperprior chi(1.5, 2) (docs/plans/check-shape-fixes.md): k = scale *
-# sqrt(chisq(df)), median 1.906 for (1.5, 2). The sampler has no entry that
+# binary hyperprior (docs/plans/check-shape-fixes.md), written out here as
+# chi(1.5, 2), which is the default today and does not follow a change of it:
+# k = scale * sqrt(chisq(df)), median 1.906 for (1.5, 2). The sampler has no entry that
 # draws k from its prior, and the leaf draw is made at its current k, so the
 # harness draws k itself and installs it as a fixed value (setLeafPrior, whose
 # write leaves every other part of the prior alone) before the leaf draw.
@@ -2877,7 +2878,9 @@ sbcAsciiHistogram <- function(ranks, L, nBins = 20L, width = 40L) {
 # Full report for a runSbc result: per-functional verdict table + histograms.
 # alpha is the ecdf band's level; the CI matrix Bonferroni's it (see
 # sbcMatrixAlpha) so that a whole matrix of arms passes with probability ~0.95
-# rather than each arm alarming at its own nominal 5%.
+# rather than each arm alarming at its own nominal 5%. k, where the arm draws it,
+# is also flagged when its chi-square p is below alpha: the ecdf band is blind to
+# a smooth pile-up of ranks that the 20 bins see.
 sbcReport <- function(
   fit,
   nBins = 20L,
@@ -2936,6 +2939,10 @@ sbcReport <- function(
       nBins = nBins,
       alpha = alpha
     )
+    kGated <- isTRUE(fit$config$drawsK) && identical(funcs[i], "k")
+    if (kGated && u$chisqP < alpha) {
+      u$pass <- FALSE
+    }
     verdicts[i] <- if (u$pass) {
       "PASS"
     } else if (funcs[i] %in% expectedFlags) {
@@ -3006,7 +3013,10 @@ if (sys.nframe() == 0L) {
   # probit-k: k and the leaves it scales are a funnel, and k mixes slowly (its
   # autocorrelation reaches 0.1 at lags of 100 to 600 sweeps); at thin 1000
   # and this burn its ranks are uniform, where thin 300 and a burn of 10000
-  # piled 15% of them at the top. Recommended: R=100 L=100 thin=1000.
+  # piled 15% of them at the top. Recommended: R=600 L=100 thin=1000, which
+  # flags an error of one half in the shape of the k^2 conditional (a missing
+  # Jacobian, a leaf too many, the prior's df off by one) about 80% of the time;
+  # R=100 does not.
   if (is.null(burnSweeps) && which == "probit-k") {
     burnSweeps <- 30000
   }

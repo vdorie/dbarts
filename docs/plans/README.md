@@ -279,8 +279,10 @@ lists; this is the shape):
 So a docs-only or TODO-only push fires doc-freshness alone; run the
 freshness guard locally and that is the whole gate. Any `.github/` touch
 fires everything. equivalence, rchk, revdep-smoke, sbc and valgrind are
-schedule and dispatch only, and GitHub binds those triggers to the
-default branch, so they stay dormant until bartcore reaches main.
+schedule and dispatch only (sbc and revdep-smoke also run on a push touching
+their own file). GitHub binds only `schedule` to the default branch, so a
+cadence waits for main; a dispatch runs from any branch the file is on
+(`gh workflow run sbc.yaml --ref bartcore`; revdep-smoke.yaml records one).
 
 Reading a red run: "cancelled" usually means a step hit its
 `timeout-minutes`; compare the duration to the limit before rerunning. A

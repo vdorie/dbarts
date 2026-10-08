@@ -3,7 +3,8 @@
 # and the exact-posterior / reference gates (aft, bcf, categorical, hazard,
 # heteroscedastic, hurdle, linear, mask-redraw, multinomial, negbin, ordinal,
 # t, logistic, monotone), and the negbin mixing gate, which checks at realistic n that the
-# shape leaves its cold start and the predictive law covers fresh counts. Each script drives a long MCMC run with a fixed seed and compares
+# shape, started apart in the two chains, moves and agrees between them and the
+# predictive law covers fresh counts. Each script drives a long MCMC run with a fixed seed and compares
 # the engine's draws to an analytic or brute-force-enumerated target with a
 # z-score / tolerance bound it computes IN-SCRIPT (no recorded baseline), then
 # quit(status=1L) on deviation. That makes them deterministic regression

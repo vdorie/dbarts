@@ -41,8 +41,9 @@ Ran, on the tip with the installed package, one R process at a time, two cores a
 - every exact gate's full mode, timed (below); the enumeration gate in quick mode for one prior.
 
 Only read: the engine's k update (`ChiKHyperprior`: k^2 | leaves is gamma with shape (M + nu) / 2, which makes the
-prior k = scale * sqrt(chisq(nu)), the median 1.906 for chi(1.5, 2) the help states), and GitHub's rule that
-`schedule` and `workflow_dispatch` bind to the default branch.
+prior k = scale * sqrt(chisq(nu)), the median 1.906 for chi(1.5, 2) the help states), and, in the first
+draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch: true of `schedule` only
+(revdep-smoke.yaml records a dispatch from bartcore with the file absent from main).
 
 ## The rules
 
@@ -50,19 +51,25 @@ prior k = scale * sqrt(chisq(nu)), the median 1.906 for chi(1.5, 2) the help sta
    place of r0 = 5 at n = 2000 and r0 = 2 at n = 500 (the latter a single value; the former 5 or 6). The rule that
    chains constant at one shared value agree is gone: split-Rhat with no spread in any half is undefined and fails.
    Chain 1 is set to the shape 1 and chain 2 to 50 (the grid's ends) through the state before the run. Each chain
-   keeps 2000 draws, not 500: at 500 a correct sampler read split-Rhat 1.059 on one seed, the chains' block means
-   drifting together by 4000 draws. Check (i) is now that a chain leaves its own start value.
+   keeps 2000 draws, not 500. Per run: a chain leaves its own start value, split-Rhat under 1.05, r0 inside the
+   99.9% set, coverage of fresh counts in [0.84, 0.95]; in full mode also the 95% set holds r0 in all but at most
+   3 of the 6 runs. A correct sampler failed the first draft's per-run 95% set about one dataset in twenty, so the
+   checks are sized from 45 fresh datasets a cell and 12 engine streams on each pinned dataset (0 of 90 and 0 of 72
+   runs failed; the header of the script states the rate and what is caught).
 2. Calibration arm (dec-B301). `probit-k`: the plain probit arm with k drawn under chi(1.5, 2), the default for
    binary fits. theta0's k is drawn by the harness, installed as a fixed k, the leaves are drawn at it, and the
    fit starts from a second independent draw handed back to the hyperprior; k is ranked beside the existing
-   functionals. It joins the matrix (M = 77 + 7 = 84). Settings follow the measurement: R = 100, L = 100, thin 1000
-   and a 30000-sweep burn (sbc.R supplies it), since k and its leaves are a funnel.
+   functionals. It joins the matrix (M = 77 + 7 = 84). Settings follow the measurement: R = 600, L = 100, thin 1000
+   and a 30000-sweep burn (sbc.R supplies it), since k and its leaves are a funnel. R = 600 flags an error of one
+   half in the shape of the k^2 conditional about 80% of the time (at 100 it does not); k is flagged on its ecdf
+   band or a chi-square p below the band's alpha.
 3. Weekly (dec-A132). A new workflow, `exact-gates-weekly.yaml`, Mondays, runs the full mode of every gate in
    exact-gates.yaml's main list (read from that file) except bcf-latent-exact, and the monotone enumeration gate
-   and the successive-conditional check in full mode, one job per prior, on limits sized from the timings.
-4. By hand, before the merge. sbc.yaml already carries `workflow_dispatch` and a push trigger on its own file;
-   this slice edits the file, so the push that carries it starts the suite on bartcore. The command and the
-   reading are in the report.
+   and the successive-conditional check in full mode, one job per prior. Each gate has its own limit, so one that
+   hangs does not take the rest; the limits are sized from the hosted runner's 1 to 2 times the laptop's time.
+4. By hand, before the merge. sbc.yaml carries `workflow_dispatch` and a push trigger on its own file, and a
+   dispatch runs from a branch the file is on: `gh workflow run sbc.yaml --ref bartcore`. Only `schedule` waits for
+   main. The command and the reading (thresholds, how many small p-values to expect) are in benchmarks/README.md.
 
 ## Steps
 
@@ -76,23 +83,29 @@ prior k = scale * sqrt(chisq(nu)), the median 1.906 for chi(1.5, 2) the help sta
 
 ## Proof
 
-- Mixing gate. Tip, quick: passes (13 s); full (seeds 1 to 3): passes (40 s); six seeds: the r0 = 10 cell passes
-  all six, the r0 = 8 cell misses its 95% set on seed 4 (a 95% set missing r0 once in twelve, not a mixing finding;
-  full mode runs seeds 1 to 3). A mutated build whose shape draw is discarded (a scratch copy, private library)
-  fails every check but the band: both chains stay at their starts, split-Rhat undefined, coverage 0.98.
-- k arm. Tip at the shipped settings: all seven functionals pass, k's chi-square p 0.90 and ecdf difference 0.074
-  of a 0.195 band; at thin 300 and a 10000 burn k's ranks piled at the top (31 of 200 in the last bin) and
-  shrank away at thin 1000, so the setting is the evidence's, not a guess. A mutated build with every k draw
-  multiplied by 1.4 flags all seven functionals, k's ecdf difference 0.99.
+- Mixing gate, on the correct sampler: 45 fresh datasets a cell, no run failed (coverage 0.858 to 0.929, largest
+  Rhat 1.018, the 95% set missed r0 in 5 of 90); 12 engine streams on each of the six pinned datasets, no run failed
+  (0 of 72, largest Rhat 1.035). Caught, quick and full, on the shape draw mutated: never moves (caught, caught);
+  moved one sweep in 100 (caught, caught); one sweep in 20 (missed, caught); every draw one grid step up (missed,
+  caught).
+- k arm, R = 600, L = 100, thin 1000, burn 30000: 67 minutes on the laptop (6.7 s a replication, two runs at once on
+  a loaded machine), so 134 at twice that, inside the 180-minute limit. Correct sampler: all seven functionals pass,
+  k's chi-square p 0.70 and ecdf difference 0.041 of a 0.082 band. Shape of the k^2 conditional + 1/2: k flags, ecdf
+  difference 0.142 of 0.082 and chi-square p 0.000, 86 of 600 ranks in the lowest bin against 30. Power: the band
+  at R = 600 is 0.082 and the ecdf's noise at its worst point about 0.02, so a true gap g is flagged with
+  probability about pnorm((g - 0.082) / 0.02), 80% at g = 0.10; the +1/2 error's gap is 0.10 to 0.2 (mean rank 45
+  against 54 on the same 100 seeds, paired ecdf gap 0.20). A tree's leaves left out of the sum of squares and every
+  k draw 1.05 high flagged at R = 85 and 50. The thin-300 run, whose k ranks piled in the top bin with chi-square
+  p 0.000, now flags.
 - Weekly. Each gate's full time (laptop, one core, seconds): bd-balance 3, swap-balance 13, perturb-balance 21,
   rule-gibbs-balance 29, change-balance 113, aft-exact 1, aft-hetero-pit 0, backfit-exact 11, bcf-exact 30,
   bcf-exact-weak 1, bcf-exact-restricted 1, categorical-exact 4, heteroscedastic-exact 3, linear-exact 2,
   hazard-exact 11, hurdle-exact 9, mask-redraw-exact 402, multinomial-exact 156, negbin-exact 16, negbin-mixing 40,
   ordinal-exact 12, t-exact 2, monotone-reference 9, hazard-reduction and hurdle-reduction 0, bd-balance zeroweight 2,
-  monotone successive-conditional 25 for both priors; all passed. logistic-reference did not finish in 580 s: its
-  one-seed ensemble comparison took 32 s and runs 20, so about 13 minutes. The enumeration gate in quick mode took
-  272 s for the leaf prior, so about 14 minutes full per prior. The list sums to about 28 minutes; the hosted
-  runner took about five times the laptop's time on the enumeration gate (23 minutes against 4.5).
+  monotone successive-conditional 25 for both priors; all passed. logistic-reference about 11.5 minutes (the probit
+  half 107 s). The enumeration gate in full mode took 13.9 minutes (leaf) and 12.6 (joint). The list sums to about
+  31 minutes. The hosted runner took 1.4 to 1.8 times the laptop's time on the quick enumeration gate (6.1 and 7.9
+  minutes against 4.5) and 1.0 to 1.9 times on the SBC arms.
 
 ## Gates
 
@@ -107,12 +120,25 @@ row once someone has); a setter for the shape.
 
 ## Calls made in planning
 
+Made by the orchestrator, in the fix round after review:
+
+- The mixing gate's checks are sized to fail a correct sampler under 1% of the time over engine streams and over
+  datasets: a 99.9% set per run, the 95% set read over the full mode's runs, a coverage range from the measured
+  spread across datasets. Stuck and one-in-100 stay caught.
+- The probit-k arm runs at R = 600 inside a 180-minute limit, and k is flagged on its chi-square p as well as its
+  band; no other design for the k step.
+- The by-hand run, its command and its reading go in benchmarks/README.md; a dispatch is not bound to the default
+  branch.
+- Each weekly gate has its own limit, sized from the runner's 1 to 2 times the laptop.
+
+Made in planning:
+
 - The two mixing cells: the maintainer asked for one case replaced; the r0 = 5, n = 2000 posterior is 5 or 6 in
   99% and goes with it, since a run with no 6 would be undefined.
 - 2000 draws a chain in the mixing gate, and the failure of an undefined Rhat, over keeping 500 and widening.
 - Chains set to the grid's ends through the state, since no setter exists; the first sweep redraws r, so the start
   tests that r moves, not that it stays far.
-- thin 1000 and a 30000 burn for probit-k, by the chain-length evidence; R = 100 as the gaussian arm.
+- thin 1000 and a 30000 burn for probit-k, by the chain-length evidence; R = 100 as the gaussian arm (raised to 600 in the fix round).
 - A separate weekly workflow reading the gate list from exact-gates.yaml, over a schedule inside exact-gates.yaml
   (its concurrency group would let a push to main cancel the weekly run).
 - bcf-latent-exact left out of the weekly run.

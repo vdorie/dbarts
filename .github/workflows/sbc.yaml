@@ -27,8 +27,8 @@
 # the gate stays non-blocking.
 #
 # Timeouts are ~3x the measured single-thread wall-clock on the maintainer's
-# laptop (probit-k 9.4 min at R=100, thin 1000, with the 30000-sweep burn the
-# script gives it, ordinal 6.6 min, nbinom 8.5 min, t 2.6 min, multinomial 7.3 min,
+# laptop, except probit-k's, set below (ordinal 6.6 min, nbinom 8.5 min, t 2.6
+# min, multinomial 7.3 min,
 # aft 79 s, hetero 2.2 min, hetero-aft 4.4 min at R=200; gaussian 5 min at
 # R=100); the monotone arms' are ~3x their GitHub runner job time (leaf 12.6
 # min, joint 8.2 min at R=200). nbinom is the
@@ -50,9 +50,11 @@
 # heteroscedastic pair left that list once the variance forest gained a
 # prior-draw entry and a current-state surface accessor (aft-status-setter.md).
 #
-# NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
-# DEFAULT branch, so neither fires until the workflow lands on main; on
-# bartcore the only trigger is a push touching this file. See valgrind.yaml.
+# NOTE: GitHub binds only `schedule` to the repository DEFAULT branch, so the
+# weekly cadence does not start until this workflow lands on main.
+# `workflow_dispatch` fires from any branch the file is on
+# (`gh workflow run sbc.yaml --ref bartcore`), as does a push touching it; see
+# revdep-smoke.yaml and benchmarks/README.md for what to read in the result.
 on:
   schedule:
     - cron: '0 3 * * 3'
@@ -94,12 +96,18 @@ jobs:
           # k drawn under chi(1.5, 2) on probit, the one arm that checks the
           # k step. k and its leaves are a funnel that mixes slowly (ACF 0.1 at
           # lags of 100 to 600 sweeps), so thin 1000; sbc.R gives the arm a
-          # 30000-sweep burn. At thin 300 the k ranks piled at the top.
+          # 30000-sweep burn. Detection floor: at 600 replications an error of
+          # one half in the shape of the k^2 conditional (a missing Jacobian, a
+          # leaf too many, the prior's df off by one) is flagged about 80% of
+          # the time, and smaller ones pass; k is flagged on its ecdf band or on
+          # a chi-square p below the band's alpha. 67 minutes on the laptop
+          # (6.7 s a replication), and the runner is 1 to 2 times that: the
+          # limit is 180 minutes.
           - config: probit-k
-            reps: 100
+            reps: 600
             samples: 100
             thin: 1000
-            timeout: 30
+            timeout: 180
           - config: ordinal
             reps: 200
             samples: 150
