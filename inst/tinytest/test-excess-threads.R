@@ -192,6 +192,42 @@ noCores <- tryCatch(
     expect_identical(wrapBart()$fit$control@n.threads, 1L)
     expect_error(wrapControl(n.threads = NA_integer_), "not NA")
     expect_error(wrapBart(n.threads = NA_integer_), "not NA")
+    # a control given and no count stated: the control's own count, or the
+    # default when its slot is the fresh control's, is one and nothing is said
+    controlFit <- function(control, ...) {
+      said(dbarts::bart(
+        y ~ x,
+        groupData,
+        control = control,
+        n.samples = 2L,
+        keepSampler = TRUE,
+        verbose = FALSE,
+        ...
+      ))
+    }
+    heldControl <- dbarts::dbartsControl()
+    shapes <- list(
+      controlFit(dbarts::dbartsControl()),
+      controlFit(dbarts::dbartsControl(n.trees = 3L, n.burn = 1L)),
+      controlFit(dbarts::dbartsControl(n.chains = 2L, n.burn = 1L)),
+      controlFit(dbarts::dbartsControl(n.burn = 1L), n.chains = 2L),
+      controlFit(methods::new("dbartsControl"), n.burn = 1L),
+      controlFit(heldControl, n.burn = 1L, n.trees = 3L)
+    )
+    for (shape in shapes) {
+      expect_identical(shape$value$fit$control@n.threads, 1L)
+      expect_identical(shape$said, nothing)
+    }
+    multinomial <- said(dbarts::bart(
+      factor(rep_len(c("a", "b", "c"), nrow(groupData))) ~ x,
+      groupData,
+      control = dbarts::dbartsControl(n.burn = 1L),
+      n.trees = 3L,
+      n.samples = 2L,
+      family = "multinomial",
+      verbose = FALSE
+    ))
+    expect_identical(multinomial$said, nothing)
     # a stated NA is refused, at the control and at the doors that read it,
     # in words that tell its writer what to do
     message <- paste0(
@@ -218,12 +254,24 @@ noCores <- tryCatch(
       message,
       fixed = TRUE
     )
-    # a control whose count was set to NA after it was built
+    # a control whose count was set to NA after it was built has a slot to
+    # name, not an argument to leave out
     badControl <- dbarts::dbartsControl(n.trees = 3L, n.chains = 1L)
     badControl@n.threads <- NA_integer_
+    slotMessage <- "a control's 'n.threads' slot must be a positive integer"
     expect_error(
       dbarts::dbarts(y ~ x, groupData, control = badControl),
-      message,
+      slotMessage,
+      fixed = TRUE
+    )
+    expect_error(
+      dbarts::bart(y ~ x, groupData, control = badControl),
+      slotMessage,
+      fixed = TRUE
+    )
+    expect_error(
+      dbarts::bartBT(testData$x, testData$y, nthread = NA_integer_),
+      "'nthread' must be a positive integer, not NA",
       fixed = TRUE
     )
     TRUE

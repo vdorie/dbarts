@@ -339,6 +339,10 @@ naThreadsMessage <- paste0(
   "default"
 )
 
+naThreadsControlMessage <- paste0(
+  "a control's 'n.threads' slot must be a positive integer, not NA"
+)
+
 methods::setValidity("dbartsControl", function(object) {
   if (length(object@verbose) != 1L) {
     return("'verbose' must be of length 1")

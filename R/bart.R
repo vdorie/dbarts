@@ -1178,6 +1178,9 @@ bart <- function(
   } else {
     NULL
   }
+  if (!is.null(suppliedControl) && is.na(suppliedControl@n.threads)) {
+    stop(naThreadsControlMessage, call. = FALSE)
+  }
   controlCall <- redirectCall(matchedCall, dbarts::dbartsControl)
   # '...' is a formal of both and names no value, so it is excluded before
   # the shared names are evaluated as defaults
@@ -1189,22 +1192,24 @@ bart <- function(
   ]
   if (length(missingDefaultArgs) > 0L) {
     currentEnv <- sys.frame(sys.nframe())
-    controlCall[missingDefaultArgs] <- mergeFrontDoorControl(
-      suppliedControl,
-      matchedCall,
-      lapply(
-        formals(dbarts::bart)[missingDefaultArgs],
-        eval,
-        envir = currentEnv
-      )
+    defaultValues <- lapply(
+      formals(dbarts::bart)[missingDefaultArgs],
+      eval,
+      envir = currentEnv
     )
-    # an unstated count whose default could not count the cores is one
-    if ("n.threads" %in% missingDefaultArgs && is.null(suppliedControl)) {
-      controlCall[["n.threads"]] <- fallBackToOneThread(
-        controlCall[["n.threads"]],
+    # an unstated count whose default could not count the cores is one,
+    # before a supplied control is weighed against it
+    if ("n.threads" %in% missingDefaultArgs) {
+      defaultValues[["n.threads"]] <- fallBackToOneThread(
+        defaultValues[["n.threads"]],
         TRUE
       )
     }
+    controlCall[missingDefaultArgs] <- mergeFrontDoorControl(
+      suppliedControl,
+      matchedCall,
+      defaultValues
+    )
   }
   # the settings bart spells no flat name for - the four engine limits, the
   # level Gibbs step, the tree-move mixture - reach the fit through the
@@ -3755,6 +3760,13 @@ bartBT <- function(
   nskip <- coerceOrError(nskip, "integer")
   nchain <- coerceOrError(nchain, "integer")
   nthread <- coerceOrError(nthread, "integer")
+  if (length(nthread) == 1L && is.na(nthread)) {
+    stop(
+      "'nthread' must be a positive integer, not NA; leave it out to take ",
+      "the default",
+      call. = FALSE
+    )
+  }
   keepevery <- coerceOrError(keepevery, "integer")
   printevery <- coerceOrError(printevery, "integer")
   printcutoffs <- coerceOrError(printcutoffs, "integer")

@@ -29,7 +29,8 @@
     }
     \item{\code{dart(power = 2, base = 0.95, a = 0.5, b = 1, rho = NULL,
                      alpha = 1, update.alpha = TRUE, update.delay = NULL)}}{
-      The CGM structure prior with DART (Linero 2018): a Dirichlet prior
+      The CGM structure prior with DART (Linero 2018); a \code{NULL}
+      \code{power} or \code{base} is the default. A Dirichlet prior
       over the split-variable probabilities inducing variable selection.
       \code{alpha} is the concentration, optionally sampled
       (\code{update.alpha}) on a grid with a Beta(\code{a}, \code{b}) prior

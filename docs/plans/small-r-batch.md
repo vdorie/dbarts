@@ -100,8 +100,8 @@ built from a clean `git archive`.
   fallback sits in the bodies and reads `missing(n.threads)`; a wrapper that hands on its dots leaves the
   count unstated and gets one, while one that states a count of its own, `NA` included, is refused, as R's
   `missing()` leaves a wrapper's defaulted formal not missing.
-- The orchestrator's calls: `cgm()` reads a `NULL` `power` or `base` as its default, so the
-  remedy the retired spelling's warning names works; on a model whose every forest has a basis, `bart(power =
+- The orchestrator's calls: `cgm()` and `dart()` read a `NULL` `power` or `base` as their default, so
+  the remedy the retired spelling's warning names works; on a model whose every forest has a basis, `bart(power =
   NULL)` and `bart(base = NULL)` stay refused as naming the plain forest's prior (dec-A179), pinned by a
   test; `forceUpdate = NA` at `setPredictor` and a control whose `n.threads` slot is `NA` given to `dbarts()`
   are refused by name.

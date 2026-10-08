@@ -2652,6 +2652,13 @@ dart <- function(
   update.alpha = TRUE,
   update.delay = NULL
 ) {
+  # NULL is absent, so it is the default
+  if (is.null(power)) {
+    power <- 2
+  }
+  if (is.null(base)) {
+    base <- 0.95
+  }
   refuseNaN(rho, "rho")
   refuseNaN(update.delay, "update.delay")
   if (isSingleNA(rho)) {

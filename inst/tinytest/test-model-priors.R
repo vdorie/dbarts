@@ -13,6 +13,8 @@ expect_equal(prior.cgm@power, 1.5)
 # NULL is absent, so it is the default
 expect_equal(dbartsPriors$cgm(power = NULL)@power, 2)
 expect_equal(dbartsPriors$cgm(base = NULL)@base, 0.95)
+expect_equal(dbartsPriors$dart(power = NULL)@power, 2)
+expect_equal(dbartsPriors$dart(base = NULL)@base, 0.95)
 expect_error(dbartsPriors$cgm(power = -1), pattern = "power")
 expect_error(dbartsPriors$chisq(df = -3), pattern = "df")
 expect_error(dbartsPriors$normal(-2), pattern = "positive")

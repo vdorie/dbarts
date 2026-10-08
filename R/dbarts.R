@@ -358,7 +358,7 @@ hazardPredictorNames <- function(x) {
 ## function's own defaults are what apply, not A_class.R's prototype;
 ## only `binary` and `call`, which this constructor never sets, fall
 ## through to it. n.threads is deliberately one of the explicit ones:
-## this default is defaultNThreads(): guessNumCores() capped to n.chains
+## this default is guessNumCores() capped to n.chains, or one where that is NA
 ## (dec-B115 -
 ## within-chain threading does not ship, so a budget above n.chains buys
 ## tree sampling nothing and is worth warning about, not defaulting to),
@@ -1182,7 +1182,7 @@ dbarts <- function(
   # fit. The row count it names is the control's own testFitParallelCutoff,
   # so a caller who moved that cutoff is told the number actually in force.
   if (is.na(control@n.threads)) {
-    stop(naThreadsMessage, call. = FALSE)
+    stop(naThreadsControlMessage, call. = FALSE)
   }
   if (control@n.threads > control@n.chains) {
     warning(
