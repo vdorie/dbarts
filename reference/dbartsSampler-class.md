@@ -58,9 +58,9 @@ setForestBasis(forest, basis, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setSigma(sigma, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setPredictor(x, column, forceUpdate, updateCutPoints = FALSE, updateState = NULL)
+setPredictor(x, column, forceUpdate, updateCutPoints = "none", updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setCutPoints(cuts, column, updateState = NULL)
+setCutPoints(cuts, column, updateState = NULL, splits = "position")
 # S4 method for class 'dbartsSampler'
 setTestPredictor(x.test, column)
 # S4 method for class 'dbartsSampler'
@@ -840,22 +840,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   frame is taken as the list of its columns. A vector holds no `NA` or
   `NaN` and is sorted if it is out of order. A point may appear only
   once, so a grid with a repeated point is refused; for more splits near
-  a value, give a denser grid around it. The one exception is the grid
-  the column holds at the call, bit for bit, in whatever order it is
-  given (a `-0` is not a `0`), which is taken as it is: a sampler can
-  hold a grid with equal neighbours, as the one it builds for a constant
-  column when `useQuantiles` is `FALSE`, so the grids a sampler holds
-  can be handed back to it whole. With `column` missing, `cuts` is a
-  list with one entry for every column of the predictors, and the
-  entries of factor columns are not read, whatever they are. Cut points
-  apply to numeric predictors only: naming a factor column of either
-  kind is refused, naming the kind, its grid following its level table
-  rather than any externally chosen one. A later `setData` derives every
-  numeric column's cut points again whatever grid was set, at most as
-  many as the `n.cuts` the sampler was created with: with
-  `useQuantiles`, a column with no more distinct values than `n.cuts`
-  gets one cut point fewer than it has distinct values, and a constant
-  column gets one.
+  a value, give a denser grid around it. No grid a sampler holds repeats
+  a point, so the grids it reports can be handed back to it whole. With
+  `column` missing, `cuts` is a list with one entry for every column of
+  the predictors, and the entries of factor columns are not read,
+  whatever they are. Cut points apply to numeric predictors only: naming
+  a factor column of either kind is refused, naming the kind, its grid
+  following its level table rather than any externally chosen one. A
+  later `setData` derives every numeric column's cut points again
+  whatever grid was set, at most as many as the `n.cuts` the sampler was
+  created with: with `useQuantiles`, a column with no more distinct
+  values than `n.cuts` gets one cut point fewer than it has distinct
+  values, and a constant column gets one.
 
 - column:
 
@@ -916,13 +912,33 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - updateCutPoints:
 
-  For `setPredictor`, a logical; when `TRUE` the cut points (split
-  candidate locations) for the replaced column(s) are recomputed from
-  the new values, otherwise the existing cut points are kept. A column
-  keeps the number of cut points it has: under `useQuantiles = TRUE`
-  they are spread evenly over the new values, and new values with too
-  few distinct ones to hold that many are an error. Defaults to `FALSE`
-  and cannot be combined with `forceUpdate = "partial"`.
+  For `setPredictor`, one of `"none"`, `"position"` or `"value"`, or a
+  unique abbreviation of one. `"none"`, the default, keeps the cut
+  points (split candidate locations) of the replaced column(s). The
+  other two derive them again from the new values, as a new sampler
+  would for those values: up to the `n.cuts` the sampler was created
+  with, whatever number the column held, and fewer where the values
+  supply fewer, a constant column getting one. They differ in where the
+  splits already on such a column go. Under `"position"` each keeps its
+  position on the grid, which is what `TRUE` did in 0.9-x; when the
+  number of cut points changes, the position is rescaled to the new
+  number. Under `"value"` each moves to the new cut point nearest its
+  old threshold. In either case a split stays between the splits above
+  it in its tree; one left with no cut point there is merged when the
+  update is forced, and otherwise the update is refused and rolled back,
+  trees and cut points included. Anything but `"none"` cannot be
+  combined with `forceUpdate = "partial"`. A logical is taken until
+  dbarts 1.1-0, `TRUE` as `"position"` and `FALSE` as `"none"`, with a
+  warning once per session
+  ([`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)).
+
+- splits:
+
+  For `setCutPoints`, `"position"` (the default) or `"value"`, or a
+  unique abbreviation: where the splits already on a column go when its
+  cut points are replaced, as for `updateCutPoints`. The change is
+  always forced, so a split left with no cut point between the splits
+  above it is merged.
 
 - treeNums:
 
@@ -1204,17 +1220,20 @@ the recipient forest's allowed columns - a `blocks`-constrained or
 moderator-restricted mean forest, or a `variance = ~ x1 + x2` variance
 forest - is refused with the message `installTrees` gives the same
 donor, the two entries sharing one rule so neither admits what the other
-refuses. Every check runs before any live state is touched, so a refused
-restore leaves the sampler exactly as it was. A Student-t, logistic or
-negative-binomial sampler also refuses a state whose latent variables
-are not all positive and finite. Beyond that a state is not checked
-against the response family of the sampler that stored it: one whose
-contents fit this sampler is installed, and what the sampler then holds
-of another family's state is not promised. To start a sampler from a fit
-of another family, use `installTrees`, which takes the donor's trees
-and, where this sampler draws them, its `sigma`, `k` and DART state, and
-none of its latent variables. The trees are restored against the
-predictors the sampler holds at the call, as a forced `setPredictor`
+refuses. A state in which a numeric column's cut points repeat a value
+is refused, naming the column and the value: no sampler of this version
+writes one, and with every point held once a stored split's value names
+one position. Every check runs before any live state is touched, so a
+refused restore leaves the sampler exactly as it was. A Student-t,
+logistic or negative-binomial sampler also refuses a state whose latent
+variables are not all positive and finite. Beyond that a state is not
+checked against the response family of the sampler that stored it: one
+whose contents fit this sampler is installed, and what the sampler then
+holds of another family's state is not promised. To start a sampler from
+a fit of another family, use `installTrees`, which takes the donor's
+trees and, where this sampler draws them, its `sigma`, `k` and DART
+state, and none of its latent variables. The trees are restored against
+the predictors the sampler holds at the call, as a forced `setPredictor`
 leaves them: a split with a side no row of those predictors reaches
 becomes a single leaf, along with everything beneath it, and a rule
 stops recording a side for missing values where its column no longer has
@@ -1566,16 +1585,17 @@ tree of every forest valid.
 For `setState`, invisibly, `TRUE` when nothing had to be changed to
 install the state and `FALSE` otherwise. It is `FALSE` when, in any tree
 of any chain, a leaf that no row of the current predictors reaches was
-merged into its parent, or a rule lost its side for missing values
-because its column no longer has any; and when the state was stored in
-other response units and its leaf values were converted. No warning is
-given. `TRUE` means the trees and leaf values are the stored ones. It
-does not promise the latents, which are re-derived when the case weights
-or an `aft` censoring status differ from those the state was stored
-under, or the generator, which is left as the sampler's own when the
-state's is of another kind; nor does it cover a value the sampler holds
-fixed, which a state never changes. `copy` and a reload install a state
-the same way and report nothing.
+merged into its parent, a split that the state holds outside the range
+the splits above it leave was merged, or a rule lost its side for
+missing values because its column no longer has any; and when the state
+was stored in other response units and its leaf values were converted.
+No warning is given. `TRUE` means the trees and leaf values are the
+stored ones. It does not promise the latents, which are re-derived when
+the case weights or an `aft` censoring status differ from those the
+state was stored under, or the generator, which is left as the sampler's
+own when the state's is of another kind; nor does it cover a value the
+sampler holds fixed, which a state never changes. `copy` and a reload
+install a state the same way and report nothing.
 
 Under `keepTrees` the draws `predict`, `predictForests`, `getTrees` and
 `printTrees` report come out OLDEST FIRST: the store keeps the most

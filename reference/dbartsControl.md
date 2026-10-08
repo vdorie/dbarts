@@ -179,11 +179,13 @@ dbartsControl(
   rules to be used for each given predictor. If of length less than the
   number of predictors, earlier values are recycled; a longer vector is
   refused when the sampler is built. If for any predictor more values
-  are specified than are coherent, fewer may be used. It does not reach
-  a factor predictor of either kind: an unordered factor splits on level
-  subsets and an ordered one at its declared level midpoints, a factor's
-  grid following its level table rather than a count. See the ‘Decision
-  Rules’ section of
+  are specified than are coherent, fewer are used: a cut point is held
+  once, so a predictor whose range is too narrow to hold that many
+  distinct equally spaced points gets fewer, and a constant predictor
+  gets one. It does not reach a factor predictor of either kind: an
+  unordered factor splits on level subsets and an ordered one at its
+  declared level midpoints, a factor's grid following its level table
+  rather than a count. See the ‘Decision Rules’ section of
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) for
   how the rules themselves are placed.
 

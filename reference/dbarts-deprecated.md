@@ -116,6 +116,14 @@ in dbarts 1.1-0.
   `updateState`: a run uses the sampler's own count, which `$setControl`
   changes, and its draws do not depend on it.
 
+- A logical `updateCutPoints` on `dbartsSampler`'s `$setPredictor`:
+
+  Read after a once-per-session warning, `TRUE` as `"position"` and
+  `FALSE` as `"none"`: the argument is now one of `"none"`, `"position"`
+  and `"value"`
+  ([`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
+  and `"position"` is what `TRUE` did.
+
 - `NA` where `NULL` now means not given:
 
   `NULL`, not `NA`, is the one spelling of an absent value. Where

@@ -694,18 +694,20 @@ past an end cutoff, as it does on the quantile grid.
 
 The number of possible values of \\c\\ is determined by `numcut`. If
 `usequants` is `FALSE`, `numcut` equally spaced cutoffs are used
-covering the range of values in the corresponding column of `x.train`.
-If `usequants` is `TRUE`, then for a variable the minimum of `numcut`
-and one less than the number of unique elements for that variable are
-used. When the half-way values outnumber `numcut`, the ones used are
-spread evenly over all of them: with \\M\\ half-way values and \\m\\ =
-`numcut`, cutoff \\k\\, counting from one, is the half-way value at
-position \\\lfloor (2k - 1) M / (2m) \rfloor + 1\\, so the cutoffs reach
-both ends of the variable. dbarts 0.9-34 and BayesTree stepped through
-them from the bottom at a fixed stride and could stop well short of the
-top, leaving that part of the variable without a cutoff; fits with
-`usequants = TRUE` on such a variable therefore generally differ from
-theirs.
+covering the range of values in the corresponding column of `x.train`; a
+cutoff is held once, so a column whose range is too narrow to hold that
+many distinct ones gets fewer, and a constant column gets one, where
+dbarts 0.9-34 repeated them. If `usequants` is `TRUE`, then for a
+variable the minimum of `numcut` and one less than the number of unique
+elements for that variable are used. When the half-way values outnumber
+`numcut`, the ones used are spread evenly over all of them: with \\M\\
+half-way values and \\m\\ = `numcut`, cutoff \\k\\, counting from one,
+is the half-way value at position \\\lfloor (2k - 1) M / (2m) \rfloor +
+1\\, so the cutoffs reach both ends of the variable. dbarts 0.9-34 and
+BayesTree stepped through them from the bottom at a fixed stride and
+could stop well short of the top, leaving that part of the variable
+without a cutoff; fits with `usequants = TRUE` on such a variable
+therefore generally differ from theirs.
 
 ### Leaf prior parameter `k`
 
@@ -1238,7 +1240,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.215980
+#> total seconds in loop: 0.215658
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
