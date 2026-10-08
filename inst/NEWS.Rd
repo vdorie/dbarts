@@ -219,7 +219,9 @@
       \item \code{n.threads} keeps its meaning as a total thread budget, but
             each chain samples on one thread, and \code{dbartsControl}'s
             default is now \code{min(guessNumCores(), n.chains)}, or one
-            where \code{guessNumCores()} is \code{NA}.
+            where \code{guessNumCores()} is \code{NA}, where \code{dbartsControl},
+            \code{bart} (0.9-x's \code{bart2}), \code{rbart_vi} and \code{xbart}
+            used to refuse to run.
             \code{bart} and \code{dbarts} warn when \code{n.threads} exceeds
             \code{n.chains}; the extra threads serve test fits and
             \code{predict} only.

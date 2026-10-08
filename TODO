@@ -909,6 +909,14 @@ items
     part). Before the merge to main; the kept-draw store in the
     engine and the state's reader, after leaf-conversions, which
     works in the same store.
+  bartcause-thread-default: on bartCause's dbarts-1.0 branch,
+    bcf.R, argParse.R and responseFit.R compute n.threads from
+    dbarts::guessNumCores() and pass it as stated, so where the cores
+    cannot be counted the call is refused; leave n.threads out of the
+    call to dbarts when the guess is NA.
+  refused-update-rounding: after a refused whole-matrix setPredictor
+    the next draws differ from an untouched twin's by about 1.8e-15,
+    where the help says the fits are as they were.
   forced-update-returns-null: the forced forms of setState and
     installTrees return NULL invisibly when they are built, as a forced
     setPredictor does (dec-B310); the unforced value says whether a
@@ -1205,8 +1213,10 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     or the R surface the R-level consumers call moves again.
     bartCause's bcf() and fitBCF now default n.threads to
     min(dbarts::guessNumCores(), n.chains), capped on its dbarts-1.0
-    branch at bdaae47, so no multi-core fit warns under dec-B115;
-    nothing to do at the merge.
+    branch at bdaae47, so no multi-core fit warns under dec-B115.
+    That default is computed in bartCause and passed as stated, so
+    where the cores cannot be counted it is refused (dec-B306 covers
+    only an unstated count): see bartcause-thread-default.
     treatSens reaches dbarts:::parsePriors and
     dbarts:::estimateSigmaFromLinearModel through asNamespace (its
     resid.dist argument broke silently when front-door S2 retired the

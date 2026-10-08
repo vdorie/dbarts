@@ -56,14 +56,15 @@ wordings that no longer fit the argument the caller wrote are corrected.
 
 ## Steps
 
-1. One internal default, beside `naThreadsMessage`: the capped guess where it is a count, else 1. The four
-   formals call it; `xbart`'s is uncapped as it was. The help of `n.threads` at the four doors and of
-   `guessNumCores` says the default is one where the cores cannot be counted. The refusal's text is reworded
-   to what a caller who wrote `NA` needs.
+1. The four formals keep their exported-name defaults. One internal helper, `fallBackToOneThread`, called from
+   the bodies of `dbartsControl`, `rbart_vi` and `xbart` and, for `bart`, where it merges the defaults of the
+   arguments it shares with the control, makes an unstated count whose default is `NA` one. A stated `NA` is
+   refused with a message that tells its writer to leave the argument out. The help of `n.threads` at the
+   four doors and of `guessNumCores` says the default is one where the cores cannot be counted.
 2. The forced branch of `bartcoreSamplerSetPredictor` returns `invisible(NULL)`; its comment, the method's
    docstring and the Value of `setPredictor` in the sampler help say so.
-3. `buildSamplerPriors` takes a `NULL` `power` or `base` as 2 and 0.95, the values `bart` and `bartBT` give
-   them; checked at `bart`, `bartBT` and the family doors. A `NULL` still counts as named against a supplied
+3. `buildSamplerPriors` and `rbart_vi`, which builds its `cgm()` call by the same lines, take a `NULL` `power` or `base` as 2 and 0.95, the values `bart` and `bartBT`
+   give them; checked at `bart`, `bartBT` and the family doors. A `NULL` still counts as named against a supplied
    `tree.prior` (`refuseColliding`'s rule, unchanged).
 4. The selection refusal for a list given forest by forest names the argument written (`forests` of
    `setLeafPrior`, `bases` of `predict`); the Extracting Trees sentence is limited to the array it describes.
@@ -95,3 +96,12 @@ built from a clean `git archive`.
   rather than at each door.
 - No NEWS entry for item 3 or 4 where the released package behaved no differently; item 1 and 2 are decided
   in the report.
+- The formals are not changed to a helper call, so the usage and `args()` show exported names only. The
+  fallback sits in the bodies and reads `missing(n.threads)`; a wrapper that hands on its dots leaves the
+  count unstated and gets one, while one that states a count of its own, `NA` included, is refused, as R's
+  `missing()` leaves a wrapper's defaulted formal not missing.
+- The orchestrator's calls: `cgm()` reads a `NULL` `power` or `base` as its default, so the
+  remedy the retired spelling's warning names works; on a model whose every forest has a basis, `bart(power =
+  NULL)` and `bart(base = NULL)` stay refused as naming the plain forest's prior (dec-A179), pinned by a
+  test; `forceUpdate = NA` at `setPredictor` and a control whose `n.threads` slot is `NA` given to `dbarts()`
+  are refused by name.
