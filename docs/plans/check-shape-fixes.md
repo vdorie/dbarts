@@ -2,7 +2,8 @@
 
 Status: PLANNED
 
-agent: sonnet implementer, one (R scripts and CI workflows only); no reviewer needed beyond the coordinator's read.
+agent: sonnet implementer, one (R scripts and CI workflows only), over the build and two fix rounds; two independent
+reviews, the second "land after fixes" with one blocking finding (the mixing gate's false-failure claim), fixed in round 2.
 rng: NEUTRAL. No package code changes (nothing under R/, src/, inst/ or man/).
 window: pre-release; the by-hand calibration run is a step BEFORE the merge to main.
 budget: ~400 lines.
@@ -50,12 +51,13 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
 1. Mixing gate (dec-B301). Two cells whose posterior on r spreads: r0 = 8 at n = 400 and r0 = 10 at n = 500, in
    place of r0 = 5 at n = 2000 and r0 = 2 at n = 500 (the latter a single value; the former 5 or 6). The rule that
    chains constant at one shared value agree is gone: split-Rhat with no spread in any half is undefined and fails.
-   Chain 1 is set to the shape 1 and chain 2 to 50 (the grid's ends) through the state before the run. Each chain
-   keeps 2000 draws, not 500. Per run: a chain leaves its own start value, split-Rhat under 1.05, r0 inside the
+   Chain 1 is set to the shape 1 and chain 2 to 50 (the grid's ends) through the state before the run. A chain
+   keeps 2000 draws in quick mode and 4000 in full, not 500. Per run: a chain leaves its own start value, split-Rhat under 1.05, r0 inside the
    99.9% set, coverage of fresh counts in [0.84, 0.95]; in full mode also the 95% set holds r0 in all but at most
-   3 of the 6 runs. A correct sampler failed the first draft's per-run 95% set about one dataset in twenty, so the
-   checks are sized from 45 fresh datasets a cell and 12 engine streams on each pinned dataset (0 of 90 and 0 of 72
-   runs failed; the header of the script states the rate and what is caught).
+   2 of the 6 runs. A correct sampler failed the first draft's per-run 95% set about one dataset in twenty, so the
+   checks are sized from 45 fresh datasets a cell and engine streams on the pinned datasets; full mode takes 4000
+   draws because at 2000 the pinned r0 = 10 seed 3 dataset failed Rhat in 1 stream in 100 (the header of the script
+   states the measured rate and what is caught and missed).
 2. Calibration arm (dec-B301). `probit-k`: the plain probit arm with k drawn under chi(1.5, 2), the default for
    binary fits. theta0's k is drawn by the harness, installed as a fixed k, the leaves are drawn at it, and the
    fit starts from a second independent draw handed back to the hyperprior; k is ranked beside the existing
@@ -83,11 +85,16 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
 
 ## Proof
 
-- Mixing gate, on the correct sampler: 45 fresh datasets a cell, no run failed (coverage 0.858 to 0.929, largest
-  Rhat 1.018, the 95% set missed r0 in 5 of 90); 12 engine streams on each of the six pinned datasets, no run failed
-  (0 of 72, largest Rhat 1.035). Caught, quick and full, on the shape draw mutated: never moves (caught, caught);
-  moved one sweep in 100 (caught, caught); one sweep in 20 (missed, caught); every draw one grid step up (missed,
-  caught).
+- Mixing gate, on the correct sampler, full mode (4000 draws): 160 runs on fresh engine streams (100 on the r0 = 10
+  seed 3 dataset, 12 on each of the other five), none failed (95% interval for a run 0 to 2.3%); seed 3's largest
+  Rhat 1.027 and coverage 0.849 to 0.870, the others' largest Rhat 1.007; the 95% set missed r0 in 10 of 160 runs, all
+  on seed 3; the script's own full run exited 0 on 14 engine streams (0 of 14). Estimated false-failure rate of a
+  full run: about 0.2% (the 95% set count) plus 2 in 10000 (Rhat). Quick mode (2000 draws): 0 of 48 runs failed; 45
+  fresh datasets a cell, 0 of 90 (coverage 0.858 to 0.929, largest Rhat 1.018). Caught, over 12 engine streams on
+  the six pinned datasets: never moves, quick and full; one sweep in 100: full 12 of 12, quick 11 of 12 (2000); one
+  sweep in 20: full 1 of 12 (7 of 12 at 2000 draws), quick 3 of 12 (2000); every draw one step up: full 12 of 12,
+  quick 0 of 12 (2000). Not caught: every draw one step down, half the draws one step up (2000): the gate is
+  one-sided. Full mode takes 73 s on the laptop (two threads), 40 s at 2000 draws.
 - k arm, R = 600, L = 99, thin 1000, burn 30000: 67 minutes on the laptop (6.7 s a replication, two runs at once on
   a loaded machine), so 134 at twice that, inside the 180-minute limit. Correct sampler: all seven functionals pass,
   k's chi-square p 0.70 and ecdf difference 0.041 of a 0.082 band. Shape of the k^2 conditional + 1/2: k flags, ecdf
@@ -100,11 +107,11 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
 - Weekly. Each gate's full time (laptop, one core, seconds): bd-balance 3, swap-balance 13, perturb-balance 21,
   rule-gibbs-balance 29, change-balance 113, aft-exact 1, aft-hetero-pit 0, backfit-exact 11, bcf-exact 30,
   bcf-exact-weak 1, bcf-exact-restricted 1, categorical-exact 4, heteroscedastic-exact 3, linear-exact 2,
-  hazard-exact 11, hurdle-exact 9, mask-redraw-exact 402, multinomial-exact 156, negbin-exact 16, negbin-mixing 40,
+  hazard-exact 11, hurdle-exact 9, mask-redraw-exact 402, multinomial-exact 156, negbin-exact 16, negbin-mixing 73,
   ordinal-exact 12, t-exact 2, monotone-reference 9, hazard-reduction and hurdle-reduction 0, bd-balance zeroweight 2,
   monotone successive-conditional 25 for both priors; all passed. logistic-reference about 11.5 minutes (the probit
   half 107 s). The enumeration gate in full mode took 13.9 minutes (leaf) and 12.6 (joint). The list sums to about
-  31 minutes. The hosted runner took 1.4 to 1.8 times the laptop's time on the quick enumeration gate (6.1 and 7.9
+  32 minutes. The hosted runner took 1.4 to 1.8 times the laptop's time on the quick enumeration gate (6.1 and 7.9
   minutes against 4.5) and 1.0 to 1.9 times on the SBC arms.
 
 ## Gates
@@ -135,7 +142,7 @@ Made in planning:
 
 - The two mixing cells: the maintainer asked for one case replaced; the r0 = 5, n = 2000 posterior is 5 or 6 in
   99% and goes with it, since a run with no 6 would be undefined.
-- 2000 draws a chain in the mixing gate, and the failure of an undefined Rhat, over keeping 500 and widening.
+- 2000 draws a chain in quick and 4000 in full for the mixing gate, and the failure of an undefined Rhat, over keeping 500 and widening.
 - Chains set to the grid's ends through the state, since no setter exists; the first sweep redraws r, so the start
   tests that r moves, not that it stays far.
 - thin 1000 and a 30000 burn for probit-k, by the chain-length evidence; R = 100 as the gaussian arm (raised to 600 in the fix round).

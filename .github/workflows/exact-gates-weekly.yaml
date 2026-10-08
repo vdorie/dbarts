@@ -10,7 +10,7 @@
 #   gates-full  every gate exact-gates.yaml's main job runs, in full mode,
 #               the gate list read from that file so the two cannot drift.
 #               Timed on the maintainer's laptop, one core: the whole list is
-#               about 31 minutes (mask-redraw-exact 6.7 min, logistic-reference
+#               about 32 minutes (mask-redraw-exact 6.7 min, logistic-reference
 #               about 11.5 min, multinomial-exact 2.6 min, change-balance 1.9
 #               min, the rest under a minute each). The hosted runner has run
 #               1 to 2 times the laptop's time (the quick enumeration gate 1.4
