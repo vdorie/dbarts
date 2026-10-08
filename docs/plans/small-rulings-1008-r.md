@@ -33,6 +33,15 @@ R-surface tier of "Process by risk": one sonnet review, the touched test files, 
 10. hazard-max-rows-cost (dec-B367). The help of hazard(max.rows = ) and the refusal state the cost of a row; the default stays 1e7. Test: the refusal text.
 11. indicator-storage-invisible (dec-B370). An indicator expansion is built sparse or dense per column by sparseDensityThreshold; sigma's starting estimate is the linear-model one on either storage; makeModelMatrixFromDataFrame returns a plain matrix unless the caller supplied a sparse column. Test: sigma and return type identical across storage, with and without Matrix where a test can control it.
 
+## Calls made in the build
+
+- Items 2 and 3 share one commit: the stored fit now carries the training offset (`offset`, absent when none), which both need to replace it.
+- predict with no newdata refuses `weights` and `bases` by name; rbart's predict is untouched (it needs a group.by).
+- A hazard fit's survivalProbabilities with an offset and no newdata replays the trees as before, with the offset in place of each subject's own.
+- A one-class hazard fit keeps its subject-worded refusal; only probit and logistic fit.
+- A numeric matrix is refused on a design with a factor column at setPredictor, setTestPredictor, setTestPredictorAndOffset and S3 predict; the package's own code that holds codes runs under withCodedPredictors().
+- Item 11 densifies an indicator design for the starting sigma's linear fit rather than using a sparse QR; the exported builder always returns a plain matrix.
+
 ## Verification
 
 The touched tinytest files under the slice's library; `lintr::lint_package()`, `air format --check .`, tools/check-rc-codoc.R, tools/check-doc-freshness.R, tools/check-win-drift.R; the four test-reproducibility-*.R files once at the end.
