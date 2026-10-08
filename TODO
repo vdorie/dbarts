@@ -258,18 +258,18 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
-  leaf-covariate-single-value-off-centre: a linear leaf's covariate
-    that setPredictor moved to another single value counts as having
-    spread, so setData or a warm start onto a widely spread column
-    converts a slope the data fixed at one point only and carries the
-    live fit far until the sampler runs (about 5 either way to about
-    1500 in the review's case). Read such a side as without spread,
-    the intercept taking the fit at that value; a warm start needs the
-    donor's value, which a state does not record. Also a column
-    constant to the eye but not to the bit keeps a rounding-sized
-    scale: a floor relative to the centre closes it. With the slice
-    that takes the centre and scale from the rows in the likelihood
-    (dec-B304), which moves the same test (dec-A177).
+  leaf-slope-formula-single-value: at setData and a warm start a
+    linear leaf's live slope is converted by the formula onto and off
+    a covariate that holds one value at its centre, where today it is
+    set to zero and the leaf keeps its value or takes its function's
+    value at the new constant (dec-B329, revising dec-A177); the help
+    for newData says so. Before 1.0-0.
+  leaf-covariate-single-value-off-centre: a leaf covariate constant
+    to the eye but not to the bit keeps a rounding-sized scale: a floor
+    relative to the centre closes it. A slope on a column moved to
+    another single value stays converted by the formula (dec-B328).
+    With the slice that takes the centre and scale from the rows in
+    the likelihood (dec-B304), which moves the same test (dec-A177).
   check-shape-fixes: three things in the benchmark scripts and one
     step (dec-B301, VD 2026-10-07: "Fix the shape."). The count
     model's mixing gate takes a case whose posterior on the shape
