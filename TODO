@@ -923,7 +923,9 @@ items
     take the response setters' argument to re-derive it, with the
     response setters' effect on the live chain (dec-B296, revising
     dec-A140; dec-B327). A sampler created with no row in takes them
-    over every row, with a warning (dec-B302). A linear or gp leaf's
+    over every row, with a warning (dec-B302); a re-derivation whose
+    rows in hold fewer than two distinct values keeps the prior in
+    force and warns once per sampler (dec-B364). A linear or gp leaf's
     covariate centre and scale follow the same rule (dec-B304), and a
     multiplier's scale does in the multiplier plan (dec-B303).
     A sampler made by hand is created with every row in; with slice C,

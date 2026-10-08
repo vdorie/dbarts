@@ -372,8 +372,9 @@ C. `updateScale` on `setWeights` and `setActiveRows`. Waits on: this slice; leaf
      `setForestBasis(updateBasisScale = TRUE)` re-derive a multiplier's scale over the rows in at the
      call; the two would then span different rows.
    - A help sentence, and a test, that `setState` does not undo a re-derivation.
-   - dec-B302's refusal of a re-derivation with no row in (rule 4 of this slice keeps today's fallback
-     until then), on all four setters at once.
+   - A re-derivation whose rows in hold fewer than two distinct values: revised by dec-B364, it keeps the
+     prior in force and warns once per sampler, on all four setters at once (rule 4 of this slice keeps
+     today's fallback until then); it is not refused.
    For the maintainer, plainly:
    - A hazard fit takes its periods from every subject's time, subjects at weight 0 included; a far-out
      subject at weight 0 adds a period and moves the draws at the subjects in. Cut points, or response?
