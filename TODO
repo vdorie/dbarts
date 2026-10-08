@@ -258,6 +258,11 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
+  binary-k-default-revisit: after the merge to main, before 1.0-0
+    (dec-B390, VD 2026-10-08). Once probit-k-mixing lands, rerun the
+    binary hyperprior study (docs/plans/binary-hyperprior.md) on
+    converged chains with the k move and bring the default chi(1.5, 2)
+    back to VD with the numbers (dec-A07's scheduled revisit).
   probit-k-mixing: before 1.0-0 (dec-B371, VD 2026-10-08). k mixes
     slowly under probit (autocorrelation time median 500 sweeps, up to
     25000; small-k mass near separation reached too rarely), every
@@ -737,7 +742,8 @@ items
     low-ranked.
   tree-mixing-proposals: research door - how is the BART posterior
     sticky, and what proposal mechanisms beyond the shipped four-move
-    set would help? The move census ran; the same-variable cut redraw
+    set would help? VD 2026-10-08: "BART trees are too sticky and we
+    need to figure out what to do." The move census ran; the same-variable cut redraw
     "perturb" is in the kernel at default weight zero (ab49f83a) with
     its detailed-balance gate (30472110). Its benefit stage (slice 3)
     has run and killed the move at the pre-registered w = 1, d = 0.16
