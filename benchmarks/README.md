@@ -288,7 +288,7 @@ push.
 The probit-k arm draws k under chi(1.5, 2) and ranks it beside the other
 functionals. k is flagged when its ecdf difference leaves the band or its
 chi-square p (20 bins) is below the band's alpha, 6e-4. Detection floor, at
-R = 600, L = 100, thin 1000: an error of one half in the shape of the k^2
+R = 600, L = 99, thin 1000: an error of one half in the shape of the k^2
 conditional (a missing Jacobian, a leaf too many, the prior's df off by one) is
 flagged about 80% of the time; an error that scales with the number of leaves
 (every k draw 5% high) is flagged at R = 50. Smaller errors pass.

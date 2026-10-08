@@ -11,7 +11,7 @@
 #   Rscript benchmarks/R/sbc.R                 # baseline gaussian, R=200
 #   Rscript benchmarks/R/sbc.R gaussian 200 200 30
 #   Rscript benchmarks/R/sbc.R probit  200 200 30
-#   Rscript benchmarks/R/sbc.R probit-k 600 100 1000  # k drawn under chi(1.5, 2)
+#   Rscript benchmarks/R/sbc.R probit-k 600 99 1000  # k drawn under chi(1.5, 2)
 #   Rscript benchmarks/R/sbc.R ordinal 200 150 30   # family tiers, plan
 #   Rscript benchmarks/R/sbc.R nbinom|t|multinom 200 150 30
 #   Rscript benchmarks/R/sbc.R aft 200 150 30 <burn> # aft/survival, reused
@@ -3013,7 +3013,7 @@ if (sys.nframe() == 0L) {
   # probit-k: k and the leaves it scales are a funnel, and k mixes slowly (its
   # autocorrelation reaches 0.1 at lags of 100 to 600 sweeps); at thin 1000
   # and this burn its ranks are uniform, where thin 300 and a burn of 10000
-  # piled 15% of them at the top. Recommended: R=600 L=100 thin=1000, which
+  # piled 15% of them at the top. Recommended: R=600 L=99 thin=1000 (L=99 puts five rank values in each of the 20 bins), which
   # flags an error of one half in the shape of the k^2 conditional (a missing
   # Jacobian, a leaf too many, the prior's df off by one) about 80% of the time;
   # R=100 does not.
