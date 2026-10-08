@@ -39,27 +39,50 @@ expect_error(
   pattern = "requires a response coded 0/1"
 )
 
-# a response of one class says so, with no warning to rescale it: every
-# response that warning fires on a binary family refuses
-singleClassWarnings <- list()
-y.ones <- rep(1, n)
-expect_error(
-  withCallingHandlers(
-    dbarts(y.ones ~ x, family = "probit", control = control),
+# a response of one class is fitted, with the one warning saying so and no
+# warning to rescale it (dec-B333)
+countWarnings <- function(expr) {
+  seen <- character()
+  value <- withCallingHandlers(
+    expr,
     warning = function(w) {
-      singleClassWarnings[[length(singleClassWarnings) + 1L]] <<- w
+      seen[[length(seen) + 1L]] <<- conditionMessage(w)
       invokeRestart("muffleWarning")
     }
-  ),
-  "family \"probit\" requires a response with both classes; the response has a single class",
-  fixed = TRUE
+  )
+  list(value = value, warnings = seen)
+}
+y.ones <- rep(1, n)
+res <- countWarnings(
+  dbarts(y.ones ~ x, family = "probit", control = control)
 )
-expect_identical(length(singleClassWarnings), 0L)
-expect_error(
-  dbarts(x, rep(0, n), family = "logistic", control = control),
-  "family \"logistic\" requires a response with both classes; the response has a single class",
-  fixed = TRUE
+expect_identical(length(res$warnings), 1L)
+expect_true(grepl("single class", res$warnings, fixed = TRUE))
+res <- countWarnings(
+  dbarts(x, rep(0, n), family = "logistic", control = control)
 )
+expect_identical(length(res$warnings), 1L)
+expect_true(grepl("single class", res$warnings, fixed = TRUE))
+# the latent sampler runs at one class: every draw is finite and the fitted
+# probabilities lean toward the class held
+for (cls in c(0, 1)) {
+  for (familyName in c("probit", "logistic")) {
+    sampler <- suppressWarnings(
+      dbarts(x, rep(cls, n), family = familyName, control = control)
+    )
+    samples <- sampler$run(20L, 50L)
+    expect_true(all(is.finite(samples$train)), info = paste(cls, familyName))
+    p <- if (familyName == "probit") {
+      pnorm(samples$train)
+    } else {
+      plogis(samples$train)
+    }
+    expect_true(
+      if (cls == 1) mean(p) > 0.5 else mean(p) < 0.5,
+      info = paste(cls, familyName)
+    )
+  }
+}
 # a hazard fit's binary rows are the caller's subjects, which its refusals
 # name; the binary family underneath it is never named
 if (requireNamespace("survival", quietly = TRUE)) {
@@ -96,9 +119,9 @@ expect_error(
   "family = \"hurdle.lognormal\" does not take a variance forest",
   fixed = TRUE
 )
-# every encoding of a one-class response is refused alike, on every binary
-# family and on "auto" where a categorical encoding resolves to one, and the
-# rescaling warning is held back exactly there
+# every encoding of a one-class response is fitted alike, on every binary
+# family and on "auto" where a categorical encoding resolves to one, with
+# exactly the one warning
 singleClassResponses <- list(
   logical = rep(TRUE, n),
   factor = factor(rep("a", n), levels = c("a", "b")),
@@ -106,27 +129,21 @@ singleClassResponses <- list(
 )
 for (encoding in names(singleClassResponses)) {
   for (familyName in c("probit", "logistic", "auto")) {
-    singleClassWarnings <- list()
-    expect_error(
-      withCallingHandlers(
-        dbarts(
-          x,
-          singleClassResponses[[encoding]],
-          family = familyName,
-          control = control
-        ),
-        warning = function(w) {
-          singleClassWarnings[[length(singleClassWarnings) + 1L]] <<- w
-          invokeRestart("muffleWarning")
-        }
-      ),
-      "requires a response with both classes; the response has a single class",
-      fixed = TRUE,
-      info = paste(encoding, familyName)
+    res <- countWarnings(
+      dbarts(
+        x,
+        singleClassResponses[[encoding]],
+        family = familyName,
+        control = control
+      )
     )
     expect_identical(
-      length(singleClassWarnings),
-      0L,
+      length(res$warnings),
+      1L,
+      info = paste(encoding, familyName)
+    )
+    expect_true(
+      grepl("single class", res$warnings, fixed = TRUE),
       info = paste(encoding, familyName)
     )
   }
@@ -151,7 +168,8 @@ expect_true(grepl(
   conditionMessage(nearConstantWarnings[[1L]])
 ))
 rm(
-  singleClassWarnings,
+  countWarnings,
+  res,
   y.ones,
   singleClassResponses,
   encoding,

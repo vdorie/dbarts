@@ -233,14 +233,18 @@ xbart <- function(
       all(sort(uniqueResponses) == c(0, 1))
     if (family == "auto") {
       family <- if (responseIsBinary) "probit" else "gaussian"
-    } else if (family != "gaussian" && !responseIsBinary) {
+    } else if (
+      family != "gaussian" &&
+        !responseIsBinary &&
+        !responseHasSingleClass(data@y)
+    ) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding
       refuseNonBinaryResponse(uniqueResponses, family)
     }
   }
   if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {
-    refuseNonBinaryResponse(unique(data@y[!is.na(data@y)]), family)
+    warnSingleClass(family)
   }
   control@binary <- isBinaryFamily(family)
 

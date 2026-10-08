@@ -178,6 +178,9 @@
   }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
+      \item A probit or logistic fit whose response holds one class is
+            fitted, with one warning saying so; 0.9-34 stopped on it with
+            an unrelated message.
       \item Results differ from 0.9-34, including seeded ones. The new
             engine draws a different random stream, and the corrections
             under BUG FIXES change the posterior itself. Every chain now
