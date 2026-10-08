@@ -1185,7 +1185,7 @@ public:
       if (data_.splitsBySubset(j)) {
         if (!state.cutPoints[j].empty()) return false;
       } else if (!cutGridIsValid(state.cutPoints[j].data(),
-                                 state.cutPoints[j].size(), false)) {
+                                 state.cutPoints[j].size())) {
         return false;
       }
     }
@@ -1335,7 +1335,7 @@ public:
         if (categorical != donor.cutPoints[j].empty())
           return WarmStartResult::gridMismatch;
         if (!categorical && !cutGridIsValid(donor.cutPoints[j].data(),
-                                            donor.cutPoints[j].size(), false))
+                                            donor.cutPoints[j].size()))
           return WarmStartResult::gridMismatch;
       }
     }

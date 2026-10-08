@@ -942,10 +942,9 @@ static void testDegenerateGridRestores(ext_rng* rng) {
   check(sampler.setState(state, nullptr), "the original state still restores");
 
   const double repeated[] = {0.0, 0.5, 0.5, 1.0};
-  check(cutGridIsValid(cuts1.data(), cuts1.size(), true) &&
-          !cutGridIsValid(repeated, 4, true) &&
-          cutGridIsValid(repeated, 2, true),
-        "a grid is strictly valid only where it strictly increases");
+  check(cutGridIsValid(cuts1.data(), cuts1.size()) &&
+          !cutGridIsValid(repeated, 4) && cutGridIsValid(repeated, 2),
+        "a grid is valid only where it strictly increases");
   printf("ok: degenerate grid restores\n");
 }
 
@@ -1534,6 +1533,17 @@ static void testCrossGridWarmStart() {
     liveLeaves += bottoms.size();
   }
   check(occupied, "cross-grid: remap collapses starved splits, no empty leaves");
+  bool inside = true;
+  for (size_t t = 0; t < numTrees; ++t) {
+    const Tree& tree = dest.chain(0).tree(t);
+    std::vector<int32_t> subtree;
+    tree.fillSubtree(0, subtree);
+    for (int32_t i : subtree)
+      inside &= tree.at(i).isBottom() ||
+                !tree.splitIsOutsideInterval(dest.data(), i);
+  }
+  check(inside,
+        "cross-grid: no split sits outside its interval on the shorter grid");
   check(liveLeaves < donorLeaves,
         "cross-grid: a starved split collapsed (fewer live leaves than donor)");
   check(liveLeaves > numTrees,
@@ -3386,6 +3396,61 @@ static void testStaleStateMerge() {
   printf("ok: a stale state merges empty leaves on install\n");
 }
 
+/// A state or a warm-start donor in which one column's grid holds a point
+/// twice is refused by the engine's own check, whatever reader let it by,
+/// and the sampler it was offered to draws what its untouched twin draws.
+static void testRepeatedGridRefused() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 60606u;
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = 4.0 * (x[i] > 0.5 ? 1.0 : 0.0) + x[i + n] + 0.2 * (runif01() - 0.5);
+  ext_rng* rngs[2];
+  std::unique_ptr<ConstantLeafSampler> samplers[2];
+  for (size_t k = 0; k < 2; ++k) {
+    rngs[k] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rngs[k], 2718u);
+    SamplerOptions options;
+    options.numTrees = 10;
+    samplers[k] = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rngs[k]);
+    Results empty;
+    samplers[k]->run(30, 0, empty);
+  }
+  ConstantLeafSampler& sampler = *samplers[0];
+  SamplerStateData own, repeated;
+  sampler.getState(own);
+  repeated = own;
+  std::vector<double>& cuts = repeated.cutPoints[1];
+  cuts.insert(cuts.begin() + 7, cuts[7]);  // one point given twice
+  check(!sampler.setState(repeated, nullptr),
+        "a state whose grid repeats a point is refused");
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  check(sampler.installForests(repeated, liveMap) != WarmStartResult::ok,
+        "a warm-start donor whose grid repeats a point is refused");
+  check(sampler.data().cutPoints == own.cutPoints,
+        "the refusals leave the sampler's grids as they were");
+
+  std::vector<double> draws[2];
+  for (size_t k = 0; k < 2; ++k) {
+    draws[k].resize(5);
+    Results results;
+    results.sigma = draws[k].data();
+    samplers[k]->run(0, 5, results);
+  }
+  check(draws[0] == draws[1],
+        "after the refusals the sampler draws what its twin draws");
+  check(restoresExactly(sampler, own) &&
+          sampler.installForests(own, liveMap) == WarmStartResult::ok,
+        "the state and the donor with distinct grids are taken");
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a grid that repeats a point is refused\n");
+}
+
 /// Whether any live tree of any chain, mean or variance, holds an ordinal
 /// split outside the interval its ancestors leave.
 template <typename L>
@@ -3900,6 +3965,7 @@ void runStateTests(ext_rng* rng) {
   testStaleStateMerge();
   testRestoreStatus();
   testStackedSplitsMerge();
+  testRepeatedGridRefused();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

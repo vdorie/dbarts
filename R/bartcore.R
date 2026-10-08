@@ -624,7 +624,11 @@ resolveUpdateCutPoints <- function(updateCutPoints) {
     )
     return(if (updateCutPoints) "position" else "none")
   }
-  matchCutPointRule(updateCutPoints, names(cutPointRuleCodes), "updateCutPoints")
+  matchCutPointRule(
+    updateCutPoints,
+    names(cutPointRuleCodes),
+    "updateCutPoints"
+  )
 }
 
 bartcoreSamplerSetPredictor <- function(

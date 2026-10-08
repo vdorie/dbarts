@@ -103,17 +103,15 @@ inline bool isNA(double value) { return value != value; }
 enum class SplitPlacement { byPosition, byValue };
 
 /// Whether an ordinal column's grid of numCuts points is one the store can
-/// hold: 1 to maxNumCutsRepresentable cuts, none NaN, and increasing -
-/// strictly when strict, otherwise allowing equal neighbours, which the store
-/// itself builds for a column whose range is a single value (or narrower than
-/// its spacing), so a saved state carrying that grid must restore. A NaN fails
-/// the negated comparison, so the loop catches it past the first cut.
-inline bool cutGridIsValid(const double* cuts, size_t numCuts, bool strict) {
+/// hold: 1 to maxNumCutsRepresentable cuts, none NaN, and strictly
+/// increasing, so each point is held once and a split's value names one
+/// position. A NaN fails the negated comparison, so the loop catches it past
+/// the first cut.
+inline bool cutGridIsValid(const double* cuts, size_t numCuts) {
   if (numCuts < 1 || numCuts > maxNumCutsRepresentable || isNA(cuts[0]))
     return false;
   for (size_t k = 1; k < numCuts; ++k)
-    if (strict ? !(cuts[k] > cuts[k - 1]) : !(cuts[k] >= cuts[k - 1]))
-      return false;
+    if (!(cuts[k] > cuts[k - 1])) return false;
   return true;
 }
 
@@ -1417,7 +1415,7 @@ struct ColumnStore {
     return true;
   }
 
-  /// Install externally chosen cut points (non-decreasing) for a column and
+  /// Install externally chosen cut points (strictly increasing) for a column and
   /// re-quantize its codes against them; x is the call-time predictor matrix
   /// the raw is read from (ignored for CSC-backed columns, which use their
   /// retained slice). The cut count may shrink or grow, and existing splits

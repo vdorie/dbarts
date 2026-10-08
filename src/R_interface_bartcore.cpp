@@ -6195,26 +6195,18 @@ SEXP bartcore_setCutPoints(SEXP ptrExpr, SEXP cutPointsExpr,
         Rf_error("$setCutPoints: requires at least one cut point per "
                  "column");
       // a stored split names its cut by value, and on a grid that repeats a
-      // value a restore cannot tell which index it was drawn on, so a caller's
-      // grid strictly increases (the R method has sorted it). The grid the
-      // column holds, bit for bit, is taken as it is: a grid the store built
-      // or a state brought may hold equal neighbours, and an undo hands that
-      // back. A -0 for a 0 is another grid
+      // value a restore cannot tell which index it was drawn on, so every
+      // grid strictly increases (the R method has sorted it). No grid a
+      // sampler holds repeats a value, so the one a column holds passes as
+      // any other does
       const double* cuts = REAL(cutsExpr);
-      const std::vector<double>& held =
-        holder.sampler->data().cutPoints[column];
-      bool isHeld = static_cast<size_t>(numCuts) == held.size() &&
-        std::memcmp(cuts, held.data(), held.size() * sizeof(double)) == 0;
-      if (!isHeld) {
-        for (R_xlen_t i = 0; i < numCuts; ++i)
-          if (bartcore::isNA(cuts[i]))
-            Rf_error("$setCutPoints: 'cuts' must not contain NA or NaN");
-        if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts),
-                                      true))
-          Rf_error("$setCutPoints: a cut point may appear only once in "
-                   "'cuts'; for more splits near a value, give a denser grid "
-                   "around it");
-      }
+      for (R_xlen_t i = 0; i < numCuts; ++i)
+        if (bartcore::isNA(cuts[i]))
+          Rf_error("$setCutPoints: 'cuts' must not contain NA or NaN");
+      if (!bartcore::cutGridIsValid(cuts, static_cast<size_t>(numCuts)))
+        Rf_error("$setCutPoints: a cut point may appear only once in "
+                 "'cuts'; for more splits near a value, give a denser grid "
+                 "around it");
       cutPoints.push_back(cuts);
       numCutPoints.push_back(static_cast<std::uint32_t>(numCuts));
       columns.push_back(column);
@@ -7908,6 +7900,25 @@ static const char* const stateColumnMaskMessage =
   "incompatible with the column restriction (a forest's own "
   "column subset or a restricted variance forest) in force here";
 
+/// The refusal for a stored cut grid that holds a value twice, naming the
+/// column, counted from one, and the value; null where no two neighbours are
+/// equal. \p what names the source. No sampler of this version writes such a
+/// grid, and on one a stored split's value would name several positions. The
+/// buffer is static: the message is raised before the next state is read.
+static const char* repeatedCutRefusal(const double* cuts, R_xlen_t numCuts,
+                                      size_t column, const char* what) {
+  static char message[192];
+  for (R_xlen_t k = 1; k < numCuts; ++k)
+    if (cuts[k] == cuts[k - 1]) {
+      std::snprintf(message, sizeof message,
+                    "cut points of column %lu in %s repeat a value (%g): a "
+                    "cut grid holds each point once",
+                    static_cast<unsigned long>(column + 1), what, cuts[k]);
+      return message;
+    }
+  return NULL;
+}
+
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity) {
   bartcore::SamplerShape shape = sampler.shape();
@@ -8030,6 +8041,9 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         errorMessage = "malformed cut points in bartcore state";
         break;
       }
+      errorMessage = repeatedCutRefusal(REAL(cutsExpr), Rf_xlength(cutsExpr), j,
+                                        "bartcore state");
+      if (errorMessage != NULL) break;
       state.cutPoints[j].assign(
         REAL(cutsExpr), REAL(cutsExpr) + Rf_xlength(cutsExpr));
     }
@@ -8442,6 +8456,9 @@ static const char* readWarmStartState(SEXP stateExpr,
     SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(j));
     if (Rf_isNull(cutsExpr)) continue;
     if (!Rf_isReal(cutsExpr)) return "malformed cut points in warm-start donor";
+    const char* repeated = repeatedCutRefusal(
+      REAL(cutsExpr), Rf_xlength(cutsExpr), j, "warm-start donor");
+    if (repeated != NULL) return repeated;
     state.cutPoints[j].assign(REAL(cutsExpr),
                               REAL(cutsExpr) + Rf_xlength(cutsExpr));
   }
