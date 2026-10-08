@@ -3,7 +3,7 @@
 Status: IN PROGRESS 2026-10-08
 
 agent: sonnet implementer, one, one commit per item.
-rng: NEUTRAL, but item 11 moves bartBT's starting sigma for wide-factor data frames and item 7 moves a ppd draw at weight 0, each on its own path only.
+rng: DRAW-CHANGING on two paths and neutral elsewhere. Item 11 changes the starting sigma of a fit whose indicator design is built sparse (the linear-model estimate where the sparse design used to fall back to the marginal sd), and moves the last bit of the draws of an indicator fit whose columns land in the engine's rank-bitmap tier (5 or more levels at a density of 0.2 or less). Item 7 changes a ppd draw at weight 0. Every other scenario of the equivalence trio is bitwise.
 window: pre-release.
 budget: ~1200 lines with tests.
 
@@ -37,10 +37,21 @@ R-surface tier of "Process by risk": one sonnet review, the touched test files, 
 
 - Items 2 and 3 share one commit: the stored fit now carries the training offset (`offset`, absent when none), which both need to replace it.
 - predict with no newdata refuses `weights` and `bases` by name; rbart's predict is untouched (it needs a group.by).
-- A hazard fit's survivalProbabilities with an offset and no newdata replays the trees as before, with the offset in place of each subject's own.
+- A hazard fit's survivalProbabilities with an offset and no newdata, where the fit stored a test grid, shifts that grid on the latent scale and applies the link, with no trees; where it stored none it replays the trees, with the offset in place of each subject's own. The fit stores `offset.test` for it.
 - A one-class hazard fit keeps its subject-worded refusal; only probit and logistic fit.
 - A numeric matrix is refused on a design with a factor column at setPredictor, setTestPredictor, setTestPredictorAndOffset and S3 predict; the package's own code that holds codes runs under withCodedPredictors().
-- Item 11 densifies an indicator design for the starting sigma's linear fit rather than using a sparse QR; the exported builder always returns a plain matrix.
+- Item 11 takes the starting sigma of a sparse indicator design from Matrix's sparse QR. That QR is wrong on a dependent column (the zero pivot's reflector is arbitrary and later columns are orthogonalised against it: residual sum of squares 248.5 against lm.fit's 245.9 on two factors' full indicator sets), and an indicator design is dependent by construction, so a column whose pivot vanishes is dropped and the QR redone until none does; that gives lm.fit's rank and residual sum of squares. The exported builder always returns a plain matrix.
+- A numeric matrix is also refused by the sampler's own `predict` and by `test =` at creation on a design with a factor column.
+
+## Landing note
+
+Equivalence trio at the final tip on the reference build, `--bitwise` where the harness takes it, EQUIVALENCE_CORES=2, baselines as the MANIFEST names them:
+- multinomial-equivalence-80b1c8d4: 11 compared / 0 skipped, every channel bitwise.
+- bcf-equivalence-1b7d730c: 15 compared / 0 skipped, every channel bitwise.
+- equivalence-1b7d730c: 54 of 55 scenarios report identical draws (same RNG stream). The mover is wideFactorIndicators (155 summaries, max |z| = 3.26, one summary above 3, none above 4): a 120-level factor under factors = "indicators", whose sparse design the baseline's build answered with the marginal-sd fallback (1.818) and this one with the linear-model estimate (1.037). It is the ruled change (dec-B370) and the scenario's draws are therefore not re-recorded here; the baseline is left as it is for the orchestrator to re-record with its oracle (P17: the sigma estimate equals lm's on the dense design, test-indicator-storage.R).
+- The four seeded-drift snapshot files pass on the reference build.
+
+Item 3 and the sparse QR of item 11 are checked against the dense and tree-replay results in test-hazard.R and test-indicator-storage.R.
 
 ## Verification
 
