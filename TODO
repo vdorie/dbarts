@@ -339,11 +339,6 @@ items
     read (model.hpp's readRange and restoreScale set range 1 with min
     left at c; chain.hpp and combiner.hpp read the pair). Draws change
     for constant responses only. Engine batch.
-  treatsens-default-chains: before 1.0-0 (dec-B387, VD 2026-10-08). On
-    treatSens's dbarts-1.0 branch, the null treatment model's pdbart
-    calls (R/treatSensBART.R) drop n.chains = 1L, taking the default
-    chains on threads with n.samples = ceiling(nsim / n.chains) per
-    chain. cibart keeps one chain (dec-B395).
   treatsens-cibart-chains: after 1.0-0, on treatSens's own schedule
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
