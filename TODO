@@ -341,9 +341,13 @@ items
     for constant responses only. Engine batch.
   treatsens-default-chains: before 1.0-0 (dec-B387, VD 2026-10-08). On
     treatSens's dbarts-1.0 branch, the null treatment model's pdbart
-    calls (R/treatSensBART.R) and cibart's dbartsControl (R/cibart.R)
-    drop n.chains = 1L, taking the default chains on threads with
-    n.samples = ceiling(nsim / n.chains) per chain.
+    calls (R/treatSensBART.R) drop n.chains = 1L, taking the default
+    chains on threads with n.samples = ceiling(nsim / n.chains) per
+    chain. cibart keeps one chain (dec-B395).
+  treatsens-cibart-chains: after 1.0-0, on treatSens's own schedule
+    (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
+    once per chain in parallel, each chain with its own confounder state
+    and buffers, the draws combined.
   state-install-keeps-spread: before 1.0-0 (dec-B384, VD 2026-10-08).
     setState, a copy and a reload install a drawn leaf scale as the
     state's spread in force, k re-expressed against the recipient's
