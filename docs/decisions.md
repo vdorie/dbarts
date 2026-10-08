@@ -2149,6 +2149,10 @@ Record: this register. Marked: blank. [dec-B348]
 An ordinal fit takes offset and offset.test when fitting; its predict refused one, so predict at the training rows disagreed with fitted(). Run by the triage on 2026-10-08: predict(fit, newdata, offset = o) returns draws by rows by categories, evaluating the fit's offset expression on newdata where none is given, as predict.lm does (dec-B184); ordinal fits are new in 1.0-0. Shown taking it, as probit does, recommended, against refusing offsets on ordinal fits at fit time, the maintainer on 2026-10-08: "A. Take it, as probit does (as built)." The rule: ordinal predict takes an offset as every other family's does. The alternative removed a feature the fit has. Built. Confirms that call of dec-A137. See also: [dec-A137], [dec-B184], [dec-B154].
 Record: this register. Marked: blank. [dec-B349]
 
+**pdbart takes a factor's levs by level name only**
+pdbart and pd2bart plot a fit as one predictor varies at the values levs gives; a factor predictor is plotted as a factor (dec-B175), where 0.9-34 expanded it into indicator columns and refused its name in xind. Run by the triage on 2026-10-08: levs = list(c("1", "10")) plots those levels; levs = list(1:2) stops, "'levs' for factor predictor 'g' must name its levels"; a name absent from training stops and lists it. Shown names only, recommended, as predict's newdata matches a factor by label, against reading numbers as level positions, which goes wrong in silence where the labels are numerals, the maintainer on 2026-10-08: "A. Level names only (as built)." The rule: a factor's levs are level names, a character vector or a factor; a number is refused. Built. Confirms that call of dec-A141. See also: [dec-A141], [dec-B175].
+Record: this register. Marked: blank. [dec-B350]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
