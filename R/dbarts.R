@@ -3089,7 +3089,7 @@ dbartsSampler <- setRefClass(
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
-      # a forced update's TRUE comes back invisible and an unforced update's
+      # a forced update's NULL comes back invisible and an unforced update's
       # verdict visible; a bare value here would always be visible
       if (result$visible) result$value else invisible(result$value)
     },

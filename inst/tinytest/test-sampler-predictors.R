@@ -107,6 +107,32 @@ expect_equal(as.numeric(dimSampler$data@x[, "gleep"]), numeric(n))
 
 rm(dimTrain, dimControl, dimSampler, n, namedX, unnamedX, xBefore, accepted)
 
+# dec-B310: a forced update returns NULL invisibly, whole matrix or column, by
+# position or by name; an unforced one says whether a valid update was made
+forcedSampler <- dbarts::dbarts(y ~ x + z, train, test, control = control)
+xHeld <- cbind(x = train$x, z = train$z)
+forced <- withVisible(forcedSampler$setPredictor(xHeld, forceUpdate = TRUE))
+expect_null(forced$value)
+expect_false(forced$visible)
+forced <- withVisible(forcedSampler$setPredictor(
+  xHeld[, 1L],
+  column = 1L,
+  forceUpdate = TRUE
+))
+expect_null(forced$value)
+expect_false(forced$visible)
+forced <- withVisible(forcedSampler$setPredictor(
+  xHeld[, "z"],
+  column = "z",
+  forceUpdate = TRUE
+))
+expect_null(forced$value)
+expect_false(forced$visible)
+unforced <- withVisible(forcedSampler$setPredictor(xHeld, forceUpdate = FALSE))
+expect_identical(unforced$value, TRUE)
+expect_true(unforced$visible)
+rm(forcedSampler, xHeld, forced, unforced)
+
 
 # test that dbarts sampler shallow/deep copies
 ## train, test defined above

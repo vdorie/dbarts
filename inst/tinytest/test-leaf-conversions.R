@@ -818,7 +818,7 @@ expect_identical(keptDraws(sampler), before)
 expect_silent(sampler$setOffset(NULL, updateScale = FALSE))
 expect_identical(keptDraws(sampler), before)
 # and so are the predictor calls, which name what they change
-expect_true(sampler$setPredictor(x[, 1L] / 2, 1L, forceUpdate = TRUE))
+expect_null(sampler$setPredictor(x[, 1L] / 2, 1L, forceUpdate = TRUE))
 expect_silent(sampler$setCutPoints(seq(0.1, 0.4, by = 0.1), 1L))
 expect_identical(dim(sampler$predict(x.new)), c(40L, 3L, 2L))
 expect_true(all(is.finite(sampler$run(0L, 2L)$train)))
