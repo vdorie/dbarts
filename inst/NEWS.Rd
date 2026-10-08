@@ -103,6 +103,12 @@
             a \code{weights} vector of the wrong length is an error rather
             than recycled, and negative or non-finite weights are refused
             everywhere.
+      \item Posterior predictive draws follow the case weights on gaussian,
+            Student-t and \code{aft} fits (a row's noise sd is sigma over
+            the square root of its weight; 0.9-34 used sigma at every row).
+            A training row at weight 0 draws as an ordinary observation, at
+            weight 1, and \code{predict(type = "ppd", weights = 0)} is
+            refused, saying to pass 1.
       \item Split probabilities. \code{split.probs} with a negative or
             non-finite entry, or with no positive entry, is refused, as
             \code{sample(prob = )} refuses such weights; 0.9-34 turned a

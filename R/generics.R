@@ -859,6 +859,18 @@ predict.bart <- function(
         call. = FALSE
       )
     }
+    # a weight of 0 holds a training row out of the fit; a new observation
+    # at that weight has no noise scale, so the caller says what it is
+    if (any(observed == 0)) {
+      stop(
+        "the posterior predictive 'weights' of a ",
+        fitFamily(object),
+        " fit cannot be 0, which holds a training row out of the fit and ",
+        "gives a new observation no noise scale; pass 1 for an ordinary ",
+        "observation",
+        call. = FALSE
+      )
+    }
   }
 
   if (type == "forest") {
@@ -1290,6 +1302,12 @@ extract.bart <- function(
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
   weights <- if (sample == "train") object$weights else object$weights.test
+  # a row at weight 0 is held out of the fit, and its posterior predictive is
+  # an ordinary observation, drawn at weight 1 (dec-B372); a binary fit's
+  # weights are trial counts and stay as they are
+  if (!is.null(weights) && !fitIsBinary(object)) {
+    weights[which(weights == 0)] <- 1
+  }
 
   result <- combineOrUncombineChains(result, n.chains, combineChains)
 

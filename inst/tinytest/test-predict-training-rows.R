@@ -149,3 +149,46 @@ expect_error(
   survivalProbabilities(fit.aft.bare, times, offset = 1:3),
   "one per training row"
 )
+
+# a training row at weight 0 draws its posterior predictive as an ordinary
+# observation, at weight 1 (dec-B372); predict refuses a weight of 0 by name
+w <- rep(c(0, 1, 4), length.out = n)
+fit.w <- suppressWarnings(bart(
+  x,
+  df$y,
+  weights = w,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 2L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+counted <- function(expr) {
+  seen <- 0L
+  value <- withCallingHandlers(
+    expr,
+    warning = function(cond) {
+      seen <<- seen + 1L
+      invokeRestart("muffleWarning")
+    }
+  )
+  list(value = value, warnings = seen)
+}
+set.seed(8)
+ppd.w <- counted(extract(fit.w, "ppd"))
+expect_identical(ppd.w$warnings, 0L)
+expect_false(anyNA(ppd.w$value))
+fitted.w <- counted(fitted(fit.w, type = "ppd"))
+expect_identical(fitted.w$warnings, 0L)
+expect_false(anyNA(fitted.w$value))
+# a weight-0 row draws with the spread of weight 1: the same noise scale
+# as a weight-1 row of the same fit
+spread <- apply(ppd.w$value - extract(fit.w, "ev"), 2L, sd)
+expect_true(abs(mean(spread[w == 0]) - mean(spread[w == 1])) < 0.5 * mean(spread[w == 1]))
+expect_error(
+  predict(fit.w, x, type = "ppd", weights = c(0, rep(1, n - 1L))),
+  "pass 1 for an ordinary observation"
+)
+expect_false(anyNA(predict(fit.w, x, type = "ppd", weights = rep(1, n))))
