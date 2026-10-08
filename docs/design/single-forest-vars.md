@@ -57,9 +57,10 @@ the first forest of two used to be refused there for not naming the columns it m
 forests of a multinomial fit all take the one list
 ([`MultinomialForestSpec`](../../src/bartcore/combiner.hpp)).
 
-A hazard fit's design carries a `period` column the caller did not supply. It stays allowed whatever `vars`
-names: `vars` restricts the caller's columns, and a discrete-time hazard that cannot vary over periods is not
-the model asked for.
+A hazard fit's design carries a `period` column the caller did not supply. It stays allowed in every forest
+whatever that forest's `vars` names (dec-B365; until 2026-10-08 a fit of several forests took each `vars` as
+written): `vars` restricts the caller's columns, and a discrete-time hazard that cannot vary over periods is
+not the model asked for. A forest constant over time has no spelling.
 
 ## Why not zeros in the split probabilities
 

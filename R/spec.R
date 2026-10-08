@@ -721,14 +721,18 @@ resolveSamplerSpec <- function(
   # path is byte-for-byte unchanged. The partition covers the columns the
   # first forest may split on.
   #
-  # Those columns are the first forest's 'vars', resolved once, here. On a
-  # single forest a hazard fit's own period column, which rides last and which
-  # the caller did not supply, stays allowed whatever 'vars' names.
-  firstColumns <- resolveForestVars(firstForest$vars, data)
-  singleForest <- is.null(declaredBases)
-  if (singleForest && !is.null(firstColumns) && !is.null(hazardPeriods)) {
-    firstColumns <- union(firstColumns, ncol(data@x))
+  # Those columns are the first forest's 'vars', resolved once, here. A
+  # hazard fit's own period column, which rides last and which the caller did
+  # not supply, stays allowed in every forest whatever its 'vars' names.
+  withPeriod <- function(columns) {
+    if (is.null(columns) || is.null(hazardPeriods)) {
+      columns
+    } else {
+      union(columns, ncol(data@x))
+    }
   }
+  firstColumns <- withPeriod(resolveForestVars(firstForest$vars, data))
+  singleForest <- is.null(declaredBases)
   blockSpec <- resolveBlocks(
     blocks,
     data,
@@ -1072,7 +1076,7 @@ resolveSamplerSpec <- function(
         if (index == 1L) {
           firstColumns
         } else {
-          resolveForestVars(specs[[index]]$vars, data)
+          withPeriod(resolveForestVars(specs[[index]]$vars, data))
         }
       }
     )

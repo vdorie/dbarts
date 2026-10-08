@@ -118,12 +118,10 @@ forest(
     lays its Dirichlet over the named columns, every other column reporting
     probability 0, and \code{split.probs} keeps its ratios among the named
     columns and must give one of them a positive probability (see
-    \code{\link{dbartsPriors}}). On the single forest of a hazard fit the
+    \code{\link{dbartsPriors}}). On every forest of a hazard fit the
     \code{period} column the fit appends is always allowed, named or not:
-    \code{vars} restricts the columns the caller supplied. A hazard fit with
-    several forests takes each forest's \code{vars} as written, so a
-    restricted forest there splits on \code{period} only when \code{vars}
-    names it. The restriction holds for the sampler's
+    \code{vars} restricts the columns the caller supplied. The restriction
+    holds for the sampler's
     life; \code{$setModel} refuses a model that states another, or none.
   }
   \item{basis}{

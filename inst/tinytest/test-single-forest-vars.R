@@ -405,9 +405,10 @@ expect_identical(attr(hazard$model, "forest.columns"), c(1L, 2L, 4L))
 hazardSplits <- splits(hazard$run(0L, 200L))
 expect_identical(unname(hazardSplits[3L]), 0)
 expect_true(hazardSplits[4L] > 0)
-# with several forests each forest's 'vars' is taken as written: period is
-# split on only where it is named
-hazardFirstForest <- function(vars) {
+# with several forests each forest's 'vars' is taken as written for the
+# columns the caller supplied, and period stays allowed in every forest
+# whatever its 'vars' names
+hazardForests <- function(vars, basisVars = NULL) {
   set.seed(7L)
   fit <- dbarts(
     x,
@@ -415,18 +416,22 @@ hazardFirstForest <- function(vars) {
     family = "hazard",
     forests = list(
       forest(vars = vars),
-      forest(basis = rep_len(c(0, 1), sum(time)))
+      forest(vars = basisVars, basis = rep_len(c(0, 1), sum(time)))
     ),
     control = control
   )
-  apply(fit$run(0L, 200L)$varcount, 1:2, sum)[, 1L]
+  apply(fit$run(0L, 200L)$varcount, 1:2, sum)
 }
-unnamedPeriod <- hazardFirstForest(allowed)
-expect_true(all(unnamedPeriod[3:4] == 0))
-expect_true(all(unnamedPeriod[1:2] > 0))
-namedPeriod <- hazardFirstForest(c("a", "period"))
+unnamedPeriod <- hazardForests(allowed)[, 1L]
+expect_true(unnamedPeriod[3L] == 0)
+expect_true(all(unnamedPeriod[c(1:2, 4L)] > 0))
+namedPeriod <- hazardForests(c("a", "period"))[, 1L]
 expect_true(all(namedPeriod[2:3] == 0))
 expect_true(all(namedPeriod[c(1L, 4L)] > 0))
+# and a restricted basis forest splits on period too
+bothRestricted <- hazardForests(allowed, "a")
+expect_true(all(bothRestricted[2:3, 2L] == 0))
+expect_true(all(bothRestricted[c(1L, 4L), 2L] > 0))
 
 # ---- beside the other constraints -------------------------------------------
 
