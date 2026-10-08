@@ -2886,14 +2886,10 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setCategoryTestOffset = function(offset.test, updateState = NULL) {
-      "Installs, or at NULL clears, a multinomial sampler's nTest x K category test offset: the recorded test channel becomes softmax(f_test + o_test), formed where the train blend forms softmax(f + o). The test fits enter no likelihood, so this moves the reported test probabilities and nothing else - no draw, no working response, no train channel. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted; clear it first. Out-of-sample predict does not read it at all, taking its own matrix for the rows it is given. Mirrored into data@offset.category.test, so a re-created sampler carries it. updateState follows control@updateState; see setData."
-      updateState <- checkUpdateState(updateState)
+    setCategoryTestOffset = function(offset.test) {
+      "Installs, or at NULL clears, a multinomial sampler's nTest x K category test offset: the recorded test channel becomes softmax(f_test + o_test), formed where the train blend forms softmax(f + o). The test fits enter no likelihood, so this moves the reported test probabilities and nothing else - no draw, no working response, no train channel. Its rows are the CURRENT test rows, so replacing those rows while it is installed is refused rather than silently reinterpreted; clear it first. Out-of-sample predict does not read it at all, taking its own matrix for the rows it is given. Mirrored into data@offset.category.test, so a re-created sampler carries it."
       requireCountsCapability(.self, "$setCategoryTestOffset")
-      ptr <- bartcoreSamplerSetCategoryTestOffset(.self, offset.test)
-      if (resolveUpdateState(updateState, control)) {
-        storeState(ptr)
-      }
+      bartcoreSamplerSetCategoryTestOffset(.self, offset.test)
       invisible(NULL)
     },
     setActiveRows = function(active, updateState = NULL) {

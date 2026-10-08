@@ -1639,7 +1639,7 @@ zeroOffsetW <- matrix(0, nrow(xTestW), KW)
 withTrain <- multinomialW()
 withTrain$setCategoryOffset(trainOffsetW, updateState = FALSE)
 withTest <- multinomialW()
-withTest$setCategoryTestOffset(testOffsetW, updateState = FALSE)
+withTest$setCategoryTestOffset(testOffsetW)
 for (sampler in list(withTrain, withTest)) {
   invisible(sampler$run(3L, 4L))
   expect_error(

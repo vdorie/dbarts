@@ -2181,7 +2181,7 @@ bart2Multinomial <- function(
   }
   testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
   if (!is.null(testOffset)) {
-    sampler$setCategoryTestOffset(testOffset, updateState = FALSE)
+    sampler$setCategoryTestOffset(testOffset)
   }
   if (isTRUE(samplerOnly)) {
     return(sampler)
@@ -2285,7 +2285,7 @@ bart2MultinomialCounts <- function(
   }
   testOffset <- resolveMultinomialTestOffset(sampler, offset, offset.test)
   if (!is.null(testOffset)) {
-    sampler$setCategoryTestOffset(testOffset, updateState = FALSE)
+    sampler$setCategoryTestOffset(testOffset)
   }
   if (isTRUE(samplerOnly)) {
     return(sampler)

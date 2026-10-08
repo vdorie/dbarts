@@ -75,7 +75,7 @@ buildSamplerTestOffset <- function(
     sampler$setCategoryOffset(offset, updateState = FALSE)
   }
   if (!is.null(offset.test)) {
-    sampler$setCategoryTestOffset(offset.test, updateState = FALSE)
+    sampler$setCategoryTestOffset(offset.test)
   }
   sampler
 }
@@ -99,7 +99,7 @@ parityArmTestOffset <- function(build, swap, n.chains = 1L) {
   set.seed(4242)
   sampler <- buildSamplerTestOffset(offset, build, n.chains)
   if (!is.null(swap)) {
-    sampler$setCategoryTestOffset(swap, updateState = FALSE)
+    sampler$setCategoryTestOffset(swap)
   }
   recordChannelsTestOffset(sampler, sampler$run(20L, 8L))
 }
@@ -137,7 +137,7 @@ expect_identical(arm.zero$train, arm.none$train)
 
 set.seed(4242)
 sampler.cleared <- buildSamplerTestOffset(offset, testOffset)
-sampler.cleared$setCategoryTestOffset(NULL, updateState = FALSE)
+sampler.cleared$setCategoryTestOffset(NULL)
 expect_identical(
   sampler.cleared$run(20L, 8L)$test,
   arm.none$test
@@ -145,7 +145,7 @@ expect_identical(
 
 set.seed(4242)
 sampler.zeroswap <- buildSamplerTestOffset(offset, NULL)
-sampler.zeroswap$setCategoryTestOffset(zeroTestOffset, updateState = FALSE)
+sampler.zeroswap$setCategoryTestOffset(zeroTestOffset)
 expect_identical(
   sampler.zeroswap$run(20L, 8L)$test,
   arm.none$test
@@ -296,6 +296,13 @@ expect_error(
 # and clearing on such a sampler is a no-op rather than an error
 expect_silent(sampler.notest$setCategoryTestOffset(NULL))
 
+# test data are not sampler state: like the other test-data setters, this one
+# has no updateState argument (dec-B374), so R's own error answers one
+expect_error(
+  sampler.notest$setCategoryTestOffset(NULL, updateState = FALSE),
+  "unused argument"
+)
+
 # a refusal leaves the sampler byte-identical: the entrance validates a whole
 # scratch copy and swaps it in only once it holds, because the combiner borrows
 # the installed buffer and an in-place write would BE the mutation
@@ -307,7 +314,7 @@ refusalArmTestOffset <- function(attempt) {
   } else {
     tryCatch(
       {
-        sampler$setCategoryTestOffset(attempt, updateState = FALSE)
+        sampler$setCategoryTestOffset(attempt)
         NA_character_
       },
       error = conditionMessage
@@ -347,7 +354,7 @@ expect_error(
   ),
   "clear it"
 )
-sampler.resident$setCategoryTestOffset(NULL, updateState = FALSE)
+sampler.resident$setCategoryTestOffset(NULL)
 expect_silent(
   sampler.resident$setTestPredictor(x[seq_len(nTest) + nTest, ])
 )
@@ -705,8 +712,7 @@ sampler.nm$setCategoryOffset(
 )
 expect_identical(sampler.nm$data@offset.category[, "p"], offset[, 1L])
 sampler.nm$setCategoryTestOffset(
-  named(testOffset[, rev3], c("r", "q", "p")),
-  updateState = FALSE
+  named(testOffset[, rev3], c("r", "q", "p"))
 )
 expect_identical(
   unname(sampler.nm$data@offset.category.test[, "q"]),
@@ -734,8 +740,7 @@ sampler.ix$setCategoryOffset(
 )
 expect_equivalent(sampler.ix$data@offset.category, offset)
 sampler.ix$setCategoryTestOffset(
-  named(testOffset, c("a", "b", "c")),
-  updateState = FALSE
+  named(testOffset, c("a", "b", "c"))
 )
 expect_equivalent(sampler.ix$data@offset.category.test, testOffset)
 
