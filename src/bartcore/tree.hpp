@@ -1087,10 +1087,12 @@ public:
     return current;
   }
 
-  /// Collapse any node with an unoccupied child, or an ordinal split the
-  /// current grid can no longer address (setCutPoints shrank the column below
+  /// Collapse any node with an unoccupied child, an ordinal split the
+  /// current grid can no longer address (the column's grid shrank below
   /// its index; missing values riding the right child keep both children
-  /// occupied so the empty-child test alone would spare it), into a leaf whose
+  /// occupied so the empty-child test alone would spare it), or, in a tree
+  /// buildFromFlat marked, an ordinal split outside the interval its ancestors
+  /// leave (splitIsOutsideInterval), into a leaf whose
   /// parameter is the effective-observation-weighted mean of its subtree's
   /// leaf parameters, for forced predictor updates. paramByNode is indexed by
   /// arena id, paramStride doubles per node, merged per coordinate; a subtree
@@ -1102,6 +1104,25 @@ public:
                           std::vector<double>& paramByNode,
                           size_t paramStride = 1) {
     collapseEmptyNodesBelow<Merge>(0, data, weights, paramByNode, paramStride);
+    holdsSplitOutsideInterval_ = false;
+  }
+
+  /// Whether the last buildFromFlat placed an ordinal split outside the
+  /// interval its ancestors leave it; cleared by collapseEmptyNodes, which
+  /// merges every such split. Only a flat tree no sampler wrote can set it.
+  bool holdsSplitOutsideInterval() const { return holdsSplitOutsideInterval_; }
+
+  /// Whether the ordinal split at \p nodeIndex sits on a position its
+  /// ancestors' splits on the same column exclude. Routing then sends the
+  /// node's present rows to one side whatever their values, and only missing
+  /// values can occupy the other.
+  bool splitIsOutsideInterval(const ColumnStore& data, int32_t nodeIndex) const {
+    const Rule& rule(at(nodeIndex).rule);
+    if (!data.splitsByThreshold(static_cast<size_t>(rule.variableIndex)))
+      return false;
+    int32_t left, right;
+    splitInterval(data, nodeIndex, rule.variableIndex, &left, &right);
+    return rule.splitIndex() < left || rule.splitIndex() > right;
   }
 
   /// An ordinal rule whose index no longer addresses a cut after the grid
@@ -1255,7 +1276,11 @@ public:
   /// route are dropped once the tree is built (dropStaleMissingDirections).
   /// A rule that split the missing value from every reachable category is
   /// then left with a side nothing reaches, which the caller's collapse
-  /// merges. Partitions are left stale (repartitionSubtree) and paramByNode
+  /// merges. An ordinal split is placed on the position holding its value
+  /// whether or not that position lies inside the interval the node's
+  /// ancestors leave; one outside marks the tree (holdsSplitOutsideInterval)
+  /// for the caller's collapse to merge. Partitions are left stale
+  /// (repartitionSubtree) and paramByNode
   /// receives leaf parameters by arena id, paramStride doubles per node -
   /// the record's value leading, then that leaf's paramStride - 1 entries of
   /// slopes (pre-order by leaf; the caller validates its length). masks is
@@ -1273,6 +1298,7 @@ public:
                      bool* directionDropped = nullptr) {
     paramByNode.clear();
     size_t pos = 0, leafPos = 0, maskPos = 0;
+    holdsSplitOutsideInterval_ = false;
     if (!buildFromFlatBelow(0, data, flatNodes, numNodes, pos, paramByNode,
                             paramStride, slopes, leafPos, masks, numMaskWords,
                             maskPos))
@@ -1444,7 +1470,9 @@ private:
 
     if (at(at(nodeIndex).leftChild).numObservations() == 0 ||
         at(at(nodeIndex).leftChild + 1).numObservations() == 0 ||
-        ruleIsUnrepresentable(data, at(nodeIndex).rule)) {
+        ruleIsUnrepresentable(data, at(nodeIndex).rule) ||
+        (holdsSplitOutsideInterval_ &&
+         splitIsOutsideInterval(data, nodeIndex))) {
       std::vector<int32_t> bottoms;
       fillBottom(nodeIndex, bottoms);
 
@@ -1625,6 +1653,11 @@ private:
       while (k < numCuts && cuts[k] < flat.value) ++k;
       if (k >= numCuts || cuts[k] != flat.value) return false;
       rule.setSplitIndex(static_cast<int32_t>(k));
+      // the ancestors are built, so the interval they leave is known
+      int32_t left, right;
+      splitInterval(data, nodeIndex, flat.variable, &left, &right);
+      if (static_cast<int32_t>(k) < left || static_cast<int32_t>(k) > right)
+        holdsSplitOutsideInterval_ = true;
       // a direction the column cannot route is dropped after the build
       if ((flat.flags & flatMissingGoesRight) != 0)
         rule.setMissingGoesRight(true);
@@ -1664,6 +1697,8 @@ private:
   }
 
   std::vector<int32_t> freePairs;
+  // set by a build from flat nodes, cleared by the collapse that merges
+  bool holdsSplitOutsideInterval_ = false;
   size_t maskPoolHighWater_ = minMaskPoolCompactionSize;
   std::vector<std::uint64_t> compactScratch_;
   // wide-reachable scratch for the compute-check-discard call sites

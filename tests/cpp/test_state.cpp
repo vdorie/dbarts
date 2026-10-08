@@ -3383,6 +3383,131 @@ static void testStaleStateMerge() {
   printf("ok: a stale state merges empty leaves on install\n");
 }
 
+/// Whether any live tree of any chain, mean or variance, holds an ordinal
+/// split outside the interval its ancestors leave.
+template <typename L>
+static bool liveTreesHoldSplitOutsideInterval(Sampler<L>& sampler) {
+  auto holds = [&](const Tree& tree) {
+    std::vector<int32_t> subtree;
+    tree.fillSubtree(0, subtree);
+    for (int32_t i : subtree)
+      if (!tree.at(i).isBottom() &&
+          tree.splitIsOutsideInterval(sampler.data(), i))
+        return true;
+    return false;
+  };
+  for (size_t c = 0; c < sampler.numChains(); ++c) {
+    auto& chain = sampler.chain(c);
+    for (size_t f = 0; f < chain.numForests(); ++f)
+      for (size_t t = 0; t < chain.numTreesInForest(f); ++t)
+        if (holds(chain.treeInForest(f, t))) return true;
+    if (chain.hasVarianceForest())
+      for (size_t j = 0; j < chain.numVarianceTrees(); ++j)
+        if (holds(chain.varianceTree(j))) return true;
+  }
+  return false;
+}
+
+/// A state no sampler writes: a tree whose root and left child split one
+/// column at one value, beside missing values that keep both sides of the
+/// child occupied. It installs with the child merged and the install
+/// reported as altered, in the mean forest and in the variance forest each
+/// alone; the same nodes on distinct values install as stored.
+static void testStackedSplitsMerge() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 90210u;
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = 4.0 * (x[i] > 0.5 ? 1.0 : 0.0) + x[i + n] + 0.2 * (runif01() - 0.5);
+  for (size_t i = 0; i < n; i += 4) x[i] = std::nan("");
+
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 4242u);
+  SamplerOptions options;
+  options.numTrees = 10;
+  options.numVarianceTrees = 4;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(30, 0, empty);
+  SamplerStateData own;
+  sampler.getState(own);
+  check(restoresExactly(sampler, own) &&
+          !liveTreesHoldSplitOutsideInterval(sampler),
+        "stacked splits: the sampler's own state installs as stored");
+
+  const std::vector<double>& cuts = own.cutPoints[0];
+  size_t middle = cuts.size() / 2;
+  auto split = [&](double value, bool missingGoesRight) {
+    FlatNode node;
+    node.variable = 0;
+    setFlatKind(node, FlatKind::ordinal);
+    node.value = value;
+    if (missingGoesRight) node.flags |= flatMissingGoesRight;
+    return node;
+  };
+  auto leaf = [](double value) {
+    FlatNode node;
+    node.value = value;
+    return node;
+  };
+  auto treeOn = [&](double childValue, double scale) {
+    return std::vector<FlatNode>{split(cuts[middle], false),
+                                 split(childValue, true), leaf(0.5 * scale),
+                                 leaf(1.5 * scale), leaf(2.0 * scale)};
+  };
+
+  SamplerStateData ordered(own);
+  ordered.chains[0].forests[0].trees[0] = treeOn(cuts[middle / 2], 0.01);
+  ordered.chains[0].varianceTrees[0] = treeOn(cuts[middle / 2], 1.0);
+  check(restoresExactly(sampler, ordered),
+        "stacked splits: distinct values in order install as stored");
+
+  SamplerStateData meanStacked(ordered), varianceStacked(ordered);
+  meanStacked.chains[0].forests[0].trees[0] = treeOn(cuts[middle], 0.01);
+  varianceStacked.chains[0].varianceTrees[0] = treeOn(cuts[middle], 1.0);
+  SamplerStateData restored;
+  bool meanAltered = restoresAltered(sampler, meanStacked);
+  sampler.getState(restored);
+  check(meanAltered && restored.chains[0].forests[0].trees[0].size() == 3 &&
+          restored.chains[0].varianceTrees[0].size() == 5 &&
+          !liveTreesHoldSplitOutsideInterval(sampler) &&
+          liveTreesAreOccupied(sampler),
+        "stacked splits: the mean tree's child is merged, reported altered");
+  check(restoresExactly(sampler, restored),
+        "stacked splits: the merged state installs as stored");
+  bool varianceAltered = restoresAltered(sampler, varianceStacked);
+  sampler.getState(restored);
+  check(varianceAltered && restored.chains[0].varianceTrees[0].size() == 3 &&
+          restored.chains[0].forests[0].trees[0].size() == 5 &&
+          !liveTreesHoldSplitOutsideInterval(sampler) &&
+          liveTreesAreOccupied(sampler),
+        "stacked splits: the variance tree's child is merged, reported altered");
+
+  // a same-grid warm start merges it too
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  check(sampler.installForests(meanStacked, liveMap) == WarmStartResult::ok &&
+          !liveTreesHoldSplitOutsideInterval(sampler) &&
+          liveTreesAreOccupied(sampler),
+        "stacked splits: a warm start from the state merges the child");
+
+  sampler.run(5, 0, empty);
+  SamplerStateData after;
+  sampler.getState(after);
+  bool finite = true;
+  for (const std::vector<FlatNode>& tree : after.chains[0].forests[0].trees)
+    for (const FlatNode& node : tree) finite = finite && std::isfinite(node.value);
+  check(finite && restoresExactly(sampler, after),
+        "stacked splits: the sampler runs on and restores itself as stored");
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: a state stacking two splits on one value installs merged\n");
+}
+
 /// Sampler::setState's altered flag, one cause at a time on states that
 /// differ from an exact one in that cause alone: a merge in the variance
 /// trees only and in the mean trees only, a direction dropped from a mean
@@ -3771,6 +3896,7 @@ void runStateTests(ext_rng* rng) {
   testVarianceWarmStartSlot();
   testStaleStateMerge();
   testRestoreStatus();
+  testStackedSplitsMerge();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

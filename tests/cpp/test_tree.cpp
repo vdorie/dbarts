@@ -827,6 +827,117 @@ static void testRuleMassByColumnKind() {
   printf("ok: rule mass by column kind\n");
 }
 
+/// A flat tree no sampler writes: a parent and its left child split one
+/// column at one value. Beside missing values both sides of the child stay
+/// occupied - the parent sends them left with the present rows at or below
+/// the value, the child sends them right - so the empty-side test spares it.
+/// The build marks the tree, the collapse merges the child and clears the
+/// mark, and the same nodes on distinct values in order build unmarked.
+static void testBuildOutsideInterval() {
+  const size_t n = 90;
+  std::vector<double> x(n);
+  size_t numMissing = 0, numAtOrBelow = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (i % 3 == 0) { x[i] = std::nan(""); ++numMissing; }
+    else x[i] = static_cast<double>(i) / static_cast<double>(n);
+  }
+  ColumnKind types[] = {ColumnKind::numeric};
+  ColumnStore store;
+  built(store.build(x.data(), n, 1, 10, false, types));
+  const std::vector<double>& cuts = store.cutPoints[0];
+  for (size_t i = 0; i < n; ++i)
+    if (!isNA(x[i]) && x[i] <= cuts[4]) ++numAtOrBelow;
+
+  auto split = [&](double value, bool missingGoesRight) {
+    FlatNode node;
+    node.variable = 0;
+    setFlatKind(node, FlatKind::ordinal);
+    node.value = value;
+    if (missingGoesRight) node.flags |= flatMissingGoesRight;
+    return node;
+  };
+  auto leaf = [](double value) {
+    FlatNode node;
+    node.value = value;
+    return node;
+  };
+  // pre-order: parent, its left child, that child's leaves, the right leaf
+  std::vector<FlatNode> stacked = {split(cuts[4], false), split(cuts[4], true),
+                                   leaf(1.0), leaf(3.0), leaf(7.0)};
+
+  std::vector<index_t> indices(n);
+  Tree tree;
+  tree.initialize(indices.data(), n);
+  std::vector<double> params;
+  check(tree.buildFromFlat(store, stacked.data(), stacked.size(), params) &&
+          tree.holdsSplitOutsideInterval(),
+        "a child stacked on its parent's value builds, marked");
+  int32_t child = tree.at(0).leftChild;
+  check(!tree.splitIsOutsideInterval(store, 0) &&
+          tree.splitIsOutsideInterval(store, child),
+        "the child is the split outside its interval, the parent is not");
+  tree.repartitionSubtree(store, 0);
+  check(tree.bottomNodesAreOccupied() &&
+          tree.at(tree.at(child).leftChild).numObservations() == numAtOrBelow &&
+          tree.at(tree.at(child).leftChild + 1).numObservations() == numMissing,
+        "missing values keep both sides of the stacked child occupied");
+  tree.collapseEmptyNodes(store, nullptr, params);
+  check(!tree.holdsSplitOutsideInterval() && !tree.at(0).isBottom() &&
+          tree.at(tree.at(0).leftChild).isBottom() &&
+          tree.at(tree.at(0).leftChild + 1).isBottom(),
+        "the collapse merges the stacked child and clears the mark");
+  double merged = (1.0 * static_cast<double>(numAtOrBelow) +
+                   3.0 * static_cast<double>(numMissing)) /
+    static_cast<double>(numAtOrBelow + numMissing);
+  check(std::fabs(params[static_cast<size_t>(tree.at(0).leftChild)] - merged) <
+          1e-12 &&
+          params[static_cast<size_t>(tree.at(0).leftChild) + 1] == 7.0,
+        "the merged leaf is the row-weighted mean of the two it replaces");
+  std::vector<FlatNode> flat;
+  tree.flatten(store, params.data(), flat);
+  check(flat.size() == 3 && flat[0].value == cuts[4] &&
+          flat[1].variable == invalidVariable &&
+          flat[2].variable == invalidVariable,
+        "flattened again, no split lies outside its interval");
+
+  // a marked tree whose collapse was never run is unmarked by the next build
+  std::vector<FlatNode> ordered = {split(cuts[4], false), split(cuts[2], true),
+                                   leaf(1.0), leaf(3.0), leaf(7.0)};
+  std::vector<index_t> indices2(n);
+  Tree scratch;
+  scratch.initialize(indices2.data(), n);
+  check(scratch.buildFromFlat(store, stacked.data(), stacked.size(), params) &&
+          scratch.holdsSplitOutsideInterval(),
+        "a scratch build of the stacked tree is marked");
+  scratch.initialize(indices2.data(), n);
+  check(scratch.buildFromFlat(store, ordered.data(), ordered.size(), params) &&
+          !scratch.holdsSplitOutsideInterval(),
+        "the same nodes on distinct values in order build unmarked");
+  scratch.repartitionSubtree(store, 0);
+  scratch.collapseEmptyNodes(store, nullptr, params);
+  std::vector<FlatNode> orderedFlat;
+  scratch.flatten(store, params.data(), orderedFlat);
+  check(orderedFlat.size() == 5 && orderedFlat[1].value == cuts[2],
+        "and the collapse leaves them as built");
+
+  // a right child at or below its parent, and a left child above it
+  std::vector<FlatNode> below = {split(cuts[4], false), leaf(1.0),
+                                 split(cuts[3], true), leaf(3.0), leaf(7.0)};
+  std::vector<FlatNode> above = {split(cuts[4], false), split(cuts[6], true),
+                                 leaf(1.0), leaf(3.0), leaf(7.0)};
+  scratch.initialize(indices2.data(), n);
+  bool belowMarked =
+    scratch.buildFromFlat(store, below.data(), below.size(), params) &&
+    scratch.holdsSplitOutsideInterval();
+  scratch.initialize(indices2.data(), n);
+  bool aboveMarked =
+    scratch.buildFromFlat(store, above.data(), above.size(), params) &&
+    scratch.holdsSplitOutsideInterval();
+  check(belowMarked && aboveMarked,
+        "a child on the far side of its parent's value is marked on each side");
+  printf("ok: a build marks a split outside its interval\n");
+}
+
 void runTreeTests(ext_rng* rng) {
   testTreeMechanics();
   testTreePriorMath();
@@ -834,6 +945,7 @@ void runTreeTests(ext_rng* rng) {
   testCategoricalPriorMath(rng);
   testPooledMaskMechanics(rng);
   testMissingMechanics();
+  testBuildOutsideInterval();
   testMappedSourceReplay();
   testRuleMassByColumnKind();
 }

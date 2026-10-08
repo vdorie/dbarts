@@ -4426,12 +4426,15 @@ public:
   /// predictors changed after it was drawn) is merged as forceRefreshTrees
   /// merges it: constant and vector leaves take the weighted mean of the
   /// subtree they replace, function leaves keep their per-observation fits,
-  /// and a monotone tree the merge takes out of the cone is reseeded. A tree
-  /// whose bottoms are all occupied is installed exactly.
+  /// and a monotone tree the merge takes out of the cone is reseeded. A split
+  /// the flat tree holds outside the interval its ancestors leave (two splits
+  /// stacked on one value, which no sampler writes) is merged by the same
+  /// pass, whether or not missing values keep both its sides occupied. Any
+  /// other tree is installed exactly.
   ///
   /// altered, when non-null, is set if any tree was installed other than as
-  /// its flat form holds it - a bottom merged, a missing direction dropped -
-  /// and is never cleared.
+  /// its flat form holds it - a bottom merged, a split outside its interval
+  /// merged, a missing direction dropped - and is never cleared.
   bool rebuildLiveForest(size_t f, const ForestStateData& fs,
                          std::vector<double>& params,
                          bool* altered = nullptr) {
@@ -4461,7 +4464,8 @@ public:
           return false;
       }
       forest.trees[t].repartitionSubtree(data_, 0);
-      if (!forest.trees[t].bottomNodesAreOccupied()) {
+      if (!forest.trees[t].bottomNodesAreOccupied() ||
+          forest.trees[t].holdsSplitOutsideInterval()) {
         forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                            params, paramStride);
         if (altered != nullptr) *altered = true;
@@ -5626,9 +5630,9 @@ private:
   /// each tree, scatter its positive leaf factors to the per-observation slab
   /// through the restored partition, then recompute s^2(x) as the product. A
   /// bottom no row of the current data reaches is merged into its parent with
-  /// the geometric mean, as refreshVarianceForest merges it; a tree whose
-  /// bottoms are all occupied is installed exactly. altered is
-  /// rebuildLiveForest's.
+  /// the geometric mean, as refreshVarianceForest merges it, and so is a
+  /// split outside its interval; any other tree is installed exactly. altered
+  /// is rebuildLiveForest's.
   bool rebuildVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
       const std::vector<std::vector<std::uint64_t>>& masks,
@@ -5649,7 +5653,8 @@ private:
                               altered))
         return false;
       tree.repartitionSubtree(data_, 0);
-      if (!tree.bottomNodesAreOccupied()) {
+      if (!tree.bottomNodesAreOccupied() ||
+          tree.holdsSplitOutsideInterval()) {
         tree.collapseEmptyNodes<GeometricMerge>(
           data_, response_->workingWeights(), leafValues);
         if (altered != nullptr) *altered = true;
