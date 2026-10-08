@@ -665,6 +665,9 @@ bartcoreSamplerSetPredictor <- function(
   } else {
     coerceOrError(forceUpdate, "logical")
   }
+  if (length(forceUpdate) != 1L || is.na(forceUpdate)) {
+    stop("'forceUpdate' must be TRUE, FALSE or \"partial\"")
+  }
   updateCutPoints <- coerceOrError(updateCutPoints, "logical")
 
   # no BCF pre-check here either: a transactional whole-matrix or column

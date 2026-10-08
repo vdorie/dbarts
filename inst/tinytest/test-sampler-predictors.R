@@ -131,6 +131,17 @@ expect_false(forced$visible)
 unforced <- withVisible(forcedSampler$setPredictor(xHeld, forceUpdate = FALSE))
 expect_identical(unforced$value, TRUE)
 expect_true(unforced$visible)
+# a forceUpdate that is neither TRUE, FALSE nor "partial" is refused by name
+expect_error(
+  forcedSampler$setPredictor(xHeld, forceUpdate = NA),
+  "'forceUpdate' must be TRUE, FALSE or \"partial\"",
+  fixed = TRUE
+)
+expect_error(
+  forcedSampler$setPredictor(xHeld[, 1L], 1L, forceUpdate = NA),
+  "'forceUpdate' must be TRUE, FALSE or \"partial\"",
+  fixed = TRUE
+)
 rm(forcedSampler, xHeld, forced, unforced)
 
 
