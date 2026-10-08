@@ -218,7 +218,8 @@
             default, and \code{verbose = FALSE} silences it.
       \item \code{n.threads} keeps its meaning as a total thread budget, but
             each chain samples on one thread, and \code{dbartsControl}'s
-            default is now \code{min(guessNumCores(), n.chains)}.
+            default is now \code{min(guessNumCores(), n.chains)}, or one
+            where \code{guessNumCores()} is \code{NA}.
             \code{bart} and \code{dbarts} warn when \code{n.threads} exceeds
             \code{n.chains}; the extra threads serve test fits and
             \code{predict} only.
