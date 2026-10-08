@@ -12,11 +12,15 @@ rng: by fit and by call.
   its `n.cuts` evenly spaced points resolve, and a column with one finite value beside missing values
   or `Inf`; under the quantile rule a column where two of the chosen midpoints round to one double.
   The tree prior over that column's thresholds changes.
-- POSTERIOR-CHANGING after `setPredictor(updateCutPoints = TRUE)` wherever the refreshed grid differs
-  from today's: the count a column held is no longer kept (a column created with few distinct values
-  under the quantile rule; a grid set by `setCutPoints` or brought by a state at another length), a
-  refresh onto too few distinct values shrinks where it failed or kept the old grid, and a refreshed
-  grid drops repeats.
+- POSTERIOR-CHANGING after a refresh, `setPredictor(updateCutPoints = "position")` or the logical
+  `TRUE` it replaces, wherever the refreshed grid differs from today's: the count a column held is no
+  longer kept (a column created with few distinct values under the quantile rule; a grid set by
+  `setCutPoints` or brought by a state at another length), a refresh onto too few distinct values
+  shrinks where it failed or kept the old grid, and a refreshed grid drops repeats. Where the count
+  changes each split's position is rescaled (rule 6). A refresh whose count does not change keeps
+  every position and is NEUTRAL, bit for bit.
+- New surface: `updateCutPoints = "value"` moves each split to the point nearest its old threshold.
+  No call of the base build reaches it.
 - NEUTRAL, bit for bit, for every other fit and call. That includes a column of few distinct values
   that are far apart (a 0/1 column under the uniform rule keeps its `n.cuts` distinct points), a
   constant column under the quantile rule (one point already), and a constant column with no missing
@@ -205,9 +209,36 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
    empty one ([`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp)); it is tested here, not
    edited.
 
-What the rulings leave open is under Calls made in planning; the two that shape the build are how a
-rule's points are counted (call 2) and what a refresh that changes a column's count does to the splits
-on it (call 3).
+6. The maintainer on 2026-10-08, asked where the splits already in the trees go when a refresh
+   re-derives a grid (the ledger id is added at landing): "Why not let it be an option? Defaulting to
+   value.", and a minute later: "Oh, wait a sec, keep the default at relative so it stays the same
+   as 0.9-34." On the spelling: "given that if it were an argument, it would only make sense if
+   `updateCutPoints` was `TRUE`, it should probably be the value of the existing argument", "Sure,
+   \"none\", \"position\", and \"value\" works for me." and "If `updateCutPoints` is a logical, a
+   one-time warning should be issued, scheduled for removal in 1.1-0." The rule, which replaces call 3:
+   - `updateCutPoints` is one of `"none"` (the default: the grid is kept), `"position"` and `"value"`.
+   - `"position"`: each split keeps its fraction of the grid. With the count unchanged the position
+     is kept, bit for bit what `TRUE` did in 0.9-34 and does on the base build. With the count
+     changed the position is rescaled to the new count; it is not kept as an index and nothing is
+     dropped for being past the end.
+   - `"value"`: each split on a refreshed column moves to the new point nearest its old threshold,
+     inside the interval its ancestors leave, an empty interval merged: the move `setData` and a warm
+     start make ([`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp)).
+   - Under either word an unforced refresh the trees cannot hold after the move returns `FALSE` with
+     the column, the grid and the trees as they were; a forced one merges what cannot stand.
+   - A logical is taken until 1.1-0 with a warning once per session, `TRUE` as `"position"` and
+     `FALSE` as `"none"`; `NA` and anything else is refused by name.
+   - `setCutPoints` is not covered: it keeps positions and merges a split past a shorter grid, as
+     today. Open.
+
+   ```r
+   s$setPredictor(x, 2L, updateCutPoints = "position")   # TRUE's rule
+   s$setPredictor(x, 2L, updateCutPoints = "value")      # splits follow their thresholds
+   s$setPredictor(x, 2L, updateCutPoints = TRUE)         # "position", with a warning once
+   ```
+
+What the rulings leave open is under Calls made in planning and Calls made in building; the one of
+planning that shapes the build is how a rule's points are counted (call 2).
 
 ## Constraints
 
@@ -224,7 +255,8 @@ on it (call 3).
 - A refusal leaves the sampler, its stored state and its generators as they were.
 - The line the mutation battery anchors in [`runPredictorTransaction`](../../src/bartcore/sampler.hpp)
   stays as it is.
-- No R argument is added. `setCutPoints` keeps dec-B285's sort and refusal.
+- No R argument is added: `updateCutPoints` takes three words where it took a logical (rule 6).
+  `setCutPoints` keeps dec-B285's sort and refusal.
 
 ## Steps
 
@@ -252,11 +284,25 @@ on it (call 3).
    [`cscColumnIsDegenerate`](../../src/bartcore/data.hpp) go if nothing else reads them.
    [`WholeMatrixUpdate`](../../src/bartcore/sampler.hpp) and
    [`SubsetUpdate`](../../src/bartcore/sampler.hpp) snapshot and put back the counts with the points.
+   The splits (rule 6, amended 2026-10-08; the check for a rule past a grid that this step first
+   named is not built, no refresh leaving one). The engine's two predictor entries take the rule as
+   a value in place of the flag: none, position or value.
+   [`runPredictorTransaction`](../../src/bartcore/sampler.hpp) keeps the old grid of each column the
+   move concerns - under position one whose count changed, under value one whose grid changed - and
+   hands them to the chains; with none to hand, the path is today's.
+   [`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp) takes the rule and skips a column
+   with no old grid; under position the target of position i of n on a grid of m is
+   floor((2 i + 1) m / (2 n)), then placed inside the interval as the move by value places it. Forced:
+   [`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp) moves each tree before it re-routes
+   and merges, the variance forest through its own remap. Unforced:
    [`Chain::revalidateTrees`](../../src/bartcore/chain.hpp) and
-   [`Chain::revalidateVarianceTrees`](../../src/bartcore/chain.hpp) also fail on a tree holding a rule
-   past its column's grid, so an unforced update that would strand one rolls back; the forced path
-   merges it as it does after `setCutPoints`
-   ([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp), unchanged). The message of
+   [`Chain::revalidateVarianceTrees`](../../src/bartcore/chain.hpp) move each surviving tree with a
+   routine that merges nothing, records each position it changes and fails on an empty interval;
+   a failed transaction puts the recorded positions back before the grid. The bridge's two entries
+   read the rule from the argument that carried the flag, so no entry gains an argument. In R
+   one reader of `updateCutPoints` gives the word, warns once for a logical in the idiom of
+   [`noOpThreadMethod`](../../R/tombstones.R), and refuses the rest; the partial update refuses any
+   word but `"none"`. The message of
    [`bartcore_setPredictor`](../../src/R_interface_bartcore.cpp) and
    [`bartcore_updatePredictor`](../../src/R_interface_bartcore.cpp) for
    [`PredictorUpdateResult`](../../src/bartcore/sampler.hpp)'s refusal, which only a factor value
@@ -280,10 +326,14 @@ on it (call 3).
    constant-with-missing, an all-missing, a 0/1 and an ordinary column: strictly increasing, the
    counts of Context, and the ordinary and 0/1 grids bit for bit today's; `testRefreshDerivesAsCreation`,
    a refreshed grid equals a fresh store's on the same values, from a shorter, a longer and a set
-   grid. In [test_moves.cpp](../../tests/cpp/test_moves.cpp): `testRefreshCountChange`, a shrink
-   forced (splits past the end merged, fits finite, state round trip) and unforced (rolled back,
-   points, counts and codes as before; beside missing values, where both sides of a stranded split
-   stay occupied, still rolled back), a growth from one point, the variance forest through both;
+   grid. In [test_moves.cpp](../../tests/cpp/test_moves.cpp): `testRefreshCountChange`, under
+   position: a shrink forced (every position the rescaled one or merged, none past the end, fits
+   finite, state round trip) and unforced (accepted with the rescaled positions, or rolled back with
+   points, counts, codes and trees as before), a growth from one point, an unchanged count leaving
+   every position, the variance forest through both; `testRefreshByValue`: forced, every surviving
+   split on the point nearest its old threshold inside its interval; unforced, accepted or rolled
+   back with the trees as they were, on a tree made to fail; a refresh that leaves the grid as it
+   was moves nothing; the variance forest;
    [`testQuantilePredictorUpdate`](../../tests/cpp/test_moves.cpp),
    [`testDegenerateReCutRoundTrips`](../../tests/cpp/test_moves.cpp) and
    [`testSetPredictorTransaction`](../../tests/cpp/test_moves.cpp) rewritten to the new rule. In
@@ -302,7 +352,13 @@ on it (call 3).
    - A refresh equals a creation's grid: placeholder then values; six values then 200; 200 then six;
      after `setCutPoints` at 60 points; under both rules. Without `updateCutPoints` the grid is kept.
    - A shrink: forced, the sampler runs on and its state restores into a twin with `TRUE`; unforced,
-     `FALSE` with data, grid and next draws a twin's. A refresh onto a constant leaves one point.
+     where it returns `FALSE`, data, grid, trees and next draws a twin's. A refresh onto a constant
+     leaves one point.
+   - The three words: `"none"` keeps the grid; `"position"` with the count unchanged draws what the
+     base build's `TRUE` draws and `TRUE` draws what `"position"` draws; `"value"` puts each split on
+     the point nearest its old threshold. A logical warns once and only once in a session, counted
+     in process as the thread methods' warning is; `NA`, a number, two words and an unknown word are
+     refused by name; an abbreviation is taken; the partial update refuses both words.
    - Restores are exact: on a narrow column, with and without missing values, and a constant column
      beside missing values, through `setState`, `copy` and a reload, the printed trees are the stored
      ones, `setState` returns `TRUE`, the state stored again is identical and two restored samplers
@@ -331,9 +387,9 @@ on it (call 3).
 8. Mutations (Verification): apply, install with `--preclean`, run, report the counts, revert, `touch`.
 9. Records.
    - Manual, [`dbartsSampler$setPredictor`](../../man/dbartsSampler-class.Rd): `updateCutPoints`
-     derives the grid a new sampler would have for the values, up to `n.cuts`, fewer where they
-     supply fewer; splits keep their positions; one past a shorter grid is merged when forced and
-     declines the call otherwise. `cuts`: the exception for the held grid and its sentence on equal
+     and its three words; a refresh derives the grid a new sampler would have for the values, up to
+     `n.cuts`, fewer where they supply fewer; where the splits go under each word; a logical and its
+     removal in 1.1-0. `cuts`: the exception for the held grid and its sentence on equal
      neighbours go. `setState`: a state whose grid repeats a point is refused; `FALSE` also where a
      split outside its interval was merged. [`dbartsControl`](../../man/dbartsControl.Rd) and
      [`bartBT`](../../man/bartBT.Rd): a column whose range cannot hold `n.cuts` distinct points gets
@@ -370,8 +426,12 @@ on it (call 3).
     tinytest's first check, the `narrow` arm;
   - the refresh counts from the held count: `testRefreshDerivesAsCreation`, tinytest's refresh
     checks; it refuses on too few points, or keeps the old grid over a constant: the shrink checks;
-  - a rollback puts back the points without the count: `testRefreshCountChange` unforced;
-  - the unforced check passes a rule past the grid: `testRefreshCountChange` beside missing values;
+  - a rollback puts back the points without the count, or without the positions:
+    `testRefreshCountChange` and `testRefreshByValue` unforced;
+  - position rescales by another formula than the identity at an unchanged count, or keeps the
+    index when the count changes: `testRefreshCountChange`; value keeps positions:
+    `testRefreshByValue`, tinytest's words;
+  - a logical warns on every call, or `TRUE` is read as `"value"`: tinytest's words;
   - the state reader, the donor reader, or the engine's check takes a repeat:
     `testRepeatedGridRefused`, tinytest's refusals; the message names no column: the same;
   - `setCutPoints` takes a repeat: its existing refusal test;
@@ -404,7 +464,8 @@ Compared with 0.9-34. One item under the user-visible changes: a predictor's cut
 so a column whose range cannot hold `n.cuts` distinct points gets fewer where 0.9-34 repeated them, a
 constant column gets one, and fits on such a column change; `setPredictor(updateCutPoints = TRUE)`
 derives up to `n.cuts` points from the new values whatever the column held, and no longer stops when
-they induce fewer. The existing item on quantile cut points, which says a refresh spreads the cut
+they induce fewer; `updateCutPoints` takes `"none"`, `"position"` and `"value"`, a logical being
+taken with a warning until 1.1-0. The existing item on quantile cut points, which says a refresh spreads the cut
 points a column has, is amended to match.
 
 ## Out of scope, and where it goes
@@ -441,7 +502,8 @@ Each is the planner's, reversible, and open for the maintainer's mark.
    dropped: the uniform rule's `n.cuts` evenly spaced points, the quantile rule's chosen midpoints.
    So a column of few values far apart keeps its grid and its bits. The alternative, one point per
    gap between distinct values under the uniform rule too, changes every fit with a discrete column.
-3. A refresh that changes a column's count keeps each split's position, as a refresh and
+3. Replaced by rule 6 on 2026-10-08, for a refresh; it stands for `setCutPoints`. As planned: A
+   refresh that changes a column's count keeps each split's position, as a refresh and
    `setCutPoints` do today. A split past a shorter grid is merged when the update is forced; when it
    is not, the call returns `FALSE` with column and grid as they were, as for any column the trees
    cannot hold. dec-B299's "never fails" and "never keeps the old grid" are read of an accepted
@@ -487,3 +549,30 @@ the leaf conversions, a forest's defaults by kind and selection by label have la
   `setCutPoints`; it is run with the eight.
 - No step's premise moved. Calls the implementer makes beyond the plan are listed under
   Calls made in building, added as they are made.
+
+## Calls made in building
+
+The implementer's unless marked, reversible, and open for the maintainer's mark.
+
+1. Steps 2 and 3 land as one commit: with the drop alone a refresh would shorten a grid whose count
+   no rollback puts back.
+2. The rescaling under `"position"`: position i of n, counted from 0, goes to
+   floor((2 i + 1) m / (2 n)) on a grid of m, the point under the centre of the split's share of the
+   old grid. It is the identity at m = n, keeps order, and is the index the quantile rule uses to
+   spread a count over midpoints. Two splits that land on one point are then placed as the move by
+   value places them: inside the interval their ancestors leave, an empty interval merged.
+3. An unforced refresh "the trees cannot hold" is one after whose move a split's interval is empty,
+   a leaf is empty, or a monotone tree is out of order. A split moved to another point of its
+   interval is held.
+4. Under `"position"` a column whose count did not change is not touched, and under `"value"` a
+   column whose refreshed grid is bit for bit the old one is not: such a refresh runs the base
+   build's path.
+5. A forced refresh under `"value"` merges an emptied interval with the weights `setData`'s move
+   uses, the routine being shared.
+6. The step-3 check for a rule past a column's grid in the unforced validation is not built: under
+   rule 6 no refresh leaves one, and `setCutPoints` is always forced.
+7. The orchestrator's readings, not the maintainer's words: an explicit `FALSE` warns as `TRUE`
+   does; the word is matched as `match.arg` matches, a unique abbreviation taken.
+8. The bridge reads the rule from the argument that carried the logical, as an integer code, so
+   neither `.Call` entry changes its arity. The flat C header carries no predictor update and does
+   not move.
