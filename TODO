@@ -1028,7 +1028,9 @@ items
     (dec-B320). predict and test data keep refusing a missing value
     in a column that could not be missing (dec-B322). Before the merge
     to main; with the install surface's first slice, which keeps
-    directions at setState.
+    directions at setState. With it, a categorical rule sending every
+    level one way with no missing direction is refused on a column
+    never missing (dec-B378).
   copy-merge-weight-order: after a forced setCutPoints or refresh that
     merges, a copy's merged leaf can differ from its original's by one
     unit in the last place when the leaf's weights do not sum exactly
