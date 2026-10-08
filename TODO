@@ -298,6 +298,13 @@ items
     set to zero and the leaf keeps its value or takes its function's
     value at the new constant (dec-B329, revising dec-A177); the help
     for newData says so. Before 1.0-0.
+  multiforest-scale-rederive: after 1.0-0 (dec-B362, VD 2026-10-08).
+    updateScale = TRUE on a sampler of several forests, refused today:
+    restate each forest's default size on the new scale, a stated
+    forest(sd = ) kept as given, so the burn-in re-derivation practice
+    reaches bcf-shaped models. After the forest slices. Before then
+    the help says a re-derived basis scale (updateBasisScale, dec-B303)
+    and the response scale may span different rows.
   predictor-frame-whole: before 1.0-0 (dec-B359, VD 2026-10-08).
     setPredictor(x) with no column takes a data frame, coded by label
     as the column form is, where today it fails ("'list' object cannot
