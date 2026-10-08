@@ -272,8 +272,8 @@ for (useQuantiles in c(FALSE, TRUE)) {
 
 # ---- a shrink -------------------------------------------------------------
 
-warmed <- function(x, response = y, control = controlWith(n.trees = 20L)) {
-  sampler <- dbarts(x, response, control = control)
+warmed <- function(x, response = y, control = controlWith(n.trees = 20L), ...) {
+  sampler <- dbarts(x, response, control = control, ...)
   invisible(sampler$run(20L, 5L))
   sampler$storeState()
   sampler
@@ -293,8 +293,9 @@ for (word in refreshWords) {
   expect_identical(cutPointsOf(sampler), cutPointsOf(twin), info = word)
   expect_identical(sampler$getTrees(), twin$getTrees(), info = word)
   expect_identical(printedTrees(sampler), printedTrees(twin), info = word)
-  # equal to rounding and not bit for bit, as after any rolled-back update: a
-  # sweep sums a leaf's rows in the order the leaf holds them
+  # a rollback restores the state exactly and the next draws to rounding, as
+  # on the build before this rule: a sweep sums a leaf's rows in the order
+  # the leaf holds them
   expect_equal(sampler$run(0L, 3L)$train, twin$run(0L, 3L)$train, info = word)
 
   # forced, the grid is the five points, the sampler runs on, and its state
@@ -672,16 +673,18 @@ expect_identical(splitsOn(byValue, 2L), before)
 expect_identical(byValue$getTrees(), untouched$getTrees())
 byPosition$setCutPoints(finer, 2L)
 moved <- splitsOn(byPosition, 2L)
-expect_true(all(moved$value %in% (oldGrid + spacing / 2)))
-expect_true(all(match(moved$value, finer) %% 2L == 0L))
+expect_identical(moved$tree, before$tree)
+expect_identical(match(moved$value, finer), 2L * match(before$value, oldGrid))
 # by position, a grid of the held count keeps every split where it is on the
 # grid, whatever the points: the default, and what the column did before
 sameCount <- warmed(cbind(z, w))
 sameCount$setCutPoints(oldGrid + spacing / 4, 2L, splits = "position")
 kept <- splitsOn(sameCount, 2L)
-expect_true(all(
-  match(kept$value, oldGrid + spacing / 4) %in% match(before$value, oldGrid)
-))
+expect_identical(kept$tree, before$tree)
+expect_identical(
+  match(kept$value, oldGrid + spacing / 4),
+  match(before$value, oldGrid)
+)
 # and a shorter grid rescales: on half the points no split is past the end
 shorter <- warmed(cbind(z, w))
 shorter$setCutPoints(oldGrid[seq(2L, 100L, by = 2L)], 2L)
@@ -691,3 +694,112 @@ expect_true(all(
 expect_true(all(is.finite(shorter$run(0L, 3L)$train)))
 shorter$storeState()
 expect_true(shorter$setState(shorter$state))
+
+# ---- an unforced refresh moves the splits of every forest -----------------
+
+# Two forests on one design. Column 2 is set to every other point of its grid
+# and then refreshed, unforced, onto the values it holds: the grid is the
+# hundred points again, and place i of fifty goes to place 2 i of the
+# hundred, the point the split was on. So every tree of both forests is what
+# it was, which it is not where a forest's splits were left on their old
+# places.
+arm <- seq_len(n) %% 2L
+twoForests <- dbarts(
+  cbind(z, w),
+  y,
+  forests = list(forest(), forest(basis = ~ factor(arm))),
+  control = controlWith(n.trees = 20L)
+)
+invisible(twoForests$run(20L, 5L))
+created <- cutPointsOf(twoForests)[[2L]]
+twoForests$setCutPoints(created[seq(2L, 100L, by = 2L)], 2L, splits = "value")
+before <- twoForests$getTrees()
+expect_true(all(c(1L, 2L) %in% before$forest[before$var == 2L]))
+expect_true(twoForests$setPredictor(w, 2L, updateCutPoints = "position"))
+expect_identical(cutPointsOf(twoForests)[[2L]], created)
+expect_identical(twoForests$getTrees(), before)
+
+# ---- a forced merge weighs each leaf by the rows it holds -----------------
+
+# Given one point, a column keeps the first split on it along a path, moved
+# to the point, and a split on it beneath another has no point left: it is
+# merged with everything under it. The leaf that results is the mean of the
+# leaves it replaces, each weighed by the case weights of the rows it held.
+# Worked out here from the trees as they were, for a sampler and for its
+# copy, whose node statistics no sweep has filled.
+caseWeights <- rep(c(0.2, 1, 3, 1), n / 4L)
+design <- cbind(z, w)
+nested <- function(nodes) {
+  at <- 0L
+  build <- function() {
+    at <<- at + 1L
+    node <- list(var = nodes$var[at], value = nodes$value[at])
+    if (node$var > 0L) {
+      node$left <- build()
+      node$right <- build()
+    }
+    node
+  }
+  build()
+}
+flattened <- function(node) {
+  here <- data.frame(var = node$var, value = node$value)
+  if (node$var < 0L) {
+    return(here)
+  }
+  rbind(here, flattened(node$left), flattened(node$right))
+}
+leavesUnder <- function(node, rows) {
+  if (node$var < 0L) {
+    return(data.frame(value = node$value, weight = sum(caseWeights[rows])))
+  }
+  goesLeft <- design[rows, node$var] <= node$value
+  rbind(
+    leavesUnder(node$left, rows[goesLeft]),
+    leavesUnder(node$right, rows[!goesLeft])
+  )
+}
+onOnePoint <- function(node, rows, point, beneath = FALSE) {
+  if (node$var < 0L) {
+    return(node)
+  }
+  if (node$var == 1L && beneath) {
+    leaves <- leavesUnder(node, rows)
+    return(list(
+      var = -1L,
+      value = sum(leaves$weight * leaves$value) / sum(leaves$weight)
+    ))
+  }
+  goesLeft <- design[rows, node$var] <= node$value
+  if (node$var == 1L) {
+    node$value <- point
+    beneath <- TRUE
+  }
+  node$left <- onOnePoint(node$left, rows[goesLeft], point, beneath)
+  node$right <- onOnePoint(node$right, rows[!goesLeft], point, beneath)
+  node
+}
+for (door in c("sampler", "copy")) {
+  sampler <- warmed(design, weights = caseWeights)
+  if (door == "copy") {
+    sampler <- sampler$copy()
+  }
+  before <- sampler$getTrees()
+  sampler$setCutPoints(0, 1L)
+  after <- sampler$getTrees()
+  numMerged <- 0L
+  for (tree in unique(before$tree)) {
+    held <- before[before$tree == tree, ]
+    byHand <- flattened(onOnePoint(nested(held), seq_len(n), 0))
+    left <- after[after$tree == tree, ]
+    expect_identical(left$var, byHand$var, info = paste(door, tree))
+    expect_equal(
+      left$value,
+      byHand$value,
+      tolerance = 1e-12,
+      info = paste(door, tree)
+    )
+    numMerged <- numMerged + (nrow(byHand) < nrow(held))
+  }
+  expect_true(numMerged >= 3L, info = door)
+}

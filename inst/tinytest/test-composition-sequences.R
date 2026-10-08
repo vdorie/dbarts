@@ -276,12 +276,15 @@ expect_true(all(is.finite(cutBcf$getForestFits(2L))))
 cutLinear <- dbarts(X, y, leaf.prior = linearLeaf, control = ctl())
 invisible(cutLinear$run(20L, 1L))
 cutLinear$setCutPoints(list(0.4), 3L)
-linCutRun <- cutLinear$run(0L, 20L)
-# the last draw need not split on the column: whichever splits it holds are
-# at the one point, and the count below says the run drew some
-expect_true(all(drawnCuts(cutLinear, 3L) == 0.4))
-expect_true(sum(linCutRun$varcount[3L, ]) > 0L)
-expect_true(all(is.finite(linCutRun$train)))
+# no one draw need split on the column, so the splits of each of twenty are
+# gathered: the one point and nothing else
+linCuts <- numeric()
+for (sweep in seq_len(20L)) {
+  linCutRun <- cutLinear$run(0L, 1L)
+  linCuts <- c(linCuts, drawnCuts(cutLinear, 3L))
+  expect_true(all(is.finite(linCutRun$train)))
+}
+expect_identical(unique(linCuts), 0.4)
 
 # NA-carrying column: the imputed rows ride the new grid like any other
 cutMissing <- dbarts(Xna, y, control = ctl())

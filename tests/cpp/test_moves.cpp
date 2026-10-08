@@ -979,8 +979,8 @@ static void testRefreshByValue() {
     check(restoresExactly(*f.sampler, forced),
           "refresh by value: the forced sampler restores as stored");
   }
-  {  // unforced, shifted by half a point's spacing: accepted with every
-     // split moved by value and no tree's shape changed, or put back whole
+  {  // unforced, shifted by a point and a half's spacing: taken, every split
+     // moved by value and no tree's shape changed
     RefreshFixture f;
     double spacing = f.sampler->data().cutPoints[0][1] -
                      f.sampler->data().cutPoints[0][0];
@@ -989,14 +989,11 @@ static void testRefreshByValue() {
     PredictorUpdateResult result = f.sampler->updatePredictor(
       shifted.data(), &column, 1, false, true, SplitPlacement::byValue);
     size_t numMoved = 0;
-    bool accepted = result == PredictorUpdateResult::accepted &&
-      splitsOnColumn(*f.sampler, 0).size() == before.splits.size() &&
-      nearest(f, before, &numMoved) && numMoved > 0 &&
-      splitsStand(*f.sampler, 0);
-    bool rolledBack = result == PredictorUpdateResult::rolledBack &&
-      f.unchangedFrom(before);
-    check(accepted || rolledBack,
-          "refresh by value: unforced, every split moved or nothing changed");
+    check(result == PredictorUpdateResult::accepted &&
+            splitsOnColumn(*f.sampler, 0).size() == before.splits.size() &&
+            nearest(f, before, &numMoved) && numMoved > 0 &&
+            splitsStand(*f.sampler, 0),
+          "refresh by value: unforced, taken with every split moved");
   }
   {  // unforced, shifted far past the old grid: every threshold lies below
      // the new points, a nested split has no point left, and the trees are

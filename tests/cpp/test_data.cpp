@@ -1247,6 +1247,62 @@ static void testMapOldCutPointsStarvedWeightedMerge() {
   printf("ok: mapOldCutPointsStarvedWeightedMerge\n");
 }
 
+// Where the tree's partition is still the one its fits were drawn on, a
+// starved subtree merges its leaves by the rows each holds: by their number
+// under unit weights, by the sum of their weights otherwise, whatever the
+// node statistics say. Two leaves of one and five rows with values 0 and 2.
+static void testMapOldCutPointsLiveRowsMerge() {
+  const size_t n = 8;
+  std::vector<double> x(n), y(n, 0.0), shifted(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i + 1);
+    shifted[i] = 20.0 + 2.0 * static_cast<double>(i);
+  }
+  // row 1 at weight 4, the rest at a half: 4 against 2.5 where the counts
+  // are 1 against 5
+  std::vector<double> weights(n, 0.5);
+  weights[0] = 4.0;
+
+  auto mergedUnder = [&](const double* rowWeights) {
+    ColumnStore store;
+    built(store.build(x.data(), n, 1, 7, true));
+    std::vector<std::vector<double>> oldCuts(store.cutPoints);
+    std::vector<index_t> indices(n);
+    Tree tree;
+    tree.initialize(indices.data(), n);
+    Rule rootRule;  rootRule.variableIndex = 0;  rootRule.setSplitIndex(5);
+    tree.birth(store, 0, rootRule, y.data(), nullptr);
+    Rule leftRule;  leftRule.variableIndex = 0;  leftRule.setSplitIndex(0);
+    tree.birth(store, tree.at(0).leftChild, leftRule, y.data(), nullptr);
+    int32_t leftChild = tree.at(0).leftChild;
+    std::vector<int32_t> bottoms;
+    tree.fillBottom(leftChild, bottoms);
+    check(bottoms.size() == 2 && tree.at(bottoms[0]).numObservations() == 1 &&
+            tree.at(bottoms[1]).numObservations() == 5,
+          "the starved subtree's leaves hold one row and five");
+    std::vector<double> params(tree.nodes.size(), 0.0);
+    params[static_cast<size_t>(bottoms[1])] = 2.0;
+    // statistics as a sweep on another partition would have left them
+    tree.at(bottoms[0]).sumWeights = 5.0;
+    tree.at(bottoms[1]).sumWeights = 1.0;
+    check(store.setData(shifted.data(), n), "the store takes the replacement");
+    Tree::LiveRows liveRows = { rowWeights };
+    tree.mapOldCutPointsOntoNew(store, oldCuts, params, 1,
+                                SplitPlacement::byValue, &liveRows);
+    check(tree.at(leftChild).isBottom(), "the starved subtree collapses");
+    return params[static_cast<size_t>(leftChild)];
+  };
+
+  checkNear(mergedUnder(nullptr), 10.0 / 6.0, 1e-15,
+            "a merge over live rows weighs unit-weight leaves by their rows, "
+            "not by node statistics");
+  checkNear(mergedUnder(weights.data()), 5.0 / 6.5, 1e-15,
+            "a merge over live rows weighs leaves by the weights of their "
+            "rows, not by their number");
+
+  printf("ok: mapOldCutPointsLiveRowsMerge\n");
+}
+
 static void testMissingIngestion() {
   const size_t n = 100;
   double na = std::nan("");
@@ -3102,6 +3158,7 @@ void runDataTests() {
   testQuantileGridSpread();
   testMapOldCutPointsOntoNew();
   testMapOldCutPointsStarvedWeightedMerge();
+  testMapOldCutPointsLiveRowsMerge();
   testMissingIngestion();
   testTransientBlockAssembly();
   testSparseTestColumnStore();
