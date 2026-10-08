@@ -228,8 +228,9 @@ d3 <- data.frame(
   b = rnorm(n3)
 )
 y3 <- rnorm(n3) + d3$a
-# collinear to 1e-9 (dropped by lm's tolerance) and to 1e-5 (kept)
-for (eps in c(0, 1e-9, 1e-5, 1e-3)) {
+# collinear to 1e-9 and 5e-8 (dropped by lm's 1e-7 tolerance), and to 2e-7,
+# 1e-5, 3e-5 and 1e-3 (kept)
+for (eps in c(0, 1e-9, 5e-8, 2e-7, 1e-5, 3e-5, 1e-3)) {
   d3c <- d3
   d3c$c <- d3$a + eps * rnorm(n3)
   sparseVsDense(y3, d3c, NULL, NULL)
@@ -252,6 +253,18 @@ mi4 <- dbarts:::makeIndicatorModelMatrix(d4)
 expect_true(dbarts:::predictorSourceIsSparse(mi4))
 expect_true(ncol(mi4) > n4)
 sparseVsDense(y4, d4, NULL, NULL)
+# and the fit that reaches it raises no warning for a design the user did not
+# make dependent
+expect_silent(dbarts(
+  y4 ~ .,
+  d4,
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 5L,
+    updateState = FALSE
+  )
+))
 sparseVsDense(y4, d4, runif(n4, 0.5, 2), rnorm(n4, 0, 0.2))
 # full rank at n columns leaves no residual degrees of freedom: not finite,
 # as on the dense path

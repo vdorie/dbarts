@@ -1240,7 +1240,17 @@ sparseResidualStandardError <- function(y, x, weights, offset) {
     columns <- c(kept, cursor:last)
     cursor <- last + 1L
     repeat {
-      decomposition <- Matrix::qr(design[, columns, drop = FALSE])
+      # a design wider than it is tall, or dependent, makes Matrix warn that
+      # it is structurally rank deficient and augments it; the dense path is
+      # silent and the pivots below handle the deficiency
+      decomposition <- withCallingHandlers(
+        Matrix::qr(design[, columns, drop = FALSE]),
+        warning = function(w) {
+          if (grepl("structurally rank deficient", conditionMessage(w))) {
+            invokeRestart("muffleWarning")
+          }
+        }
+      )
       pivots <- abs(Matrix::diag(decomposition@R))
       bad <- which(pivots <= 1e-7)
       if (length(bad) == 0L) {
