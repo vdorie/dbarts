@@ -569,7 +569,9 @@ dbarts(
   cannot support (e.g. `"gaussian"`) is also an error rather than a
   silent fit of the integer level codes. `"gaussian"` forces a
   continuous fit even for a 0/1 numeric response; `"probit"` and
-  `"logistic"` require a 0/1 response and fit latent-variable models,
+  `"logistic"` require a 0/1 response (one holding a single class is
+  fitted with one warning saying so, the prior alone then driving the
+  fitted probabilities toward 0 or 1) and fit latent-variable models,
   with fits and predictions on the latent scale. `"logistic"` uses
   Polya-Gamma augmentation. Base R family objects map as
   [`glm`](https://rdrr.io/r/stats/glm.html) takes them (`binomial` is

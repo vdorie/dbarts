@@ -78,8 +78,15 @@ survivalProbabilities(object, ...)
   argument evaluated on `newdata` (see `offset` in
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)). For a
   hazard fit a subject's offset applies at every period. Without
-  `newdata` the training subjects take the fit's own offset and this
-  argument is refused.
+  `newdata` an offset replaces the fit's own at the training rows (one
+  value or one per training row, or per subject on a hazard fit: the
+  test subjects where it carries a test set, else the training
+  subjects), read off the stored draws with no trees replayed. On a
+  hazard fit that carries a `test` set, the subjects are the test
+  subjects whose draws it stored, and the offset replaces theirs on the
+  latent scale before the link; with no test set a hazard fit replays
+  its trees at the training subjects, as it does for any training
+  subjects, and needs `keepTrees = TRUE`.
 
 - combineChains:
 

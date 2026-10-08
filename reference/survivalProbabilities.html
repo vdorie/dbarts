@@ -128,8 +128,15 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
     takes it: a single value or one per row of <code>newdata</code>, added to the
     fit's <code><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset()</a></code> terms and <code>offset</code> argument evaluated on
     <code>newdata</code> (see <code>offset</code> in <code><a href="bart.html">bart</a></code>). For a hazard fit
-    a subject's offset applies at every period. Without <code>newdata</code> the
-    training subjects take the fit's own offset and this argument is refused.</p></dd>
+    a subject's offset applies at every period. Without <code>newdata</code> an
+    offset replaces the fit's own at the training rows (one value or one per
+    training row, or per subject on a hazard fit: the test subjects where it
+    carries a test set, else the training subjects), read off the stored draws
+    with no trees replayed. On a hazard fit that carries a <code>test</code> set,
+    the subjects are the test subjects whose draws it stored, and the offset
+    replaces theirs on the latent scale before the link; with no test set a
+    hazard fit replays its trees at the training subjects, as it does for any
+    training subjects, and needs <code>keepTrees = TRUE</code>.</p></dd>
 
   <dt id="arg-combinechains">combineChains<a class="anchor" aria-label="anchor" href="#arg-combinechains"></a></dt>
 <dd><p>A logical determining whether the chain dimension is collapsed into the

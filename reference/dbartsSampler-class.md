@@ -48,7 +48,7 @@ setCounts(counts, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setCategoryOffset(offset, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setCategoryTestOffset(offset.test, updateState = NULL)
+setCategoryTestOffset(offset.test)
 # S4 method for class 'dbartsSampler'
 setActiveRows(active, updateState = NULL)
 # S4 method for class 'dbartsSampler'
@@ -186,9 +186,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `sampleLeafParametersFromPrior`, `sampleVarianceForestFromPrior`,
   `growFromRoot`, and every mutator (`setData`, `setResponse`,
   `setOffset`, `setWeights`, `setCounts`, `setCategoryOffset`,
-  `setCategoryTestOffset`, `setActiveRows`, `setForestWeights`,
-  `setForestBasis`, `setSigma`, `setLeafPrior`, `setPredictor`, and
-  `setCutPoints`): `NULL` (the default) resolves to the sampler's
+  `setActiveRows`, `setForestWeights`, `setForestBasis`, `setSigma`,
+  `setLeafPrior`, `setPredictor`, and `setCutPoints`): `NULL` (the
+  default) resolves to the sampler's
   [`control`](https://vdorie.github.io/dbarts/reference/dbartsControl.md)
   object's `updateState`, and an explicit `TRUE` or `FALSE` overrides
   it. Anything else is an error, raised before the sampler changes; an
@@ -316,11 +316,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
 - x:
 
-  A numeric predictor vector of length equal to that with which the
-  sampler was created. Can be of a distinct number of rows for
-  `setTestPredictor`. A column update (`column` given) on a column coded
-  from a factor takes that column's labels instead, for `setPredictor`
-  and `setTestPredictor` alike: a factor, character vector or
+  For `setPredictor` with no `column`, the whole of the predictors: a
+  data frame, whose columns are matched to the sampler's by name when it
+  has them (else by position) and whose factor columns are coded by
+  label as a column update's are, or a numeric matrix, taken only where
+  every predictor column is numeric - on a sampler with a factor column
+  a matrix is refused by name, since its codes could not say which
+  values are labels. Otherwise, a numeric predictor vector of length
+  equal to that with which the sampler was created. Can be of a distinct
+  number of rows for `setTestPredictor`. A column update (`column`
+  given) on a column coded from a factor takes that column's labels
+  instead, for `setPredictor` and `setTestPredictor` alike: a factor,
+  character vector or
   [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md),
   matched by label against the training levels, as a whole data-frame
   update is coded; several columns take a data frame. A label the column
@@ -333,7 +340,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A new matrix, data frame, or sparse-bearing test set (the column types
   accepted by
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
-  of the number of columns equal to that in the current model. A
+  of the number of columns equal to that in the current model; a numeric
+  matrix is taken only where every predictor column is numeric, and is
+  refused by name on a sampler with a factor column, whose test rows
+  come as a data frame (the same holds for `predict` on a fit). A
   data-frame/sparse `x.test` is coded against the training levels;
   `setTestPredictor` and `setTestPredictorAndOffset` then install it as
   a resident, whole-object replacement of the test set (see `column`),
@@ -742,13 +752,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   replacement that has those names in another order is refused, since it
   would put each column under the other's name. A replacement of another
   width brings its own names. The forest's label does not change. Unlike
-  creation, a factor basis may leave a level empty, its column all zeros
-  and its amplitude moving under its prior alone until a row takes it
-  again, so a swap inside a larger sampler can leave a level momentarily
-  unobserved; a numeric column of all zeros is still refused.
-  `setForestBasis` is the *sole* route by which a basis changes after
-  creation, and it applies only to a sampler whose forests carry
-  amplitudes, built with `forests = ` (see
+  creation, a factor basis may leave a level empty, and a numeric basis
+  may hold a column of all zeros, the amplitude moving under its prior
+  alone until a row takes it again, so a swap inside a larger sampler
+  can leave a level or an arm momentarily unobserved; creation still
+  refuses both. `setForestBasis` is the *sole* route by which a basis
+  changes after creation, and it applies only to a sampler whose forests
+  carry amplitudes, built with `forests = ` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   amplitudes are preserved and remapped: a width-preserving install
   leaves every one of them bitwise, and a width change carries each

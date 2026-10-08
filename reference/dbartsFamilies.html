@@ -247,7 +247,10 @@ Every setting that only one family reads rides its family object rather
       distinct observed times, a single positive integer bins at that many
       quantiles, and a numeric boundary vector gives explicit right-closed
       intervals. <code>max.rows</code> refuses an over-large expansion, naming
-      the coarsening levers. <code>link</code> selects the binary link the
+      the coarsening levers and what a row costs: about 210 bytes shared
+      plus about 630 bytes a chain at 75 trees (one stored value a row a
+      tree, so growing with the trees), which makes the default of 1e7 rows
+      about 8.5 GB on one chain and 27 GB on <code>bart</code>'s four. <code>link</code> selects the binary link the
       expanded rows are fit under, and is what the tokens
       <code>"hazard.probit"</code> and <code>"hazard.logistic"</code> name.</p></dd>
 

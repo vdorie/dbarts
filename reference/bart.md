@@ -291,7 +291,11 @@ print(x, ...)
   grows with the total count. For a weighted logistic fit, the `"ppd"`
   draw at an observation with weight \\w\\ is the number of successes
   among \\w\\ trials, \\\mathrm{Binomial}(w, p)\\ with \\p\\ the fitted
-  probability.
+  probability. On a gaussian, Student-t or `aft` fit, the `"ppd"` draw
+  of a training row at weight 0 is that of an ordinary observation,
+  drawn at weight 1, in `extract` and in `fitted(type = "ppd")`;
+  `predict(type = "ppd", weights = )` refuses a weight of 0 by name, so
+  pass 1 for an ordinary observation.
 
 - offset:
 
@@ -430,7 +434,9 @@ print(x, ...)
   `"aft"`, `"hazard"`, `"hazard.probit"` (an accepted alias for
   `"hazard"`), `"hazard.logistic"`, `"multinomial"`, `"ordinal"`,
   `"nbinom"`, and `"hurdle.lognormal"` reach the extended families
-  described below.
+  described below. A `"probit"` or `"logistic"` response that holds one
+  class is fitted, with one warning saying so; the prior alone then
+  drives the fitted probabilities toward 0 or 1.
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) takes
   no `family` argument at all: every fit it makes is the default
   gaussian/probit pair. Base R family objects map as
@@ -656,7 +662,9 @@ print(x, ...)
   distinct observed times (the BART `surv.bart` convention);
   `family = hazard(breaks = )` replaces it (a single integer bins at
   that many quantiles, a boundary vector gives explicit right-closed
-  intervals), and `hazard(max.rows = )` guards the expansion size (see
+  intervals), and `hazard(max.rows = )` guards the expansion size, 1e7
+  rows by default, at about 0.85 KB a row a chain at 75 trees (so about
+  8.5 GB on one chain and 27 GB on the four of `bart`; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
   Offsets are on the link scale and replicate per subject; `weights`
   replicate and then follow the chosen binary family's policy (probit
@@ -1214,12 +1222,19 @@ print(x, ...)
 
 - newdata:
 
-  Test data for prediction. Obeys the same rules as `data`/`test` but
-  cannot be missing. An unnamed matrix given to a fit whose predictors
-  are named is matched by position, with a warning. A data-frame column
-  for a predictor that was a factor in training must be a factor or
-  character, matched to the training levels by label; a numeric or
-  logical one is refused, naming it, as
+  Test data for prediction. Obeys the same rules as `data`/`test`; a
+  numeric matrix is taken only where every predictor column is numeric,
+  and is refused by name on a fit with a factor column, which takes a
+  data frame. Left out (or `NULL`), `predict` returns each `type` at the
+  training rows from the draws the fit stored, as `extract` with
+  `sample = "train"` does, on every family's fit and without saved
+  trees; an `offset` given then replaces the fit's own at the training
+  rows (a category offset matrix on a multinomial fit), and a hurdle
+  fit, which has no offset channel, refuses one. An unnamed matrix given
+  to a fit whose predictors are named is matched by position, with a
+  warning. A data-frame column for a predictor that was a factor in
+  training must be a factor or character, matched to the training levels
+  by label; a numeric or logical one is refused, naming it, as
   [`predict.lm`](https://rdrr.io/r/stats/predict.lm.html) refuses it.
 
 - type:
@@ -1673,31 +1688,34 @@ factor response, or `colnames(y.train)` - falling back to
 `levels.source` (`"labels"`, or `"index"` when `levels` were synthesized
 from a count matrix without column names), `K`, `n.chains`, `n.trees`,
 `y` (the original response: the factor `y.train`, or the validated n x K
-count matrix when a count response was supplied), `leaf.prior` and
-`fixed` (as on a `"bart"` fit, the K forests sharing one leaf prior, so
-one list and one `k`), and `yhat.train` - the posterior draws of the K
-softmax probabilities, an array of dimension (`n.chains` \\\times\\,
-when `n.chains > 1` and `combineChains = FALSE`) `n.samples` \\\times\\
-number of training observations \\\times\\ K, with the resolved category
-levels as the trailing dimension's names; `combineChains = TRUE` (the
-default) folds the chain margin into the samples margin as usual.
-`yhat.train` already holds PROBABILITIES, not a latent score - there is
-no `"bart"`-scale component to convert, unlike the binary families. When
-`test` was supplied, `yhat.test` is the same K softmax probabilities on
-the held-out rows, dimensioned like `yhat.train` with the
-training-observation margin replaced by the test one. `varcount` is the
-per-sample per-category split-usage channel: each category forest's
-per-draw variable counts, dimensioned like `yhat.train` but with the
-number of training predictors in place of the number of observations,
-and `colnames(x.train)` (when present) named on that margin. `fit` is
-present whenever `keepTrees` is `TRUE` *or* `keepSampler` is set,
-independent of `keepTrees`: it is the `dbartsSampler` whose K-forest
-engine actually ran (one `bartcore_create`, not a discarded host), fully
-mutable and readable on the channels the softmax gives meaning to -
-`$setCounts`, `$setCategoryOffset`, `$setPredictor`,
-`$setLeafPrior(normal(k = ))`, and the rest - and refused by name on the
-ones it does not (`$setResponse`, `$setOffset`, `$setSigma`,
-`$setForestWeights`); `fit$storeState()` followed by
+count matrix when a count response was supplied), `offset` (when trained
+with one; see
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)),
+`leaf.prior` and `fixed` (as on a `"bart"` fit, the K forests sharing
+one leaf prior, so one list and one `k`), and `yhat.train` - the
+posterior draws of the K softmax probabilities, an array of dimension
+(`n.chains` \\\times\\, when `n.chains > 1` and `combineChains = FALSE`)
+`n.samples` \\\times\\ number of training observations \\\times\\ K,
+with the resolved category levels as the trailing dimension's names;
+`combineChains = TRUE` (the default) folds the chain margin into the
+samples margin as usual. `yhat.train` already holds PROBABILITIES, not a
+latent score - there is no `"bart"`-scale component to convert, unlike
+the binary families. When `test` was supplied, `yhat.test` is the same K
+softmax probabilities on the held-out rows, dimensioned like
+`yhat.train` with the training-observation margin replaced by the test
+one. `varcount` is the per-sample per-category split-usage channel: each
+category forest's per-draw variable counts, dimensioned like
+`yhat.train` but with the number of training predictors in place of the
+number of observations, and `colnames(x.train)` (when present) named on
+that margin. `fit` is present whenever `keepTrees` is `TRUE` *or*
+`keepSampler` is set, independent of `keepTrees`: it is the
+`dbartsSampler` whose K-forest engine actually ran (one
+`bartcore_create`, not a discarded host), fully mutable and readable on
+the channels the softmax gives meaning to - `$setCounts`,
+`$setCategoryOffset`, `$setPredictor`, `$setLeafPrior(normal(k = ))`,
+and the rest - and refused by name on the ones it does not
+(`$setResponse`, `$setOffset`, `$setSigma`, `$setForestWeights`);
+`fit$storeState()` followed by
 [`save`](https://rdrr.io/r/base/save.html)/[`load`](https://rdrr.io/r/base/load.html)
 restores a sampler `predict.bartMultinomial` can replay through.
 `predict` still requires `keepTrees = TRUE` - a kept `fit` alone carries
@@ -1802,7 +1820,9 @@ probit scale, shaped like a binary family's `yhat.train` -
 \\(\gamma_1 = 0, \gamma_2, \ldots)\\, dimensioned draws \\\times\\ (K -
 1), the ordinal analog of gaussian's `sigma`, from which probabilities
 at any latent value can be reconstructed - `k` when the leaf scale is
-drawn, `leaf.prior` and `fixed` as on a `"bart"` fit (see
+drawn, `offset` (when trained with one; see
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)),
+`leaf.prior` and `fixed` as on a `"bart"` fit (see
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)), and
 `varcount`. `thresholds.raw` (the per-draw thresholds in the internal
 layout `predict` consumes) is present only under `keepTrees`. `fit` is
@@ -1870,9 +1890,12 @@ the leaf-scale one it named.
 e^{\eta}\\, shaped like a binary family's `yhat.train` - `latent.train`
 (and `latent.test`) - the corresponding draws of the log mean \\\eta =
 f(x) + c + o\\ - `shape` - the per-draw shape \\r\\, the count analog of
-gaussian's `sigma` - `k` when the leaf scale is drawn, as on a `"bart"`
-fit, `leaf.prior` and `fixed` (its shape, when held fixed, among them),
-and `varcount`. `shape.raw` (the per-draw \\r\\ in the internal layout
+gaussian's `sigma`, absent when the shape is held, whose value is in
+`fixed` - `k` when the leaf scale is drawn, as on a `"bart"` fit,
+`offset` (when trained with one; see
+[`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)),
+`leaf.prior` and `fixed` (its shape, when held fixed, among them), and
+`varcount`. `shape.raw` (the per-draw \\r\\ in the internal layout
 `predict` consumes) is present only under `keepTrees`. `fit` is present
 whenever `keepTrees` is `TRUE` *or* `keepSampler` is set, independent of
 `keepTrees`: it is the `dbartsSampler` whose engine actually ran, fully
@@ -2053,7 +2076,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001711
+#> total seconds in loop: 0.001148
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
@@ -2101,7 +2124,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002075
+#> total seconds in loop: 0.001225
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 1 2 2 2 1 2 2 3 2 

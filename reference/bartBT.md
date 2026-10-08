@@ -226,7 +226,12 @@ family(object, ...)
   \\10^6\\, as a sweep's time grows with the total count. For a weighted
   logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
   the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
-  p)\\ with \\p\\ the fitted probability.
+  p)\\ with \\p\\ the fitted probability. On a gaussian, Student-t or
+  `aft` fit, the `"ppd"` draw of a training row at weight 0, a row held
+  out of the fit, is that of an ordinary observation, drawn at weight 1,
+  in `extract` and in `fitted(type = "ppd")`;
+  `predict(type = "ppd", weights = )` refuses a weight of 0 by name, so
+  pass 1 for an ordinary observation.
 
 - ntree:
 
@@ -417,9 +422,15 @@ family(object, ...)
 
 - newdata:
 
-  Test data for prediction. Obeys all the same rules as `x.train` but
-  cannot be missing. An unnamed matrix given to a fit whose predictors
-  are named is matched by position, with a warning.
+  Test data for prediction. Obeys all the same rules as `x.train`,
+  except that on a fit with a factor column a numeric matrix is refused
+  by name, and a data frame is given. An unnamed matrix given to a fit
+  whose predictors are named is matched by position, with a warning.
+  Left out (or `NULL`), `predict` returns each `type` at the training
+  rows from the draws the fit stored, as `extract` with
+  `sample = "train"` does, and needs no saved trees; an `offset` given
+  then replaces the fit's own at the training rows, one value or one per
+  training row, while `weights` and `bases` are refused there.
 
 - offset:
 
@@ -916,12 +927,12 @@ returned. In the numeric \\y\\ case, the list has components:
 
   Matrix of posterior samples of `sigma`, the residual/error standard
   deviation; absent on a heteroscedastic fit, which has no scalar
-  residual scale and whose scale draws are `s.train`/`s.test`.
-  Dimensions are equal to the number of chains times the number of
-  samples unless `nchain` is one or `combinechains` is `TRUE`, in which
-  case it collapses to a vector in the same chain-major order as
-  `yhat.train` (see above), so combined `sigma[r]` pairs with combined
-  `yhat.train[r, ]`.
+  residual scale and whose scale draws are `s.train`/`s.test`, and on a
+  fit that held `sigma`, whose value is in `fixed`. Dimensions are equal
+  to the number of chains times the number of samples unless `nchain` is
+  one or `combinechains` is `TRUE`, in which case it collapses to a
+  vector in the same chain-major order as `yhat.train` (see above), so
+  combined `sigma[r]` pairs with combined `yhat.train[r, ]`.
 
 - `first.sigma`:
 
@@ -1068,16 +1079,42 @@ returned. In the numeric \\y\\ case, the list has components:
 - `fixed`:
 
   The scalars the sampler held fixed, a named list on every fit, empty
-  when there are none: among `sigma`, `k` and `resid.df`, and `shape` on
-  a negative-binomial fit, each read from the sampler. A fixed `sigma`
-  is the sampler's, the square root of the variance `fixed()` names; a
-  fixed `k` on a fit with several forests is a vector named by forest.
-  Their draw channels, where there are any, repeat the value; `extract`
-  and `summary` read this list in their place.
+  when there are none: among `sigma`, `k` and `resid.df`, `shape` on a
+  negative-binomial fit, and `amplitude` for each forest whose
+  coefficient is held by `amplitude = fixed()`, each read from the
+  sampler. A fixed `sigma` is the sampler's, the square root of the
+  variance `fixed()` names; a fixed `k` on a fit with several forests is
+  a vector named by forest, and a held `amplitude` is 1 for each held
+  forest, named the same way. A held value is stored here and nowhere
+  else: a fit that held `sigma` or `shape` has no `sigma`, `first.sigma`
+  or `shape` channel, as one that held `k` has no `k`, and `plot`,
+  `summary`, `extract`, the predictive draws, the log-likelihood and
+  `predict` read the value from this list. A fit whose `sigma` is
+  missing is therefore not necessarily a binary one: test `family` (or
+  `fixed`), not the channel.
 
 - `binaryOffset`:
 
   Present only for a binary fit: the offset value used.
+
+- `offset`:
+
+  Present only for a fit trained with an offset: the training offset,
+  one number per training row (or one number). `predict` with no
+  `newdata` and
+  [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
+  take the fit's own offset off the stored draws and put the `offset`
+  they are given on, so they need no saved trees. The same element is
+  stored by every fit class
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) returns,
+  the multinomial one's an n x K matrix.
+
+- `offset.test`:
+
+  Present only for a fit with a test set trained with a test offset:
+  that offset, one number per test row. A discrete-time hazard fit's
+  `survivalProbabilities` replaces it when given an offset and no
+  `newdata`.
 
 - `family`:
 
@@ -1240,7 +1277,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.217553
+#> total seconds in loop: 0.126861
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
