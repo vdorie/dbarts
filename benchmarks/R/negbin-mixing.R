@@ -78,9 +78,13 @@
 #     quick (3 of 12, 2000);
 #   - every draw one grid step up: caught in full 12 of 12, by (iii), (iv)
 #     and (v), quick 0 of 12 (2000);
-#   - every draw one step DOWN, and half the draws one step up: not caught,
-#     quick or full (2000). The gate is one-sided: it sees a chain that is
-#     stuck, slow or shifted up, not a stationary law shifted down.
+#   - every draw one step DOWN: caught by (iii) on r0 = 8 seed 1, at the
+#     edge of its 99.9% set, in quick 6 of 8 streams (2000) and in full 3 of
+#     5 (4000);
+#   - half the draws one step up: not caught, quick or full. A stationary
+#     law shifted by less than a grid step is what neither mode sees.
+# Full mode catches fewer slowed or shifted shapes than quick for some
+# mutants: its longer chains fill in the tails that Rhat and the sets read.
 # negbin-exact.R holds the stationary law at n = 50.
 #
 # A failure is a finding.

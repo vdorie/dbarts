@@ -627,11 +627,14 @@ reproducibility, never correctness.
 **Mixing gate.** The exact gate checks the stationary law on one tree and
 n = 50, which cannot see a chain that never leaves its cold start: logit-p
 passed it while frozen. [negbin-mixing.R](../../benchmarks/R/negbin-mixing.R)
-fits the default forest with two chains at mu = 8 exp(x1), r0 = 5 at n = 2000
-and r0 = 2 at n = 500, and requires each chain to leave the cold start, split-Rhat
-on r below 1.05, the pooled 95% set to cover r0, and 90% predictive coverage
-of fresh counts by randomized PIT within 0.90 +- 0.04. It fails under logit-p
-(every chain at r = 8, coverage 0.71-0.87) and passes under log-mean.
+fits the default forest with two chains at mu = 8 exp(x1) on two cells whose
+posterior on r spreads over several grid values, the chains' shapes set apart
+at the start, and requires each chain to move, split-Rhat on r below 1.05, the
+truth inside the pooled 99.9% set, and predictive coverage of fresh counts
+inside a band sized from a correct sampler; the cells, checks and what each
+catches are in the script's header and
+[check-shape-fixes.md](../plans/check-shape-fixes.md). It fails under logit-p
+and passes under log-mean.
 
 **Recovery.** Simulated NB counts over a nonlinear f at moderate n, checking
 mean-count calibration and r recovery against truth across grid values r in

@@ -93,12 +93,14 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
   fresh datasets a cell, 0 of 90 (coverage 0.858 to 0.929, largest Rhat 1.018). Caught, over 12 engine streams on
   the six pinned datasets: never moves, quick and full; one sweep in 100: full 12 of 12, quick 11 of 12 (2000); one
   sweep in 20: full 1 of 12 (7 of 12 at 2000 draws), quick 3 of 12 (2000); every draw one step up: full 12 of 12,
-  quick 0 of 12 (2000). Not caught: every draw one step down, half the draws one step up (2000): the gate is
-  one-sided. Full mode takes 73 s on the laptop (two threads), 40 s at 2000 draws.
+  quick 0 of 12 (2000); every draw one step down: by (iii) on r0 = 8 seed 1 at the edge of its set, quick 6 of 8
+  streams (2000), full 3 of 5. Not caught: half the draws one step up; a law shifted by less than a grid step is
+  what neither mode sees. Full mode takes 73 s on the laptop (two threads), 40 s at 2000 draws.
 - k arm, R = 600, L = 99, thin 1000, burn 30000: 67 minutes on the laptop (6.7 s a replication, two runs at once on
   a loaded machine), so 134 at twice that, inside the 180-minute limit. Correct sampler: all seven functionals pass,
   k's chi-square p 0.012 (above the 6e-4 flag) and ecdf difference 0.038 of a 0.080 band, the end bins at 48 and
-  47 against 30 expected (the CLI run at the workflow's command with SBC_FAIL_ON_FLAG=true exited 0). Shape of the k^2 conditional + 1/2: k flags, ecdf
+  35 against 30 expected (47 in the 90 to 94 bin; under uniform ranks an end bin reaches 48 about one run in 500,
+  so the k histogram of the first push's sbc run, a new stream, is to be read with this in mind) (the CLI run at the workflow's command with SBC_FAIL_ON_FLAG=true exited 0). Shape of the k^2 conditional + 1/2: k flags, ecdf
   difference 0.142 of 0.082 and chi-square p 0.000, 86 of 600 ranks in the lowest bin against 30. Power: the band
   at R = 600 is 0.082 and the ecdf's noise at its worst point about 0.02, so a true gap g is flagged with
   probability about pnorm((g - 0.082) / 0.02), 80% at g = 0.10; the +1/2 error's gap is 0.10 to 0.2 (mean rank 45
