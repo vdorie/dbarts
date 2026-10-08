@@ -258,6 +258,10 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
+  binary-one-class-fit: a probit or logistic fit whose response holds
+    one class is fitted with one warning saying so, where today it is
+    refused (dec-B333, revising dec-A144); tests of the latent sampler
+    at one class. Before 1.0-0.
   gp-reanchor-message: the refusal of updateScale = TRUE by a gp
     sampler that holds saved draws says to re-derive the scale during
     burn-in, before draws are saved (burn-in sweeps, or keepTrees off
@@ -718,7 +722,10 @@ items
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
   control-carried-count-edges: with the control migration (dec-A179).
-    A control taken from a bart() or bartBT() fit and given to
+    Ruled: a control copied from a fit sets no count, and a warning
+    says when its copy differs and is not used (dec-B334); a sampler
+    assembled by new() takes the model's count with the same warning
+    (dec-B335). A control taken from a bart() or bartBT() fit and given to
     dbarts() for a model whose every forest has a basis is refused as
     naming 'n.trees', though nobody named one (those functions build
     their control by a call that names it), and setControl given an
