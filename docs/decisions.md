@@ -2153,6 +2153,10 @@ Record: this register. Marked: blank. [dec-B349]
 pdbart and pd2bart plot a fit as one predictor varies at the values levs gives; a factor predictor is plotted as a factor (dec-B175), where 0.9-34 expanded it into indicator columns and refused its name in xind. Run by the triage on 2026-10-08: levs = list(c("1", "10")) plots those levels; levs = list(1:2) stops, "'levs' for factor predictor 'g' must name its levels"; a name absent from training stops and lists it. Shown names only, recommended, as predict's newdata matches a factor by label, against reading numbers as level positions, which goes wrong in silence where the labels are numerals, the maintainer on 2026-10-08: "A. Level names only (as built)." The rule: a factor's levs are level names, a character vector or a factor; a number is refused. Built. Confirms that call of dec-A141. See also: [dec-A141], [dec-B175].
 Record: this register. Marked: blank. [dec-B350]
 
+**An argument that holds rows is evaluated once per fit**
+A fit can use its rows in more than one place, the trees' design and a leaf basis (linear or gp leaves, new in 1.0-0); while each place evaluated the arguments that pick rows for itself, a random expression gave each place other rows, with no message. Run by the triage on 2026-10-08: a subset whose expression returns rows 1:100 on its first call and 101:200 after is evaluated once on the branch, with and without leaf.prior = linear("a"), and once on 0.9-34, which had one use; lm evaluates subset once too, in model.frame. Shown once per fit, recommended, against evaluating at each use, which fits mismatched rows, the maintainer on 2026-10-08: "A. Once per fit (as built)." The rule: the first argument, data, test, subset, weights and offset are each evaluated once for a fit and that value is used everywhere; pdbart on a kept fit reads its stored call again, as update() does. Built. Confirms that call of dec-A175. See also: [dec-A175], [dec-B270], [dec-B284].
+Record: this register. Marked: blank. [dec-B351]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
