@@ -52,11 +52,14 @@ expect_true(abs(spread - held) < 0.2 * held)
 expect_identical(dim(predict(fit, x, type = "ppd")), c(20L, n))
 expect_false(anyNA(fitted(fit, type = "ppd")))
 expect_identical(counted(summary(fit))$warnings, 0L)
-expect_identical(counted({
-  pdf(NULL)
-  on.exit(dev.off())
-  plot(fit)
-})$warnings, 0L)
+expect_identical(
+  counted({
+    pdf(NULL)
+    on.exit(dev.off())
+    plot(fit)
+  })$warnings,
+  0L
+)
 # a drawn sigma keeps its channels
 fit.drawn <- quick(x, y)
 expect_false(is.null(fit.drawn[["sigma"]]))
@@ -76,7 +79,7 @@ expect_identical(
 expect_false(anyNA(extract(fit.aft, "loglik")))
 lp <- extract(fit.aft, "bart", combineChains = FALSE)
 expect_equal(
-  unname(survivalProbabilities(fit.aft, 1.5, combineChains = FALSE)[, , 1L, ]),
+  unname(survivalProbabilities(fit.aft, 1.5, combineChains = FALSE)[,, 1L, ]),
   unname(pnorm((log(1.5) - lp) / fit.aft$fixed$sigma, lower.tail = FALSE))
 )
 

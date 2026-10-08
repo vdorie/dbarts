@@ -94,17 +94,20 @@ expect_true(is.matrix(withMode("dense", dbarts:::makeIndicatorModelMatrix(d))))
 # sparse-columns warning is raised for storage the caller did not choose ---
 
 fitSigest <- function(mode) {
-  countWarnings(withMode(mode, bartBT(
-    d,
-    y,
-    ntree = 5L,
-    nskip = 5L,
-    ndpost = 5L,
-    nchain = 1L,
-    nthread = 1L,
-    keeptrees = TRUE,
-    verbose = FALSE
-  )))
+  countWarnings(withMode(
+    mode,
+    bartBT(
+      d,
+      y,
+      ntree = 5L,
+      nskip = 5L,
+      ndpost = 5L,
+      nchain = 1L,
+      nthread = 1L,
+      keeptrees = TRUE,
+      verbose = FALSE
+    )
+  ))
 }
 auto <- fitSigest("auto")
 dense <- fitSigest("dense")

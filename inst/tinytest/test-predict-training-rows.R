@@ -186,7 +186,9 @@ expect_false(anyNA(fitted.w$value))
 # a weight-0 row draws with the spread of weight 1: the same noise scale
 # as a weight-1 row of the same fit
 spread <- apply(ppd.w$value - extract(fit.w, "ev"), 2L, sd)
-expect_true(abs(mean(spread[w == 0]) - mean(spread[w == 1])) < 0.5 * mean(spread[w == 1]))
+expect_true(
+  abs(mean(spread[w == 0]) - mean(spread[w == 1])) < 0.5 * mean(spread[w == 1])
+)
 expect_error(
   predict(fit.w, x, type = "ppd", weights = c(0, rep(1, n - 1L))),
   "pass 1 for an ordinary observation"

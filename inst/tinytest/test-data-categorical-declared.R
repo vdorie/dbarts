@@ -289,7 +289,9 @@ local({
   # stay though the new rows miss the top ones
   replacement <- frame[sample(low, n.keep, TRUE), c("a", "f", "o")]
   expect_error(
-    sampler$setPredictor(as.matrix(sampler$data@x)[sample(low, n.keep, TRUE), ]),
+    sampler$setPredictor(as.matrix(sampler$data@x)[
+      sample(low, n.keep, TRUE),
+    ]),
     "the predictors 'f', 'o' are factors"
   )
   sampler$setPredictor(replacement, forceUpdate = TRUE)
