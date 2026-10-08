@@ -314,6 +314,10 @@ items
     reaches bcf-shaped models. After the forest slices. Before then
     the help says a re-derived basis scale (updateBasisScale, dec-B303)
     and the response scale may span different rows.
+  category-test-offset-no-updatestate: before 1.0-0 (dec-B374, VD
+    2026-10-08). setCategoryTestOffset drops its updateState argument,
+    as the other three test-data setters have none; the Rd usage and
+    the updateState item's list of methods change with it.
   ppd-weight-zero: before 1.0-0 (dec-B372, VD 2026-10-08). On
     gaussian, Student-t and aft fits a training row at weight 0 draws
     its posterior predictive at weight 1 in extract(fit, "ppd") and
