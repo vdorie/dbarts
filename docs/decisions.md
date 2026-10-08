@@ -2141,6 +2141,10 @@ Record: this register. Marked: blank. [dec-B347]
 dec-B189 names the negative-binomial r shape and dec-B190 overloads its reader getShape across families; neither names the other places it is reported. Run by the triage on 2026-10-08: the fit component, extract(type = "shape"), the summary row, run()'s result, the saved state and the C header all say shape; the family is new in 1.0-0. Shown the bare word, recommended, against nbinom.shape in the reported places, the maintainer on 2026-10-08: "A. The bare word everywhere, as built." The rule: the parameter is shape wherever it is reported, the family telling which. The alternative gave one parameter two spellings. Built. Confirms that call of dec-A145. See also: [dec-B189], [dec-B190], [dec-A145].
 Record: this register. Marked: blank. [dec-B348]
 
+**Ordinal predict takes an offset**
+An ordinal fit takes offset and offset.test when fitting; its predict refused one, so predict at the training rows disagreed with fitted(). Run by the triage on 2026-10-08: predict(fit, newdata, offset = o) returns draws by rows by categories, evaluating the fit's offset expression on newdata where none is given, as predict.lm does (dec-B184); ordinal fits are new in 1.0-0. Shown taking it, as probit does, recommended, against refusing offsets on ordinal fits at fit time, the maintainer on 2026-10-08: "A. Take it, as probit does (as built)." The rule: ordinal predict takes an offset as every other family's does. The alternative removed a feature the fit has. Built. Confirms that call of dec-A137. See also: [dec-A137], [dec-B184], [dec-B154].
+Record: this register. Marked: blank. [dec-B349]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
