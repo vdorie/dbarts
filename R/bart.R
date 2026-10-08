@@ -247,6 +247,15 @@ fitDescriptors <- function(sampler, samples = NULL) {
       sharedValue(k)
     }
   }
+  # a forest whose coefficient is held by amplitude = fixed(), per forest:
+  # the coefficient is 1, the basis carrying any coding (dec-B354)
+  held <- attr(sampler$control, "bartcore.forests", exact = TRUE)$heldAmplitude
+  if (any(held)) {
+    fixed$amplitude <- setNames(
+      rep(1, sum(held)),
+      paste0("forest", which(held))
+    )
+  }
   df <- attr(model, "resid.df")
   if (!is.null(df) && df > 0 && !is.null(samples[["resid.df"]])) {
     fixed$resid.df <- sharedValue(samples[["resid.df"]])
@@ -589,6 +598,11 @@ packageBartResults <- function(
   descriptors <- fitDescriptors(fit, samples)
   result$leaf.prior <- descriptors$leaf.prior
   result$fixed <- descriptors$fixed
+  # a held sigma lives only in fit$fixed, as a held k does (dec-B376)
+  if (!is.null(descriptors$fixed[["sigma"]])) {
+    result$sigma <- NULL
+    result$first.sigma <- NULL
+  }
   # the sampler's k as it recorded it, whatever terms the leaf prior was named
   # in, present only when drawn
   if (!is.null(samples[["k"]])) {
@@ -2925,7 +2939,7 @@ bart2Negbin <- function(
   # sweeps wrote them regardless), and shape.raw supplies predict's
   # per-draw r in the raw n.samples x n.chains layout that pairs with the
   # replayed draws.
-  if (control@keepTrees) {
+  if (control@keepTrees && is.null(result[["fixed"]][["shape"]])) {
     result$shape.raw <- shapeRaw
   }
   if (control@keepTrees || keepSampler) {
@@ -3006,6 +3020,10 @@ packageNegbinResults <- function(
   descriptors <- fitDescriptors(sampler)
   result$leaf.prior <- descriptors$leaf.prior
   result$fixed <- descriptors$fixed
+  # a held shape lives only in fit$fixed, as a held k does (dec-B376)
+  if (!is.null(descriptors$fixed[["shape"]])) {
+    result$shape <- NULL
+  }
   result$row.names.train <- trainNames
   result$row.names.test <- testNames
   # absent, not NULL, off a complete fit, as bart's own packager keeps it
@@ -3683,7 +3701,13 @@ survivalProbabilities.bart <- function(
   heteroscedastic <- fitIsHeteroscedastic(object) ||
     !is.null(object[["s.train"]])
   scale <- if (!heteroscedastic) {
-    object[["sigma"]]
+    if (is.null(object[["sigma"]])) {
+      # a held sigma is stored in fit$fixed alone (dec-B376)
+      dims <- dim(linearPredictor)
+      rep(object[["fixed"]][["sigma"]], prod(dims[-length(dims)]))
+    } else {
+      object[["sigma"]]
+    }
   } else if (is.null(newdata)) {
     if (is.null(object[["s.train"]])) {
       stop(

@@ -258,8 +258,14 @@ for (name in names(scenarios)) {
       fixedSigma,
       paste(name, "sigma")
     )
-    # the channel keeps its layout, a fixed value repeated per draw
-    expect_identical(length(fit$sigma), 2L * nSamples, info = name)
+    # a held value lives in fit$fixed alone, as a held k does (dec-B376); a
+    # drawn one keeps its channel
+    expect_identical(
+      length(fit$sigma),
+      if (fixedSigma) 0L else 2L * nSamples,
+      info = name
+    )
+    expect_identical(is.null(fit[["first.sigma"]]), fixedSigma, info = name)
     expect_identical(
       extract(unkept, "sigma"),
       extract(fit, "sigma"),
@@ -279,7 +285,11 @@ for (name in names(scenarios)) {
       fixedShape,
       paste(name, "shape")
     )
-    expect_identical(length(fit$shape), 2L * nSamples, info = name)
+    expect_identical(
+      length(fit$shape),
+      if (fixedShape) 0L else 2L * nSamples,
+      info = name
+    )
   }
 }
 
@@ -435,6 +445,7 @@ oldSigma <- fitOf(
   family = dbartsFamilies$gaussian(sigma = dbartsPriors$fixed(0.3))
 )
 oldSigma$fixed <- NULL
+oldSigma$sigma <- rep(sqrt(0.3), 2L * nSamples)
 expect_identical(summary(oldSigma, vars = "sigma")$stats$variable, "sigma")
 
 # --- summary tabulates what was sampled and names what was fixed ---

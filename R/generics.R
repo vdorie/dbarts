@@ -171,7 +171,7 @@ pointwiseLogLikelihood <- function(object, ev) {
     # length mismatch means the two channels were not written by the same run
     s <- heteroscedasticScale(object[["s.train"]], n.chains)
     sd <- if (is.null(s)) {
-      rep_len(as.vector(chainFastest(object$sigma)), length(ev))
+      heldOrDrawnVec(object, "sigma", n.chains, length(ev))
     } else if (length(s) != length(ev)) {
       stop("the fit's 's.train' draws do not match its fitted draws")
     } else {
@@ -221,7 +221,7 @@ pointwiseLogLikelihood <- function(object, ev) {
     # recycles - the gaussian branch's split, under the same length check
     s <- heteroscedasticScale(object[["s.train"]], n.chains)
     sd <- if (is.null(s)) {
-      rep_len(as.vector(chainFastest(object$sigma)), length(ev))
+      heldOrDrawnVec(object, "sigma", n.chains, length(ev))
     } else if (length(s) != length(ev)) {
       stop("the fit's 's.train' draws do not match its fitted draws")
     } else {
@@ -2881,7 +2881,7 @@ extract.bartNegbin <- function(
   # align regardless of either's own storage, then reshape the result to the
   # caller's request
   muSplit <- combineOrUncombineChains(mu, n.chains, FALSE)
-  disp <- scalarDrawVec(object$shape, n.chains, length(muSplit))
+  disp <- heldOrDrawnVec(object, "shape", n.chains, length(muSplit))
   result <- array(
     rnbinom(length(muSplit), size = disp, mu = as.vector(muSplit)),
     dim(muSplit),
@@ -2898,7 +2898,7 @@ extract.bartNegbin <- function(
 negbinLogLik <- function(object, mu, n.chains) {
   y <- object[["y"]]
   n.draws <- length(mu) %/% length(y)
-  disp <- scalarDrawVec(object[["shape"]], n.chains, length(mu))
+  disp <- heldOrDrawnVec(object, "shape", n.chains, length(mu))
   result <- dnbinom(
     rep(y, each = n.draws),
     size = disp,
@@ -2999,8 +2999,7 @@ residuals.bartNegbin <- function(object, ...) {
 # read no r. Only ppd touches the RNG, so type = "ev" is draw-neutral. The
 # replay reads through $fit's own pointer: $fit is the sampler whose engine
 # actually ran, so getPointer() can re-create it from stored state after a
-# save/reload. The presence gate re-points to shape.raw, which is read
-# below and rides the same keepTrees gate.
+# save/reload. The presence gate is the sampler and its keepTrees.
 predict.bartNegbin <- function(
   object,
   newdata,
@@ -3035,7 +3034,7 @@ predict.bartNegbin <- function(
       ci.level
     ))
   }
-  if (is.null(object[["shape.raw"]])) {
+  if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     refuseWithoutTrees("predict")
   }
   # after the store check, whose absence the default here would otherwise
@@ -3076,9 +3075,14 @@ predict.bartNegbin <- function(
   if (length(dim(raw)) == 2L) {
     dim(raw) <- c(dim(raw), 1L)
   }
-  disp <- object$shape.raw # n.samples x n.chains
   n.new <- dim(raw)[1L]
   n.samples <- dim(raw)[2L]
+  # n.samples x n.chains; a held shape is not stored per draw
+  disp <- if (is.null(object[["shape.raw"]])) {
+    matrix(object[["fixed"]][["shape"]], n.samples, n.chains)
+  } else {
+    object$shape.raw
+  }
   means <- array(0, c(n.new, n.samples, n.chains))
   for (s in seq_len(n.samples)) {
     for (chain in seq_len(n.chains)) {
@@ -3448,6 +3452,21 @@ scalarDrawVec <- function(x, n.chains, n.total) {
   rep_len(as.vector(x), n.total)
 }
 
+# A scalar-per-draw field of a fit (sigma, shape) laid out for `n.total`
+# elements by scalarDrawVec, or, where the fit held it, the held value
+# repeated: a held value is stored in fit$fixed alone (dec-B376).
+heldOrDrawnVec <- function(object, name, n.chains, n.total) {
+  channel <- object[[name]]
+  if (!is.null(channel)) {
+    return(scalarDrawVec(channel, n.chains, n.total))
+  }
+  held <- object[["fixed"]][[name]]
+  if (is.null(held)) {
+    return(NULL)
+  }
+  rep_len(as.double(held), n.total)
+}
+
 # Glue the flat, draw-aligned zero-part-probability, positive-log-mean, and
 # positive-sigma vectors into the requested channel and reshape to the fit's
 # uncombined draw layout ('shape'). Only "ppd" touches the RNG (Bernoulli then
@@ -3546,8 +3565,9 @@ hurdleParts <- function(object, rows = NULL, n.threads = 1L) {
       rows$keptNames
     )
   }
-  sigmaVec <- scalarDrawVec(
-    object$positive$sigma,
+  sigmaVec <- heldOrDrawnVec(
+    object$positive,
+    "sigma",
     hurdleNChains(object),
     length(f)
   )
@@ -4009,6 +4029,17 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
 
   responseIsBinary <- fitIsBinary(object)
   sigma <- object$sigma
+  # a held sigma is stored in fit$fixed alone (dec-B376): one value per draw
+  if (
+    is.null(sigma) &&
+      !responseIsBinary &&
+      !is.null(object[["fixed"]][["sigma"]])
+  ) {
+    sigma <- rep(
+      object[["fixed"]][["sigma"]],
+      length(ev) %/% dim(ev)[length(dim(ev))]
+    )
+  }
   if (!responseIsBinary && !is.null(sigma) && is.null(dim(sigma))) {
     sigma <- uncombineChains(as.vector(sigma), n.chains)
   }

@@ -1090,6 +1090,13 @@ resolveSamplerSpec <- function(
       vars = forestColumns,
       # one label for each forest; see forestLabels()
       labels = labels,
+      # whether each forest's coefficient is held (amplitude = fixed()), which
+      # a fit records in fit$fixed
+      heldAmplitude = vapply(
+        specs,
+        function(spec) identical(spec$amplitude, "fixed"),
+        NA
+      ),
       # the first forest's constraints are the model's, already resolved
       # above; the rest take their own, and the plain forest the fitting
       # function's where it states none, each resolved against the columns

@@ -284,7 +284,7 @@ extract(object, \dots)
     Vector of means of \code{yhat.test} across columns and chains.
   }
   \item{\code{sigma}}{
-    Matrix of posterior samples of \code{sigma}, the residual/error standard deviation; absent on a heteroscedastic fit, which has no scalar residual scale and whose scale draws are \code{s.train}/\code{s.test}. Dimensions are equal to the number of chains times the number of samples unless \code{nchain} is one or \code{combinechains} is \code{TRUE}, in which case it collapses to a vector in the same chain-major order as \code{yhat.train} (see above), so combined \code{sigma[r]} pairs with combined \code{yhat.train[r, ]}.
+    Matrix of posterior samples of \code{sigma}, the residual/error standard deviation; absent on a heteroscedastic fit, which has no scalar residual scale and whose scale draws are \code{s.train}/\code{s.test}, and on a fit that held \code{sigma}, whose value is in \code{fixed}. Dimensions are equal to the number of chains times the number of samples unless \code{nchain} is one or \code{combinechains} is \code{TRUE}, in which case it collapses to a vector in the same chain-major order as \code{yhat.train} (see above), so combined \code{sigma[r]} pairs with combined \code{yhat.train[r, ]}.
   }
   \item{\code{first.sigma}}{
     Burn-in draws of \code{sigma}; absent where \code{sigma} is.
@@ -329,7 +329,7 @@ extract(object, \dots)
     The leaf prior the fit ran under, on every fit: the sampler's own reading as the run ended (\code{\link{dbartsSampler}}'s \code{getLeafPrior}), a list holding the prior as it was named, what its standard deviation is the standard deviation of, and \code{k.scale}, the value \code{k} is relative to. A list of such lists, named \code{forest1}, \code{forest2}, ..., on a fit with several forests.
   }
   \item{\code{fixed}}{
-    The scalars the sampler held fixed, a named list on every fit, empty when there are none: among \code{sigma}, \code{k} and \code{resid.df}, and \code{shape} on a negative-binomial fit, each read from the sampler. A fixed \code{sigma} is the sampler's, the square root of the variance \code{fixed()} names; a fixed \code{k} on a fit with several forests is a vector named by forest. Their draw channels, where there are any, repeat the value; \code{extract} and \code{summary} read this list in their place.
+    The scalars the sampler held fixed, a named list on every fit, empty when there are none: among \code{sigma}, \code{k} and \code{resid.df}, \code{shape} on a negative-binomial fit, and \code{amplitude} for each forest whose coefficient is held by \code{amplitude = fixed()}, each read from the sampler. A fixed \code{sigma} is the sampler's, the square root of the variance \code{fixed()} names; a fixed \code{k} on a fit with several forests is a vector named by forest, and a held \code{amplitude} is 1 for each held forest, named the same way. A held value is stored here and nowhere else: a fit that held \code{sigma} or \code{shape} has no \code{sigma}, \code{first.sigma} or \code{shape} channel, as one that held \code{k} has no \code{k}, and \code{plot}, \code{summary}, \code{extract}, the predictive draws, the log-likelihood and \code{predict} read the value from this list. A fit whose \code{sigma} is missing is therefore not necessarily a binary one: test \code{family} (or \code{fixed}), not the channel.
   }
   \item{\code{binaryOffset}}{
     Present only for a binary fit: the offset value used.
