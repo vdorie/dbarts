@@ -71,7 +71,8 @@ survivalProbabilities(object, ...)
     \code{newdata} (see \code{offset} in \code{\link{bart}}). For a hazard fit
     a subject's offset applies at every period. Without \code{newdata} an
     offset replaces the fit's own at the training rows (one value or one per
-    training row, or per subject on a hazard fit), read off the stored draws
+    training row, or per subject on a hazard fit: the test subjects where it
+    carries a test set, else the training subjects), read off the stored draws
     with no trees replayed. On a hazard fit that carries a \code{test} set,
     the subjects are the test subjects whose draws it stored, and the offset
     replaces theirs on the latent scale before the link; with no test set a

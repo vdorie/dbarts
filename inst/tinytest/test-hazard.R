@@ -512,7 +512,7 @@ expect_equal(
 )
 expect_error(
   survivalProbabilities(fit.hoff.bare, offset = 1:3),
-  "one per training subject",
+  "one per test subject",
   fixed = TRUE
 )
 rm(fit.hoff, fit.hoff.bare, sp.off.stored, offsets.new)

@@ -3410,7 +3410,7 @@ hazardSurvivalProbabilities <- function(
       # the subject's own comes off, the new one goes on, then the link
       if (!length(offset) %in% c(1L, n) || anyNA(offset)) {
         stop(
-          "'offset' must be one number or one per training subject (",
+          "'offset' must be one number or one per test subject (",
           n,
           "), none missing",
           call. = FALSE
