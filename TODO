@@ -326,6 +326,17 @@ items
     and splits on period only where it is named. The test in
     test-single-forest-vars.R that pins the literal reading changes.
     A forest constant over time has no spelling in 1.0-0.
+  indicator-storage-invisible: before 1.0-0 (dec-B370, VD 2026-10-08).
+    An indicator expansion (bartBT's data-frame path, factors =
+    "indicators", makeModelMatrixFromDataFrame) is built sparse per
+    column by sparseDensityThreshold, in place of
+    sparseIndicatorLevelCutoff = 100 levels (R/utility.R); the starting
+    sigma takes the linear-model estimate on either storage (Matrix's
+    sparse QR where sparse), with no sparse-columns warning the caller
+    did not cause; makeModelMatrixFromDataFrame returns a plain matrix
+    unless the caller supplied a sparse column (bartXViz, maple and
+    riAFTBART call it). Tests: sigma and return type identical with and
+    without Matrix and across the threshold.
   leaf-covariate-cap-removed: before 1.0-0 (dec-B366, VD 2026-10-08).
     Linear and gp leaves take any number of covariates: the per-leaf
     scratch (LinearGaussianLeaf::maxNumCovariates,
