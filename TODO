@@ -282,30 +282,6 @@ items
     exhausts (cancelled once, 2026-10-08); sbc.yaml's probit-k job
     gains SBC_EXPECTED_FLAGS: k until probit-k-mixing lands. Edit
     them together, which starts each workflow in full.
-  basis-swap-zero-column: setForestBasis takes a numeric basis column
-    of all zeros, as it takes a factor level no row holds (dec-B346),
-    where today it refuses it; creation still refuses one. Help and a
-    test. Before 1.0-0.
-  predict-training-rows: predict on a fit with no newdata returns each
-    type at the training rows from the stored draws, needing no saved
-    trees, an offset given there replacing the fit's (dec-B341), where
-    today it stops with "newdata cannot be NULL". Every family's
-    predict method, help and tests. Before 1.0-0.
-  survival-offset-training-rows: survivalProbabilities given an offset
-    and no newdata applies it at the training rows in place of the
-    fit's, off the stored draws with no trees replayed (dec-B340),
-    where today it is refused. Help and a test. Before 1.0-0.
-  binary-one-class-fit: a probit or logistic fit whose response holds
-    one class is fitted with one warning saying so, where today it is
-    refused (dec-B333, revising dec-A144); tests of the latent sampler
-    at one class. Before 1.0-0.
-  gp-reanchor-message: the refusal of updateScale = TRUE by a gp
-    sampler that holds saved draws says to re-derive the scale during
-    burn-in, before draws are saved (burn-in sweeps, or keepTrees off
-    until the scale is fixed), or to make a new sampler, in place of
-    "a saved gp draw replays only under the response range it was
-    drawn with" (dec-B330). Bridge text, test-capi.R and
-    test-leaf-conversions.R. Before 1.0-0.
   leaf-slope-formula-single-value: at setData and a warm start a
     linear leaf's live slope is converted by the formula onto and off
     a covariate that holds one value at its centre, where today it is
@@ -319,40 +295,6 @@ items
     reaches bcf-shaped models. After the forest slices. Before then
     the help says a re-derived basis scale (updateBasisScale, dec-B303)
     and the response scale may span different rows.
-  category-test-offset-no-updatestate: before 1.0-0 (dec-B374, VD
-    2026-10-08). setCategoryTestOffset drops its updateState argument,
-    as the other three test-data setters have none; the Rd usage and
-    the updateState item's list of methods change with it.
-  ppd-weight-zero: before 1.0-0 (dec-B372, VD 2026-10-08). On
-    gaussian, Student-t and aft fits a training row at weight 0 draws
-    its posterior predictive at weight 1 in extract(fit, "ppd") and
-    fitted(type = "ppd"), where today it is NA with R's "NAs produced"
-    (R/generics.R about 662-676, ppdNoiseScale); predict(type = "ppd",
-    weights = 0) is refused by name, saying to pass 1. Help for both.
-    Probe: scratch/minor-bite/part-2/w0b.R.
-  predictor-frame-whole: before 1.0-0 (dec-B359, VD 2026-10-08).
-    setPredictor(x) with no column takes a data frame, coded by label
-    as the column form is, where today it fails ("'list' object cannot
-    be coerced to type 'double'", as in 0.9-34); a numeric matrix is
-    taken only where every predictor column is numeric and is refused
-    by name on a sampler with a factor column. The same for
-    setTestPredictor and predict (dec-B360), which take a matrix of
-    codes on a factor fit today (predict(fit, cbind(a = 0.5, f = 2))
-    reads 2 as the second level).
-  held-value-in-fixed-only: before 1.0-0 (dec-B376, VD 2026-10-08). A
-    held sigma (gaussian, aft) or count shape is stored only in
-    fit$fixed: fit$sigma, fit$first.sigma and the shape's channels are
-    absent, as for a held k; plot, summary, predictive draws, the
-    log-likelihood and predict read the held value from fit$fixed.
-    fit$fixed also carries a forest coefficient held by amplitude =
-    fixed(), per forest (1 under dec-B354). bartCause tells a binary
-    fit by a missing sigma: check its reader against a held sigma in
-    the lockstep branch.
-  hazard-max-rows-cost: before 1.0-0 (dec-B367, VD 2026-10-08). The
-    help of hazard(max.rows = ) and its refusal state what a row costs:
-    about 210 bytes a row shared plus about 630 a row a chain at 75
-    trees (one stored value a row a tree), so 1e7 rows is about 8.5 GB
-    on one chain and 27 GB on bart()'s four. The default stays 1e7.
   hazard-period-every-forest: before 1.0-0 (dec-B365, VD 2026-10-08).
     Every forest of a hazard fit may split on its period column
     whatever its vars, as a single forest already may; today each of
@@ -360,17 +302,6 @@ items
     and splits on period only where it is named. The test in
     test-single-forest-vars.R that pins the literal reading changes.
     A forest constant over time has no spelling in 1.0-0.
-  indicator-storage-invisible: before 1.0-0 (dec-B370, VD 2026-10-08).
-    An indicator expansion (bartBT's data-frame path, factors =
-    "indicators", makeModelMatrixFromDataFrame) is built sparse per
-    column by sparseDensityThreshold, in place of
-    sparseIndicatorLevelCutoff = 100 levels (R/utility.R); the starting
-    sigma takes the linear-model estimate on either storage (Matrix's
-    sparse QR where sparse), with no sparse-columns warning the caller
-    did not cause; makeModelMatrixFromDataFrame returns a plain matrix
-    unless the caller supplied a sparse column (bartXViz, maple and
-    riAFTBART call it). Tests: sigma and return type identical with and
-    without Matrix and across the threshold.
   law-wording-sweep: before 1.0-0 (VD 2026-10-08, no "law" for a
     distribution or a rule). About 870 whole-word uses of "law" in 181
     tracked files: docs, R and man text, comments, the TODO item name

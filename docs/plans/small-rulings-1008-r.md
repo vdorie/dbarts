@@ -1,6 +1,6 @@
 # small-rulings-1008-r: eleven small R-surface rulings of 2026-10-08
 
-Status: IN PROGRESS 2026-10-08
+Status: LANDED 2026-10-08 (6af82179)
 
 agent: sonnet implementer, one, one commit per item.
 rng: DRAW-CHANGING on two paths and neutral elsewhere. Item 11 changes the starting sigma of a fit whose indicator design is built sparse (the linear-model estimate where the sparse design used to fall back to the marginal sd), and moves the last bit of the draws of an indicator fit whose columns land in the engine's rank-bitmap tier (5 or more levels at a density of 0.2 or less). Item 7 changes a ppd draw at weight 0. Every other scenario of the equivalence trio is bitwise.
@@ -48,10 +48,12 @@ R-surface tier of "Process by risk": one sonnet review, the touched test files, 
 Equivalence trio at the final tip on the reference build, `--bitwise` where the harness takes it, EQUIVALENCE_CORES=2, baselines as the MANIFEST names them:
 - multinomial-equivalence-80b1c8d4: 11 compared / 0 skipped, every channel bitwise.
 - bcf-equivalence-1b7d730c: 15 compared / 0 skipped, every channel bitwise.
-- equivalence-1b7d730c: 54 of 55 scenarios report identical draws (same RNG stream). The mover is wideFactorIndicators (155 summaries, max |z| = 3.26, one summary above 3, none above 4): a 120-level factor under factors = "indicators", whose sparse design the baseline's build answered with the marginal-sd fallback (1.818) and this one with the linear-model estimate (1.037). It is the ruled change (dec-B370) and the scenario's draws are therefore not re-recorded here; the baseline is left as it is for the orchestrator to re-record with its oracle (P17: the sigma estimate equals lm's on the dense design, test-indicator-storage.R).
+- equivalence-1b7d730c: 54 of 55 scenarios report identical draws (same RNG stream). The mover is wideFactorIndicators (155 summaries, max |z| = 3.26, one summary above 3, none above 4): a 120-level factor under factors = "indicators", whose sparse design the baseline's build answered with the marginal-sd fallback (1.818) and this one with the linear-model estimate (1.037). It is the ruled change (dec-B370); the main baseline is re-recorded at the landing as equivalence-deb3fe50 (benchmarks/baselines/MANIFEST, with its oracle).
 - The four seeded-drift snapshot files pass on the reference build.
 
 Item 3 and the sparse QR of item 11 are checked against the dense and tree-replay results in test-hazard.R and test-indicator-storage.R.
+
+Landed 2026-10-08 as 8b8c2a0f..6af82179 after one sonnet review and two fix rounds, the same reviewer checking each. The review moved the starting sigma from a densified design to the sparse QR the ruling names, and the first fix round's QR then failed at more columns than rows and on a column of a very different scale; both are fixed and pinned, with mutants on the pivot tolerance killed on both sides. Reviewer's gates at the last code tip: the full tinytest suite serially, 19491 results, 0 failures; R CMD check --as-cran --no-manual, one NOTE (CRAN incoming metadata); the hazard-exact, heteroscedastic-exact, hazard-reduction and hurdle-reduction gates in quick mode. Calls: dec-A185. Lockstep: bartCause's dbarts-1.0 branch reads a held sigma from fit$fixed.
 
 ## Verification
 
