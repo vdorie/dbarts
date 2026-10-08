@@ -314,6 +314,13 @@ items
     setTestPredictor and predict (dec-B360), which take a matrix of
     codes on a factor fit today (predict(fit, cbind(a = 0.5, f = 2))
     reads 2 as the second level).
+  hazard-period-every-forest: before 1.0-0 (dec-B365, VD 2026-10-08).
+    Every forest of a hazard fit may split on its period column
+    whatever its vars, as a single forest already may; today each of
+    several forests (dbarts(forests = list(...))) takes vars literally
+    and splits on period only where it is named. The test in
+    test-single-forest-vars.R that pins the literal reading changes.
+    A forest constant over time has no spelling in 1.0-0.
   leaf-prior-spelling-keeps-spread: before 1.0-0 (dec-B356, VD
     2026-10-08). setLeafPrior switching a drawn leaf prior between
     normal(k = ) and normal(sd = invchi()) keeps each chain's spread
