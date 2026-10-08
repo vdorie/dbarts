@@ -137,10 +137,17 @@ tiers takes the higher.
   reachable, `R CMD check`, and the arm64 reproducibility snapshots.
 - R surface, no draw change (arguments, messages, return shapes, help): a
   short plan, or none where the ruling states the change; one sonnet
-  review; locally the test files the change touches, the snapshots, lint,
+  review, whose reviewer also checks the fix round (over the twelve
+  landings measured on 2026-10-08, 8 of 13 re-reviews found something
+  blocking, 6 of them package defects); locally the test files the change touches, the snapshots, lint,
   air, doc-freshness and the codoc checks. CI runs the full suite, check
   and sanitizers.
 - Docs, text, workflows, records: no review; lint, air and doc-freshness.
+- Gate-only slices (a test harness or a CI gate, no package code) take
+  the R-surface tier's review, not the engine tier's: in the measured
+  twelve, the one such slice took three reviews and two fix rounds and
+  none of its six blocking findings was a package defect
+  (scratch/process-measure/report.md).
 - Small rulings are batched: one R-surface slice and one engine slice for
   a sitting's small items, not one slice each.
 - Records at a landing: the ledger entry for the calls made, the plan's
