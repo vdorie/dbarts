@@ -89,6 +89,18 @@ fit.nb <- quick(x, cnt, family = nbinom(shape = 3))
 expect_null(fit.nb[["shape"]])
 expect_null(fit.nb[["shape.raw"]])
 expect_equal(fit.nb$fixed$shape, 3)
+# the predictive draws have the held shape's spread, in extract and in predict:
+# given the draw's mean mu, a count has variance mu + mu^2 / r
+for (ppd in list(
+  extract(fit.nb, "ppd"),
+  predict(fit.nb, x, type = "ppd")
+)) {
+  mu <- extract(fit.nb, "ev")
+  expect_true(
+    abs(mean((ppd - mu)^2 / (mu + mu^2 / fit.nb$fixed$shape)) - 1) < 0.3
+  )
+}
+rm(ppd, mu)
 expect_identical(dim(extract(fit.nb, "ppd")), c(20L, n))
 expect_identical(dim(predict(fit.nb, x, type = "ppd")), c(20L, n))
 expect_false(anyNA(extract(fit.nb, "loglik")))

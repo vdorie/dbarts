@@ -206,14 +206,17 @@ at <- factor(rep(c("a", "b", "c"), c(20L, 41L, 39L)))
 above <- factor(rep(c("a", "b", "c"), c(21L, 40L, 39L)))
 expect_true(dbarts:::factorMaySparse(at, "auto"))
 expect_false(dbarts:::factorMaySparse(above, "auto"))
+sparseMap <- function(m) {
+  if (inherits(m, "dbartsMixedMatrix")) m$map < 0L else rep(FALSE, ncol(m))
+}
 mi.at <- dbarts:::makeIndicatorModelMatrix(data.frame(f = at))
 expect_inherits(mi.at, "dbartsMixedMatrix")
-expect_identical(mi.at$map < 0L, c(TRUE, FALSE, FALSE))
+expect_identical(sparseMap(mi.at), c(TRUE, FALSE, FALSE))
 expect_true(is.matrix(dbarts:::makeIndicatorModelMatrix(data.frame(f = above))))
 # a row coded missing is stored in every column, so it counts toward it
 at.na <- factor(rep(c("a", "b", "c", NA), c(19L, 41L, 39L, 1L)))
 expect_identical(
-  dbarts:::makeIndicatorModelMatrix(data.frame(f = at.na))$map < 0L,
+  sparseMap(dbarts:::makeIndicatorModelMatrix(data.frame(f = at.na))),
   c(TRUE, FALSE, FALSE)
 )
 above.na <- factor(rep(c("a", "b", "c", NA), c(20L, 40L, 39L, 1L)))

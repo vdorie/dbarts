@@ -119,6 +119,32 @@ expect_equal(
   predict(fit.mn, df, offset = cat.off),
   tolerance = 1e-6
 )
+# a fit trained with a category offset has it replaced, not added to
+train.cat.off <- matrix(rnorm(n * 3L, 0, 0.8), n, 3L)
+fit.mn.off <- suppressWarnings(bart(
+  x,
+  df$cat,
+  offset = train.cat.off,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 2L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+new.cat.off <- matrix(rnorm(n * 3L, 0, 0.8), n, 3L)
+expect_equal(
+  predict(fit.mn.off, offset = new.cat.off),
+  predict(fit.mn.off, x, offset = new.cat.off),
+  tolerance = 1e-6
+)
+# the fit's own offset given back changes nothing
+expect_equal(
+  predict(fit.mn.off, offset = train.cat.off),
+  extract(fit.mn.off, "ev"),
+  tolerance = 1e-8
+)
 
 # a hurdle fit has no offset channel
 df$h <- ifelse(df$z == 1L, exp(df$y), 0)
