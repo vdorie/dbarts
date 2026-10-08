@@ -334,6 +334,12 @@ extract(object, \dots)
   \item{\code{binaryOffset}}{
     Present only for a binary fit: the offset value used.
   }
+  \item{\code{offset}}{
+    Present only for a fit trained with an offset: the training offset, one number per training row (or one number). \code{predict} with no \code{newdata} and \code{\link{survivalProbabilities}} take the fit's own offset off the stored draws and put the \code{offset} they are given on, so they need no saved trees. The same element is stored by every fit class \code{\link{bart}} returns, the multinomial one's an n x K matrix.
+  }
+  \item{\code{offset.test}}{
+    Present only for a fit with a test set trained with a test offset: that offset, one number per test row. A discrete-time hazard fit's \code{survivalProbabilities} replaces it when given an offset and no \code{newdata}.
+  }
   \item{\code{family}}{
     The response family as specified, once \code{"auto"} has resolved: \code{"gaussian"}, \code{"student"}, \code{"probit"}, \code{"logistic"}, \code{"aft"}, \code{"hazard.probit"}, or \code{"hazard.logistic"} (the bare token \code{"hazard"} is recorded as \code{"hazard.probit"}). \code{predict}, \code{extract}, \code{fitted}, and \code{plot} look its link up from it to transform latent draws to probabilities, and stop on a token they do not know. For an \code{"aft"} fit, predictions and fitted values are on the LOG-TIME scale: these functions return the linear predictor \eqn{E[\log T \mid x]}, exactly as for a gaussian fit of \eqn{\log T}, and never the time scale that \code{survreg} or \code{flexsurv} users might expect. The \code{type} aliases \code{"response"} and \code{"link"} are inert for \code{"aft"} - both return the same log-scale linear predictor; neither exponentiates. The posterior-median survival time is \code{exp} of the linear predictor, and \code{\link{survivalProbabilities}} gives survival-probability draws. A discrete-time hazard fit (\code{family = "hazard"}/\code{"hazard.logistic"}, reachable only through \code{\link{bart}}) records the binary link here (\code{"probit"}/\code{"logistic"}) - the fit IS that binary fit on the expanded rows - and carries a separate \code{$periods} element (the ordered period grid); \code{predict}/\code{extract} return the per-(subject, period) hazard through the link, and \code{\link{survivalProbabilities}} dispatches its survival-curve branch on the \code{$periods} marker.
   }
