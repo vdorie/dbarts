@@ -343,9 +343,8 @@ items
     normal(k = ) and normal(sd = invchi()) keeps each chain's spread
     in force, writing k_old x k.scale_new / k.scale_old, where today
     it keeps k and the spread jumps; setLeafPrior's help and the R
-    docstring change with it. Open for VD: whether a changed invchi()
-    scale within the sd spelling, the same mechanism, keeps the spread
-    too.
+    docstring change with it. A changed invchi() scale within the sd
+    spelling keeps the spread at the call too (dec-B369).
   leaf-covariate-single-value-off-centre: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
     relative to the centre closes it. A slope on a column moved to
