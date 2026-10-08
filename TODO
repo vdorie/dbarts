@@ -258,6 +258,10 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
+  survival-offset-training-rows: survivalProbabilities given an offset
+    and no newdata applies it at the training rows in place of the
+    fit's, off the stored draws with no trees replayed (dec-B340),
+    where today it is refused. Help and a test. Before 1.0-0.
   binary-one-class-fit: a probit or logistic fit whose response holds
     one class is fitted with one warning saying so, where today it is
     refused (dec-B333, revising dec-A144); tests of the latent sampler
