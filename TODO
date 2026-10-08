@@ -258,6 +258,16 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
+  k-calibration-ends: the probit-k calibration arm passes its gate
+    but put an end bin of k's ranks far over (48 of 30 expected on
+    one stream, 52 on another, chi-square p 0.012 and 0.013): draws
+    too correlated after thinning, or a k step too narrow. Settle
+    which before the merge (dec-B301).
+  workflow-text-edits: equivalence.yaml, rchk.yaml and valgrind.yaml
+    say workflow_dispatch needs main, which it does not; sbc.yaml's
+    aft job has a 15-minute limit that a slow dependency install
+    exhausts (cancelled once, 2026-10-08). Edit them together, which
+    starts each workflow in full.
   basis-swap-zero-column: setForestBasis takes a numeric basis column
     of all zeros, as it takes a factor level no row holds (dec-B346),
     where today it refuses it; creation still refuses one. Help and a
@@ -294,24 +304,6 @@ items
     another single value stays converted by the formula (dec-B328).
     With the slice that takes the centre and scale from the rows in
     the likelihood (dec-B304), which moves the same test (dec-A177).
-  check-shape-fixes: three things in the benchmark scripts and one
-    step (dec-B301, VD 2026-10-07: "Fix the shape."). The count
-    model's mixing gate takes a case whose posterior on the shape
-    spreads over several values in place of the one where it is a
-    single value, drops the rule that chains constant at one value
-    agree, and starts its chains apart where the shape's start can be
-    set. The calibration harness gains one arm with k drawn under its
-    default hyperprior, on probit: no correctness check of any family
-    draws k today. And BEFORE THE MERGE TO MAIN the calibration suite
-    is started by hand and read, its weekly schedule not firing until
-    the workflow is on main. With weekly-full-exact-gates, one slice.
-  weekly-full-exact-gates: the monotone enumeration gate runs its
-    quick mode on every push and its full mode nowhere in CI, the
-    full mode passing the job's 40 minutes. Run the full mode on a
-    weekly schedule with a longer limit, beside the weekly equivalence
-    and rchk runs (dec-A132, VD 2026-10-07); a schedule fires only
-    once the workflow is on main. Decide there whether the other exact
-    gates' full modes join it.
   missing-label-refusal-text: setPredictor and the joint row update
     refuse a missing label for a factor column with "has missing
     values, which its training values do not"; on a column of 70

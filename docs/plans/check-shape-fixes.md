@@ -1,6 +1,6 @@
 # check-shape-fixes: the count mixing gate's shape, a calibration arm for k, a weekly full run
 
-Status: PLANNED
+Status: LANDED 2026-10-08 (d9778294 to ddb889cb; dec-B301, dec-A132, with dec-A184 for the calls made in it)
 
 agent: sonnet implementer, one (R scripts and CI workflows only), over the build and two fix rounds; two independent
 reviews, the second "land after fixes" with one blocking finding (the mixing gate's false-failure claim), fixed in round 2.
@@ -152,3 +152,16 @@ Made in planning:
 - A separate weekly workflow reading the gate list from exact-gates.yaml, over a schedule inside exact-gates.yaml
   (its concurrency group would let a push to main cancel the weekly run).
 - bcf-latent-exact left out of the weekly run.
+
+## Landing note
+
+Landed 2026-10-08 as d9778294 to ddb889cb after three looks by independent reviewers told to refute. The
+first found the mixing gate's full mode on a coin flip and the k arm without the power to see a half-unit
+error in its step; the second found the gate's false-failure claim wrong by two orders on one pinned
+dataset; the third found the header understating what the gate catches (a shape one step low is caught at
+the edge of a set) and the plan misreading the k histogram. Each was fixed and shown fixed. The push started
+the whole calibration matrix and the weekly exact gates on CI: all twelve arms pass (the aft job reran once,
+its runner's dependency install having passed the job's limit) and the weekly run passes. On the CI stream the
+probit-k arm's k ranks put 52 in the top bin against 30 expected, chi-square p 0.013, as the laptop's had put
+48 in the bottom bin; under the gate's threshold, and filed to be settled before the merge (root TODO,
+k-calibration-ends).
