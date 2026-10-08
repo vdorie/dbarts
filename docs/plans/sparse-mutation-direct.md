@@ -87,7 +87,8 @@ Established by reading the code at 91e3db86, by runs against a private library b
    the new entry writes, so they are reused unchanged.
 9. Cut refresh: [`ColumnStore::refreshCutsForColumn`](../../src/bartcore/data.hpp) reads a dense column, and so do
    the precheck [`ColumnStore::cutsWouldRemainValid`](../../src/bartcore/data.hpp) and the degenerate test
-   [`ColumnStore::valuesAreDegenerate`](../../src/bartcore/data.hpp). Each needs a CSC form (Design).
+   retired: [`ColumnStore::valuesAreDegenerate`](../../src/bartcore/data.hpp) (gone since a refresh derives
+   its grid as a creation does). Each needs a CSC form (Design).
 10. Categorical sparse columns (`sparseFactor`): the store's implicit value is the reference code fixed at
     creation. The source's implicit value is the container's declared reference, resolved by
     [`resolveCscCategoricalReferences`](../../src/R_interface_bartcore.cpp), or 0 for a bare `dgCMatrix`. The two
@@ -167,7 +168,8 @@ caller takes the dense row of the table exactly as today.
   [`ColumnStore::fillCutsUniformlyCsc`](../../src/bartcore/data.hpp), through `refreshCutsForCscColumn(j)`, the
   CSC sibling of [`ColumnStore::refreshCutsForColumn`](../../src/bartcore/data.hpp). Its uniform-mode refusal
   needs `cscColumnIsDegenerate(j)`, the sibling of
-  [`ColumnStore::valuesAreDegenerate`](../../src/bartcore/data.hpp): no two logical values differ, the implicit
+  retired: [`ColumnStore::valuesAreDegenerate`](../../src/bartcore/data.hpp) (the check is gone since a
+  refresh derives its grid as a creation does): no two logical values differ, the implicit
   value counting when any row is absent. Factor columns keep no grid to refresh, as today.
 - The precheck in [`runPredictorTransaction`](../../src/bartcore/sampler.hpp) reads a CSC source column through
   `cutsWouldRemainValidCsc(j, values, nnz, sourceImplicit)`: level validity of every stored value and of the

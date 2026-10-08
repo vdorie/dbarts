@@ -526,6 +526,23 @@
             kept only the lowest ones, with a warning. A predictor with no
             more than \code{n.cuts + 1} distinct values, and the default
             \code{useQuantiles = FALSE}, are unaffected.
+      \item A predictor's cut points are distinct. A column whose range
+            cannot hold \code{n.cuts} distinct equally spaced points gets
+            fewer, where 0.9-34 repeated them, and a constant column gets
+            one; fits on a column that narrow, or on one with a single
+            value beside missing ones, change. A
+            \code{$setPredictor} that updates cut points derives up to
+            \code{n.cuts} of them from the new values whatever number the
+            column held, and no longer stops when they induce fewer.
+      \item \code{$setPredictor}'s \code{updateCutPoints} is one of
+            \code{"none"}, \code{"position"} and \code{"value"}: the last
+            two derive the cut points again, each split keeping its
+            position, as \code{TRUE} did, or moving to the cut point
+            nearest its threshold. A logical is taken until dbarts 1.1-0
+            with a warning once per session. \code{$setCutPoints} takes
+            the same choice as \code{splits}; by position, the default, a
+            split's position is rescaled when the number of cut points
+            changes, where 0.9-34 kept its index.
       \item The \code{chi(df)} hyperprior on \code{k} samples the degrees of
             freedom asked for; it had sampled \code{chi(2 * df - 1)}.
       \item Observations of weight zero no longer count in the residual

@@ -30,7 +30,8 @@ top of the column. No tree can split there. At the default 100 cuts:
 A column whose distinct values are a multiple of the cut count loses nothing, which is how fits at 200, 500 and
 1000 rows of continuous data never showed it.
 
-A refresh, `setPredictor(updateCutPoints = TRUE)`, keeps the number of cuts a column holds and thinned to it the
+Since [cut-grid.md](cut-grid.md) a refresh counts from `n.cuts` and not from the number of cuts a column holds;
+what follows is the refresh as this note landed it. A refresh, `setPredictor(updateCutPoints = TRUE)`, keeps the number of cuts a column holds and thinned to it the
 same way. A column created with 11 distinct values holds 10 cuts; refreshed onto 60 it kept the 10 lowest
 midpoints, the bottom sixth of the column. 0.9-34 warned there ("ignoring extra quantiles"); the rewritten engine
 did the same thing silently.

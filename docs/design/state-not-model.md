@@ -25,6 +25,9 @@ nothing else, and installing one should leave the model alone.
 | a supplied gp lengthscale | the kernel | model | kept; saved draws under another are refused |
 | weights and censoring digests | which data the latents were drawn against | data, by digest | compared; mismatches are reconciled |
 
+A state whose `cutPoints` hold a value twice in one column is refused, naming the column: no grid repeats a
+point ([cut-grid.md](cut-grid.md)), so a stored split's value names one position.
+
 Not carried: the leaf scale, a fixed amplitude prior variance or fixed amplitudes, the tree prior, the move
 probabilities, the sigma prior, the variance forest's leaf prior, the monotone directions and the bases. A state
 written before these were dropped still installs: a block the reader no longer wants is ignored.

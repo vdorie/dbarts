@@ -329,7 +329,9 @@ predictors: `std::vector<xint_t> codes` (`xint_t` is `std::uint16_t`) against
 per-column cut points, with the store the sole owner of cut construction and
 re-quantization. docs/design/data-store.md is the standing reference for the
 cut grid, the code blocks, the source descriptors, the borrowed view's value
-channels and the mutation transaction. Four facts bear on the rest of this
+channels and the mutation transaction. A cut grid holds each point once;
+[cut-grid.md](design/cut-grid.md) has that rule and where the splits on a
+replaced grid go. Four facts bear on the rest of this
 document:
 
 - A column is `numeric`, `categorical` or `orderedFactor`, but rules, scans,

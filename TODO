@@ -291,27 +291,6 @@ items
     version (dec-B300, dec-B297). After 1.0-0. The engine picks
     uniformly among grid positions today, in the prior and the
     proposal both.
-  repeated-cut-restore: BEFORE THE MERGE TO MAIN (VD 2026-10-07,
-    dec-B285). Plan: docs/plans/repeated-cut-restore.md, rewritten for
-    dec-B297 to dec-B300. No cut grid repeats a point: a derivation
-    drops equal neighbours, so a constant column holds one point; a
-    refresh, setPredictor(updateCutPoints = TRUE), derives the grid a
-    creation would for the new values, up to n.cuts, and shrinks where
-    they supply fewer; setCutPoints refuses a repeat; and a state or a
-    warm-start donor whose grid repeats one is refused. A stored split
-    then names one position and a restore is exact, where on a grid
-    with repeats a restore moved the next 30 draws by up to 0.80 and a
-    parent and its child could land on one index. Changes the draws
-    of a fit with a column narrower than its n.cuts points resolve, or
-    with one finite value beside missing values; a 0/1 column and a
-    plain constant column keep their bits. Two exact arms are added.
-    After leaf-conversions, in the same engine files (dec-A178 for the
-    plan's calls). Ruled since (VD 2026-10-07): a replaced grid's
-    splits keep their position, rescaled to a grid of another length,
-    or move by value on request; setPredictor's updateCutPoints takes
-    "none", "position" or "value", a logical warning once a session
-    until 1.1-0; setCutPoints takes splits = "position" or "value"
-    (dec-B311, dec-B312).
   sigma-prior-setter: a setter for the residual prior in
     setLeafPrior's idiom, setSigmaPrior(chisq(df, scale)), and chisq()
     taking scale beside quant, the two not given together (dec-B314,

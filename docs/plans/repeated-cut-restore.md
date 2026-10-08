@@ -120,12 +120,13 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
   harnesses (81 scenarios) and the four snapshot files build no repeating grid (read: the design's
   run with the report on) and refresh none (run: by search, the one `updateCutPoints` in them is
   `FALSE`).
-- Tests that pin what changes (read, by search). The refusal of a coarser quantile refresh:
-  ["induced cut points in new predictor less than previous"](../../inst/tinytest/test-quantile-grid.R),
-  ["induced cut points"](../../inst/tinytest/test-bartcore.R),
-  ["induced cut points"](../../inst/tinytest/test-mutate-sparse-valued.R),
+- Tests that pin what changes (read, by search; the pins named by their text are gone since the
+  build, rewritten to the new rule). The refusal of a coarser quantile refresh:
+  retired: ["induced cut points in new predictor less than previous"](../../inst/tinytest/test-quantile-grid.R),
+  retired: ["induced cut points"](../../inst/tinytest/test-bartcore.R),
+  retired: ["induced cut points"](../../inst/tinytest/test-mutate-sparse-valued.R),
   [`testQuantilePredictorUpdate`](../../tests/cpp/test_moves.cpp). The held count:
-  ["a refresh spreads the count the column holds"](../../inst/tinytest/test-quantile-grid.R). The old
+  retired: ["a refresh spreads the count the column holds"](../../inst/tinytest/test-quantile-grid.R). The old
   grid kept over a constant column: [`testDegenerateReCutRoundTrips`](../../tests/cpp/test_moves.cpp).
   Repeating grids: [test-cut-points-undo.R](../../inst/tinytest/test-cut-points-undo.R) (8 checks
   failed under the prototype's drop) and [`testDegenerateGridRestores`](../../tests/cpp/test_state.cpp)
@@ -285,8 +286,9 @@ planning that shapes the build is how a rule's points are counted (call 2).
    [`requestedNumCuts`](../../src/bartcore/data.hpp); neither refuses.
    [`cutsWouldRemainValid`](../../src/bartcore/data.hpp) and
    [`cutsWouldRemainValidCsc`](../../src/bartcore/data.hpp) keep their factor arm and pass every
-   numeric column; [`valuesAreDegenerate`](../../src/bartcore/data.hpp) and
-   [`cscColumnIsDegenerate`](../../src/bartcore/data.hpp) go if nothing else reads them.
+   numeric column; the two degeneracy checks, nothing else reading them, are gone
+   (retired: [`valuesAreDegenerate`](../../src/bartcore/data.hpp),
+   retired: [`cscColumnIsDegenerate`](../../src/bartcore/data.hpp)).
    [`WholeMatrixUpdate`](../../src/bartcore/sampler.hpp) and
    [`SubsetUpdate`](../../src/bartcore/sampler.hpp) snapshot and put back the counts with the points.
    The splits (rule 6, amended 2026-10-08; the check for a rule past a grid that this step first
@@ -575,7 +577,10 @@ The implementer's unless marked, reversible, and open for the maintainer's mark.
 3. An unforced refresh "the trees cannot hold" is one after whose move a split's interval is empty,
    a leaf is empty, or a monotone tree is out of order. A split moved to another point of its
    interval is held.
-4. Under `"position"` a column whose count did not change is not touched, and under `"value"` a
+4. The engine takes the rule beside its flag for a refresh, not in its place as step 3 words it: the
+   flag stays a logical and a trailing value says position or value, so no engine caller changes.
+   Three facade virtuals gain that argument, which the Constraints had ruled out before rule 6.
+   Under `"position"` a column whose count did not change is not touched, and under `"value"` a
    column whose refreshed grid is bit for bit the old one is not: such a refresh runs the base
    build's path.
 5. A forced refresh and `setCutPoints` merge an emptied interval weighing each leaf by the rows it
