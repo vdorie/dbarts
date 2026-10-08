@@ -1,8 +1,8 @@
 # repeated-cut-restore: no cut grid repeats a point
 
-Status: PLANNED (dec-B285, dec-B297, dec-B298, dec-B299, dec-B300, dec-B311, dec-B312). Rewritten 2026-10-07 after the four
-rulings; the plan this replaces kept repeated points and stored each split's position, and none of that
-is built. The file keeps its name because the TODO item, four register entries and
+Status: LANDED 2026-10-08 (92f76b34 to 2feba5c5; dec-B285, dec-B297 to dec-B300, dec-B311, dec-B312,
+with dec-A183 for the calls made in it). Rewritten 2026-10-07 after the four rulings; the plan this
+replaces kept repeated points and stored each split's position, and none of that is built. The file keeps its name because the TODO item, four register entries and
 [cut-points-undo.md](cut-points-undo.md) cite it.
 
 agent: opus implementer, one (engine, bridge, tests, gate arms); opus reviewer, told to refute.
@@ -605,7 +605,7 @@ The implementer's unless marked, reversible, and open for the maintainer's mark.
    between a sampler and its copy, and a copy must draw what its original draws after one call.
 6. The step-3 check for a rule past a column's grid in the unforced validation is not built: under
    rule 6 no refresh and no `setCutPoints` leaves one.
-7. The orchestrator's readings, not the maintainer's words, awaiting his mark: a position is
+7. The orchestrator's readings, not the maintainer's words, awaiting the maintainer's mark: a position is
    rescaled when a refresh changes a column's count, where the release has no such case, and by the
    formula of call 2; an explicit `FALSE` warns as `TRUE` does; the word is matched as `match.arg`
    matches, a unique abbreviation taken; `setCutPoints` stays forced. The rescale at `setCutPoints`
@@ -649,3 +649,30 @@ After the review, by the implementer who took the slice over; reversible, open f
 Mutants run for these, each a build of the fixed tree: node statistics for rows at the merge, counts
 for weights at the merge, and an unforced refresh that moves the first forest only. Each fails the
 check named for it in 3 and 4.
+
+## Landing note
+
+Landed 2026-10-08 as 92f76b34 to 2feba5c5, after two looks by independent reviewers told to refute.
+The first found the engine sound, two blocking gaps and three mutants no test killed: how a forced
+merge weighs leaves, by node statistics or counts on a weighted fit, and an unforced refresh moving
+the first forest only. The fix round pinned each, shown failing on its mutant, and rebased over the
+small R batch. The second could not break it: 468 split placements over 13 sampler kinds, both grid
+rules, both words and three grid lengths against its own reference, no mismatch; copies and reloads
+identical; every unforced refusal restored exactly; sanitizers clean on the R-loaded path. It left
+two lines of the R tests that cannot fail, a split being read back off its grid, and a build keeping
+the index on a shorter grid at setCutPoints that passes every R test and fails the C++ tests. Gates
+on the fixed branch: tests/cpp, under ASan and UBSan too; the tinytest suite at home, 19288 results,
+none failed; the snapshot files and the three bitwise compares on the reference build; the exact
+gates in quick mode, 32 of 32; lintr, air, rc-codoc, win-drift, doc-freshness, anchors, the news
+parse; check with one note. On the landed build stan4bart's suite ran 582 results, bartCause's 1412
+expectations and bairrtt's 207 results, none failed.
+
+The push failed one older test off arm64: a copy and its original, given the same setCutPoints, drew
+different values on ubuntu, windows and the sanitizer jobs. On x86 the two stored states are bit for
+bit the same after the call and the draws part at the third sweep by 7e-16 and stay there; a copy
+with nothing set parts at the first sweep on both platforms and both commits, its leaves holding
+their rows in another order, and a twin matches for 50 sweeps; valgrind is clean and no SIMD level
+changes it. More splits survive a shrinking grid now, so more leaves sum in another order. The test
+now uses a twin, as the block after it did. Call 5's promise holds where a leaf's weights sum exactly;
+with weights that do not, a copy's merged leaf can differ from its original's by one unit in the last
+place (root TODO, copy-merge-weight-order).

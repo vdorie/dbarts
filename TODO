@@ -318,7 +318,7 @@ items
     spaced points whatever its values (100 on a 0/1 column, all making
     one split). Changes every default fit with a binary or few-valued
     numeric column and moves recorded baselines. Plan first; a slice
-    of its own after repeated-cut-restore, in the same routine.
+    of its own, in the routine that derives a grid.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
@@ -882,8 +882,8 @@ items
   state-store-size-install: setState installs a state whose store of
     kept trees is larger or smaller than the sampler's: the live chain
     as from any state, the most recent kept draws that fit, the
-    sampler's n.samples unchanged, and a return that says the install
-    was not exact, where it refuses today with "state is not
+    sampler's n.samples unchanged, and TRUE, the store being output
+    and not model (dec-B318), where it refuses today with "state is not
     consistent with this sampler" (dec-B294, revising dec-A138 in
     part). Before the merge to main; the kept-draw store in the
     engine and the state's reader, after leaf-conversions, which
@@ -892,6 +892,11 @@ items
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
     leave n.threads out of the call to dbarts when the guess is NA.
+  copy-merge-weight-order: after a forced setCutPoints or refresh that
+    merges, a copy's merged leaf can differ from its original's by one
+    unit in the last place when the leaf's weights do not sum exactly
+    (runif weights: 1 run in 10 on arm64, 3 on x86), the merge summing
+    weights in each sampler's own row order; exact weights agree.
   refused-update-rounding: after a refused whole-matrix setPredictor
     the next draws differ from an untouched twin's by about 1.8e-15,
     where the help says the fits are as they were.
@@ -904,9 +909,9 @@ items
     that goes in cleanly and returns TRUE, or leaves the sampler
     untouched and returns FALSE; forced it installs, changing what it
     must (dec-B305, revising dec-B234 and dec-A167). A conversion
-    between response units is clean; a tree that must change to fit
-    and a larger kept store are not; copy() and a reload force. Before
-    the merge to main. Design first, with warm-start-salvage and
+    between response units and a kept store of another size are
+    clean (dec-B318); a tree that must change to fit is not; copy()
+    and a reload force. Before the merge to main. Design first, with warm-start-salvage and
     state-store-size-install, which are the same surface: what the
     forced form returns (ruled: NULL, dec-B310), one name with
     installTrees's force argument,

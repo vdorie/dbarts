@@ -1,6 +1,6 @@
 # A cut grid holds each point once
 
-Status: PLANNED (built on a branch; the plan's status is the record).
+Status: LANDED 2026-10-08 (the plan's status is the record).
 Plan: [repeated-cut-restore.md](../plans/repeated-cut-restore.md). Rulings: dec-B285, dec-B297, dec-B298,
 dec-B299, dec-B300, dec-B311 and dec-B312 in docs/decisions.md.
 
