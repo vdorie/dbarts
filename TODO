@@ -258,16 +258,25 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
-  k-calibration-ends: the probit-k calibration arm passes its gate
-    but put an end bin of k's ranks far over (48 of 30 expected on
-    one stream, 52 on another, chi-square p 0.012 and 0.013): draws
-    too correlated after thinning, or a k step too narrow. Settle
-    which before the merge (dec-B301).
+  probit-k-mixing: before 1.0-0 (dec-B371, VD 2026-10-08). k mixes
+    slowly under probit (autocorrelation time median 500 sweeps, up to
+    25000; small-k mass near separation reached too rarely), every
+    binary fit drawing k by default. Add one move a sweep that changes
+    the fit's scale in one step: interweaving on k or a probit
+    parameter expansion, chosen by a measured comparison on the
+    probit-k arm's datasets (k's autocorrelation time, small-k
+    visitation against a known answer), with an exact gate. Then the
+    probit-k arm is an ordinary SBC again, probably at a smaller thin.
+    Until then the arm flags about one correct run in three: mark it
+    expected in sbc.yaml with the workflow-text-edits push, and read
+    it by its end bins (benchmarks/README.md). Evidence:
+    scratch/k-calibration/, scratch/k-calibration-verify/.
   workflow-text-edits: equivalence.yaml, rchk.yaml and valgrind.yaml
     say workflow_dispatch needs main, which it does not; sbc.yaml's
     aft job has a 15-minute limit that a slow dependency install
-    exhausts (cancelled once, 2026-10-08). Edit them together, which
-    starts each workflow in full.
+    exhausts (cancelled once, 2026-10-08); sbc.yaml's probit-k job
+    gains SBC_EXPECTED_FLAGS: k until probit-k-mixing lands. Edit
+    them together, which starts each workflow in full.
   basis-swap-zero-column: setForestBasis takes a numeric basis column
     of all zeros, as it takes a factor level no row holds (dec-B346),
     where today it refuses it; creation still refuses one. Help and a
