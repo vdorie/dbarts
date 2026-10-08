@@ -426,8 +426,9 @@ items
     it keeps k and the spread jumps; setLeafPrior's help and the R
     docstring change with it. A changed invchi() scale within the sd
     spelling keeps the spread at the call too (dec-B369), and so does a
-    fixed sd made drawn (dec-B392). A switch between spellings out of a
-    fixed prior is open with the maintainer.
+    fixed sd made drawn (dec-B392), and so does any switch into a drawn
+    prior, out of a fixed one across spellings included (dec-B393); a
+    fixed value stated is taken literally.
   leaf-covariate-single-value-off-centre: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
     relative to the centre closes it. A slope on a column moved to
