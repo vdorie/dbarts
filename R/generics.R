@@ -1313,7 +1313,7 @@ refuseMisnamedBases <- function(given, labels, numForests) {
   }
   for (index in seq_along(given)) {
     if (!is.na(given[[index]]) && given[[index]] == paste0("forest", index)) {
-      taken <- forestNameTaken(given[[index]], index, labels)
+      taken <- forestNameTaken(given[[index]], index, labels, "bases")
       if (!is.null(taken)) {
         stop(taken)
       }

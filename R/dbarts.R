@@ -2120,7 +2120,7 @@ resolveForestSpreads <- function(sampler, forests) {
     }
     for (index in seq_along(given)) {
       if (!is.na(given[[index]]) && given[[index]] == paste0("forest", index)) {
-        taken <- forestNameTaken(given[[index]], index, labels)
+        taken <- forestNameTaken(given[[index]], index, labels, "forests")
         if (!is.null(taken)) {
           stop(taken)
         }

@@ -1285,12 +1285,24 @@ forestLabelConflict <- function(text, labelAt, position) {
 # The refusal of a name in a list given forest by forest that is another
 # forest's label where it is also this position's forest<i>; NULL otherwise.
 # `labels` is every forest's label, "" or NULL where none is recorded.
-forestNameTaken <- function(name, position, labels) {
+# `argument` is the list's own name, which the remedy speaks of: the list is
+# read by position and has no forest argument to select by.
+forestNameTaken <- function(name, position, labels, argument) {
   other <- setdiff(which(labels == name), position)
   if (length(other) == 0L) {
     return(NULL)
   }
-  forestLabelConflict(name, other[[1L]], position)
+  paste0(
+    "'",
+    argument,
+    "' names forest ",
+    position,
+    " ",
+    encodeString(name, quote = "\""),
+    ", which is the label of forest ",
+    other[[1L]],
+    "; name each entry by its own forest's label, or leave the names off"
+  )
 }
 
 # The one reader of a 'forest' argument that is not NULL, given the labels

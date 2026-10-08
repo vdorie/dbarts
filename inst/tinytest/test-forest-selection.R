@@ -673,8 +673,8 @@ expect_identical(
 expect_identical(
   refusal(takenSampler$setLeafPrior(forests = list(forest1 = forest(sd = 9)))),
   paste0(
-    "'forest' (\"forest1\") is the label of forest 3 and the name of ",
-    "position 1; select by position, as forest = 3"
+    "'forests' names forest 1 \"forest1\", which is the label of forest 3; ",
+    "name each entry by its own forest's label, or leave the names off"
   )
 )
 expect_identical(
@@ -714,7 +714,7 @@ names(swapped) <- c("forest1", "forest2")
 expect_identical(
   refusal(predict(takenFit, takenRows, bases = swapped, n.threads = 1L)),
   paste0(
-    "'forest' (\"forest1\") is the label of forest 2 and the name of ",
-    "position 1; select by position, as forest = 2"
+    "'bases' names forest 1 \"forest1\", which is the label of forest 2; ",
+    "name each entry by its own forest's label, or leave the names off"
   )
 )
