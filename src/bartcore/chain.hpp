@@ -719,7 +719,7 @@ inline bool convertFlatLinearTree(std::vector<FlatNode>& tree,
                                   std::vector<double>& slopes,
                                   const LeafStandardization& from,
                                   const LeafStandardization& to,
-                                  bool guardNoSpread) {
+                                  bool keepWithoutSpread) {
   std::size_t numSlopes = from.centers.size();
   std::size_t numLeaves = 0;
   for (const FlatNode& node : tree)
@@ -728,7 +728,8 @@ inline bool convertFlatLinearTree(std::vector<FlatNode>& tree,
   double* leafSlopes = slopes.data();
   for (FlatNode& node : tree) {
     if (flatKindOf(node) != FlatKind::leaf) continue;
-    convertLinearCoefficients(node.value, leafSlopes, from, to, guardNoSpread);
+    convertLinearCoefficients(node.value, leafSlopes, from, to,
+                              keepWithoutSpread);
     leafSlopes += numSlopes;
   }
   return true;
@@ -3295,7 +3296,7 @@ public:
           for (size_t b = 0; b + numParams <= params[t].size(); b += numParams)
             convertLinearCoefficients(params[t][b], params[t].data() + b + 1,
                                       previous, current,
-                                      /*guardNoSpread=*/true);
+                                      /*keepWithoutSpread=*/true);
         size_t capacity = savedTreeCapacity();
         size_t count = std::min(kept.count, capacity);
         for (size_t i = 0; i < count; ++i) {
@@ -3303,7 +3304,7 @@ public:
           for (size_t t = base; t < base + forest.numTrees; ++t)
             convertFlatLinearTree(forest.savedTrees[t],
                                   forest.savedTreeParams[t], previous, current,
-                                  /*guardNoSpread=*/false);
+                                  /*keepWithoutSpread=*/false);
         }
       }
     } else if constexpr (L::hasFunctionParams) {
@@ -4800,8 +4801,8 @@ public:
   /// start's reassembled donor - from the standardization \p donor records
   /// into this chain's own, so the trees seed the function the donor held on
   /// whatever standardization it was drawn under; this chain's own is never
-  /// moved. A coefficient no observation informed is not carried onto a real
-  /// scale (convertLinearCoefficients' guard). Nothing is done where the
+  /// moved. A column without spread on both sides is left as the donor built
+  /// it (convertLinearCoefficients). Nothing is done where the
   /// donor records no standardization or the two are equal, so such an
   /// install is the donor's values bit for bit, and nothing on any other
   /// leaf. False where the donor's record does not fit the leaf
@@ -4827,7 +4828,7 @@ public:
         if (fs.treeParams.size() != fs.trees.size()) return false;
         for (std::size_t t = 0; t < fs.trees.size(); ++t)
           if (!convertFlatLinearTree(fs.trees[t], fs.treeParams[t], from, to,
-                                     /*guardNoSpread=*/true))
+                                     /*keepWithoutSpread=*/true))
             return false;
       }
     } else {

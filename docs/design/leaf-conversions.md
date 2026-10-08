@@ -47,12 +47,14 @@ nothing moves.
   remembered, so a placeholder column that `setPredictor` gave values, a constant moved to another constant
   and a state installed over other rows are each what they then are. When coefficients a chain will go on
   drawing from are converted, with spread on neither side nothing moves, the fit being the intercept before
-  and after; with spread on the new side only the intercept stays and the slope is set to zero, a slope no
-  observation informed not being multiplied onto a real scale (0.13 against a constant column at 1000 would
-  become 40 on the scale of 307 that varying data gave); with spread on the old side only the intercept
-  takes the function's value at the new constant and the slope is set to zero. A kept draw is only
-  replayed, so it is converted by the formula with 1 in every case.
-- `setData` on a linear leaf converts the live coefficients, guard on, and every kept draw
+  and after. With spread on one side only the formula runs with 1 for that side's scale (dec-B329), so the
+  leaf stays the function it was: onto a constant it takes the function's value there, and off one a slope
+  no observation informed is carried onto the real scale (0.13 against a constant column at 1000 becomes 40
+  on the scale of 307 that varying data gave), the fit moving until the sampler runs. Until 2026-10-08 the
+  one-sided cases set the slope to zero instead. A kept draw is only replayed, so it is converted by the
+  formula with 1 in every case, both sides without spread included.
+- `setData` on a linear leaf converts the live coefficients, keeping a column without spread on both sides,
+  and every kept draw
   ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)).
 - A re-anchor - `setResponse` or `setOffset` with `updateScale = TRUE`, and every `setData` - rewrites the
   kept mean draws and the kept variance factors into the new transform
@@ -64,7 +66,7 @@ nothing moves.
   change. An install's own move of the transform is not such a site; the draws it brings are converted
   already.
 - A warm start converts the donor's coefficients, live or from a kept draw, from the standardization the
-  donor's state records into the recipient's, guard on
+  donor's state records into the recipient's, as live coefficients are
   ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), the blocks read by
   [`readWarmStartState`](../../src/R_interface_bartcore.cpp)). The recipient keeps its centre, scale and
   lengthscale on either grid: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp) no longer

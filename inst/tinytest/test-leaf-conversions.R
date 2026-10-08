@@ -64,6 +64,32 @@ liveTrees <- function(sampler) {
     chain$forests[[1L]][c("tree.vars", "tree.values", "tree.params")]
   })
 }
+# each chain's live leaf coefficients, as liveTrees records them
+leafCoefficients <- function(trees) {
+  lapply(trees, function(tree) {
+    values <- readBin(tree$tree.values, "double", length(tree$tree.vars))
+    list(intercepts = values[tree$tree.vars < 0L], slopes = tree$tree.params)
+  })
+}
+# the same converted by the formula, from each chain's standardization to the
+# next: slope s' / s, and the intercept gaining slope (m' - m) / s, a scale
+# without spread (NA) read as the placeholder 1 it is divided by
+byFormula <- function(trees, from, to) {
+  Map(
+    function(coefficients, f, t) {
+      s <- if (is.na(f$leaf.covariate.scale)) 1 else f$leaf.covariate.scale
+      s.to <- if (is.na(t$leaf.covariate.scale)) 1 else t$leaf.covariate.scale
+      shift <- t$leaf.covariate.center - f$leaf.covariate.center
+      list(
+        intercepts = coefficients$intercepts + coefficients$slopes * shift / s,
+        slopes = coefficients$slopes * s.to / s
+      )
+    },
+    leafCoefficients(trees),
+    from,
+    to
+  )
+}
 cutGrid <- function(sampler) {
   sampler$storeState()
   attr(sampler$state, "cutPoints")
@@ -133,24 +159,32 @@ expect_error(flat$setState(bad), "not consistent with this sampler")
 bad[[2L]]$forests[[1L]]$leaf.covariate.scale <- Inf
 expect_error(flat$setState(bad), "not consistent with this sampler")
 
-# setData onto a covariate with spread. No observation informed a slope drawn
-# against the constant, so the live ones are dropped and each leaf keeps the
-# value it had there; the kept draws are only replayed, and stay the
-# functions they were
+# setData onto a covariate with spread: the live slopes and intercepts take
+# the formula over the placeholder 1, so each leaf is the function of the raw
+# covariate it was, now read where the rows spread; the kept draws are only
+# replayed, and stay the functions they were
 x.varying <- cbind(x1 = x[, 1L], x2 = rnorm(n, 1000, 300))
 slopes <- function(sampler) {
   unlist(lapply(liveTrees(sampler), `[[`, "tree.params"))
 }
 flat.kept <- flat$predict(x.flat.new)
-flat.live <- liveFits(flat)
+flat.function <- flat$predict(x.varying)[, 5L, ]
+flat.trees <- liveTrees(flat)
+flat.standardization <- standardization(flat)
 flat.donor <- flat$copy()
 expect_true(max(abs(slopes(flat))) > 1e-3)
 flat$setData(dbartsData(x.varying, y))
 for (chain in standardization(flat)) {
   expect_true(chain$leaf.covariate.scale > 100)
 }
-expect_true(all(slopes(flat) == 0))
-expect_true(max(abs(liveFits(flat) - flat.live)) < 1e-12)
+expect_true(
+  worstGap(
+    byFormula(flat.trees, flat.standardization, standardization(flat)),
+    leafCoefficients(liveTrees(flat))
+  ) <
+    1e-10
+)
+expect_true(worstGap(flat.function, liveFits(flat)) < 1e-10)
 expect_true(max(abs(flat$predict(x.flat.new) - flat.kept)) < 1e-10)
 # and a warm start from such a donor into a sampler whose covariate varies
 varied <- dbarts(
@@ -160,8 +194,14 @@ varied <- dbarts(
   leaf.prior = linear(columns = 2L)
 )
 varied$installTrees(flat.donor, samples = c(5L, 10L))
-expect_true(all(slopes(varied) == 0))
-expect_true(max(abs(liveFits(varied) - flat.live)) < 1e-12)
+expect_true(
+  worstGap(
+    byFormula(flat.trees, flat.standardization, standardization(varied)),
+    leafCoefficients(liveTrees(varied))
+  ) <
+    1e-10
+)
+expect_true(worstGap(flat.function, liveFits(varied)) < 1e-10)
 
 ## --- 2. kept draws across setData -------------------------------------------
 ## The same raw points, replayed before and after a setData whose leaf
@@ -489,8 +529,9 @@ expect_true(diff(range(liveFits(recipient))) == 0)
 ## --- 6. live coefficients across a covariate without spread ----------------
 ## A constant leaf covariate is centred at its one value and divided by 1, so
 ## a leaf reads zero for it on every training row and the intercept alone is
-## the fit: between two constants a live leaf does not move, off a constant
-## its intercept stays, onto one it takes the function's value there. Whether
+## the fit: between two constants a live leaf does not move; off a constant
+## or onto one its coefficients take the formula over that 1, so it is the
+## function it was, read onto a constant at the constant. Whether
 ## a covariate is such a column is read from the values and the centre and
 ## scale in force, so one given values, moved or made constant after creation
 ## converts as what it then is. Each case reads the fitted function at the
@@ -651,8 +692,9 @@ moved$setData(dbartsData(x.spread, y.more))
 expect_true(worstGap(before, liveMatrix(moved)) < tolerance)
 
 # values made constant after creation keep the centre and scale they were
-# given until a replacement re-derives them; onto the constant the slopes are
-# dropped and each leaf takes its function's value there
+# given until a replacement re-derives them; onto the constant the
+# coefficients take the formula, the scale going to the placeholder 1, and
+# each leaf takes its function's value there
 held <- madeOn(x)
 own <- standardization(held)
 expect_true(held$setPredictor(rep(0.25, n), 2L))
@@ -661,12 +703,20 @@ expect_identical(standardization(held), own)
 expect_false(own[[2L]]$leaf.covariate.scale %in% c(1, NA))
 x.held <- withLeafColumn(x.more, 0.25)
 before <- liveFunction(held, x.held)
+trees <- liveTrees(held)
 held$setData(dbartsData(x.held, y.more))
 for (chain in standardization(held)) {
   expect_identical(chain$leaf.covariate.center, 0.25)
   expect_identical(chain$leaf.covariate.scale, NA_real_)
 }
-expect_true(all(slopes(held) == 0))
+expect_true(max(abs(slopes(held))) > 1e-3)
+expect_true(
+  worstGap(
+    byFormula(trees, own, standardization(held)),
+    leafCoefficients(liveTrees(held))
+  ) <
+    tolerance
+)
 expect_true(worstGap(before, liveMatrix(held)) < tolerance)
 # held at its centre exactly, the covariate reads zero under a real scale,
 # which is not the placeholder: the scale stays in the state, so a copy
@@ -682,24 +732,34 @@ centred$setData(dbartsData(x.more, y.more))
 expect_true(worstGap(before, liveMatrix(centred)) < tolerance)
 
 # rows appended that give a constant covariate spread, at a constant whose
-# mean rounds: the slopes are dropped and each leaf keeps the value it had at
-# the constant, on the old rows and on the appended ones. The live fit ran
-# to 1e16. The appended rows bring the covariate a copy never saw, so the
-# next draws are held to the response's range instead of a copy's.
+# mean rounds: the coefficients take the formula over the placeholder 1, so
+# each leaf is the function it was, on the old rows (at the constant) and on
+# the appended ones. The live fit ran to 1e16. The appended rows bring the
+# covariate a copy never saw, so the next draws are held to the response's
+# range instead of a copy's.
 grown <- madeOn(withLeafColumn(x, 0.1))
 invisible(grown$run())
 live <- liveMatrix(grown)
-before <- liveFunction(grown, withLeafColumn(x.more, 0.1))
-expect_true(worstGap(live, before[old.rows, ]) < tolerance)
 x.grown <- rbind(
   withLeafColumn(x, 0.1),
   withLeafColumn(added, 0.1 + added[, 2L])
 )
+before <- liveFunction(grown, x.grown)
+expect_true(worstGap(live, before[old.rows, ]) < tolerance)
 x.fresh <- withLeafColumn(x.new, 0.1 + x.new[, 2L])
 kept <- grown$predict(x.fresh)
+trees <- liveTrees(grown)
+from <- standardization(grown)
 grown$setData(dbartsData(x.grown, y.more))
 expect_true(standardization(grown)[[2L]]$leaf.covariate.scale > 0.1)
-expect_true(all(slopes(grown) == 0))
+expect_true(max(abs(slopes(grown))) > 1e-3)
+expect_true(
+  worstGap(
+    byFormula(trees, from, standardization(grown)),
+    leafCoefficients(liveTrees(grown))
+  ) <
+    tolerance
+)
 expect_true(worstGap(before, liveMatrix(grown)) < tolerance)
 expect_true(worstGap(kept, grown$predict(x.fresh)) < tolerance)
 expect_true(nextDrawsWithin(grown, range(y.more)))

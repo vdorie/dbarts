@@ -1886,8 +1886,9 @@ static void testWarmStartStandardization() {
 // A leaf covariate without spread, across the calls that restate live
 // coefficients. Such a column sits at its centre under the placeholder scale
 // and reads zero on every training row, so the intercept alone is the fit:
-// between two of them a live block does not move, off one the intercept
-// stays, onto one it takes the function's value at the new constant. Whether
+// between two of them a live block does not move; off one or onto one the
+// formula runs over the placeholder 1 and the leaf is the function it was,
+// taking its value at the new constant onto one. Whether
 // a column is one is read off the rows and constants in force, so a column
 // that was given values, moved or made constant after creation converts as
 // what it is then. Each case asserts the fitted function - the live fit on
@@ -2210,9 +2211,9 @@ static void testNoSpreadLiveConversion() {
     std::vector<double> functionBefore = newestDraw(*sampler, xHeldMore);
     replace(*sampler, xHeldMore);
     standardization(*sampler, center, scale);
-    check(center == 0.25 && std::isnan(scale) && largestSlope(*sampler) == 0.0,
+    check(center == 0.25 && std::isnan(scale) && largestSlope(*sampler) > 0.0,
           "no-spread conversion: onto a constant column the slopes are "
-          "dropped");
+          "carried by the formula");
     check(worstGap(liveFits(*sampler), n2, functionBefore, n2, 0, n2) <
             tolerance,
           "no-spread conversion: and each leaf takes its function's value at "
@@ -2237,11 +2238,11 @@ static void testNoSpreadLiveConversion() {
   }
 
   // --- rows appended that give a constant column spread, at a constant whose
-  // mean rounds: the slopes are dropped and each leaf keeps the value it had
-  // at the constant, on the old rows and on the appended ones
+  // mean rounds: the slopes convert by the formula over the placeholder 1, so
+  // each leaf is the function it was, on the old rows and on the appended ones
   {
     const std::vector<double> x = design(n, 0.1, 0.0), xGrown = grown(0.1),
-      xAtConstant = design(n2, 0.1, 0.0), xFresh = design(n, 0.1, 1.0);
+      xFresh = design(n, 0.1, 1.0);
     auto build = [&] {
       std::unique_ptr<SamplerBase> sampler = make(x, 80);
       sampler->run(60, numKept, none);
@@ -2249,18 +2250,19 @@ static void testNoSpreadLiveConversion() {
     };
     std::unique_ptr<SamplerBase> sampler = build(), twin = build();
     const std::vector<double> liveBefore = liveFits(*sampler),
-      atConstant = newestDraw(*sampler, xAtConstant),
+      functionBefore = newestDraw(*sampler, xGrown),
       keptBefore = keptDraws(*sampler, xFresh);
     replace(*sampler, xGrown);
     standardization(*sampler, center, scale);
-    check(std::isfinite(scale) && scale > 0.1 && largestSlope(*sampler) == 0.0,
+    check(std::isfinite(scale) && scale > 0.1 && largestSlope(*sampler) > 0.0,
           "no-spread conversion: off a constant column the slopes are "
-          "dropped");
+          "carried by the formula");
     const std::vector<double> liveAfter = liveFits(*sampler);
     check(worstGap(liveAfter, n2, liveBefore, n, 0, n) < tolerance &&
-            worstGap(liveAfter, n2, atConstant, n2, n, n2 - n) < tolerance,
-          "no-spread conversion: off a constant column each leaf keeps the "
-          "value it had there, on old rows and appended ones");
+            worstGap(liveAfter, n2, functionBefore, n2, n, n2 - n) <
+              tolerance,
+          "no-spread conversion: off a constant column each leaf is the "
+          "function it was, on old rows and appended ones");
     check(worstGap(keptDraws(*sampler, xFresh), n, keptBefore, n, 0, n) <
             tolerance,
           "no-spread conversion: off a constant column the kept draws stay "

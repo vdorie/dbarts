@@ -2190,6 +2190,97 @@ static void testLinearLeafSetDataConversion() {
          worstLive, worstKept);
 }
 
+// A live linear leaf across a setData whose covariate goes between one value
+// and spread converts by the formula, a side without spread dividing by its
+// placeholder 1: off a constant at 5 onto spread, then onto a constant at 7,
+// each slope is multiplied by s' / s and each intercept gains
+// slope (m' - m) / s. Between two constants, 7 then 9, every training row
+// reads zero before and after, and the blocks stay bit for bit as built.
+static void testLinearLeafOneSidedConversion() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 314159u;
+  const size_t n = 120, p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    x[i + 2 * n] = 5.0;
+    y[i] = (x[i] > 0.5 ? x[i + n] : 0.0) + 0.2 * (runif01() - 0.5);
+  }
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 2718u);
+  SamplerOptions options;
+  options.numTrees = 6;
+  options.numChains = 1;
+  size_t covariates[] = {1, 2};
+  options.leafCovariateColumns = covariates;
+  options.numLeafCovariates = 2;
+  std::unique_ptr<SamplerBase> sampler = createSampler(
+    x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, &rng);
+  Results none;
+  sampler->run(40, 0, none);
+
+  // one setData moving column 2 to the given values; true where every block
+  // took the formula (or, with keep, stayed bit for bit)
+  auto convertsTo = [&](const std::vector<double>& column, bool keep) {
+    SamplerStateData before, after;
+    sampler->getState(before);
+    std::vector<double> xNew(x);
+    std::copy(column.begin(), column.end(), xNew.begin() + 2 * n);
+    if (!sampler->setData(xNew.data(), y.data(), n, nullptr, nullptr,
+                          nullptr, 0, nullptr))
+      return false;
+    sampler->getState(after);
+    const ForestStateData& a = before.chains[0].forests[0];
+    const ForestStateData& b = after.chains[0].forests[0];
+    double m = a.leafCovariateCenters[1], mNew = b.leafCovariateCenters[1];
+    double scale = std::isnan(a.leafCovariateScales[1])
+      ? 1.0 : a.leafCovariateScales[1];
+    double scaleNew = std::isnan(b.leafCovariateScales[1])
+      ? 1.0 : b.leafCovariateScales[1];
+    bool converted = m != mNew && a.trees.size() == b.trees.size();
+    std::size_t numSlopes = 0, numMoved = 0;
+    for (std::size_t t = 0; converted && t < a.trees.size(); ++t) {
+      std::size_t leaf = 0;
+      for (std::size_t k = 0; k < a.trees[t].size(); ++k) {
+        if (flatKindOf(a.trees[t][k]) != FlatKind::leaf) continue;
+        double slope = a.treeParams[t][2 * leaf + 1];
+        double intercept = a.trees[t][k].value;
+        double slopeAfter = b.treeParams[t][2 * leaf + 1];
+        double interceptAfter = b.trees[t][k].value;
+        if (keep) {
+          converted = converted && slopeAfter == slope &&
+            std::memcmp(&interceptAfter, &intercept, sizeof(double)) == 0;
+        } else {
+          double expected = intercept + slope * (mNew - m) / scale;
+          converted = converted && slopeAfter == slope * (scaleNew / scale) &&
+            std::fabs(interceptAfter - expected) <=
+              1e-12 * std::max(1.0, std::fabs(expected));
+        }
+        ++numSlopes;
+        if (slope != 0.0 && slopeAfter != slope) ++numMoved;
+        ++leaf;
+      }
+    }
+    return converted && numSlopes > 0 && (keep || numMoved > 0);
+  };
+
+  std::vector<double> spread(n), at7(n, 7.0), at9(n, 9.0);
+  for (size_t i = 0; i < n; ++i) spread[i] = 5.0 + 3.0 * runif01();
+  check(convertsTo(spread, false),
+        "one-sided conversion: off a constant onto spread by the formula");
+  sampler->run(5, 0, none);
+  check(convertsTo(at7, false),
+        "one-sided conversion: off spread onto a constant by the formula");
+  check(convertsTo(at9, true),
+        "one-sided conversion: between two constants a live block is left");
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: linear leaf one-sided setData conversion\n");
+}
+
 // leafOf must equal the obs-to-leaf map derived independently from each tree's
 // fillBottom + index segments after EVERY sweep of a randomized run (accepted
 // and rejected moves of all kinds land across the sweeps), and again after a
@@ -3156,6 +3247,7 @@ void runMovesTests(ext_rng* rng) {
   testOrderedFactorMutation(rng);
   testLinearLeafMutation(rng);
   testLinearLeafSetDataConversion();
+  testLinearLeafOneSidedConversion();
   testEmptyLeafVetoCountsMembers();
   testZeroWeightTreeKeepsMoving();
   testZeroWeightLeafContributesNothing();

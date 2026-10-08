@@ -2401,9 +2401,10 @@ static void testLinearLeafFormats(ext_rng* rng) {
 
 // The coefficient conversion between two covariate standardizations
 // (convertLinearCoefficients): the same function of the raw covariates, a row
-// missing a covariate moved by that covariate's intercept term alone, and
-// what a column without spread does on each side, for coefficients a chain
-// goes on drawing from and for ones that are only replayed.
+// missing a covariate moved by that covariate's intercept term alone, the
+// formula across a column with spread on one side only, and a column without
+// spread on both sides left as built for coefficients a chain goes on drawing
+// from but converted for ones that are only replayed.
 static void testLinearCoefficientConversion() {
   const size_t q = 2;
   auto evaluate = [](double intercept, const double* slopes,
@@ -2484,53 +2485,33 @@ static void testLinearCoefficientConversion() {
   const LeafStandardization varying{{-1.1, 1014.0}, {0.6, 307.0}, {1, 1}};
   const double wide[][q] = {{0.3, 1000.0}, {-4.0, 1321.0}, {2.25, 707.5}};
   {
-    // live, from the side without spread: the slope goes to zero and the leaf
-    // keeps the value it had at the constant
-    double intercept = intercept0, slopes[q] = {slopes0[0], slopes0[1]};
-    convertLinearCoefficients(intercept, slopes, flat, varying, true);
-    bool atConstant = slopes[1] == 0.0 && slopes[0] != 0.0;
-    for (const double* x : wide) {
-      double held[q] = {x[0], 1000.0};
-      atConstant = atConstant &&
-        std::fabs(evaluate(intercept, slopes, varying, x) -
-                  evaluate(intercept0, slopes0, flat, held)) < 1e-12;
-    }
-    check(atConstant, "conversion: a live slope drawn against a column "
-                      "without spread is dropped, the value at the constant "
-                      "kept");
-
-    // live, onto the side without spread: the same, at the new constant
-    intercept = intercept0;
-    slopes[0] = slopes0[0];
-    slopes[1] = slopes0[1];
-    convertLinearCoefficients(intercept, slopes, varying, flat, true);
-    atConstant = slopes[1] == 0.0 && slopes[0] != 0.0;
-    for (const double* x : wide) {
-      double held[q] = {x[0], 1000.0};
-      atConstant = atConstant &&
-        std::fabs(evaluate(intercept, slopes, flat, x) -
-                  evaluate(intercept0, slopes0, varying, held)) < 1e-12;
-    }
-    check(atConstant, "conversion: a live slope onto a column without spread "
-                      "is dropped, the value at the new constant kept");
-
-    // kept, either way: the formula with 1 for the placeholder, so a replay
-    // is the function that was drawn wherever it is read
-    for (bool flatFirst : {true, false}) {
-      const LeafStandardization& a = flatFirst ? flat : varying;
-      const LeafStandardization& b = flatFirst ? varying : flat;
-      intercept = intercept0;
-      slopes[0] = slopes0[0];
-      slopes[1] = slopes0[1];
-      convertLinearCoefficients(intercept, slopes, a, b, false);
-      bool sameFunction = slopes[1] != 0.0;
-      for (const double* x : wide)
-        sameFunction = sameFunction &&
-          std::fabs(evaluate(intercept, slopes, b, x) -
-                    evaluate(intercept0, slopes0, a, x)) < 1e-11;
-      check(sameFunction, "conversion: a kept draw across a column without "
-                          "spread stays the function it was");
-    }
+    // spread on one side only, either way round, live or kept: the formula
+    // with 1 for the placeholder, so the leaf is the function it was wherever
+    // it is read - at the constant and off it - and the slope is carried, not
+    // dropped
+    double intercept, slopes[q];
+    for (bool keep : {false, true})
+      for (bool flatFirst : {true, false}) {
+        const LeafStandardization& a = flatFirst ? flat : varying;
+        const LeafStandardization& b = flatFirst ? varying : flat;
+        intercept = intercept0;
+        slopes[0] = slopes0[0];
+        slopes[1] = slopes0[1];
+        convertLinearCoefficients(intercept, slopes, a, b, keep);
+        double ratio = b.scales[1] / a.scales[1];
+        bool sameFunction = slopes[1] == slopes0[1] * ratio &&
+          std::fabs(intercept - intercept0 -
+                    slopes0[0] * (b.centers[0] - a.centers[0]) / a.scales[0] -
+                    slopes0[1] * (b.centers[1] - a.centers[1]) /
+                      a.scales[1]) < 1e-9;
+        for (const double* x : wide)
+          sameFunction = sameFunction &&
+            std::fabs(evaluate(intercept, slopes, b, x) -
+                      evaluate(intercept0, slopes0, a, x)) < 1e-11;
+        check(sameFunction, "conversion: across a column with spread on one "
+                            "side only the coefficients take the formula, "
+                            "live or kept");
+      }
 
     // neither side had spread: every training row read zero before and reads
     // zero after, so a live block is left bit for bit, the sign of a zero

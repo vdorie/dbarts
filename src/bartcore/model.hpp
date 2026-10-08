@@ -2347,36 +2347,28 @@ inline bool standardizedColumnHasSpread(const double* u, std::size_t n,
 /// centre in force, so its fit moves by that intercept term and by nothing
 /// else. A column whose centre, scale and mark agree is not touched.
 ///
-/// \p guardNoSpread is for coefficients a chain goes on drawing from, and
-/// changes what a column j without spread on either side does. Such a side
-/// reads zero on every training row, so there the intercept alone is the
-/// fit and slope_j is a draw no observation informed.
-/// - Off a side without spread the intercept is left: it is the fit. Onto
-///   one, from a side with spread, it takes the function's value at the new
-///   centre, the one value the column holds there.
-/// - With spread on exactly one side the slope is set to zero: an uninformed
-///   one is not multiplied onto a real scale, and an informed one has
-///   nothing left to multiply. With spread on neither it is left as drawn.
-/// So between two sides without spread nothing moves. Off, the formula runs
-/// with the placeholder 1, which keeps a draw that is only replayed the
-/// function it was.
+/// A side without spread divides by its placeholder scale 1, so with spread
+/// on one side only the formula still keeps the leaf the same function.
+///
+/// \p keepWithoutSpread is for coefficients a chain goes on drawing from: a
+/// column j without spread on BOTH sides reads zero on every training row
+/// before and after, the intercept alone being the fit, so the block is left
+/// as it was built for that column. A draw that is only replayed passes false
+/// and takes the formula there too, staying the function it was wherever it
+/// is read.
 inline void convertLinearCoefficients(double& intercept, double* slopes,
                                       const LeafStandardization& from,
                                       const LeafStandardization& to,
-                                      bool guardNoSpread) {
+                                      bool keepWithoutSpread) {
   for (std::size_t j = 0; j < from.centers.size(); ++j) {
     if (from.centers[j] == to.centers[j] && from.scales[j] == to.scales[j] &&
         from.hasSpread[j] == to.hasSpread[j])
       continue;
+    if (keepWithoutSpread && !from.hasSpread[j] && !to.hasSpread[j]) continue;
     double shift =
       slopes[j] * (to.centers[j] - from.centers[j]) / from.scales[j];
-    if (guardNoSpread && !(from.hasSpread[j] && to.hasSpread[j])) {
-      if (from.hasSpread[j]) intercept += shift;
-      if (from.hasSpread[j] != to.hasSpread[j]) slopes[j] = 0.0;
-    } else {
-      intercept += shift;
-      slopes[j] *= to.scales[j] / from.scales[j];
-    }
+    intercept += shift;
+    slopes[j] *= to.scales[j] / from.scales[j];
   }
 }
 
