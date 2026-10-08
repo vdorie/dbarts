@@ -514,6 +514,155 @@ predictTermOffset <- function(data, newdata, offset, caller = "predict") {
   addFormulaTermOffset(data@x, newdata, offset, "offset", "newdata")
 }
 
+## predict with no newdata (dec-B341): every type at the training rows, read off
+## the draws the fit stored, so it needs no saved trees. An 'offset' given
+## there replaces the fit's own offset at those rows, one value or one per
+## training row; the stored draws are shifted by the difference, on the scale
+## the offset acts on, and the family's ordinary readers run on the shifted
+## copy. A fit with no offset stores none, so it is replaced from zero.
+predictsTrainingRows <- function(newdata) {
+  missing(newdata) || is.null(newdata)
+}
+
+## the weights and bases arguments describe the rows of 'newdata'
+refuseNewdataOnlyArguments <- function(weights = NULL, bases = NULL) {
+  if (!is.null(weights)) {
+    stop(
+      "'weights' is for the rows of 'newdata'; the training rows use the ",
+      "fit's own weights",
+      call. = FALSE
+    )
+  }
+  if (!is.null(bases)) {
+    stop(
+      "'bases' is for the rows of 'newdata'; the training rows use the ",
+      "fit's own bases",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+## the replacement offset as one number per training row, less the fit's own
+trainingOffsetShift <- function(object, offset, nObs) {
+  if (is.data.frame(offset)) {
+    offset <- as.matrix(offset)
+  }
+  if (
+    !is.numeric(offset) || !(length(offset) %in% c(1L, nObs)) || anyNA(offset)
+  ) {
+    stop(
+      "'offset' must be one number or one per training row (",
+      nObs,
+      "), none missing",
+      call. = FALSE
+    )
+  }
+  if (!all(is.finite(offset))) {
+    stop("'offset' must be finite", call. = FALSE)
+  }
+  old <- object[["offset"]]
+  rep_len(as.double(offset), nObs) - if (is.null(old)) 0 else old
+}
+
+## x holds the observations on its last margin; adds one number per observation
+shiftObservations <- function(x, shift) {
+  x + rep(shift, each = length(x) %/% length(shift))
+}
+
+## the fit with its training draws moved onto the replacement offset
+withTrainingOffset <- function(object, offset) {
+  shifted <- object
+  if (inherits(object, "bartNegbin")) {
+    latent <- object$latent.train
+    nObs <- dim(latent)[length(dim(latent))]
+    shifted$latent.train <- shiftObservations(
+      latent,
+      trainingOffsetShift(object, offset, nObs)
+    )
+    shifted$yhat.train <- negbinMeanCounts(shifted$latent.train)
+  } else if (inherits(object, "bartOrdinal")) {
+    n.chains <- fitNChains(object)
+    latent <- combineOrUncombineChains(object$latent.train, n.chains, TRUE)
+    nObs <- ncol(latent)
+    latent <- shiftObservations(
+      latent,
+      trainingOffsetShift(object, offset, nObs)
+    )
+    thresholds <- object$thresholds
+    if (length(dim(thresholds)) > 2L) {
+      thresholds <- combineChains(thresholds)
+    }
+    probs <- reshapeChainedChannel(object$yhat.train, n.chains, TRUE, 2L)
+    for (draw in seq_len(nrow(latent))) {
+      probs[draw, , ] <- ordinalCategoryProbabilities(
+        latent[draw, ],
+        thresholds[draw, ]
+      )
+    }
+    shifted$latent.train <- latent
+    shifted$yhat.train <- probs
+  } else if (inherits(object, "bartMultinomial")) {
+    probs <- object$yhat.train
+    d <- dim(probs)
+    K <- d[length(d)]
+    nObs <- d[length(d) - 1L]
+    delta <- validateCategoryOffset(offset, nObs, K, "'offset'")
+    old <- object[["offset"]]
+    if (!is.null(old)) {
+      delta <- delta - old
+    }
+    flat <- log(probs) +
+      rep(as.vector(delta), each = length(probs) %/% (nObs * K))
+    dim(flat) <- c(length(probs) %/% K, K)
+    flat <- exp(flat - apply(flat, 1L, max))
+    flat <- flat / rowSums(flat)
+    shifted$yhat.train <- array(flat, d, dimnames(probs))
+  } else {
+    yhat <- object$yhat.train
+    nObs <- dim(yhat)[length(dim(yhat))]
+    shifted$yhat.train <- shiftObservations(
+      yhat,
+      trainingOffsetShift(object, offset, nObs)
+    )
+  }
+  shifted
+}
+
+## the training-row draws of a family: the extract method's own reading of the
+## (shifted) stored draws, then ci.level's band
+trainingRowDraws <- function(
+  object,
+  extractMethod,
+  type,
+  offset,
+  combineChains,
+  ci.level,
+  trailing = 1L
+) {
+  source <- if (is.null(offset)) object else withTrainingOffset(object, offset)
+  result <- extractMethod(
+    source,
+    type = type,
+    sample = "train",
+    combineChains = combineChains
+  )
+  if (!is.null(ci.level)) {
+    result <- posteriorInterval(result, ci.level, trailing = trailing)
+  }
+  result
+}
+
+## a K-category fit's class at the training rows, from the mean probabilities
+trainingRowClass <- function(object, extractMethod, offset, ordered = FALSE) {
+  probs <- trainingRowDraws(object, extractMethod, "ev", offset, TRUE, NULL)
+  categoryFromMeanProbabilities(
+    meanCategoryProbabilities(probs, object$levels),
+    object$levels,
+    ordered = ordered
+  )
+}
+
 predict.bart <- function(
   object,
   newdata,
@@ -528,7 +677,8 @@ predict.bart <- function(
   n.threads = object$fit$control@n.threads,
   ...
 ) {
-  if (is.null(object[["fit"]])) {
+  trainingRows <- predictsTrainingRows(newdata)
+  if (!trainingRows && is.null(object[["fit"]])) {
     refuseWithoutTrees("predict", bartKeepTreesArgument(object))
   }
 
@@ -546,7 +696,9 @@ predict.bart <- function(
   type <- validateType(type, eval(formals(predict.bart)$type))
   # above the type = "forest" and amplitude-blend returns below, so every arm's
   # value is checked rather than only the one that reaches the sampler here
-  n.threads <- validatePredictThreads(n.threads)
+  if (!trainingRows) {
+    n.threads <- validatePredictThreads(n.threads)
+  }
   refuseForestSelectionOutsideForestArm(
     type,
     forest,
@@ -575,7 +727,8 @@ predict.bart <- function(
   # arms are defined by does not exist. A plain single-forest predict keeps its
   # long-standing keepTrees-free reading of the current trees.
   if (
-    (type == "forest" || !is.null(object[["forestFits"]])) &&
+    !trainingRows &&
+      (type == "forest" || !is.null(object[["forestFits"]])) &&
       !object$fit$control@keepTrees
   ) {
     stop(
@@ -590,7 +743,11 @@ predict.bart <- function(
   # without the tree store only the current trees replay: one chain's are the
   # long-standing keepTrees-free reading, but several chains' current trees
   # are one evaluation each, not a sequence of draws to report
-  if (!object$fit$control@keepTrees && object$fit$control@n.chains > 1L) {
+  if (
+    !trainingRows &&
+      !object$fit$control@keepTrees &&
+      object$fit$control@n.chains > 1L
+  ) {
     stop(
       "predict requires the fit's saved trees; refit with ",
       bartKeepTreesArgument(object),
@@ -625,6 +782,35 @@ predict.bart <- function(
       numForests,
       if (numForests == 1L) " forest" else " forests"
     )
+  }
+
+  # no newdata: the training rows, read off the stored draws (dec-B341)
+  if (trainingRows) {
+    refuseNewdataOnlyArguments(weights, bases)
+    if (type == "forest") {
+      if (!is.null(offset)) {
+        stop(
+          "'offset' does not apply to type = \"forest\": an offset shifts the ",
+          "recombination of the forests, never any one forest's own total",
+          call. = FALSE
+        )
+      }
+      return(extract.bart(
+        object,
+        type = "forest",
+        sample = "train",
+        combineChains = combineChains,
+        forest = forest
+      ))
+    }
+    return(trainingRowDraws(
+      object,
+      extract.bart,
+      type,
+      offset,
+      combineChains,
+      ci.level
+    ))
   }
 
   # the fit's offset argument and offset() terms are evaluated on newdata, as
@@ -2069,6 +2255,26 @@ predict.bartMultinomial <- function(
   warnUnusedDots(list(...), "predict", "bartMultinomial")
   refuseNonNumericOffset(offset)
   refuseClassCiLevel(type, ci.level)
+  if (predictsTrainingRows(newdata)) {
+    offset <- alignCategoryColumns(
+      offset,
+      object$levels,
+      "offset",
+      identical(object$levels.source, "index")
+    )
+    if (type == "class") {
+      return(trainingRowClass(object, extract.bartMultinomial, offset))
+    }
+    return(trainingRowDraws(
+      object,
+      extract.bartMultinomial,
+      type,
+      offset,
+      combineChains,
+      ci.level,
+      trailing = if (type == "ev") 2L else 1L
+    ))
+  }
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
     refuseWithoutTrees("predict")
   }
@@ -2449,6 +2655,25 @@ predict.bartOrdinal <- function(
   warnUnusedDots(list(...), "predict", "bartOrdinal")
   refuseNonNumericOffset(offset)
   refuseClassCiLevel(type, ci.level)
+  if (predictsTrainingRows(newdata)) {
+    if (type == "class") {
+      return(trainingRowClass(
+        object,
+        extract.bartOrdinal,
+        offset,
+        ordered = TRUE
+      ))
+    }
+    return(trainingRowDraws(
+      object,
+      extract.bartOrdinal,
+      type,
+      offset,
+      combineChains,
+      ci.level,
+      trailing = if (type == "ev") 2L else 1L
+    ))
+  }
   if (is.null(object[["thresholds.raw"]])) {
     refuseWithoutTrees("predict")
   }
@@ -2782,6 +3007,16 @@ predict.bartNegbin <- function(
   )
   warnUnusedDots(list(...), "predict", "bartNegbin")
   refuseNonNumericOffset(offset)
+  if (predictsTrainingRows(newdata)) {
+    return(trainingRowDraws(
+      object,
+      extract.bartNegbin,
+      type,
+      offset,
+      combineChains,
+      ci.level
+    ))
+  }
   if (is.null(object[["shape.raw"]])) {
     refuseWithoutTrees("predict")
   }
@@ -3510,6 +3745,16 @@ predict.bartHurdle <- function(
   )
   warnUnusedDots(list(...), "predict", "bartHurdle")
   refusePredictOffsetChannel(offset, "bartHurdle")
+  if (predictsTrainingRows(newdata)) {
+    return(trainingRowDraws(
+      object,
+      extract.bartHurdle,
+      type,
+      NULL,
+      combineChains,
+      ci.level
+    ))
+  }
   if (is.null(object$zero[["fit"]])) {
     refuseWithoutTrees("predict")
   }

@@ -69,8 +69,11 @@ survivalProbabilities(object, ...)
     takes it: a single value or one per row of \code{newdata}, added to the
     fit's \code{offset()} terms and \code{offset} argument evaluated on
     \code{newdata} (see \code{offset} in \code{\link{bart}}). For a hazard fit
-    a subject's offset applies at every period. Without \code{newdata} the
-    training subjects take the fit's own offset and this argument is refused.
+    a subject's offset applies at every period. Without \code{newdata} an
+    offset replaces the fit's own at the training rows (one value or one per
+    training row, or per subject on a hazard fit), read off the stored draws
+    with no trees replayed on an AFT fit; a hazard fit replays its trees there
+    as it does for any training subjects.
   }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the

@@ -505,6 +505,11 @@ packageBartResults <- function(
   if (!is.null(naOmitted)) {
     result$na.action <- naOmitted
   }
+  # the training offset, for predict() with no newdata to replace; absent
+  # off a fit with none
+  if (!is.null(fit$data@offset)) {
+    result$offset <- fit$data@offset
+  }
   # a heteroscedastic fit has no scalar residual scale: its run reports no
   # sigma, the engine holding the scalar fixed, so the elements are absent and
   # s.train is the scale
@@ -2470,6 +2475,10 @@ packageMultinomialResults <- function(
   if (!is.null(data) && !is.null(data@na.action)) {
     result$na.action <- data@na.action
   }
+  # the training category offset, for predict() with no newdata to replace
+  if (!is.null(data) && !is.null(data@offset.category)) {
+    result$offset <- data@offset.category
+  }
   # a fit kept without its call carries none, as a bart fit does
   result <- dropAbsentCall(result)
   class(result) <- "bartMultinomial"
@@ -2728,6 +2737,10 @@ packageOrdinalResults <- function(
   # absent, not NULL, off a complete fit, as bart's own packager keeps it
   if (!is.null(sampler$data@na.action)) {
     result$na.action <- sampler$data@na.action
+  }
+  # the training offset, for predict() with no newdata to replace
+  if (!is.null(sampler$data@offset)) {
+    result$offset <- sampler$data@offset
   }
   # the active-row mask 0/1 case weights install, which the log-likelihood
   # channel reads as bart's single-forest packager records it
@@ -2996,6 +3009,10 @@ packageNegbinResults <- function(
   # absent, not NULL, off a complete fit, as bart's own packager keeps it
   if (!is.null(sampler$data@na.action)) {
     result$na.action <- sampler$data@na.action
+  }
+  # the training offset, for predict() with no newdata to replace
+  if (!is.null(sampler$data@offset)) {
+    result$offset <- sampler$data@offset
   }
   # the active-row mask 0/1 case weights install, which the log-likelihood
   # channel reads as bart's single-forest packager records it
@@ -3354,7 +3371,9 @@ hazardSurvivalProbabilities <- function(
   }
 
   rows <- NULL
-  usesStoredTest <- is.null(newdata) && !is.null(object[["yhat.test"]])
+  usesStoredTest <- is.null(newdata) &&
+    is.null(offset) &&
+    !is.null(object[["yhat.test"]])
   if (usesStoredTest) {
     # extract() on the packaged fit, not object$fit (the dbartsSampler):
     # extract.dbartsSampler accepts only type = "predictors", while
@@ -3393,6 +3412,20 @@ hazardSurvivalProbabilities <- function(
         rep(trainOffset[firstPeriod], times = K)
       } else {
         trainOffset
+      }
+      # an offset given with no newdata replaces each subject's own at every
+      # period (dec-B340); the hazards of a subject past its event period are
+      # not stored, so this arm replays the trees as it always has
+      if (!is.null(offset)) {
+        if (!length(offset) %in% c(1L, n) || anyNA(offset)) {
+          stop(
+            "'offset' must be one number or one per training subject (",
+            n,
+            "), none missing",
+            call. = FALSE
+          )
+        }
+        bigOffset <- rep(rep_len(as.double(offset), n), times = K)
       }
       periodValues <- as.double(rep(seq_len(K), each = n))
       if (inherits(bigX, "dbartsMixedMatrix")) {
@@ -3588,14 +3621,8 @@ survivalProbabilities.bart <- function(
     )
   )
   refuseNonNumericOffset(offset)
-  # the training rows carry the fit's own offset; one given here is for the
-  # rows of 'newdata', as predict's is
-  if (!is.null(offset) && is.null(newdata)) {
-    stop(
-      "'offset' is for the rows of 'newdata'; the training rows use the ",
-      "fit's own offset"
-    )
-  }
+  # with no newdata an offset replaces the fit's own at the training rows,
+  # read off the stored draws (dec-B340)
   if (fitIsHazard(object)) {
     return(hazardSurvivalProbabilities(
       object,
@@ -3621,7 +3648,12 @@ survivalProbabilities.bart <- function(
   }
 
   linearPredictor <- if (is.null(newdata)) {
-    extract(object, type = "bart", sample = "train", combineChains = FALSE)
+    extract(
+      if (is.null(offset)) object else withTrainingOffset(object, offset),
+      type = "bart",
+      sample = "train",
+      combineChains = FALSE
+    )
   } else {
     # predict forms the offset at 'newdata'; asked here first only so that a
     # fit offset it cannot evaluate there is refused in this function's name

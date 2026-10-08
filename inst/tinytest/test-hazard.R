@@ -567,9 +567,25 @@ expect_error(
   "give survivalProbabilities an 'offset' for them",
   fixed = TRUE
 )
+# an offset with no newdata replaces the fit's at the training subjects
+# (dec-B340): the same curves as newdata = the training predictors given it
+expect_equal(
+  survivalProbabilities(fit.off, offset = o.off),
+  sp.off,
+  tolerance = 1e-12
+)
+expect_equal(
+  unname(survivalProbabilities(fit.off, offset = 1)),
+  unname(survivalProbabilities(
+    fit.off,
+    newdata = x.off,
+    offset = rep(1, n.off) - o.off
+  )),
+  tolerance = 1e-12
+)
 expect_error(
-  survivalProbabilities(fit.off, offset = 1),
-  "'offset' is for the rows of 'newdata'",
+  survivalProbabilities(fit.off, offset = 1:3),
+  "one per training subject",
   fixed = TRUE
 )
 rm(n.off, x.off, o.off, fit.off, sp.off, ev.off, subject.off, i, atRisk, manual)

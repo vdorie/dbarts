@@ -319,6 +319,12 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item \code{predict} with no \code{newdata} returns each \code{type}
+            at the training rows from the draws the fit stored, on every
+            family and without saved trees (0.9-34 stopped); an
+            \code{offset} given there replaces the fit's own. So does
+            \code{survivalProbabilities} (it refused an \code{offset}
+            without \code{newdata}).
       \item \code{pdbart} and \code{pd2bart} take \code{type}
             (\code{"auto"}: the link scale, 0.9-34's, except the mean
             response on hurdle fits and survival at the median survival
