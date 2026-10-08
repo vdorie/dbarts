@@ -334,6 +334,15 @@ items
     setTestPredictor and predict (dec-B360), which take a matrix of
     codes on a factor fit today (predict(fit, cbind(a = 0.5, f = 2))
     reads 2 as the second level).
+  held-value-in-fixed-only: before 1.0-0 (dec-B376, VD 2026-10-08). A
+    held sigma (gaussian, aft) or count shape is stored only in
+    fit$fixed: fit$sigma, fit$first.sigma and the shape's channels are
+    absent, as for a held k; plot, summary, predictive draws, the
+    log-likelihood and predict read the held value from fit$fixed.
+    fit$fixed also carries a forest coefficient held by amplitude =
+    fixed(), per forest (1 under dec-B354). bartCause tells a binary
+    fit by a missing sigma: check its reader against a held sigma in
+    the lockstep branch.
   hazard-max-rows-cost: before 1.0-0 (dec-B367, VD 2026-10-08). The
     help of hazard(max.rows = ) and its refusal state what a row costs:
     about 210 bytes a row shared plus about 630 a row a chain at 75
