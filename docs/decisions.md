@@ -2113,6 +2113,10 @@ Record: root TODO, survival-offset-training-rows. Marked: blank. [dec-B340]
 predict.lm and predict.glm with no newdata return the training rows' fitted values, glm's taking an offset there. Run on 2026-10-08: predict(fit) on a bart fit with no newdata stops with "newdata cannot be NULL", with saved trees or without, and without them first with "refit with keepTrees = TRUE"; 0.9-34 stopped with "argument \"newdata\" is missing"; the training rows' draws are stored, read by extract(fit, sample = "train") and fitted(). After dec-B340, survivalProbabilities reads them off the stored draws, an offset replacing the fit's. Shown keeping newdata required against predicting the training rows from the stored draws, recommended, the maintainer on 2026-10-08: "With no newdata, predict the training rows from the stored draws." The rule: predict on a fit with no newdata returns every type at the training rows from the stored draws, needing no saved trees, and an offset given there replaces the fit's as in dec-B340. The alternative was the refusal as built and in 0.9-34. The cost is a second road to what extract gives, and each type worked from the stored draws. Not built. See also: [dec-B340], [dec-A143].
 Record: root TODO, predict-training-rows. Marked: blank. [dec-B341]
 
+**survivalProbabilities takes offset after newdata, as predict does**
+survivalProbabilities(fit, times, newdata, offset, combineChains, ...) puts offset after newdata, as predict does. Run by the triage on 2026-10-08: survivalProbabilities(fit, 1, nd, FALSE) puts FALSE on offset and is refused ("'offset' must be numeric"), so a combineChains given by position is refused, not misread; survival is new in 1.0-0. Shown that order, recommended, against offset last, the maintainer on 2026-10-08: "A. offset after newdata, as built and as predict." The rule: one order of these arguments across the fit's methods. Built. Confirms that call of dec-A143. See also: [dec-A143], [dec-B340].
+Record: this register. Marked: blank. [dec-B342]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**
