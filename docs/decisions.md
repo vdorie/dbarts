@@ -2311,7 +2311,11 @@ Record: this register. Marked: ruled by the maintainer, 2026-10-08. [dec-B389]
 
 **The binary leaf-scale default is revisited after the merge to main and before 1.0-0, once k's scale move lands**
 dec-A07 kept chi(1.5, 2) as the binary leaf-scale default (confirmed 2026-09-14) with "A revisit stays scheduled for after the mixing research, since the sampled k's own non-convergence leaves the optimum's location resolved only to about a factor of two in scale." dec-B371 schedules the fix for k's slow mixing under probit. Shown rerunning the September study on converged chains once that move lands, before 1.0-0, against after the release, the maintainer on 2026-10-08: "Hmm, I was actually thinking about mixing beyond just k. BART trees are too sticky and we need to figure out what to do. We can address maybe A07 however. And we should do that before 1.0-0 but after the main cutover." The rule: after the merge to main and before 1.0-0, with the k move in place, the binary hyperprior study (docs/plans/binary-hyperprior.md) is rerun on converged chains and the default brought back to the maintainer with the numbers. The wider mixing research the maintainer names, trees too sticky, stays in TODO tree-mixing-proposals, which also holds dec-A10's revisit of the rejection-sampled starting forest. Not built. See also: [dec-A07], [dec-A10], [dec-B371].
-Record: this register. Marked: blank. [dec-B390]
+Record: this register. Marked: ruled by the maintainer, 2026-10-08. [dec-B390]
+
+**The perturb window is n.perturb.cuts**
+dec-B366 makes the perturb move's window a dbartsControl setting beside proposal.probs, a whole number of grid positions, default 1; its name was left open. The setting counts cut positions, the unit n.cuts names. Shown n.perturb.cuts (the n. prefix the maintainer takes for counts, dec-B218, dec-B220), recommended, against perturb.width (proposal.probs' dotted style) and perturbWidth (the engine's name, in the camelCase of the threshold settings), the maintainer on 2026-10-08: "n.perturb.cuts". The rule: dbartsControl(n.perturb.cuts = 1L), the most cut positions a perturb proposal moves a split either way. The cost of the alternatives was a count without the n. prefix; the cost of this one is a possible reading as how many cuts are perturbed, which the help closes. Not built. Extends dec-B366. See also: [dec-B366], [dec-B218], [dec-B220].
+Record: root TODO, perturb-width-control. Marked: ruled by the maintainer, 2026-10-08. [dec-B391]
 
 ## C. Agent-made decisions with no identified cost
 

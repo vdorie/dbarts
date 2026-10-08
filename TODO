@@ -398,8 +398,9 @@ items
     fewer; a speed check at small q against the stack form.
   perturb-width-control: before 1.0-0 (dec-B366, VD 2026-10-08). The
     perturb move's window (perturbWidth in moves.hpp, 1 grid position)
-    becomes a dbartsControl setting beside proposal.probs, a whole
-    number of grid positions, default 1, which changes no draw; the
+    becomes a dbartsControl setting beside proposal.probs,
+    n.perturb.cuts (dec-B391), a whole number of grid positions,
+    default 1, which changes no draw; the
     limits table's row says it is settable.
   constant-response-window: before 1.0-0 (dec-B386, VD 2026-10-08). A
     constant response's transform is c - 0.5 to c + 0.5, not c to
