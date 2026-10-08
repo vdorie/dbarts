@@ -3013,8 +3013,8 @@ if (sys.nframe() == 0L) {
   # probit-k: k and the leaves it scales are a funnel, and k mixes slowly (its
   # autocorrelation reaches 0.1 at lags of 100 to 600 sweeps); at thin 1000
   # and this burn its ranks are uniform, where thin 300 and a burn of 10000
-  # piled 15% of them at the top. Recommended: R=600 L=99 thin=1000 (L=99 puts five rank values in each of the 20 bins), which
-  # flags an error of one half in the shape of the k^2 conditional (a missing
+  # piled 15% of them at the top. Recommended: R=600 L=99 thin=1000 (L=99 puts
+  # five rank values in each of the 20 bins), which flags an error of one half in the shape of the k^2 conditional (a missing
   # Jacobian, a leaf too many, the prior's df off by one) about 80% of the time;
   # R=100 does not.
   if (is.null(burnSweeps) && which == "probit-k") {

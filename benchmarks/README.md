@@ -284,8 +284,8 @@ sbc.R draws theta0 from the sampler's own prior, simulates data, refits and
 ranks theta0 among the posterior draws; ranks are uniform for a calibrated
 sampler. .github/workflows/sbc.yaml runs a matrix of arms, M = 84 functionals,
 each band at alpha = 0.05 / 84, so a correct matrix is green about 95% of the
-time. It is a statistical test: it runs on a schedule and by hand, never per
-push.
+time. It is a statistical test: it runs on a schedule, by hand, and on a push
+that changes its own file, not on other pushes.
 
 The probit-k arm draws k under chi(1.5, 2) and ranks it beside the other
 functionals. k is flagged when its ecdf difference leaves the band or its
@@ -303,8 +303,8 @@ already starts the matrix; otherwise run
     gh workflow run sbc.yaml --ref bartcore
 
 and read each job's report in the log of its "Run the SBC calibration check"
-step (`gh run view <id> --log`, or the job's page). Green is the band verdict, not the reading: for
-every arm look at the chisqP column. Of the 84 functionals expect about four
+step (`gh run view <id> --log`, or the job's page). Green is the band verdict,
+not the reading: for every arm look at the chisqP column. Of the 84 functionals expect about four
 under 0.05 and one under 0.01 (they are not independent, so read nine or more
 under 0.05, or any under 6e-4, as a finding to look at); for k, the histogram
 must not pile in the end bins. discrete-selfcheck must be green. The probit-k job takes

@@ -18,10 +18,12 @@
 # absorbs the variance difference, and a correct sampler can put most mass on
 # 50.
 #
-# Each chain keeps 2000 draws, not bart()'s 500: r is a grid draw that drifts
-# with the forest, and 500 split halves can differ by more than 1.05 in Rhat on
-# a correct sampler.
-#
+# A chain keeps 2000 draws in quick mode and 4000 in full, not bart()'s 500: r
+# is a grid draw that drifts with the forest, and 500 split halves can differ
+# by more than 1.05 in Rhat on a correct sampler. Full mode takes 4000 because
+# at 2000 one pinned dataset (r0 = 10, seed 3) failed the Rhat check in about
+# 1 stream in 100.
+
 # The sampler has no setter for the shape; its stored state carries one per
 # chain and setState installs it, so the fit is built with samplerOnly, chain 1
 # is set to the grid's smallest value (1) and chain 2 to its largest (50), and
@@ -40,28 +42,46 @@
 #         ppd is drawn here from the run's own test log means and shapes, as
 #         predict(type = "ppd") draws it;
 #   (v)   full only: the pooled central 95% set contains r0 in all but at most
-#         3 of the 6 runs. A 95% set misses the truth in about one dataset in
+#         2 of the 6 runs. A 95% set misses the truth in about one dataset in
 #         twenty by construction, so it is read over the runs, not in each.
 # quick runs seed 1 of each cell and checks (i) to (iv); full runs seeds 1 to 3
 # and adds (v).
 #
 # False failures, measured on the correct sampler. The coverage of a run is set
 # by its data far more than by the engine's stream (sd 0.016 over datasets,
-# 0.002 over streams), so its limits are the mean 0.897 of 90 fresh datasets
-# plus and minus 3.5 sd, rounded. Over 45 fresh datasets a cell (seeds 1 to
-# 45, engine seed the data seed) no run failed (i) to (iv): 0 of 90, the
-# largest Rhat 1.018, coverage 0.858 to 0.929, and the 95% set missed r0 in
-# 5 of 90. Over 12 engine streams on each pinned dataset (seeds 1 to 3, both
-# cells) no run failed: 0 of 72, the largest Rhat 1.035. Resampling the
-# measured runs into full-mode gates gives a false-failure rate under 1e-4;
-# the per-run counts alone bound it at 3% (95% upper limit for 0 of 90).
+# 0.002 to 0.004 over streams), so its limits are the mean 0.897 of 90 fresh
+# datasets plus and minus 3.5 sd, rounded. Full mode (4000 draws): the six
+# pinned datasets on fresh engine streams, 100 for r0 = 10 seed 3 and 12 for
+# each of the other five, 160 runs, none failed (i) to (iv) (95% interval for
+# a run 0 to 2.3%). Seed 3 of the r0 = 10 cell is the one dataset with a
+# tail: 0 of 100, largest Rhat 1.027, coverage 0.849 to 0.870 (sd 0.004); an
+# exponential fit to its Rhat tail puts a run above 1.05 near 2 in 10000 (at
+# 2000 draws that dataset failed 1 stream in 100). The other five: largest
+# Rhat 1.007, coverage 0.870 to 0.931. The 95% set missed r0 in 10 of the 160
+# runs, all 10 on that dataset, so (v) needs two more misses on the other
+# five; a fresh dataset misses 4% of the time (7 of 180, 2000 draws), which
+# makes that 0.2% a full run. The full script itself, run on 14 engine streams: 0 of 14
+# exited 1 (95% interval 0 to 23%, so the estimate rests on the run counts
+# above: well under 1% a full run). Quick mode (2000 draws, seed 1 of each
+# cell): 0 of 48 runs failed over 24 engine streams on the two pinned datasets;
+# over 45 fresh datasets a cell none of (i) to (iv) failed: 0 of 90, largest
+# Rhat 1.018, coverage 0.858 to 0.929 (2000 draws).
 #
-# What it catches (the shape draw mutated in a build of its own; quick, full):
-# a shape that never moves (caught, caught); a move applied one sweep in 100
-# (caught, caught); one sweep in 20 (missed, caught by Rhat in one run); every
-# draw one grid step up (missed, caught by (iii), (iv) and (v)). A shape draw
-# off by less than that, or a move applied one sweep in 20 or more often, is
-# not caught here; negbin-exact.R holds the stationary law at n = 50.
+# What it catches, measured with the shape draw mutated in a build of its own,
+# over 12 engine streams on the six pinned datasets (full numbers at 4000
+# draws; quick and the notes marked 2000 at 2000):
+#   - a shape that never moves: caught, quick and full;
+#   - a move applied one sweep in 100: caught in full 12 of 12 streams (41 of
+#     72 runs, by Rhat), in quick 11 of 12 (2000);
+#   - one sweep in 20: caught by Rhat about 1 time in 12 in full (1 of 12;
+#     7 of 12 at 2000 draws, which the longer chains lost) and a third in
+#     quick (3 of 12, 2000);
+#   - every draw one grid step up: caught in full 12 of 12, by (iii), (iv)
+#     and (v), quick 0 of 12 (2000);
+#   - every draw one step DOWN, and half the draws one step up: not caught,
+#     quick or full (2000). The gate is one-sided: it sees a chain that is
+#     stuck, slow or shifted up, not a stationary law shifted down.
+# negbin-exact.R holds the stationary law at n = 50.
 #
 # A failure is a finding.
 #
@@ -81,11 +101,11 @@ cells <- list(
 startShapes <- c(1, 50)
 numPredictors <- 5L
 numTest <- 1000L
-numSamples <- 2000L
+numSamples <- if (quick) 2000L else 4000L
 rhatMax <- 1.05
 coverageLow <- 0.84
 coverageHigh <- 0.95
-set95Misses <- 3L
+set95Misses <- 2L
 
 simulate <- function(n, r0) {
   x <- matrix(runif(n * numPredictors), n, numPredictors)
