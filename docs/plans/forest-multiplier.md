@@ -1,7 +1,7 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
 Status: PLANNED (dec-B253 and dec-B246 as revised; dec-B260 to dec-B265; dec-B269 as dec-B280 and dec-B282
-revise it; dec-B271, dec-B272, dec-B275, dec-B276, dec-B281, dec-B282; dec-A171). Follows
+revise it; dec-B271, dec-B272, dec-B275, dec-B276, dec-B281, dec-B282, dec-B354; dec-A171). Under dec-B354 a held coefficient is 1 and the basis carries any coding: fixed() on a forest refuses a value other than 1, and the engine no longer holds by forest position. Follows
 [forest-kind-by-class.md](forest-kind-by-class.md), [forest-sd-unit.md](forest-sd-unit.md),
 [forest-defaults-by-kind.md](forest-defaults-by-kind.md) and push 3 of
 [written-surface.md](written-surface.md), none of which has landed. Amended 2026-10-07 after its blind
