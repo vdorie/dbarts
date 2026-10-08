@@ -72,8 +72,11 @@ survivalProbabilities(object, ...)
     a subject's offset applies at every period. Without \code{newdata} an
     offset replaces the fit's own at the training rows (one value or one per
     training row, or per subject on a hazard fit), read off the stored draws
-    with no trees replayed on an AFT fit; a hazard fit replays its trees there
-    as it does for any training subjects.
+    with no trees replayed. On a hazard fit that carries a \code{test} set,
+    the subjects are the test subjects whose draws it stored, and the offset
+    replaces theirs on the latent scale before the link; with no test set a
+    hazard fit replays its trees at the training subjects, as it does for any
+    training subjects, and needs \code{keepTrees = TRUE}.
   }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the

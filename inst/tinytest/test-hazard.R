@@ -470,6 +470,52 @@ expect_true(!is.null(fit.htest[["yhat.test"]]))
 sp.stored <- survivalProbabilities(fit.htest)
 sp.reexpand <- survivalProbabilities(fit.probit, newdata = xn)
 expect_identical(sp.stored, sp.reexpand)
+
+# an offset with no newdata, off the stored test grid and with no trees
+# (dec-B340): the subject's own comes off the latent draws, the new one goes
+# on, then the link - the same curves as replaying the trees at the test
+# subjects with that offset, which a twin kept with trees can do
+offsets.new <- c(0.5, -1, 0.25, 1)
+fit.hoff <- do.call(
+  bart,
+  c(
+    list(
+      x,
+      cbind(d$time, d$status),
+      family = "hazard",
+      test = xn,
+      offset = 0.3,
+      offset.test = c(0.1, -0.2, 0.3, 0.4)
+    ),
+    modifyList(fitArgs, list(keepTrees = TRUE))
+  )
+)
+fit.hoff.bare <- fit.hoff
+fit.hoff.bare$fit <- NULL
+sp.off.stored <- survivalProbabilities(fit.hoff.bare, offset = offsets.new)
+expect_equal(
+  sp.off.stored,
+  survivalProbabilities(fit.hoff, newdata = xn, offset = offsets.new - 0.3),
+  tolerance = 1e-12
+)
+expect_equal(
+  survivalProbabilities(fit.hoff.bare, offset = 2),
+  survivalProbabilities(fit.hoff, newdata = xn, offset = 2 - 0.3),
+  tolerance = 1e-12
+)
+# the offset changes the curves, and the fit's own offset given back does not
+expect_false(isTRUE(all.equal(sp.off.stored, survivalProbabilities(fit.hoff))))
+expect_equal(
+  survivalProbabilities(fit.hoff.bare, offset = c(0.1, -0.2, 0.3, 0.4)),
+  survivalProbabilities(fit.hoff),
+  tolerance = 1e-12
+)
+expect_error(
+  survivalProbabilities(fit.hoff.bare, offset = 1:3),
+  "one per training subject",
+  fixed = TRUE
+)
+rm(fit.hoff, fit.hoff.bare, sp.off.stored, offsets.new)
 # a non-hazard, non-aft fit is refused by survivalProbabilities
 fit.gauss <- bart(
   x,

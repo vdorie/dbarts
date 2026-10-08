@@ -519,6 +519,11 @@ packageBartResults <- function(
   if (!is.null(fit$data@offset)) {
     result$offset <- fit$data@offset
   }
+  # and the test rows' own, which a hazard fit's stored test grid is shifted
+  # from when survivalProbabilities is given an offset
+  if (!is.null(fit$data@offset.test) && length(fit$data@offset.test) > 0L) {
+    result$offset.test <- fit$data@offset.test
+  }
   # a heteroscedastic fit has no scalar residual scale: its run reports no
   # sigma, the engine holding the scalar fixed, so the elements are absent and
   # s.train is the scale
@@ -3391,9 +3396,7 @@ hazardSurvivalProbabilities <- function(
   }
 
   rows <- NULL
-  usesStoredTest <- is.null(newdata) &&
-    is.null(offset) &&
-    !is.null(object[["yhat.test"]])
+  usesStoredTest <- is.null(newdata) && !is.null(object[["yhat.test"]])
   if (usesStoredTest) {
     # extract() on the packaged fit, not object$fit (the dbartsSampler):
     # extract.dbartsSampler accepts only type = "predictors", while
@@ -3401,6 +3404,29 @@ hazardSurvivalProbabilities <- function(
     # applies the same probability transform predict(type = "ev") does
     haz <- extract(object, type = "ev", sample = "test", combineChains = FALSE)
     n <- dim(haz)[length(dim(haz))] %/% K
+    if (!is.null(offset)) {
+      # an offset given with no newdata replaces each subject's own at every
+      # period (dec-B340), off the stored latent draws and so with no trees:
+      # the subject's own comes off, the new one goes on, then the link
+      if (!length(offset) %in% c(1L, n) || anyNA(offset)) {
+        stop(
+          "'offset' must be one number or one per training subject (",
+          n,
+          "), none missing",
+          call. = FALSE
+        )
+      }
+      latent <- extract(
+        object,
+        type = "bart",
+        sample = "test",
+        combineChains = FALSE
+      )
+      old <- object[["offset.test"]]
+      shift <- rep(rep_len(as.double(offset), n), times = K) -
+        if (is.null(old)) 0 else rep_len(old, n * K)
+      haz <- probabilityFromLatents(shiftObservations(latent, shift), object)
+    }
     # the test rows are period-major, so the first n are the subjects, whose
     # make.unique names are their own
     subjectNames <- object[["row.names.test"]][seq_len(n)]
