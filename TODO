@@ -298,6 +298,15 @@ items
     set to zero and the leaf keeps its value or takes its function's
     value at the new constant (dec-B329, revising dec-A177); the help
     for newData says so. Before 1.0-0.
+  predictor-frame-whole: before 1.0-0 (dec-B359, VD 2026-10-08).
+    setPredictor(x) with no column takes a data frame, coded by label
+    as the column form is, where today it fails ("'list' object cannot
+    be coerced to type 'double'", as in 0.9-34); a numeric matrix is
+    taken only where every predictor column is numeric and is refused
+    by name on a sampler with a factor column. Open for VD: the same
+    for setTestPredictor and predict, which take a matrix of codes on
+    a factor fit today (predict(fit, cbind(a = 0.5, f = 2)) reads 2 as
+    the second level).
   leaf-prior-spelling-keeps-spread: before 1.0-0 (dec-B356, VD
     2026-10-08). setLeafPrior switching a drawn leaf prior between
     normal(k = ) and normal(sd = invchi()) keeps each chain's spread
