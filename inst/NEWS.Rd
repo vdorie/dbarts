@@ -63,8 +63,10 @@
             now \code{df}. On the sampler,
             \code{$sampleNodeParametersFromPrior} is now
             \code{$sampleLeafParametersFromPrior}, \code{$startThreads} and
-            \code{$stopThreads} do nothing, and a thread count passed to
-            \code{$run} is ignored (use \code{$setControl}). \code{NULL}
+            \code{$stopThreads} do nothing, a thread count passed to
+            \code{$run} is ignored (use \code{$setControl}), and a logical
+            \code{updateCutPoints} given to \code{$setPredictor} is read as
+            \code{"position"} or \code{"none"}. \code{NULL}
             rather than \code{NA} now means \dQuote{not given}; where
             0.9-34's default was \code{NA}, an explicit \code{NA} is still
             read as \code{NULL} with a warning.
@@ -520,10 +522,10 @@
             distinct values lay above the highest one at 150 distinct
             values, half at 199 and a tenth at 999. Results change for
             nearly every such fit, \code{bartBT}'s included, and likewise
-            for a
-            \code{$setPredictor(updateCutPoints = TRUE)} onto more distinct
-            values than the column's cut points can separate, which had
-            kept only the lowest ones, with a warning. A predictor with no
+            for a \code{$setPredictor} that updates cut points onto more
+            distinct values than the column's cut points could separate,
+            which had kept only the lowest ones, with a warning, and now
+            derives up to \code{n.cuts} of them. A predictor with no
             more than \code{n.cuts + 1} distinct values, and the default
             \code{useQuantiles = FALSE}, are unaffected.
       \item A predictor's cut points are distinct. A column whose range

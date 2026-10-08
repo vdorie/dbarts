@@ -604,33 +604,6 @@ matchCutPointRule <- function(x, choices, name) {
   )
 }
 
-## setPredictor's updateCutPoints as one of its three words. 0.9-x took a
-## logical, TRUE re-deriving the grid with every split left on its position:
-## one is still taken, with a warning once in a session.
-resolveUpdateCutPoints <- function(updateCutPoints) {
-  if (
-    is.logical(updateCutPoints) &&
-      length(updateCutPoints) == 1L &&
-      !is.na(updateCutPoints)
-  ) {
-    warnOnce(
-      "tombstone.updateCutPoints.logical",
-      "'updateCutPoints' is now one of \"none\", \"position\" or \"value\"; ",
-      "TRUE was taken as \"position\" and FALSE as \"none\". A logical is no ",
-      "longer taken in dbarts ",
-      tombstoneExpiry,
-      ".",
-      class = "dbartsDeprecatedWarning"
-    )
-    return(if (updateCutPoints) "position" else "none")
-  }
-  matchCutPointRule(
-    updateCutPoints,
-    names(cutPointRuleCodes),
-    "updateCutPoints"
-  )
-}
-
 bartcoreSamplerSetPredictor <- function(
   sampler,
   x,
@@ -638,7 +611,11 @@ bartcoreSamplerSetPredictor <- function(
   forceUpdate,
   updateCutPoints
 ) {
-  updateCutPoints <- resolveUpdateCutPoints(updateCutPoints)
+  updateCutPoints <- matchCutPointRule(
+    resolveUpdateCutPoints(updateCutPoints),
+    names(cutPointRuleCodes),
+    "updateCutPoints"
+  )
 
   # read once: each sampler$data is a typed reference-class field's active
   # binding, a few microseconds a read, against a rejected update's whole

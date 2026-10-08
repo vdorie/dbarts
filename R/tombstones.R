@@ -230,6 +230,13 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "logical updateCutPoints",
+    kind = "behaviour",
+    owner = "dbartsSampler",
+    successor = "updateCutPoints = \"position\" or \"none\"",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "front-door startup message",
     kind = "behaviour",
     owner = ".onAttach",
@@ -1247,6 +1254,34 @@ ignoreRunThreadCount <- function(...) {
     class = "dbartsDeprecatedWarning"
   )
   invisible(NULL)
+}
+
+## ------------------------------------------------------------------
+## dbartsSampler$setPredictor's logical updateCutPoints
+## ------------------------------------------------------------------
+
+## 0.9-x's updateCutPoints was a logical, TRUE re-deriving the grid with
+## every split left on its position. It is now one of three words; a logical
+## is read as the word it stood for after saying so once, and anything else
+## is returned as it came, for the caller to match or refuse.
+resolveUpdateCutPoints <- function(updateCutPoints) {
+  if (
+    !is.logical(updateCutPoints) ||
+      length(updateCutPoints) != 1L ||
+      is.na(updateCutPoints)
+  ) {
+    return(updateCutPoints)
+  }
+  warnOnce(
+    "tombstone.updateCutPoints.logical",
+    "'updateCutPoints' is now one of \"none\", \"position\" or \"value\"; ",
+    "TRUE was taken as \"position\" and FALSE as \"none\". A logical is no ",
+    "longer taken in dbarts ",
+    tombstoneExpiry,
+    ".",
+    class = "dbartsDeprecatedWarning"
+  )
+  if (updateCutPoints) "position" else "none"
 }
 
 ## ------------------------------------------------------------------

@@ -151,6 +151,15 @@ expect_warning(
 expect_error(threadSampler$run(0L, 2L, nthreads = 2L), pattern = "'nthreads'")
 expect_error(threadSampler$run(0L, 2L, NULL, 2L, NULL), pattern = "<unnamed>")
 
+# the logical setPredictor still reads as updateCutPoints is a row of the
+# registry; its reader hands a word on as it came and says nothing (the
+# warning itself is pinned in test-cut-grid-distinct.R)
+expect_true("logical updateCutPoints" %in% names.t[kinds == "behaviour"])
+expect_silent(expect_identical(
+  dbarts:::resolveUpdateCutPoints("value"),
+  "value"
+))
+
 # --- the consolidated argument names (dec-B98) ---
 
 # each is accepted for one release, warned about once, and MAPPED onto the

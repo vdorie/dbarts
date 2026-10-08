@@ -298,7 +298,7 @@
     points included. Anything but \code{"none"} cannot be combined with
     \code{forceUpdate = "partial"}. A logical is taken until dbarts 1.1-0,
     \code{TRUE} as \code{"position"} and \code{FALSE} as \code{"none"}, with a
-    warning once per session.
+    warning once per session (\code{\link{dbarts-deprecated}}).
   }
   \item{splits}{
     For \code{setCutPoints}, \code{"position"} (the default) or \code{"value"},

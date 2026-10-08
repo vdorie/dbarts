@@ -49,6 +49,9 @@
     \item{A thread count on \code{dbartsSampler}'s \code{$run}}{
       Ignored after a once-per-session warning, whether passed as \code{n.threads}, as 0.9-x's formal \code{numThreads}, or positionally after \code{updateState}: a run uses the sampler's own count, which \code{$setControl} changes, and its draws do not depend on it.
     }
+    \item{A logical \code{updateCutPoints} on \code{dbartsSampler}'s \code{$setPredictor}}{
+      Read after a once-per-session warning, \code{TRUE} as \code{"position"} and \code{FALSE} as \code{"none"}: the argument is now one of \code{"none"}, \code{"position"} and \code{"value"} (\code{\linkS4class{dbartsSampler}}), and \code{"position"} is what \code{TRUE} did.
+    }
     \item{\code{NA} where \code{NULL} now means not given}{
       \code{NULL}, not \code{NA}, is the one spelling of an absent value. Where 0.9-34's own default was \code{NA}, an explicit \code{NA} is still read as \code{NULL} after a once-per-session warning: \code{sigest} on \code{\link{bart}}; \code{seed} on \code{bart}, \code{\link{bartBT}} and \code{\link{xbart}}; \code{n.samples} on \code{\link{dbartsControl}}; \code{updateState} on the \code{\linkS4class{dbartsSampler}} methods and \code{\link{updatePredictorPerObservationJointly}}; and \code{numBurnIn} and \code{numSamples} on \code{$run}. An argument new in 1.0-0 refuses an \code{NA}, naming \code{NULL}: \code{sigest} and \code{seed} on \code{\link{dbarts}}, \code{sigest} on \code{xbart}, \code{seed} on \code{dbartsControl}, and both on \code{dbartsSpec}, which is new, and \code{seed} on \code{\link{dbartsValidateComposition}}.
     }
