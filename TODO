@@ -306,7 +306,20 @@ items
     with one finite value beside missing values; a 0/1 column and a
     plain constant column keep their bits. Two exact arms are added.
     After leaf-conversions, in the same engine files (dec-A178 for the
-    plan's calls).
+    plan's calls). Ruled since (VD 2026-10-08): a replaced grid's
+    splits keep their position, rescaled to a grid of another length,
+    or move by value on request; setPredictor's updateCutPoints takes
+    "none", "position" or "value", a logical warning once a session
+    until 1.1-0; setCutPoints takes splits = "position" or "value"
+    (dec-B311, dec-B312).
+  default-rule-per-gap: BEFORE THE MERGE TO MAIN (dec-B313, VD
+    2026-10-08). Under the default rule a column with fewer distinct
+    values than n.cuts gets one cut point in each gap between them, as
+    the quantile rule gives it, where today it gets n.cuts evenly
+    spaced points whatever its values (100 on a 0/1 column, all making
+    one split). Changes every default fit with a binary or few-valued
+    numeric column and moves recorded baselines. Plan first; a slice
+    of its own after repeated-cut-restore, in the same routine.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
