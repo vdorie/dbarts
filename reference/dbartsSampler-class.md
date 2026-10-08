@@ -1565,6 +1565,16 @@ way an interrupt does: the results are discarded and `run` signals an
 error, naming that a callback stopped it; that is an error, where an
 interrupt is not.
 
+For `setCutPoints`, `NULL` invisibly. The change is always made, as in
+0.9-x: there is no unforced form and no `forceUpdate` argument, and a
+split left with no cut point between the splits above it is merged, so
+the trees can change. It sets a grid, typically once before sampling.
+Inside a larger sampler whose draws move a column's values, let the grid
+follow them with `setPredictor(updateCutPoints = )`, which derives the
+grid a creation would for the new values, up to `n.cuts`, each time, and
+whose unforced form is refused, with the sampler as it was, when the
+trees cannot hold the new grid.
+
 For `setPredictor`, `TRUE` if the new predictor was installed and
 `FALSE` if it was refused. An unforced update is refused, with no error
 and no warning, when it would leave a leaf empty in any tree of any
