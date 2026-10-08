@@ -402,8 +402,9 @@ critique of the design (2026-10-07); the rest are the planner's.
   of width 1. Ruled by the maintainer since, as dec-B309; the measurement is in Context.
 - With no row out every number keeps its bits, as a constraint on the loops and a gate.
 - Two exact arms that fail on the base build.
-- For slice C: keep the function at a re-derivation that changes no response; the argument after
-  `updateState`. Recorded as open, not planned.
+- For slice C: the argument after `updateState`. A re-derivation through it treats the live chain as
+  `setResponse(updateScale = TRUE)` does, ruled by the maintainer as dec-B327; keeping the function
+  was the orchestrator's open call.
 - `rbart_vi` is cut: deprecated on the tip.
 - The value tested for "fewer than two distinct" is the count for a count fit. So rows in that all hold
   one positive count take the fallback although their centre is defined; the alternative is a second

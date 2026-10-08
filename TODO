@@ -252,7 +252,12 @@ items
     value and converts slopes instead of installing them; the manual's
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
-    draw. The design is not in docs/design yet.
+    draw. The design is not in docs/design yet. The grid half is
+    before 1.0-0: today setState puts back the cut grid a state was
+    stored under, undoing a later setCutPoints (run 2026-10-08: 3
+    points set, 100 after the restore, TRUE), against dec-B231 and
+    0.9-34, whose state carried no grid; shipped, a caller could rely
+    on it.
   leaf-covariate-single-value-off-centre: a linear leaf's covariate
     that setPredictor moved to another single value counts as having
     spread, so setData or a warm start onto a widely spread column
@@ -869,8 +874,9 @@ items
     computed over the rows in the likelihood when the sampler is
     created, rows at weight 0 or masked out left aside; it is held
     when weights or the mask change, and setWeights and setActiveRows
-    take the response setters' argument to re-derive it (dec-B296,
-    revising dec-A140). A sampler created with no row in takes them
+    take the response setters' argument to re-derive it, with the
+    response setters' effect on the live chain (dec-B296, revising
+    dec-A140; dec-B327). A sampler created with no row in takes them
     over every row, with a warning (dec-B302). A linear or gp leaf's
     covariate centre and scale follow the same rule (dec-B304), and a
     multiplier's scale does in the multiplier law's plan (dec-B303).
