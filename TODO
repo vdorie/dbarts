@@ -258,6 +258,10 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
+  basis-swap-zero-column: setForestBasis takes a numeric basis column
+    of all zeros, as it takes a factor level no row holds (dec-B346),
+    where today it refuses it; creation still refuses one. Help and a
+    test. Before 1.0-0.
   predict-training-rows: predict on a fit with no newdata returns each
     type at the training rows from the stored draws, needing no saved
     trees, an offset given there replacing the fit's (dec-B341), where
