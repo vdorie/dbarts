@@ -98,7 +98,7 @@ dbartsControl(
    }
 }
 \section{Engine limits}{
-  Eleven fixed values decide what the engine will represent and where it
+  Ten fixed values decide what the engine will represent and where it
   switches strategy. Each was measured on one machine (arm64 macOS, 10 cores);
   the four that a workload can profitably move are settings here, and the rest
   are limits of the representation or of a proposal family, with nothing found
@@ -111,7 +111,6 @@ dbartsControl(
     Categorical levels \tab quantized predictor code \tab 65535 \tab any real factor \tab no; a wider factor is refused by name \cr
     Ordered-factor levels \tab quantized predictor code \tab 65534 \tab any real factor \tab no; one code goes to the cut grid \cr
     Exact categorical enumeration \tab grow-from-root scan \tab 10 present levels \tab 8 to 14 \tab yes, \code{categoricalExhaustiveCap} \cr
-    Leaf-regression columns \tab \code{\link[=dbartsPriors]{linear}} leaves \tab 8 \tab 1 to 8 \tab no; a fixed stack scratch is sized for it \cr
     Perturb window \tab the perturb proposal \tab 1 grid position \tab 1 \tab no; acceptance falls with width and nothing gains \cr
     Test-fit parallel cutoff \tab test-set fitting \tab 65536 rows \tab 8192 to 65536 \tab yes, \code{testFitParallelCutoff} \cr
     Predict parallel cutoff \tab \code{\link[=dbartsSampler-class]{predict}} \tab 50000 traversals \tab 3e4 to 1e5 \tab yes, \code{predictParallelCutoff} \cr

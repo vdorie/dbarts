@@ -2036,6 +2036,104 @@ static void testLinearLeafStatisticsCachePrune() {
   printf("ok: linear leaf statistics cache prune\n");
 }
 
+// Past eight leaf covariates the node statistics no longer fit a stack
+// block, so the marginal and the draw at q = 9 and 16 are checked against a
+// dense reference built here: U'WU and U'Wz summed directly, then log det M
+// and M^-1 b by plain Gaussian elimination, never the leaf's Cholesky. The
+// draw d satisfies (d - m)' M (d - m) = sigma^2 eps'eps for m = M^-1 b and
+// eps the standard normals it consumed, which a twin generator replays.
+static void testLinearLeafWide(ext_rng* rng) {
+  const size_t n = 80;
+  const double scale = 0.5 / std::sqrt(10.0), k = 2.0, sigmaSq = 0.04;
+  for (size_t q : {static_cast<size_t>(9), static_cast<size_t>(16)}) {
+    size_t numColumns = q + 1, p = q + 1;
+    std::vector<double> x(n * numColumns), z(n), w(n);
+    for (size_t i = 0; i < n; ++i) {
+      double t = static_cast<double>(i) / static_cast<double>(n);
+      x[i] = t;
+      for (size_t j = 1; j <= q; ++j)
+        x[i + j * n] = std::sin(static_cast<double>(j) * 1.7 * t + 0.3 * j) +
+                       0.01 * static_cast<double>((i * j) % 7);
+      z[i] = 0.3 * t - 0.15 + 0.05 * std::cos(5.0 * t);
+      w[i] = 0.5 + (i % 4 == 0 ? 1.0 : 0.25);
+    }
+    std::vector<size_t> columns(q);
+    for (size_t j = 0; j < q; ++j) columns[j] = j + 1;
+    ColumnStore store;
+    built(store.build(x.data(), n, numColumns, 100, false, nullptr,
+                      columns.data(), q));
+    std::vector<index_t> indexBuffer(n);
+    Tree tree;
+    tree.initialize(indexBuffer.data(), n);
+    LinearGaussianLeaf leaf;
+    leaf.scale = scale;
+    leaf.initialize(store, columns.data(), q);
+
+    std::vector<double> m(p * p, 0.0), b(p, 0.0), row(p);
+    for (size_t i = 0; i < n; ++i) {
+      row[0] = 1.0;
+      for (size_t j = 0; j < q; ++j)
+        row[j + 1] = (x[i + (j + 1) * n] - leaf.covariateMeans()[j]) /
+                     leaf.covariateSds()[j];
+      for (size_t a = 0; a < p; ++a) {
+        b[a] += w[i] * row[a] * z[i];
+        for (size_t c = 0; c < p; ++c) m[a * p + c] += w[i] * row[a] * row[c];
+      }
+    }
+    double ridge = (k / scale) * (k / scale) * sigmaSq;
+    for (size_t a = 0; a < p; ++a) m[a * p + a] += ridge;
+    // elimination on a copy augmented by b: the pivots give log det M, the
+    // back substitution M^-1 b
+    std::vector<double> e(m), mean(b);
+    double logDet = 0.0;
+    for (size_t a = 0; a < p; ++a) {
+      logDet += std::log(e[a * p + a]);
+      for (size_t r = a + 1; r < p; ++r) {
+        double factor = e[r * p + a] / e[a * p + a];
+        for (size_t c = a; c < p; ++c) e[r * p + c] -= factor * e[a * p + c];
+        mean[r] -= factor * mean[a];
+      }
+    }
+    for (size_t a = p; a-- > 0;) {
+      for (size_t c = a + 1; c < p; ++c) mean[a] -= e[a * p + c] * mean[c];
+      mean[a] /= e[a * p + a];
+    }
+    double quadratic = 0.0;
+    for (size_t a = 0; a < p; ++a) quadratic += b[a] * mean[a];
+    double expected = 0.5 * static_cast<double>(p) * std::log(ridge) -
+                      0.5 * logDet + 0.5 * quadratic / sigmaSq;
+    double marginal = leaf.logIntegratedLikelihoodForNode(
+      tree, z.data(), w.data(), k, sigmaSq, 0);
+    check(std::fabs(marginal - expected) <= 1e-10 * std::fabs(expected),
+          "a wide linear leaf's marginal is the dense one");
+
+    ext_rng* twin = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 5813u + static_cast<unsigned>(q));
+    ext_rng_setSeed(twin, 5813u + static_cast<unsigned>(q));
+    std::vector<double> draw(p);
+    leaf.drawFromPosteriorForNode(rng, tree, z.data(), w.data(), k, sigmaSq, 0,
+                                  draw.data());
+    double epsSq = 0.0;
+    for (size_t a = 0; a < p; ++a) {
+      double eps = ext_rng_simulateStandardNormal(twin);
+      epsSq += eps * eps;
+    }
+    ext_rng_destroy(twin);
+    double form = 0.0;
+    for (size_t a = 0; a < p; ++a)
+      for (size_t c = 0; c < p; ++c)
+        form += (draw[a] - mean[a]) * m[a * p + c] * (draw[c] - mean[c]);
+    check(std::fabs(form - sigmaSq * epsSq) <= 1e-10 * sigmaSq * epsSq,
+          "a wide linear leaf's draw is the dense posterior's");
+
+    // the root's entry is priced as its member list and its p x p block
+    check(TestPeer::statisticsCacheUsedBytes(leaf) ==
+            n * sizeof(index_t) + p * p * sizeof(double),
+          "the cache prices a wide entry's crossproduct");
+  }
+  printf("ok: linear leaf past eight covariates\n");
+}
+
 static void testLinearLeafEndToEnd(ext_rng* rng) {
   const size_t n = 400, p = 2;
   std::vector<double> x(n * p), f(n), y(n);
@@ -9820,6 +9918,7 @@ void runModelTests(ext_rng* rng) {
   testLinearLeafDraw(rng);
   testLinearLeafStatisticsCache();
   testLinearLeafStatisticsCachePrune();
+  testLinearLeafWide(rng);
   testLinearLeafEndToEnd(rng);
   testLinearLeafFormats(rng);
   testLinearCoefficientConversion();

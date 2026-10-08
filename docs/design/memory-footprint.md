@@ -186,11 +186,12 @@ it is 35.6 MB and the model charges 20.0.
 The leaf statistics cache's level count was the third, and is no longer one:
 the cache is pruned, and what stays resident is one partition per tree. The
 mechanism, not a node count: a cached entry is one leaf's ordered member list
-plus an inline 81-double crossproduct, and the cache is indexed by ARENA slot
+plus its (q + 1)^2-double crossproduct, and the cache is indexed by ARENA slot
 ([`TreeStatisticsCache`](../../src/bartcore/model.hpp)). Leaf memberships
 partition the observations, so the lists live in one tree sum to at most 4*n -
-and that, [`statisticsEntryBytes`](../../src/bartcore/model.hpp) over
-`members.size()`, is the only thing the 256 MiB budget counts.
+and that, with each live entry's crossproduct beside it
+([`statisticsEntryBytes`](../../src/bartcore/model.hpp)), is what the 256 MiB
+budget counts; the crossproduct is counted because q has no cap.
 
 What the audit found resident was three times that, for two reasons the budget
 did not see. `assign` leaves each slot's member vector at the capacity of the

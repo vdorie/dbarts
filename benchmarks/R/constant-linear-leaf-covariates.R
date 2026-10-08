@@ -1,12 +1,10 @@
 #!/usr/bin/env Rscript
 
-# Measures LinearGaussianLeaf::maxNumCovariates (src/bartcore/model.hpp): the
-# most columns a linear leaf regression may designate, eight, because the
-# per-node sufficient-statistic scratch is a fixed-size stack array. The
-# facade refuses a ninth (facade.hpp, "at most 8 leaf covariates are
-# supported"), so a designation above the cap cannot be timed at all: this
-# script sweeps 4 and 8, then records the refusal at 12 and 16 with the
-# message the engine gives.
+# Measures a linear leaf's cost by designated column count
+# (LinearGaussianLeaf, src/bartcore/model.hpp). The count has no cap: the
+# per-node sufficient-statistic scratch is sized at creation. This script
+# sweeps 4, 8, 12 and 16, and a refused fit is still reported with its
+# message.
 #
 # FIT TIME is msec per iteration; the leaf draw is O(q^3) in the designated
 # count, so the 4-to-8 slope says what a wider leaf would cost. LEAF
@@ -18,7 +16,7 @@
 #
 # Usage: Rscript benchmarks/R/constant-linear-leaf-covariates.R [quick]
 # No baseline, no pass/fail exit status: an informational sweep, run by hand
-# when the cap is revisited.
+# when the leaf's cost is in question.
 
 suppressPackageStartupMessages(library(dbarts))
 

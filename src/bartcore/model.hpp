@@ -2397,19 +2397,6 @@ inline void convertLinearCoefficients(double& intercept, double* slopes,
 struct LinearGaussianLeaf {
   static constexpr bool hasVectorParams = true;
   static constexpr bool hasFunctionParams = false;
-  /// Sufficient-statistic scratch lives on the stack, sized for
-  /// maxNumCovariates; the factory rejects any designation with
-  /// numCovariates > maxNumCovariates. A ninth column is therefore a REFUSAL
-  /// and not a slowdown - the user-visible one in
-  /// leafCovariateDesignationIsValid - so the cap is a stop rather than a
-  /// tuning point. Neither of the two things a cap like this usually protects
-  /// is near a limit at eight: the O(q^3) leaf draw is only marginally
-  /// costlier at eight columns than at four, the median leaf still holds far
-  /// more members than q + 1 needs, and rank-deficient leaves before the
-  /// prior's ridge are rare. Raising it means resizing this scratch, which is
-  /// why it is compile-time.
-  static constexpr std::size_t maxNumCovariates = 8;
-
   double scale = 1.0;  // nodeScale / sqrt(numTrees)
 
   std::size_t numParams() const { return numCovariates_ + 1; }
@@ -2438,6 +2425,10 @@ struct LinearGaussianLeaf {
                   std::size_t numColumns, std::size_t numChains = 1) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
+    std::size_t p = numColumns + 1;
+    crossproductScratch_.assign(p * p, 0.0);
+    projectionScratch_.assign(p, 0.0);
+    rowScratch_.assign(p, 0.0);
     statisticsCacheBudget_ =
       statisticsCacheTotalBudgetBytes / (numChains == 0 ? 1 : numChains);
     reinitialize(data);
@@ -2555,7 +2546,8 @@ struct LinearGaussianLeaf {
     if (tree.at(nodeIndex).numObservations() == 0) return 0.0;
 
     std::size_t p = numParams();
-    double crossproduct[maxStatisticSize], projection[maxNumCovariates + 1];
+    double* crossproduct = crossproductScratch_.data();
+    double* projection = projectionScratch_.data();
     accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct,
                              projection);
     // the leading entry of U'WU is the members' total weight: with none, no
@@ -2603,7 +2595,7 @@ struct LinearGaussianLeaf {
       return;
     }
 
-    double crossproduct[maxStatisticSize];
+    double* crossproduct = crossproductScratch_.data();
     accumulateNodeStatistics(tree, y, weights, nodeIndex, crossproduct, out);
 
     double ridge = (k / scale) * (k / scale) * residualVariance;
@@ -2625,9 +2617,6 @@ struct LinearGaussianLeaf {
 
 private:
   friend struct TestPeer;
-
-  static constexpr std::size_t maxStatisticSize =
-    (maxNumCovariates + 1) * (maxNumCovariates + 1);
 
   /// Bytes the crossproduct cache holds resident in member lists - vector
   /// capacity, not the live member count the budget prices. A footprint read
@@ -2654,7 +2643,7 @@ private:
                                 double* projection) const {
     const Node& node(tree.at(nodeIndex));
     std::size_t p = numParams();
-    double row[maxNumCovariates + 1];
+    double* row = rowScratch_.data();
     row[0] = 1.0;
 
     const double* cached = lookupCrossproduct(tree, node, nodeIndex);
@@ -2707,7 +2696,7 @@ private:
   /// see identical weights, so a served value is bitwise the fresh scan's.
   struct CachedNodeStatistics {
     std::vector<index_t> members;
-    double crossproduct[maxStatisticSize];
+    std::vector<double> crossproduct;  // p * p while members is non-empty
   };
   struct TreeStatisticsCache {
     const Tree* tree = nullptr;
@@ -2716,19 +2705,24 @@ private:
 
   /// Leaves below this rescan; their U'WU is cheap and churns fast.
   static constexpr std::size_t minCachedLeafSize = 32;
-  /// Byte ceiling over cached member lists, split across chains at initialize;
-  /// when spent, further leaves rescan (still correct, just uncached). The
-  /// ceiling counts live member bytes, so it bounds residency only because
-  /// the two sources of untracked bytes are bounded in turn: dead slots are
-  /// released at the draw, and a live slot's retained vector capacity is
-  /// held under twice its member count by the store below. What escapes is
-  /// sizeof(CachedNodeStatistics) per arena slot ever touched, the inline
-  /// crossproduct included - kilobytes per tree, not megabytes.
+  /// Byte ceiling over cached entries, member lists and crossproducts,
+  /// split across chains at initialize; when spent, further leaves rescan
+  /// (still correct, just uncached). The ceiling counts live bytes, so it
+  /// bounds residency only because the two sources of untracked bytes are
+  /// bounded in turn: dead slots are released at the draw, and a live slot's
+  /// retained member capacity is held under twice its member count by the
+  /// store below. What escapes is sizeof(CachedNodeStatistics) per arena slot
+  /// ever touched - kilobytes per tree, not megabytes. The crossproduct is
+  /// counted because it grows as q^2 with no cap on q.
   static constexpr std::size_t statisticsCacheTotalBudgetBytes =
     static_cast<std::size_t>(256) << 20;
 
-  static std::size_t statisticsEntryBytes(std::size_t numObs) {
-    return numObs * sizeof(index_t);
+  /// Bytes an entry of numObs members holds against the budget; an empty
+  /// entry holds none, its crossproduct released with its members.
+  std::size_t statisticsEntryBytes(std::size_t numObs) const {
+    if (numObs == 0) return 0;
+    std::size_t p = numParams();
+    return numObs * sizeof(index_t) + p * p * sizeof(double);
   }
 
   TreeStatisticsCache& statisticsCacheForTree(const Tree& tree) const {
@@ -2756,7 +2750,7 @@ private:
     if (entry.members.size() == numObs &&
         std::memcmp(entry.members.data(), tree.indices + node.begin,
                     numObs * sizeof(index_t)) == 0)
-      return entry.crossproduct;
+      return entry.crossproduct.data();
     return nullptr;
   }
 
@@ -2779,6 +2773,7 @@ private:
         // give the pages back, not just the count: over the budget is
         // exactly where a retained capacity would be least affordable
         std::vector<index_t>().swap(entry.members);
+        std::vector<double>().swap(entry.crossproduct);
       }
       return;
     }
@@ -2792,7 +2787,7 @@ private:
     if (entry.members.capacity() > 2 * numObs)
       std::vector<index_t>().swap(entry.members);
     entry.members.assign(tree.indices + node.begin, tree.indices + node.end);
-    std::memcpy(entry.crossproduct, crossproduct, p * p * sizeof(double));
+    entry.crossproduct.assign(crossproduct, crossproduct + p * p);
   }
 
   /// True when the arena slot holds a bottom node of the live tree: it is in
@@ -2831,6 +2826,7 @@ private:
         if (entry.members.empty() || isLiveBottomNode(tree, index)) continue;
         statisticsCacheUsedBytes_ -= statisticsEntryBytes(entry.members.size());
         std::vector<index_t>().swap(entry.members);
+        std::vector<double>().swap(entry.crossproduct);
       }
       return;
     }
@@ -2846,6 +2842,13 @@ private:
   mutable std::vector<TreeStatisticsCache> statisticsCaches_;
   mutable std::size_t statisticsCacheUsedBytes_ = 0;
   std::size_t statisticsCacheBudget_ = statisticsCacheTotalBudgetBytes;
+  // Node-statistic scratch sized at initialize, (q + 1)^2, q + 1 and q + 1:
+  // no cap on q, so it cannot live on the stack. Touched only on the owning
+  // chain's thread, as the statistics cache is; the test-row replay reads
+  // fitForTestObservation, which needs none.
+  mutable std::vector<double> crossproductScratch_ = std::vector<double>(1),
+    projectionScratch_ = std::vector<double>(1),
+    rowScratch_ = std::vector<double>(1);
 };
 
 static_assert(VectorLeafModel<LinearGaussianLeaf>);
@@ -2880,9 +2883,6 @@ static_assert(VectorLeafModel<LinearGaussianLeaf>);
 struct GPGaussianLeaf {
   static constexpr bool hasVectorParams = false;
   static constexpr bool hasFunctionParams = true;
-  /// Bounds the replay predictor's stack scratch; the factory rejects any
-  /// designation with numCovariates > maxNumCovariates.
-  static constexpr std::size_t maxNumCovariates = maxFunctionLeafCovariates;
   /// Conditioning jitter on the correlation diagonal; not a modeling knob.
   static constexpr double nugget = 1.0e-6;
 

@@ -77,7 +77,9 @@ candidate count stops being indexable.
 ## Linear leaf covariate cap
 
 Value 8, at
-[`LinearGaussianLeaf::maxNumCovariates`](../../src/bartcore/model.hpp).
+retired: [`LinearGaussianLeaf::maxNumCovariates`](../../src/bartcore/model.hpp),
+a cap that is gone: dec-B366 removed it, the scratch now sized at creation,
+and the record below is of the build that had it.
 Origin, from the comment at its definition: the per-node sufficient-statistic
 scratch is a fixed-size stack array sized for it, and the factory rejects any
 designation above it. The refusal is user-visible in
@@ -85,15 +87,15 @@ designation above it. The refusal is user-visible in
 only measure up to the cap.
 
 The sweep is
-["Measures LinearGaussianLeaf::maxNumCovariates"](../../benchmarks/R/constant-linear-leaf-covariates.R),
+["Measures a linear leaf's cost by designated column count"](../../benchmarks/R/constant-linear-leaf-covariates.R),
 n = 4000, 25 trees, 300 iterations, 16 available columns.
 
 | designated columns | msec/iter | leaves with n <= q+1 | median leaf n / (q+1) | outcome |
 |---|---|---|---|---|
 | 4 | 3.687 | 0.0000 | 800.00 | fit |
 | 8 | 3.890 | 0.0017 | 444.44 | fit |
-| 12 | - | - | - | REFUSED: at most 8 leaf covariates are supported |
-| 16 | - | - | - | REFUSED: at most 8 leaf covariates are supported |
+| 12 | - | - | - | refused under the cap; not re-run since |
+| 16 | - | - | - | refused under the cap; not re-run since |
 
 Doubling the designation from four to eight costs 5 percent of a sweep, so
 the O(q^3) leaf draw is not what the cap is protecting. Conditioning is not
@@ -106,9 +108,9 @@ Verdict: BINDS as a refusal - nine columns is a stop, not a slowdown - but
 nothing measured says eight is the right place to stop; neither time nor
 conditioning is near a limit there.
 
-NOT exposed: the scratch is a fixed-size stack array sized from the constant,
-so moving it is a recompile and not a setting. This note carries the
-measurement; the comment at the definition states the constraint without it.
+What became of it: removed (dec-B366). The scratch is sized at creation, so
+any number of columns fits, and q of 8 or fewer draws bit for bit as under the
+cap.
 
 ## Perturb width
 

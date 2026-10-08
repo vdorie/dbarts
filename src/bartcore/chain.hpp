@@ -675,6 +675,8 @@ struct PredictScratch {
   std::vector<std::uint32_t> counts;
   std::vector<FlatNode> flat;
   std::vector<std::uint64_t> maskBuffer;
+  /// The function-leaf replay's standardized covariates for one row.
+  std::vector<double> uStar;
 };
 
 struct FusedSuffstatCheck {
@@ -1155,7 +1157,7 @@ public:
       misc_setVectorToConstant(treeFit, numTest, 0.0);
       addFlatPredictions(vf.savedTrees[slot * vf.numTrees + j], nullptr,
                          masks, columns, numTest, scratch.indices,
-                         scratch.blockOffsets, treeFit);
+                         scratch.blockOffsets, scratch.uStar, treeFit);
       for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
     }
     double s = response_->sigmaScale();
@@ -1177,7 +1179,7 @@ public:
     for (std::size_t i = 0; i < numTest; ++i) out[i] = 1.0;
     std::vector<std::size_t> indices(numTest);
     std::vector<std::size_t> blockOffsets;
-    std::vector<double> leafValues, treeFit(numTest);
+    std::vector<double> leafValues, treeFit(numTest), uStar;
     std::vector<FlatNode> flat;
     // a pooled categorical rule keeps its words outside the record, so flatten
     // must be handed a channel or it dereferences a null one
@@ -1190,7 +1192,7 @@ public:
       misc_setVectorToConstant(treeFit.data(), numTest, 0.0);
       addFlatPredictions(flat, nullptr, pooled ? masks.data() : nullptr,
                          columns, numTest, indices,
-                         blockOffsets, treeFit.data());
+                         blockOffsets, uStar, treeFit.data());
       for (std::size_t i = 0; i < numTest; ++i) out[i] *= treeFit[i];
     }
     double s = response_->sigmaScale();
@@ -3665,7 +3667,8 @@ public:
   /// Columns predictor source to out, dispatching on the leaf shape's record
   /// format: plain leaf values, slope blocks, or function blocks (whose
   /// offsets are valid by construction or by stateIsValid). sideChannel is
-  /// null for scalar leaves; indices and blockOffsets are caller scratch.
+  /// null for scalar leaves; indices, blockOffsets and uStar are caller
+  /// scratch.
   template <typename Columns>
   void addFlatPredictions(const std::vector<FlatNode>& flat,
                           const std::vector<double>* sideChannel,
@@ -3673,7 +3676,7 @@ public:
                           size_t numTestObservations,
                           std::vector<size_t>& indices,
                           std::vector<size_t>& blockOffsets,
-                          double* out) const {
+                          std::vector<double>& uStar, double* out) const {
     const L& leaf = forests_[0].leaf;
     for (size_t i = 0; i < numTestObservations; ++i) indices[i] = i;
     if constexpr (!L::hasVectorParams && !L::hasFunctionParams) {
@@ -3690,13 +3693,14 @@ public:
       computeFunctionBlockOffsets(sideChannel->data(), sideChannel->size(),
                                   (flat.size() + 1) / 2,
                                   leaf.numCovariates(), blockOffsets);
+      uStar.resize(leaf.numCovariates());
       addFlatFunctionPredictionsBelow(
         flat.data(), x_test,
         indices.data(), 0, numTestObservations, out,
         leaf.covariateColumns().data(), leaf.covariateMeans().data(),
         leaf.covariateSds().data(), leaf.lengthscales().data(),
-        leaf.numCovariates(), sideChannel->data(), blockOffsets.data(), 0,
-        masks);
+        leaf.numCovariates(), sideChannel->data(), blockOffsets.data(),
+        uStar.data(), 0, masks);
     }
   }
 
@@ -3717,7 +3721,8 @@ public:
         ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
       addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
                          sideChannel, masks, columns, numTestObservations,
-                         scratch.indices, scratch.blockOffsets, out);
+                         scratch.indices, scratch.blockOffsets, scratch.uStar,
+                         out);
     }
     double scale = response_->fitScale();
     double shift = response_->fitShift();
@@ -3741,7 +3746,7 @@ public:
       addFlatPredictions(scratch.flat, &scratch.slopes,
                          scratch.maskBuffer.data(), columns,
                          numTestObservations, scratch.indices,
-                         scratch.blockOffsets, out);
+                         scratch.blockOffsets, scratch.uStar, out);
     }
     double scale = response_->fitScale();
     double shift = response_->fitShift();
@@ -3787,7 +3792,8 @@ public:
           ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
         addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
                            sideChannel, masks, columns, numTestObservations,
-                           scratch.indices, scratch.blockOffsets, forestRaw);
+                           scratch.indices, scratch.blockOffsets,
+                           scratch.uStar, forestRaw);
       }
     }
     if (categoryOffset != nullptr)
@@ -3818,7 +3824,7 @@ public:
         addFlatPredictions(scratch.flat, &scratch.slopes,
                            scratch.maskBuffer.data(), columns,
                            numTestObservations, scratch.indices,
-                           scratch.blockOffsets, forestRaw);
+                           scratch.blockOffsets, scratch.uStar, forestRaw);
       }
     }
     if (categoryOffset != nullptr)
@@ -3853,7 +3859,8 @@ public:
           ? nullptr : &forest.savedTreeParams[slot * forest.numTrees + t];
         addFlatPredictions(forest.savedTrees[slot * forest.numTrees + t],
                            sideChannel, masks, columns, numTestObservations,
-                           scratch.indices, scratch.blockOffsets, forestRaw);
+                           scratch.indices, scratch.blockOffsets,
+                           scratch.uStar, forestRaw);
       }
     }
   }
@@ -3875,7 +3882,7 @@ public:
         addFlatPredictions(scratch.flat, &scratch.slopes,
                            scratch.maskBuffer.data(), columns,
                            numTestObservations, scratch.indices,
-                           scratch.blockOffsets, forestRaw);
+                           scratch.blockOffsets, scratch.uStar, forestRaw);
       }
     }
   }

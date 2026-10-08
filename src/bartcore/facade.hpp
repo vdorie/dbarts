@@ -912,9 +912,7 @@ inline bool leafCovariateDesignationIsValid(const SamplerOptions& options,
                                             std::size_t numPredictors,
                                             IsCategorical isCategorical,
                                             ServesRawValues servesRawValues) {
-  if (options.leafCovariateColumns == nullptr ||
-      options.numLeafCovariates > LinearGaussianLeaf::maxNumCovariates)
-    return false;
+  if (options.leafCovariateColumns == nullptr) return false;
   for (std::size_t k = 0; k < options.numLeafCovariates; ++k) {
     std::size_t j = options.leafCovariateColumns[k];
     if (j >= numPredictors || isCategorical(j) || !servesRawValues(j))
@@ -966,8 +964,7 @@ inline bool varianceForestIsRefused(const SamplerOptions& options,
 /// Dispatch on the leaf model: designated leaf covariates select the
 /// linear-leaf instantiation - or the GP one under options.gpLeaves -
 /// anything else the constant leaf. Returns null on an invalid
-/// designation - more than maxNumCovariates columns (both leaf models share
-/// the bound), a column out of range, or a subset-splitting column (its
+/// designation - a column out of range, or a subset-splitting column (its
 /// category codes are unordered; interact through splits instead) - which the
 /// host turns into its own error. An ordered factor is admissible, entering
 /// as its standardized level codes, i.e. as equally-spaced interval data.

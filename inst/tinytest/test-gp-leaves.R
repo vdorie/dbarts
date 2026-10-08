@@ -289,3 +289,37 @@ rm(
   sampler.w0,
   samples.w0
 )
+
+# no cap on leaf covariates: 9 and 12 columns fit, and the saved-tree replay
+# of new rows is the recorded test fits (at the training rows the replay is
+# the conditional mean, off the drawn values by the nugget)
+set.seed(41)
+xWide <- matrix(runif(200L * 12L), 200L, 12L)
+colnames(xWide) <- paste0("w", 1:12)
+yWide <- xWide[, 1L] + xWide[, 2L] * (xWide[, 3L] > 0.5) + rnorm(200L, 0, 0.2)
+xWideTest <- matrix(runif(30L * 12L), 30L, 12L)
+for (q in c(9L, 12L)) {
+  set.seed(1)
+  wideSampler <- dbarts(
+    xWide,
+    yWide,
+    test = xWideTest,
+    leaf.prior = gp(seq_len(q), max.leaf.size = 60L),
+    control = dbartsControl(
+      n.trees = 10L,
+      n.chains = 1L,
+      n.samples = 20L,
+      n.burn = 20L,
+      keepTrees = TRUE,
+      updateState = FALSE
+    )
+  )
+  wideSamples <- wideSampler$run()
+  expect_true(all(is.finite(wideSamples$train)))
+  expect_true(all(is.finite(wideSamples$sigma)))
+  expect_equal(
+    wideSampler$predict(xWideTest),
+    wideSamples$test,
+    tolerance = 1e-12
+  )
+}

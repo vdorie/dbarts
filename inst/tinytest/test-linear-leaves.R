@@ -306,3 +306,34 @@ samples.twin <- twin$run(0L, 20L)
 expect_equal(samples.refused$train, samples.twin$train, tolerance = 1e-10)
 rm(n, df.roll, control.roll, makeRollSampler, refused, twin)
 rm(samples.refused, samples.twin)
+
+# no cap on leaf covariates: 9 and 12 columns fit, and the saved-tree replay
+# at the training rows is the recorded train fits
+set.seed(41)
+xWide <- matrix(runif(200L * 12L), 200L, 12L)
+colnames(xWide) <- paste0("w", 1:12)
+yWide <- xWide[, 1L] + xWide[, 2L] * (xWide[, 3L] > 0.5) + rnorm(200L, 0, 0.2)
+for (q in c(9L, 12L)) {
+  set.seed(1)
+  wideSampler <- dbarts(
+    xWide,
+    yWide,
+    leaf.prior = linear(seq_len(q)),
+    control = dbartsControl(
+      n.trees = 10L,
+      n.chains = 1L,
+      n.samples = 20L,
+      n.burn = 20L,
+      keepTrees = TRUE,
+      updateState = FALSE
+    )
+  )
+  wideSamples <- wideSampler$run()
+  expect_true(all(is.finite(wideSamples$train)))
+  expect_true(all(is.finite(wideSamples$sigma)))
+  expect_equal(
+    wideSampler$predict(xWide),
+    wideSamples$train,
+    tolerance = 1e-12
+  )
+}

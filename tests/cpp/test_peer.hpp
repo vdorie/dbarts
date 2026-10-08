@@ -217,6 +217,10 @@ struct TestPeer {
     const LinearGaussianLeaf& leaf) {
     return leaf.statisticsCacheResidentBytes();
   }
+  /// The bytes the crossproduct cache prices against its budget.
+  static std::size_t statisticsCacheUsedBytes(const LinearGaussianLeaf& leaf) {
+    return leaf.statisticsCacheUsedBytes_;
+  }
   /// The residual-variance posterior's degrees of freedom, nu_0 + #{w_i > 0}
   /// over the model's own precisions; AFT's is its contained Gaussian's.
   static double sigmaDegreesOfFreedom(const GaussianResponse& response) {

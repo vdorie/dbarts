@@ -723,10 +723,11 @@ static void testMappedSourceReplay() {
                                   out.linear.data(), covariates, means, sds, 2,
                                   slopes, 0, masks);
     for (size_t i = 0; i < n; ++i) indices[i] = i;
+    double uStar[2];
     addFlatFunctionPredictionsBelow(flat.data(), source, indices.data(), 0, n,
                                     out.function.data(), covariates, means, sds,
                                     lengthscales, 2, blocks,
-                                    blockOffsets.data(), 0, masks);
+                                    blockOffsets.data(), uStar, 0, masks);
     return out;
   };
   auto replay = [&](const auto& source) {

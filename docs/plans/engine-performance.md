@@ -803,7 +803,7 @@ S5, the constants audit (dec-B91, B93, B110):
     |---|---|---|---|
     | [`maxNumCutsRepresentable`](../../src/bartcore/data.hpp), [`maxCategories`](../../src/bartcore/data.hpp), [`maxLevelsForKind`](../../src/bartcore/data.hpp) | data.hpp, over [`xint_t`](../../src/bartcore/data.hpp) and its `XINT_TYPE` mirror | 65533 cuts, 65535 categorical levels, 65534 for an ordered factor, which spends one code per cut | what breaks at and above each cap and whether a real design reaches one; widening the code is out of scope |
     | [`categoricalExhaustiveCap`](../../src/bartcore/scan.hpp) | scan.hpp | above ten present levels the exact partition enumeration degrades to prefix splits | time and acceptance of exact enumeration versus the scan path at 8, 10, 12, 14 present levels |
-    | [`LinearGaussianLeaf::maxNumCovariates`](../../src/bartcore/model.hpp) | model.hpp, refused in facade.hpp | a ninth leaf-regression column | fit time and leaf conditioning at 4, 8, 12, 16 designated columns |
+    | retired: [`LinearGaussianLeaf::maxNumCovariates`](../../src/bartcore/model.hpp) | model.hpp, refused in facade.hpp | a ninth leaf-regression column | fit time and leaf conditioning at 4, 8, 12, 16 designated columns |
     | [`perturbWidth`](../../src/bartcore/moves.hpp) | moves.hpp | the perturb proposal moves one grid position | acceptance and ESS at widths 1, 2, 4 on the standard designs |
     | [`testFitParallelCutoff`](../../src/bartcore/chain.hpp) | chain.hpp | test fits below 65536 rows stay serial | threaded versus serial wall time across n.test |
     | [`predictParallelCutoff`](../../src/bartcore/sampler.hpp) | sampler.hpp | predict below 1e7 cells stays serial | threaded versus serial wall time across rows x trees x draws; calibrated per dec-B93 |
@@ -875,7 +875,7 @@ own definition with origin and limit -
 [`maxCategories`](../../src/bartcore/data.hpp) and
 [`maxLevelsForKind`](../../src/bartcore/data.hpp);
 [`categoricalExhaustiveCap`](../../src/bartcore/scan.hpp);
-[`LinearGaussianLeaf::maxNumCovariates`](../../src/bartcore/model.hpp);
+retired: [`LinearGaussianLeaf::maxNumCovariates`](../../src/bartcore/model.hpp) (the cap is gone, dec-B366);
 [`perturbWidth`](../../src/bartcore/moves.hpp);
 [`testFitParallelCutoff`](../../src/bartcore/chain.hpp);
 [`predictParallelCutoff`](../../src/bartcore/sampler.hpp);

@@ -44,7 +44,7 @@ Stage-4 (R surface) notes:
   matrix in parsePriors (resolveLeafCovariates: exact column names or
   1-based indices, duplicates and categorical columns rejected via
   data@varTypes - an ordered factor is eligible, its codes being ordered -
-  at most 8). An unresolved designation cannot enter
+  any number of columns, dec-B366). An unresolved designation cannot enter
   dbartsModel directly, mirroring the split.probs guard. bart2
   constructs node.prior = normal(k) internally and does not reach
   linear; xbart had no node.prior and the data-handle creation path
@@ -167,7 +167,7 @@ Deltas from the proposal discovered while landing:
   the per-observation sessions, setData, setCutPoints) refuse
   gracefully - rolled back, false, empty, or zeroed, never wrong.
 - createSampler (facade.hpp) dispatches on options.leafCovariateColumns
-  and validates the designation (at most 8 columns, in range, not
+  and validates the designation (in range, not
   categorical; null on failure). The bridge stays on
   createClassicSampler until stage 4: linking the second instantiation
   costs +65KB .so (442 -> 506KB, +15%), +0.5s on the bridge TU (2.9 ->

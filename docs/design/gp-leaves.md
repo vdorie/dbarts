@@ -314,9 +314,9 @@ exposure; equivalence identical draws). Facts vs the plan:
   leafOffset. It standardizes test rows on the fly and repeats the
   live evaluation's arithmetic order (((x - mean)/sd - row)/theta,
   members in draw order), so saved replays BIT-MATCH the recorded test
-  fits - the component test asserts equality. Its stack scratch bound
-  maxFunctionLeafCovariates = 8 (GPGaussianLeaf::maxNumCovariates
-  aliases it; the stage-3 factory validates).
+  fits - the component test asserts equality. Its covariate scratch is
+  the caller's, q doubles, so the count of designated columns has no cap
+  (dec-B366; the eight-column bound it once had is gone).
 - run() keepTrees flatten reads the DRAW CACHE
   (appendLeafBlockFromCache): the alpha weights recorded are the exact
   values the recorded test fits used. Between runs (no fresh cache),

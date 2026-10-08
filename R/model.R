@@ -377,11 +377,6 @@ resolveLeafCovariates <- function(prior, data) {
     )
   }
 
-  # the engine's cap; blocks are solved on the stack
-  if (length(columnIndices) > 8L) {
-    stop("at most 8 leaf covariates are supported")
-  }
-
   prior@columns <- columnIndices
   if (is(prior, "dbartsGPPrior") && !is.null(prior@lengthscale)) {
     lengthscale <- prior@lengthscale

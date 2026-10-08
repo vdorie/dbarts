@@ -2215,10 +2215,6 @@ inline bool computeFunctionBlockOffsets(const double* blocks,
   return cursor == blocksLength;
 }
 
-/// Stack scratch bound for the function-leaf replay below; the factory
-/// validates designations against it.
-constexpr size_t maxFunctionLeafCovariates = 8;
-
 /// The function-leaf analogue of addFlatLinearPredictionsBelow: a routed
 /// row's fit is its leaf's conditional mean c(x*)' alpha under the
 /// squared-exponential kernel, the row standardized on the fly by the
@@ -2227,15 +2223,16 @@ constexpr size_t maxFunctionLeafCovariates = 8;
 /// arithmetic order as the live evaluation, so replays bit-match recorded
 /// test fits. Zero-count blocks add their stored constant. blockOffsets
 /// indexes blocks per pre-order leaf (computeFunctionBlockOffsets);
-/// leafOffset counts the leaves consumed before this subtree. Returns the
-/// number of flattened nodes consumed.
+/// leafOffset counts the leaves consumed before this subtree. uStar is
+/// caller scratch of at least numCovariates doubles. Returns the number of
+/// flattened nodes consumed.
 template <typename Columns>
 inline size_t addFlatFunctionPredictionsBelow(
     const FlatNode* flatNodes, const Columns& x,
     size_t* indices, size_t lo, size_t hi, double* fits,
     const size_t* columns, const double* means, const double* sds,
     const double* lengthscales, size_t numCovariates, const double* blocks,
-    const size_t* blockOffsets, size_t leafOffset = 0,
+    const size_t* blockOffsets, double* uStar, size_t leafOffset = 0,
     const std::uint64_t* maskWords = nullptr) {
   if (flatNodes[0].variable == invalidVariable) {
     const double* block = blocks + blockOffsets[leafOffset];
@@ -2246,7 +2243,6 @@ inline size_t addFlatFunctionPredictionsBelow(
     }
     const double* alpha = block + 1;
     const double* rows = block + 1 + count;
-    double uStar[maxFunctionLeafCovariates];
     for (size_t k = lo; k < hi; ++k) {
       size_t row = indices[k];
       for (size_t j = 0; j < numCovariates; ++j) {
@@ -2272,17 +2268,18 @@ inline size_t addFlatFunctionPredictionsBelow(
     partitionFlatIndices(flatNodes[0], x, indices, lo, hi, maskWords);
   size_t numOnLeft = addFlatFunctionPredictionsBelow(
     flatNodes + 1, x, indices, lo, mid, fits, columns, means,
-    sds, lengthscales, numCovariates, blocks, blockOffsets, leafOffset,
+    sds, lengthscales, numCovariates, blocks, blockOffsets, uStar, leafOffset,
     maskWords);
   size_t numNodes = 1 + numOnLeft;
   numNodes += addFlatFunctionPredictionsBelow(
     flatNodes + numNodes, x, indices, mid, hi, fits, columns,
-    means, sds, lengthscales, numCovariates, blocks, blockOffsets,
+    means, sds, lengthscales, numCovariates, blocks, blockOffsets, uStar,
     leafOffset + (numOnLeft + 1) / 2, maskWords);
   return numNodes;
 }
 
-/// The raw column-major entry: numRows is the block's row stride.
+/// The raw column-major entry: numRows is the block's row stride. Sizes its
+/// own covariate scratch once per call.
 inline size_t addFlatFunctionPredictionsBelow(
     const FlatNode* flatNodes, const double* x,
     size_t numRows, size_t* indices, size_t lo, size_t hi, double* fits,
@@ -2290,10 +2287,11 @@ inline size_t addFlatFunctionPredictionsBelow(
     const double* lengthscales, size_t numCovariates, const double* blocks,
     const size_t* blockOffsets, size_t leafOffset = 0,
     const std::uint64_t* maskWords = nullptr) {
+  std::vector<double> uStar(numCovariates);
   return addFlatFunctionPredictionsBelow(
     flatNodes, DenseColumns{x, numRows}, indices, lo, hi, fits, columns, means,
-    sds, lengthscales, numCovariates, blocks, blockOffsets, leafOffset,
-    maskWords);
+    sds, lengthscales, numCovariates, blocks, blockOffsets, uStar.data(),
+    leafOffset, maskWords);
 }
 
 /// Structural well-formedness of a flattened subtree - complete pre-order,
