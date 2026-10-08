@@ -269,18 +269,18 @@ expect_error(zeros$setCutPoints(c(-0, 0), 2L), pattern = refusal, fixed = TRUE)
 
 # A grid out of order is sorted and taken, by column, as an entry of the whole
 # list and as a data frame: the sampler holds the sorted grid and draws what
-# one handed the sorted grid draws.
+# one handed the sorted grid draws. The two are twins and not a copy and its
+# original: a copy holds its leaves' rows in another order and draws its
+# original's draws to rounding only.
 for (grid in list(c(0.75, 0.25, 0.5), c(0.5, 0.75, 0.25))) {
   sorted <- warmed(cbind(a, const, narrow), y, control = control)
-  shuffled <- sorted$copy()
+  shuffled <- warmed(cbind(a, const, narrow), y, control = control)
   sorted$setCutPoints(c(0.25, 0.5, 0.75), 1L)
   shuffled$setCutPoints(grid, 1L)
   expect_identical(cutPointsOf(shuffled), cutPointsOf(sorted))
   expect_identical(shuffled$run(0L, 5L)$train, sorted$run(0L, 5L)$train)
 }
-# a twin and not a copy from here: after two changes that keep most splits a
-# copy draws its original's draws to rounding only, its leaves holding their
-# rows in another order
+# two changes in turn
 sorted <- warmed(cbind(a, const, narrow), y, control = control)
 shuffled <- warmed(cbind(a, const, narrow), y, control = control)
 sorted$setCutPoints(c(0.25, 0.5, 0.75), 1L)

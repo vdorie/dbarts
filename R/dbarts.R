@@ -3104,7 +3104,7 @@ dbartsSampler <- setRefClass(
       updateState = NULL,
       splits = "position"
     ) {
-      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing, when the entries of factor columns are not read. A grid out of order is sorted, and a point may appear only once, so for more splits near a value give a denser grid there. splits says where the splits on a column go: \"position\" keeps each on its position, rescaled when the number of points changes, and \"value\" moves each to the point nearest its threshold. Forces the change by pruning any leaves that end up empty. A later setData derives at most n.cuts cut points again, whatever grid was set. updateState follows control@updateState; see setData."
+      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing, when the entries of factor columns are not read. A grid out of order is sorted, and a point may appear only once, so for more splits near a value give a denser grid there. splits says where the splits on a column go: \"position\" keeps each on its position, rescaled when the number of points changes, and \"value\" moves each to the point nearest its threshold. Always forced, as in 0.9-x: it has no unforced form, prunes any leaves that end up empty and returns NULL invisibly. It sets a grid, typically once; to have a grid follow values that change inside a loop, use setPredictor(updateCutPoints = ). A later setData derives at most n.cuts cut points again, whatever grid was set. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       bartcoreSamplerSetCutPoints(
