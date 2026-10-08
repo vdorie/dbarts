@@ -720,15 +720,6 @@ items
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
     such a wrapper cannot pass on a column of the data by its name.
-  forest-selection-wordings: two texts left by the push that selects
-    a forest by its label (docs/plans/forest-defaults-by-kind.md,
-    landing note): a list given forest by forest that carries a name
-    it may not is told to "select by position, as forest = 3", where a
-    list has no such argument and predict's forest means something
-    else; and in the BayesTree-style help's Extracting Trees, "the
-    returned array always keeps the trailing forest margin" follows a
-    list that now includes trees, which return a data frame. With
-    thread-default-one.
   control-carried-count-edges: with the control migration (dec-A179).
     A control taken from a bart() or bartBT() fit and given to
     dbarts() for a model whose every forest has a basis is refused as
@@ -738,9 +729,7 @@ items
     changing the count; both were taken before defaults went by kind.
     A count written into a carried control that equals the count it
     shows cannot be told from no edit and is replaced by the carried
-    one. And bart(power = NULL) or bart(base = NULL) stops with
-    "subscript out of bounds" on any model, where a NULL is the
-    default: fix with thread-default-one.
+    one.
   forest-sd-unit: before 1.0-0 (dec-B246 as revised, dec-B253,
     dec-B266), after forest-defaults-by-kind. A forest's sd is in
     the response's units wherever it is written or read: the units
@@ -920,17 +909,10 @@ items
     part). Before the merge to main; the kept-draw store in the
     engine and the state's reader, after leaf-conversions, which
     works in the same store.
-  thread-default-one: where n.threads is not stated and
-    guessNumCores() is NA, the fit runs on one thread with no message,
-    at dbartsControl, bart, bartBT, rbart_vi and xbart; a stated NA
-    stays refused; the help for n.threads and guessNumCores says so
-    (dec-B306, revising dec-A163). R only; before the merge to main.
-  forced-update-returns-null: a forced setPredictor returns NULL
-    invisibly, as 0.9-34's did, where the branch returns TRUE; the
-    forced forms of setState and installTrees do the same when they
-    are built (dec-B310). The unforced value says whether a valid
-    update was made. R, tests and the help's Value; with
-    thread-default-one. Before the merge to main.
+  forced-update-returns-null: the forced forms of setState and
+    installTrees return NULL invisibly when they are built, as a forced
+    setPredictor does (dec-B310); the unforced value says whether a
+    valid update was made. Before the merge to main.
   setstate-force-update: setState takes forceUpdate, FALSE by
     default, in setPredictor's idiom: unforced it installs a state
     that goes in cleanly and returns TRUE, or leaves the sampler
