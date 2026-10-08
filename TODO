@@ -782,12 +782,15 @@ items
     bcf passes factor(z) between the two pushes.
     Plan: docs/plans/forest-kind-by-class.md.
   forest-multiplier: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
-    dec-B269, dec-B271, dec-B272, dec-B275; dec-A171), after
-    forest-kind-by-class. Each kind of forest gets one law. A held
-    coefficient has the value its kind gives it wherever the forest
-    stands (1 with no basis, 0 and 1 for a two-level factor, 1 for
-    one numeric column), the forest's sd is then exact, and no other
-    shape is held; amplitude.prior.variance goes. A numeric column
+    dec-B269, dec-B271, dec-B272, dec-B275, dec-B354; dec-A171),
+    after forest-kind-by-class. Each kind of forest gets one rule. A
+    held coefficient is 1 and the multiplier is what the basis says,
+    wherever the forest stands (1 with no basis, the column as given
+    for one numeric column, 0 for a two-level factor's reference
+    level and 1 for the other), the forest's sd is then exact, and no
+    other shape is held; fixed() on a forest takes no value but 1,
+    the refusal pointing to the basis for a coding and to sd for a
+    size (dec-B354); amplitude.prior.variance goes. A numeric column
     is used as given, its coefficient normal; a stated sd is per
     unit, and the default is sqrt(2 / K) of the response's scale for
     one standard deviation of the column, taken by the engine once
