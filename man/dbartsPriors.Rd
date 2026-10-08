@@ -19,7 +19,7 @@
   A list of functions:
   \describe{
     \item{\code{cgm(power = 2, base = 0.95, split.probs = NULL)}}{
-      The Chipman, George, and McCulloch tree prior. \code{split.probs}
+      The Chipman, George, and McCulloch tree prior; a \code{NULL} \code{power} or \code{base} is the default. \code{split.probs}
       weights the choice of split variable: \code{NULL} is uniform, a named
       vector assigns by column or term name (with an optional
       \code{".default"} element), an unnamed vector assigns by position.

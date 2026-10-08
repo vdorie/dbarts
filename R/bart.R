@@ -893,7 +893,7 @@ bart <- function(
   n.samples = 500L,
   n.burn = 500L,
   n.chains = 4L,
-  n.threads = defaultNThreads(n.chains),
+  n.threads = min(dbarts::guessNumCores(), n.chains),
   combineChains = TRUE,
   n.cuts = 100L,
   useQuantiles = FALSE,
@@ -1198,6 +1198,13 @@ bart <- function(
         envir = currentEnv
       )
     )
+    # an unstated count whose default could not count the cores is one
+    if ("n.threads" %in% missingDefaultArgs && is.null(suppliedControl)) {
+      controlCall[["n.threads"]] <- fallBackToOneThread(
+        controlCall[["n.threads"]],
+        TRUE
+      )
+    }
   }
   # the settings bart spells no flat name for - the four engine limits, the
   # level Gibbs step, the tree-move mixture - reach the fit through the

@@ -969,3 +969,24 @@ expect_error(
   fixedOn(1L, twoElsewhere),
   fixed = TRUE
 )
+
+# a NULL power or base at bart() is the default, which a model whose every
+# forest has a basis refuses as naming the plain forest's tree prior (dec-A179)
+for (shorthand in c("power", "base")) {
+  args <- list(
+    y ~ forest(x1, basis = dose) + forest(x2, basis = age),
+    frame,
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 2L,
+    n.burn = 1L,
+    verbose = FALSE
+  )
+  args[shorthand] <- list(NULL)
+  expect_error(
+    suppressWarnings(do.call(dbarts::bart, args)),
+    paste0("'", shorthand, "' given to the fitting function is the tree prior"),
+    fixed = TRUE
+  )
+}
+rm(shorthand, args)

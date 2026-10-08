@@ -29,7 +29,7 @@ rm(b, sigma.b, g, n.g)
 
 expect_error(
   dbarts::rbart_vi(y ~ x, testData, group.by = g, n.threads = NA_integer_),
-  "'n.threads' must be a positive integer, not NA; guessNumCores"
+  "'n.threads' must be a positive integer, not NA; leave it out"
 )
 
 # test that rbart fails with invalid group.by
@@ -49,5 +49,32 @@ expect_error(
   dbarts::rbart_vi(y ~ x, testData, group.by = "not a factor", n.threads = 1L),
   "'group.by' not of length equal to that of data"
 )
+
+# a NULL power or base is the default
+rbartDefault <- function(...) {
+  dbarts::rbart_vi(
+    y ~ x,
+    testData,
+    group.by = g,
+    n.trees = 3L,
+    n.samples = 2L,
+    n.burn = 1L,
+    n.chains = 1L,
+    n.thin = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    seed = 1L,
+    ...
+  )
+}
+expect_identical(
+  rbartDefault(power = NULL)$yhat.train,
+  rbartDefault()$yhat.train
+)
+expect_identical(
+  rbartDefault(base = NULL)$yhat.train,
+  rbartDefault()$yhat.train
+)
+rm(rbartDefault)
 
 rm(testData)

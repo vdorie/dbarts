@@ -2340,6 +2340,13 @@ columnLabels <- function(columnNames, cols) {
 
 num.vars <- numvars <- NULL # R CMD check
 cgm <- function(power = 2, base = 0.95, split.probs = NULL) {
+  # NULL is absent, so it is the default
+  if (is.null(power)) {
+    power <- 2
+  }
+  if (is.null(base)) {
+    base <- 0.95
+  }
   result <- newValidated(
     "dbartsCGMPrior",
     power = power,
