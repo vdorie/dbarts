@@ -199,6 +199,70 @@ for (case in list(
   )
 }
 
+# --- the sparse estimate matches the dense one where the pivot test and the
+# QR's shape are tested: a numeric column collinear with another to a given
+# relative size, a column in other units, and more columns than rows ---
+
+sparseVsDense <- function(y, x, ...) {
+  expect_equal(
+    dbarts:::sparseResidualStandardError(
+      y,
+      dbarts:::makeIndicatorModelMatrix(x),
+      ...
+    ),
+    dbarts:::residualStandardError(
+      y,
+      dbarts:::sigmaDesignMatrix(
+        dbarts:::makeIndicatorModelMatrix(x, storage = "dense")
+      ),
+      ...
+    ),
+    tolerance = 1e-8
+  )
+}
+set.seed(21)
+n3 <- 120L
+d3 <- data.frame(
+  f = factor(sample.int(6L, n3, replace = TRUE)),
+  a = rnorm(n3),
+  b = rnorm(n3)
+)
+y3 <- rnorm(n3) + d3$a
+# collinear to 1e-9 (dropped by lm's tolerance) and to 1e-5 (kept)
+for (eps in c(0, 1e-9, 1e-5, 1e-3)) {
+  d3c <- d3
+  d3c$c <- d3$a + eps * rnorm(n3)
+  sparseVsDense(y3, d3c, NULL, NULL)
+}
+# a column in other units
+for (scale in c(1e9, 1e-9)) {
+  d3s <- d3
+  d3s$a <- scale * d3$a
+  sparseVsDense(y3, d3s, NULL, NULL)
+}
+# more columns than rows: 200- and 60-level factors on 150 rows
+n4 <- 150L
+d4 <- data.frame(
+  f = factor(sample.int(200L, n4, replace = TRUE)),
+  g = factor(sample.int(60L, n4, replace = TRUE)),
+  z = rnorm(n4)
+)
+y4 <- rnorm(n4) + d4$z
+mi4 <- dbarts:::makeIndicatorModelMatrix(d4)
+expect_true(dbarts:::predictorSourceIsSparse(mi4))
+expect_true(ncol(mi4) > n4)
+sparseVsDense(y4, d4, NULL, NULL)
+sparseVsDense(y4, d4, runif(n4, 0.5, 2), rnorm(n4, 0, 0.2))
+# full rank at n columns leaves no residual degrees of freedom: not finite,
+# as on the dense path
+d5 <- data.frame(f = factor(seq_len(30L)), z = rnorm(30L))
+expect_false(is.finite(dbarts:::sparseResidualStandardError(
+  rnorm(30L),
+  dbarts:::makeIndicatorModelMatrix(d5),
+  NULL,
+  NULL
+)))
+
 # --- the density threshold is inclusive: an indicator column at exactly
 # sparseDensityThreshold of the rows is built sparse, one row more is dense ---
 

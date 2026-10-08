@@ -1217,18 +1217,49 @@ sparseResidualStandardError <- function(y, x, weights, offset) {
     design <- Matrix::Diagonal(x = scale) %*% design
     response <- response * scale
   }
-  columns <- seq_len(ncol(design))
-  repeat {
-    decomposition <- Matrix::qr(design[, columns, drop = FALSE])
-    pivots <- abs(Matrix::diag(decomposition@R))
-    bad <- which(pivots <= 1e-7 * max(pivots))
-    if (length(bad) == 0L) {
-      break
+  # Unit-norm columns make the pivot test scale invariant: a pivot is then the
+  # fraction of a column's norm left after the earlier columns, which is lm's
+  # own tolerance criterion, whatever units the column is in. An all-zero
+  # column has no rank to give.
+  norms <- sqrt(Matrix::colSums(design^2))
+  nonzero <- which(norms > 0)
+  design <- design[, nonzero, drop = FALSE] %*%
+    Matrix::Diagonal(x = 1 / norms[nonzero])
+  nObs <- length(response)
+  # Matrix's QR needs at least as many rows as columns, and a design with more
+  # columns than rows (many indicator levels, few rows) is dependent by
+  # construction. Columns join the working set in batches that keep it at no
+  # more than nObs wide, each batch followed by dropping the columns whose
+  # pivot vanishes; a dropped column lies in the span of the others, so the
+  # kept set spans what lm.fit's pivoted fit does. At nObs independent columns
+  # the span is everything and the rest add nothing.
+  kept <- integer(0L)
+  cursor <- 1L
+  while (length(kept) < nObs && cursor <= ncol(design)) {
+    last <- min(ncol(design), cursor + nObs - length(kept) - 1L)
+    columns <- c(kept, cursor:last)
+    cursor <- last + 1L
+    repeat {
+      decomposition <- Matrix::qr(design[, columns, drop = FALSE])
+      pivots <- abs(Matrix::diag(decomposition@R))
+      bad <- which(pivots <= 1e-7)
+      if (length(bad) == 0L) {
+        break
+      }
+      columns <- columns[-(decomposition@q[bad[1L]] + 1L)]
     }
-    columns <- columns[-(decomposition@q[bad[1L]] + 1L)]
+    kept <- columns
+  }
+  if (length(kept) == 0L) {
+    return(sqrt(sum(response^2) / nObs))
+  }
+  # decomposition is the last, clean QR of exactly the kept columns
+  df <- nObs - length(kept)
+  if (df <= 0L) {
+    return(NA_real_)
   }
   residual <- Matrix::qr.resid(decomposition, response)
-  sqrt(sum(residual^2) / (length(response) - length(columns)))
+  sqrt(sum(residual^2) / df)
 }
 
 ## The dense design the starting sigma's linear fit reads: NAs mean-imputed.
