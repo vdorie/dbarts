@@ -86,7 +86,7 @@ jobs:
       - name: Run the gates in full mode
         run: |
           # the list exact-gates.yaml's main job loops over
-          gates=$(sed -n '/^ *gates="$/,/^ *"$/p' .github/workflows/exact-gates.yaml | grep -v '^ *gates="$' | grep -v '^ *"$')
+          gates=$(sed -n '/^ *gates="$/,/^ *"$/p' .github/workflows/exact-gates.yaml | grep -v '^ *gates="$' | grep -v '^ *"$' || true)
           if [ -z "$gates" ]; then
             echo "::error::no gate list found in exact-gates.yaml"
             exit 1

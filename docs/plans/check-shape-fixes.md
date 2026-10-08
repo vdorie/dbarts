@@ -59,7 +59,7 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
 2. Calibration arm (dec-B301). `probit-k`: the plain probit arm with k drawn under chi(1.5, 2), the default for
    binary fits. theta0's k is drawn by the harness, installed as a fixed k, the leaves are drawn at it, and the
    fit starts from a second independent draw handed back to the hyperprior; k is ranked beside the existing
-   functionals. It joins the matrix (M = 77 + 7 = 84). Settings follow the measurement: R = 600, L = 100, thin 1000
+   functionals. It joins the matrix (M = 77 + 7 = 84). Settings follow the measurement: R = 600, L = 99, thin 1000
    and a 30000-sweep burn (sbc.R supplies it), since k and its leaves are a funnel. R = 600 flags an error of one
    half in the shape of the k^2 conditional about 80% of the time (at 100 it does not); k is flagged on its ecdf
    band or a chi-square p below the band's alpha.
@@ -88,7 +88,7 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
   (0 of 72, largest Rhat 1.035). Caught, quick and full, on the shape draw mutated: never moves (caught, caught);
   moved one sweep in 100 (caught, caught); one sweep in 20 (missed, caught); every draw one grid step up (missed,
   caught).
-- k arm, R = 600, L = 100, thin 1000, burn 30000: 67 minutes on the laptop (6.7 s a replication, two runs at once on
+- k arm, R = 600, L = 99, thin 1000, burn 30000: 67 minutes on the laptop (6.7 s a replication, two runs at once on
   a loaded machine), so 134 at twice that, inside the 180-minute limit. Correct sampler: all seven functionals pass,
   k's chi-square p 0.70 and ecdf difference 0.041 of a 0.082 band. Shape of the k^2 conditional + 1/2: k flags, ecdf
   difference 0.142 of 0.082 and chi-square p 0.000, 86 of 600 ranks in the lowest bin against 30. Power: the band

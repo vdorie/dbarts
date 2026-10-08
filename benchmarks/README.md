@@ -240,7 +240,9 @@ n = 500) with the default forest, two chains whose shapes are set apart before
 the run (1 and 50, through the stored state: the sampler has no setter) must
 leave their starts, agree by split-Rhat, cover the true r and cover fresh
 counts at 90% by randomized PIT; a cell with no spread fails as undefined, and
-`quick` and full differ in seeds only.
+`quick` runs one dataset a cell and full three, with a further check
+on the 95% set over the six runs (the header of the script says what each
+catches).
 
 mask-redraw-exact is the gate for a mask redrawn every sweep by a larger
 sampler: a two-part mixture over ten rows and one tree, whose joint posterior
@@ -287,18 +289,21 @@ push.
 
 The probit-k arm draws k under chi(1.5, 2) and ranks it beside the other
 functionals. k is flagged when its ecdf difference leaves the band or its
-chi-square p (20 bins) is below the band's alpha, 6e-4. Detection floor, at
+chi-square p (20 bins over the 100 ranks 0 to 99) is below the band's alpha,
+6e-4: k is tested by two rules, while M stays 84. Detection floor, at
 R = 600, L = 99, thin 1000: an error of one half in the shape of the k^2
 conditional (a missing Jacobian, a leaf too many, the prior's df off by one) is
 flagged about 80% of the time; an error that scales with the number of leaves
 (every k draw 5% high) is flagged at R = 50. Smaller errors pass.
 
 By hand, before the merge to main: `schedule` waits for main, but a dispatch
-runs from any branch the file is on, so once the slice is pushed run
+runs from any branch the file is on. A push to bartcore that changes sbc.yaml
+already starts the matrix; otherwise run
 
     gh workflow run sbc.yaml --ref bartcore
 
-and read each job's report. Green is the band verdict, not the reading: for
+and read each job's report in the log of its "Run the SBC calibration check"
+step (`gh run view <id> --log`, or the job's page). Green is the band verdict, not the reading: for
 every arm look at the chisqP column. Of the 84 functionals expect about four
 under 0.05 and one under 0.01 (they are not independent, so read nine or more
 under 0.05, or any under 6e-4, as a finding to look at); for k, the histogram
