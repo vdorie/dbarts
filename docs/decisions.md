@@ -2101,6 +2101,10 @@ Record: inst/NEWS.Rd. Marked: blank. [dec-B337]
 split.probs weights how often each predictor is picked for a split. Run by the triage on 2026-10-08: on the branch c(0, -1) is refused ("must be non-negative and finite") and c(0, 0) is refused ("must give at least one column a positive probability"); 0.9-34 ran c(0, -1), normalized to (0, 1) by a negative sum, and failed on c(0, 0) with "missing value where TRUE/FALSE needed"; sample(prob = ) refuses negative, non-finite and all-zero weights. Shown that refusal with a line in NEWS, recommended, against refusing only the all-zero vector, the maintainer on 2026-10-08: "Refuse negative, non-finite and all-zero, as built and as sample()." The rule: split.probs with a negative or non-finite entry, or with no positive entry, is refused. The alternative left a negative weight a probability. The cost is that the negative-weight call 0.9-34 ran errors, which NEWS now says. Built. Confirms that call of dec-A168. See also: [dec-A168].
 Record: inst/NEWS.Rd. Marked: blank. [dec-B338]
 
+**An offset that is not numeric is refused**
+An offset is a known shift on the model's linear scale, and predict takes one for the new rows. Run by the triage on 2026-10-08: predict(fit, nd, offset = rep(TRUE, 3)) and a factor offset are refused ("'offset' must be numeric"), as fitting refuses them, an all-NA logical and a numeric data frame being taken; 0.9-34 coerced both and returned predictions; predict.lm coerces too. Shown the refusal, recommended, against coercing as predict.lm does, a factor then becoming its level codes, the maintainer on 2026-10-08: "Refuse, as built." The rule: an offset that is not numeric is refused when fitting and at predict. The cost is that a 0.9-34 call passing a logical offset errors, which NEWS now says. Built. Confirms that call of dec-A144. See also: [dec-A144].
+Record: inst/NEWS.Rd. Marked: blank. [dec-B339]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

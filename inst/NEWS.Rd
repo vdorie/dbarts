@@ -108,6 +108,10 @@
             \code{sample(prob = )} refuses such weights; 0.9-34 turned a
             negative weight into a probability by dividing by a negative
             sum.
+      \item Offsets. An offset that is not numeric, a logical or a factor,
+            is refused when fitting and by \code{predict}; 0.9-34 coerced
+            it, a factor to its level codes. An offset that is all
+            \code{NA} is read as missing.
       \item New data given to \code{predict}. Test column names that do not
             cover the training columns are an error (0.9-34 warned and
             matched by position). A factor level that training never saw is
