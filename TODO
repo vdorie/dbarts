@@ -294,12 +294,12 @@ items
     tracked files: docs, R and man text, comments, the TODO item name
     coefficient-law-opt-in; identifiers where not public. Replace with
     distribution, prior, rule or formula as fits. Docs/text tier.
-  copy-untouched-updatestate: copy() of a sampler with no stored state
-    (updateState = FALSE) stores its current state first, so the copy
-    continues its source (dec-B396). Before the merge.
-  copy-after-nsamples-edit: copy() errors after control's n.samples is
-    edited where a save and reload works (found 2026-10-07, not rerun).
-    Verify, then fix. Before the merge.
+  gp-copy-continuation: a copy, a setState or a reload of a sampler with
+    gp leaves does not continue its source to the last few digits, as the
+    copy help promises: train fits differed by up to 0.38 on values near
+    2.3, with or without a stored state (found by the copy review,
+    2026-10-08, probe scratch/copyrev/gp.R). Find what the gp state omits
+    and fix, or carve gp out of the help with the reason. Before the merge.
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
