@@ -38,7 +38,8 @@
 # at 4e6 sweeps and without it 0.0194, so a step silently switched off fails
 # here rather than passing more loosely. Full mode bounds it at 0.01; quick
 # mode at QUICK_MIXING_BOUND below, set between the two sides' quick values
-# (0.0064 with the step, 0.0190 without, at the landing).
+# at the landing: with the step 0.0064 on arm64 and 0.0099 on x86-64, whose
+# chain takes another path; without it 0.0190.
 #
 # The `never` argument runs with the step off, which must fail: without the
 # step the pure arm is the sampler the step was built to replace.
@@ -61,7 +62,7 @@ thin <- 10L
 numSweeps <- if (quick) 1e6 else 4e6
 numBatches <- 50L
 zBound <- 4.5
-QUICK_MIXING_BOUND <- 0.012
+QUICK_MIXING_BOUND <- 0.014
 mixingBound <- if (quick) QUICK_MIXING_BOUND else 0.01
 deciles <- c(0.1, 0.25, 0.5, 0.75, 0.9)
 leafScale <- 3

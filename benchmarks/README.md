@@ -265,7 +265,7 @@ k ~ chi(1.5, 2), whose posterior of k and leaf means are exact by one
 quadrature a leaf, on four arms (every leaf separated, none, an offset, a
 mask). It bounds P(k < q) at the exact deciles and the unseparated leaves'
 means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
-0.01 in full mode (0.012 quick), which a sampler without the step does not
+0.01 in full mode (0.014 quick), which a sampler without the step does not
 meet: the `never` argument runs the step off and must fail. Quick mode is
 about 30 seconds, full about 2 minutes.
 
