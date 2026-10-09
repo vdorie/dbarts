@@ -299,8 +299,8 @@ constexpr double forestCacheGapBound = 50.0;
 void beginPrintCapture(std::string& sink);
 void endPrintCapture();
 
-// Law checks shared by the suites (common.cpp): probabilities from log
-// weights, Pearson's statistic against a fully specified law of
+// Distribution checks shared by the suites (common.cpp): probabilities from
+// log weights, Pearson's statistic against a fully specified distribution of
 // probabilities over counts, and its chi-square upper tail.
 std::vector<double> normalizedFromLogWeights(
   const std::vector<double>& logWeights);

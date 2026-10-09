@@ -49,7 +49,7 @@ at a refresh ([`ColumnStore::refreshCutsForColumn`](../../src/bartcore/data.hpp)
 
 - When c equals M the index is k: every midpoint, the same doubles as before.
 - The indices strictly increase, since consecutive ones differ by at least floor(M / c).
-- A cut is a midpoint, never an observed value, so no row sits on one; except where two neighbouring values
+- A cut is a midpoint, never an observed value, so no row sits on one; except where two neighboring values
   are adjacent doubles or their sum overflows, whose midpoint does not fall strictly between them: the cut is
   then the lower value, which a row at it does not exceed (dec-B410, [cut-grid.md](cut-grid.md)).
 - At most floor(M / (2c)) + 1 distinct values lie beyond either end cut, and the two ends differ by at most one.

@@ -1189,7 +1189,7 @@ struct ColumnStore {
   /// floor((2k + 1) M / (2c)) for c = numCuts[j], the centre of the k-th of c
   /// equal shares of the midpoints. The cuts ascend and leave at most
   /// floor(M / (2c)) + 1 distinct values beyond either end cut; at c == M they
-  /// are every midpoint in order. Where the midpoint of two neighbouring
+  /// are every midpoint in order. Where the midpoint of two neighboring
   /// values is not strictly below the upper one and at least the lower (two
   /// adjacent doubles, or a sum that overflows), the cut is the lower value,
   /// which a row at it does not exceed, so each gap keeps a cut separating
@@ -1407,7 +1407,7 @@ struct ColumnStore {
   ///
   /// The uniform rule, on a column with at least two and fewer than
   /// requestedNumCuts[j] distinct finite values, places one cut in each gap
-  /// between neighbouring values, the quantile rule's grid for the same
+  /// between neighboring values, the quantile rule's grid for the same
   /// values, each weighted by the gap's width (weighGapsByWidth); otherwise
   /// it places its evenly spaced points, equally likely.
   void deriveNumericCuts(size_t j, const double* values) {
@@ -1494,7 +1494,7 @@ struct ColumnStore {
   /// Weights column j's one cut per gap by the gap's width, over the
   /// \p sorted distinct values the cuts separate: cutMass[j] holds the values
   /// themselves, or their halves where the range overflows, raised where a
-  /// half rounds onto its neighbour so every weight stays positive. Equal
+  /// half rounds onto its neighbor so every weight stays positive. Equal
   /// widths - a 0/1 column, equally spaced integers, or equally spaced values
   /// whose widths differ only by the rounding of the values themselves, a few
   /// ulps of the largest - leave the cuts equally likely and the column

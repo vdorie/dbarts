@@ -356,7 +356,7 @@ needs the 0.9-34 side taken again and has not been done.
 The fifth is the default grid on a column with fewer distinct values
 than cut points. 0.9-34 places its 100 evenly spaced points over such a
 column, a 0/1 column included; 1.0-0 places one point halfway along
-each gap between neighbouring values and chooses a gap with
+each gap between neighboring values and chooses a gap with
 probability in proportion to its width (docs/design/cut-grid.md,
 dec-B406). A gap's prior share is the same to within one point in a
 hundred, so the model is the same; what changes is that no proposal

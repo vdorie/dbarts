@@ -1638,9 +1638,9 @@ void testConditionalLawBelowRoot() {
 }
 
 // Grow-from-root's root draw on a weighted column: each cut's prior is its
-// weight over the sum, so the realized root rules follow the exact law with
-// log w_c - log W in each candidate and not the uniform one.
-void testWeightedGrowLaw() {
+// weight over the sum, so the realized root rules follow the exact
+// distribution with log w_c - log W in each candidate and not the uniform one.
+void testWeightedGrowDistribution() {
   const size_t n = 80, numDraws = 40000;
   const double k = 2.0, sigma = 0.9, alpha = 1e-3;
   const double values[] = {0.0, 1.0, 3.0, 10.0};  // widths 1, 2, 7
@@ -1707,7 +1707,8 @@ void testWeightedGrowLaw() {
   double vsUniform =
     chiSquareUpperTail(chiSquareStatistic(realized, uniform, count), 3.0);
   check(vsExact >= alpha && vsUniform < alpha,
-        "grown root rules follow the weighted law, not the uniform one");
+        "grown root rules follow the weighted distribution, not the "
+        "uniform one");
   printf("ok: grow on a weighted column (p %.3g exact, %.3g uniform)\n",
          vsExact, vsUniform);
 }
@@ -1730,5 +1731,5 @@ void runGrowTests(ext_rng* rng) {
   testCategoricalGrowGaugeAndCoins();
   testCategoricalGrowHonorsInteraction();
   testConditionalLawBelowRoot();
-  testWeightedGrowLaw();
+  testWeightedGrowDistribution();
 }

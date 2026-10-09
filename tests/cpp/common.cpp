@@ -192,7 +192,8 @@ std::vector<double> normalizedFromLogWeights(
   return probabilities;
 }
 
-// Pearson goodness of fit against a fully specified law: df = cells - 1
+// Pearson goodness of fit against a fully specified distribution: df =
+// cells - 1
 double chiSquareStatistic(const std::vector<double>& counts,
                           const std::vector<double>& probabilities,
                           double numDraws) {

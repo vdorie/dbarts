@@ -24,7 +24,7 @@ position holding its value, so the restored chain did not continue as stored.
   [`ColumnStore::fillCutsFromQuantileGrid`](../../src/bartcore/data.hpp)). A constant column, or one with one
   finite value beside missing ones, holds one point; a column with no finite value one point at 0.
 - Under the default rule (`useQuantiles = FALSE`) a numeric column with at least two and fewer than `n.cuts`
-  distinct finite values holds one point in each gap between neighbouring values, the quantile rule's grid for
+  distinct finite values holds one point in each gap between neighboring values, the quantile rule's grid for
   the same values, and the tree prior and every proposal choose a gap with probability in proportion to its
   width ([`ColumnStore::weighGapsByWidth`](../../src/bartcore/data.hpp)). Where every width is equal (a 0/1
   column, equally spaced values) the points are equally likely and the column carries no weights. A column

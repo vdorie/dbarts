@@ -10,8 +10,8 @@
 
 using namespace bartcore;
 
-// the shared law checks (common.cpp), declared here so this TU stays off
-// common.hpp and the layers it pulls in
+// the shared distribution checks (common.cpp), declared here so this TU stays
+// off common.hpp and the layers it pulls in
 double chiSquareStatistic(const std::vector<double>& counts,
                           const std::vector<double>& probabilities,
                           double numDraws);
