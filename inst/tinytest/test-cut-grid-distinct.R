@@ -1,7 +1,9 @@
 # No cut grid repeats a point. Every grid a sampler derives - at creation, at
 # setData, at a refresh through setPredictor - holds each point once, so a
 # column whose values supply fewer points than n.cuts holds fewer and a
-# constant column one. A refresh derives the grid a creation would for the
+# constant column one. Under either rule a column with fewer distinct values
+# than n.cuts holds one point in each gap between them, which the default
+# rule weighs by the gap's width. A refresh derives the grid a creation would for the
 # values, whatever number of points the column held, and says where the
 # splits on the column go: on their position ("position") or to the point
 # nearest their threshold ("value"); setCutPoints takes the same choice as
@@ -67,7 +69,8 @@ six <- as.double(seq_len(n) %% 6L)
 
 for (useQuantiles in c(FALSE, TRUE)) {
   rule <- if (useQuantiles) "quantile" else "uniform"
-  numNarrow <- if (useQuantiles) 3L else 5L
+  # five adjacent doubles: a point in each gap, on its lower value
+  numNarrow <- 4L
 
   # a grid is a set of distinct thresholds
   ctl <- controlWith(100L, useQuantiles)
@@ -110,11 +113,7 @@ for (useQuantiles in c(FALSE, TRUE)) {
     ),
     info = rule
   )
-  expect_identical(
-    length(cutPointsOf(sampler)[[2L]]),
-    if (useQuantiles) 3L else 5L,
-    info = rule
-  )
+  expect_identical(length(cutPointsOf(sampler)[[2L]]), 4L, info = rule)
   # and onto a single value it is one point
   expect_null(
     sampler$setPredictor(
@@ -135,11 +134,7 @@ others <- matrix(rnorm(n * ncol(columns)), n, dimnames = dimnames(columns))
 for (useQuantiles in c(FALSE, TRUE)) {
   rule <- if (useQuantiles) "quantile" else "uniform"
   ctl <- controlWith(100L, useQuantiles)
-  counts <- if (useQuantiles) {
-    c(100L, 3L, 1L, 1L, 1L, 5L)
-  } else {
-    c(100L, 5L, 1L, 1L, 100L, 100L)
-  }
+  counts <- c(100L, 4L, 1L, 1L, 1L, 5L)
 
   sampler <- dbarts(columns, y, control = ctl)
   created <- cutPointsOf(sampler)
@@ -279,7 +274,7 @@ warmed <- function(x, response = y, control = controlWith(n.trees = 20L), ...) {
   sampler
 }
 for (word in refreshWords) {
-  # unforced, the trees cannot hold five points where they held a hundred:
+  # unforced, the trees cannot hold four points where they held a hundred:
   # the call declines and the sampler is its untouched twin's equal
   sampler <- warmed(cbind(z, w))
   twin <- warmed(cbind(z, w))
@@ -298,7 +293,7 @@ for (word in refreshWords) {
   # the leaf holds them
   expect_equal(sampler$run(0L, 3L)$train, twin$run(0L, 3L)$train, info = word)
 
-  # forced, the grid is the five points, the sampler runs on, and its state
+  # forced, the grid is the four points, the sampler runs on, and its state
   # goes back in as stored, into itself and into a copy and a reload
   sampler <- warmed(cbind(z, w))
   expect_null(
@@ -310,7 +305,7 @@ for (word in refreshWords) {
     ),
     info = word
   )
-  expect_identical(lengths(cutPointsOf(sampler)), c(5L, 100L), info = word)
+  expect_identical(lengths(cutPointsOf(sampler)), c(4L, 100L), info = word)
   expect_true(all(is.finite(sampler$run(0L, 3L)$train)), info = word)
   sampler$storeState()
   stored <- sampler$state
@@ -803,3 +798,98 @@ for (door in c("sampler", "copy")) {
   }
   expect_true(numMerged >= 3L, info = door)
 }
+
+# ---- the default rule weighs one cut per gap ------------------------------
+
+# A column with fewer distinct values than n.cuts takes the quantile rule's
+# grid, a point halfway along each gap, and each gap is chosen with
+# probability in proportion to its width. The weights ride the state as the
+# column's sorted values; a column whose widths are equal carries none.
+massOf <- function(sampler) {
+  sampler$storeState()
+  attr(sampler$state, "cutMass")
+}
+squares <- as.double((seq_len(n) %% 6L)^2) # widths 1, 3, 5, 7, 9
+sampler <- warmed(cbind(z, squares, binary), y)
+grid <- cutPointsOf(sampler)
+mass <- massOf(sampler)
+expect_identical(grid[[2L]], c(0.5, 2.5, 6.5, 12.5, 20.5))
+expect_identical(grid[[3L]], 0.5)
+expect_identical(mass, list(NULL, c(0, 1, 4, 9, 16, 25), NULL))
+quantiled <- dbarts(
+  cbind(z, squares, binary),
+  y,
+  control = controlWith(
+    useQuantiles = TRUE
+  )
+)
+expect_identical(cutPointsOf(quantiled)[2L:3L], grid[2L:3L])
+expect_null(massOf(quantiled))
+
+# a 0/1 column holds its one point whatever n.cuts asks: the draws do not move
+onBinary <- function(n.cuts) {
+  dbarts(cbind(binary), y, control = controlWith(n.cuts))$run(5L, 5L)
+}
+expect_identical(onBinary(3L), onBinary(100L))
+
+# a state, a copy and a reload carry the weights and continue the chain
+stored <- sampler$state
+copied <- sampler$copy()
+path <- tempfile(fileext = ".rds")
+saveRDS(sampler, path)
+reloaded <- readRDS(path)
+unlink(path)
+expect_identical(massOf(copied), mass)
+expect_identical(massOf(reloaded), mass)
+expect_identical(copied$run(0L, 3L)$train, reloaded$run(0L, 3L)$train)
+expect_true(sampler$setState(stored))
+
+# a state without them installs the grids unweighted, and a malformed one is
+# refused by column
+bare <- stored
+attr(bare, "cutMass") <- NULL
+expect_true(sampler$setState(bare))
+expect_null(massOf(sampler))
+expect_true(sampler$setState(stored))
+expect_identical(massOf(sampler), mass)
+malformed <- stored
+attr(malformed, "cutMass")[[2L]] <- c(0, 1, 1, 9, 16, 25)
+expect_error(
+  sampler$setState(malformed),
+  pattern = paste(
+    "cut weights of column 2 in bartcore state are not 6 finite values",
+    "strictly increasing"
+  ),
+  fixed = TRUE
+)
+expect_identical(massOf(sampler), mass)
+
+# setCutPoints keeps them for the grid the column holds and drops them for
+# another; a refresh derives them again, and "none" keeps the column's
+sampler$setCutPoints(grid[[2L]], 2L)
+expect_identical(massOf(sampler), mass)
+sampler$setCutPoints(grid[[2L]] + 0.25, 2L)
+expect_null(massOf(sampler))
+expect_null(sampler$setPredictor(
+  squares,
+  2L,
+  forceUpdate = TRUE,
+  updateCutPoints = "value"
+))
+expect_identical(massOf(sampler), mass)
+expect_null(sampler$setPredictor(
+  w,
+  2L,
+  forceUpdate = TRUE,
+  updateCutPoints = "none"
+))
+expect_identical(cutPointsOf(sampler), grid)
+expect_identical(massOf(sampler), mass)
+expect_null(sampler$setPredictor(
+  w,
+  2L,
+  forceUpdate = TRUE,
+  updateCutPoints = "position"
+))
+expect_null(massOf(sampler))
+expect_identical(length(cutPointsOf(sampler)[[2L]]), 100L)

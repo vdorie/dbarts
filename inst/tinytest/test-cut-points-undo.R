@@ -190,8 +190,8 @@ for (useQuantiles in c(FALSE, TRUE)) {
   }
 }
 
-# The uniform rule holds one point over a constant column and five over one
-# narrower than doubles resolve, where it once repeated them; the sampler
+# The uniform rule holds one point over a constant column and four over five
+# adjacent doubles, one in each gap, where it once repeated them; the sampler
 # takes the grid such a column holds back, by column and as the whole list.
 control <- dbartsControl(
   n.chains = 1L,
@@ -214,8 +214,8 @@ y <- sin(4 * a) + (f == "b") + as.integer(o) / 2 + rnorm(n, 0, 0.3)
 sampler <- warmed(cbind(a, const, narrow), y, control = control)
 stored <- sampler$state
 own <- attr(stored, "cutPoints")
-expect_identical(lengths(own), c(100L, 1L, 5L))
-expect_identical(lengths(lapply(own, unique)), c(100L, 1L, 5L))
+expect_identical(lengths(own), c(100L, 1L, 4L))
+expect_identical(lengths(lapply(own, unique)), c(100L, 1L, 4L))
 expect_identical(own[[2L]], 1)
 expect_silent(sampler$setCutPoints(own[[2L]], 2L))
 expect_silent(sampler$setCutPoints(own[[3L]], 3L))

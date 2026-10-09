@@ -300,12 +300,17 @@ rm(x, y, sdY, xval, k20, kSmall50, treeCount)
 ## own linear-model fallback, so the residual prior calibrates identically
 ## without reproducing that fallback here. x's global min and max sit at rows
 ## 1 and 2, and the seed is one for which the held-out fold never draws them,
-## so the training-only cut grid dbarts() builds from x[trainRows, ] matches
-## xbart's shared, full-data grid exactly (both default to
-## useQuantiles = FALSE, a uniform grid over each column's range) - the one
-## condition under which a sampler over the training rows alone reproduces a
-## fold view over the full data bit for bit.
+## and n.cuts is 10, fewer than the training rows' 16 distinct values, so both
+## grids are the default rule's evenly spaced points over the column's range
+## and the training-only grid dbarts() builds from x[trainRows, ] matches
+## xbart's shared, full-data grid exactly - the one condition under which a
+## sampler over the training rows alone reproduces a fold view over the full
+## data bit for bit. With fewer distinct values than n.cuts the full data's
+## grid holds a point in each gap between its values, held-out ones among
+## them, which no training-only grid reproduces; a fold holds that grid and
+## its weights (below).
 n <- 20L
+n.cuts <- 10L
 numTest <- 4L
 seed <- 2L
 n.trees <- 5L
@@ -330,6 +335,7 @@ cellLoss <- dbarts::xbart(
   seed = seed,
   n.samples = n.samples,
   n.burn = n.burn,
+  n.cuts = n.cuts,
   sigest = sigest
 )
 
@@ -352,7 +358,7 @@ rebuildCell <- function(useUnitSeed = TRUE) {
       n.threads = 1L,
       n.trees = n.trees,
       n.samples = n.samples,
-      n.cuts = 100L,
+      n.cuts = n.cuts,
       useQuantiles = FALSE,
       keepTrees = FALSE,
       keepTrainingFits = FALSE,
@@ -372,8 +378,39 @@ expect_false(isTRUE(all.equal(
   rebuildCell(useUnitSeed = FALSE)
 )))
 
+# a fold holds the full data's grid and its weights: a column of six values
+# whose top value only held-out rows carry still has its top gap in the fold
+few <- as.double((seq_len(n) %% 6L)^2)
+held <- which(few == 25)
+fewControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = n.trees,
+  updateState = FALSE
+)
+full <- dbarts::dbarts(cbind(few), y, control = fewControl)
+handle <- dbarts:::bartcoreDataHandle(full$control, full$data)
+fold <- dbarts:::bartcoreSamplerFromHandle(
+  handle,
+  full$control,
+  full$model,
+  full$data,
+  setdiff(seq_len(n), held),
+  held
+)
+full$storeState()
+foldState <- .Call(dbarts:::C_dbarts_bartcore_storeState, fold$ptr)
+expect_identical(
+  attr(full$state, "cutPoints"),
+  list(c(0.5, 2.5, 6.5, 12.5, 20.5))
+)
+expect_identical(attr(foldState, "cutPoints"), attr(full$state, "cutPoints"))
+expect_identical(attr(full$state, "cutMass"), list(c(0, 1, 4, 9, 16, 25)))
+expect_identical(attr(foldState, "cutMass"), attr(full$state, "cutMass"))
+
 rm(
   n,
+  n.cuts,
   numTest,
   seed,
   n.trees,
@@ -383,7 +420,14 @@ rm(
   x,
   y,
   cellLoss,
-  rebuildCell
+  rebuildCell,
+  few,
+  held,
+  fewControl,
+  full,
+  handle,
+  fold,
+  foldState
 )
 
 suppressWarnings(RNGkind(sample.kind = oldSampleKind))

@@ -405,8 +405,15 @@ expect_true(abs(mean(priorDraws) - lp$prior.mean) < 4 * spread / sqrt(300))
 expect_true(abs(sd(priorDraws) / spread - 1) < 0.15)
 
 # a converted state replays the function its donor held, kept draws and live
-# fit both, to rounding
-replays <- function(label, args, response = rescaled, base = y) {
+# fit both, to rounding; a gp leaf's replay solves its kernel system again, so
+# its rounding is the solve's
+replays <- function(
+  label,
+  args,
+  response = rescaled,
+  base = y,
+  tolerance = 1e-12
+) {
   control <- stateControl(keepTrees = TRUE)
   donor <- do.call(make, c(args, list(response = response, control = control)))
   invisible(donor$run(0L, 4L))
@@ -416,13 +423,13 @@ replays <- function(label, args, response = rescaled, base = y) {
   expect_equal(
     recipient$predict(x),
     donor$predict(x),
-    tolerance = 1e-12,
+    tolerance = tolerance,
     info = label
   )
   expect_equal(
     recipient$getFitsWithoutOffset(),
     donor$getFitsWithoutOffset(),
-    tolerance = 1e-12,
+    tolerance = tolerance,
     info = label
   )
   recipient
@@ -434,7 +441,8 @@ invisible(replays(
   "gp, equal shift",
   list(leaf.prior = gp("x2")),
   stretched,
-  centred
+  centred,
+  tolerance = 1e-11
 ))
 invisible(replays("count", list(family = nbinom()), 2L * counts, counts))
 varianceDonor <- make(response = rescaled, variance = TRUE)

@@ -156,6 +156,67 @@ for (door in names(doors)) {
   )
 }
 
+# under the default rule a column with fewer distinct values than n.cuts takes
+# this grid too, through every door, each gap weighted by its width
+# (test-cut-grid-distinct.R): the weights are the column's sorted values, and
+# an evenly spaced column carries none
+massOf <- function(sampler) {
+  sampler$storeState()
+  attr(sampler$state, "cutMass")
+}
+xFew <- cbind(x4 = x[, 4L], x5 = x[, 4L]^2)
+frameFew <- data.frame(xFew, y = y, g = frame$g)
+fewArgs <- list(
+  y ~ x4 + x5,
+  frameFew,
+  n.trees = 5L,
+  n.samples = 4L,
+  n.burn = 2L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE,
+  keepSampler = TRUE
+)
+fewLegacy <- legacyArgs
+fewLegacy$x.train <- xFew
+fewLegacy$usequants <- FALSE
+fewDoors <- withNotices(
+  c("tombstone.bartShim", "tombstone.rbart_vi"),
+  TRUE,
+  list(
+    dbarts = dbarts(
+      xFew,
+      y,
+      control = dbartsControl(
+        n.chains = 1L,
+        n.threads = 1L,
+        n.trees = 5L,
+        updateState = FALSE
+      )
+    ),
+    bart = do.call(dbarts::bart, fewArgs)$fit,
+    bartBT = do.call(dbarts::bartBT, fewLegacy)$fit,
+    forwarded = do.call(dbarts::bart, fewLegacy)$fit,
+    rbart_vi = do.call(
+      dbarts::rbart_vi,
+      c(fewArgs, list(group.by = quote(g), n.thin = 1L))
+    )$fit[[1L]]
+  )
+)
+for (door in names(fewDoors)) {
+  expect_false(fewDoors[[door]]$control@useQuantiles, info = door)
+  expect_identical(
+    unname(cutPointsOf(fewDoors[[door]])),
+    list(allMidpoints(xFew[, 1L]), allMidpoints(xFew[, 2L])),
+    info = door
+  )
+  expect_identical(
+    unname(massOf(fewDoors[[door]])),
+    list(NULL, sort(unique(xFew[, 2L]))),
+    info = door
+  )
+}
+
 # a refresh spreads n.cuts over the new values' midpoints, whatever count the
 # column holds, and raises nothing: 10 cuts from 11 distinct values, refreshed
 # onto 60 under n.cuts = 10 and, below, under n.cuts = 100
@@ -198,4 +259,4 @@ expect_null(sampler$setPredictor(
 ))
 expect_identical(cutPointsOf(sampler)[[1L]], seq_len(4L) + 0.5)
 
-rm(sampler, fitModern, fitLegacy, fitShim, fitGrouped, pd, pd2, doors)
+rm(sampler, fitModern, fitLegacy, fitShim, fitGrouped, pd, pd2, doors, fewDoors)
