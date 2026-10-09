@@ -82,7 +82,9 @@
 # BINARY_HYPERPRIOR_SPLITS the real-data splits, and BINARY_HYPERPRIOR_BURN,
 # _DRAWS and _CHAINS the MCMC length a fit gets - the last three are how the
 # convergence check reported in the plan doc was run, and they ride the saved
-# settings so summarize says which length produced a directory. No baseline
+# settings so summarize says which length produced a directory.
+# BINARY_HYPERPRIOR_LINK=logistic fits the logistic link to the same cases and
+# seeds instead of probit; the link rides the settings too. No baseline
 # and no pass/fail exit status: this is a measurement whose verdict a person
 # writes, in docs/plans/binary-hyperprior.md.
 #
@@ -98,6 +100,7 @@ nTrees <- 75L
 nBurn <- 500L
 nSamples <- 500L
 nChains <- 1L
+link <- "probit"
 nTestSim <- 1000L
 simReps <- 8L
 realSplits <- 60L
@@ -125,6 +128,17 @@ applyEnvironmentOverrides <- function() {
   nBurn <<- envCount("BINARY_HYPERPRIOR_BURN", nBurn)
   nSamples <<- envCount("BINARY_HYPERPRIOR_DRAWS", nSamples)
   nChains <<- envCount("BINARY_HYPERPRIOR_CHAINS", nChains)
+  requested <- Sys.getenv("BINARY_HYPERPRIOR_LINK")
+  if (nzchar(requested)) {
+    link <<- match.arg(requested, c("probit", "logistic"))
+  }
+}
+
+# The fitted link. The data do not depend on it - a simulated case's true
+# probability is a probit surface either way - so the two links see the same
+# cases and seeds and differ only in the model fitted to them.
+inverseLink <- function(x) {
+  if (link == "logistic") plogis(x) else pnorm(x)
 }
 
 defaultCores <- function() {
@@ -187,6 +201,19 @@ armSubsets <- list(
     "chi(1.25, 1)",
     "chi(1.5, Inf)",
     "k = 2"
+  ),
+  # The fixed-or-drawn k study of October 2026: the four fixed arms, the
+  # incumbent and the September table's closest competitors.
+  khp = c(
+    "chi(1.5, 2)",
+    "chi(1.5, 5)",
+    "chi(1.5, 1)",
+    "chi(1, 1)",
+    "chi(1.5, 0.5)",
+    "k = 1",
+    "k = 1.5",
+    "k = 2",
+    "k = 3"
   )
 )
 
@@ -553,7 +580,7 @@ fitAndScore <- function(arm, case, mcmcSeed) {
       y ~ .,
       data = case$train,
       test = case$test,
-      family = "probit",
+      family = link,
       n.trees = nTrees,
       n.samples = nSamples,
       n.burn = nBurn,
@@ -567,7 +594,7 @@ fitAndScore <- function(arm, case, mcmcSeed) {
     )
   )[["elapsed"]]
 
-  probabilities <- pnorm(poolChains(fit$yhat.test))
+  probabilities <- inverseLink(poolChains(fit$yhat.test))
   pHat <- colMeans(probabilities)
   clamped <- pmin(pmax(pHat, probClamp), 1 - probClamp)
   y <- case$yTest
@@ -612,6 +639,7 @@ fitAndScore <- function(arm, case, mcmcSeed) {
   ))
 
   data.frame(
+    link = link,
     arm = arm$name,
     df = arm$df,
     scale = arm$scale,
@@ -633,39 +661,44 @@ fitAndScore <- function(arm, case, mcmcSeed) {
   )
 }
 
+# Every (repetition, arm) fit of a cell is one task in a single queue, handed
+# out one at a time, so a cell whose arm count is not a multiple of the
+# worker count keeps every worker busy. The cases are drawn first, in the
+# parent, so a task's data and seed are the same whatever worker runs it.
 runCell <- function(cellLabel, caseFor, reps, seedBase, cores, extra) {
-  rows <- list()
-  for (rep in seq_len(reps)) {
-    case <- caseFor(seedBase + rep)
-    mcmcSeed <- seedBase + 500000L + rep
-    scored <- mclapply(
-      arms,
-      function(arm) fitAndScore(arm, case, mcmcSeed),
-      mc.cores = cores,
-      mc.preschedule = TRUE
-    )
-    failed <- vapply(scored, function(s) !is.data.frame(s), logical(1L))
-    if (any(failed)) {
-      stop(sprintf(
-        "%s rep %d: %d arm(s) failed; first: %s",
-        cellLabel,
-        rep,
-        sum(failed),
-        as.character(scored[[which(failed)[1L]]])
-      ))
-    }
-    scored <- do.call(rbind, scored)
-    rows[[length(rows) + 1L]] <- cbind(
+  cases <- lapply(seq_len(reps), function(rep) caseFor(seedBase + rep))
+  tasks <- expand.grid(arm = seq_along(arms), rep = seq_len(reps))
+  scored <- mclapply(
+    seq_len(nrow(tasks)),
+    function(i) {
+      rep <- tasks$rep[i]
+      fitAndScore(arms[[tasks$arm[i]]], cases[[rep]], seedBase + 500000L + rep)
+    },
+    mc.cores = cores,
+    mc.preschedule = FALSE
+  )
+  failed <- vapply(scored, function(s) !is.data.frame(s), logical(1L))
+  if (any(failed)) {
+    stop(sprintf(
+      "%s: %d fit(s) failed; first: %s",
+      cellLabel,
+      sum(failed),
+      as.character(scored[[which(failed)[1L]]])
+    ))
+  }
+  rows <- lapply(seq_len(nrow(tasks)), function(i) {
+    case <- cases[[tasks$rep[i]]]
+    cbind(
       cell = cellLabel,
-      rep = rep,
+      rep = tasks$rep[i],
       nTrain = nrow(case$train),
       nPositive = sum(case$train$y),
       attempts = if (is.null(case$attempts)) 1L else case$attempts,
       extra,
-      scored,
+      scored[[i]],
       row.names = NULL
     )
-  }
+  })
   do.call(rbind, rows)
 }
 
@@ -820,6 +853,7 @@ runBlock <- function(block, outDir, cores, quick) {
   }
   attr(result, "quick") <- quick
   attr(result, "settings") <- list(
+    link = link,
     nArms = length(arms),
     nTrees = nTrees,
     nBurn = nBurn,
@@ -960,7 +994,8 @@ readRun <- function(outDir) {
     function(p) {
       settings <- attr(p, "settings")
       sprintf(
-        "%s chain(s) of %s after %s, %s trees",
+        "%s, %s chain(s) of %s after %s, %s trees",
+        if (is.null(settings$link)) "probit" else settings$link,
         settings$nChains,
         settings$nSamples,
         settings$nBurn,
