@@ -745,7 +745,8 @@ armConstrained <- function() {
   # One tree per forest. Under max.order = 1 a forest is a root (prob
   # 1 - base) or one split on x1 or on x2 (prob base / 2 each, the variable
   # drawn uniformly); a child can split on neither (its own variable has no
-  # cut left, the other is banned), so it is a leaf with probability 1. That
+  # cut left, the 0/1 column's grid being its one point, asserted below, and
+  # the other is banned), so it is a leaf with probability 1. That
   # gives 3^K joint structures. Given one, the D raw leaves are N(0, tau^2)
   # a priori and the likelihood is the product over cells of the softmax
   # powers; the integral over the leaves is adaptive Gauss-Hermite, centered at
@@ -821,6 +822,13 @@ armConstrained <- function() {
       tree.prior = cgm(power, base),
       interactions = interactions(max.order = 1L)
     )
+    # the enumeration's premise: a child holds no cut of its parent's column.
+    # More points on a 0/1 column leave the children splittable in the prior,
+    # each owing a factor 1 - base / 4 the enumeration does not carry
+    bc$storeState()
+    if (!identical(unname(attr(bc$state, "cutPoints")), list(0.5, 0.5))) {
+      stop("arm 8 needs one cut point on each 0/1 column")
+    }
     r <- bc$run(nburn, ndpost)
     t(vapply(
       1:4,

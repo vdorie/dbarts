@@ -37,8 +37,9 @@
 #          zcheck: Z_T = e(P_T) / L! against a brute-force monotonicity check
 #          unnormalized: the exact posterior against the one without 1 / Z_T
 #            (the BART prior conditioned on every tree being monotone); no sampling
-#   design c1 c2 c3 cN cM cF k1 k1r k3 (default: all; k1, k1r and k3 engine
-#          only, since the prototype scores pairs in linear space)
+#   design c1 c2 c3 cN cM cF k1 k1r k3 u1 (default: all; k1, k1r, k3 and u1
+#          engine only, since the prototype scores pairs in linear space and
+#          draws a cut uniformly)
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
@@ -149,6 +150,18 @@ designs <- list(
     nPer = c(200L, 1L, 200L),
     noise = 0,
     engineOnly = TRUE
+  ),
+  # c1's cells at the uneven values 0, 1, 3 and 10 under the default n.cuts:
+  # fewer distinct values than n.cuts, so the grid is a point in each gap and
+  # a cut is chosen with probability in proportion to its gap's width, 1, 2
+  # and 7, which the enumeration's rule factor carries
+  u1 = list(
+    nc = 4L,
+    dirs = 1L,
+    mu = c(0, 0.2, 0.4, 0.6),
+    sigma = 0.6,
+    values = list(c(0, 1, 3, 10)),
+    engineOnly = TRUE
   )
 )
 chosen <- intersect(args, names(designs))
@@ -189,8 +202,9 @@ treeKey <- function(rules) {
 
 # every tree on the region [lo, hi] (cell indices, inclusive) at depth d, with
 # its CGM log prior: grow with base / (1 + d)^power when a split is available,
-# the variable uniform over those with a cut, the cut uniform over its cuts
-enumerateTrees <- function(lo, hi, d = 0) {
+# the variable uniform over those with a cut, the cut uniform over its cuts,
+# or, where `weights` gives an axis its cuts' weights, in proportion to them
+enumerateTrees <- function(lo, hi, d = 0, weights = NULL) {
   avail <- which(hi > lo)
   pSplit <- if (length(avail)) base / (1 + d)^power else 0
   out <- list(list(
@@ -204,15 +218,20 @@ enumerateTrees <- function(lo, hi, d = 0) {
       hiLeft[v] <- cut
       loRight <- lo
       loRight[v] <- cut + 1L
-      lefts <- enumerateTrees(lo, hiLeft, d + 1)
-      rights <- enumerateTrees(loRight, hi, d + 1)
+      lefts <- enumerateTrees(lo, hiLeft, d + 1, weights)
+      rights <- enumerateTrees(loRight, hi, d + 1, weights)
+      logCut <- if (is.null(weights[[v]])) {
+        -log(hi[v] - lo[v])
+      } else {
+        log(weights[[v]][cut]) - log(sum(weights[[v]][lo[v]:(hi[v] - 1L)]))
+      }
       for (l in lefts) {
         for (r in rights) {
           out[[length(out) + 1L]] <- list(
             rules = c(ruleKey(lo, hi, v, cut), l$rules, r$rules),
             logPrior = log(pSplit) -
-              log(length(avail)) -
-              log(hi[v] - lo[v]) +
+              log(length(avail)) +
+              logCut +
               l$logPrior +
               r$logPrior,
             leaves = c(l$leaves, r$leaves)
@@ -370,6 +389,15 @@ buildDesign <- function(spec, seed = 11L) {
     ncol = length(nc),
     dimnames = list(NULL, paste0("x", seq_along(nc)))
   )
+  # an axis given values takes them for its cells, its cuts weighted by the
+  # gaps between them
+  gapWeights <- NULL
+  if (!is.null(spec$values)) {
+    gapWeights <- lapply(spec$values, diff)
+    for (i in seq_along(nc)) {
+      x[, i] <- spec$values[[i]][cells[cellOf, i]]
+    }
+  }
   y <- spec$mu[cellOf] + rnorm(length(cellOf), sd = noise)
   yRange <- max(y) - min(y)
   z <- (y - min(y)) / yRange - 0.5
@@ -382,7 +410,7 @@ buildDesign <- function(spec, seed = 11L) {
     })))
     drop((box - 1) %*% cumprod(c(1, nc[-length(nc)]))) + 1
   }
-  trees <- enumerateTrees(rep(1L, length(nc)), as.integer(nc))
+  trees <- enumerateTrees(rep(1L, length(nc)), as.integer(nc), 0, gapWeights)
   for (t in seq_along(trees)) {
     tr <- trees[[t]]
     tr$key <- treeKey(tr$rules)
@@ -625,7 +653,8 @@ engineKeys <- function(design, nDraw, seed, prior) {
     n.samples = block,
     updateState = TRUE,
     seed = seed,
-    n.cuts = as.integer(nc - 1L)
+    # an axis given values keeps the default n.cuts and its grid a point a gap
+    n.cuts = if (is.null(design$spec$values)) as.integer(nc - 1L) else 100L
   )
   mono <- setNames(dirs, colnames(design$x))[dirs != 0L]
   # a factor axis's cells are its levels, in order
@@ -643,7 +672,24 @@ engineKeys <- function(design, nDraw, seed, prior) {
     family = gaussian(sigma = fixed(design$spec$sigma^2)),
     monotone = monotone(mono, prior = prior)
   )
-  cuts <- lapply(nc, function(n) seq(1, n, length.out = n + 1L)[-c(1L, n + 1L)])
+  cuts <- if (is.null(design$spec$values)) {
+    lapply(nc, function(n) seq(1, n, length.out = n + 1L)[-c(1L, n + 1L)])
+  } else {
+    lapply(design$spec$values, function(v) 0.5 * (v[-1L] + v[-length(v)]))
+  }
+  # the grid the enumeration assumes, asserted where the values set it
+  if (!is.null(design$spec$values)) {
+    sampler$storeState()
+    grid <- unname(attr(sampler$state, "cutPoints"))
+    if (!identical(grid, cuts)) {
+      cat(sprintf(
+        "FAIL: the cut grid holds %s points where %s were expected\n",
+        paste(lengths(grid), collapse = ", "),
+        paste(lengths(cuts), collapse = ", ")
+      ))
+      quit(status = 1L)
+    }
+  }
   # a two-level factor's split is its one cut; the engine's left child holds
   # the higher level when the lower one goes right
   keyOf <- function(var, value, directions) {

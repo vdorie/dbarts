@@ -193,7 +193,9 @@ partB <- function() {
     logW <- logChiInv(h, leafDf, leafScale) + t + log(dt) # p(h) dh, h = e^t
 
     # each variance tree is a root (both cells share h, prob 1 - base) or a
-    # two-cell split (independent h per cell, prob base). Enumerate the joint
+    # two-cell split (independent h per cell, prob base: the children hold no
+    # cut, the binary column's grid being its one point, asserted in the
+    # engine arm). Enumerate the joint
     # (var1, var2, mean) structures and integrate. Numerators accumulate in
     # linear space (relative to each combo's max) since f(cell) can be negative.
     comboLogScale <- c() # treePrior + m0 per combo
@@ -330,6 +332,13 @@ partB <- function() {
       ),
       variance = varianceForest(n.trees = 2L, base = base, power = power)
     )
+    # the enumeration's premise: a split's children hold no cut. More points
+    # on the binary column leave them splittable in the prior, each owing a
+    # factor 1 - base / 4 the enumeration does not carry
+    sampler$storeState()
+    if (!identical(attr(sampler$state, "cutPoints"), list(0.5))) {
+      stop("part (b) needs one cut point on the binary column")
+    }
     sigest <- sampler$data@sigma
     r <- sampler$run(nburn, ndpost)
     s2A <- mean(r$variance[cell == 0L, ])

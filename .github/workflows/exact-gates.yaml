@@ -197,6 +197,18 @@ jobs:
             fi
             echo "::endgroup::"
           done
+          # bd-balance's weighted arm, cuts chosen in proportion to their gaps'
+          # widths, under each move mixture
+          for mix in bd change swap perturb gibbs; do
+            echo "::group::bd-balance.R weighted mix=$mix"
+            if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} weighted mix=$mix; then
+              echo "PASS bd-balance.R weighted mix=$mix"
+            else
+              echo "::error::gate bd-balance.R weighted mix=$mix FAILED"
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
           exit $fail
 
       # --preclean is not optional here: R tracks no dependency from the

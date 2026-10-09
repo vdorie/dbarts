@@ -54,7 +54,19 @@
 #   the point the children would count as splittable and the odds move by
 #   the two factors of not splitting them.
 #
-# Usage: Rscript bd-balance.R [quick] [zeroweight | narrow | constmissing]
+# The weighted arm (Rscript bd-balance.R weighted [mix=<mixture>]) puts the
+# cells at 0, 1, 3 and 10 under the default n.cuts: fewer distinct values than
+# n.cuts, so the grid is a point in each gap, {0.5, 2, 6.5}, asserted, and
+# each gap is chosen with probability in proportion to its width, 1, 2 and 7.
+# The enumeration's rule factor is then w_j over the interval's summed
+# weights. The arm runs under five move mixtures - mix=bd (the default, as
+# above), change, swap, perturb and gibbs (rule_gibbs) - each dominated by its
+# move beside birth/death, so each kernel's weighted path faces the exact
+# posterior; the posterior with equally likely cuts is another distribution,
+# which the arm reports its distance from.
+#
+# Usage: Rscript bd-balance.R [quick] [zeroweight | narrow | constmissing |
+#   weighted [mix=bd | change | swap | perturb | gibbs]]
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -63,7 +75,33 @@ quick <- "quick" %in% args
 zeroWeightArm <- "zeroweight" %in% args
 narrowArm <- "narrow" %in% args
 constMissingArm <- "constmissing" %in% args
-stopifnot(zeroWeightArm + narrowArm + constMissingArm <= 1L)
+weightedArm <- "weighted" %in% args
+stopifnot(zeroWeightArm + narrowArm + constMissingArm + weightedArm <= 1L)
+mixArg <- grep("^mix=", args, value = TRUE)
+mixture <- if (length(mixArg) > 0L) sub("^mix=", "", mixArg[1L]) else "bd"
+proposalProbs <- switch(
+  mixture,
+  bd = c(birth_death = 0.99, swap = 0, change = 0.01, birth = 0.5),
+  change = c(birth_death = 0.3, swap = 0, change = 0.7, birth = 0.5),
+  swap = c(birth_death = 0.3, swap = 0.6, change = 0.1, birth = 0.5),
+  perturb = c(
+    birth_death = 0.1,
+    swap = 0,
+    change = 0.1,
+    perturb = 0.8,
+    birth = 0.5
+  ),
+  gibbs = c(
+    birth_death = 0.1,
+    swap = 0,
+    change = 0.1,
+    perturb = 0,
+    rule_gibbs = 0.8,
+    birth = 0.5
+  ),
+  stop("unknown mixture ", mixture)
+)
+stopifnot(weightedArm || mixture == "bd")
 
 nKept <- if (quick) 100000L else 300000L
 batchSize <- if (quick) 25000L else 50000L
@@ -103,7 +141,14 @@ if (narrowArm) {
   x <- ifelse(cell <= 2L, 1, NA_real_)
   cuts <- 1
   numCutsAsked <- 5L
+} else if (weightedArm) {
+  values <- c(0, 1, 3, 10)
+  x <- values[cell]
+  cuts <- 0.5 * (values[-1L] + values[-K])
+  numCutsAsked <- 100L
 }
+# a cut's weight: the gap's width on the weighted arm, one elsewhere
+gapWeights <- if (weightedArm) diff(values) else rep(1, K - 1L)
 
 yRange <- max(y) - min(y)
 zScaled <- (y - min(y)) / yRange - 0.5
@@ -146,7 +191,7 @@ logIL <- function(cells) {
 # aggregate prior x likelihood onto the partition = the set of cut indices
 # used, which is what the engine arm can observe per sample.
 
-enumerate <- function(loCell, hiCell, loCut, hiCut, depth) {
+enumerate <- function(loCell, hiCell, loCut, hiCut, depth, weights) {
   growth <- if (hiCut >= loCut) base / (1 + depth)^power else 0
   result <- list(list(
     leaves = list(c(loCell, hiCell)),
@@ -157,15 +202,16 @@ enumerate <- function(loCell, hiCell, loCut, hiCut, depth) {
     return(result)
   }
   for (j in loCut:hiCut) {
-    lefts <- enumerate(loCell, j, loCut, j - 1L, depth + 1L)
-    rights <- enumerate(j + 1L, hiCell, j + 1L, hiCut, depth + 1L)
+    lefts <- enumerate(loCell, j, loCut, j - 1L, depth + 1L, weights)
+    rights <- enumerate(j + 1L, hiCell, j + 1L, hiCut, depth + 1L, weights)
     for (left in lefts) {
       for (right in rights) {
         result[[length(result) + 1L]] <- list(
           leaves = c(left$leaves, right$leaves),
           cutsUsed = c(j, left$cutsUsed, right$cutsUsed),
-          logPrior = log(growth) -
-            log(hiCut - loCut + 1) +
+          logPrior = log(growth) +
+            log(weights[j]) -
+            log(sum(weights[loCut:hiCut])) +
             left$logPrior +
             right$logPrior
         )
@@ -175,7 +221,7 @@ enumerate <- function(loCell, hiCell, loCut, hiCut, depth) {
   result
 }
 
-trees <- enumerate(1L, K, 1L, K - 1L, 0L)
+trees <- enumerate(1L, K, 1L, K - 1L, 0L, gapWeights)
 if (constMissingArm) {
   # the stump, and present against missing: one cut to choose, half the mass
   # for sending missing values right, and neither child with a cut left
@@ -225,6 +271,27 @@ for (t in seq_along(trees)) {
 }
 w <- exp(logW - logSumExp(logW))
 exactPartition <- vapply(split(w, signatures), sum, 0)
+# the weighted arm's foil: the same enumeration with every cut equally likely
+equalPartition <- if (weightedArm) {
+  equalTrees <- enumerate(1L, K, 1L, K - 1L, 0L, rep(1, K - 1L))
+  equalLogW <- vapply(
+    equalTrees,
+    function(tree) {
+      tree$logPrior + sum(vapply(tree$leaves, logIL, 0))
+    },
+    0
+  )
+  equalSignatures <- vapply(
+    equalTrees,
+    function(tree) signatureOf(tree$cutsUsed),
+    ""
+  )
+  vapply(
+    split(exp(equalLogW - logSumExp(equalLogW)), equalSignatures),
+    sum,
+    0
+  )
+}
 partitionNames <- names(sort(exactPartition, decreasing = TRUE))
 # the same enumeration restricted to the trees holding weight in every leaf
 restrictedPartition <- vapply(
@@ -254,10 +321,10 @@ sampler <- dbarts(
   tree.prior = cgm(power, base),
   leaf.prior = normal(kLeaf),
   family = gaussian(sigma = fixed(1)),
-  proposal.probs = c(birth_death = 0.99, swap = 0, change = 0.01, birth = 0.5)
+  proposal.probs = proposalProbs
 )
 stopifnot(is.null(sampler$data@offset))
-if (narrowArm || constMissingArm) {
+if (narrowArm || constMissingArm || weightedArm) {
   grid <- attr(sampler$state, "cutPoints")[[1L]]
   if (!identical(grid, cuts)) {
     cat(sprintf(
@@ -273,6 +340,9 @@ if (narrowArm || constMissingArm) {
     length(grid),
     numCutsAsked
   ))
+}
+if (weightedArm) {
+  cat(sprintf("mixture: %s\n", mixture))
 }
 
 # ---- the weights go in on a grown tree ----
@@ -359,6 +429,21 @@ if (zeroWeightArm) {
     "total variation from the exact posterior %.4f, from the one restricted to weighted leaves %.4f\n",
     0.5 * sum(abs(engineProbs - exactPartition[partitionNames])),
     0.5 * sum(abs(engineProbs - restrictedPartition[partitionNames]))
+  ))
+}
+
+if (weightedArm) {
+  # non-vacuity: with every cut equally likely the posterior is another
+  # distribution, and the chain is not on it
+  engineProbs <- vapply(
+    partitionNames,
+    function(name) mean(engineSignatures == name),
+    0
+  )
+  cat(sprintf(
+    "total variation from the exact posterior %.4f, from the one with equally likely cuts %.4f\n",
+    0.5 * sum(abs(engineProbs - exactPartition[partitionNames])),
+    0.5 * sum(abs(engineProbs - equalPartition[partitionNames]))
   ))
 }
 
