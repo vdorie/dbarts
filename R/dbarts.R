@@ -1847,6 +1847,19 @@ reissueNamedLeafSd <- function(sampler, ptr = sampler$getPointer()) {
   invisible(NULL)
 }
 
+## The install every re-creation shares - getPointer, $setState and copy: the
+## state goes into the engine at ptr, then what rides no state is put back from
+## the sampler's own mirrors, in this order. adopt is TRUE only where the
+## engine was just created from a control that can name another saved-tree
+## capacity than the state holds.
+installStateOnto <- function(sampler, ptr, state, predictors, adopt) {
+  exact <- .Call(C_dbarts_bartcore_setState, ptr, state, predictors, adopt)
+  sampler$reapplyForestWeights(ptr)
+  sampler$reapplyActiveRows(ptr)
+  reissueNamedLeafSd(sampler, ptr)
+  exact
+}
+
 ## The response transform a sampler's leaf prior is anchored to and its
 ## chains hold their numbers in - (min, max) as a state's fit.scale holds it
 ## - is model, recorded on the model as the "response.range" attribute, where
@@ -2454,44 +2467,48 @@ dbartsSampler <- setRefClass(
       # its transform included, and the install, or with none the move here,
       # puts the chains in it. The stored state is opaque and never mutated
       # in place (storeState replaces it whole), so the copy can install the
-      # same object.
+      # same object. With none stored, the sampler's current state is read
+      # now for this copy alone: the read draws nothing and the source keeps
+      # its own field.
       dupe$model <- model
-      applyAnchor(dupe$pointer, model, !is.null(state))
-      if (!is.null(state)) {
-        # as a reload installs it, not as a live setState: the stored state
-        # can hold a saved-tree store of another capacity than this control
-        # names (n.samples edited after the state was stored), and the copy
-        # takes the state's, exactly as a reload does
-        refuseLegacyState(state)
-        dupePointer <- dupe$pointer
-        .Call(
-          C_dbarts_bartcore_setState,
-          dupePointer,
-          state,
+      installing <- state
+      if (
+        is.null(installing) &&
+          .Call(C_dbarts_bartcore_isValidPointer, pointer)
+      ) {
+        installing <- .Call(C_dbarts_bartcore_storeState, pointer)
+      }
+      applyAnchor(dupe$pointer, model, !is.null(installing))
+      # forestWeights is a plain list field: assigning it shares the
+      # underlying object, but R's copy-on-modify means a later
+      # setForestWeights on either sampler duplicates before mutating. The
+      # mask rides neither the state nor the data object, so the copy takes
+      # both mirrors before the install, which puts them back after the state.
+      dupe$forestWeights <- forestWeights
+      dupe$activeRows <- activeRows
+      if (!is.null(installing)) {
+        # as a reload installs it, not as a live setState: the state can hold
+        # a saved-tree store of another capacity than this control names
+        # (n.samples edited after the state was stored), and the copy takes
+        # the state's
+        refuseLegacyState(installing)
+        installStateOnto(
+          dupe,
+          dupe$pointer,
+          installing,
           rawPredictorMatrix(data@x),
           TRUE
         )
-        dupe$reapplyForestWeights(dupePointer)
-        dupe$reapplyActiveRows(dupePointer)
-        reissueNamedLeafSd(dupe, dupePointer)
-        dupe$state <- state
+        # the cached field is the source's: an updateState = FALSE source has
+        # none, and neither does its copy
+        if (!is.null(state)) {
+          dupe$state <- state
+        }
       } else {
+        dupe$reapplyForestWeights(dupe$pointer)
+        dupe$reapplyActiveRows(dupe$pointer)
         reissueNamedLeafSd(dupe, dupe$pointer)
       }
-      # forestWeights is a plain list field: assigning it shares the
-      # underlying object, but R's copy-on-modify means a later
-      # setForestWeights on either sampler duplicates before mutating, so
-      # this is as alias-safe as the state install above. setState's own
-      # reapply already ran against dupe's still-empty field, so reapply
-      # again now that it carries .self's weights; dupe$pointer is valid
-      # straight out of $new (and stays so after setState), which is what
-      # lets this skip getPointer's re-creation branch
-      dupe$forestWeights <- forestWeights
-      dupe$reapplyForestWeights(dupe$pointer)
-      # the mask rides neither the state nor the data object either, so the
-      # copy takes it from the same mirror by the same route
-      dupe$activeRows <- activeRows
-      dupe$reapplyActiveRows(dupe$pointer)
       dupe
     },
     show = function() {
@@ -3584,16 +3601,7 @@ dbartsSampler <- setRefClass(
         # cross-grid column (the engine keeps no predictor matrix)
         # a store sized through the flat API is in no control, so the
         # re-created sampler takes the stored state's capacity
-        .Call(
-          C_dbarts_bartcore_setState,
-          ptr,
-          state,
-          rawPredictorMatrix(data@x),
-          TRUE
-        )
-        reapplyForestWeights(ptr)
-        reapplyActiveRows(ptr)
-        reissueNamedLeafSd(.self, ptr)
+        installStateOnto(.self, ptr, state, rawPredictorMatrix(data@x), TRUE)
         # the replacement is bound only once it carries the state: a refused
         # install must leave the object exactly as it was rather than holding
         # a live but unfitted engine that the next run would silently sample
@@ -3614,16 +3622,13 @@ dbartsSampler <- setRefClass(
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
         ptr <- recreatePointer(control, model, data, TRUE)
       }
-      exact <- .Call(
-        C_dbarts_bartcore_setState,
+      exact <- installStateOnto(
+        .self,
         ptr,
         newState,
         rawPredictorMatrix(data@x),
         FALSE
       )
-      reapplyForestWeights(ptr)
-      reapplyActiveRows(ptr)
-      reissueNamedLeafSd(.self, ptr)
       # as in getPointer: a re-created engine is bound only after the install
       # succeeds, so a refusal leaves a dead pointer dead instead of live and
       # unfitted, and leaves 'state' the one that is still installed
