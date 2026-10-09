@@ -584,8 +584,15 @@ withResidPrior <- function(family, residPrior) {
 ## 'sigest' is the residual-scale estimate a chisq prior calibrates against:
 ## its quantile says where the estimate falls, so the two belong together.
 ## A fixed residual scale has nothing to calibrate - the engine overwrites
-## the estimate with the square root of the fixed variance - so the pair is
-## refused rather than accepted and ignored.
+## the estimate with the square root of the fixed variance - so a 'sigest'
+## beside one is refused when it differs from that square root. One that
+## equals it (0.9-34 ran it, and loops written against it still do) is
+## accepted with a message, once per session, and is an error from the
+## tombstone expiry whatever its value.
+## "Equals" is within 4 ulps of sqrt(fixed variance), not exact: sqrt is
+## correctly rounded, so a caller who writes sqrt(v) matches exactly, but one
+## who writes 0.3 beside fixed(0.09) is off by an ulp or two from the
+## rounding of 0.3^2; anything looser would accept a different scale.
 ## The estimate itself is the test, not its name in the call: every entry
 ## point forwards 'sigest' to the one below it, defaulted to NA, so a name
 ## is no evidence a caller wrote one. 'sigestName' is the spelling the
@@ -602,6 +609,25 @@ refuseSigestUnderFixedPrior <- function(
       length(sigest) == 1L &&
       !is.na(sigest)
   ) {
+    fixedSd <- sqrt(residPrior@value)
+    if (
+      is.numeric(sigest) &&
+        abs(sigest - fixedSd) <= 4 * .Machine$double.eps * fixedSd
+    ) {
+      if (!isTRUE(onceWarnState[["tombstone.sigest.fixed"]])) {
+        onceWarnState[["tombstone.sigest.fixed"]] <- TRUE
+        message(
+          "'",
+          sigestName,
+          "' has no effect under a fixed residual scale (it agrees with ",
+          formatResidPrior(residPrior),
+          ") and is an error from dbarts ",
+          tombstoneExpiry,
+          "; drop it."
+        )
+      }
+      return(invisible(NULL))
+    }
     stop(
       "'",
       sigestName,

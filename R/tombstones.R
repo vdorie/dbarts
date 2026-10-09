@@ -209,6 +209,13 @@ dbartsTombstones <- list(
     expires = tombstoneExpiry
   ),
   list(
+    name = "sigest beside a fixed residual scale",
+    kind = "behaviour",
+    owner = NA_character_,
+    successor = "drop sigest",
+    expires = tombstoneExpiry
+  ),
+  list(
     name = "BayesTree-spelled bart call",
     kind = "behaviour",
     owner = "bart",
