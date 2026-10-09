@@ -1742,16 +1742,38 @@ public:
   /// it whole from totalFits, and the test totals are rebuilt by every
   /// recorded sweep before they are read.
   void rebuildTotalFitsFromTrees() {
+    if constexpr (leafIsConstant)
+      for (Forest<L, ResidT>& forest : forests_) rebuildForestTotalFits(forest);
+  }
+
+  /// One constant-leaf forest's totalFits re-summed in tree order,
+  /// ((0 + mu_0) + mu_1) + ..., per row. Four trees are added per pass over
+  /// the rows, which keeps that order exactly and reads and writes the total
+  /// a quarter as often; the probit rescaling step pays this every sweep.
+  void rebuildForestTotalFits(Forest<L, ResidT>& forest) {
     if constexpr (leafIsConstant) {
-      size_t n = data_.numObservations;
-      for (Forest<L, ResidT>& forest : forests_) {
-        double* total = forest.totalFits.data();
-        std::fill(total, total + n, 0.0);
-        for (size_t t = 0; t < forest.numTrees; ++t) {
-          const double* mu = forest.muByTree[t].data();
-          const std::uint32_t* leaf = forest.leafOf.data() + t * n;
-          for (size_t i = 0; i < n; ++i) total[i] += mu[leaf[i]];
-        }
+      const size_t n = data_.numObservations;
+      double* __restrict total = forest.totalFits.data();
+      std::fill(total, total + n, 0.0);
+      const std::uint32_t* leafOf = forest.leafOf.data();
+      size_t t = 0;
+      for ( ; t + 4 <= forest.numTrees; t += 4) {
+        const double* __restrict mu0 = forest.muByTree[t].data();
+        const double* __restrict mu1 = forest.muByTree[t + 1].data();
+        const double* __restrict mu2 = forest.muByTree[t + 2].data();
+        const double* __restrict mu3 = forest.muByTree[t + 3].data();
+        const std::uint32_t* __restrict leaf0 = leafOf + t * n;
+        const std::uint32_t* __restrict leaf1 = leaf0 + n;
+        const std::uint32_t* __restrict leaf2 = leaf1 + n;
+        const std::uint32_t* __restrict leaf3 = leaf2 + n;
+        for (size_t i = 0; i < n; ++i)
+          total[i] = (((total[i] + mu0[leaf0[i]]) + mu1[leaf1[i]]) +
+                      mu2[leaf2[i]]) + mu3[leaf3[i]];
+      }
+      for ( ; t < forest.numTrees; ++t) {
+        const double* __restrict mu = forest.muByTree[t].data();
+        const std::uint32_t* __restrict leaf = leafOf + t * n;
+        for (size_t i = 0; i < n; ++i) total[i] += mu[leaf[i]];
       }
     }
   }
@@ -6687,7 +6709,7 @@ private:
       bool scaled = response_->scaleLatents(alpha);
       assert(scaled);
       (void) scaled;
-      rebuildTotalFitsFromTrees();
+      rebuildForestTotalFits(forest);
       return true;
     }
   }
