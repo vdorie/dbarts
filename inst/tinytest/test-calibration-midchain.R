@@ -782,7 +782,7 @@ fixedSdToK <- spreadAfter(
   quote(normal(k = chi(1.5, 2)))
 )
 expect_true(max(abs(fixedSdToK$after / 0.5 - 1)) < 1e-14)
-# and the new law acts from the next draw: the spreads move on
+# and the new prior acts from the next draw: the spreads move on
 invisible(fixedSd$run(5L, 1L))
 expect_true(all(priorSdOf(fixedSd) != 0.5))
 # under the k spelling a changed chi() leaves k.scale, so k is left as it is
