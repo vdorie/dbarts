@@ -528,7 +528,7 @@ offset’s own covariate recovers a coefficient shrunk toward zero.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>mean <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/mean.html" class="external-link">mean</a></span><span class="op">(</span><span class="va">keepGamma</span><span class="op">)</span>, truth <span class="op">=</span> <span class="va">gammaTrue</span>,</span>
 <span>  shortfall <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">max</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">abs</a></span><span class="op">(</span><span class="op">(</span><span class="va">z</span> <span class="op">-</span> <span class="va">train</span><span class="op">)</span> <span class="op">-</span> <span class="op">(</span><span class="op">(</span><span class="va">z</span> <span class="op">-</span> <span class="va">f</span><span class="op">)</span> <span class="op">-</span> <span class="va">offset</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##         mean        truth    shortfall </span></span>
-<span><span class="co">## 1.371453e+00 1.500000e+00 4.440892e-16</span></span></code></pre>
+<span><span class="co">## 1.371569e+00 1.500000e+00 4.440892e-16</span></span></code></pre>
 <p>The last column is zero by construction, which is the point:
 <code>z - train</code> and <code>z - f</code> differ by the installed
 offset exactly. Substituting <code>train</code> for <code>f</code> above

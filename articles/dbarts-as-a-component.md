@@ -471,7 +471,7 @@ c(mean = mean(keepGamma), truth = gammaTrue,
 ```
 
     ##         mean        truth    shortfall 
-    ## 1.371453e+00 1.500000e+00 4.440892e-16
+    ## 1.371569e+00 1.500000e+00 4.440892e-16
 
 The last column is zero by construction, which is the point: `z - train`
 and `z - f` differ by the installed offset exactly. Substituting `train`
