@@ -209,12 +209,19 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A logical determining if the copy should retain the underlying data of
   the sampler (`TRUE`) or have its own copies (`FALSE`). Either way, the
   copy keeps the original's model, the response transform its leaf prior
-  is anchored to included, and installs the original's stored state, so
-  it continues the same generator streams as the original - not an
-  independent chain - typically matching an uninterrupted run to the
-  last few digits, not bitwise; see the Reproducibility section of
-  [bart](https://vdorie.github.io/dbarts/reference/bart.md). With no
-  state stored, the copy starts from fresh trees in that transform.
+  is anchored to included, and installs the original's stored state (or,
+  with none, its current one), so it continues the same generator
+  streams as the original - not an independent chain - typically
+  matching an uninterrupted run to the last few digits, not bitwise; see
+  the Reproducibility section of
+  [bart](https://vdorie.github.io/dbarts/reference/bart.md). When
+  `n.samples` was changed after the state was stored, the copy's
+  saved-tree store takes the stored state's capacity, as a reload does,
+  and keeps the saved trees the state holds rather than truncating or
+  resetting them. With no state stored (`updateState = FALSE`), the copy
+  first reads the original's current state, so it continues the original
+  whatever `updateState` is; the original's own state field and draws
+  are untouched.
 
 - newControl:
 
