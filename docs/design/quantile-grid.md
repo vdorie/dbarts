@@ -49,7 +49,9 @@ at a refresh ([`ColumnStore::refreshCutsForColumn`](../../src/bartcore/data.hpp)
 
 - When c equals M the index is k: every midpoint, the same doubles as before.
 - The indices strictly increase, since consecutive ones differ by at least floor(M / c).
-- A cut is a midpoint, never an observed value, so no row sits on one.
+- A cut is a midpoint, never an observed value, so no row sits on one; except where two neighbouring values
+  are adjacent doubles or their sum overflows, whose midpoint does not fall strictly between them: the cut is
+  then the lower value, which a row at it does not exceed (dec-B410, [cut-grid.md](cut-grid.md)).
 - At most floor(M / (2c)) + 1 distinct values lie beyond either end cut, and the two ends differ by at most one.
 - The product fits 64 bits because a cut count is below 2^16. The floating form, floor((k + 1/2) M / c), gave
   the same indices at every size tried (m from 3 to 1000, U up to 40 m), but the integer form does not depend on
@@ -105,7 +107,8 @@ only which are kept; in the measurements above it and BART's rule cannot be told
 
 ## What does not move
 
-- The uniform grid, which is the default.
+- The uniform grid, which is the default; since dec-B406 it takes this grid on a column with fewer distinct
+  values than `n.cuts`, each cut weighted by its gap's width ([cut-grid.md](cut-grid.md)).
 - A quantile column with no more distinct values than its cut count plus one, the single cut of a constant or
   fully missing column included.
 - The number of cuts: the smaller of m and U - 1 at creation, fixed afterwards. A refresh does not raise it, so a

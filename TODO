@@ -354,9 +354,13 @@ items
     others: an argument of probabilities beside the grid,
     setCutPoints(cuts, column, probs = ), as split.probs weights
     columns; never by repeating a point, no grid repeating one in any
-    version (dec-B300, dec-B297). After 1.0-0. The engine picks
-    uniformly among grid positions today, in the prior and the
-    proposal both.
+    version (dec-B300, dec-B297). After 1.0-0. The engine already
+    weighs cut points, in the prior and every proposal, for the default
+    rule's one point per gap (default-rule-per-gap): the storage beside
+    the grid, setCutPointsForColumn's weights, the state's cutMass
+    attribute and bd-balance.R's weighted arm. What remains is the
+    probs = argument, its validation (positive, finite, one per cut)
+    and its help.
   sigma-prior-setter: a setter for the residual prior in
     setLeafPrior's idiom, setSigmaPrior(chisq(df, scale)), and chisq()
     taking scale beside quant, the two not given together (dec-B314,

@@ -288,7 +288,7 @@ bart(
      The maximum number of possible values used in decision rules (see \code{useQuantiles}, and \code{\link{bartBT}}'s \sQuote{Decision Rules} details). A vector shorter than the number of predictor columns is recycled, so a single number applies to every column; a longer one is refused. Fewer rules may be used if a covariate lacks enough unique values. Factor predictors take no rules from it, of either kind: a factor's grid follows its level table.
    }
    \item{useQuantiles}{
-     When \code{TRUE}, determine tree decision rules using estimated quantiles derived from the predictor variables. When \code{FALSE}, splits are determined using values equally spaced across the range of a variable. See \code{\link{bartBT}}'s \sQuote{Decision Rules} details.
+     When \code{TRUE}, determine tree decision rules using estimated quantiles derived from the predictor variables. When \code{FALSE}, splits are determined using values equally spaced across the range of a variable, or, for a variable with fewer distinct values than \code{n.cuts}, half-way between neighbouring values, each chosen in proportion to its gap's width. See \code{\link{bartBT}}'s \sQuote{Decision Rules} details.
    }
    \item{n.thin}{
      Every \code{n.thin} draw is kept to be returned to the user. Useful for \dQuote{thinning} samples against serial correlation; see \code{n.samples} above for how the two combine.

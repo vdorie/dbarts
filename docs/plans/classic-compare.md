@@ -210,9 +210,9 @@ the third difference below.
 
 ## What differs, and why
 
-Four things differ, and all four are decided changes rather than
+Five things differ, and all five are decided changes rather than
 surprises. The first three are in the tables above; the fourth entered
-on 2026-10-05, after the tables were taken.
+on 2026-10-05 and the fifth on 2026-10-09, after the tables were taken.
 
 The first is the zero-weight fit. Carrying rows at weight zero,
 0.9-34 reports a posterior mean residual scale of 0.29 where 1.0-0
@@ -352,6 +352,19 @@ difference. The row therefore no longer measures engine agreement. It
 would again if the scenario gave its columns no more distinct values
 than cut points plus one, where the two rules build one grid; that
 needs the 0.9-34 side taken again and has not been done.
+
+The fifth is the default grid on a column with fewer distinct values
+than cut points. 0.9-34 places its 100 evenly spaced points over such a
+column, a 0/1 column included; 1.0-0 places one point halfway along
+each gap between neighbouring values and chooses a gap with
+probability in proportion to its width (docs/design/cut-grid.md,
+dec-B406). A gap's prior share is the same to within one point in a
+hundred, so the model is the same; what changes is that no proposal
+moves among points that split the same rows, and that a node holding
+one value of a column no longer counts it as splittable. Every scenario
+with such a column draws differently: those with binary predictors, the
+probit and the change-move rows among them. The figures are taken at
+the release-candidate run.
 
 ## Wall time
 

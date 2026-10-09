@@ -202,7 +202,7 @@ tests/cpp:
 
 tinytest:
 - [test-cut-grid-distinct.R](../../inst/tinytest/test-cut-grid-distinct.R): the counts
-  ["c(100L, 5L, 1L, 1L, 100L, 100L)"](../../inst/tinytest/test-cut-grid-distinct.R) become
+  retired: ["c(100L, 5L, 1L, 1L, 100L, 100L)"](../../inst/tinytest/test-cut-grid-distinct.R) become
   `c(100L, 4L, 1L, 1L, 1L, 5L)` and the quantile counts the same; the narrow pins at the creation, refresh and
   forced-refresh sections go from 5 to 4 (critique finding 16).
 - [test-cut-points-undo.R](../../inst/tinytest/test-cut-points-undo.R): its narrow count 5 becomes 4.

@@ -129,8 +129,9 @@ serves nothing, so linear-leaf designations are refused up front.
 
 Cuts are computed over the full logical distribution: uniform grids
 min/max over nonzero values folding in 0.0 when implicit zeros exist
-(nnz < n), quantile grids over the sorted unique nonzeros plus that
-zero. Both reproduce the dense builders' arithmetic exactly, so a CSC
+(nnz < n), quantile grids, and the uniform rule's one cut per gap on a
+column with fewer distinct values than n.cuts, over the unique nonzeros
+plus that zero. Both reproduce the dense builders' arithmetic exactly, so a CSC
 build and a dense build of the same matrix carry identical cut points
 and identical codes (component-tested). Missing values arrive as stored
 NaN entries (the Matrix convention), quantize to the reserved codes,

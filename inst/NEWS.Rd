@@ -584,6 +584,18 @@
             \code{$setPredictor} that updates cut points derives up to
             \code{n.cuts} of them from the new values whatever number the
             column held, and no longer stops when they induce fewer.
+      \item Under the default \code{useQuantiles = FALSE}, a predictor with
+            fewer distinct values than \code{n.cuts} (a 0/1 column, a small
+            count, a sparse column, any column on fewer rows than
+            \code{n.cuts}) gets one cut point halfway between each pair of
+            neighbouring values, each chosen in proportion to the width of
+            its gap, where 0.9-34 placed \code{n.cuts} equally spaced
+            points. A 0/1 column has one cut point where it had 100, no
+            proposal moves among cut points that split the same rows, and
+            fits with such a column change, \code{bartBT}'s included. Where
+            two neighbouring values are so close that their halfway point
+            rounds onto one of them, the cut point is the lower value, under
+            either rule.
       \item \code{$setPredictor}'s \code{updateCutPoints} is one of
             \code{"none"}, \code{"position"} and \code{"value"}: the last
             two derive the cut points again, each split keeping its

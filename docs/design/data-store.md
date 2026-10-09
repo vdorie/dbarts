@@ -36,18 +36,17 @@ directly on the store as parallel vectors, one entry per predictor:
 - `categoryCounts[j]` - the fixed level count K of a factor column of
   either kind, 0 for a numeric one. Fixed at build: every mask tier,
   reserved missing code and category histogram width derives from it.
-- `cutPoints[j]` - the thresholds in non-decreasing order (empty for
-  categoricals). A grid can repeat a value: the uniform rule builds one
-  over a constant column and over one narrower than its spacing, the
-  quantile rule where two midpoints round to one double, a column refreshed
-  without its cuts keeps the grid of the values it had, and a state install
-  takes any non-decreasing grid. A caller's grid (`setCutPoints`) strictly
-  increases unless it is, bit for bit, the grid the column holds (a -0 for
-  a 0 is another grid), because a stored split names its cut by value and
-  a repeated value does not say which index it was drawn on. An
-  ordered factor's are the K - 1 midpoints between consecutive declared
-  level codes, so its code is its own level index and every adjacent
-  level pair is separable.
+- `cutPoints[j]` - the thresholds in strictly increasing order (empty for
+  categoricals): every derived, set and installed grid holds each point
+  once ([cut-grid.md](cut-grid.md)), because a stored split names its cut
+  by value. An ordered factor's are the K - 1 midpoints between
+  consecutive declared level codes, so its code is its own level index and
+  every adjacent level pair is separable.
+- `cutMass[j]` - the grid's weights, empty where its points are equally
+  likely, else `numCuts[j] + 1` increasing values whose differences are
+  the weights ([`ColumnStore::cutMass`](../../src/bartcore/data.hpp)); the
+  default rule weighs one point per gap by the gap's width. Set, saved and
+  restored with the grid wherever a grid is.
 - `requestedNumCuts[j]` - the count asked for at build (`n.cuts`), fixed
   for the store's life ([`requestedNumCuts`](../../src/bartcore/data.hpp))
   and at most `maxNumCutsRepresentable`, so the reserved missing code
@@ -273,8 +272,8 @@ reset test store drops it with the rest of the test store.
 A view ([`buildFromParent`](../../src/bartcore/data.hpp)) is a row- and column-subset of
 a built parent store, used by xbart folds and the data-handle path. It:
 
-- copies the parent's grid fields (`types`, `cutPoints`, `numCuts`,
-  `categoryCounts`, `requestedNumCuts`) for the spanned columns, so it
+- copies the parent's grid fields (`types`, `cutPoints`, `cutMass`,
+  `numCuts`, `categoryCounts`, `requestedNumCuts`) for the spanned columns, so it
   bins identically by construction;
 - DENSIFIES: gathered train and test codes are fully dense whatever the
   parent's per-column storage, so the sparse-specific paths never run in a
