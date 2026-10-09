@@ -190,12 +190,12 @@ constexpr double rescaleMapTolerance = 1.0e-14;
 
 /// A one-dimensional log density tabulated on a uniform grid, its CDF by the
 /// trapezoid rule, sampled by inverse CDF and read back by interpolation.
-struct GridLaw {
+struct GridTarget {
   double lower = 0.0, step = 0.0;
   std::vector<double> cdf;
 
   template <typename F>
-  GridLaw(const F& logDensity, double from, double to, size_t numPoints) {
+  GridTarget(const F& logDensity, double from, double to, size_t numPoints) {
     // locate the mass on a coarse pass, then tabulate +-30 sd of it finely
     double best = -HUGE_VAL, mode = from;
     for (size_t j = 0; j <= 20000; ++j) {
@@ -403,12 +403,12 @@ void runForestRescaleTests() {
   // measured from the frozen state, so its target is the frozen state's own
   // conditional; one step from e^v0 then lands at v1, read off the latents and
   // the leaves, which must agree with each other, with alpha and with k.
-  GridLaw law([&](double v) { return constants.logDensity(v); }, -6.0, 6.0,
+  GridTarget target([&](double v) { return constants.logDensity(v); }, -6.0, 6.0,
               200001);
   std::vector<double> landed(rescaleDraws);
   double worstDisagreement = 0.0;
   for (size_t r = 0; r < rescaleDraws; ++r) {
-    double start = law.draw(ext_rng_simulateContinuousUniform(rng));
+    double start = target.draw(ext_rng_simulateContinuousUniform(rng));
     moveFrozenStateTo(std::exp(start));
     double alpha = 0.0;
     TestPeer::drawForestRescale(chain, &alpha);
@@ -432,7 +432,7 @@ void runForestRescaleTests() {
        std::fabs(fromK - fromLatents), std::fabs(fromAlpha - fromLatents)});
     landed[r] = fromLatents;
   }
-  double ks = scaledKsDistance(landed, [&](double v) { return law.at(v); });
+  double ks = scaledKsDistance(landed, [&](double v) { return target.at(v); });
   std::snprintf(what, sizeof what,
                 "rescaling: one step from the target stays at the target "
                 "(sqrt(N) D %.3g against %.3g)", ks, rescaleKsBound);

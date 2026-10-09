@@ -19,7 +19,7 @@
 # s_i = 2 y_i - 1 over the active rows, c the leaf scale (3 for one tree), and
 # E[mu_l | y] by the same integrals. A leaf holding one class has no finite
 # likelihood mode and is integrated by adaptive quadrature on z = k mu / c; a
-# leaf holding both is summed on a fine grid in mu. The law of log k is then
+# leaf holding both is summed on a fine grid in mu. The posterior of log k is then
 # integrated by the trapezoid rule: counting whole grid cells biased every
 # arm's quantile probabilities by 0.001 to 0.003, which put correct samplers
 # at z -3 to -5.
@@ -104,7 +104,7 @@ repeat {
 }
 leaf <- match(fits, unique(fits))
 
-# ---- the exact law ----
+# ---- the exact posterior ----
 
 logKGrid <- seq(log(1e-3), log(50), length.out = 4001L)
 muStep <- 0.004
