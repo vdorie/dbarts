@@ -36,7 +36,8 @@ expect_warning(
     verbose = FALSE,
     nthread = 2L
   ),
-  "nthread \\(2\\) exceeds nchain \\(1\\)"
+  "nthread \\(2\\) exceeds nchain \\(1\\)",
+  strict = TRUE
 )
 
 expect_equal(singleThreadedFit$sigma, multiThreadedFit$sigma)

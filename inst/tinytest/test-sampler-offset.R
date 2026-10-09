@@ -7,7 +7,6 @@ set.seed(0L)
 n <- nrow(testData$X)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.threads = 1L,
   updateState = FALSE
 )
 

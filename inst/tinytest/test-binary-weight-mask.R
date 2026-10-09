@@ -84,7 +84,8 @@ expectRefusal <- function(expr, pattern, zeros) {
   if (zeros) {
     expect_warning(
       expect_error(expr, pattern),
-      "rows with 'weights' of 0 are left out of the likelihood"
+      "rows with 'weights' of 0 are left out of the likelihood",
+      strict = TRUE
     )
   } else {
     expect_error(expr, pattern)

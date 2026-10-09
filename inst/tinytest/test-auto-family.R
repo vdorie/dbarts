@@ -301,7 +301,8 @@ expect_warning(
     n.burn = 5L,
     verbose = TRUE
   )),
-  "'rbart_vi' is deprecated"
+  "'rbart_vi' is deprecated",
+  strict = TRUE
 )
 expect_identical(rbartViLines, expected("continuous response", "gaussian"))
 expect_identical(

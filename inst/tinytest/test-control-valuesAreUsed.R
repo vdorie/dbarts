@@ -135,7 +135,8 @@ bartFit <- dbarts::bartBT(
   nskip = n.burn,
   ntree = n.trees
 )
-# a BayesTree-spelled call is the legacy door's fit, and says so
+# bartBT is the BayesTree-style door; its fit records that call (the shim
+# that forwards a BayesTree-spelled bart() call is pinned in test-front-door.R)
 expect_equal(bartFit$call[[1L]], quote(dbarts::bartBT))
 
 bartFit <- dbarts::bartBT(

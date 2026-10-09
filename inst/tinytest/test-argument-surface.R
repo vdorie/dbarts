@@ -654,7 +654,8 @@ expect_warning(
       "as an object or through its shorthand arguments, not both"
     )
   ),
-  "'power' has left 'bart'"
+  "'power' has left 'bart'",
+  strict = TRUE
 )
 expect_error(
   fit2(y.gaussian, leaf.prior = dbarts::dbartsPriors$normal(), k = 3),

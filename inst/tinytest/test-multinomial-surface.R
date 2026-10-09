@@ -813,7 +813,8 @@ expect_error(
 )
 expect_warning(
   multinomialRefuses(x2, y2, "split.probs", split.probs = c(0.5, 0.5)),
-  "'split.probs' has left 'bart'"
+  "'split.probs' has left 'bart'",
+  strict = TRUE
 )
 # monotone is half-applied upstream (its proposal.probs rewrite reaches the
 # engine, the directions do not), so it is refused rather than silently fit

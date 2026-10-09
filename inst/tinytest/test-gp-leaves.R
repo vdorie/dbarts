@@ -11,7 +11,7 @@ library(dbarts, quietly = TRUE)
 gpFallback <- "fell back to a constant leaf"
 runCapped <- function(sampler, ...) {
   out <- NULL
-  expect_warning(out <- sampler$run(...), gpFallback)
+  expect_warning(out <- sampler$run(...), gpFallback, strict = TRUE)
   out
 }
 
@@ -159,7 +159,8 @@ expect_warning(
     dbarts:::gp("x1", max.leaf.size = 100L),
     5L
   ),
-  gpFallback
+  gpFallback,
+  strict = TRUE
 )
 list2env(roundTrip, environment())
 rm(roundTrip)
@@ -244,7 +245,8 @@ expect_warning(
     n.threads = 1L,
     seed = 1L
   ),
-  gpFallback
+  gpFallback,
+  strict = TRUE
 )
 expect_true(all(is.finite(xbart.gp)))
 

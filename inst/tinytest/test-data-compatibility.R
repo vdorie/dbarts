@@ -57,7 +57,8 @@ x.test[, ncol(x.test)] <- x.test[, ncol(x.test)] + 1
 
 expect_warning(
   expect_equal(dbarts::dbartsData(x, y, x.test)@x.test, x.test),
-  "are not both named"
+  "are not both named",
+  strict = TRUE
 )
 rm(x.test, y, x)
 

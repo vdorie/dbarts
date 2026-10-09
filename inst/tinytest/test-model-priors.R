@@ -192,7 +192,8 @@ expect_warning(
     bart(y.dart ~ x.dart, tree.prior = dart(), split.probs = rep(0.1, 10L)),
     pattern = "'tree.prior' cannot be combined with 'split.probs'"
   ),
-  "'split.probs' has left 'bart'"
+  "'split.probs' has left 'bart'",
+  strict = TRUE
 )
 expect_null(
   bart(

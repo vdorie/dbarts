@@ -48,7 +48,8 @@ withZeroWeights <- function(sampler) {
   built <- NULL
   expect_warning(
     built <- sampler,
-    "rows with 'weights' of 0 are left out of the likelihood"
+    "rows with 'weights' of 0 are left out of the likelihood",
+    strict = TRUE
   )
   built
 }

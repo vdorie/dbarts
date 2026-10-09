@@ -277,7 +277,8 @@ expect_warning(
     ),
     "proposal.probs"
   ),
-  "'proposal.probs' has left 'dbarts'"
+  "'proposal.probs' has left 'dbarts'",
+  strict = TRUE
 )
 
 # but a caller spelling the documented default and omitting the move that

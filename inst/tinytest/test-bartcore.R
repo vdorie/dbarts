@@ -451,7 +451,8 @@ y2 <- 10 * sin(pi * x2[, 1L] * x2[, 2L]) + 5 * x2[, 4L] + rnorm(n2)
 w2 <- runif(n2, 0.5, 1.5)
 expect_warning(
   sampler.setdata$setData(dbartsData(x2, y2, test = x.test, weights = w2)),
-  "'weights' are ignored for test data"
+  "'weights' are ignored for test data",
+  strict = TRUE
 )
 r.setdata <- sampler.setdata$run(0L, 5L)
 expect_equal(dim(r.setdata$train), c(n2, 5L))

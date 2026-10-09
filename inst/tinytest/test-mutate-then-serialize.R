@@ -60,9 +60,17 @@ warm.gp <- dbarts(
 )
 # the small leaf cap keeps the run fast; the cap's constant fallback is
 # reported by each run and pinned here
-expect_warning(warm.gp$run(20L, 2L), "fell back to a constant leaf")
+expect_warning(
+  warm.gp$run(20L, 2L),
+  "fell back to a constant leaf",
+  strict = TRUE
+)
 warm.gp$setPredictor(x2.new, "x2", forceUpdate = TRUE)
-expect_warning(warm.gp$run(0L, 2L), "fell back to a constant leaf")
+expect_warning(
+  warm.gp$run(0L, 2L),
+  "fell back to a constant leaf",
+  strict = TRUE
+)
 warm.gp$storeState()
 
 cold.gp <- dbarts(
