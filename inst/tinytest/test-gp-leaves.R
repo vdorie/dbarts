@@ -343,3 +343,100 @@ for (q in c(9L, 12L)) {
     tolerance = 1e-12
   )
 }
+rm(xWide, yWide, xWideTest, q, wideSampler, wideSamples)
+
+# a copy, a state installed into a sampler of another seed, and a reload each
+# continue the sampler they came from: a restore rebuilds the trees with
+# their members in another span order, and gp leaves read members by
+# observation index, so the order does not reach the draws. Train and test
+# fits agree to rounding (at most 1.6e-11 measured; 0.56 or more when the
+# order reached them). The weighted case's two warnings are emitted at each
+# creation and counted.
+set.seed(97)
+n <- 150L
+xCont <- matrix(
+  runif(n * 3L),
+  n,
+  3L,
+  dimnames = list(NULL, c("x1", "x2", "x3"))
+)
+xContTest <- xCont[1:20, ] + 0.01
+yCont <- 2 * sin(pi * xCont[, 1L]) + rnorm(n, sd = 0.3)
+contCases <- list(
+  plain = list(y = yCont, weights = NULL, family = "gaussian"),
+  weights = list(
+    y = yCont,
+    weights = rep_len(c(1, 0.5, 2, 0), n),
+    family = "gaussian"
+  ),
+  probit = list(y = as.numeric(yCont > 0.8), weights = NULL, family = "probit")
+)
+contWarnings <- c(
+  "'weights' are ignored for test data",
+  "rows with 'weights' of 0 are left out of the likelihood"
+)
+contFile <- tempfile(fileext = ".rds")
+for (contName in names(contCases)) {
+  contCase <- contCases[[contName]]
+  numCreated <- 0L
+  makeCont <- function(updateState = TRUE, seed = 5L) {
+    numCreated <<- numCreated + 1L
+    args <- list(
+      xCont,
+      contCase$y,
+      test = xContTest,
+      family = contCase$family,
+      leaf.prior = dbarts:::gp("x1"),
+      control = dbartsControl(
+        updateState = updateState,
+        n.chains = 2L,
+        n.threads = 2L,
+        n.trees = 15L,
+        n.samples = 10L,
+        n.burn = 3L,
+        verbose = FALSE,
+        seed = seed
+      )
+    )
+    args$weights <- contCase$weights
+    sampler <- do.call(dbarts, args)
+    invisible(sampler$run(2L, 3L))
+    sampler
+  }
+  seen <- character()
+  withCallingHandlers(
+    {
+      twin <- makeCont()$run(1L, 10L)
+      gap <- function(samples) {
+        max(abs(samples$train - twin$train), abs(samples$test - twin$test))
+      }
+      gaps <- c(
+        copy = gap(makeCont()$copy()$run(1L, 10L)),
+        copyNoState = gap(makeCont(updateState = FALSE)$copy()$run(1L, 10L))
+      )
+      source <- makeCont()
+      source$storeState()
+      target <- makeCont(seed = 11L)
+      target$setState(source$state)
+      gaps["setState"] <- gap(target$run(1L, 10L))
+      saveRDS(source, contFile)
+      gaps["reload"] <- gap(readRDS(contFile)$run(1L, 10L))
+    },
+    warning = function(w) {
+      seen <<- c(seen, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  expect_true(all(gaps < 1e-8), info = paste(contName, toString(gaps)))
+  numExpected <- if (is.null(contCase$weights)) 0L else 2L * numCreated
+  expect_equal(length(seen), numExpected, info = contName)
+  expect_true(
+    all(vapply(
+      seen,
+      function(m) any(startsWith(m, contWarnings)),
+      logical(1L)
+    )),
+    info = contName
+  )
+}
+unlink(contFile)

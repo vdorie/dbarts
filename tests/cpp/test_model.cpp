@@ -5511,19 +5511,15 @@ static void testGPLeafFormats(ext_rng* rng) {
 }
 
 // The cross-sweep kernel cache must be invisible. The regather path is
-// checked BETWEEN warm samplers rather than against a state-restored clone:
-// a predictor update no longer normalizes member ORDER (Tree::
-// repartitionSubtree partitions a dense root in place), and a clone restored
-// from state carries the order its rebuild left, so its gp leaves draw over a
-// different permutation of the same members and no bitwise comparison against
-// a long-running sampler survives. Three identically seeded samplers run the
-// same sweeps instead, entering the comparison bit-identical and warm:
-// `standing` takes no update, `identity` takes an update that changes
-// nothing, `mutated` takes a perturbation of the designated column WITHIN its
-// quantization bins, so members and codes stand and only the kernels' inputs
-// move. identity must continue bitwise with standing; mutated must separate
-// from it, which a stale cached kernel would prevent. Member re-routing and
-// the state round trip are checked separately below.
+// checked BETWEEN warm samplers: two identically seeded samplers run the same
+// sweeps, entering the comparison bit-identical and warm; `identity` takes an
+// update that changes nothing, `mutated` a perturbation of the designated
+// column WITHIN its quantization bins, so members and codes stand and only
+// the kernels' inputs move. mutated must separate from identity, which a
+// stale cached kernel would prevent. A clone restored from state rebuilds its
+// trees with the members in another span order; gp leaves read members by
+// observation index, so it continues the source to rounding, which is
+// checked first. Member re-routing is checked separately below.
 static void testGPLeafKernelCache(ext_rng*) {
   const size_t n = 150, p = 2;
   std::vector<double> x(n * p), y(n);
@@ -5561,13 +5557,10 @@ static void testGPLeafKernelCache(ext_rng*) {
   }
   Sampler<GPGaussianLeaf>& mutated(*samplers[0]);
   Sampler<GPGaussianLeaf>& identity(*samplers[1]);
-  check(forestTotals(mutated, 0) == forestTotals(identity, 0),
-        "gp twins enter the mutation bit-identical");
 
-  // a state round trip over a gp forest, which no other suite builds. Only
-  // the install is asserted: the draws a restored sampler continues with are
-  // another matter, its spans carrying the order the rebuild left rather than
-  // the order 45 sweeps left here.
+  // a state round trip over a gp forest, which no other suite builds: the
+  // restored sampler continues the source, its spans in the rebuild's order
+  // rather than the order 45 sweeps left
   SamplerStateData state;
   mutated.getState(state);
   ext_rng* rngCold = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -5576,7 +5569,30 @@ static void testGPLeafKernelCache(ext_rng*) {
     x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
     ySd, 3.0, 0.37804942330213542, options, &rngCold);
   check(cold.setState(state, nullptr), "gp state installs");
+  const size_t numRestored = 5;
+  std::vector<double> restoredFits[2], restoredSigmas[2];
+  Sampler<GPGaussianLeaf>* continuing[2] = {&mutated, &cold};
+  for (int s = 0; s < 2; ++s) {
+    restoredFits[s].resize(n * numRestored);
+    restoredSigmas[s].resize(numRestored);
+    Results results;
+    results.sigma = restoredSigmas[s].data();
+    results.trainingFits = restoredFits[s].data();
+    continuing[s]->run(0, numRestored, results);
+  }
+  double restoredGap = 0.0;
+  for (size_t a = 0; a < n * numRestored; ++a)
+    restoredGap = std::max(restoredGap,
+                           std::fabs(restoredFits[0][a] - restoredFits[1][a]));
+  for (size_t a = 0; a < numRestored; ++a)
+    restoredGap = std::max(restoredGap, std::fabs(restoredSigmas[0][a] -
+                                                  restoredSigmas[1][a]));
+  check(restoredGap < 1.0e-12, "a restored gp sampler continues its source");
   ext_rng_destroy(rngCold);
+  Results skipped;
+  identity.run(0, numRestored, skipped);
+  check(forestTotals(mutated, 0) == forestTotals(identity, 0),
+        "gp twins enter the mutation bit-identical");
 
   std::vector<double> xMoved(x);
   for (size_t i = 0; i < n; ++i)
@@ -5673,6 +5689,130 @@ static void testGPLeafKernelCache(ext_rng*) {
         "the regathered kernel is bitwise an uncached leaf's");
 
   printf("ok: gp leaf kernel cache\n");
+}
+
+// A gp leaf's computations are functions of its membership, not of the order
+// the tree's span holds the members in: a tree rebuilt by a restore holds the
+// same members in another order. Two leaves see the same members, one tree in
+// ascending order and one shuffled, at a size below the kernel cache and one
+// in it, under unit, positive and partly zero weights; everything they
+// compute must agree bitwise. Its data come from its own generator, so the
+// shared streams the later tests read stay where they were.
+static void testGPLeafMemberOrder() {
+  const size_t n = 110, p = 2, numTest = 6;
+  ext_rng* dataRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(dataRng, 2024);
+  auto uniform = [&]() { return ext_rng_simulateContinuousUniform(dataRng); };
+  std::vector<double> x(n * p), y(n), w(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = uniform();
+    x[i + n] = uniform();
+    y[i] = std::sin(3.0 * x[i]) - 0.4 * x[i + n] + 0.2 * (uniform() - 0.5);
+    w[i] = 0.5 + uniform();
+  }
+  std::vector<double> xTest(numTest * p);
+  for (double& value : xTest) value = uniform();
+  ext_rng_destroy(dataRng);
+  ColumnStore store;
+  size_t gather[] = {0, 1};
+  built(store.build(x.data(), n, p, 100, false, nullptr, gather, 2));
+  built(store.buildTest(xTest.data(), numTest));
+
+  size_t columns[] = {0, 1};
+  const double k = 2.0, sigmaSq = 0.04, scale = 0.5 / std::sqrt(10.0);
+  bool allMatch = true;
+  for (size_t numMembers : {size_t(8), size_t(48)}) {
+    // members: every other observation from 3, ascending in one tree and
+    // reversed then pairwise swapped in the other
+    std::vector<index_t> ascending(n), shuffled(n);
+    Tree sortedTree, shuffledTree;
+    sortedTree.initialize(ascending.data(), n);
+    shuffledTree.initialize(shuffled.data(), n);
+    for (size_t r = 0; r < numMembers; ++r)
+      ascending[r] = shuffled[numMembers - 1 - r] =
+        static_cast<index_t>(3 + 2 * r);
+    for (size_t r = 0; r + 1 < numMembers; r += 3)
+      std::swap(shuffled[r], shuffled[r + 1]);
+    sortedTree.at(0).end = shuffledTree.at(0).end = numMembers;
+
+    std::vector<double> wZero(w);
+    wZero[3 + 2 * 1] = wZero[3 + 2 * 4] = 0.0;
+    const double* weightSets[] = {nullptr, w.data(), wZero.data()};
+    for (const double* weights : weightSets) {
+      GPGaussianLeaf leaves[2];
+      Tree* trees[2] = {&sortedTree, &shuffledTree};
+      double scores[2];
+      std::vector<double> fits[2], priorFits[2], cacheBlocks[2],
+        fitBlocks[2], testFits[2];
+      FunctionLeafDrawStats stats[2], priorStats[2];
+      for (int s = 0; s < 2; ++s) {
+        GPGaussianLeaf& leaf(leaves[s]);
+        const Tree& tree(*trees[s]);
+        leaf.scale = scale;
+        leaf.initialize(store, columns, 2, nullptr, 60);
+        scores[s] = leaf.logIntegratedLikelihoodForNode(tree, y.data(),
+                                                        weights, k, sigmaSq, 0);
+        ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+        ext_rng_setSeed(rng, 31);
+        fits[s].assign(n, 0.0);
+        leaf.beginTreeDraw(tree);
+        stats[s] = leaf.drawFromPosteriorForNode(rng, tree, y.data(), weights,
+                                                 k, sigmaSq, 0, fits[s].data());
+        for (size_t i = 0; i < numTest; ++i)
+          testFits[s].push_back(leaf.fitForTestObservationForNode(tree, 0, i));
+        leaf.appendLeafBlockFromCache(tree, 0, cacheBlocks[s]);
+        leaf.appendLeafBlock(tree, 0, fits[s].data(), fitBlocks[s]);
+        priorFits[s].assign(n, 0.0);
+        leaf.beginTreeDraw(tree);
+        priorStats[s] = leaf.drawFromPriorForNode(rng, tree, k, 0,
+                                                  priorFits[s].data());
+        for (size_t i = 0; i < numTest; ++i)
+          testFits[s].push_back(leaf.fitForTestObservationForNode(tree, 0, i));
+        ext_rng_destroy(rng);
+      }
+      allMatch = allMatch && scores[0] == scores[1] && fits[0] == fits[1] &&
+        stats[0].sumSquaredParams == stats[1].sumSquaredParams &&
+        stats[0].numParams == stats[1].numParams &&
+        priorFits[0] == priorFits[1] &&
+        priorStats[0].sumSquaredParams == priorStats[1].sumSquaredParams &&
+        testFits[0] == testFits[1] && cacheBlocks[0] == cacheBlocks[1] &&
+        fitBlocks[0] == fitBlocks[1];
+
+      // reshuffled again, the shuffled tree serves the same score (from the
+      // cache at the larger size)
+      std::reverse(shuffled.begin(), shuffled.begin() + numMembers);
+      allMatch = allMatch &&
+        leaves[1].logIntegratedLikelihoodForNode(shuffledTree, y.data(),
+                                                 weights, k, sigmaSq, 0) ==
+          scores[0];
+      std::reverse(shuffled.begin(), shuffled.begin() + numMembers);
+    }
+
+    // over the cap: the constant fallback, one normal, uniform fits
+    GPGaussianLeaf capped;
+    capped.scale = scale;
+    capped.initialize(store, columns, 2, nullptr, numMembers - 1);
+    shuffledTree.setNodeAverages(y.data(), w.data());
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng* twin = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 5);
+    ext_rng_setSeed(twin, 5);
+    std::vector<double> cappedFits(n, 0.0);
+    capped.beginTreeDraw(shuffledTree);
+    FunctionLeafDrawStats cappedStats = capped.drawFromPosteriorForNode(
+      rng, shuffledTree, y.data(), w.data(), k, sigmaSq, 0, cappedFits.data());
+    (void) ext_rng_simulateStandardNormal(twin);
+    bool uniform = cappedStats.numParams == 1.0;
+    for (size_t r = 0; r < numMembers; ++r)
+      uniform = uniform && cappedFits[shuffled[r]] == cappedFits[shuffled[0]];
+    check(uniform && ext_rng_simulateStandardNormal(rng) ==
+                       ext_rng_simulateStandardNormal(twin),
+          "over-cap gp leaf draws one constant from one normal");
+    ext_rng_destroy(rng);
+    ext_rng_destroy(twin);
+  }
+  check(allMatch, "gp leaf computations ignore the span's member order");
+  printf("ok: gp leaf member order\n");
 }
 
 // AFT log-normal survival (docs/design/survival.md): the free reduction gate
@@ -9998,6 +10138,7 @@ void runModelTests(ext_rng* rng) {
   testGPLeafEndToEnd(rng);
   testGPLeafFormats(rng);
   testGPLeafKernelCache(rng);
+  testGPLeafMemberOrder();
   testGPLeafZeroWeights(rng);
   testSparseTestDataEndToEnd();
   testMonotoneFeasibility();

@@ -2872,6 +2872,13 @@ static_assert(VectorLeafModel<LinearGaussianLeaf>);
 /// refinement switching on once a leaf falls under the cap; the scoring rule
 /// is a deterministic function of leaf membership, so the MH comparisons
 /// stay coherent.
+///
+/// Under the cap every computation reads a leaf's members sorted by
+/// observation index, never in the tree's span order: that order depends on
+/// the history of accepted moves, and a tree rebuilt from a state, copy or
+/// reload holds the same members in another order. A leaf's score, draws and
+/// test fits are therefore functions of its membership, and a restored
+/// sampler continues its source to rounding.
 struct GPGaussianLeaf {
   static constexpr bool hasVectorParams = false;
   static constexpr bool hasFunctionParams = true;
@@ -2952,6 +2959,7 @@ struct GPGaussianLeaf {
         ? medianPairwiseDistance(u_.data() + j * numObservations_,
                                  numObservations_)
         : suppliedLengthscales_[j];
+    memberScratch_.reserve(std::min(maxLeafSize_, numObservations_));
     rebuildTestCovariates(data);
   }
 
@@ -3017,6 +3025,7 @@ struct GPGaussianLeaf {
     nodeConstant_.assign(tree.nodes.size(), 0.0);
     nodeAlphaOffset_.assign(tree.nodes.size(), -1);
     alphaBuffer_.clear();
+    memberBuffer_.clear();
     evictStaleKernelEntries(tree);
   }
 
@@ -3041,26 +3050,27 @@ struct GPGaussianLeaf {
                                                      residualVariance,
                                                      nodeIndex);
     }
-    if (weights != nullptr && anyZeroWeight(tree, node, weights))
+    const index_t* members = sortedMembers(tree, node);
+    if (weights != nullptr && anyZeroWeight(members, numObs, weights))
       return logIntegratedLikelihoodOverPositiveWeights(
-        tree, node, y, weights, k, residualVariance, nodeIndex, numObs);
+        tree, members, y, weights, k, residualVariance, nodeIndex, numObs);
 
     double s2 = (scale / k) * (scale / k);
 
     const CachedLeafKernel* entry =
-      cachedKernelForNode(tree, node, nodeIndex, numObs);
+      cachedKernelForNode(tree, members, nodeIndex, numObs);
     if (entry != nullptr) {
       cholV_.resize(numObs * numObs);
       for (std::size_t a = 0; a < numObs * numObs; ++a)
         cholV_[a] = entry->kernel[a] * s2;
     } else {
-      gatherLeafCovariates(tree, node, numObs);
+      gatherLeafCovariates(members, numObs);
       buildKernel(numObs, cholV_);
       for (std::size_t a = 0; a < numObs * numObs; ++a) cholV_[a] *= s2;
     }
     double logDetNoise = 0.0, responseSumOfSquares = 0.0;
     for (std::size_t r = 0; r < numObs; ++r) {
-      std::size_t i = tree.indices[node.begin + r];
+      std::size_t i = members[r];
       double w = weights == nullptr ? 1.0 : weights[i];
       double noise = residualVariance / w;
       logDetNoise += std::log(noise);
@@ -3075,7 +3085,7 @@ struct GPGaussianLeaf {
 
     vectorScratch_.resize(numObs);
     for (std::size_t r = 0; r < numObs; ++r)
-      vectorScratch_[r] = y[tree.indices[node.begin + r]];
+      vectorScratch_[r] = y[members[r]];
     solveLowerTriangular(cholV_.data(), numObs, vectorScratch_.data());
     double quadraticForm = 0.0;
     for (std::size_t r = 0; r < numObs; ++r)
@@ -3087,11 +3097,12 @@ struct GPGaussianLeaf {
 
   /// Draws f | z into fits at the leaf's member observations by Matheron's
   /// rule - f = f0 + s^2 C V^-1 (z - f0 - e0) with f0 ~ N(0, s^2 C) and
-  /// e0 ~ N(0, sigma^2 W^-1) - which has exactly the posterior law and needs
-  /// only the two factorizations already in hand. Consumes 2 n_leaf standard
-  /// normals (n_leaf + n_positive when zero-weight members are present);
-  /// empty leaves consume none and cache a zero constant. Caches the
-  /// prediction weights alpha = C^-1 f for the node and returns the chi-k
+  /// e0 ~ N(0, sigma^2 W^-1) - which has exactly the posterior distribution
+  /// and needs only the two factorizations already in hand. Consumes 2 n_leaf
+  /// standard normals (n_leaf + n_positive when zero-weight members are
+  /// present), assigned to members in observation-index order; empty leaves
+  /// consume none and cache a zero constant. Caches the prediction weights
+  /// alpha = C^-1 f with their members for the node and returns the chi-k
   /// contribution (f' alpha over n_leaf coordinates).
   FunctionLeafDrawStats drawFromPosteriorForNode(
     ext_rng* rng, const Tree& tree, const double* y, const double* weights,
@@ -3115,26 +3126,27 @@ struct GPGaussianLeaf {
       setConstantCache(nodeIndex, value);
       return FunctionLeafDrawStats{value * value, 1.0};
     }
-    if (weights != nullptr && anyZeroWeight(tree, node, weights))
+    const index_t* members = sortedMembers(tree, node);
+    if (weights != nullptr && anyZeroWeight(members, numObs, weights))
       return drawFromPosteriorOverPositiveWeights(
-        rng, tree, node, y, weights, k, residualVariance, nodeIndex, fits);
+        rng, tree, members, numObs, y, weights, k, residualVariance,
+        nodeIndex, fits);
 
     double s = scale / k, s2 = s * s;
 
     const double* kernel;
     const double* cholK;
-    kernelAndFactorForNode(tree, node, nodeIndex, numObs, &kernel, &cholK);
+    kernelAndFactorForNode(tree, members, nodeIndex, numObs, &kernel, &cholK);
     cholV_.resize(numObs * numObs);
     for (std::size_t a = 0; a < numObs * numObs; ++a)
       cholV_[a] = s2 * kernel[a];
     for (std::size_t r = 0; r < numObs; ++r) {
-      double w =
-        weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
+      double w = weights == nullptr ? 1.0 : weights[members[r]];
       cholV_[r * numObs + r] += residualVariance / w;
     }
     choleskyDecompose(cholV_.data(), numObs);
 
-    // f0 = s L_C eps, drawn first in row order, then e0 row by row
+    // f0 = s L_C eps, drawn first in member order, then e0 member by member
     epsScratch_.resize(numObs);
     for (std::size_t r = 0; r < numObs; ++r)
       epsScratch_[r] = ext_rng_simulateStandardNormal(rng);
@@ -3147,9 +3159,8 @@ struct GPGaussianLeaf {
     }
     vectorScratch_.resize(numObs);
     for (std::size_t r = 0; r < numObs; ++r) {
-      double w =
-        weights == nullptr ? 1.0 : weights[tree.indices[node.begin + r]];
-      vectorScratch_[r] = y[tree.indices[node.begin + r]] - fScratch_[r] -
+      double w = weights == nullptr ? 1.0 : weights[members[r]];
+      vectorScratch_[r] = y[members[r]] - fScratch_[r] -
                           std::sqrt(residualVariance / w) *
                             ext_rng_simulateStandardNormal(rng);
     }
@@ -3160,10 +3171,10 @@ struct GPGaussianLeaf {
       for (std::size_t a = 0; a < numObs; ++a)
         value += kernel[r * numObs + a] * vectorScratch_[a];
       fScratch_[r] += s2 * value;
-      fits[tree.indices[node.begin + r]] = fScratch_[r];
+      fits[members[r]] = fScratch_[r];
     }
 
-    return cacheAlphaForNode(nodeIndex, numObs, cholK);
+    return cacheAlphaForNode(nodeIndex, members, numObs, cholK);
   }
 
   /// Prior draw f = s L_C eps into fits, with the same prediction cache and
@@ -3192,9 +3203,10 @@ struct GPGaussianLeaf {
 
     double s = scale / k;
 
+    const index_t* members = sortedMembers(tree, node);
     const double* kernel;
     const double* cholK;
-    kernelAndFactorForNode(tree, node, nodeIndex, numObs, &kernel, &cholK);
+    kernelAndFactorForNode(tree, members, nodeIndex, numObs, &kernel, &cholK);
 
     epsScratch_.resize(numObs);
     for (std::size_t r = 0; r < numObs; ++r)
@@ -3205,17 +3217,18 @@ struct GPGaussianLeaf {
       for (std::size_t a = 0; a <= r; ++a)
         value += cholK[r * numObs + a] * epsScratch_[a];
       fScratch_[r] = s * value;
-      fits[tree.indices[node.begin + r]] = fScratch_[r];
+      fits[members[r]] = fScratch_[r];
     }
 
-    return cacheAlphaForNode(nodeIndex, numObs, cholK);
+    return cacheAlphaForNode(nodeIndex, members, numObs, cholK);
   }
 
   /// Append one leaf's saved side-channel block (the
   /// computeFunctionBlockOffsets layout) from the live draw cache: the
-  /// cached alpha plus the members' plain standardized rows, in member
-  /// order; constant-valued nodes (over-cap, empty) append [0, constant].
-  /// Valid under the same freshness condition as the test-fit evaluation.
+  /// cached alpha plus the members' plain standardized rows, both in the
+  /// observation-index order the draw used; constant-valued nodes (over-cap,
+  /// empty) append [0, constant]. Valid under the same freshness condition
+  /// as the test-fit evaluation.
   void appendLeafBlockFromCache(const Tree& tree, int32_t nodeIndex,
                                 std::vector<double>& blocks) const {
     std::ptrdiff_t offset =
@@ -3225,12 +3238,11 @@ struct GPGaussianLeaf {
       blocks.push_back(nodeConstant_[static_cast<std::size_t>(nodeIndex)]);
       return;
     }
-    const Node& node(tree.at(nodeIndex));
-    std::size_t numObs = node.numObservations();
+    std::size_t numObs = tree.at(nodeIndex).numObservations();
     blocks.push_back(static_cast<double>(numObs));
     const double* alpha = alphaBuffer_.data() + offset;
     blocks.insert(blocks.end(), alpha, alpha + numObs);
-    appendLeafRows(tree, node, numObs, blocks);
+    appendLeafRows(memberBuffer_.data() + offset, numObs, blocks);
   }
 
   /// The same block recomputed from a tree's persisted fits (the fits ARE
@@ -3255,7 +3267,8 @@ struct GPGaussianLeaf {
       return;
     }
 
-    gatherLeafCovariates(tree, node, numObs);
+    const index_t* members = sortedMembers(tree, node);
+    gatherLeafCovariates(members, numObs);
     buildKernel(numObs, kernel_);
     cholK_.assign(kernel_.begin(),
                   kernel_.begin() +
@@ -3265,27 +3278,28 @@ struct GPGaussianLeaf {
     blocks.push_back(static_cast<double>(numObs));
     std::size_t alphaStart = blocks.size();
     for (std::size_t r = 0; r < numObs; ++r)
-      blocks.push_back(fits[tree.indices[node.begin + r]]);
+      blocks.push_back(fits[members[r]]);
     solveLowerTriangular(cholK_.data(), numObs, blocks.data() + alphaStart);
     solveLowerTriangularTransposed(cholK_.data(), numObs,
                              blocks.data() + alphaStart);
-    appendLeafRows(tree, node, numObs, blocks);
+    appendLeafRows(members, numObs, blocks);
   }
 
   /// Conditional mean c(x*)' alpha at one test row from the node's cached
   /// draw; constant-valued nodes (over-cap, empty) return their constant.
-  /// Valid only between the node's draw and the next structure change - the
-  /// alpha weights pair with the member ordering at draw time.
+  /// Valid only between the node's draw and the next structure change: the
+  /// members are read from the draw cache, which pairs each alpha weight
+  /// with its observation, and their count from the node.
   double fitForTestObservationForNode(const Tree& tree, int32_t nodeIndex,
                                       std::size_t testIndex) const {
     std::ptrdiff_t offset = nodeAlphaOffset_[static_cast<std::size_t>(nodeIndex)];
     if (offset < 0) return nodeConstant_[static_cast<std::size_t>(nodeIndex)];
-    const Node& node(tree.at(nodeIndex));
-    std::size_t numObs = node.numObservations();
+    std::size_t numObs = tree.at(nodeIndex).numObservations();
     const double* alpha = alphaBuffer_.data() + offset;
+    const index_t* members = memberBuffer_.data() + offset;
     double result = 0.0;
     for (std::size_t r = 0; r < numObs; ++r) {
-      std::size_t obs = tree.indices[node.begin + r];
+      std::size_t obs = members[r];
       double distanceSq = 0.0;
       for (std::size_t j = 0; j < numCovariates_; ++j) {
         double difference = (uTest_[testIndex + j * numTestObservations_] -
@@ -3320,13 +3334,20 @@ private:
     return median > 0.0 ? median : 1.0;
   }
 
+  /// A node's members sorted by observation index, in a scratch that keeps
+  /// its capacity; valid until the next call, and no caller holds two.
+  const index_t* sortedMembers(const Tree& tree, const Node& node) const {
+    memberScratch_.assign(tree.indices + node.begin, tree.indices + node.end);
+    std::sort(memberScratch_.begin(), memberScratch_.end());
+    return memberScratch_.data();
+  }
+
   /// Leaf rows' standardized covariates pre-divided by the lengthscales,
   /// row-major numObs x q, so the kernel is exp(-0.5 ||row_r - row_c||^2).
-  void gatherLeafCovariates(const Tree& tree, const Node& node,
-                            std::size_t numObs) const {
+  void gatherLeafCovariates(const index_t* members, std::size_t numObs) const {
     leafU_.resize(numObs * numCovariates_);
     for (std::size_t r = 0; r < numObs; ++r) {
-      std::size_t obs = tree.indices[node.begin + r];
+      std::size_t obs = members[r];
       for (std::size_t j = 0; j < numCovariates_; ++j)
         leafU_[r * numCovariates_ + j] =
           u_[obs + j * numObservations_] / lengthscales_[j];
@@ -3359,23 +3380,26 @@ private:
   }
 
   /// Append the members' plain standardized covariate rows (row-major
-  /// numObs x q, member order; lengthscales NOT baked in - replays divide)
-  /// to a saved side-channel block.
-  void appendLeafRows(const Tree& tree, const Node& node, std::size_t numObs,
+  /// numObs x q, in the order given; lengthscales NOT baked in - replays
+  /// divide) to a saved side-channel block.
+  void appendLeafRows(const index_t* members, std::size_t numObs,
                       std::vector<double>& blocks) const {
     for (std::size_t r = 0; r < numObs; ++r) {
-      std::size_t obs = tree.indices[node.begin + r];
+      std::size_t obs = members[r];
       for (std::size_t j = 0; j < numCovariates_; ++j)
         blocks.push_back(u_[obs + j * numObservations_]);
     }
   }
 
   /// alpha = C^-1 f through the correlation Cholesky, appended to the
-  /// per-tree buffer; returns the chi-k contribution f' alpha.
+  /// per-tree buffer with the members it pairs with at the same offset;
+  /// returns the chi-k contribution f' alpha.
   FunctionLeafDrawStats cacheAlphaForNode(int32_t nodeIndex,
+                                          const index_t* members,
                                           std::size_t numObs,
                                           const double* cholK) const {
     std::size_t offset = alphaBuffer_.size();
+    memberBuffer_.insert(memberBuffer_.end(), members, members + numObs);
     alphaBuffer_.insert(alphaBuffer_.end(), fScratch_.begin(),
                         fScratch_.begin() +
                           static_cast<std::ptrdiff_t>(numObs));
@@ -3392,9 +3416,9 @@ private:
   }
 
   /// One leaf's cached correlation kernel (nugget included) and its lower
-  /// Cholesky factor, tagged with the exact member list that built it. The
-  /// kernel depends only on membership order and the fixed lengthscales -
-  /// not sigma, k, or the response - so entries survive across sweeps until
+  /// Cholesky factor, tagged with the sorted member list that built it. The
+  /// kernel depends only on membership and the fixed lengthscales - not
+  /// sigma, k, or the response - so entries survive across sweeps until
   /// an accepted move re-routes observations; every lookup re-validates by
   /// comparing the member list, making a hit bitwise identical to a fresh
   /// build with no invalidation hooks to miss. A vacant slot has an empty
@@ -3440,7 +3464,8 @@ private:
   /// too small to bother or the budget refuses, in which case the caller
   /// computes into scratch. The returned pointer is valid until the next
   /// cache mutation, which no caller spans.
-  CachedLeafKernel* cachedKernelForNode(const Tree& tree, const Node& node,
+  CachedLeafKernel* cachedKernelForNode(const Tree& tree,
+                                        const index_t* members,
                                         int32_t nodeIndex,
                                         std::size_t numObs) const {
     if (numObs < minCachedLeafSize) return nullptr;
@@ -3449,7 +3474,7 @@ private:
     if (index >= cache.nodes.size()) cache.nodes.resize(index + 1);
     CachedLeafKernel& entry = cache.nodes[index];
     if (entry.members.size() == numObs &&
-        std::memcmp(entry.members.data(), tree.indices + node.begin,
+        std::memcmp(entry.members.data(), members,
                     numObs * sizeof(index_t)) == 0)
       return &entry;
 
@@ -3464,8 +3489,8 @@ private:
     }
     kernelCacheUsedBytes_ += newBytes - oldBytes;
     entry = CachedLeafKernel();  // release any stale capacity
-    entry.members.assign(tree.indices + node.begin, tree.indices + node.end);
-    gatherLeafCovariates(tree, node, numObs);
+    entry.members.assign(members, members + numObs);
+    gatherLeafCovariates(members, numObs);
     buildKernel(numObs, entry.kernel);
     return &entry;
   }
@@ -3474,12 +3499,12 @@ private:
   /// served from the cache when possible and computed into the scratch
   /// buffers otherwise; either way the values are bitwise those of a fresh
   /// build.
-  void kernelAndFactorForNode(const Tree& tree, const Node& node,
+  void kernelAndFactorForNode(const Tree& tree, const index_t* members,
                               int32_t nodeIndex, std::size_t numObs,
                               const double** kernel,
                               const double** cholK) const {
     CachedLeafKernel* entry =
-      cachedKernelForNode(tree, node, nodeIndex, numObs);
+      cachedKernelForNode(tree, members, nodeIndex, numObs);
     if (entry != nullptr) {
       if (entry->cholK.empty()) {
         entry->cholK.assign(entry->kernel.begin(), entry->kernel.end());
@@ -3489,7 +3514,7 @@ private:
       *cholK = entry->cholK.data();
       return;
     }
-    gatherLeafCovariates(tree, node, numObs);
+    gatherLeafCovariates(members, numObs);
     buildKernel(numObs, kernel_);
     cholK_.assign(kernel_.begin(),
                   kernel_.begin() +
@@ -3503,10 +3528,10 @@ private:
   /// have infinite noise variance, so they contribute no likelihood and
   /// the leaf takes the positive-subset paths below; the constant and
   /// linear leaves get the same behavior for free by multiplying by w.
-  bool anyZeroWeight(const Tree& tree, const Node& node,
-                     const double* weights) const {
-    for (std::size_t m = node.begin; m < node.end; ++m)
-      if (weights[tree.indices[m]] == 0.0) return true;
+  static bool anyZeroWeight(const index_t* members, std::size_t numObs,
+                            const double* weights) {
+    for (std::size_t r = 0; r < numObs; ++r)
+      if (weights[members[r]] == 0.0) return true;
     return false;
   }
 
@@ -3516,12 +3541,12 @@ private:
   /// coherent; a leaf with no positive-weight members scores 0 like an
   /// empty leaf.
   double logIntegratedLikelihoodOverPositiveWeights(
-    const Tree& tree, const Node& node, const double* y,
+    const Tree& tree, const index_t* members, const double* y,
     const double* weights, double k, double residualVariance,
     int32_t nodeIndex, std::size_t numObs) const {
     positiveScratch_.clear();
     for (std::size_t r = 0; r < numObs; ++r)
-      if (weights[tree.indices[node.begin + r]] > 0.0)
+      if (weights[members[r]] > 0.0)
         positiveScratch_.push_back(r);
     std::size_t numPos = positiveScratch_.size();
     if (numPos == 0) return 0.0;
@@ -3529,12 +3554,12 @@ private:
     double s2 = (scale / k) * (scale / k);
 
     const CachedLeafKernel* entry =
-      cachedKernelForNode(tree, node, nodeIndex, numObs);
+      cachedKernelForNode(tree, members, nodeIndex, numObs);
     const double* kernel;
     if (entry != nullptr) {
       kernel = entry->kernel.data();
     } else {
-      gatherLeafCovariates(tree, node, numObs);
+      gatherLeafCovariates(members, numObs);
       buildKernel(numObs, kernel_);
       kernel = kernel_.data();
     }
@@ -3547,7 +3572,7 @@ private:
     // is the full member set's
     double logDetNoise = 0.0, responseSumOfSquares = 0.0;
     for (std::size_t a = 0; a < numPos; ++a) {
-      std::size_t i = tree.indices[node.begin + positiveScratch_[a]];
+      std::size_t i = members[positiveScratch_[a]];
       double w = weights[i];
       double noise = residualVariance / w;
       logDetNoise += std::log(noise);
@@ -3562,7 +3587,7 @@ private:
 
     vectorScratch_.resize(numPos);
     for (std::size_t a = 0; a < numPos; ++a)
-      vectorScratch_[a] = y[tree.indices[node.begin + positiveScratch_[a]]];
+      vectorScratch_[a] = y[members[positiveScratch_[a]]];
     solveLowerTriangular(cholV_.data(), numPos, vectorScratch_.data());
     double quadraticForm = 0.0;
     for (std::size_t a = 0; a < numPos; ++a)
@@ -3573,19 +3598,18 @@ private:
   }
 
   /// Matheron's rule conditioning only on the positive-weight members: f0
-  /// covers every member (numObs normals, row order, as always), e0 and
+  /// covers every member (numObs normals, member order, as always), e0 and
   /// the correction only the positive rows (numPos more normals), so
-  /// zero-weight rows draw from the correct conditional law and the
+  /// zero-weight rows draw from the correct conditional distribution and the
   /// prediction cache stays defined over the full member list. With no
   /// positive members the draw is the prior draw.
   FunctionLeafDrawStats drawFromPosteriorOverPositiveWeights(
-    ext_rng* rng, const Tree& tree, const Node& node, const double* y,
-    const double* weights, double k, double residualVariance,
-    int32_t nodeIndex, double* fits) const {
-    std::size_t numObs = node.numObservations();
+    ext_rng* rng, const Tree& tree, const index_t* members,
+    std::size_t numObs, const double* y, const double* weights, double k,
+    double residualVariance, int32_t nodeIndex, double* fits) const {
     positiveScratch_.clear();
     for (std::size_t r = 0; r < numObs; ++r)
-      if (weights[tree.indices[node.begin + r]] > 0.0)
+      if (weights[members[r]] > 0.0)
         positiveScratch_.push_back(r);
     std::size_t numPos = positiveScratch_.size();
 
@@ -3593,7 +3617,7 @@ private:
 
     const double* kernel;
     const double* cholK;
-    kernelAndFactorForNode(tree, node, nodeIndex, numObs, &kernel, &cholK);
+    kernelAndFactorForNode(tree, members, nodeIndex, numObs, &kernel, &cholK);
 
     epsScratch_.resize(numObs);
     for (std::size_t r = 0; r < numObs; ++r)
@@ -3613,7 +3637,7 @@ private:
           cholV_[a * numPos + b] =
             s2 * kernel[positiveScratch_[a] * numObs + positiveScratch_[b]];
       for (std::size_t a = 0; a < numPos; ++a) {
-        double w = weights[tree.indices[node.begin + positiveScratch_[a]]];
+        double w = weights[members[positiveScratch_[a]]];
         cholV_[a * numPos + a] += residualVariance / w;
       }
       choleskyDecompose(cholV_.data(), numPos);
@@ -3621,8 +3645,8 @@ private:
       vectorScratch_.resize(numPos);
       for (std::size_t a = 0; a < numPos; ++a) {
         std::size_t r = positiveScratch_[a];
-        double w = weights[tree.indices[node.begin + r]];
-        vectorScratch_[a] = y[tree.indices[node.begin + r]] - fScratch_[r] -
+        double w = weights[members[r]];
+        vectorScratch_[a] = y[members[r]] - fScratch_[r] -
                             std::sqrt(residualVariance / w) *
                               ext_rng_simulateStandardNormal(rng);
       }
@@ -3638,14 +3662,16 @@ private:
       }
     }
     for (std::size_t r = 0; r < numObs; ++r)
-      fits[tree.indices[node.begin + r]] = fScratch_[r];
+      fits[members[r]] = fScratch_[r];
 
-    return cacheAlphaForNode(nodeIndex, numObs, cholK);
+    return cacheAlphaForNode(nodeIndex, members, numObs, cholK);
   }
 
   /// Drop entries whose node no longer exists, is no longer a bottom node,
-  /// or whose membership changed, keeping the budget for live leaves.
-  /// Lookups re-validate regardless; this is hygiene, not correctness.
+  /// or whose membership changed, keeping the budget for live leaves. The
+  /// comparison is in sorted order, as the entries are keyed: against the
+  /// span it would evict every leaf whose span is out of order. Lookups
+  /// re-validate regardless; this is hygiene, not correctness.
   void evictStaleKernelEntries(const Tree& tree) const {
     for (TreeKernelCache& cache : kernelCaches_) {
       if (cache.tree != &tree) continue;
@@ -3657,8 +3683,7 @@ private:
           const Node& node(tree.at(static_cast<int32_t>(index)));
           live = node.isBottom() &&
                  node.numObservations() == entry.members.size() &&
-                 std::memcmp(entry.members.data(),
-                             tree.indices + node.begin,
+                 std::memcmp(entry.members.data(), sortedMembers(tree, node),
                              entry.members.size() * sizeof(index_t)) == 0;
         }
         if (!live) {
@@ -3707,7 +3732,12 @@ private:
   mutable std::vector<double> kernel_, cholK_, cholV_;
   mutable std::vector<double> epsScratch_, fScratch_, vectorScratch_;
   mutable std::vector<std::size_t> positiveScratch_;  // w > 0 member offsets
+  // sortedMembers' scratch; capacity kept across calls
+  mutable std::vector<index_t> memberScratch_;
+  // the draw cache: alphaBuffer_[o + r] is the weight of observation
+  // memberBuffer_[o + r] for a node's offset o, members in ascending index
   mutable std::vector<double> alphaBuffer_;
+  mutable std::vector<index_t> memberBuffer_;
   mutable std::vector<double> nodeConstant_;         // arena-indexed
   mutable std::vector<std::ptrdiff_t> nodeAlphaOffset_;  // -1 = constant
   // the cross-sweep kernel cache, keyed by tree address (stable for a

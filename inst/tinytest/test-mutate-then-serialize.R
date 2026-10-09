@@ -55,11 +55,12 @@ statesAgree(cold.lin$state, warm.lin$state)
 warm.gp <- dbarts(
   y ~ x1 + x2 + x3,
   df,
-  leaf.prior = gp("x2", max.leaf.size = 100L),
+  leaf.prior = gp("x2", max.leaf.size = 50L),
   control = control
 )
 # the small leaf cap keeps the run fast; the cap's constant fallback is
-# reported by each run and pinned here
+# reported by each run and pinned here (about half the evaluations at this
+# cap, well clear of the quarter that reports it)
 expect_warning(
   warm.gp$run(20L, 2L),
   "fell back to a constant leaf",
@@ -76,7 +77,7 @@ warm.gp$storeState()
 cold.gp <- dbarts(
   y ~ x1 + x2 + x3,
   df,
-  leaf.prior = gp("x2", max.leaf.size = 100L),
+  leaf.prior = gp("x2", max.leaf.size = 50L),
   control = control
 )
 cold.gp$setPredictor(x2.new, "x2", forceUpdate = TRUE)
@@ -135,12 +136,10 @@ for (leaf in c("linear", "gp")) {
   for (route in recreated(live)) {
     expect_identical(route$predict(x.new), live.pred, info = leaf)
   }
-  if (leaf == "linear") {
-    # given the carried rng the continuation is the live one, to the ulps a
-    # restore's re-summed fits may differ by
-    copied <- live$copy()
-    expect_equal(copied$run(0L, 2L)$train, live$run(0L, 2L)$train, info = leaf)
-  }
+  # given the carried rng the continuation is the live one, to the ulps a
+  # restore's re-summed fits may differ by
+  copied <- live$copy()
+  expect_equal(copied$run(0L, 2L)$train, live$run(0L, 2L)$train, info = leaf)
 }
 
 # a calibration block the leaf cannot read is refused
