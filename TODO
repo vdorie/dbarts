@@ -339,6 +339,12 @@ items
     read (model.hpp's readRange and restoreScale set range 1 with min
     left at c; chain.hpp and combiner.hpp read the pair). Draws change
     for constant responses only. Engine batch.
+  variance-forest-mixture-reinstall: setControl installs a changed
+    proposal.probs and n.perturb.cuts on the mean forest only; a
+    heteroscedastic sampler's variance forest keeps the mixture and width
+    it was created with (Chain::setModel writes the first forest; found by
+    the engine small-rulings review, 2026-10-08). Reinstall both on the
+    variance forest too, or record why not. Before 1.0-0.
   treatsens-cibart-chains: after 1.0-0, on treatSens's own schedule
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
