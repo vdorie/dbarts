@@ -3091,16 +3091,22 @@ static void testRuleGibbsMove() {
 }
 
 // The weighted kernels against the exact posterior. A root and its left child
-// split, the shape fixed, over a column whose four values 0, 1, 3 and 10 put
-// its three cuts at weights 1, 2 and 7 and a column of four equally spaced
+// split, the shape fixed, over a column whose four values 0, 7, 9 and 10 put
+// its three cuts at weights 7, 2 and 1 and a column of four equally spaced
 // values that stays unweighted. Every state of the shape is enumerated and
 // scored by the prior and the branch's likelihood; change alone, and change
-// beside perturb, rule_gibbs or swap, must each realize that posterior. A
-// weight dropped from a draw, a count or a ratio moves the realized law by far
-// more than the test's tolerance: a cut's prior weight is 0.1 against 0.7.
+// beside perturb, rule_gibbs or swap, must each realize that posterior. The
+// heavy cut is the lowest so that each side of change's correction decides
+// acceptance somewhere: with the left child on the weighted column, the
+// root's valid cuts on it are the light upper ones, 3 or 1 of the interval's
+// 10, so a change into such a state is accepted at 1/9 to 3/7 under the prior
+// alone, and counts in place of weights (2 or 1 of 3) more than double it.
+// Counts on either side of that correction, or a weight dropped from a draw
+// or a ratio, fail the mixtures that run the kernel by far more than the
+// test's tolerance.
 static void testWeightedCutKernels() {
   const size_t n = 160;
-  const double values0[] = {0.0, 1.0, 3.0, 10.0};
+  const double values0[] = {0.0, 7.0, 9.0, 10.0};
   std::vector<double> x(2 * n), y(n);
   std::uint64_t generator = 20261009u;
   for (size_t i = 0; i < n; ++i) {
@@ -3113,10 +3119,10 @@ static void testWeightedCutKernels() {
   ColumnStore store;
   built(store.build(x.data(), n, 2, 100u, false));
   check(store.numCuts[0] == 3 && store.cutsWeighted(0) &&
-          store.cutWeight(0, 0) == 1.0 && store.cutWeight(0, 1) == 2.0 &&
-          store.cutWeight(0, 2) == 7.0 && store.numCuts[1] == 3 &&
+          store.cutWeight(0, 0) == 7.0 && store.cutWeight(0, 1) == 2.0 &&
+          store.cutWeight(0, 2) == 1.0 && store.numCuts[1] == 3 &&
           !store.cutsWeighted(1),
-        "weighted kernels fixture: cuts weighted 1, 2, 7 and an even column");
+        "weighted kernels fixture: cuts weighted 7, 2, 1 and an even column");
 
   std::vector<double> ones(n, 1.0);
   MoveScratch scratch;
