@@ -348,3 +348,7 @@ address/undefined sanitizers; every exact gate in quick mode, the new gate also 
 one NOTE (Date). stan4bart's suite on the landed tip: 582 results, 0 failures. Logistic and nbinom k mixing
 measured before landing (docs/design/k-mixing-pg-families.md): logistic is slow where probit was; its fix
 is the maintainer's choice (TODO k-mixing-pg-families). Calls: dec-A190.
+Confirmation run (criterion 5): the landing push's full SBC matrix passed every arm with no expected
+flags; the probit-k arm (R = 600, 99 draws at thin 1000) passed k at chi-square p 0.161, KS p 0.023, ECDF
+difference 0.057 against its 0.080 band, with 31 and 22 ranks in its end bins against 30 expected, where
+the step-free sampler piled 48 and 52 there.
