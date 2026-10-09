@@ -267,7 +267,6 @@ methods::setClass(
     keepFits = "logical",
     useQuantiles = "logical",
     levelGibbs = "logical",
-    probitRescaleForest = "logical",
     keepTrees = "logical",
     storage = "character",
     n.samples = "integer",
@@ -301,7 +300,6 @@ methods::setClass(
     keepFits = TRUE,
     useQuantiles = FALSE,
     levelGibbs = NA,
-    probitRescaleForest = TRUE,
     keepTrees = FALSE,
     storage = "double",
     n.samples = NA_integer_,
@@ -365,9 +363,6 @@ methods::setValidity("dbartsControl", function(object) {
   if (length(object@levelGibbs) != 1L) {
     return("'levelGibbs' must be of length 1")
   }
-  if (length(object@probitRescaleForest) != 1L) {
-    return("'probitRescaleForest' must be of length 1")
-  }
   if (length(object@keepTrees) != 1L) {
     return("'keepTrees' must be of length 1")
   }
@@ -416,9 +411,6 @@ methods::setValidity("dbartsControl", function(object) {
   }
   if (is.na(object@useQuantiles)) {
     return("'useQuantiles' must be TRUE/FALSE")
-  }
-  if (is.na(object@probitRescaleForest)) {
-    return("'probitRescaleForest' must be TRUE/FALSE")
   }
   # levelGibbs, the slot behind treeShift, alone reads NA as a value rather
   # than as a missing one: it is the automatic mode, which takes the step for

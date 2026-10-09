@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
-# Exact-posterior gate for the probit rescaling step (dbartsControl's
-# probitRescaleForest; docs/design/probit-k-scale-move.md). The step multiplies
+# Exact-posterior gate for the probit rescaling step
+# (docs/design/probit-k-scale-move.md). The step multiplies
 # the probit latents and the leaves by one factor and divides k by it, the
 # factor drawn from its exact conditional, so it must leave the posterior of
 # (k, leaves) exactly where it was while moving along the direction k mixes
@@ -35,23 +35,23 @@
 # 0.9, and E[mu_l] on each unseparated leaf, each a z against a 50-batch
 # batch-means error, failing above 4.5. And one mixing bound: the pure arm's
 # largest batch-means error of P(k < q_j). With the step that error is 0.0039
-# at 4e6 sweeps and without it 0.0194, so a step silently switched off fails
+# at 4e6 sweeps and without it 0.0194, so a step that silently declines fails
 # here rather than passing more loosely. Full mode bounds it at 0.01; quick
 # mode at QUICK_MIXING_BOUND below, set between the two sides' quick values
 # at the landing: with the step 0.0064 on arm64 and 0.0099 on x86-64, whose
-# chain takes another path; without it 0.0190.
+# chain takes another path; without it 0.0190 (measured while the step had a
+# switch; it has none now).
 #
-# The `never` argument runs with the step off, which must fail: without the
-# step the pure arm is the sampler the step was built to replace.
+# The gate cannot see k left unscaled after the latents and leaves are scaled
+# correctly: that mutant passes quick mode at a worst |z| of 4.3. The engine's
+# mapping test (tests/cpp, runForestRescaleTests) is what catches it.
 #
-# Usage: Rscript probit-k-scale-exact.R [quick] [never] [pure] [mixed]
-#   [offset] [mask]
+# Usage: Rscript probit-k-scale-exact.R [quick] [pure] [mixed] [offset] [mask]
 
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
-rescale <- !("never" %in% args)
 armNames <- intersect(c("pure", "mixed", "offset", "mask"), args)
 if (length(armNames) == 0L) {
   armNames <- c("pure", "mixed", "offset", "mask")
@@ -84,7 +84,6 @@ control <- dbartsControl(
   updateState = FALSE,
   verbose = FALSE,
   seed = 20261008L,
-  probitRescaleForest = rescale,
   proposal.probs = c(frozen, birth = 0.5)
 )
 sampler <- dbarts(
@@ -121,7 +120,7 @@ logKPrior <- function(k) {
   (kPrior[["df"]] - 1) * log(u) - 0.5 * u^2 + log(k)
 }
 
-exactLaw <- function(y, o, active) {
+exactPosterior <- function(y, o, active) {
   perLeaf <- lapply(seq_len(numLeaves), function(l) {
     rows <- active > 0 & leaf == l
     s <- 2 * y[rows] - 1
@@ -209,7 +208,7 @@ for (arm in armNames) {
     pnorm(o + c(0.8, -0.5, 0.3, -1.2)[leaf])
   }
   y <- as.double(rbinom(n, 1L, probability))
-  exact <- exactLaw(y, o, active)
+  exact <- exactPosterior(y, o, active)
 
   sampler$setOffset(if (arm == "offset") o else NULL)
   sampler$setLeafPrior(dbartsPriors$normal(k = 2))

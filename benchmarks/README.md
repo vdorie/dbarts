@@ -259,17 +259,17 @@ run alone by naming it.
 
     Rscript benchmarks/R/mask-redraw-exact.R quick probit
 
-probit-k-scale-exact is the gate for the probit rescaling step
-(`dbartsControl(probitRescaleForest = )`): one frozen tree under probit with
-k ~ chi(1.5, 2), whose posterior of k and leaf means are exact by one
-quadrature a leaf, on four arms (every leaf separated, none, an offset, a
-mask). It bounds P(k < q) at the exact deciles and the unseparated leaves'
+probit-k-scale-exact is the gate for the probit rescaling step: one frozen
+tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are
+exact by one quadrature a leaf, on four arms (every leaf separated, none, an
+offset, a mask). It bounds P(k < q) at the exact deciles and the unseparated leaves'
 means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
 0.01 in full mode (0.014 quick), which a sampler without the step does not
-meet: the `never` argument runs the step off and must fail. Quick mode is
+meet, so a step that silently declines fails. It cannot see k left unscaled
+after a correct draw; the engine's mapping test catches that. Quick mode is
 about 30 seconds, full about 2 minutes.
 
-    Rscript benchmarks/R/probit-k-scale-exact.R quick never
+    Rscript benchmarks/R/probit-k-scale-exact.R quick
 
 bd-balance takes a second arm, `zeroweight`, which the workflow runs after its
 loop: the same enumeration under a weight vector that zeroes two adjacent
@@ -308,11 +308,10 @@ conditional (a missing Jacobian, a leaf too many, the prior's df off by one) is
 flagged about 80% of the time; an error that scales with the number of leaves
 (every k draw 5% high) is flagged at R = 50. Smaller errors pass.
 
-With the probit rescaling step (`dbartsControl(probitRescaleForest = )`, on
-by default) k mixes fast enough that at thin 1000 every dataset of the arm
-keeps 50 or more effective draws of the 99 kept, so the arm is read as any
-other: k's end bins near 30 and its chi-square p meaningful. Before the step a
-correct sampler flagged this arm about one run in three
+With the probit rescaling step k mixes fast enough that at thin 1000 every
+dataset of the arm keeps 50 or more effective draws of the 99 kept, so the arm
+is read as any other: k's end bins near 30 and its chi-square p meaningful.
+Before the step a correct sampler flagged this arm about one run in three
 (docs/design/probit-k-calibration.md).
 
 By hand, before the merge to main: `schedule` waits for main, but a dispatch
@@ -331,12 +330,11 @@ must be green. The probit-k job takes
 
 ## R/probit-k-mixing.R - k's mixing under probit (measurement, not a gate)
 
-How fast k mixes under probit with the rescaling step on and off: `census`
-gives k's and the average fit's integrated autocorrelation time over the SBC
+How fast k mixes under probit with the rescaling step: `census` gives k's and the average fit's integrated autocorrelation time over the SBC
 probit-k arm's prior-drawn datasets (the arm's start, 30,000 sweeps of burn-in
 and 200,000 recorded, about 25 seconds a dataset), `truth` the start-from-truth
 drift of log k at R replications (2000 take about 5 minutes), `summarize` the
-tables. `never` runs the step off. Findings: docs/design/probit-k-scale-move.md.
+tables. Findings, the step-off figures included: docs/design/probit-k-scale-move.md.
 
     Rscript benchmarks/R/probit-k-mixing.R census 1 50 out-1.rds
     Rscript benchmarks/R/probit-k-mixing.R truth 19 2000 truth.rds

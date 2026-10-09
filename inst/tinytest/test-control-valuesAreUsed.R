@@ -16,8 +16,7 @@ control <- dbarts::dbartsControl(
   n.cuts = n.cuts,
   n.chains = n.chains,
   n.threads = n.threads,
-  treeShift = "always",
-  probitRescaleForest = FALSE
+  treeShift = "always"
 )
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 
@@ -29,8 +28,6 @@ expect_equal(sampler$control@n.chains, n.chains)
 expect_equal(sampler$control@n.threads, n.threads)
 expect_true(sampler$control@levelGibbs)
 expect_true(is.na(dbarts::dbartsControl()@levelGibbs))
-expect_false(sampler$control@probitRescaleForest)
-expect_true(dbarts::dbartsControl()@probitRescaleForest)
 
 rm(
   sampler,

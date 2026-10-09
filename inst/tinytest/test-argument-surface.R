@@ -367,9 +367,9 @@ controlFormals1_0_0 <- c(
 # formals added after the 1.0-0 freeze. They carry the same parity contract -
 # every one is a bart formal, spelled identically - but stay off the frozen
 # list, which is what keeps that list a snapshot rather than a ratchet.
-# treeShift, probitRescaleForest and the four engine limits below are this
-# list's documented exceptions to the parity contract itself (see below);
-# keepFits follows the rule.
+# treeShift and the four engine limits below are this list's documented
+# exceptions to the parity contract itself (see below); keepFits follows the
+# rule.
 controlFormalsAdded <- c(
   "treeShift",
   "keepFits",
@@ -378,8 +378,7 @@ controlFormalsAdded <- c(
   "predictParallelCutoff",
   "sparseDensityThreshold",
   "proposal.probs",
-  "n.perturb.cuts",
-  "probitRescaleForest"
+  "n.perturb.cuts"
 )
 # '...' is the transition release's retired-spelling channel on this entry
 # point, not a control field
@@ -409,8 +408,7 @@ for (limit in c(
   "testFitParallelCutoff",
   "predictParallelCutoff",
   "sparseDensityThreshold",
-  "n.perturb.cuts",
-  "probitRescaleForest"
+  "n.perturb.cuts"
 )) {
   expect_false(limit %in% names(formals(dbarts::bart)))
   expect_true(limit %in% names(formals(dbarts::dbartsControl)))

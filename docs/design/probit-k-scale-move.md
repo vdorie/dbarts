@@ -1,6 +1,6 @@
 # The probit rescaling step: a parameter expansion for k under probit
 
-Status: BUILT 2026-10-08 (dec-B371, dec-B394), not yet landed; plan
+Status: BUILT 2026-10-08 (dec-B371, dec-B394, dec-B397), not yet landed; plan
 [probit-k-scale-move.md](../plans/probit-k-scale-move.md). The finding it
 answers: [probit-k-calibration.md](probit-k-calibration.md).
 
@@ -10,9 +10,8 @@ Once a sweep, ahead of the trees, a single-forest probit fit with a drawn k
 multiplies every active latent and every occupied leaf by one factor alpha and
 divides k by it, alpha drawn from its exact conditional
 ([`Chain::drawForestRescale`](../../src/bartcore/chain.hpp)). The posterior is
-unchanged; k and the fit's overall scale move far faster.
-`dbartsControl(probitRescaleForest = FALSE)` turns it off
-([`dbartsControl`](../../man/dbartsControl.Rd)).
+unchanged; k and the fit's overall scale move far faster. It has no switch
+(dec-B397): it runs wherever it applies.
 
 ## Why k mixes slowly
 
@@ -103,7 +102,9 @@ would cost 9 to 14 percent of a sweep (below).
 
 ## Evidence
 
-Measured on the built step, arm64 laptop unless said.
+Measured on the built step, arm64 laptop unless said. Every figure without the
+step was measured while the build carried a switch (dec-B394), since removed
+(dec-B397); the scripts now run the step alone.
 
 **Mixing** ([`runCensus`](../../benchmarks/R/probit-k-mixing.R)): the SBC
 probit-k arm's generator (n = 150, 50 trees), 100 prior-drawn datasets, the
@@ -125,9 +126,13 @@ criterion. The prototype's Jacobian error of alpha^2 drifted it at z -16.5.
 
 **Exact gate** ([probit-k-scale-exact.R](../../benchmarks/R/probit-k-scale-exact.R)):
 full mode, |z| <= 2.1 on all 20 decile statistics and every leaf mean, the
-separated arm's batch-means error 0.0043; with the step off that arm's error is
-0.0238 and the gate fails, as it must. Quick mode's mixing bound, 0.014, sits
-between the step's 0.0064 (arm64) and 0.0099 (x86-64) and the 0.019 without it.
+separated arm's batch-means error 0.0043; with the step off that arm's error was
+0.0238 and the gate failed (quick: z -15.2, error 0.019), as it must. Quick
+mode's mixing bound, 0.014, sits between the step's 0.0064 (arm64) and 0.0099
+(x86-64) and the 0.019 without it, so a step that silently declines fails it.
+The gate cannot see k left unscaled after a correct draw of the latents and
+leaves: that mutant passes quick mode, worst |z| 4.3. Only the mapping check in
+[`runForestRescaleTests`](../../tests/cpp/test_ensemble.cpp) catches it.
 
 **The SBC arm**: at thin 1000 every one of the 100 census datasets keeps 50 or
 more effective draws of the 99 kept (median 95, least 54; an AR(1) reading of

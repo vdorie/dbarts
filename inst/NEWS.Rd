@@ -474,7 +474,6 @@
             faster, most where the response is nearly separated, where a
             chain could otherwise hold \code{k} for tens of thousands of
             iterations; the posterior is unchanged.
-            \code{dbartsControl(probitRescaleForest = FALSE)} turns it off.
             \code{bart} gains a
             \code{control} argument for these and other
             \code{\link{dbartsControl}} settings.

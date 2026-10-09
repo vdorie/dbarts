@@ -1,14 +1,13 @@
 #!/usr/bin/env Rscript
 
-# How fast k mixes under probit, with and without the probit rescaling step
-# (dbartsControl's probitRescaleForest; docs/design/probit-k-scale-move.md).
-# A measurement, not a gate: no baseline and no pass/fail exit. Its runs are
-# that design's kill-criteria evidence.
+# How fast k mixes under probit with the probit rescaling step
+# (docs/design/probit-k-scale-move.md). A measurement, not a gate: no baseline
+# and no pass/fail exit. Its runs are that design's kill-criteria evidence.
 #
 #   census     k's and the average fit's integrated autocorrelation time over
 #              the SBC probit-k arm's prior-drawn datasets: per dataset, the
 #              truth and the data drawn as the arm draws them (seeded by the
-#              dataset's index, so both settings see the same data), the arm's
+#              dataset's index, so every run sees the same data), the arm's
 #              start, 30,000 sweeps of burn-in and 200,000 recorded at thin 10.
 #              Geyer's initial monotone sequence, in sweeps.
 #   truth      the start-from-truth invariance statistic: the state is an exact
@@ -19,18 +18,17 @@
 #   summarize  the census tables and the truth z from saved runs.
 #
 # Usage:
-#   Rscript probit-k-mixing.R census <first> <last> <out.rds> [never]
-#   Rscript probit-k-mixing.R truth <seed> <reps> <out.rds> [never]
+#   Rscript probit-k-mixing.R census <first> <last> <out.rds>
+#   Rscript probit-k-mixing.R truth <seed> <reps> <out.rds>
 #   Rscript probit-k-mixing.R summarize <file.rds>...
-# `never` runs with the step off. Run from the repository root (it sources
-# benchmarks/R/sbc.R for the arm's configuration).
+# Run from the repository root (it sources benchmarks/R/sbc.R for the arm's
+# configuration).
 
 suppressPackageStartupMessages(library(dbarts))
 source(file.path("benchmarks", "R", "sbc.R"))
 
 args <- commandArgs(trailingOnly = TRUE)
 action <- args[1L]
-rescale <- !("never" %in% args)
 
 # Geyer's initial monotone sequence estimate of the integrated autocorrelation
 # time, in units of the series' own spacing
@@ -56,17 +54,6 @@ iatGeyer <- function(x) {
   max(-1 + 2 * sum(cummin(pairSums)), 1 / n)
 }
 
-# the arm's sampler, with the step on or off
-makeSampler <- function(config, numSamples, thin, seed) {
-  sampler <- sbcMakeSampler(config, numSamples, thin, seed)
-  if (rescale) {
-    return(sampler)
-  }
-  control <- sampler$control
-  control@probitRescaleForest <- FALSE
-  methods::new("dbartsSampler", control, sampler$model, sampler$data)
-}
-
 # theta0 drawn from the prior: trees, k0, leaves given k0, and the fit
 drawTruth <- function(sampler, config) {
   sampler$sampleTreesFromPrior()
@@ -80,7 +67,7 @@ runCensus <- function(first, last, out, burn = 30000L, numRecorded = 200000L) {
   thin <- 10L
   config <- sbcConfigProbitK()
   set.seed(1L)
-  sampler <- makeSampler(config, numRecorded %/% thin, thin, 1L)
+  sampler <- sbcMakeSampler(config, numRecorded %/% thin, thin, 1L)
   results <- list()
   for (r in first:last) {
     set.seed(100000L + r)
@@ -121,7 +108,6 @@ runCensus <- function(first, last, out, burn = 30000L, numRecorded = 200000L) {
   saveRDS(
     list(
       action = "census",
-      rescale = rescale,
       burn = burn,
       numRecorded = numRecorded,
       thin = thin,
@@ -134,7 +120,7 @@ runCensus <- function(first, last, out, burn = 30000L, numRecorded = 200000L) {
 runTruth <- function(seed, numReps, out) {
   config <- sbcConfigProbitK()
   set.seed(seed)
-  sampler <- makeSampler(config, 1L, 1L, seed)
+  sampler <- sbcMakeSampler(config, 1L, 1L, seed)
   lags <- c(1, 3, 10, 30, 100, 300, 1000, 2000, 3000)
   results <- vector("list", numReps)
   started <- proc.time()[[3L]]
@@ -158,60 +144,54 @@ runTruth <- function(seed, numReps, out) {
     proc.time()[[3L]] - started
   ))
   saveRDS(
-    list(action = "truth", rescale = rescale, lags = lags, results = results),
+    list(action = "truth", lags = lags, results = results),
     out
   )
 }
 
 summarize <- function(files) {
-  runs <- lapply(files, readRDS)
+  # a run saved while the step had a switch and recorded with it off is not
+  # this script's measurement
+  runs <- Filter(
+    function(run) !identical(run$rescale, FALSE),
+    lapply(files, readRDS)
+  )
   quantileAt <- function(v, p) as.numeric(quantile(v, p, na.rm = TRUE))
-  for (setting in c(TRUE, FALSE)) {
-    label <- if (setting) "step on" else "step off"
-    census <- Filter(
-      function(run) run$action == "census" && run$rescale == setting,
-      runs
-    )
-    if (length(census) > 0L) {
-      results <- do.call(c, lapply(census, `[[`, "results"))
-      tauK <- vapply(results, `[[`, 0, "tauK")
-      tauF <- vapply(results, `[[`, 0, "tauF")
-      seconds <- vapply(results, `[[`, 0, "secondsRecorded")
-      essPerSecond <- census[[1L]]$numRecorded / tauK / seconds
-      cat(sprintf(
-        "census, %s: %d datasets\n  tau(k) median %.0f, 90th %.0f, 99th %.0f, max %.0f\n  tau(avg f) median %.0f, 90th %.0f\n  ESS(k)/s median %.0f, 10th %.0f; %.3f s a 10,000 recorded sweeps\n",
-        label,
-        length(results),
-        median(tauK),
-        quantileAt(tauK, 0.9),
-        quantileAt(tauK, 0.99),
-        max(tauK),
-        median(tauF),
-        quantileAt(tauF, 0.9),
-        median(essPerSecond),
-        quantileAt(essPerSecond, 0.1),
-        1e4 * median(seconds) / census[[1L]]$numRecorded
-      ))
-    }
-    truth <- Filter(
-      function(run) run$action == "truth" && run$rescale == setting,
-      runs
-    )
-    if (length(truth) > 0L) {
-      results <- do.call(c, lapply(truth, `[[`, "results"))
-      lags <- truth[[1L]]$lags
-      k <- t(vapply(results, `[[`, numeric(length(lags)), "k"))
-      k0 <- vapply(results, `[[`, 0, "k0")
-      drift <- rowMeans(log(k[, lags >= 300, drop = FALSE])) - log(k0)
-      cat(sprintf(
-        "truth, %s: R = %d, window lags 300 to 3000: drift of log k %+.4f (se %.4f), z %+.2f\n",
-        label,
-        length(drift),
-        mean(drift),
-        sd(drift) / sqrt(length(drift)),
-        mean(drift) / (sd(drift) / sqrt(length(drift)))
-      ))
-    }
+  census <- Filter(function(run) run$action == "census", runs)
+  if (length(census) > 0L) {
+    results <- do.call(c, lapply(census, `[[`, "results"))
+    tauK <- vapply(results, `[[`, 0, "tauK")
+    tauF <- vapply(results, `[[`, 0, "tauF")
+    seconds <- vapply(results, `[[`, 0, "secondsRecorded")
+    essPerSecond <- census[[1L]]$numRecorded / tauK / seconds
+    cat(sprintf(
+      "census: %d datasets\n  tau(k) median %.0f, 90th %.0f, 99th %.0f, max %.0f\n  tau(avg f) median %.0f, 90th %.0f\n  ESS(k)/s median %.0f, 10th %.0f; %.3f s a 10,000 recorded sweeps\n",
+      length(results),
+      median(tauK),
+      quantileAt(tauK, 0.9),
+      quantileAt(tauK, 0.99),
+      max(tauK),
+      median(tauF),
+      quantileAt(tauF, 0.9),
+      median(essPerSecond),
+      quantileAt(essPerSecond, 0.1),
+      1e4 * median(seconds) / census[[1L]]$numRecorded
+    ))
+  }
+  truth <- Filter(function(run) run$action == "truth", runs)
+  if (length(truth) > 0L) {
+    results <- do.call(c, lapply(truth, `[[`, "results"))
+    lags <- truth[[1L]]$lags
+    k <- t(vapply(results, `[[`, numeric(length(lags)), "k"))
+    k0 <- vapply(results, `[[`, 0, "k0")
+    drift <- rowMeans(log(k[, lags >= 300, drop = FALSE])) - log(k0)
+    cat(sprintf(
+      "truth: R = %d, window lags 300 to 3000: drift of log k %+.4f (se %.4f), z %+.2f\n",
+      length(drift),
+      mean(drift),
+      sd(drift) / sqrt(length(drift)),
+      mean(drift) / (sd(drift) / sqrt(length(drift)))
+    ))
   }
 }
 

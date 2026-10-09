@@ -3011,12 +3011,12 @@ if (sys.nframe() == 0L) {
   # driver's own pinned seed keeps every recorded run reproducible.
   runSeed <- if (length(args) >= 6L) as.integer(args[6]) else NULL
   # probit-k: k and the leaves it scales are a funnel, which the probit
-  # rescaling step (probitRescaleForest, on by default) moves along; with it,
-  # at thin 1000 and this burn every dataset of the arm keeps 50 or more
-  # effective draws of 99, where at thin 300 8% fall under 50. Recommended: R=600 L=99 thin=1000 (L=99 puts
-  # five rank values in each of the 20 bins), which flags an error of one half in the shape of the k^2 conditional (a missing
-  # Jacobian, a leaf too many, the prior's df off by one) about 80% of the time;
-  # R=100 does not.
+  # rescaling step moves along. With it, at thin 1000 and this burn every
+  # dataset of the arm keeps 50 or more effective draws of 99, where at thin
+  # 300 8% fall under 50. Recommended: R=600 L=99 thin=1000 (L=99 puts five
+  # rank values in each of the 20 bins), which flags an error of one half in
+  # the shape of the k^2 conditional (a missing Jacobian, a leaf too many, the
+  # prior's df off by one) about 80% of the time; R=100 does not.
   if (is.null(burnSweeps) && which == "probit-k") {
     burnSweeps <- 30000
   }

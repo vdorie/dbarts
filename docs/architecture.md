@@ -206,10 +206,10 @@ before each category's own forest updates (`drawForestGlue`).
 
 A forest's cached fits (`totalFits`) are kept by difference updates, so they
 may differ from the forest's leaves gathered in tree order by additive
-rounding only. A transform that writes leaf values in bulk - the multinomial
-level shift in `afterCombine`, the level-fibre shift, the probit rescaling
-step - may update the cache in place when it is additive. A multiplicative
-one may update it in place while the forest's accumulated factor since the
+rounding only. A transform that writes leaf values in bulk and is additive -
+the multinomial level shift in `afterCombine`, the level-fibre shift - may
+update the cache in place. A multiplicative one - the probit rescaling step -
+may update it in place while the forest's accumulated factor since the
 cache was last re-derived (`Forest::totalFitsScale`) stays within [1/2, 2],
 and re-derives the cache from the leaves when the factor would leave that
 range, so a gap the factors multiply stays bounded. Every other
@@ -305,9 +305,8 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
    function unchanged. It runs ahead of every channel the rest of the sweep
    writes; the mixture is read once per forest here and reused by step 3's
    frozen skip, and a forest that skips consumes no generator draw. Then,
-   on a single constant-leaf probit forest with a drawn `k` and the
-   control's `probitRescaleForest` on (the default), the probit rescaling
-   step (`drawForestRescale`): the active latents and occupied leaves
+   on a single constant-leaf probit forest with a drawn `k`, the probit
+   rescaling step (`drawForestRescale`): the active latents and occupied leaves
    multiplied, and `k` divided, by one factor from its exact conditional,
    `totalFits` scaled with them under the cache rule above; elsewhere it
    draws nothing.
