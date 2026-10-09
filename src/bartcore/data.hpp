@@ -2883,16 +2883,20 @@ struct ColumnStore {
 /// categorical/ordinal split column for column.
 class ScopedCutGrid {
 public:
+  // Copy and swap: the donor grid is built in the members first, so a throw
+  // leaves the store untouched; the swaps then install it and hold the live
+  // grid without allocating.
   ScopedCutGrid(ColumnStore& store,
                 const std::vector<std::vector<double>>& donorCutPoints)
-      : store_(store), savedCutPoints_(store.cutPoints),
-        savedNumCuts_(store.numCuts), savedCutMass_(std::move(store.cutMass)) {
-    store_.cutMass.assign(store_.numPredictors, std::vector<double>());
-    store_.cutPoints = donorCutPoints;
+      : store_(store), savedCutPoints_(donorCutPoints),
+        savedNumCuts_(store.numCuts), savedCutMass_(store.numPredictors) {
     for (size_t j = 0; j < store_.numPredictors; ++j)
       if (store_.splitsByThreshold(j))
-        store_.numCuts[j] =
+        savedNumCuts_[j] =
           static_cast<std::uint32_t>(donorCutPoints[j].size());
+    store_.cutPoints.swap(savedCutPoints_);
+    store_.numCuts.swap(savedNumCuts_);
+    store_.cutMass.swap(savedCutMass_);
   }
   ~ScopedCutGrid() {
     store_.cutPoints = std::move(savedCutPoints_);
