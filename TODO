@@ -294,10 +294,9 @@ items
     tracked files: docs, R and man text, comments, the TODO item name
     coefficient-law-opt-in; identifiers where not public. Replace with
     distribution, prior, rule or formula as fits. Docs/text tier.
-  copy-untouched-updatestate: copy() of an untouched sampler made with
-    updateState = FALSE does not continue as its source (draws differed
-    by up to 0.77, found 2026-10-07, not rerun). Verify, then fix or
-    record why. Before the merge.
+  copy-untouched-updatestate: copy() of a sampler with no stored state
+    (updateState = FALSE) stores its current state first, so the copy
+    continues its source (dec-B396). Before the merge.
   copy-after-nsamples-edit: copy() errors after control's n.samples is
     edited where a save and reload works (found 2026-10-07, not rerun).
     Verify, then fix. Before the merge.
