@@ -603,11 +603,20 @@ fitAndScore <- function(arm, case, mcmcSeed) {
 
   if (is.null(case$pTest)) {
     coverage <- NA_real_
+    coverageMid <- NA_real_
+    midShare <- NA_real_
     width <- NA_real_
     probRmse <- NA_real_
   } else {
     bounds <- apply(probabilities, 2L, quantile, probs = c(0.05, 0.95))
-    coverage <- mean(case$pTest >= bounds[1L, ] & case$pTest <= bounds[2L, ])
+    covered <- case$pTest >= bounds[1L, ] & case$pTest <= bounds[2L, ]
+    coverage <- mean(covered)
+    # Coverage over the rows whose true probability is within [0.01, 0.99].
+    # The truth is a probit surface, so past that range a logistic fit's
+    # coverage measures the two links' tails rather than the prior.
+    mid <- case$pTest >= 0.01 & case$pTest <= 0.99
+    midShare <- mean(mid)
+    coverageMid <- if (any(mid)) mean(covered[mid]) else NA_real_
     width <- mean(bounds[2L, ] - bounds[1L, ])
     probRmse <- sqrt(mean((pHat - case$pTest)^2))
   }
@@ -647,6 +656,8 @@ fitAndScore <- function(arm, case, mcmcSeed) {
     logScore = logScore,
     brier = brier,
     coverage = coverage,
+    coverageMid = coverageMid,
+    midShare = midShare,
     width = width,
     probRmse = probRmse,
     kMedian = median(kDraws),
