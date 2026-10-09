@@ -3754,6 +3754,23 @@ private:
 
 static_assert(FunctionLeafModel<GPGaussianLeaf>);
 
+/// A cut position of column \p variableIndex in [left, right], each with its
+/// weight's share of the range (ColumnStore::cutMass): one integer draw where
+/// the cuts are equally likely, the generator use of an unweighted column, and
+/// one continuous uniform where they are weighted.
+inline int32_t drawCutPosition(const ColumnStore& data, ext_rng* rng,
+                               int32_t variableIndex, int32_t left,
+                               int32_t right) {
+  size_t j = static_cast<size_t>(variableIndex);
+  if (!data.cutsWeighted(j))
+    return static_cast<int32_t>(
+      ext_rng_simulateIntegerUniformInRange(rng, left, right + 1));
+  double low = data.cutMass[j][static_cast<size_t>(left)];
+  double target = low + ext_rng_simulateContinuousUniform(rng) *
+                          data.cutIntervalMass(j, left, right);
+  return data.cutAtMass(j, left, right, target);
+}
+
 /// Chipman-George-McCulloch tree structure prior. Split-variable selection
 /// is uniform over available variables when splitProbabilities is null;
 /// otherwise proportional to the supplied weights restricted to available
@@ -3795,6 +3812,9 @@ struct CGMTreePrior {
   /// categories reachable at the node that leave neither side empty, both
   /// orientations counted: 2^R - 2 of them. Unreachable categories carry no
   /// probability (their direction bits are pinned to zero by the moves).
+  /// Ordinal rules are uniform over the positions of the node's interval, or
+  /// in proportion to their weights on a weighted column; every proposal that
+  /// draws a position draws it from the same weights (drawCutPosition).
   double ruleForVariableLogProbability(const Tree& tree, const ColumnStore& data,
                                        int32_t nodeIndex) const {
     int32_t variableIndex = tree.at(nodeIndex).rule.variableIndex;
@@ -3811,7 +3831,12 @@ struct CGMTreePrior {
     }
     int32_t left, right;
     tree.splitInterval(data, nodeIndex, variableIndex, &left, &right);
-    double logNumRules = std::log(static_cast<double>(right - left + 1));
+    size_t j = static_cast<size_t>(variableIndex);
+    // a weighted column's rule k has probability w_k over the interval's sum
+    double logNumRules = data.cutsWeighted(j)
+      ? std::log(data.cutIntervalMass(j, left, right)) -
+          std::log(data.cutWeight(j, tree.at(nodeIndex).rule.splitIndex()))
+      : std::log(static_cast<double>(right - left + 1));
     // a column with missing values widens every rule by its two-way
     // missing direction (the categorical count absorbs the missing
     // category through the reachable mask instead)
@@ -4013,8 +4038,7 @@ struct CGMTreePrior {
 
     int32_t left, right;
     tree.splitInterval(data, nodeIndex, variableIndex, &left, &right);
-    result.setSplitIndex(static_cast<int32_t>(
-      ext_rng_simulateIntegerUniformInRange(rng, left, right + 1)));
+    result.setSplitIndex(drawCutPosition(data, rng, variableIndex, left, right));
     // the missing direction is part of the rule, a symmetric coin drawn
     // only when the column can route a missing value - NA-free data spends
     // no extra generator draws

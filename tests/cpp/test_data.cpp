@@ -136,6 +136,24 @@ static void testColumnStoreView() {
           unevenSubset.numCuts == std::vector<std::uint32_t>{0, 25, 60},
         "a column-subset view carries both through the column map");
 
+  // a weighted grid rides a view with its weights, through the map too
+  std::vector<double> squares(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    squares[i] = x[i];
+    squares[i + n] = static_cast<double>((i % 5) * (i % 5));
+  }
+  ColumnStore weighted, weightedView, weightedSubset;
+  built(weighted.build(squares.data(), n, 2, 25));
+  weightedView.buildFromParent(weighted, rows.data(), rows.size(),
+                               testRows.data(), testRows.size());
+  const size_t second[] = {1};
+  weightedSubset.buildFromParent(weighted, rows.data(), rows.size(),
+                                 testRows.data(), testRows.size(), nullptr, 0,
+                                 second, 1);
+  check(weighted.cutsWeighted(1) && weightedView.cutMass == weighted.cutMass &&
+          weightedSubset.cutMass[0] == weighted.cutMass[1],
+        "a view carries a grid's weights, through the column map too");
+
   printf("ok: column store view\n");
 }
 
@@ -792,7 +810,8 @@ std::vector<double> gridColumns(size_t n) {
 // storage or the path - creation, a whole-data replacement, a refresh - and
 // a column whose values supply fewer points than asked holds fewer. The
 // 0/1 and the ordinary column's grids are the ones the fill computes with
-// nothing dropped.
+// nothing dropped; the five adjacent doubles hold a point in each gap, on
+// its lower value.
 static void testDistinctCutGrids() {
   const size_t n = 200;
   const std::uint32_t asked = 100;
@@ -802,12 +821,9 @@ static void testDistinctCutGrids() {
     double step = 0.7548776662466927 * static_cast<double>(i + 1);
     other[i] = step - std::floor(step);
   }
-  const std::uint32_t uniformCounts[numGridColumns] = { 5, 1, 1, 1, asked,
-                                                        asked };
-  const std::uint32_t quantileCounts[numGridColumns] = { 3, 1, 1, 1, 1, asked };
+  const std::uint32_t counts[numGridColumns] = { 4, 1, 1, 1, 1, asked };
 
   for (bool useQuantiles : { false, true }) {
-    const std::uint32_t* counts = useQuantiles ? quantileCounts : uniformCounts;
     const char* rule = useQuantiles ? "quantile" : "uniform";
     char line[160];
     ColumnStore created;
@@ -823,9 +839,15 @@ static void testDistinctCutGrids() {
              rule);
     check(distinct, line);
     snprintf(line, sizeof line,
-             "%s creation: 5 or 3 points over five adjacent doubles, one over "
-             "a single value or none, the asked count otherwise", rule);
+             "%s creation: 4 points over five adjacent doubles, one over a "
+             "single value, none or 0/1, the asked count otherwise", rule);
     check(counted, line);
+    bool onLower = created.cutPoints[narrowColumn].size() == 4;
+    for (size_t k = 0; k < 4 && onLower; ++k)
+      onLower = created.cutPoints[narrowColumn][k] == x[k];
+    snprintf(line, sizeof line,
+             "%s creation: an adjacent pair's point is its lower value", rule);
+    check(onLower && !created.cutsWeighted(narrowColumn), line);
     check(created.cutPoints[constantColumn][0] == 3.0 &&
             created.cutPoints[constantMissingColumn][0] == 3.0 &&
             created.cutPoints[allMissingColumn][0] == 0.0,
@@ -842,18 +864,15 @@ static void testDistinctCutGrids() {
         size_t index = (2 * static_cast<size_t>(k) + 1) * (n - 1) / (2 * asked);
         asFilled &= ordinary[k] == 0.5 * (sorted[index] + sorted[index + 1]);
       }
-      asFilled &= created.cutPoints[binaryColumn][0] == 0.5;
     } else {
       double lo = *std::min_element(values, values + n);
       double hi = *std::max_element(values, values + n);
       double increment = (hi - lo) / static_cast<double>(asked + 1);
-      for (std::uint32_t k = 0; k < asked; ++k) {
+      for (std::uint32_t k = 0; k < asked; ++k)
         asFilled &= ordinary[k] == lo + static_cast<double>(k + 1) * increment;
-        asFilled &= created.cutPoints[binaryColumn][k] ==
-          0.0 + static_cast<double>(k + 1) *
-            (1.0 / static_cast<double>(asked + 1));
-      }
     }
+    asFilled &= created.cutPoints[binaryColumn][0] == 0.5 &&
+                !created.cutsWeighted(binaryColumn);
     snprintf(line, sizeof line,
              "%s creation: the ordinary and the 0/1 grid are the fill's own",
              rule);
@@ -904,6 +923,112 @@ static void testDistinctCutGrids() {
   printf("ok: no derived cut grid repeats a point\n");
 }
 
+// The default rule's one cut per gap, weighted by width: the boundary at
+// fewer distinct values than asked, U running from n - 2 to n + 1 at n = 10;
+// weights the widths and none where the widths are equal; dense and CSC
+// alike; NaN and infinities not counted, -0 and 0 one value; the count asked
+// per column; overflowing widths; and four adjacent doubles, whose three
+// points sit on the lower values and leave four codes.
+static void testDefaultRuleWeightedGaps() {
+  const size_t n = 60;
+  const std::uint32_t asked = 10;
+  char line[160];
+  // U distinct values, squares so the widths differ
+  for (std::uint32_t numValues = asked - 2; numValues <= asked + 1;
+       ++numValues) {
+    std::vector<double> x(n);
+    for (size_t i = 0; i < n; ++i) {
+      double k = static_cast<double>(i % numValues);
+      x[i] = k * k;
+    }
+    ColumnStore store;
+    built(store.build(x.data(), n, 1, asked));
+    bool perGap = numValues < asked;
+    bool shaped = store.numCuts[0] == (perGap ? numValues - 1 : asked) &&
+                  store.cutsWeighted(0) == perGap;
+    for (std::uint32_t k = 0; perGap && k + 1 < numValues; ++k) {
+      double lo = static_cast<double>(k) * k, hi = (k + 1.0) * (k + 1.0);
+      shaped &= store.cutPoints[0][k] == 0.5 * (lo + hi) &&
+                store.cutWeight(0, static_cast<int32_t>(k)) == hi - lo;
+    }
+    OneCscColumn column(x.data(), n);
+    ColumnStore csc;
+    built(csc.build(column.source, nullptr, asked, false));
+    snprintf(line, sizeof line,
+             "%u values at %u asked: %s, CSC the same", numValues, asked,
+             perGap ? "a weighted cut per gap" : "the evenly spaced grid");
+    check(shaped && csc.cutPoints[0] == store.cutPoints[0] &&
+            csc.cutMass[0] == store.cutMass[0],
+          line);
+  }
+
+  // equal widths: integers, 0/1, and tenths whose widths differ by rounding
+  std::vector<double> even(3 * n);
+  for (size_t i = 0; i < n; ++i) {
+    even[i] = static_cast<double>(i % 6);
+    even[i + n] = static_cast<double>(i % 2);
+    even[i + 2 * n] = 0.1 * static_cast<double>(i % 7);
+  }
+  ColumnStore evenStore;
+  built(evenStore.build(even.data(), n, 3, asked));
+  check(evenStore.numCuts == std::vector<std::uint32_t>{5, 1, 6} &&
+          !evenStore.cutsWeighted(0) && !evenStore.cutsWeighted(1) &&
+          !evenStore.cutsWeighted(2),
+        "equal widths leave the cuts equally likely");
+
+  // what counts as a value, and the count asked per column
+  std::vector<double> odd(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    const double cycle[] = {0.0, -0.0, 1.0, 4.0, std::nan(""), HUGE_VAL,
+                            -HUGE_VAL};
+    odd[i] = cycle[i % 7];
+    odd[i + n] = static_cast<double>(i % 5) * (i % 5);
+  }
+  const std::uint32_t perColumn[] = {4, 5};
+  ColumnStore oddStore;
+  built(oddStore.build(odd.data(), n, 2, perColumn, false));
+  check(oddStore.cutPoints[0] == std::vector<double>{0.5, 2.5} &&
+          oddStore.cutWeight(0, 0) == 1.0 && oddStore.cutWeight(0, 1) == 3.0 &&
+          oddStore.numCuts[1] == 5 && !oddStore.cutsWeighted(1),
+        "NaN and infinities do not count, -0 and 0 are one value, and each "
+        "column counts to its own asked count");
+
+  // overflowing widths: the halves weigh the gaps
+  const double big = std::numeric_limits<double>::max();
+  std::vector<double> wide(n);
+  for (size_t i = 0; i < n; ++i)
+    wide[i] = i % 3 == 0 ? -big : (i % 3 == 1 ? 0.0 : big / 2.0);
+  ColumnStore wideStore;
+  built(wideStore.build(wide.data(), n, 1, asked));
+  check(wideStore.numCuts[0] == 2 && wideStore.cutsWeighted(0) &&
+          wideStore.cutWeight(0, 0) == big / 2.0 &&
+          wideStore.cutWeight(0, 1) == big / 4.0 &&
+          std::isfinite(wideStore.cutIntervalMass(0, 0, 1)) &&
+          wideStore.cutPoints[0][0] == -big / 2.0,
+        "overflowing widths weigh the gaps by their halves");
+
+  // four adjacent doubles: three points, on the lower values, four codes
+  double ulp = std::numeric_limits<double>::epsilon();
+  std::vector<double> narrow(n);
+  for (size_t i = 0; i < n; ++i)
+    narrow[i] = 1.0 + ulp * static_cast<double>(i % 4);
+  for (bool useQuantiles : { false, true }) {
+    ColumnStore narrowStore;
+    built(narrowStore.build(narrow.data(), n, 1, asked, useQuantiles));
+    bool fourCodes = true;
+    for (size_t i = 0; i < n; ++i)
+      fourCodes &= narrowStore.codeAt(0, i) == static_cast<xint_t>(i % 4);
+    check(narrowStore.cutPoints[0] ==
+              std::vector<double>{narrow[0], narrow[1], narrow[2]} &&
+            !narrowStore.cutsWeighted(0) && fourCodes,
+          useQuantiles ? "quantile rule: four adjacent doubles take three "
+                         "points on the lower values and four codes"
+                       : "uniform rule: four adjacent doubles take three "
+                         "points on the lower values and four codes");
+  }
+  printf("ok: default rule weighs one cut per gap\n");
+}
+
 // A refresh derives the grid a creation would for the values: the count the
 // column held - shorter, longer, or set by hand - does not enter, the
 // precheck passes any numeric column, and a column refreshed onto a single
@@ -917,7 +1042,7 @@ static void testRefreshDerivesAsCreation() {
     x[i] = step - std::floor(step);
     step = 0.7548776662466927 * static_cast<double>(i + 1);
     replacement[i] = step - std::floor(step);
-    few[i] = static_cast<double>(i % 6);
+    few[i] = static_cast<double>((i % 6) * (i % 6));  // widths 1, 3, ..., 9
   }
   std::vector<double> longer(50);
   for (size_t k = 0; k < longer.size(); ++k)
@@ -931,9 +1056,10 @@ static void testRefreshDerivesAsCreation() {
     built(onFew.build(few.data(), n, p, asked, useQuantiles));
     built(onOne.build(one.data(), n, p, asked, useQuantiles));
     check(onMany.numCuts[1] == asked && onOne.numCuts[1] == 1 &&
-            onFew.numCuts[1] == (useQuantiles ? 5u : asked),
+            onFew.numCuts[1] == 5u && !onMany.cutsWeighted(1) &&
+            onFew.cutsWeighted(1) == !useQuantiles,
           "creation: the asked count, one point over one value, and five "
-          "under the quantile rule over six values");
+          "over six values, weighted under the uniform rule");
 
     // from a grid set longer and shorter than the asked count
     for (std::uint32_t held : { 50u, 3u }) {
@@ -959,17 +1085,30 @@ static void testRefreshDerivesAsCreation() {
           "a refresh from one point derives creation's grid");
     store.setColumns(few.data() + n, &column, 1, true);
     check(store.cutPoints[1] == onFew.cutPoints[1] &&
-            store.numCuts[1] == onFew.numCuts[1],
-          "a refresh onto six values derives creation's grid");
+            store.numCuts[1] == onFew.numCuts[1] &&
+            store.cutMass[1] == onFew.cutMass[1],
+          "a refresh onto six values derives creation's grid and weights");
+    // without the refresh the grid and its weights are kept
+    store.setColumns(replacement.data() + n, &column, 1, false);
+    check(store.cutPoints[1] == onFew.cutPoints[1] &&
+            store.cutMass[1] == onFew.cutMass[1],
+          "an update that does not refresh keeps the grid and its weights");
+    ColumnStore replaced;
+    built(replaced.build(replacement.data(), n, p, asked, useQuantiles));
+    check(replaced.setData(few.data(), n) &&
+            replaced.cutPoints[1] == onFew.cutPoints[1] &&
+            replaced.cutMass[1] == onFew.cutMass[1],
+          "setData derives creation's grid and weights");
     store.setColumns(one.data() + n, &column, 1, true);
     check(store.cutPoints[1] == std::vector<double>{2.5} &&
-            store.numCuts[1] == 1,
-          "a refresh onto a single value leaves one point");
+            store.numCuts[1] == 1 && !store.cutsWeighted(1),
+          "a refresh onto a single value leaves one point, unweighted");
     store.setColumns(replacement.data() + n, &column, 1, true);
     bool sameCodes = true;
     for (size_t i = 0; i < n; ++i)
       sameCodes &= store.codeAt(1, i) == onMany.codeAt(1, i);
-    check(store.cutPoints[1] == onMany.cutPoints[1] && sameCodes,
+    check(store.cutPoints[1] == onMany.cutPoints[1] && sameCodes &&
+            !store.cutsWeighted(1),
           "and back onto many values, grid and codes are creation's");
     // without the refresh the grid is kept
     store.setColumns(few.data() + n, &column, 1, false);
@@ -2032,10 +2171,10 @@ void testColumnKindAxis() {
   check(!store.splitsBySubset(0) && store.splitsBySubset(1) &&
           !store.splitsBySubset(2),
         "only the categorical column splits by subset mask");
-  check(store.numCuts[0] == 10 && store.numCuts[1] == 0 &&
+  check(store.numCuts[0] == 6 && store.numCuts[1] == 0 &&
           store.numCuts[2] == numLevels - 1,
         "a categorical column carries no cut count, an ordered factor one per "
-        "level boundary");
+        "level boundary, the seven-value numeric one per gap");
   check(store.categoryCounts[0] == 0 &&
           store.categoryCounts[1] == declaredCategories &&
           store.categoryCounts[2] == numLevels,
@@ -3152,6 +3291,7 @@ void runDataTests() {
   testSetCutPointsOrphan();
   testRequestedCutCount();
   testDistinctCutGrids();
+  testDefaultRuleWeightedGaps();
   testRefreshDerivesAsCreation();
   testSplitPlacement();
   testQuantileCutPoints();

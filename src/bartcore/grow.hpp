@@ -256,8 +256,9 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
       continue;
     }
 
-    // P(rule): uniform over the ancestor-constrained interval, and over the two
-    // missing directions where the column carries them. The scan emits both
+    // P(rule): uniform over the ancestor-constrained interval, or by weight on
+    // a weighted column, and over the two missing directions where the column
+    // carries them. The scan emits both
     // directions of a cut exactly when the node's missing rows make them score
     // differently, so a candidate is ONE rule when it does and the whole pair
     // when it does not, and the mass follows: the halving
@@ -267,7 +268,8 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
     std::int32_t left, right;
     tree.splitInterval(data, nodeIndex, static_cast<std::int32_t>(j), &left,
                        &right);
-    double logCut = -std::log(static_cast<double>(right - left + 1));
+    double logCut = -std::log(data.cutIntervalMass(j, left, right));
+    const bool weighted = data.cutsWeighted(j);
 
     std::size_t numCuts = data.numCuts[j];
     // sized for the doubled layout unconditionally: the scan chooses its layout
@@ -284,12 +286,14 @@ void growTreeFromRoot(const ColumnStore& data, const CGMTreePrior& treePrior,
     if (routesMissing) splitBase -= std::log(2.0);
     for (std::size_t entry = 0; entry < numEmitted; ++entry) {
       if (scratch.cutLogLikelihood[entry] == cutScanEmptySentinel) continue;
-      scratch.candidateLogWeights.push_back(splitBase +
-                                            scratch.cutLogLikelihood[entry]);
-      scratch.candidateVariable.push_back(static_cast<std::int32_t>(j));
       // the doubled layout is (cut, direction) interleaved
-      scratch.candidateCut.push_back(
-        static_cast<std::int32_t>(routesMissing ? entry >> 1 : entry));
+      std::int32_t cut =
+        static_cast<std::int32_t>(routesMissing ? entry >> 1 : entry);
+      scratch.candidateLogWeights.push_back(
+        splitBase + scratch.cutLogLikelihood[entry] +
+        (weighted ? std::log(data.cutWeight(j, cut)) : 0.0));
+      scratch.candidateVariable.push_back(static_cast<std::int32_t>(j));
+      scratch.candidateCut.push_back(cut);
       scratch.candidateMissing.push_back(
         routesMissing ? static_cast<std::int8_t>(entry & std::size_t{1})
                       : std::int8_t{-1});

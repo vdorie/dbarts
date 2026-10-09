@@ -178,3 +178,65 @@ void makeMutationData(std::vector<double>& x, std::vector<double>& y,
     y[i] = 4.0 * (x[i] - 0.5) + 2.0 * x[i + n] + 0.2 * normal;
   }
 }
+
+std::vector<double> normalizedFromLogWeights(
+    const std::vector<double>& logWeights) {
+  double maxLogWeight = *std::max_element(logWeights.begin(), logWeights.end());
+  std::vector<double> probabilities(logWeights.size());
+  double sum = 0.0;
+  for (size_t i = 0; i < logWeights.size(); ++i) {
+    probabilities[i] = std::exp(logWeights[i] - maxLogWeight);
+    sum += probabilities[i];
+  }
+  for (double& probability : probabilities) probability /= sum;
+  return probabilities;
+}
+
+// Pearson goodness of fit against a fully specified law: df = cells - 1
+double chiSquareStatistic(const std::vector<double>& counts,
+                          const std::vector<double>& probabilities,
+                          double numDraws) {
+  double statistic = 0.0;
+  for (size_t i = 0; i < counts.size(); ++i) {
+    double expected = numDraws * probabilities[i];
+    double deviation = counts[i] - expected;
+    statistic += deviation * deviation / expected;
+  }
+  return statistic;
+}
+
+// Regularized upper incomplete gamma Q(a, x): the series for P below the
+// crossover, the Lentz continued fraction for Q above it. Coded here because
+// libR's own pchisq silently returns zero without an initialized R runtime,
+// which this standalone host is not; agrees with R's to 6 figures.
+static double upperIncompleteGamma(double a, double x) {
+  double logGammaA = std::lgamma(a);
+  if (x < a + 1.0) {
+    double term = 1.0 / a, sum = term;
+    for (int i = 1; i < 1000; ++i) {
+      term *= x / (a + i);
+      sum += term;
+      if (std::fabs(term) < std::fabs(sum) * 1e-16) break;
+    }
+    return 1.0 - sum * std::exp(-x + a * std::log(x) - logGammaA);
+  }
+  const double tiny = 1e-300;
+  double b = x + 1.0 - a, c = 1.0 / tiny, d = 1.0 / b, h = d;
+  for (int i = 1; i < 1000; ++i) {
+    double an = -i * (i - a);
+    b += 2.0;
+    d = an * d + b;
+    if (std::fabs(d) < tiny) d = tiny;
+    c = b + an / c;
+    if (std::fabs(c) < tiny) c = tiny;
+    d = 1.0 / d;
+    double delta = d * c;
+    h *= delta;
+    if (std::fabs(delta - 1.0) < 1e-16) break;
+  }
+  return h * std::exp(-x + a * std::log(x) - logGammaA);
+}
+
+double chiSquareUpperTail(double statistic, double df) {
+  return upperIncompleteGamma(0.5 * df, 0.5 * statistic);
+}

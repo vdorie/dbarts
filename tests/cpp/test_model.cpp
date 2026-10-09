@@ -1734,10 +1734,10 @@ static void testLinearLeafMarginal() {
               f.tree, f.z.data(), f.w.data(), f.k, f.sigmaSq, 0),
             1e-9, "q = 0 linear marginal equals the constant leaf's");
 
-  // children of a split at x1 ~ 0.5 (cut 50 of the uniform grid)
+  // children of a split at x1 ~ 0.5, the first cut at or above it
   Rule rule;
   rule.variableIndex = 0;
-  rule.setSplitIndex(50);
+  rule.setSplitIndex(static_cast<int32_t>(f.store.codeFor(0, 0.5)));
   f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
   int32_t leftChild = f.tree.at(0).leftChild;
   check(f.tree.at(leftChild).numObservations() == 4 &&
@@ -1819,7 +1819,7 @@ static void testLinearLeafDraw(ext_rng* rng) {
   // valid rule can empty a child of this fixture, so fabricate the range
   Rule rule;
   rule.variableIndex = 0;
-  rule.setSplitIndex(50);
+  rule.setSplitIndex(static_cast<int32_t>(f.store.codeFor(0, 0.5)));
   f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
   int32_t rightChild = f.tree.at(0).leftChild + 1;
   f.tree.at(rightChild).begin = f.tree.at(rightChild).end;
@@ -4970,10 +4970,10 @@ static void testGPLeafMarginal() {
   checkNear(heuristic2.lengthscales()[1], 0.94224419672838522, 1e-12,
             "median lengthscale, second covariate");
 
-  // children of a split at x1 ~ 0.5 (cut 50 of the uniform grid)
+  // children of a split at x1 ~ 0.5, the first cut at or above it
   Rule rule;
   rule.variableIndex = 0;
-  rule.setSplitIndex(50);
+  rule.setSplitIndex(static_cast<int32_t>(f.store.codeFor(0, 0.5)));
   f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
   int32_t leftChild = f.tree.at(0).leftChild;
   check(f.tree.at(leftChild).numObservations() == 4 &&
@@ -5214,7 +5214,7 @@ static void testGPLeafDraw(ext_rng* rng) {
   // an empty leaf writes no fits, consumes no draws, and predicts zero
   Rule rule;
   rule.variableIndex = 0;
-  rule.setSplitIndex(50);
+  rule.setSplitIndex(static_cast<int32_t>(f.store.codeFor(0, 0.5)));
   f.tree.birth(f.store, 0, rule, f.z.data(), f.w.data());
   int32_t rightChild = f.tree.at(0).leftChild + 1;
   f.tree.at(rightChild).begin = f.tree.at(rightChild).end;

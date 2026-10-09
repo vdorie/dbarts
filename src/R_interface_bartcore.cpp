@@ -7843,6 +7843,23 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
                 state.cutPoints[j].size() * sizeof(double));
   }
   setAttribByName(resultExpr, "cutPoints", cutPointsExpr);
+  // the grid's weights, one entry per column and NULL where the cut points are
+  // equally likely; absent where no column is weighted. An additive attribute
+  // under the registry rule: a state without it installs unweighted grids
+  if (!state.cutMass.empty()) {
+    SEXP cutMassExpr = PROTECT(Rf_allocVector(
+      VECSXP, static_cast<R_xlen_t>(state.cutMass.size())));
+    for (size_t j = 0; j < state.cutMass.size(); ++j) {
+      if (state.cutMass[j].empty()) continue;
+      SEXP massExpr = Rf_allocVector(
+        REALSXP, static_cast<R_xlen_t>(state.cutMass[j].size()));
+      SET_VECTOR_ELT(cutMassExpr, static_cast<R_xlen_t>(j), massExpr);
+      std::memcpy(REAL(massExpr), state.cutMass[j].data(),
+                  state.cutMass[j].size() * sizeof(double));
+    }
+    setAttribByName(resultExpr, "cutMass", cutMassExpr);
+    UNPROTECT(1);
+  }
   setAttribByName(resultExpr, "currentSampleNum",
                   Rf_ScalarInteger(static_cast<int>(state.currentSampleNum)));
   // the cursor alone does not say how much of the ring is real; both travel
@@ -7959,6 +7976,39 @@ static const char* repeatedCutRefusal(const double* cuts, R_xlen_t numCuts,
                     static_cast<unsigned long>(column + 1), what, cuts[k]);
       return message;
     }
+  return NULL;
+}
+
+/// Reads a state's "cutMass" attribute into \p state, whose cut points are
+/// read: one entry per column, NULL or a column's numCuts + 1 finite values
+/// strictly increasing (bartcore::cutMassIsValid). The refusal names the
+/// column, counted from one; NULL on success. The buffer is static, as in
+/// repeatedCutRefusal.
+static const char* readStateCutMass(SEXP cutMassExpr,
+                                    bartcore::SamplerStateData& state) {
+  static char message[192];
+  size_t numPredictors = state.cutPoints.size();
+  if (TYPEOF(cutMassExpr) != VECSXP ||
+      static_cast<size_t>(Rf_xlength(cutMassExpr)) != numPredictors)
+    return "malformed cut weights in bartcore state";
+  state.cutMass.assign(numPredictors, std::vector<double>());
+  for (size_t j = 0; j < numPredictors; ++j) {
+    SEXP massExpr = VECTOR_ELT(cutMassExpr, static_cast<R_xlen_t>(j));
+    if (Rf_isNull(massExpr)) continue;
+    if (Rf_isReal(massExpr))
+      state.cutMass[j].assign(REAL(massExpr),
+                              REAL(massExpr) + Rf_xlength(massExpr));
+    if (!Rf_isReal(massExpr) || state.cutPoints[j].empty() ||
+        !bartcore::cutMassIsValid(state.cutMass[j],
+                                  state.cutPoints[j].size())) {
+      std::snprintf(message, sizeof message,
+                    "cut weights of column %lu in bartcore state are not %lu "
+                    "finite values strictly increasing",
+                    static_cast<unsigned long>(j + 1),
+                    static_cast<unsigned long>(state.cutPoints[j].size() + 1));
+      return message;
+    }
+  }
   return NULL;
 }
 
@@ -8091,6 +8141,10 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
         REAL(cutsExpr), REAL(cutsExpr) + Rf_xlength(cutsExpr));
     }
   }
+
+  SEXP cutMassExpr = Rf_getAttrib(stateExpr, Rf_install("cutMass"));
+  if (errorMessage == NULL && !Rf_isNull(cutMassExpr))
+    errorMessage = readStateCutMass(cutMassExpr, state);
 
   SEXP sampleNumExpr =
     PROTECT(Rf_getAttrib(stateExpr, Rf_install("currentSampleNum")));

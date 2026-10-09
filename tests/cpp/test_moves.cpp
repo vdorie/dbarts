@@ -826,7 +826,7 @@ static void testRefreshCountChange() {
             splitsOnColumn(*f.sampler, 0) == before.splits,
           "refresh by position: an unchanged count keeps every position");
   }
-  {  // a shrink to five points, unforced: a split rescaled onto the last
+  {  // a shrink to four points, unforced: a split rescaled onto the last
      // point sends every row left, so the transaction rolls back whole
     RefreshFixture f;
     for (size_t i = 0; i < n; ++i)
@@ -839,12 +839,13 @@ static void testRefreshCountChange() {
     check(f.unchangedFrom(before),
           "refresh by position: the rollback restores points, counts, codes "
           "and every split");
-    // forced: five points, every split on them inside its interval
+    // forced: four points, one per gap of the five values, every split on
+    // them inside its interval
     check(f.sampler->updatePredictor(narrow.data(), &column, 1, true, true) ==
             PredictorUpdateResult::accepted &&
-            f.sampler->data().numCuts[0] == 5 &&
-            f.sampler->data().cutPoints[0].size() == 5,
-          "refresh by position: a forced shrink leaves the five points");
+            f.sampler->data().numCuts[0] == 4 &&
+            f.sampler->data().cutPoints[0].size() == 4,
+          "refresh by position: a forced shrink leaves the four points");
     check(splitsStand(*f.sampler, 0),
           "refresh by position: no split past the shorter grid or outside "
           "its interval, no empty leaf");
@@ -3089,6 +3090,128 @@ static void testRuleGibbsMove() {
          static_cast<int>(states.size()), worstIdentity, chiSquare, numSteps);
 }
 
+// The weighted kernels against the exact posterior. A root and its left child
+// split, the shape fixed, over a column whose four values 0, 1, 3 and 10 put
+// its three cuts at weights 1, 2 and 7 and a column of four equally spaced
+// values that stays unweighted. Every state of the shape is enumerated and
+// scored by the prior and the branch's likelihood; change alone, and change
+// beside perturb, rule_gibbs or swap, must each realize that posterior. A
+// weight dropped from a draw, a count or a ratio moves the realized law by far
+// more than the test's tolerance: a cut's prior weight is 0.1 against 0.7.
+static void testWeightedCutKernels() {
+  const size_t n = 160;
+  const double values0[] = {0.0, 1.0, 3.0, 10.0};
+  std::vector<double> x(2 * n), y(n);
+  std::uint64_t generator = 20261009u;
+  for (size_t i = 0; i < n; ++i) {
+    generator = generator * 6364136223846793005ull + 1442695040888963407ull;
+    x[i] = values0[i % 4];
+    x[i + n] = static_cast<double>((i / 4) % 4);
+    y[i] = 0.4 * static_cast<double>((generator >> 11) & 0xffff) / 65536.0 +
+           (i % 4 == 3 ? 0.15 : 0.0);
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, 2, 100u, false));
+  check(store.numCuts[0] == 3 && store.cutsWeighted(0) &&
+          store.cutWeight(0, 0) == 1.0 && store.cutWeight(0, 1) == 2.0 &&
+          store.cutWeight(0, 2) == 7.0 && store.numCuts[1] == 3 &&
+          !store.cutsWeighted(1),
+        "weighted kernels fixture: cuts weighted 1, 2, 7 and an even column");
+
+  std::vector<double> ones(n, 1.0);
+  MoveScratch scratch;
+  CGMTreePrior prior;
+  ConstantGaussianLeaf constant{0.7};
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  const double sigma = 0.3;
+  auto install = [&](const int32_t* state) {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), ones.data());
+    Rule rule;
+    rule.variableIndex = state[0];
+    rule.setSplitIndex(state[1]);
+    tree.birth(store, 0, rule, y.data(), ones.data());
+    rule.variableIndex = state[2];
+    rule.setSplitIndex(state[3]);
+    tree.birth(store, tree.at(0).leftChild, rule, y.data(), ones.data());
+  };
+
+  // every rule pair the shape admits, and its log posterior
+  MoveContext ctx{store, prior, 0.0, 0.0, 0.0, 0.0, 0.5, ones.data(), 2.0,
+                  scratch};
+  std::vector<std::array<int32_t, 4>> states;
+  std::vector<double> logPosterior;
+  for (int32_t v = 0; v < 2; ++v)
+    for (int32_t c = 0; c < 3; ++c)
+      for (int32_t w = 0; w < 2; ++w)
+        for (int32_t d = 0; d < (w == v ? c : 3); ++d) {
+          std::array<int32_t, 4> state = {v, c, w, d};
+          install(state.data());
+          BranchScore score =
+            logLikelihoodForBranch(ctx, constant, tree, 0, y.data(), sigma);
+          check(!score.empty, "no state of the shape empties a leaf");
+          states.push_back(state);
+          logPosterior.push_back(prior.treeLogProbability(tree, store) +
+                                 score.logLikelihood);
+        }
+  std::vector<double> exact = normalizedFromLogWeights(logPosterior);
+  auto stateOf = [&]() {
+    const Rule& root(tree.at(0).rule);
+    const Rule& child(tree.at(tree.at(0).leftChild).rule);
+    for (size_t s = 0; s < states.size(); ++s)
+      if (states[s][0] == root.variableIndex &&
+          states[s][1] == root.splitIndex() &&
+          states[s][2] == child.variableIndex &&
+          states[s][3] == child.splitIndex())
+        return s;
+    return states.size();
+  };
+
+  struct Mixture {
+    const char* name;
+    double swap, perturb, ruleGibbs;
+  };
+  const Mixture mixtures[] = {{"change", 0.0, 0.0, 0.0},
+                              {"perturb", 0.0, 0.7, 0.0},
+                              {"rule_gibbs", 0.0, 0.0, 0.7},
+                              {"swap", 0.7, 0.0, 0.0}};
+  const size_t numRecords = 20000, thin = 64;
+  double worst = 1.0;
+  for (const Mixture& mixture : mixtures) {
+    MoveContext walk{store, prior, 0.0, mixture.swap, mixture.perturb,
+                     mixture.ruleGibbs, 0.5, ones.data(), 2.0, scratch};
+    install(states[0].data());
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261009u);
+    std::vector<double> counts(states.size(), 0.0);
+    bool inShape = true;
+    for (size_t record = 0; record < numRecords; ++record) {
+      for (size_t step = 0; step < thin; ++step) {
+        bool stepTaken = false;
+        StepType stepType = StepType::change;
+        metropolisJumpForTree(walk, constant, rng, tree, y.data(), sigma,
+                              &stepTaken, &stepType);
+      }
+      size_t s = stateOf();
+      inShape &= s < states.size();
+      if (s < states.size()) counts[s] += 1.0;
+    }
+    ext_rng_destroy(rng);
+    double pValue = chiSquareUpperTail(
+      chiSquareStatistic(counts, exact, static_cast<double>(numRecords)),
+      static_cast<double>(states.size() - 1));
+    char line[160];
+    snprintf(line, sizeof line,
+             "%s on a weighted column realizes the exact posterior (p %.3g)",
+             mixture.name, pValue);
+    check(inShape && pValue > 1e-3, line);
+    if (pValue < worst) worst = pValue;
+  }
+  printf("ok: weighted kernels (%d states, four mixtures, smallest p %.3g)\n",
+         static_cast<int>(states.size()), worst);
+}
+
 // Cross-implementation oracle for the revalidation path's in-place dense root
 // (Tree::repartitionSubtree): after a predictor update, the leaf MEMBERSHIP
 // the in-place root produces must equal the membership the identity rewrite
@@ -3254,4 +3377,5 @@ void runMovesTests(ext_rng* rng) {
   testMoveValidityPredicates();
   testPerturbMove();
   testRuleGibbsMove();
+  testWeightedCutKernels();
 }

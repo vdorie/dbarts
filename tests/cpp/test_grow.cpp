@@ -575,68 +575,6 @@ double fixtureUniform(std::uint64_t& state) {
          (1.0 / 9007199254740992.0);
 }
 
-std::vector<double> normalizedFromLogWeights(
-    const std::vector<double>& logWeights) {
-  double maxLogWeight = *std::max_element(logWeights.begin(), logWeights.end());
-  std::vector<double> probabilities(logWeights.size());
-  double sum = 0.0;
-  for (size_t i = 0; i < logWeights.size(); ++i) {
-    probabilities[i] = std::exp(logWeights[i] - maxLogWeight);
-    sum += probabilities[i];
-  }
-  for (double& probability : probabilities) probability /= sum;
-  return probabilities;
-}
-
-// Pearson goodness of fit against a fully specified law: df = cells - 1
-double chiSquareStatistic(const std::vector<double>& counts,
-                          const std::vector<double>& probabilities,
-                          double numDraws) {
-  double statistic = 0.0;
-  for (size_t i = 0; i < counts.size(); ++i) {
-    double expected = numDraws * probabilities[i];
-    double deviation = counts[i] - expected;
-    statistic += deviation * deviation / expected;
-  }
-  return statistic;
-}
-
-// Regularized upper incomplete gamma Q(a, x): the series for P below the
-// crossover, the Lentz continued fraction for Q above it. Coded here because
-// libR's own pchisq silently returns zero without an initialized R runtime,
-// which this standalone host is not; agrees with R's to 6 figures.
-double upperIncompleteGamma(double a, double x) {
-  double logGammaA = std::lgamma(a);
-  if (x < a + 1.0) {
-    double term = 1.0 / a, sum = term;
-    for (int i = 1; i < 1000; ++i) {
-      term *= x / (a + i);
-      sum += term;
-      if (std::fabs(term) < std::fabs(sum) * 1e-16) break;
-    }
-    return 1.0 - sum * std::exp(-x + a * std::log(x) - logGammaA);
-  }
-  const double tiny = 1e-300;
-  double b = x + 1.0 - a, c = 1.0 / tiny, d = 1.0 / b, h = d;
-  for (int i = 1; i < 1000; ++i) {
-    double an = -i * (i - a);
-    b += 2.0;
-    d = an * d + b;
-    if (std::fabs(d) < tiny) d = tiny;
-    c = b + an / c;
-    if (std::fabs(c) < tiny) c = tiny;
-    d = 1.0 / d;
-    double delta = d * c;
-    h *= delta;
-    if (std::fabs(delta - 1.0) < 1e-16) break;
-  }
-  return h * std::exp(-x + a * std::log(x) - logGammaA);
-}
-
-double chiSquareUpperTail(double statistic, double df) {
-  return upperIncompleteGamma(0.5 * df, 0.5 * statistic);
-}
-
 double totalVariation(const std::vector<double>& p,
                       const std::vector<double>& q) {
   double distance = 0.0;
@@ -1584,9 +1522,11 @@ void testConditionalLawBelowRoot() {
   }
 
   ColumnStore store;
-  built(store.build(x.data(), n, 2, 4));  // a four-cut grid, so every cell is measurable
-  check(store.numCuts[0] == 4 && store.numCuts[1] == 4,
-        "the conditional fixture carries four cuts per column");
+  // four cuts asked: one on the 0/1 column, and four, every cell measurable,
+  // on the five-value one
+  built(store.build(x.data(), n, 2, 4));
+  check(store.numCuts[0] == 1 && store.numCuts[1] == 4,
+        "the conditional fixture carries one cut on column 0, four on 1");
 
   std::vector<index_t> indexBuffer(n);
   Tree tree;
@@ -1697,6 +1637,81 @@ void testConditionalLawBelowRoot() {
   printf("ok: grow conditional law below the root\n");
 }
 
+// Grow-from-root's root draw on a weighted column: each cut's prior is its
+// weight over the sum, so the realized root rules follow the exact law with
+// log w_c - log W in each candidate and not the uniform one.
+void testWeightedGrowLaw() {
+  const size_t n = 80, numDraws = 40000;
+  const double k = 2.0, sigma = 0.9, alpha = 1e-3;
+  const double values[] = {0.0, 1.0, 3.0, 10.0};  // widths 1, 2, 7
+  std::vector<double> x(n), y(n);
+  std::uint64_t generator = 20261009u;
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = values[i % 4];
+    y[i] = 0.5 * (2.0 * fixtureUniform(generator) - 1.0);  // no signal
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, 1, 100));
+  check(store.numCuts[0] == 3 && store.cutsWeighted(0),
+        "the grow fixture's column holds three weighted cuts");
+
+  CGMTreePrior prior;
+  ConstantGaussianLeaf leaf{0.5};
+  auto marginal = [&](const ConstantLeafScanBin& bin) {
+    return leaf.logIntegratedLikelihood(k, sigma * sigma, bin.sumWeights,
+                                        bin.sumWeightedResponse);
+  };
+  std::vector<ConstantLeafScanBin> bins(4);
+  ConstantLeafScanBin total;
+  for (size_t i = 0; i < n; ++i) {
+    bins[store.codeAt(0, i)].addObservation(1.0, y[i]);
+    total.addObservation(1.0, y[i]);
+  }
+  std::vector<double> logExact(4), logUniform(4);
+  logExact[0] = logUniform[0] = std::log(1.0 - 0.95) + marginal(total);
+  ConstantLeafScanBin left;
+  for (size_t cut = 0; cut < 3; ++cut) {
+    left.addBin(bins[cut]);
+    ConstantLeafScanBin right;
+    right.count = total.count - left.count;
+    right.sumWeights = total.sumWeights - left.sumWeights;
+    right.sumWeightedResponse =
+      total.sumWeightedResponse - left.sumWeightedResponse;
+    double base = std::log(0.95) + marginal(left) + marginal(right);
+    logExact[1 + cut] =
+      base + std::log(store.cutWeight(0, static_cast<int32_t>(cut)) / 10.0);
+    logUniform[1 + cut] = base - std::log(3.0);
+  }
+  std::vector<double> exact(normalizedFromLogWeights(logExact));
+  std::vector<double> uniform(normalizedFromLogWeights(logUniform));
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  GrowScratch scratch;
+  std::vector<double> realized(4, 0.0);
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 20261009u);
+  for (size_t draw = 0; draw < numDraws; ++draw) {
+    tree.initialize(indexBuffer.data(), n);
+    tree.computeLeafStats(0, y.data(), nullptr);
+    growTreeFromRoot(store, prior, leaf, rng, tree, 0, y.data(), nullptr, k,
+                     sigma, scratch);
+    realized[tree.at(0).isBottom()
+               ? 0
+               : 1 + static_cast<size_t>(tree.at(0).rule.splitIndex())] += 1.0;
+  }
+  ext_rng_destroy(rng);
+  double count = static_cast<double>(numDraws);
+  double vsExact =
+    chiSquareUpperTail(chiSquareStatistic(realized, exact, count), 3.0);
+  double vsUniform =
+    chiSquareUpperTail(chiSquareStatistic(realized, uniform, count), 3.0);
+  check(vsExact >= alpha && vsUniform < alpha,
+        "grown root rules follow the weighted law, not the uniform one");
+  printf("ok: grow on a weighted column (p %.3g exact, %.3g uniform)\n",
+         vsExact, vsUniform);
+}
+
 }  // namespace
 
 void runGrowTests(ext_rng* rng) {
@@ -1715,4 +1730,5 @@ void runGrowTests(ext_rng* rng) {
   testCategoricalGrowGaugeAndCoins();
   testCategoricalGrowHonorsInteraction();
   testConditionalLawBelowRoot();
+  testWeightedGrowLaw();
 }

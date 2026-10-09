@@ -299,6 +299,16 @@ constexpr double forestCacheGapBound = 50.0;
 void beginPrintCapture(std::string& sink);
 void endPrintCapture();
 
+// Law checks shared by the suites (common.cpp): probabilities from log
+// weights, Pearson's statistic against a fully specified law of
+// probabilities over counts, and its chi-square upper tail.
+std::vector<double> normalizedFromLogWeights(
+  const std::vector<double>& logWeights);
+double chiSquareStatistic(const std::vector<double>& counts,
+                          const std::vector<double>& probabilities,
+                          double numDraws);
+double chiSquareUpperTail(double statistic, double df);
+
 // One entry point per translation unit, called from main() in original
 // test order; each runs its area's tests, filtered by suite name there.
 void runDataTests();

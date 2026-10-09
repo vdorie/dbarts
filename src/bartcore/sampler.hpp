@@ -92,6 +92,10 @@ enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 struct SamplerStateData {
   std::vector<ChainStateData> chains;
   std::vector<std::vector<double>> cutPoints;  // empty vector per categorical column
+  // the grid's weights (ColumnStore::cutMass), empty per unweighted column;
+  // the whole vector empty where none is weighted, as a state stored without
+  // weights reads
+  std::vector<std::vector<double>> cutMass;
   size_t currentSampleNum = 0;
   /// Recorded draws the store retains, capped at its capacity. Required: it
   /// cannot be inferred from the buffer, whose unwritten slots hold zero-leaf
@@ -1093,13 +1097,18 @@ public:
   // State serialization: getState captures everything needed to reconstruct
   // the sampler's posterior state in a fresh instance over the same data;
   // setState validates every chain against the state's cut points before
-  // touching anything, so failure leaves the sampler unchanged.
+  // touching anything, so failure leaves the sampler unchanged. The grid's
+  // weights travel with it: a state installs the weights it carries, and one
+  // carrying none leaves every grid it installs unweighted.
 
   void getState(SamplerStateData& state) {
     state.chains.resize(chains_.size());
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->getState(state.chains[c]);
     state.cutPoints = data_.cutPoints;
+    state.cutMass.clear();
+    for (size_t j = 0; j < data_.numPredictors && state.cutMass.empty(); ++j)
+      if (data_.cutsWeighted(j)) state.cutMass = data_.cutMass;
     state.currentSampleNum = currentSampleNum_;
     state.recordedDraws = recordedDraws_;
   }
@@ -1181,11 +1190,18 @@ public:
     bool installAltered = false;
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
+    bool stateWeighted = !state.cutMass.empty();
+    if (stateWeighted && state.cutMass.size() != data_.numPredictors)
+      return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.splitsBySubset(j)) {
         if (!state.cutPoints[j].empty()) return false;
+        if (stateWeighted && !state.cutMass[j].empty()) return false;
       } else if (!cutGridIsValid(state.cutPoints[j].data(),
-                                 state.cutPoints[j].size())) {
+                                 state.cutPoints[j].size()) ||
+                 (stateWeighted &&
+                  !cutMassIsValid(state.cutMass[j],
+                                  state.cutPoints[j].size()))) {
         return false;
       }
     }
@@ -1216,6 +1232,7 @@ public:
     // defined against them
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
     std::vector<std::uint32_t> oldNumCuts(data_.numCuts);
+    std::vector<std::vector<double>> oldCutMass(data_.cutMass);
     std::vector<xint_t> oldCodes(data_.train.codes);
     std::vector<xint_t> oldTestCodes(data_.test.codes);
     // rank columns re-quantize into their own storage, not codes; a rank-backed
@@ -1225,13 +1242,22 @@ public:
     std::vector<SparseColumnData> oldTestSparseColumns(data_.test.sparseColumns);
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.splitsBySubset(j)) continue;
+      const double* mass = stateWeighted && !state.cutMass[j].empty()
+        ? state.cutMass[j].data() : nullptr;
       // a restored grid equal to the live one leaves the codes already correct
-      // (the continuation contract), so skip its re-quantization and its raw
-      if (state.cutPoints[j] == data_.cutPoints[j]) continue;
+      // (the continuation contract), so skip its re-quantization and its raw;
+      // its weights are the state's either way
+      if (state.cutPoints[j] == data_.cutPoints[j]) {
+        if (mass != nullptr)
+          data_.cutMass[j] = state.cutMass[j];
+        else
+          data_.cutMass[j].clear();
+        continue;
+      }
       data_.setCutPointsForColumn(j, state.cutPoints[j].data(),
                                   static_cast<std::uint32_t>(
                                     state.cutPoints[j].size()),
-                                  currentPredictors);
+                                  currentPredictors, mass);
     }
 
     // containment first, validity second: both judge the state against the grid
@@ -1261,6 +1287,7 @@ public:
     auto restoreGrid = [&]() {
       data_.cutPoints = std::move(oldCutPoints);
       data_.numCuts = std::move(oldNumCuts);
+      data_.cutMass = std::move(oldCutMass);
       data_.train.codes = std::move(oldCodes);
       data_.test.codes = std::move(oldTestCodes);
       data_.train.sparseColumns = std::move(oldSparseColumns);
@@ -1914,7 +1941,8 @@ public:
   }
 
   /// Install externally chosen cut points (strictly increasing) for a subset
-  /// of columns and unconditionally refresh the trees: each split on a named
+  /// of columns, unweighted unless a column is handed back the grid it holds,
+  /// and unconditionally refresh the trees: each split on a named
   /// column goes where placement says (splitsToMove), and one whose interval
   /// empties or that loses its observations collapses into its parent,
   /// exactly as in a forced predictor update.
@@ -1929,9 +1957,19 @@ public:
     for (size_t k = 0; k < numColumns; ++k)
       if (oldCutPoints[columns[k]].empty())
         oldCutPoints[columns[k]] = data_.cutPoints[columns[k]];
-    for (size_t k = 0; k < numColumns; ++k)
-      data_.setCutPointsForColumn(columns[k], newCutPoints[k], numCutPoints[k],
-                                  currentPredictors);
+    // a grid other than the one the column holds goes in unweighted; the held
+    // grid, handed back bit for bit, keeps its weights, so the call is a no-op
+    for (size_t k = 0; k < numColumns; ++k) {
+      size_t j = columns[k];
+      bool held = numCutPoints[k] == data_.numCuts[j] &&
+        std::memcmp(newCutPoints[k], data_.cutPoints[j].data(),
+                    numCutPoints[k] * sizeof(double)) == 0;
+      std::vector<double> mass;
+      if (held) mass = data_.cutMass[j];
+      data_.setCutPointsForColumn(j, newCutPoints[k], numCutPoints[k],
+                                  currentPredictors,
+                                  mass.empty() ? nullptr : mass.data());
+    }
     const std::vector<std::vector<double>>* moved =
       splitsToMove(oldCutPoints, placement);
     for (auto& chain : chains_) chain->forceRefreshTrees(moved, placement);
@@ -2290,6 +2328,7 @@ private:
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
     std::vector<std::uint32_t> oldNumCuts;
+    std::vector<std::vector<double>> oldCutMass;
     // CSC/mixed rollback: a sparse column's storage lives outside train.codes
     // (rank bitmaps in sparseColumns, the borrowed/owned slice in sources, the
     // mutation-owned nonzero buffers), so snapshot it alongside the codes when
@@ -2313,6 +2352,7 @@ private:
         // a refreshed grid may hold another count than the one it replaces
         oldCuts = data.cutPoints;
         oldNumCuts = data.numCuts;
+        oldCutMass = data.cutMass;
       }
       csc = data.builtFromCsc;
       if (csc) {
@@ -2330,6 +2370,7 @@ private:
       if (updateCuts) {
         data.cutPoints = std::move(oldCuts);
         data.numCuts = std::move(oldNumCuts);
+        data.cutMass = std::move(oldCutMass);
       }
       if (csc) {
         data.train.sparseColumns = std::move(oldSparseColumns);
@@ -2354,6 +2395,7 @@ private:
     std::vector<std::uint8_t> oldHasMissing;
     std::vector<std::vector<double>> oldCuts;
     std::vector<std::uint32_t> oldNumCuts;
+    std::vector<std::vector<double>> oldCutMass;
     std::vector<ColumnStore::ColumnCodeRollback> records;
     // CSC-backed columns of the subset snapshot their sparse storage here
     // instead of the dense per-cell journal (which has no codes[] to journal
@@ -2373,6 +2415,7 @@ private:
       oldHasMissing.resize(count);
       oldCuts.resize(updateCuts ? count : 0);
       oldNumCuts.resize(updateCuts ? count : 0);
+      oldCutMass.resize(updateCuts ? count : 0);
       records.resize(count);
       cscRecords.resize(count);
       for (size_t k = 0; k < count; ++k) {
@@ -2381,6 +2424,7 @@ private:
         if (updateCuts) {
           oldCuts[k] = data.cutPoints[j];
           oldNumCuts[k] = data.numCuts[j];
+          oldCutMass[k] = data.cutMass[j];
         }
         bool csc = data.columnIsCscBacked(j);
         if (csc) data.snapshotCscColumn(j, cscRecords[k]);
@@ -2402,6 +2446,7 @@ private:
         if (updateCuts) {
           data.cutPoints[j] = std::move(oldCuts[k]);
           data.numCuts[j] = oldNumCuts[k];
+          data.cutMass[j] = std::move(oldCutMass[k]);
         }
       }
     }

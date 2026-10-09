@@ -115,6 +115,18 @@ inline bool cutGridIsValid(const double* cuts, size_t numCuts) {
   return true;
 }
 
+/// Whether \p mass can weigh a grid of numCuts points (ColumnStore::cutMass):
+/// empty, the points equally likely, or numCuts + 1 finite values strictly
+/// increasing, so every weight and every sum of them is finite and positive.
+inline bool cutMassIsValid(const std::vector<double>& mass, size_t numCuts) {
+  if (mass.empty()) return true;
+  if (mass.size() != numCuts + 1 || !std::isfinite(mass[0])) return false;
+  for (size_t k = 1; k < mass.size(); ++k)
+    if (!(mass[k] > mass[k - 1]) || !std::isfinite(mass[k] - mass[0]))
+      return false;
+  return true;
+}
+
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
 /// int32 level codes. Exactly one channel is present, so isCoded discriminates
 /// and at() serves either - a code widens, and naDenseCode becomes the NaN
@@ -826,6 +838,15 @@ struct ColumnStore {
   bool hasSparse = false;
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::uint32_t> numCuts;
+  // per column, empty where the cut points are equally likely, else
+  // numCuts[j] + 1 strictly increasing finite values whose successive
+  // differences are the cut points' relative weights, cut k weighing
+  // cutMass[j][k + 1] - cutMass[j][k]. Any increasing sequence with those
+  // differences serves; the default rule stores its distinct values, so each
+  // weight and each span's sum is one exact difference that never rounds to
+  // zero. Written only with the grid it belongs to, and saved and restored
+  // with it wherever a grid is.
+  std::vector<std::vector<double>> cutMass;
   // per column, the level count K of a FACTOR column (either kind), 0 for a
   // numeric one. Fixed once built: every mask tier, every reserved missing
   // code and every category histogram width derives from it, so it is the one
@@ -855,6 +876,32 @@ struct ColumnStore {
   /// kind, so a kind that splits by threshold needs no site of its own.
   bool splitsBySubset(size_t j) const { return kindSplitsBySubset(types[j]); }
   bool splitsByThreshold(size_t j) const { return !splitsBySubset(j); }
+
+  /// Whether column j's cut points carry weights (cutMass).
+  bool cutsWeighted(size_t j) const { return !cutMass[j].empty(); }
+
+  /// The summed weight of cut positions [a, b] of column j, the count when
+  /// its cuts are equally likely. Requires a <= b.
+  double cutIntervalMass(size_t j, int32_t a, int32_t b) const {
+    if (cutMass[j].empty()) return static_cast<double>(b - a + 1);
+    return cutMass[j][static_cast<size_t>(b) + 1] -
+           cutMass[j][static_cast<size_t>(a)];
+  }
+
+  /// The weight of cut position k of weighted column j.
+  double cutWeight(size_t j, int32_t k) const {
+    return cutMass[j][static_cast<size_t>(k) + 1] -
+           cutMass[j][static_cast<size_t>(k)];
+  }
+
+  /// The position in [a, b] of weighted column j whose span of cutMass holds
+  /// \p target, for a target in [cutMass[j][a], cutMass[j][b + 1]); a target
+  /// rounded onto either end stays inside [a, b].
+  int32_t cutAtMass(size_t j, int32_t a, int32_t b, double target) const {
+    const double* mass = cutMass[j].data();
+    const double* hit = std::upper_bound(mass + a + 1, mass + b + 1, target);
+    return static_cast<int32_t>(hit - mass) - 1;
+  }
 
   /// The semantic axis, where the two factor kinds behave alike: their cells
   /// are level codes of a fixed table rather than measurements, so their grid
@@ -1142,8 +1189,11 @@ struct ColumnStore {
   /// floor((2k + 1) M / (2c)) for c = numCuts[j], the centre of the k-th of c
   /// equal shares of the midpoints. The cuts ascend and leave at most
   /// floor(M / (2c)) + 1 distinct values beyond either end cut; at c == M they
-  /// are every midpoint in order. Two midpoints that round to one double are
-  /// kept once, numCuts[j] falling with them. Requires c <= M, which the
+  /// are every midpoint in order. Where the midpoint of two neighbouring
+  /// values is not strictly below the upper one and at least the lower (two
+  /// adjacent doubles, or a sum that overflows), the cut is the lower value,
+  /// which a row at it does not exceed, so each gap keeps a cut separating
+  /// its two values and the cuts strictly ascend. Requires c <= M, which the
   /// induced count satisfies.
   void fillCutsFromQuantileGrid(size_t j, const QuantileGrid& grid) {
     cutPoints[j].resize(numCuts[j]);
@@ -1160,8 +1210,10 @@ struct ColumnStore {
     for (std::uint32_t k = 0; k < numCuts[j]; ++k) {
       size_t index = static_cast<size_t>(
         (2 * static_cast<std::uint64_t>(k) + 1) * numMidpoints / twiceCount);
-      cutPoints[j][k] =
-        0.5 * (grid.sortedUnique[index] + grid.sortedUnique[index + 1]);
+      double lower = grid.sortedUnique[index];
+      double upper = grid.sortedUnique[index + 1];
+      double midpoint = 0.5 * (lower + upper);
+      cutPoints[j][k] = midpoint >= lower && midpoint < upper ? midpoint : lower;
     }
     dropRepeatedCuts(j);
   }
@@ -1352,18 +1404,118 @@ struct ColumnStore {
   /// range narrower than the uniform rule's points resolve or with few
   /// distinct values under the quantile rule, and one over a single value or
   /// none.
+  ///
+  /// The uniform rule, on a column with at least two and fewer than
+  /// requestedNumCuts[j] distinct finite values, places one cut in each gap
+  /// between neighbouring values, the quantile rule's grid for the same
+  /// values, each weighted by the gap's width (weighGapsByWidth); otherwise
+  /// it places its evenly spaced points, equally likely.
   void deriveNumericCuts(size_t j, const double* values) {
+    cutMass[j].clear();
     if (useQuantiles) {
       QuantileGrid grid = values == nullptr
         ? quantileGridForCscColumn(j, requestedNumCuts[j])
         : quantileGridForColumn(values, requestedNumCuts[j]);
       numCuts[j] = grid.inducedNumCuts;
       fillCutsFromQuantileGrid(j, grid);
+      return;
+    }
+    QuantileGrid grid;
+    bool fewValues = values == nullptr
+      ? collectFewDistinctCsc(j, requestedNumCuts[j], grid.sortedUnique)
+      : collectFewDistinct(values, numObservations, false, requestedNumCuts[j],
+                           grid.sortedUnique);
+    if (fewValues && grid.sortedUnique.size() >= 2) {
+      grid.inducedNumCuts =
+        static_cast<std::uint32_t>(grid.sortedUnique.size() - 1);
+      numCuts[j] = grid.inducedNumCuts;
+      fillCutsFromQuantileGrid(j, grid);
+      weighGapsByWidth(j, grid.sortedUnique);
     } else if (values == nullptr) {
       fillCutsUniformlyCsc(j);
     } else {
       fillCutsUniformly(j, values);
     }
+  }
+
+  /// The sorted distinct finite values among \p numValues \p values, with one
+  /// zero more when \p implicitZero, into \p sorted when there are fewer than
+  /// \p limit of them; false, \p sorted unspecified, once the limit is
+  /// reached, which ends the scan. Values count as the quantile collectors
+  /// count them (value + 0.0, so -0 and 0 are one). The scratch is a table
+  /// sized to the limit and never to the rows, so the scan is linear in the
+  /// rows it reads.
+  static bool collectFewDistinct(const double* values, size_t numValues,
+                                 bool implicitZero, std::uint32_t limit,
+                                 std::vector<double>& sorted) {
+    sorted.clear();
+    if (limit == 0) return false;
+    // open addressing over the values' bits at load at most a half; an empty
+    // slot holds a NaN's bits, which no finite value has
+    constexpr std::uint64_t emptySlot = ~std::uint64_t{0};
+    size_t capacity = 4;
+    while (capacity < 2 * static_cast<size_t>(limit)) capacity *= 2;
+    std::vector<std::uint64_t> table(capacity, emptySlot);
+    const size_t mask = capacity - 1;
+    std::uint64_t last = emptySlot;
+    auto insert = [&](double value) {
+      std::uint64_t bits;
+      std::memcpy(&bits, &value, sizeof bits);
+      if (bits == last) return true;
+      last = bits;
+      size_t slot = static_cast<size_t>(
+        (bits * 0x9e3779b97f4a7c15ULL) >> 32) & mask;
+      while (table[slot] != emptySlot) {
+        if (table[slot] == bits) return true;
+        slot = (slot + 1) & mask;
+      }
+      if (sorted.size() + 1 >= limit) return false;
+      table[slot] = bits;
+      sorted.push_back(value);
+      return true;
+    };
+    if (implicitZero && !insert(0.0)) return false;
+    for (size_t i = 0; i < numValues; ++i)
+      if (std::isfinite(values[i]) && !insert(values[i] + 0.0)) return false;
+    std::sort(sorted.begin(), sorted.end());
+    return true;
+  }
+
+  /// collectFewDistinct over CSC-backed column j's logical values: its
+  /// retained entries, and a zero when a row is implicit.
+  bool collectFewDistinctCsc(size_t j, std::uint32_t limit,
+                             std::vector<double>& sorted) const {
+    const CscColumnSlice& slice = train.sources[j].slice;
+    return collectFewDistinct(slice.values, slice.numNonzero,
+                              slice.numNonzero < numObservations, limit,
+                              sorted);
+  }
+
+  /// Weights column j's one cut per gap by the gap's width, over the
+  /// \p sorted distinct values the cuts separate: cutMass[j] holds the values
+  /// themselves, or their halves where the range overflows, raised where a
+  /// half rounds onto its neighbour so every weight stays positive. Equal
+  /// widths - a 0/1 column, equally spaced integers, or equally spaced values
+  /// whose widths differ only by the rounding of the values themselves, a few
+  /// ulps of the largest - leave the cuts equally likely and the column
+  /// unweighted.
+  void weighGapsByWidth(size_t j, const std::vector<double>& sorted) {
+    size_t numValues = sorted.size();
+    std::vector<double>& mass = cutMass[j];
+    mass.assign(sorted.begin(), sorted.end());
+    if (!std::isfinite(sorted[numValues - 1] - sorted[0])) {
+      for (size_t k = 0; k < numValues; ++k) mass[k] = 0.5 * sorted[k];
+      for (size_t k = 1; k < numValues; ++k)
+        if (!(mass[k] > mass[k - 1]))
+          mass[k] = std::nextafter(mass[k - 1], HUGE_VAL);
+    }
+    double width = mass[1] - mass[0];
+    double tolerance = 4.0 * std::numeric_limits<double>::epsilon() *
+      std::max(std::fabs(mass[0]), std::fabs(mass[numValues - 1]));
+    bool equal = true;
+    for (size_t k = 2; k < numValues && equal; ++k)
+      equal = std::fabs((mass[k] - mass[k - 1]) - width) <= tolerance;
+    if (equal) mass.clear();
   }
 
   /// Re-derive a column's grid for its current values, as creation would
@@ -1420,9 +1572,12 @@ struct ColumnStore {
   /// the raw is read from (ignored for CSC-backed columns, which use their
   /// retained slice). The cut count may shrink or grow; the splits already on
   /// the column are the caller's to move onto the new grid (the sampler does,
-  /// by position or by value, and merges what cannot stand).
+  /// by position or by value, and merges what cannot stand). \p mass, when
+  /// not null, is the grid's numCutPoints + 1 cutMass values; null leaves the
+  /// cut points equally likely.
   void setCutPointsForColumn(size_t j, const double* cuts,
-                             std::uint32_t numCutPoints, const double* x) {
+                             std::uint32_t numCutPoints, const double* x,
+                             const double* mass = nullptr) {
     // a factor column's grid is the level table's, fixed at build: an
     // externally chosen one would strand its codes off their own levels, and
     // it retains no raw to re-quantize against one. Every reachable caller
@@ -1430,6 +1585,10 @@ struct ColumnStore {
     if (isFactor(j)) return;
     cutPoints[j].assign(cuts, cuts + numCutPoints);
     numCuts[j] = numCutPoints;
+    if (mass != nullptr)
+      cutMass[j].assign(mass, mass + numCutPoints + 1);
+    else
+      cutMass[j].clear();
     quantizeColumn(j, rawColumnForRequantize(j, x));
     if (numTestObservations > 0) quantizeTestColumn(j);
   }
@@ -1694,6 +1853,7 @@ struct ColumnStore {
     }
     cutPoints.resize(p);
     numCuts.resize(p);
+    cutMass.assign(p, std::vector<double>());
     categoryCounts.assign(p, 0);
     if (maxNumCutsPerColumn != nullptr) {
       requestedNumCuts.assign(maxNumCutsPerColumn, maxNumCutsPerColumn + p);
@@ -2148,11 +2308,13 @@ struct ColumnStore {
       types.resize(numPredictors);
       cutPoints.resize(numPredictors);
       numCuts.resize(numPredictors);
+      cutMass.resize(numPredictors);
       categoryCounts.resize(numPredictors);
       requestedNumCuts.resize(numPredictors);
       for (size_t j = 0; j < numPredictors; ++j) {
         types[j] = parent.types[parentColumns[j]];
         cutPoints[j] = parent.cutPoints[parentColumns[j]];
+        cutMass[j] = parent.cutMass[parentColumns[j]];
         numCuts[j] = parent.numCuts[parentColumns[j]];
         categoryCounts[j] = parent.categoryCounts[parentColumns[j]];
         requestedNumCuts[j] = parent.requestedNumCuts[parentColumns[j]];
@@ -2160,6 +2322,7 @@ struct ColumnStore {
     } else {
       types = parent.types;
       cutPoints = parent.cutPoints;
+      cutMass = parent.cutMass;
       numCuts = parent.numCuts;
       categoryCounts = parent.categoryCounts;
       requestedNumCuts = parent.requestedNumCuts;
@@ -2709,7 +2872,8 @@ struct ColumnStore {
 
 /// Temporarily install a donor cut grid over a store's ordinal columns for a
 /// structural tree rebuild, restoring the live grid on scope exit. Only
-/// cutPoints and the per-column cut counts move; the quantized observation
+/// cutPoints, the per-column cut counts and the weights move, the donor grid
+/// going in unweighted (a rebuild reads no weight); the quantized observation
 /// codes are the live data's and are never touched, so buildFromFlat resolves a
 /// donor tree's split values against the donor grid while a later repartition
 /// still routes the live observations. Categorical columns (empty donor cuts,
@@ -2722,7 +2886,8 @@ public:
   ScopedCutGrid(ColumnStore& store,
                 const std::vector<std::vector<double>>& donorCutPoints)
       : store_(store), savedCutPoints_(store.cutPoints),
-        savedNumCuts_(store.numCuts) {
+        savedNumCuts_(store.numCuts), savedCutMass_(std::move(store.cutMass)) {
+    store_.cutMass.assign(store_.numPredictors, std::vector<double>());
     store_.cutPoints = donorCutPoints;
     for (size_t j = 0; j < store_.numPredictors; ++j)
       if (store_.splitsByThreshold(j))
@@ -2732,6 +2897,7 @@ public:
   ~ScopedCutGrid() {
     store_.cutPoints = std::move(savedCutPoints_);
     store_.numCuts = std::move(savedNumCuts_);
+    store_.cutMass = std::move(savedCutMass_);
   }
   ScopedCutGrid(const ScopedCutGrid&) = delete;
   ScopedCutGrid& operator=(const ScopedCutGrid&) = delete;
@@ -2740,6 +2906,7 @@ private:
   ColumnStore& store_;
   std::vector<std::vector<double>> savedCutPoints_;
   std::vector<std::uint32_t> savedNumCuts_;
+  std::vector<std::vector<double>> savedCutMass_;
 };
 
 }  // namespace bartcore

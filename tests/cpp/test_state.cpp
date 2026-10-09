@@ -3455,6 +3455,116 @@ static void testRepeatedGridRefused() {
   printf("ok: a grid that repeats a point is refused\n");
 }
 
+/// A weighted grid's weights ride the state and every grid rollback: a state
+/// installs the weights it carries and one carrying none leaves the grids
+/// unweighted; a refused state, a refused refresh and a warm start's scoped
+/// donor grid each leave them as they were; setCutPoints keeps them for the
+/// grid the column holds and drops them for another. A continuation after
+/// the round trip draws what the twin draws.
+static void testWeightedGridState() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 61616u;
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>((i % 6) * (i % 6));  // widths 1, 3, ..., 9
+    x[i + n] = runif01();
+    y[i] = 0.3 * x[i] + x[i + n] + 0.2 * (runif01() - 0.5);
+  }
+  ext_rng* rngs[2];
+  std::unique_ptr<ConstantLeafSampler> samplers[2];
+  for (size_t k = 0; k < 2; ++k) {
+    rngs[k] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(rngs[k], 3141u);
+    SamplerOptions options;
+    options.numTrees = 10;
+    samplers[k] = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rngs[k]);
+    Results empty;
+    samplers[k]->run(30, 0, empty);
+  }
+  ConstantLeafSampler& sampler = *samplers[0];
+  const std::vector<std::vector<double>> weights = sampler.data().cutMass;
+  SamplerStateData own;
+  sampler.getState(own);
+  check(sampler.data().cutsWeighted(0) && !sampler.data().cutsWeighted(1) &&
+          own.cutMass == weights,
+        "a state carries the grid's weights");
+
+  // a state without weights installs the grids unweighted; its own puts
+  // them back
+  SamplerStateData bare(own);
+  bare.cutMass.clear();
+  check(restoresExactly(sampler, bare) && !sampler.data().cutsWeighted(0),
+        "a state carrying no weights installs unweighted grids");
+  check(restoresExactly(sampler, own) && sampler.data().cutMass == weights,
+        "a state carrying weights installs them");
+
+  // refusals leave the weights: an invalid weight, a state refused after its
+  // grid went in, a refused refresh, and a cross-grid donor's scoped grid
+  SamplerStateData badMass(own), badTrees(bare);
+  badMass.cutMass[0][2] = badMass.cutMass[0][1];
+  badTrees.chains[0].forests[0].trees.pop_back();
+  check(!sampler.setState(badMass, nullptr) &&
+          !sampler.setState(badTrees, nullptr) &&
+          sampler.data().cutMass == weights,
+        "a refused state leaves the weights as they were");
+  std::vector<double> constant(n, 0.0);
+  const size_t column = 0;
+  check(sampler.updatePredictor(constant.data(), &column, 1, false, true) ==
+            PredictorUpdateResult::rolledBack &&
+          sampler.data().cutMass == weights,
+        "a refresh rolled back puts the weights back with the grid");
+  std::vector<double> whole(x);
+  std::fill(whole.begin(), whole.begin() + n, 0.0);
+  check(sampler.setPredictor(whole.data(), false, true) ==
+            PredictorUpdateResult::rolledBack &&
+          sampler.data().cutMass == weights,
+        "and so does a whole-matrix refresh");
+  SamplerStateData donor(own);
+  donor.cutPoints[1].push_back(donor.cutPoints[1].back() + 1.0);
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  WarmStartResult warm = sampler.installForests(donor, liveMap);
+  check(warm == WarmStartResult::ok &&
+          sampler.data().cutMass == weights,
+        "a cross-grid warm start leaves the live weights");
+  check(restoresExactly(sampler, own) && restoresExactly(*samplers[1], own),
+        "the state goes back in, and into the twin");
+
+  // the continuation after the round trips draws what the twin, restored
+  // from the state alone, draws
+  std::vector<double> draws[2];
+  for (size_t k = 0; k < 2; ++k) {
+    draws[k].resize(5);
+    Results results;
+    results.sigma = draws[k].data();
+    samplers[k]->run(0, 5, results);
+  }
+  // to rounding: a rebuild routes rows in an order its history sets
+  double gap = 0.0;
+  for (size_t d = 0; d < draws[0].size(); ++d)
+    gap = std::max(gap, std::fabs(draws[0][d] - draws[1][d]));
+  check(gap < 1e-10,
+        "a sampler whose weights went out and back draws what its twin draws");
+
+  // setCutPoints: the held grid keeps its weights, another drops them
+  std::vector<double> held(sampler.data().cutPoints[0]);
+  const double* grids[] = {held.data()};
+  std::uint32_t counts[] = {static_cast<std::uint32_t>(held.size())};
+  sampler.setCutPoints(grids, counts, &column, 1, x.data());
+  check(sampler.data().cutMass == weights,
+        "setCutPoints handed the held grid keeps its weights");
+  held.back() += 1.0;
+  sampler.setCutPoints(grids, counts, &column, 1, x.data());
+  check(!sampler.data().cutsWeighted(0),
+        "setCutPoints handed another grid leaves it unweighted");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a grid's weights ride states and rollbacks\n");
+}
+
 /// Whether any live tree of any chain, mean or variance, holds an ordinal
 /// split outside the interval its ancestors leave.
 template <typename L>
@@ -3970,6 +4080,7 @@ void runStateTests(ext_rng* rng) {
   testRestoreStatus();
   testStackedSplitsMerge();
   testRepeatedGridRefused();
+  testWeightedGridState();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

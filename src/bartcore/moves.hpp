@@ -271,8 +271,9 @@ bool enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
     // is part of the candidate and the rule prior widens by the same factor
     // two the candidate count does
     bool doubled = numCuts > 0 && written == 2 * numCuts;
-    double logRulePrior = -std::log(static_cast<double>(high - low + 1)) -
+    double logRulePrior = -std::log(data.cutIntervalMass(j, low, high)) -
                           (doubled ? std::log(2.0) : 0.0);
+    const bool weighted = data.cutsWeighted(j);
     double logVariablePrior =
       ctx.treePrior.splitProbabilities == nullptr
         ? 0.0
@@ -305,7 +306,9 @@ bool enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
           NogRuleCandidate{static_cast<int32_t>(j), c,
                            doubled ? direction : -1,
                            scratch.scanScores[entry] + logVariablePrior +
-                             logRulePrior + below});
+                             logRulePrior + below +
+                             (weighted ? std::log(data.cutWeight(j, c))
+                                       : 0.0)});
       }
     }
   }
@@ -1434,7 +1437,9 @@ inline bool drawCategoricalRuleFromPrior(const MoveContext& ctx, ext_rng* rng,
 /// An ordinal side draws uniformly over the descendant-valid good set while
 /// the node's rule prior normalizes over the ancestor-only interval, leaving
 /// the counted ratio (|SI| the interval size, |Valid| the good-set count; the
-/// variable prior and missing coin cancel within the side). A categorical side
+/// variable prior and missing coin cancel within the side). On a weighted
+/// column the draw and the prior are by weight, and each |.| is the set's
+/// summed weight; the drawn rule's own weight cancels. A categorical side
 /// draws straight from the node prior (drawCategoricalRuleFromPrior), whose
 /// density cancels its side's prior factor exactly and contributes nothing; a
 /// forward draw that strands a descendant split is an automatic no-op
@@ -1479,8 +1484,10 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   int32_t oldVariableIndex = tree.at(nodeToChange).rule.variableIndex;
   const bool oldIsCategorical =
     ctx.data.splitsBySubset(static_cast<size_t>(oldVariableIndex));
-  int32_t forwardValid = 0, forwardInterval = 0;  // new-side ordinal counts
-  int32_t reverseValid = 0, reverseInterval = 0;  // old-side ordinal counts
+  // new-side and old-side ordinal masses: position counts on an unweighted
+  // column, summed weights on a weighted one
+  double forwardValid = 0.0, forwardInterval = 0.0;
+  double reverseValid = 0.0, reverseInterval = 0.0;
 
   if (newIsCategorical) {
     // counting descendant-valid gauge patterns is exponential for wide masks,
@@ -1502,15 +1509,16 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
       return -1.0;
     }
 
-    newRule.setSplitIndex(static_cast<int32_t>(
-      ext_rng_simulateIntegerUniformInRange(rng, lower, upper + 1)));
+    newRule.setSplitIndex(
+      drawCutPosition(ctx.data, rng, newVariableIndex, lower, upper));
     // like the birth draw: the missing direction is a fresh symmetric coin
     // whenever the column can route a missing value
     if (ctx.data.hasMissing[static_cast<size_t>(newVariableIndex)])
       newRule.setMissingGoesRight(ext_rng_simulateBernoulli(rng, 0.5) == 1);
 
-    forwardValid = upper - lower + 1;
-    forwardInterval = right - left + 1;
+    size_t newColumn = static_cast<size_t>(newVariableIndex);
+    forwardValid = ctx.data.cutIntervalMass(newColumn, lower, upper);
+    forwardInterval = ctx.data.cutIntervalMass(newColumn, left, right);
   }
 
   if (!oldIsCategorical) {
@@ -1524,8 +1532,9 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
                        &oldRight);
     findGoodOrdinalRules(ctx, tree, nodeToChange, oldVariableIndex, &oldLower,
                          &oldUpper);
-    reverseValid = oldUpper - oldLower + 1;
-    reverseInterval = oldRight - oldLeft + 1;
+    size_t oldColumn = static_cast<size_t>(oldVariableIndex);
+    reverseValid = ctx.data.cutIntervalMass(oldColumn, oldLower, oldUpper);
+    reverseInterval = ctx.data.cutIntervalMass(oldColumn, oldLeft, oldRight);
   }
 
   // interaction constraint: the variable was drawn feasibly against
@@ -1549,18 +1558,12 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
   double logProposalCorrection = 0.0;
   if (!newIsCategorical && !oldIsCategorical) {
     logProposalCorrection =
-      std::log(static_cast<double>(reverseInterval)) -
-      std::log(static_cast<double>(forwardInterval)) +
-      std::log(static_cast<double>(forwardValid)) -
-      std::log(static_cast<double>(reverseValid));
+      std::log(reverseInterval) - std::log(forwardInterval) +
+      std::log(forwardValid) - std::log(reverseValid);
   } else if (!newIsCategorical) {
-    logProposalCorrection =
-      std::log(static_cast<double>(forwardValid)) -
-      std::log(static_cast<double>(forwardInterval));
+    logProposalCorrection = std::log(forwardValid) - std::log(forwardInterval);
   } else if (!oldIsCategorical) {
-    logProposalCorrection =
-      std::log(static_cast<double>(reverseInterval)) -
-      std::log(static_cast<double>(reverseValid));
+    logProposalCorrection = std::log(reverseInterval) - std::log(reverseValid);
   }
 
   // the node's own split-variable and rule-prior factors cancel against the
@@ -1844,7 +1847,9 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 /// [lo, hi] is identical on T and T' and the reverse count is taken on the
 /// unmodified tree. Equalling or crossing an ancestor's or a descendant's cut
 /// on the same variable is impossible rather than handled, [lo, hi] being set
-/// one index inside both. hi == lo leaves an empty window and a no-op.
+/// one index inside both. hi == lo leaves an empty window and a no-op. On a
+/// weighted column the node's rule prior is w(c) over a sum the move leaves
+/// fixed, so the correction gains log w(c') - log w(c).
 ///
 /// Eligible nodes are the interior nodes on an ORDINAL column, and the filter
 /// is not an optimization: the selected set must be a tree function a
@@ -1911,6 +1916,12 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
   double logProposalCorrection =
     std::log(static_cast<double>(forwardCount)) -
     std::log(static_cast<double>(reverseCount));
+  // the window draw is uniform, so on a weighted column the node's own rule
+  // prior no longer cancels: its ratio w(c') / w(c) stays
+  size_t column = static_cast<size_t>(variableIndex);
+  if (ctx.data.cutsWeighted(column))
+    logProposalCorrection += std::log(ctx.data.cutWeight(column, target)) -
+                             std::log(ctx.data.cutWeight(column, current));
 
   // the node's own split-variable and rule-prior factors cancel exactly, so
   // the pi ratio reduces to the subtree strictly below the perturbed node

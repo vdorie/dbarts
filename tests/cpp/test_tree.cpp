@@ -10,6 +10,13 @@
 
 using namespace bartcore;
 
+// the shared law checks (common.cpp), declared here so this TU stays off
+// common.hpp and the layers it pulls in
+double chiSquareStatistic(const std::vector<double>& counts,
+                          const std::vector<double>& probabilities,
+                          double numDraws);
+double chiSquareUpperTail(double statistic, double df);
+
 // Build x with a known partition structure and verify splitting mechanics.
 static void testTreeMechanics() {
   const size_t n = 100;
@@ -71,7 +78,8 @@ static void testTreeMechanics() {
 }
 
 static void testTreePriorMath() {
-  const size_t n = 64;
+  // as many distinct values as cuts asked, so the grid is the evenly spaced 100
+  const size_t n = 100;
   std::vector<double> x(n), y(n, 0.0);
   for (size_t i = 0; i < n; ++i) x[i] = (double) i / (double) (n - 1);
 
@@ -781,7 +789,8 @@ static void testRuleMassByColumnKind() {
     x[i] = value;          // column 0 carries missing values
     x[i + n] = value;      // column 1 does not
   }
-  for (size_t i = 0; i < 8; ++i) x[i * 8] = std::nan("");
+  // missing in one row of each value, so both columns keep their eight
+  for (size_t i = 0; i < 8; ++i) x[i] = std::nan("");
 
   ColumnStore store;
   built(store.build(x.data(), n, p, 8));
@@ -834,6 +843,77 @@ static void testRuleMassByColumnKind() {
 /// the value, the child sends them right - so the empty-side test spares it.
 /// The build marks the tree, the collapse merges the child and clears the
 /// mark, and the same nodes on distinct values in order build unmarked.
+// A weighted column's rule mass is its cut's weight over the interval's sum,
+// at the root and against an ancestor-narrowed interval, and the tree's log
+// probability sums those; the draw realizes the same shares.
+static void testWeightedRuleMass() {
+  const size_t n = 40;
+  const double values[] = {0.0, 1.0, 3.0, 10.0};  // widths 1, 2, 7
+  std::vector<double> x(n), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) x[i] = values[i % 4];
+  ColumnStore store;
+  built(store.build(x.data(), n, 1, 100));
+  check(store.numCuts[0] == 3 && store.cutsWeighted(0) &&
+          store.cutIntervalMass(0, 0, 2) == 10.0,
+        "the weighted fixture holds three cuts of total weight 10");
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  CGMTreePrior prior;
+  auto split = [&](int32_t node, int32_t index) {
+    Rule rule;
+    rule.variableIndex = 0;
+    rule.setSplitIndex(index);
+    tree.birth(store, node, rule, y.data(), nullptr);
+  };
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  split(0, 2);
+  int32_t left = tree.at(0).leftChild;
+  split(left, 1);
+  checkNear(prior.ruleForVariableLogProbability(tree, store, 0),
+            std::log(7.0 / 10.0), 1e-15, "a root rule weighs w over the sum");
+  checkNear(prior.ruleForVariableLogProbability(tree, store, left),
+            std::log(2.0 / 3.0), 1e-15,
+            "and against the ancestor-narrowed interval");
+  // the left child's left child still holds cut 0; its right child and the
+  // root's right child hold none
+  double g1 = 0.95 / 4.0, g2 = 0.95 / 9.0;
+  double expected = std::log(0.95) + std::log(0.7) + std::log(g1) +
+                    std::log(2.0 / 3.0) + std::log(1.0 - g2) + 0.0;
+  checkNear(prior.treeLogProbability(tree, store), expected, 1e-12,
+            "the tree's log probability sums the weighted rule masses");
+
+  // the draws: 0.1, 0.2, 0.7 at the root, 1/3 and 2/3 below it, from a
+  // generator of the test's own so no other suite's stream shifts
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20261009u);
+  const size_t numDraws = 30000;
+  std::vector<double> atRoot(3, 0.0), below(2, 0.0);
+  tree.initialize(indexBuffer.data(), n);
+  tree.computeLeafStats(0, y.data(), nullptr);
+  for (size_t d = 0; d < numDraws; ++d)
+    atRoot[static_cast<size_t>(
+      prior.drawRuleForVariable(tree, store, rng, 0, 0).splitIndex())] += 1.0;
+  split(0, 2);
+  for (size_t d = 0; d < numDraws; ++d) {
+    int32_t index =
+      prior.drawRuleForVariable(tree, store, rng, tree.at(0).leftChild, 0)
+        .splitIndex();
+    check(index >= 0 && index <= 1, "a draw stays inside its interval");
+    below[static_cast<size_t>(index)] += 1.0;
+  }
+  ext_rng_destroy(rng);
+  double pRoot = chiSquareUpperTail(
+    chiSquareStatistic(atRoot, {0.1, 0.2, 0.7}, numDraws), 2.0);
+  double pBelow = chiSquareUpperTail(
+    chiSquareStatistic(below, {1.0 / 3.0, 2.0 / 3.0}, numDraws), 1.0);
+  check(pRoot > 1e-3 && pBelow > 1e-3,
+        "the draw realizes the weights' shares, at the root and below it");
+  printf("ok: weighted rule mass (draw p %.3g at the root, %.3g below)\n",
+         pRoot, pBelow);
+}
+
 static void testBuildOutsideInterval() {
   const size_t n = 90;
   std::vector<double> x(n);
@@ -949,4 +1029,5 @@ void runTreeTests(ext_rng* rng) {
   testBuildOutsideInterval();
   testMappedSourceReplay();
   testRuleMassByColumnKind();
+  testWeightedRuleMass();
 }
