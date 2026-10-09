@@ -222,8 +222,8 @@ residual shortfall persists even at the doc's longest chains.
 The exact-posterior gates (aft-exact, aft-hetero-pit, backfit-exact,
 bcf-exact[-weak, -restricted], bcf-latent-exact, categorical-exact,
 hazard-exact, heteroscedastic-exact, hurdle-exact, linear-exact,
-mask-redraw-exact, multinomial-exact, negbin-exact, ordinal-exact, t-exact,
-logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
+mask-redraw-exact, multinomial-exact, negbin-exact, ordinal-exact,
+probit-k-scale-exact, t-exact, logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
 change-balance = change, swap-balance = swap, perturb-balance = perturb,
 rule-gibbs-balance = rule_gibbs) each drive a long fixed-seed MCMC run and
 compare the engine's draws to an analytic or brute-force-enumerated target with
@@ -258,6 +258,18 @@ false failure once in 1400 fresh seeds for a correct sampler; an arm can be
 run alone by naming it.
 
     Rscript benchmarks/R/mask-redraw-exact.R quick probit
+
+probit-k-scale-exact is the gate for the probit rescaling step
+(`dbartsControl(probitRescaleForest = )`): one frozen tree under probit with
+k ~ chi(1.5, 2), whose posterior of k and leaf means are exact by one
+quadrature a leaf, on four arms (every leaf separated, none, an offset, a
+mask). It bounds P(k < q) at the exact deciles and the unseparated leaves'
+means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
+0.01 in full mode (0.012 quick), which a sampler without the step does not
+meet: the `never` argument runs the step off and must fail. Quick mode is
+about 30 seconds, full about 2 minutes.
+
+    Rscript benchmarks/R/probit-k-scale-exact.R quick never
 
 bd-balance takes a second arm, `zeroweight`, which the workflow runs after its
 loop: the same enumeration under a weight vector that zeroes two adjacent
