@@ -560,14 +560,18 @@ draw from the same distribution and separated from its source by about
 function of its membership, a restored clone builds the same kernel, and
 it continues its source to rounding (about 1e-11 on train and test fits).
 
-[`GPGaussianLeaf::sortedMembers`](../../src/bartcore/model.hpp) sorts into
+[`GPGaussianLeaf::sortedMembers`](../../src/bartcore/model.hpp) returns
+the span itself when it is already in order and otherwise sorts a copy into
 a scratch that keeps its capacity. The draw cache holds each node's sorted
 members beside its alpha weights (`memberBuffer_`), and the test fits and
 saved blocks read them from there, never from the tree. The kernel cache is
-keyed by the sorted list, and its eviction compares in sorted order: a
-comparison against the span would evict every leaf whose span is out of
-order. Over the cap nothing changes: the constant fallback reads the span
-and pays no sort. The change moves gp draws, not their distribution, and no
+keyed by the sorted list. Its eviction keeps an entry on bottom-ness and
+member count alone and leaves membership to the lookup, which re-validates
+anyway: comparing members there would cost a sort per cached leaf per tree
+draw, and comparing against the unsorted span, as a first prototype did,
+evicts every leaf whose span is out of order and cost about a fifth of the
+run time at cap 256. Over the cap nothing changes: the constant fallback
+reads the span and pays no sort. The change moves gp draws, not their distribution, and no
 state format, C API or facade changes; states and saved trees written
 before it install and replay unchanged, each saved block carrying its
 alpha and rows in one order. `testGPLeafMemberOrder` pins the identity
