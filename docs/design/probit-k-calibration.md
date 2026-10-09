@@ -1,7 +1,9 @@
 # k under probit: the calibration finding and what the fix must do
 
-Status: FINDING, 2026-10-08 (dec-B371). The fix, a scale move for k, is
-TODO probit-k-mixing; this note is the evidence it starts from.
+Status: FINDING, 2026-10-08 (dec-B371). The fix is the probit rescaling
+step, [probit-k-scale-move.md](probit-k-scale-move.md); this note is the
+evidence it starts from, and its section on what a correct sampler gives
+describes the sampler before that step.
 
 ## The symptom
 
@@ -49,7 +51,7 @@ The sampler is correct; k mixes too slowly for the thinning.
 Thinning does not cure it: the end bins fall from thin 100 to thin 300,
 then stop falling; the slowest chains would need a thin near 25000.
 
-## What a correct sampler gives today
+## What a correct sampler gave before the rescaling step
 
 Pooled over 2180 replications of the arm's own set-up, scaled to R = 600:
 end bins averaging 47 and 47 against 30; the larger end bin a median of

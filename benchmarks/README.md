@@ -308,16 +308,12 @@ conditional (a missing Jacobian, a leaf too many, the prior's df off by one) is
 flagged about 80% of the time; an error that scales with the number of leaves
 (every k draw 5% high) is flagged at R = 50. Smaller errors pass.
 
-Until the k mixing move lands (dec-B371, TODO probit-k-mixing), a correct sampler
-FLAGS this arm about one run in three. k mixes slowly under probit (its
-autocorrelation time has a median of 500 sweeps and reaches 25000), so at thin
-1000 its ranks pile at both ends: over 2180 replications of the arm's own
-set-up a correct sampler gives end bins averaging 47 against 30, a larger end
-bin with median 50 and 99th percentile 64, and a chi-square p with quartiles
-3e-4, 0.004 and 0.03. A start-from-truth test on the same set-up found no
-drift (9080 replications) where the half-shape error shows at z 5.6. Read k as
-defective on this arm only where an end bin passes 70 or the two ends differ
-by more than about 25 (the half-shape error put 86 in the lowest bin).
+With the probit rescaling step (`dbartsControl(probitRescaleForest = )`, on
+by default) k mixes fast enough that at thin 1000 every dataset of the arm
+keeps 50 or more effective draws of the 99 kept, so the arm is read as any
+other: k's end bins near 30 and its chi-square p meaningful. Before the step a
+correct sampler flagged this arm about one run in three
+(docs/design/probit-k-calibration.md).
 
 By hand, before the merge to main: `schedule` waits for main, but a dispatch
 runs from any branch the file is on. A push to bartcore that changes sbc.yaml
@@ -329,9 +325,22 @@ and read each job's report in the log of its "Run the SBC calibration check"
 step (`gh run view <id> --log`, or the job's page). Green is the band verdict,
 not the reading: for every arm look at the chisqP column. Of the 84 functionals expect about four
 under 0.05 and one under 0.01 (they are not independent, so read nine or more
-under 0.05, or any under 6e-4, as a finding to look at); for k, read the end
-bins as above. discrete-selfcheck must be green. The probit-k job takes
+under 0.05, or any under 6e-4, as a finding to look at); discrete-selfcheck
+must be green. The probit-k job takes
 67 minutes on the laptop and up to twice that on the runner.
+
+## R/probit-k-mixing.R - k's mixing under probit (measurement, not a gate)
+
+How fast k mixes under probit with the rescaling step on and off: `census`
+gives k's and the average fit's integrated autocorrelation time over the SBC
+probit-k arm's prior-drawn datasets (the arm's start, 30,000 sweeps of burn-in
+and 200,000 recorded, about 25 seconds a dataset), `truth` the start-from-truth
+drift of log k at R replications (2000 take about 5 minutes), `summarize` the
+tables. `never` runs the step off. Findings: docs/design/probit-k-scale-move.md.
+
+    Rscript benchmarks/R/probit-k-mixing.R census 1 50 out-1.rds
+    Rscript benchmarks/R/probit-k-mixing.R truth 19 2000 truth.rds
+    Rscript benchmarks/R/probit-k-mixing.R summarize out-1.rds truth.rds
 
 ## R/constant-*.R - the engine-constants sweeps (measurement, not gates)
 

@@ -465,7 +465,17 @@
             structural probabilities, holding the trees' shapes fixed while
             everything else is sampled. \code{dbartsControl(treeShift = )}
             adds a step that improves mixing of the leaf values when the
-            shapes are fixed. \code{bart} gains a
+            shapes are fixed. Binary fits under the probit link that draw
+            \code{k} - the default for \code{bart}, \code{dbarts},
+            \code{xbart} and the hazard fit - take a further step each
+            iteration that rescales the latent variables, the leaf values
+            and \code{k} together, drawn from its exact conditional
+            distribution. \code{k} and the fit's overall scale mix far
+            faster, most where the response is nearly separated, where a
+            chain could otherwise hold \code{k} for tens of thousands of
+            iterations; the posterior is unchanged.
+            \code{dbartsControl(probitRescaleForest = FALSE)} turns it off.
+            \code{bart} gains a
             \code{control} argument for these and other
             \code{\link{dbartsControl}} settings.
       \item Prediction and summaries. \code{fitted} and \code{predict} take

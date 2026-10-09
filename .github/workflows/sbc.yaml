@@ -94,8 +94,9 @@ jobs:
             thin: 30
             timeout: 15
           # k drawn under chi(1.5, 2) on probit, the one arm that checks the
-          # k step. k and its leaves are a funnel that mixes slowly (ACF 0.1 at
-          # lags of 100 to 600 sweeps), so thin 1000; sbc.R gives the arm a
+          # k step and the probit rescaling step. With that step every dataset
+          # of the arm keeps 50 or more effective draws of its 99 at thin
+          # 1000 (none at thin 300 would), and sbc.R gives the arm a
           # 30000-sweep burn. Detection floor: at 600 replications an error of
           # one half in the shape of the k^2 conditional (a missing Jacobian, a
           # leaf too many, the prior's df off by one) is flagged about 80% of

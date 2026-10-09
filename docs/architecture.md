@@ -298,7 +298,12 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
    constants summing to zero across the forest's trees, leaving the fitted
    function unchanged. It runs ahead of every channel the rest of the sweep
    writes; the mixture is read once per forest here and reused by step 3's
-   frozen skip, and a forest that skips consumes no generator draw.
+   frozen skip, and a forest that skips consumes no generator draw. Then,
+   on a single constant-leaf probit forest with a drawn `k` and the
+   control's `probitRescaleForest` on (the default), the probit rescaling
+   step (`drawForestRescale`): the active latents and occupied leaves
+   multiplied, and `k` divided, by one factor from its exact conditional,
+   `totalFits` re-summed from the leaves; elsewhere it draws nothing.
 3. For each forest in turn, and for each of its trees: roll the running
    residual so `treeY` holds the response net of every other tree's current
    fits, propose one move with `metropolisJumpForTree` and accept or reject

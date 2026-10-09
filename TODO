@@ -259,29 +259,21 @@ items
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
   binary-k-default-revisit: after the merge to main, before 1.0-0
-    (dec-B390, VD 2026-10-08). Once probit-k-mixing lands, rerun the
+    (dec-B390, VD 2026-10-08). Now that probit-k-scale-move has landed, rerun the
     binary hyperprior study (docs/plans/binary-hyperprior.md) on
     converged chains with the k move and bring the default chi(1.5, 2)
     back to VD with the numbers (dec-A07's scheduled revisit).
-  probit-k-mixing: before 1.0-0 (dec-B371, VD 2026-10-08). k mixes
-    slowly under probit (autocorrelation time median 500 sweeps, up to
-    25000; small-k mass near separation reached too rarely), every
-    binary fit drawing k by default. Add one move a sweep that changes
-    the fit's scale in one step: interweaving on k or a probit
-    parameter expansion, chosen by a measured comparison on the
-    probit-k arm's datasets (k's autocorrelation time, small-k
-    visitation against a known answer), with an exact gate. Then the
-    probit-k arm is an ordinary SBC again, probably at a smaller thin.
-    Until then the arm flags about one correct run in three: mark it
-    expected in sbc.yaml with the workflow-text-edits push, and read
-    it by its end bins (benchmarks/README.md). Evidence:
-    docs/design/probit-k-calibration.md.
+  k-mixing-pg-families: before 1.0-0. Measure k's mixing under
+    logistic and nbinom (Polya-Gamma, k drawn by default) by
+    benchmarks/R/probit-k-mixing.R's census on a logistic arm and an
+    nbinom arm. The probit rescaling step does not apply there; if k is
+    slow, the collapsed move of docs/design/probit-k-scale-move.md
+    generalizes, and the choice of fix goes to the maintainer.
   workflow-text-edits: equivalence.yaml, rchk.yaml and valgrind.yaml
     say workflow_dispatch needs main, which it does not; sbc.yaml's
     aft job has a 15-minute limit that a slow dependency install
-    exhausts (cancelled once, 2026-10-08); sbc.yaml's probit-k job
-    gains SBC_EXPECTED_FLAGS: k until probit-k-mixing lands. Edit
-    them together, which starts each workflow in full.
+    exhausts (cancelled once, 2026-10-08). Edit them together, which
+    starts each workflow in full.
   multiforest-scale-rederive: after 1.0-0 (dec-B362, VD 2026-10-08).
     updateScale = TRUE on a sampler of several forests, refused today:
     restate each forest's default size on the new scale, a stated

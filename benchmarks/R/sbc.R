@@ -3010,10 +3010,10 @@ if (sys.nframe() == 0L) {
   # step can draw a FRESH stream at settings otherwise held fixed. Absent, the
   # driver's own pinned seed keeps every recorded run reproducible.
   runSeed <- if (length(args) >= 6L) as.integer(args[6]) else NULL
-  # probit-k: k and the leaves it scales are a funnel, and k mixes slowly (its
-  # autocorrelation reaches 0.1 at lags of 100 to 600 sweeps); at thin 1000
-  # and this burn its ranks are uniform, where thin 300 and a burn of 10000
-  # piled 15% of them at the top. Recommended: R=600 L=99 thin=1000 (L=99 puts
+  # probit-k: k and the leaves it scales are a funnel, which the probit
+  # rescaling step (probitRescaleForest, on by default) moves along; with it,
+  # at thin 1000 and this burn every dataset of the arm keeps 50 or more
+  # effective draws of 99, where at thin 300 8% fall under 50. Recommended: R=600 L=99 thin=1000 (L=99 puts
   # five rank values in each of the 20 bins), which flags an error of one half in the shape of the k^2 conditional (a missing
   # Jacobian, a leaf too many, the prior's df off by one) about 80% of the time;
   # R=100 does not.
