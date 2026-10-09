@@ -306,6 +306,14 @@ items
     (draws change in value, not distribution; no state or API change),
     with a same-machine speed A/B; diagnosis and prototype in
     scratch/gpcopy/. Engine slice after probit-k-mixing. Before the merge.
+  sparse-starting-sigma: door for VD. A fit on a caller's sparse x with
+    no sigest warns on every call and starts sigma at sd(y)
+    (estimateSigmaFromLinearModel), while an indicator expansion R built
+    sparse already gets the linear-model estimate without densifying
+    (sparseResidualStandardError, dec-B370). Use that estimate for every
+    sparse x (the default starting sigma, and so the draws, move for
+    sparse fits; the warning goes) or keep the fallback and its warning.
+    Found by the suite-stray-warnings review, 2026-10-09.
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
