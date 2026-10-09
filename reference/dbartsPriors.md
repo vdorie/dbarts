@@ -291,5 +291,5 @@ samples.gp <- fit.gp$run(20L, 20L)
 ## a warning comes only when more than a quarter fall back
 print(unlist(attr(samples.gp, "gp.fallback")))
 #> evaluations   fallbacks 
-#>        2285         260 
+#>        2425         239 
 ```
