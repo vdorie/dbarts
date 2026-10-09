@@ -474,8 +474,8 @@
             faster, most where the response is nearly separated, where a
             chain could otherwise hold \code{k} for tens of thousands of
             iterations; the posterior is unchanged.
-            \code{bart} gains a
-            \code{control} argument for these and other
+            \code{bart} gains a \code{control} argument for
+            \code{treeShift} and the other
             \code{\link{dbartsControl}} settings.
       \item Prediction and summaries. \code{fitted} and \code{predict} take
             \code{ci.level} to return credible or prediction intervals.
