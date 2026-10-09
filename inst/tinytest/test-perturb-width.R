@@ -44,6 +44,10 @@ backstop <- dbarts::dbarts(x, y, control = widthControl())
 backstop$control@n.perturb.cuts <- 0
 expect_error(backstop$copy(), "'n.perturb.cuts' must be a positive whole")
 rm(backstop)
+# a whole integer written into the slot installs as its value
+integerWidth <- widthControl()
+integerWidth@n.perturb.cuts <- 3L
+expect_silent(validObject(integerWidth))
 
 # ---- at or above the cut cap is the cap --------------------------------------
 
@@ -61,6 +65,7 @@ for (wide in list(Inf, .Machine$integer.max + 1, 1e12)) {
 
 atThree <- drawsAt(widthControl(n.perturb.cuts = 3L))
 expect_false(identical(atThree, atDefault))
+expect_identical(drawsAt(integerWidth), atThree)
 
 z <- rbinom(n, 1L, 0.5)
 bcfForests <- list(

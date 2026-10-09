@@ -1491,10 +1491,16 @@ void parseProposalProbs(ParsedModel& model, SEXP controlExpr) {
   // the perturb window, a double so it can hold Inf; anything at or above
   // the cut cap is the cap, exactly so, the window being clipped to the
   // node's interval, and the cap keeps current + width inside int32_t
+  // an integer written into the slot after construction is taken as its value
   slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.perturb.cuts"));
-  if (TYPEOF(slotExpr) != REALSXP || XLENGTH(slotExpr) != 1)
+  if ((TYPEOF(slotExpr) != REALSXP && TYPEOF(slotExpr) != INTSXP) ||
+      XLENGTH(slotExpr) != 1)
     Rf_error("'n.perturb.cuts' must be a single number");
-  double width = REAL(slotExpr)[0];
+  double width = TYPEOF(slotExpr) == REALSXP
+    ? REAL(slotExpr)[0]
+    : (INTEGER(slotExpr)[0] == NA_INTEGER
+         ? NA_REAL
+         : static_cast<double>(INTEGER(slotExpr)[0]));
   if (ISNAN(width) || !(width >= 1.0) || width != std::floor(width))
     Rf_error("'n.perturb.cuts' must be a positive whole number or Inf");
   model.perturbWidth =
