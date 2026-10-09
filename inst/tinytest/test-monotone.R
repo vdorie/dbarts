@@ -260,7 +260,10 @@ expect_error(
   "monotone"
 )
 
-# an explicit non-default proposal.probs conflicts with birth/death-only
+# an explicit non-default proposal.probs conflicts with birth/death-only;
+# the shorthand warns once per session, so its key is reset for the pin
+onceWarnState <- dbarts:::onceWarnState
+onceWarnState[["tombstone.consolidated.proposal.probs.dbarts"]] <- NULL
 expect_warning(
   expect_error(
     dbarts::dbarts(

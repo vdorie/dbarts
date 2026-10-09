@@ -187,6 +187,9 @@ expect_equal(
   unname(apply(fit.dart$varprobs, c(1L, 2L), sum)),
   matrix(1, 2L, 25L)
 )
+# the shorthand warns once per session, so its key is reset for the pin
+onceWarnState <- dbarts:::onceWarnState
+onceWarnState[["tombstone.consolidated.split.probs.bart"]] <- NULL
 expect_warning(
   expect_error(
     bart(y.dart ~ x.dart, tree.prior = dart(), split.probs = rep(0.1, 10L)),

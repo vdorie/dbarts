@@ -645,7 +645,10 @@ expect_identical(samplesViaBart2Fixed$sigma, samplesViaDbartsFixed$sigma)
 expect_true(all(abs(samplesViaBart2Fixed$sigma - 1) < 1e-8))
 
 # collision refusals: a prior object plus a shorthand that would build it
-# errors naming both, matching the dart/split.probs precedent's shape
+# errors naming both, matching the dart/split.probs precedent's shape; the
+# shorthand warns once per session, so its key is reset for the pin
+onceWarnState <- dbarts:::onceWarnState
+onceWarnState[["tombstone.consolidated.power.bart"]] <- NULL
 expect_warning(
   expect_error(
     fit2(y.gaussian, tree.prior = dbarts::dbartsPriors$cgm(), power = 3),

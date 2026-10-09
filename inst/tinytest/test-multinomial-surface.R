@@ -811,6 +811,9 @@ expect_error(
   bart(x2, y2, family = "multinomial", tree.prior = dart()),
   "tree.prior"
 )
+# the shorthand warns once per session, so its key is reset for the pin
+onceWarnState <- dbarts:::onceWarnState
+onceWarnState[["tombstone.consolidated.split.probs.bart"]] <- NULL
 expect_warning(
   multinomialRefuses(x2, y2, "split.probs", split.probs = c(0.5, 0.5)),
   "'split.probs' has left 'bart'",
