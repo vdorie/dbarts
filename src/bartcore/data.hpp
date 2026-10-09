@@ -1498,7 +1498,8 @@ struct ColumnStore {
   /// widths - a 0/1 column, equally spaced integers, or equally spaced values
   /// whose widths differ only by the rounding of the values themselves, a few
   /// ulps of the largest - leave the cuts equally likely and the column
-  /// unweighted.
+  /// unweighted. The tolerance is absolute, so gaps only a few ulps of the
+  /// largest value wide count as equal even where their exact widths differ.
   void weighGapsByWidth(size_t j, const std::vector<double>& sorted) {
     size_t numValues = sorted.size();
     std::vector<double>& mass = cutMass[j];

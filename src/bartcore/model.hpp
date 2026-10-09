@@ -3757,7 +3757,9 @@ static_assert(FunctionLeafModel<GPGaussianLeaf>);
 /// A cut position of column \p variableIndex in [left, right], each with its
 /// weight's share of the range (ColumnStore::cutMass): one integer draw where
 /// the cuts are equally likely, the generator use of an unweighted column, and
-/// one continuous uniform where they are weighted.
+/// one continuous uniform where they are weighted. The target is formed on the
+/// stored values, so on a gap only a few ulps wide a cut's realized share is
+/// off its exact width's by about an ulp over the width.
 inline int32_t drawCutPosition(const ColumnStore& data, ext_rng* rng,
                                int32_t variableIndex, int32_t left,
                                int32_t right) {
