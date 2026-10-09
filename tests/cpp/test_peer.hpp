@@ -163,6 +163,51 @@ struct TestPeer {
   static bool drawLevelShift(Chain<L, R>& chain, double* shiftOut) {
     return chain.drawLevelShift(chain.forests_[0], shiftOut);
   }
+  /// The probit rescaling step on forest 0, and its predicate; alphaOut
+  /// receives the factor applied, 1 on a decline.
+  template <IntegrableLeafModel L, typename R>
+  static bool drawForestRescale(Chain<L, R>& chain, double* alphaOut) {
+    return chain.drawForestRescale(alphaOut);
+  }
+  template <IntegrableLeafModel L, typename R>
+  static bool forestRescaleApplies(const Chain<L, R>& chain) {
+    return chain.forestRescaleApplies();
+  }
+  /// Forest 0's k and its hyperprior, writable, so a gate can move a frozen
+  /// state along the step's orbit.
+  template <IntegrableLeafModel L, typename R>
+  static double& forestK(Chain<L, R>& chain) {
+    return chain.forests_[0].k;
+  }
+  template <IntegrableLeafModel L, typename R>
+  static ChiKHyperprior& kHyperprior(Chain<L, R>& chain) {
+    return chain.forests_[0].kHyperprior;
+  }
+  /// The family's latents and offset, and a restore of the former that
+  /// rebuilds the working response.
+  template <IntegrableLeafModel L, typename R>
+  static const double* latents(const Chain<L, R>& chain) {
+    return chain.response_->latents();
+  }
+  template <IntegrableLeafModel L, typename R>
+  static const double* offset(const Chain<L, R>& chain) {
+    return chain.response_->offset();
+  }
+  template <IntegrableLeafModel L, typename R>
+  static void restoreLatents(Chain<L, R>& chain, const double* latents) {
+    chain.response_->restoreLatents(latents);
+  }
+  /// totalFits re-derived from the leaf tables in tree order, for a test that
+  /// writes the tables directly.
+  template <IntegrableLeafModel L, typename R>
+  static void rebuildTotalFits(Chain<L, R>& chain) {
+    chain.rebuildTotalFitsFromTrees();
+  }
+  /// The chain's generator, so a test can read the stream a kernel left.
+  template <IntegrableLeafModel L, typename R>
+  static ext_rng* rng(Chain<L, R>& chain) {
+    return chain.rng_;
+  }
   /// Forest 0's tree t leaf table, writable, so a distributional gate can
   /// restore a frozen leaf state between repeated draws.
   template <IntegrableLeafModel L, typename R>

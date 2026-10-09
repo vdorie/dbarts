@@ -4471,6 +4471,12 @@ public:
   /// for models without latents.
   virtual void restoreLatents(const double*) {}
 
+  /// Multiply the active rows' latents by factor and rebuild the working
+  /// response from them in place, so a pointer the sweep holds to it stays
+  /// valid. Only a family whose latent is a location-scale draw with a unit
+  /// residual scale can take it; every other family refuses with false.
+  virtual bool scaleLatents(double /*factor*/) { return false; }
+
   /// State serialization of the response transform: gaussian's offset-
   /// adjusted (min, max), whose evolution under setOffset(updateScale) is
   /// otherwise unrecoverable from the data, and nbinom's log-mean shift c as
@@ -4998,6 +5004,16 @@ public:
   void restoreLatents(const double* latents) override {
     std::memcpy(latents_.data(), latents, numObservations_ * sizeof(double));
     rebuildWorking();
+  }
+
+  /// z includes the offset, so the working response is rebuilt as
+  /// factor z - o rather than scaled as factor (z - o). An inactive row's
+  /// latent is not in the model and keeps its value.
+  bool scaleLatents(double factor) override {
+    for (std::size_t i = 0; i < numObservations_; ++i)
+      if (activeRows_.empty() || activeRows_[i] != 0.0) latents_[i] *= factor;
+    rebuildWorking();
+    return true;
   }
 
   double initialSigma() const override { return 1.0; }

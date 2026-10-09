@@ -176,6 +176,395 @@ double standardNormal() {
          std::cos(6.283185307179586 * u2);
 }
 
+// ---- the probit rescaling step ---------------------------------------------
+//
+// A slice step from a fixed point is not a draw from its target, so both
+// distributional tests here are in invariance form: start each replication
+// from a point drawn exactly from the target, take one step, and score the
+// result against the target by Kolmogorov-Smirnov. At 2e5 replications the
+// p = 1e-3 bound is 1.95 / sqrt(N).
+constexpr size_t rescaleN = 243, rescaleP = 3, rescaleTrees = 8,
+                 rescaleBurnIn = 150, rescaleDraws = 200000;
+constexpr double rescaleKsBound = 1.95;
+constexpr double rescaleMapTolerance = 1.0e-14;
+
+/// A one-dimensional log density tabulated on a uniform grid, its CDF by the
+/// trapezoid rule, sampled by inverse CDF and read back by interpolation.
+struct GridLaw {
+  double lower = 0.0, step = 0.0;
+  std::vector<double> cdf;
+
+  template <typename F>
+  GridLaw(const F& logDensity, double from, double to, size_t numPoints) {
+    // locate the mass on a coarse pass, then tabulate +-30 sd of it finely
+    double best = -HUGE_VAL, mode = from;
+    for (size_t j = 0; j <= 20000; ++j) {
+      double v = from + (to - from) * static_cast<double>(j) / 20000.0;
+      double value = logDensity(v);
+      if (value > best) {
+        best = value;
+        mode = v;
+      }
+    }
+    double curvature = -(logDensity(mode + 1e-4) - 2.0 * logDensity(mode) +
+                         logDensity(mode - 1e-4)) / 1e-8;
+    double sd = curvature > 0.0 ? 1.0 / std::sqrt(curvature) : 1.0;
+    lower = mode - 30.0 * sd;
+    step = 60.0 * sd / static_cast<double>(numPoints - 1);
+    std::vector<double> density(numPoints);
+    for (size_t j = 0; j < numPoints; ++j)
+      density[j] = std::exp(logDensity(lower + step * static_cast<double>(j)) -
+                            best);
+    cdf.assign(numPoints, 0.0);
+    for (size_t j = 1; j < numPoints; ++j)
+      cdf[j] = cdf[j - 1] + 0.5 * step * (density[j - 1] + density[j]);
+    double total = cdf.back();
+    for (double& c : cdf) c /= total;
+  }
+
+  double draw(double u) const {
+    size_t j = static_cast<size_t>(
+      std::upper_bound(cdf.begin(), cdf.end(), u) - cdf.begin());
+    if (j == 0) return lower;
+    if (j >= cdf.size()) return lower + step * static_cast<double>(cdf.size() - 1);
+    double width = cdf[j] - cdf[j - 1];
+    double fraction = width > 0.0 ? (u - cdf[j - 1]) / width : 0.0;
+    return lower + step * (static_cast<double>(j - 1) + fraction);
+  }
+
+  double at(double v) const {
+    double position = (v - lower) / step;
+    if (position <= 0.0) return 0.0;
+    size_t j = static_cast<size_t>(position);
+    if (j + 1 >= cdf.size()) return 1.0;
+    double fraction = position - static_cast<double>(j);
+    return cdf[j] + fraction * (cdf[j + 1] - cdf[j]);
+  }
+};
+
+/// sqrt(N) times the KS distance of a sample from a continuous CDF.
+template <typename F>
+double scaledKsDistance(std::vector<double> sample, const F& cdf) {
+  std::sort(sample.begin(), sample.end());
+  double n = static_cast<double>(sample.size()), worst = 0.0;
+  for (size_t j = 0; j < sample.size(); ++j) {
+    double value = cdf(sample[j]);
+    worst = std::max(worst, std::max(static_cast<double>(j + 1) / n - value,
+                                     value - static_cast<double>(j) / n));
+  }
+  return worst * std::sqrt(n);
+}
+
+/// The step's four constants read off a chain's raw state: the latents, the
+/// offset, the test's own mask and the leaves gathered in tree order, never
+/// the step's own arithmetic.
+struct RescaleConstants {
+  double numActive = 0.0, residualSquares = 0.0, offsetCross = 0.0,
+         kTerm = 0.0, degreesOfFreedom = 0.0;
+
+  double logDensity(double v) const {
+    double e = std::exp(v);
+    return (numActive - degreesOfFreedom) * v - 0.5 * residualSquares * e * e +
+           offsetCross * e - kTerm / (e * e);
+  }
+};
+
+RescaleConstants rescaleConstantsOf(ConstantLeafSampler& sampler,
+                                    const std::vector<double>& mask) {
+  Chain<ConstantGaussianLeaf>& chain = sampler.chain(0);
+  const double* z = TestPeer::latents(chain);
+  const double* offset = TestPeer::offset(chain);
+  RescaleConstants constants;
+  for (size_t i = 0; i < rescaleN; ++i) {
+    if (mask[i] == 0.0) continue;
+    double fit = 0.0;
+    for (size_t t = 0; t < rescaleTrees; ++t)
+      fit += TestPeer::muByTree(chain, t)[TestPeer::leafOf(chain, t)[i]];
+    double residual = z[i] - fit;
+    constants.numActive += 1.0;
+    constants.residualSquares += residual * residual;
+    constants.offsetCross += offset[i] * residual;
+  }
+  const ChiKHyperprior& prior = TestPeer::kHyperprior(chain);
+  double k = TestPeer::forestK(chain);
+  constants.kTerm = k * k / (2.0 * prior.scale * prior.scale);
+  constants.degreesOfFreedom = prior.degreesOfFreedom;
+  return constants;
+}
+
+/// Whether a call declines and leaves the generator where it was.
+bool rescaleDeclinesWithoutDraw(Chain<ConstantGaussianLeaf>& chain) {
+  ext_rng* rng = TestPeer::rng(chain);
+  ext_rng* reference = cloneRng(rng);
+  double alpha = 0.0;
+  bool taken = TestPeer::drawForestRescale(chain, &alpha);
+  bool agree = rngStreamsAgree(reference, rng);
+  ext_rng_destroy(reference);
+  return !taken && alpha == 1.0 && agree;
+}
+
+std::unique_ptr<ConstantLeafSampler>
+makeRescaleSampler(const std::vector<double>& x, const std::vector<double>& y,
+                   const std::vector<double>& offset, ResponseFamily family,
+                   bool updateK, bool rescale, ext_rng** rng) {
+  SamplerOptions options;
+  options.numTrees = rescaleTrees;
+  options.nodeScale = 3.0;
+  options.updateK = updateK;
+  options.kHyperprior.degreesOfFreedom = 1.5;
+  options.kHyperprior.scale = 2.0;
+  options.probitRescaleForest = rescale;
+  return std::make_unique<ConstantLeafSampler>(
+    x.data(), y.data(), rescaleN, rescaleP, nullptr, offset.data(), family,
+    1.0, 3.0, 0.37804942330213542, options, rng);
+}
+
+/// The slice step on a normal target with a closed-form CDF, in invariance
+/// form: v0 drawn exactly, one step from it, KS on the result.
+double sliceInvarianceKs(ext_rng* rng, double mean, double sd, double width,
+                         int stepLimit) {
+  std::vector<double> moved(rescaleDraws);
+  for (size_t r = 0; r < rescaleDraws; ++r) {
+    double start = mean + sd * ext_rng_simulateStandardNormal(rng);
+    auto logDensity = [&](double u) {
+      double d = (start + u - mean) / sd;
+      return -0.5 * d * d;
+    };
+    moved[r] = start + sliceFromZero(rng, logDensity, width, stepLimit);
+  }
+  return scaledKsDistance(moved, [&](double v) {
+    return 0.5 * std::erfc(-(v - mean) / (sd * std::sqrt(2.0)));
+  });
+}
+
+void runForestRescaleTests() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20261008u);
+
+  std::vector<double> x(rescaleN * rescaleP), y(rescaleN), offset(rescaleN);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < rescaleN; ++i) {
+    double eta = 1.5 * std::sin(3.0 * x[i]) + x[i + rescaleN] - 0.5;
+    y[i] = eta + standardNormal() > 0.0 ? 1.0 : 0.0;
+    offset[i] = 0.8 * (x[i + 2 * rescaleN] - 0.5);
+  }
+  // every fifth row inactive, so the leaves hold masked members
+  std::vector<double> mask(rescaleN, 1.0);
+  for (size_t i = 0; i < rescaleN; i += 5) mask[i] = 0.0;
+
+  std::unique_ptr<ConstantLeafSampler> sampler = makeRescaleSampler(
+    x, y, offset, ResponseFamily::probit, true, true, &rng);
+  Results results;
+  sampler->run(rescaleBurnIn, 0, results);
+  check(sampler->setActiveRows(mask.data()), "the probit sampler takes a mask");
+  sampler->run(20, 0, results);
+  Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+  check(TestPeer::forestRescaleApplies(chain),
+        "a burned-in drawn-k probit forest takes the rescaling step");
+
+  // the frozen state
+  std::vector<double> frozenZ(TestPeer::latents(chain),
+                              TestPeer::latents(chain) + rescaleN);
+  std::vector<std::vector<double>> frozenMu(rescaleTrees);
+  for (size_t t = 0; t < rescaleTrees; ++t)
+    frozenMu[t] = TestPeer::muByTree(chain, t);
+  const double frozenK = TestPeer::forestK(chain);
+  auto moveFrozenStateTo = [&](double factor) {
+    std::vector<double> z(frozenZ);
+    for (size_t i = 0; i < rescaleN; ++i)
+      if (mask[i] != 0.0) z[i] *= factor;
+    TestPeer::restoreLatents(chain, z.data());
+    for (size_t t = 0; t < rescaleTrees; ++t) {
+      std::vector<double>& mu = TestPeer::muByTree(chain, t);
+      for (size_t j = 0; j < mu.size(); ++j) mu[j] = frozenMu[t][j] * factor;
+    }
+    TestPeer::forestK(chain) = frozenK / factor;
+    TestPeer::rebuildTotalFits(chain);
+  };
+  // the occupied leaves, as (tree, node) pairs
+  std::vector<std::pair<size_t, int32_t>> occupied;
+  std::vector<int32_t> bottoms;
+  size_t numEmpty = 0;
+  for (size_t t = 0; t < rescaleTrees; ++t) {
+    const Tree& tree = chain.treeInForest(0, t);
+    bottoms.clear();
+    tree.fillBottom(0, bottoms);
+    for (int32_t b : bottoms) {
+      if (tree.at(b).numObservations() > 0) occupied.emplace_back(t, b);
+      else ++numEmpty;
+    }
+  }
+  check(occupied.size() > rescaleTrees, "the frozen trees carry splits");
+  moveFrozenStateTo(1.0);
+  RescaleConstants constants = rescaleConstantsOf(*sampler, mask);
+  char what[200];
+
+  // 1. The conditional, in invariance form. v0 is the orbit coordinate
+  // measured from the frozen state, so its target is the frozen state's own
+  // conditional; one step from e^v0 then lands at v1, read off the latents and
+  // the leaves, which must agree with each other, with alpha and with k.
+  GridLaw law([&](double v) { return constants.logDensity(v); }, -6.0, 6.0,
+              200001);
+  std::vector<double> landed(rescaleDraws);
+  double worstDisagreement = 0.0;
+  for (size_t r = 0; r < rescaleDraws; ++r) {
+    double start = law.draw(ext_rng_simulateContinuousUniform(rng));
+    moveFrozenStateTo(std::exp(start));
+    double alpha = 0.0;
+    TestPeer::drawForestRescale(chain, &alpha);
+    const double* z = TestPeer::latents(chain);
+    double zMoved = 0.0, zFrozen = 0.0, muMoved = 0.0, muFrozen = 0.0;
+    for (size_t i = 0; i < rescaleN; ++i) {
+      if (mask[i] == 0.0) continue;
+      zMoved += std::fabs(z[i]);
+      zFrozen += std::fabs(frozenZ[i]);
+    }
+    for (const auto& [t, b] : occupied) {
+      muMoved += std::fabs(TestPeer::muByTree(chain, t)[static_cast<size_t>(b)]);
+      muFrozen += std::fabs(frozenMu[t][static_cast<size_t>(b)]);
+    }
+    double fromLatents = std::log(zMoved / zFrozen);
+    double fromLeaves = std::log(muMoved / muFrozen);
+    double fromK = std::log(frozenK / TestPeer::forestK(chain));
+    double fromAlpha = start + std::log(alpha);
+    worstDisagreement = std::max(
+      {worstDisagreement, std::fabs(fromLeaves - fromLatents),
+       std::fabs(fromK - fromLatents), std::fabs(fromAlpha - fromLatents)});
+    landed[r] = fromLatents;
+  }
+  double ks = scaledKsDistance(landed, [&](double v) { return law.at(v); });
+  std::snprintf(what, sizeof what,
+                "rescaling: one step from the target stays at the target "
+                "(sqrt(N) D %.3g against %.3g)", ks, rescaleKsBound);
+  check(ks < rescaleKsBound, what);
+  std::snprintf(what, sizeof what,
+                "rescaling: latents, leaves, k and alpha move by one factor "
+                "(worst %.3g)", worstDisagreement);
+  check(worstDisagreement < 1.0e-10, what);
+
+  // 2. The mapping, one step from the frozen state.
+  moveFrozenStateTo(1.0);
+  double alpha = 0.0;
+  check(TestPeer::drawForestRescale(chain, &alpha) && alpha != 1.0,
+        "rescaling: the frozen state takes the step");
+  bool kMapped = std::fabs(TestPeer::forestK(chain) * alpha / frozenK - 1.0) <
+                 rescaleMapTolerance;
+  bool leavesMapped = true;
+  for (size_t t = 0; t < rescaleTrees; ++t) {
+    const Tree& tree = chain.treeInForest(0, t);
+    bottoms.clear();
+    tree.fillBottom(0, bottoms);
+    for (int32_t b : bottoms) {
+      double now = TestPeer::muByTree(chain, t)[static_cast<size_t>(b)];
+      double was = frozenMu[t][static_cast<size_t>(b)];
+      leavesMapped = leavesMapped &&
+        (tree.at(b).numObservations() > 0
+           ? std::fabs(now - alpha * was) <= rescaleMapTolerance * std::fabs(now)
+           : now == was);
+    }
+  }
+  const double* z = TestPeer::latents(chain);
+  const double* working = TestPeer::workingResponse(chain);
+  bool latentsMapped = true, workingMapped = true;
+  for (size_t i = 0; i < rescaleN; ++i) {
+    latentsMapped = latentsMapped &&
+      (mask[i] != 0.0
+         ? std::fabs(z[i] - alpha * frozenZ[i]) <= rescaleMapTolerance * std::fabs(z[i])
+         : z[i] == frozenZ[i]);
+    workingMapped = workingMapped && working[i] == z[i] - offset[i];
+  }
+  std::vector<double> gathered(rescaleN, 0.0);
+  for (size_t t = 0; t < rescaleTrees; ++t)
+    for (size_t i = 0; i < rescaleN; ++i)
+      gathered[i] += TestPeer::muByTree(chain, t)[TestPeer::leafOf(chain, t)[i]];
+  bool totalsMapped = forestTotals(*sampler, 0) == gathered;
+  check(kMapped, "rescaling: k is divided by alpha");
+  check(leavesMapped, "rescaling: every occupied leaf of every tree is "
+                      "multiplied by alpha, an empty one left as it was");
+  check(latentsMapped, "rescaling: the active latents are multiplied by "
+                       "alpha, the inactive ones left as they were");
+  check(workingMapped, "rescaling: the working response is alpha z - o");
+  check(totalsMapped, "rescaling: totalFits is the scaled leaves gathered in "
+                      "tree order, bitwise");
+
+  // 3. Inertness: each decline consumes no generator draw.
+  moveFrozenStateTo(1.0);
+  TestPeer::forestK(chain) = HUGE_VAL;
+  check(rescaleDeclinesWithoutDraw(chain), "rescaling declines at infinite k");
+  moveFrozenStateTo(1.0);
+  ChiKHyperprior savedPrior = TestPeer::kHyperprior(chain);
+  TestPeer::kHyperprior(chain).scale = HUGE_VAL;
+  TestPeer::kHyperprior(chain).degreesOfFreedom = constants.numActive;
+  check(rescaleDeclinesWithoutDraw(chain),
+        "rescaling declines under an infinite k scale with n <= nu");
+  TestPeer::kHyperprior(chain).degreesOfFreedom = constants.numActive - 1.0;
+  check(TestPeer::drawForestRescale(chain, &alpha),
+        "rescaling is taken under an infinite k scale with n > nu");
+  TestPeer::kHyperprior(chain) = savedPrior;
+  moveFrozenStateTo(1.0);
+  std::vector<double> none(rescaleN, 0.0);
+  check(sampler->setActiveRows(none.data()), "an all-inactive mask installs");
+  check(rescaleDeclinesWithoutDraw(chain),
+        "rescaling declines with every row inactive");
+  check(sampler->setActiveRows(mask.data()), "the mask reinstalls");
+
+  ext_rng* otherRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(otherRng, 20261009u);
+  std::unique_ptr<ConstantLeafSampler> fixedK = makeRescaleSampler(
+    x, y, offset, ResponseFamily::probit, false, true, &otherRng);
+  fixedK->run(20, 0, results);
+  check(rescaleDeclinesWithoutDraw(fixedK->chain(0)),
+        "rescaling declines at a fixed k");
+  std::unique_ptr<ConstantLeafSampler> logistic = makeRescaleSampler(
+    x, y, offset, ResponseFamily::logistic, true, true, &otherRng);
+  logistic->run(20, 0, results);
+  check(rescaleDeclinesWithoutDraw(logistic->chain(0)),
+        "rescaling declines under the logistic family");
+  std::unique_ptr<ConstantLeafSampler> stale = makeRescaleSampler(
+    x, y, offset, ResponseFamily::probit, true, true, &otherRng);
+  stale->run(20, 0, results);
+  stale->sampleTreesFromPrior();
+  check(TestPeer::leafOfStale(stale->chain(0), 0) != 0 &&
+          rescaleDeclinesWithoutDraw(stale->chain(0)),
+        "rescaling declines on a stale tree map");
+  ext_rng_destroy(otherRng);
+
+  // the switch moves the sampled path on a drawn-k probit fit
+  ext_rng* onRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* offRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(onRng, 11u);
+  ext_rng_setSeed(offRng, 11u);
+  std::unique_ptr<ConstantLeafSampler> on = makeRescaleSampler(
+    x, y, offset, ResponseFamily::probit, true, true, &onRng);
+  std::unique_ptr<ConstantLeafSampler> off = makeRescaleSampler(
+    x, y, offset, ResponseFamily::probit, true, false, &offRng);
+  on->run(30, 0, results);
+  off->run(30, 0, results);
+  check(forestTotals(*on, 0) != forestTotals(*off, 0),
+        "the rescaling switch moves the sampled path");
+  ext_rng_destroy(onRng);
+  ext_rng_destroy(offRng);
+
+  // 4. The slice step alone. At the shipped width and limit the limit never
+  // binds; at a width of a sd and a limit of 3 it binds on most steps, which
+  // is the only run that can tell a randomly split limit from a fixed one.
+  double ksShipped = sliceInvarianceKs(rng, 0.3, 0.05, rescaleSliceWidth,
+                                       rescaleSliceStepLimit);
+  double ksBinding = sliceInvarianceKs(rng, 0.3, 1.0, 1.0, 3);
+  std::snprintf(what, sizeof what,
+                "slice step: invariant at the shipped width and limit "
+                "(sqrt(N) D %.3g) and where the limit binds (%.3g)",
+                ksShipped, ksBinding);
+  check(ksShipped < rescaleKsBound && ksBinding < rescaleKsBound, what);
+
+  ext_rng_destroy(rng);
+  printf("ok: probit rescaling, %zu steps at %zu trees (sqrt(N) D %.3g, worst "
+         "factor disagreement %.3g, %zu empty leaves); slice sqrt(N) D %.3g "
+         "shipped, %.3g limit binding\n",
+         rescaleDraws, rescaleTrees, ks, worstDisagreement, numEmpty,
+         ksShipped, ksBinding);
+}
+
 }  // namespace
 
 void runEnsembleTests() {
@@ -395,6 +784,8 @@ void runEnsembleTests() {
   check(poisonCovZ < levelZThreshold, what);
 
   ext_rng_destroy(lawRng);
+
+  runForestRescaleTests();
 
   ext_rng_destroy(rng);
   rngState = savedRngState;

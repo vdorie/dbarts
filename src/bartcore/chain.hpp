@@ -97,6 +97,13 @@ struct SamplerOptions {
   // to write, and the variance forest's fibre is multiplicative rather than
   // additive, so both ignore it.
   LevelGibbsMode levelGibbs = LevelGibbsMode::automatic;
+  // the probit rescaling step, taken once per sweep after the level step: the
+  // active latents and the occupied leaves are multiplied by one factor and k
+  // divided by it, the factor drawn by a slice step from its exact
+  // conditional. Taken only where Chain::forestRescaleApplies holds - one
+  // plain constant-leaf probit forest with a drawn k - and guarded before any
+  // generator call, so every other fit draws byte-for-byte as with it off.
+  bool probitRescaleForest = true;
   std::uint32_t maxNumCuts = 100;
   // borrowed per-column override of maxNumCuts; copied during construction
   const std::uint32_t* maxNumCutsPerVariable = nullptr;
@@ -643,6 +650,51 @@ struct VarianceForest {
 #else
 #  define BARTCORE_PREFETCH(_P_) ((void) 0)
 #endif
+
+/// The probit rescaling step's slice interval: its initial width in log scale
+/// and the most widths stepping out may add. Both fix the draw sequence, so
+/// neither is a setting. At these values the limit never binds on the step's
+/// conditional, whose sd in log scale is near 1 / sqrt(2 n).
+constexpr double rescaleSliceWidth = 0.25;
+constexpr int rescaleSliceStepLimit = 1000;
+
+/// One slice-sampling update (Neal 2003, stepping out then shrinkage) of a
+/// one-dimensional target from the current point v = 0, returning the new
+/// point. logDensity is the log target up to a constant and must return a
+/// finite value at 0; a non-finite value anywhere else is read as outside the
+/// slice. The step limit is split at random into stepLimit - 1 widths to the
+/// left and right, as reversibility requires; a fixed split does not leave the
+/// target invariant. Shrinkage terminates because 0 is always in the slice.
+/// This is a reversible kernel for the target, not an independent draw from
+/// it: a test of it starts from a point drawn from the target.
+template <typename LogDensity>
+double sliceFromZero(ext_rng* rng, const LogDensity& logDensity, double width,
+                     int stepLimit) {
+  auto inSlice = [&](double v, double level) {
+    double value = logDensity(v);
+    return value == value && value >= level;
+  };
+  double level = logDensity(0.0) - ext_rng_simulateExponential(rng, 1.0);
+  double lower = -width * ext_rng_simulateContinuousUniform(rng);
+  double upper = lower + width;
+  int stepsLeft = static_cast<int>(static_cast<double>(stepLimit) *
+                                   ext_rng_simulateContinuousUniform(rng));
+  int stepsRight = stepLimit - 1 - stepsLeft;
+  while (stepsLeft > 0 && inSlice(lower, level)) {
+    lower -= width;
+    --stepsLeft;
+  }
+  while (stepsRight > 0 && inSlice(upper, level)) {
+    upper += width;
+    --stepsRight;
+  }
+  for (;;) {
+    double v = lower + ext_rng_simulateContinuousUniform(rng) * (upper - lower);
+    if (v == 0.0 || inSlice(v, level)) return v;
+    if (v < 0.0) lower = v;
+    else upper = v;
+  }
+}
 
 /// Bank count of the fused roll + node-average suffstat pass. K fixes the
 /// summation order and so is part of the draw law: a knob here would mean the
@@ -1785,6 +1837,13 @@ public:
               structureFrozenByForest_[f])
             drawLevelShift(forests_[f]);
       }
+
+      // the probit rescaling step, after the level step and so equally ahead
+      // of every channel the sweep writes: k, the leaves the test fits and
+      // saved trees read, and totalFits, which it re-derives from the scaled
+      // leaves before the roll reads it. It declines before any generator
+      // call wherever it does not apply.
+      if (options_.probitRescaleForest) drawForestRescale();
 
       for (size_t f = 0; f < forests_.size(); ++f) {
         Forest<L, ResidT>& forest = forests_[f];
@@ -6524,6 +6583,111 @@ private:
           if (tree.at(nodeIndex).numObservations() != 0)
             mu[static_cast<size_t>(nodeIndex)] += shift;
       }
+      return true;
+    }
+  }
+
+  /// Whether the probit rescaling step can apply this sweep, on what the
+  /// chain holds alone: one plain constant-leaf forest, no combiner and no
+  /// variance forest, the probit family, k drawn and finite and positive, and
+  /// every tree's obs-to-leaf map current. A stale map (the sweep after a
+  /// prior draw or a wholesale reset) does not name the leaves the cached fits
+  /// were gathered from. Reads no generator.
+  bool forestRescaleApplies() const {
+    if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
+      return false;
+    } else {
+      if (forests_.size() != 1 || combiner_ || varianceForest_ ||
+          family_ != ResponseFamily::probit)
+        return false;
+      const Forest<L, ResidT>& forest = forests_[0];
+      if (!forest.updateK || !(forest.k > 0.0 && forest.k <= DBL_MAX))
+        return false;
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        if (forest.leafOfStale[t] != 0) return false;
+      return true;
+    }
+  }
+
+  /// The probit rescaling step: a draw of the group alpha > 0 acting as
+  /// (z, mu, k) -> (alpha z, alpha mu, k / alpha) on the active latents, the
+  /// occupied leaves and k, from its exact conditional (Liu and Sabatti
+  /// 2000). With n active rows, R = sum (z_i - f_i)^2 and
+  /// Q = sum o_i (z_i - f_i) over them, nu and s the k prior's degrees of
+  /// freedom and scale, and C = k^2 / (2 s^2) (zero under an infinite scale),
+  /// the log density of v = log alpha is
+  ///
+  ///   (n - nu) v - (R / 2) e^(2v) + Q e^v - C e^(-2v),
+  ///
+  /// the Jacobian alpha^(n + M - 1) against the leaf prior's alpha^-M and the
+  /// k prior's alpha^-(nu - 1). v is moved by one slice step from 0. The
+  /// truncation of z is invariant for alpha > 0; an empty leaf sits at zero
+  /// and stays there; an inactive row is not in the model, so its latent is
+  /// neither counted nor scaled.
+  ///
+  /// Declines, consuming no generator draw, where forestRescaleApplies does
+  /// not hold, where R is not positive, and where C is zero and n <= nu, the
+  /// conditional then being improper. Every decline reads only quantities the
+  /// group leaves invariant, so mixing the step with the identity keeps the
+  /// posterior. totalFits is re-derived from the scaled leaves in tree order
+  /// rather than multiplied in place, since a cache gap a factor multiplies
+  /// compounds across sweeps. alphaOut, when non-null, receives the factor
+  /// applied, 1 on a decline.
+  bool drawForestRescale(double* alphaOut = nullptr) {
+    if (alphaOut != nullptr) *alphaOut = 1.0;
+    if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
+      return false;
+    } else {
+      if (!forestRescaleApplies()) return false;
+      Forest<L, ResidT>& forest = forests_[0];
+      const size_t n = data_.numObservations;
+      const double* z = response_->latents();
+      const double* offset = response_->offset();
+      // the 0/1 active-row mask under probit, null when none is installed
+      const double* active = response_->workingWeights();
+      const double* fits = forest.totalFits.data();
+      double numActive = 0.0, residualSquares = 0.0, offsetCross = 0.0;
+      for (size_t i = 0; i < n; ++i) {
+        if (active != nullptr && active[i] == 0.0) continue;
+        double residual = z[i] - fits[i];
+        numActive += 1.0;
+        residualSquares += residual * residual;
+        if (offset != nullptr) offsetCross += offset[i] * residual;
+      }
+      if (!(residualSquares > 0.0 && residualSquares <= DBL_MAX)) return false;
+      const double k = forest.k;
+      const double priorScale = forest.kHyperprior.scale;
+      const double power = numActive - forest.kHyperprior.degreesOfFreedom;
+      const double kTerm = std::fabs(priorScale) <= DBL_MAX
+                             ? k * k / (2.0 * priorScale * priorScale)
+                             : 0.0;
+      if (kTerm == 0.0 && !(power > 0.0)) return false;
+
+      auto logDensity = [=](double v) {
+        double e = std::exp(v);
+        double value = power * v - 0.5 * residualSquares * e * e;
+        if (offsetCross != 0.0) value += offsetCross * e;
+        if (kTerm != 0.0) value -= kTerm / (e * e);
+        return value;
+      };
+      double alpha = std::exp(sliceFromZero(rng_, logDensity, rescaleSliceWidth,
+                                            rescaleSliceStepLimit));
+      if (alphaOut != nullptr) *alphaOut = alpha;
+
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        Tree& tree(forest.trees[t]);
+        std::vector<double>& mu(forest.muByTree[t]);
+        tree.bottomScratch.clear();
+        tree.fillBottom(0, tree.bottomScratch);
+        for (int32_t nodeIndex : tree.bottomScratch)
+          if (tree.at(nodeIndex).numObservations() != 0)
+            mu[static_cast<size_t>(nodeIndex)] *= alpha;
+      }
+      forest.k = k / alpha;
+      bool scaled = response_->scaleLatents(alpha);
+      assert(scaled);
+      (void) scaled;
+      rebuildTotalFitsFromTrees();
       return true;
     }
   }
