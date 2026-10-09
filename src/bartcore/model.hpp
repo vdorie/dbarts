@@ -3334,10 +3334,15 @@ private:
     return median > 0.0 ? median : 1.0;
   }
 
-  /// A node's members sorted by observation index, in a scratch that keeps
-  /// its capacity; valid until the next call, and no caller holds two.
+  /// A node's members sorted by observation index: the span itself when it
+  /// is already in order, otherwise a sorted copy in a scratch that keeps
+  /// its capacity; valid until the next call or tree change, and no caller
+  /// holds two.
   const index_t* sortedMembers(const Tree& tree, const Node& node) const {
-    memberScratch_.assign(tree.indices + node.begin, tree.indices + node.end);
+    const index_t* begin = tree.indices + node.begin;
+    const index_t* end = tree.indices + node.end;
+    if (std::is_sorted(begin, end)) return begin;
+    memberScratch_.assign(begin, end);
     std::sort(memberScratch_.begin(), memberScratch_.end());
     return memberScratch_.data();
   }
@@ -3668,10 +3673,12 @@ private:
   }
 
   /// Drop entries whose node no longer exists, is no longer a bottom node,
-  /// or whose membership changed, keeping the budget for live leaves. The
-  /// comparison is in sorted order, as the entries are keyed: against the
-  /// span it would evict every leaf whose span is out of order. Lookups
-  /// re-validate regardless; this is hygiene, not correctness.
+  /// or whose member count changed, keeping the budget for live leaves. An
+  /// entry whose count stands but whose members moved stays until its next
+  /// lookup, which re-validates against the sorted members and rebuilds; a
+  /// comparison here would pay a sort per cached leaf per tree draw, and one
+  /// against the unsorted span would evict every leaf whose span is out of
+  /// order. Hygiene, not correctness.
   void evictStaleKernelEntries(const Tree& tree) const {
     for (TreeKernelCache& cache : kernelCaches_) {
       if (cache.tree != &tree) continue;
@@ -3682,9 +3689,7 @@ private:
         if (live) {
           const Node& node(tree.at(static_cast<int32_t>(index)));
           live = node.isBottom() &&
-                 node.numObservations() == entry.members.size() &&
-                 std::memcmp(entry.members.data(), sortedMembers(tree, node),
-                             entry.members.size() * sizeof(index_t)) == 0;
+                 node.numObservations() == entry.members.size();
         }
         if (!live) {
           kernelCacheUsedBytes_ -= kernelEntryBytes(entry.members.size());
