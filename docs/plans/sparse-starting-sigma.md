@@ -119,7 +119,7 @@ training rows. The tier is "Changes draws" ([Process by risk](README.md#process-
    level fits another model (0.2 percent off on the test design).
 2. Rows. Drop rows with a missing response, weight or offset and rows of weight 0, as `lm.wfit` does;
    z = y - offset. B = diag(sqrt(w)) [1 X], each nonzero column scaled to unit norm, all-zero columns
-   dropped. No centring: a centred crossproduct cancels for a column with a large mean (pivot noise 2.5e-11
+   dropped. No centering: a centered crossproduct cancels for a column with a large mean (pivot noise 2.5e-11
    at a mean of 2000 and sd 6, a margin of 4 to the tolerance).
 3. Rank. If ncol(B) < n, `chol(as.matrix(Matrix::crossprod(B)), pivot = TRUE, tol = 1e-10)` (LAPACK dpstrf;
    its rank-deficiency warning muffled), r its rank, K its first r pivots, R its leading r x r block;
@@ -191,7 +191,7 @@ provide one instead". Neither LAPACK call checks for an interrupt, as `lm.fit` d
   pass unchanged.
 
 Reviewer's mutants, each of which must fail a test: tolerance 1e-10 to 1e-16 (exact dependencies kept) and
-to 1e-6 (the 1e-4 column dropped); the reference shift removed; the intercept column dropped; centring
+to 1e-6 (the 1e-4 column dropped); the reference shift removed; the intercept column dropped; centering
 reinstated in place of the intercept column (the mean-1e5 case); weights left out of B or of the residual;
 the wide side's basis taken from the unpivoted factor; zero-weight rows kept; `n - r` replaced by `n - p`.
 
@@ -277,7 +277,7 @@ point is past 1.5x; the change needs engine, bridge or C API code.
 
 - One routine for every sparse design: the sparse QR goes, so an indicator expansion takes this path too
   (157 s against 0.2 s on one-hot 20 x 50 at n 1e4).
-- The smaller Gram side, uncentred with the intercept as a column, tolerance 1e-10 on the unit-diagonal
+- The smaller Gram side, uncentered with the intercept as a column, tolerance 1e-10 on the unit-diagonal
   pivots, residual computed directly, no refinement.
 - xbart's per-fold estimate uses the routine per fold, as the dense path refits per fold.
 - dbartsSparseSigmaFallbackWarning retired.
