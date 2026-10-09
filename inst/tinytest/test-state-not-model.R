@@ -338,6 +338,34 @@ constantSelf$setState(constantState)
 constantTwin <- makeConstant()
 constantTwin$setState(constantState)
 expect_identical(sweeps(constantSelf), sweeps(constantTwin))
+# a stored (c, c) read back is the window centred on c: a sampler made on a
+# constant and given a varying response under the pinned transform still
+# records (2, 2), and a reload, which re-creates on the varying response and
+# installs the stored pair, reports it, shifts by 2 and continues as the
+# sampler it was saved from (a pair read as c to c + 1 put the shift at 2.5)
+pinnedConstant <- makeConstant()
+pinnedConstant$setResponse(y, updateScale = FALSE)
+invisible(pinnedConstant$run(5L, 0L))
+expect_identical(units(pinnedConstant), c(2, 2))
+expect_identical(pinnedConstant$getLeafPrior()$response.shift, 2)
+pinnedFits <- pinnedConstant$getFitsWithoutOffset()
+pinnedFile <- tempfile(fileext = ".rds")
+saveRDS(pinnedConstant, pinnedFile)
+pinnedReloaded <- readRDS(pinnedFile)
+unlink(pinnedFile)
+expect_identical(units(pinnedReloaded), c(2, 2))
+expect_identical(pinnedReloaded$getLeafPrior()$response.shift, 2)
+expect_equal(
+  pinnedReloaded$getFitsWithoutOffset(),
+  pinnedFits,
+  tolerance = 1e-12
+)
+# the same streams, to the last digits a state install keeps
+expect_equal(
+  sweeps(pinnedReloaded),
+  sweeps(pinnedConstant),
+  tolerance = 1e-12
+)
 
 # a record that is not a transform is refused when a re-creation reads it: a
 # non-finite or decreasing pair anywhere, and an equal one on the count family
