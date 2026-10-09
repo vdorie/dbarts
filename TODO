@@ -284,7 +284,10 @@ items
     distribution or a rule). About 870 whole-word uses of "law" in 181
     tracked files: docs, R and man text, comments, the TODO item name
     coefficient-law-opt-in; identifiers where not public. Replace with
-    distribution, prior, rule or formula as fits. Docs/text tier.
+    distribution, prior, rule or formula as fits. Docs/text tier. The
+    same pass moves British spellings to American (VD 2026-10-09):
+    about 576 uses of centre, behaviour, colour, favour, modelling and
+    the like, in R, docs and benchmarks; identifiers where not public.
   gp-speed-x86: before the merge. Rerun the gp member-order speed A/B
     (cap 64 arms at least; the warm column, which alone sees a kernel-
     cache regression) on the quiet x86 box against da19dec4's engine;
