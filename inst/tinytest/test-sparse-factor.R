@@ -167,7 +167,8 @@ fit <- bart(
   n.trees = 25L,
   n.chains = 1L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 expect_true(all(is.finite(fitted(fit))))
 
@@ -337,7 +338,8 @@ expect_error(
     train.dense,
     y.tr,
     test = data.frame(x1 = x1.te, g = factor(unseenLabels)),
-    control = dbartsControl(n.trees = 5L, updateState = FALSE)
+    control = dbartsControl(n.trees = 5L, updateState = FALSE),
+    sigest = 1
   ),
   pattern = "has levels not present in the"
 )
@@ -352,7 +354,8 @@ expect_error(
     train.dense,
     y.tr,
     test = test.unseen,
-    control = dbartsControl(n.trees = 5L, updateState = FALSE)
+    control = dbartsControl(n.trees = 5L, updateState = FALSE),
+    sigest = 1
   ),
   pattern = "has levels not present in the"
 )
@@ -442,7 +445,8 @@ expect_error(
       n.chains = 1L,
       n.threads = 1L,
       updateState = FALSE
-    )
+    ),
+    sigest = 1
   ),
   pattern = "leaf covariate"
 )
@@ -615,7 +619,12 @@ n.bound <- 60L
 labels.bound <- sample(levels.small, n.bound, replace = TRUE)
 y.bound <- rnorm(n.bound) + match(labels.bound, levels.small)
 train.bound <- sparseFrame(labels.bound, levels.small, "a")
-sampler.bound <- dbarts(train.bound, y.bound, control = boundControl)
+sampler.bound <- dbarts(
+  train.bound,
+  y.bound,
+  control = boundControl,
+  sigest = 1
+)
 
 # two foreign containers: one whose STORED codes run past the training K = 3,
 # one whose stored codes are in range but whose REFERENCE code - what every
@@ -644,14 +653,16 @@ levelMessage <- "has levels not present in the training data"
 expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = over.codes),
-    control = boundControl
+    control = boundControl,
+    sigest = 1
   ),
   pattern = levelMessage
 )
 expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = over.reference),
-    control = boundControl
+    control = boundControl,
+    sigest = 1
   ),
   pattern = levelMessage
 )
@@ -680,14 +691,16 @@ colnames(test.dense.over) <- c("x1", "f")
 expect_error(
   dbarts:::withCodedPredictors(dbarts(
     dbartsData(train.bound, y.bound, test = test.dense.over),
-    control = boundControl
+    control = boundControl,
+    sigest = 1
   )),
   pattern = codeMessage
 )
 expect_error(
   dbarts(
     dbartsData(train.bound, y.bound, test = test.dense.over),
-    control = boundControl
+    control = boundControl,
+    sigest = 1
   ),
   pattern = "the predictor 'f' is a factor"
 )
@@ -700,7 +713,8 @@ train.bound.dense <- data.frame(
 sampler.bound.dense <- dbarts(
   train.bound.dense,
   y.bound,
-  control = boundControl
+  control = boundControl,
+  sigest = 1
 )
 expect_error(
   sampler.bound.dense$setTestPredictor(over.codes),
@@ -709,7 +723,8 @@ expect_error(
 expect_error(
   dbarts(
     dbartsData(train.bound.dense, y.bound, test = over.reference),
-    control = boundControl
+    control = boundControl,
+    sigest = 1
   ),
   pattern = levelMessage
 )
@@ -723,7 +738,12 @@ prob.pooled[1L] <- 400
 labels.pooled <- sample(levels.pooled, 200L, replace = TRUE, prob = prob.pooled)
 y.pooled <- rnorm(200L)
 train.pooled <- sparseFrame(labels.pooled, levels.pooled, "P001")
-sampler.pooled <- dbarts(train.pooled, y.pooled, control = boundControl)
+sampler.pooled <- dbarts(
+  train.pooled,
+  y.pooled,
+  control = boundControl,
+  sigest = 1
+)
 over.pooled <- dbartsData(
   sparseFrame(c("P002", "P150", "P200"), sprintf("P%03d", 1:220), "P001"),
   rnorm(3L)
@@ -735,7 +755,8 @@ expect_error(
 expect_error(
   dbarts(
     dbartsData(train.pooled, y.pooled, test = over.pooled),
-    control = boundControl
+    control = boundControl,
+    sigest = 1
   ),
   pattern = levelMessage
 )
@@ -745,7 +766,7 @@ expect_error(
 data.over.k <- dbartsData(train.bound, y.bound)
 data.over.k@x$sparseCategoryCount <- 2L
 expect_error(
-  dbarts(data.over.k, control = boundControl),
+  dbarts(data.over.k, control = boundControl, sigest = 1),
   pattern = "categorical predictors must hold integer category codes"
 )
 
@@ -761,7 +782,8 @@ sampler.saved <- dbarts(
     n.burn = 0L,
     updateState = FALSE,
     keepTrees = TRUE
-  )
+  ),
+  sigest = 1
 )
 invisible(sampler.saved$run(20L, 5L))
 expect_error(sampler.saved$predict(over.codes), pattern = levelMessage)
@@ -891,7 +913,7 @@ frame.zero$s <- Matrix::sparseVector(
   length = n.zero
 )
 y.zero <- rnorm(n.zero) + match(labels.zero, levels.small)
-sampler.zero <- dbarts(frame.zero, y.zero, control = boundControl)
+sampler.zero <- dbarts(frame.zero, y.zero, control = boundControl, sigest = 1)
 invisible(sampler.zero$run(5L, 5L))
 categorical.rank <- -sampler.zero$data@x$map[2L]
 entriesFor <- function(container, rank) {
@@ -964,7 +986,7 @@ stateControl <- dbartsControl(
   n.burn = 0L,
   updateState = TRUE
 )
-sampler.state <- dbarts(frame.zero, y.zero, control = stateControl)
+sampler.state <- dbarts(frame.zero, y.zero, control = stateControl, sigest = 1)
 invisible(sampler.state$run(5L, 5L))
 invisible(sampler.state$setPredictor(
   new.ordinal,
@@ -1002,7 +1024,12 @@ frame.align$f <- sparseFactor(
 container.align <- dbartsData(frame.align, rnorm(n.align))@x
 expect_equal(attr(container.align, "factor.levels")[[2L]], rev(levels.small))
 
-sampler.align <- dbarts(train.bound, y.bound, control = boundControl)
+sampler.align <- dbarts(
+  train.bound,
+  y.bound,
+  control = boundControl,
+  sigest = 1
+)
 sampler.align$setTestPredictor(container.align)
 aligned <- sampler.align$data@x.test
 expect_equal(
@@ -1075,7 +1102,8 @@ sampler.ord <- dbarts(
     n.chains = 1L,
     n.threads = 1L,
     updateState = FALSE
-  )
+  ),
+  sigest = 1
 )
 invisible(sampler.ord$run(50L, 1L))
 
@@ -1124,7 +1152,8 @@ colnames(test.dense.na) <- c("x1", "f")
 expect_inherits(
   dbarts:::withCodedPredictors(dbarts(
     dbartsData(train.na, y.bound, test = test.dense.na),
-    control = boundControl
+    control = boundControl,
+    sigest = 1
   )),
   "dbartsSampler"
 )
@@ -1154,6 +1183,7 @@ sfFitArgs <- list(
   n.threads = 1L,
   keepTrees = TRUE,
   verbose = FALSE,
+  sigest = 1,
   seed = 5L
 )
 fit.sf.formula <- do.call(bart, c(list(y ~ ., data = d.sf), sfFitArgs))

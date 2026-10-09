@@ -302,10 +302,13 @@ fit.logit <- bart(
 expect_equal(fit.logit$family, "logistic")
 latents <- extract(fit.logit, "bart")
 expect_equal(extract(fit.logit, "ev"), plogis(latents))
+xNamed <- x
+colnames(xNamed) <- paste0("x.", seq_len(ncol(x)))
 expect_equal(
-  predict(fit.logit, x, type = "ev"),
-  plogis(predict(fit.logit, x, type = "bart"))
+  predict(fit.logit, xNamed, type = "ev"),
+  plogis(predict(fit.logit, xNamed, type = "bart"))
 )
+rm(xNamed)
 expect_equal(
   fitted(fit.logit),
   apply(plogis(latents), length(dim(latents)), mean)

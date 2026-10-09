@@ -10,7 +10,7 @@ source(
 )
 
 set.seed(99L)
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ntree = 3L,

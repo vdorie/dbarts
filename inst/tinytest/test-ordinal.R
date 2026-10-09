@@ -241,7 +241,7 @@ expect_equal(fitBin$family, "probit")
 # --- refusals ---
 
 expect_error(
-  bart(x, y, ndpost = 10L, nskip = 5L, verbose = FALSE),
+  bartBT(x, y, ndpost = 10L, nskip = 5L, verbose = FALSE),
   pattern = "bart"
 )
 expect_error(

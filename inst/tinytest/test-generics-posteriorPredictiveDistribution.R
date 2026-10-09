@@ -7,7 +7,7 @@ source(
 n.samples <- 7L
 n.chains <- 2L
 n.obs <- length(testData$y)
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   verbose = FALSE,

@@ -4,7 +4,7 @@ source(
 )
 
 # test that predict gives same result as x_train with linear data
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 20,
@@ -16,7 +16,7 @@ bartFit <- dbarts::bart(
 predictions <- predict(bartFit, testData$x, n.threads = 1L)
 expect_equal(predictions, bartFit$yhat.train)
 
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 20,
@@ -35,7 +35,7 @@ rm(predictions, bartFit)
 # test that extract and fitted give correct results
 n.chains <- 4L
 n.samples <- 20L
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   testData$x[1L:10L, ],
@@ -60,7 +60,7 @@ for (i in seq_len(n.chains)) {
   )
 }
 
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   testData$x[1L:10L, ],
@@ -87,7 +87,7 @@ rm(testData)
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
 
 # test that predict gives same result as x_train with binary data
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   y.train = testData$Z,
   x.train = testData$X,
   ndpost = 20L,
@@ -100,7 +100,7 @@ bartFit <- dbarts::bart(
 predictions <- predict(bartFit, testData$X, type = "bart", n.threads = 1L)
 expect_equal(predictions, bartFit$yhat.train)
 
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   y.train = testData$Z,
   x.train = testData$X,
   ndpost = 20L,

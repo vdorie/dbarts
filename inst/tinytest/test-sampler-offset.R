@@ -1,15 +1,17 @@
 source(system.file("common", "probitData.R", package = "dbarts"), local = TRUE)
+testX <- testData$X
+colnames(testX) <- paste0("X.", seq_len(ncol(testX)))
 
 # test that dbarts sampler correctly updates R test offsets only when applicable
 set.seed(0L)
 n <- nrow(testData$X)
 control <- dbarts::dbartsControl(
   n.chains = 1L,
-  n.threads = 2L,
+  n.threads = 1L,
   updateState = FALSE
 )
 
-sampler <- dbarts::dbarts(Z ~ X, testData, testData$X, control = control)
+sampler <- dbarts::dbarts(Z ~ X, testData, testX, control = control)
 
 sampler$setOffset(0.2)
 expect_equal(sampler$data@offset, rep_len(0.2, n))
@@ -35,7 +37,7 @@ expect_null(sampler$data@offset.test)
 sampler <- dbarts::dbarts(
   Z ~ X,
   testData,
-  testData$X,
+  testX,
   offset = 0.2,
   control = control
 )
@@ -55,7 +57,7 @@ expect_equal(sampler$data@offset.test, rep_len(0.2, n))
 sampler <- dbarts::dbarts(
   Z ~ X,
   testData,
-  testData$X[-1, ],
+  testX[-1, ],
   offset = 0.2,
   control = control
 )
@@ -73,7 +75,7 @@ expect_null(sampler$data@offset.test)
 sampler <- dbarts::dbarts(
   Z ~ X,
   testData,
-  testData$X,
+  testX,
   offset = 0.2,
   offset.test = -0.1,
   control = control
@@ -102,7 +104,7 @@ control <- dbarts::dbartsControl(
 sampler <- dbarts::dbarts(
   Z ~ X,
   testData,
-  testData$X[1L:200L, ],
+  testX[1L:200L, ],
   subset = 1L:200L,
   control = control
 )

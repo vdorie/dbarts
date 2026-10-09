@@ -34,7 +34,7 @@ expect_equal(unname(varArr[5L, 2L, 3L]), unname(fit$varcount[2L, 5L, 3L]))
 
 # combineChains at fit time flattens the chain axis of scalar fields; the
 # conversion must reconstruct it from the object's n.chains
-combinedFit <- dbarts::bart(
+combinedFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 20L,
@@ -46,7 +46,7 @@ combinedFit <- dbarts::bart(
   verbose = FALSE,
   seed = 7L
 )
-uncombinedFit <- dbarts::bart(
+uncombinedFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 20L,
@@ -164,7 +164,7 @@ rm(
 # indistinguishable, and mistaking one for the other silently collapses
 # every variable but the first. Ground truth: the same fit, uncombined,
 # must produce an identical per-variable table.
-combinedVc <- dbarts::bart(
+combinedVc <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 20L,
@@ -176,7 +176,7 @@ combinedVc <- dbarts::bart(
   verbose = FALSE,
   seed = 11L
 )
-uncombinedVc <- dbarts::bart(
+uncombinedVc <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 20L,

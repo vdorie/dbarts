@@ -21,7 +21,7 @@ y <- testData$y
 
 # --- classic bart ---------------------------------------------------------
 set.seed(99L)
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   x,
   y,
   ntree = 5L,

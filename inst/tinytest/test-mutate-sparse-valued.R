@@ -26,7 +26,7 @@ control <- dbartsControl(
 ## spellings of one mutation must agree on.
 mutatedState <- function(design, y, mutate, ctrl = control) {
   set.seed(91L)
-  sampler <- dbarts(design, y, control = ctrl)
+  sampler <- dbarts(design, y, control = ctrl, sigest = sd(y))
   invisible(sampler$run(30L, 5L))
   result <- mutate(sampler)
   sampler$storeState()
@@ -134,7 +134,7 @@ expectTwinsAgree(x.a, y.a, sparseBlock(a.new), a.new)
 # over rather than densifying it, so the agreement above is the engine's
 # entry-wise install and not a coincidence of two dense calls
 set.seed(91L)
-sampler.bridge <- dbarts(x.a, y.a, control = control)
+sampler.bridge <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
 expect_true(.Call(
   dbarts:::C_dbarts_bartcore_setPredictor,
   sampler.bridge$getPointer(),
@@ -223,7 +223,7 @@ expect_true(any(explicit@x == 0))
 expectTwinsAgree(b.frame, y.b, explicit, zero.column, column = 3L)
 
 set.seed(91L)
-sampler.zeros <- dbarts(b.frame, y.b, control = control)
+sampler.zeros <- dbarts(b.frame, y.b, control = control, sigest = sd(y.b))
 sampler.zeros$setPredictor(explicit, column = 3L, forceUpdate = TRUE)
 stored.zeros <- sampler.zeros$data@x$sparse
 kept <- seq.int(
@@ -245,7 +245,7 @@ empty <- Matrix::sparseMatrix(
 expectTwinsAgree(x.a, y.a, empty, rep(0, n), column = 1L)
 
 set.seed(91L)
-sampler.degenerate <- dbarts(x.a, y.a, control = control)
+sampler.degenerate <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
 invisible(sampler.degenerate$run(30L, 5L))
 before.degenerate <- sampler.degenerate$data@x
 expect_false(
@@ -264,7 +264,7 @@ bad.frame$z <- sparseFactor(
 bad.container <- dbarts:::makeCategoricalModelMatrix(bad.frame)
 expect_false(is.na(bad.container$sparseReference[1L]))
 set.seed(91L)
-sampler.reference <- dbarts(b.frame, y.b, control = control)
+sampler.reference <- dbarts(b.frame, y.b, control = control, sigest = sd(y.b))
 expect_error(
   sampler.reference$setPredictor(
     bad.container,
@@ -297,7 +297,11 @@ na.column <- Matrix::sparseMatrix(
   dims = c(n, 1L),
   repr = "C"
 )
-sampler.strict <- dbarts(strictData(x.a, y.a), control = control)
+sampler.strict <- dbarts(
+  strictData(x.a, y.a),
+  control = control,
+  sigest = sd(y.a)
+)
 expect_error(
   sampler.strict$setPredictor(na.column, column = 1L, forceUpdate = TRUE),
   pattern = "missing values"
@@ -319,7 +323,7 @@ expect_error(
 # --- the re-quantize surface after a sparse-valued mutation: the store keeps
 # its retained slices, so setCutPoints and setState still run
 set.seed(91L)
-sampler.after <- dbarts(x.a, y.a, control = control)
+sampler.after <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
 invisible(sampler.after$run(30L, 5L))
 sampler.after$setPredictor(sparseBlock(a.new), forceUpdate = TRUE)
 expect_null(dbarts:::rawPredictorMatrix(sampler.after$data@x))
@@ -342,7 +346,12 @@ mirror.control <- dbartsControl(
   updateState = TRUE
 )
 set.seed(91L)
-sampler.mirror <- dbarts(b.frame, y.b, control = mirror.control)
+sampler.mirror <- dbarts(
+  b.frame,
+  y.b,
+  control = mirror.control,
+  sigest = sd(y.b)
+)
 invisible(sampler.mirror$run(20L, 5L))
 sampler.mirror$setPredictor(b.container, forceUpdate = TRUE)
 sampler.mirror$storeState()
@@ -432,7 +441,7 @@ expectRefusalLeavesTwin <- function(
 ) {
   runAfter <- function(mutate) {
     set.seed(91L)
-    sampler <- dbarts(design, y, control = ctrl)
+    sampler <- dbarts(design, y, control = ctrl, sigest = sd(y))
     invisible(sampler$run(30L, 5L))
     before <- sampler$data@x
     outcome <- mutate(sampler)
@@ -566,7 +575,7 @@ for (k in seq_along(other.classes)) {
 # a test set of another class stays resident and predicts as its dgCMatrix
 testPredictions <- function(x.test) {
   set.seed(91L)
-  sampler <- dbarts(x.a, y.a, control = control)
+  sampler <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
   sampler$setTestPredictor(x.test)
   list(
     class = class(sampler$data@x.test),

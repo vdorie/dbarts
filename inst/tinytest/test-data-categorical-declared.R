@@ -141,7 +141,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
     train.sparse,
     y.gap,
     test = test.gap,
-    control = control
+    control = control,
+    sigest = 1
   )
   expect_true(all(is.finite(sampler.sparse$run(20L, 20L)$test)))
 
@@ -157,7 +158,7 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   data.mixed <- dbartsData(train.mixed, y.gap)
   expect_inherits(data.mixed@x, "dbartsMixedMatrix")
   expect_equal(data.mixed@varTypes, c(0L, 1L, 0L))
-  sampler.mixed <- dbarts(data.mixed, control = control)
+  sampler.mixed <- dbarts(data.mixed, control = control, sigest = 1)
   expect_true(all(is.finite(sampler.mixed$run(20L, 20L)$train)))
 
   test.mixed <- data.frame(x1 = rnorm(6L), g = test.gap$g)
@@ -245,8 +246,6 @@ rm(
   test.gap,
   test.over,
   codes.gap,
-  codes.mut,
-  codes.over,
   codes.wide,
   levels.gap,
   levels.wide,

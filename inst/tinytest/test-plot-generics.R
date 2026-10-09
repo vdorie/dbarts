@@ -10,7 +10,7 @@ z.bin <- rbinom(n, 1L, pnorm(1.5 * x[, 1L] - 0.5))
 g <- sample(4L, n, replace = TRUE)
 
 # gaussian bart
-fit.bart <- bart(
+fit.bart <- bartBT(
   x,
   y.cont,
   ntree = 10L,
@@ -207,7 +207,7 @@ rm(fit.bart, fit.bartBin, pt.bartBin)
 
 # multi-chain fits carry a matrix-shaped 'sigma', so the trace panel draws one
 # bridged line per chain rather than a single scatter
-fit.chains <- bart(
+fit.chains <- bartBT(
   x,
   y.cont,
   ntree = 10L,
@@ -228,7 +228,7 @@ rm(fit.chains)
 # which as.character() splits into c("::", "dbarts", "bart"); the guards that
 # name the missing argument used to compare against that and die with "the
 # condition has length > 1" instead
-fit.qualified <- dbarts::bart(
+fit.qualified <- dbarts::bartBT(
   x,
   y.cont,
   ntree = 10L,

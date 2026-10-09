@@ -811,7 +811,10 @@ expect_error(
   bart(x2, y2, family = "multinomial", tree.prior = dart()),
   "tree.prior"
 )
-multinomialRefuses(x2, y2, "split.probs", split.probs = c(0.5, 0.5))
+expect_warning(
+  multinomialRefuses(x2, y2, "split.probs", split.probs = c(0.5, 0.5)),
+  "'split.probs' has left 'bart'"
+)
 # monotone is half-applied upstream (its proposal.probs rewrite reaches the
 # engine, the directions do not), so it is refused rather than silently fit
 # as an unintended birth/death-only model

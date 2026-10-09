@@ -204,7 +204,7 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart(xTiny, yTiny, nthread = 1.5),
+  dbarts::bartBT(xTiny, yTiny, nthread = 1.5),
   "'nthread' must be a whole number; got '1.5'",
   fixed = TRUE
 )
@@ -220,32 +220,32 @@ expect_error(
 # value the same way, naming the argument (coerceOrError ahead of
 # dbartsControl(), whose own check would otherwise blame n.trees/n.burn/...)
 expect_error(
-  dbarts::bart(xTiny, yTiny, ndpost = 5.5),
+  dbarts::bartBT(xTiny, yTiny, ndpost = 5.5),
   "'ndpost' must be a whole number; got '5.5'",
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart(xTiny, yTiny, ntree = 5.5),
+  dbarts::bartBT(xTiny, yTiny, ntree = 5.5),
   "'ntree' must be a whole number; got '5.5'",
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart(xTiny, yTiny, nskip = 2.5),
+  dbarts::bartBT(xTiny, yTiny, nskip = 2.5),
   "'nskip' must be a whole number; got '2.5'",
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart(xTiny, yTiny, nchain = 1.5),
+  dbarts::bartBT(xTiny, yTiny, nchain = 1.5),
   "'nchain' must be a whole number; got '1.5'",
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart(xTiny, yTiny, keepevery = 1.5),
+  dbarts::bartBT(xTiny, yTiny, keepevery = 1.5),
   "'keepevery' must be a whole number; got '1.5'",
   fixed = TRUE
 )
 expect_error(
-  dbarts::bart(xTiny, yTiny, numcut = 50.5),
+  dbarts::bartBT(xTiny, yTiny, numcut = 50.5),
   "'numcut' must be a whole number; got '50.5'",
   fixed = TRUE
 )

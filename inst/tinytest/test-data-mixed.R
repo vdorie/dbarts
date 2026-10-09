@@ -88,7 +88,8 @@ fit.mixed <- bart(
   n.trees = 50L,
   n.chains = 1L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 x.dense.equiv <- as.matrix(data.mixed@x)
 fit.dense <- bart(
@@ -99,7 +100,8 @@ fit.dense <- bart(
   n.trees = 50L,
   n.chains = 1L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 sse.mixed <- sum((fitted(fit.mixed) - f.true)^2)
 sse.dense <- sum((fitted(fit.dense) - f.true)^2)
@@ -141,13 +143,14 @@ expect_equal(
 )
 
 # the indicators surface composes too
-fit.bart <- bart(
+fit.bart <- bartBT(
   x.frame,
   y,
   ndpost = 50L,
   nskip = 50L,
   ntree = 25L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 expect_equal(colnames(fit.bart$varcount), colnames(mm.ind))
 
@@ -165,7 +168,8 @@ fit.na <- bart(
   n.trees = 25L,
   n.chains = 1L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 expect_equal(length(fitted(fit.na)), n)
 expect_error(
@@ -186,7 +190,8 @@ fit.test <- bart(
   n.trees = 25L,
   n.chains = 1L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 expect_equal(length(fit.test$yhat.test.mean), 20L)
 
@@ -201,18 +206,19 @@ sampler.linear <- dbarts(
   x.frame,
   y,
   leaf.prior = linear("x1"),
-  control = control
+  control = control,
+  sigest = 1
 )
 run.linear <- sampler.linear$run()
 expect_true(all(is.finite(run.linear$sigma)))
 expect_error(
-  dbarts(x.frame, y, leaf.prior = linear("sv")),
+  dbarts(x.frame, y, leaf.prior = linear("sv"), sigest = 1),
   pattern = "sparse-backed"
 )
 
 # a mixed dense/sparse container takes column-granular AND whole-matrix
 # mutation, maintained R-side; whole-data replacement stays fixed at creation
-sampler <- dbarts(x.frame, y, control = control)
+sampler <- dbarts(x.frame, y, control = control, sigest = 1)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
 expect_error(sampler$setData(dbartsData(x.frame, y)), pattern = "sparse")
@@ -305,7 +311,8 @@ sampler.mirror <- dbarts(
     n.chains = 1L,
     n.threads = 1L,
     updateState = TRUE
-  )
+  ),
+  sigest = 1
 )
 invisible(sampler.mirror$run(numBurnIn = 20L, numSamples = 5L))
 expect_silent(sampler.mirror$setPredictor(x.whole, forceUpdate = TRUE))
@@ -363,7 +370,7 @@ frame.align.dense$sv <- sv.align
 frame.align.dense$sm <- sm.align.dense
 alignmentGateDataMixed <- function(test, seed) {
   set.seed(seed)
-  dbarts(x.frame, y, test = test, control = alignControl)$run()
+  dbarts(x.frame, y, test = test, control = alignControl, sigest = 1)$run()
 }
 expect_identical(
   alignmentGateDataMixed(container.align, 616L)$test,
@@ -389,7 +396,7 @@ control.state <- dbartsControl(
   n.threads = 1L,
   updateState = TRUE
 )
-sampler.state <- dbarts(x.frame, y, control = control.state)
+sampler.state <- dbarts(x.frame, y, control = control.state, sigest = 1)
 set.seed(99)
 run.before <- sampler.state$run(numBurnIn = 20L, numSamples = 10L)
 sampler.state$storeState()
@@ -413,7 +420,8 @@ xval <- xbart(
   n.trees = 25L,
   n.reps = 2L,
   n.test = 4L,
-  n.threads = 1L
+  n.threads = 1L,
+  sigest = 1
 )
 expect_true(all(is.finite(xval)))
 
@@ -433,7 +441,8 @@ fit.all.sparse <- bart(
   n.trees = 25L,
   n.chains = 1L,
   n.threads = 1L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 expect_equal(length(fitted(fit.all.sparse)), n)
 
@@ -444,13 +453,13 @@ expect_equal(length(fitted(fit.all.sparse)), n)
 data.short <- data.mixed
 data.short@x$sparseReference <- data.short@x$sparseReference[1L]
 expect_error(
-  dbarts(data.short, control = alignControl),
+  dbarts(data.short, control = alignControl, sigest = 1),
   pattern = "malformed mixed predictor container"
 )
 data.no.count <- data.mixed
 data.no.count@x$sparseCategoryCount <- NULL
 expect_error(
-  dbarts(data.no.count, control = alignControl),
+  dbarts(data.no.count, control = alignControl, sigest = 1),
   pattern = "malformed mixed predictor container"
 )
 # a map entry that names no block at all - NA included, which is the negative
@@ -458,17 +467,17 @@ expect_error(
 data.na.map <- data.mixed
 data.na.map@x$map[1L] <- NA_integer_
 expect_error(
-  dbarts(data.na.map, control = alignControl),
+  dbarts(data.na.map, control = alignControl, sigest = 1),
   pattern = "malformed mixed predictor container"
 )
 data.wild.map <- data.mixed
 data.wild.map@x$map[1L] <- -100L
 expect_error(
-  dbarts(data.wild.map, control = alignControl),
+  dbarts(data.wild.map, control = alignControl, sigest = 1),
   pattern = "malformed mixed predictor container"
 )
 
-sampler.meta <- dbarts(x.frame, y, control = alignControl)
+sampler.meta <- dbarts(x.frame, y, control = alignControl, sigest = 1)
 expect_error(
   sampler.meta$setPredictor(data.short@x, forceUpdate = TRUE),
   pattern = "malformed mixed predictor container"
@@ -520,7 +529,8 @@ sampler.ordered <- dbarts(
     n.burn = 5L,
     n.trees = 20L,
     updateState = FALSE
-  )
+  ),
+  sigest = 1
 )
 run.ordered <- sampler.ordered$run()
 expect_true(all(is.finite(run.ordered$train)))
@@ -541,7 +551,8 @@ loss.ordered <- suppressWarnings(xbart(
   base = 0.95,
   n.threads = 1L,
   verbose = FALSE,
-  leaf.prior = linear("of")
+  leaf.prior = linear("of"),
+  sigest = 1
 ))
 expect_true(all(is.finite(loss.ordered)))
 
@@ -558,7 +569,7 @@ control.state <- dbartsControl(
   n.burn = 0L,
   updateState = TRUE
 )
-sampler.state <- dbarts(data.ordered, control = control.state)
+sampler.state <- dbarts(data.ordered, control = control.state, sigest = 1)
 invisible(sampler.state$run(20L, 5L))
 state.mixed <- sampler.state$state
 first <- sampler.state$run(0L, 5L)

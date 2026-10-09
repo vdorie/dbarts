@@ -284,7 +284,6 @@ rm(
   pinned,
   zeroWarnings,
   zeroData,
-  declined,
   name,
   cell,
   fit,

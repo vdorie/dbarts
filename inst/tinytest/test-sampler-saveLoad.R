@@ -7,7 +7,7 @@ source(
 # a keepTrees fit saves/loads for predict once its tree state is captured
 # with storeState()
 set.seed(99L)
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ntree = 3L,

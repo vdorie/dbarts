@@ -12,7 +12,7 @@ df <- with(testData, data.frame(x, y))
 # test that base bart extracts trees correctly
 n.trees <- 3L
 n.samples <- 4L
-fit <- dbarts::bart(
+fit <- dbarts::bartBT(
   y ~ .,
   df,
   nthread = 1L,
@@ -117,7 +117,7 @@ rm(individualSamples, combinations, allTrees, fit, n.samples, n.trees)
 ## history, since keeptrees FALSE means no history was kept.
 ## ---------------------------------------------------------------------------
 n.trees <- 3L
-fitKeepSampler <- dbarts::bart(
+fitKeepSampler <- dbarts::bartBT(
   y ~ .,
   df,
   nthread = 1L,
@@ -136,7 +136,7 @@ expect_equal(
   fitKeepSampler$fit$getTrees()
 )
 
-fitKept <- dbarts::bart(
+fitKept <- dbarts::bartBT(
   y ~ .,
   df,
   nthread = 1L,

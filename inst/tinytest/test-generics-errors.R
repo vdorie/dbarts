@@ -12,7 +12,7 @@ source(
 )
 
 # test that predict fails if sampler not saved
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 20,

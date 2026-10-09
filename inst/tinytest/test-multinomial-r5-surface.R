@@ -410,7 +410,7 @@ expect_error(
 # bart(), the frozen shim, reaches the same dispatch through dbartsData's
 # passthrough branch and is gated at its own entry too
 expect_error(
-  bart(countsData, ndpost = 4L, nskip = 2L, ntree = 10L, verbose = FALSE),
+  bartBT(countsData, ndpost = 4L, nskip = 2L, ntree = 10L, verbose = FALSE),
   "does not support a data object carrying an n x K count matrix"
 )
 # an ordinary data object is untouched by the gate

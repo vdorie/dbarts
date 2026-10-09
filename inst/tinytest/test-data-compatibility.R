@@ -55,7 +55,10 @@ colnames(x) <- c(paste0("x.", seq_len(ncol(x) - 2L)), "", "")
 x.test <- x
 x.test[, ncol(x.test)] <- x.test[, ncol(x.test)] + 1
 
-expect_equal(dbarts::dbartsData(x, y, x.test)@x.test, x.test)
+expect_warning(
+  expect_equal(dbarts::dbartsData(x, y, x.test)@x.test, x.test),
+  "are not both named"
+)
 rm(x.test, y, x)
 
 rm(testData)

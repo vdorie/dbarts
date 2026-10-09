@@ -82,7 +82,12 @@ sf.over <- sparseFactor(
 df.sparse <- data.frame(z = c(0, 1, 0, 1))
 df.sparse$f <- sf.over
 expect_error(
-  dbarts(df.sparse, df.ceiling$y, control = dbartsControl(n.chains = 1L)),
+  dbarts(
+    df.sparse,
+    df.ceiling$y,
+    control = dbartsControl(n.chains = 1L),
+    sigest = 1
+  ),
   pattern = "at most 65535 levels"
 )
 

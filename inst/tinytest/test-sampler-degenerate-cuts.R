@@ -107,7 +107,7 @@ invisible(capture.output(
 expect_true(all(is.finite(fit2$yhat.train)))
 
 invisible(capture.output(
-  fit1 <- bart(
+  fit1 <- bartBT(
     xConst,
     y,
     ndpost = 5L,

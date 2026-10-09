@@ -1,6 +1,13 @@
 ## rbart_vi as a deprecated one-release feature: the warning, each fix to the
 ## 0.9-x loop, the refusals, recovery, and the call shapes bartCause makes.
 
+# The fits take their predictor names from the formula's matrix, so a matrix
+# handed to predict or test is named the same way.
+named <- function(x) {
+  colnames(x) <- paste0("x.", seq_len(ncol(x)))
+  x
+}
+
 fitRbart <- function(...) {
   args <- list(
     n.samples = 5L,
@@ -198,7 +205,7 @@ fit <- fitRbart(
   n.samples = 6L
 )
 expect_equal(
-  dim(predict(fit, x, g, type = "bart", combineChains = FALSE)),
+  dim(predict(fit, named(x), g, type = "bart", combineChains = FALSE)),
   c(2L, 6L, 60L)
 )
 trees <- dbarts::extract(fit, type = "trees")
@@ -213,10 +220,10 @@ expect_equal(names(treesOne), c("sample", "tree", "n", "var", "value"))
 
 # a serial fit that is saved and read back predicts what it did before
 fit <- fitRbart(y ~ x, group.by = g, n.chains = 2L, n.samples = 6L)
-before <- predict(fit, x, g)
+before <- predict(fit, named(x), g)
 path <- tempfile(fileext = ".rds")
 saveRDS(fit, path)
-after <- predict(readRDS(path), x, g)
+after <- predict(readRDS(path), named(x), g)
 unlink(path)
 expect_equal(after, before)
 rm(sim, x, y, g, fit, trees, before, after, path)
@@ -255,7 +262,7 @@ y <- sim$eta + rnorm(n)
 fit <- fitRbart(
   y ~ x,
   group.by = g,
-  test = x,
+  test = named(x),
   group.by.test = g,
   offset = rep(0.5, n),
   n.samples = 6L

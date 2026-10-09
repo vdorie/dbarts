@@ -5,7 +5,7 @@ n.sims <- 200L
 n.burn <- 100L
 
 set.seed(99L)
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   y.train = testData$Z,
   x.train = testData$X,
   ntree = 50L,
@@ -15,7 +15,7 @@ bartFit <- dbarts::bart(
 )
 
 set.seed(99L)
-bartFit.flat <- dbarts::bart(
+bartFit.flat <- dbarts::bartBT(
   y.train = testData$Z,
   x.train = testData$X,
   ntree = 50L,
@@ -75,7 +75,7 @@ mu.hat.glm <- predict(glmFit, newdata = predictData)
 
 
 set.seed(99L)
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   testData$x[fitSubset, ],
   testData$y[fitSubset],
   testData$x[testSubset, ],
@@ -91,7 +91,7 @@ expect_true((range(mu.hat.bart) * 1.2)[2L] <= range(mu)[2L])
 
 # test_that binary example using a flat prior is similar to default in tuned model
 set.seed(99L)
-bartFit.flat <- dbarts::bart(
+bartFit.flat <- dbarts::bartBT(
   testData$x[fitSubset, ],
   testData$y[fitSubset],
   testData$x[testSubset, ],

@@ -5,6 +5,16 @@ source(
 
 library(dbarts, quietly = TRUE)
 
+# The small max.leaf.size values below keep the fits fast; the run reports how
+# often a leaf exceeded the cap and fell back to a constant leaf, which is
+# expected here and pinned where it arises.
+gpFallback <- "fell back to a constant leaf"
+runCapped <- function(sampler, ...) {
+  out <- NULL
+  expect_warning(out <- sampler$run(...), gpFallback)
+  out
+}
+
 set.seed(99)
 n <- 250L
 x1 <- runif(n)
@@ -60,7 +70,7 @@ sampler.chi <- dbarts(
   leaf.prior = gp("x1", k = chi(1.25), max.leaf.size = 100L),
   control = control.chi
 )
-samples.chi <- sampler.chi$run(100L, 20L)
+samples.chi <- runCapped(sampler.chi, 100L, 20L)
 expect_true(all(is.finite(samples.chi$k)) && all(samples.chi$k > 0))
 expect_true(length(unique(samples.chi$k)) > 1L)
 
@@ -72,7 +82,7 @@ sampler.chi.binary <- dbarts(
   leaf.prior = gp("x1", max.leaf.size = 100L),
   control = control.chi
 )
-samples.chi.binary <- sampler.chi.binary$run(60L, 10L)
+samples.chi.binary <- runCapped(sampler.chi.binary, 60L, 10L)
 expect_true(all(is.finite(samples.chi.binary$train)))
 expect_true(length(unique(samples.chi.binary$k)) > 1L)
 
@@ -89,7 +99,7 @@ sampler.w0 <- suppressWarnings(
     control = control.chi
   )
 )
-samples.w0 <- sampler.w0$run(60L, 10L)
+samples.w0 <- runCapped(sampler.w0, 60L, 10L)
 expect_true(all(is.finite(samples.w0$train)))
 expect_true(all(is.finite(samples.w0$sigma)))
 
@@ -137,19 +147,22 @@ source(
 )
 # state serialization carries the fits slabs and saved blocks: a restored
 # sampler reproduces the model
-list2env(
+roundTrip <- NULL
+expect_warning(
   # unlike a literal leaf.prior = gp(...) written directly inside a dbarts()
   # call, a gp() object threaded through this helper's own 'leaf.prior'
   # parameter does not reach dbarts()'s NSE routing, so it must be built
   # through the qualified name here
-  checkStateRoundTrip(
+  roundTrip <- checkStateRoundTrip(
     y ~ x1 + x2,
     df,
     dbarts:::gp("x1", max.leaf.size = 100L),
     5L
   ),
-  environment()
+  gpFallback
 )
+list2env(roundTrip, environment())
+rm(roundTrip)
 
 # the mutable-data surface stays live under gp leaves, including the
 # designated column itself: a mutated sampler's continued fit agrees with
@@ -163,10 +176,10 @@ sampler.mut <- dbarts(
   leaf.prior = gp("x1", max.leaf.size = 100L),
   control = control
 )
-invisible(sampler.mut$run(50L, 5L))
+invisible(runCapped(sampler.mut, 50L, 5L))
 x1.new <- pmin(df$x1 * 1.1, 1)
 expect_silent(sampler.mut$setPredictor(x1.new, "x1", forceUpdate = TRUE))
-more <- sampler.mut$run(0L, 200L)
+more <- runCapped(sampler.mut, 0L, 200L)
 fits.mut <- rowMeans(more$train)
 liveTrees <- sampler.mut$getTrees(current = TRUE)
 expect_true(
@@ -183,7 +196,7 @@ sampler.fresh <- dbarts(
   leaf.prior = gp("x1", max.leaf.size = 100L),
   control = control
 )
-fits.fresh <- rowMeans(sampler.fresh$run(150L, 200L)$train)
+fits.fresh <- rowMeans(runCapped(sampler.fresh, 150L, 200L)$train)
 # rmse between independently-seeded fits of the same mutated data, 30
 # seeds: mean 0.084, sd 0.0093; bound clears mean + 4 sd (0.121)
 expect_true(sqrt(mean((fits.mut - fits.fresh)^2)) < 0.15)
@@ -196,7 +209,7 @@ sampler.binary <- dbarts(
   leaf.prior = gp("x1", k = 2, max.leaf.size = 100L),
   control = control
 )
-samples.binary <- sampler.binary$run(100L, 20L)
+samples.binary <- runCapped(sampler.binary, 100L, 20L)
 expect_true(all(is.finite(samples.binary$train)))
 
 # gp leaves ride the data-handle views: a full-rows view matches the
@@ -218,16 +231,20 @@ list2env(
 
 # xbart accepts a gp leaf prior, with its k standing in for a missing k
 # argument
-xbart.gp <- xbart(
-  y ~ x1 + x2,
-  df,
-  leaf.prior = gp("x1", k = 3, max.leaf.size = 100L),
-  n.samples = 60L,
-  n.burn = c(60L, 30L),
-  n.reps = 2L,
-  n.trees = 10L,
-  n.threads = 1L,
-  seed = 1L
+xbart.gp <- NULL
+expect_warning(
+  xbart.gp <- xbart(
+    y ~ x1 + x2,
+    df,
+    leaf.prior = gp("x1", k = 3, max.leaf.size = 100L),
+    n.samples = 60L,
+    n.burn = c(60L, 30L),
+    n.reps = 2L,
+    n.trees = 10L,
+    n.threads = 1L,
+    seed = 1L
+  ),
+  gpFallback
 )
 expect_true(all(is.finite(xbart.gp)))
 
@@ -235,7 +252,7 @@ expect_true(all(is.finite(xbart.gp)))
 if (requireNamespace("Matrix", quietly = TRUE)) {
   x.sparse <- Matrix::Matrix(as.matrix(df[, c("x1", "x2")]), sparse = TRUE)
   expect_error(
-    dbarts(x.sparse, y, leaf.prior = gp(1L, k = 2)),
+    dbarts(x.sparse, y, leaf.prior = gp(1L, k = 2), sigest = 1),
     pattern = "sparse predictor matrices"
   )
 }
@@ -298,6 +315,7 @@ xWide <- matrix(runif(200L * 12L), 200L, 12L)
 colnames(xWide) <- paste0("w", 1:12)
 yWide <- xWide[, 1L] + xWide[, 2L] * (xWide[, 3L] > 0.5) + rnorm(200L, 0, 0.2)
 xWideTest <- matrix(runif(30L * 12L), 30L, 12L)
+colnames(xWideTest) <- colnames(xWide)
 for (q in c(9L, 12L)) {
   set.seed(1)
   wideSampler <- dbarts(
@@ -314,7 +332,7 @@ for (q in c(9L, 12L)) {
       updateState = FALSE
     )
   )
-  wideSamples <- wideSampler$run()
+  wideSamples <- runCapped(wideSampler)
   expect_true(all(is.finite(wideSamples$train)))
   expect_true(all(is.finite(wideSamples$sigma)))
   expect_equal(

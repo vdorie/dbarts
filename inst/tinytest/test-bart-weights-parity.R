@@ -8,7 +8,7 @@ x <- matrix(runif(n * 2L), n, 2L)
 y <- 2 * x[, 1L] - x[, 2L] + rnorm(n, 0, 0.5)
 w <- rep_len(c(1, 4), n)
 
-fit <- bart(
+fit <- bartBT(
   x,
   y,
   weights = w,
@@ -50,7 +50,7 @@ rm(x, y, w, fit, fit2, ll, ev, j4, j1, n)
 # a draw count that thins to zero refuses by name instead of faulting deep
 # in the result-array reshape (dim(X) has no positive length)
 expect_error(
-  bart(
+  bartBT(
     matrix(rnorm(20L), 10L, 2L),
     rnorm(10L),
     ndpost = 5L,

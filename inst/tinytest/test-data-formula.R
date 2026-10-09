@@ -58,7 +58,9 @@ rm(testData_df, trainData_df)
 
 # test that test argument creates valid objects
 ## test when is embedded in passed data
-testData$test <- testData$x[11:20, ]
+testRows <- testData$x[11:20, ]
+colnames(testRows) <- paste0("x.", seq_len(ncol(testRows)))
+testData$test <- testRows
 expect_inherits(
   dbarts::dbartsData(y ~ x, testData, test),
   "dbartsData"
@@ -76,10 +78,10 @@ expect_inherits(
   "dbartsData"
 )
 expect_inherits(
-  dbarts::dbartsData(y ~ x, testData, testData$x[11:20, ]),
+  dbarts::dbartsData(y ~ x, testData, testRows),
   "dbartsData"
 )
-rm(test)
+rm(test, testRows)
 
 
 # test that test weights are created correctly

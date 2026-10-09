@@ -186,7 +186,8 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
         n.chains = 1L,
         updateState = FALSE,
         sparseDensityThreshold = threshold
-      )
+      ),
+      sigest = 1
     )
     sparse <- .Call(
       dbarts:::C_dbarts_bartcore_columnStorageIsSparse,

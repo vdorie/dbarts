@@ -33,21 +33,23 @@ expect_equal(nrow(data.subset@x), 200L)
 # a sparse fit runs and recovers the signal a dense fit of the same values
 # finds; draws are not bitwise comparable (rank columns partition through a
 # different kernel), so the comparison is on fit quality
-fit.sparse <- bart(
+fit.sparse <- bartBT(
   x.sparse,
   y,
   ndpost = 300L,
   nskip = 100L,
   ntree = 50L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
-fit.dense <- bart(
+fit.dense <- bartBT(
   x.dense,
   y,
   ndpost = 300L,
   nskip = 100L,
   ntree = 50L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 f <- 2 * x.dense[, 1L] - 1.5 * x.dense[, 2L]
 sse.sparse <- sum((fit.sparse$yhat.train.mean - f)^2)
@@ -70,7 +72,8 @@ fit.na <- bart(
   n.samples = 20L,
   n.burn = 20L,
   n.trees = 25L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 expect_equal(length(fitted(fit.na)), n)
 expect_error(
@@ -85,21 +88,23 @@ expect_error(
     n.burn = 20L,
     n.trees = 25L,
     na.action = na.fail,
-    verbose = FALSE
+    verbose = FALSE,
+    sigest = 1
   ),
   pattern = "missing values"
 )
 
 # test predictions work off a dense x.test
 x.test <- x.dense[1:20, , drop = FALSE]
-fit.test <- bart(
+fit.test <- bartBT(
   x.sparse,
   y,
   x.test,
   ndpost = 50L,
   nskip = 50L,
   ntree = 25L,
-  verbose = FALSE
+  verbose = FALSE,
+  sigest = 1
 )
 expect_equal(ncol(fit.test$yhat.test), 20L)
 
@@ -112,7 +117,7 @@ control <- dbartsControl(
   n.trees = 25L,
   updateState = FALSE
 )
-sampler <- dbarts(x.sparse, y, control = control)
+sampler <- dbarts(x.sparse, y, control = control, sigest = 1)
 invisible(sampler$run())
 expect_silent(sampler$setResponse(y))
 
@@ -162,7 +167,7 @@ expect_error(
 )
 expect_error(sampler$setData(dbartsData(x.sparse, y)), pattern = "sparse")
 expect_error(
-  dbarts(x.sparse, y, leaf.prior = linear(c("x1", "x2"))),
+  dbarts(x.sparse, y, leaf.prior = linear(c("x1", "x2")), sigest = 1),
   pattern = "sparse"
 )
 # save/load: sampler re-creation from the stored dgCMatrix restores state
@@ -174,7 +179,7 @@ control.state <- dbartsControl(
   n.threads = 1L,
   updateState = TRUE
 )
-sampler.state <- dbarts(x.sparse, y, control = control.state)
+sampler.state <- dbarts(x.sparse, y, control = control.state, sigest = 1)
 set.seed(99)
 run.before <- sampler.state$run(numBurnIn = 20L, numSamples = 10L)
 sampler.state$storeState()
@@ -198,7 +203,8 @@ xval <- xbart(
   n.trees = 25L,
   n.reps = 2L,
   n.test = 4L,
-  n.threads = 1L
+  n.threads = 1L,
+  sigest = 1
 )
 expect_true(all(is.finite(xval)))
 
@@ -237,14 +243,16 @@ run.sparseTrain.sparseTest <- dbarts(
   x.sparse,
   y,
   test = x.test.sparse,
-  control = fitControl
+  control = fitControl,
+  sigest = 1
 )$run()
 set.seed(201)
 run.sparseTrain.denseTest <- dbarts(
   x.sparse,
   y,
   test = x.test.dense,
-  control = fitControl
+  control = fitControl,
+  sigest = 1
 )$run()
 expect_identical(
   run.sparseTrain.sparseTest$test,
@@ -258,14 +266,16 @@ run.denseTrain.sparseTest <- dbarts(
   x.dense,
   y,
   test = x.test.sparse,
-  control = fitControl
+  control = fitControl,
+  sigest = 1
 )$run()
 set.seed(202)
 run.denseTrain.denseTest <- dbarts(
   x.dense,
   y,
   test = x.test.dense,
-  control = fitControl
+  control = fitControl,
+  sigest = 1
 )$run()
 expect_identical(run.denseTrain.sparseTest$test, run.denseTrain.denseTest$test)
 
@@ -277,14 +287,16 @@ run.permuted.sparseTest <- dbarts(
   x.dense,
   y,
   test = x.test.sparse[, permutation, drop = FALSE],
-  control = fitControl
+  control = fitControl,
+  sigest = 1
 )$run()
 set.seed(203)
 run.permuted.denseTest <- dbarts(
   x.dense,
   y,
   test = x.test.dense[, permutation, drop = FALSE],
-  control = fitControl
+  control = fitControl,
+  sigest = 1
 )$run()
 expect_identical(run.permuted.sparseTest$test, run.permuted.denseTest$test)
 
@@ -298,7 +310,8 @@ fit.forPredict <- bart(
   n.chains = 1L,
   n.threads = 1L,
   verbose = FALSE,
-  keepTrees = TRUE
+  keepTrees = TRUE,
+  sigest = 1
 )
 expect_identical(
   predict(fit.forPredict, x.test.sparse),
@@ -364,6 +377,7 @@ fitArgs <- list(
   n.threads = 1L,
   keepTrees = TRUE,
   verbose = FALSE,
+  sigest = 1,
   seed = 11L
 )
 fit.viaFormula <- do.call(bart, c(list(y ~ ., data = d.formula), fitArgs))

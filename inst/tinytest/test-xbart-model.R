@@ -217,7 +217,7 @@ expect_silent(quickXbart(
   k = 2
 ))
 
-rm(quickXbart, gridDirect, gridViaObject, dartObj)
+rm(quickXbart, gridDirect, gridViaObject)
 
 rm(p, n.trees, k, y, x)
 

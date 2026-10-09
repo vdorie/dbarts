@@ -78,17 +78,31 @@ expect_identical(ones.ord$run(20L, 10L)$train, plain.ord$run(20L, 10L)$train)
 rm(ones, plain, ones.ord, plain.ord)
 
 # --- any other value keeps the refusal ------------------------------------
+# a vector carrying zeros reports them before the refusal; the zeros are
+# part of what that case checks
+expectRefusal <- function(expr, pattern, zeros) {
+  if (zeros) {
+    expect_warning(
+      expect_error(expr, pattern),
+      "rows with 'weights' of 0 are left out of the likelihood"
+    )
+  } else {
+    expect_error(expr, pattern)
+  }
+}
 for (bad in list(rep(2, n), rep(0.5, n), replace(a, 1L, 2))) {
-  expect_error(
+  expectRefusal(
     probitSampler(weights = bad),
-    "probit models do not support weights other than 0 and 1"
+    "probit models do not support weights other than 0 and 1",
+    any(bad == 0)
   )
-  expect_error(
+  expectRefusal(
     ordinalSampler(weights = bad),
-    "ordinal models do not support weights other than 0 and 1"
+    "ordinal models do not support weights other than 0 and 1",
+    any(bad == 0)
   )
 }
-rm(bad)
+rm(bad, expectRefusal)
 
 # --- the mutators ---------------------------------------------------------
 # $setWeights installs the mask rather than refusing, and leaves the data

@@ -45,7 +45,7 @@ n.burn <- 0L
 n.sims <- 50L
 keepevery <- 5L
 
-bartFit <- bart(
+bartFit <- bartBT(
   testData$x,
   testData$y,
   ndpost = n.sims,
@@ -65,7 +65,7 @@ rm(bartFit, keepevery, n.sims, n.burn)
 # run keepevery times as long and land nowhere near it.
 keepevery <- 5L
 burnFit <- function(x, y, draws, thin) {
-  bart(
+  bartBT(
     x,
     y,
     ndpost = draws,
@@ -127,7 +127,7 @@ control@call <- call("NULL")
 sampler <- dbarts::dbarts(y ~ x, testData, control = control)
 expect_equal(sampler$control@call, control@call)
 
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   y ~ x,
   testData,
   verbose = FALSE,
@@ -138,7 +138,7 @@ bartFit <- dbarts::bart(
 # a BayesTree-spelled call is the legacy door's fit, and says so
 expect_equal(bartFit$call[[1L]], quote(dbarts::bartBT))
 
-bartFit <- dbarts::bart(
+bartFit <- dbarts::bartBT(
   y ~ x,
   testData,
   verbose = FALSE,

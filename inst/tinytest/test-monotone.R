@@ -261,20 +261,23 @@ expect_error(
 )
 
 # an explicit non-default proposal.probs conflicts with birth/death-only
-expect_error(
-  dbarts::dbarts(
-    x,
-    y,
-    monotone = c(a = "increasing"),
-    proposal.probs = c(
-      birth_death = 0.6,
-      swap = 0.1,
-      change = 0.3,
-      birth = 0.5
+expect_warning(
+  expect_error(
+    dbarts::dbarts(
+      x,
+      y,
+      monotone = c(a = "increasing"),
+      proposal.probs = c(
+        birth_death = 0.6,
+        swap = 0.1,
+        change = 0.3,
+        birth = 0.5
+      ),
+      control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
     ),
-    control = dbarts::dbartsControl(n.chains = 1L, n.threads = 1L)
+    "proposal.probs"
   ),
-  "proposal.probs"
+  "'proposal.probs' has left 'dbarts'"
 )
 
 # but a caller spelling the documented default and omitting the move that

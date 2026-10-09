@@ -222,11 +222,11 @@ expect_error(
   "'offset' has missing values"
 )
 expect_error(
-  predict(fit, newX[1L, ], offset = NA_real_),
+  predict(fit, newX[1L, , drop = FALSE], offset = NA_real_),
   "'offset' has missing values"
 )
 expect_error(
-  predict(fit, newX[4L, ], offset = NA, na.action = na.omit),
+  predict(fit, newX[4L, , drop = FALSE], offset = NA, na.action = na.omit),
   "'offset' has missing values"
 )
 expect_error(

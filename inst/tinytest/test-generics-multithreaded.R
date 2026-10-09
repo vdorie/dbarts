@@ -54,7 +54,7 @@ n.samples <- 5L
 
 # ---- gaussian, one chain: 5 slabs over 2 workers, so the block sizes are 3
 # and 2 and an even-division assumption in the partition would drop a slab ----
-gaussianFit <- dbarts::bart(
+gaussianFit <- dbarts::bartBT(
   friedman$x,
   friedman$y,
   ndpost = n.samples,
@@ -74,7 +74,7 @@ expect_equal(threaded, gaussianFit$yhat.train)
 
 # ---- gaussian, two chains: 10 slabs, and the chain axis sits inside the
 # partition rather than being the partition ----
-chainFit <- dbarts::bart(
+chainFit <- dbarts::bartBT(
   friedman$x,
   friedman$y,
   ndpost = n.samples,

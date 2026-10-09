@@ -96,6 +96,7 @@ y <- testData$y[seq_len(n.train)]
 g <- factor(testData$g[seq_len(n.train)])
 
 x.test <- testData$x[seq.int(n.train + 1L, nrow(testData$x)), ]
+colnames(x.test) <- paste0("x.", seq_len(ncol(x.test)))
 g.test <- factor(testData$g[seq.int(n.train + 1L, nrow(testData$x))], levels(g))
 levels(g.test)[5L] <- "6"
 
@@ -375,7 +376,6 @@ rm(
   localGroups,
   dfGrp,
   closureGroups,
-  testFit,
   fwdGamma,
   dfFwd
 )

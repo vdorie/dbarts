@@ -8,11 +8,11 @@ data <- data.frame(y = testData$y, x = testData$x)
 modelFormula <- y ~ x.1 + x.2 + x.3
 
 expect_inherits(
-  dbarts::bart(modelFormula, data, nskip = 0L, ndpost = 1L, verbose = FALSE),
+  dbarts::bartBT(modelFormula, data, nskip = 0L, ndpost = 1L, verbose = FALSE),
   "bart"
 )
 expect_inherits(
-  dbarts::bart(
+  dbarts::bartBT(
     modelFormula,
     data[1L:100L, ],
     data[101L:200L, ],

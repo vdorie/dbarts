@@ -9,6 +9,7 @@ x <- matrix(runif(n * p), n, p)
 f <- 10 * sin(pi * x[, 1L] * x[, 2L]) + 5 * x[, 4L]
 y <- f + rnorm(n)
 x.test <- matrix(runif(10L * p), 10L, p)
+colnames(x) <- colnames(x.test) <- paste0("x", seq_len(p))
 
 control <- dbartsControl(
   n.chains = 1L,
@@ -304,7 +305,12 @@ expect_error(
   "'column' must be a whole number; got '1.5'",
   fixed = TRUE
 )
-sampler.engine$setTestPredictor(matrix(runif(10L * p), 10L, p))
+sampler.engine$setTestPredictor(matrix(
+  runif(10L * p),
+  10L,
+  p,
+  dimnames = list(NULL, colnames(x.engine))
+))
 sampler.engine$setTestPredictor(runif(10L), 2L)
 expect_true(all(is.finite(sampler.engine$run(0L, 2L)$test)))
 
@@ -378,10 +384,18 @@ newTestPredictor <- matrix(
 )
 expect_silent(sampler.to2$setTestPredictor(newTestPredictor))
 expect_error(
-  sampler.to2$setTestPredictor(matrix(runif(5L * p), 5L, p)),
+  sampler.to2$setTestPredictor(matrix(
+    runif(5L * p),
+    5L,
+    p,
+    dimnames = list(NULL, colnames(x.engine))
+  )),
   pattern = "together"
 )
-sampler.to2$setTestPredictorAndOffset(matrix(runif(5L * p), 5L, p), rep(1, 5L))
+sampler.to2$setTestPredictorAndOffset(
+  matrix(runif(5L * p), 5L, p, dimnames = list(NULL, colnames(x.engine))),
+  rep(1, 5L)
+)
 expect_equal(sampler.to2$data@offset.test, rep(1, 5L))
 expect_equal(dim(sampler.to2$run(0L, 2L)$test), c(5L, 2L))
 
@@ -432,9 +446,13 @@ expect_equal(sampler.setdata$getSigmas(), sigma.before, tolerance = 1e-10)
 
 n2 <- 150L
 x2 <- matrix(runif(n2 * p), n2, p)
+colnames(x2) <- colnames(x)
 y2 <- 10 * sin(pi * x2[, 1L] * x2[, 2L]) + 5 * x2[, 4L] + rnorm(n2)
 w2 <- runif(n2, 0.5, 1.5)
-sampler.setdata$setData(dbartsData(x2, y2, test = x.test, weights = w2))
+expect_warning(
+  sampler.setdata$setData(dbartsData(x2, y2, test = x.test, weights = w2)),
+  "'weights' are ignored for test data"
+)
 r.setdata <- sampler.setdata$run(0L, 5L)
 expect_equal(dim(r.setdata$train), c(n2, 5L))
 expect_equal(dim(r.setdata$test), c(10L, 5L))

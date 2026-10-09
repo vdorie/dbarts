@@ -49,7 +49,7 @@ uniformGrid <- function(values, n.cuts) {
 u.new <- u * 1.3 + 0.2
 
 set.seed(11)
-sampler.cuts <- dbarts(x.frame, y, control = control)
+sampler.cuts <- dbarts(x.frame, y, control = control, sigest = 1)
 invisible(sampler.cuts$run(100L, 10L))
 sampler.cuts$setPredictor(
   u.new,
@@ -64,7 +64,7 @@ expect_equal(sampler.cuts$getSumsOfSquaredResiduals(), ssr.mutated)
 
 x.dense <- as.matrix(dbartsData(x.frame, y)@x)
 set.seed(11)
-sampler.dense <- dbarts(x.dense, y, control = control)
+sampler.dense <- dbarts(x.dense, y, control = control, sigest = 1)
 invisible(sampler.dense$run(100L, 10L))
 sampler.dense$setPredictor(
   u.new,
@@ -79,7 +79,7 @@ expect_equal(sampler.dense$getSumsOfSquaredResiduals(), ssr.dense)
 # ROLLBACK: a rejected transactional update leaves neither the refused values
 # nor the creation-time ones behind for the next requantization to install
 set.seed(55)
-sampler.roll <- dbarts(x.frame, y, control = control)
+sampler.roll <- dbarts(x.frame, y, control = control, sigest = 1)
 invisible(sampler.roll$run(100L, 10L))
 u.forced <- u * 1.15 - 0.1
 sampler.roll$setPredictor(u.forced, column = 1L, forceUpdate = TRUE)
@@ -102,7 +102,7 @@ expect_equal(sampler.roll$getSumsOfSquaredResiduals(), ssr.forced)
 # SET STATE: replaying a stored state reinstalls its cut points, which
 # requantize the mutated column back to the codes the state was stored under
 set.seed(77)
-sampler.state <- dbarts(x.frame, y, control = control)
+sampler.state <- dbarts(x.frame, y, control = control, sigest = 1)
 invisible(sampler.state$run(100L, 10L))
 sampler.state$setPredictor(u * 0.8 + 0.4, column = 1L, forceUpdate = TRUE)
 ssr.stored <- sampler.state$getSumsOfSquaredResiduals()
@@ -138,7 +138,8 @@ sampler.leaf <- dbarts(
   y.leaf,
   leaf.prior = linear("cv"),
   tree.prior = cgm(split.probs = c(0, 1, 1)),
-  control = control
+  control = control,
+  sigest = 1
 )
 invisible(sampler.leaf$run(150L, 10L))
 ssr.noise <- sampler.leaf$getSumsOfSquaredResiduals()
@@ -154,7 +155,7 @@ expect_true(ssr.signal < 0.1 * total.leaf)
 # with the design - same total length, dimensions swapped - is refused rather
 # than reinterpreted column-major (is.matrix() is FALSE for every Matrix
 # class, so the shape went unchecked and only the total-length check ran)
-sampler.transposed <- dbarts(x.frame, y, control = control)
+sampler.transposed <- dbarts(x.frame, y, control = control, sigest = 1)
 x.wrong.shape <- Matrix::t(as(matrix(rnorm(n * 3L), n, 3L), "CsparseMatrix"))
 expect_error(
   sampler.transposed$setPredictor(x.wrong.shape, forceUpdate = TRUE),
@@ -165,7 +166,7 @@ expect_error(
 # ordinal column carries sparseReference = NA_integer_ (the "no reference
 # level" sentinel) as a length-one list element, which base anyNA() on a
 # list misreads as a missing value that is not there
-sampler.strict <- dbarts(strictData(x.frame, y), control = control)
+sampler.strict <- dbarts(strictData(x.frame, y), control = control, sigest = 1)
 test.one.sparse <- data.frame(u = rnorm(5L), w = rnorm(5L))
 test.one.sparse$sv <- Matrix::sparseVector(
   x = c(0.6, 0.9),
@@ -180,7 +181,7 @@ expect_silent(sampler.strict$setTestPredictor(container.no.na))
 # with two or more sparse columns, sparseReference is a length>1 element -
 # never inspected for NA by a top-level list anyNA() at all - so a real NA
 # in sparse@x goes undetected in the other direction
-sampler.strict2 <- dbarts(strictData(x.frame, y), control = control)
+sampler.strict2 <- dbarts(strictData(x.frame, y), control = control, sigest = 1)
 test.two.sparse <- data.frame(u = rnorm(5L))
 test.two.sparse$w <- Matrix::sparseVector(
   x = c(NA_real_, 0.4),

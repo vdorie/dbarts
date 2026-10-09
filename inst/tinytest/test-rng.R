@@ -88,7 +88,7 @@ rm(
 
 
 # test that bart with fixed seed is reproducible
-fit1 <- dbarts::bart(
+fit1 <- dbarts::bartBT(
   y ~ x,
   testData,
   ntree = 5,
@@ -99,7 +99,7 @@ fit1 <- dbarts::bart(
   nchain = 2L,
   nthread = 1L
 )
-fit2 <- dbarts::bart(
+fit2 <- dbarts::bartBT(
   y ~ x,
   testData,
   ntree = 5,
@@ -113,7 +113,7 @@ fit2 <- dbarts::bart(
 
 expect_equal(fit1$yhat.train, fit2$yhat.train)
 
-fit3 <- dbarts::bart(
+fit3 <- dbarts::bartBT(
   y ~ x,
   testData,
   ntree = 5,
@@ -124,7 +124,7 @@ fit3 <- dbarts::bart(
   nchain = 2L,
   nthread = 2L
 )
-fit4 <- dbarts::bart(
+fit4 <- dbarts::bartBT(
   y ~ x,
   testData,
   ntree = 5,

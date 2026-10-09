@@ -96,7 +96,7 @@ expect_error(
   "multinomial"
 )
 expect_error(
-  bart(
+  bartBT(
     x,
     y3,
     ndpost = 5L,

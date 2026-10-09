@@ -92,9 +92,16 @@ y2 <- c(y, y)
 w2 <- c(rep(1, n), rep(0, n))
 
 set.seed(1L)
-fitA <- bart(x, y, ntree = 50L, ndpost = 1500L, nskip = 500L, verbose = FALSE)
+fitA <- bartBT(
+  x,
+  y,
+  ntree = 50L,
+  ndpost = 1500L,
+  nskip = 500L,
+  verbose = FALSE
+)
 set.seed(1L)
-fitB <- suppressWarnings(bart(
+fitB <- suppressWarnings(bartBT(
   x2,
   y2,
   weights = w2,

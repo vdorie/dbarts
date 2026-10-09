@@ -646,12 +646,15 @@ expect_true(all(abs(samplesViaBart2Fixed$sigma - 1) < 1e-8))
 
 # collision refusals: a prior object plus a shorthand that would build it
 # errors naming both, matching the dart/split.probs precedent's shape
-expect_error(
-  fit2(y.gaussian, tree.prior = dbarts::dbartsPriors$cgm(), power = 3),
-  pattern = paste0(
-    "'tree.prior' cannot be combined with 'power': supply the prior either ",
-    "as an object or through its shorthand arguments, not both"
-  )
+expect_warning(
+  expect_error(
+    fit2(y.gaussian, tree.prior = dbarts::dbartsPriors$cgm(), power = 3),
+    pattern = paste0(
+      "'tree.prior' cannot be combined with 'power': supply the prior either ",
+      "as an object or through its shorthand arguments, not both"
+    )
+  ),
+  "'power' has left 'bart'"
 )
 expect_error(
   fit2(y.gaussian, leaf.prior = dbarts::dbartsPriors$normal(), k = 3),

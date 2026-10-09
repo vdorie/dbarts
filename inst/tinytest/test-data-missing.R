@@ -282,7 +282,6 @@ rm(
   test.df.x2na,
   test.df.extra,
   testMatrix,
-  testMatrix.x2na,
   fit.b2,
   df.badY,
   df.allNA,

@@ -14,7 +14,7 @@ n.burn <- 0L
 n.tree <- 3L
 
 set.seed(99L)
-singleThreadedFit <- dbarts::bart(
+singleThreadedFit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = n.sims,
@@ -25,14 +25,18 @@ singleThreadedFit <- dbarts::bart(
 )
 
 set.seed(99L)
-multiThreadedFit <- dbarts::bart(
-  testData$x,
-  testData$y,
-  ndpost = n.sims,
-  nskip = n.burn,
-  ntree = n.tree,
-  verbose = FALSE,
-  nthread = 2L
+multiThreadedFit <- NULL
+expect_warning(
+  multiThreadedFit <- dbarts::bartBT(
+    testData$x,
+    testData$y,
+    ndpost = n.sims,
+    nskip = n.burn,
+    ntree = n.tree,
+    verbose = FALSE,
+    nthread = 2L
+  ),
+  "nthread \\(2\\) exceeds nchain \\(1\\)"
 )
 
 expect_equal(singleThreadedFit$sigma, multiThreadedFit$sigma)
@@ -61,7 +65,7 @@ source(
 # test that multiple chains single threads runs correctly
 set.seed(99L)
 oldSeed <- .Random.seed
-fit <- dbarts::bart(
+fit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 120L,
@@ -79,7 +83,7 @@ rm(fit, oldSeed)
 # test that multiple chains multiple threads runs correctly
 set.seed(99L)
 oldSeed <- .Random.seed
-fit <- dbarts::bart(
+fit <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 120L,
@@ -101,7 +105,7 @@ expect_true(
 # makes multithreaded results reproducible
 expect_false(identical(oldSeed, .Random.seed))
 set.seed(99L)
-fit2 <- dbarts::bart(
+fit2 <- dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 120L,

@@ -187,9 +187,12 @@ expect_equal(
   unname(apply(fit.dart$varprobs, c(1L, 2L), sum)),
   matrix(1, 2L, 25L)
 )
-expect_error(
-  bart(y.dart ~ x.dart, tree.prior = dart(), split.probs = rep(0.1, 10L)),
-  pattern = "'tree.prior' cannot be combined with 'split.probs'"
+expect_warning(
+  expect_error(
+    bart(y.dart ~ x.dart, tree.prior = dart(), split.probs = rep(0.1, 10L)),
+    pattern = "'tree.prior' cannot be combined with 'split.probs'"
+  ),
+  "'split.probs' has left 'bart'"
 )
 expect_null(
   bart(

@@ -42,6 +42,17 @@ y <- as.double(x[, 1L] + 2 * x[, 2L] + rnorm(n, 0, 0.3))
 w <- 0.5 + runif(n)
 a <- as.double(seq_len(n) %% 4L != 1L)
 
+# A sampler built with the mask folded into its weights carries zero weights,
+# which the constructor reports; pin the report where it is expected.
+withZeroWeights <- function(sampler) {
+  built <- NULL
+  expect_warning(
+    built <- sampler,
+    "rows with 'weights' of 0 are left out of the likelihood"
+  )
+  built
+}
+
 makeSamplerActiveRowsPins <- function(weights = NULL, ...) {
   dbarts::dbarts(
     x,
@@ -60,7 +71,7 @@ makeSamplerActiveRowsPins <- function(weights = NULL, ...) {
 # because only the unweighted path takes the fused node-average roll.
 masked <- makeSamplerActiveRowsPins(w)
 masked$setActiveRows(a)
-composed <- makeSamplerActiveRowsPins(w * a)
+composed <- withZeroWeights(makeSamplerActiveRowsPins(w * a))
 draws.masked <- masked$run(20L, 10L)
 draws.composed <- composed$run(20L, 10L)
 expect_identical(draws.masked$train, draws.composed$train)
@@ -71,10 +82,10 @@ rm(masked, composed, draws.masked, draws.composed)
 # so the mask annihilates the composite without moving the stream
 masked.t <- makeSamplerActiveRowsPins(w, family = dbarts:::student(df = 4))
 masked.t$setActiveRows(a)
-composed.t <- makeSamplerActiveRowsPins(
+composed.t <- withZeroWeights(makeSamplerActiveRowsPins(
   w * a,
   family = dbarts:::student(df = 4)
-)
+))
 draws.masked.t <- masked.t$run(20L, 10L)
 draws.composed.t <- composed.t$run(20L, 10L)
 expect_identical(draws.masked.t$train, draws.composed.t$train)
@@ -97,14 +108,14 @@ masked.bcf <- dbarts::dbarts(
   sigest = 1
 )
 masked.bcf$setActiveRows(a)
-composed.bcf <- dbarts::dbarts(
+composed.bcf <- withZeroWeights(dbarts::dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z.bcf))),
   weights = w * a,
   control = control,
   sigest = 1
-)
+))
 draws.masked.bcf <- masked.bcf$run(20L, 10L)
 draws.composed.bcf <- composed.bcf$run(20L, 10L)
 expect_identical(draws.masked.bcf$train, draws.composed.bcf$train)
@@ -167,7 +178,7 @@ expect_identical(order.aw$run(20L, 10L)$train, order.wa$run(20L, 10L)$train)
 survives <- makeSamplerActiveRowsPins(w)
 survives$setActiveRows(a)
 survives$setOffset(rep(0.25, n))
-kept <- makeSamplerActiveRowsPins(w * a)
+kept <- withZeroWeights(makeSamplerActiveRowsPins(w * a))
 kept$setOffset(rep(0.25, n))
 expect_identical(survives$run(20L, 10L)$train, kept$run(20L, 10L)$train)
 
@@ -237,7 +248,7 @@ heteroSampler <- function(weights) {
 }
 hetero <- heteroSampler(w)
 hetero$setActiveRows(a)
-hetero.composed <- heteroSampler(w * a)
+hetero.composed <- withZeroWeights(heteroSampler(w * a))
 draws.hetero <- hetero$run(20L, 10L)
 draws.hetero.composed <- hetero.composed$run(20L, 10L)
 expect_true(all(is.finite(draws.hetero$train)))
@@ -260,7 +271,7 @@ gp <- dbarts::dbarts(
   ),
   sigest = 1,
   n.samples = 10L,
-  leaf.prior = dbarts:::gp("x1", max.leaf.size = 100L)
+  leaf.prior = dbarts:::gp("x1", max.leaf.size = n)
 )
 gp$setActiveRows(a)
 draws.gp <- gp$run(20L, 10L)

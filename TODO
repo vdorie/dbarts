@@ -309,9 +309,6 @@ items
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
-  suite-stray-warnings: the full tinytest suite raises about 244 warnings
-    outside expectations (count from 2026-10-07). Pin or remove each, per
-    gate hygiene. Before the merge.
   variance-forest-mixture-reinstall: setControl installs a changed
     proposal.probs and n.perturb.cuts on the mean forest only; a
     heteroscedastic sampler's variance forest keeps the mixture and width

@@ -6,7 +6,7 @@ source(
 df <- with(testData, data.frame(x, y))
 df$X10 <- as.factor(paste0("C", 1 + round(4 * df$X10, 0)))
 
-fitCall <- quote(dbarts::bart(
+fitCall <- quote(dbarts::bartBT(
   testData$x,
   testData$y,
   ndpost = 1,
@@ -127,7 +127,7 @@ rm(bartFit, probs)
 rm(fitCall)
 
 
-fitCall <- quote(dbarts::bart(
+fitCall <- quote(dbarts::bartBT(
   y ~ .,
   df,
   ndpost = 3,

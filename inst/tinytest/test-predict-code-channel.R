@@ -41,7 +41,8 @@ sampler.rr <- dbarts(
     n.burn = 0L,
     keepTrees = TRUE,
     updateState = FALSE
-  )
+  ),
+  sigest = 1
 )
 expect_inherits(sampler.rr$data@x, "dbartsMixedMatrix")
 expect_equal(sampler.rr$data@varTypes, c(1L, 2L, 0L, 1L))

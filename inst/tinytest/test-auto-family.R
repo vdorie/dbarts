@@ -288,8 +288,9 @@ expect_silent(quiet(bart(x, yCont, control = ctl, verbose = FALSE)))
 # --- rbart_vi and bartBT: one line, or none ---
 frame$g <- factor(rep(1:4, length.out = n))
 frame$yc <- rnorm(n)
-expect_identical(
-  autoLines(rbart_vi(
+rbartViLines <- NULL
+expect_warning(
+  rbartViLines <- autoLines(rbart_vi(
     yc ~ x1,
     frame,
     group.by = g,
@@ -300,8 +301,9 @@ expect_identical(
     n.burn = 5L,
     verbose = TRUE
   )),
-  expected("continuous response", "gaussian")
+  "'rbart_vi' is deprecated"
 )
+expect_identical(rbartViLines, expected("continuous response", "gaussian"))
 expect_identical(
   autoLines(bartBT(
     x,
