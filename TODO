@@ -308,6 +308,14 @@ items
     (docs/design/k-mixing-pg-families.md). Study the tail over n and
     centres against what count-model users expect, on the bench box,
     and bring candidate defaults back with numbers if it is badly off.
+  sigest-beside-fixed-agree: before the merge (dec-B413, VD
+    2026-10-09). sigest (or the constructor's 0.9-34 spelling sigma =)
+    beside a fixed residual scale is accepted with a message when it
+    equals the square root of the fixed variance, saying it has no
+    effect and is an error from 1.1-0, and refused when it differs;
+    registered in the tombstone registry so 1.1-0 refuses it outright.
+    Two loops outside CRAN make the agreeing call (resid.prior =
+    fixed(1), sigma = 1).
   sparse-starting-sigma: before the merge (dec-B403, VD 2026-10-09).
     A caller's sparse x takes the same linear-model starting sigma as
     its dense equivalent, with no warning (today: sd(y) and a warning
