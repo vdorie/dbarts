@@ -259,16 +259,20 @@ items
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
   binary-k-default-revisit: after the merge to main, before 1.0-0
-    (dec-B390, VD 2026-10-08). Now that probit-k-scale-move has landed, rerun the
-    binary hyperprior study (docs/plans/binary-hyperprior.md) on
+    (dec-B390, VD 2026-10-08). Now that probit-k-scale-move has
+    landed, rerun the binary hyperprior study
+    (docs/plans/binary-hyperprior.md) on
     converged chains with the k move and bring the default chi(1.5, 2)
     back to VD with the numbers (dec-A07's scheduled revisit).
-  k-mixing-pg-families: before 1.0-0. Measure k's mixing under
-    logistic and nbinom (Polya-Gamma, k drawn by default) by
-    benchmarks/R/probit-k-mixing.R's census on a logistic arm and an
-    nbinom arm. The probit rescaling step does not apply there; if k is
-    slow, the collapsed move of docs/design/probit-k-scale-move.md
-    generalizes, and the choice of fix goes to the maintainer.
+  k-mixing-pg-families: before 1.0-0; door for VD. Measured
+    2026-10-09 (docs/design/k-mixing-pg-families.md): k under logistic
+    mixes slowly where it did under probit (small true k, near
+    separation; 7% of prior datasets past 5000 sweeps, half of the
+    near-separable ones), and under negative binomial it does not where
+    it could be measured. The probit step does not carry over; the
+    candidate is a collapsed scale move on the logistic likelihood, one
+    pass a sweep, covering negative binomial too. Whether and how to fix
+    logistic is the maintainer's.
   workflow-text-edits: equivalence.yaml, rchk.yaml and valgrind.yaml
     say workflow_dispatch needs main, which it does not; sbc.yaml's
     aft job has a 15-minute limit that a slow dependency install

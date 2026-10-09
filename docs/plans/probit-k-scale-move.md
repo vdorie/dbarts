@@ -1,7 +1,6 @@
 # probit-k-scale-move: a parameter-expansion step for k under probit
 
-Status: PLANNED 2026-10-08 (dec-B371; TODO probit-k-mixing); REVISED 2026-10-08 from its blind critique. Queued
-behind the engine small-rulings slice (Interactions).
+Status: LANDED 2026-10-09 (72205c00)
 
 agent: opus implementer, one; blind critique of this plan first; one opus reviewer who runs the mutants below.
 rng: POSTERIOR-CHANGING by the README's rule (a default changes: every single-forest probit fit with a drawn k
@@ -333,3 +332,19 @@ meanwhile.
 
 Settled since the first draft: the arm's thin stays 1000 (agent call, The probit-k SBC arm); the logistic and
 nbinom measurement is before 1.0-0, a slow result bringing the choice of fix to the maintainer (TODO above).
+
+## Landing note
+
+Landed 2026-10-09 as de449344..72205c00 after a blind critique of the plan, two implementer rounds (the
+second bounded the cached-fit update in place: x86 cost 1.000 to 1.027 of the step-free sampler), one opus
+review with mutants and one fix round the same reviewer checked. The switch this plan describes
+(`treeScale`, later `probitRescaleForest`) is gone by dec-B397: the step runs wherever it applies, the engine
+keeps a toggle for tests/cpp alone, the exact gate has no never arm and the mixing script no off arm; their
+step-off results stay in docs/design/probit-k-scale-move.md. Equivalence re-recorded as equivalence-51201107
+(chik, maskprobit, hazard, hurdle, bart2probit moved; the other 50 bitwise; oracle in its MANIFEST row);
+bcf-equivalence-1b7d730c 15/15 and multinomial-equivalence-80b1c8d4 11/11 bitwise; the four snapshot files
+unchanged. Full tinytest suite in one process 19610 results, 0 failures; tests/cpp 371 under plain and
+address/undefined sanitizers; every exact gate in quick mode, the new gate also full; R CMD check --as-cran
+one NOTE (Date). stan4bart's suite on the landed tip: 582 results, 0 failures. Logistic and nbinom k mixing
+measured before landing (docs/design/k-mixing-pg-families.md): logistic is slow where probit was; its fix
+is the maintainer's choice (TODO k-mixing-pg-families). Calls: dec-A190.

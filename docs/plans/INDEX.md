@@ -59,7 +59,7 @@ Columns: `file | STATUS | one-liner`.
 |---|---|---|
 | sbc-calibration.md | DONE (all tiers complete) | The simulation-based-calibration harness and its running log; found and diagnosed a BCF sigma-mixing issue and a cauchy-tau tooling gap along the way. |
 | sbc-family-tiers.md | BUILT d094675 (2026-08-04); aft and heteroscedastic arms admitted 2026-09-13, monotone arms 2026-10-01 | Extends SBC calibration to ordinal, nbinom, Student-t and multinomial responses; all pass except a known ordinal ridge-mixing flag. aft, the two heteroscedastic arms and monotone's two 20-tree arms (one per prior) have since been admitted to sbc.yaml's matrix. |
-| probit-k-scale-move.md | PLANNED 2026-10-08 (dec-B371); follows the engine small-rulings slice | Adds a probit parameter-expansion step that rescales the active latents, the leaves and 1/k together once a sweep, drawn exactly, on by default where k is drawn (`dbartsControl(treeScale = )`, name pending), with an exact gate on a frozen one-tree fit, a mixing measurement, the drawn-k probit equivalence scenarios re-recorded, and the probit-k calibration arm returned to an ordinary SBC. |
+| probit-k-scale-move.md | LANDED 2026-10-09 (72205c00) | Adds a probit parameter-expansion step that rescales the active latents, the leaves and 1/k together once a sweep, drawn exactly, wherever k is drawn on a single probit forest, with no switch (dec-B397), an exact gate on a frozen one-tree fit, a mixing measurement, the drawn-k probit equivalence scenarios re-recorded, and the probit-k calibration arm returned to an ordinary SBC. |
 
 ## Response-family / model-surface singletons
 
