@@ -302,6 +302,12 @@ items
     (draws change in value, not distribution; no state or API change),
     with a same-machine speed A/B; diagnosis and prototype in
     scratch/gpcopy/. Engine slice after probit-k-mixing. Before the merge.
+  nbinom-prior-predictive: before 1.0-0 (dec-B412, VD 2026-10-09). The
+    negative binomial default prior's predictive counts: about 15% of
+    datasets drawn from it on 150 rows sum past 10,000, some past 10^9
+    (docs/design/k-mixing-pg-families.md). Study the tail over n and
+    centres against what count-model users expect, on the bench box,
+    and bring candidate defaults back with numbers if it is badly off.
   sparse-starting-sigma: before the merge (dec-B403, VD 2026-10-09).
     A caller's sparse x takes the same linear-model starting sigma as
     its dense equivalent, with no warning (today: sd(y) and a warning
