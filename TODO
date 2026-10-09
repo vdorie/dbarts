@@ -285,18 +285,12 @@ items
     tracked files: docs, R and man text, comments, the TODO item name
     coefficient-law-opt-in; identifiers where not public. Replace with
     distribution, prior, rule or formula as fits. Docs/text tier.
-  gp-copy-continuation: a copy, a setState or a reload of a sampler with
-    gp leaves does not continue its source to the last few digits, as the
-    copy help promises: train fits differed by up to 0.38 on values near
-    2.3, with or without a stored state (found by the copy review,
-    2026-10-08). Cause: a restore rebuilds each leaf's members in index
-    order where the live chain's order is history-dependent, and the gp
-    draw builds its kernel and assigns normals in member order
-    (GPGaussianLeaf::drawFromPosteriorForNode). Fix: gp computations on a
-    leaf under the size cap use members sorted by observation index
-    (draws change in value, not distribution; no state or API change),
-    with a same-machine speed A/B; diagnosis and prototype in
-    scratch/gpcopy/. Engine slice after probit-k-mixing. Before the merge.
+  gp-speed-x86: before the merge. Rerun the gp member-order speed A/B
+    (cap 64 arms at least; the warm column, which alone sees a kernel-
+    cache regression) on the quiet x86 box against da19dec4's engine;
+    the Mac runs under load put cap 64 at 1.00 to 1.02 pooled with four
+    cells above 1.03 (dec-A192). Above 1.05 in any arm: optimize the
+    sort path.
   nbinom-prior-predictive: before 1.0-0 (dec-B412, VD 2026-10-09). The
     negative binomial default prior's predictive counts: about 15% of
     datasets drawn from it on 150 rows sum past 10,000, some past 10^9

@@ -1,6 +1,6 @@
 # gp-copy-continuation: gp leaves compute over members in observation order
 
-Status: PLANNED 2026-10-09.
+Status: LANDED 2026-10-09 (f9674313)
 
 agent: opus implementer, one; blind critique of this plan first; one opus reviewer who runs the mutants below.
 rng: SHIFTING for every fit with gp leaves: a leaf under the size cap whose members the tree holds out of
@@ -234,3 +234,19 @@ C API change.
 ## Estimate
 
 Implementer about half a day; gates about four hours of machine time, an hour of it on a quiet machine.
+
+## Landing note
+
+Landed 2026-10-09 as c40d2f97..f9674313 after one opus review with mutants and one fix round the same
+reviewer checked; the plan's blind critique was skipped (dec-A192). A copy, setState or reload of a gp
+sampler now continues its source to about 1e-11 where it differed by 0.6 to 3.4. Equivalence re-recorded as
+equivalence-734441f1 (gp at max |z| 2.71, wtgp 2.85; the other 53 bitwise; oracle in its MANIFEST row: the
+gp, gp-weighted and gp-mixed SBC arms on two seeds, no arm flagged twice, and the permutation argument);
+bcf-equivalence-1b7d730c 15/15 and multinomial-equivalence-80b1c8d4 11/11 bitwise; the four snapshot files
+unchanged. Full tinytest suite in one process 19622 results, 0 failures, no stray warning; tests/cpp under
+plain and address/undefined sanitizers; R-loaded sanitizers on the gp files; every exact gate quick; R CMD
+check --as-cran one NOTE (Date). Eleven reviewer mutants: all caught by tests/cpp, tinytest or the bitwise
+baseline but the unsorted-span eviction, which only timing sees (warm 1.29 to 1.40 at cap 256). Speed, Mac
+under load, base da19dec4: cap 256 about 4% faster warm; cap 64 pooled 1.002 to 1.020 across two runs with
+four cells above 1.03 in the noisier one; the x86 rerun of the cap-64 arms is owed (TODO gp-speed-x86).
+stan4bart's suite on the landed tip: 582 results, 0 failures. Calls: dec-A192.
