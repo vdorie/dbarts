@@ -1,7 +1,6 @@
 # small-rulings-1008-engine: six engine rulings of 2026-10-08
 
-Status: PLANNED 2026-10-08 (dec-B329, dec-B356, dec-B365, dec-B366, dec-B369, dec-B386, dec-B391); one
-call pending the maintainer (Open calls).
+Status: LANDED 2026-10-08 (39eff011)
 
 agent: opus implementer, one; blind critique taken 2026-10-08; one opus reviewer who runs the mutants below.
 rng: POSTERIOR-CHANGING for a hazard fit of several forests whose vars omit period and for a constant
@@ -360,6 +359,19 @@ Settled by the maintainer's rulings or the coordinator on 2026-10-08:
 - The name is n.perturb.cuts (dec-B391), and setControl takes it.
 - (c, c) stays the record.
 
-Pending: item 5, a fixed k or sd switched to a drawn prior. Keeping the spread, as planned, is
-recommended, the leaves having been drawn under it; the alternative keeps k, with the one-line change
-stated under item 5.
+Item 5's fixed-to-drawn case was ruled afterwards: dec-B392 (within the sd spelling) and dec-B393
+(across spellings) keep the sd in force, as planned.
+
+## Landing note
+
+Landed 2026-10-08 as f7943bea..39eff011 after a blind critique of the plan, one opus review with
+mutants and one fix round the same reviewer checked. Equivalence trio at the final tip on the
+reference build, `--bitwise --strict-coverage`: equivalence-deb3fe50 55/55, bcf-equivalence-1b7d730c
+15/15, multinomial-equivalence-80b1c8d4 11/11; no baseline re-recorded. The four snapshot files pass
+unchanged. Full tinytest suite 19541 results, 0 failures; tests/cpp 370 under plain and
+address/undefined sanitizers; R-loaded sanitizers on the touched files; every exact gate in quick mode
+plus the new width-3 perturb arm; R CMD check --as-cran one NOTE (Date). stan4bart's suite on the
+landed tip: 582 results, 0 failures. Linear-leaf A/B at q = 1, 2, 4, 8 against 5f7ac722: the branch
+draws bitwise and runs 5 to 11 percent faster (median ratios 0.93, 0.89, 0.93, 0.95; loaded machine,
+interleaved, both orders). The slice ran over its stop (+1675/-439 against about 950), mostly tests.
+Calls: dec-A187. Found in review and queued: TODO variance-forest-mixture-reinstall.
