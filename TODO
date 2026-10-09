@@ -297,14 +297,15 @@ items
     (docs/design/k-mixing-pg-families.md). Study the tail over n and
     centres against what count-model users expect, on the bench box,
     and bring candidate defaults back with numbers if it is badly off.
-  per-chain-responses: design note first (dec-B419, VD 2026-10-09):
-    responses and offsets held per chain so one sampler holds every
-    chain of a larger Gibbs sampler (stan4bart today runs one sampler
-    per chain); the response scale either per chain (as stan4bart's
-    chains freeze it today), agreed at one barrier after warm-up, or
-    fixed at creation from the response less an initial parametric
-    fit; measure what warm-up re-derivation buys (frozen scales across
-    chains against a creation-time estimate). VD schedules after.
+  per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
+    note docs/design/per-chain-responses.md). Responses and offsets
+    held per chain so one sampler holds every chain of a larger Gibbs
+    sampler (stan4bart today runs one sampler per chain). The note
+    recommends one transform fixed at creation from the response less
+    the intercept-free initial fit, with updateScale on per-chain data
+    re-deriving one transform from every chain; measured, warm-up
+    re-derivation buys nothing on stan4bart fits. About 1260 lines
+    planned, after response-scale-rows.
   sigest-beside-fixed-agree: before the merge (dec-B413, VD
     2026-10-09). sigest (or the constructor's 0.9-34 spelling sigma =)
     beside a fixed residual scale is accepted with a message when it
