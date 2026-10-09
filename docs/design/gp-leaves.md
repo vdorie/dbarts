@@ -257,7 +257,9 @@ Deltas and facts vs the plan above:
   (reduces to the constant leaf's formula for a constant kernel, the
   component test checks the limit numerically). Posterior draw by
   Matheron's rule f = f0 + s^2 C V^-1 (z - f0 - e0), consuming exactly
-  2 n_leaf standard normals (f0's in row order first); empty leaves
+  2 n_leaf standard normals (f0's first, in member order: by
+  observation index since
+  [Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09)); empty leaves
   consume none. Prior draw s L_C eps, n_leaf normals. Prediction
   weights alpha = C^-1 f are cached per node (arena-indexed;
   beginTreeDraw resets per tree sweep) and test rows evaluate
@@ -304,7 +306,9 @@ exposure; equivalence identical draws). Facts vs the plan:
   variable-length block per leaf in pre-order - [count, constant] when
   count is zero (over-cap and empty leaves replay a constant),
   otherwise [count, alpha (count), plain standardized covariate rows
-  (count x q, row-major, member order)]. Counts ride the stream as
+  (count x q, row-major, member order; by observation index since
+  [Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09))].
+  Counts ride the stream as
   doubles (exact to 2^53); computeFunctionBlockOffsets (tree.hpp)
   walks and validates the channel and produces per-leaf offsets.
   Lengthscales are NOT baked into the rows - the replay divides - so
@@ -418,7 +422,10 @@ positive).
 ## Stage 4 landing notes: kernel caching (2026-07-05)
 
 The correlation kernel and its Cholesky factor depend only on the
-leaf's member list (values and order) and the fixed lengthscales - not
+leaf's member list (values, and the order it is read in: by
+observation index since
+[Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09))
+and the fixed lengthscales - not
 on sigma, k, weights, or the response - so they are reusable across
 sweeps for any tree whose structure survives its move. GPGaussianLeaf
 now keeps a per-(tree, node) cache of both, and every lookup
@@ -512,7 +519,8 @@ vehicle is gone. `repartitionSubtree` now partitions a dense root in
 place, so a predictor update no longer normalizes a warm sampler's spans
 and a restored clone's onto one permutation; a gp kernel depends on the
 member list's ORDER, so the two draw over different permutations of the
-same members. The equality was manufactured by the old identity rewrite,
+same members (no longer: see
+[Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09)). The equality was manufactured by the old identity rewrite,
 not by any round-trip property: measured before the change, the same pair
 already diverged with NO update at all, about 0.1 relative on the first
 continued sigma.
@@ -533,6 +541,39 @@ continued sigma.
 The state round trip over a gp forest keeps its install assertion there;
 what a restored sampler then draws is a different question, its spans
 carrying the order the rebuild left rather than the order the sweeps did.
+[Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09)
+answers it: the restored sampler now continues its source.
+
+## Stage 4 addendum: members in observation order (2026-10-09)
+
+Every computation of a leaf under the size cap - the score, the posterior
+and prior draws, the saved block, the test fits - reads the leaf's members
+sorted by observation index, not in the order the tree's span holds them.
+The span order depends on the history of accepted moves
+([`Tree::partitionByPredicate`](../../src/bartcore/tree.hpp) swaps), and
+a tree rebuilt by a copy, `setState` or reload
+([`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp)) holds the
+same members in another order. With the kernel built and the standard
+normals assigned in span order, a restored sampler drew a different valid
+draw from the same distribution and separated from its source by about
+0.6 over ten draws; reading members by index, the leaf's draws are a
+function of its membership, a restored clone builds the same kernel, and
+it continues its source to rounding (about 1e-11 on train and test fits).
+
+[`GPGaussianLeaf::sortedMembers`](../../src/bartcore/model.hpp) sorts into
+a scratch that keeps its capacity. The draw cache holds each node's sorted
+members beside its alpha weights (`memberBuffer_`), and the test fits and
+saved blocks read them from there, never from the tree. The kernel cache is
+keyed by the sorted list, and its eviction compares in sorted order: a
+comparison against the span would evict every leaf whose span is out of
+order. Over the cap nothing changes: the constant fallback reads the span
+and pays no sort. The change moves gp draws, not their distribution, and no
+state format, C API or facade changes; states and saved trees written
+before it install and replay unchanged, each saved block carrying its
+alpha and rows in one order. `testGPLeafMemberOrder` pins the identity
+bitwise across shuffled spans and `testGPLeafKernelCache` the state round
+trip's continuation; test-gp-leaves.R checks copy, `setState` and reload
+against an uninterrupted twin.
 
 ## Status
 
