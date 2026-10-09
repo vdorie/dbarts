@@ -298,8 +298,14 @@ items
     gp leaves does not continue its source to the last few digits, as the
     copy help promises: train fits differed by up to 0.38 on values near
     2.3, with or without a stored state (found by the copy review,
-    2026-10-08, probe scratch/copyrev/gp.R). Find what the gp state omits
-    and fix, or carve gp out of the help with the reason. Before the merge.
+    2026-10-08). Cause: a restore rebuilds each leaf's members in index
+    order where the live chain's order is history-dependent, and the gp
+    draw builds its kernel and assigns normals in member order
+    (GPGaussianLeaf::drawFromPosteriorForNode). Fix: gp computations on a
+    leaf under the size cap use members sorted by observation index
+    (draws change in value, not distribution; no state or API change),
+    with a same-machine speed A/B; diagnosis and prototype in
+    scratch/gpcopy/. Engine slice after probit-k-mixing. Before the merge.
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
