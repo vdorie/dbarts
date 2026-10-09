@@ -976,6 +976,26 @@ static void testDefaultRuleWeightedGaps() {
           !evenStore.cutsWeighted(2),
         "equal widths leave the cuts equally likely");
 
+  // one unequal width, the last: by far ({0, 1, 2, 5}) and by a quarter of
+  // the others ({0, 4, 8, 13}); either weighs every gap
+  std::vector<double> lastGap(2 * n);
+  for (size_t i = 0; i < n; ++i) {
+    const double byFar[] = {0.0, 1.0, 2.0, 5.0};
+    const double byQuarter[] = {0.0, 4.0, 8.0, 13.0};
+    lastGap[i] = byFar[i % 4];
+    lastGap[i + n] = byQuarter[i % 4];
+  }
+  ColumnStore lastGapStore;
+  built(lastGapStore.build(lastGap.data(), n, 2, asked));
+  check(lastGapStore.numCuts == std::vector<std::uint32_t>{3, 3} &&
+          lastGapStore.cutsWeighted(0) && lastGapStore.cutWeight(0, 0) == 1.0 &&
+          lastGapStore.cutWeight(0, 1) == 1.0 &&
+          lastGapStore.cutWeight(0, 2) == 3.0 && lastGapStore.cutsWeighted(1) &&
+          lastGapStore.cutWeight(1, 0) == 4.0 &&
+          lastGapStore.cutWeight(1, 1) == 4.0 &&
+          lastGapStore.cutWeight(1, 2) == 5.0,
+        "a last gap unlike the others, by any margin, weighs every gap");
+
   // what counts as a value, and the count asked per column
   std::vector<double> odd(2 * n);
   for (size_t i = 0; i < n; ++i) {
