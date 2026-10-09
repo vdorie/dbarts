@@ -217,18 +217,31 @@ expect_true(all(is.finite(samples.binary$train)))
 # raw-data path bitwise, standardizing with the parent's constants; a
 # proper fold serves its held-out rows through the gathered covariates
 # threaded through checkDataHandleViews()'s own 'leaf.prior' parameter, so
-# gp() must be the qualified name (see the checkStateRoundTrip() call above)
+# gp() must be the qualified name (see the checkStateRoundTrip() call above).
+# At this cap about half the evaluations fall back, well clear of the
+# quarter that reports it, so the one run that goes through the sampler's
+# run() warns once (the view and fold run below the reporting layer); at 100
+# the share sat at the quarter and the warning came and went with the draws.
+viewWarnings <- character()
 list2env(
-  checkDataHandleViews(
-    y ~ x1 + x2,
-    df,
-    dbarts:::gp("x1", max.leaf.size = 100L),
-    10L,
-    n,
-    mu
+  withCallingHandlers(
+    checkDataHandleViews(
+      y ~ x1 + x2,
+      df,
+      dbarts:::gp("x1", max.leaf.size = 50L),
+      10L,
+      n,
+      mu
+    ),
+    warning = function(w) {
+      viewWarnings <<- c(viewWarnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
   ),
   environment()
 )
+expect_equal(length(viewWarnings), 1L)
+expect_true(all(grepl(gpFallback, viewWarnings, fixed = TRUE)))
 
 # xbart accepts a gp leaf prior, with its k standing in for a missing k
 # argument
