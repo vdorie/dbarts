@@ -656,6 +656,12 @@ struct VarianceForest {
 /// neither is a setting. At these values the limit never binds on the step's
 /// conditional, whose sd in log scale is near 1 / sqrt(2 n).
 constexpr double rescaleSliceWidth = 0.25;
+
+/// The most a multiplicative bulk transform may scale a forest's totalFits in
+/// place, either way, before the cache is re-derived from the leaves. A gap
+/// the cache carries is then multiplied by at most the square of this, so it
+/// stays within a few times the additive rounding the sweep leaves.
+constexpr double totalFitsScaleBound = 2.0;
 constexpr int rescaleSliceStepLimit = 1000;
 
 /// One slice-sampling update (Neal 2003, stepping out then shrinkage) of a
@@ -1747,11 +1753,13 @@ public:
   }
 
   /// One constant-leaf forest's totalFits re-summed in tree order,
-  /// ((0 + mu_0) + mu_1) + ..., per row. Four trees are added per pass over
-  /// the rows, which keeps that order exactly and reads and writes the total
-  /// a quarter as often; the probit rescaling step pays this every sweep.
+  /// ((0 + mu_0) + mu_1) + ..., per row, which clears any factor a
+  /// multiplicative transform applied in place. Four trees are added per pass
+  /// over the rows, which keeps that order exactly and reads and writes the
+  /// total a quarter as often.
   void rebuildForestTotalFits(Forest<L, ResidT>& forest) {
     if constexpr (leafIsConstant) {
+      forest.totalFitsScale = 1.0;
       const size_t n = data_.numObservations;
       double* __restrict total = forest.totalFits.data();
       std::fill(total, total + n, 0.0);
@@ -1862,9 +1870,9 @@ public:
 
       // the probit rescaling step, after the level step and so equally ahead
       // of every channel the sweep writes: k, the leaves the test fits and
-      // saved trees read, and totalFits, which it re-derives from the scaled
-      // leaves before the roll reads it. It declines before any generator
-      // call wherever it does not apply.
+      // saved trees read, and totalFits, which it scales or re-derives before
+      // the roll reads it. It declines before any generator call wherever it
+      // does not apply.
       if (options_.probitRescaleForest) drawForestRescale();
 
       for (size_t f = 0; f < forests_.size(); ++f) {
@@ -2664,6 +2672,7 @@ public:
         }
       }
       misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+      forest.totalFitsScale = 1.0;
       if (data_.numTestObservations > 0)
         misc_setVectorToConstant(forest.totalTestFits.data(),
                                  data_.numTestObservations, 0.0);
@@ -2874,6 +2883,7 @@ public:
     size_t n = data_.numObservations;
     for (Forest<L, ResidT>& forest : forests_) {
       misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+      forest.totalFitsScale = 1.0;
       if (data_.numTestObservations > 0)
         misc_setVectorToConstant(forest.totalTestFits.data(),
                                  data_.numTestObservations, 0.0);
@@ -3370,6 +3380,7 @@ public:
       forest.treeY.resize(n);
     }
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+    forest.totalFitsScale = 1.0;
 
     // fresh standardization constants over the replacement data, like the
     // rebuilt cut grid. A linear leaf's coefficients, live and saved, are
@@ -3485,6 +3496,7 @@ public:
 
     for (Forest<L, ResidT>& forest : forests_) {
       misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+      forest.totalFitsScale = 1.0;
 
       if constexpr (L::hasFunctionParams) {
         forest.leaf.regatherTrainingCovariates(data_);
@@ -4606,6 +4618,7 @@ public:
     Forest<L, ResidT>& forest = forests_[f];
     size_t n = data_.numObservations;
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+    forest.totalFitsScale = 1.0;
     size_t paramStride = 1;
     if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
     for (size_t t = 0; t < forest.numTrees; ++t) {
@@ -4684,6 +4697,7 @@ public:
     Forest<L, ResidT>& forest = forests_[f];
     size_t n = data_.numObservations;
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+    forest.totalFitsScale = 1.0;
 
     // every tree is rebuilt whole, so what the leaf cached per tree goes
     if constexpr (L::hasVectorParams)
@@ -6337,10 +6351,13 @@ private:
   /// tests/cpp.
   void assertForestCachesMatchLeaves() const {
     if constexpr (leafIsConstant && std::is_same_v<ResidT, double>)
-      for (size_t f = 0; f < forests_.size(); ++f)
+      for (size_t f = 0; f < forests_.size(); ++f) {
         assert(totalFitsMatchLeaves(
           forests_[f],
           f < forestResponseScale_.size() ? forestResponseScale_[f] : 0.0));
+        assert(forests_[f].totalFitsScale >= 1.0 / totalFitsScaleBound &&
+               forests_[f].totalFitsScale <= totalFitsScaleBound);
+      }
   }
 #endif
 
@@ -6651,10 +6668,12 @@ private:
   /// not hold, where R is not positive, and where C is zero and n <= nu, the
   /// conditional then being improper. Every decline reads only quantities the
   /// group leaves invariant, so mixing the step with the identity keeps the
-  /// posterior. totalFits is re-derived from the scaled leaves in tree order
-  /// rather than multiplied in place, since a cache gap a factor multiplies
-  /// compounds across sweeps. alphaOut, when non-null, receives the factor
-  /// applied, 1 on a decline.
+  /// posterior. totalFits is multiplied by alpha in place while the forest's
+  /// accumulated factor stays within [1 / totalFitsScaleBound,
+  /// totalFitsScaleBound], and re-derived from the scaled leaves in tree order
+  /// when it would leave that range: a cache gap a factor multiplies compounds
+  /// across sweeps, so the factor is what bounds it. alphaOut, when non-null,
+  /// receives the factor applied, 1 on a decline.
   bool drawForestRescale(double* alphaOut = nullptr) {
     if (alphaOut != nullptr) *alphaOut = 1.0;
     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
@@ -6709,7 +6728,14 @@ private:
       bool scaled = response_->scaleLatents(alpha);
       assert(scaled);
       (void) scaled;
-      rebuildForestTotalFits(forest);
+      double scale = forest.totalFitsScale * alpha;
+      if (scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound) {
+        double* total = forest.totalFits.data();
+        for (size_t i = 0; i < n; ++i) total[i] *= alpha;
+        forest.totalFitsScale = scale;
+      } else {
+        rebuildForestTotalFits(forest);
+      }
       return true;
     }
   }

@@ -207,10 +207,16 @@ before each category's own forest updates (`drawForestGlue`).
 A forest's cached fits (`totalFits`) are kept by difference updates, so they
 may differ from the forest's leaves gathered in tree order by additive
 rounding only. A transform that writes leaf values in bulk - the multinomial
-level shift in `afterCombine`, the level-fibre shift - updates the cache in
-place only when it is additive; a multiplicative one must re-derive the cache
-from the leaves before the sweep ends, since a gap it multiplies compounds.
-`Chain::run` checks the rule in debug builds.
+level shift in `afterCombine`, the level-fibre shift, the probit rescaling
+step - may update the cache in place when it is additive. A multiplicative
+one may update it in place while the forest's accumulated factor since the
+cache was last re-derived (`Forest::totalFitsScale`) stays within [1/2, 2],
+and re-derives the cache from the leaves when the factor would leave that
+range, so a gap the factors multiply stays bounded. Every other
+re-derivation - a state install, a data or model change - resets the factor
+to 1; a stored state holds the leaves, not the cache, so it never carries a
+scaled gap. `Chain::run` checks the rule, the factor's range included, in
+debug builds.
 
 Two per-observation channels ride alongside, only one of them per-forest.
 `Chain::setForestWeights` installs a precision factor composed into forest f's
@@ -303,7 +309,8 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
    control's `probitRescaleForest` on (the default), the probit rescaling
    step (`drawForestRescale`): the active latents and occupied leaves
    multiplied, and `k` divided, by one factor from its exact conditional,
-   `totalFits` re-summed from the leaves; elsewhere it draws nothing.
+   `totalFits` scaled with them under the cache rule above; elsewhere it
+   draws nothing.
 3. For each forest in turn, and for each of its trees: roll the running
    residual so `treeY` holds the response net of every other tree's current
    fits, propose one move with `metropolisJumpForTree` and accept or reject

@@ -203,6 +203,12 @@ struct TestPeer {
   static void rebuildTotalFits(Chain<L, R>& chain) {
     chain.rebuildTotalFitsFromTrees();
   }
+  /// Forest 0's accumulated in-place factor on totalFits, writable, so a test
+  /// can put it at or past the bound that forces a re-derivation.
+  template <IntegrableLeafModel L, typename R>
+  static double& totalFitsScale(Chain<L, R>& chain) {
+    return chain.forests_[0].totalFitsScale;
+  }
   /// The chain's generator, so a test can read the stream a kernel left.
   template <IntegrableLeafModel L, typename R>
   static ext_rng* rng(Chain<L, R>& chain) {

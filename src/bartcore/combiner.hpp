@@ -208,6 +208,11 @@ struct Forest {
   // the constant leaf, which carries muByTree + leafOf instead
   std::vector<double> treeFits;
   std::vector<double> totalFits, totalTestFits;
+  // the product of the factors a multiplicative bulk transform has applied to
+  // totalFits in place since totalFits was last re-derived from the leaves;
+  // kept within [totalFitsScaleBound^-1, totalFitsScaleBound] (chain.hpp) so
+  // the gap such a factor multiplies stays bounded
+  double totalFitsScale = 1.0;
   // the running per-tree residual; fp64 by default, fp32 under the opt-in
   // storage axis
   std::vector<ResidT> treeY;
@@ -621,10 +626,11 @@ struct ForestCombiner {
   /// An afterCombine that writes leaf values owns every cache derived from
   /// them: a forest's totalFits may leave the sweep differing from its leaves
   /// by additive rounding only. An additive move may update the cache in place,
-  /// the rounding it adds being additive; a multiplicative one must re-derive
-  /// the cache from the leaves before the sweep ends, since a gap it multiplies
-  /// compounds across sweeps and nothing short of a restore clears it. Chain
-  /// checks this under !NDEBUG at the end of every sweep, grow-from-root
+  /// the rounding it adds being additive; a multiplicative one may update it in
+  /// place only while the forest's accumulated factor (Forest::totalFitsScale)
+  /// stays within [1/2, 2], and re-derives it from the leaves when the factor
+  /// would leave that range, since a gap it multiplies compounds across sweeps.
+  /// Chain checks this under !NDEBUG at the end of every sweep, grow-from-root
   /// included.
   virtual void drawGlue(ext_rng*, double, const double*, const double*,
                         const std::vector<Forest<L, ResidT>>&) {}

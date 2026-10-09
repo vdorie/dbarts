@@ -444,6 +444,7 @@ void runForestRescaleTests() {
 
   // 2. The mapping, one step from the frozen state.
   moveFrozenStateTo(1.0);
+  std::vector<double> totalsBefore = forestTotals(*sampler, 0);
   double alpha = 0.0;
   check(TestPeer::drawForestRescale(chain, &alpha) && alpha != 1.0,
         "rescaling: the frozen state takes the step");
@@ -473,19 +474,40 @@ void runForestRescaleTests() {
          : z[i] == frozenZ[i]);
     workingMapped = workingMapped && working[i] == z[i] - offset[i];
   }
-  std::vector<double> gathered(rescaleN, 0.0);
-  for (size_t t = 0; t < rescaleTrees; ++t)
-    for (size_t i = 0; i < rescaleN; ++i)
-      gathered[i] += TestPeer::muByTree(chain, t)[TestPeer::leafOf(chain, t)[i]];
-  bool totalsMapped = forestTotals(*sampler, 0) == gathered;
+  // inside the bound totalFits is scaled in place and the factor accumulates;
+  // the scaled cache stays within rounding of the leaves it caches
+  auto gatherTotals = [&]() {
+    std::vector<double> gathered(rescaleN, 0.0);
+    for (size_t t = 0; t < rescaleTrees; ++t)
+      for (size_t i = 0; i < rescaleN; ++i)
+        gathered[i] +=
+          TestPeer::muByTree(chain, t)[TestPeer::leafOf(chain, t)[i]];
+    return gathered;
+  };
+  std::vector<double> totals = forestTotals(*sampler, 0), gathered = gatherTotals();
+  bool totalsMapped = TestPeer::totalFitsScale(chain) == alpha;
+  for (size_t i = 0; i < rescaleN; ++i)
+    totalsMapped = totalsMapped && totals[i] == totalsBefore[i] * alpha &&
+      std::fabs(totals[i] - gathered[i]) <=
+        rescaleMapTolerance * (1.0 + std::fabs(gathered[i]));
+  // past the bound the step re-derives the cache from the scaled leaves in
+  // tree order, bitwise, and resets the factor
+  moveFrozenStateTo(1.0);
+  TestPeer::totalFitsScale(chain) = 1.0e6;
+  TestPeer::drawForestRescale(chain, &alpha);
+  bool totalsRederived = forestTotals(*sampler, 0) == gatherTotals() &&
+                         TestPeer::totalFitsScale(chain) == 1.0;
   check(kMapped, "rescaling: k is divided by alpha");
   check(leavesMapped, "rescaling: every occupied leaf of every tree is "
                       "multiplied by alpha, an empty one left as it was");
   check(latentsMapped, "rescaling: the active latents are multiplied by "
                        "alpha, the inactive ones left as they were");
   check(workingMapped, "rescaling: the working response is alpha z - o");
-  check(totalsMapped, "rescaling: totalFits is the scaled leaves gathered in "
-                      "tree order, bitwise");
+  check(totalsMapped, "rescaling: inside the bound totalFits is scaled in "
+                      "place and the factor accumulates");
+  check(totalsRederived, "rescaling: past the bound totalFits is re-derived "
+                         "from the leaves in tree order, bitwise, and the "
+                         "factor reset");
 
   // 3. Inertness: each decline consumes no generator draw.
   moveFrozenStateTo(1.0);
