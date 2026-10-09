@@ -65,10 +65,12 @@ draw, so every fit the step does not apply to draws exactly as before.
 
 Placed beside the level step, ahead of the tree loop, every recorded channel -
 training and test fits, saved trees, k - is written after it. totalFits is
-re-summed from the scaled leaves in tree order rather than multiplied in place:
-a cache gap a factor multiplies compounds across sweeps ([Forests and
-combiners](../architecture.md#forests-and-combiners)). That re-sum is the step's
-whole cost (below).
+multiplied by alpha in place while the forest's accumulated factor since its
+last re-derivation stays within [1/2, 2], and re-summed from the scaled leaves
+in tree order when the factor would leave that range, so the cache gap a factor
+multiplies stays bounded ([Forests and
+combiners](../architecture.md#forests-and-combiners)). A re-sum every sweep
+would cost 9 to 14 percent of a sweep (below).
 
 ## Alternatives measured on the prototype
 
@@ -135,20 +137,19 @@ the arm keeps R = 600, 99 draws, thin 1000 and should read as an ordinary SBC.
 **Cost.** Per-sweep time with the step on over off, the same build, data and
 chain state (both samplers restored from one stored state before every timed
 segment), ten interleaved repetitions in alternating order, one chain, one
-thread; median ratio and range, on an idle x86-64 host (4 cores, load 0.1 to
-1.7):
+thread; median ratio and range, on an idle x86-64 host (4 cores, load 0.5 to
+0.8 over the as-built run, 0.1 to 1.7 over the others):
 
-    n       trees   as built (four-tree re-sum)   re-sum one tree a pass   multiplied in place
-    500       75    1.095 (1.081-1.100)           1.126 (1.116-1.137)      1.022 (1.017-1.045)
-    500      200    1.088 (1.059-1.109)           1.121 (1.088-1.125)      1.018 (1.006-1.024)
-    2000      75    1.104 (1.092-1.111)           1.154 (1.133-1.164)      1.019 (1.012-1.031)
-    2000     200    1.119 (1.020-1.145)           1.169 (1.136-1.197)      1.009 (1.000-1.018)
-    5000      75    1.119 (1.115-1.131)           1.179 (1.163-1.237)      1.018 (1.004-1.079)
-    5000     200    1.114 (1.060-1.133)           1.189 (1.154-1.214)      1.000 (0.991-1.010)
-    20000     75    1.108 (1.103-1.135)           1.179 (1.153-1.219)      0.996 (0.963-1.000)
-    20000    200    1.139 (1.115-1.144)           1.220 (1.187-1.257)      1.006 (1.000-1.009)
+    n       trees   as built (bounded in place)   re-sum every sweep, four trees a pass   one tree a pass
+    500       75    1.027 (1.014-1.047)           1.095 (1.081-1.100)                     1.126
+    500      200    1.017 (1.000-1.077)           1.088 (1.059-1.109)                     1.121
+    2000      75    1.008 (1.008-1.023)           1.104 (1.092-1.111)                     1.154
+    2000     200    1.013 (1.004-1.031)           1.119 (1.020-1.145)                     1.169
+    5000      75    1.016 (1.008-1.029)           1.119 (1.115-1.131)                     1.179
+    5000     200    1.000 (0.968-1.033)           1.114 (1.060-1.133)                     1.189
+    20000     75    1.004 (0.996-1.013)           1.108 (1.103-1.135)                     1.179
+    20000    200    1.009 (1.004-1.025)           1.139 (1.115-1.144)                     1.220
 
-The step's own arithmetic is a few percent at most; the re-sum of totalFits is
-the rest, one gather a tree a row, and it is the price of the cache rule. The
-prototype's figures (+19 percent at n = 500, +1 percent at n = 5000) timed fresh
-samplers at different chain states and multiplied in place.
+The step's own arithmetic is a few percent at most at the smallest n and within
+noise from n = 2000. The prototype's figures (+19 percent at n = 500, +1
+percent at n = 5000) timed fresh samplers at different chain states.
