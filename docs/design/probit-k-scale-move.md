@@ -140,7 +140,10 @@ the lag-1000 autocorrelation), against a quarter under 50 without the step.
 The arm runs at thin 700 after a 10,000-sweep burn (dec-A190 as marked): the
 fewest effective draws are then 49 by the lag-1000 autocorrelation read at lag
 700 and 55 by k's autocorrelation time, the burn about nine times k's slowest
-autocorrelation time (1,129 sweeps), at about 60% of thin 1000's cost.
+autocorrelation time (1,129 sweeps), at about 60% of thin 1000's cost. Its first run at those
+settings, in the full matrix on 2026-10-09, passed every functional: k at
+chi-square p 0.383, KS p 0.907 and ECDF difference 0.022 against the 0.080
+band, its end bins 33 and 30 against 30 expected, in a 44-minute job.
 
 **Cost.** Per-sweep time with the step on over off, the same build, data and
 chain state (both samplers restored from one stored state before every timed
