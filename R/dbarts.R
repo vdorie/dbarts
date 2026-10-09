@@ -2458,7 +2458,23 @@ dbartsSampler <- setRefClass(
       dupe$model <- model
       applyAnchor(dupe$pointer, model, !is.null(state))
       if (!is.null(state)) {
-        dupe$setState(state)
+        # as a reload installs it, not as a live setState: the stored state
+        # can hold a saved-tree store of another capacity than this control
+        # names (n.samples edited after the state was stored), and the copy
+        # takes the state's, exactly as a reload does
+        refuseLegacyState(state)
+        dupePointer <- dupe$pointer
+        .Call(
+          C_dbarts_bartcore_setState,
+          dupePointer,
+          state,
+          rawPredictorMatrix(data@x),
+          TRUE
+        )
+        dupe$reapplyForestWeights(dupePointer)
+        dupe$reapplyActiveRows(dupePointer)
+        reissueNamedLeafSd(dupe, dupePointer)
+        dupe$state <- state
       } else {
         reissueNamedLeafSd(dupe, dupe$pointer)
       }
