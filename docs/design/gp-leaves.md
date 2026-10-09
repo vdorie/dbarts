@@ -259,7 +259,8 @@ Deltas and facts vs the plan above:
   Matheron's rule f = f0 + s^2 C V^-1 (z - f0 - e0), consuming exactly
   2 n_leaf standard normals (f0's first, in member order: by
   observation index since
-  [Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09)); empty leaves
+  [Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09));
+  empty leaves
   consume none. Prior draw s L_C eps, n_leaf normals. Prediction
   weights alpha = C^-1 f are cached per node (arena-indexed;
   beginTreeDraw resets per tree sweep) and test rows evaluate
@@ -520,7 +521,8 @@ place, so a predictor update no longer normalizes a warm sampler's spans
 and a restored clone's onto one permutation; a gp kernel depends on the
 member list's ORDER, so the two draw over different permutations of the
 same members (no longer: see
-[Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09)). The equality was manufactured by the old identity rewrite,
+[Stage 4 addendum: members in observation order (2026-10-09)](#stage-4-addendum-members-in-observation-order-2026-10-09)).
+The equality was manufactured by the old identity rewrite,
 not by any round-trip property: measured before the change, the same pair
 already diverged with NO update at all, about 0.1 relative on the first
 continued sigma.
@@ -571,13 +573,14 @@ anyway: comparing members there would cost a sort per cached leaf per tree
 draw, and comparing against the unsorted span, as a first prototype did,
 evicts every leaf whose span is out of order and cost about a fifth of the
 run time at cap 256. Over the cap nothing changes: the constant fallback
-reads the span and pays no sort. The change moves gp draws, not their distribution, and no
-state format, C API or facade changes; states and saved trees written
-before it install and replay unchanged, each saved block carrying its
-alpha and rows in one order. `testGPLeafMemberOrder` pins the identity
-bitwise across shuffled spans and `testGPLeafKernelCache` the state round
-trip's continuation; test-gp-leaves.R checks copy, `setState` and reload
-against an uninterrupted twin.
+reads the span and pays no sort. The change moves gp draws, not their
+distribution, and no state format, C API or facade changes; states and
+saved trees written before it install and replay unchanged, each saved
+block carrying its alpha and rows in one order. `testGPLeafMemberOrder`
+pins the identity bitwise across shuffled spans and
+`testGPLeafKernelCache` the state round trip's continuation;
+test-gp-leaves.R checks copy, `setState` and reload against an
+uninterrupted twin.
 
 ## Status
 
