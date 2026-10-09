@@ -306,9 +306,12 @@ bool rescaleDeclinesWithoutDraw(Chain<ConstantGaussianLeaf>& chain) {
 std::unique_ptr<ConstantLeafSampler>
 makeRescaleSampler(const std::vector<double>& x, const std::vector<double>& y,
                    const std::vector<double>& offset, ResponseFamily family,
-                   bool updateK, bool rescale, ext_rng** rng) {
+                   bool updateK, bool rescale, ext_rng** rngs,
+                   size_t numChains = 1, size_t numVarianceTrees = 0) {
   SamplerOptions options;
   options.numTrees = rescaleTrees;
+  options.numChains = numChains;
+  options.numVarianceTrees = numVarianceTrees;
   options.nodeScale = 3.0;
   options.updateK = updateK;
   options.kHyperprior.degreesOfFreedom = 1.5;
@@ -316,7 +319,7 @@ makeRescaleSampler(const std::vector<double>& x, const std::vector<double>& y,
   options.probitRescaleForest = rescale;
   return std::make_unique<ConstantLeafSampler>(
     x.data(), y.data(), rescaleN, rescaleP, nullptr, offset.data(), family,
-    1.0, 3.0, 0.37804942330213542, options, rng);
+    1.0, 3.0, 0.37804942330213542, options, rngs);
 }
 
 /// The slice step on a normal target with a closed-form CDF, in invariance
@@ -359,6 +362,10 @@ void runForestRescaleTests() {
   check(sampler->setActiveRows(mask.data()), "the probit sampler takes a mask");
   sampler->run(20, 0, results);
   Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+  // no sweep leaves an empty leaf, so one is stranded; its value is nonzero so
+  // that scaling it would show
+  check(TestPeer::strandEmptyLeaf(chain, 0.5).second >= 0,
+        "rescaling: the fixture strands an empty leaf");
   check(TestPeer::forestRescaleApplies(chain),
         "a burned-in drawn-k probit forest takes the rescaling step");
 
@@ -394,7 +401,8 @@ void runForestRescaleTests() {
       else ++numEmpty;
     }
   }
-  check(occupied.size() > rescaleTrees, "the frozen trees carry splits");
+  check(occupied.size() > rescaleTrees && numEmpty > 0,
+        "the frozen trees carry splits and an empty leaf");
   moveFrozenStateTo(1.0);
   RescaleConstants constants = rescaleConstantsOf(*sampler, mask);
   char what[200];
@@ -549,23 +557,76 @@ void runForestRescaleTests() {
   check(TestPeer::leafOfStale(stale->chain(0), 0) != 0 &&
           rescaleDeclinesWithoutDraw(stale->chain(0)),
         "rescaling declines on a stale tree map");
+  // every other family, and a probit fit with a second forest, all drawing k
+  std::unique_ptr<ConstantLeafSampler> gaussian = makeRescaleSampler(
+    x, y, offset, ResponseFamily::gaussian, true, true, &otherRng);
+  gaussian->run(20, 0, results);
+  check(rescaleDeclinesWithoutDraw(gaussian->chain(0)),
+        "rescaling declines under the gaussian family");
+  std::unique_ptr<ConstantLeafSampler> nbinom = makeRescaleSampler(
+    x, y, offset, ResponseFamily::nbinom, true, true, &otherRng);
+  nbinom->run(20, 0, results);
+  check(rescaleDeclinesWithoutDraw(nbinom->chain(0)),
+        "rescaling declines under the nbinom family");
+  std::unique_ptr<ConstantLeafSampler> variance = makeRescaleSampler(
+    x, y, offset, ResponseFamily::gaussian, true, true, &otherRng, 1, 4);
+  variance->run(20, 0, results);
+  check(variance->chain(0).hasVarianceForest() &&
+          rescaleDeclinesWithoutDraw(variance->chain(0)),
+        "rescaling declines beside a variance forest");
+  {
+    std::vector<double> z(rescaleN);
+    for (size_t i = 0; i < rescaleN; ++i) z[i] = i % 2 == 0 ? 1.0 : 0.0;
+    SamplerOptions options;
+    options.nodeScale = 3.0;
+    options.updateK = true;
+    options.kHyperprior.degreesOfFreedom = 1.5;
+    options.kHyperprior.scale = 2.0;
+    AmplitudeSpec spec;
+    spec.family = ResponseFamily::probit;
+    spec.mu.numTrees = rescaleTrees;
+    spec.tau.numTrees = 4;
+    spec.z = z.data();
+    ConstantLeafSampler twoForests(x.data(), y.data(), rescaleN, rescaleP,
+                                   nullptr, offset.data(), 1.0, 3.0, 1.0,
+                                   options, spec, &otherRng);
+    twoForests.run(20, 0, results);
+    // a combining chain holds k fixed; marked drawn, only the forest count and
+    // the combiner are left to decline on
+    Chain<ConstantGaussianLeaf>& twoForestChain = twoForests.chain(0);
+    TestPeer::forestUpdateK(twoForestChain) = true;
+    TestPeer::kHyperprior(twoForestChain) = options.kHyperprior;
+    check(twoForestChain.numForests() == 2 &&
+            TestPeer::forestK(twoForestChain) > 0.0 &&
+            TestPeer::forestK(twoForestChain) <= DBL_MAX &&
+            rescaleDeclinesWithoutDraw(twoForestChain),
+          "rescaling declines on a two-forest probit fit");
+  }
   ext_rng_destroy(otherRng);
 
-  // the switch moves the sampled path on a drawn-k probit fit
-  ext_rng* onRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng* offRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng_setSeed(onRng, 11u);
-  ext_rng_setSeed(offRng, 11u);
+  // the step acts on every chain: two chains, each against its own seed run
+  // with the step off, all part
+  std::vector<ext_rng*> onRngs(2), offRngs(2);
+  for (size_t c = 0; c < 2; ++c) {
+    onRngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    offRngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(onRngs[c], 11u + static_cast<std::uint32_t>(c));
+    ext_rng_setSeed(offRngs[c], 11u + static_cast<std::uint32_t>(c));
+  }
   std::unique_ptr<ConstantLeafSampler> on = makeRescaleSampler(
-    x, y, offset, ResponseFamily::probit, true, true, &onRng);
+    x, y, offset, ResponseFamily::probit, true, true, onRngs.data(), 2);
   std::unique_ptr<ConstantLeafSampler> off = makeRescaleSampler(
-    x, y, offset, ResponseFamily::probit, true, false, &offRng);
+    x, y, offset, ResponseFamily::probit, true, false, offRngs.data(), 2);
   on->run(30, 0, results);
   off->run(30, 0, results);
-  check(forestTotals(*on, 0) != forestTotals(*off, 0),
-        "the rescaling switch moves the sampled path");
-  ext_rng_destroy(onRng);
-  ext_rng_destroy(offRng);
+  for (size_t c = 0; c < 2; ++c) {
+    std::snprintf(what, sizeof what, "rescaling acts on chain %zu", c);
+    check(forestTotals(*on, c) != forestTotals(*off, c), what);
+  }
+  for (size_t c = 0; c < 2; ++c) {
+    ext_rng_destroy(onRngs[c]);
+    ext_rng_destroy(offRngs[c]);
+  }
 
   // 4. The slice step alone. At the shipped width and limit the limit never
   // binds; at a width of a sd and a limit of 3 it binds on most steps, which

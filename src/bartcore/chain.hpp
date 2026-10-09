@@ -103,6 +103,8 @@ struct SamplerOptions {
   // conditional. Taken only where Chain::forestRescaleApplies holds - one
   // plain constant-leaf probit forest with a drawn k - and guarded before any
   // generator call, so every other fit draws byte-for-byte as with it off.
+  // Not a setting: no host sets it, and it is false only in the engine's own
+  // tests, which compare a path with the step against one without.
   bool probitRescaleForest = true;
   std::uint32_t maxNumCuts = 100;
   // borrowed per-column override of maxNumCuts; copied during construction
@@ -656,13 +658,13 @@ struct VarianceForest {
 /// neither is a setting. At these values the limit never binds on the step's
 /// conditional, whose sd in log scale is near 1 / sqrt(2 n).
 constexpr double rescaleSliceWidth = 0.25;
+constexpr int rescaleSliceStepLimit = 1000;
 
 /// The most a multiplicative bulk transform may scale a forest's totalFits in
 /// place, either way, before the cache is re-derived from the leaves. A gap
 /// the cache carries is then multiplied by at most the square of this, so it
 /// stays within a few times the additive rounding the sweep leaves.
 constexpr double totalFitsScaleBound = 2.0;
-constexpr int rescaleSliceStepLimit = 1000;
 
 /// One slice-sampling update (Neal 2003, stepping out then shrinkage) of a
 /// one-dimensional target from the current point v = 0, returning the new

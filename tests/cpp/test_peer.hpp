@@ -5,8 +5,10 @@
 // declares for the state no production path reads. Only the component tests
 // include it, so production code cannot name these hooks.
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include <external/random.h>
@@ -180,6 +182,10 @@ struct TestPeer {
     return chain.forests_[0].k;
   }
   template <IntegrableLeafModel L, typename R>
+  static bool& forestUpdateK(Chain<L, R>& chain) {
+    return chain.forests_[0].updateK;
+  }
+  template <IntegrableLeafModel L, typename R>
   static ChiKHyperprior& kHyperprior(Chain<L, R>& chain) {
     return chain.forests_[0].kHyperprior;
   }
@@ -213,6 +219,45 @@ struct TestPeer {
   template <IntegrableLeafModel L, typename R>
   static ext_rng* rng(Chain<L, R>& chain) {
     return chain.rng_;
+  }
+  /// Strands an empty leaf in forest 0, which no public mutation does: the
+  /// first leaf whose rows all code at 1 or more on ordinal column 0 is split
+  /// just below its lowest code, so every row goes right. The right child
+  /// keeps the leaf's value, the empty left one takes emptyValue, and the map
+  /// and totalFits are rebuilt, so the fits do not move. Returns the empty
+  /// leaf as (tree, node), or (numTrees, -1) when no leaf qualifies.
+  template <IntegrableLeafModel L, typename R>
+  static std::pair<std::size_t, std::int32_t>
+  strandEmptyLeaf(Chain<L, R>& chain, double emptyValue) {
+    auto& forest = chain.forests_[0];
+    std::vector<std::int32_t> bottoms;
+    for (std::size_t t = 0; t < forest.numTrees; ++t) {
+      Tree& tree = forest.trees[t];
+      bottoms.clear();
+      tree.fillBottom(0, bottoms);
+      for (std::int32_t b : bottoms) {
+        const Node& node = tree.at(b);
+        if (node.numObservations() == 0) continue;
+        xint_t lowest = naCode;
+        for (std::size_t m = node.begin; m < node.end; ++m)
+          lowest = std::min(lowest, chain.data_.codeAt(0, tree.indices[m]));
+        if (lowest == 0 || lowest == naCode) continue;
+        Rule rule;
+        rule.variableIndex = 0;
+        rule.setSplitIndex(static_cast<std::int32_t>(lowest) - 1);
+        tree.birth(chain.data_, b, rule, chain.response_->workingResponse(),
+                   chain.response_->workingWeights());
+        std::int32_t left = tree.at(b).leftChild;
+        std::vector<double>& mu = forest.muByTree[t];
+        mu.resize(tree.nodes.size(), 0.0);
+        mu[static_cast<std::size_t>(left)] = emptyValue;
+        mu[static_cast<std::size_t>(left + 1)] = mu[static_cast<std::size_t>(b)];
+        chain.rebuildLeafOf(forest, t);
+        chain.rebuildTotalFitsFromTrees();
+        return {t, left};
+      }
+    }
+    return {forest.numTrees, -1};
   }
   /// Forest 0's tree t leaf table, writable, so a distributional gate can
   /// restore a frozen leaf state between repeated draws.
