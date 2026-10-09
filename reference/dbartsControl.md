@@ -6,10 +6,10 @@ Convenience function to create a control object for use with a
 Every integer-valued argument here (`n.samples`, `n.cuts`, `n.burn`,
 `n.trees`, `n.chains`, `n.threads`, `n.thin`, `printEvery`,
 `printCutoffs`, `categoricalExhaustiveCap`, `testFitParallelCutoff`,
-`predictParallelCutoff`, `seed`) refuses a fractional double, naming the
-argument, rather than silently truncating it - the same whole-number
-rule every other count formal in the package follows, since it too is
-coerced through this construction.
+`predictParallelCutoff`, `n.perturb.cuts`, `seed`) refuses a fractional
+double, naming the argument, rather than silently truncating it - the
+same whole-number rule every other count formal in the package follows,
+since it too is coerced through this construction.
 
 ## Usage
 
@@ -28,6 +28,7 @@ dbartsControl(
     proposal.probs = c(
         birth_death = 0.6, swap = 0, change = 0.4, perturb = 0,
         rule_gibbs = 0, birth = 0.5),
+    n.perturb.cuts = 1L,
     seed = NULL, updateState = TRUE, ...)
 ```
 
@@ -345,20 +346,36 @@ dbartsControl(
   up the tree, so single-tree fits should set it positive (0.1 was the
   historical default, and is
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s). A
-  `"perturb"` element displaces one node's split point by a single cut
-  position while keeping its variable and the tree's shape; it defaults
-  to zero, and only ordinal (numeric) columns can be perturbed. A
-  `"rule_gibbs"` element replaces one nog node's rule - a node whose two
-  children are both leaves - with a draw from that rule's own full
-  conditional over the available ordinal variables and their admissible
-  cuts, so its acceptance is one; it defaults to zero, it acts only
-  where the node's own rule is ordinal, and it is inert on an
-  all-categorical design. Unlike the four engine settings above, this
-  one is not fixed at creation:
+  `"perturb"` element displaces one node's split point by at most
+  `n.perturb.cuts` cut positions, one by default, while keeping its
+  variable and the tree's shape; it defaults to zero, and only ordinal
+  (numeric) columns can be perturbed. A `"rule_gibbs"` element replaces
+  one nog node's rule - a node whose two children are both leaves - with
+  a draw from that rule's own full conditional over the available
+  ordinal variables and their admissible cuts, so its acceptance is one;
+  it defaults to zero, it acts only where the node's own rule is
+  ordinal, and it is inert on an all-categorical design. Unlike the four
+  engine settings above, this one is not fixed at creation:
   [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  accepts a changed mixture between runs, installing it with the priors
-  exactly as at creation, and a refused install rolls the stored control
-  back.
+  accepts a changed mixture between runs, installing it on the mean
+  forest with the priors exactly as at creation, and a refused install
+  rolls the stored control back. A heteroscedastic sampler's variance
+  forest keeps the mixture it was created with.
+
+- n.perturb.cuts:
+
+  The most cut positions a perturb proposal moves a split either way: a
+  displacement is drawn uniformly from the cuts within that many
+  positions of the current one, clipped to those the node's ancestors
+  and descendants allow. A positive whole number or `Inf`; anything at
+  or above the cut cap of 65533, `Inf` included, is that cap. The
+  default, 1, is the window the perturb move has always used. It changes
+  how the proposal moves, not the posterior it targets; acceptance falls
+  as the window widens. Like `proposal.probs`,
+  [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  accepts a changed value between runs, installing it on the mean forest
+  with the mixture; a heteroscedastic sampler's variance forest keeps
+  the value it was created with.
 
 - seed:
 
@@ -390,9 +407,9 @@ dbartsControl(
 
 ## Engine limits
 
-Eleven fixed values decide what the engine will represent and where it
+Ten fixed values decide what the engine will represent and where it
 switches strategy. Each was measured on one machine (arm64 macOS, 10
-cores); the four that a workload can profitably move are settings here,
+cores); the five that a workload can profitably move are settings here,
 and the rest are limits of the representation or of a proposal family,
 with nothing found that moving would buy. A recommended range is given
 where a measurement supports one.
@@ -404,8 +421,7 @@ where a measurement supports one.
 | Categorical levels | quantized predictor code | 65535 | any real factor | no; a wider factor is refused by name |
 | Ordered-factor levels | quantized predictor code | 65534 | any real factor | no; one code goes to the cut grid |
 | Exact categorical enumeration | grow-from-root scan | 10 present levels | 8 to 14 | yes, `categoricalExhaustiveCap` |
-| Leaf-regression columns | [`linear`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md) leaves | 8 | 1 to 8 | no; a fixed stack scratch is sized for it |
-| Perturb window | the perturb proposal | 1 grid position | 1 | no; acceptance falls with width and nothing gains |
+| Perturb window | the perturb proposal | 1 grid position | 1 | yes, `n.perturb.cuts`; acceptance falls with width |
 | Test-fit parallel cutoff | test-set fitting | 65536 rows | 8192 to 65536 | yes, `testFitParallelCutoff` |
 | Predict parallel cutoff | [`predict`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md) | 50000 traversals | 3e4 to 1e5 | yes, `predictParallelCutoff` |
 | Sparse density threshold | `dgCMatrix` storage | 0.2 | 0.05 to 0.5 | yes, `sparseDensityThreshold` |
@@ -413,10 +429,12 @@ where a measurement supports one.
 | Person-period expansion | [`hazard`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md) | 1e7 rows | host-dependent | yes, `hazard(max.rows = )` |
 
 Of the settings in this table, the categorical enumeration cap and the
-Gaussian-process leaf size change what is sampled. The two parallel
-cutoffs buy time and return bit-for-bit the same draws either side of
-themselves. The density threshold buys memory and draws the same splits
-either side, but is not bitwise, as its entry above says.
+Gaussian-process leaf size change what is sampled. The perturb window
+changes how a proposal moves, so it changes the draws, but not the
+posterior they target. The two parallel cutoffs buy time and return
+bit-for-bit the same draws either side of themselves. The density
+threshold buys memory and draws the same splits either side, but is not
+bitwise, as its entry above says.
 
 ## Value
 
@@ -503,6 +521,9 @@ control
 #> Slot "proposal.probs":
 #> birth_death        swap      change     perturb  rule_gibbs       birth 
 #>         0.6         0.0         0.4         0.0         0.0         0.5 
+#> 
+#> Slot "n.perturb.cuts":
+#> [1] 1
 #> 
 #> Slot "seed":
 #> [1] 7

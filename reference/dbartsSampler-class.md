@@ -252,22 +252,25 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   centre to the new data's. A leaf covariate that holds a single value
   is centred at it and divided by 1, so a leaf reads zero for it on
   every row and its slope adds nothing to the fit. Where a covariate is
-  such a column before the call or after it, a current slope has nothing
-  to be rewritten onto and is set to zero: off such a column each leaf
-  keeps the value it had, onto one it takes the value its function has
-  at the new constant. Where it is such a column on both sides the
-  current coefficients are left as they are. A column that
-  `setPredictor` has since given other values is read as what it then
-  holds: one moved to another single value no longer sits at its centre
-  and is rewritten as any other column is, by the formula, which keeps
-  the function of the covariate. The data fixed that function at one
-  point only, so new data that spread the covariate widely can carry the
-  current fit far from where it was until the sampler has run on them.
-  Saved draws are rewritten by the formula in every case, with 1 for the
-  scale. The saved draws of a Gaussian-process (`gp`) leaf cannot be
-  rewritten: a sampler with such leaves that holds saved draws refuses
-  `newData`, whatever it holds. Make a new sampler instead. One that
-  holds none takes it as any other sampler does.
+  such a column on one side of the call only, the current coefficients
+  are still rewritten by the formula, with 1 for that side's scale, so
+  each leaf keeps its function of the covariate: onto such a column it
+  takes the value its function has at the new constant, and off one the
+  slope no row informed is carried onto the new data's spread, so the
+  fit may move until the sampler has run on them. Where it is such a
+  column on both sides the current coefficients are left as they are. A
+  column that `setPredictor` has since given other values is read as
+  what it then holds: one moved to another single value no longer sits
+  at its centre and is rewritten as any other column is, by the formula,
+  which keeps the function of the covariate. The data fixed that
+  function at one point only, so new data that spread the covariate
+  widely can carry the current fit far from where it was until the
+  sampler has run on them. Saved draws are rewritten by the formula in
+  every case, with 1 for the scale. The saved draws of a
+  Gaussian-process (`gp`) leaf cannot be rewritten: a sampler with such
+  leaves that holds saved draws refuses `newData`, whatever it holds.
+  Make a new sampler instead. One that holds none takes it as any other
+  sampler does.
 
 - y:
 
@@ -1447,25 +1450,27 @@ converted, the seeded forest is the donor's function of those
 covariates, and this sampler keeps its own centre and scale, as a
 Gaussian-process leaf keeps its own centre, scale and lengthscale,
 whichever cut grid the donor is on. A covariate that holds a single
-value on one side has no slope to carry, so the slope starts at zero:
-where the single value is the donor's each leaf starts at the donor's
-fit, and where it is this sampler's each leaf starts at the value the
-donor's function has there. Where it holds a single value on both sides
-the donor's coefficients arrive as they are, the slope adding nothing to
-either fit. A single value here is one the covariate is centred at; a
-donor column that `setPredictor` moved to another single value is
-converted by the formula, as under `setData`. Each chain keeps its own
-random-number stream and redraws everything else, so several chains
-seeded from one donor stay overdispersed. A donor with a different tree
-count or DART setting is refused rather than silently reshaped; a donor
-fit on a different cut grid is instead remapped onto this sampler's
-grid, collapsing any splits the grid starves, the same way a data
-replacement remaps existing splits. A warm start biases the early draws
-toward the donor, so it shortens burn-in rather than removing it; keep
-drawing a non-zero number of burn-in samples before treating the chain
-as converged. Single-forest samplers only: a sampler carrying two or
-more forests (a Bayesian causal forest or any other amplitude model, and
-a multinomial sampler's K category forests) refuses the call by name,
+value on one side only is converted by the same formula, with 1 for that
+side's scale, so the seeded forest is the donor's function of the
+covariate: where the single value is this sampler's each leaf starts at
+the value the donor's function has there, and where it is the donor's
+the slope no donor row informed is carried onto this sampler's spread.
+Where it holds a single value on both sides the donor's coefficients
+arrive as they are, the slope adding nothing to either fit. A single
+value here is one the covariate is centred at; a donor column that
+`setPredictor` moved to another single value is converted by the
+formula, as under `setData`. Each chain keeps its own random-number
+stream and redraws everything else, so several chains seeded from one
+donor stay overdispersed. A donor with a different tree count or DART
+setting is refused rather than silently reshaped; a donor fit on a
+different cut grid is instead remapped onto this sampler's grid,
+collapsing any splits the grid starves, the same way a data replacement
+remaps existing splits. A warm start biases the early draws toward the
+donor, so it shortens burn-in rather than removing it; keep drawing a
+non-zero number of burn-in samples before treating the chain as
+converged. Single-forest samplers only: a sampler carrying two or more
+forests (a Bayesian causal forest or any other amplitude model, and a
+multinomial sampler's K category forests) refuses the call by name,
 reporting its forest count, because the install is not tested at more
 than one forest - it reassembles the trees from a saved sample but takes
 the amplitudes from the donor's current state. Use `growFromRoot` to
@@ -1933,28 +1938,31 @@ For `setLeafPrior`, `NULL` invisibly. It changes the leaf prior's spread
 or the hyperprior it is drawn under, on every chain, and nothing else:
 not the response transform, not `sigma` (which `setModel` re-pins on a
 fixed-sigma gaussian sampler), not the tree prior or a DART split prior.
-Under a drawn `k` the engine keeps its current `k` across the write, so
-a change of k.scale - between the `k` and `sd` forms, or of an `invchi`
-scale - scales the next sweep's spread by new k.scale / old k.scale, and
-`getK` and the spread in force jump with it until the law pulls `k`
-back. The write takes effect on the next sweep, reinterpreting no leaf
-value already drawn; a write that reproduces what is already in force is
-skipped bitwise, so a read followed by a write cannot perturb a draw. It
-is total over the four leaf models, and a DART sampler, which `setModel`
-refuses, is served. A multinomial sampler takes `normal(k = )` and
-applies the `k` to every category forest, leaving the softmax map's leaf
-scale; a named sd or a `k` hyperprior is refused there, as at creation.
-A sampler whose forests carry amplitudes takes
-`forests = list(forest(sd = ), ...)`, restating each named forest's
-spread in the channel its creation gave it, and any `leaf.prior` other
-than the no-ops `normal()` and `normal(k = 2)` is refused there. Both
-writes are recorded where re-creation reads them. The map's k.scale is
-recorded at creation too, so a re-creation after `setResponse` or
-`setOffset` at `updateScale = FALSE` states every forest against the
-same k.scale as the live sampler. A value that is not a single positive
-finite number is an error. A heteroscedastic sampler's variance forest
-is a separate leaf model and is not addressable. `setModel` changes
-everything else.
+Into a drawn prior - a `chi` or `invchi` prior - each chain keeps the
+spread in force at the call, whatever the prior before it, fixed or
+drawn and in either the `k` or the `sd` form: `k` becomes its old value
+times new k.scale / old k.scale, so `getK` moves where k.scale does, and
+the new prior acts from the next draw of `k`. A fixed `k` or `sd` stated
+sets the spread as written. Because the write keeps the chains' spread,
+on a sampler that has not yet run it is not the start that creation
+under the new prior would make. The write takes effect on the next
+sweep, reinterpreting no leaf value already drawn; a write that
+reproduces what is already in force is skipped bitwise, so a read
+followed by a write cannot perturb a draw. It is total over the four
+leaf models, and a DART sampler, which `setModel` refuses, is served. A
+multinomial sampler takes `normal(k = )` and applies the `k` to every
+category forest, leaving the softmax map's leaf scale; a named sd or a
+`k` hyperprior is refused there, as at creation. A sampler whose forests
+carry amplitudes takes `forests = list(forest(sd = ), ...)`, restating
+each named forest's spread in the channel its creation gave it, and any
+`leaf.prior` other than the no-ops `normal()` and `normal(k = 2)` is
+refused there. Both writes are recorded where re-creation reads them.
+The map's k.scale is recorded at creation too, so a re-creation after
+`setResponse` or `setOffset` at `updateScale = FALSE` states every
+forest against the same k.scale as the live sampler. A value that is not
+a single positive finite number is an error. A heteroscedastic sampler's
+variance forest is a separate leaf model and is not addressable.
+`setModel` changes everything else.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable

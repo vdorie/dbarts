@@ -132,13 +132,10 @@ forest(
   ratios among the named columns and must give one of them a positive
   probability (see
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
-  On the single forest of a hazard fit the `period` column the fit
-  appends is always allowed, named or not: `vars` restricts the columns
-  the caller supplied. A hazard fit with several forests takes each
-  forest's `vars` as written, so a restricted forest there splits on
-  `period` only when `vars` names it. The restriction holds for the
-  sampler's life; `$setModel` refuses a model that states another, or
-  none.
+  On every forest of a hazard fit the `period` column the fit appends is
+  always allowed, named or not: `vars` restricts the columns the caller
+  supplied. The restriction holds for the sampler's life; `$setModel`
+  refuses a model that states another, or none.
 
 - basis:
 
@@ -649,7 +646,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000672
+#> total seconds in loop: 0.000421
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 
