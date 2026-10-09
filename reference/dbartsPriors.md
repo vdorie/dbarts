@@ -204,9 +204,10 @@ A list of functions:
 - `fixed(value = 1)`:
 
   Fixed residual variance, in squared response units. It is the residual
-  scale rather than a law over one, so it ignores `sigest` - which is
-  refused beside it rather than accepted and overwritten - and
-  suppresses the sampler's own \\\sigma\\ draw.
+  scale rather than a distribution over one, so it ignores `sigest` -
+  which is refused beside it unless it equals the square root of
+  `value`, when it is accepted with a message and is an error from
+  dbarts 1.1-0 - and suppresses the sampler's own \\\sigma\\ draw.
 
 ## Details
 

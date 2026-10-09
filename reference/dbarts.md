@@ -451,6 +451,9 @@ dbarts(
   `family = gaussian(sigma = chisq(df, quant))` and is refused beside
   `family = gaussian(sigma = fixed(value))`, which fixes the residual
   scale outright and would overwrite the estimate with its square root.
+  An estimate that equals that square root (to within a few units in the
+  last place) is accepted with a message saying it has no effect, as
+  0.9-34 ran it; that is an error from dbarts 1.1-0.
 
 - na.action:
 
