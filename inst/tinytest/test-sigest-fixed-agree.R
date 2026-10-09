@@ -24,6 +24,25 @@ differ <- "no effect under a fixed residual scale: sigma = fixed"
 gauss <- dbartsFamilies$gaussian
 fixedPrior <- dbartsPriors$fixed
 fx <- gauss(sigma = fixedPrior(4))
+# the retired 'sigma =' spelling warns once per session, per door; the key
+# is reset so the warning is asserted rather than muffled
+viaSigma <- function(expr, caller, retired = 0L) {
+  onceState[[paste0("tombstone.sigma.", caller)]] <- NULL
+  onceState[[paste0("tombstone.consolidated.resid.prior.", caller)]] <- NULL
+  seen <- character(0L)
+  # on.exit, so the refusing calls assert the warnings too
+  on.exit({
+    expect_equal(sum(grepl("'sigma' is now 'sigest'", seen, fixed = TRUE)), 1L)
+    expect_equal(length(seen), 1L + retired)
+  })
+  withCallingHandlers(
+    expr,
+    warning = function(w) {
+      seen <<- c(seen, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+}
 bartQuick <- function(...) {
   bart(
     x,
@@ -44,7 +63,11 @@ bartQuick <- function(...) {
 # the loops' exact call
 resetMsg()
 expect_message(
-  s <- dbarts(x, y, resid.prior = fixedPrior(1), sigma = 1, control = ctl),
+  s <- viaSigma(
+    dbarts(x, y, resid.prior = fixedPrior(1), sigma = 1, control = ctl),
+    "dbarts",
+    retired = 1L
+  ),
   agreeMsg
 )
 expect_true(is(s$model@resid.prior, "dbartsFixedPrior"))
@@ -56,7 +79,7 @@ resetMsg()
 expect_message(dbarts(x, y, family = fx, sigest = 2, control = ctl), agreeMsg)
 resetMsg()
 expect_message(
-  suppressWarnings(dbarts(x, y, family = fx, sigma = 2, control = ctl)),
+  viaSigma(dbarts(x, y, family = fx, sigma = 2, control = ctl), "dbarts"),
   agreeMsg
 )
 resetMsg()
@@ -85,19 +108,22 @@ expect_message(
 )
 resetMsg()
 expect_message(
-  suppressWarnings(xbart(
-    x,
-    y,
-    family = fx,
-    sigma = 2,
-    n.trees = 3L,
-    n.samples = 3L,
-    n.burn = 0L,
-    n.reps = 1L,
-    n.test = 2L,
-    n.threads = 1L,
-    verbose = FALSE
-  )),
+  viaSigma(
+    xbart(
+      x,
+      y,
+      family = fx,
+      sigma = 2,
+      n.trees = 3L,
+      n.samples = 3L,
+      n.burn = 0L,
+      n.reps = 1L,
+      n.test = 2L,
+      n.threads = 1L,
+      verbose = FALSE
+    ),
+    "xbart"
+  ),
   agreeMsg
 )
 
@@ -121,7 +147,7 @@ expect_error(
 # differing: refused at each door
 expect_error(dbarts(x, y, family = fx, sigest = 1.5, control = ctl), differ)
 expect_error(
-  suppressWarnings(dbarts(x, y, family = fx, sigma = 1.5, control = ctl)),
+  viaSigma(dbarts(x, y, family = fx, sigma = 1.5, control = ctl), "dbarts"),
   "'sigma' has no effect"
 )
 expect_error(bartQuick(family = fx, sigest = 1.5), differ)
@@ -146,19 +172,22 @@ expect_error(
   differ
 )
 expect_error(
-  suppressWarnings(xbart(
-    x,
-    y,
-    family = fx,
-    sigma = 1.5,
-    n.trees = 3L,
-    n.samples = 3L,
-    n.burn = 0L,
-    n.reps = 1L,
-    n.test = 2L,
-    n.threads = 1L,
-    verbose = FALSE
-  )),
+  viaSigma(
+    xbart(
+      x,
+      y,
+      family = fx,
+      sigma = 1.5,
+      n.trees = 3L,
+      n.samples = 3L,
+      n.burn = 0L,
+      n.reps = 1L,
+      n.test = 2L,
+      n.threads = 1L,
+      verbose = FALSE
+    ),
+    "xbart"
+  ),
   "'sigma' has no effect"
 )
 

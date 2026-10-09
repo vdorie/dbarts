@@ -259,7 +259,9 @@ naming both and saying which to delete
 what makes "the caller named sigma" knowable), and accepted where they
 say the same prior. `sigest` stays a flat argument beside a `chisq`
 prior, whose quantile calibrates against it, and is refused beside
-`fixed(value)`, which the engine reads as the residual scale itself
+`fixed(value)`, which the engine reads as the residual scale itself, unless
+it equals the square root of `value`, when it is accepted with a message
+until 1.1-0
 ([`refuseSigestUnderFixedPrior`](../../R/family.R)); the pre-existing
 refusal of `sigest` beside the retired `resid.prior` on `bart` stays
 for the tombstone's life. Gates at the tip: tinytest 8724/0;
