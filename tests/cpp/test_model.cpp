@@ -5710,6 +5710,20 @@ static void testConstantResponseWindow() {
   response.restoreScale(c, c);
   centred("constant window: a stored (c, c) is read as the same window");
 
+  // the log-likelihood reads the window too: zero internal fits are the
+  // response-scale fit c, and the range is 1, so at internal sigma s every
+  // row scores the normal log density of c at mean c and sd s,
+  // -log(s) - log(2 pi) / 2. A window starting at c would put the mean at
+  // c + 0.5 and score each row 0.5^2 / (2 s^2) lower.
+  const double sigma = 0.5;
+  std::vector<double> zeroFits(n, 0.0), logLik(n);
+  response.computeLogLikelihood(zeroFits.data(), sigma, n, logLik.data());
+  double expected = -std::log(sigma) - 0.5 * std::log(2.0 * std::acos(-1.0));
+  bool scored = true;
+  for (double value : logLik)
+    scored = scored && std::fabs(value - expected) < 1e-12;
+  check(scored, "constant window: the log-likelihood centres the fit on c");
+
   std::vector<double> spread = {1.0, 3.0, 2.0, 1.5, 2.5, 3.0};
   GaussianResponse ranged(spread.data(), nullptr, nullptr, n, 1.0, 3.0, 0.9);
   check(ranged.fitShift() == 2.0 * 0.5 + 1.0 && ranged.fitScale() == 2.0 &&
