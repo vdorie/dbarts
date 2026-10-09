@@ -409,6 +409,11 @@ fitTreeShift <- callBart(
 )
 expect_false(fitTreeShift$fit$control@levelGibbs)
 rm(fitTreeShift)
+# probitRescaleForest is a plain switch: NA is neither of its values
+expect_error(
+  dbarts::dbartsControl(probitRescaleForest = NA),
+  "'probitRescaleForest' must be TRUE/FALSE"
+)
 
 # ---- site 5: nbinom(shape = NULL) ----
 

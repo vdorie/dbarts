@@ -207,6 +207,9 @@ struct ParsedControl {
   // is the automatic mode); creation-time, like useQuantiles, so
   // bartcore_setControl never pushes it
   bartcore::LevelGibbsMode levelGibbs = bartcore::LevelGibbsMode::automatic;
+  // the probit rescaling step (control@probitRescaleForest); creation-time,
+  // like useQuantiles
+  bool probitRescaleForest = true;
   bool keepTrees = false;
   // opt-in fp32 running residual (control@storage == "single"); the
   // createSampler gate refuses it for anything but a gaussian constant-leaf
@@ -475,6 +478,11 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
     ? bartcore::LevelGibbsMode::automatic
     : (levelGibbsValue != 0 ? bartcore::LevelGibbsMode::on
                             : bartcore::LevelGibbsMode::off);
+
+  REPROTECT_SLOT(slotExpr, controlExpr, "probitRescaleForest", slotIndex);
+  control.probitRescaleForest =
+    rc_getBool(slotExpr, "probit rescale forest", RC_LENGTH | RC_EQ,
+               rc_asRLength(1), RC_END);
 
   REPROTECT_SLOT(slotExpr, controlExpr, "categoricalExhaustiveCap", slotIndex);
   control.categoricalExhaustiveCap = static_cast<size_t>(
@@ -1883,6 +1891,8 @@ void printInitialSummary(const ParsedControl& control,
                : (control.levelGibbs == bartcore::LevelGibbsMode::on
                     ? "true"
                     : "false"));
+  ext_printf("\tprobit forest rescaling step: %s\n",
+             control.probitRescaleForest ? "true" : "false");
   ext_printf(
     "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f, "
     "perturb %.2f, rule_gibbs %.2f; birth %.2f\n",
@@ -2213,6 +2223,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.maxNumCutsPerVariable = data.maxNumCuts.data(); // copied at build
   options.useQuantiles = control.useQuantiles;
   options.levelGibbs = control.levelGibbs;
+  options.probitRescaleForest = control.probitRescaleForest;
   options.categoricalExhaustiveCap = control.categoricalExhaustiveCap;
   options.testFitParallelCutoff = control.testFitParallelCutoff;
   options.predictParallelCutoff = control.predictParallelCutoff;
