@@ -41,7 +41,7 @@ repoRoot <- normalizePath(file.path(scriptDir, "..", ".."))
 # kEquiv's compare stays statistical (no --bitwise): the battery installs the
 # shipped build, which owes the reference-build baselines only the
 # statistical match, and its equivalence killers catch a posterior shift.
-equivBaseline <- "benchmarks/baselines/equivalence-734441f1.rds"
+equivBaseline <- "benchmarks/baselines/equivalence-051a0fdc.rds"
 
 ## ---- mutation-list constructors -------------------------------------------
 
@@ -137,9 +137,7 @@ mutations <- list(
     "src/bartcore/moves.hpp",
     paste0(
       "  } else if (!newIsCategorical) {\n",
-      "    logProposalCorrection =\n",
-      "      std::log(static_cast<double>(forwardValid)) -\n",
-      "      std::log(static_cast<double>(forwardInterval));\n",
+      "    logProposalCorrection = std::log(forwardValid) - std::log(forwardInterval);\n",
       "  } else if (!oldIsCategorical) {"
     ),
     paste0(
@@ -163,16 +161,13 @@ mutations <- list(
     paste0(
       "  if (!newIsCategorical && !oldIsCategorical) {\n",
       "    logProposalCorrection =\n",
-      "      std::log(static_cast<double>(reverseInterval)) -\n",
-      "      std::log(static_cast<double>(forwardInterval)) +\n",
-      "      std::log(static_cast<double>(forwardValid)) -\n",
-      "      std::log(static_cast<double>(reverseValid));"
+      "      std::log(reverseInterval) - std::log(forwardInterval) +\n",
+      "      std::log(forwardValid) - std::log(reverseValid);"
     ),
     paste0(
       "  if (!newIsCategorical && !oldIsCategorical) {\n",
       "    logProposalCorrection =\n",
-      "      std::log(static_cast<double>(forwardValid)) -\n",
-      "      std::log(static_cast<double>(forwardInterval));"
+      "      std::log(forwardValid) - std::log(forwardInterval);"
     ),
     "KILL_EXPECTED",
     kScript("benchmarks/R/change-balance.R", "quick"),
@@ -466,7 +461,7 @@ mutations <- list(
     "m27",
     "src/bartcore/moves.hpp",
     paste0(
-      "    double logRulePrior = -std::log(static_cast<double>(high - low + 1)) -\n",
+      "    double logRulePrior = -std::log(data.cutIntervalMass(j, low, high)) -\n",
       "                          (doubled ? std::log(2.0) : 0.0);"
     ),
     "    double logRulePrior = (doubled ? -std::log(2.0) : 0.0);",

@@ -136,7 +136,7 @@ jobs:
           fail=0
           echo "::group::equivalence"
           if Rscript benchmarks/R/equivalence.R compare \
-            benchmarks/baselines/equivalence-734441f1.rds --bitwise \
+            benchmarks/baselines/equivalence-051a0fdc.rds --bitwise \
             --strict-coverage; then
             echo "PASS equivalence"
           else
