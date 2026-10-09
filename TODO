@@ -273,11 +273,6 @@ items
     candidate is a collapsed scale move on the logistic likelihood, one
     pass a sweep, covering negative binomial too. Whether and how to fix
     logistic is the maintainer's.
-  workflow-text-edits: equivalence.yaml, rchk.yaml and valgrind.yaml
-    say workflow_dispatch needs main, which it does not; sbc.yaml's
-    aft job has a 15-minute limit that a slow dependency install
-    exhausts (cancelled once, 2026-10-08). Edit them together, which
-    starts each workflow in full.
   multiforest-scale-rederive: after 1.0-0 (dec-B362, VD 2026-10-08).
     updateScale = TRUE on a sampler of several forests, refused today:
     restate each forest's default size on the new scale, a stated

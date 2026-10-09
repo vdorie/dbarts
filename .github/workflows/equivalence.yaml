@@ -12,9 +12,10 @@
 # baselines, so they were removed as a duplicate gate rather than kept as a
 # second cadence over the same evidence.
 #
-# NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
-# DEFAULT branch, so neither fires until the workflow lands on main; on
-# bartcore the only trigger is a push touching this file. See valgrind.yaml.
+# NOTE: GitHub fires `schedule` from the repository DEFAULT branch only, so
+# the cron is idle until the workflow lands on main; on bartcore a run comes
+# from a push touching this file or from `gh workflow run equivalence --ref
+# bartcore`. See valgrind.yaml.
 on:
   schedule:
     - cron: '0 6 * * 1'

@@ -95,19 +95,22 @@ jobs:
             timeout: 15
           # k drawn under chi(1.5, 2) on probit, the one arm that checks the
           # k step and the probit rescaling step. With that step every dataset
-          # of the arm keeps 50 or more effective draws of its 99 at thin
-          # 1000 (at thin 300 8% fall under 50), and sbc.R gives the arm a
-          # 30000-sweep burn. Detection floor: at 600 replications an error of
-          # one half in the shape of the k^2 conditional (a missing Jacobian, a
-          # leaf too many, the prior's df off by one) is flagged about 80% of
-          # the time, and smaller ones pass; k is flagged on its ecdf band or on
-          # a chi-square p below the band's alpha. 67 minutes on the laptop
-          # (6.7 s a replication), and the runner is 1 to 2 times that: the
-          # limit is 180 minutes.
+          # of the arm keeps about 50 or more effective draws of its 99 at thin
+          # 700 (fewest 49 to 55 on the census by two estimates; at thin 300
+          # 7% fall under 50), and
+          # sbc.R gives the arm a 10000-sweep burn, about nine times k's
+          # slowest autocorrelation time. Detection floor: at 600 replications
+          # an error of one half in the shape of the k^2 conditional (a missing
+          # Jacobian, a leaf too many, the prior's df off by one) is flagged
+          # about 80% of the time, and smaller ones pass; k is flagged on its
+          # ecdf band or on a chi-square p below the band's alpha. An estimated
+          # 40 minutes on the laptop at these settings (measured 67 at thin
+          # 1000 and a 30000-sweep burn), and the runner is 1 to 2 times that:
+          # the limit is 180 minutes.
           - config: probit-k
             reps: 600
             samples: 99
-            thin: 1000
+            thin: 700
             timeout: 180
           - config: ordinal
             reps: 200
@@ -140,7 +143,7 @@ jobs:
             reps: 200
             samples: 150
             thin: 40
-            timeout: 15
+            timeout: 30
           # the two variance-forest arms. Neither ranks sigma - pinned under a
           # variance forest - and both rank the surface in its place: s(x*)
           # off the varianceTest channel square-rooted, and the mean of

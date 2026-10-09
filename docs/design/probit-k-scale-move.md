@@ -136,8 +136,11 @@ leaves: that mutant passes quick mode, worst |z| 4.3. Only the mapping check in
 
 **The SBC arm**: at thin 1000 every one of the 100 census datasets keeps 50 or
 more effective draws of the 99 kept (median 95, least 54; an AR(1) reading of
-the lag-1000 autocorrelation), against a quarter under 50 without the step, so
-the arm keeps R = 600, 99 draws, thin 1000 and should read as an ordinary SBC.
+the lag-1000 autocorrelation), against a quarter under 50 without the step.
+The arm runs at thin 700 after a 10,000-sweep burn (dec-A190 as marked): the
+fewest effective draws are then 49 by the lag-1000 autocorrelation read at lag
+700 and 55 by k's autocorrelation time, the burn about nine times k's slowest
+autocorrelation time (1,129 sweeps), at about 60% of thin 1000's cost.
 
 **Cost.** Per-sweep time with the step on over off, the same build, data and
 chain state (both samplers restored from one stored state before every timed

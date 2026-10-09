@@ -3,9 +3,10 @@
 # Slow (an instrumented LLVM/clang build of the package), so scheduled +
 # manual dispatch only, not per-push, mirroring equivalence.yaml.
 #
-# NOTE: GitHub binds `schedule` and `workflow_dispatch` to the repository
-# DEFAULT branch, so neither fires until the workflow lands on main; on
-# bartcore the only trigger is a push touching this file. See valgrind.yaml.
+# NOTE: GitHub fires `schedule` from the repository DEFAULT branch only, so
+# the cron is idle until the workflow lands on main; on bartcore a run comes
+# from a push touching this file or from `gh workflow run rchk --ref
+# bartcore`. See valgrind.yaml.
 on:
   schedule:
     - cron: '0 7 * * 1'

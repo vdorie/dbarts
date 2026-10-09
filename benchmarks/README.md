@@ -303,13 +303,14 @@ The probit-k arm draws k under chi(1.5, 2) and ranks it beside the other
 functionals. k is flagged when its ecdf difference leaves the band or its
 chi-square p (20 bins over the 100 ranks 0 to 99) is below the band's alpha,
 6e-4: k is tested by two rules, while M stays 84. Detection floor, at
-R = 600, L = 99, thin 1000: an error of one half in the shape of the k^2
+R = 600, L = 99, thin 700: an error of one half in the shape of the k^2
 conditional (a missing Jacobian, a leaf too many, the prior's df off by one) is
 flagged about 80% of the time; an error that scales with the number of leaves
 (every k draw 5% high) is flagged at R = 50. Smaller errors pass.
 
-With the probit rescaling step k mixes fast enough that at thin 1000 every
-dataset of the arm keeps 50 or more effective draws of the 99 kept, so the arm
+With the probit rescaling step k mixes fast enough that at thin 700, after a
+10,000-sweep burn, every dataset of the arm keeps about 50 or more effective draws of
+the 99 kept (fewest 49 to 55 on the mixing census by two estimates), so the arm
 is read as any other: k's end bins near 30 and its chi-square p meaningful.
 Before the step a correct sampler flagged this arm about one run in three
 (docs/design/probit-k-calibration.md).
