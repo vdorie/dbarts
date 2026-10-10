@@ -322,10 +322,12 @@ items
     with a pivoted Cholesky is the candidate. Draws change for sparse
     fits without sigest; the help names sigest for large designs.
     Factors enter the regression as indicators (dec-B422); the rank
-    band is dec-B421. A design whose dense form lm.fit handles in about
-    a second and 200 MB takes lm.fit whatever its storage; the sparse
-    routine serves larger ones, a zero-filled column beside its missing
-    indicator re-centered first (dec-B427, VD 2026-10-10). The
+    band is dec-B421. sigest is a number or one of "auto", "dense" and
+    "sparse": "auto", the default, gives a matrix or data frame lm.fit
+    on the dense indicator form and a caller's sparse matrix the exact
+    sparse routine, a zero-filled column beside its missing indicator
+    re-centered first; "dense" and "sparse" force either; no size
+    constant (dec-B434, VD 2026-10-10, revising dec-B427). The
     regression runs whenever the design, factors expanded, leaves
     residual degrees of freedom, at any size; otherwise sd(y); no cost
     cutoff and no iterative solver; the help says the estimate can be
