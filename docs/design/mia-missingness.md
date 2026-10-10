@@ -154,6 +154,11 @@ column's rule keeps it in its pool words.
   ([`Chain::drawMissingDirections`](../../src/bartcore/chain.hpp)); a
   refused update takes the draw back, generators included; and predict
   refuses a missing value only in a column that has never been flagged.
+  A factor column takes its first missing value by every path a numeric
+  column does (dec-B436); setTestPredictor alone refuses one in a column
+  never flagged. A state stored before a column was flagged, and a warm
+  start from a donor whose column never was, draw the same directions at the
+  install ([install-surface.md](install-surface.md)).
   A subset rule on an unordered factor column draws only where a missing
   value can reach it under the directions drawn above it: out of reach it
   holds no direction, exactly as on a sampler that saw the column's missing

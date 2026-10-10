@@ -239,7 +239,9 @@
             has the side its existing split rules send missing values to
             drawn at random, in the current trees and in the saved draws,
             and keeps routing them whatever it holds afterwards; 0.9-34
-            sent them down an arbitrary branch.
+            sent them down an arbitrary branch. A state stored before that
+            first missing value and installed after it has those sides
+            drawn at the install.
       \item \code{$setState} installs a state only where it fits the
             sampler as it stands, and says whether it did: it returns
             \code{TRUE}, or \code{FALSE} with the sampler left as it was

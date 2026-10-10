@@ -81,7 +81,33 @@ onto rows it has put back, where nothing can need repair, passes `forceUpdate = 
   capacity, having no other record of it.
 - A value the sampler holds fixed, DART weights, and a generator of another kind, each left as the sampler's.
 
+## A state from before a column could hold a missing value
+
+A stored state records which columns could hold a missing value when it was stored, the store's flags and not
+its content, as the attribute `missing.columns`
+([`SamplerStateData`](../../src/bartcore/sampler.hpp)); a state without the attribute says nothing. Installed
+into a sampler where a further column can, the state holds no direction on that column, and every rule on it,
+in the live trees and in each recorded kept draw of the state's own ring, draws one with probability one half,
+as the column's first missing value would have (dec-B435, extending dec-B400). The draw is made on a copy of
+the state's chains before anything of the sampler is written
+([`Chain::completeMissingDirections`](../../src/bartcore/chain.hpp)), so the verdict judges the completed
+trees: such an install is clean, and TRUE, unless a drawn direction leaves a leaf no row reaches or a monotone
+tree out of order. The coins are the state's own generators', which the install then leaves past them: a
+state stored just before one whole-column or whole-matrix update raised its columns, and installed just after
+it, holds the update's directions and its generators. Nothing else is claimed to reproduce. A declined or
+refused state leaves each chain's generator where it was. The `state` field is the state as given, so a copy
+or a reload of it draws the same directions.
+
+A kept rule on a factor column that sends no level right and the missing value right is left as it is by this
+draw and by the first-sight draw ([`drawFlatMissingDirections`](../../src/bartcore/tree.hpp)): sent left it
+would send nothing right. Only kept draws taken from another sampler's state hold such a rule on a column
+never flagged. A column the state records and the sampler has never seen missing is as above: its direction
+is dropped, and a state never raises a flag (dec-B321).
+
+A warm start draws the same for the trees it installs, from each receiving chain's own generator and before
+the trees are judged, remapped or merged ([`Sampler::installForests`](../../src/bartcore/sampler.hpp),
+dec-B440); a donor state with no record draws nothing, and a refused start puts the generators back.
+
 ## Not in this note
 
-A state stored before a column's first missing value and installed after it draws its directions (dec-B435);
-that is its own slice. `installTrees`'s `forceUpdate`, and its NULL, come with the warm start's salvage.
+`installTrees`'s `forceUpdate`, and its NULL, come with the warm start's salvage.

@@ -103,28 +103,29 @@ monotone(directions, prior = c("joint", "leaf"))
   One unforced change can leave a tree out of order: the first missing value
   in an unordered factor column that has none. Two leaves that share no
   level of the factor can both be reached by a missing value, and the
-  constraint then orders them. What each call does with such a value:
+  constraint then orders them. Which leaves a missing value reaches is
+  settled by the side each rule on the column draws when the value arrives
+  (see \sQuote{Missing values in predictors} in
+  \code{\link[=dbartsSampler-class]{dbartsSampler}}), so the same update
+  can keep the order under one draw and break it under another. What each
+  call does where the sides drawn leave a tree out of order:
   \itemize{
-    \item \code{setPredictor} replacing the whole matrix with
-      \code{forceUpdate = FALSE}, the matrix numeric and holding the factor
-      as its level codes from 0: returns \code{FALSE}. The sampler's trees,
+    \item \code{setPredictor} with \code{forceUpdate = FALSE}, the whole
+      data frame or named columns: returns \code{FALSE}. The sampler's trees,
       fits, predictors and random number generator are as they were before
       the call. As after any refused update, the draws that follow can
       differ in their last digits from those it would otherwise have made.
-    \item \code{setPredictor} with named columns, whatever
-      \code{forceUpdate} is, \code{"partial"} included, and
-      \code{\link{updatePredictorPerObservationJointly}}: an error, and
-      nothing is changed. A factor column is given as its labels and does not
-      take a missing value when the column holds none. A numeric column's
-      first missing value breaks no order and is installed.
+    \item \code{setPredictor} with \code{forceUpdate = "partial"} and
+      \code{\link{updatePredictorPerObservationJointly}}: each row that
+      brings the missing value is declined, and the other rows are installed.
   }
+  A numeric column's first missing value breaks no order and is installed.
 
-  Such a refusal is not cured by proposing other values, and running the
-  sampler may not cure it either. Every update that brings the missing value
-  is refused while any tree's leaf values would be out of order with it, and
-  where the data favor such trees that can be for as long as the sampler
-  runs: code that proposes the value again until it is accepted may never
-  finish. The way to bring the value in is to replace the whole matrix with
+  Such a refusal is not cured by proposing other values: a refused update
+  puts the generator back, so the same sides are drawn again until the
+  sampler has run, and where the data favor such trees a later draw can
+  break the order too. Code that proposes the value again until it is
+  accepted may never finish. The way to bring the value in is
   \code{forceUpdate = TRUE}, which completes and sets those trees to zero
   as above; the alternative is to leave the value as it was.
 

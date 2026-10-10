@@ -3691,9 +3691,12 @@ dbartsSampler <- setRefClass(
        values, and its k and sigma where this sampler draws them, go in as
        stored on the internal scale, not converted to this sampler's
        response; linear-leaf coefficients drawn under covariates centered and
-       scaled differently are restated in this sampler's. 'samples' maps each
-       chain to a 1-based donor-sample index; NULL spreads the chains across
-       the donor's kept samples. Single-forest samplers only."
+       scaled differently are restated in this sampler's. Where the donor's
+       data could hold no missing value in a column this sampler's can, each
+       chain draws the side of every rule on that column in the trees it
+       takes. 'samples' maps each chain to a 1-based donor-sample index; NULL
+       spreads the chains across the donor's kept samples. Single-forest
+       samplers only."
       ptr <- getPointer()
       refuseMultiForestWarmStart(ptr, "$installTrees")
       donorState <- warmStartState(donor)
