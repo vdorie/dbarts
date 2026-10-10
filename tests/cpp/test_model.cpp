@@ -4388,9 +4388,10 @@ static void testSparseMutationDirectSampler() {
     PredictorSource csc = mixedPredictorSource(
       n, 1, nullptr, pointers, rows.data(), values.data(), &source, nullptr,
       nullptr, &reference);
+    // the column is complete again and its flag stays up
     ok &= twins.a->updatePredictor(csc, col, 1, true, false) ==
             twins.b->updatePredictor(doubles.data(), col, 1, true, false) &&
-          twins.storesMatch() && twins.a->data().hasMissing[2] == 0;
+          twins.storesMatch() && twins.a->data().hasMissing[2] == 1;
 
     CscCategoricalFixture factor;
     factor.build(n, 6, 0.92);

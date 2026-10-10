@@ -1840,9 +1840,7 @@ static void f10NodeFactors(const Tree& tree, const double* factor,
 // claim - the recovery reads each leaf's current members before any partition
 // change - stated over a quantity a caller can see. Recovering after the
 // repartition instead reads the new partition's members out of the old leaves'
-// slots, which moves a factor wherever the partition moved. It does not cover
-// the missing-direction drop, which routes nothing and so is order-free by
-// construction (tree.hpp, dropStaleMissingDirections).
+// slots, which moves a factor wherever the partition moved.
 static void testVarianceRecoveryOrdering() {
   rngState = 0x2D77C41B5E0093ull;
   const size_t n = 240, p = 4;

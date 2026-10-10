@@ -3801,7 +3801,8 @@ static void testMissingEndToEnd() {
 // replacement that brings a missing value into a complete column AND empties a
 // leaf is rolled back, leaving the flags as an untouched twin's. An accepted
 // one of the same kind, without the emptying, raises the flag. Own rng;
-// restores the runif01 stream.
+// restores the runif01 stream. testMissingFirstSeen holds the directions and
+// the generators to the same.
 static void testSubsetRollbackMissingness() {
   std::uint64_t savedRngState = rngState;
   const size_t n = 200;
@@ -3845,6 +3846,400 @@ static void testSubsetRollbackMissingness() {
   ext_rng_destroy(rng);
   rngState = savedRngState;
   printf("ok: subset rollback missingness\n");
+}
+
+namespace {
+
+// The fixture of the first-missing-value test: x0 numeric, x1 a 4-level
+// factor, x2 numeric and never missing, x3 a 70-level factor whose rules
+// hold pooled masks; two chains of mean and variance trees over a wrapped
+// ring of kept draws.
+struct FirstSeenSampler {
+  static constexpr size_t n = 420, p = 4, numTrees = 20, numVarianceTrees = 6;
+  static constexpr size_t numChains = 2, capacity = 6;
+  std::vector<ext_rng*> rngs;
+  std::unique_ptr<ConstantLeafSampler> sampler;
+
+  FirstSeenSampler(const std::vector<double>& x, const std::vector<double>& y,
+                   const std::uint8_t* seen = nullptr) {
+    static const ColumnKind kinds[p] = {
+        ColumnKind::numeric, ColumnKind::categorical, ColumnKind::numeric,
+        ColumnKind::categorical};
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), 5150u + static_cast<std::uint32_t>(c));
+    }
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numVarianceTrees = numVarianceTrees;
+    options.numChains = numChains;
+    options.numThreads = 1;
+    options.keepTrees = true;
+    options.numSamplesToStore = capacity;
+    options.predictors.columnTypes = kinds;
+    options.missingSeen = seen;
+    sampler = std::make_unique<ConstantLeafSampler>(
+        x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+        1.0, 3.0, 0.37804942330213542, options, rngs.data());
+  }
+  ~FirstSeenSampler() {
+    sampler.reset();
+    for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+  }
+  ConstantLeafSampler& operator*() { return *sampler; }
+  ConstantLeafSampler* operator->() { return sampler.get(); }
+  SamplerStateData state() {
+    SamplerStateData result;
+    sampler->getState(result);
+    return result;
+  }
+};
+
+// The directions a first missing value draws over one flat tree, written
+// from the rule and not from the engine: pre-order, a coin for every rule on
+// a raised threshold column, and for a rule on a raised factor column only
+// where a missing value reaches it under the coins drawn above it, the rule
+// being sent left elsewhere. `reaches` is a byte per predictor. Returns the
+// number of records consumed; `expected` receives one entry per rule on a
+// raised column.
+size_t replayFirstSight(const FlatNode* nodes, const bool* isFactor,
+                        const std::uint8_t* raised,
+                        std::vector<std::uint8_t> reaches, ext_rng* rng,
+                        std::vector<std::uint8_t>& expected) {
+  if (nodes[0].variable == invalidVariable) return 1;
+  size_t j = static_cast<size_t>(nodes[0].variable);
+  std::vector<std::uint8_t> onLeft(reaches), onRight(reaches);
+  if (raised[j]) {
+    bool draws = !isFactor[j] || reaches[j] != 0;
+    bool right = draws && ext_rng_simulateBernoulli(rng, 0.5) == 1;
+    expected.push_back(right ? 1 : 0);
+    if (isFactor[j]) {
+      onLeft[j] = reaches[j] != 0 && !right ? 1 : 0;
+      onRight[j] = reaches[j] != 0 && right ? 1 : 0;
+    }
+  }
+  size_t numOnLeft =
+      replayFirstSight(nodes + 1, isFactor, raised, onLeft, rng, expected);
+  size_t numOnRight = replayFirstSight(nodes + 1 + numOnLeft, isFactor, raised,
+                                       onRight, rng, expected);
+  return 1 + numOnLeft + numOnRight;
+}
+
+// The directions a state's rules on the raised columns hold, in the order
+// the draw visits them for chain c: the live mean trees, the live variance
+// trees, then each kept draw oldest first, its mean trees and its variance
+// trees. `other`, when not null, receives the flags of every other rule.
+std::vector<std::uint8_t> directionsHeld(const SamplerStateData& state,
+                                         size_t c, const std::uint8_t* raised,
+                                         const std::vector<size_t>& slots,
+                                         std::vector<std::uint8_t>* other) {
+  std::vector<std::uint8_t> held;
+  auto read = [&](const std::vector<FlatNode>& tree) {
+    for (const FlatNode& node : tree) {
+      if (node.variable == invalidVariable) continue;
+      std::uint8_t right = (node.flags & flatMissingGoesRight) != 0 ? 1 : 0;
+      if (raised[static_cast<size_t>(node.variable)]) held.push_back(right);
+      else if (other != nullptr) other->push_back(right);
+    }
+  };
+  const ChainStateData& chain(state.chains[c]);
+  const ForestStateData& forest(chain.forests[0]);
+  size_t numTrees = FirstSeenSampler::numTrees;
+  size_t numVarianceTrees = FirstSeenSampler::numVarianceTrees;
+  for (const std::vector<FlatNode>& tree : forest.trees) read(tree);
+  for (const std::vector<FlatNode>& tree : chain.varianceTrees) read(tree);
+  for (size_t slot : slots) {
+    for (size_t t = 0; t < numTrees; ++t)
+      read(forest.savedTrees[slot * numTrees + t]);
+    for (size_t j = 0; j < numVarianceTrees; ++j)
+      read(chain.savedVarianceTrees[slot * numVarianceTrees + j]);
+  }
+  return held;
+}
+
+// What chain c's generator, in the state `before` holds it in, draws for the
+// same rules in the same order, after `numScanned` rows of scan order where
+// the update is row by row; `after` receives the generator's state past the
+// draw.
+std::vector<std::uint8_t> directionsDrawn(const SamplerStateData& before,
+                                          size_t c, const std::uint8_t* raised,
+                                          const std::vector<size_t>& slots,
+                                          size_t numScanned,
+                                          std::vector<unsigned char>& after) {
+  static const bool isFactor[FirstSeenSampler::p] = {false, true, false, true};
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_readSerializedState(rng, before.chains[c].rngState.data());
+  if (numScanned > 0) {
+    std::vector<size_t> order(numScanned);
+    ext_rng_drawPermutation(rng, order.data(), numScanned);
+  }
+  std::vector<std::uint8_t> expected;
+  std::vector<std::uint8_t> reaches(FirstSeenSampler::p, 1);
+  auto replay = [&](const std::vector<FlatNode>& tree) {
+    replayFirstSight(tree.data(), isFactor, raised, reaches, rng, expected);
+  };
+  const ChainStateData& chain(before.chains[c]);
+  const ForestStateData& forest(chain.forests[0]);
+  size_t numTrees = FirstSeenSampler::numTrees;
+  size_t numVarianceTrees = FirstSeenSampler::numVarianceTrees;
+  for (const std::vector<FlatNode>& tree : forest.trees) replay(tree);
+  for (const std::vector<FlatNode>& tree : chain.varianceTrees) replay(tree);
+  for (size_t slot : slots) {
+    for (size_t t = 0; t < numTrees; ++t)
+      replay(forest.savedTrees[slot * numTrees + t]);
+    for (size_t j = 0; j < numVarianceTrees; ++j)
+      replay(chain.savedVarianceTrees[slot * numVarianceTrees + j]);
+  }
+  after.resize(ext_rng_getSerializedStateLength(rng));
+  ext_rng_writeSerializedState(rng, after.data());
+  ext_rng_destroy(rng);
+  return expected;
+}
+
+}  // namespace
+
+// A column's first missing value. Every rule already on the column, in the
+// live mean and variance trees and in every kept draw, takes a direction from
+// its chain's own generator: forced and unforced, by column and whole matrix,
+// row by row and through setData, each held to the coins the generator gives
+// in the order the draw is stated in, the generator left where those coins
+// leave it, and rules on other columns untouched. A second missing value
+// draws nothing. A refused update that brought a first one leaves the
+// directions, the kept draws and the generators as they were. Filling the
+// column lowers no flag and moves no direction; a sampler created with the
+// flags holds them. Own generators; restores the runif01 stream.
+static void testMissingFirstSeen() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 0x51C7F1A5ull;
+  const size_t n = FirstSeenSampler::n, p = FirstSeenSampler::p;
+  const size_t numChains = FirstSeenSampler::numChains;
+  const double na = std::nan("");
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[n + i] = static_cast<double>(i % 4);
+    x[2 * n + i] = runif01();
+    x[3 * n + i] = static_cast<double>(i % 70);
+    y[i] = (x[i] > 0.5 ? 2.0 : 0.0) + (i % 4 < 2 ? -1.0 : 1.0) +
+           (x[2 * n + i] > 0.4 ? 1.5 : 0.0) + (i % 70 < 30 ? 1.0 : -1.0) +
+           (x[i] > 0.3 ? 0.6 : 0.1) * (runif01() - 0.5);
+  }
+  // a missing value in x0, x1 and x3, in rows spread over the levels
+  std::vector<double> withMissing(x);
+  const size_t holes[3][3] = {{11, 150, 301}, {23, 164, 317}, {40, 181, 333}};
+  const size_t holed[3] = {0, 1, 3};
+  for (int k = 0; k < 3; ++k)
+    for (size_t row : holes[k]) withMissing[holed[k] * n + row] = na;
+  std::vector<double> moreMissing(withMissing);
+  moreMissing[5] = na;
+  moreMissing[n + 6] = na;
+  moreMissing[3 * n + 7] = na;
+  // the same holes beside an x2 that sends every row one way
+  std::vector<double> emptying(withMissing);
+  for (size_t i = 0; i < n; ++i) emptying[2 * n + i] = 0.5;
+  const std::uint8_t raised[p] = {1, 1, 0, 1};
+  const size_t holedAndConstant[4] = {0, 1, 3, 2};
+  std::vector<double> emptyingBlock;
+  for (size_t j : holedAndConstant)
+    emptyingBlock.insert(emptyingBlock.end(), emptying.begin() + j * n,
+                         emptying.begin() + (j + 1) * n);
+
+  // every form starts from the same sampler: burned in, its ring wrapped
+  Results none;
+  auto fresh = [&](const std::uint8_t* seen = nullptr) {
+    auto made = std::make_unique<FirstSeenSampler>(x, y, seen);
+    (*made)->run(120, 10, none);
+    return made;
+  };
+  auto slotsOf = [](ConstantLeafSampler& sampler) {
+    std::vector<size_t> slots;
+    for (size_t d = 0; d < sampler.filledSavedDraws(); ++d)
+      slots.push_back(sampler.savedSlotForDraw(d));
+    return slots;
+  };
+  auto twin = fresh();
+  SamplerStateData start = twin->state();
+  std::vector<size_t> slots = slotsOf(**twin);
+  check(slots.size() == FirstSeenSampler::capacity && slots[0] != 0,
+        "first seen: the ring of kept draws is full and wrapped");
+  size_t numLive[2] = {0, 0}, numKept[2] = {0, 0}, numPooled = 0;
+  bool noneRight = true;
+  for (size_t c = 0; c < numChains; ++c) {
+    const ChainStateData& chain(start.chains[c]);
+    auto tally = [&](const std::vector<std::vector<FlatNode>>& trees,
+                     size_t* counts, size_t which) {
+      for (const std::vector<FlatNode>& tree : trees)
+        for (const FlatNode& node : tree) {
+          if (node.variable == invalidVariable) continue;
+          noneRight = noneRight && (node.flags & flatMissingGoesRight) == 0;
+          if (raised[static_cast<size_t>(node.variable)]) ++counts[which];
+          if (node.variable == 3) ++numPooled;
+        }
+    };
+    tally(chain.forests[0].trees, numLive, 0);
+    tally(chain.forests[0].savedTrees, numKept, 0);
+    tally(chain.varianceTrees, numLive, 1);
+    tally(chain.savedVarianceTrees, numKept, 1);
+  }
+  bool flagsDown = true;
+  for (std::uint8_t flag : (*twin)->data().hasMissing)
+    flagsDown = flagsDown && flag == 0;
+  check(flagsDown && noneRight && numLive[0] >= 20 && numLive[1] >= 4 &&
+          numKept[0] >= 60 && numKept[1] >= 12 && numPooled >= 10,
+        "first seen: the trees split on the columns and hold no direction");
+
+  // refused: the holes arrive with an update that empties a leaf
+  for (int form = 0; form < 2; ++form) {
+    auto refused = fresh();
+    PredictorUpdateResult result = form == 0
+      ? (*refused)->updatePredictor(emptyingBlock.data(), holedAndConstant, 4,
+                                    false, false)
+      : (*refused)->setPredictor(emptying.data(), false, false);
+    bool rolledBack = result == PredictorUpdateResult::rolledBack;
+    bool flagsBack = (*refused)->data().hasMissing == (*twin)->data().hasMissing;
+    SamplerStateData left = refused->state();
+    bool generators = true;
+    for (size_t c = 0; c < numChains; ++c)
+      generators =
+        generators && left.chains[c].rngState == start.chains[c].rngState;
+    check(rolledBack && flagsBack && generators && statesAgree(start, left),
+          form == 0
+            ? "first seen: a refused column update leaves directions, kept "
+              "draws and generators as they were"
+            : "first seen: a refused whole-matrix update leaves directions, "
+              "kept draws and generators as they were");
+    // the pool words the draw took are given back with it
+    bool poolsBack = true;
+    for (size_t c = 0; c < numChains; ++c)
+      for (size_t t = 0; t < FirstSeenSampler::numTrees; ++t)
+        poolsBack = poolsBack &&
+          (*refused)->chain(c).tree(t).maskPool.size() ==
+            (*twin)->chain(c).tree(t).maskPool.size();
+    check(poolsBack, "first seen: a refused update gives back its mask words");
+  }
+
+  // taken: each form against the coins its generators hold
+  static const char* const forms[6] = {
+      "forced by column", "forced whole matrix", "unforced by column",
+      "unforced whole matrix", "setData", "row by row"};
+  const size_t holedColumns[3] = {0, 1, 3};
+  for (int form = 0; form < 6; ++form) {
+    auto taken = fresh();
+    ConstantLeafSampler& sampler(**taken);
+    std::vector<double> block;
+    for (size_t j : holedColumns)
+      block.insert(block.end(), withMissing.begin() + j * n,
+                   withMissing.begin() + (j + 1) * n);
+    bool accepted = true;
+    std::uint8_t raisedHere[p] = {1, 1, 0, 1};
+    size_t numScanned = 0;
+    if (form == 0 || form == 2)
+      accepted = sampler.updatePredictor(block.data(), holedColumns, 3,
+                                         form == 0, false) ==
+                 PredictorUpdateResult::accepted;
+    else if (form == 1 || form == 3)
+      accepted = sampler.setPredictor(withMissing.data(), form == 1, false) ==
+                 PredictorUpdateResult::accepted;
+    else if (form == 4)
+      accepted = sampler.setData(withMissing.data(), y.data(), n, nullptr,
+                                 nullptr, nullptr, 0);
+    else {
+      // one column a session: the numeric one
+      std::unique_ptr<bool[]> installed(new bool[n]);
+      accepted = sampler.updatePredictorPerObservation(withMissing.data(), 0,
+                                                       installed.get());
+      for (size_t row : holes[0]) accepted = accepted && installed[row];
+      raisedHere[1] = raisedHere[3] = 0;
+      numScanned = n;
+    }
+    SamplerStateData after = taken->state();
+    bool flagsUp = true;
+    for (size_t j = 0; j < p; ++j)
+      flagsUp = flagsUp &&
+        (sampler.data().hasMissing[j] != 0) == (raisedHere[j] != 0);
+    bool asDrawn = true, othersKept = true, generators = true, mixed = true;
+    for (size_t c = 0; c < numChains; ++c) {
+      std::vector<unsigned char> generatorAfter;
+      std::vector<std::uint8_t> othersBefore, othersAfter;
+      std::vector<std::uint8_t> expected = directionsDrawn(
+        start, c, raisedHere, slots, c == 0 ? numScanned : 0, generatorAfter);
+      std::vector<std::uint8_t> held =
+        directionsHeld(after, c, raisedHere, slots, &othersAfter);
+      directionsHeld(start, c, raisedHere, slots, &othersBefore);
+      asDrawn = asDrawn && held == expected;
+      othersKept = othersKept && othersAfter == othersBefore;
+      generators = generators && after.chains[c].rngState == generatorAfter;
+      size_t numRight = 0;
+      for (std::uint8_t right : held) numRight += right;
+      mixed = mixed && 4 * numRight > held.size() &&
+              4 * numRight < 3 * held.size();
+    }
+    std::string label = std::string("first seen, ") + forms[form] + ": ";
+    check(accepted && flagsUp, (label + "taken, the flags raised").c_str());
+    check(asDrawn && mixed,
+          (label + "live and kept rules hold the coins of their chain's "
+                   "generator, in order").c_str());
+    check(othersKept && generators,
+          (label + "no other rule moves and the generator ends past the "
+                   "coins").c_str());
+    check(restoresExactly(sampler, after, form == 4 ? withMissing.data()
+                                                    : nullptr),
+          (label + "the sampler restores its own state").c_str());
+
+    // a second missing value in each column draws nothing, and filling the
+    // columns lowers no flag and moves no direction
+    if (form == 5) continue;
+    std::vector<std::uint8_t> flags(sampler.data().hasMissing);
+    bool second = form == 4
+      ? sampler.setData(moreMissing.data(), y.data(), n, nullptr, nullptr,
+                        nullptr, 0)
+      : sampler.setPredictor(moreMissing.data(), form < 2, false) ==
+          PredictorUpdateResult::accepted;
+    SamplerStateData again = taken->state();
+    bool nothingDrawn = second;
+    for (size_t c = 0; c < numChains; ++c)
+      nothingDrawn = nothingDrawn &&
+        again.chains[c].rngState == after.chains[c].rngState &&
+        directionsHeld(again, c, raisedHere, slots, nullptr) ==
+          directionsHeld(after, c, raisedHere, slots, nullptr);
+    check(nothingDrawn,
+          (label + "a second missing value draws nothing").c_str());
+    bool filledIn = form == 4
+      ? sampler.setData(x.data(), y.data(), n, nullptr, nullptr, nullptr, 0)
+      : sampler.setPredictor(x.data(), true, false) ==
+          PredictorUpdateResult::accepted;
+    SamplerStateData filled = taken->state();
+    bool keptAll = filledIn && sampler.data().hasMissing == flags;
+    size_t liveRight = 0;
+    for (size_t c = 0; c < numChains; ++c) {
+      keptAll = keptAll &&
+        filled.chains[c].rngState == after.chains[c].rngState &&
+        sameFlatTrees(filled.chains[c].forests[0].savedTrees,
+                      again.chains[c].forests[0].savedTrees) &&
+        sameFlatTrees(filled.chains[c].savedVarianceTrees,
+                      again.chains[c].savedVarianceTrees);
+      for (const std::vector<FlatNode>& tree : filled.chains[c].forests[0].trees)
+        for (const FlatNode& node : tree)
+          liveRight += (node.flags & flatMissingGoesRight) != 0 ? 1u : 0u;
+    }
+    check(keptAll && liveRight > 0 &&
+            restoresExactly(sampler, filled, form == 4 ? x.data() : nullptr),
+          (label + "filling the columns keeps the flags and the directions")
+            .c_str());
+    if (form != 1) continue;
+    // a sampler created over the filled rows with those flags holds them, and
+    // takes the state as its own
+    FirstSeenSampler created(x, y, flags.data());
+    check(created->data().hasMissing == flags &&
+            restoresExactly(*created, filled, x.data()),
+          "first seen: a sampler created with the flags holds them and takes "
+          "the filled sampler's state unaltered");
+  }
+
+  rngState = savedRngState;
+  printf("ok: a column's first missing value (%zu live and %zu kept mean "
+         "rules, %zu and %zu variance rules on the columns)\n",
+         numLive[0], numKept[0], numLive[1], numKept[1]);
 }
 
 // BCF two-forest sampler: creation, a short run moving both forests, sane
@@ -8775,6 +9170,7 @@ void runSamplerTests(ext_rng* rng) {
   testLevelGibbsAutomatic();
   testMissingEndToEnd();
   testSubsetRollbackMissingness();
+  testMissingFirstSeen();
   testLogLikelihood();
   testForestCalibration();
   testNamedSd();

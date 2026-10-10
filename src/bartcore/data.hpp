@@ -859,11 +859,18 @@ struct ColumnStore {
   // derived shorter than the request leaves nothing behind once it is
   // replaced. numCuts[j] is at most this for a derived grid.
   std::vector<std::uint32_t> requestedNumCuts;
-  // per column, whether any training value is missing; gates the extra
-  // missing-direction draw in rules and the NA-aware partition kernel.
-  // INVARIANT: a column flagged 0 consumes no missing-direction draw from the
-  // rng and takes the plain partition path, so missingness support costs an
-  // NA-free column neither a draw nor a branch of its own.
+  // per column, whether it can hold a missing value: raised by the first
+  // missing training value the store is given in it, at build or by any later
+  // write, and never lowered while the store lives, whatever the column holds
+  // afterwards. Every writer after the build ORs into it for that reason: a
+  // rule's missing direction is kept only while its column's flag is up, so a
+  // flag that followed the content would lose directions the trees hold.
+  // Gates the extra missing-direction draw in rules and the NA-aware
+  // partition kernel.
+  // INVARIANT: a column flagged 0 has never held a missing value, consumes no
+  // missing-direction draw from the rng and takes the plain partition path,
+  // so missingness support costs an NA-free column neither a draw nor a
+  // branch of its own.
   std::vector<std::uint8_t> hasMissing;
   // categorical tier flag, fixed once category counts are (they never change
   // after build): pooled columns (> 63 levels) need the per-tree mask pool
@@ -1595,7 +1602,8 @@ struct ColumnStore {
   }
 
   /// Quantize column j's dense raw values into block against the current cuts,
-  /// recording any missingness through hasMissingOut[j] when non-null. observe
+  /// raising hasMissingOut[j], when non-null, on a missing value; a flag
+  /// already up stays up. observe
   /// is invoked as observe(i, column, code) for each cell just before column[i]
   /// is overwritten, giving a caller the old code without a second pass; it is a
   /// compile-time functor, inlined away for the no-op case.
@@ -1611,7 +1619,7 @@ struct ColumnStore {
       observe(i, column, code);
       column[i] = code;
     }
-    if (hasMissingOut != nullptr) hasMissingOut[j] = anyMissing;
+    if (hasMissingOut != nullptr) hasMissingOut[j] |= anyMissing;
   }
 
   /// train tracks missingness; test tracks none and passes null.
@@ -1625,9 +1633,9 @@ struct ColumnStore {
   /// reached without the widen. Two things must match it cell for cell. The
   /// missing marker is naDenseCode rather than a NaN, and it takes the SAME
   /// reserved code a NaN takes - narrowing it as though it were a level would
-  /// make it a legal-looking category. And it must set hasMissingOut, since a
-  /// column that goes from flagged to unflagged consumes no missing-direction
-  /// draw and shifts every draw after it.
+  /// make it a legal-looking category. And it must raise hasMissingOut as the
+  /// double arm does, since an unflagged column consumes no missing-direction
+  /// draw and every draw after it would shift.
   void quantizeDenseCodesInto(CodeBlock& block, size_t numRows, size_t j,
                               const std::int32_t* raw,
                               std::uint8_t* hasMissingOut) {
@@ -1643,7 +1651,7 @@ struct ColumnStore {
       }
       column[i] = codeFor(j, static_cast<double>(raw[i]));
     }
-    if (hasMissingOut != nullptr) hasMissingOut[j] = anyMissing;
+    if (hasMissingOut != nullptr) hasMissingOut[j] |= anyMissing;
   }
 
   /// Quantize a CSC-backed column j into block against its current cuts: rank
@@ -1651,8 +1659,8 @@ struct ColumnStore {
   /// fixed at build), densified ones fill with the zero code and scatter the
   /// stored entries. A categorical column's implicit rows carry the reference
   /// level's level-order code; an ordinal column's carry the quantized zero.
-  /// Missing values are stored NaN entries and take the reserved code, recorded
-  /// through hasMissingOut[j] when non-null.
+  /// Missing values are stored NaN entries and take the reserved code, raising
+  /// hasMissingOut[j] when non-null.
   void quantizeCscColumnInto(CodeBlock& block, size_t numRows, size_t j,
                              std::uint8_t* hasMissingOut) {
     const CscColumnSlice& slice = block.sources[j].slice;
@@ -1681,7 +1689,7 @@ struct ColumnStore {
         if (isNA(slice.values[k])) anyMissing = 1;
       }
     }
-    if (hasMissingOut != nullptr) hasMissingOut[j] = anyMissing;
+    if (hasMissingOut != nullptr) hasMissingOut[j] |= anyMissing;
   }
 
   /// Build column j's rank-bitmap pattern in block from its retained CSC slice:
@@ -2807,9 +2815,7 @@ struct ColumnStore {
 
   /// Overwrite a single cell's code against existing cuts, refreshing the owned
   /// dense raw and the gathered raw copy of a leaf-covariate column. A missing
-  /// value marks the column; the flag only clears on a full column re-quantize
-  /// (conservative but never wrong - the NA-aware partition handles NA-free
-  /// columns too).
+  /// value raises the column's flag, as every write does.
   void setCell(size_t i, size_t j, double value) {
     assert(!train.columnIsSparse(j));
     writeOwnedDenseCell(i, j, value);
@@ -2825,7 +2831,9 @@ struct ColumnStore {
   /// new number of observations, read for the call only. Threshold cuts are
   /// rebuilt from scratch, so a column's count may change and the caller
   /// remaps existing splits onto the new grid; a
-  /// factor column's level count stays fixed whichever kind it is. Dense
+  /// factor column's level count stays fixed whichever kind it is. The
+  /// missing-value flags carry over, raised further by the new values: the
+  /// store is the same sampler's, and its trees keep their directions. Dense
   /// stores only (setData is refused on CSC/mixed).
   ///
   /// False REFUSES the replacement, leaving the store untouched: some cell of

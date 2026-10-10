@@ -4103,10 +4103,12 @@ static void testRestoreStatus() {
   printf("ok: a state install reports whether it altered the state\n");
 }
 
-/// A flat tree drawn while a column held a missing value builds against a
-/// store whose column holds none: the direction is dropped, a rule that split
-/// the missing value from every level keeps a side nothing reaches, and a
-/// mask malformed in the donor's own gauge is still refused.
+/// A flat tree from a sampler whose column could hold a missing value builds
+/// against a store whose column never has: the direction is dropped, a rule
+/// that sends every level one way is refused, and a mask malformed in the
+/// donor's own gauge is still refused. Against a store whose column has held
+/// one and is complete again, the rule that splits the missing value from
+/// every level builds with its direction.
 static void testStaleMissingDirectionBuild() {
   const size_t n = 12;
   std::vector<double> x(n * 2);
@@ -4120,11 +4122,15 @@ static void testStaleMissingDirectionBuild() {
   std::vector<double> params;
   Tree tree;
   bool dropped = false;
-  auto builds = [&](const std::vector<FlatNode>& flat) {
+  auto buildsOn = [&](const ColumnStore& onto,
+                      const std::vector<FlatNode>& flat) {
     tree.initialize(indices.data(), n);
     dropped = false;
-    return tree.buildFromFlat(store, flat.data(), flat.size(), params, 1,
+    return tree.buildFromFlat(onto, flat.data(), flat.size(), params, 1,
                               nullptr, nullptr, 0, &dropped);
+  };
+  auto builds = [&](const std::vector<FlatNode>& flat) {
+    return buildsOn(store, flat);
   };
   auto rule = [](int32_t variable, FlatKind kind, bool missingRight) {
     FlatNode node;
@@ -4155,11 +4161,31 @@ static void testStaleMissingDirectionBuild() {
           builds({levels(0x6, true), plain, leaf, leaf, leaf}) && dropped,
         "stale direction: a build reports a drop of either kind, and none "
         "where the tree carries none");
-  check(builds({levels(0x0, true), leaf, leaf}) &&
-          tree.at(0).rule.categoryDirections() == 0x0 &&
-          builds({levels(0xf, false), leaf, leaf}) &&
-          tree.at(0).rule.categoryDirections() == 0xf,
-        "stale direction: a rule splitting missing from every level builds");
+  check(!builds({levels(0x0, true), leaf, leaf}) &&
+          !builds({levels(0xf, false), leaf, leaf}) &&
+          !builds({levels(0x6, false), leaf, levels(0x6, false), leaf, leaf}) &&
+          !builds({levels(0x6, true), leaf, levels(0x0, true), leaf, leaf}),
+        "stale direction: on a column never missing, a rule sending every "
+        "level that reaches it one way is refused");
+  // the same column once it has held a missing value, complete again
+  std::vector<double> xOnceMissing(x);
+  xOnceMissing[0] = std::nan("");
+  ColumnStore seen;
+  built(seen.build(xOnceMissing.data(), n, 2, 10, false, types));
+  seen.setPredictors(x.data(), false);
+  bool complete = seen.hasMissing[0] != 0 && seen.hasMissing[1] == 0;
+  for (size_t i = 0; i < n; ++i)
+    complete = complete && seen.codeAt(0, i) == store.codeAt(0, i);
+  check(complete && buildsOn(seen, {levels(0x0, true), leaf, leaf}) &&
+          tree.at(0).rule.categoryDirections() == Rule::missingDirectionBit &&
+          !dropped && buildsOn(seen, {levels(0xf, false), leaf, leaf}) &&
+          tree.at(0).rule.categoryDirections() == 0xf && !dropped &&
+          buildsOn(seen, {levels(0x6, true), cut, leaf, leaf, leaf}) &&
+          tree.at(0).rule.categoryDirections() ==
+            (0x6 | Rule::missingDirectionBit) &&
+          dropped,
+        "stale direction: on a column that has held one, a rule splitting "
+        "missing from every level builds, its direction kept");
   check(builds({levels(0x6, true), leaf, levels(0x2, true), leaf, leaf}) &&
           !builds({levels(0x6, false), leaf, levels(0x2, true), leaf, leaf}),
         "stale direction: it builds only where its ancestors pass missing");
@@ -4200,6 +4226,16 @@ static void testStaleMissingDirectionBuild() {
   maskSetBit(words.data(), K + 1);
   check(!buildsWide(),
         "stale direction: a pooled bit past the missing position is refused");
+  // every level left with missing right, and every level right
+  words.assign(words.size(), 0);
+  bool nothingRight = !buildsWide();
+  for (std::uint32_t level = 0; level < K; ++level)
+    maskSetBit(words.data(), level);
+  flat[0].flags &= static_cast<std::uint8_t>(~flatMissingGoesRight);
+  check(nothingRight && !buildsWide(),
+        "stale direction: on a pooled column never missing, a rule sending "
+        "every level one way is refused");
+  flat[0].flags |= flatMissingGoesRight;
   // levels 2 and 3 right at the root, level 2 and missing right beneath it
   FlatNode below = flat[0];
   below.maskOffset = words.size();
@@ -4226,24 +4262,28 @@ static size_t countMissingRight(const std::vector<std::vector<FlatNode>>& trees)
 }
 
 /// A state stored while columns held missing values, restored after a forced
-/// setPredictor filled them: the install drops the directions as the forced
-/// update dropped them and reproduces its trees, the saved draws keep theirs,
-/// a sampler built over the filled rows and a same-grid warm start take the
-/// state too, and the sampler then runs and restores itself. make(x, seed)
-/// builds the sampler over a predictor matrix; `seed` is one whose draws leave
-/// every forest carrying a missing-right rule, which the first report checks.
-/// The two-forest arm takes its own: a two-forest stream moved when a leaf of
-/// only control rows became legal in the treatment forest, and the shared
-/// seed's draws then left that forest no missing-right rule.
+/// setPredictor filled them. The columns stay able to hold one, so the forced
+/// update keeps every direction and the install reproduces its trees; the
+/// saved draws keep theirs; a sampler created over the filled rows with the
+/// first's flags, as a copy or a reload is, takes the state to the same
+/// trees; one created over them without the flags refuses it or installs it
+/// with no inline direction left; a same-grid warm start takes it too; and
+/// the sampler then runs and restores itself. make(x, seed, seen) builds the
+/// sampler over a predictor matrix, `seen` being the flags its creation
+/// adopts or null; `seed` is one whose draws leave every forest carrying a
+/// missing-right rule, which the first report checks. The two-forest arm
+/// takes its own: a two-forest stream moved when a leaf of only control rows
+/// became legal in the treatment forest, and the shared seed's draws then
+/// left that forest no missing-right rule.
 template <typename Make>
 static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
                                         const std::vector<double>& xFilled,
                                         bool inlineOnly, const char* label,
                                         std::uint32_t seed = 721u) {
-  auto sampler = make(x, seed), recipient = make(xFilled, seed + 1u);
+  auto sampler = make(x, seed, nullptr);
   Results empty;
   sampler->run(60, 2, empty);
-  SamplerStateData stale, forced, restored, other, warm, after;
+  SamplerStateData stale, forced, restored, other, warm, after, taken;
   sampler->getState(stale);
   const ChainStateData& staleChain(stale.chains[0]);
   bool carries = !sampler->hasVarianceForest() ||
@@ -4252,23 +4292,43 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
     carries = carries && countMissingRight(fs.trees) > 0 &&
       countMissingRight(fs.savedTrees) > 0;
 
+  std::vector<std::uint8_t> flags(sampler->data().hasMissing);
   bool filled = sampler->setPredictor(xFilled.data(), true, false) ==
     PredictorUpdateResult::accepted;
+  bool flagsKept = sampler->data().hasMissing == flags;
   sampler->getState(forced);
   bool restores = restoresAltered(*sampler, stale);
   sampler->getState(restored);
-  size_t left = countMissingRight(restored.chains[0].varianceTrees);
+  size_t staleRight = countMissingRight(staleChain.varianceTrees);
+  size_t right = countMissingRight(restored.chains[0].varianceTrees);
   bool savedKept = true;
   for (size_t f = 0; f < staleChain.forests.size(); ++f) {
-    left += countMissingRight(restored.chains[0].forests[f].trees);
+    staleRight += countMissingRight(staleChain.forests[f].trees);
+    right += countMissingRight(restored.chains[0].forests[f].trees);
     savedKept = savedKept &&
       sameFlatTrees(staleChain.forests[f].savedTrees,
                     restored.chains[0].forests[f].savedTrees);
   }
   bool occupied = liveTreesAreOccupied(*sampler);
 
+  // created over the filled rows: with the flags, and without them
+  auto recipient = make(xFilled, seed + 1u, flags.data());
+  bool flagsAdopted = recipient->data().hasMissing == flags;
   bool otherRestores = restoresAltered(*recipient, stale, xFilled.data());
   recipient->getState(other);
+  auto stranger = make(xFilled, seed + 2u, nullptr);
+  bool neverMissing = true;
+  for (std::uint8_t flag : stranger->data().hasMissing)
+    neverMissing = neverMissing && flag == 0;
+  bool strangerAltered = false;
+  bool strangerTook = stranger->setState(stale, xFilled.data(), nullptr,
+                                         nullptr, nullptr, nullptr,
+                                         &strangerAltered);
+  stranger->getState(taken);
+  size_t strangerRight = countMissingRight(taken.chains[0].varianceTrees);
+  for (const ForestStateData& fs : taken.chains[0].forests)
+    strangerRight += countMissingRight(fs.trees);
+
   bool warmStarts = sampler->installForests(stale, {{0, -1}}) ==
     WarmStartResult::ok;
   sampler->getState(warm);
@@ -4283,16 +4343,24 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
     check(ok, line);
   };
   report(carries, "every forest's live and saved trees send missing right");
-  report(filled && restores,
-         "the stale state restores once they are filled, reported altered");
+  report(filled && flagsKept && restores,
+         "the columns stay flagged once filled and the stale state restores, "
+         "reported altered");
   report(statesAgree(forced, restored),
          "the restore reproduces the forced update");
-  report(inlineOnly ? left == 0 : left > 0,
-         "an inline direction is dropped, a pooled word kept");
+  report(right > 0 && right <= staleRight,
+         "the restored trees keep their directions");
   report(occupied && savedKept,
          "no leaf is left empty and the saved draws keep their directions");
-  report(otherRestores && sameLiveTrees(forced, other),
-         "a sampler over the filled rows restores it to the same trees");
+  report(flagsAdopted && otherRestores && sameLiveTrees(forced, other),
+         "a sampler created over the filled rows with the flags restores it "
+         "to the same trees");
+  report(neverMissing &&
+           (!strangerTook ||
+            (strangerAltered && (inlineOnly ? strangerRight == 0
+                                            : strangerRight < right))),
+         "a sampler created without them refuses it or drops the inline "
+         "directions");
   report(warmStarts && sameLiveTrees(forced, warm),
          "a same-grid warm start installs the same trees");
   report(continues, "the sampler runs and restores itself as stored");
@@ -4338,10 +4406,12 @@ static void testStaleMissingDirectionRestores() {
   options.numSamplesToStore = 2;
   auto single = [&](size_t numColumns) {
     return [&, numColumns](const std::vector<double>& data,
-                           std::uint32_t seed) {
+                           std::uint32_t seed, const std::uint8_t* seen) {
+      SamplerOptions created(options);
+      created.missingSeen = seen;
       return std::make_unique<ConstantLeafSampler>(
         data.data(), y.data(), n, numColumns, nullptr, nullptr,
-        ResponseFamily::gaussian, 1.0, 3.0, rawScale, options, newRng(seed));
+        ResponseFamily::gaussian, 1.0, 3.0, rawScale, created, newRng(seed));
     };
   };
   checkStaleDirectionRestores(single(p), x, xFilled, false, "pooled column");
@@ -4358,15 +4428,18 @@ static void testStaleMissingDirectionRestores() {
   spec.tau.power = 3.0;
   spec.z = z.data();
   checkStaleDirectionRestores(
-    [&](const std::vector<double>& data, std::uint32_t seed) {
+    [&](const std::vector<double>& data, std::uint32_t seed,
+        const std::uint8_t* seen) {
+      SamplerOptions created(options);
+      created.missingSeen = seen;
       return std::make_unique<ConstantLeafSampler>(
         data.data(), y.data(), n, 2, nullptr, nullptr, 1.0, 3.0, rawScale,
-        options, spec, newRng(seed));
+        created, spec, newRng(seed));
     },
     x, xFilled, true, "two-forest sampler", 724u);
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
-  printf("ok: a stale missing direction is dropped on install\n");
+  printf("ok: a filled column's directions are kept on install\n");
 }
 
 void runStateTests(ext_rng* rng) {

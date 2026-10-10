@@ -11,6 +11,7 @@
 #include <vector>
 
 #include <external/io.h>
+#include <external/random.h>
 #include <misc/stats.h>
 #include <misc/linearAlgebra.h>
 #include <misc/partition.h>
@@ -1217,18 +1218,29 @@ public:
       (2 * static_cast<std::uint64_t>(oldCount)));
   }
 
-  /// Drop a rule's missing direction once its column routes no missing
-  /// value, after a data mutation or a build from a flat tree drawn while it
-  /// did: hasMissing false puts the bit outside reachableCategories, and two
-  /// rules that route alike would compare unequal on it. The bit routes
-  /// nothing without missing observations, so clearing it moves nothing.
-  /// A pooled mask passes through, its bit left in the pool words by a
-  /// mutation and a build alike, so a rebuilt tree holds the words the live
-  /// one does. The bit then sits outside reachableCategoriesWide: swap and
-  /// change take a subtree holding it for invalid and leave it alone until
-  /// the rule is pruned or redrawn. Routing is unaffected.
-  void dropStaleMissingDirections(const ColumnStore& data) {
-    dropStaleMissingDirectionsBelow(0, data);
+  /// Draws, each with probability one half from \p rng, the missing direction
+  /// of the rules on the columns \p raised marks (a byte per predictor): the
+  /// columns whose flag has just gone up, on which every rule was drawn while
+  /// no value could be missing and so holds no direction. A direction no row
+  /// has reached has its prior for its conditional, and the prior is the coin
+  /// the birth and change draws take. Nodes are visited in pre-order. A
+  /// threshold rule draws wherever it sits, as its birth would. A subset rule
+  /// draws only where a missing value reaches its node under the directions
+  /// drawn above it, and is left sending it left elsewhere: its mask stays
+  /// confined to what reaches it, the gauge every rule on the column is held
+  /// to. A pooled rule whose bit moves takes fresh pool words, the old ones
+  /// left for the next compaction, so no other holder of the old offset sees
+  /// the change. \p blocked is numPredictors zeros of scratch, zero again on
+  /// return. \p onChange is called as onChange(nodeIndex, bits) with the word
+  /// a rule held before its direction moved; putting those words back and
+  /// truncating the mask pool to its mark from before the call undoes the
+  /// draw. Partitions are left stale wherever a missing row is held
+  /// (repartitionSubtree).
+  template <typename OnChange>
+  void drawMissingDirections(const ColumnStore& data,
+                             const std::uint8_t* raised, ext_rng* rng,
+                             std::uint32_t* blocked, OnChange onChange) {
+    drawMissingDirectionsBelow(0, data, raised, rng, blocked, onChange);
   }
 
   void countVariableUses(std::uint32_t* counts) const {
@@ -1323,13 +1335,21 @@ public:
   /// (single-root) tree. Split values map back onto rules exactly: an
   /// ordinal value must equal one of its variable's cuts, a categorical mask
   /// must be a canonical-gauge assignment of the categories reachable at its
-  /// node. The flat tree may have been drawn while a column held a missing
-  /// value this store's no longer does, so the gauge counts the missing
-  /// position reachable either way and the directions the column cannot
-  /// route are dropped once the tree is built (dropStaleMissingDirections).
-  /// A rule that split the missing value from every reachable category is
-  /// then left with a side nothing reaches, which the caller's collapse
-  /// merges. An ordinal split is placed on the position holding its value
+  /// node. The flat tree may come from a sampler whose column could hold a
+  /// missing value where this store's never has, so the gauge counts the
+  /// missing position reachable either way and the directions such a column
+  /// cannot route are dropped once the tree is built: with the flag down the
+  /// bit sits outside reachableCategories, and two rules that route alike
+  /// would compare unequal on it. A pooled mask keeps its bit in the pool
+  /// words, outside reachableCategoriesWide, where swap and change take the
+  /// subtree holding it for invalid until the rule is pruned or redrawn;
+  /// routing is unaffected. On such a column a categorical rule must still
+  /// split the categories reaching it: one that sends them all one way,
+  /// with or without a missing direction, is malformed, there being no
+  /// missing value it could have split them from. On a column whose flag is
+  /// up that rule is built, and where no row is missing now it is left with a
+  /// side nothing reaches, which the caller's collapse merges. An ordinal
+  /// split is placed on the position holding its value
   /// whether or not that position lies inside the interval the node's
   /// ancestors leave; one outside marks the tree (holdsSplitOutsideInterval)
   /// for the caller's collapse to merge. Partitions are left stale
@@ -1419,6 +1439,49 @@ private:
     dropped |= dropStaleMissingDirectionsBelow(node.leftChild, data);
     dropped |= dropStaleMissingDirectionsBelow(node.leftChild + 1, data);
     return dropped;
+  }
+
+  template <typename OnChange>
+  void drawMissingDirectionsBelow(int32_t nodeIndex, const ColumnStore& data,
+                                  const std::uint8_t* raised, ext_rng* rng,
+                                  std::uint32_t* blocked, OnChange& onChange) {
+    if (at(nodeIndex).isBottom()) return;
+    size_t j = static_cast<size_t>(at(nodeIndex).rule.variableIndex);
+    // a subset rule's children: the side a missing value does not take is out
+    // of its reach for every rule on the column beneath
+    bool filters = raised[j] != 0 && data.splitsBySubset(j);
+    bool goesRight = false;
+    if (raised[j] != 0) {
+      if (!filters || blocked[j] == 0)
+        goesRight = ext_rng_simulateBernoulli(rng, 0.5) == 1;
+      Rule& rule = at(nodeIndex).rule;
+      if (ruleMissingGoesRight(data, rule) != goesRight) {
+        onChange(nodeIndex, rule.bits);
+        if (data.columnIsPooled(j)) {
+          std::uint32_t numCategories = data.categoryCounts[j];
+          size_t numWords = maskWordsForCount(numCategories);
+          size_t from = rule.maskOffset();
+          // the pool may move under the allocation; the nodes do not
+          size_t offset = allocateMask(numWords);
+          std::uint64_t* words = mutableMaskWordsFor(offset);
+          std::memcpy(words, maskPool.data() + from,
+                      numWords * sizeof(std::uint64_t));
+          if (goesRight) maskSetBit(words, numCategories);
+          else maskClearBit(words, numCategories);
+          rule.setMaskOffset(offset);
+        } else {
+          rule.setMissingGoesRight(goesRight);
+        }
+      }
+    }
+    int32_t leftChild = at(nodeIndex).leftChild;
+    if (filters && goesRight) ++blocked[j];
+    drawMissingDirectionsBelow(leftChild, data, raised, rng, blocked,
+                               onChange);
+    if (filters) blocked[j] += goesRight ? -1 : 1;
+    drawMissingDirectionsBelow(leftChild + 1, data, raised, rng, blocked,
+                               onChange);
+    if (filters && !goesRight) --blocked[j];
   }
 
   /// The position the rule at \p nodeIndex takes on its column's new grid,
@@ -1733,11 +1796,17 @@ private:
       if ((flat.flags & flatMissingGoesRight) != 0)
         maskSetBit(directions, numCategories);
       reachableCategoryWords(data, nodeIndex, flat.variable, reachableScratch_);
-      // the gauge of the data the tree was drawn on, which may have held a
-      // missing value where this column has none
-      if (!data.hasMissing[variable] &&
-          missingReaches(data, nodeIndex, flat.variable))
-        maskSetBit(reachableScratch_.data(), numCategories);
+      if (!data.hasMissing[variable]) {
+        // a column that has never held a missing value: the categories alone
+        // must be split
+        if (maskIsZero(words, numWords) ||
+            maskEquals(words, reachableScratch_.data(), numWords))
+          return false;
+        // the gauge of the sampler the tree was drawn in, whose column may
+        // have held one
+        if (missingReaches(data, nodeIndex, flat.variable))
+          maskSetBit(reachableScratch_.data(), numCategories);
+      }
       if (maskIsZero(directions, numWords) ||
           !maskIsSubsetOf(directions, reachableScratch_.data(), numWords) ||
           maskEquals(directions, reachableScratch_.data(), numWords))
@@ -1753,11 +1822,14 @@ private:
         directions |= Rule::missingDirectionBit;
       std::uint64_t reachable =
         reachableCategories(data, nodeIndex, flat.variable);
-      // as for a pooled mask: the missing position is reachable in the gauge
-      // of the data the tree was drawn on
-      if (!data.hasMissing[variable] &&
-          missingReaches(data, nodeIndex, flat.variable))
-        reachable |= Rule::missingDirectionBit;
+      if (!data.hasMissing[variable]) {
+        // as for a pooled mask: the categories alone must be split, and the
+        // missing position is reachable in the gauge of the sampler the tree
+        // was drawn in
+        if (flat.mask == 0 || flat.mask == reachable) return false;
+        if (missingReaches(data, nodeIndex, flat.variable))
+          reachable |= Rule::missingDirectionBit;
+      }
       // canonical gauge: bits confined to reachable, neither side empty
       if (directions == 0 || (directions & ~reachable) != 0 ||
           directions == reachable)
@@ -2355,6 +2427,39 @@ inline bool flatTreeIsWellFormed(const ColumnStore& data,
          flatSubtreeIsWellFormed(data, flatNodes, numNodes, 0, masks,
                                  numMaskWords, &maskCursor) == numNodes &&
          maskCursor == numMaskWords;
+}
+
+/// Tree::drawMissingDirections for a well-formed flattened subtree, a saved
+/// draw's: the same coins in the same pre-order under the same rule for a
+/// subset split out of a missing value's reach, the direction written to the
+/// record's flag whatever the kind. \p onChange is called as
+/// onChange(record, flags) with the flags a record held before its direction
+/// moved. Returns the number of records the subtree occupies.
+template <typename OnChange>
+size_t drawFlatMissingDirections(FlatNode* flatNodes, const ColumnStore& data,
+                                 const std::uint8_t* raised, ext_rng* rng,
+                                 std::uint32_t* blocked, OnChange& onChange) {
+  FlatNode& flat(flatNodes[0]);
+  if (flat.variable == invalidVariable) return 1;
+  size_t j = static_cast<size_t>(flat.variable);
+  bool filters = raised[j] != 0 && data.splitsBySubset(j);
+  bool goesRight = false;
+  if (raised[j] != 0) {
+    if (!filters || blocked[j] == 0)
+      goesRight = ext_rng_simulateBernoulli(rng, 0.5) == 1;
+    if (((flat.flags & flatMissingGoesRight) != 0) != goesRight) {
+      onChange(flat, flat.flags);
+      flat.flags = static_cast<std::uint8_t>(flat.flags ^ flatMissingGoesRight);
+    }
+  }
+  if (filters && goesRight) ++blocked[j];
+  size_t numOnLeft = drawFlatMissingDirections(flatNodes + 1, data, raised,
+                                               rng, blocked, onChange);
+  if (filters) blocked[j] += goesRight ? -1 : 1;
+  size_t numOnRight = drawFlatMissingDirections(
+    flatNodes + 1 + numOnLeft, data, raised, rng, blocked, onChange);
+  if (filters && !goesRight) --blocked[j];
+  return 1 + numOnLeft + numOnRight;
 }
 
 /// Number of records a well-formed flattened subtree occupies.

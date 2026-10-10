@@ -828,7 +828,12 @@ private:
 /// fits never diverge. An observation is declined when any sampler's session
 /// declines it: its move would empty a leaf there, or its value is that
 /// sampler's column's first missing one and would leave a monotone tree's
-/// leaf values out of order. installed receives one flag per observation.
+/// leaf values out of order. A first missing value draws the directions of
+/// the rules on its column in each sampler that has not seen one; a sampler
+/// whose session accepted an observation another declined takes its draw
+/// back before its next observation is judged, so the two samplers' flags
+/// and directions move together. installed receives one flag per
+/// observation.
 /// Returns the conjunction of the finalize() validities, true by construction
 /// of the guard.
 inline bool updatePredictorPerObservationJointly(

@@ -151,6 +151,16 @@ struct SamplerOptions {
   // PredictorSource (data.hpp).
   PredictorSource predictors;
 
+  // per predictor, nonzero where the column can hold a missing value whatever
+  // the creation data hold: the flags of the sampler this one re-creates (a
+  // copy, a reload), whose column may have been filled since its first
+  // missing value. ORed into the flags the build reads from the data, before
+  // any chain exists, so the state that follows installs its directions and
+  // the two samplers draw alike. Null leaves the data's own flags. Borrowed;
+  // consumed during construction. A sampler over a pre-built store takes its
+  // flags as the store arrives.
+  const std::uint8_t* missingSeen = nullptr;
+
   // linear leaves: the ordinal predictor columns entering every leaf's
   // regression (borrowed; consumed during construction). Empty designates
   // the constant leaf; the factory validates count, range, and type.
@@ -779,6 +789,35 @@ struct FusedSuffstatCheck {
 /// call that rewrites the kept draws is handed this; the default names none.
 struct SavedDrawSlots {
   std::size_t first = 0, count = 0;
+};
+
+/// What one chain's first-sight direction draw (Chain::drawMissingDirections)
+/// moved, held so that the draw can be taken back and put on again: for each
+/// live rule and each saved record whose direction moved, the value on the
+/// other side of the draw from the one it holds now, and likewise the
+/// generator's serialized state. Chain::swapMissingDirections exchanges the
+/// two sides. The pointers are into the chain's trees and saved-tree store,
+/// so the record lives no longer than both stay where they are: no sweep, no
+/// install and no store resize while it is held.
+struct MissingDirectionDraw {
+  struct LiveRule {
+    Tree* tree;
+    std::int32_t node;
+    std::uint64_t bits;
+  };
+  struct PoolMark {
+    Tree* tree;
+    std::size_t mark;
+  };
+  struct SavedRule {
+    FlatNode* node;
+    std::uint8_t flags;
+  };
+  std::vector<LiveRule> live;
+  /// each tree whose draw took pool words, with its pool's size before
+  std::vector<PoolMark> pools;
+  std::vector<SavedRule> saved;
+  std::vector<unsigned char> rngState;
 };
 
 /// Rewrites a flattened linear-leaf tree - each leaf's intercept in its
@@ -3117,7 +3156,7 @@ public:
   /// after the repartition would read the new partition's members out of the
   /// old leaves' slots.
   ///
-  /// Collapses nothing, drops no missing directions and scatters nothing: this
+  /// Collapses nothing and scatters nothing: this
   /// half must be undoable by undoSplitMoves and a repartition alone, and
   /// factorByTree and combinedVariance stay untouched so a rollback restores
   /// the state exactly. movedCutPoints and placement are revalidateTrees'.
@@ -3154,7 +3193,6 @@ public:
   /// covariate gather: their per-observation fits are the parameters and stay
   /// in place (the next sweep's draws replace them under the new values).
   void rebuildFitsFromParameters(ForestRevalidation& state) {
-    dropStaleMissingDirections();
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
       TreeParameters& params = state.params[f];
@@ -3185,24 +3223,14 @@ public:
     if (varianceForest_) rebuildVarianceFactors(state);
   }
 
-  /// The variance forest's rebuild phase: drop the missing directions the new
-  /// codes stranded, scatter each surviving tree's recovered factors through
-  /// the partition the validate phase installed, and recompute s^2(x) as the
-  /// fresh product. A pruned tree keeps its slab entries, which its unchanged
-  /// partition still describes, so the product is the same one it would have
-  /// been round tripped to.
-  ///
-  /// The direction drop follows the repartition here rather than preceding it
-  /// (refreshVarianceForest's order): with hasMissing false for the column, the
-  /// bit routes nothing, so clearing it before or after the routing is the same
-  /// partition (tree.hpp, dropStaleMissingDirections). It runs over every tree,
-  /// as the mean side's chain-level drop does, since a rebuild from the flat
-  /// form drops the bit and would not reproduce a tree still holding one.
+  /// The variance forest's rebuild phase: scatter each surviving tree's
+  /// recovered factors through the partition the validate phase installed,
+  /// and recompute s^2(x) as the fresh product. A pruned tree keeps its slab
+  /// entries, which its unchanged partition still describes, so the product is
+  /// the same one it would have been round tripped to.
   void rebuildVarianceFactors(const ForestRevalidation& state) {
     VarianceForest& vf = *varianceForest_;
     std::size_t n = data_.numObservations;
-    for (std::size_t j = 0; j < vf.numTrees; ++j)
-      vf.trees[j].dropStaleMissingDirections(data_);
     for (std::size_t k = 0; k < state.varianceSurvivors.size(); ++k) {
       std::size_t j = state.varianceSurvivors[k];
       Tree& tree = vf.trees[j];
@@ -3295,12 +3323,18 @@ public:
   /// leaf's into the re-derived transform (restateSavedDraws). A gp leaf's
   /// saved draws replay only under the standardization they were drawn with
   /// and are not rewritten into another.
+  ///
+  /// \p raisedMissing, when non-null, marks the columns the replacement first
+  /// gave a missing value: their rules draw their directions, live and saved
+  /// (drawMissingDirections), before the trees are remapped and collapsed, so
+  /// a collapse merges under the directions the rows are routed by.
   void applyNewData(const double* y, const double* weights,
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
                     TreeParameters& params,
                     const TreeParameters& varianceParams,
-                    SavedDrawSlots kept = SavedDrawSlots()) {
+                    SavedDrawSlots kept = SavedDrawSlots(),
+                    const std::uint8_t* raisedMissing = nullptr) {
     assert(forests_.size() == 1);
     Forest<L, ResidT>& forest = forests_[0];
     size_t n = data_.numObservations;
@@ -3365,7 +3399,7 @@ public:
     size_t paramStride = 1;
     if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
 
-    dropStaleMissingDirections();
+    if (raisedMissing != nullptr) drawMissingDirections(raisedMissing, kept);
     for (size_t t = 0; t < forest.numTrees; ++t) {
       forest.trees[t].mapOldCutPointsOntoNew(data_, oldCutPoints, params[t],
                                              paramStride);
@@ -3412,12 +3446,92 @@ public:
     restateSavedDraws(previousScale, previousShift, kept);
   }
 
-  /// After a data mutation re-quantizes the store, drop every tree's stale
-  /// missing directions so the live masks stay within the reachable gauge.
-  void dropStaleMissingDirections() {
+  /// The first-sight draw: the store has just raised the missing-value flag
+  /// of the columns \p raised marks (a byte per predictor), and every rule
+  /// already on one of them, drawn while no value could be missing there,
+  /// takes a direction with probability one half from this chain's generator
+  /// (Tree::drawMissingDirections). The live trees draw first - forests in
+  /// order, trees in order, then the variance forest's - and then the saved
+  /// draws in \p kept, oldest first, each draw's forests and then its variance
+  /// trees: a saved draw was made given data under which no row reached a
+  /// direction, so its conditional there is the prior too, and predict routes
+  /// a missing value through every saved draw. A column whose flag was
+  /// already up must not be marked: its directions are the chain's state.
+  /// Partitions and fits are left to the caller's refresh. \p record, when
+  /// non-null, receives what swapMissingDirections needs to take the draw
+  /// back.
+  void drawMissingDirections(const std::uint8_t* raised, SavedDrawSlots kept,
+                             MissingDirectionDraw* record = nullptr) {
+    if (record != nullptr) {
+      record->live.clear();
+      record->pools.clear();
+      record->saved.clear();
+      record->rngState.resize(ext_rng_getSerializedStateLength(rng_));
+      if (!record->rngState.empty())
+        ext_rng_writeSerializedState(rng_, record->rngState.data());
+    }
+    std::vector<std::uint32_t> blocked(data_.numPredictors, 0);
+    auto drawLive = [&](Tree& tree) {
+      std::size_t mark = tree.maskPoolMark();
+      tree.drawMissingDirections(
+        data_, raised, rng_, blocked.data(),
+        [&](std::int32_t node, std::uint64_t bits) {
+          if (record != nullptr) record->live.push_back({&tree, node, bits});
+        });
+      if (record != nullptr && tree.maskPoolMark() != mark)
+        record->pools.push_back({&tree, mark});
+    };
+    auto onSavedChange = [&](FlatNode& node, std::uint8_t flags) {
+      if (record != nullptr) record->saved.push_back({&node, flags});
+    };
     for (Forest<L, ResidT>& forest : forests_)
-      for (size_t t = 0; t < forest.numTrees; ++t)
-        forest.trees[t].dropStaleMissingDirections(data_);
+      for (std::size_t t = 0; t < forest.numTrees; ++t)
+        drawLive(forest.trees[t]);
+    if (varianceForest_)
+      for (Tree& tree : varianceForest_->trees) drawLive(tree);
+
+    std::size_t capacity = savedTreeCapacity();
+    std::size_t count = std::min(kept.count, capacity);
+    for (std::size_t i = 0; i < count; ++i) {
+      std::size_t slot = (kept.first + i) % capacity;
+      for (Forest<L, ResidT>& forest : forests_)
+        for (std::size_t t = 0; t < forest.numTrees; ++t)
+          drawFlatMissingDirections(
+            forest.savedTrees[slot * forest.numTrees + t].data(), data_,
+            raised, rng_, blocked.data(), onSavedChange);
+      if (varianceForest_) {
+        VarianceForest& vf = *varianceForest_;
+        for (std::size_t j = 0; j < vf.numTrees; ++j)
+          drawFlatMissingDirections(
+            vf.savedTrees[slot * vf.numTrees + j].data(), data_, raised,
+            rng_, blocked.data(), onSavedChange);
+      }
+    }
+  }
+
+  /// Exchanges the two sides of a first-sight draw: taken back when the draw
+  /// is in force, every direction and the generator bit for bit as they were
+  /// before it, and put on again when it is not. Requires the trees' rules
+  /// and the saved-tree store untouched since the record was written or last
+  /// swapped.
+  void swapMissingDirections(MissingDirectionDraw& record) {
+    for (MissingDirectionDraw::LiveRule& rule : record.live)
+      std::swap(rule.tree->at(rule.node).rule.bits, rule.bits);
+    for (MissingDirectionDraw::SavedRule& rule : record.saved)
+      std::swap(rule.node->flags, rule.flags);
+    if (record.rngState.empty()) return;
+    std::vector<unsigned char> current(record.rngState.size());
+    ext_rng_writeSerializedState(rng_, current.data());
+    ext_rng_readSerializedState(rng_, record.rngState.data());
+    record.rngState.swap(current);
+  }
+
+  /// Gives back the pool words a first-sight draw took, for a draw that has
+  /// been taken back and will not be put on again; the record is spent.
+  void releaseMissingDirections(MissingDirectionDraw& record) {
+    for (const MissingDirectionDraw::PoolMark& pool : record.pools)
+      pool.tree->truncateMaskPool(pool.mark);
+    record = MissingDirectionDraw();
   }
 
   /// Unconditional refresh: re-route and collapse any node an empty leaf
@@ -3434,7 +3548,6 @@ public:
       const std::vector<std::vector<double>>* movedCutPoints = nullptr,
       SplitPlacement placement = SplitPlacement::byPosition) {
     size_t n = data_.numObservations;
-    dropStaleMissingDirections();
     // every tree still holds the partition its fits were drawn on, so a
     // merge at the move weighs leaves by their rows, as the collapse does
     const Tree::LiveRows liveRows{response_->workingWeights()};
@@ -3489,9 +3602,7 @@ public:
     }
 
     // the variance forest lives outside forests_ and needs the same re-route
-    // and the same move. Appended, and called per site rather than from
-    // dropStaleMissingDirections, which three paths share
-    // (refreshVarianceForest drops its own directions).
+    // and the same move
     if (varianceForest_)
       refreshVarianceForest(movedCutPoints, nullptr, false, placement,
                             &liveRows);
@@ -5855,7 +5966,6 @@ private:
         leafValues = (*recoveredFactors)[j];
       else
         recoverVarianceLeafValues(vf, j, leafValues);
-      tree.dropStaleMissingDirections(data_);
       if (oldCutPoints != nullptr)
         tree.mapOldCutPointsOntoNew<GeometricMerge>(data_, *oldCutPoints,
                                                     leafValues, 1, placement,

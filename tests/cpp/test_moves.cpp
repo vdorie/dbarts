@@ -313,10 +313,10 @@ static int countCatMissingRight(const Tree& t, int32_t i, size_t col) {
          countCatMissingRight(t, nd.leftChild + 1, col);
 }
 
-// A category-changing mutation once left a live rule routing a missing value
-// right after its column stopped holding one, so getState emitted a mask
-// outside the reachable gauge and setState refused. The mutation now drops the
-// stale direction, so the own-state round-trips.
+// A category-changing mutation that fills a factor column leaves its live
+// rules routing a missing value right. The column stays able to hold one, so
+// the rules keep their directions, getState emits masks inside the reachable
+// gauge and the sampler's own state round-trips.
 static void testCategoricalMissingRoundTrips(ext_rng* rng) {
   const size_t n = 300, p = 2;
   std::vector<double> x(n * p), y(n);
@@ -346,14 +346,19 @@ static void testCategoricalMissingRoundTrips(ext_rng* rng) {
     missingRight += countCatMissingRight(sampler.chain(0).tree(t), 0, 0);
   check(missingRight > 0, "burn-in routes a categorical missing value right");
 
-  // drop every missing value: hasMissing flips false, leaving those rules
-  // routing a category the column no longer reaches
+  // fill every missing value: the flag stays up and the rules keep routing
+  // the category the column holds no more
   std::vector<double> noMissing(x.begin(), x.begin() + n);
   for (double& v : noMissing) if (std::isnan(v)) v = 1.0;
   size_t col0 = 0;
   check(sampler.updatePredictor(noMissing.data(), &col0, 1, true, false) ==
           PredictorUpdateResult::accepted,
         "forced drop of the categorical missing values accepted");
+  int stillRight = 0;
+  for (size_t t = 0; t < options.numTrees; ++t)
+    stillRight += countCatMissingRight(sampler.chain(0).tree(t), 0, 0);
+  check(sampler.data().hasMissing[0] != 0 && stillRight > 0,
+        "the filled column keeps its flag and its rules their directions");
 
   SamplerStateData st, st2;
   sampler.getState(st);
@@ -532,10 +537,10 @@ static void testJointPerObservationUpdate() {
 }
 
 // Committing an NA into a previously NA-free ordinal column through a
-// per-observation session must mark the column missing (setCell owns the flag),
-// so the finalize repartition and a fresh descent route the naCode alike:
-// a stale gauge lets dropStaleMissingDirections clear a bit the partition
-// already routed by, splitting the two. A local generator and a restored
+// per-observation session must mark the column missing (setCell owns the flag)
+// and leave its rules the directions the session judged the row under, so the
+// finalize repartition and a fresh descent route the naCode alike. A local
+// generator and a restored
 // rngState leave the shared stream untouched for the downstream snapshots.
 static void testPerObservationMissingCommit(ext_rng* /*rng*/) {
   std::uint64_t savedRngState = rngState;

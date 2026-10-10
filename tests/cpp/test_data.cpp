@@ -447,7 +447,6 @@ static void testSetCutPointsOrphan() {
   check(store.hasMissing[0], "missing survives the re-quantize");
 
   std::vector<double> params(tree.nodes.size(), 0.0);
-  tree.dropStaleMissingDirections(store);
   tree.repartitionSubtree(store, 0);
   tree.collapseEmptyNodes(store, nullptr, params);
 
@@ -1519,6 +1518,138 @@ static void testMissingIngestion() {
 // instead of quantizing a retained cbound matrix. A store built from the
 // assembled block must match a store built from the cbind reference
 // bitwise, codes and cut grid both.
+// A column's missing-value flag goes up with the first missing value the
+// store is given in it and no write lowers it: a column or whole-matrix
+// replacement through the double and the code channels, onto a dense-backed
+// and a CSC-backed column, a journaled replacement and its rollback's
+// counterpart, a cut-point install, a cell write, and a whole-data
+// replacement, each handing the column complete values. A build reads its
+// flags from its own data. Deterministic data: draws nothing.
+static void testMissingFlagSticky() {
+  const size_t n = 60;
+  const double na = std::nan("");
+  const ColumnKind kinds[2] = {ColumnKind::numeric, ColumnKind::categorical};
+  std::vector<double> complete(2 * n), holed;
+  std::vector<std::int32_t> levelCodes(n);
+  for (size_t i = 0; i < n; ++i) {
+    complete[i] = 0.25 * static_cast<double>(i % 13);
+    complete[n + i] = static_cast<double>(i % 4);
+    levelCodes[i] = static_cast<std::int32_t>(i % 4);
+  }
+  holed = complete;
+  holed[7] = na;
+  holed[n + 9] = na;
+  auto noneMissing = [&](const ColumnStore& store) {
+    for (size_t i = 0; i < store.numObservations; ++i)
+      if (store.codeAt(0, i) == naCode ||
+          store.codeAt(1, i) == missingCategoryCode(4))
+        return false;
+    return true;
+  };
+  auto flagsAre = [](const ColumnStore& store, int first, int second) {
+    return store.hasMissing[0] == first && store.hasMissing[1] == second;
+  };
+
+  ColumnStore store;
+  built(store.build(complete.data(), n, 2, 10, false, kinds));
+  check(flagsAre(store, 0, 0), "sticky flag: a complete build raises none");
+  const size_t numericColumn = 0, factorColumn = 1;
+  store.setColumns(holed.data(), &numericColumn, 1, false);
+  check(flagsAre(store, 1, 0), "sticky flag: a first missing value raises its "
+                               "column's alone");
+  store.setColumns(complete.data(), &numericColumn, 1, false);
+  check(flagsAre(store, 1, 0) && noneMissing(store),
+        "sticky flag: a complete column replacement keeps it");
+  store.setPredictors(holed.data(), false);
+  store.setPredictors(complete.data(), true);
+  check(flagsAre(store, 1, 1) && noneMissing(store),
+        "sticky flag: a complete whole-matrix replacement with a cut refresh "
+        "keeps both");
+
+  // the code channel onto the factor, and the journaled write a transaction
+  // makes
+  ColumnStore coded;
+  built(coded.build(holed.data(), n, 2, 10, false, kinds));
+  std::int32_t channel = ~0;
+  PredictorSource codes;
+  codes.numRows = n;
+  codes.numColumns = 1;
+  codes.denseCodes = levelCodes.data();
+  codes.denseChannels = &channel;
+  coded.setColumns(codes, &factorColumn, 1, false);
+  ColumnStore::ColumnCodeRollback journal;
+  coded.setColumnJournaled(0, complete.data(), false, n / 4, journal);
+  check(flagsAre(coded, 1, 1) && noneMissing(coded),
+        "sticky flag: the code channel and a journaled write keep it");
+
+  // an installed grid re-quantizes the column, and a cell write
+  std::vector<double> grid = {0.5, 1.5, 2.5};
+  coded.setCutPointsForColumn(0, grid.data(), 3, complete.data());
+  coded.setCell(3, 1, 2.0);
+  check(flagsAre(coded, 1, 1) && noneMissing(coded),
+        "sticky flag: a cut-point install and a cell write keep it");
+  ColumnStore cell;
+  built(cell.build(complete.data(), n, 2, 10, false, kinds));
+  cell.setCell(3, 1, na);
+  check(flagsAre(cell, 0, 1), "sticky flag: a missing cell raises it");
+
+  // a whole-data replacement, at another row count: old flags carried, new
+  // ones raised
+  std::vector<double> shorter(2 * (n - 10));
+  for (size_t i = 0; i < n - 10; ++i) {
+    shorter[i] = complete[i];
+    shorter[n - 10 + i] = complete[n + i];
+  }
+  ColumnStore replaced;
+  built(replaced.build(holed.data(), n, 2, 10, false, kinds));
+  replaced.setColumns(complete.data(), &numericColumn, 1, false);
+  bool took = replaced.setData(shorter.data(), n - 10);
+  check(took && replaced.numObservations == n - 10 &&
+          flagsAre(replaced, 1, 1) && noneMissing(replaced),
+        "sticky flag: a complete whole-data replacement keeps both");
+  ColumnStore raised;
+  built(raised.build(complete.data(), n, 2, 10, false, kinds));
+  shorter[4] = na;
+  check(raised.setData(shorter.data(), n - 10) && flagsAre(raised, 1, 0),
+        "sticky flag: a whole-data replacement raises the flag of a column "
+        "it first gives a missing value");
+
+  // a CSC-backed column, from stored entries and from a dense column
+  std::vector<int> rows;
+  std::vector<double> values;
+  for (size_t i = 0; i < n; i += 3) {
+    rows.push_back(static_cast<int>(i));
+    values.push_back(i == 6 ? na : 1.0 + static_cast<double>(i % 5));
+  }
+  int pointers[2] = {0, static_cast<int>(rows.size())};
+  std::int32_t cscSource = ~0;
+  PredictorSource stored;
+  stored.numRows = n;
+  stored.numColumns = 1;
+  stored.cscColumnPointers = pointers;
+  stored.cscRowIndices = rows.data();
+  stored.cscValues = values.data();
+  stored.columnSources = &cscSource;
+  ColumnStore sparse;
+  built(sparse.build(stored, nullptr, 10, false));
+  bool sparseRaised = sparse.hasMissing[0] == 1;
+  values[2] = 3.0;
+  sparse.setPredictors(stored, false);
+  bool keptFromCsc = sparse.hasMissing[0] == 1;
+  std::vector<double> denseColumn(n, 0.0);
+  for (size_t k = 0; k < rows.size(); ++k)
+    denseColumn[static_cast<size_t>(rows[k])] = values[k];
+  sparse.setPredictors(denseColumn.data(), true);
+  bool sparseComplete = true;
+  for (size_t i = 0; i < n; ++i)
+    sparseComplete = sparseComplete && sparse.codeAt(0, i) != naCode;
+  check(sparseRaised && keptFromCsc && sparse.hasMissing[0] == 1 &&
+          sparseComplete,
+        "sticky flag: a CSC-backed column keeps it from stored entries and "
+        "from a dense column");
+  printf("ok: a missing-value flag stays raised\n");
+}
+
 static void testTransientBlockAssembly() {
   const size_t n = 300, p = 3;
   std::vector<double> numeric1(n), numeric2(n);
@@ -3320,6 +3451,7 @@ void runDataTests() {
   testMapOldCutPointsStarvedWeightedMerge();
   testMapOldCutPointsLiveRowsMerge();
   testMissingIngestion();
+  testMissingFlagSticky();
   testTransientBlockAssembly();
   testSparseTestColumnStore();
   testSparseCategoricalTestColumnStore();

@@ -140,7 +140,11 @@ public:
   /// Stages observation i's leaf moves against the running occupancy counts;
   /// true unless some tree's leaf would be left empty or, the value being the
   /// column's first missing one, some monotone tree's leaf values would be
-  /// left out of order. A false stages nothing the caller has to undo.
+  /// left out of order. A first missing value is judged with the column's
+  /// rules holding the directions its arrival draws; they stay on, with the
+  /// column's flag, only if the observation is then committed, and are taken
+  /// back, generators included, by the next call here or by finalize
+  /// otherwise. A false stages nothing the caller has to undo.
   virtual bool observationWouldRemainValid(size_t i) = 0;
   /// Installs observation i's staged value and occupancy moves.
   virtual void commitObservation(size_t i) = 0;
@@ -217,6 +221,7 @@ public:
     // borrowed; consumed by build, which retains what the store needs (a
     // mapped build's CSC slices, its own copy of the dense block)
     options_.predictors = {};
+    adoptMissingSeen();
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);
@@ -239,6 +244,7 @@ public:
     // the view carries the parent's grid, so its types and counts are fixed
     options_.predictors = {};
     options_.useQuantiles = data_.useQuantiles;
+    options_.missingSeen = nullptr;
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);
@@ -267,6 +273,7 @@ public:
     }
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
+    adoptMissingSeen();
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0,
     // whose count the K-length spec carries wherever it came from
     options_.numTrees = expandForestSpecs(spec)[0].forest.numTrees;
@@ -304,6 +311,7 @@ public:
     }
     options_.maxNumCutsPerVariable = nullptr;
     options_.predictors = {};
+    adoptMissingSeen();
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0
     options_.numTrees = spec.forest.numTrees;
 
@@ -1804,7 +1812,9 @@ public:
   /// of observations (all borrowed; the predictor count is fixed). Not
   /// transactional: cut points are rebuilt from scratch, existing splits are
   /// remapped onto the value-nearest new cuts, and any subtree left invalid
-  /// or empty collapses. Gaussian chains keep sigma and the variance prior
+  /// or empty collapses. A column's missing-value flag carries over, and one
+  /// the replacement first raises draws its rules' directions
+  /// (Chain::applyNewData). Gaussian chains keep sigma and the variance prior
   /// fixed on the original scale. The retained draws stay the functions they
   /// were (Chain::applyNewData), a gp leaf's excepted.
   ///
@@ -1842,6 +1852,7 @@ public:
     }
 
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
+    std::vector<std::uint8_t> raisedMissing(data_.hasMissing);
 
     if (!data_.setData(x, numObservations)) return false;
     if (hasTest) {
@@ -1851,10 +1862,20 @@ public:
       data_.resetTestStorage();
     }
 
+    // the columns the replacement first gave a missing value; the flags
+    // themselves carry over
+    bool anyRaised = false;
+    for (size_t j = 0; j < data_.numPredictors; ++j) {
+      raisedMissing[j] =
+        data_.hasMissing[j] != 0 && raisedMissing[j] == 0 ? 1 : 0;
+      anyRaised = anyRaised || raisedMissing[j] != 0;
+    }
+
     SavedDrawSlots kept = savedDrawSlots();
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
-                               varianceParams[c], kept);
+                               varianceParams[c], kept,
+                               anyRaised ? raisedMissing.data() : nullptr);
     recordAnchor();
     return true;
   }
@@ -2231,6 +2252,48 @@ private:
   /// every chain shares it after a creation or a re-anchor.
   void recordAnchor() { chains_[0]->getScale(anchorMin_, anchorMax_); }
 
+  /// Raises the flags options_.missingSeen names over the ones the build read
+  /// from the data. Runs before any chain is built: no tree holds a rule yet,
+  /// so no direction is owed a draw.
+  void adoptMissingSeen() {
+    if (options_.missingSeen != nullptr)
+      for (size_t j = 0; j < data_.numPredictors; ++j)
+        data_.hasMissing[j] |= options_.missingSeen[j] != 0 ? 1 : 0;
+    options_.missingSeen = nullptr;  // borrowed
+  }
+
+  /// The first-sight draw across the chains, each from its own generator
+  /// (Chain::drawMissingDirections): for the columns whose flag is up now and
+  /// was down in \p flagsBefore, the store's flags from before the change
+  /// that has just been applied. A change that raised none draws nothing and
+  /// touches nothing. \p records, when non-null, receives one record per
+  /// chain for takeBackMissingDirections, and is left empty where nothing was
+  /// drawn.
+  void drawFirstSightDirections(
+      const std::vector<std::uint8_t>& flagsBefore,
+      std::vector<MissingDirectionDraw>* records = nullptr) {
+    // flags only rise, so the two differ exactly where one rose
+    if (data_.hasMissing == flagsBefore) return;
+    std::vector<std::uint8_t> raised(data_.numPredictors);
+    for (size_t j = 0; j < data_.numPredictors; ++j)
+      raised[j] = data_.hasMissing[j] != flagsBefore[j] ? 1 : 0;
+    SavedDrawSlots kept = savedDrawSlots();
+    if (records != nullptr) records->resize(chains_.size());
+    for (size_t c = 0; c < chains_.size(); ++c)
+      chains_[c]->drawMissingDirections(
+        raised.data(), kept, records != nullptr ? &(*records)[c] : nullptr);
+  }
+
+  /// Undoes drawFirstSightDirections for a change that is refused: every
+  /// direction, live and saved, and every chain's generator as they were.
+  void takeBackMissingDirections(std::vector<MissingDirectionDraw>& records) {
+    for (size_t c = 0; c < records.size(); ++c) {
+      chains_[c]->swapMissingDirections(records[c]);
+      chains_[c]->releaseMissingDirections(records[c]);
+    }
+    records.clear();
+  }
+
   /// Two-phase transaction over every chain: validate all trees of all
   /// forests of all chains first - every leaf occupied and every monotone
   /// tree's leaf values in order - then rebuild fits only if everything holds,
@@ -2416,6 +2479,12 @@ private:
   /// (the strategy's own records carry no raw). The strategy owns the codes,
   /// missing flags, and cut grids it moves.
   ///
+  /// A column the change first gives a missing value draws the direction of
+  /// every rule already on it, live and saved (drawFirstSightDirections),
+  /// before the trees are refreshed or revalidated, so a collapse merges, and
+  /// occupancy and the monotone order are judged, under the directions the
+  /// rows are routed by. A rollback takes the draw back with the rest.
+  ///
   /// A refreshed grid is derived from the new values alone, so it may differ
   /// from the one it replaces in its points and in their count. Where it
   /// does, placement moves the column's splits onto it (splitsToMove): by
@@ -2451,8 +2520,11 @@ private:
       }
     }
 
+    const std::vector<std::uint8_t> flagsBefore(data_.hasMissing);
+
     if (forceUpdate) {
       strategy.applyForced(updateCutPoints);
+      drawFirstSightDirections(flagsBefore);
       const std::vector<std::vector<double>>* moved =
         updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
       for (auto& chain : chains_) chain->forceRefreshTrees(moved, placement);
@@ -2465,10 +2537,13 @@ private:
     data_.snapshotOwnedDenseColumns(strategy.columns, strategy.numColumns(),
                                     oldOwnedDense);
     strategy.snapshotApply(updateCutPoints);
+    std::vector<MissingDirectionDraw> firstSight;
+    drawFirstSightDirections(flagsBefore, &firstSight);
     const std::vector<std::vector<double>>* moved =
       updateCutPoints ? splitsToMove(oldCutPoints, placement) : nullptr;
     if (!revalidateAllChains(strategy.columns, strategy.numColumns(), moved,
                              placement)) {
+      takeBackMissingDirections(firstSight);
       data_.gatheredRawValues = std::move(oldGatheredRaw);
       data_.restoreOwnedDenseColumns(oldOwnedDense);
       strategy.restore(updateCutPoints);
@@ -2537,15 +2612,25 @@ private:
       }
     }
 
+    ~UpdateSessionImpl() override { settleFirstSight(); }
+
     bool observationWouldRemainValid(size_t i) override {
       size_t n = sampler_.data_.numObservations;
+      takeBackUncommitted();
       // the column's first missing value, by the test setCell marks the
-      // column with; refused before anything is staged, the session having
-      // no way to take a written cell back
-      if constexpr (TreeDrawLeafModel<L>) {
-        if (isNA(newColumn_[i]) && !sampler_.data_.hasMissing[column_] &&
-            !orderHoldsWithMissing())
+      // column with: the flag goes up and the rules on the column draw their
+      // directions now, so that this row's leaves and the monotone order are
+      // judged under them. Nothing is written that a decline does not take
+      // back.
+      bool firstMissing =
+        isNA(newColumn_[i]) && !sampler_.data_.hasMissing[column_];
+      if (firstMissing) {
+        if (orderWithMissing_ == OrderWithMissing::breaks) return false;
+        putOnFirstSight();
+        if (!orderHoldsWithMissing()) {
+          takeBackFirstSight();
           return false;
+        }
       }
       bool valid = true;
       for (size_t t = 0; t < leafCounts_.size() && valid; ++t) {
@@ -2563,10 +2648,19 @@ private:
           pendingNewLeaf_[t] = newLeaf;
         }
       }
+      if (firstMissing) {
+        if (valid) firstSight_ = FirstSight::uncommitted;
+        else takeBackFirstSight();
+      }
       return valid;
     }
 
     void commitObservation(size_t i) override {
+      // a first missing value's draw stands with its row
+      if (firstSight_ == FirstSight::uncommitted) {
+        firstSight_ = FirstSight::none;
+        firstSightDraws_.clear();
+      }
       // the session's one cell-write: setCell re-quantizes newColumn_[i] to the
       // code the valid-move check descended on (cuts fixed) and marks hasMissing
       sampler_.data_.setCell(i, column_, newColumn_[i]);
@@ -2587,8 +2681,9 @@ private:
     /// predicate with no exemption, so the two sets coincide there. The
     /// monotone order the revalidation also judges can move only with the
     /// column's has-missing flag, which the guard lets rise only where the
-    /// order holds with it.
+    /// order holds under the directions drawn with it.
     bool finalize() override {
+      settleFirstSight();
       return sampler_.revalidateAllChains(&column_, 1);
     }
 
@@ -2600,27 +2695,72 @@ private:
       size_t chain, forest, tree;
     };
 
-    /// Whether every tree of every chain stays in the monotone order once the
-    /// column holds a missing value. Leaf values and rules do not move within
-    /// a session and the order reads no partition, so the answer is the same
-    /// for whichever row asks and is found once. Asked only while the
-    /// column's flag is clear, and leaves it clear on every exit: the order's
-    /// reader allocates, and a flag left set by its failure would have every
-    /// later update judged against a missing value the column does not hold.
+    /// Whether every tree of every chain stays in the monotone order with
+    /// the column's flag up and its first-sight directions on, which is how
+    /// it is asked. Leaf values do not move within a session, the order reads
+    /// no partition and the directions are the same each time they are put
+    /// on, so the answer is the same for whichever row asks and is found
+    /// once.
     bool orderHoldsWithMissing() {
-      if (orderWithMissing_ == OrderWithMissing::unknown) {
-        struct RaisedFlag {
-          std::uint8_t& flag;
-          explicit RaisedFlag(std::uint8_t& f) : flag(f) { flag = 1; }
-          ~RaisedFlag() { flag = 0; }
-        } raised(sampler_.data_.hasMissing[column_]);
-        bool holds = true;
-        for (size_t c = 0; c < sampler_.chains_.size() && holds; ++c)
-          holds = sampler_.chains_[c]->monotoneLeavesInOrder();
-        orderWithMissing_ =
-          holds ? OrderWithMissing::holds : OrderWithMissing::breaks;
+      if constexpr (TreeDrawLeafModel<L>) {
+        if (orderWithMissing_ == OrderWithMissing::unknown) {
+          bool holds = true;
+          for (size_t c = 0; c < sampler_.chains_.size() && holds; ++c)
+            holds = sampler_.chains_[c]->monotoneLeavesInOrder();
+          orderWithMissing_ =
+            holds ? OrderWithMissing::holds : OrderWithMissing::breaks;
+        }
+        return orderWithMissing_ == OrderWithMissing::holds;
+      } else {
+        return true;
       }
-      return orderWithMissing_ == OrderWithMissing::holds;
+    }
+
+    /// Raises the column's flag and puts its first-sight directions on: drawn
+    /// the first time, each chain from its own generator, and the same draw
+    /// restored after that, so every row that asks is judged under the
+    /// directions the first one drew and the generators end where one draw
+    /// leaves them.
+    void putOnFirstSight() {
+      sampler_.data_.hasMissing[column_] = 1;
+      size_t numChains = sampler_.chains_.size();
+      if (firstSightDraws_.empty()) {
+        std::vector<std::uint8_t> raised(sampler_.data_.numPredictors, 0);
+        raised[column_] = 1;
+        SavedDrawSlots kept = sampler_.savedDrawSlots();
+        firstSightDraws_.resize(numChains);
+        for (size_t c = 0; c < numChains; ++c)
+          sampler_.chains_[c]->drawMissingDirections(raised.data(), kept,
+                                                     &firstSightDraws_[c]);
+      } else {
+        for (size_t c = 0; c < numChains; ++c)
+          sampler_.chains_[c]->swapMissingDirections(firstSightDraws_[c]);
+      }
+    }
+
+    /// Lowers the flag and takes the directions and the generators back to
+    /// where they were, keeping the draw for the next row that needs it.
+    void takeBackFirstSight() {
+      for (size_t c = 0; c < firstSightDraws_.size(); ++c)
+        sampler_.chains_[c]->swapMissingDirections(firstSightDraws_[c]);
+      sampler_.data_.hasMissing[column_] = 0;
+      firstSight_ = FirstSight::none;
+    }
+
+    /// A row found valid whose commit never came - another session of a
+    /// joint update declined it - leaves its draw on; it comes off before
+    /// anything else is judged.
+    void takeBackUncommitted() {
+      if (firstSight_ == FirstSight::uncommitted) takeBackFirstSight();
+    }
+
+    /// Ends the session's hold on a draw no row kept: the directions are
+    /// already back, and the pool words the draw took go with it.
+    void settleFirstSight() {
+      takeBackUncommitted();
+      for (size_t c = 0; c < firstSightDraws_.size(); ++c)
+        sampler_.chains_[c]->releaseMissingDirections(firstSightDraws_[c]);
+      firstSightDraws_.clear();
     }
 
     const Tree& treeAt(size_t t) const {
@@ -2642,6 +2782,13 @@ private:
     std::vector<int32_t> pendingOldLeaf_;
     enum class OrderWithMissing { unknown, holds, breaks };
     OrderWithMissing orderWithMissing_ = OrderWithMissing::unknown;
+    // the column's first-sight draw, one record per chain: empty until a
+    // first missing row draws it and again once a row commits it, and
+    // otherwise held, on or off, for the session's later missing rows
+    std::vector<MissingDirectionDraw> firstSightDraws_;
+    // uncommitted: the draw is on for a row found valid and not yet committed
+    enum class FirstSight { none, uncommitted };
+    FirstSight firstSight_ = FirstSight::none;
   };
 
   SamplerOptions options_;
