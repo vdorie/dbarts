@@ -454,4 +454,3 @@ expect_equal(
   bareDrawn$getLeafPrior()$leaf.prior@prior.sd,
   dbartsPriors$invchi(1.5, 0.65)
 )
-
