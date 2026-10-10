@@ -290,8 +290,8 @@ chain.</p>
 <span><span class="co">## band alpha 0.05 over 2 functional(s) is 0.025; uniform mean rank 25.0</span></span>
 <span><span class="co">## </span></span>
 <span><span class="co">##  functional mean.rank ecdf.diff  band chisq.p  ks.p verdict</span></span>
-<span><span class="co">##       alpha      24.6     0.109 0.223   0.395 0.664    PASS</span></span>
-<span><span class="co">##      f.mean      22.1     0.153 0.223   0.522 0.202    PASS</span></span></code></pre>
+<span><span class="co">##       alpha      25.3    0.0725 0.223   0.522 0.865    PASS</span></span>
+<span><span class="co">##      f.mean      22.2    0.1260 0.223   0.337 0.352    PASS</span></span></code></pre>
 <p>Reporting <code>v * sum(wSbc * (state$y - state$f)) / sigma0^2</code>
 in place of the draw – the defect this diagnostic exists to catch –
 flags <code>alpha</code> here, and is a test cell of its own.</p>
@@ -437,12 +437,14 @@ hold, silently and permanently.</p>
 <span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>installed <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">installed</span><span class="op">)</span>, accepted <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">accept</span><span class="op">)</span>,</span>
 <span>  reinstalled <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">reinstalled</span><span class="op">)</span>, n <span class="op">=</span> <span class="va">nJ</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##   installed    accepted reinstalled           n </span></span>
-<span><span class="co">##          77          40          80          80</span></span></code></pre>
-<p>The second call returns every observation to the value the host
-settled on. It reverts rows to values the samplers already held, so it
-is expected to be total; check its mask rather than assume it, since a
-<code>FALSE</code> there would mean the samplers and the host disagree
-about the current state.</p>
+<span><span class="co">##          79          34          77          80</span></span></code></pre>
+<p>The second call returns to the value the host settled on every
+observation it can. A revert is a move like any other: a row moved into
+a leaf that the leaf’s other rows have since left is its only row, and
+moving it back would empty the leaf, so that revert is declined and the
+samplers keep the proposal there. Check its mask rather than assume it
+is total: a <code>FALSE</code> means the samplers and the host disagree
+about that row’s current value.</p>
 </div>
 <div class="section level2">
 <h2 id="an-outer-sampler-that-owns-sigma">5. An outer sampler that owns sigma<a class="anchor" aria-label="anchor" href="#an-outer-sampler-that-owns-sigma"></a>

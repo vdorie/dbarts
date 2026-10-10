@@ -427,7 +427,7 @@ samples.dart <- fit.dart$run(100L, 30L)
 round(rowMeans(samples.dart$varprobs), 3)
 ```
 
-    ## [1] 0.694 0.026 0.087 0.014 0.119 0.029 0.018 0.013
+    ## [1] 0.991 0.000 0.005 0.001 0.000 0.000 0.001 0.002
 
 The Dirichlet concentration `alpha` is itself sampled by default
 (`update.alpha = TRUE`); a smaller `alpha` concentrates the split

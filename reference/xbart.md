@@ -413,7 +413,9 @@ xbart(
   [`dbartsControl`](https://vdorie.github.io/dbarts/reference/dbartsControl.md),
   determines whether decision rules are placed at the empirical
   quantiles of each predictor's values rather than spaced uniformly
-  through its range.
+  through its range. Either way a fold takes the full data's rules and
+  their weights, so on a predictor with fewer distinct values than
+  `n.cuts` it holds a rule between held-out values as well.
 
 - n.thin:
 

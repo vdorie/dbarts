@@ -221,8 +221,8 @@ dbartsValidateComposition(drawPrior, simulateData, initState, step,
     ## band alpha 0.05 over 2 functional(s) is 0.025; uniform mean rank 25.0
     ## 
     ##  functional mean.rank ecdf.diff  band chisq.p  ks.p verdict
-    ##       alpha      24.6     0.109 0.223   0.395 0.664    PASS
-    ##      f.mean      22.1     0.153 0.223   0.522 0.202    PASS
+    ##       alpha      25.3    0.0725 0.223   0.522 0.865    PASS
+    ##      f.mean      22.2    0.1260 0.223   0.337 0.352    PASS
 
 Reporting `v * sum(wSbc * (state$y - state$f)) / sigma0^2` in place of
 the draw – the defect this diagnostic exists to catch – flags `alpha`
@@ -370,13 +370,15 @@ c(installed = sum(installed), accepted = sum(accept),
 ```
 
     ##   installed    accepted reinstalled           n 
-    ##          77          40          80          80
+    ##          79          34          77          80
 
-The second call returns every observation to the value the host settled
-on. It reverts rows to values the samplers already held, so it is
-expected to be total; check its mask rather than assume it, since a
-`FALSE` there would mean the samplers and the host disagree about the
-current state.
+The second call returns to the value the host settled on every
+observation it can. A revert is a move like any other: a row moved into
+a leaf that the leaf’s other rows have since left is its only row, and
+moving it back would empty the leaf, so that revert is declined and the
+samplers keep the proposal there. Check its mask rather than assume it
+is total: a `FALSE` means the samplers and the host disagree about that
+row’s current value.
 
 ## 5. An outer sampler that owns sigma
 

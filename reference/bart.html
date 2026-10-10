@@ -317,7 +317,7 @@
 <dd><p>The maximum number of possible values used in decision rules (see <code>useQuantiles</code>, and <code><a href="bartBT.html">bartBT</a></code>'s ‘Decision Rules’ details). A vector shorter than the number of predictor columns is recycled, so a single number applies to every column; a longer one is refused. Fewer rules may be used if a covariate lacks enough unique values. Factor predictors take no rules from it, of either kind: a factor's grid follows its level table.</p></dd>
 
    <dt id="arg-usequantiles">useQuantiles<a class="anchor" aria-label="anchor" href="#arg-usequantiles"></a></dt>
-<dd><p>When <code>TRUE</code>, determine tree decision rules using estimated quantiles derived from the predictor variables. When <code>FALSE</code>, splits are determined using values equally spaced across the range of a variable. See <code><a href="bartBT.html">bartBT</a></code>'s ‘Decision Rules’ details.</p></dd>
+<dd><p>When <code>TRUE</code>, determine tree decision rules using estimated quantiles derived from the predictor variables. When <code>FALSE</code>, splits are determined using values equally spaced across the range of a variable, or, for a variable with fewer distinct values than <code>n.cuts</code>, half-way between neighboring values, each chosen in proportion to its gap's width. See <code><a href="bartBT.html">bartBT</a></code>'s ‘Decision Rules’ details.</p></dd>
 
    <dt id="arg-n-thin">n.thin<a class="anchor" aria-label="anchor" href="#arg-n-thin"></a></dt>
 <dd><p>Every <code>n.thin</code> draw is kept to be returned to the user. Useful for “thinning” samples against serial correlation; see <code>n.samples</code> above for how the two combine.</p></dd>
@@ -603,16 +603,16 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Cutoff rules c in x&lt;=c vs x&gt;c</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 59) (2: 59) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001318</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001466</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1 2 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 14) (2: 13) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 8) (2: 15) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span></span></span>
@@ -651,15 +651,15 @@ Vincent Dorie: <a href="mailto:vdorie@gmail.com">vdorie@gmail.com</a>.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Cutoff rules c in x&lt;=c vs x&gt;c</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 59) (2: 59) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001374</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.001658</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 1 2 2 2 1 2 2 3 2 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 2 4 2 3 2 2 2 2 3 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Variable Usage, last iteration (var:count):</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 7) (2: 2) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> (1: 7) (2: 7) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> DONE BART</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-in"><span><span class="va">fit.bcf</span><span class="op">$</span><span class="va">n.forests</span></span></span>

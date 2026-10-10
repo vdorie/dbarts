@@ -273,8 +273,9 @@ family(object, ...)
 
   When `TRUE`, determine tree decision rules using estimated quantiles
   derived from the `x.train` variables. When `FALSE`, splits are
-  determined using values equally spaced across the range of a variable.
-  See details for more information.
+  determined using values equally spaced across the range of a variable,
+  or, for a variable with fewer distinct values than `numcut`, half-way
+  between neighboring values. See details for more information.
 
 - numcut:
 
@@ -708,17 +709,27 @@ The number of possible values of \\c\\ is determined by `numcut`. If
 covering the range of values in the corresponding column of `x.train`; a
 cutoff is held once, so a column whose range is too narrow to hold that
 many distinct ones gets fewer, and a constant column gets one, where
-dbarts 0.9-34 repeated them. If `usequants` is `TRUE`, then for a
-variable the minimum of `numcut` and one less than the number of unique
-elements for that variable are used. When the half-way values outnumber
-`numcut`, the ones used are spread evenly over all of them: with \\M\\
-half-way values and \\m\\ = `numcut`, cutoff \\k\\, counting from one,
-is the half-way value at position \\\lfloor (2k - 1) M / (2m) \rfloor +
-1\\, so the cutoffs reach both ends of the variable. dbarts 0.9-34 and
-BayesTree stepped through them from the bottom at a fixed stride and
-could stop well short of the top, leaving that part of the variable
-without a cutoff; fits with `usequants = TRUE` on such a variable
-therefore generally differ from theirs.
+dbarts 0.9-34 repeated them. A column with at least two and fewer than
+`numcut` distinct finite values instead gets one cutoff half-way between
+each pair of neighboring values, the cutoffs `usequants = TRUE` gives
+it, and the tree prior and every proposal choose among them in
+proportion to the width of the gap each sits in, so a 0/1 column has one
+cutoff where dbarts 0.9-34 and BayesTree placed `numcut`; a gap's chance
+of being split is theirs to within one cutoff's share, but no move is
+proposed among cutoffs that split the same rows, so such fits draw
+differently. Where two neighboring values are adjacent doubles, so their
+half-way value rounds onto one of them, the cutoff is the lower value,
+under either rule. If `usequants` is `TRUE`, then for a variable the
+minimum of `numcut` and one less than the number of unique elements for
+that variable are used. When the half-way values outnumber `numcut`, the
+ones used are spread evenly over all of them: with \\M\\ half-way values
+and \\m\\ = `numcut`, cutoff \\k\\, counting from one, is the half-way
+value at position \\\lfloor (2k - 1) M / (2m) \rfloor + 1\\, so the
+cutoffs reach both ends of the variable. dbarts 0.9-34 and BayesTree
+stepped through them from the bottom at a fixed stride and could stop
+well short of the top, leaving that part of the variable without a
+cutoff; fits with `usequants = TRUE` on such a variable therefore
+generally differ from theirs.
 
 ### Leaf prior parameter `k`
 
@@ -1277,7 +1288,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.146266
+#> total seconds in loop: 0.177664
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

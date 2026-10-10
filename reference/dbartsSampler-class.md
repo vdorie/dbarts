@@ -861,17 +861,20 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `NaN` and is sorted if it is out of order. A point may appear only
   once, so a grid with a repeated point is refused; for more splits near
   a value, give a denser grid around it. No grid a sampler holds repeats
-  a point, so the grids it reports can be handed back to it whole. With
-  `column` missing, `cuts` is a list with one entry for every column of
-  the predictors, and the entries of factor columns are not read,
-  whatever they are. Cut points apply to numeric predictors only: naming
-  a factor column of either kind is refused, naming the kind, its grid
-  following its level table rather than any externally chosen one. A
-  later `setData` derives every numeric column's cut points again
-  whatever grid was set, at most as many as the `n.cuts` the sampler was
-  created with: with `useQuantiles`, a column with no more distinct
-  values than `n.cuts` gets one cut point fewer than it has distinct
-  values, and a constant column gets one.
+  a point, so the grids it reports can be handed back to it whole. A
+  grid given here is unweighted, its cut points equally likely, except
+  the grid the column holds handed back bit for bit, which keeps the
+  weights the default rule gives a column with fewer distinct values
+  than `n.cuts`. With `column` missing, `cuts` is a list with one entry
+  for every column of the predictors, and the entries of factor columns
+  are not read, whatever they are. Cut points apply to numeric
+  predictors only: naming a factor column of either kind is refused,
+  naming the kind, its grid following its level table rather than any
+  externally chosen one. A later `setData` derives every numeric
+  column's cut points again whatever grid was set, at most as many as
+  the `n.cuts` the sampler was created with: with `useQuantiles`, a
+  column with no more distinct values than `n.cuts` gets one cut point
+  fewer than it has distinct values, and a constant column gets one.
 
 - column:
 
@@ -934,11 +937,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   For `setPredictor`, one of `"none"`, `"position"` or `"value"`, or a
   unique abbreviation of one. `"none"`, the default, keeps the cut
-  points (split candidate locations) of the replaced column(s). The
-  other two derive them again from the new values, as a new sampler
-  would for those values: up to the `n.cuts` the sampler was created
-  with, whatever number the column held, and fewer where the values
-  supply fewer, a constant column getting one. They differ in where the
+  points (split candidate locations) of the replaced column(s) and the
+  weights they carry. The other two derive them again from the new
+  values, as a new sampler would for those values: up to the `n.cuts`
+  the sampler was created with, whatever number the column held, and
+  fewer where the values supply fewer, a constant column getting one,
+  and under the default rule one per gap, weighted by width, on a column
+  with fewer distinct values than `n.cuts`. They differ in where the
   splits already on such a column go. Under `"position"` each keeps its
   position on the grid, which is what `TRUE` did in 0.9-x; when the
   number of cut points changes, the position is rescaled to the new
@@ -1113,20 +1118,21 @@ Route changes through the `set*` methods instead.
 
   The cached, serializable engine state, or `NULL` until one is
   materialized. It holds the chains and not the model: trees, leaf
-  values, the quantities the sampler draws, the cut grid and
-  leaf-covariate standardization they are read through, and the response
-  units the values are stored in - no leaf prior and no value the
-  sampler holds fixed (see ‘Saving’). It also carries each chain's
-  generator state, so restoring it continues the same streams the
-  sampler was drawing from, typically to the last few digits, not
-  bitwise. The saved-tree store's write position and the number of draws
-  it has recorded both ride it, so `predict` after a `setState` reports
-  the same draws, in the same order, as before the store. Reading it
-  forces the sampler's *current* state only the first time, before any
-  value has been materialized; once set, it is a cached snapshot that a
-  later mutation does not refresh automatically - call `storeState`
-  again, or pass `updateState = TRUE` to the mutating call (see
-  `updateState` above), to bring it forward. It is the only field
+  values, the quantities the sampler draws, the cut grid (with its
+  weights, the attribute `cutMass`, where a column's cut points are not
+  equally likely) and leaf-covariate standardization they are read
+  through, and the response units the values are stored in - no leaf
+  prior and no value the sampler holds fixed (see ‘Saving’). It also
+  carries each chain's generator state, so restoring it continues the
+  same streams the sampler was drawing from, typically to the last few
+  digits, not bitwise. The saved-tree store's write position and the
+  number of draws it has recorded both ride it, so `predict` after a
+  `setState` reports the same draws, in the same order, as before the
+  store. Reading it forces the sampler's *current* state only the first
+  time, before any value has been materialized; once set, it is a cached
+  snapshot that a later mutation does not refresh automatically - call
+  `storeState` again, or pass `updateState = TRUE` to the mutating call
+  (see `updateState` above), to bring it forward. It is the only field
   [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
   requires `setState` - see ‘Saving’.
 

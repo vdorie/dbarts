@@ -990,8 +990,11 @@ print(x, ...)
 
   When `TRUE`, determine tree decision rules using estimated quantiles
   derived from the predictor variables. When `FALSE`, splits are
-  determined using values equally spaced across the range of a variable.
-  See [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
+  determined using values equally spaced across the range of a variable,
+  or, for a variable with fewer distinct values than `n.cuts`, half-way
+  between neighboring values, each chosen in proportion to its gap's
+  width. See
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   ‘Decision Rules’ details.
 
 - n.thin:
@@ -2077,16 +2080,16 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> 
 #> Cutoff rules c in x<=c vs x>c
 #> Number of cutoffs: (var: number of possible c):
-#> (1: 100) (2: 100) 
+#> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001318
+#> total seconds in loop: 0.001466
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 3 2 2 3 3 2 2 2 2 2 2 2 3 3 2 2 
-#> 4 2 
+#> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
+#> 1 2 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 14) (2: 13) 
+#> (1: 8) (2: 15) 
 #> DONE BART
 #> 
 
@@ -2125,15 +2128,15 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> 
 #> Cutoff rules c in x<=c vs x>c
 #> Number of cutoffs: (var: number of possible c):
-#> (1: 100) (2: 100) 
+#> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001374
+#> total seconds in loop: 0.001658
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 1 2 2 2 1 2 2 3 2 
+#> [1] 2 2 4 2 3 2 2 2 2 3 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 7) (2: 2) 
+#> (1: 7) (2: 7) 
 #> DONE BART
 #> 
 fit.bcf$n.forests

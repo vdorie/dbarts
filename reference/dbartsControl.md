@@ -91,10 +91,13 @@ dbartsControl(
   Logical to determine if the empirical quantiles of the columns of
   predictors should be used to determine the tree decision rules. If
   `FALSE`, the rules are spaced uniformly throughout the range of
-  covariate values. If `TRUE`, a numeric predictor's rules lie half-way
-  between its sorted, distinct, finite values: at every such point when
-  there are no more than `n.cuts` of them, and otherwise at `n.cuts` of
-  them spread evenly over the whole column. See
+  covariate values, except that a numeric predictor with fewer distinct
+  values than `n.cuts` gets one rule half-way between each pair of
+  neighboring values, chosen in proportion to the gap's width. If
+  `TRUE`, a numeric predictor's rules lie half-way between its sorted,
+  distinct, finite values: at every such point when there are no more
+  than `n.cuts` of them, and otherwise at `n.cuts` of them spread evenly
+  over the whole column. See
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
   ‘Decision Rules’ details.
 
@@ -541,5 +544,5 @@ y <- x[, 1L] - x[, 2L] + rnorm(n, 0, 0.2)
 sampler <- dbarts(y ~ x, control = control)
 samples <- sampler$run()
 str(samples$train)
-#>  num [1:50, 1] -0.00619 -0.6884 0.34457 0.22007 -0.6884 ...
+#>  num [1:50, 1] 0.0124 -0.6906 0.3492 0.2187 -0.6906 ...
 ```

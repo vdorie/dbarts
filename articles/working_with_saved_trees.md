@@ -285,7 +285,7 @@ print(rebuildTree(linearTrees, list(fit = linearFit)))
 ```
 
     ## $value
-    ## [1] 0.3973814
+    ## [1] 0.3726957
     ## 
     ## $n
     ## [1] 60
