@@ -35,14 +35,18 @@ compare on the same quiet machine; append `quick` only for smoke tests.
 Sub-millisecond metrics drift a few percent between invocations on a
 laptop; confirm a marginal flag by re-running before chasing it.
 
-Two more grids share the same record/compare/print grammar, each behind its
-own opt-in flag (or `BENCH_BIGGRID=1` / `BENCH_CALLBACK=1`) and default
+Three more grids share the same record/compare/print grammar, each behind its
+own opt-in flag (or `BENCH_BIGGRID=1` / `BENCH_CALLBACK=1` /
+`BENCH_RESTORE=1`) and default
 baseline name, and leave the grid above untouched: `biggrid` times n in
 {1e4, 1e5, 1e6} x numTrees in {75, 200} (not for routine/CI use - the full
 grid at full reps can run upwards of an hour; `biggrid quick` restricts it
-to the smallest cell as a smoke test), and `callback` times per-draw
+to the smallest cell as a smoke test), `callback` times per-draw
 callback overhead (none/noop/running-mean at two sizes), recorded at
-benchmarks/baselines/bench-sampler-callback-1456e999.csv.
+benchmarks/baselines/bench-sampler-callback-1456e999.csv, and `restore`
+times `setState` of a stored state, without force and with it, beside a
+sweep at n = 1000 and 1e5 with 200 trees; it has no recorded baseline and
+gates nothing.
 
     Rscript benchmarks/R/bench-sampler.R biggrid record biggrid.csv
     Rscript benchmarks/R/bench-sampler.R callback compare \

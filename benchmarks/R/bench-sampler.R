@@ -25,6 +25,11 @@
 #                                              grammar again, defaulting to
 #                                              sampler-callback.csv.
 #
+# Rscript bench-sampler.R restore [record|compare ...]   opt-in state-restore
+#                                              cost (or BENCH_RESTORE=1); same
+#                                              grammar, defaulting to
+#                                              sampler-restore.csv.
+#
 # The big grid times n in {1e4, 1e5, 1e6} x numTrees in {75, 200}. It is not
 # meant for routine/CI use: n = 1e6 with numTrees = 200 is a large fit by
 # itself, and the full grid at full reps can run upwards of an hour, so run
@@ -41,6 +46,9 @@ args <- setdiff(args, "biggrid")
 callback.bench <-
   "callback" %in% args || identical(Sys.getenv("BENCH_CALLBACK"), "1")
 args <- setdiff(args, "callback")
+restore.bench <-
+  "restore" %in% args || identical(Sys.getenv("BENCH_RESTORE"), "1")
+args <- setdiff(args, "restore")
 mode <- if (length(args) >= 1L) args[[1L]] else "print"
 
 genFriedman <- function(n, p = 10L) {
@@ -324,10 +332,83 @@ runCallbackScenarios <- function(quick) {
   rows
 }
 
+# What putting a stored state back costs, against a sweep: a state is stored,
+# the predictors are moved by a forced setPredictor, the sampler runs, the
+# predictors are put back, and the state is restored - without force, which
+# first checks that no tree of it has to be changed, and with it, which does
+# not. The restore is timed alone, repeated from that position, at n = 1000
+# and 1e5 with 200 trees. A build whose setState has no forceUpdate argument
+# times its one form under both names, so a compare against a baseline it
+# recorded reads each form's ratio to that restore. Opt-in, own file, grids
+# above untouched.
+runRestoreScenarios <- function(quick) {
+  reps <- if (quick) 1L else 7L
+  n.restores <- if (quick) 5L else 20L
+  sizes <- if (quick) 1000L else c(1000L, 100000L)
+  rows <- data.frame()
+  for (n in sizes) {
+    set.seed(4006L)
+    data <- genFriedman(n)
+    sampler <- newSampler(data$x, data$y, 200L)
+    invisible(sampler$run(100L, 1L))
+    sweep <- timeMedian(function() invisible(sampler$run(0L, 10L)), reps) / 10
+    sampler$storeState()
+    stored <- sampler$state
+    moved <- data$x
+    moved[, 2L] <- rev(moved[, 2L])
+    sampler$setPredictor(moved, forceUpdate = TRUE)
+    invisible(sampler$run(0L, 1L))
+    sampler$setPredictor(data$x, forceUpdate = TRUE)
+    forms <- if ("forceUpdate" %in% names(formals(sampler$setState))) {
+      list(
+        unforced = function() stopifnot(sampler$setState(stored)),
+        forced = function() sampler$setState(stored, forceUpdate = TRUE)
+      )
+    } else {
+      list(
+        unforced = function() sampler$setState(stored),
+        forced = function() sampler$setState(stored)
+      )
+    }
+    scenario <- sprintf("restore-n%d-p10-t200", n)
+    rows <- rbind(
+      rows,
+      data.frame(scenario = scenario, metric = "ms_sweep", value = 1000 * sweep)
+    )
+    for (form in names(forms)) {
+      restore <- forms[[form]]
+      elapsed <- timeMedian(
+        function() {
+          for (i in seq_len(n.restores)) {
+            restore()
+          }
+        },
+        reps
+      )
+      rows <- rbind(
+        rows,
+        data.frame(
+          scenario = scenario,
+          metric = paste0("ms_restore_", form),
+          value = 1000 * elapsed / n.restores
+        )
+      )
+    }
+  }
+
+  rows$value <- round(rows$value, 4L)
+  rows$rev <- system2("git", c("rev-parse", "--short", "HEAD"), stdout = TRUE)
+  rows$date <- format(Sys.Date())
+  rows$quick <- quick
+  rows
+}
+
 results <- if (big.grid) {
   runBigGrid(quick)
 } else if (callback.bench) {
   runCallbackScenarios(quick)
+} else if (restore.bench) {
+  runRestoreScenarios(quick)
 } else {
   runBenchmarks(quick)
 }
@@ -335,6 +416,8 @@ default.file <- if (big.grid) {
   "sampler-biggrid.csv"
 } else if (callback.bench) {
   "sampler-callback.csv"
+} else if (restore.bench) {
+  "sampler-restore.csv"
 } else {
   "sampler-baseline.csv"
 }
@@ -351,7 +434,9 @@ if (mode == "record") {
   print(results[print.cols], row.names = FALSE)
 } else if (mode == "compare") {
   if (length(args) < 2L) {
-    stop("usage: bench-sampler.R [biggrid|callback] compare baseline.csv")
+    stop(
+      "usage: bench-sampler.R [biggrid|callback|restore] compare baseline.csv"
+    )
   }
   baseline <- read.csv(args[[2L]])
   if (!identical(unique(baseline$quick), quick)) {
