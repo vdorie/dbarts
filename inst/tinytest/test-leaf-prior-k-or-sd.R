@@ -1,10 +1,10 @@
-# The leaf prior is named by k (relative to the data's anchor) or by sd (on
-# the family's scale), never both. A named sd reaches the engine at the
-# reference k of 2: sd = x is anchor 2x with k fixed at 2, sd = invchi(df, c)
-# is anchor 2c with k ~ chi(df, 2), and invchi(df, 0) is chi(df, Inf) with no
-# anchor. The pins below are the engine inputs the replaced spellings reached
-# the engine with, recorded before the change, so every translation is held
-# to them bitwise.
+# The leaf prior is named by k (relative to the data's scale) or by sd (on
+# the family's scale), never both. The model encodes a named sd beside a
+# reference k of 2: sd = x is prior.scale 2x with k fixed at 2, sd =
+# invchi(df, c) is prior.scale 2c with k ~ chi(df, 2), and invchi(df, 0) is
+# chi(df, Inf) with no prior.scale. The bridge divides the pair back to the
+# sd, which the engine states as k against the data's scale. The pins below
+# are the model's encoding of each spelling, held bitwise.
 
 hex <- function(value) sprintf("%a", value)
 inputsOf <- function(model) {

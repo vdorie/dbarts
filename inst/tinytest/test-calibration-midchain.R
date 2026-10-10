@@ -89,13 +89,13 @@ expect_identical(plain$getK(), engineReading(plain)[, "k"])
 expect_identical(plain$getK(), c(2, 2))
 expect_equal(calibration$prior.mean, (max(y) + min(y)) / 2)
 expect_equal(calibration$response.scale, max(y) - min(y))
-# a named model states what it named; getK is the engine's k, the reference 2
-# relative to the named anchor
+# a named model states what it named; k.scale is the data's whatever the
+# spelling, and getK is the engine's k, the data's scale over the named sd
 named <- namedSampler()
 namedReading <- named$getLeafPrior()
 expect_identical(namedReading$leaf.prior, priorOf(normal(sd = 0.75)))
-expect_identical(namedReading$k.scale, 1.5)
-expect_identical(named$getK(), c(2, 2))
+expect_identical(namedReading$k.scale, calibration$k.scale)
+expect_identical(named$getK(), rep(calibration$k.scale / 0.75, 2L))
 # the leaf model qualifies what the sd is the sd of
 expect_identical(
   dbarts(
@@ -311,7 +311,7 @@ expect_null(scaleState[[2L]]$forests[[1L]]$leaf.scale)
 scaleState[[2L]]$forests[[1L]]$leaf.scale <- 0.123
 divergedScale$setState(scaleState)
 expect_identical(divergedScale$getLeafPrior(), priorBefore)
-expect_identical(divergedScale$getK(), c(2, 2))
+expect_identical(divergedScale$getK(), rep(priorBefore$k.scale / 0.75, 2L))
 naSd <- divergedScale$getLeafPrior()$leaf.prior
 naSd@prior.sd <- NA_real_
 expect_error(divergedScale$setLeafPrior(naSd), "'sd' is NA")
@@ -658,18 +658,32 @@ held$setSigma(2.5)
 expect_identical(priorSdOf(held), heldSd)
 
 # $setLeafPrior touches nothing else: not sigma, not the response transform,
-# not the drawn k in force
+# not k.scale, and not the drawn k in force; a fixed sd stated is the k that
+# states it
 isolated <- namedSampler()
 invisible(isolated$run(10L, 5L))
 sigmaBefore <- isolated$getSigmas()
 isolatedBefore <- isolated$getLeafPrior()
-kBefore <- isolated$getK()
 isolated$setLeafPrior(normal(sd = 2))
 isolatedAfter <- isolated$getLeafPrior()
 expect_identical(isolated$getSigmas(), sigmaBefore)
-expect_identical(isolated$getK(), kBefore)
-unmoved <- c("prior.mean", "response.scale", "response.shift")
+expect_identical(isolated$getK(), rep(isolatedBefore$k.scale / 2, 2L))
+unmoved <- c("prior.mean", "k.scale", "response.scale", "response.shift")
 expect_identical(isolatedAfter[unmoved], isolatedBefore[unmoved])
+drawnIsolated <- dbarts(
+  x,
+  y,
+  control = midControl(),
+  leaf.prior = normal(sd = invchi(3, 0.75))
+)
+invisible(drawnIsolated$run(10L, 5L))
+kBefore <- drawnIsolated$getK()
+drawnIsolated$setLeafPrior(normal(sd = invchi(3, 2)))
+expect_identical(drawnIsolated$getK(), kBefore)
+expect_identical(
+  drawnIsolated$getLeafPrior()[unmoved],
+  isolatedBefore[unmoved]
+)
 
 # $setModel re-pins a fixed sigma at the model's value, which $setSigma
 # rewrites; $setLeafPrior does not re-pin, whether it writes the spread alone

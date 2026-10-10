@@ -470,11 +470,11 @@ sdNamed <- summary(fitOf(
 ))
 expect_equal(sdNamed$fixed, list(leaf.prior.sd = 0.7))
 expect_identical(sdNamed$stats$variable, "sigma")
-asK <- summary(
-  fitOf(yGaussian, TRUE, leaf.prior = dbartsPriors$normal(sd = 0.7)),
-  vars = "k"
-)
-expect_equal(asK$fixed, list(k = 2))
+# a held sd's k is the data's scale over it
+sdFit <- fitOf(yGaussian, TRUE, leaf.prior = dbartsPriors$normal(sd = 0.7))
+asK <- summary(sdFit, vars = "k")
+expect_identical(asK$fixed, list(k = sdFit$leaf.prior$k.scale / 0.7))
+expect_identical(sdFit$leaf.prior$k.scale, fitOf(yGaussian, TRUE)$leaf.prior$k.scale)
 # the ordinal's first threshold is pinned and named; the sampled ones tabulate
 ordinalSummary <- summary(fitOf(yOrdinal, TRUE, family = "ordinal"))
 expect_identical(ordinalSummary$stats$variable, "threshold[2]")

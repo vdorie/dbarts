@@ -249,8 +249,9 @@ expect_error(
   "'sd' must be positive"
 )
 
-# a named sd on a binary family: a number fixes k at the reference 2, and an
-# invchi() law draws it under chi(df, 2) against the anchor 2c
+# a named sd on a binary family, in the model's encoding: a number rides a
+# fixed reference k of 2, and an invchi() prior rides chi(df, 2), each beside
+# prior.scale at twice the sd
 expect_equal(
   dbarts(
     xRef,

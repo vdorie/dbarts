@@ -435,6 +435,70 @@ CALL("capi_set_offset", ptr2, offset, TRUE)
 rOffset <- CALL("capi_run", ptr2, 30L, 3L, TRUE, FALSE)
 expect_true(abs(mean(rOffset$train) - mean(y)) < 3)
 
+# a named leaf-prior sd keeps its meaning in response units across a
+# re-anchor made through the flat entry, which never returns to R: the engine
+# holds the sd and restates it as k against the data's new scale. A held sd's
+# spread stays the sd; a prior on the sd has its chi scale restated, and the
+# k drawn so far is left to lag until its next draw. The reads are the
+# engine's own calibration, since the R object is not told of the move.
+engineLeafPrior <- function(sampler) {
+  .Call(dbarts:::C_dbarts_bartcore_getLeafPrior, sampler$getPointer(), 0L)
+}
+# an offset that moves the range of the response less the offset
+rangeOffset <- 4 * x[, 3L] - 1
+namedControl <- dbartsControl(
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 25L,
+  updateState = FALSE,
+  seed = 99L
+)
+heldSd <- dbarts(x, y, control = namedControl, leaf.prior = normal(sd = 0.6))
+heldBefore <- engineLeafPrior(heldSd)
+expect_true(max(abs(heldBefore[, "prior.sd"] / 0.6 - 1)) < 1e-12)
+expect_equal(
+  CALL("capi_set_offset", heldSd$getPointer(), rangeOffset, TRUE),
+  1L
+)
+heldAfter <- engineLeafPrior(heldSd)
+expect_true(all(
+  abs(heldAfter[, "prior.scale"] / heldBefore[, "prior.scale"] - 1) > 0.05
+))
+expect_true(max(abs(heldAfter[, "prior.sd"] / 0.6 - 1)) < 1e-12)
+expect_identical(heldAfter[, "k"], heldAfter[, "prior.scale"] / 0.6)
+expect_identical(heldAfter[, "named.sd"], c(0.6, 0.6))
+
+drawnSd <- dbarts(
+  x,
+  y,
+  control = namedControl,
+  leaf.prior = normal(sd = invchi(3, 0.6))
+)
+invisible(CALL("capi_run", drawnSd$getPointer(), 20L, 1L, FALSE, FALSE))
+drawnBefore <- engineLeafPrior(drawnSd)
+expect_identical(
+  drawnBefore[, "k.prior.scale"],
+  drawnBefore[, "prior.scale"] / 0.6
+)
+# the chains have left their common start
+expect_true(drawnBefore[1L, "k"] != drawnBefore[2L, "k"])
+expect_equal(
+  CALL("capi_set_offset", drawnSd$getPointer(), rangeOffset, TRUE),
+  1L
+)
+drawnAfter <- engineLeafPrior(drawnSd)
+expect_true(all(
+  abs(drawnAfter[, "prior.scale"] / drawnBefore[, "prior.scale"] - 1) > 0.05
+))
+expect_identical(
+  drawnAfter[, "k.prior.scale"],
+  drawnAfter[, "prior.scale"] / 0.6
+)
+expect_identical(drawnAfter[, "k"], drawnBefore[, "k"])
+# and without the scale update nothing is restated
+expect_equal(CALL("capi_set_offset", drawnSd$getPointer(), offset, FALSE), 1L)
+expect_identical(engineLeafPrior(drawnSd), drawnAfter)
+
 specFixed <- dbarts(
   x,
   y,

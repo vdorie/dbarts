@@ -407,16 +407,15 @@ expect_true(mean(abs(arm.swap$fits - arm.keep$fits)) > 0.5)
 # both forests' leaf scales from the response's SHAPE (the sd of the
 # range-scaled y), so a destination built on a differently shaped response
 # calibrates differently, and it keeps that calibration across a restore.
-# A state stored in other units is converted into the destination's where
-# only the range differs; under amplitudes a shift has no forest to own it,
-# and that install is refused whole. ---
+# A state stored under another response mapping goes in as stored, another
+# range and another shift alike: nothing is converted and nothing refused. ---
 set.seed(11)
 n.ls <- 200L
 x.ls <- matrix(runif(n.ls * 3L), n.ls, 3L)
 z.ls <- rbinom(n.ls, 1L, 0.5)
 base.ls <- runif(n.ls)
 # identical endpoints, different interior: the transform is the SAME on both,
-# so nothing is converted, and only the shape, hence the leaf scale, moves
+# and only the shape, hence the leaf scale, moves
 y.a <- base.ls
 y.a[1L] <- 0
 y.a[n.ls] <- 1
@@ -487,26 +486,40 @@ set.seed(101)
 old.shape <- makeBC(y.b)
 expect_identical(restoreArm(old.shape, state.old), fits.shape)
 
-# another range at the same midpoint: the forests' values are rescaled into
-# the destination's units, and the live fit is the donor's to rounding
+# another range at the same midpoint, and another shift: the state goes in
+# as stored either way, nothing converted and nothing refused, so the state
+# read back is the installed one but for its record of the mapping, and the
+# live fit is the donor's once each is taken back through its own mapping
+internal.ls <- function(bc) {
+  prior <- bc$getLeafPrior(1L)
+  (bc$getFitsWithoutOffset() - prior$response.shift) / prior$response.scale
+}
+unlabelled.ls <- function(state) {
+  for (chain in seq_along(state)) {
+    state[[chain]]$fit.scale <- NULL
+  }
+  state
+}
 set.seed(101)
 dest.range <- makeBC(0.5 + 10 * (y.a - 0.5))
-dest.range$setState(state.ls)
+expect_true(dest.range$setState(state.ls))
 dest.range$storeState()
 expect_identical(dest.range$state[[1L]]$fit.scale, c(-4.5, 5.5))
-expect_equal(
+expect_identical(unlabelled.ls(dest.range$state), unlabelled.ls(state.ls))
+expect_equal(internal.ls(dest.range), internal.ls(donor.ls), tolerance = 1e-12)
+expect_false(isTRUE(all.equal(
   dest.range$getFitsWithoutOffset(),
-  donor.ls$getFitsWithoutOffset(),
-  tolerance = 1e-12
-)
-# and another shift is refused by name, the sampler unchanged
+  donor.ls$getFitsWithoutOffset()
+)))
 set.seed(101)
 dest.shift <- makeBC(10 * y.a)
 dest.shift$storeState()
-shift.before <- dest.shift$state
-expect_error(dest.shift$setState(state.ls), "response shift cannot be")
+shift.units <- dest.shift$state[[1L]]$fit.scale
+expect_true(dest.shift$setState(state.ls))
 dest.shift$storeState()
-expect_identical(dest.shift$state, shift.before)
+expect_identical(dest.shift$state[[1L]]$fit.scale, shift.units)
+expect_identical(unlabelled.ls(dest.shift$state), unlabelled.ls(state.ls))
+expect_equal(internal.ls(dest.shift), internal.ls(donor.ls), tolerance = 1e-12)
 
 rm(
   n.ls,
@@ -531,5 +544,7 @@ rm(
   old.shape,
   dest.range,
   dest.shift,
-  shift.before
+  shift.units,
+  internal.ls,
+  unlabelled.ls
 )

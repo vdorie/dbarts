@@ -1,13 +1,14 @@
 # A saved state holds the chain, not the model. It carries trees, leaf
-# values, the quantities the sampler draws, the generator and the units its
-# numbers are stored in; it carries no prior parameter and no value the
-# sampler holds fixed. An install - setState, copy, a reload, a warm start -
-# never changes the sampler's model, and a state stored in other response
-# units is converted into the sampler's own. The oracles: a store, write,
-# restore matches a twin that wrote and restored its own state, reader and
-# draws; a state carrying a block for a value the recipient holds fixed
-# installs as one without it; and a converted state replays the function it
-# held, to rounding.
+# values, the quantities the sampler draws, the generator and a record of the
+# response mapping it was read under; it carries no prior parameter and no
+# value the sampler holds fixed. An install - setState, copy, a reload, a warm
+# start - never changes the sampler's model, its response mapping included,
+# and converts nothing: the state's numbers are on the internal scale and are
+# read against the recipient's mapping. The oracles: a store, write, restore
+# matches a twin that wrote and restored its own state, reader and draws; a
+# state carrying a block for a value the recipient holds fixed installs as
+# one without it; and a state from another mapping reads back as stored, its
+# fits the donor's once each is taken back through its own mapping.
 
 # the vocabularies, for argument lists built ahead of the call
 for (name in c("normal", "chi", "invchi", "linear", "gp", "dart", "fixed")) {
@@ -55,6 +56,29 @@ stored <- function(sampler) {
 sweeps <- function(sampler) sampler$run(0L, 3L)
 # the units a sampler's numbers are in, the sampler's transform
 units <- function(sampler) stored(sampler)[[1L]]$fit.scale
+# a state's numbers, less its record of the mapping it was read under. A gp
+# leaf's parameters are its per-observation fits; the values its flat trees
+# carry are reporting means, formed again at each read, and are dropped where
+# 'means' is FALSE.
+unlabelled <- function(state, means = TRUE) {
+  for (chain in seq_along(state)) {
+    state[[chain]]$fit.scale <- NULL
+    if (!means) {
+      for (f in seq_along(state[[chain]]$forests)) {
+        state[[chain]]$forests[[f]]$tree.values <- NULL
+      }
+    }
+  }
+  state
+}
+# response-scale values taken back to the sampler's internal scale
+internal <- function(sampler, values) {
+  prior <- sampler$getLeafPrior()
+  if (is.null(prior[["response.scale"]])) {
+    prior <- prior[[1L]]
+  }
+  (values - prior$response.shift) / prior$response.scale
+}
 
 # --- store, write, restore: the write stands, and the reader and the next
 # draws are those of a twin that wrote and restored its own state ---
@@ -225,7 +249,11 @@ state <- editChains(stored(drawn), function(chain) {
 })
 recipient <- make(leaf.prior = normal(k = chi(1.5, 2)), family = student())
 recipient$setState(state)
-expect_equal(unname(recipient$getSigmas()), c(0.7, 0.7))
+# a stored sigma is the chain's internal one
+expect_identical(
+  unname(recipient$getSigmas()),
+  rep(0.7 * recipient$getLeafPrior()$response.scale, 2L)
+)
 expect_identical(recipient$getK(), c(3.5, 3.5))
 expect_identical(stored(recipient)[[2L]]$resid.df, 10)
 drawnShape <- make(response = counts, family = nbinom())
@@ -278,22 +306,35 @@ withShape <- make(response = counts, family = nbinom(shape = 10))
 withShape$setState(stored(make(response = counts, family = nbinom())))
 expect_identical(withShape$getShape(), c(10, 10))
 
-# --- the anchor, and conversion on install ---
+# --- the anchor, and installs as stored ---
 
 # the reader is the recipient's across an install from a sampler on another
-# response, in other units, for every naming and leaf model
+# response, under another mapping, for every naming and leaf model; nothing
+# is converted, so the install is clean and the state read back is the
+# installed one but for its record of the mapping
 rescaled <- 3 * y + 10
 stretched <- 3 * centred # another range, the same shift
-acrossUnits <- function(label, args, response = rescaled, base = y) {
+acrossUnits <- function(
+  label,
+  args,
+  response = rescaled,
+  base = y,
+  means = TRUE
+) {
   recipient <- do.call(make, c(args, list(response = base)))
   priorBefore <- recipient$getLeafPrior()
   unitsBefore <- units(recipient)
   donor <- do.call(make, c(args, list(response = response)))
   expect_false(identical(units(donor), unitsBefore), info = label)
-  # a converted state is not the stored one
-  expect_false(recipient$setState(stored(donor)), info = label)
+  installed <- stored(donor)
+  expect_true(recipient$setState(installed), info = label)
   expect_identical(recipient$getLeafPrior(), priorBefore, info = label)
   expect_identical(units(recipient), unitsBefore, info = label)
+  expect_identical(
+    unlabelled(stored(recipient), means),
+    unlabelled(installed, means),
+    info = label
+  )
 }
 acrossUnits("k-named", list())
 acrossUnits("sd-named", list(leaf.prior = normal(sd = 1)))
@@ -301,14 +342,20 @@ acrossUnits("drawn k", list(leaf.prior = normal(k = chi(1.5, 2))))
 acrossUnits("sd law", list(leaf.prior = normal(sd = invchi(3, 1))))
 acrossUnits("linear", list(leaf.prior = linear("x2")))
 acrossUnits("monotone", list(monotone = c(1L, 0L, 0L)))
-acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centred)
+acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centred, FALSE)
+acrossUnits("gp, another shift", list(leaf.prior = gp("x2")), means = FALSE)
+acrossUnits(
+  "forests with amplitudes",
+  list(forests = list(forest(), forest(basis = ~ factor(z))))
+)
 acrossUnits("variance forest", list(variance = TRUE))
 acrossUnits("count", list(family = nbinom()), 2L * counts, counts)
 
 # a constant response's transform is units too, the window of width 1
 # centred on its value, recorded as (c, c): a
 # sampler on one keeps them across an install from a normal response, a state
-# stored in them replays in a normal recipient, and its own state is untouched
+# stored in them goes into a normal recipient as stored, and its own state is
+# untouched
 makeConstant <- function(...) {
   sampler <- NULL
   expect_warning(
@@ -327,10 +374,13 @@ constantDonor <- makeConstant(control = keepConstant)
 invisible(constantDonor$run(0L, 3L))
 normalRecipient <- make(control = keepConstant)
 normalRecipient$setState(stored(constantDonor))
-expect_equal(
-  normalRecipient$predict(x),
-  constantDonor$predict(x),
-  tolerance = 1e-12
+# absolute: a constant response's internal fits sit at zero
+expect_true(
+  max(abs(
+    internal(normalRecipient, normalRecipient$predict(x)) -
+      internal(constantDonor, constantDonor$predict(x))
+  )) <
+    1e-12
 )
 constantSelf <- makeConstant()
 constantState <- stored(constantSelf)
@@ -404,78 +454,94 @@ spread <- lp$k.scale / priorRecipient$getK()[[1L]]
 expect_true(abs(mean(priorDraws) - lp$prior.mean) < 4 * spread / sqrt(300))
 expect_true(abs(sd(priorDraws) / spread - 1) < 0.15)
 
-# a converted state replays the function its donor held, kept draws and live
-# fit both, to rounding; a gp leaf's replay solves its kernel system again, so
-# its rounding is the solve's
-replays <- function(
+# a state from another mapping goes in as stored, kept draws and live fit
+# both: read on the recipient's scale they are not the donor's function, and
+# taken back through each sampler's own mapping they are the same numbers; a
+# gp leaf's replay solves its kernel system again, so its rounding is the
+# solve's
+asStored <- function(
   label,
   args,
   response = rescaled,
   base = y,
-  tolerance = 1e-12
+  tolerance = 1e-12,
+  predicts = TRUE
 ) {
   control <- stateControl(keepTrees = TRUE)
   donor <- do.call(make, c(args, list(response = response, control = control)))
   invisible(donor$run(0L, 4L))
   recipient <- do.call(make, c(args, list(response = base, control = control)))
-  recipient$setState(stored(donor))
+  expect_true(recipient$setState(stored(donor)), info = label)
   expect_false(identical(units(donor), units(recipient)), info = label)
-  expect_equal(
-    recipient$predict(x),
-    donor$predict(x),
-    tolerance = tolerance,
+  expect_false(
+    isTRUE(all.equal(
+      recipient$getFitsWithoutOffset(),
+      donor$getFitsWithoutOffset()
+    )),
     info = label
   )
+  if (predicts) {
+    expect_equal(
+      internal(recipient, recipient$predict(x)),
+      internal(donor, donor$predict(x)),
+      tolerance = tolerance,
+      info = label
+    )
+  }
   expect_equal(
-    recipient$getFitsWithoutOffset(),
-    donor$getFitsWithoutOffset(),
+    internal(recipient, recipient$getFitsWithoutOffset()),
+    internal(donor, donor$getFitsWithoutOffset()),
     tolerance = tolerance,
     info = label
   )
   recipient
 }
-invisible(replays("constant", list()))
-invisible(replays("monotone", list(monotone = c(1L, 0L, 0L))))
-invisible(replays("linear", list(leaf.prior = linear("x2"))))
-invisible(replays(
+invisible(asStored("constant", list()))
+invisible(asStored("monotone", list(monotone = c(1L, 0L, 0L))))
+invisible(asStored("linear", list(leaf.prior = linear("x2"))))
+invisible(asStored(
   "gp, equal shift",
   list(leaf.prior = gp("x2")),
   stretched,
   centred,
   tolerance = 1e-11
 ))
-invisible(replays("count", list(family = nbinom()), 2L * counts, counts))
+# no leaf model refuses another shift: a gp leaf and forests with amplitudes
+# take the state as every other does
+invisible(asStored(
+  "gp, another shift",
+  list(leaf.prior = gp("x2")),
+  tolerance = 1e-11
+))
+# (a sampler whose forests carry amplitudes has no combined test fit)
+invisible(asStored(
+  "forests with amplitudes",
+  list(forests = list(forest(), forest(basis = ~ factor(z)))),
+  predicts = FALSE
+))
+invisible(asStored("count", list(family = nbinom()), 2L * counts, counts))
+# a variance forest's factors go in as stored too, so the variance read on
+# the recipient's scale is the donor's by the square of the two multipliers
 varianceDonor <- make(response = rescaled, variance = TRUE)
 varianceRecipient <- make(variance = TRUE)
-varianceRecipient$setState(stored(varianceDonor))
+expect_true(varianceRecipient$setState(stored(varianceDonor)))
 expect_equal(
-  varianceRecipient$getVariance(),
-  varianceDonor$getVariance(),
+  varianceRecipient$getVariance() /
+    varianceRecipient$getLeafPrior()$response.scale^2,
+  varianceDonor$getVariance() / varianceDonor$getLeafPrior()$response.scale^2,
   tolerance = 1e-12
 )
-
-# the two refusals: a gp leaf and forests with amplitudes cannot carry another
-# shift, and the sampler is left as it was
-gpRecipient <- make(leaf.prior = gp("x2"))
-gpBefore <- stored(gpRecipient)
-expect_error(
-  gpRecipient$setState(stored(make(
-    leaf.prior = gp("x2"),
-    response = rescaled
-  ))),
-  "response shift cannot be converted"
+# a drawn sigma likewise: the internal value, so three times the donor's on a
+# response a third as wide read back the other way
+sigmaDonor <- make(response = rescaled)
+sigmaRecipient <- make()
+sigmaRecipient$setState(stored(sigmaDonor))
+expect_equal(
+  sigmaRecipient$getSigmas() / sigmaRecipient$getLeafPrior()$response.scale,
+  sigmaDonor$getSigmas() / sigmaDonor$getLeafPrior()$response.scale,
+  tolerance = 1e-14
 )
-expect_identical(stored(gpRecipient), gpBefore)
-twoRecipient <- make(forests = list(forest(), forest(basis = ~ factor(z))))
-twoBefore <- stored(twoRecipient)
-expect_error(
-  twoRecipient$setState(stored(make(
-    forests = list(forest(), forest(basis = ~ factor(z))),
-    response = rescaled
-  ))),
-  "response shift cannot be converted"
-)
-expect_identical(stored(twoRecipient), twoBefore)
+expect_equal(sigmaRecipient$getSigmas(), sigmaDonor$getSigmas() / 3)
 
 # a supplied gp lengthscale is the sampler's: saved draws made under another
 # are refused, and without saved draws the state installs and the sampler
@@ -494,9 +560,10 @@ liveOnly <- make(leaf.prior = gp("x2", lengthscale = 2))
 liveOnly$setState(stored(make(leaf.prior = gp("x2", lengthscale = 0.5))))
 expect_identical(stored(liveOnly)[[1L]]$forests[[1L]]$leaf.lengthscales, 2)
 
-# chains from two samplers on different ranges, combined into one state, are
-# installed in one set of units and run as one posterior: weak data, so a
-# chain left in its own units would run under its own prior and show it
+# chains from two samplers on different ranges, combined into one state, go
+# in as stored under the sampler's one mapping and run as one posterior: weak
+# data, so a chain left under its own mapping would run under its own prior
+# and show it
 set.seed(4L)
 nWeak <- 25L
 xWeak <- matrix(runif(nWeak * 2L), nWeak, 2L)
@@ -559,35 +626,42 @@ copied <- stateless$copy()
 expect_identical(copied$getLeafPrior(), stateless$getLeafPrior())
 expect_identical(units(copied), units(stateless))
 
-# a copy and a reload whose stored state predates a re-anchor: the state is
-# converted into the re-anchored units, and its function is kept
+# a copy and a reload whose stored state predates a re-anchor: the re-created
+# sampler is put at the recorded, re-anchored mapping, and the state goes in
+# as stored, its internal fits read against that mapping
 anchored <- make()
 anchored$storeState()
-heldFits <- anchored$getFitsWithoutOffset()
+heldInternal <- internal(anchored, anchored$getFitsWithoutOffset())
 heldShift <- anchored$getLeafPrior()$response.shift
 anchored$setResponse(rescaled, updateScale = TRUE)
 expect_true(anchored$getLeafPrior()$response.shift != heldShift)
 reanchoredCopy <- anchored$copy()
 expect_identical(reanchoredCopy$getLeafPrior(), anchored$getLeafPrior())
-expect_equal(reanchoredCopy$getFitsWithoutOffset(), heldFits, tolerance = 1e-12)
+expect_identical(units(reanchoredCopy), units(anchored))
+expect_equal(
+  internal(reanchoredCopy, reanchoredCopy$getFitsWithoutOffset()),
+  heldInternal,
+  tolerance = 1e-12
+)
 reanchoredReload <- unserialize(serialize(anchored, NULL))
 expect_identical(reanchoredReload$getLeafPrior(), anchored$getLeafPrior())
 expect_equal(
-  reanchoredReload$getFitsWithoutOffset(),
-  heldFits,
+  internal(reanchoredReload, reanchoredReload$getFitsWithoutOffset()),
+  heldInternal,
   tolerance = 1e-12
 )
 
 # the rollback: a re-anchor is a model change a restore does not undo, so a
 # rejected re-anchoring proposal is rolled back by re-anchoring to the old
 # response and then restoring, which leaves reader and draws as a twin's that
-# never proposed
+# never proposed. A restore across the re-anchor alone is legal and clean,
+# and puts the stored numbers in under the proposal's mapping.
 proposer <- make()
 untouched <- make()
 saved <- stored(proposer)
 proposer$setResponse(rescaled, updateScale = TRUE)
 invisible(proposer$run(0L, 2L))
-expect_false(proposer$setState(saved))
+expect_true(proposer$setState(saved))
 expect_false(identical(proposer$getLeafPrior(), untouched$getLeafPrior()))
 proposer$setResponse(y, updateScale = TRUE)
 expect_true(proposer$setState(saved))
@@ -597,15 +671,15 @@ expect_identical(proposer$getLeafPrior(), untouched$getLeafPrior())
 # return to its last bit
 expect_equal(sweeps(proposer), sweeps(untouched), tolerance = 1e-8)
 
-# a warm start from a donor on another range seeds the function the donor
-# held, in the recipient's own units
+# a warm start from a donor on another range seeds the donor's trees and
+# leaf values as stored, read against the recipient's own mapping
 warmDonor <- make(response = rescaled)
 warmed <- make()
 warmBefore <- warmed$getLeafPrior()
 warmed$installTrees(warmDonor)
 expect_identical(warmed$getLeafPrior(), warmBefore)
 expect_equal(
-  warmed$getFitsWithoutOffset(),
-  warmDonor$getFitsWithoutOffset(),
+  internal(warmed, warmed$getFitsWithoutOffset()),
+  internal(warmDonor, warmDonor$getFitsWithoutOffset()),
   tolerance = 1e-12
 )
