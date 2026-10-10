@@ -1229,7 +1229,9 @@ sbcInstallBCFGlue <- function(bcf, glue) {
   bcf$storeState()
   state <- bcf$state
   state[[1L]][["glue"]][4:6] <- c(glue$a, glue$b0, glue$b1)
-  bcf$setState(state)
+  if (!isTRUE(bcf$setState(state))) {
+    stop("the state with the drawn glue was not installed")
+  }
   invisible(NULL)
 }
 

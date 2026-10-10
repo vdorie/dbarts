@@ -4158,6 +4158,41 @@ static void testRestoreStatus() {
         "restore status: a refusal is not a verdict, whatever its other "
         "trees need");
 
+  // declined across cut grids: a state on a coarser grid, drawn over the rows
+  // before the update, holds bottoms the collapsed rows do not reach. The
+  // grid it was judged on and the codes quantized to it are put back with
+  // everything else; forced, the grid stays the state's
+  {
+    std::vector<ext_rng*> coarseRngs(numChains);
+    for (size_t c = 0; c < numChains; ++c) {
+      coarseRngs[c] =
+        ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+      ext_rng_setSeed(coarseRngs[c], 911u + static_cast<std::uint_least32_t>(c));
+    }
+    SamplerOptions coarseOptions(options);
+    coarseOptions.maxNumCuts = 20;
+    ConstantLeafSampler coarse(x.data(), y.data(), n, p, nullptr, nullptr,
+                               ResponseFamily::gaussian, 1.0, 3.0,
+                               0.37804942330213542, coarseOptions,
+                               coarseRngs.data());
+    coarse.run(60, 0, empty);
+    SamplerStateData crossGrid;
+    coarse.getState(crossGrid);
+    std::vector<xint_t> codes = storageDigest(sampler.data());
+    check(crossGrid.cutPoints != forced.cutPoints &&
+            declinesUntouched(sampler, crossGrid, xNew.data()) &&
+            sampler.data().cutPoints == forced.cutPoints &&
+            storageDigest(sampler.data()) == codes,
+          "restore status: a state declined on another grid leaves the grid, "
+          "the codes and the chains");
+    check(restoresAltered(sampler, crossGrid, xNew.data()) &&
+            sampler.data().cutPoints == crossGrid.cutPoints &&
+            storageDigest(sampler.data()) != codes &&
+            liveTreesAreOccupied(sampler),
+          "restore status: forced, the state goes in on its own grid");
+    for (ext_rng* r : coarseRngs) ext_rng_destroy(r);
+  }
+
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
   printf("ok: a state install reports whether it altered the state\n");
@@ -4946,6 +4981,154 @@ static void testStateStoreSizes() {
     check(strippedRefused && raggedRefused && samplerStatesAgree(before, after),
           "store sizes: blocks naming different draw counts are refused, "
           "forced or not, the sampler untouched");
+  }
+  // one capacity is asked of a state across its chains and its mean forests:
+  // a block holding another whole number of draws is refused in both forms
+  auto refusedUntouched = [&](auto& sampler, const SamplerStateData& state) {
+    SamplerStateData before, after;
+    sampler.getState(before);
+    bool notClean = true;
+    bool refused =
+      !sampler.setState(state, nullptr) &&
+      !sampler.setState(state, nullptr, nullptr, nullptr, keepStoreCapacity,
+                        false, &notClean) &&
+      !notClean;
+    sampler.getState(after);
+    return refused && samplerStatesAgree(before, after);
+  };
+  {
+    auto wide = make.operator()<Constant>(10, 13, 200, 2);
+    SamplerStateData state;
+    wide->getState(state);
+    state.chains[1].forests[0].savedTrees.resize(4 * numTrees);
+    check(refusedUntouched(*wide, state),
+          "store sizes: a second chain holding another number of draws is "
+          "refused, forced or not, the sampler untouched");
+
+    std::vector<double> z(n);
+    for (size_t i = 0; i < n; ++i) z[i] = i % 2 == 0 ? 1.0 : 0.0;
+    SamplerOptions options;
+    options.keepTrees = true;
+    options.numSamplesToStore = 10;
+    AmplitudeSpec spec;
+    spec.mu.numTrees = numTrees;
+    spec.tau.numTrees = 4;
+    spec.z = z.data();
+    ext_rng* rng = newRng(210);
+    Sampler<Constant> twoForests(x.data(), y.data(), n, p, nullptr, nullptr,
+                                 1.0, 3.0, 0.37804942330213542, options, spec,
+                                 &rng);
+    twoForests.run(10, 13, none);
+    SamplerStateData own;
+    twoForests.getState(own);
+    SamplerStateData shorter(own);
+    shorter.chains[0].forests[1].savedTrees.resize(4 * 4);
+    check(own.chains[0].forests[1].savedTrees.size() == 10 * 4 &&
+            restoresExactly(twoForests, own) &&
+            refusedUntouched(twoForests, shorter),
+          "store sizes: a second forest holding another number of draws is "
+          "refused, forced or not, the sampler untouched");
+  }
+  // a pooled factor's saved rules keep their words in a side channel, which
+  // travels with the trees it belongs to, mean and variance
+  {
+    const size_t numLevels = 70, numVarianceTrees = 4;
+    std::vector<double> xWide(x), yWide(n), xTestWide(xTest);
+    for (size_t i = 0; i < n; ++i) {
+      xWide[n + i] = static_cast<double>(i % numLevels);
+      yWide[i] = (xWide[i] > 0.5 ? 2.0 : 0.0) +
+        (i % numLevels < 30 ? 1.5 : -1.5) +
+        (i % numLevels % 2 == 0 ? 2.0 : 0.1) * (runif01() - 0.5);
+    }
+    for (size_t i = 0; i < nTest; ++i)
+      xTestWide[nTest + i] = static_cast<double>((7 * i) % numLevels);
+    static const ColumnKind kinds[p] = {ColumnKind::numeric,
+                                        ColumnKind::categorical};
+    auto makeWide = [&](size_t capacity, size_t draws, std::uint32_t seed) {
+      SamplerOptions options;
+      options.numTrees = numTrees;
+      options.numVarianceTrees = numVarianceTrees;
+      options.keepTrees = true;
+      options.numSamplesToStore = capacity;
+      options.predictors.columnTypes = kinds;
+      ext_rng* rng = newRng(seed);
+      auto sampler = std::make_unique<Sampler<Constant>>(
+        xWide.data(), yWide.data(), n, p, nullptr, nullptr,
+        ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options,
+        &rng);
+      sampler->run(40, draws, none);
+      return sampler;
+    };
+    auto keptWide = [&](auto& sampler, bool variance) {
+      std::vector<double> out(nTest * sampler.filledSavedDraws());
+      if (variance)
+        sampler.predictVariance(xTestWide.data(), nTest, 1, out.data());
+      else
+        sampler.predict(xTestWide.data(), nTest, 1, out.data());
+      return out;
+    };
+    // whether draws [first, first + count) of `got`, oldest first from slot
+    // 0, hold the mask words of the draws at `slots` of `source`; numWords
+    // counts them
+    auto sameMasks = [&](const SamplerStateData& got,
+                         const SamplerStateData& source,
+                         const std::vector<size_t>& slots, size_t numWords[2]) {
+      const ChainStateData& a(got.chains[0]);
+      const ChainStateData& b(source.chains[0]);
+      bool same = true;
+      numWords[0] = numWords[1] = 0;
+      for (size_t d = 0; d < slots.size(); ++d) {
+        for (size_t t = 0; t < numTrees; ++t) {
+          const std::vector<std::uint64_t>& words(
+            a.forests[0].savedTreeMasks[d * numTrees + t]);
+          same = same &&
+            words == b.forests[0].savedTreeMasks[slots[d] * numTrees + t];
+          numWords[0] += words.size();
+        }
+        for (size_t j = 0; j < numVarianceTrees; ++j) {
+          const std::vector<std::uint64_t>& words(
+            a.savedVarianceTreeMasks[d * numVarianceTrees + j]);
+          same = same &&
+            words == b.savedVarianceTreeMasks[slots[d] * numVarianceTrees + j];
+          numWords[1] += words.size();
+        }
+      }
+      return same;
+    };
+    size_t numWords[2];
+    auto wide = makeWide(10, 13, 220);
+    SamplerStateData ten, got;
+    wide->getState(ten);
+    auto narrow = makeWide(4, 2, 221);
+    bool clean = installsClean(*narrow, ten);
+    narrow->getState(got);
+    // the masks first: a rule replayed against another tree's words reads
+    // past them
+    bool masksKept = sameMasks(got, ten, {9, 0, 1, 2}, numWords);
+    check(clean && ten.currentSampleNum == 3 && masksKept && numWords[0] > 0 &&
+            numWords[1] > 0,
+          "store sizes: a pooled factor's newest four keep their mask words, "
+          "mean and variance");
+    if (masksKept)
+      check(keptWide(*narrow, false) == newest(keptWide(*wide, false), 4) &&
+              keptWide(*narrow, true) == newest(keptWide(*wide, true), 4),
+            "store sizes: and predict as the source's newest four");
+
+    auto small = makeWide(4, 6, 222);
+    SamplerStateData four;
+    small->getState(four);
+    auto large = makeWide(10, 7, 223);
+    clean = installsClean(*large, four);
+    large->getState(got);
+    masksKept = sameMasks(got, four, {2, 3, 0, 1}, numWords);
+    check(clean && four.currentSampleNum == 2 && masksKept &&
+            numWords[0] > 0 && numWords[1] > 0,
+          "store sizes: a pooled factor's four into ten keep their mask "
+          "words, mean and variance");
+    if (masksKept)
+      check(keptWide(*large, false) == keptWide(*small, false) &&
+              keptWide(*large, true) == keptWide(*small, true),
+            "store sizes: and predict as the source's four");
   }
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);

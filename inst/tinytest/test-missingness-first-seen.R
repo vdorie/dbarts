@@ -93,24 +93,44 @@ for (path in names(paths)) {
 
 # ---- two forests: the rules of each draw, live and kept ----
 
+# The sides of the rules on x1 by forest, kept draws and then current trees;
+# every rule sends a missing value left while no column can hold one.
 z <- as.double(seq_len(n) %% 2L)
-sampler <- dbarts(
-  y ~ x1 + x2 + f,
-  complete,
-  forests = list(forest(), forest(basis = z)),
-  control = controlOf(),
-  seed = 11L
-)
-invisible(sampler$run())
-sampler$setPredictor(holed$x1, "x1", forceUpdate = TRUE)
-for (current in c(FALSE, TRUE)) {
-  trees <- sampler$getTrees(current = current)
-  drawn <- split(trees$missing[trees$var == 1L], trees$forest[trees$var == 1L])
-  expect_identical(names(drawn), c("1", "2"), info = current)
-  for (side in drawn) {
-    expect_true(all(c("L", "R") %in% side), info = current)
+sidesByForest <- function(sampler) {
+  unlist(
+    lapply(c(FALSE, TRUE), function(current) {
+      trees <- sampler$getTrees(current = current)
+      onX1 <- trees$var == 1L
+      side <- if (is.null(trees$missing)) "L" else trees$missing[onX1]
+      split(rep_len(side, sum(onX1)), factor(trees$forest[onX1], 1:2))
+    }),
+    recursive = FALSE
+  )
+}
+# the first seed whose forests each hold a rule on x1, kept and current,
+# before the value arrives, and rules on both sides after it
+found <- NA_integer_
+for (seed in 11:40) {
+  sampler <- dbarts(
+    y ~ x1 + x2 + f,
+    complete,
+    forests = list(forest(), forest(basis = z)),
+    control = controlOf(),
+    seed = seed
+  )
+  invisible(sampler$run())
+  before <- sidesByForest(sampler)
+  sampler$setPredictor(holed$x1, "x1", forceUpdate = TRUE)
+  after <- sidesByForest(sampler)
+  held <- all(lengths(before) > 0L) && all(unlist(before) == "L")
+  both <- vapply(after, function(side) all(c("L", "R") %in% side), NA)
+  if (held && all(both)) {
+    found <- seed
+    break
   }
 }
+expect_false(is.na(found))
+expect_identical(length(after), 4L)
 
 # ---- the sides are fair coins: 40 seeds, one chain ----
 
@@ -283,13 +303,15 @@ expect_identical(nrow(held$getTrees()), 1L)
 # ---- row by row, a first missing value that would empty a leaf ----
 
 # One tree, cut on x1 below every value but the first row's, which is alone
-# in the left leaf. This seed's draw sends a missing value right, so the row
-# is declined and the draw taken back: no record, no side, and the generator
-# and next draws of a twin given the column it holds.
+# in the left leaf. Where the draw sends a missing value right the row is
+# declined and the draw taken back: no record, no side, and the generator and
+# next draws of a twin given the column it holds. Where it sends it left the
+# row stays where it is and is taken with its side. Seeds are tried until
+# each has been met.
 lone <- complete
 lone$x1[1L] <- -5
-loneLeft <- function() {
-  sampler <- dbarts(y ~ x1 + x2 + f, lone, control = single, seed = 1L)
+loneLeft <- function(seed) {
+  sampler <- dbarts(y ~ x1 + x2 + f, lone, control = single, seed = seed)
   sampler$storeState()
   state <- sampler$state
   forest <- state[[1L]]$forests[[1L]]
@@ -302,15 +324,30 @@ loneLeft <- function() {
   stopifnot(isTRUE(sampler$setState(state)))
   sampler
 }
-sampler <- loneLeft()
-twin <- loneLeft()
 brought <- replace(lone$x1, 1L, NA)
-expect_identical(
-  sampler$setPredictor(brought, "x1", forceUpdate = "partial"),
-  rep(c(FALSE, TRUE), c(1L, n - 1L))
-)
-expect_true(all(twin$setPredictor(lone$x1, "x1", forceUpdate = "partial")))
-expect_null(seen(sampler))
-expect_null(sides(sampler, TRUE))
-expect_identical(generators(sampler), generators(twin))
-expect_identical(sampler$run(0L, 20L), twin$run(0L, 20L))
+met <- c(declined = FALSE, taken = FALSE)
+for (seed in 1:40) {
+  sampler <- loneLeft(seed)
+  installed <- sampler$setPredictor(brought, "x1", forceUpdate = "partial")
+  arm <- if (installed[1L]) "taken" else "declined"
+  if (met[[arm]]) {
+    next
+  }
+  met[[arm]] <- TRUE
+  expect_true(all(installed[-1L]), info = arm)
+  if (arm == "taken") {
+    expect_identical(seen(sampler), c(TRUE, FALSE, FALSE))
+    expect_identical(sides(sampler, TRUE), "L")
+  } else {
+    twin <- loneLeft(seed)
+    expect_true(all(twin$setPredictor(lone$x1, "x1", forceUpdate = "partial")))
+    expect_null(seen(sampler))
+    expect_null(sides(sampler, TRUE))
+    expect_identical(generators(sampler), generators(twin))
+    expect_identical(sampler$run(0L, 20L), twin$run(0L, 20L))
+  }
+  if (all(met)) {
+    break
+  }
+}
+expect_identical(met, c(declined = TRUE, taken = TRUE))

@@ -99,7 +99,9 @@ cellSampler <- function(data, replicate, levelGibbs = FALSE) {
 # continuation starts on and parts from it only as the step consumes draws.
 levelArm <- function(data, replicate, state) {
   arm <- cellSampler(data, replicate, levelGibbs = TRUE)
-  arm$setState(state)
+  if (!isTRUE(arm$setState(state))) {
+    stop("the recorded chain's state was not installed in the arm")
+  }
   arm
 }
 

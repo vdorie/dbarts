@@ -1388,6 +1388,19 @@ static void testMonotoneMissingArrives() {
         std::swap(samplers[0], samplers[1]);
         std::swap(twins[0], twins[1]);
       }
+      // the draw is still on when the sweep ends only if the leading sampler
+      // finds the row judged last valid by itself: a third sampler, asked
+      // that row alone under the scan order and the directions the sweep
+      // will draw
+      if (every) {
+        Plain probe(x, yPlain);
+        std::unique_ptr<PredictorUpdateSession> session =
+            probe.facade->beginPredictorUpdate(brought, 0);
+        std::vector<size_t> scanOrder(n);
+        ext_rng_drawPermutation(probe.facade->rng(), scanOrder.data(), n);
+        checkAt(session->observationWouldRemainValid(scanOrder[n - 1]), label,
+                "alone, the leading sampler finds the row judged last valid");
+      }
       bool valid = updatePredictorPerObservationJointly(
           samplers, 2, brought, columns, installed.get());
       checkAt(valid && !installed[row] && !installed[second] &&

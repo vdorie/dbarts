@@ -528,3 +528,128 @@ expectTree(
   list(vars = falling$vars, values = c(cut[1L], 0, 0)),
   "a monotone tree out of order"
 )
+
+# ---- the kept store of a factor of more than 63 levels --------------------
+
+# Such a factor's rules keep their levels in words beside each tree, kept
+# draws included: a store of another size takes the words with the draws.
+wide <- data.frame(a = x[, 1L], f = factor(rep_len(sprintf("l%02d", 1:70), n)))
+yWide <- 3 * (wide$a > 0.5) + 2 * (as.integer(wide$f) <= 30L) + sin(seq_len(n))
+wideTest <- wide[seq(1L, n, by = 7L), ]
+warmedWide <- function(n.samples, more = 0L) {
+  sampler <- dbarts::dbarts(
+    yWide ~ a + f,
+    wide,
+    control = controlWith(n.samples = n.samples)
+  )
+  invisible(sampler$run(40L, n.samples))
+  if (more > 0L) {
+    invisible(sampler$run(0L, more))
+  }
+  sampler$storeState()
+  sampler
+}
+# the bytes of the words the kept draws in `slots` of a stored state hold,
+# in that order: ten trees to a slot, two words of eight bytes to a rule on f
+keptWords <- function(state, slots) {
+  forest <- state[[1L]]$forests[[1L]]
+  slot <- rep((seq_along(forest$saved.sizes) - 1L) %/% 10L, forest$saved.sizes)
+  owner <- rep(slot[forest$saved.vars == 2L], each = 16L)
+  unlist(lapply(slots, function(s) forest$saved.masks[owner == s]))
+}
+# the kept draws of `from` put into `into`: the words of the draws that
+# moved, slots `newest` of the source, and then what the draws predict, a
+# rule read against other words reading past them
+expectWordsMoved <- function(into, from, newest, draws, info) {
+  expect_true(into$setState(from$state), info = info)
+  into$storeState()
+  moved <- keptWords(into$state, seq_along(newest) - 1L)
+  expected <- keptWords(from$state, newest)
+  expect_true(length(moved) > 0L, info = info)
+  expect_identical(moved, expected, info = info)
+  if (!identical(moved, expected)) {
+    return(invisible(NULL))
+  }
+  expect_identical(
+    into$predict(wideTest),
+    from$predict(wideTest)[, draws],
+    info = info
+  )
+  trees <- from$getTrees()
+  trees <- trees[trees$sample %in% draws, ]
+  trees$sample <- trees$sample - min(draws) + 1L
+  expect_identical(as.list(into$getTrees()), as.list(trees), info = info)
+}
+# ten that have wrapped into four: the oldest of the newest four is at slot 9
+tenWide <- warmedWide(10L, 3L)
+expect_identical(attr(tenWide$state, "currentSampleNum"), 3L)
+expectWordsMoved(warmedWide(4L), tenWide, c(9L, 0:2), 7:10, "ten into four")
+# four that have wrapped into ten: the oldest is at slot 2
+fourWide <- warmedWide(4L, 2L)
+expect_identical(attr(fourWide$state, "currentSampleNum"), 2L)
+expectWordsMoved(warmedWide(10L), fourWide, c(2:3, 0:1), 1:4, "four into ten")
+
+# ---- a decline reconciles nothing -----------------------------------------
+
+# A state stored under other weights or another censoring has its latent
+# values redrawn once it is installed. A declined state is not installed: a
+# redraw would move the latent values and the generators of a sampler the
+# call says it left alone.
+binary <- as.double(y > median(y))
+logisticUnder <- function(w, collapse) {
+  function() {
+    sampler <- warmed(
+      response = binary,
+      weights = w,
+      family = binomial(link = "logit"),
+      control = controlWith(keepTrees = FALSE)
+    )
+    if (collapse) {
+      sampler$setWeights(rev(w))
+      sampler$setPredictor(xCollapsed, forceUpdate = TRUE)
+    }
+    sampler
+  }
+}
+aftCollapsed <- function(status) {
+  function() {
+    sampler <- aftWith(status)()
+    sampler$setPredictor(xCollapsed, forceUpdate = TRUE)
+    sampler
+  }
+}
+cases <- list(
+  list(
+    info = "declined under other weights",
+    make = logisticUnder(weights, TRUE),
+    state = logisticUnder(weights, FALSE)()$state,
+    digest = "weights.digest"
+  ),
+  list(
+    info = "declined under other censoring",
+    make = aftCollapsed(rep(1, n)),
+    state = aftWith(as.double(time <= bound))()$state,
+    digest = "survival.digest"
+  )
+)
+for (case in cases) {
+  held <- case$make()
+  held$storeState()
+  expect_false(
+    identical(attr(held$state, case$digest), attr(case$state, case$digest)),
+    info = case$info
+  )
+  expectDeclined(case$make, case$state, case$info)
+}
+
+# ---- declined on another cut grid -----------------------------------------
+
+# a state is judged on its own cut points, which are in place while it is;
+# declined, the sampler's own come back with everything else
+coarse <- afterCollapse(control = controlWith(n.cuts = 20L))
+expect_false(identical(
+  attr(coarse()$state, "cutPoints"),
+  attr(own$state, "cutPoints")
+))
+forced <- expectDeclined(coarse, own$state, "a state on another cut grid")
+expect_identical(attr(forced$state, "cutPoints"), attr(own$state, "cutPoints"))

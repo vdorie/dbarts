@@ -37,7 +37,10 @@ control <- dbartsControl(
   updateState = FALSE,
   seed = 17L
 )
-make <- function(data) dbarts(y ~ x1 + f + x2, data, control = control)
+make <- function(data, seed = control@seed) {
+  control@seed <- seed
+  dbarts(y ~ x1 + f + x2, data, control = control)
+}
 fill <- function(sampler) {
   sampler$setPredictor(filled$x1, column = 1L, forceUpdate = TRUE)
   sampler$setPredictor(filled$f, column = 2L, forceUpdate = TRUE)
@@ -93,20 +96,46 @@ expect_identical(sampler$state, forced)
 expect_null(sampler$setState(stale, forceUpdate = TRUE))
 expect_identical(dbarts:::dataMissingSeen(sampler$data), c(TRUE, TRUE, FALSE))
 # a rule that sends every level one way is malformed where the column has
-# never held a missing value; a state without one is declined for the
-# directions the column cannot route and, forced, installs with them dropped
-status <- tryCatch(other$setState(stale), error = conditionMessage)
-if (isFALSE(status)) {
-  expect_null(other$setState(stale, forceUpdate = TRUE))
-  other$storeState()
-  expect_false(any(sendsRight(other$state)))
-  expect_identical(
-    other$state[[1L]]$forests[[1L]]$tree.vars,
-    forced[[1L]]$forests[[1L]]$tree.vars
-  )
-} else {
-  expect_identical(status, "state is not consistent with this sampler")
+# never held a missing value, and a state holding one is refused; a state
+# without one is declined for the directions the column cannot route and,
+# forced, installs with them dropped. Which of the two a fit stores is its
+# draws', so seeds are tried until each has been met
+forcedValue <- list(value = NULL, visible = FALSE)
+met <- c(declined = FALSE, refused = FALSE)
+for (seed in 17:60) {
+  source <- make(holed, seed)
+  invisible(source$run(50L, 3L))
+  source$storeState()
+  state <- source$state
+  other <- make(filled, seed)
+  invisible(other$run(5L, 1L))
+  status <- tryCatch(other$setState(state), error = conditionMessage)
+  arm <- if (isFALSE(status)) "declined" else "refused"
+  if (met[[arm]]) {
+    next
+  }
+  met[[arm]] <- TRUE
+  if (arm == "refused") {
+    expect_identical(status, "state is not consistent with this sampler")
+  } else {
+    fill(source)
+    source$storeState()
+    expect_identical(
+      withVisible(other$setState(state, forceUpdate = TRUE)),
+      forcedValue
+    )
+    other$storeState()
+    expect_false(any(sendsRight(other$state)))
+    expect_identical(
+      other$state[[1L]]$forests[[1L]]$tree.vars,
+      source$state[[1L]]$forests[[1L]]$tree.vars
+    )
+  }
+  if (all(met)) {
+    break
+  }
 }
+expect_identical(met, c(declined = TRUE, refused = TRUE))
 for (route in list(sampler, duplicate, reloaded)) {
   route$storeState()
   statesAgree(route$state, forced)
@@ -168,7 +197,11 @@ checkRestores <- function(sampler, fill, info) {
     info = info
   )
   if (!status) {
-    expect_null(sampler$setState(stale, forceUpdate = TRUE), info = info)
+    expect_identical(
+      withVisible(sampler$setState(stale, forceUpdate = TRUE)),
+      forcedValue,
+      info = info
+    )
   }
   for (route in list(sampler, duplicate)) {
     route$storeState()
@@ -180,6 +213,7 @@ checkRestores <- function(sampler, fill, info) {
   # its own fresh state is the stored one
   sampler$storeState()
   expect_true(sampler$setState(sampler$state), info = info)
+  invisible(status)
 }
 twoChains <- control
 twoChains@n.chains <- 2L
@@ -195,19 +229,29 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   thinHoled <- thin
   thinHoled[goneX & thin[, 1L] != 0, 1L] <- NA
   yThin <- ifelse(is.na(thinHoled[, 1L]), 3, thin[, 1L]) + rnorm(n, sd = 0.2)
-  checkRestores(
-    dbarts(
-      Matrix::Matrix(thinHoled, sparse = TRUE),
-      yThin,
-      control = control,
-      sigest = 1
-    ),
-    function(sampler) {
-      sampler$setPredictor(
-        Matrix::Matrix(thin, sparse = TRUE),
-        forceUpdate = TRUE
-      )
-    },
-    "sparse-backed column"
-  )
+  # the fill empties a leaf under some seeds and none under others: both
+  met <- c(installed = FALSE, declined = FALSE)
+  for (seed in 17:60) {
+    control@seed <- seed
+    status <- checkRestores(
+      dbarts(
+        Matrix::Matrix(thinHoled, sparse = TRUE),
+        yThin,
+        control = control,
+        sigest = 1
+      ),
+      function(sampler) {
+        sampler$setPredictor(
+          Matrix::Matrix(thin, sparse = TRUE),
+          forceUpdate = TRUE
+        )
+      },
+      "sparse-backed column"
+    )
+    met[[if (status) "installed" else "declined"]] <- TRUE
+    if (all(met)) {
+      break
+    }
+  }
+  expect_identical(met, c(installed = TRUE, declined = TRUE))
 }

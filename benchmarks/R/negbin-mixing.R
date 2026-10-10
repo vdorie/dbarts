@@ -178,7 +178,9 @@ runCell <- function(cell, seed, engineSeed = seed) {
   for (chain in seq_along(startShapes)) {
     state[[chain]]$shape <- startShapes[chain]
   }
-  sampler$setState(state)
+  if (!isTRUE(sampler$setState(state))) {
+    stop("the state with the shapes set apart was not installed")
+  }
   if (!identical(as.numeric(sampler$getShape()), startShapes)) {
     stop("the chains' shapes were not set apart")
   }
