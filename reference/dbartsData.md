@@ -185,7 +185,12 @@ of the kept training and test rows, as `list(train, test)`, or `NULL`
 when neither is named; a fit carries them on its outputs as the row
 names paragraph of
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s ‘Value’
-section describes.
+section describes. Its `missing.seen` slot is `NULL` as created; on the
+data object a sampler holds it records, once a predictor has been
+changed, the columns that sampler can hold missing values in, as a
+logical per predictor column (see ‘Missing values in predictors’ in
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
+and a sampler created from such an object takes them.
 
 ## See also
 
@@ -331,6 +336,9 @@ data
 #> $test
 #> NULL
 #> 
+#> 
+#> Slot "missing.seen":
+#> NULL
 #> 
 #> Slot "response.type":
 #> [1] "numeric"

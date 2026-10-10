@@ -68,11 +68,13 @@ own classes) and
 take an `na.action` for `newdata`, defaulting to this function; `NULL`
 means the default, and `getOption("na.action")` is never consulted.
 
-A missing value in `newdata` is *routable* when its column had missing
-values in training: every split rule on that column then learned a side
-for them, and the row predicts like any other. On a column that was
-complete in training no rule learned a side, so the value is
-*unroutable*. Only the default and
+A missing value in `newdata` is *routable* when its column can hold
+missing values: it had them in training or, on a sampler, has been given
+them since (see
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
+Every split rule on that column then holds a side for them, and the row
+predicts like any other. On a column that has never held one no rule
+holds a side, so the value is *unroutable*. Only the default and
 [`na.pass`](https://rdrr.io/r/stats/na.fail.html) look at this:
 
 - `na.keepPredictors` predicts every routable row and refuses an

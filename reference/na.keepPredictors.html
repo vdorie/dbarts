@@ -96,11 +96,12 @@
   <code><a href="survivalProbabilities.html">survivalProbabilities</a></code> take an <code>na.action</code> for
   <code>newdata</code>, defaulting to this function; <code>NULL</code> means the
   default, and <code>getOption("na.action")</code> is never consulted.</p>
-<p>A missing value in <code>newdata</code> is <em>routable</em> when its column had
-  missing values in training: every split rule on that column then learned
-  a side for them, and the row predicts like any other. On a column that
-  was complete in training no rule learned a side, so the value is
-  <em>unroutable</em>. Only the default and <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.pass</a></code> look at
+<p>A missing value in <code>newdata</code> is <em>routable</em> when its column can
+  hold missing values: it had them in training or, on a sampler, has been
+  given them since (see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>). Every split rule on
+  that column then holds a side for them, and the row predicts like any
+  other. On a column that has never held one no rule holds a side, so the
+  value is <em>unroutable</em>. Only the default and <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.pass</a></code> look at
   this:</p><ul><li><p><code>na.keepPredictors</code> predicts every routable row and refuses
     an unroutable one, naming its columns;</p></li>
 <li><p><code>na.pass</code> predicts every routable row and returns <code>NA</code>

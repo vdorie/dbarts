@@ -250,12 +250,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   An object inheriting from
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md).
-  Draws the sampler has saved (`keepTrees`) stay the functions they
-  were, so `predict` returns the same values for them before and after
-  the call. To that end a `linear` leaf's coefficients, saved and
-  current, are rewritten into the centre and scale the new data gives
-  its leaf covariates, and every saved draw into the response scale the
-  new data gives. A row whose leaf covariate is missing is read at that
+  A column that could hold missing values before the call still can, and
+  one the new data first give a missing value becomes able to, as
+  ‘Missing values in predictors’ in ‘Details’ describes. Draws the
+  sampler has saved (`keepTrees`) stay the functions they were, so
+  `predict` returns the same values for them before and after the call.
+  To that end a `linear` leaf's coefficients, saved and current, are
+  rewritten into the centre and scale the new data gives its leaf
+  covariates, and every saved draw into the response scale the new data
+  gives. A row whose leaf covariate is missing is read at that
   covariate's centre, so what a linear leaf predicts for it follows the
   centre to the new data's. A leaf covariate that holds a single value
   is centred at it and divided by 1, so a leaf reads zero for it on
@@ -342,9 +345,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md),
   matched by label against the training levels, as a whole data-frame
   update is coded; several columns take a data frame. A label the column
-  does not declare, and a missing value in a column whose training
-  values have none, are refused by name, as is a number, which could
-  only be read as an internal code.
+  does not declare, and a missing label in a column that has never held
+  a missing value, are refused by name, as is a number, which could only
+  be read as an internal code. What a column's first missing value does
+  is under ‘Missing values in predictors’ in ‘Details’.
 
 - x.test:
 
@@ -1359,6 +1363,37 @@ made since the store, and after an undo with `setState` first, when the
 weights are the stored ones again, it is the stored chain exactly,
 without the scales that undo redrew. Call `storeState()` after the
 change to have it reload or copy as it stands.
+
+### Missing values in predictors
+
+A predictor column can hold missing values from the first time the
+sampler is given one in it - at creation, or later by `setPredictor`,
+`setData` or
+[`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md) -
+and from then on for the life of the sampler, whatever values the column
+holds afterwards. Each split rule on such a column sends missing values
+down one side, and the sampler draws that side as part of the model.
+When a column first becomes able to hold missing values, every rule
+already on it, in the current trees and in every saved draw
+(`keepTrees`), has its side drawn at random, left or right with
+probability one half each, from each chain's own generator; a change
+that is refused undoes these draws with the rest of it. A rule on an
+unordered factor column has its side drawn only where a missing value
+can reach it: beneath a rule on the same column that sends missing
+values down the other side none can arrive, and the rule holds no drawn
+side, exactly as on a sampler whose column held missing values at
+creation. A saved draw was made when no value in the column was missing,
+so nothing it was drawn from bears on that side, and one half is that
+draw's posterior for it. `predict` then routes a missing value in the
+column through every saved draw, those made before its first missing
+value and those made after. A column that has never held a missing value
+has no side to route by, and `predict` refuses a missing value in it.
+`copy` and a reload keep which columns can hold missing values.
+
+A column coded from a factor is given its first missing value at
+creation or by `setData`; `setPredictor` and
+`updatePredictorPerObservationJointly` take a missing label only in a
+factor column that has held one.
 
 ### Mutation cost
 

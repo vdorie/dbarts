@@ -84,7 +84,7 @@
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>An object of class <code>dbartsData</code>. Its <code>rowNames</code> slot records the names of the kept training and test rows, as <code>list(train, test)</code>, or <code>NULL</code> when neither is named; a fit carries them on its outputs as the row names paragraph of <code><a href="bart.html">bart</a></code>'s ‘Value’ section describes.</p>
+    <p>An object of class <code>dbartsData</code>. Its <code>rowNames</code> slot records the names of the kept training and test rows, as <code>list(train, test)</code>, or <code>NULL</code> when neither is named; a fit carries them on its outputs as the row names paragraph of <code><a href="bart.html">bart</a></code>'s ‘Value’ section describes. Its <code>missing.seen</code> slot is <code>NULL</code> as created; on the data object a sampler holds it records, once a predictor has been changed, the columns that sampler can hold missing values in, as a logical per predictor column (see ‘Missing values in predictors’ in <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>), and a sampler created from such an object takes them.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -228,6 +228,9 @@
 <span class="r-out co"><span class="r-pr">#&gt;</span> $test</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> Slot "missing.seen":</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> NULL</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Slot "response.type":</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "numeric"</span>
