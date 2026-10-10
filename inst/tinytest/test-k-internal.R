@@ -442,33 +442,42 @@ expect_identical(engine(unmoved), before)
 # --- a re-creation after a re-anchor puts the chains at the recorded
 # mapping before any state goes in: a copy, a reload and setState on a dead
 # pointer, with a held sd, whose spread is still the sd, and a drawn one,
-# whose chi scale is still k.scale / sd ---
+# whose chi scale is still k.scale / sd. With the response then swapped back
+# under the pinned mapping the re-created sampler's own data name another
+# mapping than the record, so the chains are there only because the
+# re-creation moved them, and the sd was restated with the move ---
 for (leafPrior in list(normal(sd = 0.5), normal(sd = invchi(3, 0.5)))) {
-  drawn <- !is.numeric(leafPrior@prior.sd)
-  info <- if (drawn) "drawn sd" else "held sd"
-  source <- burned(leafPrior)
-  source$setResponse(wide + 1, updateScale = TRUE)
-  invisible(source$run(5L, 1L))
-  state <- stored(source)
-  dead <- unserialize(serialize(source, NULL))
-  expect_true(dead$setState(state), info = info)
-  for (other in list(source$copy(), reloadOf(source), dead)) {
-    expect_identical(engine(other), engine(source), info = info)
-    read <- function(column) engineOf(other, column)
-    expect_identical(
-      stored(other)[[1L]]$fit.scale,
-      state[[1L]]$fit.scale,
-      info = info
-    )
-    expect_equal(read("prior.scale"), 3 * kScale, tolerance = 1e-12)
-    if (drawn) {
+  for (pinned in c(FALSE, TRUE)) {
+    drawn <- !is.numeric(leafPrior@prior.sd)
+    info <- paste(if (drawn) "drawn sd" else "held sd", pinned)
+    source <- burned(leafPrior)
+    source$setResponse(wide + 1, updateScale = TRUE)
+    invisible(source$run(5L, 1L))
+    if (pinned) {
+      source$setResponse(y, updateScale = FALSE)
+      invisible(source$run(2L, 1L))
+    }
+    state <- stored(source)
+    dead <- unserialize(serialize(source, NULL))
+    expect_true(dead$setState(state), info = info)
+    for (other in list(source$copy(), reloadOf(source), dead)) {
+      expect_identical(engine(other), engine(source), info = info)
+      read <- function(column) engineOf(other, column)
       expect_identical(
-        read("k.prior.scale"),
-        read("prior.scale") / 0.5,
+        stored(other)[[1L]]$fit.scale,
+        state[[1L]]$fit.scale,
         info = info
       )
-    } else {
-      expect_equal(read("prior.sd"), 0.5, tolerance = 1e-12, info = info)
+      expect_equal(read("prior.scale"), 3 * kScale, tolerance = 1e-12)
+      if (drawn) {
+        expect_identical(
+          read("k.prior.scale"),
+          read("prior.scale") / 0.5,
+          info = info
+        )
+      } else {
+        expect_equal(read("prior.sd"), 0.5, tolerance = 1e-12, info = info)
+      }
     }
   }
 }
@@ -498,10 +507,20 @@ expect_identical(
   drawnFit$leaf.prior$k.scale / extract(drawnFit, "k")
 )
 expect_null(drawnFit$fixed$k)
-# a held sd is read exactly, where k.scale / (k.scale / s) can miss s by an
-# ulp
+# a held sd is read exactly. The held k is k.scale / s, and k.scale over it
+# misses s by an ulp on some responses, so each sd is read on a response
+# picked for that miss, and on the plain one
 for (s in c(0.7, 1.3, 0.1)) {
-  for (scale in c(1, 0.37, 11)) {
+  missing <- 0
+  for (scale in 1 + seq_len(60L) / 7) {
+    probed <- make(normal(sd = s), scale * y)$getLeafPrior()$k.scale
+    if (probed / (probed / s) != s) {
+      missing <- scale
+      break
+    }
+  }
+  expect_true(missing > 0, info = s)
+  for (scale in c(1, missing)) {
     heldFit <- suppressMessages(fitOf(normal(sd = s), scale * y))
     info <- paste(s, scale)
     heldScale <- heldFit$leaf.prior$k.scale
@@ -511,6 +530,7 @@ for (s in c(0.7, 1.3, 0.1)) {
     expect_identical(heldFit$leaf.prior$leaf.prior, normal(sd = s), info = info)
     expect_null(heldFit$k, info = info)
   }
+  expect_false(identical(heldScale / heldFit$fixed$k, s), info = s)
 }
 # a write-back of the prior a sampler reports moves no bit, under both forms
 for (leafPrior in list(normal(sd = 0.7), normal(sd = invchi(3, 0.7)))) {
