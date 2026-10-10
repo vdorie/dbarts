@@ -1620,14 +1620,16 @@ sparseSigmaRoutine <- function(front) {
       # itself, as what they leave of the response is.
       others <- B[, -1L, drop = FALSE]
       S <- Matrix::crossprod(others)
-      squaredNorms <- Matrix::diag(S)
-      scale <- unitNorm(squaredNorms)
-      factor <- sigmaPivotedCholesky(as.matrix(scale %*% S %*% scale))
+      scale <- Matrix::diag(S)
+      scale <- 1 / sqrt(replace(scale, scale == 0, 1))
+      S@x <- S@x * scale[S@i + 1L] * scale[sparseEntryColumns(S)]
+      S <- as.matrix(S)
+      factor <- sigmaPivotedCholesky(S)
       kept <- factor$pivot[seq_len(factor$rank)]
       left <- cbind(zs, h)
       if (factor$rank > 0L) {
         R <- factor$chol[seq_along(kept), seq_along(kept), drop = FALSE]
-        BK <- others[, kept, drop = FALSE] %*% unitNorm(squaredNorms[kept])
+        BK <- others[, kept, drop = FALSE] %*% Matrix::Diagonal(x = scale[kept])
         b <- as.matrix(Matrix::crossprod(BK, left))
         b <- backsolve(R, backsolve(R, b, transpose = TRUE))
         left <- left - as.matrix(BK %*% b)
