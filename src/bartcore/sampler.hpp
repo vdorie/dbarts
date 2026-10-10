@@ -1383,7 +1383,14 @@ public:
   /// the donor chain's live trees, else its saved slot (slot-major, one forest
   /// per slot). Only trees, DART, and the sigma, k, concentration and
   /// amplitudes this sampler draws transfer - rng and auxiliary state stay
-  /// fresh, so each chain evolves independently from its own stream. Leaf
+  /// fresh, so each chain evolves independently from its own stream. A donor
+  /// that records the columns that could hold a missing value where its trees
+  /// were grown (missingColumns) holds no direction on the others: for each
+  /// of those this sampler can hold one in, every rule on it in the trees a
+  /// chain takes draws its direction with probability one half from that
+  /// chain's own generator, before the trees are judged or remapped
+  /// (Chain::drawDonorMissingDirections), and a start then refused puts the
+  /// generators back. A donor with no record draws nothing. Leaf
   /// values, k and sigma go in as the donor stored them, numbers on the
   /// internal scale read against this sampler's response transform, never
   /// converted from the donor's; a linear leaf's coefficients drawn under
@@ -1400,6 +1407,9 @@ public:
       const SamplerStateData& donor,
       const std::vector<std::pair<size_t, int>>& sampleMap) {
     if (sampleMap.size() != chains_.size())
+      return WarmStartResult::shapeMismatch;
+    if (!donor.missingColumns.empty() &&
+        donor.missingColumns.size() != data_.numPredictors)
       return WarmStartResult::shapeMismatch;
 
     // A donor grown on a different cut grid is remapped onto this sampler's
@@ -1543,6 +1553,43 @@ public:
         return WarmStartResult::shapeMismatch;
     }
 
+    // the directions the donor's trees were grown without, each chain's from
+    // its own generator. They are drawn on the scratch, before the checks
+    // below, which then judge the trees as they will be installed, and before
+    // the install's collapse of what the rows leave empty. A tree the draw
+    // cannot walk is left for those checks to refuse. Every exit but the
+    // last puts the generators back.
+    struct GeneratorGuard {
+      std::vector<std::unique_ptr<Chain<L, ResidT>>>& chains;
+      std::vector<std::vector<unsigned char>> bytes;
+      ~GeneratorGuard() {
+        for (size_t c = 0; c < bytes.size(); ++c)
+          if (!bytes[c].empty())
+            ext_rng_readSerializedState(chains[c]->rng(), bytes[c].data());
+      }
+    } generators{chains_, {}};
+    if (!donor.missingColumns.empty()) {
+      std::vector<std::uint8_t> raised(data_.numPredictors);
+      bool walkable = false;
+      for (size_t j = 0; j < data_.numPredictors; ++j) {
+        raised[j] =
+          data_.hasMissing[j] != 0 && donor.missingColumns[j] == 0 ? 1 : 0;
+        walkable = walkable || raised[j] != 0;
+      }
+      for (size_t c = 0; c < chains_.size() && walkable; ++c)
+        walkable = chains_[c]->flatTreesAreWalkable(install[c]);
+      if (walkable) {
+        generators.bytes.resize(chains_.size());
+        for (size_t c = 0; c < chains_.size(); ++c) {
+          ext_rng* rng = chains_[c]->rng();
+          generators.bytes[c].resize(ext_rng_getSerializedStateLength(rng));
+          if (!generators.bytes[c].empty())
+            ext_rng_writeSerializedState(rng, generators.bytes[c].data());
+          chains_[c]->drawDonorMissingDirections(install[c], raised.data());
+        }
+      }
+    }
+
     // containment (design "Containment"): a donor grown under a different (or
     // no) interaction constraint may hold a tree this sampler's constraint
     // forbids, and one under a split-variable restriction (BCF moderators, a
@@ -1631,6 +1678,7 @@ public:
     // another sampler's posterior
     currentSampleNum_ = 0;
     recordedDraws_ = 0;
+    generators.bytes.clear();
     return WarmStartResult::ok;
   }
 

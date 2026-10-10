@@ -3922,6 +3922,25 @@ void makeFirstSeenData(std::vector<double>& x, std::vector<double>& y,
       withMissing[holed[k] * n + row] = std::nan("");
 }
 
+// A rule's record: its variable, its kind, the mask or zero, its direction.
+FlatNode rule(int variable, FlatKind kind, std::uint64_t mask, bool right) {
+  FlatNode node;
+  node.variable = variable;
+  setFlatKind(node, kind);
+  node.mask = mask;
+  if (right) node.flags |= flatMissingGoesRight;
+  return node;
+}
+
+// How many rules of flat trees send a missing value right.
+size_t numRight(const std::vector<std::vector<FlatNode>>& trees) {
+  size_t count = 0;
+  for (const std::vector<FlatNode>& tree : trees)
+    for (const FlatNode& node : tree)
+      count += (node.flags & flatMissingGoesRight) != 0 ? 1u : 0u;
+  return count;
+}
+
 // The directions a first missing value draws over one flat tree, written
 // from the rule and not from the engine: pre-order, a coin for every rule on
 // a raised threshold column, and for a rule on a raised factor column only
@@ -4292,23 +4311,8 @@ static void testStateMissingRecord() {
     return made;
   };
   using Trees = std::vector<std::vector<FlatNode>>;
-  auto numRight = [](const Trees& trees) {
-    size_t count = 0;
-    for (const std::vector<FlatNode>& tree : trees)
-      for (const FlatNode& node : tree)
-        count += (node.flags & flatMissingGoesRight) != 0 ? 1u : 0u;
-    return count;
-  };
   auto draws = [](const Trees& trees, size_t first, size_t count) {
     return Trees(trees.begin() + first, trees.begin() + first + count);
-  };
-  auto rule = [](int variable, FlatKind kind, std::uint64_t mask, bool right) {
-    FlatNode node;
-    node.variable = variable;
-    setFlatKind(node, kind);
-    node.mask = mask;
-    if (right) node.flags |= flatMissingGoesRight;
-    return node;
   };
 
   auto source = fresh(false);
@@ -4562,6 +4566,166 @@ static void testStateMissingRecord() {
   rngState = savedRngState;
   printf("ok: a state's record of the columns that could hold a missing "
          "value\n");
+}
+
+// A warm start from a donor whose record of missable columns lacks one this
+// sampler can hold a missing value in. Every rule on such a column in the
+// trees a chain takes draws its direction from that chain's own generator,
+// its mean trees in order and then its variance trees: two chains given one
+// donor draw hold the coins of their own generators and so differ. A rule
+// that splits the missing value alone takes no coin. A donor with no record,
+// or whose record names the columns, draws nothing, and a start refused
+// after the draw leaves trees and generators as they were. Own generators;
+// restores the runif01 stream.
+static void testWarmStartMissingDirections() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 0x51C7F1A5ull;
+  const size_t p = FirstSeenSampler::p, numChains = FirstSeenSampler::numChains;
+  const size_t numTrees = FirstSeenSampler::numTrees;
+  const size_t numVarianceTrees = FirstSeenSampler::numVarianceTrees;
+  std::vector<double> x, y, withMissing;
+  makeFirstSeenData(x, y, withMissing);
+  const std::uint8_t raised[p] = {1, 1, 0, 1};
+  using Trees = std::vector<std::vector<FlatNode>>;
+  Results none;
+  FirstSeenSampler grown(x, y);
+  grown->run(120, 10, none);
+  const SamplerStateData donor = grown.state();
+  // every chain from the oldest kept draw of the donor's first chain
+  size_t slot = grown->savedSlotForDraw(0);
+  const std::vector<std::pair<size_t, int>> map(
+    numChains, {size_t(0), static_cast<int>(slot)});
+  const ForestStateData& kept(donor.chains[0].forests[0]);
+  const Trees meanTrees(kept.savedTrees.begin() + slot * numTrees,
+                        kept.savedTrees.begin() + (slot + 1) * numTrees);
+  const Trees varianceTrees(
+    donor.chains[0].savedVarianceTrees.begin() + slot * numVarianceTrees,
+    donor.chains[0].savedVarianceTrees.begin() +
+      (slot + 1) * numVarianceTrees);
+
+  // a recipient that can hold a missing value in the three columns and
+  // holds none, so that no direction moves a row and nothing collapses
+  {
+    FirstSeenSampler recipient(x, y, raised);
+    SamplerStateData given = recipient.state();
+    bool ok = recipient->installForests(donor, map) == WarmStartResult::ok;
+    SamplerStateData got = recipient.state();
+    bool asDrawn = ok, generators = ok, othersKept = ok, mixed = ok;
+    std::vector<std::uint8_t> held[2];
+    for (size_t c = 0; c < numChains; ++c) {
+      // the trees the chain is given, under its own generator
+      given.chains[c].forests[0].trees = meanTrees;
+      given.chains[c].varianceTrees = varianceTrees;
+      std::vector<unsigned char> generatorAfter;
+      std::vector<std::uint8_t> othersBefore, othersAfter;
+      std::vector<std::uint8_t> expected =
+        directionsDrawn(given, c, raised, {}, 0, generatorAfter);
+      held[c] = directionsHeld(got, c, raised, {}, &othersAfter);
+      directionsHeld(given, c, raised, {}, &othersBefore);
+      asDrawn = asDrawn && held[c] == expected;
+      generators = generators && got.chains[c].rngState == generatorAfter;
+      othersKept = othersKept && othersAfter == othersBefore;
+      size_t right = 0;
+      for (std::uint8_t side : held[c]) right += side;
+      mixed = mixed && 4 * right > held[c].size() &&
+              4 * right < 3 * held[c].size() &&
+              numRight(got.chains[c].varianceTrees) > 0;
+    }
+    check(asDrawn && mixed && held[0] != held[1],
+          "warm start: each chain's rules hold the coins of its own "
+          "generator, mean trees and then variance trees");
+    check(generators && othersKept,
+          "warm start: no other rule moves and each generator ends past its "
+          "coins");
+  }
+
+  // nothing to draw, and a start refused after the draw
+  {
+    SamplerStateData unrecorded(donor), agreeing(donor), broken(donor);
+    SamplerStateData shorter(donor);
+    unrecorded.missingColumns.clear();
+    agreeing.missingColumns.assign(raised, raised + p);
+    shorter.missingColumns.pop_back();
+    bool moved = false;
+    for (size_t t = slot * numTrees; t < (slot + 1) * numTrees; ++t)
+      for (FlatNode& node : broken.chains[0].forests[0].savedTrees[t])
+        if (node.variable == 0 && !moved) {
+          node.value += 1e-7;
+          moved = true;
+        }
+    bool undrawn = true;
+    for (const SamplerStateData* state : {&unrecorded, &agreeing}) {
+      FirstSeenSampler recipient(x, y, raised);
+      SamplerStateData before = recipient.state();
+      undrawn = undrawn &&
+        recipient->installForests(*state, map) == WarmStartResult::ok;
+      SamplerStateData after = recipient.state();
+      for (size_t c = 0; c < numChains; ++c)
+        undrawn = undrawn &&
+          after.chains[c].rngState == before.chains[c].rngState &&
+          numRight(after.chains[c].forests[0].trees) == 0 &&
+          numRight(after.chains[c].varianceTrees) == 0 &&
+          sameFlatTrees(after.chains[c].forests[0].trees, meanTrees);
+    }
+    check(undrawn, "warm start: a donor with no record, or one that names "
+                   "the columns, draws nothing");
+    FirstSeenSampler recipient(x, y, raised);
+    SamplerStateData before = recipient.state();
+    bool refused =
+      recipient->installForests(broken, map) == WarmStartResult::rebuildFailed &&
+      recipient->installForests(shorter, map) == WarmStartResult::shapeMismatch;
+    check(moved && refused && samplerStatesAgree(before, recipient.state()),
+          "warm start: a start refused after the draw leaves trees and "
+          "generators");
+  }
+
+  // a rule that splits the missing value alone, in the donor's kept draw:
+  // over a rule on its column, out of a missing value's reach, and pooled.
+  // Beside a twin whose draw holds two leaves in their place the generators
+  // end alike. The recipient holds missing values, so the rules stand
+  {
+    const FlatNode leaf;
+    const FlatNode alone = rule(1, FlatKind::categoricalInline, 0, true);
+    const FlatNode beneath = rule(1, FlatKind::categoricalInline, 3, false);
+    FlatNode pooledAlone = rule(3, FlatKind::categoricalPooled, 0, true);
+    pooledAlone.numMaskWords = 2;
+    SamplerStateData got[2];
+    bool installed = true;
+    for (int k = 0; k < 2; ++k) {
+      SamplerStateData state(donor);
+      ForestStateData& forest(state.chains[0].forests[0]);
+      size_t first = slot * numTrees;
+      forest.savedTrees[first] =
+        k == 0 ? std::vector<FlatNode>{alone, beneath, leaf, leaf, leaf}
+               : std::vector<FlatNode>{leaf};
+      forest.savedTreeMasks[first].clear();
+      forest.savedTrees[first + 1] =
+        k == 0 ? std::vector<FlatNode>{pooledAlone, leaf, leaf}
+               : std::vector<FlatNode>{leaf};
+      forest.savedTreeMasks[first + 1].assign(k == 0 ? 2 : 0, 0);
+      FirstSeenSampler recipient(withMissing, y);
+      installed = installed &&
+        recipient->installForests(state, map) == WarmStartResult::ok;
+      got[k] = recipient.state();
+    }
+    bool kept = installed;
+    for (size_t c = 0; c < numChains; ++c) {
+      const Trees& trees(got[0].chains[c].forests[0].trees);
+      const Trees& twin(got[1].chains[c].forests[0].trees);
+      kept = kept && trees[0].size() == 5 && trees[0][0].flags == alone.flags &&
+        trees[0][1].flags == beneath.flags && trees[1].size() == 3 &&
+        trees[1][0].flags == pooledAlone.flags &&
+        got[0].chains[c].rngState == got[1].chains[c].rngState &&
+        sameFlatTrees(Trees(trees.begin() + 2, trees.end()),
+                      Trees(twin.begin() + 2, twin.end())) &&
+        numRight(twin) > 0;
+    }
+    check(kept, "warm start: a rule that splits the missing value alone "
+                "keeps its direction and takes no coin");
+  }
+
+  rngState = savedRngState;
+  printf("ok: a warm start draws the directions its donor's trees lack\n");
 }
 
 // BCF two-forest sampler: creation, a short run moving both forests, sane
@@ -9494,6 +9658,7 @@ void runSamplerTests(ext_rng* rng) {
   testSubsetRollbackMissingness();
   testMissingFirstSeen();
   testStateMissingRecord();
+  testWarmStartMissingDirections();
   testLogLikelihood();
   testForestCalibration();
   testNamedSd();

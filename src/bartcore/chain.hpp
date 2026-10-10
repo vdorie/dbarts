@@ -3539,6 +3539,36 @@ public:
            walkable(state.savedVarianceTrees, state.savedVarianceTreeMasks);
   }
 
+  /// drawFlatMissingDirections over trees [first, first + count) of a flat
+  /// block and its mask channels, the coins this chain's generator's.
+  void drawFlatDirections(std::vector<std::vector<FlatNode>>& trees,
+                          const std::vector<std::vector<std::uint64_t>>& masks,
+                          std::size_t first, std::size_t count,
+                          const std::uint8_t* raised, std::uint32_t* blocked) {
+    auto unrecorded = [](FlatNode&, std::uint8_t) {};
+    for (std::size_t t = first; t < first + count; ++t)
+      drawFlatMissingDirections(trees[t].data(), data_, raised, rng_, blocked,
+                                masks.empty() ? nullptr : masks[t].data(),
+                                unrecorded);
+  }
+
+  /// The warm start's draw: \p state holds the trees a donor gives this
+  /// chain, grown where the columns \p raised marks could hold no missing
+  /// value, as this sampler's can. Every rule on one takes a direction with
+  /// probability one half from this chain's own generator, the mean trees by
+  /// forest and then the variance trees, so chains given one donor draw take
+  /// their own sides. Requires flatTreesAreWalkable. The generator is left
+  /// past the coins: a caller that then refuses the start puts it back.
+  void drawDonorMissingDirections(ChainStateData& state,
+                                  const std::uint8_t* raised) {
+    std::vector<std::uint32_t> blocked(data_.numPredictors, 0);
+    for (ForestStateData& fs : state.forests)
+      drawFlatDirections(fs.trees, fs.treeMasks, 0, fs.trees.size(), raised,
+                         blocked.data());
+    drawFlatDirections(state.varianceTrees, state.varianceTreeMasks, 0,
+                       state.varianceTrees.size(), raised, blocked.data());
+  }
+
   /// Completes \p state, a copy of a state about to be installed, with the
   /// directions it was stored without: \p raised marks the columns that
   /// could hold no missing value where it was stored and can here, and every
@@ -3569,31 +3599,22 @@ public:
     if (!own.bytes.empty() && state.rngState.size() == own.bytes.size())
       ext_rng_readSerializedState(rng_, state.rngState.data());
 
+    drawDonorMissingDirections(state, raised);
     std::vector<std::uint32_t> blocked(data_.numPredictors, 0);
-    auto unrecorded = [](FlatNode&, std::uint8_t) {};
-    auto draw = [&](std::vector<std::vector<FlatNode>>& trees,
-                    const std::vector<std::vector<std::uint64_t>>& masks,
-                    std::size_t first, std::size_t count) {
-      for (std::size_t t = first; t < first + count; ++t)
-        drawFlatMissingDirections(trees[t].data(), data_, raised, rng_,
-                                  blocked.data(),
-                                  masks.empty() ? nullptr : masks[t].data(),
-                                  unrecorded);
-    };
-    for (ForestStateData& fs : state.forests)
-      draw(fs.trees, fs.treeMasks, 0, fs.trees.size());
-    draw(state.varianceTrees, state.varianceTreeMasks, 0,
-         state.varianceTrees.size());
     std::size_t capacity = forests_[0].numTrees == 0
       ? 0 : state.forests[0].savedTrees.size() / forests_[0].numTrees;
     for (std::size_t i = 0; i < kept.count; ++i) {
       std::size_t slot = (kept.first + i) % capacity;
       for (std::size_t f = 0; f < forests_.size(); ++f)
-        draw(state.forests[f].savedTrees, state.forests[f].savedTreeMasks,
-             slot * forests_[f].numTrees, forests_[f].numTrees);
+        drawFlatDirections(state.forests[f].savedTrees,
+                           state.forests[f].savedTreeMasks,
+                           slot * forests_[f].numTrees, forests_[f].numTrees,
+                           raised, blocked.data());
       if (varianceForest_)
-        draw(state.savedVarianceTrees, state.savedVarianceTreeMasks,
-             slot * varianceForest_->numTrees, varianceForest_->numTrees);
+        drawFlatDirections(state.savedVarianceTrees,
+                           state.savedVarianceTreeMasks,
+                           slot * varianceForest_->numTrees,
+                           varianceForest_->numTrees, raised, blocked.data());
     }
     state.rngState.resize(own.bytes.size());
     if (!own.bytes.empty())

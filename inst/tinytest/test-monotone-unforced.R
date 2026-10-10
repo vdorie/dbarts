@@ -452,22 +452,55 @@ for (seed in 7:60) {
 }
 expect_identical(met, c(declined = TRUE, clean = TRUE))
 # a warm start from a donor on another cut grid, onto a sampler whose factor
-# holds a missing value: the route that maps the donor's rules onto the grid
+# holds a missing value: the route that maps the donor's rules onto the grid.
+# The donor's f could hold none, so each f rule draws its side from the
+# receiving sampler's generator before the trees are judged. Left at both
+# leaves `breaks` out of order and the tree is set to zero; any other sides
+# keep it, and its values. The receiving seed is searched for each, its sides
+# read off a start from a donor that holds `holds`.
 dfShifted <- dfArrived
 dfShifted$x1 <- 0.05 + 0.9 * x1
-onto <- dbarts::dbarts(
-  y ~ x1 + f,
-  dfShifted,
-  monotone = c(x1 = "increasing"),
-  control = controlOf(),
-  seed = 7L
-)
+shifted <- function(seed) {
+  dbarts::dbarts(
+    y ~ x1 + f,
+    dfShifted,
+    monotone = c(x1 = "increasing"),
+    control = controlOf(),
+    seed = seed
+  )
+}
+onto <- shifted(7L)
 onto$storeState()
 expect_false(identical(
   attr(onto$state, "cutPoints"),
   attr(make()$state, "cutPoints")
 ))
-completes(function(s) s$installTrees(make()), NULL, onto)
+met <- c(broken = FALSE, kept = FALSE)
+for (seed in 7:60) {
+  probe <- shifted(seed)
+  probe$installTrees(make(list(holds)))
+  sides <- sidesOf(probe)
+  arm <- if (all(sides == "L")) "broken" else "kept"
+  if (met[[arm]]) {
+    next
+  }
+  met[[arm]] <- TRUE
+  onto <- shifted(seed)
+  if (arm == "broken") {
+    completes(function(s) s$installTrees(make()), NULL, onto)
+  } else {
+    expect_identical(
+      observe(onto$installTrees(make())),
+      outcome(NULL, visible = FALSE)
+    )
+    expect_identical(leaves(onto), breaks)
+    expect_identical(sidesOf(onto), sides)
+  }
+  if (all(met)) {
+    break
+  }
+}
+expect_identical(met, c(broken = TRUE, kept = TRUE))
 
 # a merge that leaves the tree out of order: with no row left in (high; a, b)
 # the high half becomes one leaf holding the value of (high; c, d), which

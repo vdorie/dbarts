@@ -443,3 +443,103 @@ for (seed in 1:40) {
   }
 }
 expect_identical(met, c(refused = TRUE, clean = TRUE))
+
+# ---- a warm start ---------------------------------------------------------
+
+# A donor fitted where x1 could hold no missing value, its trees installed
+# where it can: each receiving chain draws the side of every rule on x1 from
+# its own generator, before its first sweep.
+receiving <- function(seed, data = holed) {
+  dbarts(y ~ x1 + x2 + f, data, control = controlOf(), seed = seed)
+}
+donor <- make()
+recipient <- receiving(3L)
+recipient$installTrees(donor)
+expect_true(bothSides(sides(recipient, TRUE)))
+# fair coins: 40 receiving seeds, a binomial band of 1e-3 around one half
+right <- total <- 0L
+for (seed in 1:40) {
+  recipient <- receiving(seed)
+  recipient$installTrees(donor)
+  right <- right + sum(sides(recipient, TRUE) == "R")
+  total <- total + length(sides(recipient, TRUE))
+}
+expect_true(total >= 200L)
+expect_true(abs(right - total / 2) < qnorm(1 - 5e-4) * sqrt(total) / 2)
+# two chains given one draw of the donor hold its rules and their own sides
+recipient <- receiving(3L)
+recipient$installTrees(donor, samples = c(1L, 1L))
+trees <- recipient$getTrees(current = TRUE)
+byChain <- split(trees[c("tree", "var", "value", "missing")], trees$chain)
+expect_identical(lapply(byChain[[1L]][1:3], c), lapply(byChain[[2L]][1:3], c))
+expect_false(identical(byChain[[1L]]$missing, byChain[[2L]]$missing))
+# nothing to draw: a donor state with no record leaves every side left, a
+# donor whose x1 could hold a missing value leaves the sides it learned, and
+# neither moves a generator
+learned <- make(holed)
+learnedTrees <- learned$getTrees(chainNums = 1L, sampleNums = 1L)
+unrecorded <- stored(donor)
+attr(unrecorded, "missing.columns") <- NULL
+for (case in list(
+  list(donor = unrecorded, sides = "L"),
+  list(donor = learned, sides = learnedTrees$missing[learnedTrees$var == 1L])
+)) {
+  recipient <- receiving(3L)
+  before <- generators(recipient)
+  recipient$installTrees(case$donor, samples = c(1L, 1L))
+  expect_identical(generators(recipient), before)
+  drawn <- split(
+    sides(recipient, TRUE),
+    rep(1:2, each = length(sides(recipient, TRUE)) / 2L)
+  )
+  for (chain in drawn) {
+    expect_true(all(chain == case$sides))
+  }
+}
+
+# The draw comes before the install merges what the rows leave empty. A
+# donor of one tree, cut on x1 above every value the receiving sampler holds:
+# the one row above it there is missing here. Sent right, the missing row
+# keeps the right leaf and the split stands; sent left, the split is merged.
+# On the donor's cut points and on others, the receiving seed searched for
+# each side.
+aboveAll <- function(top, seed, bring) {
+  data <- complete
+  data$x1[1L] <- top
+  sampler <- dbarts(y ~ x1 + x2 + f, data, control = single, seed = seed)
+  if (bring) {
+    sampler$setPredictor(replace(data$x1, 1L, NA), "x1", forceUpdate = TRUE)
+  }
+  sampler
+}
+handDonor <- stored(aboveAll(5, 1L, FALSE))
+forest <- handDonor[[1L]]$forests[[1L]]
+forest$tree.vars <- c(1L, -1L, -1L)
+cuts <- attr(handDonor, "cutPoints")[[1L]]
+forest$tree.values <- writeBin(c(cuts[length(cuts)], -0.1, 0.1), raw())
+forest$tree.sizes <- 3L
+forest$tree.flags <- as.raw(c(2L, 0L, 0L))
+handDonor[[1L]]$forests[[1L]] <- forest
+for (top in c(5, 6)) {
+  met <- c(stands = FALSE, merged = FALSE)
+  for (seed in 1:40) {
+    recipient <- aboveAll(top, seed, TRUE)
+    recipient$installTrees(handDonor)
+    trees <- recipient$getTrees(current = TRUE)
+    arm <- if (nrow(trees) == 3L) "stands" else "merged"
+    if (met[[arm]]) {
+      next
+    }
+    met[[arm]] <- TRUE
+    if (arm == "stands") {
+      expect_identical(trees$missing[1L], "R", info = top)
+      expect_identical(trees$n, c(n, n - 1L, 1L), info = top)
+    } else {
+      expect_identical(trees$n, n, info = top)
+    }
+    if (all(met)) {
+      break
+    }
+  }
+  expect_identical(met, c(stands = TRUE, merged = TRUE), info = top)
+}

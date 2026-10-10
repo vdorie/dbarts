@@ -8050,26 +8050,23 @@ static const char* readStateCutMass(SEXP cutMassExpr,
   return NULL;
 }
 
-/// Reads a state's "missing.columns" attribute into \p missingColumns, one
-/// byte per predictor, left empty where the state carries none. The refusal,
-/// or NULL: a record that is not a logical per predictor with no NA is
-/// malformed, and one of another length is refused as \p otherLength.
-static const char* readMissingColumns(
-    SEXP stateExpr, size_t numPredictors, const char* otherLength,
-    std::vector<std::uint8_t>& missingColumns) {
+/// Reads a state's "missing.columns" attribute into \p missingColumns, a
+/// byte per entry, left empty where the state carries none. False for a
+/// record that is not a logical vector with an entry and no NA: an empty one
+/// would read as none. Its length is the engine's to hold to the sampler's
+/// columns.
+static bool readMissingColumns(SEXP stateExpr,
+                               std::vector<std::uint8_t>& missingColumns) {
   SEXP recordExpr = Rf_getAttrib(stateExpr, Rf_install("missing.columns"));
-  if (Rf_isNull(recordExpr)) return NULL;
-  if (TYPEOF(recordExpr) != LGLSXP)
-    return "malformed missing-value columns in bartcore state";
-  if (static_cast<size_t>(Rf_xlength(recordExpr)) != numPredictors)
-    return otherLength;
-  for (size_t j = 0; j < numPredictors; ++j)
-    if (LOGICAL(recordExpr)[j] == NA_LOGICAL)
-      return "malformed missing-value columns in bartcore state";
-  missingColumns.resize(numPredictors);
-  for (size_t j = 0; j < numPredictors; ++j)
-    missingColumns[j] = LOGICAL(recordExpr)[j] != FALSE ? 1 : 0;
-  return NULL;
+  if (Rf_isNull(recordExpr)) return true;
+  R_xlen_t length = Rf_xlength(recordExpr);
+  if (TYPEOF(recordExpr) != LGLSXP || length == 0) return false;
+  for (R_xlen_t j = 0; j < length; ++j)
+    if (LOGICAL(recordExpr)[j] == NA_LOGICAL) return false;
+  missingColumns.resize(static_cast<size_t>(length));
+  for (R_xlen_t j = 0; j < length; ++j)
+    missingColumns[static_cast<size_t>(j)] = LOGICAL(recordExpr)[j] != FALSE;
+  return true;
 }
 
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
@@ -8182,10 +8179,9 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
   // which columns could hold a missing value where the state was stored,
   // absent meaning not known: the state then installs as it is
-  if (errorMessage == NULL)
-    errorMessage = readMissingColumns(
-      stateExpr, shape.numPredictors,
-      "state is not consistent with this sampler", state.missingColumns);
+  if (errorMessage == NULL &&
+      !readMissingColumns(stateExpr, state.missingColumns))
+    errorMessage = "malformed missing-value columns in bartcore state";
 
   SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
   if (errorMessage == NULL &&
@@ -8590,8 +8586,9 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,
 // validating flat trees against the destination sampler's data. Only the
 // channels a warm start consumes are read (trees, leaf params, a linear
-// leaf's standardization, masks, k, sigma, the fit scale, DART, and the
-// amplitude glue); latents and rng are left for the destination to redraw.
+// leaf's standardization, masks, k, sigma, the fit scale, DART, the amplitude
+// glue and the record of missable columns); latents and rng are left for the
+// destination to redraw.
 // Function-leaf donors seed from their live trees, so their saved channel is
 // skipped. The donor's own chain count is honored (a short donor may seed
 // many chains). Returns an error string, or NULL, rather than longjmping so
@@ -8629,6 +8626,12 @@ static const char* readWarmStartState(SEXP stateExpr,
     return "malformed sample position in warm-start donor";
   state.currentSampleNum = static_cast<size_t>(INTEGER(sampleNumExpr)[0]);
   state.recordedDraws = static_cast<size_t>(INTEGER(recordedDrawsExpr)[0]);
+
+  // which columns the donor's data could hold a missing value in: a rule on
+  // any other this sampler can draws its direction at the install. Absent,
+  // nothing is drawn
+  if (!readMissingColumns(stateExpr, state.missingColumns))
+    return "malformed missing-value columns in warm-start donor";
 
   const char* errorMessage = NULL;
   state.chains.resize(numChains);
