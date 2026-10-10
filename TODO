@@ -997,18 +997,24 @@ items
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
     leave n.threads out of the call to dbarts when the guess is NA.
-  missingness-first-seen: a column can be missing from the first
-    missing value it is given, at creation or by setPredictor, and
-    ever after (dec-B321; setData not ruled): the engine's flag no longer
-    follows the column's content, the first missing value draws each
-    existing split's direction with probability one half where today
-    it sends them left, and no direction is dropped afterwards
-    (dec-B320). predict and test data keep refusing a missing value
-    in a column that could not be missing (dec-B322). Before the merge
-    to main; with the install surface's first slice, which keeps
-    directions at setState. With it, a categorical rule sending every
-    level one way with no missing direction is refused on a column
-    never missing (dec-B378).
+  state-before-first-missing: a state stored before a column's first
+    missing value and installed after it sends every missing value
+    left with no draw, in current trees and kept draws, and setState
+    reports a clean install; the state does not record which columns
+    could be missing when it was stored (dec-A198; found by the review
+    of missingness first seen, 2026-10-10). With the maintainer:
+    draw at install (the state carries the flags), report it, or
+    document it. Before the merge to main.
+  factor-first-missing-setpredictor: a factor column's first missing
+    value by setPredictor is refused at the R surface, where dec-B321
+    says "at creation or by a later setPredictor" with no exception;
+    the engine takes it when the refusal is lifted (dec-A198). With
+    the maintainer. Before the merge to main.
+  first-missing-test-seeds: three tests of missingness first seen hold
+    by one seed (the row declined for emptying a leaf, the two-forest
+    block, and the joint sweep's every-row form, which loses its kill
+    silently if the plain sampler declines the last row); search for
+    the seed and assert the precondition.
   copy-merge-weight-order: after a forced setCutPoints or refresh that
     merges, a copy's merged leaf can differ from its original's by one
     unit in the last place when the leaf's weights do not sum exactly

@@ -1,6 +1,6 @@
 # setstate-force-update: setState's two forms, the kept store, constraint repair, and missingness first seen
 
-Status: PLANNED (dec-B305, dec-B310, dec-B318, dec-B320, dec-B321, dec-B322, dec-B378, dec-B398 to
+Status: PART A LANDED 2026-10-10 (acf6a6fd..2269918e); Part B PLANNED (dec-B305, dec-B310, dec-B318, dec-B320, dec-B321, dec-B322, dec-B378, dec-B398 to
 dec-B402, dec-B418). The first slice of the install surface; the warm start (warm-start-salvage,
 warm-start-tree-count) is later. Revised from its blind critique (Revision from critique) and again for
 the maintainer's rulings of 2026-10-09 (Revision for the 2026-10-09 rulings); nothing is held.
@@ -643,3 +643,28 @@ kept draws across a first missing value (p3), attribute loss on subsetting. Read
 bridge and R claim cited by symbol; the TODO entries; dec-B283 to dec-B418 and dec-A160 to dec-A192;
 stan4bart's restoreBartSampler at 963956b; the k-internal plan at 13e4818b. Bounds not run: the scratch
 verdict's added cost. The help wording in A6 is a draft for the implementer, not run through R CMD check.
+
+## Landing note: Part A
+
+Landed 2026-10-10 as acf6a6fd..2269918e after one opus review that ran the plan's mutants and 19 of its
+own, one fix round (tests and wording) the same reviewer checked, and an x86 run of tests/cpp plain and
+under the sanitizers and of tinytest on the fix round's tip. What was built is Part A, with these
+departures and additions:
+
+- A rule on an unordered factor draws its direction only where a missing value can reach it; a rule out of
+  reach holds none, as on a sampler that saw the missing value at creation. Drawing everywhere breaks the
+  sampler's reinstall of its own state. The help and the design note say so (dec-A198).
+- On the per-observation paths the first-sight draw is made for the row being judged and taken back when
+  that row is declined, which leaves rules, kept draws and generators as one draw at the first accepted
+  row leaves them.
+- The record of columns seen missing is the data object's `missing.seen`, NULL until a predictor change
+  writes it; creation reads it, and so does the handle path that xbart's folds use.
+- A factor column's first missing value by setPredictor stays refused at the R surface, the refusal lifted
+  once the record holds the column; `dropStaleMissingDirections` is removed.
+- The review found no wrong behavior and four untested ones (two forests, a declined row, an uncommitted
+  draw at the end of a joint sweep, the handle path); the fix round's tests took the part to about 2,000
+  lines outside this plan.
+
+Open after this part, in the root TODO: a state stored before a column's first missing value and
+installed after it (state-before-first-missing); the factor refusal against dec-B321's words
+(factor-first-missing-setpredictor); three tests that hold by one seed (first-missing-test-seeds).
