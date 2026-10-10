@@ -323,6 +323,9 @@ items
     first (dec-B427, VD 2026-10-10); above m 2000 the starting sigma is
     sd(y) and no iterative solver is built (dec-B428, VD 2026-10-10,
     revising dec-B426; docs/design/starting-sigma-sensitivity.md).
+    A starting sigma taken from sd(y), for want of residual degrees of
+    freedom or above the cutoff, is printed under verbose and shown in
+    a line of the summary; no warning (dec-B429, VD 2026-10-10).
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
