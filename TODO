@@ -280,12 +280,13 @@ items
     same pass moves British spellings to American (VD 2026-10-09):
     about 576 uses of centre, behaviour, colour, favour, modelling and
     the like, in R, docs and benchmarks; identifiers where not public.
-  gp-speed-x86: before the merge. Rerun the gp member-order speed A/B
-    (cap 64 arms at least; the warm column, which alone sees a kernel-
-    cache regression) on the quiet x86 box against da19dec4's engine;
-    the Mac runs under load put cap 64 at 1.00 to 1.02 pooled with four
-    cells above 1.03 (dec-A192). Above 1.05 in any arm: optimize the
-    sort path.
+  gp-sort-path: before the merge (dec-A192's bound). The quiet x86
+    rerun of the gp member-order A/B (da19dec4 against 734441f1, cap 64,
+    3 seeds x 5 reps an arm) puts cap64-n500-t50 at 1.05 to 1.08 warm
+    over four runs (cold 1.03), above the 1.05 bound; the other six
+    arms 1.03 or under, pooled warm 1.018. Optimize the sort path
+    (skip or cheapen the per-leaf sort where the span is already in
+    order or small) and rerun that arm on the box.
   nbinom-prior-predictive: before 1.0-0 (dec-B412, VD 2026-10-09). The
     negative binomial default prior's predictive counts: about 15% of
     datasets drawn from it on 150 rows sum past 10,000, some past 10^9

@@ -448,5 +448,5 @@ R-loaded sanitizers on the touched files, every exact gate quick and the touched
 counts only by bd-balance until the fix round reshaped testWeightedCutKernels so tests/cpp kills it too.
 Speed on the Mac under load: bench-sampler 0.976 to 1.026 (bound 1.03), weighted columns 1.003, creation
 with uniform columns 1.00, refresh 1.015, few-valued creation 1.21 and refresh 1.13 (reported, bound 1.5);
-the quiet x86 A/B was run after landing. The bart-as-a-component vignette's recipe 4 was corrected (a
+the quiet x86 A/B after landing (one thread, A and B interleaved, seven rounds): bench-sampler geometric mean 0.999 both directions (worst metric 1.041), weighted columns 1.002, creation with uniform columns 1.014, refresh 1.025, few-valued creation 1.156 (reported) and refresh 1.196 (bound 1.5); every bounded arm passes. The bart-as-a-component vignette's recipe 4 was corrected (a
 revert can be declined) and its handling queued (TODO embedding-recipe-declined-revert). Calls: dec-A194.
