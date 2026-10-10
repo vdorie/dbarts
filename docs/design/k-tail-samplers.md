@@ -379,11 +379,14 @@ timing.R, largen.R; out/.
 except that each dataset gets its own sampler seeded by its index: the
 shipped script reuses one sampler whose generator the previous chain
 advances, so a candidate that draws differently would see different
-datasets. Built step, collapsed move, location move: 300,000 sweeps of
-burn-in and 200,000 recorded at thin 10; collapsed location, elliptical
-slice and the every-fourth-sweep runs, 20,000 and 200,000; WALNUTS,
-blocking, the joint draw, 4 then 1 and calibrated augmentation, 20,000
-and 60,000. The ten slowest: datasets 5, 20, 21, 40, 52, 56, 73, 85, 87,
+datasets. Sweeps of burn-in and recorded at thin 10, as each run's saved
+output records them: on the full census the built step, the collapsed
+move every sweep, the location move and the elliptical slice, 30,000 and
+200,000; the collapsed location and the every-fourth-sweep run, 2,000
+and 200,000; on the ten slowest datasets the every-fourth-sweep run and
+the elliptical slice, 2,000 and 200,000; WALNUTS, blocking, the joint
+draw, 4 then 1 and calibrated augmentation, 2,000 and 60,000; every
+logistic census, 2,000 and 200,000. The ten slowest: datasets 5, 20, 21, 40, 52, 56, 73, 85, 87,
 90; the subset of 20 adds 9, 16, 25, 34, 44, 46, 51, 72, 74, 93.
 Calibrated augmentation: datasets 20 and 5, adaptation over the first
 10,000 sweeps.
