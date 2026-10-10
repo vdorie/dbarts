@@ -315,17 +315,14 @@ items
     5000 (one refactor per dependent column); a sparse crossproduct
     with a pivoted Cholesky is the candidate. Draws change for sparse
     fits without sigest; the help names sigest for large designs.
-    Above m 2000 (m the smaller of n and p + 1) the estimate comes from
-    LSQR, silently, and from sd(y) where residual degrees of freedom
-    are under 10 percent (dec-B426, VD 2026-10-10;
-    docs/design/starting-sigma-sensitivity.md). The build measures LSQR
-    on badly conditioned realistic designs at m 10,000 to 50,000 and
-    tests weighted fits against the exact routine. Factors enter the
-    regression as indicators (dec-B422); the rank band is dec-B421.
-    A design whose dense form lm.fit handles in about a second and 200
-    MB takes lm.fit whatever its storage; the sparse routine serves
-    larger ones, a zero-filled column beside its missing indicator
-    re-centered first (dec-B427, VD 2026-10-10).
+    Factors enter the regression as indicators (dec-B422); the rank
+    band is dec-B421. A design whose dense form lm.fit handles in about
+    a second and 200 MB takes lm.fit whatever its storage; the sparse
+    routine serves larger ones up to m 2000 (m the smaller of n and p +
+    1), a zero-filled column beside its missing indicator re-centered
+    first (dec-B427, VD 2026-10-10); above m 2000 the starting sigma is
+    sd(y) and no iterative solver is built (dec-B428, VD 2026-10-10,
+    revising dec-B426; docs/design/starting-sigma-sensitivity.md).
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
