@@ -7611,10 +7611,10 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
 //
 // The rule is stated over block names but governs the TOP-LEVEL ATTRIBUTES the
 // same way and for the same reason: they are read by name too, and a reader
-// ignores one it does not know. "weights.digest", "weights.zero" and
-// "survival.digest" are such additions - a state written before any of them
-// carries none, and setState then behaves as it did before the attribute
-// existed. Making one REQUIRED behind a floor bump would buy no compatibility
+// ignores one it does not know. "weights.digest", "weights.zero",
+// "survival.digest" and "missing.columns" are such additions - a state
+// written before any of them carries none, and setState then behaves as it
+// did before the attribute existed. Making one REQUIRED behind a floor bump would buy no compatibility
 // and orphan in-flight states for nothing.
 static const int stateFormatVersion = 1;
 
@@ -7934,6 +7934,16 @@ SEXP storeState(bartcore::SamplerBase& sampler) {
   // disagree by the time a state is installed
   setAttribByName(resultExpr, "survival.digest",
                   encodeStateDigest(sampler.survivalDigest()));
+  // which columns could hold a missing value, always written: the store's
+  // flags and not its content, FALSE throughout on a sampler that has seen
+  // none, so that an absent record alone means not known. An install draws
+  // the directions of the columns it lacks (Sampler::setState)
+  SEXP missingColumnsExpr = PROTECT(Rf_allocVector(
+    LGLSXP, static_cast<R_xlen_t>(state.missingColumns.size())));
+  for (size_t j = 0; j < state.missingColumns.size(); ++j)
+    LOGICAL(missingColumnsExpr)[j] = state.missingColumns[j] != 0;
+  Rf_setAttrib(resultExpr, Rf_install("missing.columns"), missingColumnsExpr);
+  UNPROTECT(1);
   setAttribByName(resultExpr, "packageVersion", Rf_mkString(PACKAGE_VERSION));
   SEXP classExpr = PROTECT(Rf_mkString("bartcoreState"));
   Rf_setAttrib(resultExpr, R_ClassSymbol, classExpr);
@@ -8037,6 +8047,28 @@ static const char* readStateCutMass(SEXP cutMassExpr,
       return message;
     }
   }
+  return NULL;
+}
+
+/// Reads a state's "missing.columns" attribute into \p missingColumns, one
+/// byte per predictor, left empty where the state carries none. The refusal,
+/// or NULL: a record that is not a logical per predictor with no NA is
+/// malformed, and one of another length is refused as \p otherLength.
+static const char* readMissingColumns(
+    SEXP stateExpr, size_t numPredictors, const char* otherLength,
+    std::vector<std::uint8_t>& missingColumns) {
+  SEXP recordExpr = Rf_getAttrib(stateExpr, Rf_install("missing.columns"));
+  if (Rf_isNull(recordExpr)) return NULL;
+  if (TYPEOF(recordExpr) != LGLSXP)
+    return "malformed missing-value columns in bartcore state";
+  if (static_cast<size_t>(Rf_xlength(recordExpr)) != numPredictors)
+    return otherLength;
+  for (size_t j = 0; j < numPredictors; ++j)
+    if (LOGICAL(recordExpr)[j] == NA_LOGICAL)
+      return "malformed missing-value columns in bartcore state";
+  missingColumns.resize(numPredictors);
+  for (size_t j = 0; j < numPredictors; ++j)
+    missingColumns[j] = LOGICAL(recordExpr)[j] != FALSE ? 1 : 0;
   return NULL;
 }
 
@@ -8147,6 +8179,13 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       survivalDiffers = decodeStateDigest(RAW(survivalDigestExpr)) !=
         sampler.survivalDigest();
   }
+
+  // which columns could hold a missing value where the state was stored,
+  // absent meaning not known: the state then installs as it is
+  if (errorMessage == NULL)
+    errorMessage = readMissingColumns(
+      stateExpr, shape.numPredictors,
+      "state is not consistent with this sampler", state.missingColumns);
 
   SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
   if (errorMessage == NULL &&
