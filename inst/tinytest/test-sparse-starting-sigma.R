@@ -190,11 +190,12 @@ withFactor <- frame["x1"]
 withFactor$f <- sparseFactor(f6)
 doors <- list(dbarts = sigmaOf, bart = bartOf, xbart = xbartOf)
 runs <- function(door, routine, ...) {
-  counts <- suppressMessages(traced(doors[[door]](...)))
+  raised <- signals(counts <- traced(doors[[door]](...)))
   # xbart: the estimate on all rows and each of three folds'
   expected <- if (door == "xbart") 4L else 1L
   expect_equal(counts[[routine]], expected, info = door)
   expect_equal(sum(counts), expected, info = door)
+  expect_identical(raised$warning, character(), info = door)
 }
 for (door in names(doors)) {
   runs(door, "lm", as.matrix(sparse[, 3:4]), y)
