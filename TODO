@@ -348,6 +348,9 @@ items
     alternatives to pass as sigest; xbart's sigest may be a function
     called per fold (dec-B433, VD 2026-10-10, revising dec-B426 and
     dec-B428; docs/design/starting-sigma-sensitivity.md).
+    The estimate is not made interruptible; the help says so and a
+    verbose fit prints a line before it starts (dec-B438, VD
+    2026-10-10).
     A starting sigma taken from sd(y) is printed under verbose and
     shown in a line of the summary; no warning (dec-B429, VD
     2026-10-10).
