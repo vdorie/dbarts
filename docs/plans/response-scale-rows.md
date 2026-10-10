@@ -7,8 +7,8 @@ refusing), dec-B363 (slice B's half: no documented by-hand call yet), dec-B364 (
 `setOffset`), dec-B405 (the keep is a status: the engine returns it, the R interface warns, the flat
 entries return it), dec-B381 (the planning calls approved) and dec-B386 (a constant response's window
 where every row is in); rests on dec-B357 (a survival fit's range from observed times) and, for slice C,
-dec-B327; revises dec-A140. One call is held for the maintainer (the C API's minor version, before step
-4) and one open dependency is recorded, both in [Open items](#open-items). This file plans slice B,
+dec-B327; revises dec-A140. The C API's version stays 1/0 and the hash alone moves (dec-B424). One open
+dependency is recorded in [Open items](#open-items). This file plans slice B,
 creation. Slice A is [aft-reanchor-observed-times.md](aft-reanchor-observed-times.md), landed. Slices C
 and D are stated at the end and have no steps yet. dec-B303 stays in
 [forest-multiplier.md](forest-multiplier.md).
@@ -58,7 +58,7 @@ Serial with any other work in model.hpp, the response setters of
 constructor of [`Chain`](../../src/bartcore/chain.hpp), [`resolveSamplerSpec`](../../R/spec.R),
 [`estimateSigmaFromLinearModel`](../../R/utility.R), [`expandDiscreteTimeHazard`](../../R/dbarts.R) or
 dbarts.h. stan4bart's part lands with this slice's header commit, on its bartcore branch.
-budget: ~2040 lines with the hash alone, ~2055 with the minor bump (step 4's open call): engine ~175, of
+budget: ~2040 lines: engine ~175, of
 which the keep's decision and status ~40; facade, bridge, flat entries, dbarts.h and the token ~75;
 tests/cpp ~335; R ~170, of which the hazard grid ~30; tinytest ~580, of which ~540 a new file; the C API
 test ~75; benchmarks and the workflow ~250; help, header comments and NEWS ~115; design note, indexes,
@@ -287,9 +287,8 @@ release, and neither did dbarts.h: 0.9-34's C interface was the R_C_interface.hp
   the status, none of them testing the rows again. At creation and `setData` R also tests rule 4, for
   sigest and the creation warning, as before; step 8's literals hold the two in agreement.
 - dbarts.h keeps every signature. It gains one enumerator list, folded into the token, so
-  `DBARTS_C_API_HASH` moves; whether `DBARTS_C_API_MINOR` moves from 0 to 1 is step 4's open call to the
-  maintainer; the comments of the two re-anchoring entries and the contract paragraph on capability
-  statuses change (item 6). An ABI event: every LinkingTo consumer is rebuilt in lockstep.
+  `DBARTS_C_API_HASH` moves; `DBARTS_C_API_MINOR` stays 0 (dec-B424); the comments of the two
+  re-anchoring entries and the contract paragraph on capability statuses change (item 6). An ABI event: every LinkingTo consumer is rebuilt in lockstep.
 - No state format change and no new record: the range is the model's `response.range`, the unit the
   forests' `anchor`, sigest the data object's, the periods the fit's `$periods`, as now. A re-creation
   restates the record and derives nothing.
@@ -354,35 +353,22 @@ rest.
    property, "test it once at setup rather than every sweep") gains that the two swap entries' 2 is a
    per-call outcome and not a capability. "All three ABI enums" becomes four in the header and in the
    fold's comment ([`dbarts_apiToken`](../../src/C_interface.cpp)); `DBARTS_C_API_HASH` is re-baked.
-7. Open call to the maintainer, before step 4: the minor version (the critique's S5). dec-B405's rule
-   summary says "a minor version bump"; the maintainer's quoted words are "OK, pass it through I think.",
-   to an option shown as "a header change" with no bump named; dec-B60 ("No need to increment
-   versions"), the header's paragraph and dec-A139 (the last ABI event, held at 1/0) hold the pair
-   through the pre-release.
-   - The bump: `DBARTS_C_API_MINOR` 1. Costs: two pins in test-capi.R move to `c(1L, 1L)` with their
-     comments (["expect_equal(versions, c(1L, 0L))"](../../inst/tinytest/test-capi.R) and
-     ["expect_equal(versionsWrongHashAlone, c(1L, 0L))"](../../inst/tinytest/test-capi.R)); the
-     header's version paragraph is amended to name the bump, reversing dec-B60 for it; a rebuilt
-     stan4bart refuses every earlier dbarts development build at its handshake, which
-     `LinkingTo: dbarts (>= 1.0-0)` cannot express; the stan4bart A/B gate (item 9) needs two stan4bart
-     builds, one per header, since the slice-built one fails its handshake on the base library. About 15
-     lines more.
-   - The hash alone (recommended, as dec-B60 and dec-A139 did): the pair stays 1/0, the pins and the
-     paragraph stay; one stan4bart build serves both libraries of the A/B gate (against the base library
-     it passes the handshake and reads only 1); a rebuilt stan4bart run against an older development
-     build of dbarts never sees a 2, which costs it the warning only. A consumer that wants exactness
-     defines `DBARTS_REQUIRE_EXACT_ABI` as today.
+7. The version (dec-B424; the critique's S5). Shown the hash alone against a bump of
+   `DBARTS_C_API_MINOR` to 1, the maintainer: "Hash only, we're still pre-release." The pair stays 1/0,
+   test-capi.R's version pins and the header's version paragraph stay; one stan4bart build serves both
+   libraries of the A/B gate (against the base library it passes the handshake and reads only 1); a
+   rebuilt stan4bart run against an older development build of dbarts never sees a 2, which costs it the
+   warning only. A consumer that wants exactness defines `DBARTS_REQUIRE_EXACT_ABI` as today.
 8. The C API test. [consumer.c](../../inst/tinytest/capi/consumer.c) exports the three constants;
    [test-capi.R](../../inst/tinytest/test-capi.R): the constants are 0, 1, 2; the hash its new literal;
-   the version pins as item 7 rules. A gaussian sampler with three rows in at one value, the rest at
+   the version pins unchanged (item 7). A gaussian sampler with three rows in at one value, the rest at
    weight 0: each entry with `updateScale` true returns 2 and raises no condition (counted with
    `withCallingHandlers`), the transform and five sweeps bit for bit an `updateScale`-false twin's; then
    `$setOffset(updateScale = TRUE)` on the same sampler warns once (the flat call left the flag), and a
    second call none. Two rows in at two values: 1 and the rows-in transform. `updateScale` false: 1.
    Every row in at a constant response: 1. nbinom under a mask keeping one count: 2. probit: 1. The
-   stale-minor and wrong-hash handshake arms as they are. Under the bump, one new arm compiles the
-   consumer with `-DDBARTS_C_API_MINOR=0`: it compiles the new header, so it proves the handshake's
-   arithmetic only; item 10's stale stan4bart binary is the proof that an old consumer runs.
+   stale-minor and wrong-hash handshake arms as they are; item 10's stale stan4bart binary is the proof
+   that an old consumer runs.
 9. stan4bart's part, in lockstep on its bartcore branch, after dec-B419's per-chain restore lands there.
    What it does with the value:
    - At each call with `updateScale` true (src/init.cpp: the call after creation and the warm-up loop's
@@ -419,7 +405,7 @@ rest.
 10. Gates of this part: tests/cpp (step 4); the C API test; step 8's keep arm through the R methods;
     stan4bart's suite and its new test against the slice's library; one seeded stan4bart gaussian fit
     with zero weights on the base and slice libraries, differing, beside one without, identical (one
-    stan4bart build under the hash alone, two under the bump, item 7); and once, reported, a stan4bart
+    stan4bart build serves both, item 7); and once, reported, a stan4bart
     binary built against the base header run against the slice's library, which must pass the handshake
     and fit (it ignores the return).
 
@@ -469,7 +455,7 @@ rest.
 4. The keep's status, engine to C API, as [The keep's status (dec-B405)](#the-keeps-status-dec-b405)
    items 2 to 8: the sampler's decision and its status, the facade, the bridge's logical and holder flag,
    the R warning, the flat entries' values, the header's list and comments and the token's fold, and the
-   version as the maintainer rules on item 7, asked before this step starts. `--preclean`. tests/cpp, two
+   version left at 1/0 (item 7). `--preclean`. tests/cpp, two
    chains: re-derived with a row out and none in, one in, four in at one value, through `setResponse` and
    `setOffset`: `scaleKept`, and the transform, the working response and 20 sweeps of both chains bit for
    bit an `updateScale`-false twin's, `getAnchor` unchanged (fails today: every row); the same under a
@@ -695,7 +681,7 @@ rest.
 
 ## Budget and stops
 
-Planned ~2040 lines with the hash alone, ~2055 with the minor bump: engine ~175 (range ~60, center ~30,
+Planned ~2040 lines: engine ~175 (range ~60, center ~30,
 unit ~45, the read and the sampler's decision ~40); facade, bridge, flat entries, dbarts.h and the token
 ~75; tests/cpp ~335; R ~170 (the warning moved into the dbarts.R methods); tinytest ~580; the C API test
 ~75 (consumer.c ~15, test-capi.R ~60, ~15 more under the bump); benchmarks and the workflow ~250; help,
@@ -716,9 +702,7 @@ Stop and report when:
 - the keep needs a branch in a chain or a response model's setter, or a decision anywhere but the
   sampler;
 - the status needs a facade virtual beyond the two return types; or dbarts.h needs more than the
-  enumerator list, the hash, the comments and the contract paragraph, and, if the maintainer rules the
-  bump, the minor and its paragraph (any signature change is a stop);
-- step 4 is reached with item 7's call unanswered;
+  enumerator list, the hash, the comments and the contract paragraph (any signature change is a stop);
 - stan4bart's part needs more than the read sites, the counts' way out and one warning, or moves a
   stan4bart draw; or the stale stan4bart binary fails the handshake or a fit;
 - a hazard fit with every subject in changes;
@@ -846,11 +830,6 @@ D. dec-B304: a linear or gp leaf's covariate center and scale, and the default l
   it stops, the warm-up read site goes (~75 to ~55 lines); if no call with `updateScale` true remains,
   the part is the rebuild alone. dbarts's side is unchanged either way; the C API's value still serves
   any host that re-derives.
-- Open call to the maintainer, before step 4 (item 7 of
-  [The keep's status (dec-B405)](#the-keeps-status-dec-b405)): bump `DBARTS_C_API_MINOR` to 1, or move
-  the hash alone (recommended, as dec-B60 and dec-A139 did). dec-B405's rule summary names the bump; the
-  maintainer's quoted words and the option shown do not. Item 7 gives each branch's cost; the plan builds
-  neither by default, and a step 4 reached with the call open is a stop.
 
 ## Calls made in planning
 
@@ -933,8 +912,8 @@ critique of the design (2026-10-07); then the planner's; then the revisions' (20
 - Revision to the scoped critique's S3. The R warning is the dbarts.R methods' last act, after
   `storeState()`; the alternative, raising it in the bartcore.R helpers, left `$state` and the test offset
   stale when the warning became an error.
-- Revision to the scoped critique's S5 (the coordinator). The minor bump is not built by default: step 4
-  holds the call for the maintainer, the hash alone recommended.
+- Revision to the scoped critique's S5 (the coordinator). The minor bump was held for the maintainer,
+  who ruled the hash alone (dec-B424).
 - Revision. sparse-starting-sigma lands first and this slice is written against its routine (the
   coordinator's reading of dec-A191's queue, which it is not in).
 
