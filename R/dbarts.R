@@ -1610,8 +1610,7 @@ samplePriorPredictive <- function(
   draw <- dbartsSampler$new(newControl, sampler$model, sampler$data)
   # under the caller's prior, anchored where its model records
   draw$model <- sampler$model
-  applyAnchor(draw$pointer, sampler$model, FALSE)
-  reissueNamedLeafSd(draw, draw$pointer)
+  applyAnchor(draw$pointer, sampler$model)
 
   xt <- if (is.null(x.test)) extract(draw, "predictors") else x.test
   responseIsBinary <- draw$control@binary
@@ -1830,23 +1829,6 @@ predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
   )
 }
 
-## A named leaf-prior sd is absolute on the family's scale, but the engine
-## holds the leaf scale against the response transform in force; a channel
-## that re-anchors that transform, or an install that moves a re-created
-## sampler into its recorded one, would carry the sd with it. The named scale
-## is written back after each one, so the sd means what it did. Only a
-## single-forest model can name one, and a write equal to what is in force is
-## skipped inside the engine. An install passes the pointer it used, which
-## getPointer has not yet bound.
-reissueNamedLeafSd <- function(sampler, ptr = sampler$getPointer()) {
-  anchor <- sampler$model@prior.scale
-  if (is.na(anchor)) {
-    return(invisible(NULL))
-  }
-  .Call(C_dbarts_bartcore_setLeafPrior, ptr, 0L, anchor)
-  invisible(NULL)
-}
-
 ## The install every re-creation shares - getPointer, $setState and copy: the
 ## state goes into the engine at ptr, then what rides no state is put back from
 ## the sampler's own mirrors, in this order. adopt is TRUE only where the
@@ -1856,7 +1838,6 @@ installStateOnto <- function(sampler, ptr, state, predictors, adopt) {
   exact <- .Call(C_dbarts_bartcore_setState, ptr, state, predictors, adopt)
   sampler$reapplyForestWeights(ptr)
   sampler$reapplyActiveRows(ptr)
-  reissueNamedLeafSd(sampler, ptr)
   exact
 }
 
@@ -1866,28 +1847,23 @@ installStateOnto <- function(sampler, ptr, state, predictors, adopt) {
 ## a model saved before the record existed reads NULL. A first creation and
 ## the re-anchoring channels write it from the engine.
 recordAnchor <- function(model, ptr) {
-  attr(model, "response.range") <- .Call(
-    C_dbarts_bartcore_anchor,
-    ptr,
-    NULL,
-    FALSE
-  )
+  attr(model, "response.range") <- .Call(C_dbarts_bartcore_anchor, ptr, NULL)
   model
 }
 
 ## A re-creation from a sampler's own model takes its record as the engine's
-## transform. The chains are moved there at once unless an install follows,
-## whose state is converted into the record and moves them itself, exactly as
-## the install moved a re-created sampler before the record existed.
-applyAnchor <- function(ptr, model, installFollows) {
+## transform, and the chains are moved there at once: no install moves them,
+## so a state that follows is read against the record only because they are
+## already in it. The engine restates a named leaf-prior sd with the move.
+applyAnchor <- function(ptr, model) {
   record <- attr(model, "response.range", exact = TRUE)
   if (!is.null(record)) {
-    .Call(C_dbarts_bartcore_anchor, ptr, record, installFollows)
+    .Call(C_dbarts_bartcore_anchor, ptr, record)
   }
   invisible(ptr)
 }
 
-recreatePointer <- function(control, model, data, installFollows) {
+recreatePointer <- function(control, model, data) {
   ptr <- .Call(
     C_dbarts_bartcore_create,
     control,
@@ -1895,7 +1871,21 @@ recreatePointer <- function(control, model, data, installFollows) {
     data,
     if (model@family == "auto") "" else model@family
   )
-  applyAnchor(ptr, model, installFollows)
+  applyAnchor(ptr, model)
+}
+
+## The sd a model names for its leaf prior, read off its encoding: prior.scale
+## over the reference k it rides, a fixed k or a chi prior's scale; NA where
+## the prior is written with k. The reference is 2, so the quotient is the
+## named sd exactly.
+namedLeafSd <- function(model) {
+  hyperprior <- model@leaf.hyperprior
+  reference <- if (is(hyperprior, "dbartsChiHyperprior")) {
+    hyperprior@scale
+  } else {
+    hyperprior@k
+  }
+  model@prior.scale / reference
 }
 
 ## What prior.sd is the sd of, per leaf model.
@@ -1910,9 +1900,12 @@ priorSdOf <- function(leafModel) {
 
 ## One forest's leaf prior, from the bridge's per-chain calibration: the
 ## specification in the terms it was named in, then the quantities the chains
-## share. A fixed value is read off the engine, so it is what is in force; a
-## law comes from the model, gated by the engine's per-forest flag, since a
-## map forest pins k whatever the model says. The map entries are present only
+## share. A fixed k is read off the engine, so it is what is in force; a
+## prior on k comes from the model, gated by the engine's per-forest flag,
+## since a map forest pins k whatever the model says; and an sd, fixed or
+## under invchi(), comes from the model as named, the engine holding only its
+## statement as k, which need not divide back to the same number. The map
+## entries are present only
 ## on a forest whose scale the map sets, and there the specification is the
 ## forest(sd = ) creation takes: the half-Cauchy median on a scale-mixture
 ## forest, the leaf-scale factor otherwise. Every chain runs under the
@@ -1927,17 +1920,17 @@ reportLeafPrior <- function(sampler, raw) {
   anchor <- shared("prior.scale")
   spec <- model@leaf.prior
   sdNamed <- mapped || !is.na(model@prior.scale) || !is.null(spec@prior.sd)
+  named <- spec@prior.sd
   spec@k <- NULL
   spec@prior.sd <- NULL
   if (!sdNamed) {
     spec@k <- if (drawn) hyperprior else shared("k")
-  } else if (!drawn) {
-    spec@prior.sd <- anchor / shared("k")
-  } else {
-    spec@prior.sd <- invchi(
-      hyperprior@degreesOfFreedom,
-      if (is.finite(hyperprior@scale)) anchor / hyperprior@scale else 0
-    )
+  } else if (!is.null(named)) {
+    spec@prior.sd <- named
+  } else if (!mapped) {
+    # a model whose encoding names an sd its specification does not carry
+    sd <- namedLeafSd(model)
+    spec@prior.sd <- if (drawn) invchi(hyperprior@degreesOfFreedom, sd) else sd
   }
   leafModel <- attr(raw, "leaf.model")
   prior <- list(
@@ -1968,15 +1961,17 @@ reportLeafPrior <- function(sampler, raw) {
   prior
 }
 
-## Installs a restated leaf prior. A new anchor under the hyperprior in force
-## is the engine's own leaf-scale write, which skips a value equal to what is
-## in force; a new hyperprior, or a return to the data's scale, goes through
-## the model, whose install re-pins a fixed sigma, so that is put back.
+## Installs a restated leaf prior. A named sd under the hyperprior in force
+## is the engine's own named-sd write, which skips the sd it already holds; a
+## new hyperprior, or a return to a prior written with k, goes through the
+## model, whose install re-pins a fixed sigma, so that is put back. Neither
+## moves a drawn k: k.scale is the data's under every prior, so the spread in
+## force is kept until the next draw.
 writeLeafPrior <- function(sampler, ptr, newModel) {
   oldModel <- sampler$model
   sameLaw <- identical(newModel@leaf.hyperprior, oldModel@leaf.hyperprior)
   if (sameLaw && !is.na(newModel@prior.scale)) {
-    .Call(C_dbarts_bartcore_setLeafPrior, ptr, 0L, newModel@prior.scale)
+    .Call(C_dbarts_bartcore_setLeafPrior, ptr, 0L, namedLeafSd(newModel))
     return(invisible(NULL))
   }
   if (sameLaw && is.na(oldModel@prior.scale)) {
@@ -1995,25 +1990,6 @@ writeLeafPrior <- function(sampler, ptr, newModel) {
       length(unique(sigmas)) == 1L
   ) {
     .Call(C_dbarts_bartcore_setSigma, ptr, sigmas[[1L]])
-  }
-  invisible(NULL)
-}
-
-## The value a single forest's k is relative to, k.scale, in response units:
-## the spread in force on each chain is k.scale / k.
-leafKScale <- function(ptr) {
-  .Call(C_dbarts_bartcore_getLeafPrior, ptr, 0L)[[1L, "prior.scale"]]
-}
-
-## Keeps each chain's drawn spread in force across a write that moved k.scale:
-## k is re-expressed against the new k.scale, and the new prior acts from the
-## next draw of k. Every switch into a drawn prior keeps it, from a fixed k or
-## sd as from a drawn one (dec-B356, dec-B369, dec-B392, dec-B393); the engine
-## leaves a forest at a fixed k, where a stated value is taken literally.
-keepDrawnSpread <- function(ptr, kScaleBefore) {
-  factor <- leafKScale(ptr) / kScaleBefore
-  if (is.finite(factor) && factor > 0 && factor != 1) {
-    .Call(C_dbarts_bartcore_scaleDrawnK, ptr, 0L, factor)
   }
   invisible(NULL)
 }
@@ -2446,7 +2422,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     copy = function(shallow = FALSE) {
-      "Creates a deep or shallow copy of the sampler, keeping its model and installing its stored state."
+      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing; see setState."
       # a copy introduces no rows, so it does not raise the creation warning
       dupe <- withoutZeroTrialsWarning(
         if (shallow) {
@@ -2464,8 +2440,8 @@ dbartsSampler <- setRefClass(
       )
 
       # a copy is a re-creation: it keeps this sampler's model, the record of
-      # its transform included, and the install, or with none the move here,
-      # puts the chains in it. The stored state is opaque and never mutated
+      # its transform included, and the move below puts the chains in it
+      # before any state goes in. The stored state is opaque and never mutated
       # in place (storeState replaces it whole), so the copy can install the
       # same object. With none stored, the sampler's current state is read
       # now for this copy alone: the read draws nothing and the source keeps
@@ -2478,7 +2454,7 @@ dbartsSampler <- setRefClass(
       ) {
         installing <- .Call(C_dbarts_bartcore_storeState, pointer)
       }
-      applyAnchor(dupe$pointer, model, !is.null(installing))
+      applyAnchor(dupe$pointer, model)
       # forestWeights is a plain list field: assigning it shares the
       # underlying object, but R's copy-on-modify means a later
       # setForestWeights on either sampler duplicates before mutating. The
@@ -2507,7 +2483,6 @@ dbartsSampler <- setRefClass(
       } else {
         dupe$reapplyForestWeights(dupe$pointer)
         dupe$reapplyActiveRows(dupe$pointer)
-        reissueNamedLeafSd(dupe, dupe$pointer)
       }
       dupe
     },
@@ -2782,7 +2757,6 @@ dbartsSampler <- setRefClass(
       bartcoreSamplerSetData(.self, newData)
       selfEnv <- parent.env(environment())
       selfEnv$model <- recordAnchor(model, getPointer())
-      reissueNamedLeafSd(.self)
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
@@ -2832,7 +2806,6 @@ dbartsSampler <- setRefClass(
       if (isTRUE(updateScale)) {
         selfEnv <- parent.env(environment())
         selfEnv$model <- recordAnchor(model, getPointer())
-        reissueNamedLeafSd(.self)
       }
       if (resolveUpdateState(updateState, control)) {
         storeState()
@@ -2853,7 +2826,6 @@ dbartsSampler <- setRefClass(
       if (isTRUE(updateScale)) {
         selfEnv <- parent.env(environment())
         selfEnv$model <- recordAnchor(model, getPointer())
-        reissueNamedLeafSd(.self)
       }
       if (resolveUpdateState(updateState, control)) {
         storeState()
@@ -3427,7 +3399,7 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale under a k-named prior and under sd = invchi(df, 0), and otherwise, under an sd-named prior, twice the sd or invchi() scale in force; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is the forest(sd = ) creation takes, which goes back into setLeafPrior(forests = ) - the half-Cauchy median on a forest created without a basis (prior.sd.of 'amplitude scale'), the leaf-scale factor otherwise ('forest total') - and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor, and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
+      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() law) or sd (a number or an invchi() law), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale, fixed by the family and the response mapping and the same however the prior is written; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1, leaf.prior is the forest(sd = ) creation takes, which goes back into setLeafPrior(forests = ) - the half-Cauchy median on a forest created without a basis (prior.sd.of 'amplitude scale'), the leaf-scale factor otherwise ('forest total') - and the list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor, and one of amplitude.prior.variance or amplitude.prior.scale; they are absent elsewhere. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns an unnamed list of one prior per forest; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
       ptr <- getPointer()
       read <- function(index) {
         reportLeafPrior(
@@ -3460,7 +3432,7 @@ dbartsSampler <- setRefClass(
       do.call(rbind, lapply(seq_len(numForests) - 1L, read))
     },
     setLeafPrior = function(leaf.prior, forests = NULL, updateState = NULL) {
-      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() prior on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Into a drawn prior each chain's spread in force is kept at the call, from a fixed k or sd as from a drawn one: k becomes k_old x new k.scale / old k.scale, so getK moves where k.scale does and the new prior acts from the next draw of k. A fixed k or sd stated is taken as written. Since the write keeps the chains' spread, on a sampler not yet run it is not the start creation under the new prior would make. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. A sampler whose forests carry amplitudes takes forests = list(forest(sd = ), ...) instead of leaf.prior, as its creation does: the same positions and names, a short list reaching the first forests, and a forest whose sd is not stated left as it is; normal() and normal(k = 2), which its creation also accepts, change nothing. Give exactly one of leaf.prior and forests. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, or for forests on the control, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
+      "Restates the leaf prior's spread, or the hyperprior it is drawn under, on every chain, in the vocabulary a fitting function's leaf.prior takes: normal(sd = ), normal(k = ), an invchi() prior on the sd, linear(sd = ) or gp(sd = ). The specification must name the sampler's own leaf model; leaf-model details such as a linear leaf's columns may be omitted and, if given, must match. Nothing else moves - not the tree prior, the response transform or sigma. Into a drawn prior each chain's spread in force is kept at the call, from a fixed k or sd as from a drawn one: k.scale is the data's under every prior, so k is not touched and the new prior acts from the next draw of k. A fixed k or sd stated is taken as written, a fixed sd as k = k.scale / sd. Since the write keeps the chains' spread, on a sampler not yet run it is not the start creation under the new prior would make. A multinomial sampler takes normal(k = ) with a fixed k, Inf included, applied to every category forest. A sampler whose forests carry amplitudes takes forests = list(forest(sd = ), ...) instead of leaf.prior, as its creation does: the same positions and names, a short list reaching the first forests, and a forest whose sd is not stated left as it is; normal() and normal(k = 2), which its creation also accepts, change nothing. Give exactly one of leaf.prior and forests. The write takes effect on the next sweep, reinterpreting no value already drawn; a write equal to what is in force is bitwise inert. The write is recorded on the model field, or for forests on the control, so a re-creation or a later re-anchoring channel restates it rather than the creation value. setModel changes everything else. updateState follows control@updateState; see setData."
       # a forest = index would otherwise match forests = partially
       if ("forest" %in% names(sys.call())) {
         stop(
@@ -3554,10 +3526,7 @@ dbartsSampler <- setRefClass(
           as.double(newModel@leaf.hyperprior@k)
         )
       } else {
-        # both reads are under the one response transform the write leaves
-        kScaleBefore <- leafKScale(ptr)
         writeLeafPrior(.self, ptr, newModel)
-        keepDrawnSpread(ptr, kScaleBefore)
       }
       selfEnv <- parent.env(environment())
       selfEnv$model <- newModel
@@ -3596,7 +3565,7 @@ dbartsSampler <- setRefClass(
           )
         }
         refuseLegacyState(state)
-        ptr <- recreatePointer(control, model, data, TRUE)
+        ptr <- recreatePointer(control, model, data)
         # a same-spec continuation skips re-quantization; data@x serves any
         # cross-grid column (the engine keeps no predictor matrix)
         # a store sized through the flat API is in no control, so the
@@ -3612,7 +3581,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState) {
-      "Installs a stored state: the chains, never the model. A state in other response units is converted into the sampler's; a Gaussian-process leaf or forests with amplitudes refuse one under another response shift, saved draws or not. Invisibly returns TRUE when nothing had to be changed to install it, FALSE otherwise. See Saving and Value in ?dbartsSampler."
+      "Installs a stored state: the chains, never the model. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force continues the chain exactly; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Invisibly returns TRUE when nothing had to be changed to install it, FALSE otherwise. See Saving and Value in ?dbartsSampler."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
@@ -3620,7 +3589,7 @@ dbartsSampler <- setRefClass(
       selfEnv <- parent.env(environment())
       ptr <- pointer
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
-        ptr <- recreatePointer(control, model, data, TRUE)
+        ptr <- recreatePointer(control, model, data)
       }
       exact <- installStateOnto(
         .self,
@@ -3652,11 +3621,13 @@ dbartsSampler <- setRefClass(
     },
     installTrees = function(donor, samples = NULL) {
       "Warm-starts the forests from a donor sampler or bart fit over the same
-       predictors, keeping this sampler's model; a donor in other response
-       units, or with linear-leaf covariates centred and scaled differently,
-       is converted into this sampler's. 'samples' maps each chain to a
-       1-based donor-sample index; NULL spreads the chains across the donor's
-       kept samples. Single-forest samplers only."
+       predictors, keeping this sampler's model. The donor's trees and leaf
+       values, and its k and sigma where this sampler draws them, go in as
+       stored on the internal scale, not converted to this sampler's
+       response; linear-leaf coefficients drawn under covariates centred and
+       scaled differently are restated in this sampler's. 'samples' maps each
+       chain to a 1-based donor-sample index; NULL spreads the chains across
+       the donor's kept samples. Single-forest samplers only."
       ptr <- getPointer()
       refuseMultiForestWarmStart(ptr, "$installTrees")
       donorState <- warmStartState(donor)
@@ -3664,7 +3635,6 @@ dbartsSampler <- setRefClass(
         samples <- coerceOrError(samples, "integer")
       }
       .Call(C_dbarts_bartcore_installForests, ptr, donorState, samples)
-      reissueNamedLeafSd(.self, ptr)
       storeState(ptr)
       invisible(NULL)
     },

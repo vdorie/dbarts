@@ -1070,7 +1070,9 @@ addTreesChainColumn <- function(trees) {
 # the sampler held; the draw channel of a fixed sigma or shape repeats it).
 # k is the sampler's own, and leaf.prior.sd the k.scale over it - the forest
 # total's prior sd in the units the forest fits - so it is a fixed number or
-# draws exactly as k is. A fit with several forests has one k and one sd per
+# draws exactly as k is. A held sd a single forest's recorded prior names is
+# that sd itself: the held k is k.scale over it, and dividing back need not
+# return its bits. A fit with several forests has one k and one sd per
 # forest, named, or the one 'forest' selects. A fit saved before fits stored
 # these descriptors answers from its channels where they suffice and refuses by
 # name where they do not.
@@ -1097,6 +1099,20 @@ extractParameter <- function(
       vapply(prior, function(forestPrior) forestPrior$k.scale, 0)
     } else {
       prior$k.scale
+    }
+    # a forest whose scale a calibration map sets records forest(sd = ), which
+    # is not a leaf prior's sd
+    named <- if (
+      !is.null(prior[["leaf.prior"]]) && is.null(prior[["basis.row.norm"]])
+    ) {
+      prior$leaf.prior@prior.sd
+    }
+    if (!is.null(fixed[["k"]]) && is.numeric(named)) {
+      return(selectForests(
+        as.double(named),
+        forest,
+        attr(object, "forest.labels", exact = TRUE)
+      ))
     }
     k <- if (!is.null(fixed[["k"]])) {
       fixed[["k"]]
