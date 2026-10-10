@@ -1000,11 +1000,12 @@ items
   state-before-first-missing: a state stored before a column's first
     missing value and installed after it sends every missing value
     left with no draw, in current trees and kept draws, and setState
-    reports a clean install; the state does not record which columns
-    could be missing when it was stored (dec-A198; found by the review
-    of missingness first seen, 2026-10-10). With the maintainer:
-    draw at install (the state carries the flags), report it, or
-    document it. Before the merge to main.
+    reports a clean install (dec-A198). Ruled: the state records the
+    columns that could hold a missing value when it was stored, and
+    an install into a sampler where a further column can draws those
+    splits' directions at one half (dec-B435, VD 2026-10-10). With
+    setState's two forms (docs/plans/setstate-force-update.md, Part
+    B). Before the merge to main.
   factor-first-missing-setpredictor: a factor column's first missing
     value by setPredictor is refused at the R surface, where dec-B321
     says "at creation or by a later setPredictor" with no exception;
