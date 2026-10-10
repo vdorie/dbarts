@@ -627,8 +627,9 @@ cases <- list(
   ),
   list(
     info = "declined under other censoring",
-    make = aftCollapsed(rep(1, n)),
-    state = aftWith(as.double(time <= bound))()$state,
+    # the sampler that holds censored rows: the redraw is of their times
+    make = aftCollapsed(as.double(time <= bound)),
+    state = aftWith(rep(1, n))()$state,
     digest = "survival.digest"
   )
 )
