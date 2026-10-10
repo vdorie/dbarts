@@ -193,7 +193,8 @@ either. The sparse routine reads [`sparseSigmaDesign`](../../R/utility.R)'s
 columns, a factor as indicators whose missing rows are never stored, through
 [`sparseSigmaFrontEnd`](../../R/utility.R) into
 [`sparseSigmaRoutine`](../../R/utility.R): the widest factor eliminated, a
-pivoted Cholesky of what is left. Where no regression is defined the estimate
+pivoted Cholesky of what is left, the intercept ordered last where no factor
+is eliminated. Where no regression is defined the estimate
 is the response sd, signaled as `dbartsSigmaFallback` and never warned.
 
 ### Stages and gates

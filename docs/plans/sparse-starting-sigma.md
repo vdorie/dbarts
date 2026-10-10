@@ -43,8 +43,9 @@ standard output) or at several-thread `rbart_vi` (verbose off).
 
 ## Design
 
-`sigest` at every door (`bart`, `bartBT`, `dbarts`, `dbartsSpec`, `rbart_vi`, `xbart`) is resolved beside
-[`resolveSigestArg`](../../R/tombstones.R) into a number or a route handed to [`resolveSamplerSpec`](../../R/spec.R).
+`sigest` at every door (`bart`, `bartBT`, `dbarts`, `dbartsSpec`, `rbart_vi`, `xbart`) is resolved after
+[`resolveSigestArg`](../../R/tombstones.R), by [`resolveSigestRule`](../../R/utility.R), into a number or a route
+handed to [`resolveSamplerSpec`](../../R/spec.R).
 The slot and `fit$sigest` hold the number used, with no attribute; the call keeps the string.
 - NULL, and NA where a door takes it, is "auto"; the retired spelling `sigma` takes a number only.
 - A string is exactly "auto", "dense" or "sparse"; one `as.double` reads as a number is that number, as today; any
@@ -116,14 +117,19 @@ D. The sparse routine, with `h = sqrt(w)` and `zs = h z`; it ends in e, and `sig
    `M0 = Z0'Ct`, `t = Ct'u` and `g = M0'a`,
    `St = Ct'Ct - M0' diag(1 / d) M0 + (c / den) g g' - (g t' + t g') / den - (s / den) t t'` and `S = F' St F`. If no
    factor has two columns, or S would have n or more, none is eliminated: each imputed row left is written in at its
-   frequency, B is `h [1 X]` with unit-norm columns, and step 2 takes `S = B'B` if B has under n columns, else step 3.
+   frequency and B is `h [1 X]`. If B has under n columns step 2 takes `S = D B1'B1 D`, B1 being B without its
+   intercept, the crossproduct formed first and D the inverse roots of its diagonal, and orders the intercept last;
+   else step 3 takes B with unit-norm columns.
 2. Narrow. The rank r of S is 0 when no diagonal entry exceeds 1e-10, and otherwise that of
    `chol(S, pivot = TRUE, tol = 1e-10)` inside `suppressWarnings` (its one warning is the rank deficiency; LAPACK
    never tests its first pivot). K is the first r pivots, R the factor's leading r by r block. The design's rank is
    the block's columns plus r; at n or more no regression is defined (E). With `Ai(x) = x / d - c a (a'x) / den`,
    `hz = Z0'zs + v (u'zs)` and `k = Ai(hz)`: `b = R^-1 R^-T (F'(Ct'zs - M0'k - t (v'k)))[K]`, `beta = F[, K] b`,
    `bZ = Ai(hz - M0 beta - v (t'beta))` and `e = zs - Z0 bZ - u (v'bZ) - Ct beta`. With nothing eliminated
-   `b = R^-1 R^-T (B'zs)[K]` and `e = zs - B[, K] b`.
+   `[ez e1] = [zs h] - P [zs h]`, P projecting on the kept columns `B1 D[, K]` through R; the intercept joins, one
+   more in the rank, where `|e1|^2 > 1e-10 |h|^2`, and then `e = ez - e1 (e1'ez / e1'e1)`, else `e = ez`. An
+   intercept that is exactly the sum of a complete set of indicators is so found whatever n and the weights: the
+   difference of sums `S_00 - |R^-T S_K0|^2` it replaces grew with n past the tolerance (fix round, B1).
 3. Wide. The same rule and call on `as.matrix(Matrix::tcrossprod(B))`; with L the factor's first r columns, unpivoted,
    `Q = qr.Q(qr(L, LAPACK = TRUE))` and `e = zs - Q Q'zs`; no regression at r >= n.
 
@@ -140,16 +146,20 @@ and 3.5 s under Accelerate, and twice 8 bytes times the columns squared; one wid
 240 MB from the data frame at n 2e5 with 50,000 levels, missing values or not). "dense" costs what `lm.fit` costs and
 holds n by p doubles. D differs from `lm.fit`, at any size: in dec-B421's band, on a near-copy of a column that
 carries signal and on rows weighted 1e12 times the rest (carried); on a value recorded on the rows of two or more
-levels of a factor with a large offset and a small spread (1.325 for 0.501; run); on a caller's own one-hot columns
-near n 3e6, by one rank and 1.7e-7 in sigma on 2 of 4 designs (run; not on a frame's factor); and downward where
-`lm.fit` drops a time within 60 s beside its indicator and D keeps it (run).
+levels of a factor with a large offset and a small spread (1.325 for 0.501; run); on two complete sets of a caller's
+own one-hot columns under weights that are not whole numbers, by one rank and 8e-8 in sigma on 1 of 30 designs at n
+6e6 and none of 36 at 1e6 and 3e6 (fix round; one set, or unit weights, is exact at every n run, to 3.2e7; not on a
+frame's factor; before that round one set alone gave a rank too many from n 21,000, on 31 of 120 designs, and
+this sentence put it near n 3e6); and downward where `lm.fit` drops a time within 60 s beside its indicator and D
+keeps it (run).
 
 E. No regression defined (dec-B429). Under a fixed residual prior none of E.2 to E.6 applies.
 1. Value: `sd(y - offset)` through [`floorMarginalSigma`](../../R/utility.R), as today. No warning.
 2. Record: `estimateSigmaFromLinearModel(data, route)` returns a plain number and, where no regression was defined,
    first signals with `signalCondition` a condition of class `dbartsSigmaFallback` (not a message class, or a caller's
-   handler muffling messages finds no restart: h-record.out). `bart` and `bartBT` set `sigest.fallback` on the fit
-   from a calling handler around sampler creation; xbart reads the class where it reads the warning's today.
+   handler muffling messages finds no restart: h-record.out). `bart`, `bartBT` and `rbart_vi` (around its validation
+   sampler) set `sigest.fallback` on the fit from a calling handler around sampler creation; xbart reads the class
+   where it reads the warning's today.
 3. Verbose, the fallback: a message of class `dbartsStartingSigmaMessage` in
    [`announceAutoFamily`](../../R/utility.R)'s form, `starting sigma is the sd of the response (<value>): the linear
    model on <p> columns (factors as indicators) leaves no residual degrees of freedom in <n> rows; supply 'sigest' to
@@ -167,7 +177,11 @@ E. No regression defined (dec-B429). Under a fixed residual prior none of E.2 to
 F. xbart.
 1. Route (dec-B382): the all-rows estimate runs once, raises any refusal, sends E's lines and fixes the routine: none,
    `lm.fit` or D. Each fold runs it on its rows, the design built per chunk in [`xbartRunUnits`](../../R/xbart.R), or
-   takes their sd under none or if they leave no residual degrees of freedom.
+   takes their sd under none or if they leave no residual degrees of freedom. Where all rows had a regression and
+   some units' rows have none (dec-B429's "wherever"), each chunk returns their count and one line of E.3's class
+   is sent for the run under verbose: `starting sigma is the sd of the response in <k> of <units> (replication,
+   fold) units: the linear model leaves no residual degrees of freedom in their training rows; supply 'sigest' to
+   set it`. A quiet run and the draws are as without it.
 2. `sigest` may be a function, on `loss`'s conventions: `function(x, y, weights, offset)` of exactly four arguments
    (else `supplied sigest function must take exactly four arguments`), or `list(function, environment)`, called
    positionally once per unit on the worker that runs it. `x` is the unit's training rows of A's design for "auto" (a
@@ -210,7 +224,15 @@ New, in test-sparse-starting-sigma.R, against `lm.fit` on the dense indicator de
   column and a sparseFactor column; "dense" on those three runs `lm.fit` alone, `identical` to the dense twin, NA
   entries included; "sparse" on a matrix runs D alone.
 - The doors: each rule of Design's list at each door it names, the refusals by their words; `matrixAvailable` stubbed
-  FALSE, where "auto" and "dense" on a factor frame still run; "sd" stops under a binary response too.
+  FALSE, where "auto" and "dense" on a factor frame still run; "sd" stops under a binary response too; "AUTO",
+  "Dense" and "SPARSE" are refused by name; `list(1.5)` is 1.5 at `dbarts`, `bart` and `dbartsSpec`; NULL at
+  `bartBT` is "auto"; a failed estimate keeps the generic words and appends the cause.
+- No size constant, at the door: a dgCMatrix of 2,100 rows and 2,004 columns (six stored) and its dense six
+  columns equal `lm`'s value; 2,050 levels in 2,100 rows, as a factor under "sparse" and as a sparseFactor under
+  "auto", equal the within-level regression's.
+- D.2 with nothing eliminated: a dgCMatrix of 400 complete one-hot columns and a numeric one at n 40,000 has
+  rank 401 and the within-level regression's sigma (rank 402 before the fix round); with a second complete set of
+  7, rank 407.
 - c-named.R's 63 cases, "sparse", its folds through `xbart`: rows dropped beside a missing factor value (one-row
   levels at weight 0 and at a missing response, five folds, two such factors, a two-level factor with a level held out
   whole, the factor missing on every kept row); C.5 on proportional and duplicated columns, alone, beside their rows'
@@ -228,11 +250,14 @@ New, in test-sparse-starting-sigma.R, against `lm.fit` on the dense indicator de
   only) and `xbart`: zero warnings; with verbose TRUE E.3's line once and E.4's once per call, where and how E.5 says,
   with no message condition at `bartBT`; with verbose FALSE nothing, and a fit under a caller's
   `message = function(m) invokeRestart("muffleMessage")` runs. `sigest` is `sd(y)` with no attributes, also in a
-  `pdbart` result; `sigest.fallback` is TRUE whatever verbose and the summary's line prints; both absent for a linear
-  estimate, a supplied sigest and a fit with the field removed; none of it under a fixed prior.
+  `pdbart` result; `sigest.fallback` is TRUE whatever verbose, on an `rbart_vi` fit too, and the summary's line
+  prints; both absent for a linear estimate, a supplied sigest and a fit with the field removed; none of it under
+  a fixed prior.
 - An Inf entry in a dgCMatrix and in a sparseVector column: the dense path's error, no routine called.
 - xbart: every fold runs the all-rows routine (traced, under each string) and gets `lm.fit`'s sigma on its rows; an
-  all-rows fallback fits no fold. A function, and a list with an environment: each unit's sigma is its value on that
+  all-rows fallback fits no fold. 30 rows, 24 columns and 5 folds, on one thread and on two: the all-rows line and
+  F.1's line once each under verbose, nothing when quiet, the losses those of `function(x, y, weights, offset)
+  sd(y)` either way. A function, and a list with an environment: each unit's sigma is its value on that
   unit's training rows (the four arguments recorded, `weights` and `offset` NULL where none); one ignoring `x` builds
   no design; one drawing `sample` gives identical losses in two runs after one `set.seed` at `n.threads` 1, and with
   `seed =` leaves `.Random.seed` as it was; a return of NA, 0, Inf, a character or length 2 stops; `function(y)` and a
@@ -244,7 +269,9 @@ indicator, or storing imputed rows; "auto" sending an R-built sparse expansion t
 "dense" or "sparse" ignored; an unknown string read as "auto"; a function accepted at `dbarts`; the Matrix check
 removed; explicit zeros kept; C.3 (a) removed; held columns taking part in C.4 and C.5; C.4 without its partner test
 or row confirmation; C.5 or its drop removed; tolerance 1e-16 and 1e-6; D.1's block left out of the rank, its u v'
-term or the other factors' imputed rows dropped; D.2's rule removed; the Inf check run late; the condition signaled
+term or the other factors' imputed rows dropped; D.2's rule removed; the intercept back among the unit-normed columns
+of D.2's crossproduct; a size cutoff on n or on min(n, p + 1); a rule's name read whatever its case; the Inf check
+run late; the condition signaled
 only under verbose, or as a message; the message sent with the flag FALSE, once per chain in `rbart_vi`, or as a
 message at `bartBT`; the function called on all rows, its return unchecked, `x` built unused, a worker seeded.
 
