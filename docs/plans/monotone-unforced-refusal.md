@@ -47,8 +47,9 @@ pair of leaves the constraint relates has its values the right way round.
   keeps the count the column holds; [`ColumnStore::cutsWouldRemainValid`](../../src/bartcore/data.hpp)
   stops one that cannot), so it can change the order only through a has-missing flag.
 - Which flag change relates new leaves. A rule on a column that holds no missing value carries no direction
-  for one: none is drawn, and [`Tree::dropStaleMissingDirections`](../../src/bartcore/tree.hpp) clears what
-  a column's last missing value leaves behind. A first missing value therefore goes left at every rule on
+  for one: none is drawn, and retired: [`Tree::dropStaleMissingDirections`](../../src/bartcore/tree.hpp) (gone
+  since setstate-force-update Part A, the flag no longer going down) cleared what
+  a column's last missing value left behind. A first missing value therefore goes left at every rule on
   its column.
   - Numeric or ordered column: a leaf it reaches is left of every rule on that axis above it, so the leaf's
     interval starts at the lowest code, and two such leaves already share that code. Nothing is added.

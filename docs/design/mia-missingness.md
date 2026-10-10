@@ -7,7 +7,7 @@ incorporation is unconditional on every entry point that offered it, and
 `missing = "error"` is no longer reachable (the BayesTree-compatible door,
 `bartBT`, keeps its own hardcoded refusal of incomplete predictors instead).
 AMENDED 2026-10-10 by
-[Part A: missingness first seen](../plans/setstate-force-update.md#part-a-missingness-first-seen-dec-b320-dec-b321-dec-b322-dec-b378-dec-b399-dec-b400):
+[Part A: missingness first seen (dec-B320, dec-B321, dec-B322, dec-B378, dec-B399, dec-B400)](../plans/setstate-force-update.md#part-a-missingness-first-seen-dec-b320-dec-b321-dec-b322-dec-b378-dec-b399-dec-b400):
 whether a column can hold a missing value is a property of the sampler,
 raised by the first one it is given and never lowered. Two sentences below
 describe what that replaced, the flag cleared with the column's content

@@ -701,7 +701,9 @@ requires. What happens depends on whether the call may refuse.
   ([`UpdateSessionImpl::orderHoldsWithMissing`](../../src/bartcore/sampler.hpp)):
   a row bringing a column its first missing value is declined when that value
   would leave any tree of any chain out of order, in every sampler of a joint
-  update.
+  update. The order is judged under the directions the value's arrival draws
+  for the rules on its column, and a declined row takes that draw back
+  ([mia-missingness.md](mia-missingness.md)).
 - The calls that always complete - a forced update, `setData`,
   `setCutPoints`, a warm start and a `setState` that has to merge leaves - set
   every leaf of such a tree to zero, drawing nothing and saying nothing

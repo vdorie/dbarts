@@ -70,7 +70,7 @@ register's words: setState, copy() and a reload "install the chain's parameters 
 internal scale, against the recipient's response mapping, and never convert them", such an install being
 clean. So this plan
 assumes, when Part B starts, a [`Sampler::setState`](../../src/bartcore/sampler.hpp) with no units pass
-(today's [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp) call and its `unitsRefused`
+(today's retired: [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp) call and its `unitsRefused`
 refusal, read on 7f948d02), no `valuesMoved` feeding `altered`, and k installed as stored. Read: the
 k-internal plan at 13e4818b predates dec-B418 (its step 7 still divides k by the units ratio); its
 revision for dec-B418 is the orchestrator's, and Part B checks the landed form before it starts (Budget
@@ -128,14 +128,14 @@ Code read on 7f948d02:
   [`quantizeCscColumnInto`](../../src/bartcore/data.hpp)); [`setCell`](../../src/bartcore/data.hpp) only
   raises it. A raised flag makes the birth and change moves draw a direction at one half and halves a
   rule's prior on the column, one rule per direction;
-  [`dropStaleMissingDirections`](../../src/bartcore/chain.hpp) clears directions on a column whose flag
+  retired: [`dropStaleMissingDirections`](../../src/bartcore/chain.hpp) (removed by Part A) clears directions on a column whose flag
   is down, from the data-mutation paths ([`applyNewData`](../../src/bartcore/chain.hpp),
   `forceRefreshTrees`, `rebuildFitsFromParameters`, and the variance forest's
   `rebuildVarianceFactors` and `refreshVarianceForest`) and from `buildFromFlat`.
 - R: [`installStateOnto`](../../R/dbarts.R) is the install shared by
   [`dbartsSampler$setState`](../../R/dbarts.R), [`dbartsSampler$getPointer`](../../R/dbarts.R) and
   [`dbartsSampler$copy`](../../R/dbarts.R); after the engine call it runs reapplyForestWeights,
-  reapplyActiveRows and [`reissueNamedLeafSd`](../../R/dbarts.R), the last of which the k-internal
+  reapplyActiveRows and retired: [`reissueNamedLeafSd`](../../R/dbarts.R), the last of which the k-internal
   slice removes. The test-data refusal [`unroutableTestColumns`](../../R/data.R) reads whether the
   TRAINING matrix holds a missing value now.
 

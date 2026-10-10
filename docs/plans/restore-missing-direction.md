@@ -25,8 +25,8 @@ A sampler can always restore its own state and `copy()` itself after its predict
   `setState`, by `copy()` and by a reload, 10 of 10 on an ordinal and on a categorical column. A state from
   another sampler over the same rows whose column had missing values is refused the same way.
 - The live paths already drop such directions
-  ([`Chain::dropStaleMissingDirections`](../../src/bartcore/chain.hpp), from the forced update and
-  `setData`): the bit routes nothing without a missing observation, so clearing it moves nothing.
+  (retired: [`Chain::dropStaleMissingDirections`](../../src/bartcore/chain.hpp), gone since
+  setstate-force-update Part A, from the forced update and `setData`): the bit routes nothing without a missing observation, so clearing it moves nothing.
 - 0.9-34 had no missing predictors, so no released behaviour is involved.
 - Since restore-empty-leaf, a restore merges leaves no row reaches. An outer step that stores, changes the
   predictor, and on rejection restores is therefore exact only in the order "re-set the predictor, then
