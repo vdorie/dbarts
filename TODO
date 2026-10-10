@@ -1021,7 +1021,8 @@ items
     reports a clean install (dec-A198). Ruled: the state records the
     columns that could hold a missing value when it was stored, and
     an install into a sampler where a further column can draws those
-    splits' directions at one half (dec-B435, VD 2026-10-10). With
+    splits' directions at one half (dec-B435, VD 2026-10-10); a warm
+    start does the same from the donor's record (dec-B440). With
     setState's two forms (docs/plans/setstate-force-update.md, Part
     B). Before the merge to main.
   factor-first-missing-setpredictor: a factor column's first missing
