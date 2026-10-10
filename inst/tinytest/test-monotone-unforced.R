@@ -372,7 +372,9 @@ completes <- function(call, value, onto = make(), numLeaves = 4L) {
 # rule then draws the side the value goes to, the low one first, and only two
 # like sides relate leaves the order did not. The draw is the first the
 # sampler's generator makes, so a seed's sides are read off a sampler holding
-# `holds`, and the first seed whose sides agree gets the values they break.
+# `holds`. Left at both is where a rule that drew nothing sends the value, so
+# the first seed that sends it right at both gets `crossed`, which no other
+# sides break.
 arrive <- function(s) s$setData(dbarts::dbartsData(y ~ x1 + f, dfArrived))
 sidesDrawn <- function(seed) {
   probe <- make(list(holds), seed = seed)
@@ -381,15 +383,11 @@ sidesDrawn <- function(seed) {
   trees$missing[trees$var == 2L]
 }
 arrivalSeed <- 7L
-while (length(unique(sides <- sidesDrawn(arrivalSeed))) != 1L) {
+while (any((sides <- sidesDrawn(arrivalSeed)) != "R") && arrivalSeed < 60L) {
   arrivalSeed <- arrivalSeed + 1L
 }
-expect_true(length(sides) == 2L && sides[1L] %in% c("L", "R"))
-completes(
-  arrive,
-  NULL,
-  make(list(if (sides[1L] == "L") breaks else crossed), seed = arrivalSeed)
-)
+expect_identical(sides, c("R", "R"))
+completes(arrive, NULL, make(list(crossed), seed = arrivalSeed))
 # a warm start from a donor on another cut grid, onto a sampler whose factor
 # holds a missing value: the route that maps the donor's rules onto the grid
 dfShifted <- dfArrived
@@ -532,13 +530,18 @@ expect_identical(leaves(sampler), holds)
 xRegained <- pooledCodes
 regained <- which(x1 <= cut & as.integer(h) <= 35L)[1L]
 xRegained[regained, "h"] <- NA
-expect_true(sampler$setPredictor(asFrameH(xRegained), forceUpdate = FALSE))
+taken <- NULL
+expect_silent(
+  taken <- sampler$setPredictor(asFrameH(xRegained), forceUpdate = FALSE)
+)
+expect_true(taken)
 expect_identical(leaves(sampler), holds)
 expect_true(dbarts:::sourceHasNA(sampler$data@x))
-expect_true(all(
-  dbarts::updatePredictorPerObservationJointly(
+expect_silent(
+  taken <- dbarts::updatePredictorPerObservationJointly(
     list(sampler),
     asLabels(xRegained[, "h"], levels70),
     "h"
   )
-))
+)
+expect_true(all(taken))

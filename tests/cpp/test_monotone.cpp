@@ -1307,7 +1307,9 @@ static void testMonotoneMissingArrives() {
   // refuses the missing value. Leading, its session finds the row valid and
   // draws for its live and kept rules before the other declines, and takes
   // the draw back: it ends as a twin swept with the column without the two
-  // rows, its kept draws and generators included
+  // rows, its kept draws and generators included. Leading with every row
+  // given the value, the row judged last is one of them, and its draw is
+  // still on, found valid and not committed, when the sweep ends
   {
     using PlainFacade = SamplerFacade<ConstantGaussianLeaf>;
     std::vector<double> yPlain(n);
@@ -1365,10 +1367,16 @@ static void testMonotoneMissingArrives() {
               "a sampler with kept draws",
               "alone it takes the rows and its kept rules draw");
     }
-    for (int first = 0; first < 2; ++first) {
+    const std::vector<double> allMissing(n, na);
+    for (int form = 0; form < 3; ++form) {
+      int first = form == 1 ? 1 : 0;
+      bool every = form == 2;
       std::string label = first == 0
                               ? "a sampler with kept draws leading the sweep"
                               : "a sampler with kept draws led in the sweep";
+      if (every) label += ", every row missing";
+      const double* brought = every ? allMissing.data() : twoMissing.data();
+      const double* left = every ? x.data() : twoRefused.data();
       const size_t columns[2] = {0, 0};
       Plain plain(x, yPlain), plainTwin(x, yPlain);
       Arrival broken(x, y, {{true}}, first == 1);
@@ -1381,14 +1389,14 @@ static void testMonotoneMissingArrives() {
         std::swap(twins[0], twins[1]);
       }
       bool valid = updatePredictorPerObservationJointly(
-          samplers, 2, twoMissing.data(), columns, installed.get());
+          samplers, 2, brought, columns, installed.get());
       checkAt(valid && !installed[row] && !installed[second] &&
-                  countTrue(installed.get(), n) == n - 2,
-              label, "the two rows are declined, the others install");
+                  countTrue(installed.get(), n) == (every ? 0 : n - 2),
+              label, "the missing rows are declined, the others install");
       checkAt(updatePredictorPerObservationJointly(
-                  twins, 2, twoRefused.data(), columns, twinInstalled.get()) &&
+                  twins, 2, left, columns, twinInstalled.get()) &&
                   countTrue(twinInstalled.get(), n) == n,
-              label, "the twins take the column without the two");
+              label, "the twins take the column without them");
       SamplerStateData held = plain.state(), heldTwin = plainTwin.state();
       bool generators = true;
       for (size_t c = 0; c < held.chains.size(); ++c)
@@ -1427,11 +1435,12 @@ static void testMonotoneMissingArrives() {
 
 // Which has-missing flag can relate leaves the order did not, on random trees
 // through the engine's geometry. Over a store with no missing value no rule
-// carries a direction, so a first missing value goes left at every rule on
-// its column: it changes no relation on a numeric or an ordered column, and
-// on an unordered factor's adds some and removes none. Read with the flag
-// down, a store whose rules hold directions relates fewer leaves and no
-// others.
+// carries a direction, and a flag is raised here with none drawn, a missing
+// value going left at every rule on its column, which is one of the draws a
+// first missing value makes: it changes no relation on a numeric or an
+// ordered column, and on an unordered factor's adds some and removes none.
+// Read with the flag down, a store whose rules hold directions relates fewer
+// leaves and no others.
 static void testMonotoneMissingRelates() {
   // x0, x1 constrained; x2 numeric, x3 ordered, x4 a 4-level factor and x5 a
   // 70-level one (pooled), all free

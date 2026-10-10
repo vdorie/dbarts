@@ -91,6 +91,27 @@ for (path in names(paths)) {
   expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = path)
 }
 
+# ---- two forests: the rules of each draw, live and kept ----
+
+z <- as.double(seq_len(n) %% 2L)
+sampler <- dbarts(
+  y ~ x1 + x2 + f,
+  complete,
+  forests = list(forest(), forest(basis = z)),
+  control = controlOf(),
+  seed = 11L
+)
+invisible(sampler$run())
+sampler$setPredictor(holed$x1, "x1", forceUpdate = TRUE)
+for (current in c(FALSE, TRUE)) {
+  trees <- sampler$getTrees(current = current)
+  drawn <- split(trees$missing[trees$var == 1L], trees$forest[trees$var == 1L])
+  expect_identical(names(drawn), c("1", "2"), info = current)
+  for (side in drawn) {
+    expect_true(all(c("L", "R") %in% side), info = current)
+  }
+}
+
 # ---- the sides are fair coins: 40 seeds, one chain ----
 
 right <- total <- c(kept = 0L, current = 0L)
@@ -118,7 +139,13 @@ sampler$setPredictor(complete$x1, "x1", forceUpdate = TRUE)
 expect_false(anyNA(as.matrix(sampler$data@x)))
 expect_identical(seen(sampler), c(TRUE, FALSE, FALSE))
 expect_identical(list(sides(sampler), generators(sampler)), drawn)
-expect_true(all(is.finite(sampler$predict(asked))))
+# predict's answer for the missing value, or a failed expectation and NULL
+answered <- function(sampler) {
+  fits <- NULL
+  expect_silent(fits <- sampler$predict(asked))
+  fits
+}
+expect_true(all(is.finite(answered(sampler))))
 # setData to complete data keeps them too, and takes no record from its
 # argument: the object's stale slot names x2, which stays refused
 stale <- dbartsData(y ~ x1 + x2 + f, complete)
@@ -126,7 +153,7 @@ stale@missing.seen <- c(FALSE, TRUE, FALSE)
 sampler$setData(stale)
 expect_identical(seen(sampler), c(TRUE, FALSE, FALSE))
 expect_identical(sides(sampler), drawn[[1L]])
-expect_true(all(is.finite(sampler$predict(asked))))
+expect_true(all(is.finite(answered(sampler))))
 askedX2 <- complete[1:2, ]
 askedX2$x2[1L] <- NA
 expect_error(sampler$predict(askedX2), "missing values in 'x2'", fixed = TRUE)
@@ -145,12 +172,32 @@ reloaded <- readRDS(path)
 unlink(path)
 for (route in list(duplicate, reloaded)) {
   expect_identical(seen(route), c(TRUE, FALSE, FALSE))
-  expect_identical(route$predict(asked), sampler$predict(asked))
+  expect_identical(answered(route), answered(sampler))
   # the engine holds the flag, not the record alone: a change writes it back
   route$setPredictor(complete$x1, "x1", forceUpdate = TRUE)
   expect_identical(seen(route), c(TRUE, FALSE, FALSE))
 }
 expect_identical(duplicate$run(0L, 5L), reloaded$run(0L, 5L))
+# a sampler over a data handle, as xbart's folds are, takes the record with
+# its data object, here complete: the rules on a recorded column draw their
+# sides, and a view of some columns reads the record by the handle's
+viewTrees <- function(columns = NULL) {
+  view <- dbarts:::bartcoreSamplerFromHandle(
+    dbarts:::bartcoreDataHandle(sampler$control, sampler$data),
+    sampler$control,
+    sampler$model,
+    sampler$data,
+    seq_len(n),
+    columns = columns
+  )
+  invisible(dbarts:::bartcoreRun(view, 30L, 1L))
+  getTrees <- dbarts:::C_dbarts_bartcore_getTrees
+  .Call(getTrees, view$ptr, 1:2, NULL, 1:15, TRUE, NULL, NULL, 0L)
+}
+trees <- viewTrees()
+expect_true(all(0:1 %in% trees$missing[trees$var == 1L]))
+trees <- viewTrees(2:1)
+expect_true(all(0:1 %in% trees$missing[trees$var == 2L]))
 # a data object saved before the slot existed reads as no record, and a
 # sampler created from it holds the columns its values name alone
 old <- sampler$data
@@ -228,3 +275,38 @@ held$setPredictor(complete$f, "f", forceUpdate = TRUE)
 expect_identical(seen(held), c(FALSE, FALSE, TRUE))
 expect_false(held$setState(oneWay(held)))
 expect_identical(nrow(held$getTrees()), 1L)
+
+# ---- row by row, a first missing value that would empty a leaf ----
+
+# One tree, cut on x1 below every value but the first row's, which is alone
+# in the left leaf. This seed's draw sends a missing value right, so the row
+# is declined and the draw taken back: no record, no side, and the generator
+# and next draws of a twin given the column it holds.
+lone <- complete
+lone$x1[1L] <- -5
+loneLeft <- function() {
+  sampler <- dbarts(y ~ x1 + x2 + f, lone, control = single, seed = 1L)
+  sampler$storeState()
+  state <- sampler$state
+  forest <- state[[1L]]$forests[[1L]]
+  forest$tree.vars <- c(1L, -1L, -1L)
+  cut <- attr(state, "cutPoints")[[1L]][1L]
+  forest$tree.values <- writeBin(c(cut, -0.1, 0.1), raw())
+  forest$tree.sizes <- 3L
+  forest$tree.flags <- as.raw(c(2L, 0L, 0L))
+  state[[1L]]$forests[[1L]] <- forest
+  stopifnot(isTRUE(sampler$setState(state)))
+  sampler
+}
+sampler <- loneLeft()
+twin <- loneLeft()
+brought <- replace(lone$x1, 1L, NA)
+expect_identical(
+  sampler$setPredictor(brought, "x1", forceUpdate = "partial"),
+  rep(c(FALSE, TRUE), c(1L, n - 1L))
+)
+expect_true(all(twin$setPredictor(lone$x1, "x1", forceUpdate = "partial")))
+expect_null(seen(sampler))
+expect_null(sides(sampler, TRUE))
+expect_identical(generators(sampler), generators(twin))
+expect_identical(sampler$run(0L, 20L), twin$run(0L, 20L))
