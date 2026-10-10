@@ -1,6 +1,6 @@
 # Installing a stored state: the checked form and the forced form
 
-Status: Part A (missingness first seen) LANDED 2026-10-10; Part B (setState's two forms) built, not landed.
+Status: LANDED 2026-10-10: Part A (missingness first seen, 2269918e) and Part B (setState's two forms, 062ef59a).
 Plan: [setstate-force-update.md](../plans/setstate-force-update.md). Rulings: dec-B305, dec-B310, dec-B318,
 dec-B398 to dec-B402 and dec-B418 in docs/decisions.md.
 

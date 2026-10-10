@@ -1,6 +1,6 @@
 # setstate-force-update: setState's two forms, the kept store, constraint repair, and missingness first seen
 
-Status: PART A LANDED 2026-10-10 (acf6a6fd..2269918e); Part B PLANNED (dec-B305, dec-B310, dec-B318, dec-B320, dec-B321, dec-B322, dec-B378, dec-B398 to
+Status: LANDED 2026-10-10, Part A acf6a6fd..2269918e, Part B b95ac390..062ef59a (dec-B305, dec-B310, dec-B318, dec-B320, dec-B321, dec-B322, dec-B378, dec-B398 to
 dec-B402, dec-B418). The first slice of the install surface; the warm start (warm-start-salvage,
 warm-start-tree-count) is later. Revised from its blind critique (Revision from critique) and again for
 the maintainer's rulings of 2026-10-09 (Revision for the 2026-10-09 rulings); nothing is held.
@@ -670,3 +670,26 @@ departures and additions:
 Open after this part, in the root TODO: a state stored before a column's first missing value and
 installed after it (state-before-first-missing); the factor refusal against dec-B321's words
 (factor-first-missing-setpredictor); three tests that hold by one seed (first-missing-test-seeds).
+
+## Landing note: Part B
+
+Landed 2026-10-10 as b95ac390..062ef59a, with stan4bart's one line (3d2a295 on its bartcore branch) pushed
+after it, after one opus review that ran the plan's mutants and 36 of its own, with no blocking finding and
+no fix round, and an x86 run of tests/cpp plain and under the sanitizers and of tinytest. Every install,
+copy and reload that went in before goes in bit for bit (87 of 87 in the review's comparison with the base
+build); the equivalence baselines, the snapshot files and the exact gates did not move. What was built is
+Part B, with these departures and additions (dec-A199):
+
+- The monotone feasibility pass is folded into the validity routine's verdict, so each tree is built once;
+  the collapse at a forbidden split is one predicate on the existing walk, armed only on a tree the staging
+  routine marked.
+- One capacity is asked of a state across chains as well as across forests and the variance forest; a state
+  whose blocks disagree is refused, forced or not. A heteroscedastic state with no kept draws now installs
+  into a sampler that keeps some.
+- `forceUpdate` must be a logical; a forced install leaves the `state` field holding the state as given.
+- The unforced check costs about 0.9 sweeps at n 1000 and 1.3 at n 1e5 beside a forced install, measured on
+  a loaded machine, against the plan's bound of 1.1 to 1.3.
+- The part is 2016 lines added and 479 removed against about 1100 planned, 1371 of the added lines tests.
+
+Open after this part, in the root TODO: the review's test gaps (setstate-test-gaps) and the state's record
+of the columns that could hold a missing value (state-before-first-missing).

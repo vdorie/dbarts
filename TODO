@@ -1022,9 +1022,8 @@ items
     columns that could hold a missing value when it was stored, and
     an install into a sampler where a further column can draws those
     splits' directions at one half (dec-B435, VD 2026-10-10); a warm
-    start does the same from the donor's record (dec-B440). With
-    setState's two forms (docs/plans/setstate-force-update.md, Part
-    B). Before the merge to main.
+    start does the same from the donor's record (dec-B440). Its own
+    slice, after setState's two forms. Before the merge to main.
   factor-first-missing-setpredictor: a factor column's first missing
     value by setPredictor is refused at the R surface; ruled: lift
     the refusal, a factor column taking it as a numeric column does
@@ -1064,24 +1063,24 @@ items
   refused-update-rounding: after a refused whole-matrix setPredictor
     the next draws differ from an untouched twin's by about 1.8e-15,
     where the help says the fits are as they were.
-  forced-update-returns-null: the forced forms of setState and
-    installTrees return NULL invisibly when they are built, as a forced
-    setPredictor does (dec-B310); the unforced value says whether a
-    valid update was made. Before the merge to main.
-  setstate-force-update: setState takes forceUpdate, FALSE by
-    default, in setPredictor's idiom: unforced it installs a state
-    that goes in cleanly and returns TRUE, or leaves the sampler
-    untouched and returns FALSE; forced it installs, changing what it
-    must (dec-B305, revising dec-B234 and dec-A167). A conversion
-    between response units and a kept store of another size are
-    clean (dec-B318), and so is a split keeping its direction for
-    missing values on a column with none now (dec-B320); a tree that
-    must change to fit is not; copy()
-    and a reload force. Before the merge to main. Design first, with warm-start-salvage and
-    state-store-size-install, which are the same surface: what the
-    forced form returns (ruled: NULL, dec-B310), one name with
-    installTrees's force argument,
-    the package's and stan4bart's callers.
+  forced-update-returns-null: installTrees's forced form returns NULL
+    invisibly when it is built, as a forced setPredictor and setState
+    do (dec-B310); with the warm start's slices. Before the merge to
+    main.
+  setstate-test-gaps: from the review of setState's two forms
+    (2026-10-10; the code is right in the reviewer's probes): a kept
+    store repacked on a sampler with a pooled factor is untested and a
+    mutant clearing the saved masks there crashes R in getTrees; no
+    test pins that a declined install skips the latent
+    reconciliation (a logistic sampler under other weights); four
+    expectations in test-state-missing-direction.R sit in an arm its
+    seed never takes; the capacity agreement across chains and across
+    mean forests, and a decline across cut grids, are tested only by
+    the fuzzer; negbin-mixing.R and sbc.R drop setState's value; the
+    help does not say that after a forced install that repaired a
+    tree the state field holds the state as given (dec-A199). About
+    60 lines of tests and one help sentence; with
+    state-before-first-missing. Before the merge to main.
   precision-floor-edge-values: the floor that refuses scales and
     Polya-Gamma variates that are not positive and finite passes a
     value at the edge of what a double holds: a variate of 1e-320 in a
