@@ -103,7 +103,7 @@ still mapped to -0.5 to 0.5. The parameter itself of course lags, but that's to 
 
 How the engine holds the leaf scale today (read, on 4cf51b11):
 - Each forest holds an internal per-tree leaf scale and k; the spread in force is the leaf scale over k.
-  [`resolvedNodeScale`](../../src/bartcore/chain.hpp) sets the leaf scale from the family's internal
+  retired: [`resolvedNodeScale`](../../src/bartcore/chain.hpp) sets the leaf scale from the family's internal
   value ([`defaultLeafScale`](../../R/model.R): 0.5 gaussian, 3 probit, pi sqrt(3) logistic, 3 nbinom)
   unless a named prior scale is finite, in which case it is that scale over the transform's multiplier.
   [`priorScaleFactor`](../../src/bartcore/chain.hpp) converts the internal scale to the response-unit
@@ -112,27 +112,27 @@ How the engine holds the leaf scale today (read, on 4cf51b11):
   `invchi(df, s)` ([`resolveLeafPrior`](../../R/model.R), the [`dbartsModel`](../../R/A_class.R) slot).
   `invchi(df, 0)` is `chi(df, Inf)` with no named scale.
 - After every re-anchor, re-creation, copy, install and warm start, R writes the named scale back
-  ([`reissueNamedLeafSd`](../../R/dbarts.R)) through
+  (retired: [`reissueNamedLeafSd`](../../R/dbarts.R)) through
   [`bartcore_setLeafPrior`](../../src/R_interface_bartcore.cpp) to
-  [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp), which rewrites the internal leaf scale.
+  retired: [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp), which rewrites the internal leaf scale.
   The flat C entries [`dbarts_sampler_setOffset`](../../src/C_interface.cpp) and
   [`dbarts_sampler_setResponse`](../../src/C_interface.cpp) re-anchor in the engine and write nothing
   back (read), so on that path a named sd is not kept in response units today.
 - A re-creation (a reload, a copy, `setState` on a dead pointer) creates the sampler with the install
   to follow, so [`Sampler::setAnchor`](../../src/bartcore/sampler.hpp) leaves the chains and
   [`Chain::setState`](../../src/bartcore/chain.hpp)'s own scale restore
-  ([`installsScale`](../../src/bartcore/chain.hpp)) moves them (the critique, read).
+  (retired: [`installsScale`](../../src/bartcore/chain.hpp)) moves them (the critique, read).
 - `$setLeafPrior` keeps the drawn spread by multiplying k by the ratio of the two `k.scale` values
-  ([`keepDrawnSpread`](../../R/dbarts.R), [`leafKScale`](../../R/dbarts.R),
-  [`Chain::scaleDrawnK`](../../src/bartcore/chain.hpp)). [`Chain::setModel`](../../src/bartcore/chain.hpp)
+  (retired: [`keepDrawnSpread`](../../R/dbarts.R), retired: [`leafKScale`](../../R/dbarts.R),
+  retired: [`Chain::scaleDrawnK`](../../src/bartcore/chain.hpp)). [`Chain::setModel`](../../src/bartcore/chain.hpp)
   re-derives the leaf scale from the model and keeps a drawn k.
 - Every install converts units today (read). [`Sampler::setState`](../../src/bartcore/sampler.hpp) and
   the warm start's [`Sampler::installForests`](../../src/bartcore/sampler.hpp) pass a state whose
-  mapping differs ([`Sampler::unitsDiffer`](../../src/bartcore/sampler.hpp)) through
-  [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp): live and saved leaves times the ratio r of
+  mapping differs (retired: [`Sampler::unitsDiffer`](../../src/bartcore/sampler.hpp)) through
+  retired: [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp): live and saved leaves times the ratio r of
   the two ranges plus the shift split over the trees, slopes and gp fits times r, variance factors by
   r^(2/m'); a gp leaf or forests with amplitudes under another shift are refused
-  ([`unitsRefusalMessage`](../../src/R_interface_bartcore.cpp)). k installs as stored where the
+  (retired: [`unitsRefusalMessage`](../../src/R_interface_bartcore.cpp)). k installs as stored where the
   recipient draws it. sigma is stored in response units ([`Chain::getState`](../../src/bartcore/chain.hpp)
   writes `sigma()`, the internal value times the mapping's scale) and installed in response units
   ([`installDrawnScalars`](../../src/bartcore/chain.hpp)), so it too stays where it was in response
@@ -334,7 +334,7 @@ Engine ([chain.hpp](../../src/bartcore/chain.hpp), [sampler.hpp](../../src/bartc
 [facade.hpp](../../src/bartcore/facade.hpp)):
 1. A forest holds `namedSd`, NaN when the prior is written with k. The `priorScale` fields of
    [`ModelParameters`](../../src/bartcore/chain.hpp) and the creation options become `namedSd`.
-2. The internal leaf scale is always the family's: [`resolvedNodeScale`](../../src/bartcore/chain.hpp)
+2. The internal leaf scale is always the family's: retired: [`resolvedNodeScale`](../../src/bartcore/chain.hpp)
    loses its named branch, at creation and in [`Chain::setModel`](../../src/bartcore/chain.hpp).
 3. One translation routine: where `namedSd` is finite, a fixed k is `k.scale / namedSd` and a drawn
    prior's chi scale is `k.scale / namedSd`, with `k.scale` the reader's own expression
@@ -349,7 +349,7 @@ Engine ([chain.hpp](../../src/bartcore/chain.hpp), [sampler.hpp](../../src/bartc
    After step 7 no install moves the mapping, so these four are all; the reviewer greps chain.hpp for
    every call that changes the response's mapping (setResponse and setOffset at `updateScale`, setData,
    restoreScale) and finds the routine after each. tests/cpp holds the invariant after each site.
-5. [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp) becomes a named-sd writer: it sets
+5. retired: [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp) becomes a named-sd writer: it sets
    `namedSd` and translates, leaving a drawn k; a write of the value in force is skipped. Its facade
    virtual on [`SamplerBase`](../../src/bartcore/facade.hpp) is renamed with it.
 6. [`Chain::setModel`](../../src/bartcore/chain.hpp): a fixed k is the model's or the translation; a
@@ -358,10 +358,10 @@ Engine ([chain.hpp](../../src/bartcore/chain.hpp), [sampler.hpp](../../src/bartc
    [`Sampler::setState`](../../src/bartcore/sampler.hpp) (the `unitsRefused` out-parameter, and the
    `valuesMoved` contribution to its `altered` report) and in
    [`Sampler::installForests`](../../src/bartcore/sampler.hpp) (`WarmStartResult::unitsMismatch`),
-   [`Sampler::unitsDiffer`](../../src/bartcore/sampler.hpp),
-   [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp), and the scale restore at the head of
+   retired: [`Sampler::unitsDiffer`](../../src/bartcore/sampler.hpp),
+   retired: [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp), and the scale restore at the head of
    [`Chain::setState`](../../src/bartcore/chain.hpp) and
-   [`Chain::installForest`](../../src/bartcore/chain.hpp) ([`installsScale`](../../src/bartcore/chain.hpp)
+   [`Chain::installForest`](../../src/bartcore/chain.hpp) (retired: [`installsScale`](../../src/bartcore/chain.hpp)
    and the variance leaf's recalibration after it). The leaf, slope, gp and variance-factor helpers stay
    for [`restateSavedDraws`](../../src/bartcore/chain.hpp), which a re-anchor still runs (dec-B331).
    [`Sampler::setAnchor`](../../src/bartcore/sampler.hpp) moves the chains on every call: a re-creation
@@ -372,7 +372,7 @@ Engine ([chain.hpp](../../src/bartcore/chain.hpp), [sampler.hpp](../../src/bartc
    value where the chain draws sigma, and [`installDrawnScalars`](../../src/bartcore/chain.hpp) writes it
    back unscaled, for setState and the warm start alike. A held sigma is model and is untouched (dec-B196).
    Latents and ordinal thresholds install as stored, as today.
-9. [`Chain::scaleDrawnK`](../../src/bartcore/chain.hpp) and its facade virtual go: no caller remains.
+9. retired: [`Chain::scaleDrawnK`](../../src/bartcore/chain.hpp) and its facade virtual go: no caller remains.
    `--preclean` on every install (facade virtuals change).
 
 Bridge ([R_interface_bartcore.cpp](../../src/R_interface_bartcore.cpp),
@@ -380,16 +380,16 @@ Bridge ([R_interface_bartcore.cpp](../../src/R_interface_bartcore.cpp),
 model, `prior.scale` over the fixed k or the chi scale (2 s / 2, exact), for creation
 ([`optionsFromParsed`](../../src/R_interface_bartcore.cpp)) and `setModel` alike;
 [`bartcore_setLeafPrior`](../../src/R_interface_bartcore.cpp) takes the named sd;
-[`bartcore_scaleDrawnK`](../../src/R_interface_bartcore.cpp) and its registration go;
-[`unitsRefusalMessage`](../../src/R_interface_bartcore.cpp) and its two uses (setState's and the warm
+retired: [`bartcore_scaleDrawnK`](../../src/R_interface_bartcore.cpp) and its registration go;
+retired: [`unitsRefusalMessage`](../../src/R_interface_bartcore.cpp) and its two uses (setState's and the warm
 start's) go; [`bartcore_anchor`](../../src/R_interface_bartcore.cpp) loses its install-follows argument
 (arity 3 to 2). The flat C entries do not change: the engine retranslates under them.
 
 R ([dbarts.R](../../R/dbarts.R)):
-- [`reissueNamedLeafSd`](../../R/dbarts.R) and its six callers go (re-anchors, setData, the install
+- retired: [`reissueNamedLeafSd`](../../R/dbarts.R) and its six callers go (re-anchors, setData, the install
   shared by re-creation and setState, copy, installTrees, samplePriorPredictive): the engine keeps the
   invariant.
-- [`keepDrawnSpread`](../../R/dbarts.R) and [`leafKScale`](../../R/dbarts.R) go; `$setLeafPrior`'s
+- retired: [`keepDrawnSpread`](../../R/dbarts.R) and retired: [`leafKScale`](../../R/dbarts.R) go; `$setLeafPrior`'s
   same-prior write passes the named sd ([`writeLeafPrior`](../../R/dbarts.R)).
 - [`reportLeafPrior`](../../R/dbarts.R) takes an sd-named specification from the model's own
   `leaf.prior`, not from `k.scale` / k, so a fixed sd reads back exactly.

@@ -597,8 +597,9 @@ mutate <- list(
     s$setActiveRows(c(rep(1, nr - 1L), 0))
   },
   getLatents = function(s, d) s$getLatents(),
-  # the anchor 1.2 restated at the sampler's own k law: a fixed k's spread,
-  # or the sd law a drawn k's chi(df, 2) implies
+  # a named sd written over the sampler's own prior, fixed where its k is
+  # fixed and under invchi() where its k is drawn; the engine states either
+  # as k against the data's scale, so the probe is the named-sd writer
   calibration = function(s, d) {
     law <- s$getLeafPrior()$leaf.prior@k
     if (is.numeric(law)) {

@@ -61,7 +61,7 @@ for the name in open question (d); the implementer substitutes it everywhere.
 - Bridge: [`parseModel`](../../src/R_interface_bartcore.cpp) reads `prior.scale` into
   [`ParsedModel`](../../src/R_interface_bartcore.cpp) and, for a chi hyperprior, reads df and scale but
   never k, so a drawn k always starts at `ParsedModel`'s default of 2. The engine converts the anchor at
-  [`Chain::resolvedNodeScale`](../../src/bartcore/chain.hpp). The engine and the bridge need no change:
+  retired: [`Chain::resolvedNodeScale`](../../src/bartcore/chain.hpp). The engine and the bridge need no change:
   every form below reaches them as an anchor (or NA) plus a fixed k or a chi hyperprior.
 - Sampler: [`getLeafPrior`](../../R/dbarts.R) returns the bridge's twelve columns (the first is
   `prior.scale`); [`setLeafPrior`](../../R/dbarts.R) takes `prior.scale` or `prior.sd` and writes an
@@ -252,7 +252,7 @@ A prior-predictive helper returning the prior spread of f at given x is filed in
   strings only.
 - Internal names keep scale (Calls made 7): the `dbartsModel` slot `prior.scale`,
   `ParsedModel::priorScale`, the bridge's `bartcore_setLeafPrior` argument, and the engine's
-  [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp) and
+  retired: [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp) and
   [`ForestCalibration`](../../src/bartcore/chain.hpp).
 - Out of scope: `forest(sd = )` and the reader's `amplitude.prior.scale` (the multi-forest amplitude
   channel, a different quantity), `chi()`'s own `scale` parameter.

@@ -26,7 +26,7 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
 
 - Today [`setLeafPrior`](../../R/dbarts.R) refuses both samplers through
   [`refuseCountsMutation`](../../R/bartcore.R), [`refuseAmplitudeMutation`](../../R/bartcore.R). The
-  engine refuses too: [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp) returns false
+  engine refuses too: retired: [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp) returns false
   whenever a combiner exists.
 - Contracts: the single-forest one is in the [Landing](leaf-prior-k-or-sd.md#landing) note of
   leaf-prior-k-or-sd.md; the reader's is in [Reader shape](leaf-prior-reader-shape.md#reader-shape).
@@ -121,7 +121,7 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
    - `setForestBasis` after a write keeps the written factor.
    - `setResponse` and `setOffset` at `updateScale = FALSE` keep the live s, and with Settled 4 so
      does every re-creation. The updateScale swaps and `setData` stay refused on both samplers, and
-     [`reissueNamedLeafSd`](../../R/dbarts.R) stays a no-op.
+     retired: [`reissueNamedLeafSd`](../../R/dbarts.R) stays a no-op.
    - Neither sampler admits a variance forest. `setCounts` and `setCategoryOffset` leave k alone.
 7. Still refused (R-side, before the .Call; bridge backstops keep their wording):
    - Multinomial:

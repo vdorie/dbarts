@@ -306,7 +306,7 @@ fits - zero-part probit and lognormal positive part - glued at report time
 scale, so sigma is pinned and the transform the identity
 ([The model](multiplier-combiner.md#the-model)), while [`Chain::latents`](../../src/bartcore/chain.hpp) bare-delegates
 to the sub-family's own model with no coupling gate. A named leaf-prior sd is refused at creation and
-mid-chain alike ([`ForestSpec::amplitudePriorScale`](../../src/bartcore/combiner.hpp); [`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp)
+mid-chain alike ([`ForestSpec::amplitudePriorScale`](../../src/bartcore/combiner.hpp); [`Chain::setForestNamedSd`](../../src/bartcore/chain.hpp)
 returns false whenever a combiner is installed; R-side
 [`refuseAmplitudeMutation`](../../R/bartcore.R)).
 

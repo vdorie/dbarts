@@ -1,7 +1,9 @@
 # Leaf scale rules: k or the sd
 
-Status: FOR DECISION, 2026-10-09. Nothing here is built or changed; it lays out
-the rules as they stand and two ways to make them one rule.
+Status: DECIDED 2026-10-09 (dec-B416, dec-B417, dec-B418) and built with the
+plan [k-internal-parameter.md](../plans/k-internal-parameter.md). Sections 1 to
+6 are the note as it was put for the decision: "today" in them is the package
+before it. Section 7 says what was decided.
 
 ## 1. The question
 
@@ -246,6 +248,36 @@ re-deriving the scale on `setResponse`, not from the leaf rules weighed here.
 On k in general, Stack Overflow and Cross Validated turned up nothing. What
 turned up is the naming above (k passed as `sd.mu`, k worked back from a wanted
 sd) and the issue on `setResponse` moving the prior.
+
+## 7. What was decided
+
+One rule, the second of section 4 taken further. k is each chain's parameter,
+measured against the data's scale, and that scale is fixed by the data: it is
+not redefined by how a prior is written. An sd is another way of writing k.
+`sd = s` is k equal to the data's scale over s, and `sd = invchi(df, s)` is the
+matching chi prior on k, started at the named sd.
+
+- `k.scale` is the data's scale on every sampler and every fit, so
+  `leaf sd = k.scale / k` reads the same way under both spellings, and the k a
+  fit reports under an sd spelling is the data's scale over the leaf sd.
+- Changing the prior - `setLeafPrior`, `setModel`, a grid cell of `xbart` -
+  never moves k. A drawn prior takes the chain where it stands and acts from
+  the next draw; a fixed k or sd stated is taken as written.
+- A re-anchor re-derives the data's scale. A named sd is restated against it,
+  so a fixed sd, and the prior on a drawn one, keep their meaning in response
+  units; this holds for re-anchors made from compiled code too. The current
+  value of a drawn k, and so of a drawn sd, stays where it was on the internal
+  scale and lags with the leaves until the next draw.
+- Every install puts the chain in as it was stored on the internal scale -
+  trees, leaf values, k and the residual sd - read against the receiving
+  sampler's data scale, and converts nothing. Restoring under the same data
+  scale puts the chain back where it was. Restoring after a re-anchor, or onto
+  other data, is allowed and has no special meaning: the next draws move the
+  chain where the data say. A response that was only rescaled is no change at
+  all on the internal scale.
+
+The disagreements of section 3 close with it: no operation changes `k.scale`
+under a chain except a re-anchor, where keeping k is the rule.
 
 ## Appendix A. Limits of the evidence
 

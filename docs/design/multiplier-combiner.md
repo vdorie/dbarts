@@ -631,7 +631,7 @@ reported forest, in exactly the bytes a one-forest declaration receives.
   ([`createAmplitudeSampler`](../../src/bartcore/facade.hpp)).
 - A leaf-prior calibration named in response units. The map owns the leaf
   scales, so the single-forest writer refuses ANY combining sampler
-  ([`Chain::setForestPriorScale`](../../src/bartcore/chain.hpp)). What a live
+  ([`Chain::setForestNamedSd`](../../src/bartcore/chain.hpp)). What a live
   sampler restates is what its creation took: a forest's `sd`, in the channel
   creation gave it ([`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)),
   reached from `$setLeafPrior(forests = )`. There is no flat C entry for it.

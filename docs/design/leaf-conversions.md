@@ -58,13 +58,16 @@ nothing moves.
   ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)).
 - A re-anchor - `setResponse` or `setOffset` with `updateScale = TRUE`, and every `setData` - rewrites the
   kept mean draws and the kept variance factors into the new transform
-  ([`Chain::restateSavedDraws`](../../src/bartcore/chain.hpp)), by the arithmetic a state in other units is
-  converted with ([`Chain::convertStateUnits`](../../src/bartcore/chain.hpp)). Only the slots the runs have
+  ([`Chain::restateSavedDraws`](../../src/bartcore/chain.hpp)): each kept leaf value times the ratio of the two
+  ranges plus the difference of the shifts split over the trees, slopes and gp weights by the ratio, variance
+  factors by its square split over the variance trees. Only the slots the runs have
   filled are written ([`SavedDrawSlots`](../../src/bartcore/chain.hpp)), so a sampler that keeps nothing pays
   one comparison and a store nothing was recorded into is left as it was. The live chain keeps its internal
   values, so its fit follows the new range: that is what re-anchoring a live chain means and it did not
-  change. An install's own move of the transform is not such a site; the draws it brings are converted
-  already.
+  change. An install is not such a site: it moves no transform and converts nothing, so the kept draws a
+  state brings go in as stored and are read against the recipient's transform (dec-B418;
+  [state-not-model.md](state-not-model.md)). A re-anchor keeps the kept draws' functions, and an install
+  across transforms does not.
 - A warm start converts the donor's coefficients, live or from a kept draw, from the standardization the
   donor's state records into the recipient's, as live coefficients are
   ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), the blocks read by

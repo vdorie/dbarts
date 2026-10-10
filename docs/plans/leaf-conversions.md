@@ -73,7 +73,7 @@ Defects, measured (response sd about 2 throughout):
 
 What already works, and is kept:
 - A state stored in other response units is converted on install, kept draws included
-  ([`Chain::convertStateUnits`](../../src/bartcore/chain.hpp), dec-B200): intercepts and leaf values by
+  (retired: [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp), dec-B200): intercepts and leaf values by
   ratio and shift, slopes and gp weights by ratio, variance factors by a power of the ratio. A gp leaf and
   forests with amplitudes refuse another shift. The re-anchor rewrite below is that arithmetic applied to
   the sampler's own store.
@@ -194,7 +194,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
    constant; rows appended that give a constant column spread. Each holds the live fit on the old rows and
    on appended ones, and kept draws at fresh points, to 1e-10.
 3. A re-anchor rewrites kept draws. The arithmetic of
-   [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp) is factored so that it also runs over the
+   retired: [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp) is factored so that it also runs over the
    chain's own store; `Chain::setResponse`, `Chain::setOffset` and
    [`Chain::applyNewData`](../../src/bartcore/chain.hpp) read the transform before and after and, when it
    moved, rewrite every kept mean draw and every kept variance factor. Live values are left. With nothing

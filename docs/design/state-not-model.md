@@ -20,7 +20,7 @@ nothing else, and installing one should leave the model alone.
 | variance-forest trees, live and saved | the scale surface | state | installed |
 | amplitudes, and a scale-mixture forest's amplitude variance | drawn coupling values | state | installed |
 | sigma, k, the Student-t df, the negative-binomial shape, the DART concentration | state where drawn, model where fixed | written only where drawn | installed only where the recipient draws it; absent keeps the recipient's |
-| `fit.scale` | the response units the stored numbers are in | the units of the state | compared with the sampler's; converted when they differ |
+| `fit.scale` | the response mapping the chain was under when the state was read | a record | recorded, not compared: no install reads it (dec-B418) |
 | `cutPoints`, a leaf's covariate standardization, a heuristic gp lengthscale | the frame the trees and slopes are read through | scratch, frozen | installed as is |
 | a supplied gp lengthscale | the kernel | model | kept; saved draws under another are refused |
 | weights and censoring digests | which data the latents were drawn against | data, by digest | compared; mismatches are reconciled |
@@ -35,36 +35,43 @@ written before these were dropped still installs: a block the reader no longer w
 ## The response transform
 
 Each stored leaf value is a number on an internal scale. What it means on the response scale depends on the
-transform - a multiplier and a shift - in force when it was stored. A `k`-named leaf prior is stated against
-that same transform: its centre is the transform's shift and its width a constant times the range. So the
-transform is both the units of the state and part of the model.
+transform - a multiplier and a shift - of the sampler that reads it. The leaf prior's `k` is stated against
+that same transform: its centre is the transform's shift and its width, `k.scale`, a constant of the family
+times the range, whichever of `k` and `sd` the prior is written with
+([leaf-scale-rules.md](leaf-scale-rules.md)). So the transform is part of the model.
 
-The sampler now holds one transform. It is set when the sampler is created, and again when `setResponse` or
+The sampler holds one transform. It is set when the sampler is created, and again when `setResponse` or
 `setOffset` with `updateScale = TRUE`, or `setData`, re-anchors it; nothing else moves it. The R object records
-it on the model, so a copy or a reload is re-created in it. A state stored in other units has its numbers
-rewritten into the sampler's as it is installed: every leaf value is multiplied by the ratio of the two ranges
-and shifted by the difference of the shifts, split evenly over the trees; slopes and gp fits take the ratio
-alone, and variance factors its square, split over the variance trees. Amplitudes are multipliers and stay
-as they are: the leaf values beneath them carry the ratio. A constant response's transform is the
-window of width 1 centred on its value, c - 0.5 to c + 0.5 (dec-B386; it was c to c + 1 until 2026-10-08),
-recorded as (c, c), and converts like any other. The replayed function agrees
-with the stored one to rounding. A state in the sampler's own units is not touched and installs bit for bit.
-A re-anchor applies the same arithmetic to the draws the sampler has kept, so they stay the functions they
-were ([leaf-conversions.md](leaf-conversions.md)).
+it on the model, and a copy or a reload is re-created in it: the re-created chains are moved to the record at
+once, before any state goes in, since no install moves them.
 
-Two kinds of chain cannot take a different shift - a gp leaf's saved draws carry no mean term, and with
-amplitudes no single forest owns the location - and a state stored under another shift is refused there by
-name, a gp state whether or not it holds saved draws. Another range at the same shift converts.
+Every install - `setState`, `copy()`, a reload, a warm start - puts the state in as stored (dec-B418): trees,
+leaf values, slopes, gp fits, variance factors, the kept draws, `k` and sigma are numbers on the internal scale
+and are read against the recipient's transform, never converted. Sigma is carried the same way, the state
+holding the chain's internal value, so an install writes it back with no pass through response units. A state
+stored under the transform in force puts the chain back where it was stored, value for value. A state stored
+before a re-anchor, or by a sampler on another response, is legal and has no special meaning: the same
+internal numbers are a position the chain could hold, and the next draws move them where the data say. A
+response that was only rescaled is then no change at all on the internal scale; one whose centre moved too is
+fitted wrongly until the draws catch up. No leaf model refuses such a state: a gp leaf's saved draws and
+forests coupled through amplitudes, which had no mean term to carry a converted shift, take it as any other
+does. A constant response's transform is the window of width 1 centred on its value, c - 0.5 to c + 0.5
+(dec-B386; it was c to c + 1 until 2026-10-08), recorded as (c, c).
 
-A re-anchor is a model change, so restoring a state saved before one does not undo it: the state is converted
-into the new units. To roll a re-anchoring proposal back, re-anchor to the old response and then restore.
+A re-anchor and an install differ on the draws the sampler has kept. A re-anchor rewrites them into the new
+transform, so they stay the functions they were ([leaf-conversions.md](leaf-conversions.md)); an install
+brings them in as stored, so after a restore across transforms `predict` reads them on the new scale.
+
+A re-anchor is a model change, so restoring a state saved before one does not undo it. A re-anchoring
+proposal's rollback is a restore of the response with the state: re-anchor to the old response, then restore.
 
 ## Where the division holds, and where it does not
 
 It holds for every prior quantity and every value held fixed: an install never changes what `getLeafPrior`,
 `getSigmas` on a fixed sigma, `getShape` on a fixed shape or the fixed df report, and every chain of a sampler
-runs under one prior. Chains spliced from several samplers, as stan4bart's kept-tree replay does, are converted
-into one set of units and run as one posterior.
+runs under one prior. Chains spliced from several samplers go in as stored and run as one posterior under the
+sampler's one transform; a chain drawn under another transform is then read on a scale it was not drawn on, so
+a host that splices chains across transforms restores each into a sampler at that chain's own.
 
 It does not hold in four places.
 
@@ -131,9 +138,9 @@ donor's covariate standardization into the sampler's own ([leaf-conversions.md](
 The writer and the install rule: [`Chain::getState`](../../src/bartcore/chain.hpp),
 [`Chain::setState`](../../src/bartcore/chain.hpp), [`installForest`](../../src/bartcore/chain.hpp),
 [`installDrawnScalars`](../../src/bartcore/chain.hpp) and
-[`AmplitudeForestCombiner::restoreGlue`](../../src/bartcore/combiner.hpp). The units:
-[`Sampler::setAnchor`](../../src/bartcore/sampler.hpp), [`unitsDiffer`](../../src/bartcore/sampler.hpp),
-[`convertStateUnits`](../../src/bartcore/chain.hpp) and [`moveScale`](../../src/bartcore/chain.hpp). The record:
+[`AmplitudeForestCombiner::restoreGlue`](../../src/bartcore/combiner.hpp). The transform:
+[`Sampler::setAnchor`](../../src/bartcore/sampler.hpp) and [`moveScale`](../../src/bartcore/chain.hpp); a
+re-anchor's rewrite of the kept draws, [`restateSavedDraws`](../../src/bartcore/chain.hpp). The record:
 [`recordAnchor`](../../R/dbarts.R), [`applyAnchor`](../../R/dbarts.R) and
 [`recreatePointer`](../../R/dbarts.R). The floor on precisions:
 [`ResponseModel::canHoldLatents`](../../src/bartcore/model.hpp), asked by

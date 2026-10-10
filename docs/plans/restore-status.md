@@ -59,7 +59,7 @@ without touching the bridge or R again.
 1. Engine: one out-flag from the sampler's state install
    ([`Sampler::setState`](../../src/bartcore/sampler.hpp)), set by the merge branches of the live rebuild
    and its variance twin ([`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp)), by the units pass
-   ([`Chain::convertStateUnits`](../../src/bartcore/chain.hpp)) when the units differ, and by
+   (retired: [`Chain::convertStateUnits`](../../src/bartcore/chain.hpp)) when the units differ, and by
    [`Tree::buildFromFlat`](../../src/bartcore/tree.hpp) when it clears a direction on a live build. The facade
    virtual changes, so the build is `--preclean`. tests/cpp: the flag set by a merge, a dropped direction, a
    variance tree's merge and a units conversion; clear for a sampler's own fresh state on each leaf model, on

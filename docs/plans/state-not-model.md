@@ -50,7 +50,7 @@ sampler runs under one prior.
   enter only the next draw's prior. Measured on 41 sampler configurations: an install with the `leaf.scale`
   block deleted gives the reader output and draws today's install gives, provided a named sd is re-stated
   afterwards where the transform is frozen away from the one the data now gives - the step
-  [`reissueNamedLeafSd`](../../R/dbarts.R) already takes after every other channel that moves the transform.
+  retired: [`reissueNamedLeafSd`](../../R/dbarts.R) already takes after every other channel that moves the transform.
 - A drawn k is relative to the anchor, which is model. Installed under another anchor it is the stored k, not
   the stored spread: the chain starts one sweep at anchor over k. Same-model installs are unaffected.
 - Precedents for keeping the sampler's own value, re-expressed in the installed transform:
@@ -119,7 +119,7 @@ Ruled after the first two were applied:
   mark the family for the latents and shift checks and keep that job.
 - A block the reader no longer wants is ignored when present, so a state written before this change installs.
 - A named sd is re-stated with creation's own arithmetic after the transform is installed, through the pointer
-  the install used: [`reissueNamedLeafSd`](../../R/dbarts.R) fetches the pointer itself and would recurse inside
+  the install used: retired: [`reissueNamedLeafSd`](../../R/dbarts.R) fetches the pointer itself and would recurse inside
   [`getPointer`](../../R/dbarts.R).
 - The undo of a failed warm start keeps working: what it snapshots and puts back must still return the
   recipient to where it was. With no model value installed, there is none to put back.

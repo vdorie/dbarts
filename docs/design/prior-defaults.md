@@ -112,27 +112,23 @@ named k.scale and the k hyperprior's scale are not separately identified:
 improper sd^-(df + 1), is `invchi(df, 0)`. That family is the only law on
 the sd offered because it is the one conjugate to the normal leaves.
 
-The translation rides a reference k of 2: `sd = x` reaches the engine
-as k.scale 2x with k fixed at 2, and `invchi(df, c)` as k.scale 2c with
-k ~ chi(df, 2); `invchi(df, 0)` states no scale and runs as chi(df, Inf) against the data's. A drawn
-k starts at 2, so the chain starts at the named spread, and the binary
-default and the old k spellings at their defaults keep bitwise engine
-inputs. A named sd's k.scale is the dbartsModel slot `prior.scale` (NA under a k-named prior), which
-overrides the family-keyed `leaf.scale` above and is converted
-engine-side against the transform in force, at creation and on every
-model install.
+A named sd is sugar over k (dec-B416; [leaf-scale-rules.md](leaf-scale-rules.md)). k.scale is the data's
+under every spelling, and the engine holds the named sd and states it as k against that scale: `sd = x` runs
+as k fixed at k.scale / x, and `invchi(df, c)` as k ~ chi(df, k.scale / c) started at k.scale / c, so the
+chain starts at the named spread; `invchi(df, 0)` names no scale and runs as chi(df, Inf). The binary default
+and the k spellings reach the engine as written. The dbartsModel keeps its encoding of a named sd - the slot
+`prior.scale` at twice the sd (NA under a k-named prior) beside a reference k of 2 - which the bridge divides
+back to the sd, exactly.
 
-A named sd is absolute. The sampler restates the named sd's `prior.scale` after
-every channel that re-anchors the response transform
-([`reissueNamedLeafSd`](../../R/dbarts.R)), using the latest
-`$setLeafPrior` write, which the R5 model records; a k moves with the
-data. A `$setLeafPrior` write into a drawn prior keeps each chain's spread
+A named sd is absolute. The engine restates it wherever the response transform moves
+([`Chain::translateNamedSd`](../../src/bartcore/chain.hpp)): a fixed k and a chi prior's scale are rewritten
+against the new k.scale, through R and through the flat C entries alike, while a k moves with the data. A
+drawn k is state and is never restated, so a drawn sd's current value lags with the leaves at a re-anchor
+until its next draw (dec-B417). A `$setLeafPrior` write into a drawn prior keeps each chain's spread
 in force at the call, from a fixed or a drawn prior in either spelling
-(dec-B356, dec-B369, dec-B392, dec-B393): it reads k.scale before and after
-the write and multiplies each chain's drawn k by their ratio
-([`Chain::scaleDrawnK`](../../src/bartcore/chain.hpp)), so the new prior acts
-from the next draw of k; a fixed k or sd stated sets the spread as written.
-A re-anchor's reissue moves no k. The reader reports in the terms the prior was named in: `prior.sd`,
+(dec-B356, dec-B369, dec-B392, dec-B393): no prior moves k.scale, so k is not touched and the new prior acts
+from the next draw of k; a fixed k or sd stated sets the spread as written. `setModel` keeps a drawn k the
+same way. The reader reports in the terms the prior was named in: `prior.sd`,
 the sd law in force while k is drawn, and k relative to the data's
 scale, reported as `k.scale` ([`reportLeafPrior`](../../R/dbarts.R)); a fit named by an sd
 hyperprior carries draws of the sd in place of k. The two-forest and

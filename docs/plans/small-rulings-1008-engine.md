@@ -210,7 +210,7 @@ Change:
 - R: the setLeafPrior method, and not [`writeLeafPrior`](../../R/dbarts.R), reads k.scale before the
   write, writes, reads it after, and calls the primitive with after / before. Both reads are under one
   transform.
-- Untouched: [`reissueNamedLeafSd`](../../R/dbarts.R) after a re-anchor, and $setModel. Under the k
+- Untouched: retired: [`reissueNamedLeafSd`](../../R/dbarts.R) after a re-anchor, and $setModel. Under the k
   spelling a changed chi() leaves k.scale alone, the factor is 1, and nothing moves.
 
 If the maintainer rules to keep k from a fixed prior instead, the R side calls the primitive only where
@@ -253,8 +253,8 @@ equal to `min_` where the range is positive and to c - 0.5 where it is 0. The lo
 - `computeLogLikelihood`.
 
 `rescale`'s empty-response branch follows the same rule: (0, 0) recorded, low end -0.5.
-[`Chain::unitsOf`](../../src/bartcore/chain.hpp) reads (c, c) as multiplier 1 and shift c; the comments of
-[`carriesUnits`](../../src/bartcore/chain.hpp), [`convertStateUnits`](../../src/bartcore/chain.hpp) and
+retired: [`Chain::unitsOf`](../../src/bartcore/chain.hpp) reads (c, c) as multiplier 1 and shift c; the comments of
+[`carriesUnits`](../../src/bartcore/chain.hpp), retired: [`convertStateUnits`](../../src/bartcore/chain.hpp) and
 `getScale` follow. combiner.hpp only carries `fitMin` and `fitMax` in the state and needs no change. The
 count family's (c, c + 1) is a separate encoding and is untouched.
 
