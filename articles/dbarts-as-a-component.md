@@ -318,12 +318,17 @@ When the quantity being sampled is a *predictor* rather than a response
 in every sampler or in none. An observation is declined when its new
 value would empty a leaf in any tree of any sampler.
 
-The returned mask is therefore **part of the Metropolis accept decision,
-not a diagnostic**. A declined observation was rolled back, so the
-log-likelihood read after the call is its *old* likelihood; treating the
-resulting ratio of 1 as an acceptance would move the host’s copy of the
-latent away from what the samplers actually hold, silently and
-permanently.
+Score each proposal *before* installing it, with `predict` while the
+trees are held: row $`i`$’s fit depends on row $`i`$’s predictors alone,
+so the per-row ratio factorizes. Decide accept or reject per row, then
+install only the accepted rows. The returned mask is **part of the
+Metropolis accept decision, not a diagnostic**: a row is declined when
+it is the only row in a leaf of some tree, so moving it would empty that
+leaf. An empty leaf has zero prior, so the decline is the correct
+outcome and counts as a rejection. The random-walk proposal is
+symmetric, so the ratio needs no proposal correction. Keeping the host’s
+copy equal to what the samplers hold means taking the mask, not the
+proposal. Nothing is reverted.
 
 ``` r
 
@@ -343,42 +348,31 @@ sB <- dbarts(y ~ v + theta, d2, family = "probit", control = control,
 invisible(sA$run(0L, 20L))
 invisible(sB$run(0L, 20L))
 
-# per-observation log likelihood; with the trees held fixed, row i's fit is a
-# function of row i's predictors alone, so this factorizes
-logLik <- function() {
-  fA <- as.numeric(sA$getFitsWithoutOffset())
-  fB <- as.numeric(sB$getFitsWithoutOffset())
+# per-observation log likelihood of a latent theta, scored with the trees held
+# fixed; nothing is installed
+logLik <- function(theta) {
+  fA <- as.numeric(sA$predict(transform(d1[c("theta", "u")], theta = theta)))
+  fB <- as.numeric(sB$predict(transform(d2[c("v", "theta")], theta = theta)))
   dnorm(d1$y, fA, as.numeric(sA$getSigmas()), log = TRUE) +
-    ifelse(d2$y == 1, pnorm(fB, log.p = TRUE), pnorm(-fB, log.p = TRUE))
+    ifelse(d2$y == 1, pnorm(fB, log.p = TRUE), pnorm(-fB, log.p = TRUE)) +
+    dnorm(theta, 0, 1, log = TRUE)
 }
 
 current <- sA$data@x[, "theta"]
-llCurrent <- logLik() + dnorm(current, 0, 1, log = TRUE)
 proposal <- current + rnorm(nJ, 0, 0.5)
+wanted <- log(runif(nJ)) < logLik(proposal) - logLik(current)
+# install only the wanted rows; a declined install is a rejection
+installed <- wanted
+installed[wanted] <- updatePredictorPerObservationJointly(
+  list(sA, sB), ifelse(wanted, proposal, current), column = "theta"
+)[wanted]
+theta <- ifelse(installed, proposal, current)
 
-installed <- updatePredictorPerObservationJointly(list(sA, sB), proposal,
-                                                  column = "theta")
-llProposal <- logLik() + dnorm(proposal, 0, 1, log = TRUE)
-# the conjunction: a declined observation is a REJECTED move
-accept <- installed & (log(runif(nJ)) < llProposal - llCurrent)
-theta <- ifelse(accept, proposal, current)
-reinstalled <- updatePredictorPerObservationJointly(list(sA, sB), theta,
-                                                    column = "theta")
-
-c(installed = sum(installed), accepted = sum(accept),
-  reinstalled = sum(reinstalled), n = nJ)
+c(wanted = sum(wanted), accepted = sum(installed), n = nJ)
 ```
 
-    ##   installed    accepted reinstalled           n 
-    ##          79          34          77          80
-
-The second call returns to the value the host settled on every
-observation it can. A revert is a move like any other: a row moved into
-a leaf that the leaf’s other rows have since left is its only row, and
-moving it back would empty the leaf, so that revert is declined and the
-samplers keep the proposal there. Check its mask rather than assume it
-is total: a `FALSE` means the samplers and the host disagree about that
-row’s current value.
+    ##   wanted accepted        n 
+    ##       69       67       80
 
 ## 5. An outer sampler that owns sigma
 
