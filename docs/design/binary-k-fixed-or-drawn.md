@@ -1,6 +1,6 @@
 # Binary fits: should k be fixed or drawn?
 
-Status: FINDING, 2026-10-09 (dec-B404, dec-B390). The September binary
+Status: FINDING, 2026-10-09 (dec-B404, dec-B390); ruled dec-B420. The September binary
 hyperprior study rerun with the probit rescaling step in place, on probit
 and logistic, fixed k against drawn k. The per-fit results are in
 scratch/khp-study, untracked.

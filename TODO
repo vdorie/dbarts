@@ -258,21 +258,13 @@ items
     points set, 100 after the restore, TRUE), against dec-B231 and
     0.9-34, whose state carried no grid; shipped, a caller could rely
     on it.
-  binary-k-default-revisit: after the merge to main, before 1.0-0
-    (dec-B390, VD 2026-10-08). Now that probit-k-scale-move has
-    landed, rerun the binary hyperprior study
-    (docs/plans/binary-hyperprior.md) on
-    converged chains with the k move and bring the default chi(1.5, 2)
-    back to VD with the numbers (dec-A07's scheduled revisit).
-  k-mixing-pg-families: before 1.0-0; door for VD. Measured
-    2026-10-09 (docs/design/k-mixing-pg-families.md): k under logistic
-    mixes slowly where it did under probit (small true k, near
-    separation; 7% of prior datasets past 5000 sweeps, half of the
-    near-separable ones), and under negative binomial it does not where
-    it could be measured. The probit step does not carry over; the
-    candidate is a collapsed scale move on the logistic likelihood, one
-    pass a sweep, covering negative binomial too. Whether and how to fix
-    logistic is the maintainer's.
+  k-mixing-pg-families: before 1.0-0 (dec-B404, dec-B420, VD
+    2026-10-09). Binary fits keep a drawn k under chi(1.5, 2), so the
+    logistic collapsed scale move is built before 1.0-0; plan
+    docs/plans/collapsed-scale-move.md on wt/collapsed-move-plan, its
+    probit half, a switch and negative binomial still open calls.
+    Negative binomial's k (docs/design/k-mixing-pg-families.md) is
+    measured after dec-B412's prior study.
   multiforest-scale-rederive: after 1.0-0 (dec-B362, VD 2026-10-08).
     updateScale = TRUE on a sampler of several forests, refused today:
     restate each forest's default size on the new scale, a stated
@@ -300,6 +292,14 @@ items
     (docs/design/k-mixing-pg-families.md). Study the tail over n and
     centres against what count-model users expect, on the bench box,
     and bring candidate defaults back with numbers if it is badly off.
+  embedding-recipe-declined-revert: door for VD. The
+    bart-as-a-component vignette's recipe 4 reverts rejected
+    proposals by a second per-row predictor update, which is declined
+    when it would empty a leaf (seen at a few seeds on the base build
+    and on the per-gap grid), leaving the samplers on a proposal the
+    Metropolis step rejected. Correct handling scores the proposal
+    without installing it (predict with the trees held) and installs
+    only accepted rows, so a declined install is a rejection.
   per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
     note docs/design/per-chain-responses.md). Responses and offsets
     held per chain so one sampler holds every chain of a larger Gibbs
