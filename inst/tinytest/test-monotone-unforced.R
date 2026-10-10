@@ -388,6 +388,43 @@ while (any((sides <- sidesDrawn(arrivalSeed)) != "R") && arrivalSeed < 60L) {
 }
 expect_identical(sides, c("R", "R"))
 completes(arrive, NULL, make(list(crossed), seed = arrivalSeed))
+# A state stored while f could hold no missing value, installed where it can:
+# the install draws the side of each f rule from the state's own generator
+# before the order is judged. Left at both leaves `breaks` out of order: the
+# state is declined, the sampler its twin, and forced it goes in with the
+# tree set to zero. Any other sides keep the order, and the state is clean.
+# Seeds are tried until each has been met.
+flagged <- function(seed) make(list(holds), dfArrived, seed = seed)
+met <- c(declined = FALSE, clean = FALSE)
+for (seed in 7:60) {
+  earlier <- make(seed = seed)$state
+  sampler <- flagged(seed)
+  status <- sampler$setState(earlier)
+  arm <- if (status) "clean" else "declined"
+  if (met[[arm]]) {
+    next
+  }
+  met[[arm]] <- TRUE
+  if (status) {
+    trees <- sampler$getTrees()
+    expect_true(any(trees$missing[trees$var == 2L] == "R"))
+    expect_identical(leaves(sampler), breaks)
+  } else {
+    expectTwin(sampler, flagged(seed))
+    forced <- flagged(seed)
+    expect_identical(
+      observe(forced$setState(earlier, forceUpdate = TRUE)),
+      outcome(NULL, visible = FALSE)
+    )
+    expect_identical(leaves(forced), numeric(4L))
+    trees <- forced$getTrees()
+    expect_identical(trees$missing[trees$var == 2L], c("L", "L"))
+  }
+  if (all(met)) {
+    break
+  }
+}
+expect_identical(met, c(declined = TRUE, clean = TRUE))
 # a warm start from a donor on another cut grid, onto a sampler whose factor
 # holds a missing value: the route that maps the donor's rules onto the grid
 dfShifted <- dfArrived
