@@ -77,6 +77,10 @@ jobs:
             ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
             if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
           ' 2>&1 | tee valgrind-tests.log
+          # a log valgrind never wrote to would pass every check below
+          if ! grep -q "ERROR SUMMARY:" valgrind-tests.log; then
+            echo "::error::the log holds no valgrind summary"; exit 1
+          fi
           # a possibly-lost record allocated by package code (see above);
           # records are per process, and a record ends at that process's
           # blank line. awk exits 0 on a finding and 1 on none; any other
