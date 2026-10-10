@@ -354,8 +354,8 @@ public:
   /// column-mask containment one installForests names separately;
   /// monotoneRefused, whether it was a live tree's leaf values outside the
   /// monotone cone; interactionRefused, whether a live tree breaks an
-  /// interaction constraint; lengthscaleRefused and unitsRefused,
-  /// Sampler::setState's two refusals of what cannot be installed here.
+  /// interaction constraint; lengthscaleRefused, Sampler::setState's refusal
+  /// of saved gp draws made under other lengthscales.
   /// altered, when non-null, reports whether an accepted state was installed
   /// other than as stored (Sampler::setState).
   /// adoptCapacity is Sampler::setState's: a store capacity the state is
@@ -366,12 +366,11 @@ public:
                         bool* monotoneRefused = nullptr,
                         bool* interactionRefused = nullptr,
                         bool* lengthscaleRefused = nullptr,
-                        bool* unitsRefused = nullptr,
                         bool* altered = nullptr,
                         std::size_t adoptCapacity = keepStoreCapacity) = 0;
   /// The sampler's response transform, Sampler::setAnchor's: written by a
   /// host re-creating a sampler from its record, read back to keep one.
-  virtual void setAnchor(double min, double max, bool moveChains) = 0;
+  virtual void setAnchor(double min, double max) = 0;
   virtual void getAnchor(double& min, double& max) const = 0;
   virtual WarmStartResult installForests(
       const SamplerStateData& donor,
@@ -432,23 +431,18 @@ public:
   /// Chain::forestCalibration states the semantics.
   virtual ForestCalibration forestCalibration(
       std::size_t chainNum, std::size_t forestIndex) const = 0;
-  /// Restates forest forestIndex's leaf prior on every chain so the forest
-  /// total's prior sd at k = 1 is priorScale, response units; false, writing
-  /// nothing, when the index names no forest or a combiner owns the
-  /// calibration. A write reproducing what is in force is skipped bitwise.
-  /// Chain::setForestPriorScale states the semantics.
-  virtual bool setForestPriorScale(std::size_t forestIndex,
-                                   double priorScale) = 0;
+  /// Names forest forestIndex's leaf-prior sd on every chain, response
+  /// units, stated as k against the data's scale and held so a re-anchor
+  /// restates it; false, writing nothing, when the index names no forest or
+  /// a combiner owns the calibration. A drawn k is not moved, and a write of
+  /// the sd the forest holds is skipped. Chain::setForestNamedSd states the
+  /// semantics.
+  virtual bool setForestNamedSd(std::size_t forestIndex, double namedSd) = 0;
   /// Restates forest forestIndex's fixed k on every chain, leaving its leaf
   /// scale; false, writing nothing, when the index names no forest, the forest
   /// draws its k, or a calibration map pins it. Chain::setForestFixedK states
   /// the semantics.
   virtual bool setForestFixedK(std::size_t forestIndex, double k) = 0;
-  /// Multiplies forest forestIndex's k by factor on every chain that draws
-  /// it, keeping the spread in force across a write that moved k.scale;
-  /// false, writing nothing, when the index names no forest.
-  /// Chain::scaleDrawnK states the semantics.
-  virtual bool scaleDrawnK(std::size_t forestIndex, double factor) = 0;
   /// Restates a calibration-map forest's spread on every chain, in the channel
   /// its amplitude prior names (half-Cauchy median or leaf-scale factor);
   /// false, writing nothing, off a map forest. Chain::setForestMapSd states
@@ -689,15 +683,14 @@ public:
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors, bool* columnMaskRefused,
                 bool* monotoneRefused, bool* interactionRefused,
-                bool* lengthscaleRefused, bool* unitsRefused, bool* altered,
+                bool* lengthscaleRefused, bool* altered,
                 std::size_t adoptCapacity) override {
     return impl_.setState(state, currentPredictors, columnMaskRefused,
                           monotoneRefused, interactionRefused,
-                          lengthscaleRefused, unitsRefused, altered,
-                          adoptCapacity);
+                          lengthscaleRefused, altered, adoptCapacity);
   }
-  void setAnchor(double min, double max, bool moveChains) override {
-    impl_.setAnchor(min, max, moveChains);
+  void setAnchor(double min, double max) override {
+    impl_.setAnchor(min, max);
   }
   void getAnchor(double& min, double& max) const override {
     impl_.getAnchor(min, max);
@@ -774,15 +767,11 @@ public:
       std::size_t chainNum, std::size_t forestIndex) const override {
     return impl_.forestCalibration(chainNum, forestIndex);
   }
-  bool setForestPriorScale(std::size_t forestIndex,
-                           double priorScale) override {
-    return impl_.setForestPriorScale(forestIndex, priorScale);
+  bool setForestNamedSd(std::size_t forestIndex, double namedSd) override {
+    return impl_.setForestNamedSd(forestIndex, namedSd);
   }
   bool setForestFixedK(std::size_t forestIndex, double k) override {
     return impl_.setForestFixedK(forestIndex, k);
-  }
-  bool scaleDrawnK(std::size_t forestIndex, double factor) override {
-    return impl_.scaleDrawnK(forestIndex, factor);
   }
   bool setForestMapSd(std::size_t forestIndex, double sd) override {
     return impl_.setForestMapSd(forestIndex, sd);

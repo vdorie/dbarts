@@ -67,13 +67,15 @@ struct SamplerOptions {
   size_t numThin = 1;
   double k = 2.0;
   double nodeScale = 0.5;  // 3.0 for binary responses
-  // the named leaf calibration, in RESPONSE units: the forest total's prior sd
-  // at k = 1. Finite, it OVERRIDES nodeScale - the single-forest constructor
-  // divides it by the response transform's fitScale to get the internal node
-  // scale - and NaN leaves nodeScale the primitive. The two-forest (BCF) and
-  // multinomial constructors build from their own calibration maps and never
-  // read it, so the bridge refuses a named value there rather than dropping it.
-  double priorScale = std::numeric_limits<double>::quiet_NaN();
+  // the leaf prior's named sd, in RESPONSE units: the forest total's prior
+  // sd, or the scale of the prior on it. Finite, the single-forest
+  // constructor states it as k against the data's scale
+  // (Chain::translateNamedSd) and starts a drawn k there, over .k and the
+  // hyperprior's scale; NaN, the prior is written with k and both stand. The
+  // two-forest (BCF) and multinomial constructors build from their own
+  // calibration maps and never read it, so the bridge refuses a named value
+  // there rather than dropping it.
+  double namedSd = std::numeric_limits<double>::quiet_NaN();
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.6;
   double swapProbability = 0.0;
@@ -311,10 +313,10 @@ struct ModelParameters {
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
-  // the named calibration, matching SamplerOptions: finite overrides nodeScale
-  // and is RE-DERIVED against the transform in force when the model installs,
-  // not against the one creation saw, so an intervening re-anchor is honored
-  double priorScale = std::numeric_limits<double>::quiet_NaN();
+  // the named sd, matching SamplerOptions: finite, it is stated as k against
+  // the data's scale under the transform in force when the model installs,
+  // over .k or the hyperprior's scale; a drawn k is never moved by it
+  double namedSd = std::numeric_limits<double>::quiet_NaN();
   // k is fixed at .k unless updateK, matching SamplerOptions
   double k = 2.0;
   bool updateK = false;
@@ -332,8 +334,9 @@ struct ModelParameters {
 
 /// One forest's leaf-prior calibration on ONE chain, in RESPONSE units (the
 /// family's latent units where the response is not rescaled). priorScale is
-/// the identified, nameable object - the forest total's prior sd at k = 1 -
-/// and is what the setter writes; priorSd is priorScale / k and moves every
+/// the value k is relative to - the forest total's prior sd at k = 1 - and
+/// is the data's: the family and the response transform fix it, and no
+/// spelling of the prior moves it. priorSd is priorScale / k and moves every
 /// sweep under kHasHyperprior while priorScale does not. What priorSd bounds
 /// is leaf-model specific, exact only for the constant leaf.
 ///
@@ -348,9 +351,16 @@ struct ForestCalibration {
   double k = 0.0;
   double responseScale = 0.0;
   double responseShift = 0.0;
-  /// THIS forest's own k law, not the sampler-wide option: a combiner pins its
-  /// forests' k and the two disagree on BCF and multinomial.
+  /// THIS forest's own k prior, not the sampler-wide option: a combiner pins
+  /// its forests' k and the two disagree on BCF and multinomial.
   bool kHasHyperprior = false;
+  /// The scale of the chi prior a drawn k runs under, infinite where it is
+  /// improper; NaN where k is fixed.
+  double kPriorScale = std::numeric_limits<double>::quiet_NaN();
+  /// The named sd the forest holds, response units; NaN where the prior is
+  /// written with k. Finite, a fixed k is priorScale / namedSd and
+  /// kPriorScale likewise, to the bit.
+  double namedSd = std::numeric_limits<double>::quiet_NaN();
   /// The amplitude prior, the two spellings EXCLUSIVE (ForestAmplitudePrior's
   /// own pair) and never the mixture's LIVE variance auxiliary, which is state.
   double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
@@ -912,8 +922,7 @@ public:
     }
     options_.survivalStatus = nullptr;  // consumed above
 
-    forest.leaf.scale = resolvedNodeScale(options.nodeScale,
-                                          options.priorScale) /
+    forest.leaf.scale = options.nodeScale /
                         std::sqrt(static_cast<double>(forest.numTrees));
     // the constrained constant leaf reads box geometry from the store and its
     // per-column directions from the borrowed spec; the c-inflation matches a
@@ -963,6 +972,12 @@ public:
 
     sigma_ = response_->initialSigma();
     forest.k = options.k;
+    // a named sd is stated as k against the data's scale, and a drawn k
+    // starts at that statement, so the chain starts at the named sd
+    forest.namedSd = options.namedSd;
+    translateNamedSd(forest);
+    if (forest.updateK && std::isfinite(forest.namedSd))
+      forest.k = forest.kHyperprior.scale;
 
     forest.indexBuffer.resize(numObservations * forest.numTrees);
     forest.trees.resize(forest.numTrees);
@@ -1481,7 +1496,7 @@ public:
     // the one bounds check on this surface, because the reader has no refusal
     // channel of its own: a default-constructed calibration is what a host
     // turns into "no such forest", and the alternative is a read past the last
-    // forest (setForestPriorScale answers the same question with false)
+    // forest (setForestNamedSd answers the same question with false)
     if (f >= forests_.size()) return ForestCalibration{};
     const Forest<L, ResidT>& forest = forests_[f];
     ForestCalibration calibration;
@@ -1492,6 +1507,8 @@ public:
     calibration.priorSd = calibration.priorScale / calibration.k;
     calibration.priorMean = calibration.responseShift;
     calibration.kHasHyperprior = forest.updateK;
+    if (forest.updateK) calibration.kPriorScale = forest.kHyperprior.scale;
+    calibration.namedSd = forest.namedSd;
     // the map's own decomposition, sized only by the K-forest constructor, so
     // every other sampler leaves the five at their NaN
     if (f < nodeScaleFactors_.size()) {
@@ -1505,26 +1522,22 @@ public:
     return calibration;
   }
 
-  /// Restates forest f's leaf prior so the forest total's prior sd at k = 1 is
-  /// priorScale, response units. Touches nothing else - not k, not the
-  /// transform, not sigma, not the tree prior - and takes effect on the next
-  /// sweep, reinterpreting no leaf value already drawn. False, writing
-  /// nothing, when f names no forest or a combiner owns the calibration (BCF
-  /// and multinomial derive both halves from their own maps). A write that
-  /// reproduces what is in force is SKIPPED, on either spelling of "in force":
-  /// the internal scale it derives, and the priorScale forestCalibration
-  /// reports, which the round trip through the response transform need not
-  /// return to the same bits. That is what makes a read-then-write inert. The
-  /// internal scale is derived with creation's and setModel's own arithmetic,
-  /// so a write of the anchor a model names lands on their bits.
-  bool setForestPriorScale(std::size_t f, double priorScale) {
+  /// Names forest f's leaf-prior sd, response units: a fixed k becomes the
+  /// data's scale over it and a drawn k's hyperprior takes that scale, the
+  /// forest holding the sd so each is restated when the response's mapping
+  /// moves (translateNamedSd). Touches nothing else - not a drawn k, which is
+  /// state, not the leaf scale, the transform, sigma or the tree prior - and
+  /// takes effect on the next sweep, reinterpreting no leaf value already
+  /// drawn. False, writing nothing, when f names no forest or a combiner owns
+  /// the calibration (BCF and multinomial derive both halves from their own
+  /// maps). A write of the sd the forest holds is SKIPPED, which is what
+  /// makes a write-back of the named sd inert.
+  bool setForestNamedSd(std::size_t f, double namedSd) {
     if (f >= forests_.size() || combiner_ != nullptr) return false;
     Forest<L, ResidT>& forest = forests_[f];
-    double factor = priorScaleFactor(forest);
-    if (priorScale == forest.leaf.scale * factor) return true;
-    double leafScale = resolvedNodeScale(0.0, priorScale) /
-                       std::sqrt(static_cast<double>(forest.numTrees));
-    if (leafScale != forest.leaf.scale) forest.leaf.scale = leafScale;
+    if (namedSd == forest.namedSd) return true;
+    forest.namedSd = namedSd;
+    translateNamedSd(forest);
     return true;
   }
 
@@ -1538,18 +1551,6 @@ public:
         f < nodeScaleFactors_.size())
       return false;
     if (k != forests_[f].k) forests_[f].k = k;
-    return true;
-  }
-
-  /// Multiplies forest f's k by \p factor where the forest draws its k, so a
-  /// prior write that moved k.scale by \p factor keeps the spread
-  /// k.scale / k in force; the new hyperprior acts from the next draw of k. A
-  /// forest at a fixed or map-pinned k is not touched, nor is any forest at a
-  /// factor of exactly 1. False, writing nothing, when f names no forest.
-  bool scaleDrawnK(std::size_t f, double factor) {
-    if (f >= forests_.size()) return false;
-    if (!forests_[f].updateK || factor == 1.0) return true;
-    forests_[f].k *= factor;
     return true;
   }
 
@@ -2092,6 +2093,8 @@ public:
     // and surface are restated on the new working scale
     if constexpr (leafSupportsVarianceForest)
       if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
+    // and a named leaf-prior sd against the data's new scale
+    if (updateScale) translateNamedSds();
     restateSavedDraws(previousScale, previousShift, kept);
   }
   /// A vector zeroing rows a GROWN forest already split on can leave leaves
@@ -2252,6 +2255,7 @@ public:
     // see setOffset: the same re-anchoring under the other pointer
     if constexpr (leafSupportsVarianceForest)
       if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
+    if (updateScale) translateNamedSds();
     restateSavedDraws(previousScale, previousShift, kept);
     // a latent family's setResponse refreshes the Polya-Gamma weights U'WU
     // depends on; a gaussian one moves only the residual
@@ -2259,10 +2263,10 @@ public:
       if (response_->workingWeightsVaryPerSweep())
         forests_[0].leaf.invalidateStatistics();
   }
-  /// Unguarded for the structurally pinned binary families: the restore
-  /// paths (setState and installForest) install a stored sigma only where it
-  /// is drawn, and the user-facing change is refused at the bridge
-  /// (refusePinnedSigmaChange). Under a variance forest sigma is
+  /// Unguarded for the structurally pinned binary families: the user-facing
+  /// change is refused at the bridge (refusePinnedSigmaChange), and no
+  /// install comes through here (installDrawnScalars). Under a variance
+  /// forest sigma is
   /// not a parameter at all - buildVarianceForest pins it at 1 on the working
   /// scale and the variance surface carries the residual scale from there - so
   /// every write is dropped, which is what closes the internal callers that
@@ -2302,22 +2306,11 @@ public:
            family_ == ResponseFamily::aft;
   }
 
-  /// Whether an install must move this chain into the state's transform. An
-  /// increasing pair always does, exactly as before; a constant response's
-  /// (c, c) only where it is not already the chain's own.
-  bool installsScale(const ChainStateData& state) const {
-    if (state.fitMax > state.fitMin) return true;
-    if (!carriesUnits(state.fitMin, state.fitMax)) return false;
-    double min, max;
-    response_->getScale(min, max);
-    return state.fitMin != min || state.fitMax != max;
-  }
-
   /// Moves the chain's transform to (min, max) while its trees are still
-  /// creation's: sigma, its prior and a variance forest keep their
-  /// original-scale values, as at a re-anchoring response swap, and no leaf
-  /// value is converted, none having been drawn. A pair equal to the one in
-  /// force is the caller's to skip.
+  /// creation's: sigma, its prior, a variance forest and a named leaf-prior
+  /// sd keep their original-scale values, as at a re-anchoring response
+  /// swap, and no leaf value is converted, none having been drawn. A pair
+  /// equal to the one in force is the caller's to skip.
   void moveScale(double min, double max) {
     double sigmaOriginal = sigma();
     double previousSigmaScale = varianceScaleAnchor();
@@ -2325,76 +2318,22 @@ public:
     setSigma(sigmaOriginal);
     if constexpr (leafSupportsVarianceForest)
       if (varianceForest_) reanchorVarianceForest(previousSigmaScale);
-  }
-
-  /// Rewrites a state stored under the transform it names into (min, max),
-  /// so the same install then lands it in those units. With r the ratio of
-  /// the two multipliers and d the shift difference over the new multiplier,
-  /// every mean leaf value, live and saved, becomes r v + d / m (m the
-  /// forest's tree count): a linear leaf's intercept that way and its slopes
-  /// by r, a gp leaf's fits and saved kernel weights by r, each variance
-  /// factor by r^(2 / m'). Sigma and the latents are in response units and
-  /// stand. The result agrees with the stored function to rounding, not
-  /// bitwise. False, the state untouched, where the shift cannot be
-  /// carried: a gp leaf's saved draw has no mean term, and under amplitudes
-  /// no forest owns one. Both pairs carry units (carriesUnits).
-  ///
-  /// changed, when non-null, receives on success whether the rewrite moves
-  /// any value, r other than 1 or d other than 0: unequal pairs can name the
-  /// same units, as a constant response's (c, c) and (c - 0.5, c + 0.5) do.
-  bool convertStateUnits(ChainStateData& state, double min, double max,
-                         bool* changed = nullptr) const {
-    double fromScale, fromShift, toScale, toShift;
-    unitsOf(state.fitMin, state.fitMax, fromScale, fromShift);
-    unitsOf(min, max, toScale, toShift);
-    double ratio = fromScale / toScale;
-    double shift = (fromShift - toShift) / toScale;
-    if (shift != 0.0 &&
-        (L::hasFunctionParams || (combiner_ && combiner_->totalAmplitudes() > 0)))
-      return false;
-    if (changed != nullptr) *changed = ratio != 1.0 || shift != 0.0;
-    std::size_t numForests = std::min(state.forests.size(), forests_.size());
-    std::vector<std::size_t> offsets;
-    for (std::size_t f = 0; f < numForests; ++f) {
-      ForestStateData& fs = state.forests[f];
-      double perTree = shift / static_cast<double>(forests_[f].numTrees);
-      for (std::vector<FlatNode>& tree : fs.trees)
-        convertLeafValueUnits(tree, ratio, perTree);
-      for (std::vector<FlatNode>& tree : fs.savedTrees)
-        convertLeafValueUnits(tree, ratio, perTree);
-      if constexpr (L::hasVectorParams || L::hasFunctionParams) {
-        // a live tree's side channel is slopes or, on a gp leaf, its
-        // per-observation fits: by the ratio either way
-        for (std::vector<double>& params : fs.treeParams)
-          for (double& param : params) param *= ratio;
-        // a block that does not walk is left for stateIsValid to refuse
-        for (std::size_t t = 0;
-             t < fs.savedTrees.size() && t < fs.savedTreeParams.size(); ++t)
-          convertSavedParamUnits(f, fs.savedTrees[t], fs.savedTreeParams[t],
-                                 ratio, offsets);
-      }
-    }
-    if (varianceForest_ && ratio != 1.0) {
-      double factor = varianceFactorRatio(ratio);
-      for (auto* trees : {&state.varianceTrees, &state.savedVarianceTrees})
-        for (std::vector<FlatNode>& tree : *trees)
-          scaleVarianceLeaves(tree, factor);
-    }
-    state.fitMin = min;
-    state.fitMax = max;
-    return true;
+    translateNamedSds();
   }
 
   /// Rewrites the saved draws in \p kept from the response transform that was
   /// in force - multiplier previousScale, shift previousShift - into the one
   /// in force now, so that a replay returns what it returned before a
-  /// re-anchor: convertStateUnits' arithmetic over the chain's own store,
-  /// mean draws and variance factors alike. The live trees are left, a
-  /// re-anchor keeping their internal values. Where the shift moved and
-  /// cannot be carried - a gp leaf's saved draw has no mean term, and under
-  /// amplitudes no forest owns one - the store is left as it is, as
-  /// convertStateUnits refuses the state. A transform that did not move, or
-  /// no draw kept, costs the comparison.
+  /// re-anchor. With r the ratio of the two multipliers and d the shift
+  /// difference over the new multiplier, every saved mean leaf value becomes
+  /// r v + d / m (m the forest's tree count): a linear leaf's intercept that
+  /// way and its slopes by r, a gp leaf's saved kernel weights by r, each
+  /// variance factor by r^(2 / m'). The result agrees with the stored
+  /// function to rounding, not bitwise. The live trees are left, a re-anchor
+  /// keeping their internal values. Where the shift moved and cannot be
+  /// carried - a gp leaf's saved draw has no mean term, and under amplitudes
+  /// no forest owns one - the store is left as it is. A transform that did
+  /// not move, or no draw kept, costs the comparison.
   void restateSavedDraws(double previousScale, double previousShift,
                          SavedDrawSlots kept) {
     if (kept.count == 0) return;
@@ -2468,10 +2407,7 @@ public:
     forest.perturbWidth = model.perturbWidth;
     forest.ruleGibbsProbability = model.ruleGibbsProbability;
     forest.birthProbability = model.birthProbability;
-    // the same conversion creation runs, re-derived against the CURRENT
-    // transform: without it a round trip through the model SEXP would revert a
-    // named calibration to the family-keyed nodeScale in silence
-    forest.leaf.scale = resolvedNodeScale(model.nodeScale, model.priorScale) /
+    forest.leaf.scale = model.nodeScale /
                         std::sqrt(static_cast<double>(forest.numTrees));
 
     forest.updateK = model.updateK;
@@ -2480,6 +2416,11 @@ public:
     } else {
       forest.k = model.k;
     }
+    // a named sd restates the fixed k or the hyperprior's scale just
+    // installed, against the transform in force; a drawn k is state and
+    // stays, so the spread in force is kept across a change of prior
+    forest.namedSd = model.namedSd;
+    translateNamedSd(forest);
 
     // both arms move a variance forest's pin - the fixed one by installing an
     // estimate over the working-scale 1, the other by re-prioring and
@@ -3371,6 +3312,8 @@ public:
     double previousScale = response_->fitScale();
     double previousShift = response_->fitShift();
     response_->setData(y, offset, weights, n, &sigma_);
+    // the data's scale moved with the transform
+    translateNamedSds();
 
     if (numObservationsChanged) {
       forest.indexBuffer.resize(n * forest.numTrees);
@@ -4091,7 +4034,7 @@ public:
         fs.leafLengthscales = forest.leaf.lengthscales();
     }
     Forest<L, ResidT>& forest = forests_[0];
-    state.sigma = drawsSigma() ? sigma() : absent;
+    state.sigma = drawsSigma() ? sigma_ : absent;
     response_->getScale(state.fitMin, state.fitMax);
     if (response_->latents() != nullptr) {
       state.latents.assign(response_->latents(),
@@ -4842,13 +4785,6 @@ public:
                        nullptr,
                      ColumnStore* store = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
-    double ownSigma = sigma();
-    if (installsScale(state)) {
-      response_->restoreScale(state.fitMin, state.fitMax);
-      // the scale leaf is stated on the working scale this transform defines
-      if constexpr (leafSupportsVarianceForest)
-        if (varianceForest_) calibrateVarianceLeaf();
-    }
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       const ForestStateData& fs = state.forests[f];
@@ -4859,7 +4795,7 @@ public:
       if (!rebuilt) return false;
       if (forests_[f].updateK && !std::isnan(fs.k)) forests_[f].k = fs.k;
     }
-    installDrawnScalars(state, ownSigma);
+    installDrawnScalars(state);
     if (combiner_) combiner_->restoreGlue(state);
     return true;
   }
@@ -4984,12 +4920,11 @@ public:
 
   /// What both installs do with the chain-level scalars: sigma and the DART
   /// concentration go in only where this chain draws them and the state holds
-  /// one. A sigma that is not installed is still re-expressed, from
-  /// \p ownSigma, the chain's original-scale value read before the install
-  /// moved the transform. The DART split weights and delay counter are state
-  /// whatever the concentration is.
-  void installDrawnScalars(const ChainStateData& state, double ownSigma) {
-    setSigma(drawsSigma() && !std::isnan(state.sigma) ? state.sigma : ownSigma);
+  /// one, sigma as stored, on the internal scale. A sigma the chain holds
+  /// fixed is model and is not touched. The DART split weights and delay
+  /// counter are state whatever the concentration is.
+  void installDrawnScalars(const ChainStateData& state) {
+    if (drawsSigma() && !std::isnan(state.sigma)) sigma_ = state.sigma;
     Forest<L, ResidT>& forest = forests_[0];
     if (forest.useDart && !state.dartProbabilities.empty()) {
       // the tree prior points at this vector's storage; overwrite in place
@@ -5004,8 +4939,12 @@ public:
 
   /// Installs a state stateIsValid accepted; false only on the invariant
   /// violation of a validated tree failing to rebuild. The model is this
-  /// chain's and stays: the leaf scale, a supplied gp lengthscale, and every
-  /// scalar, amplitude and amplitude variance the chain holds fixed.
+  /// chain's and stays: the response transform, the leaf scale, a supplied
+  /// gp lengthscale, and every scalar, amplitude and amplitude variance the
+  /// chain holds fixed. Every value goes in as stored, a number on the
+  /// internal scale read against this chain's transform; the transform the
+  /// state records is not read, so a state from another one is not
+  /// converted.
   ///
   /// altered, when non-null, is set if a live tree, mean or variance, was
   /// installed other than as stored (rebuildLiveForest,
@@ -5014,15 +4953,6 @@ public:
   /// copied, leave it alone.
   bool setState(const ChainStateData& state, bool* altered = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
-    double ownSigma = sigma();
-    // the internal-scale tree parameters and fits below were recorded under
-    // this transform; scale-free states leave creation's. restoreScale
-    // re-anchors the variance prior through it.
-    if (installsScale(state)) {
-      response_->restoreScale(state.fitMin, state.fitMax);
-      if constexpr (leafSupportsVarianceForest)  // as in installForest
-        if (varianceForest_) calibrateVarianceLeaf();
-    }
     // RESTORE CONTRACT: the response's own state goes in BEFORE the trees, so
     // a merge of a leaf no row reaches weighs its subtree under the state's
     // working weights (omega, lambda) rather than the destination's. Each
@@ -5079,7 +5009,7 @@ public:
       }
       if (forest.updateK && !std::isnan(fs.k)) forest.k = fs.k;
     }
-    installDrawnScalars(state, ownSigma);
+    installDrawnScalars(state);
     if (combiner_) combiner_->restoreGlue(state);
     // heteroscedastic: rebuild the variance trees and recompute s^2(x) from the
     // restored positive factors (stateIsValid checked count, form, positivity)
@@ -5286,7 +5216,7 @@ private:
   }
 
   /// One flattened mean tree's leaf values, a linear leaf's intercepts among
-  /// them, into other response units: r v + d / m (convertStateUnits).
+  /// them, into other response units: r v + d / m (restateSavedDraws).
   static void convertLeafValueUnits(std::vector<FlatNode>& tree, double ratio,
                                     double perTree) {
     for (FlatNode& node : tree)
@@ -5340,45 +5270,35 @@ private:
       if (flatKindOf(node) == FlatKind::leaf) node.value *= factor;
   }
 
-  /// The multiplier and shift a response transform pair (getScale's) takes
-  /// internal fits to the response scale with, as fitScale and fitShift
-  /// would report them under it: a constant response's (c, c) is the window
-  /// centred on c, multiplier 1 and shift c.
-  void unitsOf(double min, double max, double& scale, double& shift) const {
-    if (family_ == ResponseFamily::nbinom) {
-      scale = 1.0;
-      shift = min;
-      return;
-    }
-    scale = max - min;
-    if (scale == 0.0) {
-      scale = 1.0;
-      shift = min;
-      return;
-    }
-    shift = scale * 0.5 + min;
-  }
-
-  /// The internal-unit node scale in force: a named priorScale is the forest
-  /// total's prior sd at k = 1 in RESPONSE units, so dividing by the response
-  /// transform's multiplier converts it, and a non-finite one leaves the
-  /// family-keyed nodeScale alone. The divisor is never zero - every family's
-  /// rescale() ran in its own constructor and its degenerate guards floor the
-  /// range at 1 - and any response decoration delegates the transform it
-  /// wraps.
-  double resolvedNodeScale(double nodeScale, double priorScale) const {
-    return std::isfinite(priorScale) ? priorScale / response_->fitScale()
-                                     : nodeScale;
-  }
-
   /// The factor between a forest's internal leaf scale and its response-unit
   /// prior scale: the per-tree leaf scale times sqrt(m) is the forest total's
   /// internal-unit sd at k = 1, and the transform's multiplier carries it into
-  /// response units. Shared by the reader and the writer so the two are the
-  /// same conversion in both directions, never two spellings of it.
+  /// response units. Shared by the reader and the named sd's translation so
+  /// the two are the same conversion, never two spellings of it.
   double priorScaleFactor(const Forest<L, ResidT>& forest) const {
     return response_->fitScale() *
            std::sqrt(static_cast<double>(forest.numTrees));
+  }
+
+  /// States a forest's named sd as k against the data's scale, the value
+  /// forestCalibration reports as priorScale: a fixed k becomes that scale
+  /// over the sd, and a drawn k's hyperprior takes that as its scale, so the
+  /// named sd keeps its value and its prior in response units. A drawn k is
+  /// state and is never written, so at a re-anchor it lags with the leaves
+  /// until its next draw. Nothing where the prior is written with k. The
+  /// quotient is formed from the reader's own product, so the reader's
+  /// priorScale over the named sd is the k written here to the bit. MUST run
+  /// after every change of the response transform and of the leaf scale.
+  void translateNamedSd(Forest<L, ResidT>& forest) {
+    if (!std::isfinite(forest.namedSd)) return;
+    double k = forest.leaf.scale * priorScaleFactor(forest) / forest.namedSd;
+    if (forest.updateK)
+      forest.kHyperprior.scale = k;
+    else
+      forest.k = k;
+  }
+  void translateNamedSds() {
+    for (Forest<L, ResidT>& forest : forests_) translateNamedSd(forest);
   }
 
   /// Composes forest f's installed per-observation weight into the precisions

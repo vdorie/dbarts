@@ -347,11 +347,12 @@ struct ParsedModel {
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
   double nodeScale = 0.5;
-  // the model's prior.scale slot: the NAMED leaf calibration in response
-  // units, NA when unnamed. Finite, the single-forest engine converts it
-  // against the response transform and it overrides nodeScale; the two-forest
-  // and multinomial creation paths refuse it by name below.
-  double priorScale = NA_REAL;
+  // the leaf prior's named sd in response units, NA when the prior is
+  // written with k: the model's prior.scale slot over its fixed k or its chi
+  // scale, the pair the R surface encodes a named sd as. Finite, the
+  // single-forest engine states it as k against the data's scale; the
+  // two-forest and multinomial creation paths refuse it by name below.
+  double namedSd = NA_REAL;
   double power = 2.0;
   double base = 0.95;
   const double* splitProbabilities = NULL;
@@ -1568,13 +1569,13 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
 
   // the named calibration, response units. NA is the unnamed default, which
   // the engine reads off the same non-finite test that lets a NaN through;
-  // anything else must be usable as a divisor, so infinity is refused here
+  // anything else must be usable as a dividend, so infinity is refused here
   // alongside the R validity method's own check.
   REPROTECT_SLOT(slotExpr, modelExpr, "prior.scale", slotIndex);
-  model.priorScale = rc_getDouble(
+  double priorScale = rc_getDouble(
     slotExpr, "named prior scale", RC_LENGTH | RC_EQ, rc_asRLength(1),
     RC_NA | RC_YES, RC_VALUE | RC_GT, 0.0, RC_END);
-  if (!ISNAN(model.priorScale) && !std::isfinite(model.priorScale))
+  if (!ISNAN(priorScale) && !std::isfinite(priorScale))
     Rf_error("named prior scale must be NA or a positive finite number");
 
   // monotone (mBART) directions ride the model as a per-predictor integer
@@ -1789,6 +1790,14 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
                            RC_VALUE | RC_GT, 0.0, RC_END);
   } else {
     Rf_error("unsupported k prior type '%s'", classStr);
+  }
+  // a named sd rides the model as prior.scale beside a reference k, fixed or
+  // the chi prior's scale; the quotient is the sd, exactly where the
+  // reference is 2. An improper chi prior names none.
+  if (!ISNAN(priorScale)) {
+    model.namedSd = priorScale / (model.updateK ? model.kScale : model.k);
+    if (!std::isfinite(model.namedSd) || model.namedSd <= 0.0)
+      Rf_error("named prior scale requires a finite k or chi scale");
   }
 
   REPROTECT_SLOT(priorExpr, modelExpr, "resid.prior", priorIndex);
@@ -2200,7 +2209,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.k = model.k;
   options.nodeScale = model.nodeScale;
   // NA_REAL is a NaN, so the engine's isfinite test reads "unnamed" from it
-  options.priorScale = model.priorScale;
+  options.namedSd = model.namedSd;
   options.base = model.base;
   options.power = model.power;
   options.birthOrDeathProbability = model.birthOrDeathProbability;
@@ -2774,7 +2783,7 @@ void refuseUnsupportedAmplitudeComposition(
   // the leaf-scale gate above does not fire on a model that names its
   // calibration in response units instead, and the calibration map would drop
   // it in silence, so it is its own offender
-  else if (std::isfinite(model.priorScale)) offender = "a named leaf-prior sd";
+  else if (std::isfinite(model.namedSd)) offender = "a named leaf-prior sd";
   else if (std::isfinite(model.residualDf)) offender = "Student-t residuals";
   else if (options.numVarianceTrees > 0) offender = "a variance forest";
   else if (options.fp32Residual) offender = "single-precision storage";
@@ -3755,7 +3764,7 @@ static std::unique_ptr<bartcore::SamplerBase> buildMultinomialSampler(
   // nowhere to land; refuse it rather than drop it. This is the first
   // leaf-scale-class refusal on this path - the host's own leaf.scale is
   // deliberately not read, and carries a gaussian default no user chose.
-  if (std::isfinite(model.priorScale))
+  if (std::isfinite(model.namedSd))
     Rf_error("a multinomial forest does not support a named leaf-prior sd; "
              "its leaf scale comes from the softmax calibration map");
   rngs = createChainRngs(control, options.numChains);
@@ -4650,8 +4659,9 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // the chains carry their own transforms and their own drawn k. The R reader
 // takes k per chain and reports each other quantity once, NA where the chains
 // disagree. The leaf-model tag rides as an attribute because it is a property
-// of the sampler, not of a chain. The last column, the map's anchor s, is
-// internal: R records it at creation and does not report it.
+// of the sampler, not of a chain. The last three columns are internal: R
+// records the map's anchor s at creation and does not report it, and the chi
+// prior's scale and the named sd the engine holds are read by tests.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -4664,7 +4674,7 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     "k.has.hyperprior", "response.scale", "response.shift",
     "amplitude.prior.variance", "amplitude.prior.scale",
     "leaf.scale.factor", "leaf.scale.divisor", "basis.row.norm",
-    "map.anchor"
+    "map.anchor", "k.prior.scale", "named.sd"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -4687,6 +4697,8 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     result[c + 10 * numChains] = calibration.nodeScaleDivisor;
     result[c + 11 * numChains] = calibration.basisRowNorm;
     result[c + 12 * numChains] = calibration.mapAnchor;
+    result[c + 13 * numChains] = calibration.kPriorScale;
+    result[c + 14 * numChains] = calibration.namedSd;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);
@@ -4703,24 +4715,24 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   return resultExpr;
 }
 
-// Restates one forest's leaf prior on every chain, response units. Two error
-// channels, as the flat entry has: a CAPABILITY answer (no such forest, or a
-// combiner owns the calibration) and a MALFORMED VALUE. Neither the response
-// transform, k, sigma nor the tree prior moves, and a write reproducing what
-// is in force is skipped bitwise inside the engine, so a read-then-write
-// cannot perturb a draw.
-SEXP bartcore_setLeafPrior(SEXP ptrExpr, SEXP forestExpr,
-                           SEXP priorScaleExpr) {
+// Names one forest's leaf-prior sd on every chain, response units: a fixed k
+// becomes the data's scale over it, a drawn k's chi prior takes that scale,
+// and the engine restates both whenever the response transform moves. Two
+// error channels: a CAPABILITY answer (no such forest, or a combiner owns the
+// calibration) and a MALFORMED VALUE. Neither the response transform, a drawn
+// k, sigma nor the tree prior moves, and a write of the sd the forest holds
+// is skipped inside the engine, so a write-back cannot perturb a draw.
+SEXP bartcore_setLeafPrior(SEXP ptrExpr, SEXP forestExpr, SEXP namedSdExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
-  double priorScale = Rf_asReal(priorScaleExpr);
-  if (!std::isfinite(priorScale) || priorScale <= 0.0)
+  double namedSd = Rf_asReal(namedSdExpr);
+  if (!std::isfinite(namedSd) || namedSd <= 0.0)
     Rf_error("the leaf prior's sd must be a positive finite number");
   // $setLeafPrior routes every combiner-carrying sampler to the two entries
   // below first, so this generic message only backstops a caller that skips
   // the R5 layer.
-  if (!holder.sampler->setForestPriorScale(forestIndex, priorScale))
+  if (!holder.sampler->setForestNamedSd(forestIndex, namedSd))
     Rf_error("this forest's leaf scale comes from a multi-forest "
              "calibration map, which owns both halves of its calibration; "
              "a multinomial sampler restates its k as normal(k = ), and an "
@@ -4749,24 +4761,6 @@ SEXP bartcore_setForestK(SEXP ptrExpr, SEXP kExpr) {
     if (!holder.sampler->setForestFixedK(f, k))
       Rf_error("a fixed k is restated this way only on the category forests "
                "of a multinomial sampler");
-  return R_NilValue;
-}
-
-// Multiplies one forest's drawn k by a positive finite factor on every chain,
-// so a leaf-prior write that moved k.scale by that factor keeps the spread in
-// force; a forest at a fixed or pinned k, and a factor of exactly 1, write
-// nothing.
-SEXP bartcore_scaleDrawnK(SEXP ptrExpr, SEXP forestExpr, SEXP factorExpr) {
-  BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  bartcore::SamplerShape shape = holder.sampler->shape();
-  size_t forestIndex = forestIndexFrom(forestExpr, shape);
-  if (!Rf_isReal(factorExpr) || Rf_xlength(factorExpr) != 1)
-    Rf_error("the k factor must be a single number");
-  double factor = REAL(factorExpr)[0];
-  if (!std::isfinite(factor) || factor <= 0.0)
-    Rf_error("the k factor must be a positive finite number");
-  if (!holder.sampler->scaleDrawnK(forestIndex, factor))
-    Rf_error("the k factor names no forest of this sampler");
   return R_NilValue;
 }
 
@@ -5957,10 +5951,10 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
     parameters.ruleGibbsProbability = model.ruleGibbsProbability;
     parameters.birthProbability = model.birthProbability;
     parameters.nodeScale = model.nodeScale;
-    // carried so the install re-derives the named calibration against the
-    // transform in force; without it $setModel(sampler$model) - a no-op round
-    // trip - would revert to the family-keyed leaf scale
-    parameters.priorScale = model.priorScale;
+    // carried so the install states the named sd against the transform in
+    // force; without it $setModel(sampler$model) - a no-op round trip - would
+    // revert to the model's reference k
+    parameters.namedSd = model.namedSd;
     parameters.updateK = model.updateK;
     if (parameters.updateK) {
       parameters.kHyperprior.degreesOfFreedom = model.kDf;
@@ -6700,12 +6694,12 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
 }
 
 // The sampler's response transform, (min, max) as a state's fit.scale holds
-// it: the host's record of the anchor a k-named leaf prior takes. A non-NULL
-// record makes it the sampler's, moving the chains there unless an install
-// follows (Sampler::setAnchor); the pair in force is returned either way. A
+// it: the host's record of the scale the leaf prior's k is relative to. A
+// non-NULL record makes it the sampler's and moves the chains there
+// (Sampler::setAnchor); the pair in force is returned either way. A
 // record is two finite numbers, the second not below the first; an equal pair
 // is a constant response's, which the count family's shift never is.
-SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr, SEXP installFollowsExpr) {
+SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   if (!Rf_isNull(recordExpr)) {
     const double* record =
@@ -6719,8 +6713,7 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr, SEXP installFollowsExpr) {
       Rf_error("the model's response.range record must be two finite "
                "numbers, the second %s the first",
                count ? "above" : "not below");
-    holder.sampler->setAnchor(record[0], record[1],
-                              Rf_asLogical(installFollowsExpr) != TRUE);
+    holder.sampler->setAnchor(record[0], record[1]);
   }
   SEXP resultExpr = PROTECT(Rf_allocVector(REALSXP, 2));
   holder.sampler->getAnchor(REAL(resultExpr)[0], REAL(resultExpr)[1]);
@@ -7950,19 +7943,6 @@ static const char* const columnMaskMismatchMessage =
   "this forest's allowed column set; the donor's fit is "
   "incompatible with the column restriction (a forest's own "
   "column subset or a restricted variance forest) in force here";
-/// The refusal both installs report for a state stored under another response
-/// shift than the sampler's, on a leaf model that cannot carry one; \p what
-/// names the source. The buffer is static: the message is raised at once.
-static const char* unitsRefusalMessage(const char* what) {
-  static char message[320];
-  std::snprintf(message, sizeof message,
-                "%s is stored in other response units than this sampler's, "
-                "and its response shift cannot be converted: a gp leaf's saved "
-                "draws and forests carrying amplitudes hold no mean term; "
-                "nothing was installed", what);
-  return message;
-}
-
 static const char* const stateColumnMaskMessage =
   "state holds a tree that splits on a variable outside "
   "this forest's allowed column set; the state is "
@@ -8480,14 +8460,14 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
   bool columnMaskRefused = false, monotoneRefused = false;
   bool interactionRefused = false, lengthscaleRefused = false;
-  bool unitsRefused = false, altered = false;
+  bool altered = false;
   bool restored = false;
   if (errorMessage == NULL) {
     bartcore_bridge::CapturedError restoreError;
     captureExceptions(restoreError, [&]() {
       restored = sampler.setState(state, currentPredictors, &columnMaskRefused,
                                   &monotoneRefused, &interactionRefused,
-                                  &lengthscaleRefused, &unitsRefused, &altered,
+                                  &lengthscaleRefused, &altered,
                                   adoptCapacity);
     });
     if (restoreError.failed)
@@ -8510,7 +8490,6 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     Rf_error("state holds saved gp draws made under other lengthscales than "
              "the ones this sampler was given; a saved draw replays only under "
              "the kernel it was drawn with");
-  if (unitsRefused) Rf_error("%s", unitsRefusalMessage("state"));
   if (!restored)
     Rf_error("state is not consistent with this sampler");
 
@@ -8892,8 +8871,6 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     case bartcore::WarmStartResult::varianceShapeMismatch:
       Rf_error("warm-start donor's variance forest has a different number of "
                "trees than this sampler's");
-    case bartcore::WarmStartResult::unitsMismatch:
-      Rf_error("%s", unitsRefusalMessage("warm-start donor"));
     case bartcore::WarmStartResult::rebuildFailed:
       Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
                "data (a donor tree no longer routes onto the current "

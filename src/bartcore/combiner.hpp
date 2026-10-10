@@ -62,7 +62,7 @@ struct ForestStateData {
 };
 
 /// Everything a chain's posterior state comprises, in host-exchangeable form:
-/// one-or-more forests' trees, plus the chain-shared sigma (original scale),
+/// one-or-more forests' trees, plus the chain-shared sigma (internal scale),
 /// response latents, DART state, the serialized rng, and BCF's glue scalars.
 /// It holds no prior parameter and no value the chain holds fixed: sigma, k,
 /// the residual df, the shape and the DART concentration are each present
@@ -76,11 +76,12 @@ struct ForestStateData {
 /// is not reproduced.
 struct ChainStateData {
   std::vector<ForestStateData> forests;
-  // original response scale; NaN where the chain does not draw it
+  // the internal scale, as every leaf value is; NaN where the chain does not
+  // draw it
   double sigma = std::numeric_limits<double>::quiet_NaN();
-  // the response transform the stored leaf values are in: the units of the
-  // state, converted to the sampler's own at install when the two differ
-  // (Chain::convertStateUnits); (0, 0) on a scale-free family, and a
+  // the response transform the chain was under when the state was read: a
+  // record, which no install reads, every value going in as stored against
+  // the recipient's own transform; (0, 0) on a scale-free family, and a
   // gaussian (c, c) a constant response's transform, the window
   // [c - 0.5, c + 0.5]
   double fitMin = 0.0, fitMax = 0.0;
@@ -199,6 +200,12 @@ struct Forest {
   // k is fixed unless updateK; the two accumulators gather the leaf sum of
   // squares and count over a sweep, feeding the k hyperprior draw
   double k = 2.0;
+  // the leaf prior's named sd in response units, NaN where the prior is
+  // written with k. Finite, a fixed k and a drawn k's hyperprior scale are
+  // its statement against the data's scale and are restated whenever the
+  // response's mapping moves (Chain::translateNamedSd); a drawn k is state
+  // and is never restated
+  double namedSd = std::numeric_limits<double>::quiet_NaN();
   double kSumSquaredParams = 0.0;
   double kNumLeaves = 0.0;
 
