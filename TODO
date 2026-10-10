@@ -287,12 +287,17 @@ items
     arms 1.03 or under, pooled warm 1.018. Optimize the sort path
     (skip or cheapen the per-leaf sort where the span is already in
     order or small) and rerun that arm on the box.
-  nbinom-prior-predictive: before 1.0-0 (dec-B412, VD 2026-10-09). The
-    negative binomial default prior's predictive counts: about 15% of
-    datasets drawn from it on 150 rows sum past 10,000, some past 10^9
-    (docs/design/k-mixing-pg-families.md). Study the tail over n and
-    centres against what count-model users expect, on the bench box,
-    and bring candidate defaults back with numbers if it is badly off.
+  nbinom-default-prior: the negative binomial default stays k drawn
+    under chi(1.5, 2) (dec-B431, VD 2026-10-10) after the prior
+    predictive study of dec-B412. The maintainer judged the study
+    flawed and the default improvable: under it 1 prior dataset in 100
+    has a spread of the log mean across rows ten times the widest real
+    dataset's, and 5 to 10 percent hold a count the package refuses.
+    A redesigned study (the criterion fixed first and in absolute
+    terms, count data with wide spreads, chains long enough for k to
+    mix, candidates beyond the prior on k) is not scheduled; whether it
+    runs before 1.0-0 is the maintainer's to say. The study's design
+    note is to be written from scratch/nbpp/.
   per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
     note docs/design/per-chain-responses.md). Responses and offsets
     held per chain so one sampler holds every chain of a larger Gibbs
