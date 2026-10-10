@@ -56,13 +56,15 @@ jobs:
       # allocations - thread-local storage, gettext, setenv. Every leak record
       # is still printed, and memory errors (invalid reads and writes,
       # uninitialised use, mismatched frees) count as before. A possible leak
-      # whose stack reaches this package is caught by the guard below instead;
-      # --fullpath-after prints this package's sources as src/..., so a frame
-      # of ours is told from R's own src/main. The guard skips one record
-      # shape: a block glibc allocates for a thread's TLS (_dl_allocate_tls or
-      # allocate_dtv under pthread_create), the standard glibc false positive
-      # in a forked child, whose parent's threads it no longer has, whoever
-      # created the thread.
+      # this package allocated is caught by the guard below instead: a
+      # possibly-lost record fails when its allocation site is package code.
+      # The allocation site is the first frame below the allocator that is
+      # neither a further allocator (ld.so's calloc, say) nor libstdc++
+      # template code inlined into its caller, so a block allocated inside
+      # glibc or R passes even with a package frame further up the stack
+      # (gettext's cache under the interrupt poll, a thread's TLS under
+      # pthread_create). --fullpath-after prints this package's sources as
+      # src/..., which tells a frame of ours from R's own src/main.
       - name: Unit tests under valgrind
         shell: bash
         run: |
@@ -75,29 +77,37 @@ jobs:
             ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
             if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
           ' 2>&1 | tee valgrind-tests.log
-          # a possibly-lost record whose stack names this package's object or
-          # one of its sources, other than a thread's TLS block; records are
-          # per process, and a record ends at that process's blank line
-          if awk '
+          # a possibly-lost record allocated by package code (see above);
+          # records are per process, and a record ends at that process's
+          # blank line. awk exits 0 on a finding and 1 on none; any other
+          # status is a guard that did not run, and fails too
+          rc=0
+          awk '
             function finish(p) {
-              if (pkg[p] && !(tls[p] && thr[p])) { print head[p]; found = 1 }
+              if (pkg[p]) { print head[p]; found = 1 }
               open[p] = 0
             }
             { if (!match($0, /==[0-9]+==/)) next
               pid = substr($0, RSTART, RLENGTH) }
             /are possibly lost in loss record/ {
               open[pid] = 1; head[pid] = $0
-              pkg[pid] = 0; tls[pid] = 0; thr[pid] = 0
+              pkg[pid] = 0; frames[pid] = 0; decided[pid] = 0
               next
             }
             !open[pid] { next }
             $0 ~ (pid " *$") { finish(pid); next }
-            /dbarts[.]so/ || /[(]src\// { pkg[pid] = 1 }
-            /_dl_allocate_tls|allocate_dtv/ { tls[pid] = 1 }
-            /pthread_create/ { thr[pid] = 1 }
+            !/ (at|by) 0x[0-9A-Fa-f]+: / || decided[pid] { next }
+            # the first frame is the allocator valgrind replaces
+            frames[pid]++ == 0 { next }
+            /: (malloc|calloc|realloc|memalign|posix_memalign|aligned_alloc) [(]/ { next }
+            /: operator new/ || /\/c[+][+]\// || /libstdc[+][+]/ { next }
+            { decided[pid] = 1; pkg[pid] = /dbarts[.]so/ || /[(]src\// }
             END { for (p in open) if (open[p]) finish(p); exit !found }
-          ' valgrind-tests.log; then
-            echo "::error::a possibly-lost record reaches dbarts"; exit 1
+          ' valgrind-tests.log || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "::error::a possibly-lost block was allocated by dbarts"; exit 1
+          elif [ "$rc" -ne 1 ]; then
+            echo "::error::the possibly-lost guard did not run"; exit 1
           fi
           # --errors-for-leak-kinds folds definitely/indirectly-lost blocks
           # into the error count, so a nonzero ERROR SUMMARY covers both
