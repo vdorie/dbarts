@@ -3457,8 +3457,9 @@ public:
   /// direction, so its conditional there is the prior too, and predict routes
   /// a missing value through every saved draw. A saved rule that splits the
   /// missing value alone, which only another sampler's state can have put
-  /// there, keeps its direction (drawFlatMissingDirections). A column whose flag was
-  /// already up must not be marked: its directions are the chain's state.
+  /// there, keeps its direction (drawFlatMissingDirections). A column whose
+  /// flag was already up must not be marked: its directions are the chain's
+  /// state.
   /// Partitions and fits are left to the caller's refresh. \p record, when
   /// non-null, receives what swapMissingDirections needs to take the draw
   /// back.
@@ -3558,7 +3559,8 @@ public:
   /// probability one half from this chain's own generator, the mean trees by
   /// forest and then the variance trees, so chains given one donor draw take
   /// their own sides. Requires flatTreesAreWalkable. The generator is left
-  /// past the coins: a caller that then refuses the start puts it back.
+  /// past the coins: a caller that then refuses the start puts it back. A
+  /// state's completion draws its live trees through here too.
   void drawDonorMissingDirections(ChainStateData& state,
                                   const std::uint8_t* raised) {
     std::vector<std::uint32_t> blocked(data_.numPredictors, 0);

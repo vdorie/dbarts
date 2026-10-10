@@ -82,8 +82,6 @@ path <- tempfile(fileext = ".rds")
 saveRDS(sampler, path)
 reloaded <- readRDS(path)
 unlink(path)
-other <- make(filled)
-invisible(other$run(5L, 1L))
 
 sampler$storeState()
 forced <- sampler$state
@@ -101,41 +99,43 @@ expect_identical(dbarts:::dataMissingSeen(sampler$data), c(TRUE, TRUE, FALSE))
 # forced, installs with them dropped. Which of the two a fit stores is its
 # draws', so seeds are tried until each has been met
 forcedValue <- list(value = NULL, visible = FALSE)
-met <- c(declined = FALSE, refused = FALSE)
-for (seed in 17:60) {
-  source <- make(holed, seed)
-  invisible(source$run(50L, 3L))
-  source$storeState()
-  state <- source$state
-  other <- make(filled, seed)
-  invisible(other$run(5L, 1L))
-  status <- tryCatch(other$setState(state), error = conditionMessage)
-  arm <- if (isFALSE(status)) "declined" else "refused"
-  if (met[[arm]]) {
-    next
-  }
-  met[[arm]] <- TRUE
-  if (arm == "refused") {
-    expect_identical(status, "state is not consistent with this sampler")
-  } else {
-    fill(source)
+local({
+  met <- c(declined = FALSE, refused = FALSE)
+  for (seed in 17:60) {
+    source <- make(holed, seed)
+    invisible(source$run(50L, 3L))
     source$storeState()
-    expect_identical(
-      withVisible(other$setState(state, forceUpdate = TRUE)),
-      forcedValue
-    )
-    other$storeState()
-    expect_false(any(sendsRight(other$state)))
-    expect_identical(
-      other$state[[1L]]$forests[[1L]]$tree.vars,
-      source$state[[1L]]$forests[[1L]]$tree.vars
-    )
+    stale <- source$state
+    other <- make(filled, seed)
+    invisible(other$run(5L, 1L))
+    status <- tryCatch(other$setState(stale), error = conditionMessage)
+    arm <- if (isFALSE(status)) "declined" else "refused"
+    if (met[[arm]]) {
+      next
+    }
+    met[[arm]] <- TRUE
+    if (arm == "refused") {
+      expect_identical(status, "state is not consistent with this sampler")
+    } else {
+      fill(source)
+      source$storeState()
+      expect_identical(
+        withVisible(other$setState(stale, forceUpdate = TRUE)),
+        forcedValue
+      )
+      other$storeState()
+      expect_false(any(sendsRight(other$state)))
+      expect_identical(
+        other$state[[1L]]$forests[[1L]]$tree.vars,
+        source$state[[1L]]$forests[[1L]]$tree.vars
+      )
+    }
+    if (all(met)) {
+      break
+    }
   }
-  if (all(met)) {
-    break
-  }
-}
-expect_identical(met, c(declined = TRUE, refused = TRUE))
+  expect_identical(met, c(declined = TRUE, refused = TRUE))
+})
 for (route in list(sampler, duplicate, reloaded)) {
   route$storeState()
   statesAgree(route$state, forced)

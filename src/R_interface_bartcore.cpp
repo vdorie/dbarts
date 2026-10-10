@@ -7614,8 +7614,8 @@ void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
 // ignores one it does not know. "weights.digest", "weights.zero",
 // "survival.digest" and "missing.columns" are such additions - a state
 // written before any of them carries none, and setState then behaves as it
-// did before the attribute existed. Making one REQUIRED behind a floor bump would buy no compatibility
-// and orphan in-flight states for nothing.
+// did before the attribute existed. Making one REQUIRED behind a floor bump
+// would buy no compatibility and orphan in-flight states for nothing.
 static const int stateFormatVersion = 1;
 
 // The oldest ENCODING this reader still understands: additive block additions

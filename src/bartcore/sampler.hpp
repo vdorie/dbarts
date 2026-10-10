@@ -1272,15 +1272,15 @@ public:
     std::vector<ChainStateData> completed;
     if (blocksAgree && !state.missingColumns.empty()) {
       std::vector<std::uint8_t> raised(data_.numPredictors);
-      bool walkable = false;
+      bool draws = false;
       for (size_t j = 0; j < data_.numPredictors; ++j) {
         raised[j] =
           data_.hasMissing[j] != 0 && state.missingColumns[j] == 0 ? 1 : 0;
-        walkable = walkable || raised[j] != 0;
+        draws = draws || raised[j] != 0;
       }
-      for (size_t c = 0; c < chains_.size() && walkable; ++c)
-        walkable = chains_[c]->flatTreesAreWalkable(state.chains[c]);
-      if (walkable) {
+      for (size_t c = 0; c < chains_.size() && draws; ++c)
+        draws = chains_[c]->flatTreesAreWalkable(state.chains[c]);
+      if (draws) {
         completed = state.chains;
         size_t recorded = std::min(state.recordedDraws, stateCapacity);
         SavedDrawSlots stateKept;
@@ -1570,15 +1570,15 @@ public:
     } generators{chains_, {}};
     if (!donor.missingColumns.empty()) {
       std::vector<std::uint8_t> raised(data_.numPredictors);
-      bool walkable = false;
+      bool draws = false;
       for (size_t j = 0; j < data_.numPredictors; ++j) {
         raised[j] =
           data_.hasMissing[j] != 0 && donor.missingColumns[j] == 0 ? 1 : 0;
-        walkable = walkable || raised[j] != 0;
+        draws = draws || raised[j] != 0;
       }
-      for (size_t c = 0; c < chains_.size() && walkable; ++c)
-        walkable = chains_[c]->flatTreesAreWalkable(install[c]);
-      if (walkable) {
+      for (size_t c = 0; c < chains_.size() && draws; ++c)
+        draws = chains_[c]->flatTreesAreWalkable(install[c]);
+      if (draws) {
         generators.bytes.resize(chains_.size());
         for (size_t c = 0; c < chains_.size(); ++c) {
           ext_rng* rng = chains_[c]->rng();
