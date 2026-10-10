@@ -292,14 +292,12 @@ items
     (docs/design/k-mixing-pg-families.md). Study the tail over n and
     centres against what count-model users expect, on the bench box,
     and bring candidate defaults back with numbers if it is badly off.
-  embedding-recipe-declined-revert: door for VD. The
-    bart-as-a-component vignette's recipe 4 reverts rejected
-    proposals by a second per-row predictor update, which is declined
-    when it would empty a leaf (seen at a few seeds on the base build
-    and on the per-gap grid), leaving the samplers on a proposal the
-    Metropolis step rejected. Correct handling scores the proposal
-    without installing it (predict with the trees held) and installs
-    only accepted rows, so a declined install is a rejection.
+  embedding-recipe-declined-revert: before the merge (dec-B423, VD
+    2026-10-09). Rewrite the bart-as-a-component vignette's recipe 4
+    as bairrtt does it: score the proposal with predict while the trees
+    are held, accept or reject, install only accepted rows, a declined
+    install being a rejection; nothing is reverted. Vignette and
+    test-embedding-recipes.R only.
   per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
     note docs/design/per-chain-responses.md). Responses and offsets
     held per chain so one sampler holds every chain of a larger Gibbs
