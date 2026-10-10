@@ -297,8 +297,8 @@ items
     terms, count data with wide spreads, chains long enough for k to
     mix, candidates beyond the prior on k) runs before 1.0-0, after the
     merge to main (dec-B432, VD 2026-10-10); a change of default comes
-    back to the maintainer. The first study's design note is to be
-    written from scratch/nbpp/.
+    back to the maintainer. The first study's note:
+    docs/design/nbinom-prior-predictive.md.
   per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
     note docs/design/per-chain-responses.md). Responses and offsets
     held per chain so one sampler holds every chain of a larger Gibbs
