@@ -326,6 +326,9 @@ items
     A starting sigma taken from sd(y), for want of residual degrees of
     freedom or above the cutoff, is printed under verbose and shown in
     a line of the summary; no warning (dec-B429, VD 2026-10-10).
+    The sparse routine's last digit may follow the BLAS and its thread
+    count; the help says a seeded fit reproduces at a fixed BLAS and
+    thread count (dec-B430, VD 2026-10-10).
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
