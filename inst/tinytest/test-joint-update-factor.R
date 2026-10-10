@@ -267,18 +267,6 @@ expectRefused(
   "unknown label, factor"
 )
 expectRefused(
-  factor(missingLabel, levels = lv$f),
-  "f",
-  "column 'f' has missing values, which its training values do not",
-  "missing, factor"
-)
-expectRefused(
-  missingLabel,
-  "f",
-  "column 'f' has missing values, which its training values do not",
-  "missing, character"
-)
-expectRefused(
   rep(c(TRUE, FALSE), n / 2L),
   "f",
   "column 'f' is categorical; give its values as a factor or character vector of its labels",
@@ -291,8 +279,27 @@ expectRefused(
   "logical, ordered"
 )
 
-# ---- a refusal a later sampler raises names it, and touches nothing -------------------------
-# samplers 1 and 2 hold a missing value in f, sampler 3 holds none
+# ---- a missing label is a missing value, in a column that holds none too --------------------
+# as a factor and as text, each row installed in every sampler or in none, the first row missing
+# where it is
+seenF <- function(s) {
+  isTRUE(dbarts:::dataMissingSeen(s$data)[match("f", colnames(s$data@x))])
+}
+for (given in list(factor(missingLabel, levels = lv$f), missingLabel)) {
+  live <- twinsOf(7L)
+  mask <- updatePredictorPerObservationJointly(live, given, "f")
+  expect_true(sum(mask) > n / 2L)
+  for (s in live) {
+    expect_identical(heldLabels(s, "f", lv$f)[mask], as.character(given)[mask])
+    expect_identical(seenF(s), mask[1L])
+  }
+}
+
+# ---- only a sampler whose column has held no missing value draws its rules' sides -----------
+# samplers 1 and 2 hold a missing value in f, sampler 3 holds none: where the missing row is
+# installed the third alone draws, each rule on f taking a side from its own generator. The
+# second's generator and sides are as they were, and the first's generator is where the scan
+# order alone leaves it, as on a twin swept with labels that hold no missing value
 dHole <- d
 dHole$f[3L] <- NA
 threeWithHole <- function(seed) {
@@ -302,13 +309,41 @@ threeWithHole <- function(seed) {
     makeSampler(d, seed + 2L, form = y ~ f + x1 + o)
   )
 }
-expectRefused(
-  factor(missingLabel, levels = lv$f),
-  "f",
-  "column 'f' has missing values, which its training values do not (sampler 3)",
-  "missing value refused by the third sampler",
-  make = threeWithHole
+generatorOf <- function(s) {
+  s$storeState()
+  s$state[[1L]]$rng.state
+}
+sidesOnF <- function(s) {
+  trees <- s$getTrees()
+  trees$missing[trees$var == match("f", colnames(s$data@x))]
+}
+found <- FALSE
+for (seed in 7:40) {
+  live <- threeWithHole(seed)
+  before <- list(lapply(live, generatorOf), lapply(live, sidesOnF))
+  mask <- updatePredictorPerObservationJointly(
+    live,
+    factor(missingLabel, levels = lv$f),
+    "f"
+  )
+  if (mask[1L] && length(sidesOnF(live[[3L]])) > 0L) {
+    found <- TRUE
+    break
+  }
+}
+expect_true(found)
+expect_null(before[[2L]][[3L]])
+expect_true(seenF(live[[3L]]))
+expect_false(identical(generatorOf(live[[3L]]), before[[1L]][[3L]]))
+expect_identical(generatorOf(live[[2L]]), before[[1L]][[2L]])
+expect_identical(lapply(live[1:2], sidesOnF), before[[2L]][1:2])
+scanned <- makeSampler(dHole, seed)
+updatePredictorPerObservationJointly(
+  list(scanned),
+  factor(newF, levels = lv$f),
+  "f"
 )
+expect_identical(generatorOf(live[[1L]]), generatorOf(scanned))
 # the same labels with a missing value are taken when every sampler holds one
 allHole <- list(
   plain(dHole, 8L),

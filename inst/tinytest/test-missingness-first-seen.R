@@ -39,9 +39,9 @@ make <- function(data = complete, seed = 11L, control = controlOf()) {
 seen <- function(sampler) dbarts:::dataMissingSeen(sampler$data)
 # the side each rule on x1 sends a missing value to, in the kept draws or
 # the current trees; NULL while no column can hold one
-sides <- function(sampler, current = FALSE) {
+sides <- function(sampler, current = FALSE, column = 1L) {
   trees <- sampler$getTrees(current = current)
-  trees$missing[trees$var == 1L]
+  trees$missing[trees$var == column]
 }
 generators <- function(sampler) {
   sampler$storeState()
@@ -63,32 +63,42 @@ expect_error(sampler$predict(asked), refusal, fixed = TRUE)
 
 # ---- every path raises the column and draws, live and kept ----
 
-paths <- list(
-  "forced column" = function(s) {
-    s$setPredictor(holed$x1, "x1", forceUpdate = TRUE)
-  },
-  "unforced column" = function(s) s$setPredictor(holed$x1, "x1"),
-  "whole frame" = function(s) s$setPredictor(holed, forceUpdate = FALSE),
-  "row by row" = function(s) {
-    s$setPredictor(holed$x1, "x1", forceUpdate = "partial")
-  },
-  "jointly" = function(s) {
-    updatePredictorPerObservationJointly(list(s), holed$x1, "x1")
-  },
-  "setData" = function(s) s$setData(dbartsData(y ~ x1 + x2 + f, holed))
-)
-for (path in names(paths)) {
-  sampler <- make()
-  paths[[path]](sampler)
-  expect_identical(seen(sampler), c(TRUE, FALSE, FALSE), info = path)
-  # the kept draws were all recorded before the value arrived
-  expect_true(all(c("L", "R") %in% sides(sampler)), info = path)
-  expect_true(all(c("L", "R") %in% sides(sampler, TRUE)), info = path)
-  # predict answers for a missing value from every kept draw of each chain
-  fits <- sampler$predict(asked)
-  expect_identical(dim(fits), c(2L, 20L, 2L), info = path)
-  expect_true(all(is.finite(fits)), info = path)
-  expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = path)
+# a numeric column and a factor, whose missing value is a missing label
+for (column in c("x1", "f")) {
+  j <- match(column, names(complete))
+  brought <- complete
+  brought[[column]][gone] <- NA
+  paths <- list(
+    "forced column" = function(s) {
+      s$setPredictor(brought[[column]], column, forceUpdate = TRUE)
+    },
+    "unforced column" = function(s) s$setPredictor(brought[[column]], column),
+    "whole frame" = function(s) s$setPredictor(brought, forceUpdate = FALSE),
+    "row by row" = function(s) {
+      s$setPredictor(brought[[column]], column, forceUpdate = "partial")
+    },
+    "jointly" = function(s) {
+      updatePredictorPerObservationJointly(list(s), brought[[column]], column)
+    },
+    "setData" = function(s) s$setData(dbartsData(y ~ x1 + x2 + f, brought))
+  )
+  for (path in names(paths)) {
+    info <- paste(column, path)
+    sampler <- make()
+    paths[[path]](sampler)
+    expect_identical(seen(sampler), seq_len(3L) == j, info = info)
+    # the kept draws were all recorded before the value arrived
+    expect_true(all(c("L", "R") %in% sides(sampler, FALSE, j)), info = info)
+    expect_true(all(c("L", "R") %in% sides(sampler, TRUE, j)), info = info)
+    # predict answers for a missing value from every kept draw of each chain
+    fits <- sampler$predict(brought[gone[1:2], ])
+    expect_identical(dim(fits), c(2L, 20L, 2L), info = info)
+    expect_true(all(is.finite(fits)), info = info)
+    expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = info)
+    # and the sampler installs the state it then stores
+    sampler$storeState()
+    expect_true(sampler$setState(sampler$state), info = info)
+  }
 }
 
 # ---- two forests: the rules of each draw, live and kept ----

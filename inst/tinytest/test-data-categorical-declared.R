@@ -91,9 +91,17 @@ expect_error(
   sampler.col$setTestPredictor(c("a", "b", "c", "e", "d", "a"), column = "g"),
   pattern = "column 'g' has label 'e' not among its training levels"
 )
+# a missing value in a test column whose training column has never held one
+# is refused as the whole test set refuses it, a label and a number alike
 expect_error(
   sampler.col$setTestPredictor(c("a", NA, "c", "d", "d", "a"), column = "g"),
-  pattern = "column 'g' has missing values, which its training values do not"
+  pattern = "test predictors have missing values in 'g', which carried none in training",
+  fixed = TRUE
+)
+expect_error(
+  sampler.col$setTestPredictor(replace(test.gap$x1, 2L, NA), column = "x1"),
+  pattern = "test predictors have missing values in 'x1', which carried none in training",
+  fixed = TRUE
 )
 expect_identical(unname(sampler.col$data@x.test), unname(whole))
 sampler.col$setPredictor(

@@ -444,7 +444,7 @@ refuseMatrixOfCodes <- function(x, x.train, what) {
 # codes the sampler takes: its columns matched to the design's by name when
 # they carry the names, else by position, the factor columns coded by label
 # and refused a number, the others refused a label.
-codePredictorFrame <- function(x.train, x, missing.seen = NULL) {
+codePredictorFrame <- function(x.train, x) {
   p <- ncol(x.train)
   plain <- vapply(x, function(v) is.atomic(v) && is.null(dim(v)), NA)
   if (!all(plain)) {
@@ -478,7 +478,7 @@ codePredictorFrame <- function(x.train, x, missing.seen = NULL) {
       )
     }
   }
-  coded <- codeCategoricalColumnUpdate(x.train, x, seq_len(p), missing.seen)
+  coded <- codeCategoricalColumnUpdate(x.train, x, seq_len(p))
   if (!is.data.frame(coded)) {
     return(coded)
   }
@@ -488,18 +488,12 @@ codePredictorFrame <- function(x.train, x, missing.seen = NULL) {
 # A column update addressing a column the training design coded from a factor
 # takes that column's labels: a factor, character vector or sparseFactor,
 # matched by label against the training levels and installed as the engine's
-# 0-based codes, as a whole-frame update installs them. A label the column
-# does not declare, and a missing value where the column has none and, by the
-# data object's record 'missing.seen', has never held one (no route was
-# learned for one), are refused by name; so is a number, which could only
-# be read as a code, and a coded matrix or container. A data frame addresses
-# several columns; other columns pass through as numbers.
-codeCategoricalColumnUpdate <- function(
-  x.train,
-  x,
-  column,
-  missing.seen = NULL
-) {
+# 0-based codes, as a whole-frame update installs them. A missing label is a
+# missing value, which the column takes whether or not it has held one. A
+# label the column does not declare is refused by name; so is a number, which
+# could only be read as a code, and a coded matrix or container. A data frame
+# addresses several columns; other columns pass through as numbers.
+codeCategoricalColumnUpdate <- function(x.train, x, column) {
   factorLevels <- attr(x.train, "factor.levels")
   if (is.null(factorLevels) || !is.numeric(column) || anyNA(column)) {
     return(x)
@@ -566,13 +560,6 @@ codeCategoricalColumnUpdate <- function(
         quotedNameList(unknown),
         " not among its training levels"
       )
-    }
-    if (
-      anyNA(labels) &&
-        !isTRUE(missing.seen[j]) &&
-        !sourceColumnHasNA(x.train, j, ncol(x.train), nrow(x.train))
-    ) {
-      stop(label(j), " has missing values, which its training values do not")
     }
     result[, k] <- as.double(codes)
   }
@@ -663,12 +650,7 @@ codeJointColumnUpdate <- function(samplers, x, columnIndices, columnName) {
   codes <- NULL
   for (i in seq_along(samplers)) {
     codesHere <- tryCatch(
-      codeCategoricalColumnUpdate(
-        samplers[[i]]$data@x,
-        x,
-        columnIndices[i],
-        dataMissingSeen(samplers[[i]]$data)
-      ),
+      codeCategoricalColumnUpdate(samplers[[i]]$data@x, x, columnIndices[i]),
       error = function(e) {
         stop(
           conditionMessage(e),
@@ -746,11 +728,10 @@ bartcoreSamplerSetPredictor <- function(
     forceUpdate == "partial"
 
   column <- resolveColumnIndex(currentX, column, "current X")
-  seen <- dataMissingSeen(sampler$data)
   if (!is.null(column)) {
-    x <- codeCategoricalColumnUpdate(currentX, x, column, seen)
+    x <- codeCategoricalColumnUpdate(currentX, x, column)
   } else if (is.data.frame(x)) {
-    x <- codePredictorFrame(currentX, x, seen)
+    x <- codePredictorFrame(currentX, x)
   } else {
     refuseMatrixOfCodes(x, currentX, "'x'")
   }
@@ -1252,12 +1233,7 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
         "' is out of range"
       )
     }
-    x.test <- codeCategoricalColumnUpdate(
-      sampler$data@x,
-      x.test,
-      column,
-      dataMissingSeen(sampler$data)
-    )
+    x.test <- codeCategoricalColumnUpdate(sampler$data@x, x.test, column)
     xTestDim <- dim(x.test)
     if (!is.null(xTestDim) && xTestDim[2L] != length(column)) {
       stop("'x.test' must have ", length(column), " column(s)")
@@ -1284,6 +1260,13 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
       new.x.test[, column] <- as.double(x.test)
       x.test <- new.x.test
     }
+    # as the whole test set is held: no missing value in a column that has
+    # never held one in training, which no rule has a side for
+    refuseTestMissingness(
+      x.test,
+      sampler$data@x,
+      missing.seen = dataMissingSeen(sampler$data)
+    )
   }
 
   # install the new test set R-side, then roll back if the bridge refuses it
