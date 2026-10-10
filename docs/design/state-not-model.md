@@ -36,7 +36,7 @@ written before these were dropped still installs: a block the reader no longer w
 
 Each stored leaf value is a number on an internal scale. What it means on the response scale depends on the
 transform - a multiplier and a shift - of the sampler that reads it. The leaf prior's `k` is stated against
-that same transform: its centre is the transform's shift and its width, `k.scale`, a constant of the family
+that same transform: its center is the transform's shift and its width, `k.scale`, a constant of the family
 times the range, whichever of `k` and `sd` the prior is written with
 ([leaf-scale-rules.md](leaf-scale-rules.md)). So the transform is part of the model.
 
@@ -52,10 +52,10 @@ holding the chain's internal value, so an install writes it back with no pass th
 stored under the transform in force puts the chain back where it was stored, value for value. A state stored
 before a re-anchor, or by a sampler on another response, is legal and has no special meaning: the same
 internal numbers are a position the chain could hold, and the next draws move them where the data say. A
-response that was only rescaled is then no change at all on the internal scale; one whose centre moved too is
+response that was only rescaled is then no change at all on the internal scale; one whose center moved too is
 fitted wrongly until the draws catch up. No leaf model refuses such a state: a gp leaf's saved draws and
 forests coupled through amplitudes, which had no mean term to carry a converted shift, take it as any other
-does. A constant response's transform is the window of width 1 centred on its value, c - 0.5 to c + 0.5
+does. A constant response's transform is the window of width 1 centered on its value, c - 0.5 to c + 0.5
 (dec-B386; it was c to c + 1 until 2026-10-08), recorded as (c, c).
 
 A re-anchor and an install differ on the draws the sampler has kept. A re-anchor rewrites them into the new

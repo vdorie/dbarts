@@ -3581,7 +3581,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState) {
-      "Installs a stored state: the chains, never the model. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force continues the chain exactly; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Invisibly returns TRUE when nothing had to be changed to install it, FALSE otherwise. See Saving and Value in ?dbartsSampler."
+      "Installs a stored state: the chains, never the model. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Invisibly returns TRUE when nothing had to be changed to install it, FALSE otherwise. See Saving and Value in ?dbartsSampler."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
@@ -3624,7 +3624,7 @@ dbartsSampler <- setRefClass(
        predictors, keeping this sampler's model. The donor's trees and leaf
        values, and its k and sigma where this sampler draws them, go in as
        stored on the internal scale, not converted to this sampler's
-       response; linear-leaf coefficients drawn under covariates centred and
+       response; linear-leaf coefficients drawn under covariates centered and
        scaled differently are restated in this sampler's. 'samples' maps each
        chain to a 1-based donor-sample index; NULL spreads the chains across
        the donor's kept samples. Single-forest samplers only."
