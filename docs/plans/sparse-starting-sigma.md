@@ -1,408 +1,522 @@
 # sparse-starting-sigma: a sparse x takes the linear-model starting sigma
 
-Status: PLANNED 2026-10-09 (dec-B403); revised the same day after its blind critique.
+Status: PLANNED 2026-10-09 (dec-B403); revised after its blind critique; revised 2026-10-10 for dec-B421,
+dec-B422 and dec-B426 and for the sigest-beside-fixed landing (dec-B413). Not built.
 
-agent: sonnet implementer, one (R only, no engine code); blind critique of this plan first (opus); one opus
-reviewer who runs the mutants below.
-rng: POSTERIOR-CHANGING for a fit with a caller's sparse x (a dgCMatrix, or a sparseFactor, sparseVector or
-dgCMatrix column in a data frame), a continuous response and no sigest: the default residual prior is
-calibrated against the linear-model estimate where it was sd(y). Rounding only, possibly none, for an
-indicator expansion R built sparse (dec-B370), whose estimate moves from the sparse QR to the routine below.
-NEUTRAL for every dense design, every binary family and every fit given sigest.
+agent: blind critique of this revision first (opus; it adds a routine and widens what moves); one sonnet
+implementer (R only, no engine code); one opus reviewer who runs the mutants below.
+rng: POSTERIOR-CHANGING, for a continuous response under a chisq residual prior with no sigest, in two
+cases: a caller's sparse x (dec-B403), and any fit that keeps a factor as a categorical predictor, the
+default, dense or sparse (dec-B422). Rounding only for an indicator expansion R built sparse (dec-B370).
+NEUTRAL for a dense design with no categorical column, every fixed-unit family, every fit given sigest, and
+the draws of a fit under a fixed residual prior.
 window: before the merge (dec-B403). R only; may run beside an engine slice.
-budget: ~450 lines (R/utility.R ~110 net of the QR's removal, R/spec.R ~25, R/xbart.R ~20, tinytest ~200,
-man ~30, NEWS ~2, docs ~60, MANIFEST one row).
+budget: ~1000 lines (R/utility.R ~260 net of the QR's removal, R/spec.R ~35, R/xbart.R ~35, tinytest ~380,
+benchmarks/R ~160, man ~40, docs ~90, NEWS ~2, MANIFEST one row).
 
 ## Goal
 
-A caller's sparse x gets the starting sigma its dense equivalent gets, with no warning, at a cost that grows
-with the smaller of its row and column counts rather than with refactoring a QR per dependent column. One
-routine serves every sparse design, an indicator expansion R built sparse included; the sparse QR and the
-dbartsSparseSigmaFallbackWarning class go. xbart's per-fold estimate takes the same routine on each fold's
-training rows. An infinite entry in a sparse x is refused as in a dense one, and a fit under a fixed
-residual prior makes no estimate at all. The tier is "Changes draws" ([Process by risk](README.md#process-by-risk)).
+A sparse x gets the starting sigma its dense equivalent gets, with no warning for being sparse: from an exact
+routine while the smaller of its row and column counts is at most 2,000, and from LSQR above that. Every
+factor, in a dense design too, enters that regression as indicator columns. One routine serves every sparse
+design and xbart's per-fold estimate; the sparse QR and the class dbartsSparseSigmaFallbackWarning go. An
+infinite entry in a sparse x is refused as in a dense one, and a fixed residual prior makes no estimate. The
+tier is "Changes draws" ([Process by risk](README.md#process-by-risk)).
 
 ## Context
 
-- The ruling (dec-B403, TODO sparse-starting-sigma): same linear-model starting sigma as the dense
-  equivalent, no warning; a caller can pass sigest and the help says so; how the fit is computed is an
-  implementation call, measured here.
-- Today: [`estimateSigmaFromLinearModel`](../../R/utility.R) returns sd(y - offset) with the warning for a
-  caller's sparse source; an indicator expansion (the `sparse.from.indicators` attribute set by
+Rulings, each covering what it names:
+
+- dec-B403: "Yes, just use the sparse regression, no warning." A sparse x takes its dense equivalent's
+  linear-model starting sigma; a caller can pass sigest and the help says so; how it is computed is measured.
+- dec-B421: "Band is fine." The exact routine's rank tolerance (below) may differ from lm's on near-copies.
+- dec-B422: "What would keeping the codes mean? Treating them as integers? That doesn't make sense. I think
+  indicators are necessary, right?" Every factor, unordered or ordered, enters the starting-sigma regression
+  as indicator columns; the trees' representation is unchanged; the slice re-records what moves.
+- dec-B426: "I'm ok with C, but do we want to evaluate it in more contexts?" then "Go ahead." The exact
+  routine up to m 2,000 (m the smaller of n and p + 1); above it LSQR with structural degrees of freedom and
+  no message; above the cutoff a design with under 10 percent residual degrees of freedom takes sd(y). Two
+  conditions of the build ([Build conditions](#build-conditions)). The measurements are in
+  [Part 2: LSQR](../design/starting-sigma-sensitivity.md#part-2-lsqr).
+
+Today, run on this tree (2026-10-10, shipped build, arm64 macOS, R 4.6.1, Matrix 1.7-5):
+
+- [`estimateSigmaFromLinearModel`](../../R/utility.R) returns sd(y - offset) with the class for any source
+  with a CSC column: a bare dgCMatrix (1.053 where lm gives 0.500), a frame with a sparseVector column, a
+  frame with a sparseFactor. An indicator expansion R built sparse (`sparse.from.indicators`, set by
   [`makeIndicatorModelMatrix`](../../R/utility.R)) goes to [`sparseResidualStandardError`](../../R/utility.R),
-  Matrix's sparse QR on unit-norm columns, batched at n columns, one dependent column dropped per refactor;
-  a dense design goes to [`residualStandardError`](../../R/utility.R) (`lm.fit` on `cbind(1, x)`).
+  Matrix's sparse QR; anything else to [`residualStandardError`](../../R/utility.R) (`lm.fit`).
   [`floorSigmaEstimate`](../../R/utility.R) turns a non-finite result into sd(y) with
-  dbartsSigmaFallbackWarning. Callers: [`estimateStartingSigma`](../../R/spec.R) (every sampler and fit) and
-  [`xbart`](../../R/xbart.R) (once on all rows, then per fold in `foldData`, whose "linear" route densifies
-  the design with [`sigmaDesignMatrix`](../../R/utility.R) once per chunk).
-- Measurements (2026-10-09, arm64 macOS M1 Max, R 4.6.1 with R's reference BLAS and LAPACK, two jobs at a
-  time; scripts in scratch/ssp/ of the main checkout, untracked). Designs: random sparse numeric columns at
-  0.1, 1 and 5 percent; full one-hot factor sets (every level a column, so dependent with the intercept by
-  one column a factor), written as F x L; response a sparse linear signal plus noise of sd 0.5. Seconds:
+  dbartsSigmaFallbackWarning: a dense design with p >= n warns; one with 2 residual degrees of freedom of
+  40 rows gives an estimate and no warning.
+- A factor kept categorical enters as its level codes, ordered or not
+  ([`as.matrix.dbartsMixedMatrix`](../../R/mixedMatrix.R)): on a 40-level factor and one numeric column
+  (n 300, noise sd 0.5) the default starts sigma at 1.088 (sd(y) 1.095) and `factors = "indicators"` at 0.499.
+  An ordered factor: 0.534 on its codes, 0.489 as indicators, which is `lm`'s value under its polynomial
+  contrasts.
+- The frame rebuilt from a dense container's column list gives, through
+  [`makeIndicatorModelMatrix`](../../R/utility.R), the same design values as the `factors = "indicators"`
+  fit of the original frame. That builder stores an indicator column sparse where its density is at most
+  [`sparseIndicatorDensity`](../../R/utility.R), so a 5-level factor at n 300 already takes the sparse
+  routine under "indicators". A missing factor value is NA in every indicator of its block and is imputed
+  with the level's frequency, so the block still sums to one.
+- An infinite stored entry in a dgCMatrix is accepted (sd(y), the sparse class); a dense one is refused,
+  naming the column ([`nonFinitePredictorNames`](../../R/spec.R)).
+- A fixed residual prior with no sigest still runs the estimate ([`resolveSamplerSpec`](../../R/spec.R);
+  [`xbart`](../../R/xbart.R) before it resolves the prior): the slot and `bart`'s `sigest` hold the linear
+  estimate (0.293 under `fixed(4)`), and a sparse x warns about an estimate nothing uses. Draws are identical
+  whether the slot holds that estimate or the fixed sigma. Since dec-B413
+  ([`refuseSigestUnderFixedPrior`](../../R/family.R)) a sigest within 4 machine epsilons of the fixed sigma
+  is accepted with a once-per-session message, then sits in the slot with no estimate made; a differing one
+  is refused (dec-B425). The slot is read later: a `setModel` to a chisq prior, `rbart_vi`'s start and
+  `bart`'s `sigest`, so it is never left NA.
+- xbart on a sparse x takes the per-fold route "marginal" (each fold its own sd); a dense design "linear".
+  A dense design whose folds have no residual degrees of freedom raises dbartsSigmaFallbackWarning.
 
-  | n | p | design | dense lm.fit | sparse QR (today) | candidate (v3) |
-  |---|---|---|---|---|---|
-  | 1e3 | 100 | 0.1-5% | 0.01 | 0.01 | 0.03 |
-  | 1e3 | 1000 | 1% | 0.49 | 0.28 | 0.14 |
-  | 1e3 | 5000 | 0.1% / 1% | 3.5 (1%) | 0.73 / 0.27 | 1.45 / 0.15 |
-  | 1e3 | 5000 | one-hot 50 x 100 | 3.6 | 3.6 | 0.15 |
-  | 1e4 | 100 | 1% / one-hot 10 x 10 | 0.09 / 0.09 | 0.03 / 0.86 | 0.04 / 0.04 |
-  | 1e4 | 1000 | 1% / one-hot 20 x 50 | 7.8 / 7.8 | 7.4 / 157 | 0.18 / 0.20 |
-  | 2e4 | 2000 | 1% | 64 | 65 (dec-B403) | 1.2 |
-  | 1e4 | 5000 | 0.1-5% / one-hot 50 x 100 | ~400 (2np^2 at the measured rate) | not run | 14.5-17.1 / 15.4 |
-  | 1e5 | 100 | 1% / one-hot 10 x 10 | 1.0 / 1.0 | 1.0 / 11.7 | 0.04 / 0.15 |
-  | 1e5 | 1000 | 0.1-5% / one-hot 20 x 50 | 83 (1%) / 83 | not run | 0.16-1.6 / 0.45 |
-  | 1e5 | 5000 | 0.1% / 1% / 5% / one-hot 50 x 100 | ~4000 and a 4 GB matrix (extrapolated) | over 20 min (dec-B403) | 15 / 17 / 38 / 17 |
+The exact routine, measured 2026-10-09 (R's reference BLAS; the first prototype's seconds, the routine of
+[Algorithm](#algorithm) D timing within 10 percent of it at four of these points):
 
-  The candidate column is the first prototype (v3); the revised routine (v4, Algorithm) times within 10
-  percent of it at four of these points (17.5 s at n 1e5, p 5000, 1 percent; 0.22 s at n 1e4, one-hot
-  20 x 50).
+| n | p | design | dense lm.fit | sparse QR (today) | exact routine |
+|---|---|---|---|---|---|
+| 1e3 | 1000 | 1% | 0.49 s | 0.28 | 0.14 |
+| 1e4 | 100 | 1% / one-hot 10 x 10 | 0.09 / 0.09 | 0.03 / 0.86 | 0.04 / 0.04 |
+| 1e4 | 1000 | 1% / one-hot 20 x 50 | 7.8 / 7.8 | 7.4 / 157 | 0.18 / 0.20 |
+| 2e4 | 2000 | 1% | 64 | 65 | 1.2 |
+| 1e5 | 1000 | 0.1-5% / one-hot 20 x 50 | 83 | not run | 0.16-1.6 / 0.45 |
 
-  The candidate's cost is the crossproduct (0.2, 2.6 and 19 s at n 1e5, p 5000 and 0.1, 1 and 5 percent)
-  plus a pivoted Cholesky of an m x m matrix, m the smaller of n and p + 1. Measured, the whole routine:
-  1.0 s at m 2000, 14 s at 5000, 133 s at 10000; peak resident memory 351 MB, 654 MB and 1.84 GB, of which
-  about 250 MB is R with Matrix and dbarts loaded, so about 16 m^2 bytes (the dense crossproduct and the
-  factor `chol` returns). The Cholesky alone: 13 s at 5000, 37 s at 7000, 118 s at 10000 and 592 s at
-  14000 (3.2 GB), steeper than cubic past 10000 on this reference BLAS (a local exponent of 4.8).
-  Extrapolated: m 2e4, 0.5 to 1 hour (exponent 3 to 4.8) and 6.4 GB; m 5e4, at least 7 hours and about
-  40 GB, more than this 32 GB machine holds (an allocation error or swapping); m 1e5, about 160 GB, an
-  allocation error. Neither LAPACK call can be interrupted. An optimized BLAS is many times faster; the
-  memory does not change. The dense path at the same design costs at least 2 m^3 flops in `lm.fit`'s
-  LINPACK QR, six times the Cholesky's m^3 / 3 (27 minutes at n = p = 1e4 at the measured rate), and holds
-  n p doubles against 2 m^2. Where both take a second or two the routine can be the slower: 0.03 s against
-  0.01 s at n 1e3, p 100; 2.0 s against 0.6 s on a tall mostly dense frame (n 2e5, 50 dense columns and
-  one sparse, the dense block costing about 12 bytes an entry as CSC).
-- xbart: the per-fold estimate runs n.reps x the fold count times, 200 at the defaults (today a sparse
-  design's per-fold value is a marginal sd). At n 1e4, p 1000, 1 percent and one-hot 20 x 50: 28 and 32 s
-  for the 200 (0.14 to 0.16 s each), where a dense design of the same size pays 5.6 to 5.9 s a fold, about
-  19 minutes. Each worker holds its own crossproduct, so memory multiplies by the worker count.
-- Agreement with the dense fit (`lm.fit` on `cbind(1, as.matrix(x))`, through
-  [`residualStandardError`](../../R/utility.R)), the revised routine (v4: Algorithm below): 400 random
-  designs (n 30 to 2000, p 5 to 1530, numeric, one-hot and mixed, a third with three dependent columns
-  added, a fifth with a column scaled by 1e5, a third weighted with 5 percent zero weights, a third with an
-  offset; 143 with p >= n). The rank equals lm.fit's on 398. Of those, 106 have no residual degrees of
-  freedom and both give no estimate; of the 292 with an estimate, sigma agrees within 1e-11 relative at
-  more than 30 residual degrees of freedom (245 designs) and within 3e-8 at 30 or fewer (47; 2.6e-8 at 10
-  or fewer). On the other 2, wide designs, lm.fit's rank is above the SVD's numerical rank (975 against
-  970, 935 against 933; it keeps columns with relative pivots near 1e-16), the routine's equals the SVD's,
-  and sigma is 0.26 and 0.64 percent apart; the shipped sparse QR sides with the SVD there too. The
-  critique reran the sweep independently on the v3 routine and reproduced these counts.
-- Hand cases (v4, scratch/ssp/verify4.R and band4.R): duplicated, constant and all-zero columns, exact
-  linear combinations, zero weights, offsets, NA entries in a dgCMatrix, sparseFactor columns with each
-  reference level and with missing values, a mixed frame (dense factor, numeric and sparseVector columns),
-  a column scaled by 1e160 or 1e-160, a dense timestamp column (mean 1.7e9, spread an hour) carrying
-  signal, weighted and not, a fully stored sparse column of the same kind, a year column, dense columns of
-  mean 2e3 and 1e7 beside an exact duplicate: all within 1.3e-11. A wide full-rank design with one row at
-  relative weight 1e-14 gives no estimate, as lm.fit does (v3 gave 3.4e-8 at rank 49).
-- The tolerance band. A column is dropped when its residual after the kept columns is below 1e-5 of its
-  norm (pivot 1e-10 on the unit-diagonal crossproduct); lm.fit's is 1e-7. The pivot of an exactly
-  dependent column measured 0 to 1.5e-13 (one-hot 50 x 100 at n 30000; 5e-14 at 20 x 100; 1.7e-14 for
-  100 linear combinations of 1000 numeric columns), so 1e-10 holds a margin of about 700 and a tolerance
-  matching lm's (1e-14) none. Two near-copies whose difference is between 1e-7 and 1e-5 of their norm
-  keep both under lm and one here, and sigma moves by whatever the second copy fits: on
-  test-indicator-storage.R's design (n 120) and two redraws, perturbations from 1e-7 to 1e-5 give one rank
-  fewer and sigma 0.01 to 4.7 percent apart, each time equal within 1e-15 to the dense fit without one of
-  the two copies, the routine choosing which. Since dense-backed and fully stored columns are centered
-  (Algorithm), a column of large mean and small spread is no longer in that band against the intercept:
-  a timestamp spanning an hour, 42 percent apart under the uncentered v3, agrees within 6e-13. The band
-  turns over for such a column instead: where the spread is below 1e-7 of the mean (a mean of 1e9 with an
-  sd of 6), lm drops the column as constant and the routine keeps it (14 percent apart on that design,
-  where the column carried signal). See Open calls.
-- What moves (an instrumented build logging each call of
-  [`estimateSigmaFromLinearModel`](../../R/utility.R), 2026-10-09; xbart's per-fold fits were not logged,
-  but a sparse xbart also makes the logged all-rows call):
-  - equivalence.R in quick mode: the seven scenarios built on a caller's sparse source, each without sigest,
-    ["sparse <- list("](../../benchmarks/R/equivalence.R),
-    ["mixedmatrix <- list("](../../benchmarks/R/equivalence.R),
-    ["sparsefactor <- list("](../../benchmarks/R/equivalence.R),
-    ["testswap <- list("](../../benchmarks/R/equivalence.R),
-    ["leaffactormixed <- list("](../../benchmarks/R/equivalence.R),
-    ["factorpartial <- list("](../../benchmarks/R/equivalence.R) and
-    ["xbartmixed <- list("](../../benchmarks/R/equivalence.R); their starting sigma goes from sd(y) to the
-    linear estimate: 2.959 to 1.370, 1.670 to 0.327, 3.609 to 2.387, 3.664 to 2.508, 3.941 to 1.867,
-    3.483 to 2.235 and (all rows) 4.124 to 2.626, each within 9e-16 of lm.fit's. wideFactorIndicators
-    takes the QR route today and moves by rounding: v4 gives 2.6995748335729592 against the QR's
-    2.6995748335729584 (lm.fit 2.6995748335729566), so its draws change and its posterior does not. The
-    other 47 make dense estimates or none, and none uses a fixed residual prior.
-  - bcf-equivalence.R: 12 estimates, all dense. multinomial-equivalence.R: none (no residual scale).
-  - The four test-reproducibility files (run with the build guard bypassed): 5 estimates, all dense, none
-    under a fixed residual prior.
-  - exact-gates.yaml's gate list in quick mode, bcf-latent-exact.R aside: 35 estimates, all dense, every
-    gate passing; bcf-latent-exact.R builds no Matrix, sparseFactor or indicator design (grep). No exact
-    gate moves.
-  - tinytest, the whole suite (19630 results, 0 failures): the caller-sparse branch is reached in
-    test-data-mixed.R, test-indicator-storage.R, test-predict-na-action.R and test-row-names.R; the QR in
-    test-dart-mixed-columns.R, test-indicator-storage.R and test-sampler-splitProbabilities.R. Every other
-    sparse test passes sigest.
-- A fixed residual prior (`gaussian(sigma = fixed(v))`) still runs the estimate today
-  ([`dbartsSpec`](../../R/spec.R) calls [`estimateStartingSigma`](../../R/spec.R) unless the family has a
-  fixed unit scale), and the creation discards it for sqrt(v): draws are bit for bit the same with the
-  slot left NA. The slot is read later, though: a `setModel` to a chisq prior on a sampler whose slot is NA
-  draws NA sigmas without an error (measured), `rbart_vi` starts its sigma from the slot, and `bart`
-  records it as `sigest`. Hence the rule in Change 4.
+- Its cost is the crossproduct plus a pivoted Cholesky of an m x m matrix: 1.0 s and about 100 MB over R's
+  own 250 MB at m 2,000, the largest it now runs at (14 s at 5,000 and 133 s at 10,000 are why it stops
+  there). Where both take under a second it can be the slower (0.03 s against 0.01 s at n 1e3, p 100).
+- Agreement with `lm.fit` on the dense design: 400 random designs (n 30 to 2000, p 5 to 1530, numeric,
+  one-hot and mixed, a third with dependent columns, a third weighted with zero weights, a third with an
+  offset; 143 with p >= n). Rank equal to lm.fit's on 398; of the 292 with an estimate, sigma within 1e-11
+  relative above 30 residual degrees of freedom and 3e-8 at 30 or fewer. On the other 2 (wide), lm.fit keeps
+  columns with relative pivots near 1e-16, the routine's rank equals the SVD's, and sigma is 0.26 and 0.64
+  percent apart.
+- The band (dec-B421). A column is dropped when its residual after the kept columns is below 1e-5 of its norm
+  (pivot 1e-10 on the unit-diagonal crossproduct; lm's is 1e-7). An exact dependency's pivot measured 0 to
+  1.5e-13, so 1e-10 holds a margin of about 700 and lm's 1e-14 none. Two near-copies differing by 1e-7 to
+  1e-5 of their norm both stay in lm's fit and one stays here (0.01 to 4.7 percent apart, equal to the dense
+  fit without one copy); a dense column whose spread is below 1e-7 of its mean is dropped by lm and kept here.
+
+LSQR, from the prototype behind dec-B426 (base R and Matrix; rerun here): two runs on one design return the
+same bits; weighted fits (uniform, 20 percent zeros, fold-like 0/1, skewed, a few at 1e-12, with an offset)
+agree with `lm.wfit` to 7e-11 in 11 to 50 iterations at n 6000, p 400, but 1 percent of rows at weight 1e6
+takes 785 iterations (2.7e-6 apart), near the cap; a constant, fully stored column under weights survives
+the prototype's sum-of-squares test and costs a degree of freedom; a full one-hot block left uncounted costs
+one (9e-5), counted or built without one level it agrees to 3e-12; a zero response divides by zero. A row
+subset of a 1.5e6-entry design costs 2.8 iterations' products. Costs:
+[Cost and memory](../design/starting-sigma-sensitivity.md#cost-and-memory).
+
+What moves (every call of [`estimateSigmaFromLinearModel`](../../R/utility.R) logged through a load hook,
+2026-10-10, beside the value `lm.fit` gives on the indicator design):
+
+- equivalence.R, quick mode, 132 calls in 44 of 55 scenarios. Twelve move:
+  - seven on a caller's sparse source, sd(y) to the linear estimate:
+    ["sparse <- list("](../../benchmarks/R/equivalence.R) 2.959 to 1.370,
+    ["mixedmatrix <- list("](../../benchmarks/R/equivalence.R) 1.670 to 0.271,
+    ["sparsefactor <- list("](../../benchmarks/R/equivalence.R) 3.609 to 2.122,
+    ["testswap <- list("](../../benchmarks/R/equivalence.R) 3.664 to 2.265,
+    ["leaffactormixed <- list("](../../benchmarks/R/equivalence.R) 3.941 to 1.833,
+    ["factorpartial <- list("](../../benchmarks/R/equivalence.R) 3.483 to 2.125 and
+    ["xbartmixed <- list("](../../benchmarks/R/equivalence.R) 4.124 to 2.386 (all rows);
+  - four on a dense frame with a factor, codes to indicators:
+    ["categorical <- list("](../../benchmarks/R/equivalence.R) 1.9855 to 1.9870,
+    ["leaffactor <- list("](../../benchmarks/R/equivalence.R) 1.863 to 1.830,
+    ["nafactor <- list("](../../benchmarks/R/equivalence.R) 2.469 to 2.389 and
+    ["ordfactor <- list("](../../benchmarks/R/equivalence.R) 2.234 to 2.330;
+  - ["wideFactorIndicators <- list("](../../benchmarks/R/equivalence.R), by rounding (the QR's
+    2.6995748335729584 against lm.fit's ...566).
+  The other 32 with a call are dense with no categorical column; 11 make none.
+- bcf-equivalence.R: 12 calls, all dense, no factor. multinomial-equivalence.R: none.
+- The four test-reproducibility files (build guard bypassed): 5 calls in three files, none sparse and none
+  with a factor; the binary file stopped under the bypass with nothing logged (a binary family makes no
+  estimate).
+- exact-gates.yaml's list in quick mode, bcf-latent-exact.R aside: 35 calls, 30 dense with no factor and 5 on
+  a factor design (mask-redraw-exact.R 4, change-balance.R 1), all five under a fixed residual prior (read
+  at the call), which makes no estimate after Change 4. No exact gate moves.
+- tinytest (19709 results, 0 failures): 4 files reach the caller-sparse branch, 3 the QR, 37 a dense
+  container with a factor (409 calls). With the new values substituted at the hook, six expectations fail in
+  four files: test-starting-sigma.R 3, test-indicator-storage.R 1, test-data-mixed.R 1,
+  test-sampler-splitProbabilities.R 1 ([Tests](#tests)).
 
 ## Algorithm
 
-`sparseResidualStandardError(y, x, weights, offset)` keeps its name and arguments; `x` is a predictor source
-(a dgCMatrix or a mixed container).
+`sparseResidualStandardError(y, x, weights, offset)` keeps its name; the cutoff (2000) and LSQR's cap (1000)
+are formals with those defaults, so a test reaches either route on a small design.
 
-1. Design, in this order. A bare dgCMatrix is first wrapped with
-   [`wrapSparseTestMatrix`](../../R/mixedMatrix.R). Then a sparse categorical column (non-NA
-   `sparseReference`) has its reference code subtracted from its stored entries, so the column equals
-   [`as.matrix.dbartsMixedMatrix`](../../R/mixedMatrix.R)'s (implicit rows at the reference code) up to a
-   constant, which the intercept absorbs. Then [`sparseDesignMatrix`](../../R/utility.R) as today (dense
-   block to CSC first, NAs mean-imputed with the implicit zeros counted). The shift comes before the
-   imputation, since the imputation's mean counts the implicit rows as 0: imputing first is 0.4 to 2.2
-   percent off on a sparseFactor with a middle reference and missing values. Without the shift at all, a
-   sparseFactor whose reference is not its first level fits another model (0.2 percent off). The builder
-   records which columns are dense-backed.
-2. Inf. An infinite stored entry is an error, which [`estimateStartingSigma`](../../R/spec.R) reports as
-   it does for a dense design, naming the column: [`nonFinitePredictorNames`](../../R/spec.R) learns sparse
-   sources (the dense list and the CSC block's stored entries, mapped to names through the container's map
-   and column names, or positions for a bare dgCMatrix). Today a sparse Inf is accepted with the sd(y)
-   fallback; the uncentered routine would have dropped the column silently (13 percent off).
-3. Rows. Drop rows with a missing response, weight or offset and rows of weight 0, as `lm.wfit` does;
-   z = y - offset.
-4. Centering. Each dense-backed column, and each column with a stored entry in every kept row, is
-   centered at its weighted mean over the kept rows (they are dense already; centering the values leaves
-   the span with the intercept unchanged). Sparse columns are not centered: a centered crossproduct
-   (X'WX - s m m') cancels for a large-mean column (pivot noise 2.5e-11 at a mean of 2000 and sd 6, a margin
-   of 4), which is why the intercept stays a column.
-5. Scaling. B = diag(sqrt(w)) [1 X]; each column divided by its largest absolute entry, then by its norm
-   (so a column scaled by 1e160 neither overflows nor drops); all-zero columns dropped.
-6. Narrow. If ncol(B) < n, `chol(as.matrix(Matrix::crossprod(B)), pivot = TRUE, tol = 1e-10)` (LAPACK
-   dpstrf) with `suppressWarnings` around that one call only (its one warning is the rank deficiency; no
-   matching on message text), r its rank, K its first r pivots, R its leading r x r block;
-   b = R^-1 R^-T B_K' (z sqrt(w)), e = z sqrt(w) - B_K b, computed directly (no normal-equation RSS). The
-   error in b is orthogonal to the true residual, so its effect on the RSS is second order: one step of
-   iterative refinement changed no result by more than 1e-12 on 30 designs with a kept column near the
-   tolerance and two columns of mean 1e4. It is not taken.
-7. Wide. Otherwise K = `as.matrix(Matrix::tcrossprod(B))` (n x n), equilibrated: D = sqrt(diag(K)) (the row
-   norms of B, positive since the intercept column has an entry in every row), the pivoted Cholesky of
-   D^-1 K D^-1 at the same tolerance. Its pivots are then relative to each row's norm, as B'B's are to
-   each column's; unequilibrated, a row at relative weight 1e-14 is taken as dependent and a full-rank
-   design gets sigma 3.4e-8 (B2). r >= n gives no estimate; else Q an orthonormal basis of D L (L the first
-   r columns of the pivoted factor, unpivoted; `qr.Q(qr(.))`, n x r) and e = z sqrt(w) - Q Q' z sqrt(w).
-   On n 1000, p 5000 at 0.1 percent (rank 993) this takes 1.5 s where the narrow side takes about 14.
-8. sigma = sqrt(sum(e^2) / (n - r)), NA when n - r <= 0, for [`floorSigmaEstimate`](../../R/utility.R) to
-   take to sd(y) with dbartsSigmaFallbackWarning, exactly as the dense path does with more columns than rows.
+A. The design, built by one new function that every caller uses (`startingSigmaDesign(x)`: the all-rows
+estimate and xbart's chunk runner). The expansion of dec-B422 happens here and nowhere else; `data@x`, the
+cut grid and the trees never see it.
 
-No size cap, no message (Open calls). An allocation failure is an error, which
-[`estimateStartingSigma`](../../R/spec.R) already turns into "unable to obtain a starting estimate of sigma;
-provide one instead".
+1. A plain matrix: [`sigmaDesignMatrix`](../../R/utility.R) as today, for `lm.fit`.
+2. A dense container (no CSC column) with a factor column: the frame is rebuilt from its column list and
+   names and handed to [`makeIndicatorModelMatrix`](../../R/utility.R) with `drop = TRUE` and storage
+   "auto", so it is the design `factors = "indicators"` builds and the two fits' sigest are identical. The
+   result is a matrix (case 1) or a container with sparse-built indicators (case 4). Without a factor
+   column: as today.
+3. A caller's sparse source. A bare dgCMatrix is wrapped ([`wrapSparseTestMatrix`](../../R/mixedMatrix.R)).
+   In a container, a dense-backed factor column becomes one indicator per present level but its first; a
+   sparseFactor column (non-NA `sparseReference`) one indicator per present level but its reference, from
+   its stored entries, a stored entry at the reference code dropped. A stored NA is an NA entry in each of
+   the factor's indicators. Other columns as in [`sparseDesignMatrix`](../../R/utility.R) today (dense
+   numerics to CSC), then its imputation (the mean of the observed entries, implicit zeros counted: for an
+   indicator the level's frequency). No indicator of the reference level is built, so the columns span with
+   the intercept what the dense equivalent's full block spans and no block is exactly dependent.
+4. An indicators-route container (built by R, or beside a caller's sparse column): taken as it is.
+   [`makeIndicatorModelMatrix`](../../R/utility.R) records per column the input term that emitted it
+   (`indicator.term`, in place of `sparse.from.indicators`, whose one reader goes).
+
+B. Front end, shared by both routines, in this order.
+
+1. Inf: an infinite entry is an error that [`estimateStartingSigma`](../../R/spec.R) reports as for a dense
+   design, naming the column: [`nonFinitePredictorNames`](../../R/spec.R) learns sparse sources.
+2. Rows: drop rows with a missing response, weight or offset and rows of weight 0, as `lm.wfit` does;
+   z = y - offset; n the rows kept.
+3. Constants: a column whose entries over the kept rows are all equal (implicit zeros included; an exact
+   comparison of values, not of a sum of squares) is dropped. p is the number of columns left and
+   m = min(n, p + 1).
+4. Centering: each dense-backed column and each column stored in every kept row is centered at its weighted
+   mean over the kept rows. Then every column is divided by its largest absolute entry.
+5. Blocks: the columns of one factor term (`indicator.term`) are a full block when at least two are left
+   and they sum to one in every kept row (within 1e-8; checked on the design, so a caller's drop pattern
+   or a fold's rows cannot miscount). b is the number of full blocks.
+
+C. Route. m <= 2000: the exact routine (D). Otherwise the structural residual degrees of freedom are
+df = n - 1 - p + b; when df < 0.1 n there is no estimate (F); else LSQR (E). m is the column count after the
+expansion, so a dense frame with a 5,000-level factor can be an LSQR design.
+
+D. The exact routine.
+
+1. B = diag(sqrt(w)) [1 X]; each column divided by its norm. Sparse columns are not centered: a centered
+   crossproduct cancels for a large-mean column, which is why the intercept stays a column.
+2. Narrow (ncol(B) < n): `chol(as.matrix(Matrix::crossprod(B)), pivot = TRUE, tol = 1e-10)` with
+   `suppressWarnings` around that one call (its one warning is the rank deficiency); r its rank, K its first
+   r pivots, R its leading r x r block; b = R^-1 R^-T B_K' (z sqrt(w)), e = z sqrt(w) - B_K b, computed
+   directly. No iterative refinement (one step moved nothing by more than 1e-12 on 30 near-tolerance designs).
+3. Wide: K = `as.matrix(Matrix::tcrossprod(B))`, equilibrated by D = sqrt(diag(K)), the pivoted Cholesky of
+   D^-1 K D^-1 at the same tolerance (unequilibrated, a row at relative weight 1e-14 reads as dependent).
+   r >= n gives no estimate; else Q an orthonormal basis of D L (L the first r columns of the factor,
+   unpivoted) and e = z sqrt(w) - Q Q' z sqrt(w).
+4. sigma = sqrt(sum(e^2) / (n - r)); no estimate when n - r <= 0.
+
+A full block is an exact dependency (pivot at most 1.5e-13), so the rank found is lm's on the indicator
+design and the band of dec-B421 concerns near-copies only, as before the expansion.
+
+E. LSQR (Paige and Saunders), in R in R/utility.R, on base R and Matrix's sparse products alone. The
+design is never copied or made dense past the front end.
+
+1. Operator. With h = sqrt(w), s = sum(w), mu_j the weighted mean of column j and d_j the reciprocal of its
+   weighted centered norm, A = diag(h) [1 / sqrt(s), (X - 1 mu') diag(d)], applied as two sparse products a
+   step (`X %*% v`, `Matrix::crossprod(X, u)`) with the centering as a rank-one correction. Every column has
+   unit norm and the intercept is orthogonal to the rest. Unit column norms are the only preconditioning. A
+   column whose centered sum of squares is not above 1e-24 of its uncentered one is dropped as constant
+   (weights can make one so) and leaves p.
+2. Right side b = h z, start at zero. If the norm of b is 0, sigma is 0; if A'b is 0, the residual is b.
+3. Iteration: Golub-Kahan bidiagonalization with the standard updates, no reorthogonalization, no damping.
+4. Stop at the first of: the normal-equations estimate at or below 1e-6 of the product of the running
+   operator norm and the residual norm; the residual norm at or below 1e-10 of the norm of b (the fit
+   reproduces the response, where the first test cannot fire and the recurrence drifts); a zero alpha or
+   beta; 1,000 iterations. The tolerance is a constant, not an argument a caller sets.
+5. At the cap the iterate is used like any other, with no message: its residual is at least the minimum,
+   so the estimate is high, never low. [Build conditions](#build-conditions) (a) measures by how much.
+6. sigma = sqrt(sum(r^2) / df), r = b - A x computed from the returned coefficients, not the recurrence.
+7. Weights enter as the row scale h in the operator and the right side and in every mean and norm; n counts
+   rows of positive weight. This is `lm.wfit`'s fit and `summary.lm`'s degrees of freedom.
+8. Degrees of freedom are C's count, never the iteration's. A dependency the structure does not show (a
+   near-copy, an interaction block containing its main effects) is counted as a fitted column and
+   overestimates by sqrt((df + d) / df), 0.5 percent for 50 in 4550; dec-B426 names structural degrees of
+   freedom.
+9. Determinism. No random number, fixed constants, one operation order: sums are R's `sum`, the products
+   Matrix's sparse kernels, and nothing on this route goes through LAPACK. The same inputs give the same
+   bits on one platform and Matrix build (run on the prototype). The exact routine calls LAPACK and so
+   holds its bits for one BLAS and thread count, as `lm.fit` does on the dense path.
+
+F. No estimate (D with no residual rank, C under 10 percent) returns NA, which
+[`floorSigmaEstimate`](../../R/utility.R) takes to sd(y - offset) with dbartsSigmaFallbackWarning, as the
+dense path does. Whether the 10 percent case warns is [Open calls](#open-calls) 1; the steps build the
+recommended option, and the other is about 8 lines. An allocation failure is an error, which
+[`estimateStartingSigma`](../../R/spec.R) already reports as "unable to obtain a starting estimate of sigma".
 
 ## Change
 
-1. R/utility.R: [`sparseResidualStandardError`](../../R/utility.R) and its comment rewritten as above (the
-   batching, the refactor loop and the `grepl` muffler of Matrix's structural-rank warning go);
-   [`sparseDesignMatrix`](../../R/utility.R) gains the dgCMatrix wrap, the reference shift ahead of its
-   imputation and the dense-backed record; [`estimateSigmaFromLinearModel`](../../R/utility.R) loses the
-   fallback branch and its warning and sends every sparse source to the sparse routine;
-   [`makeIndicatorModelMatrix`](../../R/utility.R) no longer sets `sparse.from.indicators`, its one reader
-   gone.
-2. R/spec.R: [`nonFinitePredictorNames`](../../R/spec.R) for sparse sources (Algorithm 2).
-3. R/xbart.R: [`xbart`](../../R/xbart.R)'s comment on the per-fold route drops "a sparse design"; in the
-   chunk runner a sparse source's `sigmaDesign` is built once per chunk by the design builder, and
-   `foldData` fits the sparse routine on its training rows (centering at each fold's own weighted means)
-   where a dense source keeps `residualStandardError`. An indicator expansion stops being densified there.
-4. A fixed residual prior runs no linear fit: in [`dbartsSpec`](../../R/spec.R), where `residPrior` is a
-   dbartsFixedPrior, the data's sigma slot takes the sigma it fixes, sqrt of the fixed variance, in place
-   of the estimate, for dense and sparse designs alike; xbart's all-rows estimate the same. Creation draws
-   are unchanged (they read the fixed value). What changes: `bart`'s `sigest` and the slot under a fixed
-   prior report the fixed sigma, not an estimate the fit never used, and a later `setModel` to a chisq
-   prior, or `rbart_vi`'s start, reads that value. The slot is never left NA (Context). This is the
-   critique's S3 in the form that keeps every reader of the slot finite.
-5. The class dbartsSparseSigmaFallbackWarning is retired: it was new in 1.0 and nothing raises it. No
-   consumer branch references it (the critique's grep of stan4bart, bartCause, treatSens and bairrtt).
+1. R/utility.R: `startingSigmaDesign` (A); [`sparseDesignMatrix`](../../R/utility.R) gains the wrap and the
+   two expansions; [`sparseResidualStandardError`](../../R/utility.R) rewritten as B to F with the exact
+   routine and LSQR as two internal functions (the batching, the refactor loop and the `grepl` muffler of
+   Matrix's warning go); [`estimateSigmaFromLinearModel`](../../R/utility.R) loses the fallback branch and
+   its warning and routes by what the design builder returned;
+   [`makeIndicatorModelMatrix`](../../R/utility.R) records `indicator.term` and no longer sets
+   `sparse.from.indicators`.
+2. R/spec.R: [`nonFinitePredictorNames`](../../R/spec.R) for sparse sources (the dense list and the CSC
+   block's stored entries, named through the container's map, or positions for a bare dgCMatrix).
+3. R/xbart.R: the design is built once per chunk by `startingSigmaDesign` in
+   [`xbartRunUnits`](../../R/xbart.R); `foldData` fits its training rows by the same routes, each fold by
+   its own m and its own degrees of freedom, a dense design keeping
+   [`residualStandardError`](../../R/utility.R). A fold with no estimate falls back as a dense fold does
+   today; where the all-rows estimate fell back every fold takes its marginal sd, as today. An indicator
+   expansion stops being made dense there.
+4. A fixed residual prior makes no estimate. In [`resolveSamplerSpec`](../../R/spec.R), where `residPrior`
+   is a dbartsFixedPrior and the family is not on a fixed unit scale, the slot takes the square root of the
+   fixed variance, whatever it held; [`xbart`](../../R/xbart.R) resolves its prior before its all-rows
+   estimate and does the same, with no per-fold route. [`refuseSigestUnderFixedPrior`](../../R/family.R)
+   still runs first and is untouched: a differing sigest is refused, an agreeing one accepted with its
+   message, and the slot then holds the same value either way. Draws are unchanged; `bart`'s `sigest` and
+   the slot report the fixed sigma, and a later `setModel` to a chisq prior, or `rbart_vi`'s start, reads it.
+5. The class dbartsSparseSigmaFallbackWarning is retired: new in 1.0, nothing raises it, and no consumer
+   branch names it (stan4bart, bartCause, treatSens, bairrtt).
 
 ## Constraints
 
-- No engine, bridge, C API or state change. No new dependency: Matrix (Suggests) as today, base `chol`,
-  `backsolve`, `qr` and `tapply`, all within R 4.2 and Matrix 1.4-1.
-- Dense designs under a chisq prior untouched: [`residualStandardError`](../../R/utility.R) and every
-  dense caller bit for bit.
-- Out of scope: how a categorical column enters the linear fit (Open calls); a per-fold crossproduct
-  downdate in xbart (the dense path refits per fold too).
+- No engine, bridge, C API or state change. No new dependency: Matrix (Suggests) as today; without it no
+  sparse source exists and every indicator builds dense. Base R calls within R 4.2, Matrix within 1.4-1.
+- A dense design with no categorical column under a chisq prior is bit for bit unchanged.
+- Out of scope: a cutoff or LSQR for the dense path; the 10 percent rule below the cutoff (Open calls 2); a
+  per-fold crossproduct downdate or warm start in xbart (a warm start saved 2 to 8 percent).
+
+## Build conditions
+
+Both are dec-B426's. The rules are fixed here, before any number exists.
+
+(a) LSQR on badly conditioned realistic designs. A tracked script, benchmarks/R/starting-sigma-lsqr.R, calls
+the implemented routine; two jobs at a time.
+
+- Designs, each at m 10,000, 20,000 and 50,000 with n = 1.5 m and n = 1.12 m: crossed factors (two factors
+  with skewed level frequencies, main effects and their interaction as one-hot columns of a dgCMatrix, so no
+  dependency is structural; 100, 140 and 220 levels each); word counts (term frequencies Zipf, document
+  lengths lognormal, raw counts); correlated numeric columns (groups of 20 sharing one sparse pattern at 5
+  percent, pairwise correlation 0.99, beside 200 fully stored columns correlated at 0.999). At m 10,000 each
+  also with skewed weights (a cubed exponential) and with 1 percent of rows at weight 1e6, and with the
+  signal on 1 percent of the columns and on all of them.
+- Reference: the exact routine at m 10,000 (cutoff raised, one job at a time); above it LSQR at tolerance
+  1e-10 and a cap of 20,000, admitted only if it stops on tolerance and if the same setting agrees with the
+  exact routine within 1e-6 on that family at m 10,000. The crossed design's rank is its count of non-empty
+  cells.
+- Recorded per run: iterations, seconds, stop reason, the residual sum of squares against the reference's,
+  and sigma against the reference's.
+- Large means more than 10 percent above the reference. The note's evidence: sd(y), 15 to 75 percent above
+  the linear estimate in its settings, was within seed noise on every measure at n 1000 and 5000
+  ([Results](../design/starting-sigma-sensitivity.md#results)), and LSQR runs only where n is above about
+  2,200 (m over 2,000 with a tenth of n left over); 10 percent is under the smallest error measured there
+  and found invisible.
+- PASS: every run stops on tolerance within the cap, or stops at the cap no more than 10 percent above its
+  reference. A run more than 1 percent above, from the solver or the count, is named in the Landing note.
+- BACK TO THE MAINTAINER, before landing: any run at the cap and more than 10 percent above, with the table
+  and three priced options (a higher cap, sd(y) at the cap, a block preconditioner). A run more than 10
+  percent above from the degrees-of-freedom count alone goes back the same way. A design with no admitted
+  reference goes back as unmeasured.
+- DEFECT, stop: any run more than 1e-6 below its reference (an early stop and a structural count can only
+  be high).
+
+(b) Weighted fits against the exact routine, in tinytest with LSQR forced (cutoff 0) on designs under the
+real cutoff: sparse numeric, an indicators-route design with full blocks, a frame with a sparseFactor; under
+uniform weights, 20 percent zero weights, 0/1 fold weights, skewed weights, a few rows at 1e-12, and weights
+with an offset. PASS: sigma within 1e-6 relative and the same degrees of freedom on every one. FAIL, stop: a
+weighted case past 1e-6 whose unweighted design is within it. The 1e6-weight case is (a)'s, where it is
+expected near the cap.
 
 ## Tests
 
+Edits the substitution run found:
+
+- [test-starting-sigma.R](../../inst/tinytest/test-starting-sigma.R) pins `expect_identical` against `lm` on
+  the extracted predictors, a factor's codes among them; its design becomes
+  `makeModelMatrixFromDataFrame` of the same frame (3 levels at n 200 build dense, so the pins stay
+  bitwise).
 - [test-data-mixed.R](../../inst/tinytest/test-data-mixed.R), the block counting
   ["dbartsSparseSigmaFallbackWarning"](../../inst/tinytest/test-data-mixed.R): zero
-  dbartsSigmaFallbackWarning for the sparse frame and its dense equivalent, and the two fits' `sigest`
-  equal within 1e-10.
+  dbartsSigmaFallbackWarning for the sparse frame and its dense equivalent, the two `sigest` within 1e-10.
 - [test-indicator-storage.R](../../inst/tinytest/test-indicator-storage.R):
-  - ["a sparse column the caller supplied still falls back"](../../inst/tinytest/test-indicator-storage.R)
-    becomes no warning and `data@sigma` equal within 1e-10 to `residualStandardError` on
-    `sigmaDesignMatrix` of the same source.
-  - The weights, offset and missing-value loop and the "other units" and more-columns-than-rows cases keep
-    their 1e-8 against the dense fit.
-  - ["collinear to 1e-9 and 5e-8"](../../inst/tinytest/test-indicator-storage.R): every perturbation in
-    the series (0, 1e-9, 5e-8, 2e-7, 1e-5, 3e-5 and 1e-3 today, with 1e-6 and 1e-4 added) is pinned within
-    1e-10 to the nearest of three dense fits: with all columns, without `a` and without `c`. The routine
-    picks which near-copy it drops, so no pin names one; 5e-8, at 5.9e-9 from the full dense fit, is no
-    longer pinned at 1e-8 against it. Below 1e-7 and from 3e-5 up the nearest is the full fit (the
-    existing 3e-5 case stays kept, 2.4e-14 apart); 1e-6 additionally asserts one rank fewer than lm.fit's.
-- New, in test-indicator-storage.R or a new test-sparse-starting-sigma.R (under 2 s), each against the
-  dense fit within 1e-10 unless said:
-  - a bare dgCMatrix through `dbarts`, `bart` and `xbart`, with no warning (counted, Gate hygiene);
-  - one-hot 3 x 40 plus three duplicated columns, weights with zeros, an offset;
-  - a dgCMatrix with NA entries (the mean imputation);
-  - sparseFactor columns with reference the first level and a middle level, and a middle reference with
-    missing values, in a frame with a numeric column (the shift and its order);
-  - a frame with a dense timestamp-like column (mean 1.7e9, spread an hour) carrying signal, weighted and
-    unweighted, and a dgCMatrix with such a column stored in every row (the centering);
-  - a column scaled by 1e160 (the max-abs scaling);
-  - p > n with rank below n - 1 (n 150, p 240, rank 41: the wide side); p > n of full rank: NA from the
-    routine and, through `dbarts`, sd(y) with one dbartsSigmaFallbackWarning, as the dense design gives;
-    the same full-rank wide design with one row at weight 1e-14 of the others: NA (the equilibration);
-  - an Inf entry in a dgCMatrix and in a sparseVector column of a frame: the dense path's error, naming
-    the column;
-  - xbart on a sparse frame: each fold's sigma equals the dense design's per-fold value for the same rows
-    (the fold oracle's route, test-xbart-fold-oracle.R's helper or a direct `foldData` probe);
-  - a fixed residual prior on a dense and a sparse design: no linear fit (a traced or mocked
-    `estimateStartingSigma` is not called), the slot and `sigest` equal sqrt of the fixed variance, draws
-    identical to the build before; then `setModel` to a chisq prior: finite sigma draws.
-- test-predict-na-action.R and test-row-names.R reach the routine and pin nothing about sigma; they must
-  pass unchanged. The 21 test files that use a fixed residual prior are checked for a pinned `sigest` or
-  sigma slot under it; such a pin moves to the fixed sigma, any other change is a stop.
+  ["a sparse column the caller supplied still falls back"](../../inst/tinytest/test-indicator-storage.R)
+  becomes no warning and the dense fit's value within 1e-10; the weights, offset and missing-value loop keeps
+  its 1e-8; ["collinear to 1e-9 and 5e-8"](../../inst/tinytest/test-indicator-storage.R) pins every
+  perturbation (0, 1e-9, 5e-8, 2e-7, 1e-6, 1e-5, 3e-5, 1e-4, 1e-3) within 1e-10 of the nearest of three dense
+  fits (all columns, without `a`, without `c`), and 1e-6 asserts one rank fewer than lm.fit's.
+- [test-sampler-splitProbabilities.R](../../inst/tinytest/test-sampler-splitProbabilities.R): a seeded
+  comparison of split counts on a design with a factor fails at its seed. The implementer reports the
+  counts before and after over five seeds; if the comparison holds in distribution the seed moves, and if
+  not it is a stop.
 
-Reviewer's mutants, each of which must fail a test: tolerance 1e-10 to 1e-16 (exact dependencies kept) and
-to 1e-6 (the 1e-4 column dropped); the reference shift removed; imputation before the shift; the
-intercept column dropped; centering removed (the timestamp cases, 42 percent off); centering at the
-unweighted mean on the weighted case; the max-abs step removed (the 1e160 case); the equilibration removed
-(the weight-1e-14 case); weights left out of B or of the residual; the wide side's basis taken from the
-unpivoted factor or without D; zero-weight rows kept; `n - r` replaced by `n - p`; the Inf check removed;
-the fixed-prior skip leaving the slot NA (the `setModel` case).
+New, in test-sparse-starting-sigma.R (under 5 s), against `lm.fit` on the dense indicator design within
+1e-10 unless said:
+
+- dec-B422, dense: a frame with a 5-level factor and a numeric column, default against
+  `factors = "indicators"`: `sigest` identical, and equal to `summary(lm(y ~ f + x))$sigma`; the same with
+  the factor ordered, with a missing value, with two levels and with 40 (built sparse); `data@x` and its
+  `varTypes` identical to the fit given sigest (the trees' side is untouched).
+- dec-B422, sparse: a frame with a sparseVector column and a dense factor; a sparseFactor with its first
+  and a middle level as reference, and a middle reference with missing values.
+- dec-B403: a bare dgCMatrix through `dbarts`, `bart` and `xbart` with no warning (counted, Gate hygiene);
+  one-hot 3 x 40 plus three duplicated columns with zero weights and an offset; NA entries in a dgCMatrix; a
+  dense timestamp-like column (mean 1.7e9, spread an hour) carrying signal, weighted and not, and the same
+  stored in every row of a dgCMatrix; a column scaled by 1e160; p > n with rank below n - 1; p > n of full
+  rank (NA, and through `dbarts` sd(y) with one dbartsSigmaFallbackWarning); that design with one row at
+  weight 1e-14 (NA).
+- Route, at n 2600 and 1 percent: p 1999 takes the exact routine and p 2000 LSQR (read from the route the
+  routine reports), and the p 2000 design with the cutoff raised gives the exact value within 1e-6 of
+  LSQR's; n 2200, p 2100: no estimate, sd(y), the warning of Open calls 1.
+- LSQR forced: condition (b); a full block counted (degrees of freedom equal to the exact rank's), a block
+  under a drop pattern that removes a present level not counted; a constant fully stored column under
+  weights dropped; a zero response; the cap at 3 iterations returns a larger sigma than the converged one
+  and raises nothing; two calls `identical`, for each route.
+- An Inf entry in a dgCMatrix and in a sparseVector column: the dense path's error, naming the column.
+- xbart on a sparse frame: each fold's sigma equals the dense indicator design's for the same rows.
+- A fixed residual prior, dense and sparse: `estimateStartingSigma` is not called, the slot and `sigest`
+  equal the fixed sigma with and without an agreeing sigest, draws identical to the build before; then
+  `setModel` to a chisq prior draws finite sigmas. test-sigest-fixed-agree.R passes unchanged.
+
+The 37 files that reach a factor design must otherwise pass unchanged; a failure there that is not a pinned
+sigest, slot or seeded draw of a default fit with a factor is a stop.
+
+Reviewer's mutants, each of which must fail a test: the expansion removed (codes); an ordered factor left
+as codes; a reference-level indicator added to a sparseFactor; imputation before the expansion; cutoff 2000
+to 20000, and `<=` to `<`; the 10 percent rule removed, and taken against p; b forced to 0, and counted
+without the row-sum check; the constant test replaced by the sum-of-squares one; weights left out of the
+operator, of the means, of the residual; the stopping tolerance at 1e-2; sigma from the recurrence's
+residual norm; the intercept left out of the operator; zero-weight rows counted in n; exact tolerance 1e-10
+to 1e-16 and to 1e-6; centering removed, and at the unweighted mean; the max-abs step removed; the
+equilibration removed; the wide basis without D; `n - r` replaced by `n - p`; the Inf check removed; the
+fixed-prior skip leaving the slot NA.
 
 ## Baselines
 
-- Moves: equivalence.R's seven caller-sparse scenarios and wideFactorIndicators (Context; the last by
-  rounding, unless the implemented routine happens to round to the QR's value). Current file
-  equivalence-734441f1 ([MANIFEST](../../benchmarks/baselines/MANIFEST)).
-- Does not move: the other 47 equivalence scenarios, bcf-equivalence-1b7d730c (15),
-  multinomial-equivalence-80b1c8d4 (11), the four test-reproducibility files, every exact gate (Context;
-  none fits under a fixed residual prior or records its slot). Any other mover is a defect: stop.
-- Re-record on the reference build (`--preclean --configure-args=--enable-reference-build`):
-  `EQUIVALENCE_SCENARIOS=sparse,mixedmatrix,sparsefactor,testswap,leaffactormixed,factorpartial,xbartmixed,wideFactorIndicators`
-  (wideFactorIndicators dropped if it came out bitwise), `EQUIVALENCE_CORES=2`, merged into a copy of
-  734441f1 in its scenario order, named after the slice's code commit; 734441f1 demoted to historical.
-  Partition against 734441f1 in z mode: 47 (or 48) of 55 identical, the movers exactly those named,
-  wideFactorIndicators with no |z| above 4. With the prior's anchor falling by factors of 0.2 to 0.7 on
-  150 to 500 rows, sigma and fit summaries past |z| 4 are expected in the seven and are not a failure; the
-  partition's verdict is which scenarios moved. The merged file reproduces 55 of 55 under
-  `--bitwise --strict-coverage` from a second `--preclean` install.
-- Oracle (MANIFEST rule P17), as deb3fe50's row: the change is the starting value a prior is calibrated
-  against, not the sampler; the identity is the routine's agreement with `lm.fit` (the tinytest pins and
-  the 400-design sweep above, rerun by the implementer from scratch/ssp/sweep4.R's recipe against the
-  implemented function).
+- Current: equivalence-e4faed5c, bcf-equivalence-1b7d730c, multinomial-equivalence-80b1c8d4
+  ([MANIFEST](../../benchmarks/baselines/MANIFEST)).
+- Moves, by class: POSTERIOR-CHANGING the seven caller-sparse and the four dense-factor scenarios (Context);
+  SHIFTING wideFactorIndicators (rounding; bitwise if the routine happens to round to the QR's value).
+  NEUTRAL the other 43, bcf's 15 and multinomial's 11, the four snapshot files and every exact gate. Any
+  other mover is a defect: stop.
+- Re-record on the reference build (`--preclean --configure-args=--enable-reference-build`) with
+  `EQUIVALENCE_SCENARIOS` set to the twelve and `EQUIVALENCE_CORES=2`, merged into a copy of e4faed5c in its
+  scenario order, named after the slice's code commit; e4faed5c demoted to historical.
+- Partition against e4faed5c in z mode: 43 of 55 identical and the movers exactly the twelve.
+  wideFactorIndicators shows no |z| above 4. The four dense-factor scenarios' anchors move 0.08 to 4 percent
+  and the seven sparse ones' fall by factors of 0.16 to 0.62 on 150 to 500 rows, so |z| above 4 is expected
+  among the seven and possible among the four; the verdict there is which scenarios moved. The merged file
+  reproduces 55 of 55 under `--bitwise --strict-coverage` from a second `--preclean` install.
+- Oracle (MANIFEST rule P17): the change is the value a prior is calibrated against, not the sampler; the
+  identity is agreement with `lm.fit` on the indicator design (the tinytest pins, and the 400-design sweep
+  rerun against the implemented function with factor columns added to a third of its designs).
 
 ## Gates
 
 On the slice tip against its own library, independently of the implementer
-([RNG classes and their gates](README.md#rng-classes-and-their-gates), posterior-changing), with the expected
-verdict:
+([RNG classes and their gates](README.md#rng-classes-and-their-gates), posterior-changing):
+
 - tests/cpp: unchanged, green (no C++ touched).
 - Full tinytest suite: green with the edits above.
-- The four seeded-drift snapshot files on the reference build: pass unchanged (27 results).
-- The equivalence trio: as Baselines.
-- exact-gates.yaml's list in quick mode: all pass, output as before (none reaches the routine).
+- The four seeded-drift snapshot files on the reference build: pass unchanged.
+- The equivalence trio: as Baselines; bcf and multinomial bitwise against their current files.
+- exact-gates.yaml's list in quick mode: all pass, output as before.
 - `R CMD check --as-cran` from a clean tarball: no new NOTE; lintr, air, rc-codoc, win-drift,
-  doc-freshness. Sanitizers: not owed (no compiled code changes); the routine's numerics are base R's and
-  Matrix's.
-- Speed, same machine, within 1.5x of Context: the routine at n 1e5, p 5000 (1 percent; 17.5 s) and n 1e4,
-  p 1000 (one-hot 20 x 50; 0.22 s); xbart's 200 per-fold estimates at n 1e4, p 1000, 1 percent (28 s,
-  timed around the per-fold calls or as the difference to a run given sigest). No bench-sampler.R compare
-  (no hot path).
-- The design note: [R surface](../design/sparse-columns.md#r-surface) in sparse-columns.md says "the sigma
-  estimate falls back to sd(y)"; a dated paragraph there states the rule and Algorithm in brief, citing
-  dec-B403 (the landing notes stay as written).
+  doc-freshness. Sanitizers are not owed: no compiled code changes.
+- Speed, same machine, within 1.5x: the exact routine at n 2e4, p 2000 (1.2 s) and n 1e4, one-hot 20 x 50
+  (0.20 s); LSQR at m 1e4, 1 percent (0.15 s) and m 5e4, 1 percent (5.4 s); xbart's 200 per-fold estimates
+  at n 1e4, p 1000, 1 percent (28 s). No bench-sampler.R compare (no hot path).
+- Build conditions (a) and (b) with their verdicts.
 
 ## Help and docs
 
-- `sigest` in man/bart.Rd, man/bartBT.Rd, man/dbarts.Rd and man/xbart.Rd: the clause "a design with
-  sparse-backed predictor columns skips the linear model altogether and falls back the same way (class
-  dbartsSparseSigmaFallbackWarning, a dbartsSigmaFallbackWarning)" becomes: a sparse x takes the same
-  estimate as its dense equivalent, fitted from its crossproduct without making it dense; its time grows
-  at least with the cube, and its memory with twice the square, of the smaller of its row and column counts
-  (seconds up to a few thousand; at ten thousand about two minutes and 2 GB, at twenty thousand most of an
-  hour and over 6 GB with R's reference BLAS), and it cannot be interrupted, so for a large sparse design
-  supply `sigest`. Under a fixed residual prior no estimate is made. man/xbart.Rd adds that the estimate is
-  repeated for every fold of every repetition, each worker holding its own crossproduct.
-- man/bart.Rd's warning-class paragraph drops dbartsSparseSigmaFallbackWarning; its `sigest` value under
-  a fixed prior is the fixed sigma.
-- man/sparseFactor.Rd: the paragraph on the default starting sigma is replaced by one sentence: a sparse
-  column leaves the default starting sigma as the same column stored dense gives it.
-- inst/NEWS.Rd: dbartsSparseSigmaFallbackWarning leaves the warning-class list (never released, so no
-  entry of its own).
-- docs/design/error-style.md: the class leaves the list and the table.
-- docs/design/memory-footprint.md: the starting-sigma row, which prices only the dense `lm` path
-  (2 n (p + 1)), gains the sparse route's transient, about 16 m^2 bytes, m the smaller of n and p + 1, per
+- `sigest` in man/bart.Rd, man/bartBT.Rd, man/dbarts.Rd and man/xbart.Rd: the clause on sparse-backed
+  columns becomes: a sparse x takes the same estimate as its dense equivalent; while the smaller of its row
+  and column counts is at most 2,000 the fit is exact, above that iterative and never low, and above that
+  with under 10 percent residual degrees of freedom the marginal standard deviation is used; supply
+  `sigest` to skip the estimate. A factor enters the estimate as indicator columns whatever `factors` says.
+  Under a fixed residual prior no estimate is made. man/xbart.Rd also gains the sentence the other pages
+  carry on an agreeing `sigest` beside a fixed prior, which it lacks.
+- man/bart.Rd's warning-class paragraph drops the class; `sigest` under a fixed prior is the fixed sigma.
+- man/sparseFactor.Rd: the starting-sigma paragraph becomes one sentence: a sparse column leaves the default
+  starting sigma as the same column stored dense gives it.
+- inst/NEWS.Rd: the class leaves the warning-class list (never released, so no entry of its own; dec-B422
+  restores 0.9-34's value, so none either).
+- docs/design: sparse-columns.md's [R surface](../design/sparse-columns.md#r-surface) gets a dated paragraph
+  with the rule and Algorithm in brief; starting-sigma-sensitivity.md a dated section with condition (a)'s
+  table and verdict; error-style.md drops the class; memory-footprint.md's starting-sigma row gains the
+  sparse routes (about 16 m^2 bytes, at most 64 MB, for the exact routine; vectors only for LSQR), per
   worker under xbart.
-- At landing: TODO's item goes; ledger entry for the calls below; this plan's Status and Landing note;
-  MANIFEST row.
+- At landing: TODO's item goes; a ledger entry for the calls below; this plan's Status and Landing note;
+  the MANIFEST row.
 
 ## Steps
 
-1. Algorithm and Change 1 to 5; the tinytest edits and new tests; the full suite green against
+1. Change 1 to 5 with Algorithm A to F; the tinytest edits and new tests; the suite green against
    `R CMD INSTALL -l <lib> .`.
-2. The 400-design sweep against the implemented function; the speed points; help, NEWS and docs.
-3. After review: the re-record, MANIFEST row and partition, in their own commit.
+2. The 400-design sweep against the implemented function; build condition (a), its table and verdict
+   written into the note. A verdict other than PASS stops the slice here.
+3. The speed points; help, NEWS and docs.
+4. After review: the re-record, MANIFEST row and partition, in their own commit.
 
 ## Stop conditions
 
-Stop and report when: the diff passes ~700 lines; an equivalence scenario other than the eight, a
-snapshot or an exact gate moves, or wideFactorIndicators shows a |z| above 4; the sweep shows a rank
-different from the SVD's or a sigma off by more than 1e-10 at more than 30 residual degrees of freedom
-outside the band; a speed point is past 1.5x; a test under a fixed prior changes for any reason but the
-slot's value; the change needs engine, bridge or C API code.
+Stop and report when: a build condition's verdict is not PASS; the diff passes ~1400 lines; an equivalence
+scenario other than the twelve, a snapshot or an exact gate moves, or wideFactorIndicators shows a |z|
+above 4; the sweep shows a rank different from the SVD's or a sigma off by more than 1e-10 above 30 residual
+degrees of freedom outside the band; a speed point is past 1.5x; a tinytest outside the four files fails;
+the change needs engine, bridge or C API code.
 
 ## Interactions
 
 - Whichever lands second of this and any other slice re-recording equivalence.R re-records against the
-  other's file, and partitions against it.
-- The categorical question below: if it is ruled before this lands, the sparseFactor scenarios move once.
+  other's file and partitions against it.
 
-## Calls made in planning
+## Calls made
 
-- One routine for every sparse design: the sparse QR goes, so an indicator expansion takes this path too
-  (157 s against 0.2 s on one-hot 20 x 50 at n 1e4).
-- The smaller Gram side with the intercept as a column; dense-backed and fully stored columns centered at
-  the weighted mean over the kept rows; max-abs then unit-norm column scaling; the wide side equilibrated;
-  tolerance 1e-10 on unit-diagonal pivots; residual computed directly; no refinement.
-- The design's order: wrap, shift, impute.
-- An infinite entry in a sparse x is refused as the dense path refuses it, the column named (coordinator,
-  for VD's rule that the estimate follow the dense equivalent).
-- xbart's per-fold estimate uses the routine per fold, as the dense path refits per fold.
-- Under a fixed residual prior no estimate is made and the slot holds the fixed sigma (Change 4).
+- LSQR is written in R. Its time is Matrix's two sparse products a step, already compiled (3e-9 to 4e-9 s
+  an entry a step); the R loop adds nothing measurable and can be interrupted. In C: about 250 lines, a
+  bridge entry and its Windows twin, sanitizers owed, bits independent of Matrix's build, and no faster.
+- At the cap the iterate is used silently, read from dec-B426's "with no message" and from condition (a)
+  being the check on it. A warning at the cap would be about 6 lines and a test.
+- The intercept is a column of the operator and every column is centered and scaled inside it, as measured;
+  no other preconditioner. A block preconditioner is condition (a)'s remedy if it is needed.
+- Two stops the prototype lacks: a reproduced response, and a zero norm at the start. A constant column is
+  found by comparing values. All three from runs in Context.
+- LSQR takes the exact routine's front end, a fold subsetting its rows (2.8 iterations' products) where the
+  prototype passed held-out rows at weight 0. One front end; a few percent of a fold's time.
+- m is taken after the expansion and after constant columns are dropped, on the rows kept; each xbart fold
+  routes by its own m. A fold near the cutoff can take the other routine from the all-rows fit (they agree
+  to 4e-5 or better where structure is known).
+- A dense frame's factors are expanded by the indicators route's own builder, so default and "indicators"
+  fits share one sigest bit for bit; the cost is that a default fit with a factor of five or more levels
+  takes the sparse routine, 1e-11 from `lm.fit`, as an "indicators" fit does today.
+- A caller's sparse source builds every factor without one level; full blocks come only from the indicators
+  route and are recognized by `indicator.term` and a row-sum check. The alternative, reading widths off the
+  `drop` attribute, miscounts: a one-level factor emits a column under forced sparse storage and none dense.
+- "Large" is 10 percent, and a count-only overestimate past it also goes back (Build conditions).
+- Condition (a)'s script is tracked in benchmarks/R so the reviewer reruns it (about 160 lines, unshipped).
+- One routine for every sparse design (the QR goes); the smaller Gram side with the intercept as a column;
+  centering of dense-backed and fully stored columns; max-abs then unit-norm scaling; the wide side
+  equilibrated; tolerance 1e-10; residual computed directly; no refinement.
+- An infinite entry in a sparse x is refused as the dense path refuses it.
+- Under a fixed residual prior no estimate is made and the slot holds the fixed sigma, also beside an
+  agreeing sigest (Change 4).
 - dbartsSparseSigmaFallbackWarning retired.
 
 ## Open calls
 
-- The band. Two near-copies of a column whose difference is between 1e-7 and 1e-5 of their norm both enter
-  `lm`'s fit and one enters this one; sigma differs by what the second copy fits, 0.01 to 4.7 percent on
-  the n 120 test design and two redraws, and equals the dense fit without one of the two. A dense column
-  whose spread is below 1e-7 of its mean, which lm drops as constant, is kept here (14 percent apart where
-  it carries signal). Accept? Recommended: in a crossproduct an exact dependency's pivot reaches 1.5e-13 at
-  p 5000, above lm's 1e-14, so no tolerance near lm's separates the two, and matching lm exactly needs a
-  QR, the cost this replaces. Centering has already removed the case the critique found largest, a
-  timestamp-like column against the intercept (42 percent apart before, 6e-13 now).
-- Large designs. With m the smaller of n and p + 1, on R's reference BLAS: 14 s and 0.65 GB at m 5000,
-  2.2 minutes and 1.8 GB at 1e4, 10 minutes and 3.2 GB for the Cholesky alone at 1.4e4; extrapolated, 0.5 to
-  1 hour and 6.4 GB at 2e4, at least 7 hours and about 40 GB at 5e4, an allocation error at 1e5 (about
-  160 GB). Not interruptible. Today such a fit starts at once from sd(y) with a warning; the dense path at
-  the same design runs at least six times longer, with no message. xbart repeats it 200 times by default.
-  Options: no cap and no message (the ruling's text; the help names `sigest`; recommended for consistency
-  with the dense path, though at m above about 2e4 a fit can sit for an hour before its first sweep);
-  a message once m passes 1e4 naming `sigest`, then the fit (about 6 lines and a test); or sd(y) with the
-  old warning past it (a size at which the prior changes).
-- A categorical column enters the linear fit as its codes on the dense path in 1.0 (a factor kept as a
-  factor; [`as.matrix.dbartsMixedMatrix`](../../R/mixedMatrix.R)), and this plan gives a sparseFactor the
-  same. 0.9-34 expanded factors into indicators: on a 5-level factor and one numeric column (n 300, noise sd
-  0.5) 0.9-34's dbarts starts sigma at 0.537 (lm with the factor) and 1.0's at 1.713 (lm on the codes). A
-  separate call; if indicators, a sparse categorical column is expanded to indicator columns in the design
-  (about 15 lines here) and the dense path changes with it.
+1. Does the 10 percent case warn? Background: dec-B426 says LSQR runs "with no message" and that under 10
+   percent residual degrees of freedom above the cutoff the design "takes sd(y)"; it does not say whether
+   that sd(y) is announced. Every other sd(y) fallback raises dbartsSigmaFallbackWarning (run: a dense
+   design with p >= n; a sparse one with no residual rank at or below the cutoff will too), and xbart reads
+   that warning to choose its per-fold route. A wide sparse design, the common large one, lands here.
+   Options: (a) warn with the existing class, the message naming the rule and `sigest`: one rule, sd(y) is
+   always announced; the cost is a warning on every such fit until sigest is given, as wide dense fits
+   have. (b) Silent: about 8 lines (the routine reports its route so xbart can still choose); the cost is
+   that a wide sparse fit warns at m 2,000 and not at 2,001, and `sigest` reports sd(y) unmarked. (c) Warn
+   only with no residual degrees of freedom, silent between 0 and 10 percent: about 10 lines; matches the
+   dense path where it warns and hides the new rule where it is new. Recommended: (a).
+2. The 10 percent rule stops at the cutoff. Background: by dec-B426 it applies above m 2,000 only. A design
+   with 3 percent residual degrees of freedom gets the exact estimate at m 2,000 (relative sd about 9
+   percent on 60 degrees of freedom) and sd(y) at m 2,001 (15 to 164 percent above the exact estimate in
+   the note's row). Options: (a) as ruled, the step stays: nothing to build. (b) The rule for every sparse
+   design: about 4 lines, and a sparse design then differs from its dense equivalent below the cutoff,
+   against dec-B403. (c) The rule for dense designs too: about 10 lines, posterior-changing for every
+   design with few residual degrees of freedom, a wider re-record, and its own evidence (the note measured
+   sd(y) against the linear estimate at 19 degrees of freedom only at n 200). Recommended: (a) for this
+   slice, and (c) as its own TODO item if wanted; it does not block the build.
 
 ## Estimate
 
-Implementer about a day; gates about two hours of machine time, the re-record minutes.
+Blind critique of this revision, half a day. Implementer about two days: the two routines and the design
+builder one, tests and docs one. Condition (a) about three hours of machine time at two jobs (the exact
+reference at m 10,000 is two minutes and 1.8 GB a design, one at a time; the tight LSQR reference at m
+50,000 up to 15 minutes a design). Gates about two hours of machine time, the re-record minutes. Review
+with mutants half a day, and one fix round.
