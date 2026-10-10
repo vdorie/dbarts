@@ -109,7 +109,7 @@ stopThreads()
 # S4 method for class 'dbartsSampler'
 storeState(ptr = getPointer())
 # S4 method for class 'dbartsSampler'
-setState(newState)
+setState(newState, forceUpdate = FALSE)
 # S4 method for class 'dbartsSampler'
 plotTree(
   treeNum, chainNum, sampleNum, forest = NULL, treePlotPars = c(
@@ -938,6 +938,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   whole predictor matrix is being replaced (`column` is missing) and
   `FALSE` when a single column is being replaced.
 
+  For `setState`, a single `TRUE` or `FALSE`. `FALSE`, the default,
+  installs a state only where no tree of it has to be changed to fit the
+  sampler, and otherwise leaves the sampler as it was; `TRUE` installs
+  it, repairing the trees that do not fit (see ‘Saving’). `"partial"` is
+  not taken.
+
 - updateCutPoints:
 
   For `setPredictor`, one of `"none"`, `"position"` or `"value"`, or a
@@ -1239,52 +1245,86 @@ incompatible version refuses cleanly, naming both versions, rather than
 risk a silent misread. There is no cross-version migration: re-fit the
 model, or restore the state with the `dbarts` release that wrote it.
 
-To restore a saved state into a sampler, call `setState(newState)`: it
-validates that `newState` inherits from `bartcoreState`, re-creates the
-underlying engine if needed, pushes the state into it, and caches it on
-the `state` field, continuing that state's own generator streams from
-where they left off, typically to the last few digits, not bitwise (see
-the Reproducibility section of
-[bart](https://vdorie.github.io/dbarts/reference/bart.md)). Validation
-covers every forest the state carries: a state whose trees split outside
-the recipient forest's allowed columns - a `blocks`-constrained or
-moderator-restricted mean forest, or a `variance = ~ x1 + x2` variance
-forest - is refused with the message `installTrees` gives the same
-donor, the two entries sharing one rule so neither admits what the other
-refuses. A state in which a numeric column's cut points repeat a value
-is refused, naming the column and the value: no sampler of this version
-writes one, and with every point held once a stored split's value names
-one position. Every check runs before any live state is touched, so a
-refused restore leaves the sampler exactly as it was. A Student-t,
-logistic or negative-binomial sampler also refuses a state whose latent
-variables are not all positive and finite. Beyond that a state is not
-checked against the response family of the sampler that stored it: one
-whose contents fit this sampler is installed, and what the sampler then
-holds of another family's state is not promised. To start a sampler from
-a fit of another family, use `installTrees`, which takes the donor's
-trees and, where this sampler draws them, its `sigma`, `k` and DART
-state, and none of its latent variables. The trees are restored against
-the predictors the sampler holds at the call, as a forced `setPredictor`
-leaves them: a split with a side no row of those predictors reaches
-becomes a single leaf, along with everything beneath it, and a rule
-stops recording a side for missing values where its column no longer has
-any. To undo a predictor change exactly, put the old predictor back
+To restore a saved state into a sampler, call `setState(newState)` and
+check what it returns, as in
+`if (!sampler$setState(state)) stop("the state no longer fits")`.
+`setState` validates that `newState` inherits from `bartcoreState` and
+re-creates the underlying engine if needed. Then, where every tree of
+the state fits the sampler as it stands, it installs the state, caches
+it on the `state` field and returns `TRUE`; where one does not, it
+installs nothing, leaves the sampler, its engine and its `state` field
+exactly as they were, and returns `FALSE`. `TRUE` does not mean bit for
+bit. It means the trees and leaf values are the stored ones, and the
+quantities the sampler draws are the stored ones where the state holds
+them. Of the kept draws (`keepTrees`) the newest that fit the sampler's
+own store are taken, whatever number the state holds. The latent
+variables may be redrawn (see the case weights, below), and the chain
+continues the state's own generator streams from where they left off,
+typically to the last few digits, not bitwise (see the Reproducibility
+section of [bart](https://vdorie.github.io/dbarts/reference/bart.md)).
+
+A tree does not fit, and `setState` returns `FALSE`, when it would have
+to be changed before the sampler could hold it. The trees are judged
+against the predictors the sampler holds at the call and against its own
+constraints: a leaf that no row of those predictors reaches; a split the
+state holds outside the range the splits above it leave; a rule that
+records a side for missing values on a column that has never held one in
+this sampler (see ‘Missing values in predictors’); a split on a column
+the tree's forest may not use - a forest's `vars`, a `blocks` group, a
+moderator forest's columns or a `variance = ~ x1 + x2` variance
+forest's; a split that breaks the forest's `interactions` limit; and,
+under a
+[`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
+constraint, leaf values that are out of order as stored.
+`setState(newState, forceUpdate = TRUE)` installs such a state all the
+same, as a forced `setPredictor` leaves the trees it meets, and returns
+`NULL` invisibly: a split with a side no row reaches becomes a single
+leaf, along with everything beneath it, at the mean of the leaves it
+replaces, weighted by their rows; so does a split outside its range; a
+tree is cut back in the same way at the first split from its root that
+the forest's columns or its interaction limit do not allow, the splits
+above it kept; a rule stops recording a side its column cannot use; and
+a monotone tree whose values are out of order has every leaf value set
+to zero, to be drawn again at the next iteration. Forcing checks nothing
+first, so a loop that restores its own state onto rows it has already
+put back, where nothing can need repair, can pass `forceUpdate = TRUE`
+and skip the check, which costs about as much as one iteration of the
+sampler. To undo a predictor change exactly, put the old predictor back
 first, with `setPredictor(..., forceUpdate = TRUE)`, and then call
-`setState`. `setState` invisibly returns `TRUE` when the state went in
-as stored and `FALSE` when it did not (see ‘Value’), so code that
-restores in order to reject a proposal can check that the rejection was
-exact. An unforced `setPredictor` can be refused, returning `FALSE` and
-leaving the changed predictor in place; `setState` then restores against
-the changed predictor, as it does when called before the predictor is
-put back, and merges what that predictor leaves empty. A factor column
-does not take missing values back through a column update, so a change
-that filled a factor column's missing values is undone by replacing the
-whole data with `setData` and then calling `setState`. Assigning the
-field directly (`sampler$state <- newState`) does *not* restore the
-sampler - it only overwrites the R-side cache, leaving the engine
-untouched, so the next run continues from the engine's own state rather
-than the assigned one. `copy` and a reload install the field by the same
-rules, so an object whose field holds a state it would refuse cannot be
+`setState`. An unforced `setPredictor` can be refused, returning `FALSE`
+and leaving the changed predictor in place; `setState` then judges the
+state against the changed predictor, as it does when called before the
+predictor is put back. A factor column does not take missing values back
+through a column update, so a change that filled a factor column's
+missing values is undone by replacing the whole data with `setData` and
+then calling `setState`.
+
+Some states are refused, with an error, whether forced or not, and the
+sampler is left exactly as it was: one that is not a `bartcoreState` or
+is of an older encoding, one with another number of chains, forests or
+trees or another leaf model, and one with a malformed block or tree. A
+state in which a numeric column's cut points repeat a value is refused,
+naming the column and the value: no sampler of this version writes one,
+and with every point held once a stored split's value names one
+position. A Student-t, logistic or negative-binomial sampler also
+refuses a state whose latent variables are not all positive and finite.
+Beyond that a state is not checked against the response family of the
+sampler that stored it: one whose contents fit this sampler is
+installed, and what the sampler then holds of another family's state is
+not promised. To start a sampler from a fit of another family, use
+`installTrees`, which takes the donor's trees and, where this sampler
+draws them, its `sigma`, `k` and DART state, and none of its latent
+variables. A state's `k` is installed as recorded, whatever leaf prior
+this sampler holds; the leaf sd is then `k.scale / k` against this
+sampler's `k.scale`.
+
+Assigning the field directly (`sampler$state <- newState`) does *not*
+restore the sampler - it only overwrites the R-side cache, leaving the
+engine untouched, so the next run continues from the engine's own state
+rather than the assigned one. `copy` and a reload install the field as
+`setState` does with `forceUpdate = TRUE`, having no other state to fall
+back on: a tree that no longer fits is repaired, and nothing is
+reported. An object whose field holds a state that is refused cannot be
 copied, and after a reload raises that refusal at each use until a state
 of its own is assigned. Always route a restore through `setState`.
 
@@ -1339,15 +1379,16 @@ redrawn off the restored generators before `setState` returns; an event
 row's observed log time is data and is never overwritten by a state at
 all. A weight change is undone by `setWeights` with the old weights and
 `setState` with the stored state, in either order, and `setState`
-returns `TRUE` in both. With the weights put back first the sampler is
-the stored chain bit for bit. With `setState` first it is a valid
-continuation of the stored chain, and the stored chain bit for bit only
-when neither call redraws a latent. A gaussian sampler holds none, so it
-is. A Student-t sampler is when the change left the same rows at weight
-zero. When the change brought a row into the likelihood or took one out
-of it, that row's scale is redrawn - by `setState` for a row the change
-had brought in, by `setWeights` for a row it had taken out, from its
-conditional at the stored fit - while every row at positive weight
+returns `TRUE` in both: latents redrawn under other weights, or another
+censoring status, change no tree. With the weights put back first the
+sampler is the stored chain bit for bit. With `setState` first it is a
+valid continuation of the stored chain, and the stored chain bit for bit
+only when neither call redraws a latent. A gaussian sampler holds none,
+so it is. A Student-t sampler is when the change left the same rows at
+weight zero. When the change brought a row into the likelihood or took
+one out of it, that row's scale is redrawn - by `setState` for a row the
+change had brought in, by `setWeights` for a row it had taken out, from
+its conditional at the stored fit - while every row at positive weight
 throughout keeps its stored scale; the redraws use the chain's
 generator, so the draws that follow come from another random stream than
 the stored chain's. A `logistic` sampler has its latents redrawn by both
@@ -1669,20 +1710,26 @@ observations, `TRUE` where that observation's new value was installed
 and `FALSE` where it was rolled back to its previous value to keep every
 tree of every forest valid.
 
-For `setState`, invisibly, `TRUE` when nothing had to be changed to
-install the state and `FALSE` otherwise. It is `FALSE` when, in any tree
-of any chain, a leaf that no row of the current predictors reaches was
-merged into its parent, a split that the state holds outside the range
-the splits above it leave was merged, or a rule lost its side for
-missing values because its column no longer has any. A state stored
-under another response mapping is installed as stored and reports
-`TRUE`. No warning is given. `TRUE` means the trees and leaf values are
-the stored ones. It does not promise the latents, which are re-derived
-when the case weights or an `aft` censoring status differ from those the
-state was stored under, or the generator, which is left as the sampler's
-own when the state's is of another kind; nor does it cover a value the
-sampler holds fixed, which a state never changes. `copy` and a reload
-install a state the same way and report nothing.
+For `setState`, `TRUE` if the state was installed and `FALSE` if it was
+not, the sampler then being exactly as it was. It is `FALSE` when a tree
+of any chain would have to be changed to fit the sampler: a leaf that no
+row of the current predictors reaches, a split that the state holds
+outside the range the splits above it leave, a rule with a side for
+missing values on a column that has never held one, a split its forest's
+columns or interaction limit do not allow, or monotone leaf values out
+of order (see ‘Saving’). No warning is given. `TRUE` means the trees and
+leaf values are the stored ones. It does not promise the latents, which
+are re-derived when the case weights or an `aft` censoring status differ
+from those the state was stored under; the generator, which is left as
+the sampler's own when the state's is of another kind; or every kept
+draw, of which the newest that fit the sampler's store are taken. Nor
+does it cover a value the sampler holds fixed, which a state never
+changes. A state stored under another response mapping is installed as
+stored and reports `TRUE`. With `forceUpdate = TRUE` the state is
+installed, repaired where it has to be, and the value is `NULL`,
+invisibly, whether or not anything was repaired: a caller who needs to
+know calls without it first. `copy` and a reload install a state that
+way and report nothing.
 
 Under `keepTrees` the draws `predict`, `predictForests`, `getTrees` and
 `printTrees` report come out OLDEST FIRST: the store keeps the most

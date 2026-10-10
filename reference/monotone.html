@@ -146,9 +146,10 @@ The constructor is not exported: it resolves by bare name inside the
   <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>) can leave a tree's leaf values out of
   order. The calls that always complete - <code>setPredictor</code> with
   <code>forceUpdate = TRUE</code> (its default when the whole matrix is replaced),
-  <code>setData</code>, <code>setCutPoints</code>, <code>installTrees</code>, and a
-  <code>setState</code> that has to merge leaves - set every leaf value of such a
-  tree to zero, without a message, and the next iteration draws them again;
+  <code>setData</code>, <code>setCutPoints</code>, <code>installTrees</code>, and
+  <code>setState</code> with <code>forceUpdate = TRUE</code> - set every leaf value of
+  such a tree to zero, without a message, and the next iteration draws them
+  again;
   that suits burn-in and is not a draw from the posterior.</p>
 <p>An unforced update is refused instead, as one that would empty a leaf is.
   One unforced change can leave a tree out of order: the first missing value

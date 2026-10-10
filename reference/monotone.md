@@ -102,7 +102,7 @@ New predictor values given to a sampler (see
 can leave a tree's leaf values out of order. The calls that always
 complete - `setPredictor` with `forceUpdate = TRUE` (its default when
 the whole matrix is replaced), `setData`, `setCutPoints`,
-`installTrees`, and a `setState` that has to merge leaves - set every
+`installTrees`, and `setState` with `forceUpdate = TRUE` - set every
 leaf value of such a tree to zero, without a message, and the next
 iteration draws them again; that suits burn-in and is not a draw from
 the posterior.
