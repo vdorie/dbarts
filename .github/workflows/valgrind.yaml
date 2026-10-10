@@ -48,11 +48,21 @@ jobs:
       - name: Install dbarts
         run: R CMD INSTALL --preclean .
 
-      # VALGRIND_OPTS (--track-origins=yes --leak-check=full) is set in the
-      # container image; -d valgrind wraps the R binary itself, not the
-      # package under test
+      # -d valgrind wraps the R binary itself, not the package under test.
+      # VALGRIND_OPTS replaces the image's (--track-origins=yes
+      # --leak-check=full) to count only definite and indirect leaks as
+      # errors: valgrind's default also counts possible ones, which forked
+      # workers (parallel's mclapply) report from R's own and glibc's
+      # allocations - thread-local storage, gettext, setenv - and which leave
+      # nothing of this package's to fix. Every leak record is still printed,
+      # and memory errors (invalid reads and writes, uninitialised use,
+      # mismatched frees) count as before.
       - name: Unit tests under valgrind
         shell: bash
+        env:
+          VALGRIND_OPTS: >-
+            --track-origins=yes --leak-check=full
+            --errors-for-leak-kinds=definite,indirect
         run: |
           set -eo pipefail
           R -d valgrind --vanilla -e '
@@ -61,9 +71,9 @@ jobs:
             ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
             if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
           ' 2>&1 | tee valgrind-tests.log
-          # --leak-check=full folds definitely/indirectly-lost blocks into
-          # the error count, so a nonzero ERROR SUMMARY covers both
-          # memory-access errors and leaks
+          # --errors-for-leak-kinds folds definitely/indirectly-lost blocks
+          # into the error count, so a nonzero ERROR SUMMARY covers both
+          # memory-access errors and those leaks
           if grep -Eq "ERROR SUMMARY: [1-9]" valgrind-tests.log; then
             echo "::error::valgrind reported a finding"; exit 1
           fi
