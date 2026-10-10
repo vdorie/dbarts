@@ -93,6 +93,7 @@ updatePredictorPerObservationJointly <- function(
       columnIndices[i],
       x[installed]
     )
+    recordMissingSeen(samplers[[i]], ptrs[[i]])
   }
 
   for (sampler in samplers) {

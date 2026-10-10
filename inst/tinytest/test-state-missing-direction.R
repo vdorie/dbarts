@@ -1,8 +1,10 @@
 # A state stored while a column held missing values sends them to a side of
-# its rules. Once a forced setPredictor fills them the column routes none, and
-# setState, copy(), a reload and a sampler built over the filled rows all
-# install the state with those directions dropped, as the forced update
-# dropped them from the live trees.
+# its rules. Once a forced setPredictor fills them the column holds none and
+# can still hold one, so the forced update keeps the directions, and setState,
+# copy() and a reload install the state with them, merging the leaves the
+# fill emptied as the forced update merged them. A sampler built over the
+# filled rows has never seen the columns missing: it refuses the state or
+# installs it with the directions dropped.
 source(
   system.file("common", "stateContinuation.R", package = "dbarts"),
   local = TRUE
@@ -82,13 +84,22 @@ sampler$storeState()
 forced <- sampler$state
 expect_silent(status <- sampler$setState(stale))
 expect_false(status)
-expect_silent(status <- other$setState(stale))
-expect_false(status)
-for (route in list(sampler, duplicate, reloaded, other)) {
+expect_identical(dbarts:::dataMissingSeen(sampler$data), c(TRUE, TRUE, FALSE))
+# a rule that sends every level one way is malformed where the column has
+# never held a missing value; a state without one installs, its directions
+# dropped
+status <- tryCatch(other$setState(stale), error = conditionMessage)
+if (isFALSE(status)) {
+  other$storeState()
+  expect_false(any(sendsRight(other$state)))
+} else {
+  expect_identical(status, "state is not consistent with this sampler")
+}
+for (route in list(sampler, duplicate, reloaded)) {
   route$storeState()
   statesAgree(route$state, forced)
   expect_identical(treeValues(route$state), treeValues(forced))
-  expect_false(any(unlist(liveTrees(route$state)$right)))
+  expect_true(any(unlist(liveTrees(route$state)$right)))
   # the saved draws replay by value and keep the directions they were drawn with
   expect_identical(
     route$state[[1L]]$forests[[1L]][savedFields],
@@ -97,15 +108,16 @@ for (route in list(sampler, duplicate, reloaded, other)) {
   expect_true(all(is.finite(route$run(0L, 3L)$train)))
 }
 
-# dropping a direction moves no row: a tree the fill left no empty leaf in is
-# the stored tree, rule for rule and leaf for leaf, less its directions
+# a tree the fill left no empty leaf in is the stored tree, rule for rule,
+# leaf for leaf and direction for direction
 restored <- liveTrees(forced)
 whole <- lengths(stored$vars) == lengths(restored$vars)
 expect_true(any(vapply(stored$right[whole], any, NA)))
 expect_identical(restored$vars[whole], stored$vars[whole])
 expect_identical(restored$values[whole], stored$values[whole])
+expect_identical(restored$right[whole], stored$right[whole])
 
-# a column that still holds missing values keeps its directions: the state
+# a column that still holds missing values keeps its directions too: the state
 # reinstalls as it was stored, and draws the same from it each time
 kept <- make(holed)
 invisible(kept$run(50L, 3L))
@@ -133,12 +145,21 @@ checkRestores <- function(sampler, fill, info) {
   sampler$storeState()
   forced <- sampler$state
   expect_silent(status <- sampler$setState(stale), info = info)
-  expect_false(status, info = info)
+  # the directions are kept, so the install is exact unless the fill emptied
+  # a leaf, which merges
+  treeSizes <- function(state) {
+    lapply(state, function(chain) chain$forests[[1L]]$tree.sizes)
+  }
+  expect_identical(
+    status,
+    identical(treeSizes(stale), treeSizes(forced)),
+    info = info
+  )
   for (route in list(sampler, duplicate)) {
     route$storeState()
     statesAgree(route$state, forced)
     expect_identical(treeValues(route$state), treeValues(forced), info = info)
-    expect_false(any(sendsRight(route$state)), info = info)
+    expect_true(any(sendsRight(route$state)), info = info)
     expect_true(all(is.finite(route$run(0L, 3L)$train)), info = info)
   }
   # its own fresh state is the stored one

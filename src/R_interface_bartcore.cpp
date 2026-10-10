@@ -336,6 +336,10 @@ struct ParsedData {
   std::vector<size_t> basisColumns;
   double sigmaEstimate = 1.0;
   std::vector<uint32_t> maxNumCuts;
+  // the data object's record of the columns its sampler has seen missing, a
+  // byte per predictor; empty where it carries none. Read at creation only: a
+  // setData takes the sampler's flags, not its argument's.
+  std::vector<std::uint8_t> missingSeen;
 };
 
 struct ParsedModel {
@@ -1455,6 +1459,23 @@ void parseData(ParsedData& data, SEXP dataExpr) {
     data.maxNumCuts[j] = static_cast<uint32_t>(maxNumCuts[j]);
   }
 
+  // a data object saved before the slot existed has none
+  if (R_has_slot(dataExpr, Rf_install("missing.seen"))) {
+    REPROTECT_SLOT(slotExpr, dataExpr, "missing.seen", slotIndex);
+    if (!rc_isS4Null(slotExpr) && !Rf_isNull(slotExpr)) {
+      bool valid = Rf_isLogical(slotExpr) &&
+        static_cast<size_t>(Rf_xlength(slotExpr)) == data.numPredictors;
+      for (size_t j = 0; valid && j < data.numPredictors; ++j)
+        valid = LOGICAL(slotExpr)[j] != NA_LOGICAL;
+      if (!valid)
+        Rf_error("'missing.seen' must be NULL or a logical vector with one "
+                 "element per predictor and no NA");
+      data.missingSeen.resize(data.numPredictors);
+      for (size_t j = 0; j < data.numPredictors; ++j)
+        data.missingSeen[j] = LOGICAL(slotExpr)[j] != 0 ? 1 : 0;
+    }
+  }
+
   UNPROTECT(2);  // the slot index and the factor level tables
 }
 
@@ -2229,6 +2250,8 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   // one borrowed view carries the storage and the typing channel (types,
   // declared level counts, CSC reference codes); consumed at build
   options.predictors = data.predictors;
+  options.missingSeen = data.missingSeen.empty()
+    ? NULL : data.missingSeen.data();  // consumed at construction
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.monotoneDirections = model.monotoneDirections.empty()
     ? NULL : model.monotoneDirections.data();  // consumed at construction
@@ -4206,6 +4229,12 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                           numGatherColumns,
                           columns.empty() ? NULL : columns.data(),
                           columns.size());
+    // the record is over the handle's columns; the view's flags are read
+    // from its own rows, and take the record's on the columns it spans
+    for (size_t j = 0; !data.missingSeen.empty() && j < store.numPredictors;
+         ++j)
+      store.hasMissing[j] |=
+        data.missingSeen[columns.empty() ? j : columns[j]];
 
     bartcore::SamplerOptions options =
       optionsFromParsed(control, model, data, modelExpr, sigmaIsFixed);
@@ -5545,6 +5574,21 @@ SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {
   refusePinnedSigmaChange(*holder.sampler, "$setSigma");
   holder.sampler->setSigma(Rf_asReal(sigmaExpr));
   return R_NilValue;
+}
+
+// The columns the sampler can hold a missing value in, as the data object
+// records them: a logical per predictor, or NULL where no column can.
+SEXP bartcore_getMissingSeen(SEXP ptrExpr) {
+  const std::vector<std::uint8_t>& flags(
+    holderFromExpression(ptrExpr).sampler->data().hasMissing);
+  bool any = false;
+  for (std::uint8_t flag : flags) any = any || flag != 0;
+  if (!any) return R_NilValue;
+  SEXP resultExpr = PROTECT(Rf_allocVector(LGLSXP, flags.size()));
+  for (size_t j = 0; j < flags.size(); ++j)
+    LOGICAL(resultExpr)[j] = flags[j] != 0 ? TRUE : FALSE;
+  UNPROTECT(1);
+  return resultExpr;
 }
 
 SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {

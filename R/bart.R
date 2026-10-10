@@ -3612,7 +3612,8 @@ hazardPredictRows <- function(
     resolvePredictNaAction(na.action),
     coded[seq_len(n), , drop = FALSE],
     x.train,
-    extra
+    extra,
+    dataMissingSeen(object$fit$data)
   )
   if (is.null(resolved)) {
     return(list(x = coded, numPredicted = n, keptNames = subjectNames))

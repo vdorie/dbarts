@@ -35,11 +35,14 @@ controlOf <- function(n.chains = 1L, n.trees = 1L) {
 # The hand tree: x1 (increasing) cut once near 0.5, the low half split on f
 # as {a, b} | {c, d} and the high half as {c, d} | {a, b}. Leaves in order:
 # (low; a, b), (low; c, d), (high; c, d), (high; a, b). Without a missing
-# value in f the order is each (low; S) below (high; S). A missing value goes
-# left at both f rules and puts (low; a, b) below (high; c, d), which `breaks`
-# violates and `holds` does not. A decreasing constraint mirrors the order,
-# and the values. A level mask is 64 bits in the machine's byte order.
+# value in f the order is each (low; S) below (high; S). A missing value sent
+# left at both f rules puts (low; a, b) below (high; c, d), which `breaks`
+# violates, and sent right at both puts (low; c, d) below (high; a, b), which
+# `crossed` violates; `holds` is in order either way. A decreasing constraint
+# mirrors the order, and the values. A level mask is 64 bits in the machine's
+# byte order.
 breaks <- c(0.05, -0.05, -0.04, 0.06)
+crossed <- c(-0.05, 0.05, 0.06, -0.04)
 holds <- c(-0.05, -0.06, 0.04, 0.06)
 maskBytes <- function(bits) {
   words <- c(as.integer(bits), 0L)
@@ -85,14 +88,15 @@ make <- function(
   data = df,
   n.trees = 1L,
   at = 1L,
-  direction = "increasing"
+  direction = "increasing",
+  seed = 7L
 ) {
   sampler <- dbarts::dbarts(
     y ~ x1 + f,
     data,
     monotone = c(x1 = direction),
     control = controlOf(length(values), n.trees),
-    seed = 7L
+    seed = seed
   )
   stopifnot(isTRUE(sampler$setState(handState(sampler, values, at))))
   sampler
@@ -364,9 +368,27 @@ completes <- function(call, value, onto = make(), numLeaves = 4L) {
   grid <- levelGrid[numLeaves == 4L | !is.na(levelGrid$f), ]
   expect_true(maxDrop(onto, grid) <= 1e-8)
 }
+# setData is the call that brings a factor its first missing value. Each f
+# rule then draws the side the value goes to, the low one first, and only two
+# like sides relate leaves the order did not. The draw is the first the
+# sampler's generator makes, so a seed's sides are read off a sampler holding
+# `holds`, and the first seed whose sides agree gets the values they break.
+arrive <- function(s) s$setData(dbarts::dbartsData(y ~ x1 + f, dfArrived))
+sidesDrawn <- function(seed) {
+  probe <- make(list(holds), seed = seed)
+  arrive(probe)
+  trees <- probe$getTrees()
+  trees$missing[trees$var == 2L]
+}
+arrivalSeed <- 7L
+while (length(unique(sides <- sidesDrawn(arrivalSeed))) != 1L) {
+  arrivalSeed <- arrivalSeed + 1L
+}
+expect_true(length(sides) == 2L && sides[1L] %in% c("L", "R"))
 completes(
-  function(s) s$setData(dbarts::dbartsData(y ~ x1 + f, dfArrived)),
-  NULL
+  arrive,
+  NULL,
+  make(list(if (sides[1L] == "L") breaks else crossed), seed = arrivalSeed)
 )
 # a warm start from a donor on another cut grid, onto a sampler whose factor
 # holds a missing value: the route that maps the donor's rules onto the grid
@@ -449,11 +471,12 @@ expectTwin(sampler, twin)
 
 # ---- a factor of more than 63 levels that regains a missing value ----
 
-# Such a factor's rules keep their side for a missing value while the column
-# has none, so a regained one can go right. Both rules here send it right:
+# A column that has held a missing value can hold one again: its rules keep
+# their side for it, the order is judged with it, and a regained one is taken
+# as a label, where a first one is refused. Both rules here send it right:
 # the low half splits levels 1-35 | 36-70 and missing, the high half 36-70 |
-# 1-35 and missing. `crossed` is in order only while the two right-hand
-# leaves share no position.
+# 1-35 and missing. `crossed` is in order only if the two right-hand leaves
+# could share no position.
 levels70 <- sprintf("L%02d", 1:70)
 h <- factor(levels70[rep(1:70, length.out = n)], levels = levels70)
 dfPooled <- data.frame(y, x1, h)
@@ -493,28 +516,29 @@ sampler <- dbarts::dbarts(
   seed = 7L
 )
 expect_true(installPooled(sampler, holds))
-# the column loses its missing values, and the values may then cross
+# the column loses its missing values and may still hold one, so values that
+# cross with one stay refused
 asFrameH <- function(codes) {
   data.frame(x1 = codes[, "x1"], h = asLabels(codes[, "h"], levels70))
 }
 expect_true(sampler$setPredictor(asFrameH(pooledCodes), forceUpdate = FALSE))
-crossed <- c(-0.05, 0.05, 0.06, -0.04)
-expect_true(installPooled(sampler, crossed))
+expect_identical(dbarts:::dataMissingSeen(sampler$data), c(FALSE, TRUE))
+expect_error(
+  installPooled(sampler, crossed),
+  "leaf values violate this sampler's monotone constraint",
+  fixed = TRUE
+)
+expect_identical(leaves(sampler), holds)
 xRegained <- pooledCodes
 regained <- which(x1 <= cut & as.integer(h) <= 35L)[1L]
 xRegained[regained, "h"] <- NA
-expect_error(
-  sampler$setPredictor(asFrameH(xRegained), forceUpdate = FALSE),
-  "column 'h' has missing values",
-  fixed = TRUE
-)
-expect_identical(leaves(sampler), crossed)
-expect_error(
+expect_true(sampler$setPredictor(asFrameH(xRegained), forceUpdate = FALSE))
+expect_identical(leaves(sampler), holds)
+expect_true(dbarts:::sourceHasNA(sampler$data@x))
+expect_true(all(
   dbarts::updatePredictorPerObservationJointly(
     list(sampler),
     asLabels(xRegained[, "h"], levels70),
     "h"
-  ),
-  "column 'h' has missing values",
-  fixed = TRUE
-)
+  )
+))

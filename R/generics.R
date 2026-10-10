@@ -826,7 +826,8 @@ predict.bart <- function(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset, weights = weights)
+    list(offset = offset, weights = weights),
+    dataMissingSeen(object$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -2323,7 +2324,8 @@ predict.bartMultinomial <- function(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset)
+    list(offset = offset),
+    dataMissingSeen(object$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -2715,7 +2717,8 @@ predict.bartOrdinal <- function(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset)
+    list(offset = offset),
+    dataMissingSeen(object$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -3059,7 +3062,8 @@ predict.bartNegbin <- function(
     newdata,
     object$fit$data@x,
     na.action,
-    list(offset = offset)
+    list(offset = offset),
+    dataMissingSeen(object$fit$data)
   )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
@@ -3814,7 +3818,12 @@ predict.bartHurdle <- function(
   n.chains <- hurdleNChains(object)
   # both parts share one routable set (refuseHurdlePositiveMissingness), so
   # the rows are resolved once, against the zero part's design
-  rows <- preparePredictRows(newdata, object$zero$fit$data@x, na.action)
+  rows <- preparePredictRows(
+    newdata,
+    object$zero$fit$data@x,
+    na.action,
+    missing.seen = dataMissingSeen(object$zero$fit$data)
+  )
   if (isTRUE(rows$placeholder)) {
     restoreSeed <- protectRandomSeed()
     on.exit(restoreSeed(), add = TRUE)

@@ -666,6 +666,13 @@ methods::setClass(
     # or setter has to carry it. A data object saved before the slot existed
     # lacks it, so every read goes through dataRowNames.
     rowNames = "ANY",
+    # the predictor columns the sampler holding this object has been given a
+    # missing value in, whatever they hold now: NULL, or a logical per column.
+    # Written from the sampler's own flags after each predictor change, and
+    # read when a sampler is created, so a copy and a reload can hold a
+    # missing value where their source can. A data object saved before the
+    # slot existed lacks it, so every read goes through dataMissingSeen.
+    missing.seen = "ANY",
     # the original response's type before it was coded to the doubles the
     # engine reads: "numeric", "factor", "ordered factor", "logical", or
     # "character". The fitters key family = "auto" and the categorical-response
@@ -722,6 +729,7 @@ methods::setClass(
     missing = "incorporate",
     na.action = NULL,
     rowNames = NULL,
+    missing.seen = NULL,
     response.type = "numeric",
     response.n.levels = NA_integer_,
     response.levels = NULL,
@@ -744,6 +752,16 @@ methods::setValidity("dbartsData", function(object) {
   }
   if (nrow(object@x) != numObservations) {
     return("'x' must have the same length as 'y'")
+  }
+  seen <- dataMissingSeen(object)
+  if (
+    !is.null(seen) &&
+      (!is.logical(seen) || length(seen) != ncol(object@x) || anyNA(seen))
+  ) {
+    return(paste0(
+      "'missing.seen' must be NULL or a logical vector with one element per ",
+      "predictor and no NA"
+    ))
   }
 
   if (

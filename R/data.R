@@ -260,6 +260,27 @@ dataRowNames <- function(data, channel) {
   data@rowNames[[channel]]
 }
 
+## The predictor columns a data object's sampler has been given a missing
+## value in: NULL, or a logical per column. A data object saved before the
+## slot existed has none.
+dataMissingSeen <- function(data) {
+  if (!methods::.hasSlot(data, "missing.seen")) {
+    return(NULL)
+  }
+  data@missing.seen
+}
+
+## Brings a sampler's record up to its engine's flags, which only the engine
+## raises; called after every call that can raise one. Written only where it
+## moved, a write of the data field costing more than the read.
+recordMissingSeen <- function(sampler, ptr) {
+  seen <- .Call(C_dbarts_bartcore_getMissingSeen, ptr)
+  if (!identical(seen, dataMissingSeen(sampler$data))) {
+    sampler$data@missing.seen <- seen
+  }
+  invisible(NULL)
+}
+
 ## Stores one channel's names on a data object, keeping the slot NULL when
 ## neither channel is named.
 setDataRowNames <- function(data, channel, names) {
@@ -348,13 +369,13 @@ methods::setMethod(
 )
 
 makeTestModelMatrix <- function(data, newdata) {
-  validateXTest(newdata, data@x)
+  validateXTest(newdata, data@x, missing.seen = dataMissingSeen(data))
 }
 
-## A split rule learns a route for NA only on a column whose TRAINING values
-## carried one: the missing direction is drawn only there and cannot be
-## restored onto an NA-free column, so on a training-complete column every
-## rule sends NA down one fixed branch. Refuse rather than answer from a
+## A split rule holds a route for NA only on a column that can hold one: its
+## training values carry one or, on a sampler, it has been given one since
+## ('missing.seen', the data object's record). On a column that never has,
+## every rule sends NA down one fixed branch. Refuse rather than answer from a
 ## route the model never learned.
 sourceColumnHasNA <- function(source, j, numColumns, numObservations) {
   column <- predictorSourceColumn(source, j, numColumns, numObservations)
@@ -377,9 +398,9 @@ sourceHasNA <- function(source) {
   anyNA(source)
 }
 
-## The predictor columns a test set leaves without a route: missing there, and
-## complete in training.
-unroutableTestColumns <- function(x.test, x.train) {
+## The predictor columns a test set leaves without a route: missing there,
+## complete in training and never seen missing.
+unroutableTestColumns <- function(x.test, x.train, missing.seen = NULL) {
   # the whole-object probe short-circuits, so complete test data - the usual
   # case - pays one scan and never touches the training side
   if (!sourceHasNA(x.test)) {
@@ -395,7 +416,10 @@ unroutableTestColumns <- function(x.test, x.train) {
     if (!sourceColumnHasNA(x.test, j, numColumns, numTest)) {
       next
     }
-    if (sourceColumnHasNA(x.train, j, numColumns, numTrain)) {
+    if (
+      isTRUE(missing.seen[j]) ||
+        sourceColumnHasNA(x.train, j, numColumns, numTrain)
+    ) {
       next
     }
     offending <- c(offending, j)
@@ -424,8 +448,11 @@ testRowsMissingIn <- function(x.test, columns) {
   rows
 }
 
-unroutableTestRows <- function(x.test, x.train) {
-  testRowsMissingIn(x.test, unroutableTestColumns(x.test, x.train))
+unroutableTestRows <- function(x.test, x.train, missing.seen = NULL) {
+  testRowsMissingIn(
+    x.test,
+    unroutableTestColumns(x.test, x.train, missing.seen)
+  )
 }
 
 ## Labels predictor columns by name, or by position when training had none.
@@ -447,8 +474,13 @@ testColumnLabels <- function(columns, x.train) {
 
 ## 'naActionHint' is set by the predict methods, whose callers can choose
 ## another na.action; the sampler's methods keep the default and say nothing.
-refuseTestMissingness <- function(x.test, x.train, naActionHint = FALSE) {
-  offending <- unroutableTestColumns(x.test, x.train)
+refuseTestMissingness <- function(
+  x.test,
+  x.train,
+  naActionHint = FALSE,
+  missing.seen = NULL
+) {
+  offending <- unroutableTestColumns(x.test, x.train, missing.seen)
   # every NA sits in a column that carried training NAs: every one has a
   # learned route, and nothing is refused
   if (length(offending) == 0L) {
@@ -593,11 +625,17 @@ refuseNaFail <- function(x.test, x.train, extra) {
 ## does for the matrix interface, and whatever it keeps then meets the
 ## default's refusal. Returns the logical 'keep' and whether the dropped rows
 ## 'pad' back as NA, or NULL when every row is answered as it stands.
-resolvePredictRows <- function(na.action, x.test, x.train, extra = list()) {
+resolvePredictRows <- function(
+  na.action,
+  x.test,
+  x.train,
+  extra = list(),
+  missing.seen = NULL
+) {
   numTest <- NROW(x.test)
   extraDropped <- Reduce(`|`, extra, rep_len(FALSE, numTest))
   if (identical(na.action, stats::na.pass)) {
-    dropped <- unroutableTestRows(x.test, x.train) | extraDropped
+    dropped <- unroutableTestRows(x.test, x.train, missing.seen) | extraDropped
     if (!any(dropped) && numTest > 0L) {
       return(NULL)
     }
@@ -623,14 +661,15 @@ resolvePredictRows <- function(na.action, x.test, x.train, extra = list()) {
   keep <- rownames(frame) %in% rownames(kept)
   # the default's refusal, on the rows kept
   if (all(keep)) {
-    refuseTestMissingness(x.test, x.train, naActionHint = TRUE)
+    refuseTestMissingness(x.test, x.train, naActionHint = TRUE, missing.seen)
     refuseExtraMissingness(extra, naActionHint = TRUE)
     return(NULL)
   }
   refuseTestMissingness(
     x.test[keep, , drop = FALSE],
     x.train,
-    naActionHint = TRUE
+    naActionHint = TRUE,
+    missing.seen
   )
   refuseExtraMissingness(
     lapply(extra, `[`, keep),
@@ -659,7 +698,13 @@ keptRowsRecord <- function(resolved, names) {
 ## (dec-A89) - and returns the rows to predict. When none survives, or
 ## newdata has none, the fit's first training row stands in and the caller
 ## slices its answer away, so the result keeps the draw dimensions (dec-B34).
-preparePredictRows <- function(newdata, x.train, na.action, channels = NULL) {
+preparePredictRows <- function(
+  newdata,
+  x.train,
+  na.action,
+  channels = NULL,
+  missing.seen = NULL
+) {
   if (missing(newdata) || is.null(newdata)) {
     stop("newdata cannot be NULL")
   }
@@ -677,7 +722,8 @@ preparePredictRows <- function(newdata, x.train, na.action, channels = NULL) {
     resolvePredictNaAction(na.action),
     x,
     x.train,
-    extra
+    extra,
+    missing.seen
   )
   if (is.null(resolved)) {
     return(list(x = x, newdata = newdata, n = NROW(x), keptNames = rowNames))
@@ -1211,7 +1257,12 @@ predictorDataNames <- function(x.train) {
   unique(c(labels, colnames(x.train)))
 }
 
-validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
+validateXTest <- function(
+  x.test,
+  x.train,
+  refuseMissing = TRUE,
+  missing.seen = NULL
+) {
   termLabels <- attr(x.train, "term.labels")
   numPredictors <- ncol(x.train)
   predictorNames <- colnames(x.train)
@@ -1508,7 +1559,7 @@ validateXTest <- function(x.test, x.train, refuseMissing = TRUE) {
   }
 
   if (refuseMissing) {
-    refuseTestMissingness(x.test, x.train)
+    refuseTestMissingness(x.test, x.train, missing.seen = missing.seen)
   }
 
   x.test
