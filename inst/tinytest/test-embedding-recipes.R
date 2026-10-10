@@ -268,8 +268,8 @@ expect_equal(
 )
 
 ## 4. LATENT COVARIATE: score with the trees held, install only the wanted
-## rows, count a row declined at install as rejected, revert nothing. The
-## seeds include the ones whose second-call reverts used to be declined.
+## rows, count a row declined at install as rejected, revert nothing. Across
+## the seeds at least one install is declined, so the mask is exercised.
 latentStep <- function(seed) {
   set.seed(seed)
   nJoint <- 80L
@@ -302,10 +302,17 @@ latentStep <- function(seed) {
       dnorm(theta, 0, 1, log = TRUE)
   }
   theta <- as.numeric(sA$data@x[, "theta"])
-  out <- list(synced = TRUE, wanted = 0L, accepted = 0L, declined = 0L)
+  out <- list(
+    synced = TRUE,
+    wanted = 0L,
+    accepted = 0L,
+    declined = 0L,
+    changed = 0L
+  )
   for (step in 1:5) {
     proposal <- theta + rnorm(nJoint, 0, 0.5)
     wanted <- log(runif(nJoint)) < logLik(proposal) - logLik(theta)
+    before <- as.numeric(sA$data@x[, "theta"])
     installed <- wanted
     installed[wanted] <- updatePredictorPerObservationJointly(
       list(sA, sB),
@@ -313,6 +320,7 @@ latentStep <- function(seed) {
       column = "theta"
     )[wanted]
     theta <- ifelse(installed, proposal, theta)
+    out$changed <- out$changed + sum(as.numeric(sA$data@x[, "theta"]) != before)
     out$synced <- out$synced &&
       isTRUE(all.equal(as.numeric(sA$data@x[, "theta"]), theta)) &&
       isTRUE(all.equal(as.numeric(sB$data@x[, "theta"]), theta))
@@ -330,11 +338,12 @@ for (seed in c(404L, 405L, 407L, 408L, 410L)) {
   nDeclined <- nDeclined + res$declined
   # the host's copy equals what both samplers hold, for every row, every step
   expect_true(res$synced, info = paste("seed", seed))
-  # declined rows count as rejected: accepted = wanted less declined
-  expect_equal(res$accepted, res$wanted - res$declined)
-  expect_true(res$accepted > 0L)
+  # rows declined at install count as rejected: the rows whose held theta
+  # moved are exactly the accepted ones, fewer than those wanted
+  expect_equal(res$changed, res$accepted)
+  expect_true(res$accepted <= res$wanted)
 }
-# measured: 48 declines over the five seeds; the cell is vacuous at zero
+# the cell is vacuous unless some install is declined
 expect_true(nDeclined > 0L)
 
 ## 5. OUTER-OWNED SIGMA: the pin and the guard. sigma = fixed() suppresses

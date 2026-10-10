@@ -230,7 +230,7 @@ This is the case where every forest enters the response with a multiplier of one
 
 When the quantity being sampled is a *predictor* rather than a response -- a latent ability, a propensity, an unobserved dose -- it moves through `updatePredictorPerObservationJointly`, which installs each observation in every sampler or in none. An observation is declined when its new value would empty a leaf in any tree of any sampler.
 
-Score each proposal *before* installing it, with `predict` while the trees are held: row $i$'s fit depends on row $i$'s predictors alone, so the per-row ratio factorizes. Decide accept or reject per row, then install only the accepted rows. The returned mask is **part of the Metropolis accept decision, not a diagnostic**: a row declined at install has a leaf with no other rows, which has zero prior, so declining is the correct outcome and counts as a rejection. Keeping the host's copy equal to what the samplers hold means taking the mask, not the proposal. Nothing is reverted.
+Score each proposal *before* installing it, with `predict` while the trees are held: row $i$'s fit depends on row $i$'s predictors alone, so the per-row ratio factorizes. Decide accept or reject per row, then install only the accepted rows. The returned mask is **part of the Metropolis accept decision, not a diagnostic**: a row is declined when it is the only row in a leaf of some tree, so moving it would empty that leaf. An empty leaf has zero prior, so the decline is the correct outcome and counts as a rejection. The random-walk proposal is symmetric, so the ratio needs no proposal correction. Keeping the host's copy equal to what the samplers hold means taking the mask, not the proposal. Nothing is reverted.
 
 ```{r recipe4}
 set.seed(404L)
