@@ -335,15 +335,28 @@
             (\code{dbartsDeprecatedWarning}, also a base R
             \code{deprecatedWarning}), the slow-count warning of a monotone
             fit (\code{dbartsSlowCountWarning}), and warnings that a supplied
-            input was replaced by another (\code{dbartsFallbackWarning},
-            \code{dbartsSigmaFallbackWarning},
-            \code{dbartsSparseSigmaFallbackWarning} and
-            \code{dbartsGPFallbackWarning}). Every other warning is an
+            input was replaced by another (\code{dbartsFallbackWarning}
+            and \code{dbartsGPFallbackWarning}). Every other warning is an
             ordinary one. A fixed residual scale,
             \code{sigma = fixed(value)}, is new; a \code{sigest} (or
             \code{sigma}) beside it is refused when it differs
             from the square root of \code{value}, and accepted with a
-            message when it equals it, until 1.1-0.
+            message when it equals it, until 1.1-0. No starting estimate is
+            made under one: the fit reports the square root of
+            \code{value} as its \code{sigest}, and a predictor holding
+            \code{Inf} no longer stops the fit there.
+      \item \code{sigest} also takes \code{"auto"} (the default),
+            \code{"dense"} or \code{"sparse"}, naming the routine that
+            makes the starting estimate; \code{?dbarts} says what each
+            costs and what to pass in place of an expensive one. A sparse
+            \code{x} takes the sparse routine by default.
+      \item Where the linear regression behind the starting \code{sigest}
+            leaves no residual degrees of freedom, as with more columns
+            than rows, the fit starts from the standard deviation of the
+            response, saying so in a line under \code{verbose} and in its
+            \code{summary}; 0.9-34 stopped.
+      \item \code{xbart}'s \code{sigest} may be a function, called on
+            each fold's training rows.
       \item Draws a sampler has saved (\code{keepTrees}) keep their
             values when the response scale is re-derived: after
             \code{setResponse} or \code{setOffset} with
