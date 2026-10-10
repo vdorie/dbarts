@@ -229,6 +229,10 @@ estimate in Part 1's settings.
 
 ## Recommendation
 
+2026-10-10: not taken. The maintainer ruled the regression at any size, by lm.fit or the exact sparse routine
+as `sigest` names ([`startingSigmaRoute`](../../R/utility.R)), and sd(y) only where it is not defined: no
+cap, no LSQR and no screening. What follows is the record of what was measured.
+
 1. **Above the cap, use LSQR, with no warning**: structural degrees of freedom, tolerance 1e-6, a cap of
    1000 iterations, sd(y) below 10 percent residual degrees of freedom. It keeps dec-B403's promise (a
    sparse design gets its dense equivalent's estimate) to a percent or better on every design measured, it

@@ -184,6 +184,18 @@ slots directly (borrowed for the sampler's lifetime, like dense x
 today) and hands them to the engine through SamplerOptions. Matrix goes
 to Suggests.
 
+2026-10-10: the sigma estimate of a sparse design no longer falls back to
+sd(y). `sigest` names the routine: "auto" sends a design holding a column the
+caller stored sparse ([`startingSigmaRoute`](../../R/utility.R)) to
+[`sparseResidualStandardError`](../../R/utility.R) and any other to
+[`residualStandardError`](../../R/utility.R), and "dense" and "sparse" force
+either. The sparse routine reads [`sparseSigmaDesign`](../../R/utility.R)'s
+columns, a factor as indicators whose missing rows are never stored, through
+[`sparseSigmaFrontEnd`](../../R/utility.R) into
+[`sparseSigmaRoutine`](../../R/utility.R): the widest factor eliminated, a
+pivoted Cholesky of what is left. Where no regression is defined the estimate
+is the response sd, signaled as `dbartsSigmaFallback` and never warned.
+
 ### Stages and gates
 
 1. Kernel: misc_partitionIndicesSparse + simd.c registration +

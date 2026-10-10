@@ -625,9 +625,10 @@ BART and bartMachine class none. These warnings carry a class, signaled as
   `suppressWarnings(classes = "deprecatedWarning")` reaches it;
 - the monotone slow-count warning: `dbartsSlowCountWarning`;
 - a fallback that reports a substituted input: `dbartsFallbackWarning`
-  (the input supplied cannot serve the call, so another was used),
-  `dbartsSigmaFallbackWarning` and its narrower case
-  `dbartsSparseSigmaFallbackWarning`, and `dbartsGPFallbackWarning`.
+  (the input supplied cannot serve the call, so another was used) and
+  `dbartsGPFallbackWarning`. A starting sigma taken from the response sd is
+  not one: it is said in a `dbartsStartingSigmaMessage` under verbose and in
+  the fit's summary ([`estimateStartingSigma`](../../R/spec.R)).
 
 Every other warning is a plain `warning()`, or a plain `warnOnce()` with a
 string, matched by its text; a test checks that such a warning fires by
@@ -652,8 +653,6 @@ Inventory, one representative site per class:
 | `dbartsDeprecatedWarning` | [`warnOnce`](../../R/utility.R) at every retired-spelling site in the tombstone registry |
 | `dbartsSlowCountWarning` | [`warnOnSlowCount`](../../R/bartcore.R) |
 | `dbartsFallbackWarning` | [`pdbart.prologue`](../../R/partialDependence.R) |
-| `dbartsSigmaFallbackWarning` | [`estimateSigmaFromLinearModel`](../../R/utility.R) |
-| `dbartsSparseSigmaFallbackWarning` | [`estimateSigmaFromLinearModel`](../../R/utility.R) |
 | `dbartsGPFallbackWarning` | [`warnOnGPFallback`](../../R/bartcore.R) |
 
 ---

@@ -75,7 +75,7 @@ A. The design: `startingSigmaDesign(x, route)`, new, for the all-rows estimate a
      entries, a factor's columns numbering its positive counts (one where two); stored 1s are kept; rows holding NA
      are the factor's missing rows, not stored; frequencies as above.
    - Any other column: zeros unstored, a missing value at the mean of the column's observed entries, zeros counted, as
-     [`sparseDesignMatrix`](../../R/utility.R) does.
+     retired: [`sparseDesignMatrix`](../../R/utility.R) did.
 
 B. Route. n counts the rows with a response, weight and offset and a positive weight.
 1. An infinite entry is refused first, for every design and before any routine, naming the column.
@@ -329,6 +329,9 @@ freedom; a speed or memory limit is passed; a tinytest fails that Tests does not
   print today, nothing where a door is silent. `bart` with a named family gets its first message.
 
 ## Open calls
+
+Both are ruled. Call 1: (a), the estimate is left uninterruptible and the help says so (dec-B438). Call 2: (b), no
+estimate is made under a fixed residual standard deviation, whose value the fit reports as `sigest` (dec-B439).
 
 ### 1. Can a user stop the starting-sigma estimate once it has begun?
 
