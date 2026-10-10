@@ -105,7 +105,12 @@ expectReading(improper, 2, kScale, "sd = invchi(3, 0)")
 expect_identical(engineOf(improper, "k.prior.scale"), Inf)
 expect_true(is.na(engineOf(improper, "named.sd")))
 # the binary families' scales are fixed: 3 and pi sqrt(3)
-expectReading(make(normal(k = chi(1.5, 2)), z, family = "probit"), 2, 3, "probit")
+expectReading(
+  make(normal(k = chi(1.5, 2)), z, family = "probit"),
+  2,
+  3,
+  "probit"
+)
 expectReading(make(normal(sd = 0.5), z, family = "probit"), 6, 3, "probit sd")
 expectReading(
   make(normal(k = chi(1.5, 2)), z, family = "logistic"),
@@ -151,11 +156,19 @@ k0 <- kOf(chain)
 expect_false(identical(k0, 2))
 chain$setLeafPrior(normal(sd = invchi(3, 1)))
 expectReading(chain, k0, kScale, "into sd = invchi(3, 1)")
-expect_identical(engineOf(chain, "k.prior.scale"), engineOf(chain, "prior.scale"))
+expect_identical(
+  engineOf(chain, "k.prior.scale"),
+  engineOf(chain, "prior.scale")
+)
 chain$setLeafPrior(normal(sd = invchi(3, 2)))
 expectReading(chain, k0, kScale, "into sd = invchi(3, 2)")
 chain$setLeafPrior(normal(sd = 0.5))
-expectReading(chain, chain$getLeafPrior()$k.scale / 0.5, kScale, "into sd = 0.5")
+expectReading(
+  chain,
+  chain$getLeafPrior()$k.scale / 0.5,
+  kScale,
+  "into sd = 0.5"
+)
 held <- kOf(chain)
 chain$setLeafPrior(normal(k = chi(1.5, 2)))
 expectReading(chain, held, kScale, "into k = chi(1.5, 2)")
@@ -405,7 +418,10 @@ for (mutate in list(
   heldAnchor <- burned(normal(sd = 0.5))
   scaleBefore <- heldAnchor$getLeafPrior()$k.scale
   mutate(heldAnchor)
-  expect_false(isTRUE(all.equal(heldAnchor$getLeafPrior()$k.scale, scaleBefore)))
+  expect_false(isTRUE(all.equal(
+    heldAnchor$getLeafPrior()$k.scale,
+    scaleBefore
+  )))
   expect_identical(kOf(heldAnchor), heldAnchor$getLeafPrior()$k.scale / 0.5)
   drawnAnchor <- burned(normal(sd = invchi(3, 1)))
   k0 <- kOf(drawnAnchor)

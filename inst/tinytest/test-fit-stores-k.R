@@ -474,7 +474,10 @@ expect_identical(sdNamed$stats$variable, "sigma")
 sdFit <- fitOf(yGaussian, TRUE, leaf.prior = dbartsPriors$normal(sd = 0.7))
 asK <- summary(sdFit, vars = "k")
 expect_identical(asK$fixed, list(k = sdFit$leaf.prior$k.scale / 0.7))
-expect_identical(sdFit$leaf.prior$k.scale, fitOf(yGaussian, TRUE)$leaf.prior$k.scale)
+expect_identical(
+  sdFit$leaf.prior$k.scale,
+  fitOf(yGaussian, TRUE)$leaf.prior$k.scale
+)
 # the ordinal's first threshold is pinned and named; the sampled ones tabulate
 ordinalSummary <- summary(fitOf(yOrdinal, TRUE, family = "ordinal"))
 expect_identical(ordinalSummary$stats$variable, "threshold[2]")
