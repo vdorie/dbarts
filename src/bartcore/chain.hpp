@@ -4255,8 +4255,7 @@ public:
       return false;
     if (state.fitMax < state.fitMin) return false;
     // an nbinom state always carries its log-mean shift as an increasing pair;
-    // an equal one is from no state this model writes, and installing it
-    // would silently skip the shift
+    // an equal one is from no state this model writes
     if (response_->carriesShape() && !(state.fitMax > state.fitMin))
       return false;
     // heteroscedastic: a variance state must carry one flat tree per variance
@@ -5512,10 +5511,11 @@ private:
   /// The one scale-leaf calibration expression: the retained residual prior
   /// converted to the transform IN FORCE (workingSigma = sigmaEstimate /
   /// sigmaScale(), prior scale workingSigma^2 * rawScale) and split over the
-  /// forest's trees. Creation, setModel, a state install carrying its own
-  /// transform and a re-anchoring response or offset swap all run it, so no
-  /// two of them can state a different prior and a swap lands on exactly the
-  /// calibration creation on the new response would have produced. Requires
+  /// forest's trees. Creation, setModel and a re-anchoring response or offset
+  /// swap all run it, so no two of them can state a different prior and a swap
+  /// lands on exactly the calibration creation on the new response would have
+  /// produced. A state install does not run it: the transform moves only
+  /// through moveScale, which does. Requires
   /// the forest, with its tree count set.
   void calibrateVarianceLeaf() {
     double workingSigma = varianceSigmaEstimate_ / response_->sigmaScale();

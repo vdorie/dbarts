@@ -196,7 +196,7 @@ re-anchored through `setOffset(0.8 x3 + 0.5, updateScale = TRUE)` as stan4bart's
 more, its state installed into a sampler created from the same data. Converted, as built: the
 recipient's fit equals the donor's to 6.7e-16. Unconverted (the state's `fit.scale` relabelled as the
 recipient's, so nothing converts): the fit is off by up to 0.97, against a spread of the donor's fit of
-0.70 sd, the mapping's centre having moved as well as its width; k and sigma are as stored.
+0.70 sd, the mapping's center having moved as well as its width; k and sigma are as stored.
 
 ## The rulings under this rule
 
@@ -270,7 +270,7 @@ move.
 | restore after a re-anchor (store, re-anchor, restore) | leaves and saved draws converted into the new mapping; k as stored; sigma held in response units | leaves, saved draws, k and sigma as stored on the internal scale, read against the new mapping, as the live chain held them at the re-anchor | every such restore |
 | `setState`, `copy()`, reload onto a response 3 times as wide, k spelling | leaves converted (the function kept); k 2.1901, spread 2.6977; sigma 0.3933 | nothing converted: the function, the spread and sigma all 3 times wider (k 2.1901, spread 2.6977, sigma 1.1799), a pure rescale being no change on the internal scale | every such install |
 | the same, sd spelling (donor at k 2.4572 in the new numbers, spread 0.8015) | k as stored, spread kept 0.8015 | k 2.4572 as stored, spread 2.4044 | every such install |
-| install from a mapping with another centre (another offset; stan4bart's restore) | converted: the donor's fit to 6.7e-16 (ran) | as stored: fit off by up to 0.97 against a fit sd of 0.70 (ran, emulated) | every such install; stan4bart: Held |
+| install from a mapping with another center (another offset; stan4bart's restore) | converted: the donor's fit to 6.7e-16 (ran) | as stored: fit off by up to 0.97 against a fit sd of 0.70 (ran, emulated) | every such install; stan4bart: Held |
 | install of a gp leaf, or amplitude forests, stored under another shift | refused | installed as stored | was an error |
 | warm start onto another mapping (`bart(warm.start = )`, `installTrees`) | leaves converted; k as stored (spread 0.8992 to 2.6977 on 3 y); sigma in response units | leaves, k and sigma as stored on the internal scale; the next draws move them | every warm start across mappings |
 | warm start, same mapping, another prior | k as stored; 0.8992 to 0.9132 | k as stored; spread kept | where one side is sd-spelled |
@@ -672,7 +672,7 @@ For the orchestrator, each with a recommendation.
 ## Evidence
 
 Ran on 4cf51b11 and on the rebased tips (private library scratch/libs/kint; probes and outputs in
-scratch/kint/): today's behaviour per operation (01-today.R, 02-today-more.R), the emulation of the new
+scratch/kint/): today's behavior per operation (01-today.R, 02-today-more.R), the emulation of the new
 sd spelling (03-emulate.R), an install across a re-derived mapping with and without conversion
 (04-no-convert.R), and the greps for sd-spelled tests, conversion tests, baselines, snapshot files and
 exact gates. Read: every engine, bridge, R and header claim cited by symbol; stan4bart's bartcore branch

@@ -335,8 +335,8 @@ items
     state's spread in force, k re-expressed against the recipient's
     k.scale, where today the stored k installs and the spread jumps by
     the ratio of the two k.scale values. With the install surface's
-    first slice; Chain::scaleDrawnK (setLeafPrior's, dec-A187) does the
-    re-expression.
+    first slice; retired: [`Chain::scaleDrawnK`](src/bartcore/chain.hpp)
+    (setLeafPrior's, dec-A187) did the re-expression and is gone.
   leaf-covariate-single-value-off-centre: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
     relative to the centre closes it. A slope on a column moved to

@@ -1100,11 +1100,7 @@ extractParameter <- function(
     } else {
       prior$k.scale
     }
-    # a forest whose scale a calibration map sets records forest(sd = ), which
-    # is not a leaf prior's sd
-    named <- if (
-      !is.null(prior[["leaf.prior"]]) && is.null(prior[["basis.row.norm"]])
-    ) {
+    named <- if (!is.null(prior[["leaf.prior"]])) {
       prior$leaf.prior@prior.sd
     }
     if (!is.null(fixed[["k"]]) && is.numeric(named)) {
