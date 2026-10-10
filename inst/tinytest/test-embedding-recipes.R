@@ -267,76 +267,75 @@ expect_equal(
   samplers[[2L]]$getLeafPrior()$response.shift
 )
 
-## 4. LATENT COVARIATE: the install mask read as an MH accept mask. The mask is
-## non-vacuous by construction here (a deep tree prior on a small sample), which
-## is the whole point: a host that ignores it disagrees with the samplers about
-## the state on exactly the declined rows, silently and permanently.
-set.seed(404L)
-nJoint <- 80L
-thetaTrue <- rnorm(nJoint)
-d1 <- data.frame(theta = thetaTrue, u = runif(nJoint))
-d1$y <- 1.5 * thetaTrue + rnorm(nJoint, 0, 0.3)
-d2 <- data.frame(v = runif(nJoint), theta = thetaTrue)
-d2$y <- rbinom(nJoint, 1L, pnorm(thetaTrue))
-deepPrior <- dbartsPriors$cgm(power = 0.5)
-sA <- dbarts(
-  y ~ theta + u,
-  d1,
-  control = recipeControl(44L),
-  tree.prior = deepPrior
-)
-sB <- dbarts(
-  y ~ v + theta,
-  d2,
-  family = "probit",
-  control = recipeControl(44L),
-  tree.prior = deepPrior
-)
-invisible(sA$run(0L, 20L))
-invisible(sB$run(0L, 20L))
-
-jointLogLik <- function() {
-  fA <- as.numeric(sA$getFitsWithoutOffset())
-  fB <- as.numeric(sB$getFitsWithoutOffset())
-  dnorm(d1$y, fA, as.numeric(sA$getSigmas()), log = TRUE) +
-    ifelse(d2$y == 1, pnorm(fB, log.p = TRUE), pnorm(-fB, log.p = TRUE))
+## 4. LATENT COVARIATE: score with the trees held, install only the wanted
+## rows, count a row declined at install as rejected, revert nothing. The
+## seeds include the ones whose second-call reverts used to be declined.
+latentStep <- function(seed) {
+  set.seed(seed)
+  nJoint <- 80L
+  thetaTrue <- rnorm(nJoint)
+  d1 <- data.frame(theta = thetaTrue, u = runif(nJoint))
+  d1$y <- 1.5 * thetaTrue + rnorm(nJoint, 0, 0.3)
+  d2 <- data.frame(v = runif(nJoint), theta = thetaTrue)
+  d2$y <- rbinom(nJoint, 1L, pnorm(thetaTrue))
+  deepPrior <- dbartsPriors$cgm(power = 0.5)
+  sA <- dbarts(
+    y ~ theta + u,
+    d1,
+    control = recipeControl(44L),
+    tree.prior = deepPrior
+  )
+  sB <- dbarts(
+    y ~ v + theta,
+    d2,
+    family = "probit",
+    control = recipeControl(44L),
+    tree.prior = deepPrior
+  )
+  invisible(sA$run(0L, 20L))
+  invisible(sB$run(0L, 20L))
+  logLik <- function(theta) {
+    fA <- as.numeric(sA$predict(transform(d1[c("theta", "u")], theta = theta)))
+    fB <- as.numeric(sB$predict(transform(d2[c("v", "theta")], theta = theta)))
+    dnorm(d1$y, fA, as.numeric(sA$getSigmas()), log = TRUE) +
+      ifelse(d2$y == 1, pnorm(fB, log.p = TRUE), pnorm(-fB, log.p = TRUE)) +
+      dnorm(theta, 0, 1, log = TRUE)
+  }
+  theta <- as.numeric(sA$data@x[, "theta"])
+  out <- list(synced = TRUE, wanted = 0L, accepted = 0L, declined = 0L)
+  for (step in 1:5) {
+    proposal <- theta + rnorm(nJoint, 0, 0.5)
+    wanted <- log(runif(nJoint)) < logLik(proposal) - logLik(theta)
+    installed <- wanted
+    installed[wanted] <- updatePredictorPerObservationJointly(
+      list(sA, sB),
+      ifelse(wanted, proposal, theta),
+      column = "theta"
+    )[wanted]
+    theta <- ifelse(installed, proposal, theta)
+    out$synced <- out$synced &&
+      isTRUE(all.equal(as.numeric(sA$data@x[, "theta"]), theta)) &&
+      isTRUE(all.equal(as.numeric(sB$data@x[, "theta"]), theta))
+    out$wanted <- out$wanted + sum(wanted)
+    out$accepted <- out$accepted + sum(installed)
+    out$declined <- out$declined + sum(wanted & !installed)
+    invisible(sA$run(0L, 1L))
+    invisible(sB$run(0L, 1L))
+  }
+  out
 }
-current <- sA$data@x[, "theta"]
-llCurrent <- jointLogLik() + dnorm(current, 0, 1, log = TRUE)
-proposal <- current + rnorm(nJoint, 0, 0.5)
-u4 <- runif(nJoint)
-installMask <- updatePredictorPerObservationJointly(
-  list(sA, sB),
-  proposal,
-  column = "theta"
-)
-llProposal <- jointLogLik() + dnorm(proposal, 0, 1, log = TRUE)
-accept <- installMask & (log(u4) < llProposal - llCurrent)
-theta4 <- ifelse(accept, proposal, current)
-reinstalled <- updatePredictorPerObservationJointly(
-  list(sA, sB),
-  theta4,
-  column = "theta"
-)
-
-# measured: 79 of 80 installed, 34 accepted; the cell is vacuous if the mask is
-# all TRUE, so its non-vacuity is asserted first
-expect_true(sum(installMask) > 0L && sum(installMask) < nJoint)
-expect_true(sum(accept) > 0L)
-expect_true(all(theta4[!installMask] == current[!installMask]))
-# the second call returns to the value the host settled on every row whose
-# revert empties no leaf, and a row whose revert would keeps the proposal:
-# measured, 77 of 80 reverted. The samplers agree with each other and with
-# what the mask reports
-settled <- ifelse(reinstalled, theta4, proposal)
-expect_true(sum(reinstalled) > nJoint / 2)
-expect_equal(as.numeric(sA$data@x[, "theta"]), settled)
-expect_equal(as.numeric(sB$data@x[, "theta"]), settled)
-# the defect: dropping the mask from the conjunction moves the host's copy on
-# the declined rows to values the samplers never installed
-wrongTheta <- ifelse(log(u4) < llProposal - llCurrent, proposal, current)
-expect_true(sum(wrongTheta != theta4) > 0L)
-expect_true(all(which(wrongTheta != theta4) %in% which(!installMask)))
+nDeclined <- 0L
+for (seed in c(404L, 405L, 407L, 408L, 410L)) {
+  res <- latentStep(seed)
+  nDeclined <- nDeclined + res$declined
+  # the host's copy equals what both samplers hold, for every row, every step
+  expect_true(res$synced, info = paste("seed", seed))
+  # declined rows count as rejected: accepted = wanted less declined
+  expect_equal(res$accepted, res$wanted - res$declined)
+  expect_true(res$accepted > 0L)
+}
+# measured: 48 declines over the five seeds; the cell is vacuous at zero
+expect_true(nDeclined > 0L)
 
 ## 5. OUTER-OWNED SIGMA: the pin and the guard. sigma = fixed() suppresses
 ## the sampler's own draw, so what setSigma writes survives a sweep; without it
