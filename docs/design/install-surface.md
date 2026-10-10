@@ -59,9 +59,11 @@ states a forced install reports as altered. The repair is one pass of
 ([`Tree::splitIsForbidden`](../../src/bartcore/tree.hpp)).
 
 The verdict builds and partitions every tree once more than a forced install does, so an unforced restore
-costs more: the measured ratios are in the plan's landing note. A loop that restores its own state onto rows
-it has put back, where nothing can need repair, passes `forceUpdate = TRUE` and pays what a restore cost
-before.
+costs more. Measured with 200 trees on 10 columns, one chain and one thread (bench-sampler.R's `restore`
+grid, 2026-10-10, on a machine under load, two runs within one percent), an unforced restore took 1.64 times
+a forced one at n = 1000 and 1.72 times at n = 1e5, which is 0.9 and 1.3 sweeps more; a forced restore cost
+what a restore cost before the check existed (1.000 and 1.001 times it). A loop that restores its own state
+onto rows it has put back, where nothing can need repair, passes `forceUpdate = TRUE` and pays that.
 
 ## What is clean whatever it differs in
 
