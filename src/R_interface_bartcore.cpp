@@ -5187,6 +5187,10 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
       installChannel("glue", allocChannel(REALSXP, {shape.numAmplitudes}));
   }
 
+  // GetRNGstate can raise (a malformed .Random.seed under warn = 2), so it
+  // precedes the two owning buffers below; nothing between here and the run
+  // touches R's stream
+  GetRNGstate();
   std::vector<std::uint32_t> variableCounts(numPredictors * numVCForests *
                                             numSamples * numChains);
 
@@ -5267,12 +5271,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   bool cancelled = false;
   bartcore_bridge::CapturedError error;
   SEXP continuation = NULL;
-  GetRNGstate();
   // The R route's callback gets the same protection the flat one's does: a
   // raise inside it jumps at the leaf and arrives here as an UnwindJump, the
-  // engine's own frames already unwound. This frame's two buffers are freed by
-  // hand on that path, exactly as the cancel path below frees them, since a
-  // catch cannot unwind the frame it sits in.
+  // engine's own frames already unwound.
   try {
     DrawCallbackProtection armed(drawHook);
     captureExceptions(error, [&]() {
@@ -5284,38 +5285,30 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   } catch (const UnwindJump& jump) {
     continuation = jump.continuation;
   }
+  if (continuation == NULL && !error.failed && !cancelled) {
+    int* varcountOut = INTEGER(varcountExpr);
+    for (size_t i = 0;
+         i < numPredictors * numVCForests * numSamples * numChains; ++i)
+      varcountOut[i] = static_cast<int>(variableCounts[i]);
+  }
+  // freed by hand before anything below can longjmp (PutRNGstate and the
+  // tallies allocate, and every exit path raises): a longjmp runs no
+  // destructor in this frame
+  std::vector<std::uint32_t>().swap(variableCounts);
+  std::vector<double>().swap(scratch);
+  PutRNGstate();
   // the handler is left before the jump resumes: a longjmp out of a live catch
   // block strands the exception on this thread's caught-exception stack, the
   // same reason captureExceptions copies its message out before raising
-  if (continuation != NULL) {
-    PutRNGstate();
-    std::vector<std::uint32_t>().swap(variableCounts);
-    std::vector<double>().swap(scratch);
-    R_ContinueUnwind(continuation); // does not return
-  }
-  PutRNGstate();
-  if (error.failed) {
-    std::vector<std::uint32_t>().swap(variableCounts);
-    std::vector<double>().swap(scratch);
-    Rf_error("%s", error.message);
-  }
+  if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
+  if (error.failed) Rf_error("%s", error.message);
   if (cancelled) {
-    // free before longjmp: Rf_error runs no destructor between here and the
-    // handler
-    std::vector<std::uint32_t>().swap(variableCounts);
-    std::vector<double>().swap(scratch);
     // an abort the observer asked for is not an interrupt, and the two are
     // told apart the way the sweep-callback entry tells its own stop from one:
     // the sampler reports which arm set the flag
     if (stoppedByCallback) Rf_error("sampler run stopped by the callback");
     bartcore_bridge::raiseInterrupt();
   }
-
-  // nothing past the copy-out allocates, so the counts need no early free
-  int* varcountOut = INTEGER(varcountExpr);
-  for (size_t i = 0; i < numPredictors * numVCForests * numSamples * numChains;
-       ++i)
-    varcountOut[i] = static_cast<int>(variableCounts[i]);
 
   // a GP fit's fallback census, as an attribute rather than a result slot:
   // every existing consumer of this list reads it by name, and a leaf model
@@ -5348,9 +5341,24 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
 //
 // No GetRNGstate/PutRNGstate: the chain's generator never touches R's stream,
 // while the closure may draw from it, so R must own .Random.seed throughout.
-// The closure is evaluated under R_tryEval so an error cannot longjmp across
-// Chain::run's C++ frames; it becomes a cooperative stop, re-raised in R from
-// the closure's own handler.
+// Every R call a sweep makes, building the call included, runs under
+// R_ToplevelExec so no jump crosses Chain::run's C++ frames; a jump becomes a
+// cooperative stop, re-raised once the run has returned.
+struct SweepCall {
+  SEXP callback;
+  SEXP rho;
+  int sweepIndex;
+  bool stop;
+};
+static void evalSweepCallback(void* data) {
+  SweepCall& frame = *static_cast<SweepCall*>(data);
+  SEXP index = PROTECT(Rf_ScalarInteger(frame.sweepIndex));
+  SEXP call = PROTECT(Rf_lang2(frame.callback, index));
+  SEXP res = Rf_eval(call, frame.rho);
+  frame.stop = res != R_NilValue && Rf_asLogical(res) == TRUE;
+  UNPROTECT(2);
+}
+
 SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
                               SEXP numSamplesExpr, SEXP resultsExpr,
                               SEXP callbackExpr, SEXP rhoExpr) {
@@ -5389,28 +5397,29 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
   // here would report its prognostic forest, exactly as the flat C API does.
   results.numVariableCountForests = 1;
 
-  bool callbackErrored = false;  // an error escaped the closure (R_tryEval)
+  bool callbackErrored = false;  // a jump left the closure (R_ToplevelExec)
   bool closureStopped = false;   // the closure returned TRUE (self-caught stop)
-  bartcore::SweepCallback onSweep =
-    [&](size_t, size_t sweepIndex, bool) -> bool {
-      SEXP call = PROTECT(Rf_lang2(
-        callbackExpr, Rf_ScalarInteger(static_cast<int>(sweepIndex))));
-      int errorOccurred = 0;
-      SEXP res = R_tryEval(call, rhoExpr, &errorOccurred);
-      bool stop = errorOccurred == 0 && res != R_NilValue &&
-                  Rf_asLogical(res) == TRUE;
-      UNPROTECT(1);
-      if (errorOccurred) { callbackErrored = true; return true; }
-      closureStopped = stop;
-      return stop;
-    };
-
   bool cancelled = false;
   bartcore_bridge::CapturedError error;
-  captureExceptions(error, [&]() {
-    cancelled = sampler.run(numBurnIn, numSamples, results,
-                            bartcore_userInterrupted, onSweep);
-  });
+  {
+    // scoped so the closure's heap-held std::function is destroyed before any
+    // raise below: Rf_error runs no destructor in this frame
+    bartcore::SweepCallback onSweep =
+      [&](size_t, size_t sweepIndex, bool) -> bool {
+        SweepCall frame{callbackExpr, rhoExpr, static_cast<int>(sweepIndex),
+                        false};
+        if (R_ToplevelExec(evalSweepCallback, &frame) == FALSE) {
+          callbackErrored = true;
+          return true;
+        }
+        closureStopped = frame.stop;
+        return frame.stop;
+      };
+    captureExceptions(error, [&]() {
+      cancelled = sampler.run(numBurnIn, numSamples, results,
+                              bartcore_userInterrupted, onSweep);
+    });
+  }
   if (error.failed) Rf_error("%s", error.message);
   if (callbackErrored)
     Rf_error("error evaluating the sweep callback");
