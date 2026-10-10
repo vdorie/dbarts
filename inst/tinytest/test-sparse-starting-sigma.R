@@ -42,11 +42,16 @@ sparseSigma <- function(x, ...) {
   }
   dbarts:::sparseResidualStandardError(x = x, ...)
 }
+# the value of expr or the error it raised, so that a broken build fails the
+# expectation the value goes to and not the file
+attempt <- function(expr) tryCatch(expr, error = function(e) e)
 # the sparse routine on a frame against lm.fit on its indicator form; where
 # lm.fit has no residual degrees of freedom the routine has no estimate
 agrees <- function(x, y, w = NULL, o = NULL, rows = NULL, tolerance = 1e-10) {
   expected <- lmSigma(indicatorForm(x), y, w, o, rows)
-  observed <- sparseSigma(x, y = y, weights = w, offset = o, rows = rows)
+  observed <- attempt(
+    sparseSigma(x, y = y, weights = w, offset = o, rows = rows)
+  )
   if (is.finite(expected)) {
     expect_equal(observed, expected, tolerance = tolerance)
   } else {
@@ -120,16 +125,16 @@ bartOf <- function(x, y, verbose = FALSE, ...) {
 bartBTOf <- function(x, y, verbose = FALSE, ...) {
   bartBT(x, y, ntree = 3L, ndpost = 2L, nskip = 1L, verbose = verbose, ...)
 }
-xbartOf <- function(x, y, seed = 3L, ...) {
+xbartOf <- function(x, y, seed = 3L, n.test = 3L, n.threads = 1L, ...) {
   xbart(
     x,
     y,
     n.samples = 3L,
     n.burn = c(2L, 1L),
     n.reps = 1L,
-    n.test = 3L,
+    n.test = n.test,
     n.trees = 3L,
-    n.threads = 1L,
+    n.threads = n.threads,
     seed = seed,
     ...
   )
@@ -277,14 +282,48 @@ for (door in names(taking)) {
     )
   }
 }
+# a rule's name is exact, letter case included
+for (rule in c("AUTO", "Dense", "SPARSE")) {
+  expect_error(
+    sigmaOf(frame, y, sigest = rule),
+    paste0("unknown 'sigest' rule \"", rule, "\"; use \"auto\""),
+    fixed = TRUE
+  )
+}
 # a rule's name where sigest has no use is treated as a number is
 expect_error(bartOf(frame, binary, sigest = "sd"), "unknown 'sigest' rule")
-expect_warning(
-  bartOf(frame, binary, sigest = "dense"),
-  "has no use for 'sigest'"
-)
+unused <- signals(bartOf(frame, binary, sigest = "dense"))
+expect_equal(length(unused$warning), 1L)
+expect_true(all(grepl("has no use for 'sigest'", unused$warning)))
 expect_identical(signals(sigmaOf(frame, binary, sigest = "dense")), silent)
 expect_identical(sigmaOf(frame, y, sigest = "1.5"), 1.5)
+# a list of a number reads as the number, at every door that takes one
+for (door in c("dbarts", "bart", "dbartsSpec")) {
+  listed <- attempt(taking[[door]](frame, y, sigest = list(1.5)))
+  if (door == "bart") {
+    listed <- listed$sigest
+  }
+  expect_identical(listed, 1.5, info = door)
+}
+# NULL is "auto" at the door that spells "none" NA
+expect_identical(
+  attempt(bartBTOf(frame, y, sigest = NULL)$sigest),
+  bartBTOf(frame, y)$sigest
+)
+expect_equal(bartBTOf(frame, y)$sigest, summary(lm(y ~ f6 + x1))$sigma)
+# an estimate that fails says why, after the words it always had
+failing <- function(...) stop("no such luck")
+original <- dbarts:::residualStandardError
+assignInNamespace("residualStandardError", failing, "dbarts")
+failed <- attempt(sigmaOf(frame, y))
+assignInNamespace("residualStandardError", original, "dbarts")
+expect_identical(
+  conditionMessage(failed),
+  paste0(
+    "unable to obtain a starting estimate of sigma; provide one instead: ",
+    "no such luck"
+  )
+)
 expect_error(
   suppressWarnings(dbarts(frame, y, control = control, sigma = "sparse")),
   "must be coercible to numeric type"
@@ -533,7 +572,7 @@ grouped <- function(verbose, n.threads = 1L, ...) {
     n.threads = n.threads,
     verbose = verbose,
     ...
-  )$sigest
+  )
 }
 fitters <- list(
   dbarts = function(verbose, ...) {
@@ -544,17 +583,18 @@ fitters <- list(
   bartBT = function(verbose, ...) {
     bartBTOf(levelPerRow, y30, verbose, ...)$sigest
   },
-  rbart_vi = grouped,
+  rbart_vi = function(verbose, ...) grouped(verbose, ...)$sigest,
   xbart = function(verbose, ...) {
     xbartOf(levelPerRow, y30, verbose = verbose, ...)
   }
 )
 for (door in names(fitters)) {
   for (rule in c("dense", "sparse")) {
-    loud <- signals(value <- fitters[[door]](TRUE, sigest = rule))
+    loud <- signals(value <- attempt(fitters[[door]](TRUE, sigest = rule)))
+    expect_true(is.numeric(value), info = door)
     # bartBT prints its lines with the rest of its output
     lines <- if (door == "bartBT") {
-      capture.output(fitters[[door]](TRUE, sigest = rule))
+      capture.output(attempt(fitters[[door]](TRUE, sigest = rule)))
     } else {
       loud$message
     }
@@ -568,13 +608,15 @@ for (door in names(fitters)) {
     if (door != "xbart") {
       expect_identical(value, sd(y30), info = door)
     }
-    quiet <- signals(fitters[[door]](FALSE, sigest = rule))
+    quiet <- signals(value <- attempt(fitters[[door]](FALSE, sigest = rule)))
+    expect_true(is.numeric(value), info = door)
     expect_identical(quiet, silent, info = door)
   }
 }
 if (at_home()) {
-  threaded <- unlist(signals(grouped(TRUE, n.threads = 2L)))
-  expect_false(any(grepl("starting sigma", threaded)))
+  threaded <- signals(onThreads <- grouped(TRUE, n.threads = 2L))
+  expect_false(any(grepl("starting sigma", unlist(threaded))))
+  expect_true(onThreads$sigest.fallback)
 }
 # a caller's handler that muffles messages finds nothing it cannot muffle
 expect_identical(
@@ -587,6 +629,8 @@ expect_identical(
 recorded <- bartOf(levelPerRow, y30)
 expect_true(recorded$sigest.fallback)
 expect_true(bartBTOf(levelPerRow, y30)$sigest.fallback)
+expect_true(grouped(FALSE)$sigest.fallback)
+expect_false("sigest.fallback" %in% names(grouped(FALSE, sigest = 1)))
 summaryLine <- paste0(
   "(Starting sigma: the sd of the response; the linear model had no ",
   "residual degrees of freedom)"
@@ -605,14 +649,14 @@ partial <- pdbart(
   verbose = FALSE
 )
 expect_identical(partial$sigest, sd(y30))
-for (fit in list(
-  bartOf(frame, y),
-  bartOf(levelPerRow, y30, sigest = 1),
-  replace(recorded, "sigest.fallback", list(NULL))
-)) {
-  expect_null(fit$sigest.fallback)
+for (fit in list(bartOf(frame, y), bartOf(levelPerRow, y30, sigest = 1))) {
+  expect_false("sigest.fallback" %in% names(fit))
   expect_false(summaryLine %in% capture.output(print(summary(fit))))
 }
+# the summary's line follows the field, not the fit it was recorded on
+stripped <- recorded[names(recorded) != "sigest.fallback"]
+class(stripped) <- class(recorded)
+expect_false(summaryLine %in% capture.output(print(summary(stripped))))
 
 # --- an infinite entry is refused before any routine runs ---
 
@@ -638,12 +682,12 @@ for (x in list(infinite, infiniteVector)) {
 estimating <- c(design = "startingSigmaDesign", all = "estimateStartingSigma")
 for (rule in list(NULL, "dense", "sparse")) {
   none <- traced(
-    value <- sigmaOf(
+    value <- attempt(sigmaOf(
       infinite,
       y,
       family = gaussian(sigma = fixed(0.49)),
       sigest = rule
-    ),
+    )),
     estimating
   )
   expect_identical(value, sqrt(0.49))
@@ -662,10 +706,11 @@ fixedFit <- function(x = frame, response = y, verbose = FALSE, ...) {
 expect_identical(fixedFit()$sigest, sqrt(0.49))
 expect_null(fixedFit(levelPerRow, y30)$sigest.fallback)
 expect_identical(signals(fixedFit(levelPerRow, y30, TRUE)), silent)
-expect_identical(
-  signals(xbartOf(infinite, y, family = gaussian(sigma = fixed(0.49)))),
-  silent
+fixedFolds <- signals(
+  value <- attempt(xbartOf(infinite, y, family = gaussian(sigma = fixed(0.49))))
 )
+expect_true(is.numeric(value))
+expect_identical(fixedFolds, silent)
 # a number beside it is accepted where the two agree, the draws those of a
 # fit given none, and refused where they differ
 onceKeys[["tombstone.sigest.fixed"]] <- NULL
@@ -715,7 +760,12 @@ for (rule in c("dense", "sparse")) {
   }
 }
 # where all rows leave no regression, no fold attempts one
-expect_equal(suppressMessages(traced(xbartOf(levelPerRow, y30)))[["lm"]], 1L)
+value <- NULL
+attempts <- suppressMessages(traced(
+  value <- attempt(xbartOf(levelPerRow, y30))
+))
+expect_true(is.numeric(value))
+expect_equal(attempts[["lm"]], 1L)
 given <- list()
 recorder <- function(x, y, weights, offset) {
   given[[length(given) + 1L]] <<- list(x, y, weights, offset)
@@ -771,18 +821,30 @@ set.seed(9)
 before <- .Random.seed
 xbartOf(frame, y, sigest = drawing)
 expect_identical(.Random.seed, before)
-# and no worker seeds it: under a seed its draws continue the stream the
-# replication's split was drawn from
+# and no worker seeds it: a stream the function starts at its first call is
+# the one its later calls draw from
 drawn <- integer()
 drawer <- function(x, y, weights, offset) {
+  if (length(drawn) == 0L) {
+    set.seed(77L)
+  }
   drawn <<- c(drawn, sample.int(1000000L, 1L))
   sd(y)
 }
 xbartOf(frame, y, sigest = drawer)
-set.seed(3L)
-set.seed(sample.int(.Machine$integer.max, 4L)[1L])
-split <- sample.int(n)
+set.seed(77L)
 expect_identical(drawn, replicate(3L, sample.int(1000000L, 1L)))
+# nor does the call's seed reach a worker's generator: on two workers a
+# function that draws does not repeat itself
+if (at_home()) {
+  unseeded <- function(x, y, weights, offset) {
+    sd(y) * (1 + sample.int(1000000L, 1L) / 1e6)
+  }
+  expect_false(identical(
+    xbartOf(frame, y, sigest = unseeded, n.threads = 2L),
+    xbartOf(frame, y, sigest = unseeded, n.threads = 2L)
+  ))
+}
 for (value in list(NA_real_, 0, Inf, "1", c(1, 2))) {
   expect_error(
     xbartOf(frame, y, sigest = function(x, y, weights, offset) value),
@@ -800,3 +862,123 @@ expect_error(
 given <- list()
 xbartOf(frame, binary, sigest = recorder)
 expect_equal(length(given), 0L)
+
+# --- xbart: where all rows allow the regression and a fold's rows do not,
+# the fold starts from the sd of its own response and one line under verbose
+# counts such folds for the run ---
+
+set.seed(21)
+wide30 <- matrix(rnorm(30L * 24L), 30L)
+allRows <- "by a dense linear regression on 30 rows and 24 columns"
+perFold <- paste0(
+  "starting sigma is the sd of the response in 5 of 5 (replication, fold) ",
+  "units: the linear model leaves no residual degrees of freedom in their ",
+  "training rows; supply 'sigest' to set it\n"
+)
+ofFolds <- function(...) attempt(xbartOf(wide30, y30, n.test = 5L, ...))
+ownSd <- function(x, y, weights, offset) sd(y)
+expected <- ofFolds(sigest = ownSd)
+expect_true(is.numeric(expected))
+for (threads in 1:2) {
+  loud <- signals(value <- ofFolds(verbose = TRUE, n.threads = threads))
+  expect_identical(loud$warning, character(), info = threads)
+  expect_equal(sum(grepl(allRows, loud$message)), 1L, info = threads)
+  expect_equal(sum(loud$message == perFold), 1L, info = threads)
+  expect_equal(sum(grepl("starting sigma", loud$message)), 2L, info = threads)
+  # each fold took the sd of its training response, said or not
+  expect_identical(value, expected, info = threads)
+  quiet <- signals(value <- ofFolds(n.threads = threads))
+  expect_identical(quiet, silent, info = threads)
+  expect_identical(value, expected, info = threads)
+}
+# no such line where every fold has its regression, nor after the line that
+# said it of all rows
+for (x in list(frame, levelPerRow)) {
+  response <- if (nrow(x) == 30L) y30 else y
+  said <- signals(attempt(xbartOf(x, response, verbose = TRUE)))$message
+  expect_false(any(grepl("(replication, fold) units", said, fixed = TRUE)))
+}
+
+# --- no size turns the regression off: designs past the cutoffs that once
+# sent a sparse design, or a large one, to the sd of the response ---
+
+set.seed(4)
+past <- 2100L
+stored <- Matrix::rsparsematrix(past, 6L, 0.3)
+yp <- as.numeric(stored %*% rnorm(6L)) + rnorm(past, sd = 0.5)
+# 2,004 columns, all but six of them never stored
+never <- Matrix::sparseMatrix(
+  i = integer(),
+  j = integer(),
+  x = numeric(),
+  dims = c(past, 1998L)
+)
+padded <- cbind(stored, never)
+expect_equal(ncol(dbartsData(padded, yp)@x), 2004L)
+expect_equal(
+  attempt(sigmaOf(padded, yp)),
+  summary(lm(yp ~ as.matrix(stored)))$sigma,
+  tolerance = 1e-10
+)
+expect_equal(
+  attempt(sigmaOf(as.matrix(stored), yp)),
+  summary(lm(yp ~ as.matrix(stored)))$sigma,
+  tolerance = 1e-10
+)
+# 2,050 levels in 2,100 rows, by the sparse routine: the residual of the
+# regression within levels, on 49 degrees of freedom
+level <- sample(c(seq_len(2050L), sample.int(2050L, 50L)))
+within <- function(v, by) v - ave(v, by)
+withinSigma <- function(x, y, by) {
+  xw <- within(x, by)
+  yw <- within(y, by)
+  rss <- sum((yw - xw * sum(xw * yw) / sum(xw^2))^2)
+  sqrt(rss / (length(y) - length(unique(by)) - 1L))
+}
+vp <- rnorm(past)
+yq <- vp + rnorm(2050L)[level] + rnorm(past, sd = 0.5)
+manyLevels <- data.frame(v = vp, f = factor(level))
+expect_equal(
+  attempt(sigmaOf(manyLevels, yq, sigest = "sparse")),
+  withinSigma(vp, yq, level),
+  tolerance = 1e-10
+)
+manyLevels$f <- sparseFactor(manyLevels$f)
+expect_equal(
+  attempt(sigmaOf(manyLevels, yq)),
+  withinSigma(vp, yq, level),
+  tolerance = 1e-10
+)
+
+# --- a caller's own one-hot columns with every level kept: the intercept is
+# their sum exactly, and is found to be at any number of rows ---
+
+set.seed(1)
+level <- sample.int(400L, 40000L, TRUE)
+xh <- rnorm(40000L)
+yh <- xh + rnorm(400L)[level] + rnorm(40000L, sd = 0.5)
+oneHot <- cbind(
+  Matrix::sparseMatrix(i = seq_len(40000L), j = level, x = 1),
+  columns(x = xh)
+)
+hotFit <- dbarts:::sparseSigmaRoutine(dbarts:::sparseSigmaFrontEnd(
+  dbarts:::sparseSigmaDesign(oneHot),
+  yh,
+  NULL,
+  NULL
+))
+expect_identical(hotFit$rank, 401L)
+expect_equal(hotFit$sigma, withinSigma(xh, yh, level), tolerance = 1e-10)
+# the same beside a second complete set, which adds its columns less one
+second <- sample.int(7L, 40000L, TRUE)
+twoHot <- cbind(
+  oneHot,
+  Matrix::sparseMatrix(i = seq_len(40000L), j = second, x = 1)
+)
+twoFit <- dbarts:::sparseSigmaRoutine(dbarts:::sparseSigmaFrontEnd(
+  dbarts:::sparseSigmaDesign(twoHot),
+  yh,
+  NULL,
+  NULL
+))
+expect_identical(twoFit$rank, 407L)

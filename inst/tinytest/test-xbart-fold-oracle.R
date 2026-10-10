@@ -489,7 +489,8 @@ expect_false(identical(
 
 # A design whose folds have no residual degrees of freedom takes each fold's
 # response sd with no warning, the estimate on all rows announced once under
-# verbose; under a fixed residual scale no estimate is made at all.
+# verbose and the folds that took it counted in one line more; under a fixed
+# residual scale no estimate is made at all.
 set.seed(7)
 xWide <- matrix(runif(120L), 12L, 10L)
 yWide <- rnorm(12L)
@@ -521,6 +522,14 @@ invisible(capture.output(withCallingHandlers(
   }
 )))
 expect_equal(sum(grepl("estimating the starting sigma", wideMessages)), 1L)
-expect_false(any(grepl("is the sd of the response", wideMessages)))
+expect_equal(
+  sum(grepl(
+    "is the sd of the response in 2 of 2 (replication, fold) units",
+    wideMessages,
+    fixed = TRUE
+  )),
+  1L
+)
+expect_equal(sum(grepl("is the sd of the response", wideMessages)), 1L)
 rm(xWide, yWide, xbartWide, wideMessages)
 rm(foldDraws, foldY, changedY, original, changed, holdsRowOne, trainsOnRowOne)

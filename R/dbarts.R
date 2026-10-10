@@ -676,8 +676,7 @@ validateArgumentsInEnvironment <- function(
       !is.null(sigest) &&
       !isSingleNA(sigest) &&
       !isSigestRule(sigest) &&
-      !is.function(sigest) &&
-      !is.list(sigest)
+      !isSigestFunction(sigest)
   ) {
     envir$sigest <- validateSigest(sigest, funcName)
   }

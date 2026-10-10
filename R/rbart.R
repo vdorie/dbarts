@@ -429,7 +429,14 @@ rbart_vi <- function(
   # any refusal of the chains' arguments surfaces here, once, rather than
   # inside a worker that then retries serially
   streamBefore <- readGlobalSeed()
-  validationSampler <- do.call(dbarts::dbarts, samplerArgs)
+  # where no regression was defined the starting sigma is the sd of the
+  # response, which the fit records as bart's does; every chain's estimate
+  # is this one over again
+  sigestFallback <- FALSE
+  validationSampler <- withCallingHandlers(
+    do.call(dbarts::dbarts, samplerArgs),
+    dbartsSigmaFallback = function(condition) sigestFallback <<- TRUE
+  )
   writeGlobalSeed(streamBefore)
   # "auto" resolved (and was announced) once, above; the chains take the
   # resolved family so none of them announces it again, without the
@@ -514,7 +521,7 @@ rbart_vi <- function(
       )
     }
   }
-  packageRbartResults(
+  result <- packageRbartResults(
     control,
     data,
     group.by,
@@ -524,6 +531,10 @@ rbart_vi <- function(
     seed,
     keepSampler
   )
+  if (sigestFallback) {
+    result$sigest.fallback <- TRUE
+  }
+  result
 }
 
 rbart_vi_run <- function(

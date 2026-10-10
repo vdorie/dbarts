@@ -182,7 +182,10 @@ estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
     error = function(e) e
   )
   if (inherits(tryResult, "error")) {
-    stop("unable to obtain a starting estimate of sigma; provide one instead")
+    stop(
+      "unable to obtain a starting estimate of sigma; provide one instead: ",
+      conditionMessage(tryResult)
+    )
   }
   if (fellBack) {
     announceStartingSigma(

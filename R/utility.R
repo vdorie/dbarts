@@ -1108,6 +1108,66 @@ residualStandardError <- function(y, x, weights, offset) {
 ## The rules 'sigest' names for estimating the starting sigma.
 sigestRules <- c("auto", "dense", "sparse")
 
+## 'sigest' is a number or the name of the rule that estimates it. Splits
+## what resolveSigestArg returned into the estimate, NA_real_ where one is to
+## be made, and the rule that makes it, "auto" for a number. A string is
+## exactly one of the rule names; one that reads as a number is that number,
+## as it always was. A function is xbart's alone, which reads its own before
+## this is reached.
+resolveSigestRule <- function(sigest, caller) {
+  if (isSigestFunction(sigest)) {
+    stop(
+      "'sigest' argument to ",
+      caller,
+      " must be a number, \"auto\", \"dense\" or \"sparse\"; only xbart ",
+      "takes a function",
+      call. = FALSE
+    )
+  }
+  if (is.character(sigest) && length(sigest) == 1L && !is.na(sigest)) {
+    if (sigest %in% sigestRules) {
+      if (sigest == "sparse" && !matrixAvailable()) {
+        stop("sigest = \"sparse\" requires the Matrix package", call. = FALSE)
+      }
+      return(list(value = NA_real_, rule = sigest))
+    }
+    if (is.na(suppressWarnings(as.double(sigest)))) {
+      stop(
+        "unknown 'sigest' rule \"",
+        sigest,
+        "\"; use \"auto\", \"dense\" or \"sparse\"",
+        call. = FALSE
+      )
+    }
+  }
+  list(value = sigest, rule = "auto")
+}
+
+## TRUE for the name of a rule 'sigest' takes in place of a number.
+isSigestRule <- function(sigest) {
+  is.character(sigest) && length(sigest) == 1L && sigest %in% sigestRules
+}
+
+## TRUE for a function or the list form that begins with one, which xbart
+## takes for 'sigest'. Any other list is read as a number is.
+isSigestFunction <- function(sigest) {
+  is.function(sigest) ||
+    (is.list(sigest) && length(sigest) > 0L && is.function(sigest[[1L]]))
+}
+
+## What dbarts() takes for the 'sigest' of a door that spells "none" NA, as
+## 0.9-34 did: the rule's name, NULL, or the number.
+forwardedSigest <- function(sigest, caller) {
+  resolveSigestRule(sigest, caller)
+  if (isSigestRule(sigest)) {
+    sigest
+  } else if (is.null(sigest) || is.na(sigest)) {
+    NULL
+  } else {
+    as.numeric(sigest)
+  }
+}
+
 ## The routine a 'sigest' rule stands for on a predictor source. "auto" is the
 ## sparse one where the caller supplied a sparse-stored column and lm.fit
 ## otherwise, whatever storage R gave a factor's indicator columns and whether
@@ -1495,7 +1555,7 @@ sigmaPivotedCholesky <- function(S, tolerance = 1e-10) {
     rank <- attr(S, "rank")
   }
   pivot <- if (rank > 0L) attr(S, "pivot") else seq_len(ncol(S))
-  list(rank = rank, pivot = pivot, chol = S)
+  list(rank = rank, pivot = pivot, chol = S, tolerance = tolerance)
 }
 
 ## The residual standard error of the weighted regression of the front end's
@@ -1512,7 +1572,9 @@ sigmaPivotedCholesky <- function(S, tolerance = 1e-10) {
 ##    columns, or S would have as many columns as there are rows, none is
 ##    eliminated and every missing row is written in.
 ## 2. The rank is the eliminated columns plus that of S; the coefficients and
-##    the residual follow from the leading block of its factor.
+##    the residual follow from the leading block of its factor. With nothing
+##    eliminated the factorization is of the columns without the intercept,
+##    which is ordered last.
 ## 3. With nothing eliminated and at least as many columns as rows, the same
 ##    factorization is of the rows' crossproduct, and the residual is what is
 ##    left of the response outside the span of its leading columns.
@@ -1548,16 +1610,38 @@ sparseSigmaRoutine <- function(front) {
   numOther <- 1L + ncol(X) - length(block)
   if (length(block) < 2L || numOther >= n) {
     B <- weighted(writeImputedRows(X, term, imputed))
-    B <- B %*% unitNorm(Matrix::colSums(B^2))
     if (ncol(B) < n) {
-      factor <- sigmaPivotedCholesky(as.matrix(Matrix::crossprod(B)))
-      kept <- seq_len(factor$rank)
-      R <- factor$chol[kept, kept, drop = FALSE]
-      BK <- B[, factor$pivot[kept], drop = FALSE]
-      b <- as.numeric(Matrix::crossprod(BK, zs))
-      b <- backsolve(R, backsolve(R, b, transpose = TRUE))
-      return(result(zs - as.numeric(BK %*% b), factor$rank))
+      # The intercept is exactly the sum of a complete set of indicators, and
+      # a difference of two sums over the rows cannot show that at this
+      # tolerance once the rows are many. So the crossproduct is of the other
+      # columns alone and taken before they are brought to unit norm, which
+      # keeps sums of products of 0 and 1 exact, and the intercept is ordered
+      # last: what the kept columns leave of it is measured on the column
+      # itself, as what they leave of the response is.
+      others <- B[, -1L, drop = FALSE]
+      S <- Matrix::crossprod(others)
+      squaredNorms <- Matrix::diag(S)
+      scale <- unitNorm(squaredNorms)
+      factor <- sigmaPivotedCholesky(as.matrix(scale %*% S %*% scale))
+      kept <- factor$pivot[seq_len(factor$rank)]
+      left <- cbind(zs, h)
+      if (factor$rank > 0L) {
+        R <- factor$chol[seq_along(kept), seq_along(kept), drop = FALSE]
+        BK <- others[, kept, drop = FALSE] %*% unitNorm(squaredNorms[kept])
+        b <- as.matrix(Matrix::crossprod(BK, left))
+        b <- backsolve(R, backsolve(R, b, transpose = TRUE))
+        left <- left - as.matrix(BK %*% b)
+      }
+      residual <- left[, 1L]
+      ones <- left[, 2L]
+      rank <- factor$rank
+      if (sum(ones^2) > factor$tolerance * sum(h^2)) {
+        residual <- residual - ones * (sum(ones * residual) / sum(ones^2))
+        rank <- rank + 1L
+      }
+      return(result(residual, rank))
     }
+    B <- B %*% unitNorm(Matrix::colSums(B^2))
     factor <- sigmaPivotedCholesky(as.matrix(Matrix::tcrossprod(B)))
     L <- matrix(0, n, factor$rank)
     L[factor$pivot, ] <- t(factor$chol[seq_len(factor$rank), , drop = FALSE])

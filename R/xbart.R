@@ -829,6 +829,20 @@ xbart <- function(
   chunkResults <- withPreservedSeed(runUnits())
   unitLoss <- do.call(rbind, lapply(chunkResults, `[[`, "loss"))
   signalChunkWarnings(chunkResults)
+  # all rows allowed a regression; the units whose own rows did not took the
+  # sd of their response, which is said once for the run
+  numSigmaFallbacks <- sum(unlist(lapply(chunkResults, `[[`, "sigmaFallbacks")))
+  if (numSigmaFallbacks > 0L) {
+    announceStartingSigma(
+      verbose,
+      "starting sigma is the sd of the response in ",
+      numSigmaFallbacks,
+      " of ",
+      numUnits,
+      " (replication, fold) units: the linear model leaves no residual ",
+      "degrees of freedom in their training rows; supply 'sigest' to set it"
+    )
+  }
   numResults <- ncol(unitLoss)
   lossValues <- matrix(
     apply(
@@ -1006,7 +1020,9 @@ xbartSigestFunction <- function(sigest) {
 ## rows the previous training set contained; seeding per sampler creation
 ## rather than per chunk is what keeps a result independent of how the units
 ## were distributed, and no worker ever calls set.seed().
-## Returns a (units x cells) x numResults matrix, cells in spec$cells order.
+## Returns a (units x cells) x numResults matrix, cells in spec$cells order,
+## with the number of units whose starting sigma was the sd of their response
+## for want of a regression as its attribute "sigmaFallbacks".
 xbartRunUnits <- function(spec, unitRows, unitSeeds) {
   data <- spec$data
   cells <- spec$cells
@@ -1040,6 +1056,9 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       design
     }
   })
+  # the units that were to run a regression and whose training rows leave it
+  # no residual degrees of freedom, counted for the caller to announce
+  numSigmaFallbacks <- 0L
   foldData <- function(trainRows) {
     if (is.null(route)) {
       return(data)
@@ -1073,6 +1092,9 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       )
     } else {
       NA_real_
+    }
+    if (route != "marginal" && !is.finite(sigma)) {
+      numSigmaFallbacks <<- numSigmaFallbacks + 1L
     }
     residual <- if (!is.null(offset)) y - offset else y
     data@sigma <- floorSigmaEstimate(sigma, residual)
@@ -1164,16 +1186,17 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     results[[i]] <- sweepCells(unitRows[[i]], unitSeeds[i, ])
   }
 
-  do.call(rbind, results)
+  structure(do.call(rbind, results), sigmaFallbacks = numSigmaFallbacks)
 }
 
 ## xbartRunUnits with every warning its fits raise captured rather than
 ## signalled, so a chunk run in this process and one run on a worker, whose
 ## own warnings would never reach the caller, report the same way. Returns
-## the loss matrix, the distinct warnings in the order first raised, and the
-## warned-once keys the chunk set. Under options(warn = 2) a warning is left
-## to abort the run where it is raised, and an error signals the warnings
-## captured before it ahead of propagating.
+## the loss matrix, the distinct warnings in the order first raised, the
+## warned-once keys the chunk set, and the number of its units whose starting
+## sigma was the sd of their response for want of a regression. Under
+## options(warn = 2) a warning is left to abort the run where it is raised,
+## and an error signals the warnings captured before it ahead of propagating.
 xbartRunChunk <- function(spec, unitRows, unitSeeds) {
   # a worker takes the caller's warning level, so 'warn = 2' escalates there
   oldWarn <- options(warn = spec$warn)
@@ -1208,7 +1231,8 @@ xbartRunChunk <- function(spec, unitRows, unitSeeds) {
   list(
     loss = loss,
     warnings = captured,
-    onceKeys = setdiff(warnedOnceKeys(), spec$onceKeys)
+    onceKeys = setdiff(warnedOnceKeys(), spec$onceKeys),
+    sigmaFallbacks = attr(loss, "sigmaFallbacks")
   )
 }
 
