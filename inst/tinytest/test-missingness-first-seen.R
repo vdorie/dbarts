@@ -85,8 +85,18 @@ for (column in c("x1", "f")) {
   for (path in names(paths)) {
     info <- paste(column, path)
     sampler <- make()
-    paths[[path]](sampler)
+    taken <- tryCatch(
+      {
+        paths[[path]](sampler)
+        TRUE
+      },
+      error = conditionMessage
+    )
+    expect_identical(taken, TRUE, info = info)
     expect_identical(seen(sampler), seq_len(3L) == j, info = info)
+    if (!identical(seen(sampler), seq_len(3L) == j)) {
+      next
+    }
     # the kept draws were all recorded before the value arrived
     expect_true(all(c("L", "R") %in% sides(sampler, FALSE, j)), info = info)
     expect_true(all(c("L", "R") %in% sides(sampler, TRUE, j)), info = info)
