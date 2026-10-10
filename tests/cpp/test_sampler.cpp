@@ -7731,9 +7731,9 @@ static void testPrintTreesForest() {
 
 // The mid-chain calibration surface at the engine boundary. Four claims the R
 // tests can only see through the bridge: the reported prior scale is the leaf
-// scale carried into response units by an independently computed factor; the
-// write lands on EVERY chain; a read-then-write is bitwise inert, in the
-// internal scale and not merely in the reported one; and a combiner refuses
+// scale carried into response units by an independently computed factor; a
+// named sd lands on EVERY chain as k against that scale, the leaf scale
+// standing; a write of the sd held is bitwise inert; and a combiner refuses
 // the write while the reader still serves each of its forests.
 static void testForestCalibration() {
   // A local stream and locally owned generators, so adding this test shifts
@@ -7788,31 +7788,34 @@ static void testForestCalibration() {
         "calibration: an unnamed model reports the node scale in response "
         "units");
 
-  // the write lands on every chain, and a read-then-write does not touch the
-  // internal scale on any of them
-  check(sampler.setForestPriorScale(0, 2.5),
+  // a named sd lands on every chain as the fixed k that states it against
+  // the reported scale, to the bit, and the internal leaf scale stands
+  double leafScale = sampler.chain(0).leaf().scale;
+  check(std::isnan(calibration.namedSd) && std::isnan(calibration.kPriorScale),
+        "calibration: a k-named fixed prior holds no sd and no chi scale");
+  check(sampler.setForestNamedSd(0, 0.7),
         "calibration: a single-forest write is accepted");
-  std::vector<double> written(numChains);
   for (size_t c = 0; c < numChains; ++c) {
-    written[c] = sampler.chain(c).leaf().scale;
-    check(std::fabs(sampler.forestCalibration(c, 0).priorScale / 2.5 - 1.0) <
-            8.0 * DBL_EPSILON,
-          "calibration: the write reaches every chain");
+    ForestCalibration named = sampler.forestCalibration(c, 0);
+    check(named.namedSd == 0.7 && named.k == named.priorScale / 0.7 &&
+            named.priorScale == calibration.priorScale &&
+            sampler.chain(c).leaf().scale == leafScale,
+          "calibration: the named sd reaches every chain as k, the leaf "
+          "scale standing");
   }
-  for (size_t c = 0; c < numChains; ++c)
-    sampler.setForestPriorScale(0, sampler.forestCalibration(c, 0).priorScale);
-  for (size_t c = 0; c < numChains; ++c)
-    check(sampler.chain(c).leaf().scale == written[c],
-          "calibration: a read-then-write leaves the internal scale bitwise "
-          "untouched");
-  // and the skip is not vacuous - a value that is not what is in force writes
-  check(sampler.setForestPriorScale(0, 2.5 * (1.0 + 1.0e-9)),
-        "calibration: a different value is accepted");
-  check(sampler.chain(0).leaf().scale != written[0],
-        "calibration: a different value really moves the internal scale");
+  // a write of the sd held is skipped: a k written over the translation
+  // would be restated by a write that ran
+  double translated = sampler.k(0);
+  check(sampler.setForestFixedK(0, 5.0) && sampler.setForestNamedSd(0, 0.7) &&
+          sampler.k(0) == 5.0,
+        "calibration: a write of the sd held is skipped");
+  // and the skip is not vacuous - another sd writes
+  check(sampler.setForestNamedSd(0, 0.7 * (1.0 + 1.0e-9)) &&
+          sampler.k(0) != 5.0 && sampler.k(0) != translated,
+        "calibration: a different sd restates k");
 
   // an out-of-range forest is a capability answer, not a raise
-  check(!sampler.setForestPriorScale(1, 2.5),
+  check(!sampler.setForestNamedSd(1, 0.7),
         "calibration: an out-of-range forest refuses the write");
   // and the READER, which has no refusal channel of its own, answers with a
   // default-constructed calibration rather than reading past the last forest -
@@ -7864,8 +7867,8 @@ static void testForestCalibration() {
             bcf.chain(0).leaf().scale * bcf.fitScale() * std::sqrt(30.0),
           "calibration: the BCF prognostic scale carries its own tree count");
     // the writer refuses, because the map owns both halves
-    check(!bcf.setForestPriorScale(0, 2.5) &&
-            !bcf.setForestPriorScale(1, 2.5),
+    check(!bcf.setForestNamedSd(0, 2.5) && !bcf.setForestNamedSd(1, 2.5) &&
+            std::isnan(bcf.forestCalibration(0, 0).namedSd),
           "calibration: a combiner refuses the write on every forest");
     ext_rng_destroy(bcfRng);
   }
@@ -7873,6 +7876,236 @@ static void testForestCalibration() {
   for (size_t c = 0; c < numChains; ++c) ext_rng_destroy(rngs[c]);
   printf("ok: forest calibration read/write (prior scale %.4f)\n",
          calibration.priorScale);
+}
+
+/// The leaf prior's named sd inside the engine. A fixed sd is the k that
+/// states it against the data's scale, and a prior on the sd is the chi
+/// prior on k at that scale, so each is checked against the reader's own
+/// quotient to the bit and against the k-spelled twin draw for draw. Then
+/// the invariant after every call that moves the response transform, a drawn
+/// k standing through each; setModel across a change of sd and of spelling;
+/// and the writer under a drawn k.
+static void testNamedSd() {
+  std::uint64_t state = 20261010u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const size_t n = 200, p = 2, numTrees = 20, numChains = 2;
+  const double sd = 0.7;
+  std::vector<double> x(n * p), y(n), wide(n), offset(n), other(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    y[i] = 3.0 * std::sin(3.0 * x[i]) + x[i + n] + 0.3 * (unif() - 0.5);
+    wide[i] = 3.0 * y[i] + 1.0;
+    offset[i] = 2.0 * x[i + n] + 0.5;
+    other[i] = 5.0 * x[i] * x[i + n] - 2.0 + 0.2 * (unif() - 0.5);
+  }
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+
+  std::vector<ext_rng*> owned;
+  auto make = [&](double namedSd, bool drawn, double k, double chiScale,
+                  std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numChains = numChains;
+    options.namedSd = namedSd;
+    options.updateK = drawn;
+    options.k = k;
+    options.kHyperprior.degreesOfFreedom = 3.0;
+    options.kHyperprior.scale = chiScale;
+    ext_rng* rngs[numChains];
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], seed + static_cast<std::uint32_t>(c));
+      owned.push_back(rngs[c]);
+    }
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, rngs);
+  };
+  auto draws = [&](ConstantLeafSampler& sampler, size_t numSamples) {
+    std::vector<double> fits(n * numSamples * numChains);
+    Results results;
+    results.trainingFits = fits.data();
+    sampler.run(0, numSamples, results);
+    return fits;
+  };
+  // the invariant: what the forest holds is the named sd's statement against
+  // the scale the reader reports, to the bit, on every chain
+  auto holds = [&](const ConstantLeafSampler& sampler, double namedSd,
+                   bool drawn) {
+    bool all = true;
+    for (size_t c = 0; c < numChains; ++c) {
+      ForestCalibration cal = sampler.forestCalibration(c, 0);
+      double translated = cal.priorScale / namedSd;
+      all = all && cal.namedSd == namedSd &&
+            (drawn ? cal.kPriorScale == translated && cal.kHasHyperprior
+                   : cal.k == translated && std::isnan(cal.kPriorScale));
+    }
+    return all;
+  };
+
+  // creation
+  auto plain = make(nan, false, 2.0, 2.0, 100);
+  auto fixedSd = make(sd, false, 2.0, 2.0, 100);
+  auto drawnSd = make(sd, true, 2.0, 2.0, 100);
+  double kScale = plain->forestCalibration(0, 0).priorScale;
+  check(fixedSd->chain(0).leaf().scale == plain->chain(0).leaf().scale &&
+          drawnSd->chain(1).leaf().scale == plain->chain(1).leaf().scale &&
+          fixedSd->forestCalibration(0, 0).priorScale == kScale &&
+          drawnSd->forestCalibration(0, 0).priorScale == kScale,
+        "named sd: the leaf scale and the reported scale are the k-named "
+        "sampler's");
+  check(holds(*fixedSd, sd, false) && fixedSd->k(0) == kScale / sd,
+        "named sd: a fixed sd is created as k = scale / sd, to the bit");
+  check(holds(*drawnSd, sd, true) && drawnSd->k(0) == kScale / sd &&
+          drawnSd->k(1) == kScale / sd,
+        "named sd: a drawn sd's chi scale and starting k are scale / sd");
+
+  // the k-spelled twin, draw for draw
+  {
+    auto twin = make(nan, false, kScale / sd, 2.0, 100);
+    check(draws(*fixedSd, 1000) == draws(*twin, 1000),
+          "named sd: a fixed sd draws what k = scale / sd draws, bit for bit");
+    auto drawnTwin = make(nan, true, kScale / sd, kScale / sd, 100);
+    check(draws(*drawnSd, 1000) == draws(*drawnTwin, 1000) &&
+            drawnSd->k(0) == drawnTwin->k(0) &&
+            drawnSd->k(1) == drawnTwin->k(1),
+          "named sd: a drawn sd draws what k ~ chi(df, scale / sd) started "
+          "there draws, bit for bit");
+    check(drawnSd->k(0) != kScale / sd && drawnSd->k(0) != drawnSd->k(1),
+          "named sd: the drawn k has left its start on each chain");
+  }
+
+  // every call that moves the response transform restates a fixed k and a
+  // chi scale, and leaves a drawn k; one that does not move it writes nothing
+  auto moves = [&](const char* what, auto&& mutate, bool expectMove) {
+    for (int drawn = 0; drawn < 2; ++drawn) {
+      auto sampler = make(sd, drawn != 0, 2.0, 2.0, 200);
+      draws(*sampler, 20);
+      ForestCalibration before[numChains];
+      for (size_t c = 0; c < numChains; ++c)
+        before[c] = sampler->forestCalibration(c, 0);
+      mutate(*sampler);
+      bool moved = true, lagged = true, untouched = true;
+      for (size_t c = 0; c < numChains; ++c) {
+        ForestCalibration after = sampler->forestCalibration(c, 0);
+        moved = moved && after.priorScale != before[c].priorScale;
+        untouched = untouched && after.priorScale == before[c].priorScale &&
+                    after.k == before[c].k &&
+                    (drawn == 0 || after.kPriorScale == before[c].kPriorScale);
+        lagged = lagged && (drawn == 0 || after.k == before[c].k);
+      }
+      std::string label = std::string("named sd: ") + what +
+                          (drawn ? ", drawn" : ", fixed");
+      if (expectMove) {
+        check(moved, (label + ": the data's scale moved").c_str());
+        check(holds(*sampler, sd, drawn != 0),
+              (label + ": the sd is restated against the new scale").c_str());
+        check(lagged, (label + ": a drawn k is the value before").c_str());
+      } else {
+        check(untouched, (label + ": nothing is written").c_str());
+      }
+    }
+  };
+  moves("setResponse at updateScale",
+        [&](ConstantLeafSampler& s) { s.setResponse(wide.data(), true); },
+        true);
+  moves("setOffset at updateScale",
+        [&](ConstantLeafSampler& s) { s.setOffset(offset.data(), true); },
+        true);
+  moves("setData",
+        [&](ConstantLeafSampler& s) {
+          check(s.setData(x.data(), other.data(), n, nullptr, nullptr, nullptr,
+                          0),
+                "named sd: the replacement data installs");
+        },
+        true);
+  moves("setResponse without updateScale",
+        [&](ConstantLeafSampler& s) { s.setResponse(wide.data(), false); },
+        false);
+  moves("setOffset without updateScale",
+        [&](ConstantLeafSampler& s) { s.setOffset(offset.data(), false); },
+        false);
+  // setAnchor requires creation's trees, so its own fixture
+  for (int drawn = 0; drawn < 2; ++drawn) {
+    auto sampler = make(sd, drawn != 0, 2.0, 2.0, 300);
+    double min, max, start = sampler->k(0);
+    sampler->getAnchor(min, max);
+    sampler->setAnchor(min - 1.0, max + 2.0);
+    ForestCalibration after = sampler->forestCalibration(1, 0);
+    check(after.responseScale == (max + 2.0) - (min - 1.0) &&
+            after.priorScale != kScale && holds(*sampler, sd, drawn != 0),
+          drawn ? "named sd: setAnchor, drawn: the sd is restated"
+                : "named sd: setAnchor, fixed: the sd is restated");
+    check(drawn == 0 || (sampler->k(0) == start && sampler->k(1) == start),
+          "named sd: setAnchor, drawn: a drawn k is the value before");
+  }
+
+  // setModel: a drawn k stands across a change of named sd and of spelling,
+  // so the spread in force is kept; a fixed k is the model's or its sd's
+  {
+    auto sampler = make(sd, true, 2.0, 2.0, 400);
+    draws(*sampler, 20);
+    double k0 = sampler->k(0), k1 = sampler->k(1);
+    ModelParameters model;
+    model.updateK = true;
+    model.kHyperprior.degreesOfFreedom = 3.0;
+    model.kHyperprior.scale = 2.0;
+    model.sigmaEstimate = 1.0;
+    model.sigmaRawScale = 0.37804942330213542;
+    model.namedSd = 2.0 * sd;
+    sampler->setModel(model);
+    check(sampler->k(0) == k0 && sampler->k(1) == k1 &&
+            holds(*sampler, 2.0 * sd, true),
+          "named sd: setModel into another sd keeps a drawn k and restates "
+          "the chi scale");
+    model.namedSd = nan;
+    model.kHyperprior.scale = 4.0;
+    sampler->setModel(model);
+    ForestCalibration cal = sampler->forestCalibration(0, 0);
+    check(sampler->k(0) == k0 && sampler->k(1) == k1 &&
+            std::isnan(cal.namedSd) && cal.kPriorScale == 4.0,
+          "named sd: setModel into a k-named prior keeps a drawn k and takes "
+          "the model's chi scale");
+    model.namedSd = sd;
+    model.kHyperprior.scale = 2.0;
+    sampler->setModel(model);
+    check(sampler->k(0) == k0 && sampler->k(1) == k1 &&
+            holds(*sampler, sd, true),
+          "named sd: setModel back into an sd keeps a drawn k");
+    model.updateK = false;
+    model.k = 2.0;
+    sampler->setModel(model);
+    check(holds(*sampler, sd, false),
+          "named sd: setModel into a fixed sd is k = scale / sd");
+    model.namedSd = nan;
+    model.k = 3.0;
+    sampler->setModel(model);
+    check(sampler->k(0) == 3.0 && sampler->k(1) == 3.0 &&
+            std::isnan(sampler->forestCalibration(0, 0).namedSd),
+          "named sd: setModel into a fixed k is the model's k");
+  }
+
+  // the writer under a drawn k: the chi scale moves, k does not
+  {
+    auto sampler = make(sd, true, 2.0, 2.0, 500);
+    draws(*sampler, 20);
+    double k0 = sampler->k(0), k1 = sampler->k(1);
+    check(sampler->setForestNamedSd(0, 1.3) && sampler->k(0) == k0 &&
+            sampler->k(1) == k1 && holds(*sampler, 1.3, true),
+          "named sd: the writer restates a chi scale and leaves a drawn k");
+    ForestCalibration before = sampler->forestCalibration(0, 0);
+    check(sampler->setForestNamedSd(0, 1.3) &&
+            sampler->forestCalibration(0, 0).kPriorScale ==
+              before.kPriorScale &&
+            sampler->k(0) == k0,
+          "named sd: an equal write under a drawn k moves no bit");
+  }
+
+  for (ext_rng* rng : owned) ext_rng_destroy(rng);
+  printf("ok: named leaf-prior sd (scale %.4f, k %.4f)\n", kScale, kScale / sd);
 }
 
 /// The two multi-forest leaf-prior writers. The oracle is the twin: a sampler
@@ -8544,6 +8777,7 @@ void runSamplerTests(ext_rng* rng) {
   testSubsetRollbackMissingness();
   testLogLikelihood();
   testForestCalibration();
+  testNamedSd();
   testForestMapWriters();
   testBCFCalibrationMap();
 }

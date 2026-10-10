@@ -6510,6 +6510,8 @@ static void testAFTOffsetReanchorObservedTimes() {
         "aft offset re-anchor: each chain holds its own drawn times, one of "
         "them above the observed range");
 
+  std::vector<double> sigmaBefore(numChains);
+  for (size_t c = 0; c < numChains; ++c) sigmaBefore[c] = sampler->sigma(c);
   sampler->setOffset(offset.data(), true);
   sampler->getState(after);
   double anchorMin, anchorMax;
@@ -6532,10 +6534,10 @@ static void testAFTOffsetReanchorObservedTimes() {
         (after.chains[c].latents[i] - offset[i] - observedMin) / range - 0.5;
       worstWorking = std::max(worstWorking, std::fabs(working[i] - expected));
     }
+    // the chain's reader, not the state, which holds the internal value
     worstSigma = std::max(worstSigma,
-                          std::fabs(after.chains[c].sigma -
-                                    before.chains[c].sigma) /
-                            before.chains[c].sigma);
+                          std::fabs(sampler->sigma(c) - sigmaBefore[c]) /
+                            sigmaBefore[c]);
   }
   check(timesHeld, "aft offset re-anchor: no drawn time moved");
   check(generatorsHeld, "aft offset re-anchor: no generator was read");

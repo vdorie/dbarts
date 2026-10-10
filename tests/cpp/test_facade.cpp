@@ -48,8 +48,8 @@ enum class FacadeVirtual {
   setModel,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
-  setForestWeights, forestCalibration, setForestPriorScale, setForestFixedK,
-  scaleDrawnK, setForestMapSd, setActiveRows,
+  setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
+  setForestMapSd, setActiveRows,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
   currentVarianceFits, forestVariableCounts, numTreesInForest,
@@ -181,9 +181,9 @@ public:
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
           (const SamplerStateData& s, const double* cp, bool* r, bool* m,
-           bool* i, bool* l, bool* u, bool* e, std::size_t a),
-          (s, cp, r, m, i, l, u, e, a))
-  SPY_VOID(setAnchor, (double lo, double hi, bool m), (lo, hi, m))
+           bool* i, bool* l, bool* e, std::size_t a),
+          (s, cp, r, m, i, l, e, a))
+  SPY_VOID(setAnchor, (double lo, double hi), (lo, hi))
   SPY_VOID(getAnchor, (double& lo, double& hi) const, (lo, hi))
   SPY_RET(WarmStartResult, installForests,
           (const SamplerStateData& d,
@@ -217,9 +217,8 @@ public:
   SPY_RET(bool, setForestWeights, (std::size_t f, const double* w), (f, w))
   SPY_RET(ForestCalibration, forestCalibration,
           (std::size_t c, std::size_t f) const, (c, f))
-  SPY_RET(bool, setForestPriorScale, (std::size_t f, double s), (f, s))
+  SPY_RET(bool, setForestNamedSd, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setForestFixedK, (std::size_t f, double k), (f, k))
-  SPY_RET(bool, scaleDrawnK, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setForestMapSd, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setActiveRows, (const double* a), (a))
   SPY_RET(bool, setCounts, (const int* c, const int* t), (c, t))
@@ -966,13 +965,13 @@ const Row rows[] = {
     // so the fixture is put back where it was
     double lo, hi;
     f.nb.impl().getAnchor(lo, hi);
-    f.nb.base().setAnchor(lo + 0.5, hi + 0.5, true);
+    f.nb.base().setAnchor(lo + 0.5, hi + 0.5);
     double movedLo, movedHi;
     f.nb.impl().getAnchor(movedLo, movedHi);
     double shift = f.nb.impl().forestCalibration(0, 0).responseShift;
     check(movedLo == lo + 0.5 && movedHi == hi + 0.5 && shift == lo + 0.5,
           "facade setAnchor: the impl takes the pair and moves its chains");
-    f.nb.base().setAnchor(lo, hi, true);
+    f.nb.base().setAnchor(lo, hi);
   }},
   {FacadeVirtual::getAnchor, "getAnchor", [](Fixtures& f) {
     double lo, hi;
@@ -1190,15 +1189,16 @@ const Row rows[] = {
             f.b.base().forestCalibration(1, 0).nodeScaleFactor,
           "facade forestCalibration: the two forests report their own");
   }},
-  {FacadeVirtual::setForestPriorScale, "setForestPriorScale", [](Fixtures& f) {
-    check(!f.g.base().setForestPriorScale(1, 0.7) &&
-            !f.b.base().setForestPriorScale(0, 0.7),
-          "facade setForestPriorScale: an absent forest and a combiner-owned "
+  {FacadeVirtual::setForestNamedSd, "setForestNamedSd", [](Fixtures& f) {
+    check(!f.g.base().setForestNamedSd(1, 0.7) &&
+            !f.b.base().setForestNamedSd(0, 0.7),
+          "facade setForestNamedSd: an absent forest and a combiner-owned "
           "calibration refuse");
-    check(f.g.base().setForestPriorScale(0, 0.7),
-          "facade setForestPriorScale: the single forest takes it");
-    checkNear(f.g.impl().forestCalibration(0, 0).priorScale, 0.7, 1.0e-12,
-              "facade setForestPriorScale: the impl reports the new scale");
+    check(f.g.base().setForestNamedSd(0, 0.7),
+          "facade setForestNamedSd: the single forest takes it");
+    ForestCalibration named = f.g.impl().forestCalibration(0, 0);
+    check(named.namedSd == 0.7 && named.k == named.priorScale / 0.7,
+          "facade setForestNamedSd: the impl holds the sd and its k");
   }},
   {FacadeVirtual::setForestFixedK, "setForestFixedK", [](Fixtures& f) {
     check(!f.b.base().setForestFixedK(0, 3.0) &&
@@ -1210,35 +1210,6 @@ const Row rows[] = {
     check(f.m.impl().forestCalibration(0, 1).k == 3.0,
           "facade setForestFixedK: the impl reports the new k");
     f.m.base().setForestFixedK(1, k);
-  }},
-  {FacadeVirtual::scaleDrawnK, "scaleDrawnK", [](Fixtures& f) {
-    double fixedK = f.g.impl().forestCalibration(0, 0).k;
-    check(!f.g.base().scaleDrawnK(1, 2.5) && f.g.base().scaleDrawnK(0, 2.5) &&
-            f.g.impl().forestCalibration(0, 0).k == fixedK,
-          "facade scaleDrawnK: an absent forest refuses, a fixed k is left");
-    // a sampler drawing k: every chain's k is multiplied, and a factor of 1
-    // writes nothing
-    SamplerOptions options;
-    options.numTrees = 4;
-    options.numChains = 2;
-    options.updateK = true;
-    ext_rng* pair[2] = {f.newRng(51101u), f.newRng(51102u)};
-    std::unique_ptr<SamplerBase> drawn = createSampler(
-      f.x.data(), f.y.data(), Fixtures::n, Fixtures::p, nullptr, nullptr,
-      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options, pair);
-    Results results;
-    drawn->run(5, 0, results);
-    double k0 = drawn->forestCalibration(0, 0).k,
-      k1 = drawn->forestCalibration(1, 0).k;
-    check(drawn->scaleDrawnK(0, 2.5) &&
-            drawn->forestCalibration(0, 0).k == k0 * 2.5 &&
-            drawn->forestCalibration(1, 0).k == k1 * 2.5,
-          "facade scaleDrawnK: a drawn k is multiplied on every chain");
-    double scaled = drawn->forestCalibration(0, 0).k;
-    bool written = drawn->scaleDrawnK(0, 1.0);
-    double after = drawn->forestCalibration(0, 0).k;
-    check(written && std::memcmp(&scaled, &after, sizeof(double)) == 0,
-          "facade scaleDrawnK: a factor of 1 writes nothing");
   }},
   {FacadeVirtual::setForestMapSd, "setForestMapSd", [](Fixtures& f) {
     check(!f.g.base().setForestMapSd(0, 0.7) &&

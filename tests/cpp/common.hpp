@@ -143,7 +143,7 @@ static bool restoresWithStatus(S& sampler, const SamplerStateData& state,
                                const double* currentPredictors, bool expected) {
   bool altered = !expected;
   return sampler.setState(state, currentPredictors, nullptr, nullptr, nullptr,
-                          nullptr, nullptr, &altered) &&
+                          nullptr, &altered) &&
          altered == expected;
 }
 template <typename S>

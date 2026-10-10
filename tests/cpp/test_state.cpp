@@ -350,10 +350,10 @@ static void testPredictCurrentTrees(ext_rng* rng) {
 
 static void testStateRoundTripScaledOffset() {
   // setOffset(updateScale) moves the gaussian response transform after
-  // creation; the state carries the units its values are stored in. A host
-  // that recorded the moved transform re-creates the sampler in it and the
-  // state installs bitwise; one that did not keeps its own, and the state is
-  // converted into it
+  // creation; the state records the transform it was read under. A host that
+  // recorded the moved transform re-creates the sampler in it and the state
+  // continues the chain; one that did not keeps its own, and the state goes
+  // in as stored all the same, its numbers read against that transform
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
@@ -363,6 +363,8 @@ static void testStateRoundTripScaledOffset() {
 
   SamplerOptions options;
   options.numTrees = 25;
+  // a drawn k, so the state carries one
+  options.updateK = true;
 
   ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -391,8 +393,22 @@ static void testStateRoundTripScaledOffset() {
   // a host reinstalls the current offset but cannot reproduce the scale
   // trajectory that produced the state; its record of the transform can
   restored.setOffset(offset.data(), false);
-  restored.setAnchor(state.chains[0].fitMin, state.chains[0].fitMax, false);
+  // the record moves the chains at once: no install does
+  restored.setAnchor(state.chains[0].fitMin, state.chains[0].fitMax);
+  {
+    ForestCalibration source = original.forestCalibration(0, 0);
+    ForestCalibration moved = restored.forestCalibration(0, 0);
+    check(moved.responseScale == source.responseScale &&
+            moved.responseShift == source.responseShift &&
+            moved.priorScale == source.priorScale,
+          "scaled state: the record puts the chains in the transform before "
+          "any state goes in");
+  }
   check(restoresExactly(restored, state), "scaled state restores as stored");
+  // the state holds sigma on the internal scale, as the chain does
+  check(state.chains[0].sigma * original.fitScale() == original.sigma(0) &&
+          state.chains[0].sigma * restored.fitScale() == restored.sigma(0),
+        "scaled state: sigma is stored and installed on the internal scale");
 
   // the moved transform round-trips: the restored model matches the source,
   // and its live-tree predictions land on the original scale, both before
@@ -409,8 +425,9 @@ static void testStateRoundTripScaledOffset() {
         "scaled restore predicts on the original scale");
 
   // without the record the sampler keeps the transform its own creation
-  // derived, and the state's values are rewritten into it: the function and
-  // the pair the sampler reports are its own, and nothing is bitwise
+  // derived, and the state goes in as stored: no value is converted, so the
+  // state read back is the installed one bit for bit under this sampler's
+  // pair, and the function is the stored one read on this sampler's scale
   ext_rng* rngC = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngC, 79);
   ConstantLeafSampler converted(x.data(), y.data(), n, 2, nullptr, nullptr,
@@ -420,30 +437,115 @@ static void testStateRoundTripScaledOffset() {
   double ownMin, ownMax;
   converted.getAnchor(ownMin, ownMax);
   check(ownMin != state.chains[0].fitMin && ownMax != state.chains[0].fitMax,
-        "converted state: the two transforms differ");
-  check(restoresAltered(converted, state),
-        "converted state: installs and reports the conversion");
-  SamplerStateData convertedState;
-  converted.getState(convertedState);
+        "state from another transform: the two transforms differ");
+  check(restoresExactly(converted, state),
+        "state from another transform: installs and reports no change");
+  SamplerStateData readBack;
+  converted.getState(readBack);
   double anchorMin, anchorMax;
   converted.getAnchor(anchorMin, anchorMax);
   check(anchorMin == ownMin && anchorMax == ownMax &&
-          convertedState.chains[0].fitMin == ownMin &&
-          convertedState.chains[0].fitMax == ownMax,
-        "converted state: the sampler keeps its own transform");
+          readBack.chains[0].fitMin == ownMin &&
+          readBack.chains[0].fitMax == ownMax,
+        "state from another transform: the sampler keeps its own transform");
+  SamplerStateData relabelled(state);
+  relabelled.chains[0].fitMin = ownMin;
+  relabelled.chains[0].fitMax = ownMax;
+  check(statesAgree(relabelled, readBack) &&
+          !std::isnan(state.chains[0].forests[0].k) &&
+          std::memcmp(&readBack.chains[0].sigma, &state.chains[0].sigma,
+                      sizeof(double)) == 0 &&
+          std::memcmp(&readBack.chains[0].forests[0].k,
+                      &state.chains[0].forests[0].k, sizeof(double)) == 0,
+        "state from another transform: every tree, leaf value, k and sigma "
+        "reads back as stored, bit for bit");
+  // the same internal fits under two transforms: equal once each is taken
+  // back through its own
   std::vector<double> predictionsC(20);
   converted.predict(xTest.data(), 20, 1, predictionsC.data());
+  ForestCalibration from = original.forestCalibration(0, 0);
+  ForestCalibration to = converted.forestCalibration(0, 0);
   double worst = 0.0;
   for (size_t i = 0; i < 20; ++i)
-    worst = std::max(worst, std::fabs(predictionsC[i] - predictionsA[i]) /
-                              (1.0 + std::fabs(predictionsA[i])));
-  check(worst < 1.0e-12 && predictionsC != predictionsA,
-        "converted state: the function is the stored one to rounding");
+    worst = std::max(
+      worst,
+      std::fabs((predictionsC[i] - to.responseShift) / to.responseScale -
+                (predictionsA[i] - from.responseShift) / from.responseScale));
+  check(worst < 1.0e-12 && predictionsC != predictionsA &&
+          to.responseScale != from.responseScale,
+        "state from another transform: the stored fits are read on this "
+        "sampler's scale, not converted");
+  check(converted.sigma(0) == state.chains[0].sigma * converted.fitScale() &&
+          converted.sigma(0) != original.sigma(0),
+        "state from another transform: sigma goes in on the internal scale");
+
+  // an install writes the internal sigma it is handed, with no pass through
+  // response units: pinned on a value the multiplier does not carry there
+  // and back, within one transform and across two. Whether a value is
+  // carried depends on its significand and the multiplier's, so the search
+  // sweeps a whole binade.
+  {
+    double range = restored.fitScale();
+    double sigma = state.chains[0].sigma;
+    bool found = false;
+    for (int step = 1; step < 8192 && !found; ++step) {
+      sigma = state.chains[0].sigma * (1.0 + step / 4096.0);
+      found = (sigma * range) / range != sigma;
+    }
+    check(found, "sigma round trip: a value the multiplier does not carry");
+    SamplerStateData probe(state);
+    probe.chains[0].sigma = sigma;
+    SamplerStateData within, across;
+    check(restoresExactly(restored, probe) && restoresExactly(converted, probe),
+          "sigma round trip: the probing states install");
+    restored.getState(within);
+    converted.getState(across);
+    check(std::memcmp(&within.chains[0].sigma, &sigma, sizeof(double)) == 0 &&
+            restored.sigma(0) == sigma * range,
+          "sigma round trip: an install within one transform leaves the "
+          "internal sigma bit for bit");
+    check(std::memcmp(&across.chains[0].sigma, &sigma, sizeof(double)) == 0 &&
+            converted.sigma(0) == sigma * converted.fitScale(),
+          "sigma round trip: an install across transforms leaves the "
+          "internal sigma bit for bit");
+  }
+
+  // a warm start carries the donor's trees, k and sigma the same way: as
+  // stored, read against the recipient's transform
+  {
+    ext_rng* rngW = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngW, 82);
+    ConstantLeafSampler warm(x.data(), y.data(), n, 2, nullptr, nullptr,
+                             ResponseFamily::gaussian, 1.0, 3.0,
+                             0.37804942330213542, options, &rngW);
+    warm.setOffset(offset.data(), false);
+    const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+    check(warm.installForests(state, liveMap) == WarmStartResult::ok,
+          "warm start from another transform: installs");
+    SamplerStateData warmed;
+    warm.getState(warmed);
+    double warmMin, warmMax;
+    warm.getAnchor(warmMin, warmMax);
+    check(warmMin == ownMin && warmMax == ownMax &&
+            warmed.chains[0].fitMin == ownMin &&
+            warmed.chains[0].fitMax == ownMax,
+          "warm start from another transform: the sampler keeps its own "
+          "transform");
+    check(sameFlatTrees(warmed.chains[0].forests[0].trees,
+                        state.chains[0].forests[0].trees) &&
+            std::memcmp(&warmed.chains[0].sigma, &state.chains[0].sigma,
+                        sizeof(double)) == 0 &&
+            std::memcmp(&warmed.chains[0].forests[0].k,
+                        &state.chains[0].forests[0].k, sizeof(double)) == 0,
+          "warm start from another transform: trees, leaf values, k and "
+          "sigma go in as stored, bit for bit");
+    ext_rng_destroy(rngW);
+  }
 
   // unequal pairs naming the same units: a constant response's (0, 0), the
   // window centred on 0, and a response spanning exactly (-0.5, 0.5) both
-  // take multiplier 1 and shift 0, so the conversion moves no value and the
-  // install is the stored chain
+  // take multiplier 1 and shift 0, and the install is the stored chain as
+  // under any other pair
   std::vector<double> yConstant(n, 0.0), yUnit(n);
   for (size_t i = 0; i < n; ++i)
     yUnit[i] = static_cast<double>(i % 5) / 4.0 - 0.5;
@@ -476,15 +578,105 @@ static void testStateRoundTripScaledOffset() {
                     sizeof(double)) == 0;
   }
   check(pairsDiffer && sameUnits && bitwise,
-        "converted state: another pair naming the same units installs as "
-        "stored, bit for bit");
+        "state from another transform: another pair naming the same units "
+        "installs as stored, bit for bit");
 
   ext_rng_destroy(rngE);
   ext_rng_destroy(rngD);
   ext_rng_destroy(rngC);
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngA);
-  printf("ok: state round-trip with a moved scale (converted %.2e)\n", worst);
+  printf("ok: state round-trip with a moved scale (as stored %.2e)\n", worst);
+}
+
+// A state stored under another response shift installs on every leaf model,
+// those with no mean term to carry a shift included: a gp leaf's saved draws
+// and forests coupled through amplitudes go in as stored, like any other.
+static void testShiftedStateInstalls() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 424242u;
+  const size_t n = 150, p = 2, numKept = 3;
+  std::vector<double> x(n * p), y(n), shifted(n), z(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i) {
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    y[i] = std::sin(3.0 * x[i]) + x[i + n] + z[i] * (0.5 + x[i + n]) +
+           0.2 * (runif01() - 0.5);
+    shifted[i] = y[i] + 5.0;
+  }
+  const double rawScale = 0.37804942330213542;
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed);
+    rngs.push_back(rng);
+    return rng;
+  };
+  auto checkInstalls = [&](auto& donor, auto& recipient, const char* what) {
+    Results empty;
+    donor.run(10, numKept, empty);
+    SamplerStateData state, readBack;
+    donor.getState(state);
+    double min, max;
+    recipient.getAnchor(min, max);
+    std::string label(what);
+    check(min != state.chains[0].fitMin && max != state.chains[0].fitMax &&
+            std::fabs((max - min) -
+                      (state.chains[0].fitMax - state.chains[0].fitMin)) <
+              1.0e-12,
+          (label + ": the recipient's transform is the donor's, shifted")
+            .c_str());
+    check(restoresExactly(recipient, state),
+          (label + ": a state under another shift installs").c_str());
+    recipient.getState(readBack);
+    SamplerStateData relabelled(state);
+    relabelled.chains[0].fitMin = min;
+    relabelled.chains[0].fitMax = max;
+    check(statesAgree(relabelled, readBack) &&
+            !state.chains[0].forests[0].savedTrees.empty(),
+          (label + ": the trees, fits and saved draws read back as stored")
+            .c_str());
+  };
+  {
+    const size_t covariates[] = {1};
+    SamplerOptions options;
+    options.numTrees = 8;
+    options.gpLeaves = true;
+    options.leafCovariateColumns = covariates;
+    options.numLeafCovariates = 1;
+    options.keepTrees = true;
+    options.numSamplesToStore = numKept;
+    ext_rng* rngA = newRng(4301u);
+    ext_rng* rngB = newRng(4302u);
+    Sampler<GPGaussianLeaf> donor(x.data(), y.data(), n, p, nullptr, nullptr,
+                                  ResponseFamily::gaussian, 1.0, 3.0, rawScale,
+                                  options, &rngA);
+    options.leafCovariateColumns = covariates;
+    Sampler<GPGaussianLeaf> recipient(x.data(), shifted.data(), n, p, nullptr,
+                                      nullptr, ResponseFamily::gaussian, 1.0,
+                                      3.0, rawScale, options, &rngB);
+    checkInstalls(donor, recipient, "shifted state, gp leaf");
+  }
+  {
+    SamplerOptions options;
+    options.keepTrees = true;
+    options.numSamplesToStore = numKept;
+    AmplitudeSpec spec;
+    spec.mu.numTrees = 10;
+    spec.tau.numTrees = 6;
+    spec.z = z.data();
+    ext_rng* rngA = newRng(4303u);
+    ext_rng* rngB = newRng(4304u);
+    ConstantLeafSampler donor(x.data(), y.data(), n, p, nullptr, nullptr, 1.0,
+                              3.0, rawScale, options, spec, &rngA);
+    ConstantLeafSampler recipient(x.data(), shifted.data(), n, p, nullptr,
+                                  nullptr, 1.0, 3.0, rawScale, options, spec,
+                                  &rngB);
+    checkInstalls(donor, recipient, "shifted state, amplitude forests");
+  }
+  for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: a state under another response shift installs as stored\n");
 }
 
 static void testStateRoundTrip() {
@@ -3781,7 +3973,7 @@ static void testRestoreStatus() {
   bool altered = sendFirstOrdinalRuleMissingRight(
     bad.chains[0].forests[0].trees);
   check(!sampler.setState(bad, nullptr, nullptr, nullptr, nullptr, nullptr,
-                          nullptr, &altered) && !altered,
+                          &altered) && !altered,
         "restore status: a refused state reports nothing");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
@@ -4063,6 +4255,7 @@ void runStateTests(ext_rng* rng) {
   testPredictCurrentTrees(rng);
   testStateRoundTrip();
   testStateRoundTripScaledOffset();
+  testShiftedStateInstalls();
   testStateRoundTripLatents(rng);
   testStateRoundTripStudentT(rng);
   testStateValidation(rng);
