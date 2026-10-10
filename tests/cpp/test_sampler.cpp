@@ -4302,6 +4302,14 @@ static void testStateMissingRecord() {
   auto draws = [](const Trees& trees, size_t first, size_t count) {
     return Trees(trees.begin() + first, trees.begin() + first + count);
   };
+  auto rule = [](int variable, FlatKind kind, std::uint64_t mask, bool right) {
+    FlatNode node;
+    node.variable = variable;
+    setFlatKind(node, kind);
+    node.mask = mask;
+    if (right) node.flags |= flatMissingGoesRight;
+    return node;
+  };
 
   auto source = fresh(false);
   const SamplerStateData before = source->state();
@@ -4431,6 +4439,13 @@ static void testStateMissingRecord() {
     check(moved && refusesUntouched(**c, broken),
           "missing record: a state refused after the draw leaves the "
           "generators");
+    // a rule with no children: the draw, which walks by the records alone,
+    // is not made
+    SamplerStateData truncated(before);
+    truncated.chains[1].forests[0].trees.back().assign(
+      1, rule(0, FlatKind::ordinal, 0, false));
+    check(refusesUntouched(**c, truncated),
+          "missing record: a state the draw cannot walk is refused");
   }
 
   // Kept rules that split the missing value alone, which only another
@@ -4440,14 +4455,6 @@ static void testStateMissingRecord() {
   // leaf, both draws leave the same generators and every other rule alike:
   // the first-sight draw's kept loop (form 0) and the completion (form 1)
   {
-    auto rule = [](int variable, FlatKind kind, std::uint64_t mask, bool right) {
-      FlatNode node;
-      node.variable = variable;
-      setFlatKind(node, kind);
-      node.mask = mask;
-      if (right) node.flags |= flatMissingGoesRight;
-      return node;
-    };
     const FlatNode leaf;
     const FlatNode alone = rule(1, FlatKind::categoricalInline, 0, true);
     const FlatNode inReach = rule(1, FlatKind::categoricalInline, 5, false);
