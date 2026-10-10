@@ -1007,10 +1007,11 @@ items
     setState's two forms (docs/plans/setstate-force-update.md, Part
     B). Before the merge to main.
   factor-first-missing-setpredictor: a factor column's first missing
-    value by setPredictor is refused at the R surface, where dec-B321
-    says "at creation or by a later setPredictor" with no exception;
-    the engine takes it when the refusal is lifted (dec-A198). With
-    the maintainer. Before the merge to main.
+    value by setPredictor is refused at the R surface; ruled: lift
+    the refusal, a factor column taking it as a numeric column does
+    (dec-B436, VD 2026-10-10; the engine needs no change, dec-A198).
+    About 5 lines and three test pins; with state-before-first-missing.
+    Before the merge to main.
   first-missing-test-seeds: three tests of missingness first seen hold
     by one seed (the row declined for emptying a leaf, the two-forest
     block, and the joint sweep's every-row form, which loses its kill
