@@ -2487,14 +2487,16 @@ validateLeafSd <- function(sd) {
   validateNamedScale(sd, "sd")
 }
 
-## The engine's inputs for a leaf prior, the model's prior.scale anchor and its
-## leaf hyperprior, translated from whichever of 'k' and 'sd' it names. The
-## engine's k is relative to its anchor, and only their ratio enters a draw, so
-## a named sd rides a reference k of 2: a fixed sd x is anchor 2x with k fixed
-## at 2, and invchi(df, c) is anchor 2c with k ~ chi(df, 2). The bridge starts a
-## drawn k at 2, so the chain starts at the named spread, and the binary
-## default and every k spelling at the defaults keep bitwise engine inputs.
-## invchi(df, 0) is the improper limit, which no anchor can state and
+## The model's encoding of a leaf prior, its prior.scale and its leaf
+## hyperprior, from whichever of 'k' and 'sd' it names. A named sd rides a
+## reference k of 2: a fixed sd x is prior.scale 2x beside k fixed at 2, and
+## invchi(df, c) is prior.scale 2c beside chi(df, 2). The pair is an encoding,
+## not what the engine runs: the bridge divides it back to the sd, exactly,
+## and the engine states that sd as k against the data's scale - a fixed k of
+## k.scale / x, or k ~ chi(df, k.scale / c) started there, so the chain starts
+## at the named spread - and restates it whenever the response mapping moves.
+## Every k spelling leaves prior.scale NA and reaches the engine as written.
+## invchi(df, 0) is the improper limit, which no scale can state and
 ## chi(df, Inf) is. A multi-forest fit refuses a named sd before any of this:
 ## its calibration map pins every forest's scale.
 resolveLeafPrior <- function(

@@ -160,7 +160,7 @@ methods::setValidity("dbartsLeafPrior", function(object) {
 # dbartsLeafHyperprior, or NULL for the family-dependent default; prior.sd is
 # NULL (unnamed), a positive scalar, or a dbartsSdHyperprior. At most one is
 # non-NULL. Both become the model's leaf.hyperprior and prior.scale when a
-# sampler is built.
+# sampler is built, and a sampler reports a named sd from here, as named.
 methods::setClass(
   "dbartsNormalPrior",
   contains = "dbartsLeafPrior",
@@ -557,11 +557,12 @@ methods::setClass(
   "dbartsModel",
   slots = list(
     leaf.scale = "numeric",
-    # The k.scale a named leaf-prior sd translates to, in response units: the
-    # forest total's prior sd at k = 1, or NA to inherit leaf.scale's
-    # family-keyed internal-unit default. It records the named intent, which
-    # the sampler re-issues after every channel that re-anchors the response
-    # transform and which setLeafPrior rewrites.
+    # A named leaf-prior sd, encoded beside leaf.hyperprior's reference k:
+    # this slot over a fixed k, or over a chi prior's scale, is the sd named,
+    # in response units, and NA says the prior is written with k. It records
+    # the named intent, which setLeafPrior rewrites; the engine holds the sd
+    # itself, as k against the data's scale, and restates it whenever the
+    # response transform is re-anchored.
     prior.scale = "numeric",
     # "auto" until a fitting function resolves it against the response
     family = "character",
