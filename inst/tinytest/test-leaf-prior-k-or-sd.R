@@ -432,3 +432,26 @@ expect_identical(
   bareModel@prior.scale / bareModel@leaf.hyperprior@k
 )
 expect_equal(bare$getLeafPrior()$leaf.prior@prior.sd, 0.65)
+
+# and under a drawn sd, the fallback restates the chi prior's scale
+bareDrawn <- dbarts(
+  x,
+  yg,
+  leaf.prior = dbartsPriors$normal(sd = dbartsPriors$invchi(1.5, 0.65)),
+  control = pinControl()
+)
+drawnModel <- bareDrawn$model
+drawnModel@leaf.prior@prior.sd <- NULL
+bareDrawn$model <- drawnModel
+expect_identical(
+  bareDrawn$getLeafPrior()$leaf.prior@prior.sd,
+  dbartsPriors$invchi(
+    1.5,
+    drawnModel@prior.scale / drawnModel@leaf.hyperprior@scale
+  )
+)
+expect_equal(
+  bareDrawn$getLeafPrior()$leaf.prior@prior.sd,
+  dbartsPriors$invchi(1.5, 0.65)
+)
+

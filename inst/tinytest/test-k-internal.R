@@ -494,9 +494,12 @@ reanchoredAndPinned <- function(...) {
   invisible(source$run(2L, 1L))
   source
 }
-heldSource <- reanchoredAndPinned(family = gaussian(sigma = fixed(4)))
+heldSource <- reanchoredAndPinned(
+  family = gaussian(sigma = fixed(4)),
+  control = kControl(n.chains = 2L)
+)
 heldSigma <- unname(heldSource$getSigmas())
-expect_equal(heldSigma, 2, tolerance = 1e-12)
+expect_equal(heldSigma, c(2, 2), tolerance = 1e-12)
 heldState <- stored(heldSource)
 heldDead <- unserialize(serialize(heldSource, NULL))
 expect_true(heldDead$setState(heldState))

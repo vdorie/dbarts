@@ -666,8 +666,9 @@ resolveSamplerSpec <- function(
     priors$leaf.hyperprior,
     priors$resid.prior,
     family = family,
-    # a named leaf-prior sd, in response units, translated to its anchor
-    # against the data's scale; NA leaves the family default below in force
+    # a named leaf-prior sd rides here as the model's encoding, twice the sd
+    # beside a reference k of 2; the engine divides it back to the sd and
+    # states it against the data's scale. NA leaves the default below in force
     prior.scale = priors$prior.scale,
     leaf.scale = defaultLeafScale(family)
   )

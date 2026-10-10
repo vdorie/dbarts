@@ -59,7 +59,7 @@ units <- function(sampler) stored(sampler)[[1L]]$fit.scale
 # a state's numbers, less its record of the mapping it was read under. A gp
 # leaf's parameters are its per-observation fits; the values its flat trees
 # carry are reporting means, formed again at each read, and are dropped where
-# 'means' is FALSE.
+# 'means' is FALSE; the read-back compares them as doubles to rounding.
 unlabelled <- function(state, means = TRUE) {
   for (chain in seq_along(state)) {
     state[[chain]]$fit.scale <- NULL
@@ -335,6 +335,20 @@ acrossUnits <- function(
     unlabelled(installed, means),
     info = label
   )
+  if (!means) {
+    doubles <- function(state, f) {
+      raw <- state[[1L]]$forests[[f]]$tree.values
+      readBin(raw, "double", length(raw) %/% 8L)
+    }
+    for (f in seq_along(installed[[1L]]$forests)) {
+      expect_equal(
+        doubles(stored(recipient), f),
+        doubles(installed, f),
+        tolerance = 1e-15,
+        info = label
+      )
+    }
+  }
 }
 acrossUnits("k-named", list())
 acrossUnits("sd-named", list(leaf.prior = normal(sd = 1)))

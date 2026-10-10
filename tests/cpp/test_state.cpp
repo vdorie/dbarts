@@ -589,54 +589,84 @@ static void testStateRoundTripScaledOffset() {
   printf("ok: state round-trip with a moved scale (as stored %.2e)\n", worst);
 }
 
-// A state stored under another response shift installs on every leaf model,
-// those with no mean term to carry a shift included: a gp leaf's saved draws
-// and forests coupled through amplitudes go in as stored, like any other.
 static void testSetAnchorCarriesSigmaAndVarianceCalibration() {
   // a re-created sampler is moved to the recorded mapping before any state
-  // goes in; the held sigma and the variance forest's calibration are those
-  // of the recorded mapping, not the creation mapping's
+  // goes in; on every chain the held sigma, the variance forest's calibration
+  // and its surface are those of the recorded mapping, not the creation
+  // mapping's
   const size_t n = 200;
   std::vector<double> x, y;
   makeMutationData(x, y, n);
   const double heldSigma = 0.7;
   const double sigmaDf = 3.0, rawScale = 0.37804942330213542;
 
-  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng_setSeed(rngA, 81);
+  ext_rng* rngsA[2];
+  ext_rng* rngsB[2];
+  for (size_t c = 0; c < 2; ++c) {
+    rngsA[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngsA[c], 81 + static_cast<unsigned>(c));
+    rngsB[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rngsB[c], 91 + static_cast<unsigned>(c));
+  }
   SamplerOptions held;
   held.numTrees = 20;
+  held.numChains = 2;
   held.sigmaIsFixed = true;
   ConstantLeafSampler fixedSigma(x.data(), y.data(), n, 2, nullptr, nullptr,
                                  ResponseFamily::gaussian, heldSigma, sigmaDf,
-                                 rawScale, held, &rngA);
+                                 rawScale, held, rngsA);
   double min, max;
   fixedSigma.getAnchor(min, max);
   fixedSigma.setAnchor(min - 1.0, max + 2.0);
-  check(std::fabs(fixedSigma.sigma(0) - heldSigma) <= 1.0e-12 * heldSigma,
-        "setAnchor: a held sigma keeps its original-scale value");
+  check(std::fabs(fixedSigma.sigma(0) - heldSigma) <= 1.0e-12 * heldSigma &&
+          std::fabs(fixedSigma.sigma(1) - heldSigma) <= 1.0e-12 * heldSigma,
+        "setAnchor: a held sigma keeps its original-scale value on every "
+        "chain");
 
-  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng_setSeed(rngB, 82);
   SamplerOptions withVariance;
   withVariance.numTrees = 20;
+  withVariance.numChains = 2;
   withVariance.numVarianceTrees = 5;
   ConstantLeafSampler variance(x.data(), y.data(), n, 2, nullptr, nullptr,
                                ResponseFamily::gaussian, 1.0, sigmaDf, rawScale,
-                               withVariance, &rngB);
-  double scaleBefore = TestPeer::varianceLeaf(variance.chain(0)).scale;
+                               withVariance, rngsB);
+  double scaleBefore[2];
+  std::vector<double> surfaceBefore[2];
+  for (size_t c = 0; c < 2; ++c) {
+    scaleBefore[c] = TestPeer::varianceLeaf(variance.chain(c)).scale;
+    surfaceBefore[c].resize(n);
+    check(variance.currentVarianceFits(c, false, surfaceBefore[c].data()),
+          "setAnchor: the variance surface reads before the move");
+  }
   variance.getAnchor(min, max);
   variance.setAnchor(min - 1.0, max + 2.0);
-  double working = 1.0 / variance.chain(0).sigmaScale();
-  ConstantVarianceLeaf expected = ConstantVarianceLeaf::calibrated(
-    sigmaDf, working * working * rawScale, withVariance.numVarianceTrees);
-  const ConstantVarianceLeaf& leaf = TestPeer::varianceLeaf(variance.chain(0));
-  check(leaf.scale != scaleBefore && leaf.degreesOfFreedom == expected.degreesOfFreedom &&
-          leaf.scale == expected.scale,
-        "setAnchor: the variance forest's calibration is the recorded "
-        "mapping's");
-  ext_rng_destroy(rngB);
-  ext_rng_destroy(rngA);
+  for (size_t c = 0; c < 2; ++c) {
+    double working = 1.0 / variance.chain(c).sigmaScale();
+    ConstantVarianceLeaf expected = ConstantVarianceLeaf::calibrated(
+      sigmaDf, working * working * rawScale, withVariance.numVarianceTrees);
+    const ConstantVarianceLeaf& leaf =
+      TestPeer::varianceLeaf(variance.chain(c));
+    check(leaf.scale != scaleBefore[c] &&
+            leaf.degreesOfFreedom == expected.degreesOfFreedom &&
+            leaf.scale == expected.scale,
+          "setAnchor: the variance forest's calibration is the recorded "
+          "mapping's on every chain");
+    // the surface is an original-scale quantity, which the move keeps
+    std::vector<double> surfaceAfter(n);
+    check(variance.currentVarianceFits(c, false, surfaceAfter.data()),
+          "setAnchor: the variance surface reads after the move");
+    double worst = 0.0;
+    for (size_t i = 0; i < n; ++i)
+      worst = std::max(worst, std::fabs(surfaceAfter[i] / surfaceBefore[c][i] -
+                                        1.0));
+    check(worst < 1.0e-13,
+          "setAnchor: the variance surface keeps its original-scale value");
+  }
+  for (size_t c = 0; c < 2; ++c) {
+    ext_rng_destroy(rngsB[c]);
+    ext_rng_destroy(rngsA[c]);
+  }
+  printf("ok: setAnchor carries a held sigma and the variance forest\n");
 }
 
 static void testInstallLeavesHeldSigma() {
@@ -678,8 +708,12 @@ static void testInstallLeavesHeldSigma() {
         "held sigma install: a held sigma is left alone");
   ext_rng_destroy(rngB);
   ext_rng_destroy(rngA);
+  printf("ok: a state install leaves a held sigma alone\n");
 }
 
+// A state stored under another response shift installs on every leaf model,
+// those with no mean term to carry a shift included: a gp leaf's saved draws
+// and forests coupled through amplitudes go in as stored, like any other.
 static void testShiftedStateInstalls() {
   std::uint64_t savedRngState = rngState;
   rngState = 424242u;
