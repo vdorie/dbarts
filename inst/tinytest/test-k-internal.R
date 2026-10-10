@@ -482,6 +482,39 @@ for (leafPrior in list(normal(sd = 0.5), normal(sd = invchi(3, 0.5)))) {
   }
 }
 
+# on the pinned fixture the move carries the rest of the model too: a held
+# sigma keeps its response-units value, and a variance forest's calibration
+# and surface are the recorded mapping's, so a copy, a reload and a setState
+# on a dead pointer agree with the source
+reanchoredAndPinned <- function(...) {
+  source <- burned(normal(sd = 0.5), ...)
+  source$setResponse(3 * y + 1, updateScale = TRUE)
+  invisible(source$run(5L, 1L))
+  source$setResponse(y, updateScale = FALSE)
+  invisible(source$run(2L, 1L))
+  source
+}
+heldSource <- reanchoredAndPinned(family = gaussian(sigma = fixed(4)))
+heldSigma <- unname(heldSource$getSigmas())
+expect_equal(heldSigma, 2, tolerance = 1e-12)
+heldState <- stored(heldSource)
+heldDead <- unserialize(serialize(heldSource, NULL))
+expect_true(heldDead$setState(heldState))
+for (other in list(heldSource$copy(), reloadOf(heldSource), heldDead)) {
+  expect_identical(unname(other$getSigmas()), heldSigma)
+}
+varSource <- reanchoredAndPinned(variance = TRUE)
+varState <- stored(varSource)
+varCopy <- varSource$copy()
+varReload <- reloadOf(varSource)
+varDead <- unserialize(serialize(varSource, NULL))
+expect_true(varDead$setState(varState))
+expect_true(varSource$setState(varState))
+varRestored <- draws(varSource, 10L)
+expect_identical(draws(varCopy, 10L), varRestored)
+expect_identical(draws(varReload, 10L), varRestored)
+expect_identical(draws(varDead, 10L), varRestored)
+
 # --- what a fit and the readers report under an sd spelling: the real k
 # against the data's scale, the data's scale, the prior as named, and the sd
 # itself ---

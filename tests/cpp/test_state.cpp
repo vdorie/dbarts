@@ -592,6 +592,90 @@ static void testStateRoundTripScaledOffset() {
 // A state stored under another response shift installs on every leaf model,
 // those with no mean term to carry a shift included: a gp leaf's saved draws
 // and forests coupled through amplitudes go in as stored, like any other.
+static void testSetAnchorCarriesSigmaAndVarianceCalibration() {
+  // a re-created sampler is moved to the recorded mapping before any state
+  // goes in; the held sigma and the variance forest's calibration are those
+  // of the recorded mapping, not the creation mapping's
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  const double heldSigma = 0.7;
+  const double sigmaDf = 3.0, rawScale = 0.37804942330213542;
+
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngA, 81);
+  SamplerOptions held;
+  held.numTrees = 20;
+  held.sigmaIsFixed = true;
+  ConstantLeafSampler fixedSigma(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                 ResponseFamily::gaussian, heldSigma, sigmaDf,
+                                 rawScale, held, &rngA);
+  double min, max;
+  fixedSigma.getAnchor(min, max);
+  fixedSigma.setAnchor(min - 1.0, max + 2.0);
+  check(std::fabs(fixedSigma.sigma(0) - heldSigma) <= 1.0e-12 * heldSigma,
+        "setAnchor: a held sigma keeps its original-scale value");
+
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngB, 82);
+  SamplerOptions withVariance;
+  withVariance.numTrees = 20;
+  withVariance.numVarianceTrees = 5;
+  ConstantLeafSampler variance(x.data(), y.data(), n, 2, nullptr, nullptr,
+                               ResponseFamily::gaussian, 1.0, sigmaDf, rawScale,
+                               withVariance, &rngB);
+  double scaleBefore = TestPeer::varianceLeaf(variance.chain(0)).scale;
+  variance.getAnchor(min, max);
+  variance.setAnchor(min - 1.0, max + 2.0);
+  double working = 1.0 / variance.chain(0).sigmaScale();
+  ConstantVarianceLeaf expected = ConstantVarianceLeaf::calibrated(
+    sigmaDf, working * working * rawScale, withVariance.numVarianceTrees);
+  const ConstantVarianceLeaf& leaf = TestPeer::varianceLeaf(variance.chain(0));
+  check(leaf.scale != scaleBefore && leaf.degreesOfFreedom == expected.degreesOfFreedom &&
+          leaf.scale == expected.scale,
+        "setAnchor: the variance forest's calibration is the recorded "
+        "mapping's");
+}
+
+static void testInstallLeavesHeldSigma() {
+  // a state that carries a drawn sigma goes into a chain that holds sigma
+  // fixed without moving it
+  const size_t n = 200;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+  const double rawScale = 0.37804942330213542;
+  ext_rng* rngA = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng* rngB = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngA, 83);
+  ext_rng_setSeed(rngB, 84);
+  SamplerOptions drawn;
+  drawn.numTrees = 20;
+  ConstantLeafSampler donor(x.data(), y.data(), n, 2, nullptr, nullptr,
+                            ResponseFamily::gaussian, 1.0, 3.0, rawScale, drawn,
+                            &rngA);
+  Results empty;
+  donor.run(20, 0, empty);
+  SamplerStateData state;
+  donor.getState(state);
+  check(!std::isnan(state.chains[0].sigma) &&
+          std::fabs(donor.sigma(0) - 0.7) > 1.0e-3,
+        "held sigma install: the donor's state carries a drawn sigma");
+
+  SamplerOptions held;
+  held.numTrees = 20;
+  held.sigmaIsFixed = true;
+  ConstantLeafSampler recipient(x.data(), y.data(), n, 2, nullptr, nullptr,
+                                ResponseFamily::gaussian, 0.7, 3.0, rawScale,
+                                held, &rngB);
+  double before = recipient.sigma(0);
+  bool altered = false;
+  check(recipient.setState(state, nullptr, nullptr, nullptr, nullptr, nullptr,
+                           &altered),
+        "held sigma install: the state installs");
+  check(recipient.sigma(0) == before,
+        "held sigma install: a held sigma is left alone");
+}
+
 static void testShiftedStateInstalls() {
   std::uint64_t savedRngState = rngState;
   rngState = 424242u;
@@ -4255,6 +4339,8 @@ void runStateTests(ext_rng* rng) {
   testPredictCurrentTrees(rng);
   testStateRoundTrip();
   testStateRoundTripScaledOffset();
+  testSetAnchorCarriesSigmaAndVarianceCalibration();
+  testInstallLeavesHeldSigma();
   testShiftedStateInstalls();
   testStateRoundTripLatents(rng);
   testStateRoundTripStudentT(rng);
