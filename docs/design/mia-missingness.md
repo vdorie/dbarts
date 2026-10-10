@@ -6,6 +6,13 @@ argument this document designs is retired outright, no tombstone;
 incorporation is unconditional on every entry point that offered it, and
 `missing = "error"` is no longer reachable (the BayesTree-compatible door,
 `bartBT`, keeps its own hardcoded refusal of incomplete predictors instead).
+AMENDED 2026-10-10 by
+[Part A: missingness first seen](../plans/setstate-force-update.md#part-a-missingness-first-seen-dec-b320-dec-b321-dec-b322-dec-b378-dec-b399-dec-b400):
+whether a column can hold a missing value is a property of the sampler,
+raised by the first one it is given and never lowered. Two sentences below
+describe what that replaced, the flag cleared with the column's content
+(Representation) and a first missing value routed left
+(Bridge and R surface); each carries its correction in place.
 Deltas discovered while landing: the
 Rule union became a single uint64 with accessors outright (the moves and
 tests read through splitIndex()/categoryDirections()); validateXTest's
@@ -66,7 +73,14 @@ response, weights, or offset stay rejected.
   cleared when a column loses its NAs; a pooled rule keeps it in its pool
   words then, where it routes nothing), which is what keeps NA-free data
   bitwise identical to today - no extra RNG draws, no kernel changes on
-  the fast path.
+  the fast path. Amended 2026-10-10: the flag is raised by the first
+  missing value a column is given, at build or by any later write, setData
+  included, and is not lowered when the column loses its NAs, so no bit is
+  cleared then either; [`hasMissing`](../../src/bartcore/data.hpp) states
+  the rule. A re-created sampler takes its source's flags from the data
+  object's record ([`dataMissingSeen`](../../R/data.R)), and only a flat
+  tree installed onto a column that has never been flagged loses its bit
+  ([`Tree::buildFromFlat`](../../src/bartcore/tree.hpp)).
 
 ## Kernels
 
@@ -133,6 +147,12 @@ column's rule keeps it in its pool words.
   NaN, refresh hasMissing, and re-quantize; a column that gains NAs
   mid-run routes them by the existing rules' canonical-zero bit (left)
   until moves revisit those rules - deterministic and documented.
+  Amended 2026-10-10: a column's first missing value draws the direction
+  of every rule already on it with probability one half, from each chain's
+  own generator, in the live trees and in the kept draws alike
+  ([`Chain::drawMissingDirections`](../../src/bartcore/chain.hpp)); a
+  refused update takes the draw back, generators included; and predict
+  refuses a missing value only in a column that has never been flagged.
   cutsWouldRemainValid and categoricalValueIsValid treat NaN as valid
   when missing = "incorporate".
 - Views (buildFromParent) copy hasMissing with the rest of the grid; the

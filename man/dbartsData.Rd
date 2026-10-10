@@ -42,7 +42,7 @@ dbartsData(
   }
 }
 \value{
-  An object of class \code{dbartsData}. Its \code{rowNames} slot records the names of the kept training and test rows, as \code{list(train, test)}, or \code{NULL} when neither is named; a fit carries them on its outputs as the row names paragraph of \code{\link{bart}}'s \sQuote{Value} section describes.
+  An object of class \code{dbartsData}. Its \code{rowNames} slot records the names of the kept training and test rows, as \code{list(train, test)}, or \code{NULL} when neither is named; a fit carries them on its outputs as the row names paragraph of \code{\link{bart}}'s \sQuote{Value} section describes. Its \code{missing.seen} slot is \code{NULL} as created; on the data object a sampler holds it records, once a predictor has been changed, the columns that sampler can hold missing values in, as a logical per predictor column (see \sQuote{Missing values in predictors} in \code{\link{dbartsSampler}}), and a sampler created from such an object takes them.
 }
 \seealso{
   \code{\link{dbarts}}, \code{\link{extract.dbartsSampler}}, \code{\link{sparseFactor}}

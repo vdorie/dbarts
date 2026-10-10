@@ -52,11 +52,12 @@ na.keepPredictors(object, \dots)
   \code{newdata}, defaulting to this function; \code{NULL} means the
   default, and \code{getOption("na.action")} is never consulted.
 
-  A missing value in \code{newdata} is \emph{routable} when its column had
-  missing values in training: every split rule on that column then learned
-  a side for them, and the row predicts like any other. On a column that
-  was complete in training no rule learned a side, so the value is
-  \emph{unroutable}. Only the default and \code{\link{na.pass}} look at
+  A missing value in \code{newdata} is \emph{routable} when its column can
+  hold missing values: it had them in training or, on a sampler, has been
+  given them since (see \code{\link{dbartsSampler}}). Every split rule on
+  that column then holds a side for them, and the row predicts like any
+  other. On a column that has never held one no rule holds a side, so the
+  value is \emph{unroutable}. Only the default and \code{\link{na.pass}} look at
   this:
   \itemize{
     \item \code{na.keepPredictors} predicts every routable row and refuses

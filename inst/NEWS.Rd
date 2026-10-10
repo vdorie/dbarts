@@ -233,6 +233,13 @@
             the response; \code{na.action = na.omit} restores the old rule.
             \code{xbart} always keeps such rows, and \code{bartBT} drops
             them as before.
+      \item A predictor column that is first given a missing value after
+            the sampler was created (\code{$setPredictor},
+            \code{$setData}, \code{updatePredictorPerObservationJointly})
+            has the side its existing split rules send missing values to
+            drawn at random, in the current trees and in the saved draws,
+            and keeps routing them whatever it holds afterwards; 0.9-34
+            sent them down an arbitrary branch.
       \item \code{family = "auto"} recognizes more responses. A two-level
             factor, logical or character response fits as probit. A factor
             with three or more levels fits as \code{"multinomial"} on
