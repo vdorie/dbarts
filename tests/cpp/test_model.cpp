@@ -9340,8 +9340,9 @@ static void testMonotoneEmptyLeaf() {
 // (increasing) and x1 (free): x0 splits at 0.5, each side splits x1 at 0.3,
 // leaves J (x0 low, x1 low), K (x0 low, x1 high), S1 (x0 high, x1 low), S2
 // (x0 high, x1 high). J < S1 and K < S2 are the only relations.
-// - setState refuses a state outside the cone before touching the sampler,
-//   and accepts one inside it;
+// - setState without force declines a state outside the cone and leaves the
+//   sampler as it was, takes one inside it, and with force reseeds the tree
+//   outside it to all-zero;
 // - a warm start reseeds an infeasible donor tree to all-zero and keeps a
 //   feasible one;
 // - a forced predictor update that empties S1 collapses x0's high side into
@@ -9429,25 +9430,23 @@ static void testMonotoneReachability() {
   infeasibleState.chains[0].forests[0].trees[0] =
     handTree(0.0, -0.1, -0.02, -0.09);  // S1 below J
 
-  SamplerStateData before;
-  sampler->getState(before);
-  bool columnMaskRefused = true, monotoneRefused = false;
-  check(!sampler->setState(infeasibleState, nullptr, &columnMaskRefused,
-                           &monotoneRefused),
-        "reachability: setState refuses a state outside the cone");
-  check(monotoneRefused && !columnMaskRefused,
-        "reachability: the refusal is named as the monotone one");
-  SamplerStateData after;
-  sampler->getState(after);
-  bool unchanged = before.chains[0].forests[0].trees[0].size() ==
-                   after.chains[0].forests[0].trees[0].size();
-  for (size_t i = 0; unchanged && i < before.chains[0].forests[0].trees[0].size();
-       ++i)
-    unchanged = before.chains[0].forests[0].trees[0][i].value ==
-                after.chains[0].forests[0].trees[0][i].value;
-  check(unchanged, "reachability: a refused setState leaves the tree as it was");
-  check(sampler->setState(feasibleState, nullptr),
-        "reachability: setState accepts a state inside the cone");
+  check(declinesUntouched(*sampler, infeasibleState),
+        "reachability: setState without force declines a state outside the "
+        "cone and leaves the sampler as it was");
+  {
+    auto forced = makeSampler();
+    std::vector<double> reseeded;
+    bool installs = restoresAltered(*forced, infeasibleState);
+    bool inCone = liveFeasible(*forced, &reseeded);
+    bool allZero = reseeded.size() == 4;
+    for (double v : reseeded) allZero &= v == 0.0;
+    check(installs && inCone && allZero,
+          "reachability: forced, the tree outside the cone is reseeded to "
+          "all-zero and the install reports it");
+  }
+  check(installsClean(*sampler, feasibleState) &&
+          restoresExactly(*sampler, feasibleState),
+        "reachability: setState takes a state inside the cone as stored");
 
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   auto warm = makeSampler();

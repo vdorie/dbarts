@@ -624,17 +624,19 @@ expect_true(maxDrop(monoReach) <= 1e-8)
 invisible(monoReach$run(0L, 1L))
 expect_true(maxDrop(monoReach) <= 1e-8)
 
-# setState of the donor's state is refused whole, and the sampler keeps its
-# state and its fit
+# setState of the donor's state is declined, and the sampler keeps its state
+# and its fit; forced, as a copy holding the state is, every tree outside the
+# cone is reseeded and the fit is monotone at once
 stateBefore <- monoReach$state
 fitBefore <- monoReach$predict(gridReach)
-expect_error(
-  monoReach$setState(freeReach$state),
-  "leaf values violate this sampler's monotone constraint"
-)
+expect_identical(monoReach$setState(freeReach$state), FALSE)
 expect_identical(monoReach$state, stateBefore)
 expect_identical(monoReach$predict(gridReach), fitBefore)
-rm(stateBefore, fitBefore)
+forcedReach <- monoReach$copy()
+expect_null(forcedReach$setState(freeReach$state, forceUpdate = TRUE))
+expect_true(maxDrop(forcedReach) <= 1e-8)
+expect_false(identical(forcedReach$predict(gridReach), fitBefore))
+rm(stateBefore, fitBefore, forcedReach)
 
 # grow-from-root regrows every tree over recycled node slots; the regrown
 # leaves draw from the all-zero seed, and one sweep later the fit is monotone

@@ -1089,11 +1089,16 @@ public:
   /// Collapse any node with an unoccupied child, an ordinal split the
   /// current grid can no longer address (the column's grid shrank below
   /// its index; missing values riding the right child keep both children
-  /// occupied so the empty-child test alone would spare it), or, in a tree
+  /// occupied so the empty-child test alone would spare it), in a tree
   /// buildFromFlat marked, an ordinal split outside the interval its ancestors
-  /// leave (splitIsOutsideInterval), into a leaf whose
+  /// leave (splitIsOutsideInterval), or, in a tree stageFromFlat marked, a
+  /// split the tree's column mask or interaction constraint forbids
+  /// (splitIsForbidden), into a leaf whose
   /// parameter is the effective-observation-weighted mean of its subtree's
-  /// leaf parameters, for forced predictor updates. paramByNode is indexed by
+  /// leaf parameters, for forced predictor updates. The walk is pre-order and
+  /// stops at the node it collapses, so on each path from the root the first
+  /// such node goes with everything beneath it and the splits above it stay.
+  /// paramByNode is indexed by
   /// arena id, paramStride doubles per node, merged per coordinate; a subtree
   /// with no observations at all gets the plain mean. Merge selects the space
   /// the mean is taken in (arithmetic for an additive leaf parameter,
@@ -1104,6 +1109,7 @@ public:
                           size_t paramStride = 1) {
     collapseEmptyNodesBelow<Merge>(0, data, weights, paramByNode, paramStride);
     holdsSplitOutsideInterval_ = false;
+    holdsForbiddenSplit_ = false;
   }
 
   /// Whether the last buildFromFlat placed an ordinal split outside the
@@ -1122,6 +1128,16 @@ public:
     int32_t left, right;
     splitInterval(data, nodeIndex, rule.variableIndex, &left, &right);
     return rule.splitIndex() < left || rule.splitIndex() > right;
+  }
+
+  /// Whether the split at \p nodeIndex is on a column the tree's mask
+  /// forbids or, taken with its ancestors' splits, breaks the tree's
+  /// interaction constraint. False on an unrestricted tree.
+  bool splitIsForbidden(int32_t nodeIndex) const {
+    size_t j = static_cast<size_t>(at(nodeIndex).rule.variableIndex);
+    return !columnAllowed(j) ||
+           (interaction_ != nullptr &&
+            !interactionVariableAvailable(nodeIndex, j));
   }
 
   /// An ordinal rule whose index no longer addresses a cut after the grid
@@ -1372,6 +1388,7 @@ public:
     paramByNode.clear();
     size_t pos = 0, leafPos = 0, maskPos = 0;
     holdsSplitOutsideInterval_ = false;
+    holdsForbiddenSplit_ = false;
     if (!buildFromFlatBelow(0, data, flatNodes, numNodes, pos, paramByNode,
                             paramStride, slopes, leafPos, masks, numMaskWords,
                             maskPos))
@@ -1381,6 +1398,31 @@ public:
     paramByNode.resize(nodes.size() * paramStride, 0.0);
     bool dropped = dropStaleMissingDirectionsBelow(0, data);
     if (dropped && directionDropped != nullptr) *directionDropped = true;
+    return true;
+  }
+
+  /// buildFromFlat, then the partition over the store's rows, then the
+  /// report of what keeps the tree from standing as its flat form holds it:
+  /// the one staging a state's verdict runs on a scratch tree and its install
+  /// on the live one, so the two cannot disagree. \p needsMerge is set to
+  /// whether collapseEmptyNodes has a node to merge - a bottom no row
+  /// reaches, a split outside its interval, or a split the tree's column mask
+  /// or interaction constraint forbids, the last marking the tree for that
+  /// collapse. The tree is initialized over the rows and carries its forest's
+  /// mask and constraint. Returns and \p directionDropped as buildFromFlat.
+  bool stageFromFlat(const ColumnStore& data, const FlatNode* flatNodes,
+                     size_t numNodes, std::vector<double>& paramByNode,
+                     size_t paramStride, const double* slopes,
+                     const std::uint64_t* masks, size_t numMaskWords,
+                     bool& needsMerge, bool* directionDropped = nullptr) {
+    if (!buildFromFlat(data, flatNodes, numNodes, paramByNode, paramStride,
+                       slopes, masks, numMaskWords, directionDropped))
+      return false;
+    repartitionSubtree(data, 0);
+    holdsForbiddenSplit_ =
+      !columnMaskSubtreeIsValid(0) || !interactionSubtreeIsValid(0);
+    needsMerge = !bottomNodesAreOccupied() || holdsSplitOutsideInterval_ ||
+                 holdsForbiddenSplit_;
     return true;
   }
 
@@ -1653,7 +1695,8 @@ private:
         at(at(nodeIndex).leftChild + 1).numObservations() == 0 ||
         ruleIsUnrepresentable(data, at(nodeIndex).rule) ||
         (holdsSplitOutsideInterval_ &&
-         splitIsOutsideInterval(data, nodeIndex))) {
+         splitIsOutsideInterval(data, nodeIndex)) ||
+        (holdsForbiddenSplit_ && splitIsForbidden(nodeIndex))) {
       std::vector<int32_t> bottoms;
       fillBottom(nodeIndex, bottoms);
 
@@ -1889,6 +1932,8 @@ private:
   std::vector<int32_t> freePairs;
   // set by a build from flat nodes, cleared by the collapse that merges
   bool holdsSplitOutsideInterval_ = false;
+  // set by stageFromFlat, cleared by the collapse that merges
+  bool holdsForbiddenSplit_ = false;
   size_t maskPoolHighWater_ = minMaskPoolCompactionSize;
   std::vector<std::uint64_t> compactScratch_;
   // wide-reachable scratch for the compute-check-discard call sites

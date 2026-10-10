@@ -363,10 +363,12 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 /// or the retained creation spec's @x); null for CSC/mixed stores and for a
 /// same-spec continuation, which re-quantizes nothing. adoptStoreCapacity
 /// lets the state's saved-tree capacity replace the sampler's once the state
-/// is accepted, the re-creation path's need. Returns whether every chain was
-/// installed as stored (Sampler::setState's altered, negated).
+/// is accepted, the re-creation path's need. force is Sampler::setState's.
+/// Returns whether the state was installed: false only without force, for a
+/// state a tree of which would have to be changed, the sampler untouched.
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
-              const double* currentPredictors, bool adoptStoreCapacity);
+              const double* currentPredictors, bool adoptStoreCapacity,
+              bool force);
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then

@@ -4217,14 +4217,50 @@ public:
     }
   }
 
-  bool stateIsValid(const ChainStateData& state) const {
-    return stateIsValid(state, savedTreeCapacity());
-  }
-  /// The same, judging the state's saved-tree blocks against a store of
-  /// savedCapacity slots rather than the live one, for a restore that will
-  /// resize the store to that capacity once the state is accepted.
-  bool stateIsValid(const ChainStateData& state, size_t savedCapacity) const {
+  /// The number of kept draws a state's saved-tree blocks have slots for,
+  /// 0 for a state carrying none. False where a block is not a whole number
+  /// of draws or two blocks, the variance forest's among them, name different
+  /// counts. The count need not be this chain's own (Sampler::setState).
+  bool savedStateCapacity(const ChainStateData& state, size_t& capacity) const {
+    capacity = 0;
     if (state.forests.size() != forests_.size()) return false;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      size_t numTrees = forests_[f].numTrees;
+      size_t numSaved = state.forests[f].savedTrees.size();
+      if (numTrees == 0 ? numSaved != 0 : numSaved % numTrees != 0)
+        return false;
+      if (f == 0)
+        capacity = numTrees == 0 ? 0 : numSaved / numTrees;
+      else if (numSaved != capacity * numTrees)
+        return false;
+    }
+    // SIZE, not presence, pairs the variance block with the mean blocks:
+    // initializeSavedTrees allocates the whole buffer up front, so a keepTrees
+    // sampler's block is full even before a sweep records into it. Accepting
+    // an empty block beside kept mean draws would restore the destination's
+    // own identity fill and report a plausible constant s(x) - strictly harder
+    // to notice than the zero it replaces.
+    return !varianceForest_ || state.savedVarianceTrees.size() ==
+                                 capacity * varianceForest_->numTrees;
+  }
+
+  /// Whether \p state can be installed in this chain, touching nothing: its
+  /// shape, its values and every tree's form, live trees built on a scratch
+  /// tree against the store's current cuts.
+  ///
+  /// notClean, when non-null, asks for the verdict as well: each live tree,
+  /// mean and variance, is staged as the install stages it
+  /// (Tree::stageFromFlat) and the flag is set, never cleared, where one
+  /// would not be installed as stored - a bottom no row reaches, a split
+  /// outside its interval, a missing direction its column cannot route, a
+  /// split its forest's column mask or interaction constraint forbids, or
+  /// monotone leaf values outside the cone. None of those is a refusal. With
+  /// the flag already set the remaining trees are only built.
+  bool stateIsValid(const ChainStateData& state,
+                    bool* notClean = nullptr) const {
+    if (state.forests.size() != forests_.size()) return false;
+    size_t savedCapacity;
+    if (!savedStateCapacity(state, savedCapacity)) return false;
     // the amplitude block's LAYOUT, not just its total: a state carrying
     // q = (1, 3) into a live q = (2, 2) has the same four amplitudes and would
     // be written straight through the live offsets, permuting the blocks
@@ -4237,9 +4273,6 @@ public:
       const Forest<L, ResidT>& forest = forests_[f];
       const ForestStateData& fs = state.forests[f];
       if (fs.trees.size() != forest.numTrees) return false;
-      if (!fs.savedTrees.empty() &&
-          fs.savedTrees.size() != savedCapacity * forest.numTrees)
-        return false;
       if (!leafCalibrationIsValid(forest, fs)) return false;
       // mask channels pair with their flat trees when present; trees holding
       // wide rules without a channel fail the rebuild below
@@ -4308,22 +4341,26 @@ public:
           fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
         size_t numMaskWords =
           fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-        if (!scratch.buildFromFlat(data_, fs.trees[t].data(),
+        // a tree the install would merge, collapse or reseed is not a
+        // refusal (rebuildLiveForest); it is what the verdict reports
+        if (notClean == nullptr || *notClean) {
+          if (!scratch.buildFromFlat(data_, fs.trees[t].data(),
+                                     fs.trees[t].size(), params, 1, nullptr,
+                                     masks, numMaskWords))
+            return false;
+          continue;
+        }
+        bool needsMerge = false, directionDropped = false;
+        if (!scratch.stageFromFlat(data_, fs.trees[t].data(),
                                    fs.trees[t].size(), params, 1, nullptr,
-                                   masks, numMaskWords))
+                                   masks, numMaskWords, needsMerge,
+                                   &directionDropped))
           return false;
-        // a bottom node no row of this data reaches is not a refusal: the
-        // install merges it into its parent (rebuildLiveForest).
-        // A state install must not admit a tree that violates the constraint
-        // (design "Containment"): the availability predicate is not self-
-        // checking, so treeLogProbability would mis-score a donor grown
-        // unconstrained. Trivially passes for an unconstrained forest.
-        if (!scratch.interactionSubtreeIsValid(0)) return false;
-        // the same containment reasoning for the split-variable restriction (BCF
-        // moderators, a column-restricted variance forest): a donor splitting on
-        // a forbidden column would be mis-scored against an availability menu
-        // that excludes it. Trivially passes for an unrestricted forest.
-        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
+        bool inCone = true;
+        if constexpr (TreeDrawLeafModel<L>)
+          inCone = monotoneTreeIsFeasible(
+            scratch, data_, forest.leaf.directions.data(), params.data());
+        if (needsMerge || directionDropped || !inCone) *notClean = true;
       }
     }
     if (!state.latents.empty() &&
@@ -4372,25 +4409,15 @@ public:
     // heteroscedastic: a variance state must carry one flat tree per variance
     // tree, each well-formed AND with every leaf a strictly positive scale (a
     // variance, unlike a Gaussian mean leaf) - the scale-leaf validation. A
-    // bottom no row of this data reaches is merged at install
-    // (rebuildVarianceForest), as on the mean side. The SAVED buffer is held to
-    // form and positivity only (see below).
+    // tree the install would merge or collapse (rebuildVarianceForest) is the
+    // verdict's, as on the mean side. The SAVED buffer is held to form and
+    // positivity only (see below); its size is savedStateCapacity's.
     if (varianceForest_) {
       if (state.varianceTrees.size() != varianceForest_->numTrees) return false;
       // mask channels pair one-to-one with their flat trees when present;
       // trees holding wide rules without a channel fail the builds below
       if (!state.varianceTreeMasks.empty() &&
           state.varianceTreeMasks.size() != state.varianceTrees.size())
-        return false;
-      // SIZE, not presence, separates "never saved" (capacity 0, both empty)
-      // from "saved but dropped": initializeSavedTrees allocates the whole
-      // buffer up front, so a keepTrees sampler's block is full even before a
-      // sweep records into it. Accepting an empty block against a live capacity
-      // would restore the destination's own identity fill and report a
-      // plausible constant s(x) - strictly harder to notice than the zero it
-      // replaces.
-      if (state.savedVarianceTrees.size() !=
-          savedCapacity * varianceForest_->numTrees)
         return false;
       if (!state.savedVarianceTreeMasks.empty() &&
           state.savedVarianceTreeMasks.size() !=
@@ -4415,15 +4442,18 @@ public:
         // mean loop's, which the shared scratch would otherwise still hold
         scratch.setInteractionConstraint(nullptr);
         scratch.setColumnMask(varianceMask);
-        if (!scratch.buildFromFlat(data_, tree.data(), tree.size(), params, 1,
-                                   nullptr, masks, numMaskWords))
+        if (notClean == nullptr || *notClean) {
+          if (!scratch.buildFromFlat(data_, tree.data(), tree.size(), params,
+                                     1, nullptr, masks, numMaskWords))
+            return false;
+          continue;
+        }
+        bool needsMerge = false, directionDropped = false;
+        if (!scratch.stageFromFlat(data_, tree.data(), tree.size(), params, 1,
+                                   nullptr, masks, numMaskWords, needsMerge,
+                                   &directionDropped))
           return false;
-        // the mean loop's containment law, applied to the scale surface: a
-        // variance tree splitting on a column `variance = ~ subset` forbids
-        // would be scored against an availability menu that excludes it, so
-        // its rule is mis-priced for as long as it lives. Trivially passes for
-        // an unrestricted variance forest (null mask short-circuit).
-        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
+        if (needsMerge || directionDropped) *notClean = true;
       }
       // the saved trees: form and the scale-leaf positivity law. A saved slot
       // is a historical replay target routed over NEW rows, never over this
@@ -4453,7 +4483,8 @@ public:
   /// donor grown under a different (or no) constraint may hold a tree this
   /// sampler's constraint forbids, which treeLogProbability would mis-score.
   /// installForests calls this before touching live state so it can report a
-  /// clear refusal; setState reaches the same guarantee through stateIsValid.
+  /// clear refusal; a state install collapses such a tree instead, or
+  /// declines it (stateIsValid's verdict).
   /// Trivially true for an unconstrained forest, so the default warm start is
   /// byte-for-byte unchanged. Mirrors stateIsValid's structural scratch build
   /// (paramStride 1: only the rule structure, not leaf params, is examined).
@@ -4492,10 +4523,10 @@ public:
   /// different (or no) restriction may hold a tree that splits on a column this
   /// sampler's forest forbids, which splitVariableLogProbability would mis-score
   /// against an availability menu (collectAvailableVariables) that excludes it.
-  /// BOTH tree-install entries call this before touching live state - setState
-  /// against the grid the state itself carries, installForests against the
-  /// donor's - so the two cannot differ on what they admit; stateIsValid keeps
-  /// the same test per forest as the invariant's backstop.
+  /// installForests calls this before touching live state, against the
+  /// donor's grid; a state install collapses such a tree instead, or declines
+  /// it (stateIsValid's verdict), and rebuildLiveForest keeps the same test
+  /// per tree as the invariant's backstop.
   /// Trivially true for an unrestricted forest, so the default warm start is
   /// byte-for-byte unchanged. Mirrors interactionStateFeasible's scratch build
   /// (paramStride 1: only the rule structure, not leaf params, is examined).
@@ -4556,47 +4587,6 @@ public:
     return true;
   }
 
-  /// Whether every live tree in `state` lies in its monotone cone, judged
-  /// against the current cut grid: setState's up-front gate, so setState, copy
-  /// and reload never install leaf values the constrained draws cannot start
-  /// from. Trivially true off the monotone leaf. Mirrors
-  /// interactionStateFeasible's scratch build, with the leaf values read.
-  bool monotoneStateFeasible(const ChainStateData& state) const {
-    if constexpr (!TreeDrawLeafModel<L>) {
-      (void) state;
-      return true;
-    } else {
-      if (state.forests.size() != forests_.size()) return true;  // shape gate elsewhere
-      size_t n = data_.numObservations;
-      Tree scratch;
-      std::vector<index_t> scratchIndices(n);
-      std::vector<double> params;
-      for (size_t f = 0; f < forests_.size(); ++f) {
-        const Forest<L, ResidT>& forest = forests_[f];
-        const ForestStateData& fs = state.forests[f];
-        if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
-        for (size_t t = 0; t < forest.numTrees; ++t) {
-          scratch.initialize(scratchIndices.data(), n);
-          const std::uint64_t* masks =
-            fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
-          size_t numMaskWords =
-            fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-          // a malformed tree is the caller's shape concern (stateIsValid
-          // fails it); here only a buildable one's leaf values are judged
-          if (!scratch.buildFromFlat(data_, fs.trees[t].data(),
-                                     fs.trees[t].size(), params, 1, nullptr,
-                                     masks, numMaskWords))
-            continue;
-          if (!monotoneTreeIsFeasible(scratch, data_,
-                                      forest.leaf.directions.data(),
-                                      params.data()))
-            return false;
-        }
-      }
-      return true;
-    }
-  }
-
   /// Whether every live tree's leaf values lie in the monotone order as the
   /// store stands, has-missing flags included. Trivially true off the
   /// monotone leaf.
@@ -4633,20 +4623,24 @@ public:
   /// or a remap merged or newly related - has every leaf set to 0, the
   /// all-equal seed that satisfies every constraint, drawing nothing; the next
   /// sweep's leaf draw moves it off the seed. A feasible tree keeps its values.
-  /// paramByNode is indexed by arena id. Compiled out off the monotone leaf.
-  void reseedInfeasibleMonotoneLeaves(const Forest<L, ResidT>& forest, size_t t,
+  /// paramByNode is indexed by arena id. Returns whether the tree was
+  /// reseeded. Compiled out off the monotone leaf.
+  bool reseedInfeasibleMonotoneLeaves(const Forest<L, ResidT>& forest, size_t t,
                                       std::vector<double>& paramByNode) const {
     if constexpr (TreeDrawLeafModel<L>) {
       const Tree& tree(forest.trees[t]);
       if (paramByNode.size() < tree.nodes.size())
         paramByNode.resize(tree.nodes.size(), 0.0);
-      if (!monotoneLeavesInOrder(forest, t, paramByNode.data()))
+      if (!monotoneLeavesInOrder(forest, t, paramByNode.data())) {
         std::fill(paramByNode.begin(), paramByNode.end(), 0.0);
+        return true;
+      }
     } else {
       (void) forest;
       (void) t;
       (void) paramByNode;
     }
+    return false;
   }
 
   /// Rebuilds forest f's live trees, partitions, and fits from a flat state's
@@ -4661,12 +4655,17 @@ public:
   /// and a monotone tree the merge takes out of the cone is reseeded. A split
   /// the flat tree holds outside the interval its ancestors leave (two splits
   /// stacked on one value, which no sampler writes) is merged by the same
-  /// pass, whether or not missing values keep both its sides occupied. Any
-  /// other tree is installed exactly.
+  /// pass, whether or not missing values keep both its sides occupied, and so
+  /// is a split this forest's column mask or interaction constraint forbids:
+  /// the first such split on each path from the root becomes one leaf with
+  /// everything beneath it. A monotone tree whose leaf values leave the cone
+  /// as stored is reseeded. Any other tree is installed exactly.
   ///
   /// altered, when non-null, is set if any tree was installed other than as
-  /// its flat form holds it - a bottom merged, a split outside its interval
-  /// merged, a missing direction dropped - and is never cleared.
+  /// its flat form holds it - a bottom, a split outside its interval or a
+  /// forbidden split merged, a missing direction dropped, a monotone tree
+  /// reseeded - and is never cleared. It is set for exactly the trees
+  /// stateIsValid's verdict reports, both staging a tree by the one routine.
   bool rebuildLiveForest(size_t f, const ForestStateData& fs,
                          std::vector<double>& params,
                          bool* altered = nullptr) {
@@ -4682,33 +4681,31 @@ public:
         fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
       size_t numMaskWords =
         fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+      bool needsMerge = false;
       if constexpr (!L::hasVectorParams) {
-        if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
+        if (!forest.trees[t].stageFromFlat(data_, fs.trees[t].data(),
                                            fs.trees[t].size(), params, 1,
                                            nullptr, masks, numMaskWords,
-                                           altered))
+                                           needsMerge, altered))
           return false;
       } else {
-        if (!forest.trees[t].buildFromFlat(data_, fs.trees[t].data(),
+        if (!forest.trees[t].stageFromFlat(data_, fs.trees[t].data(),
                                            fs.trees[t].size(), params,
                                            forest.leaf.numParams(),
                                            fs.treeParams[t].data(), masks,
-                                           numMaskWords, altered))
+                                           numMaskWords, needsMerge, altered))
           return false;
       }
-      forest.trees[t].repartitionSubtree(data_, 0);
-      if (!forest.trees[t].bottomNodesAreOccupied() ||
-          forest.trees[t].holdsSplitOutsideInterval()) {
+      if (needsMerge) {
         forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                            params, paramStride);
         if (altered != nullptr) *altered = true;
       }
       // containment backstop (design): the live tree carries this forest's
-      // constraint and column mask, so a warm-start donor grown unconstrained is
-      // caught before treeLogProbability can mis-score it. installForests
-      // pre-checks for the clear error; this guarantees the invariant on any
-      // live-install path. Trivially passes for an unrestricted forest (null
-      // short-circuit).
+      // constraint and column mask, and the collapse above took out every
+      // split either forbids, so nothing treeLogProbability would mis-score
+      // is left on any live-install path. Trivially passes for an
+      // unrestricted forest (null short-circuit).
       if (!forest.trees[t].interactionSubtreeIsValid(0)) return false;
       if (!forest.trees[t].columnMaskSubtreeIsValid(0)) return false;
       if constexpr (L::hasFunctionParams) {
@@ -4716,10 +4713,11 @@ public:
         std::memcpy(forest.treeFits.data() + t * n, fs.treeParams[t].data(),
                     n * sizeof(double));
       } else {
-        // a warm start's donor may be unconstrained, and a merge above can
-        // leave the cone; setState refused a state infeasible as stored
-        // (monotoneStateFeasible)
-        reseedInfeasibleMonotoneLeaves(forest, t, params);
+        // a state or a warm start's donor may hold leaf values outside the
+        // cone as stored, and a merge above can leave it
+        if (reseedInfeasibleMonotoneLeaves(forest, t, params) &&
+            altered != nullptr)
+          *altered = true;
         setTreeFits(forest, t, params);
       }
       if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
@@ -5061,7 +5059,15 @@ public:
   /// rebuildVarianceForest) and is never cleared. A value the chain keeps as
   /// its own, a generator it does not take and the saved draws, which are
   /// copied, leave it alone.
-  bool setState(const ChainStateData& state, bool* altered = nullptr) {
+  ///
+  /// A saved-tree block the size of this chain's store is copied slot for
+  /// slot, so the ring goes on as the state held it, and an empty one leaves
+  /// the store alone. From a block of any other size the draws \p newest
+  /// names - ring slots of the state's own store, oldest first - go to slots
+  /// 0 on with their parameters, masks and variance trees, the rest of this
+  /// store staying as it is; the caller holds newest.count to both stores.
+  bool setState(const ChainStateData& state, bool* altered = nullptr,
+                SavedDrawSlots newest = SavedDrawSlots()) {
     if (state.forests.size() != forests_.size()) return false;
     // RESTORE CONTRACT: the response's own state goes in BEFORE the trees, so
     // a merge of a leaf no row reaches weighs its subtree under the state's
@@ -5105,7 +5111,24 @@ public:
               ? nullptr : fs.leafLengthscales.data());
       }
       if (!rebuildLiveForest(f, fs, params, altered)) return false;
-      if (!fs.savedTrees.empty()) {
+      if (fs.savedTrees.size() != forest.savedTrees.size()) {
+        size_t stateCapacity = fs.savedTrees.size() / forest.numTrees;
+        for (size_t i = 0; i < newest.count; ++i) {
+          size_t from = ((newest.first + i) % stateCapacity) * forest.numTrees;
+          size_t to = i * forest.numTrees;
+          for (size_t t = 0; t < forest.numTrees; ++t) {
+            forest.savedTrees[to + t] = fs.savedTrees[from + t];
+            if constexpr (L::hasVectorParams || L::hasFunctionParams)
+              forest.savedTreeParams[to + t] = fs.savedTreeParams[from + t];
+            if (data_.hasPooledCategorical) {
+              if (fs.savedTreeMasks.empty())
+                forest.savedTreeMasks[to + t].clear();
+              else
+                forest.savedTreeMasks[to + t] = fs.savedTreeMasks[from + t];
+            }
+          }
+        }
+      } else if (!fs.savedTrees.empty()) {
         forest.savedTrees = fs.savedTrees;
         if constexpr (L::hasVectorParams || L::hasFunctionParams)
           forest.savedTreeParams = fs.savedTreeParams;
@@ -5128,9 +5151,26 @@ public:
                                  altered))
         return false;
       // the mean side's shape: an empty block carries nothing, which off
-      // keepTrees is the only thing there is to carry
-      if (!state.savedVarianceTrees.empty()) {
-        VarianceForest& vf = *varianceForest_;
+      // keepTrees is the only thing there is to carry, and a block of another
+      // size gives its newest draws
+      VarianceForest& vf = *varianceForest_;
+      if (state.savedVarianceTrees.size() != vf.savedTrees.size()) {
+        size_t stateCapacity = state.savedVarianceTrees.size() / vf.numTrees;
+        for (size_t i = 0; i < newest.count; ++i) {
+          size_t from = ((newest.first + i) % stateCapacity) * vf.numTrees;
+          size_t to = i * vf.numTrees;
+          for (size_t j = 0; j < vf.numTrees; ++j) {
+            vf.savedTrees[to + j] = state.savedVarianceTrees[from + j];
+            if (data_.hasPooledCategorical) {
+              if (state.savedVarianceTreeMasks.empty())
+                vf.savedTreeMasks[to + j].clear();
+              else
+                vf.savedTreeMasks[to + j] =
+                  state.savedVarianceTreeMasks[from + j];
+            }
+          }
+        }
+      } else if (!state.savedVarianceTrees.empty()) {
         vf.savedTrees = state.savedVarianceTrees;
         if (data_.hasPooledCategorical) {
           if (state.savedVarianceTreeMasks.empty())
@@ -5849,9 +5889,10 @@ private:
   /// each tree, scatter its positive leaf factors to the per-observation slab
   /// through the restored partition, then recompute s^2(x) as the product. A
   /// bottom no row of the current data reaches is merged into its parent with
-  /// the geometric mean, as refreshVarianceForest merges it, and so is a
-  /// split outside its interval; any other tree is installed exactly. altered
-  /// is rebuildLiveForest's.
+  /// the geometric mean, as refreshVarianceForest merges it, and so are a
+  /// split outside its interval and the first split on each path that the
+  /// forest's column mask forbids; any other tree is installed exactly.
+  /// altered is rebuildLiveForest's.
   bool rebuildVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
       const std::vector<std::vector<std::uint64_t>>& masks,
@@ -5867,22 +5908,21 @@ private:
       const std::uint64_t* maskWords =
         masks.empty() ? nullptr : masks[j].data();
       std::size_t numMaskWords = masks.empty() ? 0 : masks[j].size();
-      if (!tree.buildFromFlat(data_, trees[j].data(), trees[j].size(),
+      bool needsMerge = false;
+      if (!tree.stageFromFlat(data_, trees[j].data(), trees[j].size(),
                               leafValues, 1, nullptr, maskWords, numMaskWords,
-                              altered))
+                              needsMerge, altered))
         return false;
-      tree.repartitionSubtree(data_, 0);
-      if (!tree.bottomNodesAreOccupied() ||
-          tree.holdsSplitOutsideInterval()) {
+      if (needsMerge) {
         tree.collapseEmptyNodes<GeometricMerge>(
           data_, response_->workingWeights(), leafValues);
         if (altered != nullptr) *altered = true;
       }
       // containment backstop, the variance analogue of rebuildLiveForest's:
-      // the live tree carries this forest's column mask, so a forbidden split
-      // cannot reach the sweep by any live-install path. The two entries
-      // pre-check for the clear error; this holds the invariant. Trivially
-      // passes for an unrestricted variance forest.
+      // the live tree carries this forest's column mask and the collapse took
+      // out every split it forbids, so none reaches the sweep by any
+      // live-install path. Trivially passes for an unrestricted variance
+      // forest.
       if (!tree.columnMaskSubtreeIsValid(0)) return false;
       double* factor = vf.factorByTree.data() + j * n;
       tree.bottomScratch.clear();

@@ -527,23 +527,26 @@ expect_identical(copyDraws$train, reloadDraws$train)
 expect_identical(unname(splits(copyDraws)[3L]), 0)
 expect_true(sum(splits(copyDraws)[1:2]) > 0)
 
-# the sampler's own state installs; a state or a donor that splits on an
-# excluded column is refused with the restricted variance forest's messages,
-# and the sampler is left as it was
+# the sampler's own state installs; a state that splits on an excluded
+# column is declined and a donor that does is refused with the restricted
+# variance forest's message, and the sampler is left as it was
 expect_true(live$setState(live$state))
 stateBefore <- live$state
 treesBefore <- live$getTrees()
 expect_true(any(donor$getTrees()$var == 3L))
-expect_error(
-  live$setState(donor$state),
-  pattern = "state holds a tree that splits on a variable outside this forest's allowed column set"
-)
+expect_identical(live$setState(donor$state), FALSE)
 expect_error(
   live$installTrees(donor),
   pattern = "warm-start donor holds a tree that splits on a variable outside this forest's allowed column set"
 )
 expect_identical(live$state, stateBefore)
 expect_identical(live$getTrees(), treesBefore)
+# forced, the state goes in with every split on the excluded column collapsed
+forcedLive <- live$copy()
+expect_null(forcedLive$setState(donor$state, forceUpdate = TRUE))
+expect_false(any(forcedLive$getTrees()$var == 3L))
+expect_true(any(forcedLive$getTrees()$var > 0L))
+expect_true(staysWithin(forcedLive))
 live$installTrees(duplicate)
 expect_identical(live$getTrees()$var, duplicate$getTrees()$var)
 expect_true(staysWithin(live))

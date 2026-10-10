@@ -6721,7 +6721,7 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
 
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
                        SEXP currentPredictorsExpr,
-                       SEXP adoptStoreCapacityExpr) {
+                       SEXP adoptStoreCapacityExpr, SEXP forceExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   // restoring cut points re-quantizes from raw values, which views lack
   refuseMutationOnView(*holder.sampler, "$setState");
@@ -6731,10 +6731,11 @@ SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
   // TRUE only from a re-creation, whose control may not record a store the
   // flat API sized; a live $setState keeps the sampler's own capacity
-  bool exact =
+  bool installed =
     bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
-                              Rf_asLogical(adoptStoreCapacityExpr) == TRUE);
-  return Rf_ScalarLogical(exact);
+                              Rf_asLogical(adoptStoreCapacityExpr) == TRUE,
+                              Rf_asLogical(forceExpr) == TRUE);
+  return Rf_ScalarLogical(installed);
 }
 
 // The sampler's response transform, (min, max) as a state's fit.scale holds
@@ -7978,18 +7979,12 @@ bool readAmplitudeGlue(SEXP glueExpr, bartcore::ChainStateData& chainState) {
   return true;
 }
 
-/// The refusal both tree-install entries report when an incoming tree splits
-/// on a column the recipient forest's mask forbids. setState and
-/// installForests run the one predicate, so a state either entry refuses is
-/// refused by the other, in the same words but for the name of the source.
+/// The refusal a warm start reports when a donor tree splits on a column the
+/// recipient forest's mask forbids. A state install does not refuse such a
+/// tree: it declines it or, forced, collapses it (Sampler::setState).
 static const char* const columnMaskMismatchMessage =
   "warm-start donor holds a tree that splits on a variable outside "
   "this forest's allowed column set; the donor's fit is "
-  "incompatible with the column restriction (a forest's own "
-  "column subset or a restricted variance forest) in force here";
-static const char* const stateColumnMaskMessage =
-  "state holds a tree that splits on a variable outside "
-  "this forest's allowed column set; the state is "
   "incompatible with the column restriction (a forest's own "
   "column subset or a restricted variance forest) in force here";
 
@@ -8046,7 +8041,8 @@ static const char* readStateCutMass(SEXP cutMassExpr,
 }
 
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
-              const double* currentPredictors, bool adoptStoreCapacity) {
+              const double* currentPredictors, bool adoptStoreCapacity,
+              bool force) {
   bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
@@ -8502,17 +8498,14 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       adoptCapacity = forestState.savedTrees.size() / numTrees;
   }
 
-  bool columnMaskRefused = false, monotoneRefused = false;
-  bool interactionRefused = false, lengthscaleRefused = false;
-  bool altered = false;
+  bool lengthscaleRefused = false, notClean = false;
   bool restored = false;
   if (errorMessage == NULL) {
     bartcore_bridge::CapturedError restoreError;
     captureExceptions(restoreError, [&]() {
-      restored = sampler.setState(state, currentPredictors, &columnMaskRefused,
-                                  &monotoneRefused, &interactionRefused,
-                                  &lengthscaleRefused, &altered,
-                                  adoptCapacity);
+      restored = sampler.setState(state, currentPredictors,
+                                  &lengthscaleRefused, nullptr, adoptCapacity,
+                                  force, &notClean);
     });
     if (restoreError.failed)
       errorMessage = "state's saved trees cannot be stored by this sampler";
@@ -8522,18 +8515,14 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     std::swap(state, empty);  // free before a potential longjmp
   }
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
-  if (columnMaskRefused) Rf_error("%s", stateColumnMaskMessage);
-  if (interactionRefused)
-    Rf_error("state holds a tree that violates this sampler's interaction "
-             "constraint; the state is incompatible with the interactions() "
-             "prior in force here");
-  if (monotoneRefused)
-    Rf_error("state's leaf values violate this sampler's monotone "
-             "constraint");
   if (lengthscaleRefused)
     Rf_error("state holds saved gp draws made under other lengthscales than "
              "the ones this sampler was given; a saved draw replays only under "
              "the kernel it was drawn with");
+  // declined, not refused: the state fits and a tree of it would have to be
+  // changed, which only a forced call does. Nothing was touched, so nothing
+  // below has anything to reconcile.
+  if (notClean) return false;
   if (!restored)
     Rf_error("state is not consistent with this sampler");
 
@@ -8556,8 +8545,7 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   // row is not reached at all - restoreLatents installs the censored rows
   // only, an observed log-time being data no state overwrites.
   if (survivalDiffers) sampler.reapplySurvivalStatus();
-  // neither reconciliation above counts: the chains are the stored ones
-  return !altered;
+  return true;
 }
 
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,

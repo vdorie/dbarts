@@ -573,6 +573,10 @@ expect_identical(stored(longScale), longBefore)
 liveOnly <- make(leaf.prior = gp("x2", lengthscale = 2))
 liveOnly$setState(stored(make(leaf.prior = gp("x2", lengthscale = 0.5))))
 expect_identical(stored(liveOnly)[[1L]]$forests[[1L]]$leaf.lengthscales, 2)
+# nor does a sampler that keeps no draws refuse them: it takes none
+keepsNone <- make(leaf.prior = gp("x2", lengthscale = 2))
+expect_true(keepsNone$setState(stored(shortScale)))
+expect_identical(stored(keepsNone)[[1L]]$forests[[1L]]$leaf.lengthscales, 2)
 
 # chains from two samplers on different ranges, combined into one state, go
 # in as stored under the sampler's one mapping and run as one posterior: weak

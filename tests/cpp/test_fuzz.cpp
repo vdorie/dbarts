@@ -418,6 +418,14 @@ static void fuzzFillResponse(ext_rng* r, ResponseFamily fam, const double* x,
 // stream.
 static constexpr size_t fuzzBurnIn = 12;
 
+// What OP_STATE's installs of an earlier state came to over the run: taken as
+// stored, declined without force and repaired with it, or refused. The
+// summary line prints the three so that a run whose earlier states never
+// needed a repair cannot pass for one that tested the verdict.
+static struct {
+  size_t clean = 0, repaired = 0, refused = 0;
+} fuzzEarlierStates;
+
 // The op loop, generic over the leaf model so the linear-leaf configuration
 // reuses it. Returns false (and prints the seed + a trailing op trace) on the
 // first invariant break.
@@ -438,6 +446,8 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   int op = 0;
   size_t sweeps = fuzzBurnIn;
   std::vector<double> scaleMax;
+  // the state OP_STATE read the time before, empty until it has run once
+  SamplerStateData earlier;
   auto record = [&](const char* text) { trace.push_back(text); };
   auto fail = [&](const char* what) {
     ++failures;
@@ -730,13 +740,36 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         SamplerStateData st;
         s.getState(st);
         record("op state");
-        if (!s.setState(st, curAll())) {
+        bool installed = false, altered = true;
+        if (!verdictMatchesInstall(s, st, curAll(), installed, altered)) {
+          fail("own state: the unforced verdict and the forced install "
+               "disagree");
+        } else if (!installed) {
           fail("setState refused own state");
+        } else if (altered) {
+          fail("own state installed other than as stored");
         } else {
           SamplerStateData st2;
           s.getState(st2);
           if (!statesAgree(st, st2)) fail("state round trip disagrees");
         }
+        // The state this op read the time before, which the mutations since
+        // may have left with a leaf no row reaches, a split outside its
+        // interval or a direction its column cannot route, or of a shape that
+        // no longer fits: whatever it needs, the verdict and the install must
+        // agree on it. The sampler is then put back, so the stream of ops
+        // that follows is the one it was.
+        if (ok && !earlier.chains.empty()) {
+          if (!verdictMatchesInstall(s, earlier, curAll(), installed, altered))
+            fail("an earlier state: the unforced verdict and the forced "
+                 "install disagree");
+          else if (installed && !s.setState(st, curAll()))
+            fail("setState refused own state after an earlier one");
+          ++(!installed ? fuzzEarlierStates.refused
+                        : altered ? fuzzEarlierStates.repaired
+                                  : fuzzEarlierStates.clean);
+        }
+        if (ok) earlier = std::move(st);
         break;
       }
       case OP_GROW: {
@@ -2034,7 +2067,12 @@ static void testMutationFuzzer(int numSeeds) {
     fuzzRunLinear(seed, numOps);
     fuzzRunSparse(seed, numOps);
   }
-  printf("ok: mutation fuzzer (%d seeds)\n", numSeeds);
+  check(fuzzEarlierStates.clean > 0 && fuzzEarlierStates.repaired > 0,
+        "fuzz: earlier states installed both as stored and repaired");
+  printf("ok: mutation fuzzer (%d seeds; earlier states %zu clean, %zu "
+         "repaired, %zu refused)\n",
+         numSeeds, fuzzEarlierStates.clean, fuzzEarlierStates.repaired,
+         fuzzEarlierStates.refused);
 }
 
 void runFuzzTests(int numSeeds) {

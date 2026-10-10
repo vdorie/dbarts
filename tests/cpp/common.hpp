@@ -135,16 +135,54 @@ static void checkStructuralRoundTrip(const SamplerStateData& saved,
   check(statesAgree(saved, reState), label);
 }
 
-// Installs a state and holds Sampler::setState's altered flag to the answer
-// named, the flag preset to the other one so an install that never writes it
-// fails.
+// Whether two reads of a sampler's state are one sampler: its chains,
+// generators, latents and kept draws (statesAgree), its cut grid and its
+// store's write position.
+static inline bool samplerStatesAgree(const SamplerStateData& a,
+                                      const SamplerStateData& b) {
+  return statesAgree(a, b) && a.cutPoints == b.cutPoints &&
+         a.cutMass == b.cutMass && a.currentSampleNum == b.currentSampleNum &&
+         a.recordedDraws == b.recordedDraws;
+}
+// Installs a state without force and then with it, and returns whether the
+// two answers are one: the unforced call takes the state exactly when the
+// forced install reports nothing altered, and then leaves the sampler the
+// forced install does; it declines exactly when the forced install reports a
+// repair; and a state one form refuses the other refuses. A call that does
+// not install leaves the sampler as it was. Every flag is preset to the
+// answer that would hide a call never writing it. installed and altered
+// report the forced call.
+template <typename S>
+static bool verdictMatchesInstall(S& sampler, const SamplerStateData& state,
+                                  const double* currentPredictors,
+                                  bool& installed, bool& altered) {
+  SamplerStateData before, unforced, forced;
+  sampler.getState(before);
+  bool notClean = false;
+  bool took = sampler.setState(state, currentPredictors, nullptr, nullptr,
+                               keepStoreCapacity, false, &notClean);
+  sampler.getState(unforced);
+  bool untouched = took || samplerStatesAgree(before, unforced);
+  altered = !notClean;
+  installed = sampler.setState(state, currentPredictors, nullptr, &altered);
+  sampler.getState(forced);
+  if (!installed)
+    return !took && !notClean && !altered &&
+           samplerStatesAgree(before, forced);
+  if (took)
+    return !notClean && !altered && samplerStatesAgree(unforced, forced);
+  return untouched && notClean && altered;
+}
+// Installs a state both ways (verdictMatchesInstall) and holds the answer to
+// the one named: installed as stored, or declined without force and repaired
+// with it.
 template <typename S>
 static bool restoresWithStatus(S& sampler, const SamplerStateData& state,
                                const double* currentPredictors, bool expected) {
-  bool altered = !expected;
-  return sampler.setState(state, currentPredictors, nullptr, nullptr, nullptr,
-                          nullptr, &altered) &&
-         altered == expected;
+  bool installed = false, altered = !expected;
+  return verdictMatchesInstall(sampler, state, currentPredictors, installed,
+                               altered) &&
+         installed && altered == expected;
 }
 template <typename S>
 static bool restoresExactly(S& sampler, const SamplerStateData& state,
@@ -155,6 +193,30 @@ template <typename S>
 static bool restoresAltered(S& sampler, const SamplerStateData& state,
                             const double* currentPredictors = nullptr) {
   return restoresWithStatus(sampler, state, currentPredictors, true);
+}
+// Whether an install without force declines a state as not clean and leaves
+// the sampler as it was. The flag is preset down, so a refusal fails.
+template <typename S>
+static bool declinesUntouched(S& sampler, const SamplerStateData& state,
+                              const double* currentPredictors = nullptr) {
+  SamplerStateData before, after;
+  sampler.getState(before);
+  bool notClean = false;
+  bool installed =
+    sampler.setState(state, currentPredictors, nullptr, nullptr,
+                     keepStoreCapacity, false, &notClean);
+  sampler.getState(after);
+  return !installed && notClean && samplerStatesAgree(before, after);
+}
+// Whether an install without force takes a state, as one that needs no
+// repair; the flag is preset up, so an install that never writes it fails.
+template <typename S>
+static bool installsClean(S& sampler, const SamplerStateData& state,
+                          const double* currentPredictors = nullptr) {
+  bool notClean = true;
+  return sampler.setState(state, currentPredictors, nullptr, nullptr,
+                          keepStoreCapacity, false, &notClean) &&
+         !notClean;
 }
 // Flags the first ordinal rule among flat trees as sending missing values
 // right; false when none splits on an ordinal column.

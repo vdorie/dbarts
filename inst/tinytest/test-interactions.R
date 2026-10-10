@@ -313,17 +313,18 @@ expect_equal(worstOrder(mnTrees), 1L)
 invisible(mnCapped$growFromRoot())
 expect_equal(worstOrder(mnCapped$getTrees(current = TRUE)), 1L)
 
-# a state grown without the cap is refused by name, and leaves the sampler as
-# it was
+# a state grown without the cap is declined, and leaves the sampler as it
+# was; forced, it goes in with every tree collapsed into the cap
 mnFree$storeState()
 mnCapped$storeState()
 mnBefore <- mnCapped$state
-expect_error(
-  mnCapped$setState(mnFree$state),
-  "state holds a tree that violates this sampler's interaction constraint"
-)
+expect_identical(mnCapped$setState(mnFree$state), FALSE)
 mnCapped$storeState()
 expect_identical(mnCapped$state, mnBefore)
+expect_null(mnCapped$setState(mnFree$state, forceUpdate = TRUE))
+mnTrees <- mnCapped$getTrees(current = TRUE)
+expect_equal(worstOrder(mnTrees), 1L)
+expect_true(any(mnTrees$var > 0L))
 
 # bart() takes the same constraint to the same engine
 mnFit <- bart(
@@ -340,7 +341,7 @@ mnFit <- bart(
 )
 expect_false(anyCoOccur(extract(mnFit, type = "trees"), c(1L, 2L)))
 
-# ---- setState names a violated constraint on a single forest too ----------
+# ---- setState holds a single forest to its constraint too -----------------
 ssControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -358,7 +359,8 @@ ssCapped <- dbarts(
   interactions = interactions(max.order = 1L),
   control = ssControl
 )
-expect_error(
-  ssCapped$setState(ssFree$state),
-  "state holds a tree that violates this sampler's interaction constraint"
-)
+expect_identical(ssCapped$setState(ssFree$state), FALSE)
+expect_null(ssCapped$setState(ssFree$state, forceUpdate = TRUE))
+ssTrees <- ssCapped$getTrees(current = TRUE)
+expect_equal(worstOrder(ssTrees), 1L)
+expect_true(any(ssTrees$var > 0L))

@@ -180,9 +180,9 @@ public:
   std::size_t predictVarianceThreads = 0;
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
-          (const SamplerStateData& s, const double* cp, bool* r, bool* m,
-           bool* i, bool* l, bool* e, std::size_t a),
-          (s, cp, r, m, i, l, e, a))
+          (const SamplerStateData& s, const double* cp, bool* l, bool* e,
+           std::size_t a, bool f, bool* n),
+          (s, cp, l, e, a, f, n))
   SPY_VOID(setAnchor, (double lo, double hi), (lo, hi))
   SPY_VOID(getAnchor, (double& lo, double& hi) const, (lo, hi))
   SPY_RET(WarmStartResult, installForests,
@@ -943,9 +943,9 @@ const Row rows[] = {
   {FacadeVirtual::setState, "setState", [](Fixtures& f) {
     SamplerStateData donor;
     f.g.impl().getState(donor);
-    bool columnMaskRefused = true;
-    check(f.gt.base().setState(donor, nullptr, &columnMaskRefused) &&
-            !columnMaskRefused,
+    bool lengthscaleRefused = true;
+    check(f.gt.base().setState(donor, nullptr, &lengthscaleRefused) &&
+            !lengthscaleRefused,
           "facade setState: the donor installs and the refusal flag is "
           "written");
     SamplerStateData restored;
@@ -959,6 +959,10 @@ const Row rows[] = {
               flagged.chains[0].forests[0].trees) &&
             restoresAltered(f.gt.base(), flagged),
           "facade setState: the altered flag crosses the boundary both ways");
+    // and without force the same state is declined, the twin left alone
+    check(installsClean(f.gt.base(), donor) &&
+            declinesUntouched(f.gt.base(), flagged),
+          "facade setState: force and the verdict cross the boundary");
   }},
   {FacadeVirtual::setAnchor, "setAnchor", [](Fixtures& f) {
     // the count family's pair is its shift, which a move carries exactly,

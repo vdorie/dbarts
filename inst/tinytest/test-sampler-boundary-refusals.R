@@ -225,9 +225,9 @@ if (at_home() && !nzchar(Sys.getenv("ASAN_OPTIONS"))) {
 }
 
 # --- a state with another store capacity. A live $setState keeps the
-# sampler's own capacity, so the state is refused and the draws stay; the
-# re-creation path takes the state's capacity only once the state is
-# accepted, so a refused one leaves the store and its draws alone too
+# sampler's own capacity and takes the newest of the state's draws that fit;
+# the re-creation path takes the state's capacity only once the state is
+# accepted, so a refused one leaves the store and its draws alone
 storeControl <- function(n.samples, n.trees = 5L) {
   dbartsControl(
     n.chains = 1L,
@@ -246,9 +246,13 @@ heldPredict <- held$predict(x)
 other <- dbarts(x, y, control = storeControl(3L))
 invisible(other$run(2L, 3L))
 other$storeState()
-expect_error(held$setState(other$state), "not consistent")
-expect_identical(held$predict(x), heldPredict)
+otherPredict <- other$predict(x)
+expect_true(held$setState(other$state))
+expect_identical(held$control@n.samples, 5L)
+expect_identical(held$predict(x), otherPredict)
+invisible(held$run(0L, 4L))
 expect_identical(dim(held$predict(x)), c(n, 5L))
+heldPredict <- held$predict(x)
 wrongTrees <- dbarts(x, y, control = storeControl(3L, n.trees = 6L))
 invisible(wrongTrees$run(2L, 3L))
 wrongTrees$storeState()
@@ -258,12 +262,13 @@ expect_error(
     held$getPointer(),
     wrongTrees$state,
     x,
+    TRUE,
     TRUE
   ),
   "not consistent"
 )
 expect_identical(held$predict(x), heldPredict)
-rm(held, heldPredict, other, wrongTrees, storeControl)
+rm(held, heldPredict, other, otherPredict, wrongTrees, storeControl)
 
 # --- a refused warm start touches no chain. A donor whose trees no longer
 # route onto the predictors it now holds fails to rebuild part way through

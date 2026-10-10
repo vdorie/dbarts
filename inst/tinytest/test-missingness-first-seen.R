@@ -246,7 +246,8 @@ expect_equal(
 # One tree, split once on f: no level right, a missing value right. On a
 # sampler whose f has never held one the rule is malformed. Where f holds
 # one it installs as stored; where f has held one and is complete again it
-# installs and its empty side is merged.
+# is built, declined for its empty side and, forced, installed with that
+# side merged.
 oneWay <- function(sampler) {
   sampler$storeState()
   state <- sampler$state
@@ -273,7 +274,10 @@ expect_true(held$setState(oneWay(held)))
 expect_identical(held$getTrees()$missing, c("R", NA, NA))
 held$setPredictor(complete$f, "f", forceUpdate = TRUE)
 expect_identical(seen(held), c(FALSE, FALSE, TRUE))
-expect_false(held$setState(oneWay(held)))
+refilled <- oneWay(held)
+expect_identical(held$setState(refilled), FALSE)
+expect_null(held$setState(refilled, forceUpdate = TRUE))
+expect_identical(held$state, refilled)
 expect_identical(nrow(held$getTrees()), 1L)
 
 # ---- row by row, a first missing value that would empty a leaf ----

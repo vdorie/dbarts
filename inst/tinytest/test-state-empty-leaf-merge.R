@@ -1,7 +1,8 @@
 # A state stored before a forced setPredictor can route no row of the new
-# predictors to some of its leaves. setState, copy(), a reload and a same-grid
-# warm start all install it, merging those leaves into their parents exactly as
-# the forced update merged them, as 0.9-34's restore did.
+# predictors to some of its leaves. setState declines it and leaves the
+# sampler alone; with forceUpdate = TRUE it installs it, as copy(), a reload
+# and a same-grid warm start do, merging those leaves into their parents
+# exactly as the forced update merged them, as 0.9-34's restore did.
 source(
   system.file("common", "stateContinuation.R", package = "dbarts"),
   local = TRUE
@@ -56,8 +57,13 @@ checkStaleRestore <- function(make, info) {
     statesAgree(forced, stale, expect = FALSE),
     info = paste(info, "the forced update merged a leaf")
   )
+  # declined, the trees left the forced update's; installed when forced
   expect_silent(status <- sampler$setState(stale))
-  expect_false(status, info = info)
+  expect_identical(status, FALSE, info = info)
+  sampler$storeState()
+  expect_identical(sampler$state, forced, info = info)
+  expect_silent(status <- sampler$setState(stale, forceUpdate = TRUE))
+  expect_null(status, info = info)
   sampler$storeState()
   statesAgree(sampler$state, forced)
   expect_identical(treeValues(sampler$state), treeValues(forced), info = info)
@@ -94,7 +100,7 @@ checkStaleRestore(
 )
 
 # a restore with every leaf occupied merges nothing: it reinstalls the stored
-# trees as they were, and says so invisibly
+# trees as they were, and says so
 exact <- dbarts(x, y, control = control)
 invisible(exact$run(40L, 3L))
 exact$storeState()
@@ -102,18 +108,18 @@ held <- exact$state
 invisible(exact$run(0L, 3L))
 expect_identical(
   withVisible(exact$setState(held)),
-  list(value = TRUE, visible = FALSE)
+  list(value = TRUE, visible = TRUE)
 )
 exact$storeState()
 statesAgree(exact$state, held)
 
-# undoing a predictor change: restored against the changed predictor the state
-# merges and the value is FALSE, invisibly too; with the old predictor put
-# back first it is the stored state again
+# undoing a predictor change: against the changed predictor the state would
+# have to merge, so it is declined; with the old predictor put back first it
+# is the stored state again
 exact$setPredictor(xNew, forceUpdate = TRUE)
 expect_identical(
   withVisible(exact$setState(held)),
-  list(value = FALSE, visible = FALSE)
+  list(value = FALSE, visible = TRUE)
 )
 exact$setPredictor(x, forceUpdate = TRUE)
 expect_true(exact$setState(held))
@@ -162,7 +168,8 @@ for (name in c("logistic", "nbinom", "student")) {
     moved$setPredictor(xNew, forceUpdate = TRUE)
     invisible(moved$run(0L, 5L))
     cold <- moved$copy()
-    expect_false(moved$setState(stale), info = info)
+    expect_identical(moved$setState(stale), FALSE, info = info)
+    expect_null(moved$setState(stale, forceUpdate = TRUE), info = info)
     moved$storeState()
     cold$storeState()
     statesAgree(moved$state, cold$state)

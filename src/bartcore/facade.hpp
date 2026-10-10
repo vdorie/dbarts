@@ -350,24 +350,22 @@ public:
   virtual void getState(SamplerStateData& state) = 0;
   /// currentPredictors supplies raw for a cross-grid restore's re-quantization
   /// (null for a same-spec continuation, which re-quantizes nothing).
-  /// columnMaskRefused, when non-null, reports whether the refusal was the
-  /// column-mask containment one installForests names separately;
-  /// monotoneRefused, whether it was a live tree's leaf values outside the
-  /// monotone cone; interactionRefused, whether a live tree breaks an
-  /// interaction constraint; lengthscaleRefused, Sampler::setState's refusal
+  /// lengthscaleRefused, when non-null, reports Sampler::setState's refusal
   /// of saved gp draws made under other lengthscales.
   /// altered, when non-null, reports whether an accepted state was installed
   /// other than as stored (Sampler::setState).
-  /// adoptCapacity is Sampler::setState's: a store capacity the state is
-  /// judged against and the store takes once the state is accepted.
+  /// adoptCapacity is Sampler::setState's: a store capacity the store takes
+  /// once the state is accepted.
+  /// force installs a state whose live trees need repair, repairing them;
+  /// without it such a state is left uninstalled, false returned and
+  /// notClean, when non-null, set, which a refusal leaves down.
   virtual bool setState(const SamplerStateData& state,
                         const double* currentPredictors,
-                        bool* columnMaskRefused = nullptr,
-                        bool* monotoneRefused = nullptr,
-                        bool* interactionRefused = nullptr,
                         bool* lengthscaleRefused = nullptr,
                         bool* altered = nullptr,
-                        std::size_t adoptCapacity = keepStoreCapacity) = 0;
+                        std::size_t adoptCapacity = keepStoreCapacity,
+                        bool force = true,
+                        bool* notClean = nullptr) = 0;
   /// The sampler's response transform, Sampler::setAnchor's: written by a
   /// host re-creating a sampler from its record, read back to keep one.
   virtual void setAnchor(double min, double max) = 0;
@@ -681,13 +679,11 @@ public:
   }
   void getState(SamplerStateData& state) override { impl_.getState(state); }
   bool setState(const SamplerStateData& state,
-                const double* currentPredictors, bool* columnMaskRefused,
-                bool* monotoneRefused, bool* interactionRefused,
-                bool* lengthscaleRefused, bool* altered,
-                std::size_t adoptCapacity) override {
-    return impl_.setState(state, currentPredictors, columnMaskRefused,
-                          monotoneRefused, interactionRefused,
-                          lengthscaleRefused, altered, adoptCapacity);
+                const double* currentPredictors, bool* lengthscaleRefused,
+                bool* altered, std::size_t adoptCapacity, bool force,
+                bool* notClean) override {
+    return impl_.setState(state, currentPredictors, lengthscaleRefused,
+                          altered, adoptCapacity, force, notClean);
   }
   void setAnchor(double min, double max) override {
     impl_.setAnchor(min, max);

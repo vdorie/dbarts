@@ -1,6 +1,7 @@
 #ifndef BARTCORE_SAMPLER_HPP
 #define BARTCORE_SAMPLER_HPP
 
+#include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <chrono>
@@ -1125,69 +1126,78 @@ public:
   /// the live grid column for column, so its per-column skip guard re-quantizes
   /// nothing and needs no raw.
   ///
-  /// The containment rule, one law for both tree-install entries: a state may
-  /// install a tree only if every split it carries lies inside the recipient
-  /// forest's own column mask - each forest of forests_ (a moderator subset, a
-  /// blocks() row) and the variance forest alike - because
-  /// splitVariableLogProbability prices a rule against collectAvailableVariables,
-  /// which drops the masked columns, so a forbidden split is mis-scored for as
-  /// long as it lives. setState and installForests therefore share the one
-  /// predicate, columnMaskStateFeasible, and report the one refusal; only LIVE
-  /// trees are held to it, a saved slot being a replay target routed over new
-  /// rows rather than over this partition. It runs against the state's own cut
-  /// grid, where the state's splits resolve, and before any chain is touched,
-  /// so a refusal leaves the sampler exactly as it was. columnMaskRefused, when
-  /// non-null, separates that refusal from every other invalid state so the
-  /// host can name it; monotoneRefused does the same for leaf values outside
-  /// a monotone sampler's cone, and interactionRefused for a live tree that
-  /// breaks a forest's interaction constraint. lengthscaleRefused names a
-  /// state whose saved gp draws were made under other lengthscales than the
-  /// ones this sampler was given (Chain::lengthscaleStateFeasible), judged
-  /// before anything is touched.
+  /// A refusal - false with notClean down - is the same with and without
+  /// force and leaves the sampler exactly as it was: a state of another
+  /// shape, a malformed block or tree, a grid that repeats a point, latents
+  /// the family cannot hold, saved-tree blocks that name different draw
+  /// counts. lengthscaleRefused names a state whose saved gp draws were made
+  /// under other lengthscales than the ones this sampler was given
+  /// (Chain::lengthscaleStateFeasible), asked only where a saved draw would
+  /// be kept. Everything is judged against the state's own cut grid, where
+  /// its splits resolve, and before any chain is touched.
   ///
-  /// A live tree that routes no row of the current data to some bottom node,
-  /// as a state stored before setPredictor(forceUpdate) leaves, is accepted
-  /// and merged at install the way the forced update merges it
-  /// (Chain::rebuildLiveForest, Chain::rebuildVarianceForest); a state whose
-  /// trees are all occupied installs exactly.
+  /// A state past those is installed as stored unless one of its live trees,
+  /// mean or variance, cannot stand in this sampler as its flat form holds
+  /// it:
+  /// - a bottom node no row of the current data reaches, as a state stored
+  ///   before setPredictor(forceUpdate) leaves;
+  /// - a split outside the interval its ancestors leave;
+  /// - a missing direction on a column, not pooled, that has never held a
+  ///   missing value here;
+  /// - a split on a column its forest's mask forbids (a moderator subset, a
+  ///   blocks() row, a restricted variance forest), which
+  ///   splitVariableLogProbability would price against a menu that drops the
+  ///   column for as long as the split lives;
+  /// - a split that breaks its forest's interaction constraint;
+  /// - a monotone tree whose leaf values, as stored, leave the cone.
+  /// With force such a tree is repaired on the way in: the bottom, the split
+  /// outside its interval and the first forbidden split on each path from
+  /// the root are merged into one leaf at the weighted mean of the leaves
+  /// beneath (Chain::rebuildLiveForest, Chain::rebuildVarianceForest), the
+  /// direction is dropped, the monotone tree is reseeded at 0. Without force
+  /// the state is not installed: the grid is put back, notClean, when
+  /// non-null, is set, and false is returned with the chains, the store, the
+  /// generators and the latents untouched. Only LIVE trees are held to any of
+  /// this, a saved slot being a replay target routed over new rows rather
+  /// than over this partition.
   ///
   /// No value is converted: trees, leaf values, k, sigma and the saved draws
   /// go in as stored, numbers on the internal scale read against this
   /// sampler's response transform, whatever transform the state records. The
   /// transform is model and is not moved.
   ///
-  /// adoptCapacity, when not keepStoreCapacity, judges the state's saved trees
-  /// against a store of that many samples and, only once the state is
-  /// accepted, resizes the store to it before installing them: a refused state
-  /// leaves the store and its draws as they were. An allocation failure in the
-  /// resize throws with the cut grid restored and nothing else changed.
+  /// The kept draws are output, and a state installs whatever store it was
+  /// taken from. A state whose store is the size of this sampler's has its
+  /// ring copied slot for slot, write position included. From a store of
+  /// another size the newest of the state's recorded draws that fit go to
+  /// slots 0 on, oldest first, and the write position follows them; the
+  /// capacity does not change, and a sampler keeping none takes none.
   ///
-  /// altered, when non-null, reports whether an accepted state was installed
-  /// other than as stored: false exactly when every chain's live trees and
-  /// leaf values are the state's own. A live tree, mean or variance, that
-  /// had a bottom merged or a missing direction dropped sets it
-  /// (Chain::setState).
-  /// Only the installing build reports: the scratch builds that validate a
-  /// state never do, and a refusal leaves it false. Any further way an
-  /// install comes to differ from its state reports here too, this being the
-  /// one such flag a host reads.
+  /// adoptCapacity, when not keepStoreCapacity, resizes the store to that
+  /// many samples before the kept draws go in, only once the state is
+  /// accepted: a refused or declined state leaves the store and its draws as
+  /// they were. An allocation failure in the resize throws with the cut grid
+  /// restored and nothing else changed.
+  ///
+  /// altered, when non-null, reports whether a state was installed other
+  /// than as stored: true exactly when a live tree was repaired as above, so
+  /// a forced install sets it exactly when the same call without force
+  /// declines. Only the installing build reports: the scratch builds that
+  /// validate a state never do, and a refusal leaves it false.
   /// Not reported, since the chain is still the stored one: a value the
   /// sampler holds fixed or the state lacks, a generator of another kind left
   /// in place, a pooled categorical rule keeping a missing bit its column no
   /// longer routes, and the saved draws, which are copied.
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors,
-                bool* columnMaskRefused = nullptr,
-                bool* monotoneRefused = nullptr,
-                bool* interactionRefused = nullptr,
                 bool* lengthscaleRefused = nullptr,
                 bool* altered = nullptr,
-                size_t adoptCapacity = keepStoreCapacity) {
-    if (columnMaskRefused != nullptr) *columnMaskRefused = false;
-    if (monotoneRefused != nullptr) *monotoneRefused = false;
-    if (interactionRefused != nullptr) *interactionRefused = false;
+                size_t adoptCapacity = keepStoreCapacity,
+                bool force = true,
+                bool* notClean = nullptr) {
     if (lengthscaleRefused != nullptr) *lengthscaleRefused = false;
     if (altered != nullptr) *altered = false;
+    if (notClean != nullptr) *notClean = false;
     bool installAltered = false;
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
@@ -1206,9 +1216,26 @@ public:
         return false;
       }
     }
+    // the store the state was taken from, and the newest of its recorded
+    // draws that the store it goes into holds
+    size_t stateCapacity = 0;
+    bool blocksAgree = true;
+    for (size_t c = 0; c < chains_.size() && blocksAgree; ++c) {
+      size_t chainCapacity;
+      blocksAgree =
+        chains_[c]->savedStateCapacity(state.chains[c], chainCapacity) &&
+        (c == 0 || chainCapacity == stateCapacity);
+      stateCapacity = chainCapacity;
+    }
+    size_t liveCapacity = savedTreeCapacity();
+    bool resize =
+      adoptCapacity != keepStoreCapacity && adoptCapacity != liveCapacity;
+    size_t capacity = resize ? adoptCapacity : liveCapacity;
+    size_t keptDraws = std::min({state.recordedDraws, stateCapacity, capacity});
+    // blocks that disagree are refused below, after the lengthscales
+    bool keepsDraws = blocksAgree ? keptDraws > 0 : state.recordedDraws > 0;
     for (size_t c = 0; c < chains_.size(); ++c) {
-      if (!chains_[c]->lengthscaleStateFeasible(state.chains[c],
-                                                state.recordedDraws > 0)) {
+      if (!chains_[c]->lengthscaleStateFeasible(state.chains[c], keepsDraws)) {
         if (lengthscaleRefused != nullptr) *lengthscaleRefused = true;
         return false;
       }
@@ -1245,29 +1272,14 @@ public:
                                   currentPredictors, mass);
     }
 
-    // containment first, validity second: both judge the state against the grid
-    // just installed, and the split-variable refusal is separated only so the
-    // host can name it as installForests does
-    bool columnMaskOk = true;
-    for (size_t c = 0; c < chains_.size() && columnMaskOk; ++c)
-      columnMaskOk = chains_[c]->columnMaskStateFeasible(state.chains[c]);
-    bool interactionOk = true;
-    for (size_t c = 0; c < chains_.size() && columnMaskOk && interactionOk; ++c)
-      interactionOk = chains_[c]->interactionStateFeasible(state.chains[c]);
-    bool allValid = columnMaskOk && interactionOk;
-    size_t liveCapacity = savedTreeCapacity();
-    bool resize =
-      adoptCapacity != keepStoreCapacity && adoptCapacity != liveCapacity;
-    size_t judgedCapacity = resize ? adoptCapacity : liveCapacity;
+    // validity for every chain, then the verdict where the call is not
+    // forced: both judge the state against the grid just installed, and a
+    // state refused for one chain is refused whatever another's trees need
+    bool allValid = blocksAgree;
+    bool needsRepair = false;
     for (size_t c = 0; c < chains_.size() && allValid; ++c)
-      allValid = chains_[c]->stateIsValid(state.chains[c], judgedCapacity);
-    // a monotone sampler's constrained draws start only from leaf values in
-    // the cone; unlike a warm start, which reseeds, a state is a continuation
-    // and is refused whole
-    bool monotoneOk = true;
-    for (size_t c = 0; c < chains_.size() && allValid && monotoneOk; ++c)
-      monotoneOk = chains_[c]->monotoneStateFeasible(state.chains[c]);
-    allValid = allValid && monotoneOk;
+      allValid = chains_[c]->stateIsValid(state.chains[c],
+                                          force ? nullptr : &needsRepair);
 
     auto restoreGrid = [&]() {
       data_.cutPoints = std::move(oldCutPoints);
@@ -1278,12 +1290,9 @@ public:
       data_.train.sparseColumns = std::move(oldSparseColumns);
       data_.test.sparseColumns = std::move(oldTestSparseColumns);
     };
-    if (!allValid) {
+    if (!allValid || needsRepair) {
       restoreGrid();
-      if (columnMaskRefused != nullptr) *columnMaskRefused = !columnMaskOk;
-      if (monotoneRefused != nullptr) *monotoneRefused = !monotoneOk;
-      if (interactionRefused != nullptr)
-        *interactionRefused = columnMaskOk && !interactionOk;
+      if (notClean != nullptr) *notClean = allValid;
       return false;
     }
     if (resize) {
@@ -1297,13 +1306,22 @@ public:
       options_.numSamplesToStore = adoptCapacity;
     }
 
+    // a store of the state's own size continues its ring; any other takes
+    // the newest draws at its start (Chain::setState)
+    bool repack = stateCapacity != capacity;
+    size_t stateCursor =
+      stateCapacity > 0 ? state.currentSampleNum % stateCapacity : 0;
+    SavedDrawSlots newest;
+    if (repack && keptDraws > 0)
+      newest = SavedDrawSlots{
+        (stateCursor + stateCapacity - keptDraws) % stateCapacity, keptDraws};
     for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->setState(state.chains[c], &installAltered))
+      if (!chains_[c]->setState(state.chains[c], &installAltered, newest))
         return false;
-    size_t capacity = savedTreeCapacity();
-    currentSampleNum_ = capacity > 0 ? state.currentSampleNum % capacity : 0;
-    recordedDraws_ =
-      state.recordedDraws < capacity ? state.recordedDraws : capacity;
+    currentSampleNum_ =
+      capacity > 0 ? (repack ? keptDraws : state.currentSampleNum) % capacity
+                   : 0;
+    recordedDraws_ = keptDraws;
     if (altered != nullptr) *altered = installAltered;
     return true;
   }

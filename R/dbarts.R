@@ -1833,12 +1833,25 @@ predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
 ## state goes into the engine at ptr, then what rides no state is put back from
 ## the sampler's own mirrors, in this order. adopt is TRUE only where the
 ## engine was just created from a control that can name another saved-tree
-## capacity than the state holds.
-installStateOnto <- function(sampler, ptr, state, predictors, adopt) {
-  exact <- .Call(C_dbarts_bartcore_setState, ptr, state, predictors, adopt)
+## capacity than the state holds. force installs a state a tree of which has
+## to be changed to fit, changing it; without it such a state is not
+## installed, the engine and the mirrors are left alone and FALSE is
+## returned. TRUE says the state went in.
+installStateOnto <- function(sampler, ptr, state, predictors, adopt, force) {
+  installed <- .Call(
+    C_dbarts_bartcore_setState,
+    ptr,
+    state,
+    predictors,
+    adopt,
+    force
+  )
+  if (!installed) {
+    return(FALSE)
+  }
   sampler$reapplyForestWeights(ptr)
   sampler$reapplyActiveRows(ptr)
-  exact
+  TRUE
 }
 
 ## The response transform a sampler's leaf prior is anchored to and its
@@ -2422,7 +2435,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     copy = function(shallow = FALSE) {
-      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing; see setState."
+      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing, and as setState does with forceUpdate = TRUE: a tree that no longer fits the sampler is repaired, silently; see setState."
       # a copy introduces no rows, so it does not raise the creation warning
       dupe <- withoutZeroTrialsWarning(
         if (shallow) {
@@ -2473,6 +2486,7 @@ dbartsSampler <- setRefClass(
           dupe$pointer,
           installing,
           rawPredictorMatrix(data@x),
+          TRUE,
           TRUE
         )
         # the cached field is the source's: an updateState = FALSE source has
@@ -3582,7 +3596,14 @@ dbartsSampler <- setRefClass(
         # cross-grid column (the engine keeps no predictor matrix)
         # a store sized through the flat API is in no control, so the
         # re-created sampler takes the stored state's capacity
-        installStateOnto(.self, ptr, state, rawPredictorMatrix(data@x), TRUE)
+        installStateOnto(
+          .self,
+          ptr,
+          state,
+          rawPredictorMatrix(data@x),
+          TRUE,
+          TRUE
+        )
         # the replacement is bound only once it carries the state: a refused
         # install must leave the object exactly as it was rather than holding
         # a live but unfitted engine that the next run would silently sample
@@ -3592,30 +3613,42 @@ dbartsSampler <- setRefClass(
       }
       pointer
     },
-    setState = function(newState) {
-      "Installs a stored state: the chains, never the model. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Invisibly returns TRUE when nothing had to be changed to install it, FALSE otherwise. See Saving and Value in ?dbartsSampler."
+    setState = function(newState, forceUpdate = FALSE) {
+      "Installs a stored state: the chains, never the model. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired, and NULL is returned invisibly. See Saving and Value in ?dbartsSampler."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
+      }
+      if (
+        !is.logical(forceUpdate) ||
+          length(forceUpdate) != 1L ||
+          is.na(forceUpdate)
+      ) {
+        stop("'forceUpdate' must be TRUE or FALSE", call. = FALSE)
       }
       selfEnv <- parent.env(environment())
       ptr <- pointer
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
         ptr <- recreatePointer(control, model, data)
       }
-      exact <- installStateOnto(
+      installed <- installStateOnto(
         .self,
         ptr,
         newState,
         rawPredictorMatrix(data@x),
-        FALSE
+        FALSE,
+        forceUpdate
       )
       # as in getPointer: a re-created engine is bound only after the install
-      # succeeds, so a refusal leaves a dead pointer dead instead of live and
-      # unfitted, and leaves 'state' the one that is still installed
+      # succeeds, so a refusal, or a state declined, leaves a dead pointer
+      # dead instead of live and unfitted, and leaves 'state' the one that is
+      # still installed
+      if (!installed) {
+        return(FALSE)
+      }
       selfEnv$pointer <- ptr
       selfEnv$state <- newState
-      invisible(exact)
+      if (!forceUpdate) TRUE else invisible(NULL)
     },
     startThreads = function(n.threads = control@n.threads) {
       "Retired: threads are owned by each run. Does nothing."

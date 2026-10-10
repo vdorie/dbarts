@@ -408,8 +408,8 @@ completes(function(s) s$installTrees(make()), NULL, onto)
 
 # a merge that leaves the tree out of order: with no row left in (high; a, b)
 # the high half becomes one leaf holding the value of (high; c, d), which
-# `breaks` puts below (low; a, b). Forced by column, and a state installed
-# over such predictors, which returns FALSE for the merge.
+# `breaks` puts below (low; a, b). Forced by column, and a state forced in
+# over such predictors, which without force is declined for the merge.
 fEmptied <- f
 fEmptied[x1 > cut & f %in% c("a", "b")] <- "c"
 completes(
@@ -426,15 +426,20 @@ emptied <- function() {
     seed = 7L
   )
 }
+sampler <- emptied()
+expect_identical(sampler$setState(handState(sampler, list(breaks))), FALSE)
+expect_identical(leaves(sampler), numeric(0L))
 completes(
-  function(s) s$setState(handState(s, list(breaks))),
-  FALSE,
+  function(s) s$setState(handState(s, list(breaks)), forceUpdate = TRUE),
+  NULL,
   emptied(),
   numLeaves = 3L
 )
 # where the merged tree stays in order its values are kept
 sampler <- emptied()
-expect_false(sampler$setState(handState(sampler, list(holds))))
+merging <- handState(sampler, list(holds))
+expect_identical(sampler$setState(merging), FALSE)
+expect_null(sampler$setState(merging, forceUpdate = TRUE))
 expect_identical(leaves(sampler), holds[1:3])
 # setCutPoints completes in silence too: on a shorter grid the x1 split
 # keeps its place, rescaled, and the tree its leaves; a grid of one point
@@ -486,7 +491,7 @@ poolBytes <- function(levelCodes) {
   bytes <- packBits(set, "raw")
   if (.Platform$endian == "big") bytes[c(matrix(16:1, 8L)[, 2:1])] else bytes
 }
-installPooled <- function(sampler, values) {
+installPooled <- function(sampler, values, ...) {
   sampler$storeState()
   state <- sampler$state
   cuts <- attr(state, "cutPoints")[[1L]]
@@ -503,7 +508,7 @@ installPooled <- function(sampler, values) {
   forest$tree.sizes <- 7L
   forest$tree.masks <- c(poolBytes(35:69), poolBytes(0:34))
   state[[1L]]$forests[[1L]] <- forest
-  sampler$setState(state)
+  sampler$setState(state, ...)
 }
 pooledCodes <- cbind(x1 = x1, h = as.double(as.integer(h) - 1L))
 sampler <- dbarts::dbarts(
@@ -515,18 +520,18 @@ sampler <- dbarts::dbarts(
 )
 expect_true(installPooled(sampler, holds))
 # the column loses its missing values and may still hold one, so values that
-# cross with one stay refused
+# cross with one are still out of order: declined, and reseeded when forced
 asFrameH <- function(codes) {
   data.frame(x1 = codes[, "x1"], h = asLabels(codes[, "h"], levels70))
 }
 expect_true(sampler$setPredictor(asFrameH(pooledCodes), forceUpdate = FALSE))
 expect_identical(dbarts:::dataMissingSeen(sampler$data), c(FALSE, TRUE))
-expect_error(
-  installPooled(sampler, crossed),
-  "leaf values violate this sampler's monotone constraint",
-  fixed = TRUE
-)
+expect_identical(installPooled(sampler, crossed), FALSE)
 expect_identical(leaves(sampler), holds)
+reseeded <- sampler$copy()
+expect_null(installPooled(reseeded, crossed, forceUpdate = TRUE))
+expect_identical(leaves(reseeded), numeric(4L))
+rm(reseeded)
 xRegained <- pooledCodes
 regained <- which(x1 <= cut & as.integer(h) <= 35L)[1L]
 xRegained[regained, "h"] <- NA

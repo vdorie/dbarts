@@ -223,18 +223,11 @@ expect_true(all(is.finite(strandDest$run(0L, 3L)$sigma)))
 # A `variance = <subset>` forest may split only on its own columns:
 # splitVariableLogProbability prices a rule against an availability menu that
 # drops the rest, so a tree carrying a forbidden split is mis-scored for as
-# long as it lives. setState used to admit one where installTrees refused it;
-# the two entries now run the one predicate over every forest a state carries
-# and report the one message, naming their own source.
+# long as it lives. Neither entry admits one: installTrees refuses the donor
+# by name, and setState declines the state or, forced, collapses the split.
 maskRefusal <- paste0(
   "warm-start donor holds a tree that splits on a variable outside this ",
   "forest's allowed column set; the donor's fit is incompatible with the ",
-  "column restriction (a forest's own column subset or a restricted ",
-  "variance forest) in force here"
-)
-stateMaskRefusal <- paste0(
-  "state holds a tree that splits on a variable outside this ",
-  "forest's allowed column set; the state is incompatible with the ",
   "column restriction (a forest's own column subset or a restricted ",
   "variance forest) in force here"
 )
@@ -267,16 +260,19 @@ expect_true(any(maskDonor$state[[1L]][["variance.vars"]] == 1L))
 expect_false(any(maskRecipient$state[[1L]][["variance.vars"]] == 1L))
 
 maskBefore <- maskRecipient$state
-expect_identical(
-  refusalOf(maskRecipient$setState(maskDonor$state)),
-  stateMaskRefusal
-)
-# the same donor at the other entry, in the same terms: the two cannot disagree
+# a state holding such a tree is declined, not refused
+expect_identical(maskRecipient$setState(maskDonor$state), FALSE)
+# the same donor as a warm start is refused, by name
 expect_identical(refusalOf(maskRecipient$installTrees(maskDonor)), maskRefusal)
-# transactional: both refusals validate before they mutate, so the recipient is
-# the sampler it was, and still runs
+# transactional: both judge before they mutate, so the recipient is the
+# sampler it was, and still runs
 maskRecipient$storeState()
 expect_identical(maskRecipient$state, maskBefore)
+expect_true(all(is.finite(maskRecipient$run(0L, 3L)$variance)))
+# forced, the state goes in with every forbidden variance split collapsed
+expect_null(maskRecipient$setState(maskDonor$state, forceUpdate = TRUE))
+maskRecipient$storeState()
+expect_false(any(maskRecipient$state[[1L]][["variance.vars"]] == 1L))
 expect_true(all(is.finite(maskRecipient$run(0L, 3L)$variance)))
 
 # ---- and a compliant state still round trips ----

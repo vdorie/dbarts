@@ -277,8 +277,16 @@ strandedState <- replaceFirstVarianceTree(
   stateSampler$state,
   c(0.25, 0.75, 1.3, 0.7, 1.1)
 )
+# declined, the surface left as it was; forced, merged
+strandedBefore <- stateSampler$state
 expect_silent(status <- stateSampler$setState(strandedState))
-expect_false(status)
+expect_identical(status, FALSE)
+stateSampler$storeState()
+expect_identical(stateSampler$state, strandedBefore)
+expect_silent(
+  status <- stateSampler$setState(strandedState, forceUpdate = TRUE)
+)
+expect_null(status)
 stateSampler$storeState()
 # the nested split merged away: root split, then its two leaves
 expect_identical(stateSampler$state[[1L]]$variance.sizes[1L], 3L)

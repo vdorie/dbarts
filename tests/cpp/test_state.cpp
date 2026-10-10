@@ -701,8 +701,7 @@ static void testInstallLeavesHeldSigma() {
                                 held, &rngB);
   double before = recipient.sigma(0);
   bool altered = false;
-  check(recipient.setState(state, nullptr, nullptr, nullptr, nullptr, nullptr,
-                           &altered),
+  check(recipient.setState(state, nullptr, nullptr, &altered),
         "held sigma install: the state installs");
   check(recipient.sigma(0) == before,
         "held sigma install: a held sigma is left alone");
@@ -1346,23 +1345,60 @@ static void testInteractionContainment() {
   check(violators > 0,
         "containment: the unconstrained donor holds an order-2 (infeasible) tree");
 
-  // (2) a max.order = 1 target refuses the donor on both install paths
+  // whether every live tree of a sampler satisfies a constraint, judged on
+  // the independent store
+  auto liveTreesSatisfy = [&](ConstantLeafSampler& s,
+                              const InteractionConstraint& constraint) {
+    SamplerStateData live;
+    s.getState(live);
+    bool satisfied = true;
+    for (const std::vector<FlatNode>& flat : live.chains[0].forests[0].trees) {
+      scratch.initialize(idx.data(), n);
+      scratch.setInteractionConstraint(&constraint);
+      satisfied &= scratch.buildFromFlat(store, flat.data(), flat.size(),
+                                         params) &&
+                   scratch.interactionSubtreeIsValid(0);
+    }
+    scratch.setInteractionConstraint(nullptr);
+    return satisfied;
+  };
+
+  // (2) a max.order = 1 target declines the donor's state without force,
+  // collapses its violating splits with it, and refuses the warm start
   auto k1Target = makeSampler(777, 1, nullptr);
-  check(!k1Target->setState(donorState, nullptr),
-        "containment: setState refuses an interaction-violating donor");
+  check(declinesUntouched(*k1Target, donorState),
+        "containment: setState without force declines an "
+        "interaction-violating state, the sampler untouched");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   check(k1Target->installForests(donorState, liveMap) ==
           WarmStartResult::interactionMismatch,
         "containment: warm start refuses an interaction-violating donor");
 
-  // (3) a forbid(x0, x1) target refuses it likewise (a distinct predicate)
+  check(restoresAltered(*k1Target, donorState) &&
+          liveTreesSatisfy(*k1Target, k1),
+        "containment: forced, every tree is collapsed into the constraint "
+        "and the install reports it");
+  {
+    SamplerStateData repaired;
+    k1Target->getState(repaired);
+    check(installsClean(*k1Target, repaired),
+          "containment: the repaired sampler's own state is clean");
+  }
+
+  // (3) a forbid(x0, x1) target does likewise (a distinct predicate)
   size_t pair[] = {0, 1};
   auto forbidTarget = makeSampler(888, 0, pair);
-  check(!forbidTarget->setState(donorState, nullptr),
-        "containment: setState refuses a forbidden-pair violation");
+  InteractionConstraint forbid01;
+  forbid01.build(p, 0, pair, 1);
+  check(declinesUntouched(*forbidTarget, donorState),
+        "containment: setState without force declines a forbidden-pair "
+        "violation");
   check(forbidTarget->installForests(donorState, liveMap) ==
           WarmStartResult::interactionMismatch,
         "containment: warm start refuses a forbidden-pair violation");
+  check(restoresAltered(*forbidTarget, donorState) &&
+          liveTreesSatisfy(*forbidTarget, forbid01),
+        "containment: forced, no tree keeps a forbidden pair on a path");
 
   // (4) specificity: a same-constraint donor's trees are feasible and install
   auto k1Donor = makeSampler(999, 1, nullptr);
@@ -1481,15 +1517,31 @@ static void testBlockAdditiveConfinement() {
   scratch.setColumnMask(nullptr);
   check(violators > 0, "blocks: the unrestricted donor holds out-of-block trees");
 
-  // the shipped gate (F1) refuses the out-of-block donor on both install paths:
-  // each live tree's columnMask_ is its block row, so rebuildLiveForest's
-  // columnMaskSubtreeIsValid catches the violation. No second gate added.
+  // each live tree's columnMask_ is its block row, so the one column-mask
+  // rule holds a state to its blocks: without force the out-of-block state is
+  // declined, with it each tree is collapsed into its own group, and a warm
+  // start refuses the donor
   auto target = makeSampler(999, true);
-  check(!target->setState(donorState, nullptr),
-        "blocks: setState refuses an out-of-block donor");
+  check(declinesUntouched(*target, donorState),
+        "blocks: setState without force declines an out-of-block state");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   check(target->installForests(donorState, liveMap) != WarmStartResult::ok,
         "blocks: warm start refuses an out-of-block donor");
+  bool installs = restoresAltered(*target, donorState);
+  SamplerStateData collapsedState;
+  target->getState(collapsedState);
+  const auto& collapsedTrees = collapsedState.chains[0].forests[0].trees;
+  bool confined = true;
+  for (size_t t = 0; t < collapsedTrees.size(); ++t) {
+    scratch.initialize(idx.data(), n);
+    scratch.setColumnMask(maskGroup[groupOfTree(t)].data());
+    confined &= scratch.buildFromFlat(store, collapsedTrees[t].data(),
+                                      collapsedTrees[t].size(), params) &&
+                scratch.columnMaskSubtreeIsValid(0);
+  }
+  scratch.setColumnMask(nullptr);
+  check(installs && confined,
+        "blocks: forced, every tree is collapsed into its own group");
 
   // (c) specificity: a same-blocks donor's trees are feasible and install cleanly
   auto compliantDonor = makeSampler(1234, true);
@@ -1733,15 +1785,14 @@ static void testSingleForestColumnRestriction() {
           std::fabs(redrawn[0] + redrawn[1] - 1.0) < 1e-12,
         "forest columns: a DART draw zeroes an excluded column a state carried");
 
-  // an out-of-list donor is refused by both install entries, by name, and the
-  // chain's own state is not
+  // an out-of-list donor is refused by a warm start and its state declined
+  // without force, and the chain's own state is not
   SamplerStateData donorState, ownState;
   donor->getState(donorState);
   constant->getState(ownState);
-  bool columnMaskRefused = false;
-  check(!constant->setState(donorState, nullptr, &columnMaskRefused) &&
-          columnMaskRefused,
-        "forest columns: setState refuses an out-of-list state by name");
+  check(declinesUntouched(*constant, donorState),
+        "forest columns: setState without force declines an out-of-list "
+        "state");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   check(constant->installForests(donorState, liveMap) ==
           WarmStartResult::columnMaskMismatch,
@@ -1749,14 +1800,30 @@ static void testSingleForestColumnRestriction() {
   SamplerStateData afterRefusals;
   constant->getState(afterRefusals);
   check(statesAgree(ownState, afterRefusals) &&
-          constant->setState(ownState, nullptr),
+          installsClean(*constant, ownState),
         "forest columns: a refusal leaves the chain, whose own state restores");
   SamplerStateData freeCategoryState;
   freeCategories->getState(freeCategoryState);
-  columnMaskRefused = false;
-  check(!categories->setState(freeCategoryState, nullptr, &columnMaskRefused) &&
-          columnMaskRefused,
-        "forest columns: category forests refuse an out-of-list state by name");
+  check(declinesUntouched(*categories, freeCategoryState),
+        "forest columns: category forests decline an out-of-list state");
+  // forced, both collapse every split outside the list
+  auto offList = [&](const SamplerStateData& state) {
+    for (const ForestStateData& forest : state.chains[0].forests)
+      for (const std::vector<FlatNode>& tree : forest.trees)
+        for (const FlatNode& node : tree)
+          if (node.variable == 2) return true;
+    return false;
+  };
+  SamplerStateData constantRepaired, categoriesRepaired;
+  bool constantInstalls = restoresAltered(*constant, donorState);
+  bool categoriesInstall = restoresAltered(*categories, freeCategoryState);
+  constant->getState(constantRepaired);
+  categories->getState(categoriesRepaired);
+  check(offList(donorState) && constantInstalls && !offList(constantRepaired),
+        "forest columns: forced, no split outside the list is left");
+  check(offList(freeCategoryState) && categoriesInstall &&
+          !offList(categoriesRepaired),
+        "forest columns: forced, no category forest keeps one either");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
@@ -2769,25 +2836,14 @@ static void testVarianceWarmStart() {
   check(restricted2->installForests(compliant, liveMap) == WarmStartResult::ok,
         "variance warm start: an in-mask variance donor installs");
 
-  // (5) setState is held to the rule by the SAME predicate, so the state one
-  // entry refuses the other refuses too, and the refusal is named rather than
-  // folded into "not consistent". It is taken before any chain is touched, so
-  // the destination keeps the surface it had.
+  // (5) setState holds a state's variance trees to the same mask: without
+  // force the state is declined before any chain is touched, so the
+  // destination keeps the surface it had
   restricted->run(30, 0, empty);
-  SamplerStateData restrictedBefore;
-  restricted->getState(restrictedBefore);
-  bool columnMaskRefused = false;
-  check(!restricted->setState(outOfMask, nullptr, &columnMaskRefused),
-        "variance setState: an out-of-mask variance tree is refused");
-  check(columnMaskRefused,
-        "variance setState: the refusal is named as the column-mask one");
-  SamplerStateData restrictedAfter;
-  restricted->getState(restrictedAfter);
-  check(sameFlatTrees(restrictedBefore.chains[0].varianceTrees,
-                      restrictedAfter.chains[0].varianceTrees),
-        "variance setState: a refused restore leaves the surface untouched");
-  check(restricted->setState(compliant, nullptr, &columnMaskRefused) &&
-          !columnMaskRefused,
+  check(declinesUntouched(*restricted, outOfMask),
+        "variance setState: an out-of-mask variance tree is declined without "
+        "force, the surface untouched");
+  check(installsClean(*restricted, compliant),
         "variance setState: an in-mask variance state restores");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
@@ -4094,9 +4150,13 @@ static void testRestoreStatus() {
   bad.chains[1].forests[0].trees.back().assign(1, childless);
   bool altered = sendFirstOrdinalRuleMissingRight(
     bad.chains[0].forests[0].trees);
-  check(!sampler.setState(bad, nullptr, nullptr, nullptr, nullptr, nullptr,
-                          &altered) && !altered,
+  bool notClean = true;
+  check(!sampler.setState(bad, nullptr, nullptr, &altered) && !altered,
         "restore status: a refused state reports nothing");
+  check(!sampler.setState(bad, nullptr, nullptr, nullptr, keepStoreCapacity,
+                          false, &notClean) && !notClean,
+        "restore status: a refusal is not a verdict, whatever its other "
+        "trees need");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
@@ -4321,8 +4381,8 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
   for (std::uint8_t flag : stranger->data().hasMissing)
     neverMissing = neverMissing && flag == 0;
   bool strangerAltered = false;
+  bool strangerDeclines = declinesUntouched(*stranger, stale, xFilled.data());
   bool strangerTook = stranger->setState(stale, xFilled.data(), nullptr,
-                                         nullptr, nullptr, nullptr,
                                          &strangerAltered);
   stranger->getState(taken);
   size_t strangerRight = countMissingRight(taken.chains[0].varianceTrees);
@@ -4357,10 +4417,10 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
          "to the same trees");
   report(neverMissing &&
            (!strangerTook ||
-            (strangerAltered && (inlineOnly ? strangerRight == 0
-                                            : strangerRight < right))),
-         "a sampler created without them refuses it or drops the inline "
-         "directions");
+            (strangerDeclines && strangerAltered &&
+             (inlineOnly ? strangerRight == 0 : strangerRight < right))),
+         "a sampler created without them refuses it or, declining it "
+         "unforced, drops the inline directions when forced");
   report(warmStarts && sameLiveTrees(forced, warm),
          "a same-grid warm start installs the same trees");
   report(continues, "the sampler runs and restores itself as stored");
@@ -4442,6 +4502,457 @@ static void testStaleMissingDirectionRestores() {
   printf("ok: a filled column's directions are kept on install\n");
 }
 
+/// A forced install collapses a tree at the first split on each path from the
+/// root that its forest's column list or interaction constraint forbids: the
+/// splits above it stay, everything beneath it becomes one leaf at the
+/// row-weighted mean of the leaves beneath, geometric in the variance forest,
+/// and the state's other trees go in as stored. Without force the same state
+/// is declined and the sampler left as it was; on a sampler with no
+/// restriction it is clean. The mean tree, in pre-order, is x0 at the root,
+/// x2 on its left over a leaf and a split on x1, a leaf on its right; the
+/// variance tree x0 over a split on x1 and a leaf.
+static void testForcedConstraintRepair() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 424243u;
+  const size_t n = 240, p = 3, numTrees = 4, numVarianceTrees = 3;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) x[i + j * n] = runif01();
+    y[i] = x[i] + x[i + n] + 0.1 * (runif01() - 0.5);
+  }
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr));
+    ext_rng_setSeed(rngs.back(), seed);
+    return &rngs.back();
+  };
+  const std::vector<size_t> zeroAndOne = {0, 1}, zero = {0};
+  const size_t pair01[] = {0, 1};
+  enum Restriction { unrestricted, columnList, maxOrder, forbiddenPair,
+                     varianceColumns };
+  auto make = [&](std::uint32_t seed, Restriction restriction) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numVarianceTrees = numVarianceTrees;
+    if (restriction == columnList) {
+      options.forestColumns = zeroAndOne.data();
+      options.numForestColumns = zeroAndOne.size();
+    } else if (restriction == maxOrder) {
+      options.interactionMaxOrder = 1;
+    } else if (restriction == forbiddenPair) {
+      options.interactionForbiddenPairs = pair01;
+      options.interactionNumForbiddenPairs = 1;
+    } else if (restriction == varianceColumns) {
+      options.varianceForestColumns = zero.data();
+      options.numVarianceForestColumns = zero.size();
+    }
+    auto sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, newRng(seed));
+    Results empty;
+    sampler->run(20, 0, empty);
+    return sampler;
+  };
+  auto plain = make(11, unrestricted);
+  const ColumnStore& store(plain->data());
+  auto split = [&](size_t j) {
+    FlatNode node;
+    node.variable = static_cast<int32_t>(j);
+    node.value = store.cutPoints[j][store.numCuts[j] / 2];
+    setFlatKind(node, FlatKind::ordinal);
+    return node;
+  };
+  auto leaf = [](double value) {
+    FlatNode node;
+    node.value = value;
+    return node;
+  };
+  const double v1 = 0.03, v2 = -0.05, v3 = 0.11, v4 = -0.02;
+  const double h1 = 0.7, h2 = 1.9, h3 = 1.1;
+  const std::vector<FlatNode> meanTree = {split(0), split(2), leaf(v1),
+                                          split(1), leaf(v2), leaf(v3),
+                                          leaf(v4)};
+  const std::vector<FlatNode> varianceTree = {split(0), split(1), leaf(h1),
+                                              leaf(h2), leaf(h3)};
+  // the rows each node of a tree holds, in pre-order, by the engine's own
+  // routing
+  auto rowCounts = [&](const std::vector<FlatNode>& flat) {
+    std::vector<index_t> indices(n);
+    std::vector<double> params;
+    std::vector<FlatNode> nodes;
+    std::vector<std::uint32_t> counts;
+    Tree scratch;
+    scratch.initialize(indices.data(), n);
+    built(scratch.buildFromFlat(store, flat.data(), flat.size(), params));
+    scratch.repartitionSubtree(store, 0);
+    scratch.flatten(store, params.data(), nodes, &counts);
+    return counts;
+  };
+  const std::vector<std::uint32_t> meanCounts = rowCounts(meanTree),
+    varianceCounts = rowCounts(varianceTree);
+  check(meanCounts[2] > 0 && meanCounts[4] > 0 && meanCounts[5] > 0 &&
+          meanCounts[6] > 0 && meanCounts[2] != meanCounts[4] &&
+          varianceCounts[2] > 0 && varianceCounts[3] > 0 &&
+          varianceCounts[4] > 0 && varianceCounts[2] != varianceCounts[3],
+        "forced repair: every leaf of the hand trees holds rows, unequally");
+  auto weighted = [](std::initializer_list<std::pair<double, double>> terms) {
+    double total = 0.0, weight = 0.0;
+    for (const std::pair<double, double>& term : terms) {
+      total += term.first * term.second;
+      weight += term.first;
+    }
+    return total / weight;
+  };
+  double n1 = meanCounts[2], n2 = meanCounts[4], n3 = meanCounts[5];
+  const std::vector<FlatNode> belowRoot = {
+    split(0), leaf(weighted({{n1, v1}, {n2, v2}, {n3, v3}})), leaf(v4)};
+  const std::vector<FlatNode> belowSecond = {
+    split(0), split(2), leaf(v1), leaf(weighted({{n2, v2}, {n3, v3}})),
+    leaf(v4)};
+  const std::vector<FlatNode> varianceBelowRoot = {
+    split(0),
+    leaf(std::exp(weighted({{varianceCounts[2], std::log(h1)},
+                            {varianceCounts[3], std::log(h2)}}))),
+    leaf(h3)};
+  auto sameTree = [](const std::vector<FlatNode>& got,
+                     const std::vector<FlatNode>& want) {
+    if (got.size() != want.size()) return false;
+    for (size_t i = 0; i < got.size(); ++i) {
+      if (got[i].variable != want[i].variable) return false;
+      bool isLeaf = want[i].variable == invalidVariable;
+      if (isLeaf ? std::fabs(got[i].value - want[i].value) > 1e-12
+                 : got[i].value != want[i].value)
+        return false;
+    }
+    return true;
+  };
+
+  // the hand trees stand as they are where nothing forbids them
+  {
+    SamplerStateData state;
+    plain->getState(state);
+    state.chains[0].forests[0].trees[0] = meanTree;
+    state.chains[0].varianceTrees[0] = varianceTree;
+    SamplerStateData installed;
+    bool exact = restoresExactly(*plain, state);
+    plain->getState(installed);
+    check(exact && sameTree(installed.chains[0].forests[0].trees[0],
+                            meanTree) &&
+            sameTree(installed.chains[0].varianceTrees[0], varianceTree),
+          "forced repair: an unrestricted sampler takes the trees as stored");
+  }
+
+  struct Case {
+    Restriction restriction;
+    bool inVariance;
+    const std::vector<FlatNode>* expected;
+    const char* label;
+  };
+  const Case cases[] = {
+    {columnList, false, &belowRoot, "a split off the forest's column list"},
+    {maxOrder, false, &belowRoot, "a second variable under max order 1"},
+    {forbiddenPair, false, &belowSecond, "a forbidden pair on one path"},
+    {varianceColumns, true, &varianceBelowRoot,
+     "a variance split off the variance columns"},
+  };
+  std::uint32_t seed = 21;
+  for (const Case& item : cases) {
+    auto sampler = make(seed++, item.restriction);
+    SamplerStateData state, repaired;
+    sampler->getState(state);
+    if (item.inVariance)
+      state.chains[0].varianceTrees[0] = varianceTree;
+    else
+      state.chains[0].forests[0].trees[0] = meanTree;
+    char line[160];
+    snprintf(line, sizeof line,
+             "forced repair, %s: declined without force, the sampler "
+             "untouched", item.label);
+    check(declinesUntouched(*sampler, state), line);
+    bool installs = restoresAltered(*sampler, state);
+    sampler->getState(repaired);
+    const std::vector<std::vector<FlatNode>>& got(
+      item.inVariance ? repaired.chains[0].varianceTrees
+                      : repaired.chains[0].forests[0].trees);
+    const std::vector<std::vector<FlatNode>>& stored(
+      item.inVariance ? state.chains[0].varianceTrees
+                      : state.chains[0].forests[0].trees);
+    snprintf(line, sizeof line,
+             "forced repair, %s: collapsed at the first offending split, the "
+             "split above it kept, the leaf at the weighted mean", item.label);
+    check(installs && sameTree(got[0], *item.expected), line);
+    bool othersStored = true;
+    for (size_t t = 1; t < got.size(); ++t)
+      othersStored = othersStored && sameTree(got[t], stored[t]);
+    const std::vector<std::vector<FlatNode>>& otherGot(
+      item.inVariance ? repaired.chains[0].forests[0].trees
+                      : repaired.chains[0].varianceTrees);
+    const std::vector<std::vector<FlatNode>>& otherStored(
+      item.inVariance ? state.chains[0].forests[0].trees
+                      : state.chains[0].varianceTrees);
+    snprintf(line, sizeof line,
+             "forced repair, %s: every other tree goes in as stored",
+             item.label);
+    check(othersStored && sameFlatTrees(otherGot, otherStored), line);
+    snprintf(line, sizeof line,
+             "forced repair, %s: the repaired sampler's own state is clean "
+             "and it runs on", item.label);
+    Results empty;
+    bool clean = restoresExactly(*sampler, repaired);
+    sampler->run(5, 0, empty);
+    check(clean && liveTreesAreOccupied(*sampler), line);
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a forced install collapses at the first forbidden split\n");
+}
+
+/// A state installs whatever store its kept draws came from. A store of the
+/// sampler's own size is copied slot for slot, write position included; from
+/// any other the newest recorded draws that fit go to the first slots, oldest
+/// first, the capacity unchanged, and every such install is clean. Saved-tree
+/// blocks that name different draw counts stay refused.
+static void testStateStoreSizes() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 868687u;
+  const size_t n = 200, nTest = 12, p = 2, numTrees = 6;
+  std::vector<double> x, y, xTest(nTest * p);
+  makeMutationData(x, y, n);
+  for (double& v : xTest) v = runif01();
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr));
+    ext_rng_setSeed(rngs.back(), seed);
+    return rngs.back();
+  };
+  const size_t covariates[] = {1};
+  Results none;
+  // a sampler keeping `capacity` draws that has recorded `draws` of them
+  auto make = [&]<typename L>(size_t capacity, size_t draws,
+                              std::uint32_t seed, size_t numChains = 1,
+                              size_t numVarianceTrees = 0) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.numChains = numChains;
+    options.numVarianceTrees = numVarianceTrees;
+    options.keepTrees = capacity > 0;
+    options.numSamplesToStore = capacity;
+    if constexpr (L::hasVectorParams) {
+      options.leafCovariateColumns = covariates;
+      options.numLeafCovariates = 1;
+    }
+    std::vector<ext_rng*> chainRngs;
+    for (size_t c = 0; c < numChains; ++c)
+      chainRngs.push_back(newRng(seed + static_cast<std::uint32_t>(c)));
+    auto sampler = std::make_unique<Sampler<L>>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, chainRngs.data());
+    sampler->run(10, draws, none);
+    return sampler;
+  };
+  // the kept draws' predictions, chain-major, oldest draw first
+  auto kept = [&](auto& sampler) {
+    std::vector<double> out(nTest * sampler.filledSavedDraws() *
+                            sampler.numChains());
+    if (!out.empty()) sampler.predict(xTest.data(), nTest, 1, out.data());
+    return out;
+  };
+  auto keptVariance = [&](auto& sampler) {
+    std::vector<double> out(nTest * sampler.filledSavedDraws());
+    if (!out.empty())
+      sampler.predictVariance(xTest.data(), nTest, 1, out.data());
+    return out;
+  };
+  // the last `count` draws of one chain's slab
+  auto newest = [&](const std::vector<double>& draws, size_t count) {
+    return std::vector<double>(draws.end() - nTest * count, draws.end());
+  };
+  using Constant = ConstantGaussianLeaf;
+
+  // a wrapped ring of ten: thirteen draws leave the cursor at slot 3
+  auto source = make.operator()<Constant>(10, 13, 100);
+  SamplerStateData ten;
+  source->getState(ten);
+  const std::vector<double> tenDraws = kept(*source);
+  check(ten.currentSampleNum == 3 && ten.recordedDraws == 10,
+        "store sizes: the source ring has wrapped");
+
+  // ten into four: the newest four, in order, at the store's start
+  {
+    auto four = make.operator()<Constant>(4, 3, 110);
+    check(installsClean(*four, ten) && four->savedTreeCapacity() == 4 &&
+            four->filledSavedDraws() == 4 && four->currentSampleNum() == 0 &&
+            four->savedSlotForDraw(0) == 0,
+          "store sizes: ten into four is clean and fills the store");
+    check(kept(*four) == newest(tenDraws, 4),
+          "store sizes: ten into four keeps the newest four, in order");
+    SamplerStateData reinstalled;
+    four->getState(reinstalled);
+    check(restoresExactly(*four, reinstalled) &&
+            kept(*four) == newest(tenDraws, 4),
+          "store sizes: the smaller store's own state installs as stored");
+    four->run(0, 1, none);
+    std::vector<double> after = kept(*four);
+    check(four->filledSavedDraws() == 4 &&
+            std::equal(after.begin(), after.end() - nTest,
+                       tenDraws.end() - nTest * 3),
+          "store sizes: the next draw displaces the oldest of the four");
+  }
+  // a ring of four, wrapped, into ten: all four at the start, then it fills
+  {
+    auto small = make.operator()<Constant>(4, 6, 120);
+    SamplerStateData four;
+    small->getState(four);
+    const std::vector<double> fourDraws = kept(*small);
+    auto large = make.operator()<Constant>(10, 7, 121);
+    check(four.currentSampleNum == 2 && installsClean(*large, four) &&
+            large->savedTreeCapacity() == 10 &&
+            large->filledSavedDraws() == 4 && large->currentSampleNum() == 4,
+          "store sizes: four into ten is clean and holds four");
+    check(kept(*large) == fourDraws,
+          "store sizes: four into ten keeps a wrapped ring's draws in order");
+    large->run(0, 3, none);
+    std::vector<double> after = kept(*large);
+    check(large->filledSavedDraws() == 7 &&
+            std::equal(fourDraws.begin(), fourDraws.end(), after.begin()),
+          "store sizes: three more sweeps make seven, the four leading");
+
+    // four into none, and none into four
+    auto bare = make.operator()<Constant>(0, 0, 122);
+    check(installsClean(*bare, four) && bare->savedTreeCapacity() == 0 &&
+            bare->filledSavedDraws() == 0,
+          "store sizes: a sampler keeping no draws takes none");
+    SamplerStateData bareState;
+    bare->getState(bareState);
+    check(installsClean(*small, bareState) && small->savedTreeCapacity() == 4 &&
+            small->filledSavedDraws() == 0 && small->currentSampleNum() == 0,
+          "store sizes: a state with no kept draws leaves the store empty");
+  }
+  // a store still filling: three recorded draws into four, and into two
+  {
+    auto filling = make.operator()<Constant>(10, 3, 130);
+    SamplerStateData three;
+    filling->getState(three);
+    const std::vector<double> threeDraws = kept(*filling);
+    auto four = make.operator()<Constant>(4, 4, 131);
+    auto two = make.operator()<Constant>(2, 2, 132);
+    check(installsClean(*four, three) && four->filledSavedDraws() == 3 &&
+            four->currentSampleNum() == 3 && kept(*four) == threeDraws,
+          "store sizes: three recorded draws into four hold three");
+    check(installsClean(*two, three) && two->filledSavedDraws() == 2 &&
+            two->currentSampleNum() == 0 &&
+            kept(*two) == newest(threeDraws, 2),
+          "store sizes: and into two, the newest two");
+  }
+  // equal capacity: the ring is the state's, slot for slot
+  {
+    auto twin = make.operator()<Constant>(10, 4, 140);
+    SamplerStateData copied;
+    bool exact = restoresExactly(*twin, ten);
+    twin->getState(copied);
+    check(exact && samplerStatesAgree(ten, copied) &&
+            twin->currentSampleNum() == 3 && twin->savedSlotForDraw(0) == 3,
+          "store sizes: an equal store continues the ring slot for slot");
+    source->run(0, 5, none);
+    twin->run(0, 5, none);
+    SamplerStateData sourceAfter, twinAfter;
+    source->getState(sourceAfter);
+    twin->getState(twinAfter);
+    check(samplerStatesAgree(sourceAfter, twinAfter),
+          "store sizes: five sweeps on, the two store the same state");
+  }
+  // a capacity adopted at the install: the state's own continues the ring,
+  // another takes the newest that fit
+  {
+    auto adopting = make.operator()<Constant>(4, 2, 150);
+    bool notClean = true;
+    check(adopting->setState(ten, nullptr, nullptr, nullptr, 10, false,
+                             &notClean) &&
+            !notClean && adopting->savedTreeCapacity() == 10 &&
+            adopting->currentSampleNum() == 3 && kept(*adopting) == tenDraws,
+          "store sizes: adopting the state's capacity continues its ring");
+    auto six = make.operator()<Constant>(4, 2, 151);
+    check(six->setState(ten, nullptr, nullptr, nullptr, 6) &&
+            six->savedTreeCapacity() == 6 && six->filledSavedDraws() == 6 &&
+            six->currentSampleNum() == 0 && kept(*six) == newest(tenDraws, 6),
+          "store sizes: adopting another capacity keeps the newest that fit");
+  }
+  // two chains, each chain's newest draws
+  {
+    auto wide = make.operator()<Constant>(10, 13, 160, 2);
+    SamplerStateData state;
+    wide->getState(state);
+    const std::vector<double> wideDraws = kept(*wide);
+    auto narrow = make.operator()<Constant>(4, 1, 162, 2);
+    bool clean = installsClean(*narrow, state);
+    const std::vector<double> narrowDraws = kept(*narrow);
+    bool newestKept = narrowDraws.size() == 2 * nTest * 4;
+    for (size_t c = 0; newestKept && c < 2; ++c)
+      newestKept = std::equal(
+        narrowDraws.begin() + c * nTest * 4,
+        narrowDraws.begin() + (c + 1) * nTest * 4,
+        wideDraws.begin() + c * nTest * 10 + nTest * 6);
+    check(clean && newestKept,
+          "store sizes: each of two chains keeps its own newest four");
+  }
+  // a linear leaf's saved slopes travel with their trees
+  {
+    using Linear = LinearGaussianLeaf;
+    auto wide = make.operator()<Linear>(10, 13, 170);
+    SamplerStateData state;
+    wide->getState(state);
+    auto narrow = make.operator()<Linear>(4, 2, 171);
+    check(installsClean(*narrow, state) &&
+            kept(*narrow) == newest(kept(*wide), 4),
+          "store sizes: a linear leaf's newest four predict as the source's");
+  }
+  // the variance forest's saved trees travel with the mean forest's, and a
+  // block naming another draw count is refused in both forms
+  {
+    auto wide = make.operator()<Constant>(10, 13, 180, 1, 4);
+    SamplerStateData state;
+    wide->getState(state);
+    auto narrow = make.operator()<Constant>(4, 2, 181, 1, 4);
+    check(installsClean(*narrow, state) &&
+            kept(*narrow) == newest(kept(*wide), 4) &&
+            keptVariance(*narrow) == newest(keptVariance(*wide), 4),
+          "store sizes: the variance draws kept are the mean draws' own");
+    auto bare = make.operator()<Constant>(0, 0, 182, 1, 4);
+    SamplerStateData bareState;
+    bare->getState(bareState);
+    check(installsClean(*bare, state) && bare->filledSavedDraws() == 0 &&
+            installsClean(*narrow, bareState) &&
+            narrow->filledSavedDraws() == 0,
+          "store sizes: a heteroscedastic sampler takes none, and a state "
+          "with none");
+    SamplerStateData stripped(state), ragged(state), before, after;
+    stripped.chains[0].savedVarianceTrees.clear();
+    ragged.chains[0].forests[0].savedTrees.pop_back();
+    narrow->getState(before);
+    bool notClean = true;
+    bool strippedRefused =
+      !narrow->setState(stripped, nullptr) &&
+      !narrow->setState(stripped, nullptr, nullptr, nullptr,
+                        keepStoreCapacity, false, &notClean) &&
+      !notClean;
+    notClean = true;
+    bool raggedRefused =
+      !narrow->setState(ragged, nullptr) &&
+      !narrow->setState(ragged, nullptr, nullptr, nullptr, keepStoreCapacity,
+                        false, &notClean) &&
+      !notClean;
+    narrow->getState(after);
+    check(strippedRefused && raggedRefused && samplerStatesAgree(before, after),
+          "store sizes: blocks naming different draw counts are refused, "
+          "forced or not, the sampler untouched");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a state installs the newest kept draws that fit\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -4468,6 +4979,8 @@ void runStateTests(ext_rng* rng) {
   testVarianceWarmStartSlot();
   testStaleStateMerge();
   testRestoreStatus();
+  testForcedConstraintRepair();
+  testStateStoreSizes();
   testStackedSplitsMerge();
   testRepeatedGridRefused();
   testWeightedGridState();

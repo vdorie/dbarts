@@ -1,10 +1,12 @@
 # A state stored while a column held missing values sends them to a side of
 # its rules. Once a forced setPredictor fills them the column holds none and
-# can still hold one, so the forced update keeps the directions, and setState,
-# copy() and a reload install the state with them, merging the leaves the
-# fill emptied as the forced update merged them. A sampler built over the
-# filled rows has never seen the columns missing: it refuses the state or
-# installs it with the directions dropped.
+# can still hold one, so the forced update keeps the directions, and a forced
+# setState, copy() and a reload install the state with them, merging the
+# leaves the fill emptied as the forced update merged them; without force the
+# state is declined where a leaf would merge and installed as stored where
+# none would. A sampler built over the filled rows has never seen the columns
+# missing: it refuses the state, or declines it and, forced, installs it with
+# the directions dropped.
 source(
   system.file("common", "stateContinuation.R", package = "dbarts"),
   local = TRUE
@@ -82,16 +84,26 @@ invisible(other$run(5L, 1L))
 
 sampler$storeState()
 forced <- sampler$state
+# the fill emptied a leaf, so the state is declined and the trees stay the
+# forced update's
 expect_silent(status <- sampler$setState(stale))
-expect_false(status)
+expect_identical(status, FALSE)
+sampler$storeState()
+expect_identical(sampler$state, forced)
+expect_null(sampler$setState(stale, forceUpdate = TRUE))
 expect_identical(dbarts:::dataMissingSeen(sampler$data), c(TRUE, TRUE, FALSE))
 # a rule that sends every level one way is malformed where the column has
-# never held a missing value; a state without one installs, its directions
-# dropped
+# never held a missing value; a state without one is declined for the
+# directions the column cannot route and, forced, installs with them dropped
 status <- tryCatch(other$setState(stale), error = conditionMessage)
 if (isFALSE(status)) {
+  expect_null(other$setState(stale, forceUpdate = TRUE))
   other$storeState()
   expect_false(any(sendsRight(other$state)))
+  expect_identical(
+    other$state[[1L]]$forests[[1L]]$tree.vars,
+    forced[[1L]]$forests[[1L]]$tree.vars
+  )
 } else {
   expect_identical(status, "state is not consistent with this sampler")
 }
@@ -145,8 +157,8 @@ checkRestores <- function(sampler, fill, info) {
   sampler$storeState()
   forced <- sampler$state
   expect_silent(status <- sampler$setState(stale), info = info)
-  # the directions are kept, so the install is exact unless the fill emptied
-  # a leaf, which merges
+  # the directions are kept, so the state goes in as stored unless the fill
+  # emptied a leaf, which only a forced install merges
   treeSizes <- function(state) {
     lapply(state, function(chain) chain$forests[[1L]]$tree.sizes)
   }
@@ -155,6 +167,9 @@ checkRestores <- function(sampler, fill, info) {
     identical(treeSizes(stale), treeSizes(forced)),
     info = info
   )
+  if (!status) {
+    expect_null(sampler$setState(stale, forceUpdate = TRUE), info = info)
+  }
   for (route in list(sampler, duplicate)) {
     route$storeState()
     statesAgree(route$state, forced)
