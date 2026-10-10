@@ -58,7 +58,11 @@ jobs:
       # uninitialised use, mismatched frees) count as before. A possible leak
       # whose stack reaches this package is caught by the guard below instead;
       # --fullpath-after prints this package's sources as src/..., so a frame
-      # of ours is told from R's own src/main.
+      # of ours is told from R's own src/main. The guard skips one record
+      # shape: a block glibc allocates for a thread's TLS (_dl_allocate_tls or
+      # allocate_dtv under pthread_create), the standard glibc false positive
+      # in a forked child, whose parent's threads it no longer has, whoever
+      # created the thread.
       - name: Unit tests under valgrind
         shell: bash
         run: |
@@ -72,15 +76,27 @@ jobs:
             if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
           ' 2>&1 | tee valgrind-tests.log
           # a possibly-lost record whose stack names this package's object or
-          # one of its sources; records are per process, and a record ends at
-          # that process's blank line
+          # one of its sources, other than a thread's TLS block; records are
+          # per process, and a record ends at that process's blank line
           if awk '
+            function finish(p) {
+              if (pkg[p] && !(tls[p] && thr[p])) { print head[p]; found = 1 }
+              open[p] = 0
+            }
             { if (!match($0, /==[0-9]+==/)) next
               pid = substr($0, RSTART, RLENGTH) }
-            /are possibly lost in loss record/ { open[pid] = 1; next }
-            open[pid] && $0 ~ (pid " *$") { open[pid] = 0; next }
-            open[pid] && (/dbarts[.]so/ || /[(]src\//) { print; found = 1 }
-            END { exit !found }' valgrind-tests.log; then
+            /are possibly lost in loss record/ {
+              open[pid] = 1; head[pid] = $0
+              pkg[pid] = 0; tls[pid] = 0; thr[pid] = 0
+              next
+            }
+            !open[pid] { next }
+            $0 ~ (pid " *$") { finish(pid); next }
+            /dbarts[.]so/ || /[(]src\// { pkg[pid] = 1 }
+            /_dl_allocate_tls|allocate_dtv/ { tls[pid] = 1 }
+            /pthread_create/ { thr[pid] = 1 }
+            END { for (p in open) if (open[p]) finish(p); exit !found }
+          ' valgrind-tests.log; then
             echo "::error::a possibly-lost record reaches dbarts"; exit 1
           fi
           # --errors-for-leak-kinds folds definitely/indirectly-lost blocks
