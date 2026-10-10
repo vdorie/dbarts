@@ -78,8 +78,7 @@ expect_equal(
 )
 
 # a mixed fit recovers the signal a fully dense fit of the same values
-# finds; sigma estimates differ by construction (marginal fallback), so the
-# comparison is on fit quality
+# finds; the comparison is on fit quality
 fit.mixed <- bart(
   x.frame,
   y,
@@ -112,9 +111,8 @@ expect_true(sse.mixed < 2.0 * sse.dense + 1.0)
 # variable names ride through to varcount
 expect_equal(colnames(fit.mixed$varcount), colnames(mm))
 
-# a missing sigest on a mixed sparse/dense predictor set warns once that
-# the starting estimate is the marginal fallback, not a linear-model fit;
-# a fully dense set of the same shape gets no such warning
+# a missing sigest on a mixed sparse/dense predictor set takes the sparse
+# regression's estimate with no warning, the dense one's to rounding
 source(
   system.file("common", "countWarnings.R", package = "dbarts"),
   local = TRUE
@@ -129,15 +127,20 @@ quick <- list(
 )
 expect_equal(
   countWarnings(
-    do.call(bart, c(list(x.frame, y), quick)),
-    "dbartsSparseSigmaFallbackWarning"
+    fit.sparse.sigest <- do.call(bart, c(list(x.frame, y), quick)),
+    "warning"
   ),
-  1L
+  0L
+)
+expect_equal(
+  fit.sparse.sigest$sigest,
+  do.call(bart, c(list(x.frame, y, sigest = "dense"), quick))$sigest,
+  tolerance = 1e-10
 )
 expect_equal(
   countWarnings(
     do.call(bart, c(list(x.dense.equiv, y), quick)),
-    "dbartsSparseSigmaFallbackWarning"
+    "warning"
   ),
   0L
 )

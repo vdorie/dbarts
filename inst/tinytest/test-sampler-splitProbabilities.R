@@ -211,7 +211,7 @@ rm(treeTable, trees, sampler, control, n.trees)
 # test that split probabilities sample from posterior
 
 # X6 is uncorrelated
-set.seed(0L)
+set.seed(1L)
 n.trees <- 5L
 control <- dbarts::dbartsControl(
   n.burn = 1000L,

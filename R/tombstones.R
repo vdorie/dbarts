@@ -1157,6 +1157,62 @@ resolveSigestArg <- function(
   sigest
 }
 
+## 'sigest' is a number or the name of the rule that estimates it. Splits
+## what resolveSigestArg returned into the estimate, NA_real_ where one is to
+## be made, and the rule that makes it, "auto" for a number. A string is
+## exactly one of the rule names; one that reads as a number is that number,
+## as it always was. A function is xbart's alone, which reads its own before
+## this is reached.
+resolveSigestRule <- function(sigest, caller) {
+  if (
+    is.function(sigest) ||
+      (is.list(sigest) && length(sigest) > 0L && is.function(sigest[[1L]]))
+  ) {
+    stop(
+      "'sigest' argument to ",
+      caller,
+      " must be a number, \"auto\", \"dense\" or \"sparse\"; only xbart ",
+      "takes a function",
+      call. = FALSE
+    )
+  }
+  if (is.character(sigest) && length(sigest) == 1L && !is.na(sigest)) {
+    if (sigest %in% sigestRules) {
+      if (sigest == "sparse" && !matrixAvailable()) {
+        stop("sigest = \"sparse\" requires the Matrix package", call. = FALSE)
+      }
+      return(list(value = NA_real_, rule = sigest))
+    }
+    if (is.na(suppressWarnings(as.double(sigest)))) {
+      stop(
+        "unknown 'sigest' rule \"",
+        sigest,
+        "\"; use \"auto\", \"dense\" or \"sparse\"",
+        call. = FALSE
+      )
+    }
+  }
+  list(value = sigest, rule = "auto")
+}
+
+## TRUE for the name of a rule 'sigest' takes in place of a number.
+isSigestRule <- function(sigest) {
+  is.character(sigest) && length(sigest) == 1L && sigest %in% sigestRules
+}
+
+## What dbarts() takes for the 'sigest' of a door that spells "none" NA, as
+## 0.9-34 did: the rule's name, NULL, or the number.
+forwardedSigest <- function(sigest, caller) {
+  resolveSigestRule(sigest, caller)
+  if (isSigestRule(sigest)) {
+    sigest
+  } else if (is.na(sigest)) {
+    NULL
+  } else {
+    as.numeric(sigest)
+  }
+}
+
 ## ------------------------------------------------------------------
 ## dbarts(node.prior = ), now 'leaf.prior'
 ## ------------------------------------------------------------------

@@ -267,6 +267,11 @@ expect_error(
 )
 expect_error(
   dbarts::xbart(y ~ x, sigest = "not-a-numeric"),
+  "unknown 'sigest' rule \"not-a-numeric\"; use \"auto\", \"dense\" or",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::xbart(y ~ x, sigest = 1i),
   "'sigest' argument to xbart must be coercible to numeric type"
 )
 

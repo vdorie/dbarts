@@ -51,6 +51,22 @@ xbart <- function(
   } else {
     resolveSigestArg(sigest, "xbart", "refuse")
   }
+  # a number, the name of the rule that estimates one in each fold, or a
+  # function called for each fold; the retired spelling takes a number only
+  sigestRule <- "auto"
+  sigestFunction <- NULL
+  if (sigmaSupplied) {
+    if (!isSingleNA(sigest)) {
+      sigest <- validateSigest(sigest, "xbart")
+    }
+  } else if (is.function(sigest) || is.list(sigest)) {
+    sigestFunction <- xbartSigestFunction(sigest)
+    sigest <- NA_real_
+  } else {
+    resolvedSigest <- resolveSigestRule(sigest, "xbart")
+    sigest <- resolvedSigest$value
+    sigestRule <- resolvedSigest$rule
+  }
   if (sigmaSupplied) {
     matchedCall["sigest"] <- list(if (is.na(sigest)) NULL else sigest)
     matchedCall$sigma <- NULL
@@ -268,22 +284,6 @@ xbart <- function(
   }
   data <- weightPolicy$data
 
-  # An unsupplied sigest is estimated per fold from the fold's training rows,
-  # so no fold's residual prior reads its held-out responses. The estimate on
-  # all rows still runs once, here, to raise any refusal or fallback once and
-  # to choose the per-fold route: where it fell back to the marginal sd (a
-  # sparse design, or no residual degrees of freedom), each fold takes its
-  # own marginal sd and no fold attempts the linear fit again.
-  sigmaPerFold <- NULL
-  if (is.na(data@sigma) && !control@binary) {
-    fellBack <- FALSE
-    data@sigma <- withCallingHandlers(
-      estimateStartingSigma(data),
-      dbartsSigmaFallbackWarning = function(w) fellBack <<- TRUE
-    )
-    sigmaPerFold <- if (fellBack) "marginal" else "linear"
-  }
-
   if (
     !is.character(method) || method[1L] %not_in% eval(formals(xbart)$method)
   ) {
@@ -491,7 +491,7 @@ xbart <- function(
   )
   refuseSigestUnderFixedPrior(
     residPrior,
-    sigest,
+    if (is.null(sigestFunction)) sigest else sigestFunction,
     if (sigmaSupplied) "sigma" else "sigest"
   )
   resid.prior <- if (control@binary) {
@@ -501,9 +501,32 @@ xbart <- function(
   } else {
     chisq()
   }
-  # a fixed residual scale reads no estimate, so no fold fits one
+  # An unsupplied sigest is estimated per fold from the fold's training rows,
+  # so no fold's residual prior reads its held-out responses. The estimate on
+  # all rows still runs once, here, to raise any refusal once, to say what is
+  # computed under 'verbose', and to fix the routine every fold runs on its
+  # own rows: lm.fit, the sparse one, or none where all rows leave no residual
+  # degrees of freedom. A function is called per fold in their place, with no
+  # estimate on all rows. A fixed residual scale reads no estimate, so none
+  # is made and no fold fits one: the slot holds the fixed value.
+  sigmaPerFold <- NULL
   if (is(resid.prior, "dbartsFixedPrior")) {
-    sigmaPerFold <- NULL
+    if (is.na(data@sigma) && !control@binary) {
+      data@sigma <- sqrt(resid.prior@value)
+    }
+  } else if (!is.null(sigestFunction)) {
+    sigmaPerFold <- "function"
+  } else if (is.na(data@sigma)) {
+    fellBack <- FALSE
+    data@sigma <- withCallingHandlers(
+      estimateStartingSigma(data, sigestRule, verbose),
+      dbartsSigmaFallback = function(condition) fellBack <<- TRUE
+    )
+    sigmaPerFold <- if (fellBack) {
+      "marginal"
+    } else {
+      startingSigmaRoute(data@x, sigestRule)
+    }
   }
   model <- newValidated(
     "dbartsModel",
@@ -630,6 +653,7 @@ xbart <- function(
     cells,
     lossFunction,
     sigmaPerFold,
+    sigmaFunction = sigestFunction,
     # a worker starts a fresh session; it is handed this one's warned-once
     # keys so a key already warned here stays silent there. A new key fires
     # once per worker, and the caller's deduplication reports it once
@@ -939,6 +963,36 @@ xbartLossFunction <- function(loss, control, family) {
   )
 }
 
+## Resolve a 'sigest' function into function(x, y, weights, offset), on
+## 'loss's conventions: a function of exactly four arguments, or the list form
+## that calls one from the given environment. 'x' is handed on unevaluated, so
+## a function that never reads it builds no design; the value must be one
+## positive finite number.
+xbartSigestFunction <- function(sigest) {
+  if (is.function(sigest)) {
+    sigest <- list(sigest, environment())
+  }
+  if (length(sigest) == 0L || !is.function(sigest[[1L]])) {
+    stop("first member of sigest-list must be a function")
+  }
+  if (length(formals(sigest[[1L]])) != 4L) {
+    stop("supplied sigest function must take exactly four arguments")
+  }
+  if (length(sigest) < 2L || !is.environment(sigest[[2L]])) {
+    stop("second member of sigest-list must be an environment")
+  }
+  function(x, y, weights, offset) {
+    design <- as.call(list(function() x))
+    call <- as.call(list(sigest[[1L]], design, y, weights, offset))
+    value <- eval(call, sigest[[2L]])
+    valid <- is.numeric(value) && length(value) == 1L && is.finite(value)
+    if (!valid || value <= 0) {
+      stop("'sigest' function must return one positive finite number")
+    }
+    as.double(value)
+  }
+}
+
 ## One worker's share of the (replication, fold) units, as the rows each
 ## unit holds out and the seeds its fits run under (one column per distinct
 ## tree count, in n.trees order). The predictor store (cuts + codes) is built
@@ -972,30 +1026,56 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     }
   handle <- bartcoreDataHandle(spec$control, data, leafCovariateColumns)
 
-  # the per-fold sigma's dense design is built once per chunk, not per fold
-  sigmaDesign <- if (identical(spec$sigmaPerFold, "linear")) {
-    sigmaDesignMatrix(data@x)
+  # the per-fold sigma's design is built on all rows, once per chunk and not
+  # per fold; the one a function is handed, only if the function reads it
+  route <- spec$sigmaPerFold
+  sigmaDesign <- if (isTRUE(route %in% c("dense", "sparse"))) {
+    startingSigmaDesign(data@x, route)
   }
+  delayedAssign("functionDesign", {
+    design <- startingSigmaDesign(data@x)
+    if (inherits(design, "dbartsSparseSigmaDesign")) {
+      writeImputedRows(design$X, design$term, design$imputed)
+    } else {
+      design
+    }
+  })
   foldData <- function(trainRows) {
-    if (is.null(spec$sigmaPerFold)) {
+    if (is.null(route)) {
       return(data)
     }
     offset <- if (!is.null(data@offset)) data@offset[trainRows]
+    weights <- if (hasWeights) data@weights[trainRows]
     y <- data@y[trainRows]
-    residual <- if (!is.null(offset)) y - offset else y
-    data@sigma <- if (is.null(sigmaDesign)) {
-      floorMarginalSigma(sd(residual), residual)
-    } else {
-      floorSigmaEstimate(
-        residualStandardError(
-          y,
-          sigmaDesign[trainRows, , drop = FALSE],
-          if (hasWeights) data@weights[trainRows],
-          offset
-        ),
-        residual
+    if (route == "function") {
+      # the rows of the design are an argument, so they are not taken, and
+      # the design is not built, unless the function reads them
+      data@sigma <- spec$sigmaFunction(
+        functionDesign[trainRows, , drop = FALSE],
+        y,
+        weights,
+        offset
       )
+      return(data)
     }
+    # no routine, or one whose rows leave no residual degrees of freedom,
+    # takes the sd of the fold's response
+    sigma <- if (route == "dense") {
+      x <- sigmaDesign[trainRows, , drop = FALSE]
+      residualStandardError(y, x, weights, offset)
+    } else if (route == "sparse") {
+      sparseResidualStandardError(
+        data@y,
+        sigmaDesign,
+        data@weights,
+        data@offset,
+        rows = trainRows
+      )
+    } else {
+      NA_real_
+    }
+    residual <- if (!is.null(offset)) y - offset else y
+    data@sigma <- floorSigmaEstimate(sigma, residual)
     data
   }
 

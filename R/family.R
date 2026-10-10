@@ -607,10 +607,10 @@ refuseSigestUnderFixedPrior <- function(
   sigest,
   sigestName = "sigest"
 ) {
+  # a function, xbart's, is refused as a number that differs is
   if (
     is(residPrior, "dbartsFixedPrior") &&
-      length(sigest) == 1L &&
-      !is.na(sigest)
+      (is.function(sigest) || (length(sigest) == 1L && !is.na(sigest)))
   ) {
     fixedSd <- sqrt(residPrior@value)
     if (

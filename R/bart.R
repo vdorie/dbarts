@@ -1065,7 +1065,12 @@ bart <- function(
       matchedCall["sigest"] <- list(NULL)
     }
   } else if (sigestGiven) {
-    sigest <- validateSigest(sigest, "bart")
+    # the name of a rule stays on the matched call, for the sampler's own
+    # door to read; here it is "no number given"
+    sigest <- resolveSigestRule(sigest, "bart")$value
+    if (!isSingleNA(sigest)) {
+      sigest <- validateSigest(sigest, "bart")
+    }
   }
 
   # 'family' is resolved from the caller's own unevaluated argument, so a
@@ -1755,7 +1760,13 @@ bart <- function(
     sigest = sigest
   )
 
-  sampler <- eval(samplerCall, envir = callingEnv)
+  # where no regression was defined the starting sigma is the sd of the
+  # response, which the fit records for its summary
+  sigestFallback <- FALSE
+  sampler <- withCallingHandlers(
+    eval(samplerCall, envir = callingEnv),
+    dbartsSigmaFallback = function(condition) sigestFallback <<- TRUE
+  )
   # the hazard tokens remap to their underlying binary link before the model
   # object is built (R/dbarts.R), so sampler$model@family can no longer say
   # "hazard" - keep the caller's own explicit token for that case, and let
@@ -1818,6 +1829,10 @@ bart <- function(
     combineChains,
     keepSampler
   )
+  # absent, not FALSE, where the estimate was a regression's or was given
+  if (sigestFallback) {
+    result$sigest.fallback <- TRUE
+  }
   # needed to extract ppd
   if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
     result$weights <- sampler$data@weights
@@ -3837,6 +3852,7 @@ bartBT <- function(
   refuseCountsCarryingData(x.train, "bartBT()")
   refuseResponseFreeFormula(x.train, "bartBT()")
   refuseForestTerm(x.train, "bartBT")
+  sigest <- forwardedSigest(sigest, "bartBT")
 
   # coerce eagerly, naming the argument as the caller typed it - dbartsControl
   # re-coerces its own (already-integer) inputs and would otherwise blame its
@@ -3995,7 +4011,7 @@ bartBT <- function(
     family = family,
     control = control,
     # dbarts() takes NULL for an estimate BayesTree spells NA
-    sigest = if (is.na(sigest)) NULL else as.numeric(sigest),
+    sigest = sigest,
     factors = "indicators",
     na.action = stats::na.omit
   )
@@ -4006,11 +4022,20 @@ bartBT <- function(
   # door's n.threads/n.chains; this door's caller typed nthread/nchain, so the
   # warning is re-issued under those names, same numbers
   # this door has no 'family' formal, so the "auto" resolution dbarts()
-  # announces for the modern door is muted here
+  # announces for the modern door is muted here. Its verbose lines go to
+  # standard output, so the starting sigma's are printed there in place of
+  # the messages; a starting sigma that is the sd of the response is recorded
+  # on the fit, as the modern door records it
+  sigestFallback <- FALSE
   sampler <- tryCatch(
     withCallingHandlers(
       do.call(dbarts::dbarts, args, envir = parent.frame(1L)),
       dbartsAutoFamilyMessage = function(m) invokeRestart("muffleMessage"),
+      dbartsStartingSigmaMessage = function(m) {
+        cat(conditionMessage(m))
+        invokeRestart("muffleMessage")
+      },
+      dbartsSigmaFallback = function(condition) sigestFallback <<- TRUE,
       warning = function(w) {
         if (!isExcessThreadsWarning(w)) {
           return()
@@ -4075,6 +4100,9 @@ bartBT <- function(
     combinechains,
     keepsampler
   )
+  if (sigestFallback) {
+    result$sigest.fallback <- TRUE
+  }
   # needed to extract ppd; mirrors the modern door's packageBartResults
   if (!is.null(sampler$data@weights) && length(sampler$data@weights) > 0L) {
     result$weights <- sampler$data@weights

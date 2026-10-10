@@ -26,8 +26,15 @@ expect_error(
   dbarts::dbarts(y ~ x, testData, sigest = -1.0),
   "'sigest' argument to dbarts must be positive"
 )
+# a string is the name of a rule, and one that names none is refused by name;
+# any other value that is not a number keeps the coercion's refusal
 expect_error(
   dbarts::dbarts(y ~ x, testData, sigest = "not-an-integer"),
+  "unknown 'sigest' rule \"not-an-integer\"; use \"auto\", \"dense\" or",
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbarts(y ~ x, testData, sigest = 1i),
   "'sigest' argument to dbarts must be coercible to numeric type"
 )
 

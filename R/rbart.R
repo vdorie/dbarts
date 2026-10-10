@@ -95,6 +95,7 @@ rbart_vi <- function(
   if (is.null(sigest)) {
     sigest <- NA_real_
   }
+  sigest <- forwardedSigest(sigest, "rbart_vi")
 
   # because we use a lot of trickery to redirect calls in the calling environment
   # (for example, to get the data), we replicate some base mechanisms like complaining
@@ -415,7 +416,7 @@ rbart_vi <- function(
     tree.prior,
     leaf.prior,
     family,
-    sigest = if (is.na(sigest)) NULL else as.numeric(sigest)
+    sigest
   )
   if (is.null(leaf.prior)) {
     samplerArgs[["leaf.prior"]] <- NULL
@@ -686,7 +687,12 @@ rbart_vi_fit <- function(chain.num, seed, samplerArgs, rbartArgs) {
     set.seed(seed)
   }
 
-  sampler <- do.call(dbarts::dbarts, samplerArgs)
+  # the starting sigma was announced once, by the sampler that validated
+  # these arguments; each chain estimates it again and says nothing
+  sampler <- withCallingHandlers(
+    do.call(dbarts::dbarts, samplerArgs),
+    dbartsStartingSigmaMessage = function(m) invokeRestart("muffleMessage")
+  )
   sampler$control@call <- samplerArgs$control@call
 
   oldUpdateState <- sampler$control@updateState

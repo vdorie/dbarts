@@ -873,8 +873,8 @@ makeIndicatorModelMatrix <- function(x, drop = TRUE, storage = "auto") {
   result <- assembleMixedMatrix(columns, blockIsSparse, blockNames, nrow(x))
   attr(result, "term.labels") <- names(x)
   attr(result, "indicator.levels") <- levelTable
-  # every sparse column was built here, not supplied: the starting sigma may
-  # read the design as a linear model (estimateSigmaFromLinearModel)
+  # every sparse column was built here, not supplied: the starting sigma's
+  # "auto" rule reads the design as the caller's dense one (startingSigmaRoute)
   if (!any(columnIsSparse)) {
     attr(result, "sparse.from.indicators") <- TRUE
   }
@@ -1105,171 +1105,573 @@ residualStandardError <- function(y, x, weights, offset) {
   sqrt(rss / fit$df.residual)
 }
 
-## Starting sigma estimate from a linear fit. NAs in the predictors are
-## mean-imputed for this estimate only: complete cases can be scarce when
-## missingness is scattered, and the estimate just anchors the residual
-## variance prior.
-estimateSigmaFromLinearModel <- function(data) {
-  x <- data@x
-  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
-  # a sparse design would densify under the linear fit and is typically wide
-  # anyway; the marginal estimate still anchors the residual variance prior.
-  # A dense container (a frame with factors) still fits; only CSC-backed
-  # columns fall back to the marginal estimate.
-  # An indicator expansion that R itself built sparse is not the caller's
-  # sparse design: its storage is invisible, so the starting sigma is the
-  # linear-model estimate whichever the storage (dec-B370).
-  if (
-    predictorSourceIsSparse(x) && !isTRUE(attr(x, "sparse.from.indicators"))
-  ) {
-    warning(warningCondition(
-      paste0(
-        "starting sigma estimate falls back to the marginal response sd: ",
-        "'x' has sparse-backed predictor columns, so a linear-model ",
-        "estimate is not attempted"
-      ),
-      class = c(
-        "dbartsSparseSigmaFallbackWarning",
-        "dbartsSigmaFallbackWarning",
-        "dbartsWarning"
-      )
-    ))
-    return(sd(residual))
+## The rules 'sigest' names for estimating the starting sigma.
+sigestRules <- c("auto", "dense", "sparse")
+
+## The routine a 'sigest' rule stands for on a predictor source. "auto" is the
+## sparse one where the caller supplied a sparse-stored column and lm.fit
+## otherwise, whatever storage R gave a factor's indicator columns and whether
+## or not Matrix is installed: without it no caller can pass a sparse column.
+startingSigmaRoute <- function(x, rule = "auto") {
+  if (rule != "auto") {
+    return(rule)
   }
-  sigma <- if (predictorSourceIsSparse(x)) {
-    sparseResidualStandardError(data@y, x, data@weights, data@offset)
+  callerSparse <- predictorSourceIsSparse(x) &&
+    !isTRUE(attr(x, "sparse.from.indicators"))
+  if (callerSparse) "sparse" else "dense"
+}
+
+## The design the starting sigma's regression reads, factors as indicators,
+## for the routine the rule names. Built from the predictor source, never
+## stored on it.
+startingSigmaDesign <- function(x, rule = "auto") {
+  if (startingSigmaRoute(x, rule) == "sparse") {
+    sparseSigmaDesign(x)
   } else {
-    residualStandardError(
-      data@y,
-      sigmaDesignMatrix(x),
-      data@weights,
-      data@offset
-    )
+    denseSigmaDesign(x)
   }
-  floorSigmaEstimate(sigma, residual)
 }
 
-## The columns of a mixed container as one dgCMatrix, NAs mean-imputed as
-## sigmaDesignMatrix does (a stored NA takes the mean of the column's observed
-## entries, the implicit zeros counted), so that no column is densified but the
-## container's dense-backed ones.
-sparseDesignMatrix <- function(x) {
-  n <- x$numObservations
-  imputeSparse <- function(block) {
-    values <- block@x
-    if (anyNA(values)) {
-      counts <- diff(block@p)
-      column <- rep.int(seq_along(counts), counts)
-      observed <- !is.na(values)
-      sums <- rowsum(values[observed], column[observed])
-      numObserved <- n - tabulate(column[!observed], length(counts))
-      means <- numeric(length(counts))
-      means[as.integer(rownames(sums))] <- sums[, 1L]
-      means <- means / numObserved
-      values[!observed] <- means[column[!observed]]
-      block@x <- values
+## The levels of a factor that get an indicator column, from the count of rows
+## at each: those with any, the reference level too, or the higher alone where
+## two are present (sparseFactorIndicatorSlices' rule).
+emittedLevels <- function(counts) {
+  present <- which(counts > 0L)
+  if (length(present) == 2L) present[2L] else present
+}
+
+## The dense design, with no use of Matrix: sparse columns made dense, a
+## column 'varTypes' marks a factor expanded from its codes as the indicators
+## route expands one, and NAs mean-imputed, an indicator's at its level's
+## frequency.
+denseSigmaDesign <- function(x) {
+  if (inherits(x, "dgCMatrix")) {
+    x <- wrapSparseTestMatrix(x)
+  }
+  factors <- which(attr(x, "varTypes") != ORDINAL_VARIABLE)
+  levelTable <- attr(x, "factor.levels")
+  x <- as.matrix(x)
+  if (length(factors) > 0L) {
+    frame <- as.data.frame(x)
+    for (j in factors) {
+      codes <- as.integer(x[, j]) + 1L
+      levels <- if (j <= length(levelTable)) levelTable[[j]]
+      if (length(levels) < max(codes, 0L, na.rm = TRUE)) {
+        levels <- seq_len(max(codes, na.rm = TRUE))
+      }
+      levels <- as.character(levels)
+      frame[[j]] <- structure(codes, levels = levels, class = "factor")
     }
-    block
+    x <- makeIndicatorModelMatrix(frame, storage = "dense")
   }
-  blocks <- list()
-  if (!is.null(x$dense) && length(x$dense) > 0L) {
-    dense <- sigmaDesignMatrix(do.call(cbind, lapply(x$dense, as.double)))
-    blocks[[1L]] <- methods::as(
-      methods::as(Matrix::Matrix(dense, sparse = TRUE), "generalMatrix"),
-      "CsparseMatrix"
-    )
-  }
-  if (!is.null(x$sparse) && ncol(x$sparse) > 0L) {
-    blocks[[length(blocks) + 1L]] <- imputeSparse(
-      methods::as(x$sparse, "CsparseMatrix")
-    )
-  }
-  do.call(Matrix::cbind2, blocks)
+  sigmaDesignMatrix(x)
 }
 
-## residualStandardError for a sparse design: Matrix's sparse QR on the
-## intercept plus the columns of x. Its Householder steps are not safe on a
-## dependent column (the zero pivot's reflector is arbitrary and the later
-## columns are orthogonalised against it), and an indicator design is
-## dependent by construction, so a column whose pivot vanishes is dropped and
-## the QR redone until none does: a maximal independent set spans the same
-## space as lm.fit's pivoted fit, and so gives the same residual sum of
-## squares and the same rank.
-sparseResidualStandardError <- function(y, x, weights, offset) {
+## The sparse design, as a list of X (a dgCMatrix with no NA, columns in the
+## source's order), term (per column, the factor it is an indicator of, else
+## NA), dense (per column, whether a numeric column the caller gave dense) and
+## imputed (per factor with a missing value, named by its number in 'term':
+## the rows it is missing on and, per column, the level's frequency among the
+## observed rows). A factor's indicators hold 1 on their level's rows and
+## store nothing where the factor is missing: each such row would otherwise be
+## stored in every one of its columns. A factor is a column 'varTypes' marks
+## or, in an indicators-route source, the columns of an integer entry of its
+## "drop" attribute, the per-level row counts. Any other column stores its
+## nonzero entries, a missing value at the mean of the observed ones.
+sparseSigmaDesign <- function(x) {
+  n <- nrow(x)
+  p <- ncol(x)
+  design <- function(X, term, dense, imputed) {
+    result <- list(X = X, term = term, dense = dense, imputed = imputed)
+    structure(result, class = "dbartsSparseSigmaDesign")
+  }
+  if (inherits(x, "dgCMatrix") && !anyNA(x@x)) {
+    return(design(x, rep.int(NA_integer_, p), logical(p), list()))
+  }
+  marked <- attr(x, "varTypes")
+  # an indicators-route source: the entry of its drop pattern each column
+  # came from, a factor's being its per-level row counts
+  drop <- attr(x, "drop")
+  emitted <- lapply(drop, function(e) if (is.integer(e)) emittedLevels(e))
+  widths <- unlist(lapply(seq_along(drop), function(k) {
+    if (is.integer(drop[[k]])) length(emitted[[k]]) else sum(!drop[[k]])
+  }))
+  factorOf <- if (sum(widths) == p) {
+    rep.int(seq_along(drop), widths)
+  } else {
+    integer(p)
+  }
+
+  # per source column: the rows each of its design columns stores
+  rows <- vector("list", p)
+  values <- vector("list", p)
+  term <- rep.int(NA_integer_, p)
+  dense <- logical(p)
+  imputed <- list()
+  for (j in seq_len(p)) {
+    column <- predictorSourceColumn(x, j, p, n)
+    id <- factorOf[j]
+    if (isTRUE(marked[j] != ORDINAL_VARIABLE)) {
+      codes <- as.integer(materializeSourceColumn(column, n)) + 1L
+      counts <- tabulate(codes)
+      levels <- emittedLevels(counts)
+      rows[[j]] <- unname(split(seq_len(n), factor(codes, levels)))
+      missing <- which(is.na(codes))
+      term[j] <- j
+    } else {
+      sparse <- is.list(column)
+      stored <- if (sparse) {
+        column$i + 1L
+      } else {
+        which(is.na(column) | column != 0)
+      }
+      value <- if (sparse) column$x else column[stored]
+      missing <- stored[is.na(value)]
+      if (id == 0L || !is.integer(drop[[id]])) {
+        value[is.na(value)] <- sum(value, na.rm = TRUE) / (n - length(missing))
+        if (anyNA(value)) {
+          stop("a predictor column has no observed value")
+        }
+        rows[[j]] <- list(stored)
+        values[[j]] <- value
+        dense[j] <- !sparse
+        next
+      }
+      rows[[j]] <- list(stored[!is.na(value) & value != 0])
+      counts <- drop[[id]]
+      levels <- emitted[[id]]
+      term[j] <- id
+    }
+    values[[j]] <- rep.int(1, sum(lengths(rows[[j]])))
+    key <- as.character(term[j])
+    if (
+      length(missing) > 0L && length(levels) > 0L && is.null(imputed[[key]])
+    ) {
+      imputed[[key]] <-
+        list(rows = missing, freq = counts[levels] / sum(counts))
+    }
+  }
+  width <- lengths(rows)
+  rows <- unlist(rows, recursive = FALSE)
+  X <- Matrix::sparseMatrix(
+    i = unlist(rows),
+    j = rep.int(seq_along(rows), lengths(rows)),
+    x = unlist(values),
+    dims = c(n, length(rows))
+  )
+  design(X, rep.int(term, width), rep.int(dense, width), imputed)
+}
+
+## X with the rows each listed factor is missing on written into its columns
+## at the levels' frequencies. Those rows store nothing in those columns.
+writeImputedRows <- function(X, term, imputed) {
+  for (id in names(imputed)) {
+    columns <- which(term == as.integer(id))
+    rows <- imputed[[id]]$rows
+    X <- X +
+      Matrix::sparseMatrix(
+        i = rep.int(rows, length(columns)),
+        j = rep(columns, each = length(rows)),
+        x = rep(imputed[[id]]$freq, each = length(rows)),
+        dims = dim(X)
+      )
+  }
+  X
+}
+
+## The column of each stored entry of a dgCMatrix.
+sparseEntryColumns <- function(X) {
+  rep.int(seq_len(ncol(X)), diff(X@p))
+}
+
+## The rows (0-based) a dgCMatrix column stores.
+sparseStoredRows <- function(X, k) {
+  X@i[seq.int(X@p[k] + 1L, length.out = X@p[k + 1L] - X@p[k])]
+}
+
+## Per column of a dgCMatrix, the smallest and largest stored entry; 0 for a
+## column that stores none.
+sparseStoredRange <- function(X) {
+  p <- ncol(X)
+  lo <- hi <- numeric(p)
+  has <- diff(X@p) > 0L
+  sorted <- X@x[order(sparseEntryColumns(X), X@x)]
+  lo[has] <- sorted[X@p[-(p + 1L)][has] + 1L]
+  hi[has] <- sorted[X@p[-1L][has]]
+  list(lo = lo, hi = hi)
+}
+
+## Per column of a dgCMatrix, the sum of 'values' over its stored entries.
+sparseColumnSums <- function(X, values) {
+  result <- numeric(ncol(X))
+  if (length(values) > 0L) {
+    sums <- rowsum(values, sparseEntryColumns(X))
+    result[as.integer(rownames(sums))] <- sums[, 1L]
+  }
+  result
+}
+
+## The sparse routine's front end: the rows the regression is on, and its
+## columns made fit for a Cholesky of their crossproduct. 'rows' restricts a
+## design built on all rows to some of them, a fold's. The columns of a
+## factor that still has missing rows to impute are "held": the steps after
+## 3 (b) leave them alone and pair no other column with one.
+sparseSigmaFrontEnd <- function(design, y, weights, offset, rows = NULL) {
+  X <- design$X
+  term <- design$term
+  dense <- design$dense
+  imputed <- design$imputed
+
+  # 1. the rows with a response, a positive weight and an offset; each
+  # factor's missing rows are cut to them, its frequencies unchanged
   keep <- !is.na(y)
   if (!is.null(weights)) {
-    keep <- keep & !is.na(weights)
+    keep <- keep & !is.na(weights) & weights > 0
   }
   if (!is.null(offset)) {
     keep <- keep & !is.na(offset)
   }
-  design <- Matrix::cbind2(
-    Matrix::Matrix(1, nrow(x), 1L, sparse = TRUE),
-    sparseDesignMatrix(x)
-  )
-  response <- if (is.null(offset)) y else y - offset
-  scale <- if (is.null(weights)) rep.int(1, length(y)) else sqrt(weights)
-  keep <- keep & scale > 0
-  design <- design[keep, , drop = FALSE]
-  response <- response[keep]
-  scale <- scale[keep]
-  if (!is.null(weights)) {
-    design <- Matrix::Diagonal(x = scale) %*% design
-    response <- response * scale
+  if (!is.null(rows)) {
+    keep <- keep & seq_along(keep) %in% rows
   }
-  # Unit-norm columns make the pivot test scale invariant: a pivot is then the
-  # fraction of a column's norm left after the earlier columns, which is lm's
-  # own tolerance criterion, whatever units the column is in. An all-zero
-  # column has no rank to give.
-  norms <- sqrt(Matrix::colSums(design^2))
-  nonzero <- which(norms > 0)
-  design <- design[, nonzero, drop = FALSE] %*%
-    Matrix::Diagonal(x = 1 / norms[nonzero])
-  nObs <- length(response)
-  # Matrix's QR needs at least as many rows as columns, and a design with more
-  # columns than rows (many indicator levels, few rows) is dependent by
-  # construction. Columns join the working set in batches that keep it at no
-  # more than nObs wide, each batch followed by dropping the columns whose
-  # pivot vanishes; a dropped column lies in the span of the others, so the
-  # kept set spans what lm.fit's pivoted fit does. At nObs independent columns
-  # the span is everything and the rest add nothing.
-  kept <- integer(0L)
-  cursor <- 1L
-  while (length(kept) < nObs && cursor <= ncol(design)) {
-    last <- min(ncol(design), cursor + nObs - length(kept) - 1L)
-    columns <- c(kept, cursor:last)
-    cursor <- last + 1L
-    repeat {
-      # a design wider than it is tall, or dependent, makes Matrix warn that
-      # it is structurally rank deficient and augments it; the dense path is
-      # silent and the pivots below handle the deficiency
-      decomposition <- withCallingHandlers(
-        Matrix::qr(design[, columns, drop = FALSE]),
-        warning = function(w) {
-          if (grepl("structurally rank deficient", conditionMessage(w))) {
-            invokeRestart("muffleWarning")
-          }
-        }
-      )
-      pivots <- abs(Matrix::diag(decomposition@R))
-      bad <- which(pivots <= 1e-7)
-      if (length(bad) == 0L) {
-        break
-      }
-      columns <- columns[-(decomposition@q[bad[1L]] + 1L)]
+  z <- (if (is.null(offset)) y else y - offset)[keep]
+  w <- if (is.null(weights)) rep.int(1, length(z)) else weights[keep]
+  n <- length(z)
+  if (n == 0L) {
+    return(list(n = 0L))
+  }
+  if (!all(keep)) {
+    X <- X[keep, , drop = FALSE]
+    imputed <- lapply(imputed, function(missing) {
+      missing$rows <- cumsum(keep)[missing$rows[keep[missing$rows]]]
+      missing
+    })
+    imputed <- imputed[lengths(lapply(imputed, `[[`, "rows")) > 0L]
+  }
+  # 2. stored means nonzero from here
+  X <- Matrix::drop0(X)
+
+  # 3 (a). a factor with missing rows and a column left with no stored entry,
+  # a level whose rows were all dropped: the first such column becomes the
+  # indicator of the missing rows and leaves the factor, the others go.
+  # (b) one with a single column has its frequency written into it. Either
+  # way the factor has no missing rows from here
+  stored <- diff(X@p)
+  gone <- logical(ncol(X))
+  for (id in names(imputed)) {
+    columns <- which(term == as.integer(id))
+    empty <- columns[stored[columns] == 0L]
+    if (length(empty) > 0L) {
+      imputed[[id]]$freq <- 1
+      term[empty[1L]] <- NA_integer_
+      gone[empty[-1L]] <- TRUE
+      columns <- empty[1L]
     }
-    kept <- columns
+    if (length(columns) == 1L) {
+      only <- replace(rep.int(NA_integer_, ncol(X)), columns, as.integer(id))
+      X <- writeImputedRows(X, only, imputed[id])
+      imputed[[id]] <- NULL
+    }
   }
-  if (length(kept) == 0L) {
-    return(sqrt(sum(response^2) / nObs))
+  held <- term %in% as.integer(names(imputed))
+
+  # 3 (c). a column equal on every kept row, the unstored ones reading zero,
+  # is dropped
+  range <- sparseStoredRange(X)
+  full <- diff(X@p) == n
+  live <- !gone &
+    (held |
+      ifelse(full, range$hi, pmax(range$hi, 0)) !=
+        ifelse(full, range$lo, pmin(range$lo, 0)))
+  X <- X[, live, drop = FALSE]
+  term <- term[live]
+  dense <- dense[live]
+  held <- held[live]
+
+  # 4 and 5 pair columns by their stored rows, found by the count and the sum
+  # of the row numbers and confirmed row for row
+  stored <- diff(X@p)
+  values <- X@x
+  rowSum <- sparseColumnSums(X, as.numeric(X@i) + 1)
+  range <- sparseStoredRange(X)
+  partial <- stored > 0L & stored < n & !held
+  pattern <- paste(stored, rowSum)
+  flat <- which(partial & range$hi == range$lo)
+  byPattern <- list2env(split(flat, pattern[flat]))
+  entriesOf <- function(k) seq.int(X@p[k] + 1L, X@p[k + 1L])
+
+  # 4. a column with unstored rows and unequal stored entries has their mean
+  # taken off them when another column is constant on exactly its unstored
+  # rows, or on exactly its stored rows: beside the indicator of where it is
+  # recorded, a large common value is the indicator's to explain
+  means <- sparseColumnSums(X, values) / pmax(stored, 1L)
+  opposite <- paste(n - stored, n * (n + 1) / 2 - rowSum)
+  for (k in which(partial & range$hi != range$lo)) {
+    mine <- sparseStoredRows(X, k)
+    paired <- FALSE
+    for (other in byPattern[[opposite[k]]]) {
+      paired <- paired || !anyDuplicated(c(mine, sparseStoredRows(X, other)))
+    }
+    for (other in byPattern[[pattern[k]]]) {
+      paired <- paired || identical(mine, sparseStoredRows(X, other))
+    }
+    if (paired) {
+      values[entriesOf(k)] <- values[entriesOf(k)] - means[k]
+    }
   }
-  # decomposition is the last, clean QR of exactly the kept columns
-  df <- nObs - length(kept)
-  if (df <= 0L) {
-    return(NA_real_)
+
+  # 5. a column whose stored rows are exactly an earlier column's has its
+  # projection on the earliest such column taken off, and is dropped where
+  # what is left is at most lm's tolerance of its norm. Each is first divided
+  # by its largest absolute entry, so that no sum of squares overflows
+  dropped <- integer()
+  shared <- which(
+    partial & (duplicated(pattern) | duplicated(pattern, fromLast = TRUE))
+  )
+  for (group in split(shared, pattern[shared])) {
+    while (length(group) > 1L) {
+      first <- entriesOf(group[1L])
+      a <- values[first] / max(abs(values[first]))
+      unmatched <- integer()
+      for (k in group[-1L]) {
+        entries <- entriesOf(k)
+        if (!identical(X@i[first], X@i[entries])) {
+          unmatched <- c(unmatched, k)
+          next
+        }
+        size <- max(abs(values[entries]))
+        b <- values[entries] / size
+        left <- b - a * (sum(a * b) / sum(a^2))
+        values[entries] <- left * size
+        if (sum(left^2) <= 1e-14 * sum(b^2)) {
+          dropped <- c(dropped, k)
+        }
+      }
+      group <- unmatched
+    }
   }
-  residual <- Matrix::qr.resid(decomposition, response)
-  sqrt(sum(residual^2) / df)
+  X@x <- values
+  live <- !(seq_len(ncol(X)) %in% dropped)
+  X <- X[, live, drop = FALSE]
+  term <- term[live]
+  dense <- dense[live]
+  held <- held[live]
+
+  # 6. each numeric column the caller gave dense, and each column stored in
+  # every row, is centered at its weighted mean; then every column is divided
+  # by its largest absolute entry
+  centered <- which((dense | diff(X@p) == n) & !held)
+  if (length(centered) > 0L) {
+    block <- as.matrix(X[, centered, drop = FALSE])
+    block <- sweep(block, 2L, colSums(w * block) / sum(w))
+    nonzero <- which(block != 0, arr.ind = TRUE)
+    block <- Matrix::sparseMatrix(
+      i = nonzero[, 1L],
+      j = nonzero[, 2L],
+      x = block[nonzero],
+      dims = dim(block)
+    )
+    back <- order(c(seq_len(ncol(X))[-centered], centered))
+    X <- Matrix::cbind2(X[, -centered, drop = FALSE], block)
+    X <- X[, back, drop = FALSE]
+  }
+  range <- sparseStoredRange(X)
+  largest <- pmax(abs(range$lo), abs(range$hi))
+  largest[largest == 0 | held] <- 1
+  X@x <- X@x / largest[sparseEntryColumns(X)]
+
+  list(X = X, term = term, imputed = imputed, z = z, w = w, n = n)
+}
+
+## LAPACK's pivoted Cholesky of a crossproduct: its rank at the tolerance, its
+## pivot order and the factor, of which the leading rows are meaningful. LAPACK stops at the first pivot
+## at or below the tolerance but never tests its first, so a matrix with no
+## diagonal entry above the tolerance is given rank 0 here. The one warning
+## it raises is the rank deficiency.
+sigmaPivotedCholesky <- function(S, tolerance = 1e-10) {
+  rank <- 0L
+  if (ncol(S) > 0L && max(diag(S)) > tolerance) {
+    S <- suppressWarnings(chol(S, pivot = TRUE, tol = tolerance))
+    rank <- attr(S, "rank")
+  }
+  pivot <- if (rank > 0L) attr(S, "pivot") else seq_len(ncol(S))
+  list(rank = rank, pivot = pivot, chol = S)
+}
+
+## The residual standard error of the weighted regression of the front end's
+## response on an intercept and its columns, NA where the design's rank leaves
+## no residual degrees of freedom, and that rank. With h the square root of
+## the weights:
+## 1. The factor with the most columns, at least two, is eliminated: its
+##    crossproduct is diagonal but for the rank-one term its missing rows add
+##    (Z = Z0 + u v', u being h on those rows and v the frequencies), so the
+##    Cholesky is of the Schur complement S of the other columns alone. Those
+##    are Ct W: the intercept and the other columns as stored, one more column
+##    per other factor with missing rows (h on them), and W the identity over
+##    one row per such factor holding its frequencies. Where no factor has two
+##    columns, or S would have as many columns as there are rows, none is
+##    eliminated and every missing row is written in.
+## 2. The rank is the eliminated columns plus that of S; the coefficients and
+##    the residual follow from the leading block of its factor.
+## 3. With nothing eliminated and at least as many columns as rows, the same
+##    factorization is of the rows' crossproduct, and the residual is what is
+##    left of the response outside the span of its leading columns.
+sparseSigmaRoutine <- function(front) {
+  n <- front$n
+  if (n == 0L) {
+    return(list(sigma = NA_real_, rank = 0L))
+  }
+  X <- front$X
+  term <- front$term
+  imputed <- front$imputed
+  h <- sqrt(front$w)
+  zs <- front$z * h
+  sparseColumn <- function(rows, values, length) {
+    j <- rep.int(1L, length(rows))
+    Matrix::sparseMatrix(i = rows, j = j, x = values, dims = c(length, 1L))
+  }
+  weighted <- function(columns) {
+    ones <- sparseColumn(seq_len(n), 1, n)
+    Matrix::Diagonal(x = h) %*% Matrix::cbind2(ones, columns)
+  }
+  unitNorm <- function(squaredNorms) {
+    Matrix::Diagonal(x = 1 / sqrt(replace(squaredNorms, squaredNorms == 0, 1)))
+  }
+  result <- function(residual, rank) {
+    sigma <- if (rank < n) sqrt(sum(residual^2) / (n - rank)) else NA_real_
+    list(sigma = sigma, rank = rank)
+  }
+
+  widths <- tabulate(term)
+  blockId <- which.max(widths)
+  block <- which(term == blockId)
+  numOther <- 1L + ncol(X) - length(block)
+  if (length(block) < 2L || numOther >= n) {
+    B <- weighted(writeImputedRows(X, term, imputed))
+    B <- B %*% unitNorm(Matrix::colSums(B^2))
+    if (ncol(B) < n) {
+      factor <- sigmaPivotedCholesky(as.matrix(Matrix::crossprod(B)))
+      kept <- seq_len(factor$rank)
+      R <- factor$chol[kept, kept, drop = FALSE]
+      BK <- B[, factor$pivot[kept], drop = FALSE]
+      b <- as.numeric(Matrix::crossprod(BK, zs))
+      b <- backsolve(R, backsolve(R, b, transpose = TRUE))
+      return(result(zs - as.numeric(BK %*% b), factor$rank))
+    }
+    factor <- sigmaPivotedCholesky(as.matrix(Matrix::tcrossprod(B)))
+    L <- matrix(0, n, factor$rank)
+    L[factor$pivot, ] <- t(factor$chol[seq_len(factor$rank), , drop = FALSE])
+    Q <- qr.Q(qr(L, LAPACK = TRUE))
+    return(result(zs - as.numeric(Q %*% crossprod(Q, zs)), factor$rank))
+  }
+
+  Z0 <- Matrix::Diagonal(x = h) %*% X[, block, drop = FALSE]
+  d <- Matrix::colSums(Z0^2)
+  u <- numeric(n)
+  v <- numeric(length(block))
+  own <- imputed[[as.character(blockId)]]
+  if (!is.null(own)) {
+    u[own$rows] <- h[own$rows]
+    v <- own$freq
+  }
+  others <- imputed[setdiff(names(imputed), as.character(blockId))]
+  rest <- seq_len(ncol(X))[-block]
+  Ct <- weighted(X[, rest, drop = FALSE])
+  squaredNorms <- Matrix::colSums(Ct^2)
+  W <- Matrix::Diagonal(numOther)
+  for (id in names(others)) {
+    missing <- others[[id]]
+    at <- match(which(term == as.integer(id)), rest) + 1L
+    Ct <- Matrix::cbind2(Ct, sparseColumn(missing$rows, h[missing$rows], n))
+    W <- Matrix::rbind2(W, Matrix::t(sparseColumn(at, missing$freq, numOther)))
+    squaredNorms[at] <- squaredNorms[at] +
+      missing$freq^2 * sum(h[missing$rows]^2)
+  }
+  Fold <- methods::as(W %*% unitNorm(squaredNorms), "CsparseMatrix")
+
+  uu <- sum(u^2)
+  a <- v / d
+  s <- sum(v * a)
+  den <- 1 + uu * s
+  M0 <- Matrix::crossprod(Z0, Ct)
+  tu <- as.numeric(Matrix::crossprod(Ct, u))
+  g <- as.numeric(Matrix::crossprod(M0, a))
+  St <- as.matrix(Matrix::crossprod(Ct)) -
+    as.matrix(Matrix::crossprod(Matrix::Diagonal(x = 1 / sqrt(d)) %*% M0))
+  if (uu > 0) {
+    # (uu g g' - g tu' - tu g' - s tu tu') / den, as one product
+    both <- cbind(g, tu)
+    St <- St + both %*% (matrix(c(uu, -1, -1, -s), 2L) / den) %*% t(both)
+  }
+  factor <- sigmaPivotedCholesky(
+    as.matrix(Matrix::crossprod(Fold, St %*% Fold))
+  )
+  kept <- seq_len(factor$rank)
+  R <- factor$chol[kept, kept, drop = FALSE]
+  FK <- Fold[, factor$pivot[kept], drop = FALSE]
+  # (diag(d) + uu v v')^-1 x
+  solveBlock <- function(x) x / d - uu * a * sum(a * x) / den
+  hz <- as.numeric(Matrix::crossprod(Z0, zs)) + v * sum(u * zs)
+  k <- solveBlock(hz)
+  rhs <- as.numeric(Matrix::crossprod(Ct, zs)) -
+    as.numeric(Matrix::crossprod(M0, k)) -
+    tu * sum(v * k)
+  beta <- numeric(ncol(Ct))
+  if (factor$rank > 0L) {
+    rhs <- as.numeric(Matrix::crossprod(FK, rhs))
+    beta <- as.numeric(FK %*% backsolve(R, backsolve(R, rhs, transpose = TRUE)))
+  }
+  bZ <- solveBlock(hz - as.numeric(M0 %*% beta) - v * sum(tu * beta))
+  residual <- zs -
+    as.numeric(Z0 %*% bZ) -
+    u * sum(v * bZ) -
+    as.numeric(Ct %*% beta)
+  result(residual, length(block) + factor$rank)
+}
+
+## residualStandardError by the sparse routine, which stores no zero and
+## factors a crossproduct in place of the design: equal to lm.fit's on the
+## dense indicator form except on nearly dependent columns, where it may drop
+## a column lm keeps. 'x' is a predictor source or the sparse design built
+## from one; 'rows' restricts the regression to some of its rows. NA where the
+## design leaves no residual degrees of freedom.
+sparseResidualStandardError <- function(y, x, weights, offset, rows = NULL) {
+  if (!inherits(x, "dbartsSparseSigmaDesign")) {
+    x <- sparseSigmaDesign(x)
+  }
+  sparseSigmaRoutine(sparseSigmaFrontEnd(x, y, weights, offset, rows))$sigma
+}
+
+## Starting sigma estimate: the residual standard error of the linear
+## regression of the response on the predictors, factors as indicators, by
+## the routine the rule names. NAs in the predictors are mean-imputed for this
+## estimate only: complete cases can be scarce when missingness is scattered,
+## and the estimate just anchors the residual variance prior. Where the design
+## leaves no residual degrees of freedom there is no regression and the sd of
+## the response less its offset stands in; a condition of class
+## dbartsSigmaFallback is signaled first, for a caller that records it. Not a
+## message class: a handler that muffles messages would find no restart.
+estimateSigmaFromLinearModel <- function(
+  data,
+  rule = "auto",
+  design = startingSigmaDesign(data@x, rule)
+) {
+  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
+  sigma <- if (inherits(design, "dbartsSparseSigmaDesign")) {
+    sparseResidualStandardError(data@y, design, data@weights, data@offset)
+  } else {
+    residualStandardError(data@y, design, data@weights, data@offset)
+  }
+  if (!is.finite(sigma)) {
+    signalCondition(structure(
+      class = c("dbartsSigmaFallback", "condition"),
+      list(
+        message = "the starting sigma is the sd of the response",
+        call = NULL
+      )
+    ))
+  }
+  floorSigmaEstimate(sigma, residual)
 }
 
 ## The dense design the starting sigma's linear fit reads: NAs mean-imputed.
@@ -1287,22 +1689,11 @@ sigmaDesignMatrix <- function(x) {
   x
 }
 
-## A linear fit's residual standard error made a usable starting sigma.
+## A linear fit's residual standard error made a usable starting sigma. A
+## design with no residual degrees of freedom leaves it non-finite, which is
+## not an estimate at all: the sd of the response less its offset stands in.
 floorSigmaEstimate <- function(sigma, residual) {
-  # A design with no residual degrees of freedom (or another reason the
-  # fit's residual variance comes out undefined) leaves sigma non-finite; a
-  # non-finite value is not an estimate at all, so fall back to the marginal
-  # residual sd, exactly as the sparse branch above does, with the same
-  # warning shape.
   if (!is.finite(sigma)) {
-    warning(warningCondition(
-      paste0(
-        "starting sigma estimate falls back to the marginal response sd: ",
-        "the linear model's residual standard error is not finite ",
-        "(typically zero residual degrees of freedom)"
-      ),
-      class = c("dbartsSigmaFallbackWarning", "dbartsWarning")
-    ))
     sigma <- sd(residual)
   }
   floorMarginalSigma(sigma, residual)

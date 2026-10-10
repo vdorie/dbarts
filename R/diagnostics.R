@@ -502,6 +502,10 @@ summary.bart <- function(
   )
   # the monotone prior, absent on a fit without a constraint
   result$monotone.prior <- object[["monotone.prior"]]
+  # where the starting sigma was the sd of the response, absent otherwise
+  if (isTRUE(object[["sigest.fallback"]])) {
+    result$sigest.fallback <- TRUE
+  }
   structure(result, class = "summary.bart")
 }
 
@@ -665,6 +669,19 @@ printFixedLine <- function(fixed) {
   invisible(NULL)
 }
 
+# one line under the table where the residual prior was calibrated against
+# the sd of the response for want of a regression
+printStartingSigmaLine <- function(x) {
+  if (isTRUE(x$sigest.fallback)) {
+    cat(
+      "(Starting sigma: the sd of the response; the linear model had no ",
+      "residual degrees of freedom)\n",
+      sep = ""
+    )
+  }
+  invisible(NULL)
+}
+
 # the row-table body of a summary.bart object, with no Call: header - shared
 # by print.summary.bart and print.summary.bartHurdle, which prints one header
 # for the fit and this body once per component
@@ -678,10 +695,12 @@ printSummaryBartBody <- function(x, ...) {
       sep = ""
     )
     printFixedLine(x$fixed)
+    printStartingSigmaLine(x)
     return(invisible(NULL))
   }
   print(x$stats, ...)
   printFixedLine(x$fixed)
+  printStartingSigmaLine(x)
   if (any(x$stats$rhat > 1.01, na.rm = TRUE)) {
     cat(
       "\nNote: some R-hat values exceed 1.01; chains may not have converged.\n"

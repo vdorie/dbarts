@@ -668,8 +668,17 @@ validateArgumentsInEnvironment <- function(
   # parameter rather than an estimate of it, is a different thing and keeps
   # its own name.
   # NULL and NA are "not given" and were resolved, with any warning, by the
-  # entry point; the estimate the entry point holds is then NA_real_
-  if (!missing(sigest) && !is.null(sigest) && !isSingleNA(sigest)) {
+  # entry point; the estimate the entry point holds is then NA_real_. So is
+  # it for the name of a rule and for xbart's function, which the entry
+  # point has read
+  if (
+    !missing(sigest) &&
+      !is.null(sigest) &&
+      !isSingleNA(sigest) &&
+      !isSigestRule(sigest) &&
+      !is.function(sigest) &&
+      !is.list(sigest)
+  ) {
     envir$sigest <- validateSigest(sigest, funcName)
   }
 }
@@ -790,6 +799,18 @@ dbarts <- function(
     resolveSigestArg(sigest, "dbarts", "silent", "sigma")
   } else {
     resolveSigestArg(sigest, "dbarts", "refuse")
+  }
+  # a number, or the name of the rule that estimates one; the retired
+  # spelling takes a number only
+  sigestRule <- "auto"
+  if (sigmaSupplied) {
+    if (!isSingleNA(sigest)) {
+      sigest <- validateSigest(sigest, "dbarts")
+    }
+  } else {
+    resolvedSigest <- resolveSigestRule(sigest, "dbarts")
+    sigest <- resolvedSigest$value
+    sigestRule <- resolvedSigest$rule
   }
   if (sigmaSupplied) {
     # the value, not the promise: it was evaluated once above, and NULL or NA
@@ -1534,7 +1555,8 @@ dbarts <- function(
     residPrior = residPrior,
     familySpec = familySpec,
     basisRecords = basisRecords,
-    written = writtenArgs
+    written = writtenArgs,
+    sigestRule = sigestRule
   )
 
   sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)

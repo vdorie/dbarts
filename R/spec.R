@@ -138,40 +138,99 @@ isMaskedWeightFamily <- function(family) {
   family %in% c("probit", "ordinal", "nbinom")
 }
 
-## Wraps estimateSigmaFromLinearModel so every caller needing a starting sigma
-## estimate raises the same failure message instead of a bare lm() error.
-estimateStartingSigma <- function(data) {
+## The starting sigma for a data object, by the rule 'sigest' named. Wraps
+## estimateSigmaFromLinearModel so every caller raises the same failure
+## message instead of a bare lm() error. An infinite predictor value is
+## refused first, for every design and before any routine runs. Under
+## 'verbose' one line says what is about to be computed, which cannot be
+## interrupted once begun, and another where no regression was defined and
+## the sd of the response stands in.
+estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
+  nonFinite <- nonFinitePredictorNames(data@x)
+  if (length(nonFinite) > 0L) {
+    stop(
+      "unable to obtain a starting estimate of sigma: predictor ",
+      paste0("'", nonFinite, "'", collapse = ", "),
+      " has infinite values; remove them or provide 'sigest'"
+    )
+  }
+  # the rows with a response, an offset and a positive weight
+  offset <- if (is.null(data@offset)) 0 else data@offset
+  weights <- if (is.null(data@weights)) 1 else data@weights
+  size <- sum(!is.na(data@y + offset) & !is.na(weights) & weights > 0)
+  fellBack <- FALSE
   tryResult <- tryCatch(
-    estimateSigmaFromLinearModel(data),
+    withCallingHandlers(
+      {
+        design <- startingSigmaDesign(data@x, rule)
+        sparse <- inherits(design, "dbartsSparseSigmaDesign")
+        size[2L] <- if (sparse) ncol(design$X) else ncol(design)
+        announceStartingSigma(
+          verbose,
+          "estimating the starting sigma by a ",
+          if (sparse) "sparse" else "dense",
+          " linear regression on ",
+          size[1L],
+          " rows and ",
+          size[2L],
+          " columns; see 'sigest'"
+        )
+        estimateSigmaFromLinearModel(data, rule, design)
+      },
+      dbartsSigmaFallback = function(condition) fellBack <<- TRUE
+    ),
     error = function(e) e
   )
   if (inherits(tryResult, "error")) {
-    nonFinite <- nonFinitePredictorNames(data@x)
-    if (length(nonFinite) > 0L) {
-      stop(
-        "unable to obtain a starting estimate of sigma: predictor ",
-        paste0("'", nonFinite, "'", collapse = ", "),
-        " has infinite values; remove them or provide 'sigest'"
-      )
-    }
     stop("unable to obtain a starting estimate of sigma; provide one instead")
+  }
+  if (fellBack) {
+    announceStartingSigma(
+      verbose,
+      "starting sigma is the sd of the response (",
+      format(tryResult, digits = 4L),
+      "): the linear model on ",
+      size[2L],
+      " columns (factors as indicators) leaves no residual degrees of ",
+      "freedom in ",
+      size[1L],
+      " rows; supply 'sigest' to set it"
+    )
   }
   tryResult
 }
 
-## The names (or 1-based positions) of a dense predictor source's columns
-## holding an infinite value, which the linear fit behind the starting sigma
-## estimate cannot take.
+## One line about the starting sigma under 'verbose', in announceAutoFamily's
+## form and classed, so a door that prints its own way can take the text.
+announceStartingSigma <- function(verbose, ...) {
+  if (isTRUE(verbose)) {
+    class <- c("dbartsStartingSigmaMessage", "dbartsMessage", "message")
+    message(structure(
+      class = c(class, "condition"),
+      list(message = paste0(..., "\n"), call = NULL)
+    ))
+  }
+}
+
+## The names (or 1-based positions) of a predictor source's columns holding an
+## infinite value, which the regression behind the starting sigma estimate
+## cannot take. A sparse-stored column is read from its stored entries.
 nonFinitePredictorNames <- function(x) {
-  if (predictorSourceIsSparse(x)) {
-    return(character())
+  if (inherits(x, "dgCMatrix")) {
+    bad <- unique(sparseEntryColumns(x)[is.infinite(x@x)])
+    names <- x@Dimnames[[2L]]
+  } else {
+    bad <- which(vapply(
+      seq_len(ncol(x)),
+      function(j) {
+        column <- predictorSourceColumn(x, j, ncol(x), nrow(x))
+        any(is.infinite(if (is.list(column)) column$x else column))
+      },
+      FALSE
+    ))
+    names <- colnames(x)
   }
-  x <- as.matrix(x)
-  bad <- which(colSums(is.infinite(x)) > 0L)
-  if (length(bad) == 0L) {
-    return(character())
-  }
-  if (is.null(colnames(x))) as.character(bad) else colnames(x)[bad]
+  if (is.null(names)) as.character(bad) else names[bad]
 }
 
 ## The binary/ordinal/nbinom weight policy, shared by every entry point that
@@ -291,7 +350,8 @@ resolveSamplerSpec <- function(
   residPrior = NULL,
   familySpec = NULL,
   basisRecords = NULL,
-  written = names(matchedCall)
+  written = names(matchedCall),
+  sigestRule = "auto"
 ) {
   # a control taken from a fit whose first forest has a basis holds that
   # forest's tree count, where the bridge reads it. The count this call is to
@@ -476,7 +536,13 @@ resolveSamplerSpec <- function(
   active <- weightPolicy$active
 
   if (is.na(data@sigma) && !fixedUnitScale) {
-    data@sigma <- estimateStartingSigma(data)
+    data@sigma <- if (is(residPrior, "dbartsFixedPrior")) {
+      # a fixed residual standard deviation is the scale itself: no estimate
+      # has anything to calibrate, so none is made and the slot holds it
+      sqrt(residPrior@value)
+    } else {
+      estimateStartingSigma(data, sigestRule, control@verbose)
+    }
   }
 
   # bart passes offset == something through no matter what; a latent-scale
@@ -1220,6 +1286,9 @@ dbartsSpec <- function(
     names(formals(dbarts::dbartsSpec))
   )
   sigest <- resolveSigestArg(sigest, "dbartsSpec", "refuse")
+  resolvedSigest <- resolveSigestRule(sigest, "dbartsSpec")
+  sigest <- resolvedSigest$value
+  sigestRule <- resolvedSigest$rule
 
   if (!inherits(data, "dbartsData")) {
     stop("'data' must be a dbartsData object; see ?dbartsData")
@@ -1274,11 +1343,14 @@ dbartsSpec <- function(
   if (length(data@n.cuts) != ncol(data@x) || anyNA(data@n.cuts)) {
     data@n.cuts <- recycleNumCuts(control@n.cuts, ncol(data@x))
   }
-  # an explicit sigest overrides whatever the data carries; NULL leaves it
-  # alone, so a consumer's own starting estimate survives (an unset one is
-  # estimated during resolution, exactly as for dbarts())
+  # an explicit sigest overrides whatever the data carries, a number by
+  # replacing it and "dense" or "sparse" by estimating over it; NULL and
+  # "auto" leave it alone, so a consumer's own starting estimate survives (an
+  # unset one is estimated during resolution, exactly as for dbarts())
   if (!is.na(sigest)) {
     data@sigma <- validateSigest(sigest, "dbartsSpec")
+  } else if (sigestRule != "auto") {
+    data@sigma <- NA_real_
   }
 
   # as on dbarts(): the forest constructors resolve by bare name inside their
@@ -1352,6 +1424,7 @@ dbartsSpec <- function(
     evalEnv = parentEnv,
     residPrior = residPrior,
     familySpec = familySpec,
-    basisRecords = basisRecords
+    basisRecords = basisRecords,
+    sigestRule = sigestRule
   )
 }

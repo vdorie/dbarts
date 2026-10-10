@@ -13,8 +13,8 @@ y.ss <- 2 * df.ss$x1 - df.ss$x2 + as.numeric(f.ss) + rnorm(n)
 w.ss <- runif(n, 0.5, 2)
 o.ss <- rnorm(n)
 
-# the design the estimate actually sees: dbarts expands the factor itself, so
-# read the expanded matrix back rather than re-deriving lm's own coding
+# the design the estimate sees: the factor as its indicator columns, which
+# the regression takes however the trees are given the factor
 control.ss <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -23,19 +23,20 @@ control.ss <- dbartsControl(
 )
 sampler.ss <- dbarts(y.ss ~ ., df.ss, control = control.ss)
 x.ss <- dbarts::extract(sampler.ss, "predictors")
+x.ind <- makeModelMatrixFromDataFrame(df.ss)
 
-expect_identical(sampler.ss$data@sigma, summary(lm(y.ss ~ x.ss))$sigma)
+expect_identical(sampler.ss$data@sigma, summary(lm(y.ss ~ x.ind))$sigma)
 
 sampler.ssw <- dbarts(y.ss ~ ., df.ss, weights = w.ss, control = control.ss)
 expect_identical(
   sampler.ssw$data@sigma,
-  summary(lm(y.ss ~ x.ss, weights = w.ss))$sigma
+  summary(lm(y.ss ~ x.ind, weights = w.ss))$sigma
 )
 
 sampler.sso <- dbarts(y.ss ~ ., df.ss, offset = o.ss, control = control.ss)
 expect_identical(
   sampler.sso$data@sigma,
-  summary(lm(y.ss ~ x.ss, offset = o.ss))$sigma
+  summary(lm(y.ss ~ x.ind, offset = o.ss))$sigma
 )
 
 # the estimator itself, over the argument crossing the samplers above do not

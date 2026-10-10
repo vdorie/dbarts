@@ -139,26 +139,36 @@ no.matrix <- countWarnings(withoutMatrix(bartBT(
 expect_equal(no.matrix$value$sigest, dense$value$sigest, tolerance = 1e-10)
 expect_identical(no.matrix$warnings, character())
 
-# a sparse column the caller supplied still falls back, with its warning
+# a sparse column the caller supplied takes the sparse regression's estimate,
+# with no warning, and the dense one's to rounding
 d.caller <- d["z"]
 d.caller$s <- Matrix::sparseVector(
   x = 1 + runif(40L),
   i = sort(sample.int(n, 40L)),
   length = n
 )
-caller <- countWarnings(suppressMessages(dbarts::dbarts(
-  y ~ .,
-  d.caller,
-  control = dbartsControl(
-    n.trees = 5L,
-    n.burn = 0L,
-    n.samples = 5L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  )
-)))
-expect_true(any(grepl("sparse-backed predictor columns", caller$warnings)))
+callerFit <- function(...) {
+  countWarnings(suppressMessages(dbarts::dbarts(
+    y ~ .,
+    d.caller,
+    control = dbartsControl(
+      n.trees = 5L,
+      n.burn = 0L,
+      n.samples = 5L,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    ),
+    ...
+  )))
+}
+caller <- callerFit()
+expect_identical(caller$warnings, character())
+expect_equal(
+  caller$value$data@sigma,
+  callerFit(sigest = "dense")$value$data@sigma,
+  tolerance = 1e-10
+)
 
 # --- the starting sigma by sparse QR equals the dense fit's, rank-deficient
 # designs (the full indicator sets of two factors and an intercept), weights,
@@ -229,11 +239,19 @@ d3 <- data.frame(
 )
 y3 <- rnorm(n3) + d3$a
 # collinear to 1e-9 and 5e-8 (dropped by lm's 1e-7 tolerance), and to 2e-7,
-# 1e-5, 3e-5 and 1e-3 (kept)
+# 1e-5, 3e-5 and 1e-3 (kept): the sparse routine may drop a near-copy lm
+# keeps, so the storage R chose must not send the design to it
+autoSigma <- function(mode, x, y) {
+  data <- withMode(mode, dbartsData(x, y, factors = "indicators"))
+  dbarts:::estimateSigmaFromLinearModel(data)
+}
 for (eps in c(0, 1e-9, 5e-8, 2e-7, 1e-5, 3e-5, 1e-3)) {
   d3c <- d3
   d3c$c <- d3$a + eps * rnorm(n3)
-  sparseVsDense(y3, d3c, NULL, NULL)
+  expect_true(dbarts:::predictorSourceIsSparse(
+    withMode("sparse", dbartsData(d3c, y3, factors = "indicators"))@x
+  ))
+  expect_identical(autoSigma("sparse", d3c, y3), autoSigma("dense", d3c, y3))
 }
 # a column in other units
 for (scale in c(1e9, 1e-9)) {

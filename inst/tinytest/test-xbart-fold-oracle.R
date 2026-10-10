@@ -487,13 +487,13 @@ expect_false(identical(
   original[[trainsOnRowOne]]$draws
 ))
 
-# Under a fixed residual scale no estimate is read, so no fold fits the linear
-# model: a design whose folds have no residual degrees of freedom warns of the
-# fallback under the default prior and not under a fixed one.
+# A design whose folds have no residual degrees of freedom takes each fold's
+# response sd with no warning, the estimate on all rows announced once under
+# verbose; under a fixed residual scale no estimate is made at all.
 set.seed(7)
 xWide <- matrix(runif(120L), 12L, 10L)
 yWide <- rnorm(12L)
-xbartWide <- function(...) {
+xbartWide <- function(verbose = FALSE, ...) {
   xbart(
     xWide,
     yWide,
@@ -505,12 +505,22 @@ xbartWide <- function(...) {
     n.trees = 5L,
     k = 2,
     seed = 1L,
-    verbose = FALSE,
+    verbose = verbose,
     n.threads = 1L,
     ...
   )
 }
-expect_warning(xbartWide(), "falls back to the marginal response sd")
+expect_silent(xbartWide())
 expect_silent(xbartWide(family = gaussian(sigma = fixed(1))))
-rm(xWide, yWide, xbartWide)
+wideMessages <- character()
+invisible(capture.output(withCallingHandlers(
+  xbartWide(verbose = TRUE),
+  message = function(m) {
+    wideMessages <<- c(wideMessages, conditionMessage(m))
+    invokeRestart("muffleMessage")
+  }
+)))
+expect_equal(sum(grepl("estimating the starting sigma", wideMessages)), 1L)
+expect_false(any(grepl("is the sd of the response", wideMessages)))
+rm(xWide, yWide, xbartWide, wideMessages)
 rm(foldDraws, foldY, changedY, original, changed, holdsRowOne, trainsOnRowOne)
