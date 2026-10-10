@@ -53,24 +53,36 @@ jobs:
       # --leak-check=full) to count only definite and indirect leaks as
       # errors: valgrind's default also counts possible ones, which forked
       # workers (parallel's mclapply) report from R's own and glibc's
-      # allocations - thread-local storage, gettext, setenv - and which leave
-      # nothing of this package's to fix. Every leak record is still printed,
-      # and memory errors (invalid reads and writes, uninitialised use,
-      # mismatched frees) count as before.
+      # allocations - thread-local storage, gettext, setenv. Every leak record
+      # is still printed, and memory errors (invalid reads and writes,
+      # uninitialised use, mismatched frees) count as before. A possible leak
+      # whose stack reaches this package is caught by the guard below instead;
+      # --fullpath-after prints this package's sources as src/..., so a frame
+      # of ours is told from R's own src/main.
       - name: Unit tests under valgrind
         shell: bash
-        env:
-          VALGRIND_OPTS: >-
-            --track-origins=yes --leak-check=full
-            --errors-for-leak-kinds=definite,indirect
         run: |
           set -eo pipefail
+          export VALGRIND_OPTS="--track-origins=yes --leak-check=full \
+            --errors-for-leak-kinds=definite,indirect --fullpath-after=$PWD/"
           R -d valgrind --vanilla -e '
             res <- tinytest::test_package("dbarts")
             print(res)
             ok <- vapply(res, function(t) isTRUE(as.logical(t)[1]), logical(1))
             if (length(ok) == 0L || !all(ok)) quit(status = 1L, save = "no")
           ' 2>&1 | tee valgrind-tests.log
+          # a possibly-lost record whose stack names this package's object or
+          # one of its sources; records are per process, and a record ends at
+          # that process's blank line
+          if awk '
+            { if (!match($0, /==[0-9]+==/)) next
+              pid = substr($0, RSTART, RLENGTH) }
+            /are possibly lost in loss record/ { open[pid] = 1; next }
+            open[pid] && $0 ~ (pid " *$") { open[pid] = 0; next }
+            open[pid] && (/dbarts[.]so/ || /[(]src\//) { print; found = 1 }
+            END { exit !found }' valgrind-tests.log; then
+            echo "::error::a possibly-lost record reaches dbarts"; exit 1
+          fi
           # --errors-for-leak-kinds folds definitely/indirectly-lost blocks
           # into the error count, so a nonzero ERROR SUMMARY covers both
           # memory-access errors and those leaks
