@@ -1012,6 +1012,26 @@ items
     (dec-B436, VD 2026-10-10; the engine needs no change, dec-A198).
     About 5 lines and three test pins; with state-before-first-missing.
     Before the merge to main.
+  first-sight-kept-one-way-rule: the first-sight draw takes a coin for
+    a kept subset rule that sends no category right and the missing
+    value right; drawn left, the kept draw is malformed and the sampler
+    can no longer install, copy or reload its own state ("state is not
+    consistent with this sampler"), though predict still answers. Such
+    rules reach a never-flagged sampler only in kept draws copied from
+    another sampler's state (a state from a sampler with missing
+    values in a factor, installed where the factor is complete), and
+    are hit when that column then gets its first missing value
+    (setData today; setPredictor once dec-B436 lands). Run 2026-10-10
+    on c4ea26ab: 11 of 11 seeds holding such a rule (39 tried) could
+    not reinstall; 4 of 4 without the other sampler's state could.
+    Fixed with state-before-first-missing: such a rule keeps its
+    direction and takes no coin. Before the merge to main.
+  test-column-missing-not-refused: setTestPredictor(column =) takes a
+    missing value in a numeric test column whose training column never
+    held one, and the next run fits the row, where the whole test set
+    and predict refuse it (dec-B322). Found planning
+    state-before-first-missing, 2026-10-10; fixed with it. Before the
+    merge to main.
   first-missing-test-seeds: three tests of missingness first seen hold
     by one seed (the row declined for emptying a leaf, the two-forest
     block, and the joint sweep's every-row form, which loses its kill
