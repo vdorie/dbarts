@@ -102,6 +102,11 @@ struct SamplerStateData {
   /// cannot be inferred from the buffer, whose unwritten slots hold zero-leaf
   /// trees that read as legitimate draws.
   size_t recordedDraws = 0;
+  /// A byte per predictor: whether the column could hold a missing value when
+  /// the state was read (ColumnStore::hasMissing), whatever it then held.
+  /// Empty where the state carries no record, which does not say that none
+  /// could.
+  std::vector<std::uint8_t> missingColumns;
 };
 
 /// Why a warm start (installForests) refused; ok on success. A single donor
@@ -1118,6 +1123,7 @@ public:
       if (data_.cutsWeighted(j)) state.cutMass = data_.cutMass;
     state.currentSampleNum = currentSampleNum_;
     state.recordedDraws = recordedDraws_;
+    state.missingColumns = data_.hasMissing;
   }
 
   /// currentPredictors is the call-time predictor matrix a cross-grid column
@@ -1130,11 +1136,24 @@ public:
   /// force and leaves the sampler exactly as it was: a state of another
   /// shape, a malformed block or tree, a grid that repeats a point, latents
   /// the family cannot hold, saved-tree blocks that name different draw
-  /// counts. lengthscaleRefused names a state whose saved gp draws were made
+  /// counts, a record of missable columns of another length.
+  /// lengthscaleRefused names a state whose saved gp draws were made
   /// under other lengthscales than the ones this sampler was given
   /// (Chain::lengthscaleStateFeasible), asked only where a saved draw would
   /// be kept. Everything is judged against the state's own cut grid, where
   /// its splits resolve, and before any chain is touched.
+  ///
+  /// A state that records the columns that could hold a missing value where
+  /// it was stored (missingColumns) is first completed for the columns that
+  /// can here and could not there: every rule on one, in its live trees and
+  /// its recorded saved draws, holds no drawn direction and takes one with
+  /// probability one half, each chain's coins from the generator the state
+  /// carries for it (Chain::completeMissingDirections). The draw is made on a
+  /// copy before anything of the sampler is written, and everything below
+  /// judges and installs the copy, its generators standing past the coins. A
+  /// state without the record is installed as it is, as is one whose record
+  /// names every such column; a column the record names and this sampler
+  /// has never seen missing plays no part. No flag is raised.
   ///
   /// A state past those is installed as stored unless one of its live trees,
   /// mean or variance, cannot stand in this sampler as its flat form holds
@@ -1204,6 +1223,9 @@ public:
     bool stateWeighted = !state.cutMass.empty();
     if (stateWeighted && state.cutMass.size() != data_.numPredictors)
       return false;
+    if (!state.missingColumns.empty() &&
+        state.missingColumns.size() != data_.numPredictors)
+      return false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.splitsBySubset(j)) {
         if (!state.cutPoints[j].empty()) return false;
@@ -1240,6 +1262,38 @@ public:
         return false;
       }
     }
+    // the directions the state was stored without, drawn on a copy of its
+    // chains that stands in for them from here on. Nothing of the sampler
+    // has been written and each chain's generator is back where it was, so
+    // a refusal, a decline or a throw below has no draw to undo. A tree the
+    // draw cannot walk leaves the state as given for the refusal below.
+    size_t stateCursor =
+      stateCapacity > 0 ? state.currentSampleNum % stateCapacity : 0;
+    std::vector<ChainStateData> completed;
+    if (blocksAgree && !state.missingColumns.empty()) {
+      std::vector<std::uint8_t> raised(data_.numPredictors);
+      bool walkable = false;
+      for (size_t j = 0; j < data_.numPredictors; ++j) {
+        raised[j] =
+          data_.hasMissing[j] != 0 && state.missingColumns[j] == 0 ? 1 : 0;
+        walkable = walkable || raised[j] != 0;
+      }
+      for (size_t c = 0; c < chains_.size() && walkable; ++c)
+        walkable = chains_[c]->flatTreesAreWalkable(state.chains[c]);
+      if (walkable) {
+        completed = state.chains;
+        size_t recorded = std::min(state.recordedDraws, stateCapacity);
+        SavedDrawSlots stateKept;
+        if (recorded > 0)
+          stateKept = SavedDrawSlots{
+            (stateCursor + stateCapacity - recorded) % stateCapacity, recorded};
+        for (size_t c = 0; c < chains_.size(); ++c)
+          chains_[c]->completeMissingDirections(completed[c], raised.data(),
+                                                stateKept);
+      }
+    }
+    const std::vector<ChainStateData>& chainStates =
+      completed.empty() ? state.chains : completed;
     // install the state's cuts, snapshotting for rollback: tree validity is
     // defined against them
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
@@ -1278,7 +1332,7 @@ public:
     bool allValid = blocksAgree;
     bool needsRepair = false;
     for (size_t c = 0; c < chains_.size() && allValid; ++c)
-      allValid = chains_[c]->stateIsValid(state.chains[c],
+      allValid = chains_[c]->stateIsValid(chainStates[c],
                                           force ? nullptr : &needsRepair);
 
     auto restoreGrid = [&]() {
@@ -1309,14 +1363,12 @@ public:
     // a store of the state's own size continues its ring; any other takes
     // the newest draws at its start (Chain::setState)
     bool repack = stateCapacity != capacity;
-    size_t stateCursor =
-      stateCapacity > 0 ? state.currentSampleNum % stateCapacity : 0;
     SavedDrawSlots newest;
     if (repack && keptDraws > 0)
       newest = SavedDrawSlots{
         (stateCursor + stateCapacity - keptDraws) % stateCapacity, keptDraws};
     for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->setState(state.chains[c], &installAltered, newest))
+      if (!chains_[c]->setState(chainStates[c], &installAltered, newest))
         return false;
     currentSampleNum_ =
       capacity > 0 ? (repack ? keptDraws : state.currentSampleNum) % capacity

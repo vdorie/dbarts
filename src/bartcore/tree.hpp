@@ -2474,22 +2474,47 @@ inline bool flatTreeIsWellFormed(const ColumnStore& data,
          maskCursor == numMaskWords;
 }
 
+/// Whether a flattened subset rule sends no category right and a missing
+/// value right, so that the missing value alone is split off. Its direction
+/// is its form: sent left the rule would send nothing right, which
+/// flatSubtreeIsWellFormed refuses. \p masks is the tree's mask side channel,
+/// read only for a pooled rule.
+inline bool flatRuleSplitsMissingAlone(const FlatNode& flat,
+                                       const ColumnStore& data,
+                                       const std::uint64_t* masks) {
+  if ((flat.flags & flatMissingGoesRight) == 0) return false;
+  if (flatKindOf(flat) != FlatKind::categoricalPooled) return flat.mask == 0;
+  return maskIsZero(
+    masks + flat.maskOffset,
+    maskWordsForCount(data.categoryCounts[static_cast<size_t>(flat.variable)]));
+}
+
 /// Tree::drawMissingDirections for a well-formed flattened subtree, a saved
-/// draw's: the same coins in the same pre-order under the same rule for a
-/// subset split out of a missing value's reach, the direction written to the
-/// record's flag whatever the kind. \p onChange is called as
-/// onChange(record, flags) with the flags a record held before its direction
-/// moved. Returns the number of records the subtree occupies.
+/// draw's or a stored state's: the same coins in the same pre-order under the
+/// same rule for a subset split out of a missing value's reach, the direction
+/// written to the record's flag whatever the kind. A subset rule that splits
+/// the missing value alone (flatRuleSplitsMissingAlone) keeps its direction,
+/// in reach or out, and takes no coin; the rules beneath it read the
+/// direction it holds. No live tree of a column whose flag is down holds
+/// such a rule (Tree::buildFromFlat), so the live draw has no such case.
+/// \p masks is the tree's mask side channel, null where it has none.
+/// \p onChange is called as onChange(record, flags) with the flags a record
+/// held before its direction moved. Returns the number of records the
+/// subtree occupies.
 template <typename OnChange>
 size_t drawFlatMissingDirections(FlatNode* flatNodes, const ColumnStore& data,
                                  const std::uint8_t* raised, ext_rng* rng,
-                                 std::uint32_t* blocked, OnChange& onChange) {
+                                 std::uint32_t* blocked,
+                                 const std::uint64_t* masks,
+                                 OnChange& onChange) {
   FlatNode& flat(flatNodes[0]);
   if (flat.variable == invalidVariable) return 1;
   size_t j = static_cast<size_t>(flat.variable);
   bool filters = raised[j] != 0 && data.splitsBySubset(j);
   bool goesRight = false;
-  if (raised[j] != 0) {
+  if (filters && flatRuleSplitsMissingAlone(flat, data, masks)) {
+    goesRight = true;
+  } else if (raised[j] != 0) {
     if (!filters || blocked[j] == 0)
       goesRight = ext_rng_simulateBernoulli(rng, 0.5) == 1;
     if (((flat.flags & flatMissingGoesRight) != 0) != goesRight) {
@@ -2499,10 +2524,10 @@ size_t drawFlatMissingDirections(FlatNode* flatNodes, const ColumnStore& data,
   }
   if (filters && goesRight) ++blocked[j];
   size_t numOnLeft = drawFlatMissingDirections(flatNodes + 1, data, raised,
-                                               rng, blocked, onChange);
+                                               rng, blocked, masks, onChange);
   if (filters) blocked[j] += goesRight ? -1 : 1;
   size_t numOnRight = drawFlatMissingDirections(
-    flatNodes + 1 + numOnLeft, data, raised, rng, blocked, onChange);
+    flatNodes + 1 + numOnLeft, data, raised, rng, blocked, masks, onChange);
   if (filters && !goesRight) --blocked[j];
   return 1 + numOnLeft + numOnRight;
 }

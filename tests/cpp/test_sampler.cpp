@@ -3861,7 +3861,8 @@ struct FirstSeenSampler {
   std::unique_ptr<ConstantLeafSampler> sampler;
 
   FirstSeenSampler(const std::vector<double>& x, const std::vector<double>& y,
-                   const std::uint8_t* seen = nullptr) {
+                   const std::uint8_t* seen = nullptr,
+                   size_t storeCapacity = capacity) {
     static const ColumnKind kinds[p] = {
         ColumnKind::numeric, ColumnKind::categorical, ColumnKind::numeric,
         ColumnKind::categorical};
@@ -3875,7 +3876,7 @@ struct FirstSeenSampler {
     options.numChains = numChains;
     options.numThreads = 1;
     options.keepTrees = true;
-    options.numSamplesToStore = capacity;
+    options.numSamplesToStore = storeCapacity;
     options.predictors.columnTypes = kinds;
     options.missingSeen = seen;
     sampler = std::make_unique<ConstantLeafSampler>(
@@ -3894,6 +3895,32 @@ struct FirstSeenSampler {
     return result;
   }
 };
+
+// The fixture's data, drawn from the runif01 stream: the complete matrix,
+// the response, and the matrix with a missing value in x0, x1 and x3, in
+// rows spread over the levels.
+const size_t firstSeenHoles[3][3] = {
+    {11, 150, 301}, {23, 164, 317}, {40, 181, 333}};
+void makeFirstSeenData(std::vector<double>& x, std::vector<double>& y,
+                       std::vector<double>& withMissing) {
+  const size_t n = FirstSeenSampler::n;
+  x.resize(n * FirstSeenSampler::p);
+  y.resize(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[n + i] = static_cast<double>(i % 4);
+    x[2 * n + i] = runif01();
+    x[3 * n + i] = static_cast<double>(i % 70);
+    y[i] = (x[i] > 0.5 ? 2.0 : 0.0) + (i % 4 < 2 ? -1.0 : 1.0) +
+           (x[2 * n + i] > 0.4 ? 1.5 : 0.0) + (i % 70 < 30 ? 1.0 : -1.0) +
+           (x[i] > 0.3 ? 0.6 : 0.1) * (runif01() - 0.5);
+  }
+  withMissing = x;
+  const size_t holed[3] = {0, 1, 3};
+  for (int k = 0; k < 3; ++k)
+    for (size_t row : firstSeenHoles[k])
+      withMissing[holed[k] * n + row] = std::nan("");
+}
 
 // The directions a first missing value draws over one flat tree, written
 // from the rule and not from the engine: pre-order, a coin for every rule on
@@ -4014,22 +4041,8 @@ static void testMissingFirstSeen() {
   const size_t n = FirstSeenSampler::n, p = FirstSeenSampler::p;
   const size_t numChains = FirstSeenSampler::numChains;
   const double na = std::nan("");
-  std::vector<double> x(n * p), y(n);
-  for (size_t i = 0; i < n; ++i) {
-    x[i] = runif01();
-    x[n + i] = static_cast<double>(i % 4);
-    x[2 * n + i] = runif01();
-    x[3 * n + i] = static_cast<double>(i % 70);
-    y[i] = (x[i] > 0.5 ? 2.0 : 0.0) + (i % 4 < 2 ? -1.0 : 1.0) +
-           (x[2 * n + i] > 0.4 ? 1.5 : 0.0) + (i % 70 < 30 ? 1.0 : -1.0) +
-           (x[i] > 0.3 ? 0.6 : 0.1) * (runif01() - 0.5);
-  }
-  // a missing value in x0, x1 and x3, in rows spread over the levels
-  std::vector<double> withMissing(x);
-  const size_t holes[3][3] = {{11, 150, 301}, {23, 164, 317}, {40, 181, 333}};
-  const size_t holed[3] = {0, 1, 3};
-  for (int k = 0; k < 3; ++k)
-    for (size_t row : holes[k]) withMissing[holed[k] * n + row] = na;
+  std::vector<double> x, y, withMissing;
+  makeFirstSeenData(x, y, withMissing);
   std::vector<double> moreMissing(withMissing);
   moreMissing[5] = na;
   moreMissing[n + 6] = na;
@@ -4148,7 +4161,8 @@ static void testMissingFirstSeen() {
       std::unique_ptr<bool[]> installed(new bool[n]);
       accepted = sampler.updatePredictorPerObservation(withMissing.data(), 0,
                                                        installed.get());
-      for (size_t row : holes[0]) accepted = accepted && installed[row];
+      for (size_t row : firstSeenHoles[0])
+        accepted = accepted && installed[row];
       raisedHere[1] = raisedHere[3] = 0;
       numScanned = n;
     }
@@ -4240,6 +4254,307 @@ static void testMissingFirstSeen() {
   printf("ok: a column's first missing value (%zu live and %zu kept mean "
          "rules, %zu and %zu variance rules on the columns)\n",
          numLive[0], numKept[0], numLive[1], numKept[1]);
+}
+
+// A state records the columns that could hold a missing value where it was
+// stored, the store's flags and not its content. Installed into a sampler
+// where a further column can, every rule on that column, live and kept,
+// takes the direction a first missing value would have drawn for it, from
+// the state's own generators: the state stored before one whole-matrix
+// update that raised the columns, installed after it, is the state that
+// update left, into a store of its own size or another and on two forests.
+// A state with no record draws nothing. A kept rule that splits the missing
+// value alone takes no coin from either draw. A state without generator
+// bytes draws from the chain's position, and a decline or a refusal after
+// the draw leaves the sampler, generators included. No state raises a flag.
+// Own generators; restores the runif01 stream.
+static void testStateMissingRecord() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 0x51C7F1A5ull;
+  const size_t p = FirstSeenSampler::p, numChains = FirstSeenSampler::numChains;
+  const size_t numTrees = FirstSeenSampler::numTrees;
+  const size_t numVarianceTrees = FirstSeenSampler::numVarianceTrees;
+  const size_t capacity = FirstSeenSampler::capacity;
+  std::vector<double> x, y, withMissing;
+  makeFirstSeenData(x, y, withMissing);
+  const std::vector<std::uint8_t> noFlags(p, 0), flags = {1, 1, 0, 1};
+  Results none;
+  // burned in, its ring wrapped; `holed` after the update that brings the
+  // missing values, unforced and taken
+  auto fresh = [&](bool holed, size_t storeCapacity = capacity) {
+    auto made =
+      std::make_unique<FirstSeenSampler>(x, y, nullptr, storeCapacity);
+    (*made)->run(120, 10, none);
+    if (holed)
+      check((*made)->setPredictor(withMissing.data(), false, false) ==
+              PredictorUpdateResult::accepted,
+            "missing record: the update that brings the values is taken");
+    return made;
+  };
+  using Trees = std::vector<std::vector<FlatNode>>;
+  auto numRight = [](const Trees& trees) {
+    size_t count = 0;
+    for (const std::vector<FlatNode>& tree : trees)
+      for (const FlatNode& node : tree)
+        count += (node.flags & flatMissingGoesRight) != 0 ? 1u : 0u;
+    return count;
+  };
+  auto draws = [](const Trees& trees, size_t first, size_t count) {
+    return Trees(trees.begin() + first, trees.begin() + first + count);
+  };
+
+  auto source = fresh(false);
+  const SamplerStateData before = source->state();
+  check((*source)->setPredictor(withMissing.data(), false, false) ==
+          PredictorUpdateResult::accepted,
+        "missing record: the update that brings the values is taken");
+  const SamplerStateData after = source->state();
+  bool drewEverywhere = true;
+  for (size_t c = 0; c < numChains; ++c) {
+    const ChainStateData& chain(after.chains[c]);
+    drewEverywhere = drewEverywhere && numRight(chain.forests[0].trees) > 0 &&
+      numRight(chain.varianceTrees) > 0 &&
+      numRight(chain.forests[0].savedTrees) > 0 &&
+      numRight(chain.savedVarianceTrees) > 0 &&
+      numRight(before.chains[c].forests[0].savedTrees) == 0;
+  }
+  (*source)->setPredictor(x.data(), true, false);
+  check(before.missingColumns == noFlags && after.missingColumns == flags &&
+          source->state().missingColumns == flags,
+        "missing record: a state holds the store's flags, whatever the "
+        "columns then hold");
+  check(drewEverywhere && before.currentSampleNum % capacity != 0,
+        "missing record: the update drew in every block of each chain, over "
+        "a wrapped ring");
+
+  // the state from before the values, installed after them
+  {
+    auto sampler = fresh(true);
+    bool clean = installsClean(**sampler, before);
+    check(clean && samplerStatesAgree(sampler->state(), after),
+          "missing record: the earlier state installs clean as the state the "
+          "update left, trees, kept draws and generators");
+    check(restoresExactly(**sampler, after),
+          "missing record: a state that records the columns draws nothing");
+
+    // into a store of four: every recorded draw draws, then the newest go in
+    auto small = fresh(true, 4);
+    clean = installsClean(**small, before);
+    SamplerStateData got = small->state();
+    bool asDrawn = clean;
+    for (size_t c = 0; c < numChains; ++c) {
+      const ChainStateData& a(got.chains[c]);
+      const ChainStateData& b(after.chains[c]);
+      asDrawn = asDrawn && a.rngState == b.rngState &&
+        sameFlatTrees(a.forests[0].trees, b.forests[0].trees) &&
+        sameFlatTrees(a.varianceTrees, b.varianceTrees);
+      for (size_t d = 0; d < 4; ++d) {
+        size_t slot = (after.currentSampleNum + capacity - 4 + d) % capacity;
+        asDrawn = asDrawn &&
+          sameFlatTrees(
+            draws(a.forests[0].savedTrees, d * numTrees, numTrees),
+            draws(b.forests[0].savedTrees, slot * numTrees, numTrees)) &&
+          sameFlatTrees(
+            draws(a.savedVarianceTrees, d * numVarianceTrees, numVarianceTrees),
+            draws(b.savedVarianceTrees, slot * numVarianceTrees,
+                  numVarianceTrees));
+      }
+    }
+    check(asDrawn, "missing record: a store of another size keeps the newest "
+                   "draws as the state's own ring drew them");
+  }
+
+  // no record, and a record of another length
+  {
+    auto sampler = fresh(true);
+    SamplerStateData unrecorded(before), shorter(before);
+    unrecorded.missingColumns.clear();
+    shorter.missingColumns.pop_back();
+    bool refused = refusesUntouched(**sampler, shorter);
+    bool clean = installsClean(**sampler, unrecorded);
+    check(refused && clean && statesAgree(sampler->state(), before),
+          "missing record: a record of another length is refused, and a "
+          "state with none installs as stored, its generators too");
+  }
+
+  // a sampler that has never seen the columns missing takes no flag from a
+  // state that has, and no draw
+  {
+    auto complete = fresh(false);
+    bool declined = declinesUntouched(**complete, after);
+    bool forced = restoresAltered(**complete, after);
+    check(declined && forced && (*complete)->data().hasMissing == noFlags &&
+            complete->state().missingColumns == noFlags,
+          "missing record: a state raises no flag");
+  }
+
+  // a state without generator bytes draws from the chain's own position,
+  // which a declined one leaves; a decline and a refusal after the draw
+  // leave the sampler, generators and grid included
+  {
+    SamplerStateData bare(before), positioned(before), dirty(before);
+    SamplerStateData broken(before);
+    for (size_t c = 0; c < numChains; ++c) {
+      bare.chains[c].rngState.clear();
+      positioned.chains[c].rngState = after.chains[c].rngState;
+    }
+    // a direction on x2, which no sampler here has seen missing, and a split
+    // value off the grid, which builds on none
+    bool marked = false, moved = false;
+    for (std::vector<FlatNode>& tree : dirty.chains[1].forests[0].trees)
+      for (FlatNode& node : tree)
+        if (node.variable == 2 && !marked) {
+          node.flags |= flatMissingGoesRight;
+          marked = true;
+        }
+    for (std::vector<FlatNode>& tree : broken.chains[1].forests[0].trees)
+      for (FlatNode& node : tree)
+        if (node.variable == 0 && !moved) {
+          node.value += 1e-7;
+          moved = true;
+        }
+    SamplerStateData bareDirty(dirty);
+    for (ChainStateData& chain : bareDirty.chains) chain.rngState.clear();
+    auto a = fresh(true), b = fresh(true), c = fresh(true);
+    bool clean = installsClean(**a, bare) && installsClean(**b, positioned);
+    SamplerStateData fromOwn = a->state();
+    check(clean && samplerStatesAgree(fromOwn, b->state()) &&
+            fromOwn.chains[0].rngState != after.chains[0].rngState &&
+            !sameFlatTrees(fromOwn.chains[0].forests[0].savedTrees,
+                           after.chains[0].forests[0].savedTrees),
+          "missing record: a state without generator bytes draws from the "
+          "chain's position and leaves it past the coins");
+    check(marked && declinesUntouched(**c, bareDirty) &&
+            declinesUntouched(**c, dirty) && restoresAltered(**c, dirty),
+          "missing record: a state declined after the draw leaves the "
+          "generators, with bytes of its own or without");
+    check(moved && refusesUntouched(**c, broken),
+          "missing record: a state refused after the draw leaves the "
+          "generators");
+  }
+
+  // Kept rules that split the missing value alone, which only another
+  // sampler's state brings to a column never missing: one on x1 over a rule
+  // out of a missing value's reach and one in it, and a pooled one on x3.
+  // Beside a twin whose kept draw holds the one rule in reach and a bare
+  // leaf, both draws leave the same generators and every other rule alike:
+  // the first-sight draw's kept loop (form 0) and the completion (form 1)
+  {
+    auto rule = [](int variable, FlatKind kind, std::uint64_t mask, bool right) {
+      FlatNode node;
+      node.variable = variable;
+      setFlatKind(node, kind);
+      node.mask = mask;
+      if (right) node.flags |= flatMissingGoesRight;
+      return node;
+    };
+    const FlatNode leaf;
+    const FlatNode alone = rule(1, FlatKind::categoricalInline, 0, true);
+    const FlatNode inReach = rule(1, FlatKind::categoricalInline, 5, false);
+    const FlatNode outOfReach = rule(1, FlatKind::categoricalInline, 3, false);
+    FlatNode pooledAlone = rule(3, FlatKind::categoricalPooled, 0, true);
+    pooledAlone.numMaskWords = 2;
+    const std::vector<FlatNode> nested = {alone, outOfReach, leaf, leaf,
+                                          inReach, leaf, leaf};
+    size_t slot =
+      (before.currentSampleNum + capacity - before.recordedDraws) % capacity;
+    auto withHandTrees = [&](bool exempt) {
+      SamplerStateData state(before);
+      for (ChainStateData& chain : state.chains) {
+        ForestStateData& forest(chain.forests[0]);
+        size_t first = slot * numTrees;
+        forest.savedTrees[first] =
+          exempt ? nested : std::vector<FlatNode>{inReach, leaf, leaf};
+        forest.savedTreeMasks[first].clear();
+        forest.savedTrees[first + 1] =
+          exempt ? std::vector<FlatNode>{pooledAlone, leaf, leaf}
+                 : std::vector<FlatNode>{leaf};
+        forest.savedTreeMasks[first + 1].assign(exempt ? 2 : 0, 0);
+      }
+      return state;
+    };
+    const SamplerStateData exempt = withHandTrees(true);
+    const SamplerStateData plain = withHandTrees(false);
+    for (int form = 0; form < 2; ++form) {
+      SamplerStateData got[2];
+      bool installed = true;
+      for (int k = 0; k < 2; ++k) {
+        auto sampler = fresh(form == 1);
+        installed = installed &&
+          installsClean(**sampler, k == 0 ? exempt : plain) &&
+          (form == 1 ||
+           (*sampler)->setPredictor(withMissing.data(), false, false) ==
+             PredictorUpdateResult::accepted);
+        got[k] = sampler->state();
+      }
+      bool kept = installed;
+      for (size_t c = 0; c < numChains; ++c) {
+        ForestStateData& forest(got[0].chains[c].forests[0]);
+        const ForestStateData& twin(got[1].chains[c].forests[0]);
+        size_t first = slot * numTrees;
+        const std::vector<FlatNode>& tree(forest.savedTrees[first]);
+        // the rule in reach holds the twin's coin, the others what they held
+        kept = kept && tree.size() == 7 &&
+          tree[0].flags == alone.flags && tree[1].flags == outOfReach.flags &&
+          tree[4].flags == twin.savedTrees[first][0].flags &&
+          forest.savedTrees[first + 1][0].flags == pooledAlone.flags;
+        forest.savedTrees[first] = twin.savedTrees[first];
+        forest.savedTrees[first + 1] = twin.savedTrees[first + 1];
+        forest.savedTreeMasks[first + 1].clear();
+      }
+      check(kept && samplerStatesAgree(got[0], got[1]) &&
+              numRight(got[1].chains[0].forests[0].savedTrees) > 0,
+            form == 0
+              ? "missing record: a first missing value takes no coin for a "
+                "kept rule that splits the missing value alone"
+              : "missing record: nor does an install that draws");
+    }
+  }
+
+  // two forests: each forest's rules, live and kept, as the update drew them
+  {
+    const size_t n = FirstSeenSampler::n;
+    static const ColumnKind kinds[p] = {
+        ColumnKind::numeric, ColumnKind::categorical, ColumnKind::numeric,
+        ColumnKind::categorical};
+    std::vector<double> z(n);
+    for (size_t i = 0; i < n; ++i) z[i] = i % 2 == 0 ? 1.0 : 0.0;
+    SamplerOptions options;
+    options.keepTrees = true;
+    options.numSamplesToStore = capacity;
+    options.predictors.columnTypes = kinds;
+    AmplitudeSpec spec;
+    spec.mu.numTrees = 12;
+    spec.tau.numTrees = 8;
+    spec.z = z.data();
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 6161u);
+    {
+      Sampler<ConstantGaussianLeaf> sampler(
+        x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+        0.37804942330213542, options, spec, &rng);
+      sampler.run(120, 10, none);
+      SamplerStateData earlier, later, got;
+      sampler.getState(earlier);
+      bool taken = sampler.setPredictor(withMissing.data(), false, false) ==
+                   PredictorUpdateResult::accepted;
+      sampler.getState(later);
+      bool clean = installsClean(sampler, earlier);
+      sampler.getState(got);
+      bool drew = true;
+      for (const ForestStateData& forest : later.chains[0].forests)
+        drew = drew && numRight(forest.trees) > 0 &&
+               numRight(forest.savedTrees) > 0;
+      check(taken && clean && drew && samplerStatesAgree(got, later),
+            "missing record: on two forests the earlier state installs as "
+            "the state the update left");
+    }
+    ext_rng_destroy(rng);
+  }
+
+  rngState = savedRngState;
+  printf("ok: a state's record of the columns that could hold a missing "
+         "value\n");
 }
 
 // BCF two-forest sampler: creation, a short run moving both forests, sane
@@ -9171,6 +9486,7 @@ void runSamplerTests(ext_rng* rng) {
   testMissingEndToEnd();
   testSubsetRollbackMissingness();
   testMissingFirstSeen();
+  testStateMissingRecord();
   testLogLikelihood();
   testForestCalibration();
   testNamedSd();

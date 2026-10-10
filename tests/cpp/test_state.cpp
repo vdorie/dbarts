@@ -4984,24 +4984,12 @@ static void testStateStoreSizes() {
   }
   // one capacity is asked of a state across its chains and its mean forests:
   // a block holding another whole number of draws is refused in both forms
-  auto refusedUntouched = [&](auto& sampler, const SamplerStateData& state) {
-    SamplerStateData before, after;
-    sampler.getState(before);
-    bool notClean = true;
-    bool refused =
-      !sampler.setState(state, nullptr) &&
-      !sampler.setState(state, nullptr, nullptr, nullptr, keepStoreCapacity,
-                        false, &notClean) &&
-      !notClean;
-    sampler.getState(after);
-    return refused && samplerStatesAgree(before, after);
-  };
   {
     auto wide = make.operator()<Constant>(10, 13, 200, 2);
     SamplerStateData state;
     wide->getState(state);
     state.chains[1].forests[0].savedTrees.resize(4 * numTrees);
-    check(refusedUntouched(*wide, state),
+    check(refusesUntouched(*wide, state),
           "store sizes: a second chain holding another number of draws is "
           "refused, forced or not, the sampler untouched");
 
@@ -5025,7 +5013,7 @@ static void testStateStoreSizes() {
     shorter.chains[0].forests[1].savedTrees.resize(4 * 4);
     check(own.chains[0].forests[1].savedTrees.size() == 10 * 4 &&
             restoresExactly(twoForests, own) &&
-            refusedUntouched(twoForests, shorter),
+            refusesUntouched(twoForests, shorter),
           "store sizes: a second forest holding another number of draws is "
           "refused, forced or not, the sampler untouched");
   }

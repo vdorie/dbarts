@@ -3455,7 +3455,9 @@ public:
   /// draws in \p kept, oldest first, each draw's forests and then its variance
   /// trees: a saved draw was made given data under which no row reached a
   /// direction, so its conditional there is the prior too, and predict routes
-  /// a missing value through every saved draw. A column whose flag was
+  /// a missing value through every saved draw. A saved rule that splits the
+  /// missing value alone, which only another sampler's state can have put
+  /// there, keeps its direction (drawFlatMissingDirections). A column whose flag was
   /// already up must not be marked: its directions are the chain's state.
   /// Partitions and fits are left to the caller's refresh. \p record, when
   /// non-null, receives what swapMissingDirections needs to take the draw
@@ -3492,21 +3494,110 @@ public:
 
     std::size_t capacity = savedTreeCapacity();
     std::size_t count = std::min(kept.count, capacity);
+    bool pooled = data_.hasPooledCategorical;
     for (std::size_t i = 0; i < count; ++i) {
       std::size_t slot = (kept.first + i) % capacity;
       for (Forest<L, ResidT>& forest : forests_)
-        for (std::size_t t = 0; t < forest.numTrees; ++t)
+        for (std::size_t t = 0; t < forest.numTrees; ++t) {
+          std::size_t s = slot * forest.numTrees + t;
           drawFlatMissingDirections(
-            forest.savedTrees[slot * forest.numTrees + t].data(), data_,
-            raised, rng_, blocked.data(), onSavedChange);
+            forest.savedTrees[s].data(), data_, raised, rng_, blocked.data(),
+            pooled ? forest.savedTreeMasks[s].data() : nullptr, onSavedChange);
+        }
       if (varianceForest_) {
         VarianceForest& vf = *varianceForest_;
-        for (std::size_t j = 0; j < vf.numTrees; ++j)
+        for (std::size_t j = 0; j < vf.numTrees; ++j) {
+          std::size_t s = slot * vf.numTrees + j;
           drawFlatMissingDirections(
-            vf.savedTrees[slot * vf.numTrees + j].data(), data_, raised,
-            rng_, blocked.data(), onSavedChange);
+            vf.savedTrees[s].data(), data_, raised, rng_, blocked.data(),
+            pooled ? vf.savedTreeMasks[s].data() : nullptr, onSavedChange);
+        }
       }
     }
+  }
+
+  /// Whether drawFlatMissingDirections can walk every flat tree of \p state,
+  /// live and saved, mean and variance: each well formed, with a mask channel
+  /// where its block has one. It recurses by the records alone, with no
+  /// bound. A state that fails here fails stateIsValid.
+  bool flatTreesAreWalkable(const ChainStateData& state) const {
+    auto walkable = [&](const std::vector<std::vector<FlatNode>>& trees,
+                        const std::vector<std::vector<std::uint64_t>>& masks) {
+      if (!masks.empty() && masks.size() != trees.size()) return false;
+      for (std::size_t t = 0; t < trees.size(); ++t)
+        if (!flatTreeIsWellFormed(data_, trees[t].data(), trees[t].size(),
+                                  masks.empty() ? nullptr : masks[t].data(),
+                                  masks.empty() ? 0 : masks[t].size()))
+          return false;
+      return true;
+    };
+    for (const ForestStateData& fs : state.forests)
+      if (!walkable(fs.trees, fs.treeMasks) ||
+          !walkable(fs.savedTrees, fs.savedTreeMasks))
+        return false;
+    return walkable(state.varianceTrees, state.varianceTreeMasks) &&
+           walkable(state.savedVarianceTrees, state.savedVarianceTreeMasks);
+  }
+
+  /// Completes \p state, a copy of a state about to be installed, with the
+  /// directions it was stored without: \p raised marks the columns that
+  /// could hold no missing value where it was stored and can here, and every
+  /// rule on one takes a direction with probability one half, as the first
+  /// missing value would have given it (drawMissingDirections) and in that
+  /// order - the live trees by forest, the variance trees, then the draws
+  /// \p kept names in the state's own ring, oldest first. The coins are the
+  /// state's: its generator is read where its bytes are this chain's kind,
+  /// this chain's own position standing in where they are not, and \p state
+  /// leaves holding the bytes past the coins, which its install puts in
+  /// place. This chain's generator, and all else of it, is as it was on
+  /// every exit. Requires flatTreesAreWalkable and a state whose saved
+  /// blocks name one capacity (savedStateCapacity).
+  void completeMissingDirections(ChainStateData& state,
+                                 const std::uint8_t* raised,
+                                 SavedDrawSlots kept) {
+    struct GeneratorGuard {
+      ext_rng* rng;
+      std::vector<unsigned char> bytes;
+      explicit GeneratorGuard(ext_rng* rng)
+        : rng(rng), bytes(ext_rng_getSerializedStateLength(rng)) {
+        if (!bytes.empty()) ext_rng_writeSerializedState(rng, bytes.data());
+      }
+      ~GeneratorGuard() {
+        if (!bytes.empty()) ext_rng_readSerializedState(rng, bytes.data());
+      }
+    } own(rng_);
+    if (!own.bytes.empty() && state.rngState.size() == own.bytes.size())
+      ext_rng_readSerializedState(rng_, state.rngState.data());
+
+    std::vector<std::uint32_t> blocked(data_.numPredictors, 0);
+    auto unrecorded = [](FlatNode&, std::uint8_t) {};
+    auto draw = [&](std::vector<std::vector<FlatNode>>& trees,
+                    const std::vector<std::vector<std::uint64_t>>& masks,
+                    std::size_t first, std::size_t count) {
+      for (std::size_t t = first; t < first + count; ++t)
+        drawFlatMissingDirections(trees[t].data(), data_, raised, rng_,
+                                  blocked.data(),
+                                  masks.empty() ? nullptr : masks[t].data(),
+                                  unrecorded);
+    };
+    for (ForestStateData& fs : state.forests)
+      draw(fs.trees, fs.treeMasks, 0, fs.trees.size());
+    draw(state.varianceTrees, state.varianceTreeMasks, 0,
+         state.varianceTrees.size());
+    std::size_t capacity = forests_[0].numTrees == 0
+      ? 0 : state.forests[0].savedTrees.size() / forests_[0].numTrees;
+    for (std::size_t i = 0; i < kept.count; ++i) {
+      std::size_t slot = (kept.first + i) % capacity;
+      for (std::size_t f = 0; f < forests_.size(); ++f)
+        draw(state.forests[f].savedTrees, state.forests[f].savedTreeMasks,
+             slot * forests_[f].numTrees, forests_[f].numTrees);
+      if (varianceForest_)
+        draw(state.savedVarianceTrees, state.savedVarianceTreeMasks,
+             slot * varianceForest_->numTrees, varianceForest_->numTrees);
+    }
+    state.rngState.resize(own.bytes.size());
+    if (!own.bytes.empty())
+      ext_rng_writeSerializedState(rng_, state.rngState.data());
   }
 
   /// Exchanges the two sides of a first-sight draw: taken back when the draw

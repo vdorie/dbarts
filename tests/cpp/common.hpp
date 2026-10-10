@@ -136,13 +136,14 @@ static void checkStructuralRoundTrip(const SamplerStateData& saved,
 }
 
 // Whether two reads of a sampler's state are one sampler: its chains,
-// generators, latents and kept draws (statesAgree), its cut grid and its
-// store's write position.
+// generators, latents and kept draws (statesAgree), its cut grid, its
+// store's write position and the columns that can hold a missing value.
 static inline bool samplerStatesAgree(const SamplerStateData& a,
                                       const SamplerStateData& b) {
   return statesAgree(a, b) && a.cutPoints == b.cutPoints &&
          a.cutMass == b.cutMass && a.currentSampleNum == b.currentSampleNum &&
-         a.recordedDraws == b.recordedDraws;
+         a.recordedDraws == b.recordedDraws &&
+         a.missingColumns == b.missingColumns;
 }
 // Installs a state without force and then with it, and returns whether the
 // two answers are one: the unforced call takes the state exactly when the
@@ -207,6 +208,22 @@ static bool declinesUntouched(S& sampler, const SamplerStateData& state,
                      keepStoreCapacity, false, &notClean);
   sampler.getState(after);
   return !installed && notClean && samplerStatesAgree(before, after);
+}
+// Whether both forms of an install refuse a state, without a verdict, and
+// leave the sampler as it was. The flag is preset up, so a decline fails.
+template <typename S>
+static bool refusesUntouched(S& sampler, const SamplerStateData& state,
+                             const double* currentPredictors = nullptr) {
+  SamplerStateData before, after;
+  sampler.getState(before);
+  bool notClean = true;
+  bool refused =
+    !sampler.setState(state, currentPredictors) &&
+    !sampler.setState(state, currentPredictors, nullptr, nullptr,
+                      keepStoreCapacity, false, &notClean) &&
+    !notClean;
+  sampler.getState(after);
+  return refused && samplerStatesAgree(before, after);
 }
 // Whether an install without force takes a state, as one that needs no
 // repair; the flag is preset up, so an install that never writes it fails.

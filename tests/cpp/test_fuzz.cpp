@@ -421,9 +421,11 @@ static constexpr size_t fuzzBurnIn = 12;
 // What OP_STATE's installs of an earlier state came to over the run: taken as
 // stored, declined without force and repaired with it, or refused. The
 // summary line prints the three so that a run whose earlier states never
-// needed a repair cannot pass for one that tested the verdict.
+// needed a repair cannot pass for one that tested the verdict. completed
+// counts the ones read before a column the sampler has since seen missing,
+// whose install draws the directions they lack.
 static struct {
-  size_t clean = 0, repaired = 0, refused = 0;
+  size_t clean = 0, repaired = 0, refused = 0, completed = 0;
 } fuzzEarlierStates;
 
 // The op loop, generic over the leaf model so the linear-leaf configuration
@@ -760,11 +762,25 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
         // agree on it. The sampler is then put back, so the stream of ops
         // that follows is the one it was.
         if (ok && !earlier.chains.empty()) {
+          bool completes = false;
+          if (earlier.missingColumns.size() == st.missingColumns.size())
+            for (size_t j = 0; j < st.missingColumns.size(); ++j)
+              completes = completes ||
+                (st.missingColumns[j] != 0 && earlier.missingColumns[j] == 0);
+          fuzzEarlierStates.completed += completes ? 1 : 0;
           if (!verdictMatchesInstall(s, earlier, curAll(), installed, altered))
             fail("an earlier state: the unforced verdict and the forced "
                  "install disagree");
           else if (installed && !s.setState(st, curAll()))
             fail("setState refused own state after an earlier one");
+          // the directions drawn for it never make a state one to refuse:
+          // refused, it is refused as stored too
+          if (ok && completes && !installed) {
+            SamplerStateData asStored(earlier);
+            asStored.missingColumns.clear();
+            if (s.setState(asStored, curAll()))
+              fail("an earlier state completed to one that is refused");
+          }
           ++(!installed ? fuzzEarlierStates.refused
                         : altered ? fuzzEarlierStates.repaired
                                   : fuzzEarlierStates.clean);
@@ -2067,12 +2083,13 @@ static void testMutationFuzzer(int numSeeds) {
     fuzzRunLinear(seed, numOps);
     fuzzRunSparse(seed, numOps);
   }
-  check(fuzzEarlierStates.clean > 0 && fuzzEarlierStates.repaired > 0,
-        "fuzz: earlier states installed both as stored and repaired");
+  check(fuzzEarlierStates.clean > 0 && fuzzEarlierStates.repaired > 0 &&
+          fuzzEarlierStates.completed > 0,
+        "fuzz: earlier states installed as stored, repaired and completed");
   printf("ok: mutation fuzzer (%d seeds; earlier states %zu clean, %zu "
-         "repaired, %zu refused)\n",
+         "repaired, %zu refused, %zu completed)\n",
          numSeeds, fuzzEarlierStates.clean, fuzzEarlierStates.repaired,
-         fuzzEarlierStates.refused);
+         fuzzEarlierStates.refused, fuzzEarlierStates.completed);
 }
 
 void runFuzzTests(int numSeeds) {
