@@ -295,9 +295,10 @@ items
     dataset's, and 5 to 10 percent hold a count the package refuses.
     A redesigned study (the criterion fixed first and in absolute
     terms, count data with wide spreads, chains long enough for k to
-    mix, candidates beyond the prior on k) is not scheduled; whether it
-    runs before 1.0-0 is the maintainer's to say. The study's design
-    note is to be written from scratch/nbpp/.
+    mix, candidates beyond the prior on k) runs before 1.0-0, after the
+    merge to main (dec-B432, VD 2026-10-10); a change of default comes
+    back to the maintainer. The first study's design note is to be
+    written from scratch/nbpp/.
   per-chain-responses: for VD to schedule (dec-B419, VD 2026-10-09;
     note docs/design/per-chain-responses.md). Responses and offsets
     held per chain so one sampler holds every chain of a larger Gibbs
