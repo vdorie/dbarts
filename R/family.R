@@ -587,10 +587,10 @@ withResidPrior <- function(family, residPrior) {
 ## the estimate with the square root of the fixed variance - so a 'sigest'
 ## beside one is refused when it differs from that square root. One that
 ## equals it is accepted with a message, once per session, and is an error
-## from the tombstone expiry whatever its value. 0.9-34's dbarts() took
-## 'sigma' as the fixed residual scale and ignored fixed()'s value, so a
-## loop that wrote the two equal ran at the intended scale; a differing
-## 'sigma' ran at 'sigma', which the refusal now catches.
+## from the tombstone expiry whatever its value. 0.9-34 documented no fixed
+## residual prior; reached internally, it stopped sigma being drawn, so the
+## chain sat at its starting value, 'sigma', and loops that wrote the two
+## equal ran at the intended scale.
 ## "Equals" is within 4 machine epsilons, relative to sqrt(fixed variance),
 ## not exact: sqrt is correctly rounded, so a caller who writes sqrt(v)
 ## matches exactly, but one who writes 0.3 beside fixed(0.09) is off by an

@@ -318,10 +318,9 @@
             \code{dbartsSigmaFallbackWarning},
             \code{dbartsSparseSigmaFallbackWarning} and
             \code{dbartsGPFallbackWarning}). Every other warning is an
-            ordinary one. 0.9-34's \code{dbarts} took \code{sigma} as
-            the fixed residual scale and ignored the value given to
-            \code{fixed}; a \code{sigest} (or \code{sigma}) beside
-            \code{sigma = fixed(value)} is now refused when it differs
+            ordinary one. A fixed residual scale,
+            \code{sigma = fixed(value)}, is new; a \code{sigest} (or
+            \code{sigma}) beside it is refused when it differs
             from the square root of \code{value}, and accepted with a
             message when it equals it, until 1.1-0.
       \item Draws a sampler has saved (\code{keepTrees}) keep their
