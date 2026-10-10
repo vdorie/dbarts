@@ -252,7 +252,9 @@ typedef struct dbarts_results_t {
   double* train;      ///< numObservations x F x numSamples x numChains
   double* test;       ///< numTestObservations x F x numSamples x numChains
   uint32_t* varcount; ///< numPredictors x V x numSamples x numChains
-  double* k;          ///< numSamples x numChains
+  /// numSamples x numChains; relative to the data's scale however the leaf
+  /// prior is written, so under a named sd it is that scale over the spread
+  double* k;
   double* varprobs;   ///< numPredictors x numSamples x numChains
   double* logLikelihood; ///< numObservations x numSamples x numChains
   double* shape;    ///< numSamples x numChains, the nbinom r per draw

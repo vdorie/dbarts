@@ -81,10 +81,17 @@
       from a normal \eqn{\sqrt{\pi / (\pi - 1)}}{sqrt(pi / (pi - 1))} times
       as wide, truncated to the ordering, which matches its marginal prior
       variance to \code{sd^2}, and \code{sd} is a lower bound on the prior
-      sd of \eqn{f(x)} in the interior. A named \code{sd} is absolute: a
-      sampler restates it after every channel that re-anchors the response
-      transform (see \code{\link{dbartsSampler-class}}), where a \code{k}
-      moves with the data. It is refused on multinomial and multi-forest
+      sd of \eqn{f(x)} in the interior. A named \code{sd} is absolute, and
+      is another way of writing \code{k}: the sampler runs \code{sd = s} as
+      \code{k = k.scale / s} against the table's \code{k.scale}, and
+      \code{sd = invchi(df, s)} as \code{k = chi(df, k.scale / s)} started
+      at \code{k.scale / s}, and restates either whenever the response
+      transform is re-anchored (see \code{\link{dbartsSampler-class}}), so
+      the sd, or the prior on it, keeps its meaning where a \code{k} moves
+      with the data. A drawn sd's current value lags at a re-anchor until
+      its next draw, as a drawn \code{k} does. The \code{k.scale} a sampler
+      or a fit reports is the table's, however the prior was written. It is
+      refused on multinomial and multi-forest
       models (whose spreads come from their calibration maps, the latter
       stated through \code{\link{forest}(sd = )}, a different quantity),
       and on a hurdle fit, whose two parts are on different scales.
