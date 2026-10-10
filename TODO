@@ -324,14 +324,18 @@ items
     Factors enter the regression as indicators (dec-B422); the rank
     band is dec-B421. A design whose dense form lm.fit handles in about
     a second and 200 MB takes lm.fit whatever its storage; the sparse
-    routine serves larger ones up to m 2000 (m the smaller of n and p +
-    1), a zero-filled column beside its missing indicator re-centered
-    first (dec-B427, VD 2026-10-10); above m 2000 the starting sigma is
-    sd(y) and no iterative solver is built (dec-B428, VD 2026-10-10,
-    revising dec-B426; docs/design/starting-sigma-sensitivity.md).
-    A starting sigma taken from sd(y), for want of residual degrees of
-    freedom or above the cutoff, is printed under verbose and shown in
-    a line of the summary; no warning (dec-B429, VD 2026-10-10).
+    routine serves larger ones, a zero-filled column beside its missing
+    indicator re-centered first (dec-B427, VD 2026-10-10). The
+    regression runs whenever the design, factors expanded, leaves
+    residual degrees of freedom, at any size; otherwise sd(y); no cost
+    cutoff and no iterative solver; the help says the estimate can be
+    slow or fail to allocate on a very large sparse design and names
+    alternatives to pass as sigest; xbart's sigest may be a function
+    called per fold (dec-B433, VD 2026-10-10, revising dec-B426 and
+    dec-B428; docs/design/starting-sigma-sensitivity.md).
+    A starting sigma taken from sd(y) is printed under verbose and
+    shown in a line of the summary; no warning (dec-B429, VD
+    2026-10-10).
     The sparse routine's last digit may follow the BLAS and its thread
     count; the help says a seeded fit reproduces at a fixed BLAS and
     thread count (dec-B430, VD 2026-10-10).
