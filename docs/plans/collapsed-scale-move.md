@@ -1,10 +1,11 @@
 # collapsed-scale-move: the collapsed rescaling move for a drawn k under logistic and probit
 
-Status: FOR DECISION 2026-10-09; revised from its blind critique (scratch/cmp/critique.md). Nothing is
-built. Neither half is ruled: dec-B404 builds the logistic move before 1.0-0 "if a drawn k is kept", and
-the k study that bears on that ([binary-k-fixed-or-drawn.md](../design/binary-k-fixed-or-drawn.md), a
-FINDING) has not yet been brought to the maintainer. Four calls are open ([Open calls](#open-calls)): the
-logistic half, the probit half, a switch, and negative binomial.
+Status: FOR DECISION 2026-10-09; revised from its blind critique (scratch/cmp/critique.md) and from the
+maintainer's notes on the revision. Nothing is built. The logistic half is RULED: dec-B404 builds the
+logistic move before 1.0-0 if a drawn k is kept, and dec-B420 keeps a drawn k under chi(1.5, 2) for both
+links ([binary-k-fixed-or-drawn.md](../design/binary-k-fixed-or-drawn.md)). Three calls stay open
+([Open calls](#open-calls)): the probit half, which waits on the large-n reading, a switch, and negative
+binomial.
 
 agent: opus implementer, one; one opus reviewer who runs the mutants under [Mutants](#mutants). The blind
 critique ran and is answered here.
@@ -14,8 +15,8 @@ unchanged by construction and the exact gate is what shows it. NEUTRAL, bit for 
 ([Scope](#scope)).
 window: before 1.0-0 (dec-B404); after response-scale-rows in the engine order of dec-A191; engine slices
 stay serial. The probit and switch calls wait on the early measurements (step 7 of
-[Order of work](#order-of-work)).
-budget: planned ~1300 lines, ~1950 to ~2600 at the usual overrun; the probit half ~150 of them. Stops:
+[Order of work](#order-of-work)), the probit call above all on their large cells.
+budget: planned ~1330 lines, ~2000 to ~2660 at the usual overrun; the probit half ~170 of them. Stops:
 [Budget and stops](#budget-and-stops).
 
 ## Summary for the maintainer
@@ -26,20 +27,19 @@ sizes users fit. The probit step built on 2026-10-09 cannot help logistic. This 
 survey measured: every leaf multiplied by one factor and k divided by it, the factor drawn from the
 binary likelihood with the latent variables averaged out, then the latent variables drawn again. It is
 exact and runs on about one iteration in four. On the survey's small census it took logistic's 99th
-percentile of k's autocorrelation time from about 23,000 iterations to 115. Whether it also converges k
-at the sizes the k study ran (500 rows, 75 trees) is measured early, before you are asked to rule on the
-probit half.
+percentile of k's autocorrelation time from about 23,000 iterations to 115. You ruled that binary fits
+keep a drawn k (dec-B420), so this half is built.
 
-What is yours to decide:
-1. Build the logistic half at all: dec-B404 builds it if you keep a drawn k, which the k study
-   recommends.
-2. The probit half, beside the built step: there it cut the remaining slow tail about five times
-   (99th percentile 879 to 160) for 12 to 15 percent more time per iteration on a loaded laptop, with a
-   faster likelihood routine than the first build will use; expect 17 to 22 percent before that routine
-   is restored. The x86 figures come first, then the ruling.
-3. Whether the move has an off switch. The built step has none, but it costs 0 to 3 percent; this one
+What is still yours to decide:
+1. The probit half, beside the built step: on the survey's small datasets it cut the remaining slow tail
+   about five times (99th percentile 879 to 160) for 12 to 15 percent more time per iteration, measured
+   on a loaded laptop with the same fast likelihood routine the build will use. The survey's largest
+   test, 5,000 rows, gained up to two times or nothing. Before you rule, the plan measures fits of 10,000
+   and 50,000 rows with 200 trees: what the move costs there and what it buys. If it buys nothing there,
+   it can be switched off above a size, or taken less often at large sizes.
+2. Whether the move has an off switch. The built step has none, but it costs 0 to 3 percent; this one
    costs several times that.
-4. Negative binomial: recommended to wait for its prior study.
+3. Negative binomial: recommended to wait for its prior study.
 
 ## Goal
 
@@ -60,7 +60,8 @@ maintainer asks for a switch (open call 3).
   this branch).
 - The k study: [binary-k-fixed-or-drawn.md](../design/binary-k-fixed-or-drawn.md) (fixed k is not good
   enough; logistic's k unconverged at every length tried, split-Rhat 1.41 to 1.64 at the probe length;
-  probit's at n = 500 and 75 trees too, 1.12 to 1.21). Not yet ruled on.
+  probit's at n = 500 and 75 trees too, 1.12 to 1.21). Ruled on as dec-B420: a drawn k under
+  chi(1.5, 2) is kept for both links.
 - Logistic and negative binomial mixing: [k-mixing-pg-families.md](../design/k-mixing-pg-families.md).
 - The built step: [probit-k-scale-move.md](../design/probit-k-scale-move.md) and its
   plan [probit-k-scale-move.md](probit-k-scale-move.md); in code [`Chain::drawForestRescale`](../../src/bartcore/chain.hpp),
@@ -79,7 +80,8 @@ maintainer asks for a switch (open call 3).
   [`ProbitResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) (through `Rf_pnorm5` on the log
   scale) and [`LogisticResponse::computeLogLikelihood`](../../src/bartcore/model.hpp) (through
   [`logOnePlusExp`](../../src/bartcore/model.hpp)).
-- Rulings: dec-B404 (the logistic move, built if a drawn k is kept), dec-B415 (the survey), dec-B371 and
+- Rulings: dec-B404 (the logistic move, built if a drawn k is kept), dec-B420 (a drawn k kept under
+  chi(1.5, 2) for both links, so the logistic move is built), dec-B415 (the survey), dec-B371 and
   dec-B394 (the probit step and its switch), dec-B397 (no switch for the built step, ruled on its 0 to 3
   percent cost; an engine toggle for tests only), dec-A190 (the probit-k SBC arm at thin 700 "for now";
   "We'll revisit everything k-related as we gather the evidence."), dec-A191 (the engine order), dec-B412
@@ -112,8 +114,23 @@ so it cannot underflow to zero at a small k and leave the slice an improper targ
 How the latents leave: under probit the integral of N(z; eta, 1) over s z > 0 is Phi(s eta); under
 logistic the Polya-Gamma identity (Polson, Scott and Windle 2013) integrates omega ~ PG(w, 0) out of
 exp(kappa eta - omega eta^2 / 2) 2^-w, kappa = w (y - 1/2), to exactly the binomial likelihood above. No
-approximation enters; the conditional is evaluated with the likelihood itself. Both per-row forms stay
-finite at large r (`Rf_pnorm5` on the log scale and `logOnePlusExp` are overflow-safe).
+approximation enters; the conditional is evaluated with the likelihood itself.
+
+The probit evaluator. log Phi is evaluated from the start by the erfc form with an asymptotic tail, the
+form the survey's costs were measured with, not by `Rf_pnorm5`, which the critique's microbenchmark put at
+24.8 ns a row against the erfc form's 16.1 (1.5 times slower) and which would make the slice's 6 to 10
+passes, most of the move's cost, half again as dear. With x = s_i eta_i:
+- x >= 0: log1p(-0.5 erfc(x / sqrt 2)), so a probability near 1 keeps its relative accuracy (the
+  prototype's log(0.5 erfc(-x / sqrt 2)) loses it there: at x = 8 it is several percent off);
+- -37 < x < 0: log(0.5 erfc(-x / sqrt 2)), finite to x = -37 (erfc underflows near -38);
+- x <= -37: -x^2 / 2 - log(sqrt(2 pi)) - log(-x) + log1p(t), t the asymptotic series
+  -1/x^2 + 3/x^4 - 15/x^6 + ... carried until a term falls below 1e-17 (seven terms at x = -37; the
+  prototype's three leave an error near 1e-8 in log Phi there, far outside the tolerance below).
+It must agree with `Rf_pnorm5(x, 0, 1, 1, 1)` within 1e-14 relative on a grid of x from -60 to 40 and at
+each branch's edges (tests/cpp 1). `ProbitResponse::computeLogLikelihood`, which a fit reports, keeps
+`Rf_pnorm5`; the move's evaluator and it then differ in the last bits, which leaves the move exact to
+floating point and no reported value changed. Logistic needs no such form: its per-row term through
+[`logOnePlusExp`](../../src/bartcore/model.hpp) is already cheap. Both stay finite at large r.
 
 The draw. The conditional has no closed form and log p is not concave in v in general (a row with
 s_i f_i > 0 contributes a locally convex term), so neither an exact inverse nor adaptive rejection
@@ -144,8 +161,8 @@ moves k and the leaves together as the prior allows.
 What the prototype got wrong or left out, so the build does not copy it: probit declined under a mask;
 logistic ignored the count weights and the mask; nothing declined under an infinite scale (the slice
 wandered an improper conditional); the schedule was an environment variable with a counter that
-setResponse reset; and the signs were read from the latents or the working response, not from y. Its
-probit evaluator was an erfc-based log Phi, faster than `Rf_pnorm5` (below).
+setResponse reset; the signs were read from the latents or the working response, not from y; and its
+erfc-based log Phi lost accuracy near Phi = 1 and in its three-term tail (fixed above).
 
 ## Where it runs
 
@@ -251,10 +268,10 @@ proposals, cited by symbol once landed):
   `virtual double logLikelihoodAtScaledFits(const double* fits, double factor) const`: the sum over active
   rows, in row order, of the row's log-likelihood at factor * f_i + o_i. `LogisticResponse`'s uses the
   per-row expression of its `computeLogLikelihood`, count weights as multipliers, so the two agree bit for
-  bit. `ProbitResponse`'s (the probit half) starts on `Rf_pnorm5`, as its `computeLogLikelihood` does, and
-  may move to an erfc-based log Phi at step 7 (below). The base returns NaN, unreachable past the predicate
-  (as `scaleLatents`' base refuses). The redraw is the family's existing `refreshLatents` at the combined
-  fits.
+  bit. `ProbitResponse`'s (the probit half) uses the erfc form of [The move](#the-move), within 1e-14
+  relative of its `computeLogLikelihood`, which keeps `Rf_pnorm5`. The base returns NaN, unreachable past
+  the predicate (as `scaleLatents`' base refuses). The redraw is the family's existing `refreshLatents`
+  at the combined fits.
 - After the move `runSweeps` re-reads its working-response and weight pointers, as it does after the
   sweep's own refresh (they are stable today; re-reading keeps the invariant local).
 - No facade virtual, nothing in dbarts.h, no bridge, no state-format change; `--preclean` on every engine
@@ -299,8 +316,9 @@ a mask, two or more trees and a stranded nonzero empty leaf; the logistic one al
 Reference constants (nu, C, the per-row terms) come from the raw state: y, the offset, the mask, the
 counts, the leaves re-summed in tree order and the k prior, never the move's own code.
 1. Evaluator: `logLikelihoodAtScaledFits(f, a)` equals the row-order sum of `computeLogLikelihood` at a f
-   over active rows at several a, per link: bitwise for logistic, and for probit bitwise on `Rf_pnorm5`
-   or within 1e-14 relative on the erfc form. Again after `setResponse` with a new y and after `setData`
+   over active rows at several a, per link: bitwise for logistic, within 1e-14 relative for probit; and
+   probit's per-row log Phi against `Rf_pnorm5(x, 0, 1, 1, 1)` within 1e-14 relative on a grid of x from
+   -60 to 40 and on each side of x = 0 and x = -37. Again after `setResponse` with a new y and after `setData`
    with new rows, so the evaluator reads the response model's current y (the prototype's sign-source bug).
 2. Conditional, in invariance form (a slice step from a fixed point is not a draw from the target): per
    replication draw v0 from the frozen state's target by inverse-CDF quadrature, move the frozen state to
@@ -321,8 +339,8 @@ counts, the leaves re-summed in tree order and the k prior, never the move's own
    are not r z (redrawn).
 5. Inertness: toggle off, fixed k, an infinite scale, k infinite, a stale map, gaussian, negative binomial,
    ordinal, a two-forest fit and a linear leaf consume no generator draw (the next uniform unchanged); an
-   eligible sweep whose coin says no consumes exactly one. A tiny k (1e-170, whose square underflows) under a finite
-   scale is eligible and its move finite.
+   eligible sweep whose coin says no consumes exactly one. A tiny k (1e-170, whose square underflows)
+   under a finite scale is eligible and its move finite.
 6. The coin: `maybeDrawCollapsedRescale` called 4000 times on an eligible frozen state moves on a share
    within 4.5 binomial sd of 1/4.
 7. Every chain: on a two-chain sampler each chain's k differs from a toggle-off twin after 50 sweeps.
@@ -352,21 +370,17 @@ Run before review (step 7 of [Order of work](#order-of-work)), on the engine of 
 copy whose toggle default is flipped off (a second private library from an uncommitted patch). They feed
 the maintainer's calls; review does not start until they are in.
 
-1. **Cost on the x86 box.** The survey's costs came from a laptop at load 20 to 40, with the prototype's
-   erfc-based log Phi, and logistic's was never measured. The critique's microbenchmark puts `Rf_pnorm5`
-   at 24.8 ns a row against the erfc form's 16.1, 1.5 times slower; since the slice's 6 to 10 evaluations
-   are most of the move's cost, the probit figure the survey gave (every fourth sweep 1.15 at 150 rows and
-   50 trees, 1.12 at 5000 and 200) is expected at about 1.17 to 1.22 on `Rf_pnorm5`, near stop 4. The
-   method is the built step's: per-sweep time of the slice's build over the flipped copy, both restored
-   from one stored state before every timed segment, ten interleaved repetitions in alternating order,
-   one chain, one thread; median ratio and range, on the idle box (`scratch/x86-box start`, stopped
-   after). Cells: 150 rows and 50 trees, then n in {500, 2000, 5000, 20000} by trees in {75, 200}; probit
-   (both moves against the built step alone) and logistic. The ratio includes the coin, so it is the
-   average cost; one move costs (ratio - 1) / 0.25. If any probit cell passes 1.15, `ProbitResponse`'s
-   evaluator moves to the erfc form with the asymptotic tail (the prototype's), checked against
-   `Rf_pnorm5` to 1e-14 relative over the rows' range (tests/cpp 1 then compares within that), and the
-   probit cells are timed again. The table, both log Phi forms where both ran, goes to the maintainer with
-   open calls 2 and 3. The maintainer's ruling on the probit half waits on it.
+1. **Cost on the x86 box.** The survey's costs came from a laptop at load 20 to 40, and logistic's was
+   never measured. The survey timed the same erfc form of log Phi the build uses, so its probit figures
+   stand as the expectation: every fourth sweep 1.15 at 150 rows and 50 trees and 1.12 at 5000 rows and
+   200 trees, 12 to 15 percent. The method is the built step's: per-sweep time of the slice's build over
+   the flipped copy, both restored from one stored state before every timed segment, ten interleaved
+   repetitions in alternating order, one chain, one thread; median ratio and range, on the idle box
+   (`scratch/x86-box start`, stopped after). Cells: 150 rows and 50 trees; n in {500, 2000, 5000, 20000}
+   by trees in {75, 200}; and the large cells of measurement 4 (10,000 and 50,000 rows, 200 trees, both
+   signals), timed in segments of 100 sweeps; probit (both moves against the built step alone) and
+   logistic. The ratio includes the coin, so it is the average cost; one move costs (ratio - 1) / 0.25.
+   The table goes to the maintainer with open calls 2 and 3; the probit ruling waits on it.
 2. **The sizes the k study ran** (pre-registered here). [binary-hyperprior.R](../../benchmarks/R/binary-hyperprior.R)
    at the k study's probe length (`BINARY_HYPERPRIOR_CHAINS=8`, `BINARY_HYPERPRIOR_BURN=8000`,
    `BINARY_HYPERPRIOR_DRAWS=8000`), the incumbent arm only (`BINARY_HYPERPRIOR_ARMS="chi(1.5, 2)"`), four
@@ -388,6 +402,40 @@ the maintainer's calls; review does not start until they are in.
    with-move error over hosts and seeds, times 1.5, is below the smallest error without it; the quick bound
    is then set at the geometric mean of those two and the full bound likewise from full runs. Not
    separated is stop 8.
+4. **Large fits** (pre-registered here). The worry is a per-sweep tax on every default probit fit that
+   buys nothing at large n: the survey's largest test, 5000 rows and 200 trees with one dataset a cell,
+   gained up to two times or nothing, and n = 500 or 2000 are not large fits.
+   - Data: the survey's largen.R generator, 10 uniform predictors, eta = a (2 sin(pi x1 x2) +
+     2 (x3 - 0.5)^2 + x4 - 1), y = 1{eta + e > 0} with e from the link's own noise (normal for probit,
+     logistic for logistic), a set per link so the sign of eta matches y on about 90 percent of rows
+     (near-separated) or about 76 percent (moderate), the survey's two signals; the realized share is
+     reported.
+   - Cells: n in {10,000, 50,000} by the two signals by the two links, 200 trees, the default chi(1.5, 2),
+     one chain, one thread; two datasets a cell (seeds 1 and 2); each with the move and on the flipped
+     copy (probit: both moves against the built step alone; logistic: the move against none). A 20,000-row
+     cell is added for a link only if the reading below finds 10,000 paying and 50,000 not, to place the
+     boundary.
+   - Length: 5,000 sweeps of burn-in and 40,000 recorded at thin 10, in chunks of 500 kept draws so that
+     no run holds more than 500 draws of 50,000 fitted values; per chunk k and the mean training fit are
+     kept. A cell whose tau(k) without the move passes 1,000 sweeps is rerun at 120,000 recorded.
+   - Measured per cell, as geometric means over its two datasets: the gain, tau without the move over tau
+     with it (Geyer's estimate, as the mixing script's), for k and for the mean fit; the cost ratio from
+     measurement 1 at the same cell; and the net, gain over cost ratio, effective draws per second with
+     the move over without.
+   - Reading, fixed now: a cell buys nothing when the gain is below 1.25 for k and below 1.1 for the mean
+     fit while its cost ratio is above 1.03; it pays when either net is at least 1.
+   - Decision rule for the probit half (open call 2): every large cell pays, include it as planned; the
+     large cells buy nothing while the census and the survey's 5000-row cells gained, include it with one
+     of the two large-n options of open call 2, the threshold at the smallest measured size whose cells
+     buy nothing at both signals; near-separated cells pay and moderate ones buy nothing, the frequency
+     option is the better fit (the size cannot see the signal). The same reading is reported for
+     logistic: its move is ruled, but where it buys nothing at large n the same option is put to the
+     maintainer for it too.
+   - Compute: about 6 ms a sweep at 10,000 rows and 30 ms at 50,000 under probit (the survey's 2.55 ms at
+     5000 rows and 200 trees, scaled), half again under logistic; 45,000 sweeps a run make 4.5 to 34
+     minutes; 8 cells, 2 datasets and 2 builds come to about 9 core-hours, 4.5 hours on two laptop cores
+     (tau is in sweeps, so the laptop's load does not bias it). Their x86 timing adds about 30 minutes of
+     the box to measurement 1.
 
 ## Gates
 
@@ -528,6 +576,8 @@ Each must fail a named test or gate:
 17. The helper extraction reordering the built step's draws: chik's bitwise compare.
 18. A schedule counter in place of the coin, not stored: the continuation arms.
 19. A decline added for every row inactive: tests/cpp 9.
+20. The erfc form's x >= 0 branch as log(0.5 erfc(-x / sqrt 2)), or its tail cut to the prototype's three
+    terms: tests/cpp 1's grid.
 
 Read, not run: the likelihood sum stays a scalar loop in row order, and the move's refresh sits outside the
 armed cancel window.
@@ -538,8 +588,8 @@ Planned lines by part (the probit half's share in parentheses), with the usual o
 
 | part | planned | at 1.5x to 2x |
 |---|---|---|
-| engine (chain.hpp, model.hpp) | 180 (30) | 270 to 360 |
-| tests/cpp (test_ensemble.cpp, test_peer.hpp) | 420 (80) | 630 to 840 |
+| engine (chain.hpp, model.hpp) | 195 (45) | 290 to 390 |
+| tests/cpp (test_ensemble.cpp, test_peer.hpp) | 430 (90) | 645 to 860 |
 | tinytest | 125 (15) | 190 to 250 |
 | exact gate script | 110 (0) | 165 to 220 |
 | mixing script | 70 (0) | 105 to 140 |
@@ -547,12 +597,14 @@ Planned lines by part (the probit half's share in parentheses), with the usual o
 | equivalence scenario | 30 (0) | 45 to 60 |
 | design note, architecture, NEWS, README sections, TODO, indexes | 255 (25) | 380 to 510 |
 | records (MANIFEST row, ledger, landing note) | 40 (0) | 60 to 80 |
-| total | ~1300 (~150) | ~1950 to ~2600 |
+| total | ~1330 (~175) | ~2000 to ~2660 |
 
-A switch (open call 3) adds about 120 planned lines. The re-recorded baseline is data. Compute: two
+A switch (open call 3) adds about 120 planned lines; a large-n option for the probit half (open call 2)
+about 40 to 45. The re-recorded baseline is data. Compute: two
 censuses (30 to 40 minutes each), two truth runs (about 5 and 7 minutes), the gate in full (perhaps an hour
-for logistic), a local logistic-k SBC smoke at R = 100, the pre-registered cells (about 1.5 hours of two
-cores), and the x86 cells (cost and the gate bound, about three hours of the box).
+for logistic), a local logistic-k SBC smoke at R = 100, the pre-registered n = 500 cells (about 1.5 hours
+of two cores), the large cells (about 4.5 hours of two cores), and the x86 cells (cost, the large cells'
+timing and the gate bound, about three and a half hours of the box).
 
 Stop and report, without working around, when (1 to 6 and 8 pre-registered here):
 1. The exact gate fails with the move (any |z| > 4.5, or a pure arm's error above its full bound) after one
@@ -563,10 +615,10 @@ Stop and report, without working around, when (1 to 6 and 8 pre-registered here)
    sampler's state copy, a reset rule; about 80 lines in files the k-internal and setState slices
    rewrite), outside this plan: it returns to the maintainer.
 3. Start-from-truth passes |z| 3 at R = 2000 on either link.
-4. On the x86 box, after the log Phi remedy, any probit cell's ratio passes 1.20 or any logistic cell's
+4. On the x86 box any probit cell's ratio passes 1.20 or any logistic cell's
    passes 1.25.
 5. An equivalence scenario other than the expected movers moves, or a snapshot moves.
-6. The diff passes 2600 lines, or one part passes twice its planned line.
+6. The diff passes 2660 lines, or one part passes twice its planned line.
 7. After landing: the confirmation matrix flags k on probit-k or logistic-k (an end bin above 45 or a
    chi-square p below 0.01); it is investigated before anything else k-related lands.
 8. The logistic gate's with-move and without-move errors are not separated on both hosts (early
@@ -575,25 +627,24 @@ Stop and report, without working around, when (1 to 6 and 8 pre-registered here)
 
 ## Order of work
 
-0. The maintainer rules open call 1 (the logistic half); nothing starts before it. Open call 4 may be
-   ruled with it.
 1. Branch off origin/bartcore at a green engine tip carrying response-scale-rows.
 2. Extract the leaf, k and cache helper from `drawForestRescale`; tests/cpp; the reference-build partition
    all bitwise; commit (neutral).
 3. The logistic half: constants, toggle, predicate, coin, move, `LogisticResponse`'s evaluator; tests/cpp
    for logistic, plain and sanitized; commit.
-4. The probit half, as its own commit: `ProbitResponse`'s evaluator on `Rf_pnorm5`, the family in the
+4. The probit half, as its own commit: `ProbitResponse`'s evaluator in the erfc form, the family in the
    predicate, tests/cpp for probit and 8. It stays on the branch until open call 2 is ruled, and is
    dropped before review if the maintainer rules it out.
 5. tinytest; `--preclean`; full suite; commit.
 6. The exact gate's logistic arms, timed; commit.
-7. Early measurements 1 to 3, on the step-6 engine and its flipped copy; the erfc log Phi if measurement 1
-   calls for it, its own commit. Results to the maintainer with open calls 2 and 3; review waits for them,
-   and the box's availability sets when this step ends.
+7. Early measurements 1 to 4, on the step-6 engine and its flipped copy. Results to the maintainer with
+   open calls 2 and 3; review waits for them, and the box's availability sets when this step ends.
 8. The mixing script's fix and link argument; census and truth on both links; commit (outputs stay in
    scratch).
 9. The logistic-k arm, sbc.yaml, the README line; a local R = 100 smoke; commit.
-10. After the rulings: the switch if asked for (open call 3), or the probit commit dropped.
+10. After the rulings: the switch if asked for (open call 3); the probit commit dropped, or a large-n
+    option added to it (open call 2), its tests/cpp case (a decline without a draw above the threshold, or
+    the coin's share at a large fixture) with it.
 11. `logistick`; the reference build with `--preclean`: the partition, the re-record and its MANIFEST row;
     the four snapshot files; commit.
 12. The design note, architecture, NEWS, README sections, TODO; commit.
@@ -649,29 +700,43 @@ dec-B390 (binary-k-default-revisit) runs on chains carrying the move.
    0.9 across n) without depending on the state.
 4. **A logistic equivalence scenario** (`logistick`): without it no baseline anchors the logistic move.
 5. **The evaluator in the response model**, so the chain stays family-agnostic and the move's likelihood
-   is the family's own reported one (or, for probit after the remedy, within 1e-14 of it).
+   is the family's own reported one (for probit, through the faster erfc form, within 1e-14 of it).
 6. **The probit-k arm's thin is not changed here**; the census records what it could be (dec-A190).
 
 ## Open calls
 
-1. **The logistic half.** dec-B404: build the move before 1.0-0 "if a drawn k is kept". The k study
-   (binary-k-fixed-or-drawn.md) recommends keeping chi(1.5, 2) for both links: the best fixed k misses four
-   of its six bars under both, with a worst case eight times the default's. It has not yet been brought to
-   the maintainer. Recommended: keep a drawn k, and so build this half. If a fixed k is chosen for logistic
-   instead, the move has nothing to act on there by default and this plan reduces to the probit half (open
-   call 2) or nothing.
-2. **The probit half.** Recommended: include it, unless after the log Phi remedy the x86 cost at
-   n >= 2000 passes 1.15, where the move gains least. The ruling waits on early measurements 1 and 2.
+1. **The logistic half: RULED.** dec-B404 builds the move before 1.0-0 "if a drawn k is kept"; dec-B420
+   keeps a drawn k under chi(1.5, 2) for both links ("Keep k modeled and its current prior."), so this half
+   is built. Its schedule at large n is not part of either ruling: if early measurement 4 finds the
+   logistic move buying nothing there, the option of open call 2 is put to the maintainer for it as well.
+2. **The probit half.** The recommendation follows early measurement 4's reading at large n, with the
+   x86 cost: include it as planned if every large cell pays; include it with option (a) below if the
+   large cells buy nothing while the small ones gained; with option (b) if near-separated large cells pay
+   and moderate ones do not. Leave it out only if it buys nothing at the census size either, which the
+   survey's numbers make unlikely.
    - Including it: the census's remaining probit tail falls about five times (tau(k) 99th 879 to 160,
      worst 959 to 166; the fitted values' 99th 1003 to 112); on the ten slowest datasets the fitted values'
-     worst falls from 1050 to 45. At larger n it gained up to two times or nothing (one dataset a cell).
-     Cost on every default probit binary fit: 12 to 15 percent of a sweep on the laptop with the erfc log
-     Phi, an expected 17 to 22 percent on `Rf_pnorm5`, x86 to confirm. About 150 planned lines (225 to
-     300 at the overrun), four re-recorded equivalence scenarios, bench-sampler's binary row past its
-     1.05, and probit expectations re-recorded in consumers. It would let the probit-k SBC arm drop from
+     worst falls from 1050 to 45. At 5000 rows it gained up to two times or nothing (one dataset a cell);
+     10,000 and 50,000 rows are measurement 4. Cost on every default probit binary fit: 12 to 15 percent of
+     a sweep on the laptop, with the erfc form the build uses; x86 to confirm. About 175 planned lines
+     (260 to 350 at the overrun), four re-recorded equivalence scenarios, bench-sampler's binary row past
+     its 1.05, and probit expectations re-recorded in consumers. It would let the probit-k SBC arm drop from
      thin 700 toward about 200, a third of its runner time, by a later call. Whether it converges probit's
      k at n = 500 and 75 trees (split-Rhat 1.12 to 1.21 at 64,000 draws in the k study) is early
      measurement 2.
+   - Option (a), the probit move off above n0: the predicate also requires the fit's row count (the
+     data's n, which the move does not change, so the decline is exact) to be at most n0, a named engine
+     constant with no R setting, n0 the smallest measured size whose large cells buy nothing at both
+     signals (10,000, or 20,000 if that cell is run). Above n0 a probit fit draws exactly as with the
+     built step alone and pays nothing. About 45 planned lines (engine 10, tests/cpp 20, docs 15), 70 to
+     90 at the overrun. Fits either side of n0 take different kernels, both exact; a setData across n0
+     switches kernels mid-chain, exact either way. Recommended over (b) when large cells buy nothing at
+     both signals, since (b) would still tax them.
+   - Option (b), a lower frequency at large n: the coin's probability 1/4 up to n0 and 1/4 n0 / n above
+     it, exact because it depends on the data alone; the tax above n0 falls in proportion to n0 / n and
+     some of the gain stays. About 40 planned lines (engine 10, tests/cpp 20 for the coin's share at a
+     large fixture, docs 10), 60 to 80 at the overrun. Recommended when near-separated large cells pay and
+     moderate ones do not.
    - Leaving it out: probit keeps the built step alone, at today's speed and draws; the slow tenth of
      small, near-separated datasets still needs several hundred sweeps per independent draw of k and of
      the fitted values. The logistic half is unaffected: the probit commit carries only the evaluator, the
@@ -679,11 +744,12 @@ dec-B390 (binary-k-default-revisit) runs on chains carrying the move.
 3. **A switch.** dec-B397 ruled out a switch for the built step on a measured 0 to 3 percent ("If it's
    basically always beneficial we can consider making it the only option."); this move costs more, so the
    ruling does not cover it.
-   - No switch (recommended, unless the x86 cost at n >= 5000, where the move gains least, passes 1.10):
+   - No switch (recommended, unless measurement 4 finds large cells buying nothing and neither large-n
+     option of open call 2 is taken):
      one kernel to test and document; every fit gets the faster-mixing k; draws change throughout 1.0
      anyway; a shipped switch is hard to remove. Cost: every eligible fit pays the move, logistic an
-     unmeasured share, probit an expected 12 to 22 percent at the census size and the survey's 12 at
-     5000 rows and 200 trees, for gains at large n of up to two times or nothing.
+     unmeasured share, probit the survey's 12 to 15 percent, for gains at large n that measurement 4
+     reads; with option (a) or (b) of open call 2 the large-n tax is gone or cut without a switch.
    - A logical `dbartsControl` switch, default on, fixed at creation: lets a large-n user drop the cost
      where the move gains little; about 120 more lines (R, bridge, help, surface tests) in files the
      k-internal and setState slices also touch.
