@@ -394,3 +394,41 @@ expect_identical(
   sdNamed$fit$getLeafPrior()$leaf.prior@prior.sd,
   dbartsPriors$invchi(1.5, 1.5)
 )
+
+# a model whose prior.scale names an sd beside a chi prior with an infinite
+# scale is refused; no public constructor builds one, so the model is built by
+# hand
+handBuilt <- dbarts(
+  x,
+  yg,
+  leaf.prior = dbartsPriors$normal(k = dbartsPriors$chi(1.5, 2)),
+  control = pinControl()
+)
+badModel <- handBuilt$model
+badModel@leaf.hyperprior <- methods::new(
+  "dbartsChiHyperprior",
+  degreesOfFreedom = 1.5,
+  scale = Inf
+)
+badModel@prior.scale <- 1.3
+expect_error(
+  handBuilt$setModel(badModel),
+  "named prior scale requires a finite k or chi scale"
+)
+
+# a model whose prior.scale is set while its leaf prior carries no sd is read
+# back with the sd the encoding names
+bare <- dbarts(
+  x,
+  yg,
+  leaf.prior = dbartsPriors$normal(sd = 0.65),
+  control = pinControl()
+)
+bareModel <- bare$model
+bareModel@leaf.prior@prior.sd <- NULL
+bare$model <- bareModel
+expect_identical(
+  bare$getLeafPrior()$leaf.prior@prior.sd,
+  bareModel@prior.scale / bareModel@leaf.hyperprior@k
+)
+expect_equal(bare$getLeafPrior()$leaf.prior@prior.sd, 0.65)
