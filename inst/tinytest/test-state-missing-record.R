@@ -302,13 +302,16 @@ holder$setData(dataF)
 expect_identical(seen(holder), c(FALSE, FALSE, TRUE))
 expect_identical(aloneRight(holder), alone)
 expect_true(bothSides(sides(holder, column = 3L)))
-expect_true(holder$setState(stored(holder)))
+reinstalls <- function(sampler) {
+  tryCatch(sampler$setState(stored(sampler)), error = conditionMessage)
+}
+expect_identical(reinstalls(holder), TRUE)
 # the state from before the value, installed after it
 status <- tryCatch(holder$setState(held), error = conditionMessage)
 expect_true(is.logical(status))
 expect_identical(aloneRight(holder), alone)
 expect_true(bothSides(sides(holder, column = 3L)))
-expect_true(holder$setState(stored(holder)))
+expect_identical(reinstalls(holder), TRUE)
 
 # ---- a drawn side that leaves the state not clean, or not a state ---------
 
