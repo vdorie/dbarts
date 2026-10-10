@@ -635,6 +635,8 @@ static void testSetAnchorCarriesSigmaAndVarianceCalibration() {
           leaf.scale == expected.scale,
         "setAnchor: the variance forest's calibration is the recorded "
         "mapping's");
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
 }
 
 static void testInstallLeavesHeldSigma() {
@@ -674,6 +676,8 @@ static void testInstallLeavesHeldSigma() {
         "held sigma install: the state installs");
   check(recipient.sigma(0) == before,
         "held sigma install: a held sigma is left alone");
+  ext_rng_destroy(rngB);
+  ext_rng_destroy(rngA);
 }
 
 static void testShiftedStateInstalls() {
