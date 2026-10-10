@@ -280,21 +280,35 @@ typedef struct {
   size_t width;     /* sizeof an element: 8 or 4 */
 } capi_canaried;
 
-static void capi_canaryFill(capi_canaried* buffer, size_t body,
+static void capi_canaryFree(SEXP owner) {
+  free(R_ExternalPtrAddr(owner));
+  R_ClearExternalPtr(owner);
+}
+
+/* The body is malloc'd, not R_alloc'd, so tailFactor 0 is an exact-size heap
+ * block. An external pointer owns it, so a run or predict that raises frees it
+ * at the next collection (or at exit) rather than leaking it; the caller
+ * protects the returned owner and frees early with capi_canaryFree. */
+static SEXP capi_canaryFill(capi_canaried* buffer, size_t body,
                             size_t tailFactor, size_t width) {
   size_t i;
+  SEXP owner = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, R_NilValue));
+  R_RegisterCFinalizerEx(owner, capi_canaryFree, TRUE);
   buffer->body = body;
   buffer->total = body + body * tailFactor;
   buffer->width = width;
   /* at least one byte, so a zero-length body is still a distinct pointer */
   buffer->data = malloc(buffer->total > 0 ? buffer->total * width : 1);
   if (buffer->data == NULL) Rf_error("capi consumer: out of memory");
+  R_SetExternalPtrAddr(owner, buffer->data);
   for (i = 0; i < buffer->total; ++i) {
     if (width == sizeof(uint64_t))
       memcpy((char*) buffer->data + i * width, &capi_canaryBits, width);
     else
       memcpy((char*) buffer->data + i * width, &capi_canaryCount, width);
   }
+  UNPROTECT(1);
+  return owner;
 }
 
 static int capi_isCanary(const capi_canaried* buffer, size_t i) {
@@ -361,20 +375,19 @@ SEXP capi_run_canaried(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   const char* names[] = { "sigma", "train", "test", "varcount", "k",
                           "varprobs", "logLikelihood", "shape",
                           "residualDf", "" };
+  const size_t bodies[9] = { S * C, n * F * S * C, nTest * F * S * C,
+                             p * V * S * C, S * C, p * S * C, n * S * C,
+                             S * C, S * C };
   capi_canaried buffers[9];
   dbarts_results results = DBARTS_RESULTS_INIT;
+  SEXP owners = PROTECT(Rf_allocVector(VECSXP, 9));
   SEXP result;
   int i;
 
-  capi_canaryFill(&buffers[0], S * C, tail, sizeof(double));
-  capi_canaryFill(&buffers[1], n * F * S * C, tail, sizeof(double));
-  capi_canaryFill(&buffers[2], nTest * F * S * C, tail, sizeof(double));
-  capi_canaryFill(&buffers[3], p * V * S * C, tail, sizeof(uint32_t));
-  capi_canaryFill(&buffers[4], S * C, tail, sizeof(double));
-  capi_canaryFill(&buffers[5], p * S * C, tail, sizeof(double));
-  capi_canaryFill(&buffers[6], n * S * C, tail, sizeof(double));
-  capi_canaryFill(&buffers[7], S * C, tail, sizeof(double));
-  capi_canaryFill(&buffers[8], S * C, tail, sizeof(double));
+  for (i = 0; i < 9; ++i)
+    SET_VECTOR_ELT(owners, i,
+                   capi_canaryFill(&buffers[i], bodies[i], tail,
+                                   i == 3 ? sizeof(uint32_t) : sizeof(double)));
   results.sigma = (double*) buffers[0].data;
   results.train = (double*) buffers[1].data;
   results.test = (double*) buffers[2].data;
@@ -385,16 +398,14 @@ SEXP capi_run_canaried(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   results.shape = (double*) buffers[7].data;
   results.residualDf = (double*) buffers[8].data;
 
-  /* an error here leaks the nine buffers; the arms that drive this expect
-   * none */
   dbarts_sampler_run(sampler, numBurnIn, S, &results);
 
   result = PROTECT(Rf_mkNamed(VECSXP, names));
   for (i = 0; i < 9; ++i) {
     SET_VECTOR_ELT(result, i, capi_canaryReport(&buffers[i]));
-    free(buffers[i].data);
+    capi_canaryFree(VECTOR_ELT(owners, i));
   }
-  UNPROTECT(1);
+  UNPROTECT(2);
   return result;
 }
 
@@ -410,21 +421,21 @@ SEXP capi_predict_canaried(SEXP ptrExpr, SEXP xTestExpr, SEXP offsetExpr,
   size_t numSamples = saved > 0 ? saved : 1;
   const char* names[] = { "status", "out", "" };
   capi_canaried out;
-  SEXP result;
+  SEXP owner, result;
   int status;
 
-  capi_canaryFill(&out,
-                  source.numRows * F * numSamples *
-                    dbarts_sampler_numChains(sampler),
-                  tail, sizeof(double));
+  owner = PROTECT(capi_canaryFill(&out,
+                                  source.numRows * F * numSamples *
+                                    dbarts_sampler_numChains(sampler),
+                                  tail, sizeof(double)));
   status = dbarts_sampler_predict(
     sampler, &source, Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr), 0,
     (double*) out.data);
   result = PROTECT(Rf_mkNamed(VECSXP, names));
   SET_VECTOR_ELT(result, 0, Rf_ScalarInteger(status));
   SET_VECTOR_ELT(result, 1, capi_canaryReport(&out));
-  free(out.data);
-  UNPROTECT(1);
+  capi_canaryFree(owner);
+  UNPROTECT(2);
   return result;
 }
 
