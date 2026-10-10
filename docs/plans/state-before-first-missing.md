@@ -1,299 +1,356 @@
 # state-before-first-missing: a state records which columns could be missing, and an install draws what it lacks
 
-Status: PLANNED (dec-B435 and dec-B436; read with dec-B305, dec-B310, dec-B318, dec-B320 to dec-B322, dec-B378,
-dec-B398 to dec-B402, dec-A198). Revised from its blind critique (last paragraph). One open call (O1). Written
-against Part B of [setstate-force-update.md](setstate-force-update.md) AS PLANNED.
+Status: PLANNED (dec-B435, dec-B436, dec-B440; read with dec-B305, dec-B310, dec-B318, dec-B320 to dec-B322,
+dec-B378, dec-B398 to dec-B402, dec-A198, dec-A199). Revised from its blind critique, then against Part B of
+[setstate-force-update.md](setstate-force-update.md) AS LANDED (b95ac390..062ef59a; section 6). No open call.
 
 agent: opus implementer, one; one opus reviewer who runs the mutants below.
-rng: SHIFTING for an install whose state's record lacks a column the sampler has flagged, for a factor column's
-first missing value by an update refused today, and for a first-sight draw over a kept rule of section 2's
-exempt form. NEUTRAL, bit for bit, otherwise: an install with nothing to draw takes no copy, reads no generator.
-window: after Part B lands; before the merge to main; engine slices stay serial.
-budget: planned ~805 lines (step A ~620, step B ~185); forecast and stops below.
+rng: SHIFTING on four paths: an install whose state's record lacks a column the sampler has flagged (coins from
+the state's generator); a warm start whose donor's record lacks one (coins from each receiving chain's
+generator, before its first sweep); a factor column's first missing value by an update refused today; a
+first-sight draw over a kept rule of section 2's exempt form (one coin fewer). NEUTRAL, bit for bit, otherwise.
+window: before the merge to main; engine slices stay serial (sparse-starting-sigma: section 8).
+budget: planned ~1035 lines (step G ~105, A ~620, B ~185, C ~125); forecast and stops below.
 
 ## Goal
 
 A stored state says which predictor columns could hold a missing value when it was stored. When `setState`, a
 copy or a reload installs it into a sampler where a further column can hold one, the direction of every split on
 that column in the state's live trees and kept draws is drawn at one half, before anything is judged (dec-B435).
-A factor column takes its first missing value as a numeric column does (dec-B436). Tier: "Changes draws"
-([Process by risk](README.md#process-by-risk)).
+A warm start draws the same for the trees it installs, from each receiving chain's generator (dec-B440). A
+factor column takes its first missing value as a numeric column does (dec-B436). The tests the review of
+setState's two forms left open are added. Tier: "Changes draws" ([Process by risk](README.md#process-by-risk)).
 
 ## Context
 
-dec-B435 (extends dec-B400), the maintainer on 2026-10-10: "Sure, draw it." The register's rule: "a state
-records the columns that could hold a missing value when it was stored; installing it into a sampler where a
-further column can draws, with probability one half, the direction of every split on that column in the
-installed trees and kept draws, as a first missing value does." dec-B436, the same day: "Lift the refusal."
-Ran on c4ea26ab (01-review-case.R: 150 rows, 2 chains, 15 trees, 20 kept draws): a state stored, then a forced
-setPredictor putting 3 missing values in x1: live trees 3 left and 5 right, kept draws 95 and 95; `setState(old)`:
-live 8 and 0, kept 190 and 0, TRUE. A reload and a `copy()` of a sampler whose `$state` predates the value, and
-that state into a twin created with the values, give the same.
+dec-B435 (extends dec-B400), the maintainer on 2026-10-10: "Sure, draw it." The register's rule is the Goal's
+first two sentences. dec-B436, the same day: "Lift the refusal." dec-B440: section 5. Rerun by me on the rebased
+base 82678655, library scratch/libs/smr2: 01-review-case.R gives the ledger's numbers again (a forced
+setPredictor's 3 missing values in x1 leave live trees 3 left and 5 right, kept draws 95 and 95; `setState` of
+the older state then leaves 8 and 0, 190 and 0, and returns TRUE; a reload, a `copy()` and a twin created with
+the values the same). Part B changed one thing: the TRUE is now visible.
 
 Constraints: no change to the state-format version or floor, to [dbarts.h](../../inst/include/dbarts/dbarts.h)
-or to stan4bart; nothing recorded may move (section 6); Part B's forms are used, not changed. Out of scope: the
-warm start unless O1 is ruled (a); keeping, not redrawing, directions a kept draw already holds on a
-never-flagged column (dec-B435's "every split on that column" stands); the mirror of section 2's exempt rule.
+or to stan4bart; nothing recorded moves (section 8); Part B's forms are used, not changed. Out of scope:
+installTrees's `forceUpdate` (TODO forced-update-returns-null); the mirror of the exempt rule.
 
 ## 1. The record (step A)
 
 - Engine: [`SamplerStateData`](../../src/bartcore/sampler.hpp) gains `missingColumns`, one byte per predictor,
-  empty meaning no record; [`Sampler::getState`](../../src/bartcore/sampler.hpp) always fills it from the store's
-  flags ([`hasMissing`](../../src/bartcore/data.hpp)), not the content. Of another length, `setState` returns false.
-- Stored object: a top-level attribute `missing.columns` on the bartcoreState, a logical per predictor column
-  with no NA; a malformed one is an error in both forms. Always written, all FALSE on a complete sampler, and
-  never through [`bartcore_getMissingSeen`](../../src/R_interface_bartcore.cpp), which answers NULL when no flag
-  is up; the name differs from the data object's `missing.seen`, where NULL means no column: absence here means
-  not known. Every R writer goes through the bridge's [`storeState`](../../src/R_interface_bartcore.cpp) (read),
-  and no R code builds or edits a state (ran: grep).
-- A state WITHOUT the attribute (only on this unreleased branch and in stan4bart fits saved on it) has no
-  record and draws nothing: it installs exactly as on the landed build, which stan4bart's use cannot fault
-  (section 5). Read as "no column could be missing" it would redraw directions a chain learned.
-- Format: additive under [`stateFormatVersion`](../../src/R_interface_bartcore.cpp)'s registry rule (attributes
-  read by name, an absent one defaulted): version and floor stay 1. The flat C API has no state entry (read;
-  ran: grep): no signature change, no ABI event, no API-hash move. The exact gates run quick: a fit's state grew.
+  empty meaning no record; [`Sampler::getState`](../../src/bartcore/sampler.hpp) always fills it from the
+  store's flags ([`hasMissing`](../../src/bartcore/data.hpp)), not the content. Of another length, `setState`
+  returns false before anything is written.
+- Stored object: a top-level attribute `missing.columns`, a logical per predictor with no NA, always written,
+  all FALSE on a complete sampler (so not through [`bartcore_getMissingSeen`](../../src/R_interface_bartcore.cpp),
+  NULL when no flag is up): absence means not known. The bridge's [`storeState`](../../src/R_interface_bartcore.cpp)
+  alone writes it (no R code builds a state; ran: grep); read by name beside the digests, another type or an NA
+  is an error in both forms, another length "state is not consistent with this sampler".
+- A state WITHOUT the attribute (this unreleased branch; stan4bart fits saved on it) draws nothing and installs
+  as landed: read as "no column could be missing" it would redraw directions a chain learned.
+- Format: additive under [`stateFormatVersion`](../../src/R_interface_bartcore.cpp)'s registry rule, version and
+  floor staying 1; the flat C API has no state entry (ran: grep). The exact gates run quick: a fit's state grew.
 
 ## 2. The install rule (step A)
 
-With S the state's record and F the sampler's flags at the call:
-- In F, not in S: drawn (dec-B435). `raised[j] = F[j] && !S[j]`.
-- In S, not in F: unchanged; the record plays no part. As built and as Part B plans, a direction there is
-  dropped and the install not clean (case c), a pooled rule keeps its bit, and a subset rule sending every
-  level one way is refused (dec-B378). A state never raises a flag: that takes data (dec-B321).
-- In both, a direction is kept, clean (dec-B320). Equal, or no record: nothing; the state installs as today.
+With S the state's record and F the sampler's flags, `raised[j] = F[j] && !S[j]` is drawn (dec-B435). A column
+in both keeps its directions, clean (dec-B320); one in S and not in F is as landed, the record playing no part
+(a direction dropped and not clean, a pooled rule's bit kept, a rule sending every level one way refused,
+dec-B378); a state never raises a flag (dec-B321). Equal records, or none: the state installs as today.
 
-The draw completes a copy of the state before anything is judged. Its place in
-[`Sampler::setState`](../../src/bartcore/sampler.hpp) is set by what it needs: every flat tree, live and kept,
-walkable (the routine recurses with no bounds), and nothing yet built, routed or judged. When a column is
-raised: each flat tree is checked with [`flatTreeIsWellFormed`](../../src/bartcore/tree.hpp), the state is
-copied, and each chain draws on its part from its own generator (section 3) with
-[`drawFlatMissingDirections`](../../src/bartcore/tree.hpp) in the first-sight draw's order: each forest's live
-trees, the variance trees, then the state's recorded kept draws oldest first by its own ring. The rest runs once,
-on the copy: [`Chain::stateIsValid`](../../src/bartcore/chain.hpp), the cone, Part B's verdict, install, repairs.
-
-- The exempt rule (critique M1). A subset rule with no category on the right sends only the missing value
-  right: its direction is fixed by its form, not drawn. `drawFlatMissingDirections` leaves such a rule as it is,
-  in reach or out of it, takes no coin for it and reads its direction for the rules beneath (it is handed the
-  mask channel for a pooled rule), for both its callers: the first-sight draw's kept loop and this install.
-  Otherwise a coin to the left leaves a rule sending nothing right, which the well-formedness check refuses.
-  Ran (scratch/smr/crit/, the critique's p2 probes rerun, same output): a sampler complete in a 4-level factor
-  that takes the state of one with 30 missing values in it holds 198 right-going directions on the factor in
-  its kept draws, its record all FALSE, one on such a rule; on the landed build a later first missing value by
-  setData flipped such rules in 11 of 11 seeds that held one, and the sampler could no longer install its own
-  state. The mirror (every category right, the missing value left) keeps its coin and stays well formed (ran).
-- Unordered factors: the routine's reach rule (dec-A198) is the gauge `buildFromFlat` checks on the copy.
+The draw completes a copy of the state's chains before anything of the sampler is written: in
+[`Sampler::setState`](../../src/bartcore/sampler.hpp) after the lengthscale check and before the grid snapshot
+(section 6, steps 3 and 4). It reads column kinds and the state's own ring, never the grid, so a throw or a
+later refusal has nothing to undo. With a column raised and the state's blocks naming one capacity (else step 5
+refuses the state): each flat tree, live and kept, is checked with [`flatTreeIsWellFormed`](../../src/bartcore/tree.hpp)
+and its mask channel's pairing (the draw recurses with no bounds; a failure leaves the refusal to step 5);
+`state.chains` is copied; each chain draws on its part (a new `Chain::completeMissingDirections`, section 3)
+with [`drawFlatMissingDirections`](../../src/bartcore/tree.hpp) in
+[`Chain::drawMissingDirections`](../../src/bartcore/chain.hpp)'s order: live trees by forest, variance trees,
+then the state's recorded kept draws oldest first by its own ring (capacity S, R = min(recordedDraws, S), slot
+(currentSampleNum + S - R + d) mod S). Only steps 5 and 8 read the copy.
+- The exempt rule (critique M1). A subset rule with no category on the right sends only the missing value right:
+  its direction is its form. `drawFlatMissingDirections`, for both its callers (the first-sight draw's kept loop
+  and this completion), leaves it as it is, in reach or out, takes no coin for it and reads its direction for
+  the rules beneath; it is handed the mask channel, a pooled rule's words lying at its record's offset. A coin
+  to the left would leave a rule sending nothing right, which the form check refuses. Live trees never flagged
+  in the column cannot hold the form ([`Tree::buildFromFlat`](../../src/bartcore/tree.hpp) asks that the
+  categories alone be split; read), so `Tree::drawMissingDirections` needs none.
+- The landed defect it closes (TODO first-sight-kept-one-way-rule), rerun by me on 82678655 (the critique's p2,
+  p2b, p2c): with the other sampler's state FORCED in, a first missing value by setData flipped such kept rules
+  in 11 of 11 seeds holding one (39 tried) and the sampler could not install its own state (4 of 4 controls
+  could); unforced, as the probes were written, Part B declines that state and 11 of 11 reinstall. It narrowed
+  the way in and fixed nothing.
 - Unforced: TRUE for an install that drew (Calls made), unless the completed trees fail the verdict on another
-  ground (a leaf no row reaches, a monotone tree out of its cone): FALSE, on every repeat. Forced (so a copy, a
-  reload, dec-B305, and stan4bart's restore, dec-B402): completed, then repaired as Part B has it; NULL.
-- Refused, not clean or thrown: nothing of the sampler is written but the grid, put back as today; each chain's
-  generator is borrowed inside a scope guard and put back, byte for byte, on any exit. The validation after the
-  draw refuses, as an error in both forms, only a hand-edited state that contradicts its record.
+  ground (a leaf no row reaches, a monotone tree out of its cone): FALSE, on every repeat. Forced (a copy, a
+  reload, stan4bart's restore): completed, then repaired as landed; NULL.
+- Declined or refused: step 6 as landed, the copy dropped; each chain's generator went back inside its own draw
+  (section 3). A throw (the copy's allocation) finds nothing written. Completed, only a hand-edited state that
+  contradicts its record is refused, an error in both forms.
 
 ## 3. The generator (step A)
 
-A state carries each chain's generator, which [`Chain::setState`](../../src/bartcore/chain.hpp) installs last.
-The coins come from it: per chain, the chain's generator is serialized, the state's bytes are read into it, the
-coins are drawn, the advanced bytes go into the copy and the chain's own bytes are read back (a dedicated
-Mersenne Twister per chain, an exact round trip; read). A hand-built state with no generator bytes draws from
-the chain's own, which stays advanced on an install.
+A state carries each chain's generator, which [`Chain::setState`](../../src/bartcore/chain.hpp) installs last
+when its bytes are of the chain's length; the coins come from it. Per chain, inside a scope guard that reads the
+chain's own bytes back on every exit: the chain's generator is serialized, the state's bytes read into it when
+they fit, the coins drawn and the advanced bytes written to the copy's `rngState` (a Mersenne Twister through
+the bridge, an exact round trip; read). A hand-built state without the bytes draws from the chain's own position
+and the copy carries the advance: step 8 installs it and a decline leaves the chain where it was.
 - One state installed twice into one sampler draws the same directions, so the cached `$state`, left the object
-  `setState` was given, still describes the sampler: a copy or reload of it holds the live sampler's directions.
+  `setState` was given (section 6), still describes the sampler: a copy or reload of it holds its directions.
 - Reproducible, in this scope only: a store; ONE whole-column or whole-matrix setPredictor raising its columns
-  in one call, with no generator use between; `setState(stored)`. The install then draws the update's coins and
-  leaves the generator where the update left it. Ran by replay in R (the critique's p1 probes rerun; 2 chains,
-  ring cursor 7 of 20, 134 and 55 coins): unforced, forced, and two columns in one call, all equal. NOT claimed
-  and not a stop: the per-observation and joint paths (chain 1 first draws the scan order, ending 283 draws on,
-  not 134); columns raised by separate calls; a sweep between; setData.
+  in one call, no generator use between; `setState(stored)`: the install draws the update's coins and leaves the
+  generator where the update left it. Rerun by me on 82678655, output identical (the critique's p1 replay in R:
+  unforced, forced, two columns in one call). Not claimed, not a stop: the per-observation and joint paths,
+  columns raised by separate calls, a sweep between, setData.
 - Nothing to draw: the routine returns before the walkability check, the copy and any generator read.
 
 ## 4. A factor column's first missing value (step B, dec-B436)
 
-Its own step and commit, after step A, whose exempt rule a factor's first-sight draw can meet. No engine change.
-Ran (04-factor-first-missing.R, the refusal bypassed by hand, 3 missing labels in a 4-level factor): forced
-column, unforced column and whole data frame, live 4 left and 6 right, kept 118 and 120; row by row and jointly,
-150 of 150 rows, live 4 and 6, kept 115 and 123; each reinstalls its own state, predicts and copies.
-- The refusal "has missing values, which its training values do not" and the `missing.seen` argument that fed
-  it go from [`codeCategoricalColumnUpdate`](../../R/bartcore.R), [`codePredictorFrame`](../../R/bartcore.R) and
-  their callers. A missing label is coded as a missing value; an unknown label and a number stay refused.
+Its own step and commit, after step A, whose exempt rule a factor's first-sight draw can meet; no engine change.
+Rerun by me on 82678655 with outputs identical to the base's: 04-factor-first-missing.R (the refusal bypassed by
+hand: every path draws, reinstalls its own state, predicts and copies) and 05-test-column-na.R.
+- The refusal "has missing values, which its training values do not" and the `missing.seen` argument that fed it
+  go from [`codeCategoricalColumnUpdate`](../../R/bartcore.R), `codePredictorFrame` and their callers: a missing
+  label is coded as a missing value; an unknown label and a number stay refused.
 - The data object's `missing.seen` for a factor is written after every accepted change, as for a numeric column
-  ([`recordMissingSeen`](../../R/data.R); ran: FALSE FALSE TRUE on each path), and no training update reads it.
-- Row by row and jointly, the engine's session ([`UpdateSessionImpl`](../../src/bartcore/sampler.hpp)) draws at
-  the first missing row and takes the draw back if the row is declined; only a sampler new to it draws.
+  ([`recordMissingSeen`](../../R/data.R); ran), and no training update reads it. Row by row and jointly the
+  engine's session ([`UpdateSessionImpl`](../../src/bartcore/sampler.hpp)) draws at the first missing row and
+  takes the draw back if the row is declined.
 - setTestPredictor is not named by dec-B436 and keeps refusing a missing value in a column that has never held
-  one (dec-B322). Its column form borrowed the refusal that goes, for factors only: ran (05-test-column-na.R),
-  a numeric test column so updated is taken today and the next run fits the row, where the whole test set and
-  predict refuse. So the column form calls [`refuseTestMissingness`](../../R/data.R): one refusal for both.
+  one (dec-B322). Its column form borrowed the refusal that goes, for factors only: a numeric test column so
+  updated is taken today and the next run fits the row, where the whole test set and predict refuse (rerun). So
+  it calls [`refuseTestMissingness`](../../R/data.R).
 
-## 5. Callers
+## 5. The warm start (step C, dec-B440)
 
-- Package (read): `setState`, `getPointer` and `copy` share [`installStateOnto`](../../R/dbarts.R); a re-created
-  engine takes its flags from the data object, so a reload or copy of a state stored before the value draws.
-  benchmarks (ran: grep; read): sbc.R, negbin-mixing.R and C1-frozen-ess.R install a sampler's own state or a
-  same-data sampler's. The warm start ([`Sampler::installForests`](../../src/bartcore/sampler.hpp)) is O1.
-- stan4bart (bartcore f0084aa, read): restoreBartSampler builds a sampler per chain from the fit's control,
-  model and data and installs the state that chain's sampler stored, kept whole; no predictor call in its R/ or
-  in dbarts.h (ran: grep), so S equals F; saved fits carry no record and install as today. bartCause (e833be7),
-  treatSens (babfaa6): no state or predictor call; bairrtt (3f57f61): no state call (ran: git grep).
+The maintainer on 2026-10-10: "Sure, draw it." Rerun by me on 82678655, as before Part B (02-other-routes.R): 7
+of 7 splits on x1 send left before any sweep, 8 and 4 after 31. Built after step A, its own commit.
+- The record: the bridge's [`readWarmStartState`](../../src/R_interface_bartcore.cpp) reads `missing.columns`
+  into the donor's `missingColumns`; with D that record and F the recipient's flags,
+  `raised[j] = F[j] && !D[j]`. [`warmStartState`](../../R/dbarts.R) stores a donor sampler's or fit's state at
+  the call, so it carries one; a raw state stored before the record has none and installs as today, all left,
+  with no coin and no generator read, as when nothing is raised. Of another length: `shapeMismatch`.
+- Where: in [`Sampler::installForests`](../../src/bartcore/sampler.hpp), on `install[c]`, the scratch it
+  reassembles per receiving chain from the donor's live trees or the slot asked for, after
+  [`convertDonorStandardization`](../../src/bartcore/chain.hpp) and before `checkContainment`, whose checks then
+  judge the completed trees. The draw so precedes both collapses of emptied splits
+  ([`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp), `rebuildLiveForestRemapped`) and the monotone
+  reseed. It reads no grid, and the scratch is its copy.
+- Order, source and undo: chain c draws for its own trees, each forest's in order and then the variance trees,
+  with `drawFlatMissingDirections` (exempt rule included: a slot-sourced donor draw can hold one), from its own
+  generator in place, so two chains seeded from one donor draw take their own sides. Each tree is first checked
+  with `flatTreeIsWellFormed` (failing: `rebuildFailed`, before any coin). A warm start refused after the draw
+  (containment, a rebuild, a throw) leaves nothing touched, as today: each chain's generator bytes are saved
+  before its coins and read back by a guard dismissed only on `ok`.
+- What shifts: only a warm start with a raised column and a split on it in the installed trees: each receiving
+  chain's generator stands its coins further on before the first sweep, so that run's draws differ from today's
+  build's. No stored draw, value, message or refusal changes. Ran (grep on 82678655): no equivalence scenario,
+  reproducibility file or exact-gate script warm-starts from a donor; benchmarks' one, composition-matrix.R,
+  builds both on the same complete data and records no draw.
 
-## 6. Equivalence, snapshots and existing tests
+## 6. The landed install this slice builds on
 
-Expected: nothing recorded moves (ran: grep). The equivalence trio installs no state, reads no `$state` and
-gives no factor a missing label after creation; the four reproducibility files hold none of setState,
-setPredictor, setData, copy, readRDS, installTrees, warm.start, `$state` or NA; of the exact gates' scripts only
-negbin-mixing.R installs a state, its own. Existing tinytest (ran: 03-suite-probe.R, a wrap of
-`installStateOnto` over the 61 files that install a state and change a predictor or write NA; 522 installs):
-2 put a state with no right-going direction onto a flagged column, each the sampler's own or a same-data
-twin's (read). tests/cpp: 7 files call `setState` and mention missing values; not probed. A test that pins the
-defect itself (all left after an older state; a kept exempt rule flipped) is rewritten and named in the landing
-note; any other move is a stop.
+Read on 82678655. `Sampler::setState` runs: (1) shape and grid checks; (2)
+[`Chain::savedStateCapacity`](../../src/bartcore/chain.hpp), one capacity asked across chains, mean forests and
+the variance forest (a disagreement is refused at 5); (3) the lengthscale check, AFTER WHICH THE DRAW GOES; (4)
+the grid snapshotted and the state's written; (5) [`Chain::stateIsValid`](../../src/bartcore/chain.hpp): shape,
+each kept tree's form, each live tree built and, unforced, staged by
+[`Tree::stageFromFlat`](../../src/bartcore/tree.hpp), the install's own routine, with its cone checked: validity
+and the verdict, monotone feasibility included, are one loop, and after the first tree that would change the
+rest are only built; (6) refused or declined: the grid put back, nothing else written; (7) a re-creation's store
+resize; (8) `Chain::setState`: latents, trees staged again and repaired, kept draws copied at equal capacity or
+the newest that fit repacked to slots 0 on, the generator's bytes last; (9) the ring's position. The bridge
+passes null for the engine's `altered` report and returns FALSE for a decline before
+[`reapplyWeights`](../../src/bartcore/facade.hpp) and its censoring twin. R's `setState` asks a logical
+`forceUpdate` and, on an install, assigns the field `state` the object given, after a forced repair too
+(dec-A199). Of the critique's rechecks: the copy's readers are steps 5 and 8; `altered` has no R reader, and
+tests/cpp's [`verdictMatchesInstall`](../../tests/cpp/common.hpp) holds, its two calls completing with the same
+coins and its comparison across a decline covering the generator put back. The ring: step 8's repack reads the
+state's own cursor and capacity, so the draw over the state's R recorded draws precedes it. `$state` stays the
+object given: section 3's first bullet stands. On FALSE the generators are back before step 4.
 
-## 7. Steps, tests and mutants
+## 7. Callers
 
-Steps: (A1) engine: the field, `getState`, the exempt rule, the completion; (A2) bridge: the attribute written
-and read, the registry comment; (A3) tests/cpp, tinytest, mutants, docs; (B) the refusal, its tests and help.
+- Package (read): `setState`, `getPointer` and `copy` share `installStateOnto`; a re-created engine takes its
+  flags from the data object, so a reload or copy of an older state draws. benchmarks (ran: grep; read): sbc.R,
+  negbin-mixing.R and surfaces/C1-frozen-ess.R install a sampler's own state or a same-data sampler's.
+- stan4bart (bartcore 3d2a295, read; f0084aa..3d2a295 is the one line forcing the install): restoreBartSampler
+  installs, into a sampler built per chain from the fit's control, model and data, the state that chain's
+  sampler stored, kept whole, with no predictor call or warm start (ran: git grep): S equals F, and saved fits
+  carry no record. bartCause (e833be7) and treatSens (babfaa6) make no state, predictor or warm-start call,
+  bairrtt (3f57f61) no state or warm-start call (ran: git grep).
 
-Step A, tinytest, new test-state-missing-record.R on the fixture of
-[test-missingness-first-seen.R](../../inst/tinytest/test-missingness-first-seen.R), seed-held preconditions asserted:
-- the record: present and all FALSE on a complete sampler; TRUE for x1 after a first missing value by each
-  path, and after the column is filled; kept by saveRDS; of another length or type, an error.
-- the review's case with the update UNFORCED and asserted TRUE (no tree merged), on one forest and on two:
-  `setState(old)` is TRUE and the directions on x1, live and kept, the generators and predict on a missing row
-  are identical to those taken between the update and the install; a second such update draws nothing.
-- a wrapped ring: asserted a cursor other than 0 and rules on x1 in kept slots on both sides of the seam, then
-  the same equality; 20 kept into a store of 5 (Part B's B4) keeps the newest 5 as the update drew them.
-- copy and reload: asserted first that the cached state's record is FALSE for x1 and the data object's TRUE;
-  each then holds the source's directions, their next 5 draws equal within 1e-12.
-- nothing to draw: a state stored after the value and 10 sweeps keeps its learned directions and generator; one
-  with the attribute removed installs as landed; directions on x1 into a complete twin give FALSE, record NULL.
+## 8. Recorded baselines, snapshots and existing tests
+
+Expected: nothing recorded moves (greps rerun by me on 82678655). The equivalence trio's scripts call no
+setState, copy, installTrees or warm.start and read no `$state` (no factor is given a missing label after
+creation: the critique's reading, not redone); the four reproducibility files hold none of those names, nor
+setPredictor, setData or readRDS; of the 30 exact-gate scripts only negbin-mixing.R installs a state, its own,
+and none warm-starts from a donor. So against the MANIFEST's current equivalence-e4faed5c,
+bcf-equivalence-1b7d730c and multinomial-equivalence-80b1c8d4 every scenario reads "identical draws (same RNG
+stream)", no |z| line, and this slice re-records nothing. sparse-starting-sigma re-records the equivalence
+baseline for its own shift. Landing after it: rebase, compare against the file it made current and expect the
+same, first rerunning a scenario that differs on the rebased base without this slice's commits, to tell whose it
+is. Landing before it: compare against e4faed5c; the other slice re-records on top and inherits no shift.
+
+Existing tinytest, run by me on 82678655 (the suite probe redone for the landed `installStateOnto` and for warm
+starts: 72 files, all passing, 689 installs, 72 warm starts): 2 installs put a state with no right-going
+direction onto a flagged column (test-data-missing.R, test-monotone-unforced.R), each the sampler's own or a
+same-data twin's, so S equals F (read); 1 warm start has a donor that never flagged a column its recipient has:
+test-monotone-unforced.R's cross-grid one, rewritten in step C. tests/cpp: 6 files call `setState` and mention
+missing values (grep); not probed. A test pinning a defect this slice fixes is rewritten and named in the
+landing note; any other move is a stop.
+
+## 9. Steps, tests and mutants
+
+Build order, a commit or more each: G, A1 (engine), A2 (bridge), A3 (tests, mutants, docs), B, C. Step G (TODO
+setstate-test-gaps, first-missing-test-seeds) passes on the base and after every later commit; each of its
+mutants is run against the base's code:
+- G1, a pooled factor's kept store: [`testStateStoreSizes`](../../tests/cpp/test_state.cpp) gains a 70-level
+  column, 10 kept into 4 and 4 into 10, the kept draws' mask channels and predictions the source's newest; the
+  same from R in test-setstate-force-update.R. Mutant: the repack's copy of `savedTreeMasks` dropped or cleared,
+  mean or variance (it crashed R in getTrees for the review: a crash is a kill).
+- G2, a decline reconciles nothing (test-setstate-force-update.R): a logistic sampler given other weights and a
+  predictor change that empties a leaf, then its older state unforced: FALSE, its generators, stored state and
+  next 20 draws a twin's; an aft twin. Mutant: the decline returned after a reconciliation.
+- G3, test-state-missing-direction.R: the three expectations after
+  ["status <- tryCatch(other$setState(stale)"](../../inst/tinytest/test-state-missing-direction.R) and the
+  forced one in `checkRestores` for the sparse-backed column never run (ran by me: the first call is refused as
+  malformed, the second is TRUE). Each arm gets a searched seed and an assertion that it ran. Mutants: a forced
+  install keeping a direction its column cannot route; a forced value visible.
+- G4, one capacity (`testStateStoreSizes`): a two-chain state whose second chain's blocks, and a two-forest
+  state whose second forest's block, hold another whole number of draws: refused in both forms, `getState`
+  unchanged. Mutants: the comparison across chains dropped in `Sampler::setState`; across forests in
+  `savedStateCapacity`. G5, a decline across cut grids (`testRestoreStatus`, and a tinytest block): a not-clean
+  state on another grid, unforced: FALSE with cut points, predictions and the next 20 draws a twin's. Mutant:
+  the decline not putting the grid back.
+- G6: negbin-mixing.R, sbc.R and surfaces/C1-frozen-ess.R (the third found by grep) stop on a setState that is
+  not TRUE; each drops the value today. G7: the help sentence (Docs).
+- G8, seeds. test-missingness-first-seen.R: the row declined for emptying a leaf searches for a seed whose coin
+  goes right (declined, asserted) and one whose coin goes left (taken); the two-forest block searches for the
+  first seed whose forests each hold a rule on x1, live and kept, before the update (asserted) and both sides
+  after. [`testMonotoneMissingArrives`](../../tests/cpp/test_monotone.cpp): the every-row form asserts that the
+  plain sampler alone finds the row judged last valid. Mutants, Part A's: no draw on a second forest; a declined
+  row's draw not taken back; the draw left on at a joint sweep's end.
+
+Step A, tinytest: new test-state-missing-record.R on test-missingness-first-seen.R's fixture, seeds as in G8:
+- the record: all FALSE on a complete sampler; TRUE for x1 after a first missing value by each path and after
+  the column is filled; kept by saveRDS; of another length or type, an error. Copy and reload (asserted first:
+  the cached record FALSE for x1, the data object's TRUE) hold the source's directions and next 5 draws (1e-12).
+- the review's case, the update UNFORCED and asserted TRUE, on one forest and on two: `setState(old)` is TRUE
+  and visible, and directions on x1 (live, kept), generators and predict on a missing row are those between the
+  update and the install; a second update draws nothing. The same on a wrapped ring (asserted: cursor not 0,
+  rules on x1 on both sides of the seam); 20 kept into a store of 5 keeps the newest 5 as drawn.
+- nothing to draw: a state stored after the value and 10 sweeps keeps its directions and generator; one with the
+  attribute removed installs as landed; directions on x1 into a complete twin give FALSE.
 - a factor: a complete twin's state into a sampler created with missing values holds both directions where one
-  can reach and none on a hand-built rule out of reach. The critique's case: kept rules with no category on the
-  right (asserted present) keep their direction through a first missing value and through an install that
-  draws, and the sampler reinstalls, copies and reloads its own state.
-- monotone, and not clean: a stored state whose drawn directions break the order of a monotone tree, and a hand
-  state whose drawn direction empties a leaf (Part A's lone-left tree), each coin asserted: FALSE unforced with
-  getTrees, generators, `$state` and the next 20 draws a twin's; NULL forced, reseeded or merged; else TRUE.
-- completes to invalid: a hand state, record FALSE, with a live exempt rule beneath a rule on its column: on the
-  coin that takes the missing value away (asserted), an error, the sampler a twin's; on the other, installed.
+  can reach, none on a hand-built rule out of reach; kept rules with no category on the right, forced in
+  (asserted present), keep their direction through a first missing value and an install that draws, and the
+  sampler reinstalls its own state.
+- not clean: a stored state whose drawn directions break a monotone tree's order, and a hand state whose drawn
+  direction empties a leaf (Part A's lone-left tree), each coin asserted: FALSE unforced with getTrees,
+  generators, `$state` and the next 20 draws a twin's; NULL forced; else TRUE. Completes to invalid: a hand
+  state, record FALSE, a live exempt rule beneath a rule on its column: on the coin that takes the missing value
+  away (asserted) an error, the sampler a twin's.
 
-Step A, tests/cpp, `testStateMissingRecord` in [test_state.cpp](../../tests/cpp/test_state.cpp), by the pattern
-of [`testMissingFirstSeen`](../../tests/cpp/test_sampler.cpp): `getState` writes the flags; state, one
-whole-column first missing value, state again, install the first: trees, kept draws and generator bytes equal
-the second's (two chains, two forests, a variance forest, a pooled column, a wrapped ring); exempt rules, nested
-and out of reach, take no coin in either caller; cleared `rngState` draws from the chain's own; a throw leaves
-the generators; the fuzz states with a column cleared from the record complete to valid ones.
+Step A, tests/cpp, `testStateMissingRecord` in test_state.cpp, after
+[`testMissingFirstSeen`](../../tests/cpp/test_sampler.cpp): `getState` writes the flags; state, one whole-column
+first missing value, state again, install the first: trees, kept draws and generator bytes equal the second's
+(two chains, two forests, a variance forest, a pooled column, a wrapped ring, a store of another size); exempt
+rules, nested and out of reach, take no coin in either caller; cleared `rngState` draws from the chain's
+position and leaves it on a decline; a decline and a refusal after the draw leave generators and grid; the fuzz
+states with a column cleared from the record complete to valid ones. Mutants, each failing a test: the record
+not written, written from content, or through getMissingSeen; the raised set reversed; no record read as none
+missable; no draw on live trees, kept draws, the variance forest, a second forest or later chains; coins from
+the chain's generator; the state's generator installed without the advance; kept draws in slot order, by the
+recipient's ring, or after the repack; a draw at every factor rule; a coin for an exempt rule; step 5 or 8
+reading the state as stored; a generator not put back; a flag raised.
 
-Step A mutants, each failing a test: the record not written, written from content, or through getMissingSeen;
-the raised set reversed; no record read as none missable; no draw on live trees, kept draws, the variance
-forest, a second forest or later chains; coins from the chain's generator; the state's generator installed
-without the advance; kept draws in slot order or after the repack; a draw at every factor rule; a coin for an
-exempt rule; validation, verdict or cone run on the state as stored; a generator not put back; a flag raised.
+Step B tests, 16 pins. test-monotone-unforced.R, 12: the section returns to what the engine does on the tree a
+missing f breaks, each outcome checked against the side an unconstrained twin on the same seed draws (FALSE and
+untouched, the row declined, NULL and reseeded when forced, TRUE where the order is kept).
+test-joint-update-factor.R, 3: every sampler takes a missing label; only the third, complete in f, draws.
+test-data-categorical-declared.R, 1, setTestPredictor's: still refused, in the test path's words, with a numeric
+twin. test-missingness-first-seen.R runs its paths for f too. Mutants: the refusal left on one path; a missing
+label coded as a level; the test setter taking one.
 
-Step B tests. [test-monotone-unforced.R](../../inst/tinytest/test-monotone-unforced.R), 12 pins: the section
-returns to what the engine does on the tree a missing f breaks, each outcome checked against the side an
-unconstrained twin on the same seed draws: FALSE and untouched, the row declined, NULL and reseeded when forced,
-TRUE where the drawn side keeps the order. [test-joint-update-factor.R](../../inst/tinytest/test-joint-update-factor.R),
-3 pins: every sampler takes a missing label; the third, complete in f, draws and the other two do not.
-[test-data-categorical-declared.R](../../inst/tinytest/test-data-categorical-declared.R), 1 pin, setTestPredictor's:
-still refused, in the test path's words, with a numeric twin. test-missingness-first-seen.R runs its paths for
-f too. Mutants: the refusal left on one path; a missing label coded as a level; the test setter taking one.
+Step C tests. test-state-missing-record.R: the measured case holds both sides on x1 before any sweep, and over
+40 seeds the share sent right is within the binomial 1e-3 band of one half; two chains given one donor draw
+(`samples`) differ; a donor state with the attribute removed, and a donor created with the missing values, leave
+the recipient's generators unmoved, all left and as learned. The draw before the collapse: a hand donor whose
+one split on x1 lies above every observed value of the recipient, on its grid and on another: where the coin
+goes right (seed searched, asserted) the split stands with the missing rows beneath it, where left it is merged.
+test-monotone-unforced.R's block "a warm start from a donor on another cut grid": the recipient's seed is
+searched, as the setData arrival beside it is, for the sides that leave `breaks` out of order (reseeded, as
+pinned) and for a pair that keeps it (read, not run). tests/cpp, `testWarmStartMissingDirections` in
+test_state.cpp: each chain's directions equal a replay of its own generator in tree order, variance trees after;
+a slot-sourced exempt rule takes no coin; no record, and a refusal after the draw, leave trees and generator
+bytes. Mutants: no draw; the draw after the collapse; coins from the donor state's generator, or chain 0's for
+every chain; no record read as none missable; a column drawn where D and F agree; variance trees skipped; the
+generator left advanced on a refusal.
 
-Docs. [dbartsSampler-class.Rd](../../man/dbartsSampler-class.Rd): the `state` field gains "and which predictor
-columns could hold a missing value when it was stored"; Missing values in predictors gains "Installing a stored
-state, by \code{setState}, \code{copy} or a reload, into a sampler where a column can hold missing values that
-could not when the state was stored draws the side of every rule on that column, in the state's trees and saved
-draws, as a column's first missing value does. \code{setState} counts such an install as clean and returns
-\code{TRUE}, unless a drawn side leaves a leaf with no row or takes a monotone tree out of order." Step B: the
-refusal of "a missing label in a column that has never held a missing value" becomes setTestPredictor's alone,
-and the paragraph beginning "A column coded from a factor" goes. [NEWS.Rd](../../inst/NEWS.Rd) states no refusal
-(ran: grep); its first-missing-value item gains a clause. The design note is amended; both TODO items close.
+Docs. [dbartsSampler-class.Rd](../../man/dbartsSampler-class.Rd). Step G, Saving: after a forced setState that
+repaired a tree the `state` field holds the state as it was given, so installing the field again unforced
+returns FALSE and a copy or a reload repairs it the same way; storeState() stores what the sampler now holds.
+Step A: the same of an install that drew a side; the `state` field gains "and which predictor columns could hold
+a missing value when it was stored"; Missing values in predictors says what the Goal's first two sentences say,
+in the help's words (side, rule, saved draws), and that setState returns TRUE for such an install unless a drawn
+side leaves a leaf with no row or a monotone tree out of order. Step B: the refusal of "a missing label in a
+column that has never held a missing value" becomes setTestPredictor's alone; the paragraph beginning "A column
+coded from a factor" goes. Step C, there and in installTrees's docstring: a warm start from a fit whose data
+could not hold a missing value in a column draws the side of every rule on that column in the trees it installs.
+[NEWS.Rd](../../inst/NEWS.Rd): its first-missing-value item gains one clause (0.9-34 had no warm start). The
+design note is amended. TODO items closed at landing: state-before-first-missing,
+factor-first-missing-setpredictor, first-sight-kept-one-way-rule, test-column-missing-not-refused,
+setstate-test-gaps, first-missing-test-seeds.
 
 ## Verification
 
-Independently of the implementer, `R_LIBS=$LIB` on every R call
-([RNG classes and their gates](README.md#rng-classes-and-their-gates), shifting, nothing to re-record expected):
-`R CMD INSTALL --preclean --library=$LIB .` per engine commit; `cd tests/cpp && make && ./test_bartcore`, plain
-and with `OPT="-O2 -g -fsanitize=address,undefined"`; `tinytest::run_test_file` on each touched file (also under
-R-loaded ASAN), then `tinytest::test_package("dbarts", at_home = TRUE)`; on a reference build, `Rscript
-benchmarks/R/equivalence.R compare <MANIFEST file> --bitwise --strict-coverage`, the bcf and multinomial
-compares and the four `test-reproducibility-*.R` files: "identical draws (same RNG stream)" throughout; the exact
-gates with `quick`; `R CMD check --as-cran`; lint, air, the doc checks; stan4bart's suite and a saved fit reloaded.
-
-## What touches Part B
-
-Against [Part B: setState's two forms (dec-B305, dec-B310, dec-B318, dec-B398, dec-B401)](setstate-force-update.md#part-b-setstates-two-forms-dec-b305-dec-b310-dec-b318-dec-b398-dec-b401).
-Recheck when it lands, most likely to be wrong first (the critique's order):
-1. The seam. B2's staging routine may fold the verdict into `stateIsValid`'s loop. Section 2 asks only that
-   the trees be walkable and nothing built, routed or judged before the draw; place it by that.
-2. B1's signature: the refusal out-parameters go, `force` and `notClean` arrive, the monotone check feeds the
-   verdict. Every reader after the draw takes the copy, `altered`'s successor too; recheck install-equals-state asserts.
-3. B4's ring: the draw uses the state's capacity S, R = min(recorded, S) and slot (cursor + S - R + d) mod S,
-   before the repack. Recheck that nothing reduces the cursor against the recipient's capacity first.
-4. B6's R side: section 3 relies on `$state` being the object given after TRUE and after a forced install. If
-   Part B stores again after a forced repair, that bullet and the copy-and-reload test change.
-5. B2's "generators untouched on FALSE": the borrowed generator goes back on every exit (the scope guard).
-6. Part B's fuzz check (unforced false exactly when forced reports a repair) runs on the completed copy.
-Also: the bridge reader gains the attribute beside B6's `force`; B9's text takes this slice's sentences.
-
-## Open call
-
-O1. Should a warm start draw the directions for missing values?
-
-A warm start (`bart(warm.start = fit)`, or `sampler$installTrees(fit)`) copies an earlier fit's trees into a
-new sampler as its starting point; the new sampler then runs its own sweeps.
-
-The case: the earlier fit's data had no missing value in a column, and the new data have some. The copied
-trees were grown when nothing there could be missing, so their splits on that column say nothing about where a
-missing value goes; today every one sends it left. 0.9-34 has no equivalent: no warm start (no `warm.start`
-argument, no `installTrees`), and rows with a missing predictor value dropped (147 of 150 kept; run 2026-10-10).
-
-Measured on this branch, 2026-10-10: 150 rows, 3 of them missing in x1, 2 chains of 15 trees, warm-started
-from a fit to the complete data. Before any sweep, 7 of 7 splits on x1 send missing values left. After 1 sweep,
-8 left and 1 right. After 31 sweeps, 8 left and 4 right.
-
-- (a) Draw. Each chain of the new sampler draws each such split's direction at one half, from its own
-  generator, before the warm start merges the splits the new rows leave empty. It rides this slice: about 110
-  lines (engine 30, bridge 15, tests 60, help 5), same review. It reads the donor's record of which columns
-  could be missing, which this slice adds; a donor state stored before it has none and installs as today, all
-  left. Such a warm start's draws shift; no recorded baseline or gate warm-starts (grep).
-- (b) Leave it. The splits start left and the sampler's moves change them over the run. About 3 lines of help.
-
-Recommended: (a). By dec-B321's reasoning a direction no missing row has reached has its prior, one half, as
-its conditional, so all left is not a draw from anything the earlier fit says. And the left start lasts: 8 of
-12 splits still left after 31 sweeps. Neither option is wrong in the long run: a warm start is a starting
-point. What would change it: a left start gone within a few sweeps, or a view that such warm starts will not
-occur. How realistic: a refit seeded from an earlier fit after rows with gaps arrive; uncommon.
+Independently of the implementer, `R_LIBS=$LIB` on every R call, one R process at a time
+([RNG classes and their gates](README.md#rng-classes-and-their-gates): shifting, nothing to re-record expected):
+- `R CMD INSTALL --preclean --library=$LIB .` per engine commit; `cd tests/cpp && make && ./test_bartcore`,
+  plain and with `OPT="-O2 -g -fsanitize=address,undefined"`; `tinytest::run_test_file` on each touched file,
+  also under R-loaded ASAN; `tinytest::test_package("dbarts", at_home = TRUE)`: no failure after any step.
+- On a reference build: the trio's `compare <file> --bitwise` (equivalence.R also `--strict-coverage`) on
+  section 8's files, in the landing order it names: 55, 15 and 11 scenarios, each "identical draws (same RNG
+  stream)"; the four `test-reproducibility-*.R` files pass unchanged.
+- Every script of `.github/workflows/exact-gates.yaml` with `quick`; `R CMD check --as-cran` from a clean
+  tarball; lintr, `air format --check .`, and tools/check-rc-codoc.R, check-win-drift.R and
+  check-doc-freshness.R; stan4bart's suite at 3d2a295 on the build, and a fit saved on the base reloaded.
 
 ## Calls made
 
-- An install that drew is clean: unforced TRUE. dec-B435 names the draw, not the return value. The grounds:
-  dec-B305's clean is "leaving a sampler in a coherent state with regards to its model", its not clean "a tree
-  that would have to be changed to fit"; dec-B310's unforced value marks "a statistically valid update"; a
-  direction no row had reached has its prior as its conditional (dec-B321); an unforced setPredictor that draws
-  returns TRUE (ran). What a user sees: after such a TRUE the directions and generator are not the given
-  state's, and `$state` is still the object given. Alternative: FALSE, the draw under force.
-- The draw completes a copy before validation, verdict and install (alternative: install, then draw and
-  refresh, merging and judging under the left default). Coins from the state's generator (alternative: the
-  sampler's current one, which the install overwrites; a reload of `$state` would not reproduce its source).
-- The exempt rule covers "no category on the right" only (alternative: the mirror too, about 35 lines for the
-  reachable categories in the flat walk, to keep a rule that stays well formed either way).
-- No record draws nothing; a state never raises a flag; the attribute is `missing.columns`, always written
-  (alternative: the data slot's name, NULL meaning two things); every recorded kept draw of the state draws,
-  before the repack (alternative: only those the store keeps); `$state` after `setState` stays the object given.
-- Step B: setTestPredictor's column form refuses through the test path's own check, so also the numeric test
-  column it takes today (dec-B322; alternative: keep the factor refusal for that caller, a TODO for the rest).
+- An install that drew is clean: unforced TRUE. dec-B435 names the draw, not the value; the grounds are
+  dec-B305's clean ("a coherent state with regards to its model"), dec-B310's "statistically valid update",
+  dec-B321 (a direction no row reached has its prior as its conditional) and the unforced setPredictor that
+  draws and returns TRUE (ran). After such a TRUE the directions and generator are not the given state's, and
+  `$state` is still the object given, as after a forced repair. Alternative: FALSE, drawing only when forced.
+- The draw completes a copy before anything is judged, with coins from the state's generator (alternatives: draw
+  after the install, judging under the left default; the sampler's generator, which the install overwrites).
+- New, against the landed code. The draw sits before the grid is written and runs its own walkability pass,
+  where the plan had it after a first validation: the landed validity and verdict are one loop behind the grid
+  write (alternative: split `stateIsValid`). Only `state.chains` is copied. A state without generator bytes
+  hands its advance to the copy, so a decline leaves the chain's generator (the plan advanced it in place). The
+  warm start draws in the scratch `installForests` builds and undoes its coins on a refusal (alternative: draw
+  after the checks, which would then judge other trees). Step G is built first, so its tests guard steps A to C.
+- The exempt rule covers "no category on the right" only: its mirror, every category right and the missing value
+  left, stays well formed either way (rerun). No record draws nothing; the attribute is `missing.columns`,
+  always written; every recorded kept draw of the state draws, before the repack. Step B: the test column form
+  takes the test path's refusal (dec-B322; alternative: keep the factor refusal there).
 
 ## Budget, stops and evidence
 
-Planned ~805. Step A ~620: engine 135, bridge 30, tinytest 230, tests/cpp 180, help, NEWS and docs 45. Step B
-~185: R 25, tests 150 (the monotone file about 100), help 10. O1 as (a) adds ~110. Forecast at 1.5 to 2 times,
-as this surface has run: 1210 to 1610; stop at ~2110 (~2400 with O1). Stop and report, without working around,
-when: the slice passes its stop; anything recorded or an existing test other than section 6's exception moves;
-section 3's scoped loop does not reproduce the update; a `getState` state completes to an invalid one; Part B
-landed so that section 2's seam cannot be placed, or with another ring rule; step B needs an engine change.
+Planned ~1035. Step G ~105: tests 95 (G8 about 40), benchmarks 6, help 4. Step A ~620: engine 135, bridge 30,
+tinytest 230, tests/cpp 180, help, NEWS and docs 45. Step B ~185: R 25, tests 150, help 10. Step C ~125: engine
+35, bridge 15, tests 70, help 5. Forecast at 1.5 to 2 times, as this surface has run (Part B: 1.8): 1550 to
+2070; stop at 1.5 times the midpoint, ~2720. Stop and report, without working around, when: the slice passes its
+stop; anything recorded, or an existing test other than section 8's, moves; section 3's scoped loop does not
+reproduce the update; a `getState` state completes to an invalid one; a step G test fails on the base (a defect
+in landed code: report it); the draw cannot sit before the grid write without changing `stateIsValid`'s
+signature; step B needs an engine change; step C's refusal needs more than the generators put back.
 
-Evidence. Ran on c4ea26ab, library scratch/libs/smr, in scratch/smr/: 01 (the review's case, copy, reload,
-twin), 02 (warm start), 03 (install probe), 04 (factor paths), 05 (test setter), 06 (0.9-34, library
-scratch/libs/cran), crit/ (the critique's p1 and p2 probes rerun, identical output; the mirror); the greps. Read:
-every claim cited by symbol; Part B as planned. Not run, no build of the slice existing: the install path, the
-exempt rule, every mutant; tests/cpp. Revised from the critique (7dcdb6f1, scratch/smrcrit/critique.md): M1 and
-S2 (the exempt rule; one validation, on the copy), M2 (scope), M3 (tests, seeds), S1, S3, S4, S5, step B.
+Evidence. Run by me on 82678655 (library scratch/libs/smr2; scripts in scratch/smr/ and its crit/): what the
+sections mark rerun, the suite probe, the arms of test-state-missing-direction.R, the greps. Read there: every
+claim cited by symbol; Part B's landing note; dec-A199, dec-B440; step G's two TODO items. Not run, no build of
+the slice existing: the completion, the exempt rule, the warm start's draw, every mutant and new test; tests/cpp
+was not built; the review's crash under the masks mutant and 06 (0.9-34) were not rerun.
