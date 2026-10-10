@@ -311,8 +311,21 @@ items
     the maintainer) found one, many small groups with group-level
     covariates in the forest, where a creation-fixed transform is 0.6
     of where chains settle and the split between the forest and the
-    random effects is worse; the recommendation is open until that is
-    ruled. About 1260 lines planned, after response-scale-rows.
+    random effects is worse. Direction ruled: one mapping fixed at
+    creation from a richer initial fit (the initial lme4 fit given
+    BART's covariates as linear fixed effects), nothing built until
+    its design comes back to the maintainer: factor covariates, failed
+    and slow fits, the fallback when the range cannot be estimated
+    (dec-B437, VD 2026-10-10). About 1260 lines planned for the
+    per-chain data, after response-scale-rows.
+  stan4bart-creation-mapping: stan4bart fixes its response mapping at
+    creation from the richer initial fit, shared by every chain and
+    never re-derived (dec-B437); design in progress. With it:
+    stan4bart's initial fit silently falls back from lme4 (Suggests)
+    to lm or glm with different terms; and the per-chain restore's
+    alternating-response vector lands on the wrong mapping when zero
+    weights fall on one parity (dec-A197), to be replaced by the
+    shared mapping's restore. Before the merge to main.
   sparse-starting-sigma: before the merge (dec-B403, VD 2026-10-09).
     A caller's sparse x takes the same linear-model starting sigma as
     its dense equivalent, with no warning (today: sd(y) and a warning
