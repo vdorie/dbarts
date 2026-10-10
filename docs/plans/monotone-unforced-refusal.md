@@ -49,8 +49,8 @@ pair of leaves the constraint relates has its values the right way round.
 - Which flag change relates new leaves. A rule on a column that holds no missing value carries no direction
   for one: none is drawn, and retired: [`Tree::dropStaleMissingDirections`](../../src/bartcore/tree.hpp) (gone
   since setstate-force-update Part A, the flag no longer going down) cleared what
-  a column's last missing value left behind. A first missing value therefore goes left at every rule on
-  its column.
+  a column's last missing value left behind. A first missing value therefore went left at every rule on
+  its column; since Part A it draws each rule's side instead, and the cases below are those sides all left.
   - Numeric or ordered column: a leaf it reaches is left of every rule on that axis above it, so the leaf's
     interval starts at the lowest code, and two such leaves already share that code. Nothing is added.
   - Unordered factor: the missing position joins the left level set of every rule, and two left sets need

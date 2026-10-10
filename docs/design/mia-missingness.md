@@ -153,6 +153,11 @@ column's rule keeps it in its pool words.
   ([`Chain::drawMissingDirections`](../../src/bartcore/chain.hpp)); a
   refused update takes the draw back, generators included; and predict
   refuses a missing value only in a column that has never been flagged.
+  A subset rule on an unordered factor column draws only where a missing
+  value can reach it under the directions drawn above it: out of reach it
+  holds no direction, exactly as on a sampler that saw the column's missing
+  values at creation
+  ([`Tree::drawMissingDirections`](../../src/bartcore/tree.hpp)).
   cutsWouldRemainValid and categoricalValueIsValid treat NaN as valid
   when missing = "incorporate".
 - Views (buildFromParent) copy hasMissing with the rest of the grid; the
