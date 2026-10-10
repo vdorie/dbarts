@@ -670,7 +670,8 @@ carry no drawn scale, is merged into its parent at install with the geometric
 mean, as `refreshVarianceForest` merges after a forced predictor swap
 ([`Chain::rebuildVarianceForest`](../../src/bartcore/chain.hpp)). The mean
 forests merge the same way, so `$setState`, `copy()`, a reload and a warm start
-never install a bottom no row reaches.
+never install a bottom no row reaches; without `forceUpdate` `$setState`
+declines the state instead ([install-surface.md](install-surface.md)).
 
 Net effect: a heteroscedastic sampler now accepts `$setPredictor` - whole
 matrix, column subset, and per-observation alike - and the per-observation
@@ -746,9 +747,11 @@ Semantics:
   one path that makes a saved slot LIVE, and `installVarianceForest` merges
   there, as every install does, a bottom the destination's rows leave empty, so
   no installed scale leaf reports a scale the data never supported.
-- `setTreeStorage` re-runs `initializeSavedTrees` and resets the sample counter,
-  so a capacity change followed by `$setState` refuses under the size gate -
-  already the mean-side behavior.
+- `setTreeStorage` re-runs `initializeSavedTrees` and resets the sample counter.
+  A `$setState` after a capacity change takes the newest of the state's draws
+  that fit, variance trees with the mean trees
+  ([install-surface.md](install-surface.md)); blocks that name different
+  draw counts are refused.
 
 Warm start pairs the two halves at ONE sample. `installForests` slices the
 donor's saved variance buffer at the slot its mean forests come from, so

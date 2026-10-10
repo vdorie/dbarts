@@ -705,7 +705,8 @@ requires. What happens depends on whether the call may refuse.
   for the rules on its column, and a declined row takes that draw back
   ([mia-missingness.md](mia-missingness.md)).
 - The calls that always complete - a forced update, `setData`,
-  `setCutPoints`, a warm start and a `setState` that has to merge leaves - set
+  `setCutPoints`, a warm start and a forced `setState`
+  ([install-surface.md](install-surface.md)) - set
   every leaf of such a tree to zero, drawing nothing and saying nothing
   ([`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)).
   No acceptance rule accounts for that move, which is why the unforced forms

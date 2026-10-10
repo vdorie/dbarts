@@ -183,9 +183,11 @@ installs only if it empties no leaf in any tree of any forest of any chain. The
 forced predictor swap, `setCutPoints` and `setData` enforce it by merging an
 emptied bottom into its parent.
 
-Every install of stored trees enforces it by the same merge. `$setState`,
-`copy()`, a reload and a warm start build each stored tree against the
-sampler's current data and merge a bottom no row reaches into its parent, mean
+Every install of stored trees enforces it by the same merge. A forced
+`$setState`, `copy()`, a reload and a warm start build each stored tree against
+the sampler's current data and merge a bottom no row reaches into its parent;
+an unforced `$setState` declines such a state instead
+([install-surface.md](install-surface.md)). Mean
 and variance forests alike
 ([`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp),
 [`Chain::rebuildVarianceForest`](../../src/bartcore/chain.hpp)); a tree whose

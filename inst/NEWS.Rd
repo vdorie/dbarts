@@ -240,6 +240,20 @@
             drawn at random, in the current trees and in the saved draws,
             and keeps routing them whatever it holds afterwards; 0.9-34
             sent them down an arbitrary branch.
+      \item \code{$setState} installs a state only where it fits the
+            sampler as it stands, and says whether it did: it returns
+            \code{TRUE}, or \code{FALSE} with the sampler left as it was
+            when a tree of the state would have to be changed, as when a
+            leaf is reached by no row after a \code{$setPredictor}. The new
+            \code{forceUpdate = TRUE} installs such a state, merging what
+            does not fit as a forced \code{$setPredictor} does, and returns
+            \code{NULL} invisibly. 0.9-34 installed whatever state it was
+            given and returned \code{NULL}.
+      \item A state whose saved draws (\code{keepTrees}) number more or
+            fewer than the sampler keeps is installed with the newest that
+            fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a
+            larger or smaller store as it was and crashed R on a state
+            with none where the sampler kept some.
       \item \code{family = "auto"} recognizes more responses. A two-level
             factor, logical or character response fits as probit. A factor
             with three or more levels fits as \code{"multinomial"} on

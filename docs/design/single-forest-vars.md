@@ -48,9 +48,10 @@ Three things follow from the columns being part of what the model is, not a sett
   them, on the control's forests attribute.
 - [`dbartsSampler$setModel`](../../R/dbarts.R) refuses a model whose list differs from the sampler's, a model
   with none included, before anything is stored.
-- A state or a warm-start donor holding a tree that splits outside the list is refused with the messages a
-  restricted variance forest gives; the same predicate judges both
-  ([`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp)).
+- A warm-start donor holding a tree that splits outside the list is refused with the message a restricted
+  variance forest gives ([`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp)). A state holding
+  one is declined by `setState` and, forced, cut back at the split
+  ([install-surface.md](install-surface.md)).
 
 `blocks` beside `vars` partitions the allowed columns, on a single forest and on the first forest of several;
 the first forest of two used to be refused there for not naming the columns it may not split on. The category

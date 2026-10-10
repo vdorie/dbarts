@@ -129,8 +129,9 @@ tree.vars/tree.values grow a parallel tree.flags (raw or integer)
 element, absent meaning all-zero for restores of older states within the
 same major version. buildFromFlat validates flags: bits 1-2 carry the
 node's kind tag, which must match the column, and bit 0 is the only other
-bit allowed. A direction whose column lacks NAs is accepted and dropped,
-so a state stored while the column held them still installs; a pooled
+bit allowed. A direction on a column that has never held an NA is dropped
+by a forced install and declines an unforced one
+([install-surface.md](install-surface.md)); a pooled
 column's rule keeps it in its pool words.
 
 ## Bridge and R surface

@@ -13,7 +13,7 @@ nothing else, and installing one should leave the model alone.
 | block | what it is | kind | on install |
 |---|---|---|---|
 | trees, leaf values, a linear leaf's slopes, a gp leaf's fits | the forest | state | installed |
-| saved draws (the six `saved.*` blocks) | the kept trees `predict` replays | state | installed |
+| saved draws (the six `saved.*` blocks) | the kept trees `predict` replays | state | installed; from a store of another size, the newest that fit ([install-surface.md](install-surface.md)) |
 | latents, ordinal thresholds | the augmentation variables | state | installed |
 | DART split weights and delay counter | the split prior's current draw | state | installed |
 | the generator | the random stream | state | installed |
