@@ -1,9 +1,10 @@
 # k-internal-parameter: k is the chain's parameter on the internal scale, the sd spelling is sugar, and installs convert nothing
 
-Status: PLANNED 2026-10-09; RULED as a whole (dec-B416), its open calls ruled (dec-B417, dec-B418,
-dec-A191). Revised from its blind critique (scratch/kcrit2/critique.md) and then to the rulings, which
-widen it by dec-B418's removal of every install conversion. One question is held for the maintainer
-([Held for the maintainer](#held-for-the-maintainer)). Nothing is built.
+Status: LANDED 2026-10-10 (36ef650c..f6ea29f9; [Landing note](#landing-note) below, which corrects this
+plan's bitwise claims for installs). Planned 2026-10-09 and ruled as a whole (dec-B416), its open calls
+ruled (dec-B417, dec-B418, dec-A191) or settled at the build (dec-A196). Revised from its blind critique
+and then to the rulings, which widen it by dec-B418's removal of every install conversion. The question
+held for the maintainer was answered by dec-B419 and built in stan4bart (dec-A197).
 
 agent: opus implementer, one; one opus reviewer who runs the mutants under Tests.
 rng: SHIFTING: no fit's posterior changes through R. NEUTRAL, bit for bit, for every fit whose leaf
@@ -683,3 +684,35 @@ are arithmetic on the run values, not runs, except the emulated install. The bli
 (scratch/kcrit2/, private library scratch/libs/kcrit2 on the same code): the probes re-run identically,
 the emulation over every family and leaf model, sigma across a re-anchor and an install, xbart's warm
 path, and the held sd's one-ulp miss; and read: the re-creation path through Chain::setState's restore.
+
+## Landing note
+
+Landed 2026-10-10 as 36ef650c..f6ea29f9 after the plan's blind critique, one opus review that ran the 21
+mutants above and 13 of its own, and two fix rounds (tests and comments) the same reviewer checked. What
+was built is the plan, with these corrections to its text:
+
+- Installs within one mapping are not bitwise against the previous build where the chain draws sigma: the
+  old install wrote sigma back as (g r) / r, the new one installs the stored internal value, and the two
+  differ by rounding where that round trip misses (2 of 48 cells run, 1.3e-15). A warm start within one
+  mapping takes sigma on the internal scale too. The `rng:` line's NEUTRAL, the operation table's "as
+  stored, bitwise" for today and the Constraints' frozen list are wrong at this corner (dec-A196).
+- "Continues the chain bit for bit" was never true of a restore: a copy, a reload and a sampler's own
+  restore agree with each other bit for bit and differ from the uninterrupted chain by rounding, on the
+  previous build and on this one (0 of 96 cells), since an install rebuilds fits from the flattened
+  trees. The help says a restore puts the chain back where it was stored, value for value.
+- test_state.cpp held 5 conversion checks, not 19; they became installs-as-stored checks.
+- The composition matrix was not run: its harness stops at parse on both builds (root TODO).
+
+Gates on the landed tip or, where no package code differs, on 4ec66f4e: equivalence-e4faed5c 55/55,
+bcf-equivalence-1b7d730c 15/15 and multinomial-equivalence-80b1c8d4 11/11 bitwise on the reference build;
+the four snapshot files unchanged (27 results); the exact gates in quick mode, 37 of 37; the suite in one
+process 20081 results and 0 failures, test-capi.R's new arm compiled and run; tests/cpp plain and under
+address/undefined sanitizers; R-loaded ASAN over the touched files; `R CMD check --as-cran` with the one
+Date NOTE; lint chain clean. The x86 leg: tests/cpp plain and under address, undefined and leak
+sanitizers, the suite with 20114 results and 0 failures, equivalence 55/55 in statistical mode; its leak
+sanitizer found four generators the new tests did not free, fixed before landing. stan4bart's suite
+against the build: 24 of 582 failed, each a kept-tree replay of a continuous fit through its restore;
+with its per-chain restore (dec-A197) 620 of 620, on this build and on the one before.
+
+Calls made: dec-A196. Left open: `run()$k` is NULL after `setLeafPrior` turns a fixed k into a drawn one,
+on both builds (root TODO).

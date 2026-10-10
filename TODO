@@ -299,9 +299,14 @@ items
     sampler (stan4bart today runs one sampler per chain). The note
     recommends one transform fixed at creation from the response less
     the intercept-free initial fit, with updateScale on per-chain data
-    re-deriving one transform from every chain; measured, warm-up
-    re-derivation buys nothing on stan4bart fits. About 1260 lines
-    planned, after response-scale-rows.
+    re-deriving one transform from every chain; on the one model shape
+    it measured, warm-up re-derivation bought nothing. A stress study
+    over five further designs (scratch/s4stress/, 2026-10-10, before
+    the maintainer) found one, many small groups with group-level
+    covariates in the forest, where a creation-fixed transform is 0.6
+    of where chains settle and the split between the forest and the
+    random effects is worse; the recommendation is open until that is
+    ruled. About 1260 lines planned, after response-scale-rows.
   sparse-starting-sigma: before the merge (dec-B403, VD 2026-10-09).
     A caller's sparse x takes the same linear-model starting sigma as
     its dense equivalent, with no warning (today: sd(y) and a warning
@@ -330,13 +335,15 @@ items
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
     and buffers, the draws combined.
-  state-install-keeps-spread: before 1.0-0 (dec-B384, VD 2026-10-08).
-    setState, a copy and a reload install a drawn leaf scale as the
-    state's spread in force, k re-expressed against the recipient's
-    k.scale, where today the stored k installs and the spread jumps by
-    the ratio of the two k.scale values. With the install surface's
-    first slice; retired: [`Chain::scaleDrawnK`](src/bartcore/chain.hpp)
-    (setLeafPrior's, dec-A187) did the re-expression and is gone.
+  run-k-after-setleafprior: run()$k is NULL after setLeafPrior turns a
+    fixed k into a drawn one (whether k is recorded is decided at
+    creation), so getK's help, "the value run()$k records per draw", is
+    wrong for such a sampler. Found by the k-internal review; an
+    R-surface slice. Before 1.0-0.
+  offset-test-name-capture: offset.test = s$offset[te] stops with
+    "cannot construct test offset": the name offset inside the
+    expression is taken for the offset argument, where a plain variable
+    works. Found by the negative binomial prior study. Before 1.0-0.
   leaf-covariate-single-value-off-centre: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
     relative to the centre closes it. A slope on a column moved to
