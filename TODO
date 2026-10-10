@@ -381,14 +381,6 @@ items
     interval it falls in, one past the last period at risk throughout
     with no event. R only; with the creation slice of
     response-scale-rows, whose rule it follows.
-  default-rule-per-gap: BEFORE THE MERGE TO MAIN (dec-B313, VD
-    2026-10-07). Under the default rule a column with fewer distinct
-    values than n.cuts gets one cut point in each gap between them, as
-    the quantile rule gives it, where today it gets n.cuts evenly
-    spaced points whatever its values (100 on a 0/1 column, all making
-    one split). Changes every default fit with a binary or few-valued
-    numeric column and moves recorded baselines. Plan first; a slice
-    of its own, in the routine that derives a grid.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply

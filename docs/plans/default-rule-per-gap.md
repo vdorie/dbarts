@@ -1,9 +1,8 @@
 # default-rule-per-gap: one cut point per gap, each gap weighted by its width
 
-Status: PLANNED 2026-10-09 under dec-B406, which revises dec-B313; sized for VD's go or the fallback
-(Sizing). Replanned the same day after the blind critique (scratch/drcrit/critique.md). Every claim is
-marked (ran), run in a private library under scratch/libs/drplan with the probes in scratch/drplan, or
-(read). The prototype is scratch/drplan/proto (its edits carry `PROTO`), never in the tree.
+Status: LANDED 2026-10-09 (f946d728..650cdecb; Landing note below). Planned under dec-B406, which revises
+dec-B313; replanned the same day after the blind critique. Claims below marked (ran) were run on a
+prototype outside the tree.
 
 agent: opus implementer, one; blind critique of this plan first; one opus reviewer who runs the mutants below.
 rng: POSTERIOR-CHANGING for every fit under the default rule (`useQuantiles = FALSE`) with a numeric column
@@ -428,3 +427,26 @@ Open:
    it is what was ruled, it measured no loss on any design tried, and it builds cut-point-weights' machinery
    once. The cutoff is half the size and leaves the 5.5% and 3% losses' columns unchanged, which avoids them
    too, but changes uneven small counts unmeasured and builds nothing reusable.
+
+## Landing note
+
+Landed 2026-10-09 as f946d728..650cdecb after the plan's blind critique, one opus review with 31 mutants
+and one fix round the same reviewer checked. Under the default rule a numeric column with at least two and
+fewer than n.cuts distinct values holds one cut point per gap between its values, each gap chosen in
+proportion to its width in the tree prior and every proposal (birth, change, perturb, rule_gibbs,
+grow-from-root); states carry the weights as an additive cutMass attribute, older states reload unchanged.
+Equivalence re-recorded as equivalence-e4faed5c: the eight planned movers (hurdle max |z| 8.95, sparse
+5.40, mixedmatrix 3.35, hazard 2.91, wideFactorIndicators 2.52, factorpartial 2.29, leaffactormixed 2.21,
+xbartmixed 0.63), the other 47 bitwise; oracle in its MANIFEST row (bd-balance's weighted arm under five
+move mixtures, monotone design u1, multinomial-exact arm 8 and heteroscedastic-exact part (b), tests/cpp
+testWeightedCutKernels). bcf-equivalence-1b7d730c 15/15 and multinomial-equivalence-80b1c8d4 11/11
+bitwise; the four snapshot files unchanged (27 results). After the final rebase: equivalence 55/55 bitwise
+on the reference build, the suite in one process 19693 results and 0 failures, lint chain clean,
+stan4bart's suite 582 results and 0 failures. tests/cpp plain and under address/undefined sanitizers,
+R-loaded sanitizers on the touched files, every exact gate quick and the touched ones full, R CMD check
+--as-cran one NOTE (Date). Mutants: 30 of 31 killed by tests/cpp or tinytest, change's forward side as
+counts only by bd-balance until the fix round reshaped testWeightedCutKernels so tests/cpp kills it too.
+Speed on the Mac under load: bench-sampler 0.976 to 1.026 (bound 1.03), weighted columns 1.003, creation
+with uniform columns 1.00, refresh 1.015, few-valued creation 1.21 and refresh 1.13 (reported, bound 1.5);
+the quiet x86 A/B was run after landing. The bart-as-a-component vignette's recipe 4 was corrected (a
+revert can be declined) and its handling queued (TODO embedding-recipe-declined-revert). Calls: dec-A194.
