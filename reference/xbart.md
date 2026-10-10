@@ -260,16 +260,18 @@ xbart(
   `normal(sd = )` in
   [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
   or a [`list`](https://rdrr.io/r/base/list.html) mixing them with
-  `invchi` laws. Each spread is held fixed across folds, where a `k` is
-  relative to each fold's own training range; on a binary family, whose
-  `k.scale` is a constant of the latent scale, a grid of fixed cells is
-  the same sweep either way (`sd = k.scale / k`); a modelled cell is
-  not, since `invchi(df, c)` starts its chain at the spread `c` where
-  `chi(df, k.scale / c)` starts at `k.scale / 2`. A `k` inside
-  `leaf.prior` beside an `sd` grid is refused, as an `sd` there is
-  beside either grid. The cells are swept most shrunk first - the
-  smallest sd - with the warm starts and unit parallelism the `k` grid
-  has, and the result's axis is labelled `sd`.
+  `invchi` priors. Each spread is held fixed across folds, where a `k`
+  is relative to each fold's own training range; on a binary family,
+  whose `k.scale` is a constant of the latent scale, a grid of fixed
+  cells is the same sweep either way (`sd = k.scale / k`); a modelled
+  cell is not, since `invchi(df, c)` starts its chain at the spread `c`
+  where `chi(df, k.scale / c)` starts at `k.scale / 2`. Those starts are
+  the first cell's: each later cell of the warm sweep starts at the
+  spread the previous cell ended on, whichever of `k` and `sd` the grid
+  is stated in. A `k` inside `leaf.prior` beside an `sd` grid is
+  refused, as an `sd` there is beside either grid. The cells are swept
+  most shrunk first - the smallest sd - with the warm starts and unit
+  parallelism the `k` grid has, and the result's axis is labelled `sd`.
 
 - power:
 

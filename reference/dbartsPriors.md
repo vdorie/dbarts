@@ -83,13 +83,19 @@ A list of functions:
   leaf a neighbor bounds is drawn from a normal \\\sqrt{\pi / (\pi -
   1)}\\ times as wide, truncated to the ordering, which matches its
   marginal prior variance to `sd^2`, and `sd` is a lower bound on the
-  prior sd of \\f(x)\\ in the interior. A named `sd` is absolute: a
-  sampler restates it after every channel that re-anchors the response
-  transform (see
+  prior sd of \\f(x)\\ in the interior. A named `sd` is absolute, and is
+  another way of writing `k`: the sampler runs `sd = s` as
+  `k = k.scale / s` against the table's `k.scale`, and
+  `sd = invchi(df, s)` as `k = chi(df, k.scale / s)` started at
+  `k.scale / s`, and restates either whenever the response transform is
+  re-anchored (see
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
-  where a `k` moves with the data. It is refused on multinomial and
-  multi-forest models (whose spreads come from their calibration maps,
-  the latter stated through
+  so the sd, or the prior on it, keeps its meaning where a `k` moves
+  with the data. A drawn sd's current value lags at a re-anchor until
+  its next draw, as a drawn `k` does. The `k.scale` a sampler or a fit
+  reports is the table's, however the prior was written. It is refused
+  on multinomial and multi-forest models (whose spreads come from their
+  calibration maps, the latter stated through
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = )`,
   a different quantity), and on a hurdle fit, whose two parts are on
   different scales. `NULL` leaves either unnamed; `NA` is a missing

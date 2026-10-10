@@ -123,10 +123,17 @@ The residual priors chisq and fixed are what a family
       from a normal \(\sqrt{\pi / (\pi - 1)}\) times
       as wide, truncated to the ordering, which matches its marginal prior
       variance to <code>sd^2</code>, and <code>sd</code> is a lower bound on the prior
-      sd of \(f(x)\) in the interior. A named <code>sd</code> is absolute: a
-      sampler restates it after every channel that re-anchors the response
-      transform (see <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>), where a <code>k</code>
-      moves with the data. It is refused on multinomial and multi-forest
+      sd of \(f(x)\) in the interior. A named <code>sd</code> is absolute, and
+      is another way of writing <code>k</code>: the sampler runs <code>sd = s</code> as
+      <code>k = k.scale / s</code> against the table's <code>k.scale</code>, and
+      <code>sd = invchi(df, s)</code> as <code>k = chi(df, k.scale / s)</code> started
+      at <code>k.scale / s</code>, and restates either whenever the response
+      transform is re-anchored (see <code><a href="dbartsSampler-class.html">dbartsSampler-class</a></code>), so
+      the sd, or the prior on it, keeps its meaning where a <code>k</code> moves
+      with the data. A drawn sd's current value lags at a re-anchor until
+      its next draw, as a drawn <code>k</code> does. The <code>k.scale</code> a sampler
+      or a fit reports is the table's, however the prior was written. It is
+      refused on multinomial and multi-forest
       models (whose spreads come from their calibration maps, the latter
       stated through <code><a href="forest.html">forest</a>(sd = )</code>, a different quantity),
       and on a hurdle fit, whose two parts are on different scales.

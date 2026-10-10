@@ -1027,10 +1027,13 @@ print(x, ...)
   remapped onto this fit's grid (collapsing any the grid starves), the
   same way a data replacement remaps existing splits. Only its trees,
   and its `sigma` and `k` where this fit draws them, carry over: the fit
-  runs under its own prior and fixed values, a donor stored in other
-  response units is converted into this fit's, and each chain starts
-  from a different donor sample so multiple chains stay overdispersed. A
-  warm start biases early draws toward the donor, so it shortens burn-in
+  runs under its own prior and fixed values, the donor's leaf values,
+  `k` and `sigma` go in as stored on the sampler's internal scale and
+  are not converted to this fit's response (a donor fitted to a response
+  on another scale seeds the same internal numbers, which the first
+  draws move where this fit's data say), and each chain starts from a
+  different donor sample so multiple chains stay overdispersed. A warm
+  start biases early draws toward the donor, so it shortens burn-in
   rather than removing it; keep a non-zero `n.burn`. Multi-forest
   samplers refuse it: a fit whose forests carry amplitude bases (a
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
@@ -2082,7 +2085,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001743
+#> total seconds in loop: 0.001144
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2130,7 +2133,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002088
+#> total seconds in loop: 0.001170
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 4 2 3 2 2 2 2 3 

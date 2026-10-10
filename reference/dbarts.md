@@ -818,11 +818,16 @@ A named `sd` is absolute. It is applied at creation and re-derived at
 every `setModel` against the response transform then in force, and the
 sampler restates it after every channel that re-anchors the transform
 (`setResponse` or `setOffset` with `updateScale = TRUE`, and `setData`),
-so it means the same spread throughout; `setLeafPrior` changes it, and
-the restatement then uses the latest write. A `k`, relative to the data,
-moves with the transform instead. Two-forest (`forests`) and multinomial
-models take their forests' leaf scales from their own calibration maps
-and refuse a named `sd` rather than drop it.
+so a fixed `sd` means the same spread throughout, and an `invchi` prior
+on it the same prior; `setLeafPrior` changes it, and the restatement
+then uses the latest write. The current value of a drawn `sd` is the
+sampler's `k`, which a re-anchor leaves, so it lags until its next draw
+(see
+[`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
+A `k`, relative to the data, moves with the transform instead.
+Two-forest (`forests`) and multinomial models take their forests' leaf
+scales from their own calibration maps and refuse a named `sd` rather
+than drop it.
 
 ## Value
 

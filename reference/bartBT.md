@@ -754,24 +754,25 @@ for a short time with a flat prior (`scale = Inf`) can show the range of
 A fit stores the `k` its sampler recorded, whatever terms the leaf prior
 was named in (`k`, or `sd` through `leaf.prior`; see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md));
-`extract(type = "k")` returns it on every fit. Under a `k`-named prior
-it is relative to the data's scale, and under an `sd`-named one relative
-to the `k.scale` the fit stores (`leaf.prior$k.scale`), not to the data.
-`extract(type = "leaf.prior.sd")` returns the `k.scale` over `k`: the
-prior standard deviation of the forest's total, which is the spread the
-leaf prior states, in the units the forest fits - the response's on a
-gaussian or Student-t fit, log time on an accelerated failure time fit,
-the latent scale of the link on a probit, logistic or ordinal fit, and
-the log mean on a negative-binomial fit. What the standard deviation is
-the standard deviation of depends on the leaf model: the leaf value for
-a constant leaf, each coefficient for a linear leaf and the amplitude
-for a Gaussian-process leaf. Under a monotone constraint the total's
-prior spread runs a few percent wider than this number. On a fit with
-several forests it is each forest's own total before its amplitude
-multiplies it, one named number per forest (`forest1`, `forest2`, ...),
-or the one that `forest` selects; `k` is pinned at 1 on each. A hurdle
-fit returns a list of its zero and positive parts, each in its own
-units.
+`extract(type = "k")` returns it on every fit. It is relative to the
+data's scale, which the fit stores as `leaf.prior$k.scale`, whatever
+terms the prior was named in: under an `sd`-named prior it is that scale
+over the spread, a held `sd` being stored as the held `k` that states
+it. `extract(type = "leaf.prior.sd")` returns the `k.scale` over `k`, or
+a held `sd` as it was named: the prior standard deviation of the
+forest's total, which is the spread the leaf prior states, in the units
+the forest fits - the response's on a gaussian or Student-t fit, log
+time on an accelerated failure time fit, the latent scale of the link on
+a probit, logistic or ordinal fit, and the log mean on a
+negative-binomial fit. What the standard deviation is the standard
+deviation of depends on the leaf model: the leaf value for a constant
+leaf, each coefficient for a linear leaf and the amplitude for a
+Gaussian-process leaf. Under a monotone constraint the total's prior
+spread runs a few percent wider than this number. On a fit with several
+forests it is each forest's own total before its amplitude multiplies
+it, one named number per forest (`forest1`, `forest2`, ...), or the one
+that `forest` selects; `k` is pinned at 1 on each. A hurdle fit returns
+a list of its zero and positive parts, each in its own units.
 
 ### Generics
 
@@ -1288,7 +1289,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.218336
+#> total seconds in loop: 0.134014
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
