@@ -2355,16 +2355,22 @@ dbartsSampler <- setRefClass(
       # a first creation anchors to its own data, whatever record the model
       # handed in carries; copy and the re-creations restate the saver's
       .self$model <- recordAnchor(model, .self$pointer)
-      # the calibration map's anchor s, recorded at first creation so every
-      # re-creation builds on it rather than on the response then in force; a
-      # copy arrives with it already recorded
+      # the calibration map's anchor s and the unit a forest's stated sd is
+      # in, both the engine's, recorded at first creation so every
+      # re-creation builds on them rather than on the response then in force;
+      # a copy arrives with them already recorded
       forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
-      if (!is.null(forestInfo) && is.null(forestInfo$anchor)) {
-        forestInfo$anchor <- .Call(
-          C_dbarts_bartcore_getLeafPrior,
-          .self$pointer,
-          0L
-        )[[1L, "map.anchor"]]
+      if (
+        !is.null(forestInfo) &&
+          (is.null(forestInfo$anchor) || is.null(forestInfo$unit))
+      ) {
+        raw <- .Call(C_dbarts_bartcore_getLeafPrior, .self$pointer, 0L)
+        if (is.null(forestInfo$anchor)) {
+          forestInfo$anchor <- raw[[1L, "map.anchor"]]
+        }
+        if (is.null(forestInfo$unit)) {
+          forestInfo$unit <- raw[[1L, "map.unit"]]
+        }
         attr(control, "bartcore.forests") <- forestInfo
         .self$control <- control
       }
@@ -3152,7 +3158,7 @@ dbartsSampler <- setRefClass(
       if (
         ncol(values) != currentWidth &&
           length(forestInfo$params) > index &&
-          identical(forestInfo$params[[index + 1L]][8L], 0)
+          identical(forestInfo$params[[index + 1L]][4L], 0)
       ) {
         refuseHeldWidthChange(index + 1L, currentWidth, ncol(values))
       }

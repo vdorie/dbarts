@@ -541,34 +541,6 @@ defaultLeafScale <- function(family) {
   )
 }
 
-## The half-Cauchy median a forest carrying NO basis takes when its `sd` is
-## not declared, in units of the latent scale defaultLeafScale states above.
-## FAMILY-AWARE: under gaussian and aft the anchor is the RESPONSE's own sd
-## (sigma is DRAWN); under the latent families the anchor is the LINK's own
-## error sd (sigma is PINNED), so the anchor unit differs 2:1 between them to
-## keep the induced index prior matched to the shipped single-forest binary
-## default.
-##
-## Total over the package's family vocabulary rather than over the three the
-## multi-forest path builds: an unknown family ERRORS instead of switch()'s
-## invisible NULL, since the multi-forest creation path (dbarts(forests = ))
-## borrows this vocabulary rather than declaring a family gate of its own.
-##
-## No C twin, unlike defaultLeafScale: applyAmplitudeSpec always receives
-## explicit per-forest parameter vectors, so there is nothing to backstop.
-defaultAmplitudePriorScale <- function(family) {
-  switch(
-    family,
-    gaussian = 2.0,
-    aft = 2.0,
-    probit = 1.0,
-    ordinal = 1.0,
-    nbinom = 1.0,
-    logistic = 1.0,
-    stop("no amplitude prior scale is defined for family \"", family, "\"")
-  )
-}
-
 ## Refuses a prior object supplied together with a shorthand argument that
 ## would have built the same prior, naming both. The collision set is data
 ## because it differs by entry point: bart2 collides tree.prior with
@@ -2023,49 +1995,46 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   resolved
 }
 
-## The eight doubles attr(control, "bartcore.forests")$params carries FOR EACH
+## The four doubles attr(control, "bartcore.forests")$params carries FOR EACH
 ## FOREST, in the order the C bridge reads them: the forest's tree count and
-## structure prior, the leaf-scale factor and divisor the calibration map
-## reads, the amplitude prior's variance and half-Cauchy scale, and the
-## amplitude update flag. The first three are what the forest runs under, at
-## every position: its own statement, else the default of its kind, `plain`
-## holding the fitting function's count, base and power for the forest with no
-## basis. The bridge reads forest 1's three from the control and the model's
-## tree prior, which hold the same numbers.
+## structure prior, and the amplitude update flag, 0 where the coefficient is
+## held. The first three are what the forest runs under, at every position:
+## its own statement, else the default of its kind, `plain` holding the
+## fitting function's count, base and power for the forest with no basis. The
+## bridge reads forest 1's three from the control and the model's tree prior,
+## which hold the same numbers.
 ##
-## Which of the two magnitude channels a forest's `sd` reaches is decided by
-## whether it carries a BASIS. A forest WITHOUT one has a plain scalar
-## amplitude under a half-Cauchy scale mixture, so `sd` is that mixture's
-## median and the leaf scale stays at the calibration map's anchor. A forest
-## WITH one has a fixed-variance amplitude block, so `sd` multiplies the node
-## scale, divided through the half-normal median 0.674. The ANCHOR is the
-## family's own latent scale: sd(y) under gaussian, 1 under probit and
-## pi/sqrt(3) under logistic, per unit of basis row norm.
-##
-## The fixed-variance channel's leaf scale factor is K-AWARE, sqrt(2/K): that
-## keeps the prior on the combined location invariant to how the caller
-## decomposed the mean across forests, the identity at K = 2.
-forestParams <- function(specs, hasBasis, family, plain) {
+## Nothing of a forest's size is here: its `sd` and its
+## `amplitude.prior.variance` go to the engine as written (forestStatements),
+## and the engine holds the calibration map and every default.
+forestParams <- function(specs, hasBasis, plain) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
   }
-  leafScaleDefault <- sqrt(2 / length(specs))
-  amplitudeScaleDefault <- defaultAmplitudePriorScale(family)
   lapply(seq_along(specs), function(index) {
     spec <- specs[[index]]
-    withBasis <- hasBasis[index]
-    kind <- if (withBasis) multipliedForestDefaults else plain
+    kind <- if (hasBasis[index]) multipliedForestDefaults else plain
     as.double(c(
       declared(spec$n.trees, kind$n.trees),
       declared(spec$base, kind$base),
       declared(spec$power, kind$power),
-      if (withBasis) declared(spec$sd, leafScaleDefault) else 1,
-      if (withBasis) 0.674 else 1,
-      if (withBasis) declared(spec$amplitude.prior.variance, 0.5) else 1,
-      if (withBasis) 0 else declared(spec$sd, amplitudeScaleDefault),
       if (identical(spec$amplitude, "fixed")) 0 else 1
     ))
   })
+}
+
+## What each forest states of its size, as the forests' record carries it to
+## the engine: `sd`, in the response's units, and `variance`, the prior
+## variance of its coefficients, each as written and NA where none is stated.
+forestStatements <- function(specs) {
+  stated <- function(name) {
+    vapply(
+      specs,
+      function(spec) if (is.null(spec[[name]])) NA_real_ else spec[[name]],
+      0
+    )
+  }
+  list(sd = stated("sd"), variance = stated("amplitude.prior.variance"))
 }
 
 ## Resolve an interactions() specification against the fitted model matrix into

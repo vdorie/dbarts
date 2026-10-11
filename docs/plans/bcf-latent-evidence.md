@@ -35,7 +35,8 @@ logistic its precision is a Polya-Gamma variate redrawn every sweep
 ([`sigmaIsFixed_`](../../src/bartcore/chain.hpp), [`ProbitResponse`](../../src/bartcore/model.hpp),
 [`LogisticResponse`](../../src/bartcore/model.hpp)). And the map's anchor is the link's latent scale, 1 under probit and
 `pi/sqrt(3)` under logistic ([`latentScaleAnchor`](../../src/bartcore/chain.hpp)), at a default half-Cauchy scale of 1,
-not gaussian's 2 ([`defaultAmplitudePriorScale`](../../R/model.R)). The glue IS drawn under both links, the sweep's
+not gaussian's 2 (retired: [`defaultAmplitudePriorScale`](../../R/model.R), an R function that is gone: the engine holds
+the default, in [`defaultForestSd`](../../src/bartcore/combiner.hpp)). The glue IS drawn under both links, the sweep's
 [`drawGlue`](../../src/bartcore/combiner.hpp) call being unconditional.
 
 ## Decision 1 - the SBC arms

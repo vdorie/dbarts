@@ -1215,7 +1215,8 @@ resolveSamplerSpec <- function(
         )
       }
     }
-    params <- forestParams(specs, hasBasis, family, fitTree)
+    params <- forestParams(specs, hasBasis, fitTree)
+    statements <- forestStatements(specs)
     treeCounts <- vapply(params, function(forest) as.integer(forest[1L]), 0L)
     forestColumns <- lapply(
       seq_len(numForests),
@@ -1235,9 +1236,16 @@ resolveSamplerSpec <- function(
       numForests
     )
     attr(control, "bartcore.forests") <- list(
-      # one length-8 numeric per forest; the family selects the basis-free
-      # channel's default median and the count the K-aware leaf scale factor
+      # one length-4 numeric per forest; see forestParams()
       params = params,
+      # what each forest states of its size, as written, NA where it states
+      # none: the engine holds the calibration map and its defaults
+      sd = statements$sd,
+      variance = statements$variance,
+      # whether each forest is created with a basis, which fixes the channel
+      # its sd reaches for the life of the sampler: a forest created with
+      # none and given one by $setForestBasis is still read as having none
+      hasBasis = hasBasis,
       # resolved 1-based column indices per forest, or NULL for unrestricted
       vars = forestColumns,
       # one label for each forest; see forestLabels()
