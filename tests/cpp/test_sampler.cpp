@@ -9929,6 +9929,167 @@ static void testFrozenForest() {
   printf("ok: frozen forest\n");
 }
 
+// setModel's tree-move probabilities and perturb width on a heteroscedastic
+// sampler: the variance forest takes both, as it takes the options' when the
+// sampler is created, and keeps its own tree prior. The mean-only sampler is
+// the twin that has no second forest to reach.
+static void testVarianceForestMixtureInstall() {
+  const size_t n = 200, p = 2, numTrees = 10, numVarianceTrees = 6;
+  const size_t numSamples = 5;
+  const double sigmaDf = 3.0, sigmaRawScale = 0.37804942330213542;
+  std::vector<double> x, y;
+  makeMutationData(x, y, n);
+
+  auto makeSeededRng = []() {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 161803);
+    return rng;
+  };
+  auto makeSampler = [&](const SamplerOptions& options, ext_rng** rng) {
+    return std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, sigmaDf, sigmaRawScale, options, rng);
+  };
+
+  // every move proposed, and none at its shipped probability or width
+  ModelParameters model;
+  model.birthOrDeathProbability = 0.3;
+  model.swapProbability = 0.1;
+  model.changeProbability = 0.2;
+  model.perturbProbability = 0.3;
+  model.perturbWidth = 3;
+  model.ruleGibbsProbability = 0.1;
+  model.birthProbability = 0.4;
+  model.sigmaEstimate = 1.0;
+  model.sigmaDf = sigmaDf;
+  model.sigmaRawScale = sigmaRawScale;
+
+  for (bool heteroscedastic : {true, false}) {
+    SamplerOptions shipped;
+    shipped.numTrees = numTrees;
+    if (heteroscedastic) {
+      shipped.numVarianceTrees = numVarianceTrees;
+      shipped.varianceBase = 0.7;
+      shipped.variancePower = 1.2;
+    }
+    SamplerOptions created = shipped;
+    created.birthOrDeathProbability = model.birthOrDeathProbability;
+    created.swapProbability = model.swapProbability;
+    created.changeProbability = model.changeProbability;
+    created.perturbProbability = model.perturbProbability;
+    created.perturbWidth = model.perturbWidth;
+    created.ruleGibbsProbability = model.ruleGibbsProbability;
+    created.birthProbability = model.birthProbability;
+
+    ext_rng* rngCreated = makeSeededRng();
+    ext_rng* rngInstalled = makeSeededRng();
+    auto samplerCreated = makeSampler(created, &rngCreated);
+    auto samplerInstalled = makeSampler(shipped, &rngInstalled);
+
+    if (heteroscedastic) {
+      const VarianceForest& before =
+        TestPeer::varianceForest(samplerInstalled->chain(0));
+      check(before.birthOrDeathProbability == 0.6 &&
+              before.swapProbability == 0.0 &&
+              before.changeProbability == 0.4 &&
+              before.perturbProbability == 0.0 &&
+              before.ruleGibbsProbability == 0.0 &&
+              before.birthProbability == 0.5 && before.perturbWidth == 1,
+            "variance forest: creation installs the options' mixture and "
+            "width");
+    }
+
+    samplerInstalled->setModel(model);
+
+    if (heteroscedastic) {
+      const VarianceForest& vf =
+        TestPeer::varianceForest(samplerInstalled->chain(0));
+      check(vf.birthOrDeathProbability == model.birthOrDeathProbability,
+            "variance forest: setModel installs the birth/death probability");
+      check(vf.swapProbability == model.swapProbability,
+            "variance forest: setModel installs the swap probability");
+      check(vf.changeProbability == model.changeProbability,
+            "variance forest: setModel installs the change probability");
+      check(vf.perturbProbability == model.perturbProbability,
+            "variance forest: setModel installs the perturb probability");
+      check(vf.ruleGibbsProbability == model.ruleGibbsProbability,
+            "variance forest: setModel installs the rule_gibbs probability");
+      check(vf.birthProbability == model.birthProbability,
+            "variance forest: setModel installs the birth probability");
+      check(vf.perturbWidth == model.perturbWidth,
+            "variance forest: setModel installs the perturb width");
+      check(vf.treePrior.base == 0.7 && vf.treePrior.power == 1.2,
+            "variance forest: setModel leaves its own tree prior");
+    }
+
+    // installing before any run is creating with the model, on both forests
+    std::vector<double> trainCreated(n * numSamples),
+      trainInstalled(n * numSamples);
+    std::vector<double> varianceCreated(heteroscedastic ? n * numSamples : 0),
+      varianceInstalled(varianceCreated.size());
+    Results resultsCreated, resultsInstalled;
+    resultsCreated.trainingFits = trainCreated.data();
+    resultsInstalled.trainingFits = trainInstalled.data();
+    if (heteroscedastic) {
+      resultsCreated.varianceFits = varianceCreated.data();
+      resultsInstalled.varianceFits = varianceInstalled.data();
+    }
+    samplerCreated->run(40, numSamples, resultsCreated);
+    samplerInstalled->run(40, numSamples, resultsInstalled);
+    check(trainCreated == trainInstalled &&
+            varianceCreated == varianceInstalled,
+          heteroscedastic
+            ? "variance forest: setModel before any run is creation with the "
+              "model"
+            : "mean only: setModel before any run is creation with the model");
+
+    if (heteroscedastic) {
+      // the frozen mixture holds the variance trees as it holds the mean
+      // trees, while the surface's factors keep being drawn
+      const auto& chain = samplerInstalled->chain(0);
+      std::vector<std::uint64_t> meanStructure(numTrees),
+        varianceStructure(numVarianceTrees);
+      bool grown = false;
+      for (size_t t = 0; t < numTrees; ++t)
+        meanStructure[t] = treeStructureSignature(chain.tree(t));
+      for (size_t j = 0; j < numVarianceTrees; ++j) {
+        varianceStructure[j] = treeStructureSignature(chain.varianceTree(j));
+        grown |= !chain.varianceTree(j).at(0).isBottom();
+      }
+      check(grown, "variance forest: the grown forest holds a split to keep");
+
+      ModelParameters frozen = model;
+      frozen.birthOrDeathProbability = 0.0;
+      frozen.swapProbability = 0.0;
+      frozen.changeProbability = 0.0;
+      frozen.perturbProbability = 0.0;
+      frozen.ruleGibbsProbability = 0.0;
+      samplerInstalled->setModel(frozen);
+      bool meanHeld = true, varianceHeld = true;
+      for (size_t s = 0; s < 5; ++s) {
+        samplerInstalled->run(0, numSamples, resultsInstalled);
+        for (size_t t = 0; t < numTrees; ++t)
+          meanHeld &= treeStructureSignature(chain.tree(t)) == meanStructure[t];
+        for (size_t j = 0; j < numVarianceTrees; ++j)
+          varianceHeld &= treeStructureSignature(chain.varianceTree(j)) ==
+                          varianceStructure[j];
+      }
+      check(meanHeld, "variance forest: a frozen install holds the mean trees");
+      check(varianceHeld,
+            "variance forest: a frozen install holds the variance trees");
+      bool surfaceMoved = false;
+      for (size_t i = 0; i < n; ++i)
+        surfaceMoved |= varianceInstalled[i + n] != varianceInstalled[i];
+      check(surfaceMoved,
+            "variance forest: a frozen forest still draws its factors");
+    }
+
+    ext_rng_destroy(rngInstalled);
+    ext_rng_destroy(rngCreated);
+  }
+  printf("ok: setModel's mixture on the variance forest\n");
+}
+
 // The level-fibre step's AUTOMATIC mode: it runs for a forest exactly where
 // that forest's structural mixture is frozen. The mixture is mutable between
 // sweeps (setModel) while the mode is fixed when the sampler is created, so
@@ -10094,6 +10255,7 @@ void runSamplerTests(ext_rng* rng) {
   testSetWeightsAndTestOffset();
   testSetControlAndModel();
   testFrozenForest();
+  testVarianceForestMixtureInstall();
   testLevelGibbsAutomatic();
   testMissingEndToEnd();
   testSubsetRollbackMissingness();

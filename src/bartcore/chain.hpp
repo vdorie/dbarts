@@ -310,8 +310,10 @@ struct ProgressSink {
 /// A between-run prior replacement: every field is applied unconditionally
 /// except that DART samplers keep their Dirichlet split machinery (a
 /// dbartsModel cannot express DART) and the fixed-sigma binary families
-/// ignore the variance prior. Installing a model before any run matches
-/// creating with it.
+/// ignore the variance prior. The tree-move probabilities and the perturb
+/// width install on a variance forest as well as on the mean forest; base and
+/// power are the mean forest's alone. Installing a model before any run
+/// matches creating with it.
 struct ModelParameters {
   double base = 0.95, power = 2.0;
   double birthOrDeathProbability = 0.6;
@@ -2488,8 +2490,20 @@ public:
     // prior rather than creation's. The next sweep redraws every factor under
     // the new prior; the current surface is left alone, as a homoscedastic
     // setSigmaPrior leaves the current sigma.
+    //
+    // The variance forest proposes under the mean forest's mixture and perturb
+    // width, as buildVarianceForest installs them, so both are written here
+    // too; its tree prior is its own and stays.
     if constexpr (leafSupportsVarianceForest)
       if (varianceForest_) {
+        VarianceForest& vf = *varianceForest_;
+        vf.birthOrDeathProbability = model.birthOrDeathProbability;
+        vf.swapProbability = model.swapProbability;
+        vf.changeProbability = model.changeProbability;
+        vf.perturbProbability = model.perturbProbability;
+        vf.perturbWidth = model.perturbWidth;
+        vf.ruleGibbsProbability = model.ruleGibbsProbability;
+        vf.birthProbability = model.birthProbability;
         varianceSigmaEstimate_ = model.sigmaEstimate;
         varianceSigmaDf_ = model.sigmaDf;
         varianceSigmaRawScale_ = model.sigmaRawScale;

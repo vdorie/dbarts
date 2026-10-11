@@ -152,6 +152,12 @@ struct TestPeer {
   static const ConstantVarianceLeaf& varianceLeaf(const Chain<L, R>& chain) {
     return chain.varianceForest_->leaf;
   }
+  /// The variance forest, for the tree-move probabilities, perturb width and
+  /// tree prior in force on it. Dereferences the forest.
+  template <IntegrableLeafModel L, typename R>
+  static const VarianceForest& varianceForest(const Chain<L, R>& chain) {
+    return *chain.varianceForest_;
+  }
   template <IntegrableLeafModel L, typename R>
   static FunctionLeafDrawStats accountStrandedLeafKStats(
     Chain<L, R>& chain, int32_t variableIndex, int32_t splitIndex) {
