@@ -4300,7 +4300,8 @@ static void testStateMissingRecord() {
   Results none;
   // burned in, its ring wrapped; `holed` after the update that brings the
   // missing values, unforced and taken
-  auto fresh = [&](bool holed, size_t storeCapacity = capacity) {
+  auto fresh = [&](bool holed,
+                   size_t storeCapacity = FirstSeenSampler::capacity) {
     auto made =
       std::make_unique<FirstSeenSampler>(x, y, nullptr, storeCapacity);
     (*made)->run(120, 10, none);
@@ -4443,18 +4444,65 @@ static void testStateMissingRecord() {
     check(moved && refusesUntouched(**c, broken),
           "missing record: a state refused after the draw leaves the "
           "generators");
-    // a rule with no children: the draw, which walks by the records alone,
-    // is not made
-    SamplerStateData truncated(before);
-    truncated.chains[1].forests[0].trees.back().assign(
+    // a rule with no children, in each block of trees, and a mask block one
+    // entry short, allocated at that length: the draw, which walks by the
+    // records alone, is not made. The form check refuses each either way,
+    // so only the sanitizer builds hold that the draw stayed out: made, it
+    // reads past the block's end
+    const std::vector<FlatNode> childless(
       1, rule(0, FlatKind::ordinal, 0, false));
-    check(refusesUntouched(**c, truncated),
-          "missing record: a state the draw cannot walk is refused");
+    bool unwalked = true;
+    for (int block = 0; block < 5; ++block) {
+      SamplerStateData truncated(before);
+      ChainStateData& chain(truncated.chains[1]);
+      auto& masks(chain.forests[0].treeMasks);
+      if (block == 0) chain.forests[0].trees.back() = childless;
+      else if (block == 1) chain.forests[0].savedTrees.back() = childless;
+      else if (block == 2) chain.varianceTrees.back() = childless;
+      else if (block == 3) chain.savedVarianceTrees.back() = childless;
+      else masks = std::vector<std::vector<std::uint64_t>>(masks.begin(),
+                                                           masks.end() - 1);
+      unwalked = unwalked && refusesUntouched(**c, truncated);
+    }
+    check(unwalked && !before.chains[1].forests[0].treeMasks.empty(),
+          "missing record: a state the draw cannot walk is refused, whichever "
+          "block of trees or masks it fails in");
+  }
+
+  // The verdict is read off the drawn sides. One rule, on x0 beneath every
+  // value but a row's that the update then takes away, in a state stored
+  // before it: sent left, the rows missing x0 hold the left leaf and the
+  // state is clean; sent right, no row does, and it is declined and
+  // repaired. The coin is the chain's first, by the generator the state names
+  {
+    std::vector<double> low(x);
+    low[firstSeenHoles[0][0]] = -5.0;
+    FirstSeenSampler sampler(low, y);
+    SamplerStateData lone = sampler.state();
+    FlatNode below = rule(0, FlatKind::ordinal, 0, false);
+    below.value = lone.cutPoints[0][0];
+    lone.chains[0].forests[0].trees[0] = {below, FlatNode(), FlatNode()};
+    bool asDrawn = below.value > -5.0 && below.value < 0.0 &&
+      sampler->setPredictor(withMissing.data(), true, false) ==
+        PredictorUpdateResult::accepted;
+    bool emptied = false, keptLeft = false;
+    for (const SamplerStateData* from : {&before, &after})
+      for (size_t c = 0; c < numChains; ++c) {
+        lone.chains[0].rngState = from->chains[c].rngState;
+        std::vector<unsigned char> unused;
+        bool right =
+          directionsDrawn(lone, 0, flags.data(), {}, 0, unused)[0] != 0;
+        asDrawn = asDrawn && restoresWithStatus(*sampler, lone, nullptr, right);
+        (right ? emptied : keptLeft) = true;
+      }
+    check(asDrawn && emptied && keptLeft,
+          "missing record: a state is judged with the sides drawn for it");
   }
 
   // Kept rules that split the missing value alone, which only another
   // sampler's state brings to a column never missing: one on x1 over a rule
-  // out of a missing value's reach and one in it, and a pooled one on x3.
+  // out of a missing value's reach and one in it, a second beneath the rule
+  // out of reach and so out of reach itself, and a pooled one on x3.
   // Beside a twin whose kept draw holds the one rule in reach and a bare
   // leaf, both draws leave the same generators and every other rule alike:
   // the first-sight draw's kept loop (form 0) and the completion (form 1)
@@ -4465,8 +4513,8 @@ static void testStateMissingRecord() {
     const FlatNode outOfReach = rule(1, FlatKind::categoricalInline, 3, false);
     FlatNode pooledAlone = rule(3, FlatKind::categoricalPooled, 0, true);
     pooledAlone.numMaskWords = 2;
-    const std::vector<FlatNode> nested = {alone, outOfReach, leaf, leaf,
-                                          inReach, leaf, leaf};
+    const std::vector<FlatNode> nested = {alone, outOfReach, alone, leaf, leaf,
+                                          leaf, inReach, leaf, leaf};
     size_t slot =
       (before.currentSampleNum + capacity - before.recordedDraws) % capacity;
     auto withHandTrees = [&](bool exempt) {
@@ -4505,9 +4553,10 @@ static void testStateMissingRecord() {
         size_t first = slot * numTrees;
         const std::vector<FlatNode>& tree(forest.savedTrees[first]);
         // the rule in reach holds the twin's coin, the others what they held
-        kept = kept && tree.size() == 7 &&
+        kept = kept && tree.size() == 9 &&
           tree[0].flags == alone.flags && tree[1].flags == outOfReach.flags &&
-          tree[4].flags == twin.savedTrees[first][0].flags &&
+          tree[2].flags == alone.flags &&
+          tree[6].flags == twin.savedTrees[first][0].flags &&
           forest.savedTrees[first + 1][0].flags == pooledAlone.flags;
         forest.savedTrees[first] = twin.savedTrees[first];
         forest.savedTrees[first + 1] = twin.savedTrees[first + 1];

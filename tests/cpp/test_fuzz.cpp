@@ -423,9 +423,10 @@ static constexpr size_t fuzzBurnIn = 12;
 // summary line prints the three so that a run whose earlier states never
 // needed a repair cannot pass for one that tested the verdict. completed
 // counts the ones read before a column the sampler has since seen missing,
-// whose install draws the directions they lack.
+// whose install draws the directions they lack, and reinstalled those of
+// them that were taken and so held to going back in as the sampler's own.
 static struct {
-  size_t clean = 0, repaired = 0, refused = 0, completed = 0;
+  size_t clean = 0, repaired = 0, refused = 0, completed = 0, reinstalled = 0;
 } fuzzEarlierStates;
 
 // The op loop, generic over the leaf model so the linear-leaf configuration
@@ -448,8 +449,10 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
   int op = 0;
   size_t sweeps = fuzzBurnIn;
   std::vector<double> scaleMax;
-  // the state OP_STATE read the time before, empty until it has run once
-  SamplerStateData earlier;
+  // the state OP_STATE read the time before, empty until it has run once,
+  // and the first it read, which of all it reads lies behind the most
+  // mutations
+  SamplerStateData earlier, first;
   auto record = [&](const char* text) { trace.push_back(text); };
   auto fail = [&](const char* what) {
     ++failures;
@@ -755,28 +758,43 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           s.getState(st2);
           if (!statesAgree(st, st2)) fail("state round trip disagrees");
         }
-        // The state this op read the time before, which the mutations since
-        // may have left with a leaf no row reaches, a split outside its
-        // interval or a direction its column cannot route, or of a shape that
-        // no longer fits: whatever it needs, the verdict and the install must
-        // agree on it. The sampler is then put back, so the stream of ops
-        // that follows is the one it was.
-        if (ok && !earlier.chains.empty()) {
+        // The state this op read the time before, and the first it read,
+        // which the mutations since may have left with a leaf no row reaches,
+        // a split outside its interval or a direction its column cannot
+        // route, or of a shape that no longer fits: whatever it needs, the
+        // verdict and the install must agree on it. The sampler is then put
+        // back, so the stream of ops that follows is the one it was.
+        auto installEarlier = [&](const SamplerStateData& state) {
           bool completes = false;
-          if (earlier.missingColumns.size() == st.missingColumns.size())
+          if (state.missingColumns.size() == st.missingColumns.size())
             for (size_t j = 0; j < st.missingColumns.size(); ++j)
               completes = completes ||
-                (st.missingColumns[j] != 0 && earlier.missingColumns[j] == 0);
+                (st.missingColumns[j] != 0 && state.missingColumns[j] == 0);
           fuzzEarlierStates.completed += completes ? 1 : 0;
-          if (!verdictMatchesInstall(s, earlier, curAll(), installed, altered))
+          if (!verdictMatchesInstall(s, state, curAll(), installed, altered))
             fail("an earlier state: the unforced verdict and the forced "
                  "install disagree");
-          else if (installed && !s.setState(st, curAll()))
+          // completed and taken, what the sampler holds is a state of its
+          // own: read back, it goes in without force and comes out as read
+          if (ok && completes && installed) {
+            SamplerStateData drawn, again;
+            s.getState(drawn);
+            if (!installsClean(s, drawn, curAll())) {
+              fail("a completed state does not reinstall as the sampler's "
+                   "own");
+            } else {
+              s.getState(again);
+              if (!statesAgree(drawn, again))
+                fail("a completed state's round trip disagrees");
+            }
+            ++fuzzEarlierStates.reinstalled;
+          }
+          if (ok && installed && !s.setState(st, curAll()))
             fail("setState refused own state after an earlier one");
           // the directions drawn for it never make a state one to refuse:
           // refused, it is refused as stored too
           if (ok && completes && !installed) {
-            SamplerStateData asStored(earlier);
+            SamplerStateData asStored(state);
             asStored.missingColumns.clear();
             if (s.setState(asStored, curAll()))
               fail("an earlier state completed to one that is refused");
@@ -784,7 +802,12 @@ static bool fuzzDrive(S& s, const ConfigSpec& spec, FuzzArena& arena,
           ++(!installed ? fuzzEarlierStates.refused
                         : altered ? fuzzEarlierStates.repaired
                                   : fuzzEarlierStates.clean);
-        }
+        };
+        if (ok && !earlier.chains.empty()) installEarlier(earlier);
+        // the first read is the state before this one at the op's second
+        // run, and a second earlier state from its third
+        if (ok && !first.chains.empty()) installEarlier(first);
+        else if (ok) first = earlier;
         if (ok) earlier = std::move(st);
         break;
       }
@@ -2084,12 +2107,14 @@ static void testMutationFuzzer(int numSeeds) {
     fuzzRunSparse(seed, numOps);
   }
   check(fuzzEarlierStates.clean > 0 && fuzzEarlierStates.repaired > 0 &&
-          fuzzEarlierStates.completed > 0,
-        "fuzz: earlier states installed as stored, repaired and completed");
+          fuzzEarlierStates.reinstalled > 0,
+        "fuzz: earlier states installed as stored, repaired and completed, a "
+        "completed one reinstalled");
   printf("ok: mutation fuzzer (%d seeds; earlier states %zu clean, %zu "
-         "repaired, %zu refused, %zu completed)\n",
+         "repaired, %zu refused, %zu completed, %zu of them reinstalled)\n",
          numSeeds, fuzzEarlierStates.clean, fuzzEarlierStates.repaired,
-         fuzzEarlierStates.refused, fuzzEarlierStates.completed);
+         fuzzEarlierStates.refused, fuzzEarlierStates.completed,
+         fuzzEarlierStates.reinstalled);
 }
 
 void runFuzzTests(int numSeeds) {
