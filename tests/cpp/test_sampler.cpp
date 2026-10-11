@@ -10324,6 +10324,46 @@ static void testForestSdUnit() {
     }
     check(reads, "sd unit: the reader returns a stated sd as written and a "
                  "default as its multiple times the unit, not stated");
+    // and bit for bit: each number here differs in the last place from its
+    // quotient by the unit times the unit. No such number exists at a unit
+    // of 1, which is probit's.
+    if (unit != 1.0) {
+      double inexact[K];
+      bool found = true;
+      for (size_t f = 0; f < K; ++f) {
+        inexact[f] = nan;
+        for (double candidate = 0.37 + 0.3 * static_cast<double>(f);
+             candidate < 9.0 && std::isnan(inexact[f]); candidate += 0.11)
+          if (forestSdInForce(candidate / unit, unit) != candidate)
+            inexact[f] = candidate;
+        found = found && !std::isnan(inexact[f]);
+      }
+      check(found, "sd unit: numbers the unit and back do not return exist");
+      if (found) {
+        Built stating = build(family, response, nullptr, inexact, nullptr, nan,
+                              nan);
+        Built writing = build(family, response, nullptr, nullptr, nullptr, nan,
+                              nan);
+        bool asCreated = true, asWritten = true;
+        for (size_t f = 0; f < K; ++f)
+          asWritten = asWritten &&
+                      writing.sampler->setForestMapSd(f, inexact[f]);
+        for (size_t c = 0; c < numChains; ++c) {
+          for (size_t f = 0; f < K; ++f) {
+            ForestCalibration a = stating.sampler->forestCalibration(c, f);
+            ForestCalibration b = writing.sampler->forestCalibration(c, f);
+            asCreated = asCreated && a.mapSd == inexact[f] &&
+                        a.namedSd == inexact[f];
+            asWritten = asWritten && b.mapSd == inexact[f] &&
+                        b.namedSd == inexact[f];
+          }
+        }
+        check(asCreated, "sd unit: the reader returns bit for bit a stated "
+                         "number its quotient times the unit is not");
+        check(asWritten, "sd unit: the reader returns bit for bit a written "
+                         "number its quotient times the unit is not");
+      }
+    }
 
     // (d) a write of the value read moves no bit and states the forest; a
     // write of another value is a creation with it

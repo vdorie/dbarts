@@ -370,6 +370,63 @@ for (numForests in 2:3) {
   )
   expect_identical(stated$run(0L, 20L), twin$run(0L, 20L))
 }
+# the same where the unit and back do not return sqrt(2 / 3): the response
+# is stretched until its unit is such a one, and the default's number stated
+# is the default's multiple at a write, on a copy made from the record and at
+# a creation that states it
+third <- sqrt(2 / 3)
+threeDefaults <- list(forest(), forest(basis = d$zf), forest(basis = d$dose))
+inexact <- NULL
+for (stretch in seq(1, 4, by = 0.125)) {
+  unit <- unitOf(twoForests(threeDefaults, stretch * y))
+  if (third * unit / unit != third) {
+    inexact <- stretch * y
+    break
+  }
+}
+expect_false(is.null(inexact))
+twin <- twoForests(threeDefaults, inexact)
+written <- twoForests(threeDefaults, inexact)
+inForce <- lapply(written$getLeafPrior(), function(prior) prior$sd)
+written$setLeafPrior(forests = lapply(inForce, function(sd) forest(sd = sd)))
+channelsOf <- function(sampler) {
+  lapply(sampler$getLeafPrior(), function(prior) {
+    list(
+      sd = prior$sd,
+      k.scale = prior$k.scale,
+      factor = prior$leaf.scale.factor,
+      median = prior$amplitude.prior.scale
+    )
+  })
+}
+statingDefaults <- list(
+  write = written,
+  copy = written$copy(),
+  creation = twoForests(
+    list(
+      forest(sd = inForce[[1L]]),
+      forest(basis = d$zf, sd = inForce[[2L]]),
+      forest(basis = d$dose, sd = inForce[[3L]])
+    ),
+    inexact
+  )
+)
+twinChannels <- channelsOf(twin)
+twinDraws <- twin$run(0L, 20L)
+for (path in names(statingDefaults)) {
+  sampler <- statingDefaults[[path]]
+  expect_true(
+    all(vapply(sampler$getLeafPrior(), `[[`, NA, "sd.stated")),
+    info = path
+  )
+  expect_identical(channelsOf(sampler), twinChannels, info = path)
+  expect_identical(
+    sampler$getLeafPrior(2L)$leaf.scale.factor,
+    third,
+    info = path
+  )
+  expect_identical(sampler$run(0L, 20L), twinDraws, info = path)
+}
 
 # --- other data: the unit is not carried on a forests list or a control ---
 wide <- dbarts(x, 10 * y, forests = twoStated, control = created$control)
