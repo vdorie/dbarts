@@ -2474,6 +2474,29 @@ inline bool flatTreeIsWellFormed(const ColumnStore& data,
          maskCursor == numMaskWords;
 }
 
+/// Whether every ordinal split among \p numNodes flat records holds a point
+/// of its column's entry in \p cutPoints, compared as the double it is; no
+/// tree is built and no store is read. A record that names no column of
+/// \p cutPoints or is not tagged ordinal is passed over: its form is
+/// flatTreeIsWellFormed's to judge. An ordinal record on a column whose entry
+/// is empty holds no point of it.
+inline bool flatThresholdsAreOnGrid(
+    const FlatNode* flatNodes, size_t numNodes,
+    const std::vector<std::vector<double>>& cutPoints) {
+  for (size_t i = 0; i < numNodes; ++i) {
+    const FlatNode& flat(flatNodes[i]);
+    if (flat.variable < 0 ||
+        static_cast<size_t>(flat.variable) >= cutPoints.size() ||
+        flatKindOf(flat) != FlatKind::ordinal)
+      continue;
+    const std::vector<double>& cuts(
+      cutPoints[static_cast<size_t>(flat.variable)]);
+    auto point = std::lower_bound(cuts.begin(), cuts.end(), flat.value);
+    if (point == cuts.end() || *point != flat.value) return false;
+  }
+  return true;
+}
+
 /// Whether a flattened subset rule sends no category right and a missing
 /// value right, so that the missing value alone is split off. Its direction
 /// is its form: sent left the rule would send nothing right, which

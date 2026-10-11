@@ -5124,6 +5124,117 @@ static void testStateStoreSizes() {
   printf("ok: a state installs the newest kept draws that fit\n");
 }
 
+/// The first ordinal split among flat trees, null where none splits on a
+/// threshold.
+static FlatNode* firstOrdinalSplit(std::vector<std::vector<FlatNode>>& trees) {
+  for (std::vector<FlatNode>& tree : trees)
+    for (FlatNode& node : tree)
+      if (node.variable != invalidVariable &&
+          flatKindOf(node) == FlatKind::ordinal)
+        return &node;
+  return nullptr;
+}
+
+/// Chain::liveThresholdsAreOnGrid reads the live mean and variance trees of a
+/// chain state against a grid by value: a grid without one threshold fails
+/// for either kind of tree alone, a finer grid holding every threshold
+/// passes, and leaves, subset rules and kept draws are not read.
+static void testLiveThresholdsOnGrid() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 424242u;
+  const size_t n = 200, p = 3;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    x[i + 2 * n] = static_cast<double>(i % 4);
+    y[i] = 4.0 * (x[i] > 0.5 ? 1.0 : 0.0) + x[i + n] + (i % 4 == 2 ? 1.0 : 0.0) +
+      (x[i] > 0.5 ? 2.0 : 0.2) * (runif01() - 0.5);
+  }
+  ColumnKind types[] = {ColumnKind::numeric, ColumnKind::numeric,
+                        ColumnKind::categorical};
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+  ext_rng_setSeed(rng, 4242u);
+  SamplerOptions options;
+  options.numTrees = 10;
+  options.numVarianceTrees = 6;
+  options.keepTrees = true;
+  options.numSamplesToStore = 3;
+  options.predictors.columnTypes = types;
+  ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options, &rng);
+  Results empty;
+  sampler.run(60, 3, empty);
+  SamplerStateData own;
+  sampler.getState(own);
+  const auto& chain = sampler.chain(0);
+  ChainStateData& state = own.chains[0];
+  FlatNode* meanSplit = firstOrdinalSplit(state.forests[0].trees);
+  FlatNode* varianceSplit = firstOrdinalSplit(state.varianceTrees);
+  bool subsetRule = false;
+  for (const std::vector<FlatNode>& tree : state.forests[0].trees)
+    for (const FlatNode& node : tree) subsetRule = subsetRule || node.variable == 2;
+  check(meanSplit != nullptr && varianceSplit != nullptr && subsetRule &&
+          own.cutPoints[2].empty() && !state.forests[0].savedTrees.empty(),
+        "thresholds on grid: the fixture splits by threshold in both kinds of "
+        "tree, by subset, and keeps draws");
+  check(chain.liveThresholdsAreOnGrid(state, own.cutPoints),
+        "thresholds on grid: a state's thresholds are points of its own grid");
+
+  // one point taken out, or moved by an ulp, fails exactly the trees on it
+  auto without = [&](const FlatNode& split, bool nudge) {
+    std::vector<std::vector<double>> grid(own.cutPoints);
+    std::vector<double>& cuts = grid[static_cast<size_t>(split.variable)];
+    auto point = std::find(cuts.begin(), cuts.end(), split.value);
+    if (nudge)
+      *point = std::nextafter(*point, std::numeric_limits<double>::infinity());
+    else
+      cuts.erase(point);
+    return grid;
+  };
+  check(!chain.liveThresholdsAreOnGrid(state, without(*meanSplit, false)) &&
+          !chain.liveThresholdsAreOnGrid(state, without(*meanSplit, true)),
+        "thresholds on grid: a mean threshold the grid lacks, or holds an ulp "
+        "away, is off it");
+  // a variance threshold no mean tree holds: moved in the state to a value
+  // its grid gains, so the mean trees stay on both grids
+  double added = 0.5 * (own.cutPoints[0][0] + own.cutPoints[0][1]);
+  SamplerStateData moved(own);
+  FlatNode* movedSplit = firstOrdinalSplit(moved.chains[0].varianceTrees);
+  movedSplit->variable = 0;
+  movedSplit->value = added;
+  std::vector<std::vector<double>> finer(own.cutPoints);
+  finer[0].insert(finer[0].begin() + 1, added);
+  check(chain.liveThresholdsAreOnGrid(moved.chains[0], finer) &&
+          !chain.liveThresholdsAreOnGrid(moved.chains[0], own.cutPoints) &&
+          chain.liveThresholdsAreOnGrid(state, finer),
+        "thresholds on grid: a variance tree's threshold alone is read, and a "
+        "finer grid holds every stored one");
+
+  // not read: a kept draw's threshold, a leaf's value and a subset rule's mask
+  SamplerStateData kept(own);
+  FlatNode* keptSplit = firstOrdinalSplit(kept.chains[0].forests[0].savedTrees);
+  FlatNode* keptVarianceSplit =
+    firstOrdinalSplit(kept.chains[0].savedVarianceTrees);
+  check(keptSplit != nullptr && keptVarianceSplit != nullptr,
+        "thresholds on grid: the kept draws split by threshold");
+  keptSplit->value = added;
+  keptVarianceSplit->value = added;
+  check(chain.liveThresholdsAreOnGrid(kept.chains[0], own.cutPoints),
+        "thresholds on grid: kept draws are held to no grid");
+  // an ordinal record on a column whose entry is empty holds no point of it
+  SamplerStateData mistagged(own);
+  firstOrdinalSplit(mistagged.chains[0].forests[0].trees)->variable = 2;
+  check(!chain.liveThresholdsAreOnGrid(mistagged.chains[0], own.cutPoints),
+        "thresholds on grid: a threshold on a column with no points is off "
+        "its grid");
+
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+  printf("ok: a chain state's live thresholds are read against a grid\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -5155,6 +5266,7 @@ void runStateTests(ext_rng* rng) {
   testStackedSplitsMerge();
   testRepeatedGridRefused();
   testWeightedGridState();
+  testLiveThresholdsOnGrid();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

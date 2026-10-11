@@ -4391,6 +4391,23 @@ public:
                                  capacity * varianceForest_->numTrees;
   }
 
+  /// Whether every ordinal threshold of \p state's live trees, mean and
+  /// variance, is a point of its column's entry in \p cutPoints
+  /// (flatThresholdsAreOnGrid). The kept draws are not read: they replay by
+  /// value and are held to no grid.
+  static bool liveThresholdsAreOnGrid(
+      const ChainStateData& state,
+      const std::vector<std::vector<double>>& cutPoints) {
+    for (const ForestStateData& fs : state.forests)
+      for (const std::vector<FlatNode>& tree : fs.trees)
+        if (!flatThresholdsAreOnGrid(tree.data(), tree.size(), cutPoints))
+          return false;
+    for (const std::vector<FlatNode>& tree : state.varianceTrees)
+      if (!flatThresholdsAreOnGrid(tree.data(), tree.size(), cutPoints))
+        return false;
+    return true;
+  }
+
   /// Whether \p state can be installed in this chain, touching nothing: its
   /// shape, its values and every tree's form, live trees built on a scratch
   /// tree against the store's current cuts.
