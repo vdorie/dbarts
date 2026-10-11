@@ -639,16 +639,16 @@ mutations <- c(
       "m45",
       "src/bartcore/chain.hpp",
       paste0(
-        "    nodeScaleFactors_[f] = sd;\n",
+        "    mapped.entry = entry;\n",
         "    forests_[f].leaf.scale = mapLeafScale(f);\n"
       ),
-      "    nodeScaleFactors_[f] = sd;\n",
+      "    mapped.entry = entry;\n",
       kTests(
         "test-multiforest-leaf-prior-writer.R",
         "test-calibration-midchain.R",
         "test-forest-basis-r5.R"
       ),
-      "leaf-prior writer: forest(sd = ) on a fixed-variance map forest records the factor but never re-derives the leaf scale"
+      "leaf-prior writer: forest(sd = ) on a fixed-variance map forest records the entry but never re-derives the leaf scale"
     ),
     r3(
       "m46",
@@ -665,14 +665,14 @@ mutations <- c(
     r3(
       "m47",
       "R/dbarts.R",
-      "params[[if (params[[7L]] > 0) 7L else 4L]] <- sds[[index]]",
-      "params[[if (params[[7L]] < 0) 7L else 4L]] <- sds[[index]]",
+      "forestInfo$sd[[index]] <- sds[[index]]",
+      "forestInfo$variance[[index]] <- sds[[index]]",
       kTests(
         "test-multiforest-leaf-prior-writer.R",
         "test-calibration-midchain.R",
         "test-forest-basis-r5.R"
       ),
-      "leaf-prior writer: the control mirror writes the wrong channel, so a re-creation restates the creation sd"
+      "leaf-prior writer: the control mirror writes the wrong entry, so a re-creation restates the creation sd"
     ),
     r3(
       "m48",

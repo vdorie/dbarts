@@ -2736,9 +2736,9 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## (resolveForestVars); a value handed over is names or positions. basis is
 ## the data the forest's amplitudes multiply, a one-sided formula or a vector,
 ## expanded by R's own model-matrix rule; n.trees, base and power are its
-## tree-structure prior; sd is its total's prior scale in units of the
-## family's latent scale (sd(y) under gaussian, 1 under probit, pi/sqrt(3)
-## under logistic) per unit of basis row norm; amplitude.prior.variance is the
+## tree-structure prior; sd is its size in the response's units (the latent
+## index's under probit and logistic), which the engine divides by the unit
+## it derives at creation; amplitude.prior.variance is the
 ## N(0, .) variance of the amplitudes on its basis; amplitude = fixed() holds
 ## those amplitudes at the value their shape gives them, and left out draws
 ## them; interactions and blocks are this forest's own constraints - the

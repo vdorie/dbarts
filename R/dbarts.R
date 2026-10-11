@@ -1975,13 +1975,16 @@ priorSdOf <- function(leafModel) {
 ## prior on k comes from the model, gated by the engine's per-forest flag,
 ## since a map forest pins k whatever the model says; and an sd, fixed or
 ## under invchi(), comes from the model as named, the engine holding only its
-## statement as k, which need not divide back to the same number. The map
-## entries are present only
-## on a forest whose scale the map sets, and there the specification is the
-## forest(sd = ) creation takes: the half-Cauchy median on a scale-mixture
-## forest, the leaf-scale factor otherwise. Every chain runs under the
-## sampler's one prior and transform, which no install moves, so the first
-## chain's reading is the sampler's.
+## statement as k, which need not divide back to the same number. Every chain
+## runs under the sampler's one prior and transform, which no install moves,
+## so the first chain's reading is the sampler's.
+##
+## On a forest whose scale the calibration map sets, the specification is the
+## forest's statement: forest(sd = ) with the number as written where one was
+## stated, forest() where none was. `sd` is the number in force, in the
+## response's units, and `sd.stated` whether it was stated; both are the
+## engine's, and nothing is converted here. The map's own entries follow, in
+## units of the map's anchor.
 reportLeafPrior <- function(sampler, raw) {
   shared <- function(column) raw[[1L, column]]
   model <- sampler$model
@@ -2022,8 +2025,15 @@ reportLeafPrior <- function(sampler, raw) {
   } else {
     "amplitude.prior.variance"
   }
-  sd <- shared(if (mixture) "amplitude.prior.scale" else "leaf.scale.factor")
-  prior$leaf.prior <- forest(sd = sd)
+  stated <- !is.nan(shared("named.sd"))
+  prior <- c(
+    list(
+      leaf.prior = if (stated) forest(sd = shared("named.sd")) else forest(),
+      sd = shared("map.sd"),
+      sd.stated = stated
+    ),
+    prior[-1L]
+  )
   prior$prior.sd.of <- if (mixture) "amplitude scale" else "forest total"
   for (column in c(amplitude, "leaf.scale.factor", "leaf.scale.divisor")) {
     prior[[column]] <- shared(column)
@@ -2175,10 +2185,11 @@ restateLeafPrior <- function(sampler, spec, expr) {
   model
 }
 
-## The spreads a $setLeafPrior(forests = ) call restates on a sampler whose
+## The sds a $setLeafPrior(forests = ) call states on a sampler whose
 ## forests carry amplitudes: forest(sd = ) in creation's positions, validated
-## whole before anything is written. A NULL sd leaves its forest; every other
-## knob is fixed at creation. Returns the per-forest sd, NA where none is
+## whole before anything is written. A NULL sd leaves its forest as it is,
+## stated or not; every other knob is fixed at creation. Returns the
+## per-forest sd, in the response's units as written, NA where none is
 ## stated.
 resolveForestSpreads <- function(sampler, forests) {
   forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
@@ -2259,17 +2270,18 @@ resolveForestSpreads <- function(sampler, forests) {
   )
 }
 
-## Writes resolved per-forest spreads, then mirrors each into the control
-## attribute creation reads, in the channel the forest was created in: the
-## half-Cauchy median when it carries one, the leaf-scale factor otherwise.
-## Every re-creation then builds with the write.
+## Writes each stated sd to the engine as written, which divides it by the
+## unit, and into the `sd` of the record creation reads, so that every
+## re-creation states the same number. A record made before one was stated
+## may hold no `sd`.
 writeForestSpreads <- function(sampler, ptr, sds) {
   forestInfo <- attr(sampler$control, "bartcore.forests", exact = TRUE)
+  if (is.null(forestInfo$sd)) {
+    forestInfo$sd <- rep(NA_real_, length(forestInfo$params))
+  }
   for (index in which(!is.na(sds))) {
     .Call(C_dbarts_bartcore_setForestSd, ptr, index - 1L, sds[[index]])
-    params <- forestInfo$params[[index]]
-    params[[if (params[[7L]] > 0) 7L else 4L]] <- sds[[index]]
-    forestInfo$params[[index]] <- params
+    forestInfo$sd[[index]] <- sds[[index]]
   }
   newControl <- sampler$control
   attr(newControl, "bartcore.forests") <- forestInfo
@@ -3534,7 +3546,10 @@ dbartsSampler <- setRefClass(
       if (numForests == 1L) {
         return(read(0L))
       }
-      lapply(seq_len(numForests) - 1L, read)
+      priors <- lapply(seq_len(numForests) - 1L, read)
+      # by the forests' labels, which a multinomial sampler's categories lack
+      names(priors) <- samplerForestLabels(control)
+      priors
     },
     getK = function(forest = NULL) {
       "Returns each chain's current leaf-prior k, the value run()$k records per draw when k is drawn in that run (a run records no k while it is fixed), read without running, as getSigmas reports sigma; after a run it is bitwise the last draw. A fixed k is reported once per chain, and a forest whose scale a multi-forest calibration map sets reports 1. It is k whatever terms the prior was named in, relative to getLeafPrior()$k.scale. A vector of length n.chains at one forest, or, at the default forest = NULL on a multi-forest sampler, an n.forests x n.chains matrix; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."

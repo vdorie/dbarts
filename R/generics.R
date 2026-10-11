@@ -1069,14 +1069,16 @@ addTreesChainColumn <- function(trees) {
 # them: a parameter the fit sampled comes back as its draws, in the layout the
 # chain margin asks for, and one it held fixed as one number (fixed holds what
 # the sampler held; the draw channel of a fixed sigma or shape repeats it).
-# k is the sampler's own, and leaf.prior.sd the k.scale over it - the forest
-# total's prior sd in the units the forest fits - so it is a fixed number or
-# draws exactly as k is. A held sd a single forest's recorded prior names is
-# that sd itself: the held k is k.scale over it, and dividing back need not
-# return its bits. A fit with several forests has one k and one sd per
-# forest, named, or the one 'forest' selects. A fit saved before fits stored
-# these descriptors answers from its channels where they suffice and refuses by
-# name where they do not.
+# k is the sampler's own, and on a fit of one forest leaf.prior.sd is the
+# k.scale over it - the forest total's prior sd in the units the forest fits -
+# so it is a fixed number or draws exactly as k is. A held sd a single
+# forest's recorded prior names is that sd itself: the held k is k.scale over
+# it, and dividing back need not return its bits. A fit with several forests
+# has one k per forest, named forest<i>, and its leaf.prior.sd is the reader's
+# `sd` for each forest, the forest's sd in the response's units as recorded: a
+# list named by the forests' labels, or the entry of the one 'forest'
+# selects. A fit saved before fits stored these descriptors answers from its
+# channels where they suffice and refuses by name where they do not.
 extractParameter <- function(
   object,
   type,
@@ -1096,14 +1098,16 @@ extractParameter <- function(
         "recorded their leaf prior"
       )
     }
-    anchor <- if (is.null(prior[["leaf.prior"]])) {
-      vapply(prior, function(forestPrior) forestPrior$k.scale, 0)
-    } else {
-      prior$k.scale
+    labels <- attr(object, "forest.labels", exact = TRUE)
+    if (is.null(prior[["leaf.prior"]])) {
+      sds <- lapply(unname(prior), function(forestPrior) forestPrior$sd)
+      if (length(labels) == length(sds)) {
+        names(sds) <- labels
+      }
+      return(selectForests(sds, forest, labels))
     }
-    named <- if (!is.null(prior[["leaf.prior"]])) {
-      prior$leaf.prior@prior.sd
-    }
+    anchor <- prior$k.scale
+    named <- prior$leaf.prior@prior.sd
     if (!is.null(fixed[["k"]]) && is.numeric(named)) {
       return(selectForests(
         as.double(named),
@@ -1143,7 +1147,8 @@ extractParameter <- function(
   reshapeScalarChannel(channel, n.chains, combineChains)
 }
 
-# one number per forest, named, or the forest selected by position or label
+# one entry per forest, named, or the forest selected by position or label:
+# the entry itself where one forest is selected, of a list as of a vector
 selectForests <- function(value, forest, labels = NULL) {
   if (is.null(forest)) {
     return(value)
@@ -1153,8 +1158,10 @@ selectForests <- function(value, forest, labels = NULL) {
   if (is.matrix(value)) {
     return(drop(value[index, , drop = FALSE]))
   }
-  chosen <- value[index]
-  if (length(chosen) == 1L) unname(chosen) else chosen
+  if (length(index) == 1L) {
+    return(if (is.list(value)) value[[index]] else unname(value[index]))
+  }
+  value[index]
 }
 
 extract.bart <- function(

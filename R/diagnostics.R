@@ -444,7 +444,10 @@ fixedSummaryValues <- function(object, vars) {
       next
     }
     value <- if (v == "leaf.prior.sd") {
-      if (!is.null(fixed[["k"]])) extractParameter(object, v, TRUE)
+      if (!is.null(fixed[["k"]])) {
+        # one number a forest, by its label, on a fit of several
+        unlist(extractParameter(object, v, TRUE))
+      }
     } else {
       fixed[[v]]
     }

@@ -197,7 +197,9 @@ leafPriorIsDrawn <- function(prior) {
 fitDescriptors <- function(sampler, samples = NULL) {
   priors <- sampler$getLeafPrior()
   multinomial <- samplerCarriesCounts(sampler)
-  several <- is.null(priors[["leaf.prior"]])
+  # the reader names a list of several by the forests' labels, which may be
+  # any string, so the count is asked of the engine and not of the names
+  several <- bartcoreNumForests(sampler$getPointer()) > 1L
   if (several && multinomial) {
     priors <- priors[[1L]]
     several <- FALSE
