@@ -2331,6 +2331,8 @@ public:
   void getScale(double& min, double& max) const {
     response_->getScale(min, max);
   }
+  /// The training offset in force (borrowed), or null.
+  const double* offset() const { return response_->offset(); }
   /// The response model's answer to whether a re-derivation of the transform
   /// against \p values would find too little to read.
   bool lacksDistinctRowsIn(IncomingVector which, const double* values) const {

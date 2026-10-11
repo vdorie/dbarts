@@ -1717,6 +1717,28 @@ public:
                 : ResponseUpdateResult::accepted;
   }
 
+  /// Re-derives the transform from the response and the offset in force over
+  /// the rows now in the likelihood: setOffset at updateScale true handed the
+  /// offset every chain already holds, which is what a caller that has just
+  /// installed weights or a mask asks for. Nothing is drawn and no latent
+  /// moves. No chain is called where the family carries no units, which has
+  /// nothing to derive, or where the rows in have too little to read
+  /// (scaleKept): the transform in force stays, whatever rows it was read
+  /// from.
+  ResponseUpdateResult rederiveScale() {
+    double min, max;
+    chains_[0]->getScale(min, max);
+    if (!chains_[0]->carriesUnits(min, max))
+      return ResponseUpdateResult::accepted;
+    const double* offset = chains_[0]->offset();
+    if (chains_[0]->lacksDistinctRowsIn(IncomingVector::offset, offset))
+      return ResponseUpdateResult::scaleKept;
+    SavedDrawSlots kept = savedDrawSlots();
+    for (auto& chain : chains_) chain->setOffset(offset, true, kept);
+    recordAnchor();
+    return ResponseUpdateResult::accepted;
+  }
+
   /// Makes (min, max) the sampler's transform - the units its chains hold
   /// their numbers in, and the range the leaf prior's k is relative to - as
   /// a sampler re-created from its host's record takes the one recorded.

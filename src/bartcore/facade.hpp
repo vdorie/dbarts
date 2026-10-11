@@ -456,6 +456,12 @@ public:
   /// COPIED - the entry retains no pointer. Chain::setActiveRows states the
   /// semantics, including the all-ones normalization.
   virtual bool setActiveRows(const double* active) = 0;
+  /// Re-derives the response transform from the response and the offset in
+  /// force over the rows now in the likelihood, for a caller that has just
+  /// installed weights or a mask; scaleKept, the transform left as it was,
+  /// where those rows have too little to read. Sampler::rederiveScale states
+  /// the semantics.
+  virtual ResponseUpdateResult rederiveScale() = 0;
   /// Installs a borrowed replacement count matrix (n x K, category-major) and
   /// its per-observation trials in every chain; false, installing nothing, off
   /// a counts-owning coupling. n and K are fixed at creation, so the host
@@ -780,6 +786,9 @@ public:
   }
   bool setActiveRows(const double* active) override {
     return impl_.setActiveRows(active);
+  }
+  ResponseUpdateResult rederiveScale() override {
+    return impl_.rederiveScale();
   }
   bool setCounts(const int* counts, const int* trials) override {
     return impl_.setCounts(counts, trials);

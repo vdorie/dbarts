@@ -9200,6 +9200,428 @@ static void testScaleKeptStatus() {
   printf("ok: a re-derivation with too little to read keeps the scale\n");
 }
 
+// rederiveScale after setWeights or setActiveRows. It leaves the sampler,
+// to the bit, where setOffset at updateScale true with the offset in force
+// leaves a twin given the same install: the transform, the working response,
+// the anchor, the state with its kept draws and generators, and the 20 sweeps
+// that follow. The transform is the literal over the rows in after the
+// install, under weights, under a mask and under both, on samplers whose
+// range in force was read from other rows. A latent moves at the install,
+// for a row it brings in, and never at the re-derivation. With too little to
+// read the answer is scaleKept and the sampler is the one given the install
+// alone; every keep starts from a range that is neither every row's nor the
+// rows in's, so a keep that re-derived from either fails. A family with no
+// units answers accepted and is the install alone.
+static void testRederiveScale() {
+  std::uint64_t state = 20261011u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const size_t n = 90, p = 2, numChains = 2, numSweeps = 20;
+  const size_t four[] = {11, 20, 26, 47};
+  std::vector<double> x(n * p), y(n), offset(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    y[i] = 3.0 * x[i] - 2.0 * x[i + n] + 0.3 * unif();
+    offset[i] = 0.5 * unif() - x[i];
+  }
+  // rows 0 to 7 hold the extremes in pairs, so each set of rows out below
+  // leaves a range of its own
+  const double extremes[] = {40.0, -40.0, 20.0, -20.0, 10.0, -10.0, 8.0, -8.0};
+  for (size_t i = 0; i < 8; ++i) y[i] = extremes[i];
+  // the four rows hold one value of the response less the offset, as rows 60
+  // and 61 do; quarters, so the difference is exact
+  const double quarters[] = {1.25, 2.5, 0.75, 3.0};
+  for (size_t k = 0; k < 4; ++k) {
+    y[four[k]] = quarters[k];
+    offset[four[k]] = quarters[k] - 0.5;
+  }
+  y[61] = y[60];
+  offset[61] = offset[60];
+
+  // prev leaves rows 0, 1 and 30 to 44 out; next rows 0 to 3 and 50 to 59,
+  // bringing 30 to 44 in; the masks are 0 and 1 on those supports
+  auto vectorOut = [&](std::initializer_list<std::pair<size_t, size_t>> out,
+                       bool fractional) {
+    std::vector<double> v(n);
+    for (double& w : v) w = fractional ? 0.25 + unif() : 1.0;
+    for (const auto& range : out)
+      for (size_t i = range.first; i < range.second; ++i) v[i] = 0.0;
+    return v;
+  };
+  auto vectorIn = [&](std::initializer_list<size_t> in, double value) {
+    std::vector<double> v(n, 0.0);
+    for (size_t i : in) v[i] = value;
+    return v;
+  };
+  std::vector<double> prev = vectorOut({{0, 2}, {30, 45}}, true),
+                      next = vectorOut({{0, 4}, {50, 60}}, true),
+                      positive = vectorOut({}, true),
+                      maskNext = vectorOut({{2, 4}, {50, 60}}, false),
+                      maskBoth = vectorOut({{4, 6}}, false);
+  const std::vector<double> keepWeights[] = {
+    vectorIn({}, 0.0), vectorIn({7}, 0.6), vectorIn({11, 20, 26, 47}, 0.4)};
+  const std::vector<double> keepMasks[] = {
+    vectorIn({}, 0.0), vectorIn({7}, 1.0), vectorIn({11, 20, 26, 47}, 1.0)};
+  // the range of response less offset over the rows weights and mask keep
+  auto literal = [&](const std::vector<double>& response, const double* offs,
+                     const double* weights, const double* mask) {
+    double lo = std::numeric_limits<double>::infinity(), hi = -lo;
+    for (size_t i = 0; i < n; ++i) {
+      if ((weights != nullptr && weights[i] == 0.0) ||
+          (mask != nullptr && mask[i] == 0.0))
+        continue;
+      double value = offs != nullptr ? response[i] - offs[i] : response[i];
+      lo = std::min(lo, value);
+      hi = std::max(hi, value);
+    }
+    return std::make_pair(lo, hi);
+  };
+  auto anchorOf = [](ConstantLeafSampler& sampler) {
+    double lo = 0.0, hi = 0.0;
+    sampler.getAnchor(lo, hi);
+    return std::make_pair(lo, hi);
+  };
+
+  struct Variant {
+    const char* name;
+    size_t numVarianceTrees;
+    bool keepTrees, namedSd;
+    double residualDf;  // NaN for gaussian errors
+  };
+  const double gaussianErrors = std::numeric_limits<double>::quiet_NaN();
+  const Variant variants[] = {
+    {"plain", 0, false, false, gaussianErrors},
+    {"variance forest", 5, false, false, gaussianErrors},
+    {"kept draws", 0, true, false, gaussianErrors},
+    {"named sd", 0, false, true, gaussianErrors},
+    {"Student-t", 0, false, false, 5.0}};
+  struct Built {
+    std::unique_ptr<ConstantLeafSampler> sampler;
+    std::vector<ext_rng*> rngs;
+    Built() = default;
+    Built(Built&&) = default;
+    ~Built() {
+      sampler.reset();
+      destroyDrawRngs(rngs);
+    }
+  };
+  // burnt in and holding recorded draws, created under prev: its range is
+  // that of prev's rows in
+  auto build = [&](const Variant& variant, const double* offs) {
+    SamplerOptions options;
+    options.numTrees = 15;
+    options.numChains = numChains;
+    options.numVarianceTrees = variant.numVarianceTrees;
+    options.keepTrees = variant.keepTrees;
+    options.residualDf = variant.residualDf;
+    Built built;
+    built.rngs = makeDrawRngs(numChains, 9800);
+    built.sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, prev.data(), offs, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, built.rngs.data());
+    if (variant.keepTrees) built.sampler->setTreeStorage(true, 4);
+    if (variant.namedSd) built.sampler->setForestNamedSd(0, 0.7);
+    std::vector<double> sigma(4 * numChains), fits(n * 4 * numChains);
+    Results results;
+    results.sigma = sigma.data();
+    results.trainingFits = fits.data();
+    built.sampler->run(5, 4, results);
+    return built;
+  };
+  // burnt in, every row in
+  auto buildFamily = [&](ResponseFamily family, const double* response,
+                         const double* offs, const double* status) {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.numChains = numChains;
+    if (family == ResponseFamily::nbinom) options.shape = 3.0;
+    options.survivalStatus = status;
+    Built built;
+    built.rngs = makeDrawRngs(numChains, 9900);
+    built.sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), response, n, p, nullptr, offs, family, 1.0, 3.0,
+      0.37804942330213542, options, built.rngs.data());
+    Results results;
+    built.sampler->run(5, 0, results);
+    return built;
+  };
+  auto sweeps = [&](ConstantLeafSampler& sampler) {
+    std::vector<double> out(numSweeps * numChains * (1 + n));
+    Results results;
+    results.sigma = out.data();
+    results.trainingFits = out.data() + numSweeps * numChains;
+    sampler.run(0, numSweeps, results);
+    return out;
+  };
+  // one sampler now: the anchor, each chain's transform, calibration, sigma
+  // and working response, and the state
+  auto sameNow = [&](ConstantLeafSampler& a, ConstantLeafSampler& b) {
+    bool same = anchorOf(a) == anchorOf(b);
+    for (size_t c = 0; c < numChains; ++c) {
+      double loA = 0.0, hiA = 0.0, loB = 0.0, hiB = 0.0;
+      a.chain(c).getScale(loA, hiA);
+      b.chain(c).getScale(loB, hiB);
+      ForestCalibration ca = a.forestCalibration(c, 0);
+      ForestCalibration cb = b.forestCalibration(c, 0);
+      if (loA != loB || hiA != hiB || ca.k != cb.k ||
+          ca.priorScale != cb.priorScale ||
+          TestPeer::workingSigma(a.chain(c)) !=
+            TestPeer::workingSigma(b.chain(c)) ||
+          std::memcmp(TestPeer::workingResponse(a.chain(c)),
+                      TestPeer::workingResponse(b.chain(c)),
+                      n * sizeof(double)) != 0)
+        same = false;
+    }
+    SamplerStateData stateA, stateB;
+    a.getState(stateA);
+    b.getState(stateB);
+    return same && samplerStatesAgree(stateA, stateB);
+  };
+  auto latentsOf = [&](ConstantLeafSampler& sampler) {
+    std::vector<double> out;
+    for (size_t c = 0; c < numChains; ++c)
+      out.insert(out.end(), sampler.latents(c), sampler.latents(c) + n);
+    return out;
+  };
+  // every entering row's latent moved at the install, in each chain, and no
+  // latent moved at the re-derivation
+  auto latentsFollowInstall = [&](const std::vector<double>& before,
+                                  const std::vector<double>& installed,
+                                  ConstantLeafSampler& sampler,
+                                  std::initializer_list<size_t> entering) {
+    if (installed != latentsOf(sampler)) return false;
+    for (size_t c = 0; c < numChains; ++c)
+      for (size_t i : entering)
+        if (installed[c * n + i] == before[c * n + i]) return false;
+    return true;
+  };
+  const ResponseUpdateResult accepted = ResponseUpdateResult::accepted,
+                             scaleKept = ResponseUpdateResult::scaleKept;
+  char what[160];
+  auto label = [&](const char* name, const char* text) {
+    std::snprintf(what, sizeof what, "rederiveScale, %s: %s", name, text);
+    return what;
+  };
+
+  const std::pair<double, double> everyRow =
+    literal(y, offset.data(), nullptr, nullptr);
+  size_t numTwins = 0, numKept = 0;
+  for (const Variant& variant : variants) {
+    bool studentT = !std::isnan(variant.residualDf);
+    // the twins: by weights, which bring rows 30 to 44 in, and by a mask
+    for (bool byWeights : {true, false}) {
+      Built a = build(variant, offset.data()),
+            b = build(variant, offset.data());
+      std::pair<double, double> before = anchorOf(*a.sampler);
+      check(before == literal(y, offset.data(), prev.data(), nullptr) &&
+              before != everyRow,
+            label(variant.name, "created on the range of its rows in"));
+      std::vector<double> latentsBefore, latentsInstalled;
+      if (studentT) latentsBefore = latentsOf(*a.sampler);
+      for (Built* built : {&a, &b}) {
+        if (byWeights) built->sampler->setWeights(next.data());
+        else built->sampler->setActiveRows(maskNext.data());
+      }
+      if (studentT) latentsInstalled = latentsOf(*a.sampler);
+      check(a.sampler->rederiveScale() == accepted &&
+              b.sampler->setOffset(offset.data(), true) == accepted,
+            label(variant.name, "rows in at two values re-derive"));
+      std::pair<double, double> rowsIn =
+        byWeights ? literal(y, offset.data(), next.data(), nullptr)
+                  : literal(y, offset.data(), prev.data(), maskNext.data());
+      check(anchorOf(*a.sampler) == rowsIn && rowsIn != before,
+            label(variant.name, "onto the range of the rows now in"));
+      if (studentT && byWeights)
+        check(latentsFollowInstall(latentsBefore, latentsInstalled, *a.sampler,
+                                   {30, 37, 44}),
+              label(variant.name, "latents move at the install alone"));
+      else if (studentT)
+        check(latentsInstalled == latentsBefore &&
+                latentsInstalled == latentsOf(*a.sampler),
+              label(variant.name, "no row enters and no latent moves"));
+      check(sameNow(*a.sampler, *b.sampler) &&
+              sweeps(*a.sampler) == sweeps(*b.sampler),
+            label(variant.name, "the offset entry's twin, to the bit"));
+      ++numTwins;
+      if (!byWeights) continue;
+      // weights and a mask together: the rows both keep
+      check(a.sampler->setActiveRows(maskBoth.data()) &&
+              a.sampler->rederiveScale() == accepted &&
+              anchorOf(*a.sampler) ==
+                literal(y, offset.data(), next.data(), maskBoth.data()),
+            label(variant.name, "weights and a mask: the rows both keep"));
+    }
+    // the keep: none in, one in, four in at one value, by weights and by a
+    // mask over prev's weights
+    for (size_t k = 0; k < 3; ++k) {
+      for (bool byWeights : {true, false}) {
+        Built a = build(variant, offset.data()),
+              b = build(variant, offset.data());
+        std::pair<double, double> before = anchorOf(*a.sampler);
+        for (Built* built : {&a, &b}) {
+          if (byWeights) built->sampler->setWeights(keepWeights[k].data());
+          else built->sampler->setActiveRows(keepMasks[k].data());
+        }
+        check(a.sampler->rederiveScale() == scaleKept &&
+                anchorOf(*a.sampler) == before &&
+                sameNow(*a.sampler, *b.sampler) &&
+                sweeps(*a.sampler) == sweeps(*b.sampler),
+              label(variant.name, "a keep is the install alone, to the bit"));
+        ++numKept;
+        // rows back in: read again
+        if (byWeights) a.sampler->setWeights(next.data());
+        else a.sampler->setActiveRows(maskNext.data());
+        check(a.sampler->rederiveScale() == accepted &&
+                anchorOf(*a.sampler) ==
+                  (byWeights
+                     ? literal(y, offset.data(), next.data(), nullptr)
+                     : literal(y, offset.data(), prev.data(), maskNext.data())),
+              label(variant.name, "rows back in re-derive"));
+      }
+    }
+  }
+  check(numTwins == 10 && numKept == 30, "rederiveScale: every arm ran");
+
+  // every row in: every row's range
+  {
+    Built a = build(variants[0], offset.data());
+    a.sampler->setWeights(positive.data());
+    check(a.sampler->rederiveScale() == accepted &&
+            anchorOf(*a.sampler) == everyRow,
+          "rederiveScale: every row in gives every row's range");
+  }
+  // a constant response with every row in, and no offset: the window
+  {
+    std::vector<double> constant(n, 3.0);
+    Built a = build(variants[0], nullptr);
+    a.sampler->setResponse(constant.data(), false);
+    a.sampler->setWeights(positive.data());
+    check(a.sampler->rederiveScale() == accepted &&
+            anchorOf(*a.sampler) == std::make_pair(3.0, 3.0) &&
+            a.sampler->fitScale() == 1.0,
+          "rederiveScale: a constant response takes the window, accepted");
+  }
+
+  // A latent family under masks: maskA leaves rows 0 to 29 out and is
+  // re-derived under, so the range in force is its rows'; maskB brings rows
+  // 6 to 29 in; the keep mask holds two rows at one value. derive is the
+  // literal under a mask; entering are rows whose latent the install redraws.
+  std::vector<double> maskA = vectorOut({{0, 30}}, false),
+                      maskB = vectorOut({{0, 6}}, false);
+  auto maskedFamily = [&](const char* name, ResponseFamily family,
+                          const std::vector<double>& response,
+                          const std::vector<double>& offs,
+                          const double* status,
+                          const std::vector<double>& keepMask,
+                          std::initializer_list<size_t> entering,
+                          std::pair<double, double> (*derive)(
+                            const std::vector<double>&,
+                            const std::vector<double>&, const double*)) {
+    Results none;
+    auto underMaskA = [&]() {
+      Built built = buildFamily(family, response.data(), offs.data(), status);
+      check(built.sampler->setActiveRows(maskA.data()) &&
+              built.sampler->rederiveScale() == accepted &&
+              anchorOf(*built.sampler) == derive(response, offs, maskA.data()),
+            label(name, "re-derived under its first mask"));
+      built.sampler->run(3, 0, none);
+      return built;
+    };
+    Built a = underMaskA(), b = underMaskA();
+    std::pair<double, double> before = anchorOf(*a.sampler);
+    std::vector<double> latentsBefore = latentsOf(*a.sampler);
+    check(a.sampler->setActiveRows(maskB.data()) &&
+            b.sampler->setActiveRows(maskB.data()),
+          label(name, "the second mask installs"));
+    std::vector<double> latentsInstalled = latentsOf(*a.sampler);
+    check(a.sampler->rederiveScale() == accepted &&
+            b.sampler->setOffset(offs.data(), true) == accepted &&
+            anchorOf(*a.sampler) == derive(response, offs, maskB.data()) &&
+            anchorOf(*a.sampler) != before,
+          label(name, "rows back in re-derive over the rows in"));
+    check(latentsFollowInstall(latentsBefore, latentsInstalled, *a.sampler,
+                               entering),
+          label(name, "latents move at the install alone"));
+    check(sameNow(*a.sampler, *b.sampler) &&
+            sweeps(*a.sampler) == sweeps(*b.sampler),
+          label(name, "the offset entry's twin, to the bit"));
+    Built c = underMaskA(), d = underMaskA();
+    before = anchorOf(*c.sampler);
+    check(c.sampler->setActiveRows(keepMask.data()) &&
+            d.sampler->setActiveRows(keepMask.data()) &&
+            c.sampler->rederiveScale() == scaleKept &&
+            anchorOf(*c.sampler) == before &&
+            before != derive(response, offs, nullptr) &&
+            sameNow(*c.sampler, *d.sampler) &&
+            sweeps(*c.sampler) == sweeps(*d.sampler),
+          label(name, "a keep is the install alone, to the bit"));
+  };
+  {
+    std::vector<double> counts(n), exposure(n);
+    for (size_t i = 0; i < n; ++i) {
+      counts[i] = std::floor(4.0 * unif());
+      exposure[i] = 0.5 * unif();
+    }
+    for (size_t i = 0; i < 30; ++i) counts[i] += 6.0;  // the rows out differ
+    counts[41] = counts[40];
+    maskedFamily(
+      "count", ResponseFamily::nbinom, counts, exposure, nullptr,
+      vectorIn({40, 41}, 1.0), {6, 17, 29},
+      [](const std::vector<double>& response, const std::vector<double>& offs,
+         const double* mask) {
+        double c = NBResponse::computeShift(response.data(), offs.data(),
+                                            response.size(), mask);
+        return std::make_pair(c, c + 1.0);
+      });
+  }
+  {
+    // rows 12 to 14 and 60 are censored; 60 and 61 hold one observed time
+    std::vector<double> status(n, 1.0);
+    status[12] = status[13] = status[14] = status[60] = 0.0;
+    maskedFamily(
+      "survival", ResponseFamily::aft, y, offset, status.data(),
+      vectorIn({60, 61}, 1.0), {12, 13, 14},
+      [](const std::vector<double>& response, const std::vector<double>& offs,
+         const double* mask) {
+        double lo = std::numeric_limits<double>::infinity(), hi = -lo;
+        for (size_t i = 0; i < response.size(); ++i) {
+          if (mask != nullptr && mask[i] == 0.0) continue;
+          lo = std::min(lo, response[i] - offs[i]);
+          hi = std::max(hi, response[i] - offs[i]);
+        }
+        return std::make_pair(lo, hi);
+      });
+  }
+  // a probit sampler has nothing to read: accepted, and the install alone,
+  // which is also what the offset entry leaves
+  {
+    std::vector<double> binary(n);
+    for (size_t i = 0; i < n; ++i) binary[i] = x[i] > 0.5 ? 1.0 : 0.0;
+    Results none;
+    std::vector<Built> built;
+    for (size_t i = 0; i < 3; ++i) {
+      built.push_back(buildFamily(ResponseFamily::probit, binary.data(),
+                                  offset.data(), nullptr));
+      Built& one = built.back();
+      check(one.sampler->setActiveRows(maskA.data()), "probit mask");
+      one.sampler->run(3, 0, none);
+      check(one.sampler->setActiveRows(maskB.data()), "probit mask");
+    }
+    check(built[0].sampler->rederiveScale() == accepted &&
+            built[2].sampler->setOffset(offset.data(), true) == accepted &&
+            sameNow(*built[0].sampler, *built[1].sampler) &&
+            sameNow(*built[0].sampler, *built[2].sampler),
+          "rederiveScale: a probit sampler is the install alone, to the bit");
+    std::vector<double> ahead = sweeps(*built[0].sampler);
+    check(ahead == sweeps(*built[1].sampler) &&
+            ahead == sweeps(*built[2].sampler),
+          "rederiveScale: and draws what the install alone draws");
+  }
+  printf("ok: a re-derivation after setWeights or setActiveRows\n");
+}
+
 /// The leaf prior's named sd inside the engine. A fixed sd is the k that
 /// states it against the data's scale, and a prior on the sd is the chi
 /// prior on k at that scale, so each is checked against the reader's own
@@ -10266,6 +10688,7 @@ void runSamplerTests(ext_rng* rng) {
   testForestCalibration();
   testForestUnitRowsIn();
   testScaleKeptStatus();
+  testRederiveScale();
   testNamedSd();
   testForestMapWriters();
   testBCFCalibrationMap();

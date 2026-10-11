@@ -49,7 +49,7 @@ enum class FacadeVirtual {
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
-  setForestMapSd, setActiveRows,
+  setForestMapSd, setActiveRows, rederiveScale,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
   currentVarianceFits, forestVariableCounts, numTreesInForest,
@@ -222,6 +222,7 @@ public:
   SPY_RET(bool, setForestFixedK, (std::size_t f, double k), (f, k))
   SPY_RET(bool, setForestMapSd, (std::size_t f, double s), (f, s))
   SPY_RET(bool, setActiveRows, (const double* a), (a))
+  SPY_RET(ResponseUpdateResult, rederiveScale, (), ())
   SPY_RET(bool, setCounts, (const int* c, const int* t), (c, t))
   SPY_RET(bool, setCategoryOffset, (const double* o), (o))
   SPY_RET(bool, setCategoryTestOffset, (const double* o), (o))
@@ -1264,6 +1265,25 @@ const Row rows[] = {
           "facade setActiveRows: the mask reaches the impl's own sweep");
     check(f.l.base().setActiveRows(nullptr),
           "facade setActiveRows: and clears");
+  }},
+  {FacadeVirtual::rederiveScale, "rederiveScale", [](Fixtures& f) {
+    // two rows in: the transform is read from them
+    std::vector<double> mask(Fixtures::n, 0.0);
+    mask[1] = mask[2] = 1.0;
+    double scale = f.g.impl().fitScale();
+    f.g.impl().setActiveRows(mask.data());
+    check(f.g.base().rederiveScale() == ResponseUpdateResult::accepted &&
+            f.g.impl().fitScale() != scale,
+          "facade rederiveScale: the transform is read from the rows in");
+    // one row in: the impl keeps the scale, and the boundary says so
+    mask[2] = 0.0;
+    scale = f.g.impl().fitScale();
+    f.g.impl().setActiveRows(mask.data());
+    check(f.g.base().rederiveScale() == ResponseUpdateResult::scaleKept &&
+            f.g.impl().fitScale() == scale,
+          "facade rederiveScale: a kept scale is reported as kept");
+    f.g.impl().setActiveRows(nullptr);
+    f.g.base().rederiveScale();
   }},
   {FacadeVirtual::setCounts, "setCounts", [](Fixtures& f) {
     check(!f.g.base().setCounts(f.counts0.data(), f.trials.data()),
