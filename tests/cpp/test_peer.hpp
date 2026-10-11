@@ -323,6 +323,41 @@ struct TestPeer {
   static std::size_t statisticsCacheUsedBytes(const LinearGaussianLeaf& leaf) {
     return leaf.statisticsCacheUsedBytes_;
   }
+  /// A gp leaf's member sort: the dispatch, each method on its own, the rule
+  /// that picks between them and the bitmap (empty where the rule refuses
+  /// every gp leaf of the data), writable so a test can leave a member's bit
+  /// set and read which method ran: only the bitmap's walk clears it.
+  static const index_t* sortedMembers(const GPGaussianLeaf& leaf,
+                                      const Tree& tree, std::int32_t nodeIndex) {
+    return leaf.sortedMembers(tree, tree.at(nodeIndex));
+  }
+  static void sortMembersByBitmap(const GPGaussianLeaf& leaf,
+                                  const index_t* members, std::size_t numObs,
+                                  index_t* out) {
+    leaf.sortMembersByBitmap(members, numObs, out);
+  }
+  static void sortMembersByComparison(const index_t* members,
+                                      std::size_t numObs, index_t* out) {
+    GPGaussianLeaf::sortMembersByComparison(members, numObs, out);
+  }
+  static bool sortsByBitmap(std::size_t numObs, std::size_t numWords) {
+    return GPGaussianLeaf::sortsByBitmap(numObs, numWords);
+  }
+  static std::vector<std::uint64_t>& memberBits(const GPGaussianLeaf& leaf) {
+    return leaf.memberBits_;
+  }
+  /// Whether the kernel cache holds an entry for the tree's node. Read it
+  /// before the node's next score or draw, whose lookup rebuilds a dropped
+  /// entry.
+  static bool holdsKernelEntry(const GPGaussianLeaf& leaf, const Tree& tree,
+                               std::int32_t nodeIndex) {
+    std::size_t index = static_cast<std::size_t>(nodeIndex);
+    for (const auto& cache : leaf.kernelCaches_)
+      if (cache.tree == &tree)
+        return index < cache.nodes.size() &&
+               !cache.nodes[index].members.empty();
+    return false;
+  }
   /// The residual-variance posterior's degrees of freedom, nu_0 + #{w_i > 0}
   /// over the model's own precisions; AFT's is its contained Gaussian's.
   static double sigmaDegreesOfFreedom(const GaussianResponse& response) {
