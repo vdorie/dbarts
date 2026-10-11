@@ -1,9 +1,9 @@
 # stan4bart's response range: one mapping, fixed at creation from an initial fit that holds the forest's columns
 
-Status: PROPOSED, 2026-10-10 (dec-B437, dec-B441 to dec-B445). Built by
-[stan4bart-creation-mapping.md](../plans/stan4bart-creation-mapping.md). For stan4bart it replaces the
-recommendation of [per-chain-responses.md](per-chain-responses.md), whose initial fit left the forest's columns
-out. Measured on stan4bart's bartcore branch and dbarts's, arm64 macOS, on a shared machine.
+Status: PROPOSED, 2026-10-10 (dec-B437, dec-B441, dec-B444 to dec-B447; dec-B442 and dec-B443 were revised by
+dec-B446). Built by [stan4bart-creation-mapping.md](../plans/stan4bart-creation-mapping.md). For stan4bart it
+replaces the recommendation of [per-chain-responses.md](per-chain-responses.md), whose initial fit left the
+forest's columns out. Measured on stan4bart's bartcore branch and dbarts's, arm64 macOS, on a shared machine.
 
 ## 1. What the mapping is
 
@@ -37,8 +37,9 @@ Each chain is its own sampler. Creation takes the range from the response less t
 lme4 fit of the model's own terms (lm with the grouping terms as fixed effects where lme4 is not installed).
 During warm-up each chain asks dbarts to re-derive the range from the response less its own current parametric
 part, at every sweep of the first eighth, every second sweep of the next, and so on, and keeps the last. Of 1000
-warm-up sweeps the last re-derivation is at sweep 896: the kept pair equaled that sweep's to 3e-14 in 90 of 90
-fits. At the first sweep the installed range was 1.6 to 27 times creation's in every design.
+warm-up sweeps the last re-derivation is at sweep 896: in 90 fits whose range was traced sweep by sweep, the kept
+pair equaled that sweep's to 3e-14 in 90 of 90. At the first sweep the installed range was 1.6 to 27 times
+creation's in every design.
 
 ## 3. What was measured
 
@@ -49,30 +50,32 @@ no group-level covariate.
 
 ### 3.1 Freezing per chain gives the chains different posteriors
 
-- The chains of one fit kept ranges 1.16 to 1.58 times apart (many small groups, 200 rows, 5 fits); 1.05 to 1.5
-  in ordinary designs; 2.8 to 6.6 with 8 groups; with a random slope on a skewed covariate the widest chain kept
-  4.5 to 9 creation ranges and chains sat up to 3.4 ranges apart.
-- A chain's range decides its answer: across the four chains of a fit the range and the share of the group-level
-  signal left in the intercepts correlate at -0.65 to -0.99 in 5 of 5 fits, shares running 0.29 to 0.67 in one.
-- More warm-up does not cure it. At 10,000 warm-up sweeps the share's R-hat was 1.25 to 1.44 in 3 of 5 data sets
-  under today's method and 1.01 to 1.02 in 5 of 5 under one fixed range.
+- The chains of one fit kept ranges 1.16 to 1.58 times apart (many small groups, 200 rows; recomputed from the
+  saved chains of the stress study's 5 fits of today's method there). Over the later study's 34 cells they were
+  1.05 to 1.5 apart in ordinary designs and 2.8 to 6.6 with 8 groups. With a random slope on a skewed covariate
+  the widest chain kept 4.5 to 9 creation ranges and chains sat up to 3.4 ranges apart.
+- A chain's range decides its answer: in those 5 fits the range and the share of the group-level signal left in
+  the intercepts correlate at -0.65 to -0.99 across the four chains in 5 of 5, shares running 0.29 to 0.67 in one.
+- More warm-up does not cure it. In 26 further fits of that design at 10,000 warm-up sweeps and 4000 kept, the
+  share's R-hat was 1.25 to 1.44 in 3 of 5 data sets under today's method and 1.01 to 1.02 in 5 of 5 under one
+  fixed range.
 
 ### 3.2 Fixed at creation from today's initial fit: too narrow
 
 The initial fit has no competitor for a group-level signal, so its random effects take it and the range comes
 out narrow: 0.56 to 0.68 of where warm-up settles with many small groups, 0.77 to 0.82 with a confounded
-treatment, 0.49 to 0.69 with a random slope, 0.93 to 1.03 in the controls. Against the target width, 0.58 to 0.61 with
-many small groups.
+treatment, 0.49 to 0.69 with a random slope, 0.93 to 1.03 in the controls. Against the target width, 0.58 to
+0.60 with many small groups (section 3.7's table).
 
 - Many small groups (5 seeds; 200 / 1000 / 5000 rows): split error 2.63 / 1.58 / 1.11 against today's 2.14 /
-  1.48 / 1.01, paired +22% [-0.2, 44], +7.2% [3.7, 10.8], +9.5% [5.8, 13.2]; coverage of the random effects 24,
-  11 and 8 points lower. Unchanged at five times the run length. The expected value is better at 200 rows, -6.1%
-  [-9.8, -2.4], and equal above.
+  1.48 / 1.01; recomputed from the saved fits as paired differences, +22% [-0.2, 44], +7.2% [3.7, 10.8], +9.5%
+  [5.8, 13.2]; coverage of the random effects 24, 11 and 8 points lower. Unchanged at five times the run
+  length. The expected value is better at 200 rows, -6.1% [-9.8, -2.4], and equal above.
 - Mechanism: the leaf prior's sd in response units is 0.32 / 0.35 / 0.40 against today's 0.48 / 0.64 / 0.66, and
   the share of the group-level signal left in the intercepts 0.80 / 0.31 / 0.14 against 0.61 / 0.21 / 0.09.
-- It is a region: clear at 0.6 of the settled range, marginal at 0.8, gone where the group-level signal is
-  halved. Over a later, wider set of 27 design cells it was worse on split error in 14 and on expected-value
-  error in none.
+- It is a region: clear at 0.6 of the settled range, marginal at 0.8. It persists with the random-intercept sd
+  halved (8 accuracy quantities worse) and mostly fades with the group-level signal halved (1 worse). Over a
+  later, wider set of 27 design cells it was worse on split error in 14 and on expected-value error in none.
 
 ### 3.3 Wider fixed ranges overshoot
 
@@ -84,11 +87,12 @@ settled range with many small groups and 1.2 to 1.9 times in the controls (702 f
 ### 3.4 A range learned in warm-up, per chain or pooled
 
 Learning the range over the second half of warm-up matches today's method at 1000 rows and above and sits halfway
-to the narrow fixed range at 200 (split error +10% [-7, 28]). Pooled across chains by the median it is one
-mapping, but each chain's draws then depend on the other chains' seeds and on their number; the pooled value
-moved a chain's range by up to 48 percent with no warm-up left; a mean was pulled by one stuck chain (three good
-chains left with 14 to 16 percent of values outside the range); and chains run as separate processes would have
-to stop and exchange values.
+to the narrow fixed range at 200 (split error +10% [-7, 28], recomputed from the saved fits, 5 seeds). Pooled
+across chains by the median it is one mapping, but each chain's draws then depend on the other chains' seeds and
+on their number; installed at the first kept sweep, as in the 270 fits that emulated it, the pooled value moved a
+chain's range by a median of 7 percent or less and by up to 48, with no warm-up left; a mean was pulled by one
+stuck chain (three good chains left with 14 to 16 percent of values outside the range); and chains run as
+separate processes would have to stop and exchange values.
 
 ### 3.5 A drawn k
 
@@ -109,15 +113,16 @@ slope, where some chains drive k toward zero.
 
 An intercept in the parametric part, the forest's range centered at zero: the intercept and the forest's level
 trade off freely. Chains ended 39 to 80 response units apart in the intercept with their sum unaffected
-(expected-value error within 0.036 of today's in 19 of 19 cells), 43 to 66 percent of values lay outside the
-range, and k fell to 0.7 to 1.9 with 4 to 5 effective draws.
+(expected-value error within 0.03 of today's in 17 of 19 cells and 0.036 off at worst), 43 to 66 percent of
+values lay outside the range, and k fell to 0.7 to 1.9 with 4 to 5 effective draws.
 
 ### 3.7 The initial fit given the forest's columns
 
 Give the initial mixed model the forest's columns as linear fixed effects, and take the range from the response
 less that fit's own part only (the model's fixed and predicted random effects, not the added columns'). The
 added columns compete for the group-level signal the random effects would otherwise take. A linear term in the
-two group-level covariates carries 67 percent of that signal's variance in the main design.
+two group-level covariates carries 67 percent of that signal's variance in the main design (computed from the
+generating function, before any fit).
 
 Width over the target, mean of 20 seeds, initial fits only (13,160 of them over 27 designs and 10 rules):
 
@@ -181,7 +186,8 @@ of the signal left in the intercepts is 3.4 points [2.4, 4.4] higher. At 200 row
 
 ## 4. The design
 
-One linear mixed model by restricted maximum likelihood, from what stan4bart has already parsed from the call:
+One linear mixed model by restricted maximum likelihood, fitted by lme4 (section 6) from what stan4bart has
+already parsed from the call:
 the model's own fixed columns and random terms as written, plus the forest's columns as linear fixed effects. The
 range is the smallest and largest of the response, less any offset, less the model's own part of that fit: its
 fixed effects on centered columns plus its predicted random effects. The added columns' contribution is left
@@ -193,7 +199,8 @@ rows the model fits.
 
 1. Numeric, logical and ordered columns enter by the value the forest splits on (a logical as 0/1, an ordered
    factor as its level score, a transformed term as transformed). With a logical, an integer-coded category and
-   a log term among 15 columns the width was 0.95 to 0.98 of the target; the model's own fit gave 0.70 to 0.73.
+   a log term among 15 columns the width was 0.95 to 0.98 of the target and the model's own fit's 0.70 to 0.73
+   (initial fits only, 20 seeds, 200 and 1000 rows).
 2. Aliased columns are dropped, the model's own kept first: a constant, a sum of others, a covariate also in the
    model's fixed part. 3 of 15 were dropped in that design, with no failure in 40 fits.
 3. An unordered factor enters as indicators unless every one of its levels sits inside one level of a grouping
@@ -204,7 +211,8 @@ rows the model fits.
    difference. A factor finer than the grouping factor was screened by width only (0.95 left out, 1.14 not).
 4. The same fit gives the starting values: the forest's first offset is the own part and the first residual sd
    is the fit's. Against starting from the model's own fit under the same range, no accuracy quantity differed
-   in 8 cells, warm-ups of 100 and 250 sweeps among them; 6 of the 8 are one design.
+   in 8 cells, warm-ups of 100 and 250 sweeps among them; 6 of the 8 are one design. The plan keeps the offset
+   and replaces the sd by the spread of what the forest is first given (section 7, the fit's residual sd).
 5. The range is installed as two numbers before the run and nothing re-derives it. A supplied range and a
    restored fit go through the same step. It needs no change to dbarts.
 6. Rows of weight zero are left out of the fit and of the range. Reading the range on the other rows is not
@@ -224,9 +232,10 @@ rows the model fits.
 11. No route is chosen by a timer or a size (section 6).
 
 The width as it comes is accepted, with no factor shrinking it toward today's 0.85 at 200 rows: such a factor has
-no reason behind it and would undershoot at 1000 rows, where the two already agree.
+no reason behind it and would undershoot at 1000 rows, where the two already agree. Section 5 gives the one
+bound it has.
 
-## 5. Where the fit cannot be computed, and the argument
+## 5. Where the fit cannot be computed or runs wide, and the argument
 
 The fit is undefined with more fixed columns than rows (it stopped in 20 of 20 tries with 400 added columns at
 200 rows) and failed numerically in 2 of 1320 fits (1 of 20 at each size with 8 groups and 10 group-level
@@ -244,74 +253,116 @@ The response's own range, less any offset, is the fallback (dec-B444): it is the
 part taken as zero, it is what dbarts uses alone, and it can always be computed. Halfway is a constant with no
 argument and 65 fits as its test. The model's own fit is the one range that loses at every size.
 
+An estimated range is also never wider than the response's own (dec-B447). The fit can overshoot without
+failing (section 7), and the ways it can cannot be listed in full, so the bound is general: where the fitted
+range is the wider of the two, the response's own replaces both of its ends. In the twelve rows of section 3.7's
+table the fitted width is below the response's own in twelve. The cost named with the ruling: a model whose
+parametric part and forest work against each other, so that the response less the parametric part truly spans
+more than the response, is held to a tighter range than its fit would give. A pair supplied by the user is not
+bounded.
+
 The user's argument, `bart_range` (dec-B445): a pair of numbers, or "mixed" (the default, above), "lm" (the same
 fit without the random terms) or "response". They serve a user who knows the range; one whose mixed-model fit
 outlasts the sampler (section 6), for whom "lm" costs nothing measured in accuracy at 1000 and 5000 rows and 19
 to 24 percent of the random effects' mixing, and 10 percent of expected-value error if used at 200 rows; and one
 who expects a strongly curved group-level effect. Splines are not offered, and no size picks a value.
 
-## 6. The fit inside stan4bart (dec-B442, dec-B443)
+## 6. Who fits the mixed model (dec-B446)
 
-lme4 is a suggested package, and without it today's initial fit silently becomes another model. With the fit
-setting the prior, that would be two models on two machines; importing lme4 would make five more packages hard
-requirements. The fit is instead written over Matrix, which stan4bart imports: the profiled restricted
-criterion of Bates, Maechler, Bolker and Walker (2015, section 3), from the parsed random-effect structure, by a
-sparse Cholesky factor updated at each value of the variance parameters and a bound-constrained optimizer.
+lme4 does, as a suggested package. A model with no random term never needs it: its initial fit is a linear
+model. Where a model has random terms and lme4 is not installed, the range is the response's own and a binary
+fit starts from a probit regression on the fixed columns, each with a warning that names lme4. So a seeded fit's
+draws depend on whether lme4 is installed, and on its version.
 
-A prototype of about 30 lines against lme4 on the same pieces:
+Tried first and withdrawn: a routine inside stan4bart, the profiled restricted criterion of Bates, Maechler,
+Bolker and Walker (2015, section 3) over Matrix in about 30 lines, which would have taken lme4 out of the run
+time. It matched lme4. Over 110 fits in 11 design cells its own part was within 4e-6 of a range's width. On
+fifteen further models (a correlated intercept and slope, three correlated effects on 15 and on 6 levels, a slope
+proportional to its intercept, no group effect, nested terms with weights and an offset, crossed factors up to
+5000 by 2000 levels) its criterion equaled lme4's within 5e-10 at three settings of the variance parameters, the
+range's ends agreed within 2e-5 of the width, and it took 39 seconds for lme4's 46 at 5000 by 2000 levels. It was
+withdrawn because lme4 is a mature package that also covers the binary fit. There a routine of our own would be
+a probit mixed model by Laplace approximation, a second and harder routine; and the alternative that needs no
+mixed model, a regression with each grouping factor as indicator columns, is dense in the levels (section 8).
 
-- 110 fits over 11 design cells: the own part within 4e-6 of a range's width, in the same time.
-- Fifteen further models, among them a correlated intercept and slope, three correlated effects on 15 and on 6
-  levels, a slope proportional to its intercept, no group effect at all, nested terms with weights and an
-  offset, and crossed factors up to 5000 by 2000 levels: the criterion equals lme4's at three settings of the
-  variance parameters to 5e-10 or better (to a constant, the sum of the log weights, under weights); the range's
-  ends agree within 2e-5 of the width and the residual sd within 5e-5, the residue being where each optimizer
-  stopped (criterion at the prototype's optimum within 2e-4 of lme4's). Five of the fifteen are singular.
-- Evaluations: 6 to 400 against lme4's 9 to 136, most where six variance parameters sit on 6 levels.
-- On a second draw of seven of those models, one singular fit (the slope proportional to its intercept) stopped
-  on the boundary, an intercept variance of zero, 0.017 above lme4's criterion, and did so under each of three
-  base-R optimizer settings; the range's ends moved by 2.7e-4 of the width. The other six ended within 5e-5.
+lme4 is given the parsed pieces, not a rewritten formula: its exported builder of the criterion takes the fixed
+columns, the random-effect structure and a small frame holding the response and weights, its optimizer follows,
+and the coefficients, the predicted effects and the residual sum are read from the criterion's own environment.
+Run on lme4 2.1.0:
 
-Time, one core, seconds; the first three columns are one timing, the last two another, run together:
+- Two random terms with a correlated slope, 117 of 600 rows at weight zero and removed, weights, an offset
+  subtracted, a 4-level factor as indicators and an exact copy of the model's own column among the forest's: the
+  fixed effects equal those of `lmer` on the written-out formula within 2e-10, the residual sd within 7e-11, the
+  own part on every row within 2e-9. Two levels of a grouping factor with no row of positive weight have
+  predicted effects of exactly zero. With one random intercept and nothing removed the two are identical.
+- Rank-deficient columns are not handled for us: the builder stops ("Downdated VtV is not positive definite"),
+  and `lmer` on a formula drops by its own pivoting, which kept the copy written first and dropped the model's
+  own column. Rule 2's dropping is therefore done before lme4 sees the columns.
+- One random effect per row: `lmer` refuses ("number of levels of each grouping factor must be < number of
+  observations"), the builder does not check, and the criterion is flat, 3189.795 at a variance parameter of 0.2
+  and of 5 with the optimizer staying where it starts. The same check is made before lme4 is called, and the
+  response's own range applies.
+- lme4's constructor of a fitted-model object refuses a frame that carries no formula, which is why the fit is
+  read from the criterion's environment.
+- A probit mixed model built the same way, optimized in lme4's two stages, equals `glmer` within 1.4e-5 in its
+  fixed effects and linear predictor.
 
-| rows, grouping | model's own fit | with the forest's columns | one chain, 2000 sweeps | lme4, rerun | inside stan4bart |
-|---|---|---|---|---|---|
-| 1e5, 25,000 nested groups | 0.2 | 0.4 | 120 | 0.36 | 0.28 |
-| 1e5, 5000 by 2000 crossed | 35 | 52 | 65 | 46 | 39 |
-| 3e4, 3000 by 3000 crossed | 105 | 111 | 28 | 96 | 76 |
-| 1e5, three crossed factors with slopes | over 600 | over 600 | 290 | 9.5 per evaluation | 6.0 per evaluation |
+Time of lme4's fit, one core, seconds:
+
+| rows, grouping | model's own fit | with the forest's columns | the same, another run | one chain, 2000 sweeps |
+|---|---|---|---|---|
+| 1e5, 25,000 nested groups | 0.2 | 0.4 | 0.36 | 120 |
+| 1e5, 5000 by 2000 crossed | 35 | 52 | 46 | 65 |
+| 3e4, 3000 by 3000 crossed | 105 | 111 | 96 | 28 |
+| 1e5, three crossed factors with slopes | over 600 | over 600 | 9.5 per evaluation | 290 |
 
 The cost is the factorization of the random effects, not the added columns, wherever the fit is expensive; where
 it is cheap many added columns multiply it (10 seconds against 0.3 with 199 columns at 1e5 rows), about 2
 percent of a default run. With large crossed factors the initial fit already outlasts the sampler today, and
-with three crossed factors and slopes neither routine ends in ten minutes (seven variance parameters took 243
-evaluations at a tenth of the size). Fitting the variance parameters on a fifth of the rows saves little (19
-seconds against 52): a fifth of the rows still holds most of the levels.
+with three crossed factors and slopes it does not end in ten minutes. Fitting the variance parameters on a fifth
+of the rows saves little (19 seconds against 52): a fifth of the rows still holds most of the levels.
 
-lme4 keeps no run-time use (dec-B443). Two facts about today's package bear on it. stan4bart's copies of lme4's
-and reformulas's formula helpers are replaced by those packages' own when the package is installed, not when it
-is loaded: a build made beside lme4 and then loaded where lme4 is absent stops at the first call ("could not find
-function"), the case of a binary built on one machine and installed on another. And the two builds parse six
-formulas (slopes, `||`, nesting, interactions of grouping factors) to identical random-effect structures.
+One defect of today's package bears on this. stan4bart's copies of lme4's and reformulas's formula helpers are
+replaced by those packages' own when the package is installed, not when it is loaded: a build made beside lme4
+holds 21 of lme4's functions and 24 of reformulas's, and loaded where lme4 is absent it stops at the first call
+("could not find function"), the case of a binary built on one machine and installed on another. With the two
+replacing operators removed, a build made beside lme4 holds none of either package's functions and fits a
+correlated slope with a crossed term, and a binary model with nested terms, with lme4 hidden. The two kinds of
+build parse six formulas (slopes, `||`, nesting, interactions of grouping factors) to identical random-effect
+structures.
 
-## 7. What does not work
+## 7. Where the fit runs wide, and what else does not work
 
-- A group-level signal with no linear part (section 3.8).
-- Added columns approaching the number of rows. With 150 extra covariates at 200 rows the width is 1.42 to 1.44
-  of the target, expected-value error +6.8% [5.5, 8.1] and its interval's coverage 0.74 against 0.81; with 50,
-  1.15 to 1.16.
-- Group-level covariates approaching the number of groups. With 8 groups and 10 such covariates the fixed
-  columns reproduce the grouping factor's indicators exactly (20 of 20 data sets): the predicted random effects
-  are zero whatever the variance parameter, the criterion is flat in it, and the whole between-group variation
-  goes to the forest's side of the range (width 1.32 to 1.35). In the sampler's fit the random-intercept sd then
-  comes out 1.62 for a generating 4, its interval covering in 7 of 19 fits, where the model's own fit's narrow
-  range gives 4.06 and covers in 20 of 20. With 6, 4 and 2 such covariates the widths are 1.22, 1.17 and 1.07.
+- A group-level signal with no linear part (section 3.8): too narrow, not too wide.
+- Too wide, added columns approaching the number of rows. With 150 extra covariates at 200 rows the width is 1.42
+  to 1.44 of the target, expected-value error +6.8% [5.5, 8.1] and its interval's coverage 0.74 against 0.81
+  (the same 20 fits); with 50, 1.15 to 1.16. As the residual degrees of freedom run out (200 rows, 10 seeds,
+  the response's own range at 1.42 of the target): 1.22 at 38 (largest 1.53), 1.39 at 8 (1.67), 1.56 at 3
+  (2.03), 1.83 at 1 (2.95), then the undefined fit's 1.42 at 0.
+- Too wide, group-level covariates approaching the number of groups. With 8 groups and 10 such covariates the
+  fixed columns reproduce the grouping factor's indicators exactly (20 of 20 data sets): the predicted random
+  effects are zero whatever the variance parameter, the criterion is flat in it, and the whole between-group
+  variation goes to the forest's side of the range (width 1.32 to 1.35). In the sampler's fit the
+  random-intercept sd then comes out 1.62 for a generating 4, its interval covering in 7 of 19 fits, where the
+  model's own fit's narrow range gives 4.06 and covers in 20 of 20. With 6, 4 and 2 such covariates the widths
+  are 1.22, 1.17 and 1.07.
+- Too wide, a forest covariate nearly copying one of the model's own, such as age beside time in longitudinal
+  data; rule 2 removes exact copies only. Width with the copy over width without, 300 rows, 20 seeds: at a
+  correlation of 0.957 a mean of 1.02 and a largest of 1.18; at 0.995, 1.15 and 1.71; at 0.9995, 1.96 and 4.42;
+  at 0.99995, 4.75 and 12.4.
+- What section 5's bound does for these. It takes over in the first case once the fit passes the response's own
+  width (in 1, 5, 6, 9 and 17 of 20 data sets at 38, 18, 8, 3 and 1 residual degrees of freedom) and in the
+  third likewise. It does not reach the second, whose 1.32 to 1.35 is under the response's 1.63.
+- The fit's residual sd is no better there than its range. At 18 residual degrees of freedom and fewer it ran
+  from 0.008 to 6.5 for a generating 1 in the data sets where the bound does not take over (20 seeds a cell;
+  1.5 to 2.2 at 88 and more). The spread of what the forest is first given, the response less the offset less
+  the own part, has no such failure and is close to what today's fit supplies, whose residual holds the forest's
+  signal.
 - Two repairs fail. Leaving out the group-level columns "when they are too many for the groups" turned the
   overshoot into the model's own fit's undershoot (0.61 to 0.64) and its answer moved with the one constant in
   it. Falling back when the enriched fit is singular in a term whose plain fit is not would not fire: in 20
   data sets per cell the enriched fit was singular in 0 with 10 group-level covariates, 1 with 6, 0 with 4 or 2,
-  and 0 with 150 or 50 extra covariates; and the response's own range it would fall to is wider still (1.63 and
-  1.78) where the overshoot is the fault.
+  and 0 with 150 or 50 extra covariates.
 - Eight groups generally. Nothing converged under any method, today's included (R-hat of the random-intercept sd
   1.31 to 1.38), so nothing there can be ranked.
 - What the range does not touch: a cluster-level treatment inside the forest is estimated at 3.97 for a
@@ -319,25 +370,38 @@ formulas (slopes, `||`, nesting, interactions of grouping factors) to identical 
 
 ## 8. Binary responses
 
-No range is derived, and none of the above applies to one. Today a binary fit's starting offset is the initial
-fit's fitted probabilities (0.01 to 1.0) where the linear predictor is meant (-2.3 to 3.1 in one check); the
-route without lme4 has the same fault. Starting values only: over 30 fits (two designs at 500 rows, 5 seeds, 4
-chains of 1000 + 1000) the fit started from glm with the grouping factor as a fixed effect moved the fitted
-probability's posterior mean by a median 0.026 to 0.046 posterior sd per row from the fit started from a probit
-mixed model, where two runs of the latter differ by 0.025 to 0.040, and its error by +0.1% [-0.6, 0.7] and
-+0.1% [-1.5, 1.8]. The glm with a grouping factor as fixed effects is dense in the levels: 353 seconds at 2000
-groups of 4 where the mixed model took 0.7, and with groups of 4 its linear predictor is beyond 4 in size on 41
-to 44 percent of rows, groups of one outcome being fitted exactly.
+No range is derived, and none of the above applies to one; the initial fit gives a binary fit only the values
+its first sweep starts from. Today that start is the fitted probabilities (0.01 to 1.0) where the linear
+predictor is meant (-2.3 to 3.1 in one check), on the route without lme4 as well; and the fit is made by
+evaluating the call again, which stops, after a full BART fit inside it, when the formula is held in a variable.
+
+The start is a probit mixed model by lme4 built from the parsed pieces, on the linear-predictor scale; without
+lme4, a probit regression on the fixed columns alone, with the warning of section 6. Measured for it:
+
+- The fixed-columns start is mild and immediate: linear predictors of -1.1 to 1.2 in 0.002 seconds on a design
+  with groups of 4.
+- A regression with each grouping factor as indicator columns, the alternative first ruled and withdrawn, is
+  dense in the levels: 353 seconds at 8000 rows in 2000 groups of 4 where the mixed model took 0.7 (6.2 for 0.18
+  at 500 groups, 47.8 for 0.35 at 1000), 20 GB at 1e5 rows in 25,000 groups, and with groups of 4 a linear
+  predictor beyond 4 in size on 35 to 44 percent of rows, groups of one outcome being fitted exactly.
+- The start hardly reaches the result, as far as it was tested: over 30 fits (two designs at 500 rows, 5 seeds,
+  4 chains of 1000 + 1000) the fit started from the indicator regression moved the fitted probability's
+  posterior mean by a median 0.026 to 0.046 posterior sd per row from the fit started from the mixed model, where
+  two runs of the latter differ by 0.025 to 0.040, and its error by +0.1% [-0.6, 0.7] and +0.1% [-1.5, 1.8].
+  Both starts were on the probability scale; with 5 seeds a difference under about 1 percent would not show.
 
 ## 9. Limits of the evidence
 
-- Nothing is built. The enriched fit, the range's install and the routine are prototypes; the released stan4bart
-  was never run, so "today's method" is the branch's.
+- Nothing is built. The enriched fit, the range's install and the calls into lme4 are prototypes; the released
+  stan4bart was never run, so "today's method" is the branch's.
 - About 1,100 quantity-by-cell comparisons were made without correction; single flags near 3 percent are
   unconfirmed. The earlier studies used 5 seeds, where only differences above about 5 percent show.
 - The spline question rests on one design family: many small groups, one covariate carrying both parts, one
   curve shape. The factor rules, the zero-weight rule and weights with an offset rest on one design each; the
   factor finer than the grouping factor was screened by width, not fitted.
+- Section 5's bound and section 7's widths are from initial fits; no sampler was run under the bound.
+- The linear-predictor start and the fixed-columns start of section 8 were not fitted.
+- lme4's functions were run on one version, 2.1.0.
 - Nothing converged in the hard cells of the earlier studies (effective sample size of the expected value 8 to
   70 of 4000 in three of four); large effects survive, claims of equality there are weak.
 - Not run: prediction for new groups, non-Gaussian errors, accuracy above 5000 rows, time above 1e5 rows,
