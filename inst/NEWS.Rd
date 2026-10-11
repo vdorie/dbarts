@@ -379,6 +379,12 @@
   }
   \subsection{NEW FEATURES}{
     \itemize{
+      \item The sampler's \code{$setWeights} takes \code{updateScale}, after
+            \code{updateState}: with \code{TRUE} it takes the response's
+            scale, and a negative binomial fit's center, again from the rows
+            the new weights leave in, as \code{$setOffset} does, where
+            0.9-34 held the scale set at creation. It defaults to
+            \code{FALSE}.
       \item \code{predict} with no \code{newdata} returns each \code{type}
             at the training rows from the draws the fit stored, on every
             family and without saved trees (0.9-34 stopped); an
