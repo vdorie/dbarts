@@ -10447,6 +10447,96 @@ static void testForestSdUnit() {
       check(same, "sd unit: the swapped chain has the calibration of the one "
                   "created over the new basis");
     }
+
+    // (h) a chain spelled in multiples of the anchor and written the sd it
+    // has in force keeps the multiple it was built with, which that sd over
+    // the unit is not: each multiple here differs from it in the last place.
+    // No such multiple exists at a unit of 1, which is probit's.
+    if (unit != 1.0) {
+      double multiples[K];
+      bool found = true;
+      for (size_t f = 0; f < K; ++f) {
+        multiples[f] = nan;
+        for (double candidate = 0.31 + 0.2 * static_cast<double>(f);
+             candidate < 9.0 && std::isnan(multiples[f]); candidate += 0.17)
+          if (forestSdInForce(candidate, unit) / unit != candidate)
+            multiples[f] = candidate;
+        found = found && !std::isnan(multiples[f]);
+      }
+      check(found, "sd unit: multiples the unit and back do not return exist");
+      if (found) {
+        Built twin = build(family, response, nullptr, nullptr, multiples, nan,
+                           nan);
+        Built written = build(family, response, nullptr, nullptr, multiples,
+                              nan, nan);
+        draws(*twin.sampler, 5);
+        draws(*written.sampler, 5);
+        bool taken = true, stood = true;
+        for (size_t f = 0; f < K; ++f) {
+          ForestCalibration before = written.sampler->forestCalibration(0, f);
+          taken = taken && std::isnan(before.namedSd) &&
+                  written.sampler->setForestMapSd(f, before.mapSd);
+          for (size_t c = 0; c < numChains; ++c) {
+            ForestCalibration after = written.sampler->forestCalibration(c, f);
+            stood = stood && after.namedSd == before.mapSd &&
+                    after.mapSd == before.mapSd &&
+                    (f == 0 ? after.amplitudePriorScale
+                            : after.nodeScaleFactor) == multiples[f];
+          }
+        }
+        check(taken && stood,
+              "sd unit: a write of the sd in force on a chain spelled in "
+              "multiples states the forest and keeps its multiple");
+        check(leafScales(written) == leafScales(twin),
+              "sd unit: a write of the sd in force on a chain spelled in "
+              "multiples moves no leaf scale");
+        check(draws(*written.sampler, 20) == draws(*twin.sampler, 20),
+              "sd unit: a write of the sd in force on a chain spelled in "
+              "multiples leaves the next 20 sweeps the untouched twin's");
+      }
+    }
+
+    // (i) the anchor handed and the unit not: the unit is derived from the
+    // response in force, never from the handed anchor. Gaussian hands the
+    // anchor of the chain over y to a response of another shape, and a latent
+    // family a number that is not its link's.
+    {
+      std::vector<double> bent(n);
+      for (size_t i = 0; i < n; ++i)
+        bent[i] = y[i] + 30.0 * x[i + n] * x[i + n];
+      const double* other = gaussian ? bent.data() : response;
+      Built fresh = build(family, other, nullptr, stated, nullptr, nan, nan);
+      double ownAnchor = fresh.sampler->forestCalibration(0, 0).mapAnchor;
+      double ownUnit = fresh.sampler->forestCalibration(0, 0).mapUnit;
+      double handed =
+        gaussian ? created.sampler->forestCalibration(0, 0).mapAnchor
+                 : 1.5 * ownAnchor;
+      Built anchored = build(family, other, nullptr, stated, nullptr, handed,
+                             nan);
+      check(handed != ownAnchor &&
+              ulps(ownUnit, gaussian ? sampleSd(bent, nullptr) : literal, 4.0) &&
+              anchored.sampler->forestCalibration(0, 0).mapAnchor == handed &&
+              anchored.sampler->forestCalibration(0, 0).mapUnit == ownUnit &&
+              anchored.sampler->forestCalibration(1, 2).mapUnit == ownUnit,
+            "sd unit: with the anchor handed and the unit not, the unit is "
+            "the one the response in force gives");
+      bool divided = true;
+      for (size_t c = 0; c < numChains; ++c) {
+        for (size_t f = 0; f < K; ++f) {
+          ForestCalibration a = anchored.sampler->forestCalibration(c, f);
+          divided = divided &&
+                    (f == 0 ? a.amplitudePriorScale : a.nodeScaleFactor) ==
+                      stated[f] / ownUnit;
+        }
+      }
+      check(divided, "sd unit: with the anchor handed and the unit not, a "
+                     "stated sd is divided by the response's own unit");
+      check(TestPeer::leafScale(anchored.sampler->chain(1), 1) ==
+              stated[1] / ownUnit * handed / (0.674 * 1.0) /
+                std::sqrt(static_cast<double>(trees[1])),
+            "sd unit: with the anchor handed and the unit not, the leaf scale "
+            "is that quotient on the handed anchor");
+    }
   }
 
   // (a) over the rows in the likelihood, gaussian: rows of weight zero that
