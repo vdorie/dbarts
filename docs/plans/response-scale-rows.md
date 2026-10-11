@@ -1,6 +1,7 @@
 # response-scale-rows: what the response gives a prior is taken from the rows in the likelihood at creation
 
-Status: PLANNED. Revised from its critique and to dec-B405 on 2026-10-09; rechecked on 2026-10-11
+Status: LANDED 2026-10-11 (2555a29e to d5b637ee; stan4bart 32b9631 in lockstep; calls dec-A204;
+[Landing note](#landing-note)). Revised from its critique and to dec-B405 on 2026-10-09; rechecked on 2026-10-11
 against bartcore a2ef56a9, where every slice queued ahead of it has landed
 ([Recheck against bartcore](#recheck-against-bartcore)). Implements dec-B296, dec-B302,
 dec-B309, dec-B314 (sigest held), dec-B315 (a hazard fit's periods), dec-B362 (several forests keep
@@ -972,3 +973,46 @@ were not run against the rule. stan4bart was read on its creation-mapping branch
 landed, and not built or run: its install was emulated on dbarts samplers, and whether a fit on one
 weighted row otherwise runs is not known. treatSens was read, not built; bartCause and bairrtt were
 not read again. No reference build, sanitizer, x86 run or `R CMD check` was made.
+
+## Landing note
+
+Landed 2026-10-11 as 2555a29e to d5b637ee (25 commits), with stan4bart 32b9631 on its bartcore branch in
+lockstep, after stan4bart-creation-mapping had landed there. One opus implementer for the engine, the keep's
+status, the bridge, the flat entries and dbarts.h; one sonnet implementer for the R code, the tinytest file,
+the gate scripts and the help; one opus review told to refute, which read the diff three times and ran 46
+mutants; a fix round in R and tests alone, checked by the same reviewer with 15 more. Calls: dec-A204.
+
+The review could not refute the engine half. It found three defects in the R half, all fixed with their
+tests: the count center's follow-up at creation went through the sampler's own `setOffset` and, for a test
+set of another row count under a scalar offset, dropped the test offset in R and in the engine; `setData`
+raised rule 4's warning before the record and the stored state were written, so that warning turned into an
+error left them on the old data; `xbart` handed a `sigest` function no weights in a fold in rule 4's case.
+Nine of the reviewer's mutants survived the first suite and each is now killed by an expectation.
+
+Departures from the steps. Step 6's follow-up is the bridge's offset entry and the record, not "the
+sampler's own `setOffset`", for the first defect above; an answer from the bridge that the scale was kept is
+an internal error there, R having found two counts on the same rows. The aft arm of rule 4's creation test is
+gone: an aft sampler takes no weights, so it meets a row out only at a re-derivation under a mask. The pair
+script compares its inert-rows groups at the rows in, a row out's own fitted value carrying its own
+response's rounding. `rbart_vi`, deprecated, raises the creation warning twice in rule 4's case and is left.
+A masked fit's test predictions are not those of the fit on the rows in alone, cut points spanning every
+row; that equality is not pinned, and two fits differing only in the out rows' responses are.
+
+Baseline: `zeroweights` alone re-recorded, as equivalence-308c45be (54 of 55 identical against 2b48939b, 55
+compared, 0 skipped; `zeroweights` 37 summaries, max abs z 2.85); bcf-equivalence-1b7d730c 15 of 15 and
+multinomial-equivalence-80b1c8d4 11 of 11 kept. Gates on d5b637ee, arm64 macOS: tests/cpp 392 plain and
+under address and undefined sanitizers; the full tinytest suite in one process 23090 results, 0 failures;
+the three compares bitwise on the reference build, 55, 15 and 11; the four snapshot files, 27 results;
+every exact gate quick, 42 commands with the new `zerocreate` arm; the lint chain; `R CMD check --as-cran`
+one NOTE (Date); the composition matrix runner 0 disagreements. x86-64 Linux, g++ 13: tests/cpp 392 plain
+and under address, undefined and leak sanitizers with no report; tinytest 23123 results, 0 failures; the
+main corpus statistically indistinguishable, 55 compared (the two-forest and multinomial compares have no
+statistical mode and differ there as on every earlier leg). stan4bart at 32b9631: its suite 1641 results on
+this slice's dbarts and on the tip before it; a continuous fit with zero weights, one without and a binary
+fit with a mask identical between the two; a stan4bart built against the header before this slice loads and
+gives the same draws. Package code 552 added lines against the stop of about 630; the whole diff 3,830
+against 4,750.
+
+Not run: Windows beyond CI; the sanitizers on the R-loaded path at the final tip beyond the new file and the
+C API test; the full mutation battery; bartCause and treatSens, whose calls the plan read and found
+unaffected. Slices C and D stay in TODO, item response-scale-rows.

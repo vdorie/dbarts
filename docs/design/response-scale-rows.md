@@ -1,7 +1,6 @@
 # Which rows a prior's scale is read from
 
-Status: BUILT on the slice's branch, not landed: the review, the baseline re-record and the landing
-records are ahead. The plan is [response-scale-rows.md](../plans/response-scale-rows.md), which carries the
+Status: LANDED 2026-10-11 (d5b637ee). The plan is [response-scale-rows.md](../plans/response-scale-rows.md), which carries the
 steps, the gates and the calls made in planning; this note is the standing statement of the rule.
 
 What a fit takes from the response to place or size a prior - the gaussian and Student-t response range, a

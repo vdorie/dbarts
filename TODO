@@ -221,6 +221,22 @@ items
     (dec-B326); forced forms return NULL (dec-B310). To design: the
     argument's name and default, a collapsed leaf's value, and what
     stays refused under force.
+  warm-start-by-position: a warm start matches the donor's columns and
+    a factor's levels to the recipient's by position, not by name: a
+    donor fitted with a factor's levels reversed installs with no
+    word and starts at a fit that correlates -0.9995 with the donor's
+    (run 2026-10-11, docs/design/warm-start-salvage.md when it
+    lands). Decide: match by name where both carry names, refuse a
+    mismatch, or document. With the warm start's slices.
+  warm-start-linear-covariates: a stored state does not record which
+    covariates a linear leaf's slopes belong to, so a linear donor on
+    one covariate installs into linear leaves on another with no word
+    (run 2026-10-11). With the warm start's slices.
+  warm-start-bart-families: bart(family = "nbinom", "ordinal" or
+    "multinom", warm.start = ) is refused at the bart level ("does not
+    support 'warm.start'"), where the sampler's installTrees takes a
+    donor of any of the 7 families from any other. Lift where the
+    install is sound, or say why not. With the warm start's slices.
   warm-start-tree-count: a warm start (bart's warm.start, the sampler's
     installTrees) from a donor with another tree count, partially
     populated: a smaller recipient takes some of the donor's trees, a
@@ -918,7 +934,7 @@ items
     section 10). After the multiplier slice's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
-  response-scale-rows: slices C and D (slice B, creation, is built:
+  response-scale-rows: slices C and D (slice B, creation, has landed:
     docs/design/response-scale-rows.md). C: setWeights and setActiveRows
     take the response setters' argument to re-derive what creation took
     over the rows in, with the response setters' effect on the live
