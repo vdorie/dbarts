@@ -843,7 +843,7 @@ text above is written to that code throughout.
 
 What changed:
 
-- What this plan waited on has landed, and its "to recheck once both have landed" list is done: the
+- What this plan waited on is in the tip, and its "to recheck once both have landed" list is done: the
   counts of Context are today's, no baseline scenario has gained a stated sd,
   [`resolveForests`](../../R/model.R) still holds the one-forest refusal step 5 removes, and every
   function cited exists under its name.
@@ -874,11 +874,13 @@ What changed:
 
 What did not change: every rule but the words of 1, 3 and 8 named above; the refused texts; the
 constraints but the one on rows; the steps' order and number; the gate expectation that no recorded
-scenario moves. The rulings as they stand: dec-B246 as dec-B266 revises it, dec-B253, dec-B269 as
-dec-B280 and dec-B282 revise it, and dec-B275 have no later entry against them; dec-B296, dec-B302 and
-dec-B309 are built as the plan had restated them; dec-B362 and TODO `multiforest-scale-rederive` read
-right beside rule 8; dec-B416 to dec-B418 concern a forest with no map and a state, neither of which
-this slice touches; dec-B376's `fit$fixed` holds a held coefficient already.
+scenario moves. The rulings as they stand: no entry made since the plan was amended changes what
+dec-B246 as dec-B266 revises it, dec-B253, dec-B269 as dec-B280 and dec-B282 revise it, and dec-B275
+rule here (dec-B354 and dec-B290 refine dec-B253 for a held coefficient, the multiplier slice's);
+dec-B296, dec-B302 and dec-B309 are built as the plan had restated them; dec-B362 and TODO
+`multiforest-scale-rederive` read right beside rule 8; dec-B416 to dec-B418 concern a forest with no
+map and a state, neither of which this slice touches; dec-B376's record of a held coefficient is the
+`heldAmplitude` entry.
 
 Runs: L with an offset, `subset`, positive weights, 50 and 10 rows of weight zero, the weights brought
 back, one row in, both latent families, `setResponse` without and with `updateScale`; the prior-size
