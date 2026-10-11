@@ -114,6 +114,22 @@ inline std::uint64_t treeStructureSignature(const Tree& tree) {
   return hash;
 }
 
+// The amplitude priors a chain hands its combiner, for a fixture that builds
+// the combiner alone: each forest of the spec resolved by the calibration map
+// as the chain resolves it. Such a fixture states multiples of the anchor or
+// nothing, so no unit is read.
+inline std::vector<ForestAmplitudePrior> amplitudePriors(
+    const AmplitudeSpec& spec) {
+  std::vector<ForestSpec> forests = expandForestSpecs(spec);
+  std::vector<ForestAmplitudePrior> priors(forests.size());
+  for (std::size_t f = 0; f < forests.size(); ++f)
+    priors[f] = forestMapEntry(forests[f], forests[f].hasBasis(),
+                               forests.size(), spec.family,
+                               std::numeric_limits<double>::quiet_NaN(), 1.0)
+                  .amplitudePrior;
+  return priors;
+}
+
 // Structural round-trip gate for the state tests. With bitwise continuation
 // dropped, a restored sampler must reconstruct the model - trees, leaf
 // parameters, saved trees, latents, dart, rng - exactly, sigma to within the

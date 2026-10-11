@@ -2618,10 +2618,12 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
       f == 0 ? numTrees : static_cast<size_t>(params[0]);
     forest.forest.base = f == 0 ? model.base : params[1];
     forest.forest.power = f == 0 ? model.power : params[2];
-    forest.nodeScaleFactor = params[3];
-    forest.nodeScaleDivisor = params[4];
-    forest.amplitudePriorVariance = params[5];
-    forest.amplitudePriorScale = params[6];
+    // the numbers R resolved, stated to the engine as multiples of the map's
+    // anchor: a positive half-Cauchy median marks a forest created with no
+    // basis, whose number it is
+    forest.createdWithoutBasis = params[6] > 0.0;
+    forest.sdMultiple = forest.createdWithoutBasis ? params[6] : params[3];
+    if (!forest.createdWithoutBasis) forest.amplitudePriorVariance = params[5];
     forest.updateAmplitude = params[7] != 0.0;
     // The tree-move mixture is a property of the FIT, not of a forest: one
     // control slot, so every forest of a coupling proposes from the same

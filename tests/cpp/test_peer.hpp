@@ -49,6 +49,11 @@ struct TestPeer {
                                                       std::size_t f) {
     return chain.forests_[f].totalFits;
   }
+  /// Forest f's leaf scale, the per-tree prior sd on the working scale.
+  template <IntegrableLeafModel L, typename R>
+  static double leafScale(const Chain<L, R>& chain, std::size_t f) {
+    return chain.forests_[f].leaf.scale;
+  }
   /// Tree t of forest f, and the location the chain hands a latent redraw.
   template <IntegrableLeafModel L, typename R>
   static const Tree& forestTree(const Chain<L, R>& chain, std::size_t f,

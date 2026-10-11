@@ -352,10 +352,10 @@ struct ModelParameters {
 /// sweep under kHasHyperprior while priorScale does not. What priorSd bounds
 /// is leaf-model specific, exact only for the constant leaf.
 ///
-/// The five below are the CALIBRATION MAP's own decomposition of priorScale,
-/// NaN on any forest with no map entry - every single-forest and every
-/// multinomial one - so a
-/// caller reads "not map-derived" rather than a plausible 1.0.
+/// The entries from amplitudePriorVariance on are the CALIBRATION MAP's, NaN
+/// on any forest with no map entry - every single-forest and every
+/// multinomial one - so a caller reads "not map-derived" rather than a
+/// plausible 1.0.
 struct ForestCalibration {
   double priorScale = 0.0;
   double priorSd = 0.0;
@@ -369,26 +369,31 @@ struct ForestCalibration {
   /// The scale of the chi prior a drawn k runs under, infinite where it is
   /// improper; NaN where k is fixed.
   double kPriorScale = std::numeric_limits<double>::quiet_NaN();
-  /// The named sd the forest holds, response units; NaN where the prior is
-  /// written with k. Finite, a fixed k is priorScale / namedSd and
-  /// kPriorScale likewise, to the bit.
+  /// The sd the forest states, response units; NaN where it states none.
+  /// Off the map it is the named sd of a prior not written with k, and a
+  /// fixed k is then priorScale / namedSd and kPriorScale likewise, to the
+  /// bit. On a map forest it is the stated sd as written.
   double namedSd = std::numeric_limits<double>::quiet_NaN();
   /// The amplitude prior, the two spellings EXCLUSIVE (ForestAmplitudePrior's
   /// own pair) and never the mixture's LIVE variance auxiliary, which is state.
   double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
   double amplitudePriorScale = std::numeric_limits<double>::quiet_NaN();
   /// The map's two factors: priorScale is factor * s / (divisor * rowNorm), so
-  /// the anchor s is recoverable from these. Both go NaN when a state install
-  /// brings a calibration this map did not derive - the identity is then
-  /// unknown rather than wrong - and setForestBasis re-imposes the map.
+  /// the anchor s is recoverable from these.
   double nodeScaleFactor = std::numeric_limits<double>::quiet_NaN();
   double nodeScaleDivisor = std::numeric_limits<double>::quiet_NaN();
   /// The median nonzero row norm of the basis IN FORCE, which setForestBasis
   /// re-derives; unobservable by any other route.
   double basisRowNorm = std::numeric_limits<double>::quiet_NaN();
-  /// The anchor s itself, the same double on every forest of a chain; a host
-  /// records it so a re-creation rebuilds on it (AmplitudeSpec::anchor).
+  /// The anchor s itself, the same double on every forest of a chain; a
+  /// caller records it so a re-creation rebuilds on it (AmplitudeSpec::anchor).
   double mapAnchor = std::numeric_limits<double>::quiet_NaN();
+  /// The response units in one s, which a stated sd is divided by; recorded
+  /// and handed back as the anchor is (AmplitudeSpec::unit).
+  double mapUnit = std::numeric_limits<double>::quiet_NaN();
+  /// The forest's sd in force, response units: namedSd itself where one is
+  /// stated, else the default's multiple of s times mapUnit.
+  double mapSd = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.
@@ -1122,67 +1127,46 @@ public:
                     options.sigmaIsFixed;
     sigma_ = response_->initialSigma();
 
-    // Calibration map (bcf's, generalized to K by ForestSpec): s is the
-    // family's own latent scale, the sample sd of the range-scaled
-    // response (y mapped to [-0.5, 0.5]) under gaussian. A forest whose
-    // amplitude carries a half-Cauchy scale mixture keeps its node scale at
-    // nodeScaleFactor s and puts the magnitude in the amplitude prior - bcf's
-    // prognostic total mu ~ N(0, s^2) with the half-Cauchy a (median
-    // aPriorScale) at aPriorScale units of s. A forest whose amplitude prior
-    // is a FIXED variance carries the magnitude in the node scale instead,
-    // divided through the half-normal median - bcf's treatment total
-    // tau ~ N(0, (sdModerate s / 0.674)^2), so with b1 - b0 ~ N(0, 2
-    // bPriorVariance) the effect (b1 - b0) tau sits at sdModerate units of s.
-    // Both expressions are written exactly as bcf's were, which is what keeps
-    // the K = 2 instance bitwise. The map fixes k at 1 and overrides the host
-    // node prior for every forest.
+    // The calibration map (forestMapEntry) is stated on the anchor s, the
+    // family's own latent scale (latentScaleAnchor): the sample sd of the
+    // range-scaled response under gaussian, the link's fixed error sd under a
+    // latent family. The map fixes k at 1 and overrides the node prior the
+    // options carry for every forest.
     //
-    // The scale is stated PER UNIT OF BASIS ROW NORM, which is what
-    // basisRowNorm divides out: a forest whose basis rows have median nonzero
-    // norm c contributes the scale its host asked for rather than c times it.
-    // Every shipped route has c exactly 1, so the divisor is inert there.
-    //
-    // s is the family's own latent scale (latentScaleAnchor), which under
-    // gaussian is the empirical one above and under a latent family is the
-    // link's fixed one.
-    //
-    // A finite spec.anchor replaces it: that is the s a first creation
-    // computed, carried so a re-creation over a swapped response keeps it.
-    double s = std::isfinite(spec.anchor) ? spec.anchor
-                                          : latentScaleAnchor(spec.family);
+    // A finite spec.anchor replaces s and a finite spec.unit the unit: those
+    // are what a first creation derived, carried so a re-creation over a
+    // swapped response keeps both. A unit not handed is derived from the
+    // response in force, whether or not the anchor was.
+    bool anchorIsHanded = std::isfinite(spec.anchor);
+    double s = anchorIsHanded ? spec.anchor : latentScaleAnchor(spec.family);
     nodeScaleAnchor_ = s;
+    forestSdUnit_ =
+      std::isfinite(spec.unit)
+        ? spec.unit
+        : derivedForestSdUnit(spec.family,
+                              anchorIsHanded ? latentScaleAnchor(spec.family)
+                                             : s);
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
-    nodeScaleFactors_.resize(forestSpecs.size());
-    nodeScaleDivisors_.resize(forestSpecs.size());
-    // the reader's echo of the map: the two exclusive amplitude
-    // spellings, and the row norm otherwise computed here and discarded
-    amplitudePriorVariances_.resize(forestSpecs.size());
-    amplitudePriorScales_.resize(forestSpecs.size());
-    basisRowNorms_.resize(forestSpecs.size());
-    double notMapped = std::numeric_limits<double>::quiet_NaN();
+    forestMap_.resize(forestSpecs.size());
+    std::vector<ForestAmplitudePrior> amplitudePriors(forestSpecs.size());
     for (std::size_t f = 0; f < forestSpecs.size(); ++f) {
       const ForestSpec& forestSpec = forestSpecs[f];
-      nodeScaleFactors_[f] = forestSpec.nodeScaleFactor;
-      nodeScaleDivisors_[f] = forestSpec.nodeScaleDivisor;
-      bool scaleMixture = forestSpec.amplitudePriorScale > 0.0;
-      amplitudePriorVariances_[f] =
-        scaleMixture ? notMapped : forestSpec.amplitudePriorVariance;
-      amplitudePriorScales_[f] =
-        scaleMixture ? forestSpec.amplitudePriorScale : notMapped;
-      // the SAME call the node scale is derived from, NAMED rather than
-      // recomputed, and the expression below keeps its written association and
-      // operand order: that is what makes retaining the norm draw-free
-      double c = basisRowNorm(forestSpec.basis, forestSpec.numBasisColumns,
-                              data.numObservations);
-      basisRowNorms_[f] = c;
-      buildSpecifiedForest(forestSpec.forest,
-                     forestSpec.nodeScaleFactor * s /
-                       (forestSpec.nodeScaleDivisor * c));
+      MapForest& mapped = forestMap_[f];
+      mapped.statement = forestSpec;
+      mapped.hasBasis = forestSpec.hasBasis();
+      // each forest is resolved ONCE here, the row norm of its basis among the
+      // inputs, and the combiner is handed the result
+      mapped.entry = forestMapEntry(
+        mapped.statement, mapped.hasBasis, forestSpecs.size(), spec.family,
+        forestSdUnit_,
+        basisRowNorm(forestSpec.basis, forestSpec.numBasisColumns,
+                     data.numObservations));
+      amplitudePriors[f] = mapped.entry.amplitudePrior;
+      buildSpecifiedForest(forestSpec.forest, mapped.entry.nodeScale(s));
     }
 
-    combiner_ =
-      std::make_unique<AmplitudeForestCombiner<L, ResidT>>(data, spec,
-                                                     forests_.size());
+    combiner_ = std::make_unique<AmplitudeForestCombiner<L, ResidT>>(
+      data, spec, amplitudePriors, forests_.size());
     resizeTestStorage();
   }
 
@@ -1388,21 +1372,20 @@ public:
                       std::size_t numColumns) {
     if (!combiner_ || !combiner_->setForestBasis(f, values, numColumns))
       return false;
-    if (f < nodeScaleFactors_.size()) {
-      // the retained norm comes from THIS call, for the constructor's reason
-      basisRowNorms_[f] =
+    if (f < forestMap_.size()) {
+      // the forest's number in units of s stands; only the row norm moves
+      forestMap_[f].entry.basisRowNorm =
         basisRowNorm(values, numColumns, data_.numObservations);
       forests_[f].leaf.scale = mapLeafScale(f);
     }
     return true;
   }
-  /// Forest f's leaf scale as the map derives it from the retained factor,
-  /// anchor, divisor and row norm: the constructor's expression, in its
-  /// association and operand order, so a re-derivation from unchanged inputs
-  /// is bitwise the constructed scale.
+  /// Forest f's leaf scale as the map derives it from the retained entry and
+  /// anchor: the constructor's expression, in its association and operand
+  /// order, so a re-derivation from unchanged inputs is bitwise the
+  /// constructed scale.
   double mapLeafScale(std::size_t f) const {
-    return nodeScaleFactors_[f] * nodeScaleAnchor_ /
-           (nodeScaleDivisors_[f] * basisRowNorms_[f]) /
+    return forestMap_[f].entry.nodeScale(nodeScaleAnchor_) /
            std::sqrt(static_cast<double>(forests_[f].numTrees));
   }
   /// Whether this chain's forest coupling permits the response-side conduit -
@@ -1551,14 +1534,27 @@ public:
     if (forest.updateK) calibration.kPriorScale = forest.kHyperprior.scale;
     calibration.namedSd = forest.namedSd;
     // the map's own decomposition, sized only by the K-forest constructor, so
-    // every other sampler leaves the five at their NaN
-    if (f < nodeScaleFactors_.size()) {
-      calibration.amplitudePriorVariance = amplitudePriorVariances_[f];
-      calibration.amplitudePriorScale = amplitudePriorScales_[f];
-      calibration.basisRowNorm = basisRowNorms_[f];
-      calibration.nodeScaleFactor = nodeScaleFactors_[f];
-      calibration.nodeScaleDivisor = nodeScaleDivisors_[f];
+    // every other sampler leaves these at their NaN
+    if (f < forestMap_.size()) {
+      const MapForest& mapped = forestMap_[f];
+      const ForestAmplitudePrior& prior = mapped.entry.amplitudePrior;
+      bool scaleMixture = prior.halfCauchyScale > 0.0;
+      double notMapped = std::numeric_limits<double>::quiet_NaN();
+      calibration.amplitudePriorVariance =
+        scaleMixture ? notMapped : prior.variance;
+      calibration.amplitudePriorScale =
+        scaleMixture ? prior.halfCauchyScale : notMapped;
+      calibration.basisRowNorm = mapped.entry.basisRowNorm;
+      calibration.nodeScaleFactor = mapped.entry.nodeScaleFactor;
+      calibration.nodeScaleDivisor = mapped.entry.nodeScaleDivisor;
       calibration.mapAnchor = nodeScaleAnchor_;
+      calibration.mapUnit = forestSdUnit_;
+      calibration.namedSd = mapped.statement.sd;
+      // the stated number itself, never the quotient multiplied back
+      calibration.mapSd =
+        std::isnan(mapped.statement.sd)
+          ? forestSdInForce(mapped.entry.sdMultiple, forestSdUnit_)
+          : mapped.statement.sd;
     }
     return calibration;
   }
@@ -1589,28 +1585,41 @@ public:
   /// the write is the whole of it; an equal k is skipped.
   bool setForestFixedK(std::size_t f, double k) {
     if (f >= forests_.size() || forests_[f].updateK ||
-        f < nodeScaleFactors_.size())
+        f < forestMap_.size())
       return false;
     if (k != forests_[f].k) forests_[f].k = k;
     return true;
   }
 
-  /// Restates map forest f's spread in the channel its amplitude prior names,
-  /// as at creation: a scale-mixture forest takes sd as its half-Cauchy
-  /// median, leaving its leaf scale and the live auxiliary; a fixed-variance
-  /// forest takes it as the map's leaf-scale factor and re-derives its leaf
-  /// scale from the retained anchor, divisor and row norm. False, writing
-  /// nothing, off a map forest. A write of the value in force is skipped.
+  /// States map forest f's sd, response units, as a creation stating it does:
+  /// the map resolves the statement again (forestMapEntry, which divides by
+  /// the unit), a forest with no basis takes the result as its half-Cauchy
+  /// median, leaving its leaf scale and the live auxiliary, and a forest with
+  /// one re-derives its leaf scale. The forest is a stated one from then on.
+  /// Where \p sd is the sd in force (ForestCalibration::mapSd) no bit of the
+  /// prior moves. False, writing nothing, off a map forest, on an sd that is
+  /// not positive and finite, and where the unit is not.
   bool setForestMapSd(std::size_t f, double sd) {
-    if (f >= nodeScaleFactors_.size()) return false;
-    if (!std::isnan(amplitudePriorScales_[f])) {
-      if (sd == amplitudePriorScales_[f]) return true;
-      if (!combiner_->setAmplitudePriorScale(f, sd)) return false;
-      amplitudePriorScales_[f] = sd;
-      return true;
-    }
-    if (sd == nodeScaleFactors_[f]) return true;
-    nodeScaleFactors_[f] = sd;
+    if (f >= forestMap_.size() || !(sd > 0.0) || !std::isfinite(sd) ||
+        !(forestSdUnit_ > 0.0) || !std::isfinite(forestSdUnit_))
+      return false;
+    MapForest& mapped = forestMap_[f];
+    ForestStatement statement = mapped.statement;
+    statement.sd = sd;
+    statement.sdMultiple = std::numeric_limits<double>::quiet_NaN();
+    ForestMapEntry entry = mapped.entry;
+    // the sd in force keeps the multiple it has, which a fixture's own
+    // multiple is not recovered from by the map
+    if (sd != forestCalibration(f).mapSd)
+      entry = forestMapEntry(statement, mapped.hasBasis, forestMap_.size(),
+                             family_, forestSdUnit_, entry.basisRowNorm);
+    if (entry.amplitudePrior.halfCauchyScale !=
+          mapped.entry.amplitudePrior.halfCauchyScale &&
+        !combiner_->setAmplitudePriorScale(
+          f, entry.amplitudePrior.halfCauchyScale))
+      return false;
+    mapped.statement = statement;
+    mapped.entry = entry;
     forests_[f].leaf.scale = mapLeafScale(f);
     return true;
   }
@@ -7143,6 +7152,28 @@ private:
     return rows != nullptr ? scaledResponseSdOver(rows) : scaledResponseSd();
   }
 
+  /// The response units in one \p anchor, where \p anchor is
+  /// latentScaleAnchor's value for the response in force: what a forest's
+  /// stated sd is divided by. Under gaussian the anchor is the sd of the
+  /// range-scaled response over the rows its range was read from, so the unit
+  /// is that times the transform's scale, the sd of the response itself over
+  /// those rows; a latent family's index is not rescaled and its unit is the
+  /// anchor.
+  double derivedForestSdUnit(ResponseFamily family, double anchor) const {
+    switch (family) {
+    case ResponseFamily::probit:
+    case ResponseFamily::logistic:
+      return anchor;
+    // as latentScaleAnchor: every enumerator listed and no default arm
+    case ResponseFamily::gaussian:
+    case ResponseFamily::aft:
+    case ResponseFamily::ordinal:
+    case ResponseFamily::nbinom:
+      break;
+    }
+    return anchor * response_->fitScale();
+  }
+
   /// The unit a forest's node scale is stated PER: the median of the NONZERO
   /// row norms of its n x numColumns ROW-major amplitude basis, 1.0 for a
   /// forest carrying none (the combiner synthesizes the all-ones column). The
@@ -7657,17 +7688,21 @@ private:
   // to the response and the combiner for the sweep's own draws alone
   const std::function<bool()>* refreshCancel_ = nullptr;
 
-  // the calibration map's own inputs, retained per forest so setForestBasis
-  // can re-derive a leaf scale from a new basis; empty off the K-forest
-  // constructor, which is the guard the recomputation reads, and the guard
-  // forestCalibration reads to leave the five reported map quantities NaN
-  std::vector<double> nodeScaleFactors_, nodeScaleDivisors_;
+  // One map forest: what it states, whether the map reads it as a forest
+  // with a basis, and the entry the map resolved it into, which setForestBasis
+  // restates the row norm of and setForestMapSd resolves again.
+  struct MapForest {
+    ForestStatement statement;
+    bool hasBasis = false;
+    ForestMapEntry entry;
+  };
+  // empty off the K-forest constructor, which is the guard every reader and
+  // writer of the map takes
+  std::vector<MapForest> forestMap_;
+  // the map's anchor s, and the response units in one s, which a stated sd is
+  // divided by; both are creation's and no mutation moves either
   double nodeScaleAnchor_ = 1.0;
-  // what the map reports beside them, on the same sizing guard: the amplitude
-  // prior in whichever exclusive spelling the forest carries (the other NaN),
-  // and the row norm the constructor and setForestBasis already compute
-  std::vector<double> amplitudePriorVariances_, amplitudePriorScales_,
-    basisRowNorms_;
+  double forestSdUnit_ = std::numeric_limits<double>::quiet_NaN();
 
   // caller-supplied per-forest observation weights, one BORROWED pointer per
   // forest (null = none). Left EMPTY until the first install, which is the

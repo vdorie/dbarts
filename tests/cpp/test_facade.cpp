@@ -413,11 +413,11 @@ struct Fixtures {
     spec.forests[0].forest.numTrees = 6;
     spec.forests[0].basis = unitBasis.data();
     spec.forests[0].numBasisColumns = 1;
-    spec.forests[0].nodeScaleFactor = 1.25;
+    spec.forests[0].sdMultiple = 1.25;
     spec.forests[1].forest.numTrees = 4;
     spec.forests[1].basis = wideBasis.data();
     spec.forests[1].numBasisColumns = 2;
-    spec.forests[1].nodeScaleFactor = 0.75;
+    spec.forests[1].sdMultiple = 0.75;
     ext_rng* pair[2] = {newRng(51004u), newRng(51005u)};
     b.build(x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
             0.37804942330213542, options, spec, pair);
@@ -1244,8 +1244,9 @@ const Row rows[] = {
           "facade setForestMapSd: a forest off any map refuses");
     check(f.b.base().setForestMapSd(1, 0.7),
           "facade setForestMapSd: a map forest takes it");
-    check(f.b.impl().forestCalibration(0, 1).nodeScaleFactor == 0.7,
-          "facade setForestMapSd: the impl reports the new factor");
+    check(f.b.impl().forestCalibration(0, 1).namedSd == 0.7 &&
+            f.b.impl().forestCalibration(0, 1).mapSd == 0.7,
+          "facade setForestMapSd: the impl reports the stated sd");
   }},
   {FacadeVirtual::setActiveRows, "setActiveRows", [](Fixtures& f) {
     std::vector<double> mask(Fixtures::n, 1.0);

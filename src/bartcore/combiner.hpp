@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -297,45 +298,185 @@ struct ForestStructureSpec {
   const std::size_t* blockTreeCounts = nullptr;
 };
 
+/// One forest's amplitude prior and the switch its block carries. The
+/// prior is N(0, variance) on every coordinate of the block; a positive
+/// halfCauchyScale makes variance a LIVE inverse-gamma auxiliary refreshed
+/// after the block's draw, which is bcf's half-Cauchy a (the scale mixture),
+/// while a zero leaves it the fixed variance bcf's (b0, b1) carry.
+struct ForestAmplitudePrior {
+  double variance = 1.0;
+  double halfCauchyScale = 0.0;
+  bool update = true;  // false holds the whole block at its value
+};
+
+/// What one forest of a combining chain states of its size, which the
+/// calibration map (forestMapEntry) resolves; a chain keeps it for the life of
+/// the forest.
+struct ForestStatement {
+  /// The forest's sd in the response's units (the latent index's under probit
+  /// and logistic); not a number where none is stated, which takes the default
+  /// (defaultForestSd).
+  double sd = std::numeric_limits<double>::quiet_NaN();
+  /// A multiple of the map's anchor in place of sd, read only where sd states
+  /// none: the spelling of fixtures and of the two-forest adapter
+  /// (expandForestSpecs). Nothing outside the engine and its tests sets it.
+  double sdMultiple = std::numeric_limits<double>::quiet_NaN();
+  /// The prior variance of the amplitudes of a forest with a basis; not a
+  /// number where none is stated. Not read on a forest with no basis.
+  double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
+  /// false holds the forest's amplitudes at the values they start at.
+  bool updateAmplitude = true;
+};
+
 /// One forest's entry in the K-length spec a general combining chain is built
-/// from: its tree/structure configuration (ForestStructureSpec, unchanged) plus
-/// the amplitude channel it enters the combination through.
-///
-/// The CALIBRATION MAP is stated here rather than in the chain, and is general
-/// in K: the node scale is nodeScaleFactor * s / (nodeScaleDivisor * c), with s
-/// the FAMILY'S OWN LATENT SCALE (the sample sd of the range-scaled response
-/// under gaussian, 1 under probit, pi/sqrt(3) under logistic) and c the median
-/// nonzero row norm of this forest's basis. The two ways a magnitude can be
-/// carried are the two branches the host picks between - a scale-mixture
-/// amplitude carries it in amplitudePriorScale and leaves the node scale at s
-/// (bcf's prognostic forest, factor and divisor both 1), a fixed-variance
-/// amplitude carries it in the node scale, divided through the half-normal
-/// median so the amplitude spread times that scale sits at nodeScaleFactor
-/// units of s (bcf's treatment forest, divisor 0.674). The divisor is CARRIED
-/// rather than derived from the prior, so a forest declaring a zero scale keeps
-/// the node scale its host asked for; and both expressions are written exactly
-/// as bcf's were, which is what keeps the two-forest instance bitwise.
-///
-/// Every scale here is stated PER UNIT OF BASIS ROW NORM, which is what
-/// dividing by c means: the induced prior sd on the combined index at row i is
-/// sqrt( sum_f nodeScale_f^2 amplitudePriorVariance_f ||B_f(i,.)||^2 ) over the
-/// fixed-variance forests, so a basis in other units would otherwise multiply
-/// the prior a host asked for. That index is in sd(y) units under gaussian,
-/// where a drawn sigma partly absorbs a mis-scaled basis, and in latent sd
-/// units under probit and logistic, where sigma is PINNED and nothing does.
+/// from: its tree/structure configuration (ForestStructureSpec), what it states
+/// of its size (ForestStatement) and the basis it enters the combination
+/// through.
 ///
 /// basis is an optional n x numBasisColumns ROW-major amplitude basis, borrowed
 /// and COPIED at construction; null synthesizes the dense all-ones column whose
 /// contraction is the amplitude itself.
-struct ForestSpec {
+struct ForestSpec : ForestStatement {
   ForestStructureSpec forest;
-  double nodeScaleFactor = 1.0, nodeScaleDivisor = 1.0;
-  double amplitudePriorVariance = 1.0;
-  double amplitudePriorScale = 0.0;  // half-Cauchy median; 0 = fixed variance
-  bool updateAmplitude = true;
   const double* basis = nullptr;
   std::size_t numBasisColumns = 1;
+  /// True where the forest was first created with no basis and has since been
+  /// given one: the map keeps reading it as a forest with none, so a
+  /// re-creation resolves the channel its first creation did.
+  bool createdWithoutBasis = false;
+
+  /// Whether the calibration map reads the forest as one with a basis: it was
+  /// created with one, given here or synthesized by the combiner (a null basis
+  /// of more than one column, the two-forest adapter's treatment forest).
+  bool hasBasis() const {
+    return !createdWithoutBasis && (basis != nullptr || numBasisColumns > 1);
+  }
 };
+
+/// Thrown where a forest states an sd and the chain has no positive finite
+/// unit to read it in: the response has no spread.
+struct ForestSdUnitError : std::domain_error {
+  using std::domain_error::domain_error;
+};
+
+/// The sd a forest takes where it states none, as a multiple of the
+/// calibration map's anchor s. A forest with no basis carries it as the
+/// half-Cauchy median of its amplitude: 2 where sigma is drawn and s is the
+/// response's own sd, 1 where the link pins sigma and s is the link's error
+/// sd. A forest with a basis carries it in its node scale: sqrt(2 / K) in a
+/// model of K forests, the identity at K = 2.
+inline double defaultForestSd(bool hasBasis, std::size_t numForests,
+                              ResponseFamily family) {
+  if (hasBasis) return std::sqrt(2.0 / static_cast<double>(numForests));
+  // every enumerator listed and no default arm: a family added without one
+  // must fail the build rather than inherit another's default
+  switch (family) {
+  case ResponseFamily::gaussian:
+  case ResponseFamily::aft:
+    return 2.0;
+  case ResponseFamily::probit:
+  case ResponseFamily::ordinal:
+  case ResponseFamily::nbinom:
+  case ResponseFamily::logistic:
+    break;
+  }
+  return 1.0;
+}
+
+/// A forest's sd in the response's units where it is \p multiple of the
+/// anchor: the number a reader reports for a forest that states none, and the
+/// number forestMapEntry reads back as that multiple.
+inline double forestSdInForce(double multiple, double unit) {
+  return multiple * unit;
+}
+
+/// What the calibration map resolves one forest's statement into.
+///
+/// The node scale is nodeScaleFactor * s / (nodeScaleDivisor * basisRowNorm),
+/// with s the map's anchor (the FAMILY'S OWN LATENT SCALE: the sample sd of
+/// the range-scaled response under gaussian, 1 under probit, pi/sqrt(3) under
+/// logistic) and basisRowNorm the median nonzero row norm of the forest's
+/// basis. Every scale is so stated PER UNIT OF BASIS ROW NORM: the induced
+/// prior sd on the combined index at row i is
+/// sqrt( sum_f nodeScale_f^2 variance_f ||B_f(i,.)||^2 ) over the
+/// fixed-variance forests, so a basis in other units would otherwise multiply
+/// the prior a caller asked for.
+struct ForestMapEntry {
+  double nodeScaleFactor = 1.0, nodeScaleDivisor = 1.0;
+  double basisRowNorm = 1.0;
+  /// The forest's sd as a multiple of s, in whichever of the two channels
+  /// carries it.
+  double sdMultiple = 1.0;
+  ForestAmplitudePrior amplitudePrior;
+
+  /// The forest's node scale on anchor \p s, before its tree count divides
+  /// it. Association and operand order are the K = 2 instance's, which is
+  /// what keeps it bitwise and a re-derivation from unchanged inputs inert.
+  double nodeScale(double s) const {
+    return nodeScaleFactor * s / (nodeScaleDivisor * basisRowNorm);
+  }
+};
+
+/// The CALIBRATION MAP, general in K: one forest's statement resolved into the
+/// channel its magnitude is carried in. \p hasBasis is all of the forest's
+/// kind the map reads, \p numForests is K, \p unit the response units in one
+/// s, and \p basisRowNorm the row norm of the basis in force.
+///
+/// A forest with NO basis has a scalar amplitude under a half-Cauchy scale
+/// mixture: its sd, in units of s, is that mixture's median, and its node
+/// scale stays at s (bcf's prognostic forest, factor and divisor both 1). A
+/// forest WITH one has a fixed-variance amplitude block: its sd multiplies the
+/// node scale, divided through the half-normal median 0.674 so that the
+/// amplitude spread times that scale sits at sd units of s (bcf's treatment
+/// forest). Both expressions are bcf's own, which is what keeps the two-forest
+/// instance bitwise.
+///
+/// A stated sd is in the response's units and is DIVIDED BY THE UNIT HERE, and
+/// nowhere else: once for each construction and once for each restatement. A
+/// default, and a fixture's multiple, are already in units of s and never
+/// pass through the unit. A stated sd equal to the number its default comes
+/// to (forestSdInForce) is that default's multiple, not the quotient, which
+/// can differ from it in the last place: a default read and stated back then
+/// resolves alike when it is written and at every later construction.
+///
+/// \throws std::invalid_argument on a stated sd that is not positive and
+/// finite, ForestSdUnitError on one stated against a unit that is not.
+inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
+                                     bool hasBasis, std::size_t numForests,
+                                     ResponseFamily family, double unit,
+                                     double basisRowNorm) {
+  double multiple = defaultForestSd(hasBasis, numForests, family);
+  if (!std::isnan(statement.sd)) {
+    if (!(statement.sd > 0.0) || !std::isfinite(statement.sd))
+      throw std::invalid_argument("a forest's sd must be positive and finite");
+    if (!(unit > 0.0) || !std::isfinite(unit))
+      throw ForestSdUnitError("a forest states an sd and the response has no "
+                              "positive finite unit to read it in");
+    if (statement.sd != forestSdInForce(multiple, unit))
+      multiple = statement.sd / unit;
+  } else if (!std::isnan(statement.sdMultiple)) {
+    multiple = statement.sdMultiple;
+  }
+
+  ForestMapEntry entry;
+  entry.basisRowNorm = basisRowNorm;
+  entry.sdMultiple = multiple;
+  entry.amplitudePrior.update = statement.updateAmplitude;
+  if (hasBasis) {
+    entry.nodeScaleFactor = multiple;
+    entry.nodeScaleDivisor = 0.674;  // the half-normal median
+    entry.amplitudePrior.variance =
+      std::isnan(statement.amplitudePriorVariance)
+        ? 0.5
+        : statement.amplitudePriorVariance;
+    entry.amplitudePrior.halfCauchyScale = 0.0;
+  } else {
+    // the variance is the mixture's live auxiliary, which starts at 1
+    entry.amplitudePrior.variance = 1.0;
+    entry.amplitudePrior.halfCauchyScale = multiple;
+  }
+  return entry;
+}
 
 /// The spec a BCF chain is built from. Two readings of one object: the K = 2
 /// mu/tau shape below, which is what every fixture and the shipped internal
@@ -350,15 +491,15 @@ struct AmplitudeSpec {
   // parameter list so a fixture that names none keeps bcf's own family.
   ResponseFamily family = ResponseFamily::gaussian;
   const double* z = nullptr;    // borrowed 0/1 treatment indicator per obs
-  // Half-Cauchy median for the mu scalar a. Deliberately NOT family-aware,
-  // unlike the R default it shadows (defaultAmplitudePriorScale, R/model.R,
-  // which is 1 under probit and logistic): this initializer is a FIXTURE
-  // default that no consumer reaches - createAmplitudeSampler has no flat-C
-  // entry point, and the bridge fills spec.forests unconditionally - and the
-  // two-forest spelling it belongs to is gaussian bcf's, where 2 is correct.
-  // Branching on the family here would put one inside expandForestSpecs, the
-  // one adapter the "bcf as the K = 2 instance" contract requires to stay a
-  // pure re-spelling.
+  // Half-Cauchy median for the mu scalar a, in units of s. Deliberately NOT
+  // family-aware, unlike the default it shadows (defaultForestSd, which is 1
+  // under probit and logistic): this initializer is a FIXTURE default that no
+  // consumer reaches - createAmplitudeSampler has no flat-C entry point, and
+  // the bridge fills spec.forests unconditionally - and the two-forest
+  // spelling it belongs to is gaussian bcf's, where 2 is correct. Branching
+  // on the family here would put one inside expandForestSpecs, the one
+  // adapter the "bcf as the K = 2 instance" contract requires to stay a pure
+  // re-spelling.
   double aPriorScale = 2.0;
   double bPriorVariance = 0.5;  // N(0, .) prior variance for b0, b1
   double sdModerate = 1.0;      // treatment effect scale, in units of s above
@@ -372,23 +513,26 @@ struct AmplitudeSpec {
   // s its first creation computed, which that value reproduces bitwise. NaN
   // computes s from the data, as a first creation does.
   double anchor = std::numeric_limits<double>::quiet_NaN();
+  // The response units in one s when finite, which a stated sd is divided
+  // by: a re-creation is handed the unit its first creation derived, as it is
+  // handed the anchor. NaN derives it from the data.
+  double unit = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// The thin adapter: bcf's two-forest spelling read as the K-length vector
-/// every other layer works in. mu takes the half-Cauchy amplitude (bcf's a,
-/// median aPriorScale) over the implicit intercept and leaves its node scale at
-/// s; tau takes the fixed-variance amplitude pair (b0, b1) over the treatment
-/// indicator basis and carries sdModerate in its node scale. A spec that
-/// already carries its own forests vector is returned as it stands.
+/// every other layer works in. mu states aPriorScale and tau sdModerate, both
+/// multiples of s, which the map carries as mu's half-Cauchy median and in
+/// tau's node scale; tau's basis is the treatment indicator pair the combiner
+/// synthesizes. A spec that already carries its own forests vector is
+/// returned as it stands.
 inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
   if (!spec.forests.empty()) return spec.forests;
   std::vector<ForestSpec> forests(2);
   forests[0].forest = spec.mu;
-  forests[0].amplitudePriorScale = spec.aPriorScale;
+  forests[0].sdMultiple = spec.aPriorScale;
   forests[0].updateAmplitude = spec.updateA;
   forests[1].forest = spec.tau;
-  forests[1].nodeScaleFactor = spec.sdModerate;
-  forests[1].nodeScaleDivisor = 0.674;  // the half-normal median
+  forests[1].sdMultiple = spec.sdModerate;
   forests[1].amplitudePriorVariance = spec.bPriorVariance;
   forests[1].updateAmplitude = spec.updateB;
   forests[1].numBasisColumns = 2;  // synthesized from z by the combiner
@@ -462,17 +606,6 @@ struct MultinomialSpec {
 struct ForestBasis {
   std::vector<double> values;
   std::size_t numColumns = 0;
-};
-
-/// One forest's amplitude prior and the switch its block carries. The
-/// prior is N(0, variance) on every coordinate of the block; a positive
-/// halfCauchyScale makes variance a LIVE inverse-gamma auxiliary refreshed
-/// after the block's draw, which is bcf's half-Cauchy a (the scale mixture),
-/// while a zero leaves it the fixed variance bcf's (b0, b1) carry.
-struct ForestAmplitudePrior {
-  double variance = 1.0;
-  double halfCauchyScale = 0.0;
-  bool update = true;  // false holds the whole block at its value
 };
 
 /// The combining response's glue: the per-forest amplitude
@@ -772,9 +905,12 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
                 "an amplitude coupling is a constant-leaf model");
 
   /// numForests is the chain's own forest count, which sizes every per-forest
-  /// array here; a forest the spec does not reach enters with a plain amplitude
-  /// and the default prior. It defaults to bcf's two so a fixture need not
-  /// state it.
+  /// array here. It defaults to bcf's two so a fixture need not state it.
+  ///
+  /// priors holds each forest's amplitude prior as the calibration map
+  /// resolved it (forestMapEntry), which the chain does once for each
+  /// construction; nothing is resolved here. A forest it does not reach
+  /// enters with a plain amplitude and the default prior.
   ///
   /// Basis SYNTHESIS happens here and nowhere else. Under the K-length spec
   /// each forest takes the basis its entry carries, or the dense all-ones
@@ -783,6 +919,7 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// mid-life synthesis route: setForestBasis is the only mutator, so the
   /// question of which of two operations wins does not arise.
   AmplitudeForestCombiner(const ColumnStore& data, const AmplitudeSpec& spec,
+                    const std::vector<ForestAmplitudePrior>& priors,
                     std::size_t numForests = 2)
       : data_(data), numForests_(numForests < 2 ? 2 : numForests) {
     std::size_t n = data_.numObservations;
@@ -798,10 +935,7 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
         glue_.basis[f].numColumns = 1;
         glue_.basis[f].values.assign(n, 1.0);
       }
-      if (f < forests.size())
-        glue_.prior[f] = {forests[f].amplitudePriorVariance,
-                          forests[f].amplitudePriorScale,
-                          forests[f].updateAmplitude};
+      if (f < priors.size()) glue_.prior[f] = priors[f];
     }
     // bcf's two-forest spelling names its treatment basis by the indicator it
     // contrasts on rather than by the pair; the pair is that indicator's
