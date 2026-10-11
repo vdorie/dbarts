@@ -66,7 +66,13 @@ own `terms`, rides the forests' configuration on the control
 (docs/design/written-surface.md). A forest's default tree count and tree
 prior go by whether it has a basis, and the control's count and the model's
 tree prior hold the first forest's, which is where the bridge reads them
-(docs/design/forest-defaults-by-kind.md).
+(docs/design/forest-defaults-by-kind.md). The same configuration holds four
+numbers a forest (tree count, base, power, the hold), each forest's stated `sd`
+and coefficient variance as written and NA where none is stated, whether the
+forest was created with a basis, and the anchor and the unit the engine derived
+at the first creation: the engine divides a stated `sd`, which is in the
+response's units, by the unit, and holds the calibration map and every default,
+so R derives none of it (docs/design/forest-sd-unit.md).
 
 The sampler lives in C++ and the R object holds an external pointer to it, a
 `bartcore::SamplerBase`. `src/bartcore/` is header-only: it compiles into

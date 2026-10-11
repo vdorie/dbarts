@@ -132,7 +132,7 @@ the coefficient is held.
   `nodeScaleDivisor`, `amplitudePriorVariance`, `amplitudePriorScale` and the hold flag. The K-forest
   constructor of [`Chain`](../../src/bartcore/chain.hpp) then divides by
   [`basisRowNorm`](../../src/bartcore/chain.hpp) ([`mapLeafScale`](../../src/bartcore/chain.hpp)). The
-  defaults live in R ([`defaultAmplitudePriorScale`](../../R/model.R), and `sqrt(2 / K)` written in
+  defaults live in R (retired: [`defaultAmplitudePriorScale`](../../R/model.R), an R function this slice removes, and `sqrt(2 / K)` written in
   `forestParams`). Of a forest's kind the rule reads one thing, whether it has a basis. The forests'
   record on the control holds `params` (the eight numbers), `vars`, `labels`, `heldAmplitude`,
   `interactions`, `blocks`, `basisTerms`, `control.n.trees` where the first forest has a basis, and
@@ -148,6 +148,7 @@ the coefficient is held.
   | `$getLeafPrior()` with no forest | a list with no names | |
   | `extract(fit, type = "leaf.prior.sd")` | `k.scale` over k, a vector named `forest1`, `forest2`: 1.7408 and 2.5828 for a default two-forest fit whose sd(y) is 1.7408; with `forest = 2`, with `"forest2"` or with the forest's label the bare number ([`selectForests`](../../R/generics.R)) | the response's, of another quantity |
   | `print` of a fit, `show` of a sampler, the verbose summary | no forest's sd is printed | |
+  | `summary()` of a fit of several forests, the line under its table | `extract`'s vector, as `leaf.prior.sd[forest1] = 1.741, leaf.prior.sd[forest2] = 2.583` | the response's, of another quantity |
   | `leaf.prior = normal(sd = s)` on a single forest | the prior standard deviation of the forest's total, exactly; held by the engine as k = `k.scale` / s, `k.scale` the data's (dec-B416) | the response's |
 
   The reader and `extract` already disagree: for one default factor forest the reader says 1 and `extract`
@@ -255,6 +256,7 @@ Before and after, per door. "Several" is a model of several forests.
 | `extract(type = "leaf.prior.sd")`, several | a vector `forest1`, `forest2` of each forest's own standard deviation before its coefficient | a list by label of each forest's `sd`; for one forest the number |
 | the same on one forest; `extract(type = "k")` | | unchanged |
 | `print`, `show`, the verbose summary | no forest's sd | unchanged; the printed block is the multiplier slice's |
+| `summary()`'s line under the table, several forests | `leaf.prior.sd[forest<i>]`, `extract`'s vector | `leaf.prior.sd[<label>]`, the reader's `sd` entries as `extract` returns them |
 | `$setForestBasis` | the forest's own scale is derived again from the new block's row norm, under the number in force | unchanged, the number in force being the stated one or the default |
 | `$setWeights`, `$setActiveRows` | move no forest's scale | unchanged: the unit is creation's |
 | `predict`, `fitted`, a state stored or installed | do not read a prior | unchanged |
@@ -276,7 +278,7 @@ Behind them, from the bridge: "the forests' unit must be a positive finite numbe
 text; "the forests' 'sd' must hold one number, or NA, for each forest"; and the check of the record's
 length, which reads four where it read eight and is what a record of another shape meets. Gone: "this
 model has one forest, so its size is the fitting function's leaf.prior = normal(sd = ), not
-forest(sd = )"; ["must not be named"](../../inst/tinytest/test-forest-arguments.R), with its hint to
+forest(sd = )"; retired: ["must not be named"](../../inst/tinytest/test-forest-arguments.R), with its hint to
 `unname()`. Replaced by the third: "a multi-forest model does not support a named leaf-prior 'sd'", whose
 reason, that the two sds are different things, stops being true. The fourth is today's text for a longer
 `sd` without "for every column of its basis". Kept as they are: every other text of
@@ -305,8 +307,9 @@ every-row one and creation's warning has already said so.
 - The reader's `sd` is one unnamed number a forest in this slice. A numeric forest's takes its column's
   name with the multiplier slice, when it becomes that many units per unit of the column.
 - The forests' record holds four numbers a forest (tree count, base, power, the hold), `sd` and, where
-  one is stated, the coefficient variance, each one number or NA a forest, the anchor and the unit; its
-  other entries (`vars`, `labels`, `heldAmplitude`, `interactions`, `blocks`, `basisTerms`,
+  one is stated, the coefficient variance, each one number or NA a forest, `hasBasis` (whether each forest
+  was created with a basis, which `$setForestBasis` can change for a forest created with none while the
+  four numbers do not record the channel its sd reached), the anchor and the unit; its other entries (`vars`, `labels`, `heldAmplitude`, `interactions`, `blocks`, `basisTerms`,
   `control.n.trees`) are as they are.
 - The flat C header, the stored state and every state block are untouched.
 - A `forests` list written before the slice is still accepted, with every number read in the new unit.
@@ -382,7 +385,7 @@ weights of which ten are 0.
 3. Creation. [`forestParams`](../../R/model.R) writes the four numbers and derives nothing: the count,
    base and power it gives every forest by its kind stay its first three, and
    [`dbartsSampler$setForestBasis`](../../R/dbarts.R) reads the hold at the fourth.
-   [`defaultAmplitudePriorScale`](../../R/model.R) goes, and the cites of it in
+   retired: [`defaultAmplitudePriorScale`](../../R/model.R) goes, and the cites of it in
    docs/plans/bcf-latent-evidence.md and of `ForestSpec::amplitudePriorScale` in
    docs/design/feature-matrix.md are marked `retired:`. The multi-forest block of
    [`resolveSamplerSpec`](../../R/spec.R) writes the stated sds, as written, into the configuration's
@@ -477,7 +480,7 @@ weights of which ten are 0.
    each is created, the reader's `sd` is `identical()` to `unname(pars["s"])`, and the draws are those
    of the unnamed number (fail today: refused); `c(dose = 1, age = 2)` and `c(1, 2)` keep the length
    text at the three places; the pins of
-   ["must not be named"](../../inst/tinytest/test-forest-arguments.R) are turned into these.
+   retired: ["must not be named"](../../inst/tinytest/test-forest-arguments.R) are turned into these.
 8. Respell and repair. Run the suite first and repair what it shows. Expected: the pins of the stored
    numbers by position, about 60 in the 7 files Context lists, each restated against the four numbers
    or against the reader, with the two hand-edited records of test-forest-basis-r5.R; the 17 assertions
@@ -487,7 +490,7 @@ weights of which ten are 0.
    the first; the pins of the reader's `leaf.prior` for a forest that states nothing, which now read
    `sd`; the pins of `extract`'s vector in test-fit-stores-k.R and test-forest-selection.R, which
    becomes a list; and the three pins of
-   ["this model has one forest, so its size is"](../../inst/tinytest/test-bcf-creation.R), one there,
+   retired: ["this model has one forest, so its size is"](../../inst/tinytest/test-bcf-creation.R), one there,
    one in test-forest-arguments.R and one in test-formula-terms.R, which become step 5's fits. Each
    gaussian and logistic forest that states an sd, and each of the 34 gaussian writes, is read: where
    the test means a multiple of the response's scale (the pins of the map in test-bcf-family.R, the

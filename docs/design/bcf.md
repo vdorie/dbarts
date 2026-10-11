@@ -364,11 +364,14 @@ s the sd(y) magnitude in internal units.
 - Both forests fix k = 1; the map overrides the host model's node prior
   and k for mu, since the adaptive magnitude lives entirely in the glue.
 
-sd.control and sd.moderate name the two magnitudes in sd(y) units; the
-public `forest()` spelling of both is `sd`. A NULL sd.control takes the family
-default above, and sd.moderate's 1 is the K-aware default's own K = 2
-value, sqrt(2/2), so this two-forest spelling states it as the literal it
-has always been. benchmarks/R/bcf-exact.R
+sd.control and sd.moderate name the two magnitudes as multiples of s; the
+public `forest()` spelling of both is `sd`, which states a number of the
+response's units (sd.control * sd(y) and sd.moderate * sd(y) under gaussian, and
+the same multiples of 1 and pi / sqrt(3) under probit and logistic), the engine
+dividing it by the unit it derives at creation ([forest-sd-unit.md](forest-sd-unit.md)).
+A NULL sd.control takes the family default above, and sd.moderate's 1 is the
+K-aware default's own K = 2 value, sqrt(2/2), so this two-forest spelling states
+it as the literal it has always been. benchmarks/R/bcf-exact.R
 reproduces the map and the range/sigma calibration to validate the
 implementation end to end.
 

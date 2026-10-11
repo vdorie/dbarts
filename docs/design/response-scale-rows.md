@@ -4,7 +4,7 @@ Status: LANDED 2026-10-11 (d5b637ee). The plan is [response-scale-rows.md](../pl
 steps, the gates and the calls made in planning; this note is the standing statement of the rule.
 
 What a fit takes from the response to place or size a prior - the gaussian and Student-t response range, a
-count fit's center, the unit of a forest's default sd in a model of several forests, sigest's stand-in and its
+count fit's center, the unit of a forest's sd in a model of several forests (the number a stated sd is divided by, and a default is a multiple of; see [forest-sd-unit.md](forest-sd-unit.md)), sigest's stand-in and its
 floor, and a hazard fit's periods - is taken from the rows in the likelihood when the sampler is created. A
 survival (aft) fit takes no weights, so it has no row out at creation and its range is every row's then; a mask
 installed afterwards is where the rule reaches it, at a re-derivation. A row is IN when its weight is positive

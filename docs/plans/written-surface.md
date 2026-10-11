@@ -495,7 +495,7 @@ reader's sake; the implementer may name them otherwise.
     `amplitude = fixed()` or `amplitude = if (...) NULL else fixed()`; the two pins of
     ["single-forest 'forests' has none"] in test-bcf-creation.R and the three lines (seven assertions as
     run) that pin "single positive finite number" in test-multiforest-leaf-prior-writer.R take the new
-    texts: ["this model has one forest, so its size is"](../../inst/tinytest/test-bcf-creation.R)
+    texts: retired: ["this model has one forest, so its size is"](../../inst/tinytest/test-bcf-creation.R)
     and ["forest 'sd' must be positive and finite"](../../inst/tinytest/test-multiforest-leaf-prior-writer.R).
 1.4 Help: man/forest.Rd's usage, its `update.amplitude` item rewritten as `amplitude`, one sentence in
     `sd` (one unnamed number; a longer or named one is refused);

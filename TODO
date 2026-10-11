@@ -794,30 +794,31 @@ items
     shows cannot be told from no edit and is replaced by the carried
     one.
   forest-sd-unit: before 1.0-0 (dec-B246 as revised, dec-B253,
-    dec-B266), after the creation slice of response-scale-rows. A
-    forest's sd is in the response's units wherever it is written or
-    read: the units of y, and of the latent index under probit and
-    logistic. The engine divides a stated number by a unit it derives
-    at a first creation (sd(y - offset) over the rows in the
-    likelihood then, dec-B296; 1; pi/sqrt(3)) and
-    R records beside the anchor; a default does not move, and is
-    reported as the number of response units it comes to. The
-    engine is handed the statement, an sd or none, a hold and whether
-    there is a basis, and holds the rule; the reader gives the
-    statement with sd and sd.stated beside it, and extract's
-    leaf.prior.sd on several forests is a list by label, the entry
-    itself for one forest. A named single sd is taken on every forest
-    (dec-B280, dec-B282).
-    The one forest of a single-forest model takes sd as its
-    leaf.prior = normal(sd = ). Engine, bridge and R. Changes the
-    prior of a model that states a forest sd under a gaussian or
-    logistic response and is left as written; respelled, such a
-    call is equal to rounding; a fit that states none is unchanged
-    to the bit. Four BCF exact gates and sbc.R are respelled, and
-    bartCause's sd.moderate defaults to NULL the same day. Open:
-    whether this slice or the multiplier slice drops K from the
-    default of a forest with a basis (dec-B291).
+    dec-B266), after the creation slice of response-scale-rows. Built
+    on its branch: a forest's sd is in the response's units wherever
+    it is written or read, the engine divides a stated number by a
+    unit it derives at a first creation and holds the rule and every
+    default, the reader gives the statement with sd and sd.stated
+    beside it, extract's leaf.prior.sd on several forests is a list
+    by label, a named single sd is taken on every forest (dec-B280,
+    dec-B282), and the one forest of a single-forest model takes sd
+    as its leaf.prior = normal(sd = ). Left: review; bartCause's
+    edit the same day (bcf()'s sd.moderate defaults to NULL, and the
+    two hand-built samplers drop sd = 1); the consumers' suites
+    against a private install; the R-loaded sanitizer runs of
+    test-forest-sd-unit.R and test-multiforest-leaf-prior-writer.R;
+    the x86 run; and whether this slice or the multiplier slice
+    drops K from the default of a forest with a basis (dec-B291).
     Plan: docs/plans/forest-sd-unit.md.
+  constant-response-copy-refused: copy() of a sampler made on a
+    response with one value is refused, "the forests' calibration
+    anchor must be a positive finite number": the response has no
+    spread, so the anchor and the forests' unit are 0. The base build refuses the same copy.
+    Reproduce: set.seed(1); n <- 60; x <- matrix(runif(2 * n), n, 2);
+    z <- rbinom(n, 1, 0.5); s <- dbarts(x, rep(3, n), forests =
+    list(forest(), forest(basis = ~ factor(z))), control =
+    dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L));
+    s$copy(). Before 1.0-0; no change in forest-sd-unit.
   forest-kind-by-class: before 1.0-0 (dec-B260), after forest-sd-unit
     and before the multiplier slice. What a forest multiplies is
     decided by the class of its basis and nothing else, at every
@@ -897,8 +898,7 @@ items
     built after the merge to main (VD 2026-10-06).
   named-single-sd: forest(sd = ) takes a named single number, its name
     ignored, on every forest (dec-B280, as dec-B282 leaves it).
-    Before the merge to main; a step of
-    docs/plans/forest-sd-unit.md.
+    Built, in forest-sd-unit; closes when that slice lands.
   factor-basis-refusal: a factor, character or logical basis of three
     or more levels is refused by name in 1.0-0, drawn or held, the
     message showing one forest for each level but the first

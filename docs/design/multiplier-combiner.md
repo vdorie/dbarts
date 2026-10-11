@@ -220,7 +220,8 @@ which the move does not touch.
 rescale in `AmplitudeForestCombiner::rescaleAmplitudeRidge` and its call from
 `AmplitudeForestCombiner::afterCombine` (src/bartcore/combiner.hpp), the
 per-forest `ridge` flags and the bridge's derivation of them from
-`amplitudePriorScale > 0`, and the GIG generator in external/random.{h,c}. A
+`amplitudePriorScale > 0` (retired: that field is gone, the half-Cauchy scale
+now reaching the combiner as `ForestAmplitudePrior::halfCauchyScale`), and the GIG generator in external/random.{h,c}. A
 restoration must follow the forest cache rule
 ([`ForestCombiner`](../../src/bartcore/combiner.hpp)'s `afterCombine`): after
 every rescale, re-derive the moved forest's cached fits from its leaves in
@@ -328,14 +329,12 @@ parameterization the implementer will code is the one validated. PASSES.
 The b-move, the q = 2 instance of the removed move on bcf's treatment forest,
 never ran in a shipped build and went with the move (dec-B127). On every
 creation route a forest's amplitude is a scale mixture if and only if it is
-basis-FREE: R writes the forest's amplitude prior SCALE as 0 whenever that
-forest declares a basis ([`forestParams`](../../R/model.R),
-`if (withBasis) 0 else declared(spec$sd, amplitudeScaleDefault)`, the
-family's own default scale - 2 under gaussian and aft, 1 otherwise), and the
-bridge reads it into `ForestSpec::amplitudePriorScale`
-([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)), which the
-combiner's `halfCauchyScale` becomes. So every basis-carrying forest has a
-fixed prior variance.
+basis-FREE: R hands the engine each forest's statement and whether it was
+created with a basis ([`forestStatements`](../../R/model.R)), and the engine's
+one map ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) gives a forest
+with a basis a zero `halfCauchyScale` and a forest with none the half-Cauchy
+median, the family's own default (2 under gaussian and aft, 1 otherwise) where
+it states no sd. So every basis-carrying forest has a fixed prior variance.
 
 ## The basis is read, not classified
 
@@ -460,9 +459,11 @@ recurred later,
 
 ## The calibration map, general in K
 
-Stated on `ForestSpec` rather than in the chain
-([`ForestSpec`](../../src/bartcore/combiner.hpp), applied
-[`Chain`](../../src/bartcore/chain.hpp)). The node scale is
+Stated on `ForestSpec` (as a [`ForestStatement`](../../src/bartcore/combiner.hpp):
+an sd in the response's units or none, a hold, a coefficient variance or none)
+and resolved in one function, [`forestMapEntry`](../../src/bartcore/combiner.hpp),
+which [`Chain`](../../src/bartcore/chain.hpp) calls once for each forest at each
+construction. The node scale is
 `nodeScaleFactor * s / (nodeScaleDivisor * c)`, s the family's own LATENT
 SCALE and c the median nonzero row norm of the forest's basis - exactly `1.0`
 on every shipped route, so c is inert there:
@@ -495,18 +496,22 @@ forests' control attribute, and every re-creation passes it back as
 save and load, or a re-creation after a response swap at `updateScale = FALSE`
 builds on the live s rather than on the swapped response's.
 
+A forest's sd is stated in the response's units, and the same bookkeeping
+carries the number those units have in one s: `AmplitudeSpec::unit`, derived
+at a first creation beside the anchor and recorded the same way. A stated sd
+is divided by it in `forestMapEntry` and nowhere else; a default is a multiple
+of s and never passes through it ([forest-sd-unit.md](forest-sd-unit.md)).
+
 **Two further facts about the shipped prior, both load-bearing.** Adaptivity
 is capped at one forest, for any K: `resolveForests`
 ([`resolveForests`](../../R/model.R), [`plainForest`](../../R/model.R)) takes one forest with no basis at most,
-at any place, and `forestParams` writes the LITERAL `0` for `amplitudePriorScale`
-whenever a basis is present ([`forestParams`](../../R/model.R)), which the
-bridge carries into the forest's spec
-([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)) - forests 2..K are
+at any place, and the map gives a forest with a basis a zero half-Cauchy scale
+([`forestMapEntry`](../../src/bartcore/combiner.hpp)) - forests 2..K are
 ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
 MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
 as `sqrt(K)` by construction (exponent exactly 1/2), `1.04912 sqrt(K) s` at
 unit row norms. What that slice moved is the DEFAULT `nodeScaleFactor`
-(`forestParams`, R/model.R), from the literal 1 to `sqrt(2/K)`, whose product
+([`defaultForestSd`](../../src/bartcore/combiner.hpp)), from the literal 1 to `sqrt(2/K)`, whose product
 with the map's own `sqrt(K)` is `sqrt(2)` at every count. So the shipped
 all-basis index prior is `1.4837 s` at every K rather than `1.4837 s` at K = 2
 growing to `2.9674 s` at K = 8, and the argument is compositionality rather
