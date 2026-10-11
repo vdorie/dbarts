@@ -8948,8 +8948,9 @@ static void testForestUnitRowsIn() {
 // transform: the sampler answers scaleKept and every chain is where the
 // same swap with updateScale false leaves it, to the bit, in its transform,
 // its working response, its state and the 20 sweeps that follow. That holds
-// under a variance forest, with kept draws and with a named sd, which the
-// keep does not restate. The vectors that come in span another range than
+// under a variance forest, with kept draws, with a named sd, which the keep
+// does not restate, and under Student-t errors, whose rows in are its own
+// marks. The vectors that come in span another range than
 // creation's, so a sampler that re-derived from every row instead fails each
 // comparison. With enough to read the answer is accepted and the transform
 // the rows-in one; a constant response with every row in is accepted too.
@@ -8987,11 +8988,15 @@ static void testScaleKeptStatus() {
     const char* name;
     size_t numVarianceTrees;
     bool keepTrees, namedSd;
+    double residualDf;  // NaN for gaussian errors
   };
-  const Variant variants[] = {{"plain", 0, false, false},
-                              {"variance forest", 5, false, false},
-                              {"kept draws", 0, true, false},
-                              {"named sd", 0, false, true}};
+  const double gaussianErrors = std::numeric_limits<double>::quiet_NaN();
+  const Variant variants[] = {
+    {"plain", 0, false, false, gaussianErrors},
+    {"variance forest", 5, false, false, gaussianErrors},
+    {"kept draws", 0, true, false, gaussianErrors},
+    {"named sd", 0, false, true, gaussianErrors},
+    {"Student-t", 0, false, false, 5.0}};
   struct Built {
     std::unique_ptr<ConstantLeafSampler> sampler;
     std::vector<ext_rng*> rngs;
@@ -9009,6 +9014,7 @@ static void testScaleKeptStatus() {
     options.numChains = numChains;
     options.numVarianceTrees = variant.numVarianceTrees;
     options.keepTrees = variant.keepTrees;
+    options.residualDf = variant.residualDf;
     Built built;
     built.rngs = makeDrawRngs(numChains, 9500);
     built.sampler = std::make_unique<ConstantLeafSampler>(
@@ -9076,7 +9082,7 @@ static void testScaleKeptStatus() {
       }
     }
   }
-  check(numKept == 24, "every keep arm ran");
+  check(numKept == 30, "every keep arm ran");
 
   // enough to read: two rows in at two values
   {
@@ -9155,6 +9161,40 @@ static void testScaleKeptStatus() {
           "and re-derives once the kept rows hold two counts");
     sampler.getAnchor(loAfter, hiAfter);
     check(loAfter != lo, "moving the center");
+    destroyDrawRngs(rngs);
+  }
+  // an aft sampler after sweeps, under a mask keeping two rows at one
+  // observed log-time, one of them censored. Its latent has been drawn above
+  // that time by then, and the read is of the observed time
+  {
+    std::vector<double> logTime(y), status(n, 1.0), mask(n, 0.0);
+    logTime[9] = logTime[7];
+    status[9] = 0.0;
+    mask[7] = mask[9] = 1.0;
+    offsetNew[9] = offsetNew[7];
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.numChains = numChains;
+    options.survivalStatus = status.data();
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 9700);
+    ConstantLeafSampler sampler(x.data(), logTime.data(), n, p, nullptr,
+                                nullptr, ResponseFamily::aft, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+    Results results;
+    sampler.run(5, 0, results);
+    check(sampler.latents()[9] > logTime[9],
+          "a censored row's latent leaves its censoring time");
+    double lo = 0.0, hi = 0.0, loAfter = 0.0, hiAfter = 0.0;
+    sampler.getAnchor(lo, hi);
+    check(sampler.setActiveRows(mask.data()) &&
+            sampler.setOffset(offsetNew.data(), true) ==
+              ResponseUpdateResult::scaleKept,
+          "an aft sampler keeps its scale under a mask of one observed time");
+    sampler.getAnchor(loAfter, hiAfter);
+    double chainLo = 0.0, chainHi = 0.0;
+    sampler.chain(1).getScale(chainLo, chainHi);
+    check(lo == loAfter && hi == hiAfter && chainLo == lo && chainHi == hi,
+          "and its range is where it was");
     destroyDrawRngs(rngs);
   }
   printf("ok: a re-derivation with too little to read keeps the scale\n");
