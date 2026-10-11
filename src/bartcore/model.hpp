@@ -4886,6 +4886,19 @@ public:
       out[i] = std::numeric_limits<double>::quiet_NaN();
   }
 
+  /// The log-likelihood of the training response with every fit multiplied by
+  /// \p factor: the sum, over the rows in the likelihood and in row order, of
+  /// the row's log-likelihood at location factor * fits[i] + offset_i. The
+  /// offset is not scaled. A row is in when no mask switches it off, the test
+  /// refreshLatents and computeLogLikelihood apply. The sum is one scalar
+  /// accumulation in row order, which is part of the draw of whatever reads
+  /// it: it is not to be split into banks or vectorized. NaN for a family
+  /// that defines none, which no caller reaches.
+  virtual double logLikelihoodAtScaledFits(const double* /*fits*/,
+                                           double /*factor*/) const {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
   /// Continuous responses under a Student-t error distribution (TResponse)
   /// carry a residual degrees of freedom nu beside the mixing precisions in
   /// latents(). carriesResidualDf marks the family: it gates the recorded df
@@ -6047,6 +6060,22 @@ public:
       double ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
       out[i] = (weights_ != nullptr ? weights_[i] : 1.0) * ll;
     }
+  }
+
+  /// The sum of computeLogLikelihood's terms over the active rows at fits
+  /// multiplied by factor, each count a multiplier of its row's term. It
+  /// agrees with that sum to rounding and not to the bit, a compiler being
+  /// free to fuse the multiply by factor into the add of the offset.
+  double logLikelihoodAtScaledFits(const double* fits,
+                                   double factor) const override {
+    double sum = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isActive(i)) continue;
+      double eta = factor * fits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      double ll = y_[i] != 0.0 ? -logOnePlusExp(-eta) : -logOnePlusExp(eta);
+      sum += (weights_ != nullptr ? weights_[i] : 1.0) * ll;
+    }
+    return sum;
   }
 
 private:

@@ -192,6 +192,31 @@ struct TestPeer {
   static bool forestRescaleApplies(const Chain<L, R>& chain) {
     return chain.forestRescaleApplies();
   }
+  /// The collapsed rescaling move on forest 0 without its coin, the move on
+  /// its schedule, and the predicate; factorOut receives the factor applied,
+  /// 1 on a decline.
+  template <IntegrableLeafModel L, typename R>
+  static bool drawCollapsedRescale(Chain<L, R>& chain, double* factorOut) {
+    return chain.drawCollapsedRescale(factorOut);
+  }
+  template <IntegrableLeafModel L, typename R>
+  static bool maybeDrawCollapsedRescale(Chain<L, R>& chain) {
+    return chain.maybeDrawCollapsedRescale();
+  }
+  template <IntegrableLeafModel L, typename R>
+  static bool collapsedRescaleApplies(const Chain<L, R>& chain) {
+    return chain.collapsedRescaleApplies();
+  }
+  /// The chain's copy of the engine toggle for that move, writable.
+  template <IntegrableLeafModel L, typename R>
+  static bool& collapsedRescaleForest(Chain<L, R>& chain) {
+    return chain.options_.collapsedRescaleForest;
+  }
+  /// The chain's response model, for its likelihood evaluators.
+  template <IntegrableLeafModel L, typename R>
+  static const ResponseModel& responseModel(const Chain<L, R>& chain) {
+    return *chain.response_;
+  }
   /// Forest 0's k and its hyperprior, writable, so a gate can move a frozen
   /// state along the step's orbit.
   template <IntegrableLeafModel L, typename R>

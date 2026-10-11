@@ -196,6 +196,30 @@ struct GridTarget {
   double lower = 0.0, step = 0.0;
   std::vector<double> cdf;
 
+  GridTarget() = default;
+
+  /// The same table over a stated interval, for a target whose mass outside
+  /// it the caller has bounded.
+  template <typename F>
+  static GridTarget onInterval(const F& logDensity, double from, double to,
+                               size_t numPoints) {
+    GridTarget target;
+    target.lower = from;
+    target.step = (to - from) / static_cast<double>(numPoints - 1);
+    std::vector<double> value(numPoints);
+    for (size_t j = 0; j < numPoints; ++j)
+      value[j] = logDensity(from + target.step * static_cast<double>(j));
+    double best = *std::max_element(value.begin(), value.end());
+    target.cdf.assign(numPoints, 0.0);
+    for (size_t j = 1; j < numPoints; ++j)
+      target.cdf[j] = target.cdf[j - 1] +
+        0.5 * target.step *
+          (std::exp(value[j - 1] - best) + std::exp(value[j] - best));
+    double total = target.cdf.back();
+    for (double& c : target.cdf) c /= total;
+    return target;
+  }
+
   template <typename F>
   GridTarget(const F& logDensity, double from, double to, size_t numPoints) {
     // locate the mass on a coarse pass, then tabulate +-30 sd of it finely
@@ -305,11 +329,15 @@ bool rescaleDeclinesWithoutDraw(Chain<ConstantGaussianLeaf>& chain) {
   return !taken && alpha == 1.0 && agree;
 }
 
+/// A drawn-or-fixed-k sampler on the rescaling fixtures' data. counts and
+/// offset may be null. collapsed is the collapsed move's toggle, off for the
+/// probit step's own fixtures, which draw without it.
 std::unique_ptr<ConstantLeafSampler>
 makeRescaleSampler(const std::vector<double>& x, const std::vector<double>& y,
-                   const std::vector<double>& offset, ResponseFamily family,
-                   bool updateK, bool rescale, ext_rng** rngs,
-                   size_t numChains = 1, size_t numVarianceTrees = 0) {
+                   const double* counts, const double* offset,
+                   ResponseFamily family, bool updateK, bool rescale,
+                   bool collapsed, ext_rng** rngs, size_t numChains = 1,
+                   size_t numVarianceTrees = 0) {
   SamplerOptions options;
   options.numTrees = rescaleTrees;
   options.numChains = numChains;
@@ -319,9 +347,19 @@ makeRescaleSampler(const std::vector<double>& x, const std::vector<double>& y,
   options.kHyperprior.degreesOfFreedom = 1.5;
   options.kHyperprior.scale = 2.0;
   options.probitRescaleForest = rescale;
+  options.collapsedRescaleForest = collapsed;
   return std::make_unique<ConstantLeafSampler>(
-    x.data(), y.data(), rescaleN, rescaleP, nullptr, offset.data(), family,
-    1.0, 3.0, 0.37804942330213542, options, rngs);
+    x.data(), y.data(), rescaleN, rescaleP, counts, offset, family, 1.0, 3.0,
+    0.37804942330213542, options, rngs);
+}
+
+std::unique_ptr<ConstantLeafSampler>
+makeRescaleSampler(const std::vector<double>& x, const std::vector<double>& y,
+                   const std::vector<double>& offset, ResponseFamily family,
+                   bool updateK, bool rescale, ext_rng** rngs,
+                   size_t numChains = 1, size_t numVarianceTrees = 0) {
+  return makeRescaleSampler(x, y, nullptr, offset.data(), family, updateK,
+                            rescale, false, rngs, numChains, numVarianceTrees);
 }
 
 /// The slice step on a normal target with a closed-form CDF, in invariance
@@ -650,6 +688,746 @@ void runForestRescaleTests() {
          ksShipped, ksBinding);
 }
 
+// ---- the collapsed rescaling move ------------------------------------------
+//
+// The move draws its factor with the latents integrated out and then redraws
+// them, so everything it is scored against is read off the raw state: the
+// response, the offset, the mask and the counts as the test holds them, the
+// leaves gathered in tree order and the k prior, never the move's own
+// arithmetic. The distributional tests are in invariance form, as above, at
+// a quarter of the replications: each one redraws every latent, and the
+// p = 1e-3 bound is 1.95 / sqrt(N) at any N.
+constexpr size_t collapsedDraws = 50000, collapsedRedraws = 2000,
+                 collapsedCoinCalls = 4000;
+constexpr double collapsedZBound = 4.5;
+
+/// One fixture's data as the reference reads it, every vector full length
+/// whatever the sampler was handed: zeros for no offset, ones for no counts
+/// and for no mask.
+struct CollapsedData {
+  std::vector<double> x, y, offset, mask, counts;
+};
+
+/// check, with the fixture's label ahead of what is checked.
+void checkLabeled(bool condition, const char* label, const char* what) {
+  char text[240];
+  std::snprintf(text, sizeof text, "%s: %s", label, what);
+  check(condition, text);
+}
+
+/// One row's log-likelihood at location eta, written apart from the engine's.
+double binaryRowLogLikelihood(double y, double count, double eta) {
+  return count * (y * eta - std::max(eta, 0.0) -
+                  std::log1p(std::exp(-std::fabs(eta))));
+}
+
+/// The move's target at one frozen state: nu, C = k^2 / (2 s^2), and for each
+/// row in the likelihood its fit, offset, response and count.
+struct CollapsedTarget {
+  double degreesOfFreedom = 0.0, kTerm = 0.0;
+  std::vector<double> fit, offset, response, count;
+
+  double logDensity(double v) const {
+    double factor = std::exp(v), sum = 0.0;
+    for (size_t j = 0; j < fit.size(); ++j)
+      sum += binaryRowLogLikelihood(response[j], count[j],
+                                    factor * fit[j] + offset[j]);
+    return -degreesOfFreedom * v - kTerm * std::exp(-2.0 * v) + sum;
+  }
+
+  /// Its table over an interval outside which the density is below e^-45 of
+  /// its value at 0. No row's likelihood passes 1, so left of 0 the log
+  /// density is at most -nu v - C e^(-2v), which falls without bound once it
+  /// turns, and right of 0 at most -nu v; where the data are separated the
+  /// right tail is no thinner than that.
+  GridTarget table() const {
+    double atZero = logDensity(0.0), lower = 0.0;
+    while (2.0 * kTerm * std::exp(-2.0 * lower) <= degreesOfFreedom ||
+           -degreesOfFreedom * lower - kTerm * std::exp(-2.0 * lower) >
+             atZero - 45.0)
+      lower -= 0.25;
+    return GridTarget::onInterval([&](double v) { return logDensity(v); },
+                                  lower, (45.0 - atZero) / degreesOfFreedom,
+                                  100001);
+  }
+};
+
+/// A fixture chain's frozen forest and its moves along the orbit.
+struct FrozenForest {
+  Chain<ConstantGaussianLeaf>& chain;
+  std::vector<std::vector<double>> mu;
+  double k;
+  /// the occupied leaves, as (tree, node) pairs
+  std::vector<std::pair<size_t, int32_t>> occupied;
+  size_t numEmpty = 0;
+
+  explicit FrozenForest(Chain<ConstantGaussianLeaf>& c)
+    : chain(c), mu(rescaleTrees), k(TestPeer::forestK(c)) {
+    std::vector<int32_t> bottoms;
+    for (size_t t = 0; t < rescaleTrees; ++t) {
+      mu[t] = TestPeer::muByTree(chain, t);
+      const Tree& tree = chain.treeInForest(0, t);
+      bottoms.clear();
+      tree.fillBottom(0, bottoms);
+      for (int32_t b : bottoms) {
+        if (tree.at(b).numObservations() > 0) occupied.emplace_back(t, b);
+        else ++numEmpty;
+      }
+    }
+  }
+
+  /// Puts the chain at the orbit point factor: the occupied leaves times it,
+  /// k divided by it, the cache re-derived. The latents are left alone.
+  void moveTo(double factor) {
+    for (size_t t = 0; t < rescaleTrees; ++t)
+      TestPeer::muByTree(chain, t) = mu[t];
+    for (const auto& [t, b] : occupied)
+      TestPeer::muByTree(chain, t)[static_cast<size_t>(b)] *= factor;
+    TestPeer::forestK(chain) = k / factor;
+    TestPeer::rebuildTotalFits(chain);
+  }
+
+  /// The frozen k against zeroed leaves, where every fit is exactly zero.
+  void moveToZeroFit() {
+    for (size_t t = 0; t < rescaleTrees; ++t)
+      std::fill(TestPeer::muByTree(chain, t).begin(),
+                TestPeer::muByTree(chain, t).end(), 0.0);
+    TestPeer::forestK(chain) = k;
+    TestPeer::rebuildTotalFits(chain);
+  }
+
+  /// The log factor the chain sits at, read off its leaves and off its k.
+  double logFactorOfLeaves() const {
+    double moved = 0.0, frozen = 0.0;
+    for (const auto& [t, b] : occupied) {
+      moved += std::fabs(TestPeer::muByTree(chain, t)[static_cast<size_t>(b)]);
+      frozen += std::fabs(mu[t][static_cast<size_t>(b)]);
+    }
+    return std::log(moved / frozen);
+  }
+  double logFactorOfK() const { return std::log(k / TestPeer::forestK(chain)); }
+
+  /// The chain's leaves gathered per row in tree order.
+  std::vector<double> gatherTotals() const {
+    std::vector<double> gathered(rescaleN, 0.0);
+    for (size_t t = 0; t < rescaleTrees; ++t)
+      for (size_t i = 0; i < rescaleN; ++i)
+        gathered[i] +=
+          TestPeer::muByTree(chain, t)[TestPeer::leafOf(chain, t)[i]];
+    return gathered;
+  }
+
+  CollapsedTarget target(const CollapsedData& data) const {
+    CollapsedTarget target;
+    std::vector<double> fit = gatherTotals();
+    for (size_t i = 0; i < rescaleN; ++i) {
+      if (data.mask[i] == 0.0) continue;
+      target.fit.push_back(fit[i]);
+      target.offset.push_back(data.offset[i]);
+      target.response.push_back(data.y[i]);
+      target.count.push_back(data.counts[i]);
+    }
+    const ChiKHyperprior& prior = TestPeer::kHyperprior(chain);
+    double chainK = TestPeer::forestK(chain);
+    target.kTerm = chainK * chainK / (2.0 * prior.scale * prior.scale);
+    target.degreesOfFreedom = prior.degreesOfFreedom;
+    return target;
+  }
+};
+
+/// Whether the move declines, on its schedule and without it, and leaves the
+/// generator where it was.
+template <typename C>
+bool collapsedDeclinesWithoutDraw(C& chain) {
+  ext_rng* rng = TestPeer::rng(chain);
+  ext_rng* reference = cloneRng(rng);
+  double factor = 0.0;
+  bool taken = TestPeer::maybeDrawCollapsedRescale(chain);
+  taken = TestPeer::drawCollapsedRescale(chain, &factor) || taken;
+  bool agree = rngStreamsAgree(reference, rng);
+  ext_rng_destroy(reference);
+  return !taken && factor == 1.0 && agree;
+}
+
+/// The conditional in invariance form, against the target of the frozen
+/// state under data: per replication a start drawn from it, the state moved
+/// to that orbit point, one move, and the landing point read off the leaves,
+/// which k and the reported factor must agree with to within
+/// worstDisagreement. Returns sqrt(N) times the KS distance of the landing
+/// points from the target, HUGE_VAL if a move declined.
+double collapsedInvarianceKs(FrozenForest& frozen, const CollapsedData& data,
+                             size_t numDraws, double& worstDisagreement) {
+  frozen.moveTo(1.0);
+  GridTarget target = frozen.target(data).table();
+  ext_rng* rng = TestPeer::rng(frozen.chain);
+  std::vector<double> landed(numDraws);
+  bool everyTaken = true;
+  for (size_t r = 0; r < numDraws; ++r) {
+    double start = target.draw(ext_rng_simulateContinuousUniform(rng));
+    frozen.moveTo(std::exp(start));
+    double factor = 0.0;
+    everyTaken =
+      TestPeer::drawCollapsedRescale(frozen.chain, &factor) && everyTaken;
+    landed[r] = frozen.logFactorOfLeaves();
+    worstDisagreement = std::max(
+      {worstDisagreement, std::fabs(frozen.logFactorOfK() - landed[r]),
+       std::fabs(start + std::log(factor) - landed[r])});
+  }
+  if (!everyTaken) return HUGE_VAL;
+  return scaledKsDistance(std::move(landed),
+                          [&](double v) { return target.at(v); });
+}
+
+/// PG(b, c)'s mean b tanh(c / 2) / (2 c) and variance
+/// b (sinh c - c) sech^2(c / 2) / (4 c^3) (Polson, Scott and Windle 2013):
+/// by their series b / 4 (1 - c^2 / 12) and b / 24 (1 - c^2 / 5) near zero,
+/// the variance elsewhere in exponentials of -|c|, where sech^2 underflows.
+void polyaGammaMoments(double b, double c, double& mean, double& variance) {
+  double a = std::fabs(c), e = std::exp(-a);
+  bool small = a < 1.0e-2;
+  mean = small ? 0.25 * b * (1.0 - a * a / 12.0)
+               : b * std::tanh(0.5 * a) / (2.0 * a);
+  variance = small ? b / 24.0 * (1.0 - a * a / 5.0)
+                   : b * (1.0 - e * e - 2.0 * a * e) /
+                       (2.0 * a * a * a * (1.0 + e) * (1.0 + e));
+}
+
+/// Test 1 at one state: the evaluator against the row-order sum of the
+/// reported per-row log-likelihood over the rows in, and against the
+/// reference's own sum, at several factors.
+void checkCollapsedEvaluator(const char* label,
+                             Chain<ConstantGaussianLeaf>& chain,
+                             const std::vector<double>& fits,
+                             const CollapsedData& data) {
+  const ResponseModel& response = TestPeer::responseModel(chain);
+  size_t n = fits.size();
+  std::vector<double> scaled(n), reported(n);
+  double worstReported = 0.0, worstOwn = 0.0;
+  bool rowsOutUnreported = true;
+  for (double factor : {0.25, 1.0, 1.7, 6.0}) {
+    for (size_t i = 0; i < n; ++i) scaled[i] = factor * fits[i];
+    response.computeLogLikelihood(scaled.data(), 1.0, n, reported.data());
+    double sum = 0.0, own = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      if (data.mask[i] == 0.0) {
+        rowsOutUnreported = rowsOutUnreported && std::isnan(reported[i]);
+        continue;
+      }
+      sum += reported[i];
+      own += binaryRowLogLikelihood(data.y[i], data.counts[i],
+                                    factor * fits[i] + data.offset[i]);
+    }
+    double got = response.logLikelihoodAtScaledFits(fits.data(), factor);
+    worstReported = std::max(worstReported, std::fabs(got / sum - 1.0));
+    worstOwn = std::max(worstOwn, std::fabs(got / own - 1.0));
+  }
+  char what[200];
+  std::snprintf(what, sizeof what,
+                "%s: the evaluator is the reported log-likelihood summed in "
+                "row order over the rows in (worst %.3g relative)", label,
+                worstReported);
+  check(worstReported < 1.0e-14 && rowsOutUnreported, what);
+  std::snprintf(what, sizeof what,
+                "%s: the evaluator reads the response, offset, mask and "
+                "counts in force (worst %.3g relative)", label, worstOwn);
+  check(worstOwn < 1.0e-12, what);
+}
+
+/// Test 4 on one frozen state: one move, the factor from the out-parameter.
+void checkCollapsedMapping(const char* label, ConstantLeafSampler& sampler,
+                           FrozenForest& frozen, const CollapsedData& data) {
+  Chain<ConstantGaussianLeaf>& chain = frozen.chain;
+  frozen.moveTo(1.0);
+  std::vector<double> totalsBefore = forestTotals(sampler, 0);
+  std::vector<double> latentsBefore(TestPeer::latents(chain),
+                                    TestPeer::latents(chain) + rescaleN);
+  double factor = 0.0;
+  bool taken = TestPeer::drawCollapsedRescale(chain, &factor);
+  bool kMapped =
+    std::fabs(TestPeer::forestK(chain) * factor / frozen.k - 1.0) <
+    rescaleMapTolerance;
+  bool leavesMapped = true;
+  std::vector<int32_t> bottoms;
+  for (size_t t = 0; t < rescaleTrees; ++t) {
+    const Tree& tree = chain.treeInForest(0, t);
+    bottoms.clear();
+    tree.fillBottom(0, bottoms);
+    for (int32_t b : bottoms) {
+      double now = TestPeer::muByTree(chain, t)[static_cast<size_t>(b)];
+      double was = frozen.mu[t][static_cast<size_t>(b)];
+      leavesMapped = leavesMapped &&
+        (tree.at(b).numObservations() > 0
+           ? std::fabs(now - factor * was) <= rescaleMapTolerance * std::fabs(now)
+           : now == was);
+    }
+  }
+  // inside the bound totalFits is scaled in place and the factor accumulates;
+  // past it the cache is the tree-order re-sum, bitwise, and the factor 1
+  std::vector<double> totals = forestTotals(sampler, 0),
+                      gathered = frozen.gatherTotals();
+  bool inPlace = factor >= 1.0 / totalFitsScaleBound &&
+                 factor <= totalFitsScaleBound;
+  bool totalsMapped =
+    TestPeer::totalFitsScale(chain) == (inPlace ? factor : 1.0);
+  for (size_t i = 0; i < rescaleN; ++i)
+    totalsMapped = totalsMapped &&
+      (inPlace ? totals[i] == totalsBefore[i] * factor &&
+                   std::fabs(totals[i] - gathered[i]) <=
+                     rescaleMapTolerance * (1.0 + std::fabs(gathered[i]))
+               : totals[i] == gathered[i]);
+  // the latents are drawn again at the scaled fit, not carried or scaled, a
+  // row out keeping its own; the working response and the precisions the
+  // trees read follow them
+  const double* latents = TestPeer::latents(chain);
+  const double* working = TestPeer::workingResponse(chain);
+  const double* weights = TestPeer::workingWeights(chain);
+  bool redrawn = true, rowsOutKept = true, workingFollows = true;
+  for (size_t i = 0; i < rescaleN; ++i) {
+    if (data.mask[i] == 0.0) {
+      rowsOutKept = rowsOutKept && latents[i] == latentsBefore[i];
+      continue;
+    }
+    redrawn = redrawn && latents[i] != latentsBefore[i] &&
+              std::fabs(latents[i] - factor * latentsBefore[i]) >
+                rescaleMapTolerance * std::fabs(latents[i]);
+    double expected =
+      data.counts[i] * (data.y[i] - 0.5) / latents[i] - data.offset[i];
+    workingFollows = workingFollows &&
+      std::fabs(working[i] - expected) <= 1.0e-12 * (1.0 + std::fabs(expected)) &&
+      weights[i] == latents[i];
+  }
+  frozen.moveTo(1.0);
+  TestPeer::totalFitsScale(chain) = 1.0e6;
+  double forced = 0.0;
+  TestPeer::drawCollapsedRescale(chain, &forced);
+  bool totalsRederived = forestTotals(sampler, 0) == frozen.gatherTotals() &&
+                         TestPeer::totalFitsScale(chain) == 1.0;
+  checkLabeled(taken && factor != 1.0, label,
+               "the frozen state takes the move");
+  checkLabeled(kMapped, label, "k is divided by the factor");
+  checkLabeled(leavesMapped, label,
+               "every occupied leaf of every tree is multiplied by the "
+               "factor, an empty one left as it was");
+  checkLabeled(totalsMapped, label,
+               "totalFits is scaled in place with the factor accumulated "
+               "inside the bound, re-derived past it");
+  checkLabeled(totalsRederived, label,
+               "past the bound totalFits is re-derived from the leaves in "
+               "tree order, bitwise, and the factor reset");
+  checkLabeled(redrawn, label,
+               "the latents in the likelihood are drawn again, neither kept "
+               "nor scaled");
+  checkLabeled(rowsOutKept, label,
+               "a row out of the likelihood keeps its latent");
+  checkLabeled(workingFollows, label,
+               "the working response and precisions follow the redrawn "
+               "latents");
+}
+
+/// Test 3 under logistic: over many moves from one state, each row's redrawn
+/// omega standardized by PG(w_i, psi_i)'s moments at the moved fit. Per row
+/// the mean over moves is scored, and over every row and move the mean
+/// signed by whether the factor passed 1, which a redraw at the fit before
+/// the move shifts one way throughout. zeroFit runs it from zeroed leaves,
+/// where a row with no offset sits at psi = 0 exactly.
+void checkLogisticRedraw(const char* label, FrozenForest& frozen,
+                         const CollapsedData& data, bool zeroFit) {
+  Chain<ConstantGaussianLeaf>& chain = frozen.chain;
+  if (zeroFit) frozen.moveToZeroFit();
+  else frozen.moveTo(1.0);
+  std::vector<double> fit = frozen.gatherTotals();
+  const double* omega = TestPeer::latents(chain);
+  std::vector<double> before(omega, omega + rescaleN), rowSum(rescaleN, 0.0);
+  double signedSum = 0.0, numTerms = 0.0;
+  size_t numAtZero = 0;
+  bool rowsOutKept = true;
+  for (size_t m = 0; m < collapsedRedraws; ++m) {
+    if (zeroFit) frozen.moveToZeroFit();
+    else frozen.moveTo(1.0);
+    double factor = 0.0;
+    TestPeer::drawCollapsedRescale(chain, &factor);
+    for (size_t i = 0; i < rescaleN; ++i) {
+      if (data.mask[i] == 0.0) {
+        rowsOutKept = rowsOutKept && omega[i] == before[i];
+        continue;
+      }
+      double psi = factor * fit[i] + data.offset[i], mean, variance;
+      if (m == 0 && psi == 0.0) ++numAtZero;
+      polyaGammaMoments(data.counts[i], psi, mean, variance);
+      double standardized = (omega[i] - mean) / std::sqrt(variance);
+      rowSum[i] += standardized;
+      signedSum += factor > 1.0 ? standardized : -standardized;
+      numTerms += 1.0;
+    }
+  }
+  double worstRowZ = 0.0;
+  for (size_t i = 0; i < rescaleN; ++i)
+    worstRowZ = std::max(worstRowZ, std::fabs(rowSum[i]) /
+                           std::sqrt(static_cast<double>(collapsedRedraws)));
+  double signedZ = signedSum / std::sqrt(numTerms);
+  char what[200];
+  std::snprintf(what, sizeof what,
+                "%s: each redrawn omega is PG(w, psi) at the moved fit (worst "
+                "row |z| %.3g, signed z %.3g, %zu rows at psi = 0)", label,
+                worstRowZ, signedZ, numAtZero);
+  check(worstRowZ < collapsedZBound && std::fabs(signedZ) < collapsedZBound &&
+          rowsOutKept && (numAtZero > 0) == zeroFit, what);
+}
+
+/// Tests 1 to 4 on one burned-in fixture; returns the conditional's
+/// sqrt(N) D.
+double runCollapsedStateTests(const char* label, ConstantLeafSampler& sampler,
+                              const CollapsedData& data,
+                              double& worstDisagreement) {
+  Chain<ConstantGaussianLeaf>& chain = sampler.chain(0);
+  FrozenForest frozen(chain);
+  checkCollapsedEvaluator(label, chain, forestTotals(sampler, 0), data);
+  double ks =
+    collapsedInvarianceKs(frozen, data, collapsedDraws, worstDisagreement);
+  char what[240];
+  std::snprintf(what, sizeof what,
+                "%s: one move from the target stays at the target (sqrt(N) D "
+                "%.3g against %.3g), leaves, k and the factor moving as one "
+                "(worst %.3g)", label, ks, rescaleKsBound, worstDisagreement);
+  check(ks < rescaleKsBound && worstDisagreement < 1.0e-10, what);
+  checkLogisticRedraw(label, frozen, data, false);
+  checkCollapsedMapping(label, sampler, frozen, data);
+  frozen.moveTo(1.0);
+  return ks;
+}
+
+void runCollapsedRescaleTests() {
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20261011u);
+  const ResponseFamily family = ResponseFamily::logistic;
+  const char* link = "collapsed logistic";
+  char what[240], label[80];
+
+  // the fixture: an offset that is exactly zero on every seventh row, every
+  // fifth row out of the likelihood, counts 1 to 3
+  CollapsedData data;
+  data.x.resize(rescaleN * rescaleP);
+  data.y.resize(rescaleN);
+  data.offset.resize(rescaleN);
+  data.mask.assign(rescaleN, 1.0);
+  data.counts.resize(rescaleN);
+  for (double& v : data.x) v = runif01();
+  for (size_t i = 0; i < rescaleN; ++i) {
+    double eta = 1.5 * std::sin(3.0 * data.x[i]) + data.x[i + rescaleN] - 0.5;
+    data.y[i] = eta + standardNormal() > 0.0 ? 1.0 : 0.0;
+    data.offset[i] =
+      i % 7 == 0 ? 0.0 : 0.8 * (data.x[i + 2 * rescaleN] - 0.5);
+    if (i % 5 == 0) data.mask[i] = 0.0;
+    data.counts[i] = static_cast<double>(1 + i % 3);
+  }
+  std::unique_ptr<ConstantLeafSampler> sampler = makeRescaleSampler(
+    data.x, data.y, data.counts.data(), data.offset.data(), family, true, true,
+    true, &rng);
+  Results results;
+  sampler->run(rescaleBurnIn, 0, results);
+  check(sampler->setActiveRows(data.mask.data()),
+        "the collapsed fixture takes a mask");
+  sampler->run(20, 0, results);
+  Chain<ConstantGaussianLeaf>& chain = sampler->chain(0);
+  check(TestPeer::strandEmptyLeaf(chain, 0.5).second >= 0,
+        "the collapsed fixture strands an empty leaf");
+  checkLabeled(TestPeer::collapsedRescaleApplies(chain), link,
+               "a burned-in drawn-k forest takes the move");
+
+  // 1 to 4 on the fixture, and the redraw again from a zero fit
+  double worstDisagreement = 0.0;
+  double ks = runCollapsedStateTests(link, *sampler, data, worstDisagreement);
+  FrozenForest frozen(chain);
+  check(frozen.occupied.size() > rescaleTrees && frozen.numEmpty > 0,
+        "the collapsed fixture's trees carry splits and an empty leaf");
+  std::snprintf(label, sizeof label, "%s at a zero fit", link);
+  checkLogisticRedraw(label, frozen, data, true);
+  frozen.moveTo(1.0);
+
+  // 1, continued. A row out given a fit of 1e6 against its response adds
+  // nothing; and on a second sampler the evaluator follows setResponse and
+  // setData, so it reads the response in force.
+  ext_rng* otherRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(otherRng, 20261012u);
+  {
+    const ResponseModel& response = TestPeer::responseModel(chain);
+    std::vector<double> fits = forestTotals(*sampler, 0), poisoned(fits);
+    for (size_t i = 0; i < rescaleN; ++i)
+      if (data.mask[i] == 0.0) poisoned[i] = data.y[i] != 0.0 ? -1.0e6 : 1.0e6;
+    checkLabeled(response.logLikelihoodAtScaledFits(poisoned.data(), 1.7) ==
+                   response.logLikelihoodAtScaledFits(fits.data(), 1.7),
+                 link, "a row out of the likelihood adds nothing to the "
+                       "evaluator's sum");
+
+    std::unique_ptr<ConstantLeafSampler> other = makeRescaleSampler(
+      data.x, data.y, data.counts.data(), data.offset.data(), family, true,
+      true, true, &otherRng);
+    other->run(10, 0, results);
+    CollapsedData flipped(data);
+    flipped.mask.assign(rescaleN, 1.0);
+    for (double& v : flipped.y) v = 1.0 - v;
+    check(other->setResponse(flipped.y.data(), false) ==
+            ResponseUpdateResult::accepted,
+          "the collapsed fixture takes a new response");
+    std::snprintf(label, sizeof label, "%s after setResponse", link);
+    checkCollapsedEvaluator(label, other->chain(0), forestTotals(*other, 0),
+                            flipped);
+    const size_t fewer = 120, first = 60;
+    CollapsedData replaced;
+    replaced.x.resize(fewer * rescaleP);
+    replaced.mask.assign(fewer, 1.0);
+    for (size_t i = 0; i < fewer; ++i) {
+      for (size_t j = 0; j < rescaleP; ++j)
+        replaced.x[j * fewer + i] = data.x[j * rescaleN + first + i];
+      replaced.y.push_back(i % 2 == 0 ? data.y[first + i]
+                                      : 1.0 - data.y[first + i]);
+      replaced.offset.push_back(-data.offset[first + i]);
+      replaced.counts.push_back(static_cast<double>(1 + (i + 1) % 3));
+    }
+    check(other->setData(replaced.x.data(), replaced.y.data(), fewer,
+                         replaced.counts.data(), replaced.offset.data(),
+                         nullptr, 0),
+          "the collapsed fixture takes new rows");
+    other->run(5, 0, results);
+    std::snprintf(label, sizeof label, "%s after setData", link);
+    checkCollapsedEvaluator(label, other->chain(0), forestTotals(*other, 0),
+                            replaced);
+  }
+
+  // 5. Inertness: each decline consumes no generator draw, on the schedule
+  // and off it.
+  TestPeer::collapsedRescaleForest(chain) = false;
+  check(collapsedDeclinesWithoutDraw(chain),
+        "the collapsed move declines with its toggle off");
+  TestPeer::collapsedRescaleForest(chain) = true;
+  TestPeer::forestK(chain) = HUGE_VAL;
+  check(collapsedDeclinesWithoutDraw(chain),
+        "the collapsed move declines at infinite k");
+  TestPeer::forestK(chain) = 0.0;
+  check(collapsedDeclinesWithoutDraw(chain),
+        "the collapsed move declines at a k of zero");
+  frozen.moveTo(1.0);
+  const ChiKHyperprior savedPrior = TestPeer::kHyperprior(chain);
+  TestPeer::kHyperprior(chain).scale = HUGE_VAL;
+  check(collapsedDeclinesWithoutDraw(chain),
+        "the collapsed move declines under an infinite k scale");
+  // a scale so small that the prior term overflows at the state itself: the
+  // forest is eligible and the move declines with no draw of its own
+  TestPeer::kHyperprior(chain).scale = 1.0e-200;
+  TestPeer::forestK(chain) = 1.0;
+  {
+    ext_rng* reference = cloneRng(rng);
+    double factor = 0.0;
+    bool taken = TestPeer::drawCollapsedRescale(chain, &factor);
+    check(TestPeer::collapsedRescaleApplies(chain) && !taken &&
+            factor == 1.0 && rngStreamsAgree(reference, rng),
+          "the collapsed move declines without a draw where its log density "
+          "is not finite at the state");
+    ext_rng_destroy(reference);
+  }
+  TestPeer::kHyperprior(chain) = savedPrior;
+  // a k whose square underflows: eligible, and its move finite. From a zero
+  // fit, where the k prior's term alone bounds the orbit on that side,
+  // repeated moves carry k into its prior's range and not past it.
+  frozen.moveTo(1.0);
+  TestPeer::forestK(chain) = 1.0e-170;
+  double tinyFactor = 0.0;
+  bool tinyTaken = TestPeer::collapsedRescaleApplies(chain) &&
+                   TestPeer::drawCollapsedRescale(chain, &tinyFactor);
+  bool tinyFinite = tinyFactor > 0.0 && tinyFactor <= DBL_MAX &&
+                    TestPeer::forestK(chain) > 0.0 &&
+                    TestPeer::forestK(chain) <= DBL_MAX;
+  for (double v : forestTotals(*sampler, 0))
+    tinyFinite = tinyFinite && std::isfinite(v);
+  frozen.moveToZeroFit();
+  TestPeer::forestK(chain) = 1.0e-170;
+  for (size_t m = 0; m < 60; ++m) TestPeer::drawCollapsedRescale(chain, nullptr);
+  std::snprintf(what, sizeof what,
+                "%s: a k whose square underflows takes a finite move, and "
+                "from a zero fit returns to its prior's range (k %.3g)", link,
+                TestPeer::forestK(chain));
+  check(tinyTaken && tinyFinite && TestPeer::forestK(chain) > 1.0e-6 &&
+          TestPeer::forestK(chain) < 1.0e3, what);
+  frozen.moveTo(1.0);
+
+  auto declinesOn = [&](ResponseFamily otherFamily, bool updateK,
+                        bool staleMaps) {
+    std::unique_ptr<ConstantLeafSampler> other = makeRescaleSampler(
+      data.x, data.y, nullptr, data.offset.data(), otherFamily, updateK, true,
+      true, &otherRng);
+    other->run(20, 0, results);
+    if (staleMaps) other->sampleTreesFromPrior();
+    return (!staleMaps || TestPeer::leafOfStale(other->chain(0), 0) != 0) &&
+           collapsedDeclinesWithoutDraw(other->chain(0));
+  };
+  check(declinesOn(family, false, false),
+        "the collapsed move declines at a fixed k");
+  check(declinesOn(family, true, true),
+        "the collapsed move declines on a stale tree map");
+  check(declinesOn(ResponseFamily::probit, true, false),
+        "the collapsed move declines under the probit family");
+  check(declinesOn(ResponseFamily::gaussian, true, false),
+        "the collapsed move declines under the gaussian family");
+  check(declinesOn(ResponseFamily::nbinom, true, false),
+        "the collapsed move declines under the nbinom family");
+  {
+    // an ordinal fit, a linear leaf and a second forest, all drawing k
+    SamplerOptions drawnK;
+    drawnK.numTrees = rescaleTrees;
+    drawnK.nodeScale = 3.0;
+    drawnK.updateK = true;
+    drawnK.kHyperprior = savedPrior;
+    std::vector<double> category(rescaleN), z(rescaleN);
+    for (size_t i = 0; i < rescaleN; ++i) {
+      category[i] = 1.0 + data.y[i] + (data.x[i] > 0.7 ? 1.0 : 0.0);
+      z[i] = i % 2 == 0 ? 1.0 : 0.0;
+    }
+    SamplerOptions options(drawnK);
+    options.numCategories = 3;
+    ConstantLeafSampler ordinal(data.x.data(), category.data(), rescaleN,
+                                rescaleP, nullptr, data.offset.data(),
+                                ResponseFamily::ordinal, 1.0, 3.0,
+                                0.37804942330213542, options, &otherRng);
+    ordinal.run(20, 0, results);
+    check(collapsedDeclinesWithoutDraw(ordinal.chain(0)),
+          "the collapsed move declines under the ordinal family");
+    std::vector<size_t> covariates = {2};
+    options = drawnK;
+    options.leafCovariateColumns = covariates.data();
+    options.numLeafCovariates = 1;
+    Sampler<LinearGaussianLeaf> linear(data.x.data(), data.y.data(), rescaleN,
+                                       rescaleP, nullptr, data.offset.data(),
+                                       family, 1.0, 3.0, 0.37804942330213542,
+                                       options, &otherRng);
+    linear.run(20, 0, results);
+    check(collapsedDeclinesWithoutDraw(linear.chain(0)),
+          "the collapsed move declines on a linear leaf");
+    AmplitudeSpec spec;
+    spec.family = family;
+    spec.mu.numTrees = rescaleTrees;
+    spec.tau.numTrees = 4;
+    spec.z = z.data();
+    ConstantLeafSampler twoForests(data.x.data(), data.y.data(), rescaleN,
+                                   rescaleP, nullptr, data.offset.data(), 1.0,
+                                   3.0, 1.0, drawnK, spec, &otherRng);
+    twoForests.run(20, 0, results);
+    // a combining chain holds k fixed; marked drawn, only the forest count
+    // and the combiner are left to decline on
+    Chain<ConstantGaussianLeaf>& twoForestChain = twoForests.chain(0);
+    TestPeer::forestUpdateK(twoForestChain) = true;
+    TestPeer::kHyperprior(twoForestChain) = savedPrior;
+    check(twoForestChain.numForests() == 2 &&
+            TestPeer::forestK(twoForestChain) > 0.0 &&
+            TestPeer::forestK(twoForestChain) <= DBL_MAX &&
+            collapsedDeclinesWithoutDraw(twoForestChain),
+          "the collapsed move declines on a two-forest fit");
+  }
+
+  // 6. The coin: an eligible state moves on a quarter of its calls, and a
+  // call that does not move consumes exactly the coin.
+  size_t numMoved = 0, numDeclinesRead = 0;
+  bool oneDrawPerDecline = true;
+  for (size_t c = 0; c < collapsedCoinCalls; ++c) {
+    ext_rng* reference = numDeclinesRead < 50 ? cloneRng(rng) : nullptr;
+    if (TestPeer::maybeDrawCollapsedRescale(chain)) {
+      ++numMoved;
+      frozen.moveTo(1.0);
+    } else if (reference != nullptr) {
+      ext_rng_simulateContinuousUniform(reference);
+      oneDrawPerDecline = oneDrawPerDecline && rngStreamsAgree(reference, rng);
+      ++numDeclinesRead;
+    }
+    if (reference != nullptr) ext_rng_destroy(reference);
+  }
+  double calls = static_cast<double>(collapsedCoinCalls);
+  double share = static_cast<double>(numMoved) / calls;
+  double shareSd = std::sqrt(collapsedRescaleProbability *
+                             (1.0 - collapsedRescaleProbability) / calls);
+  std::snprintf(what, sizeof what,
+                "%s: an eligible sweep takes the move with probability %.2f "
+                "(share %.4f, %.2f sd off)", link, collapsedRescaleProbability,
+                share, (share - collapsedRescaleProbability) / shareSd);
+  check(std::fabs(share - collapsedRescaleProbability) <
+          collapsedZBound * shareSd, what);
+  check(oneDrawPerDecline && numDeclinesRead == 50,
+        "an eligible sweep whose coin says no consumes exactly the coin");
+
+  // 9. Every row out of the likelihood: the move runs, against the target
+  // with no likelihood term, k's prior along the orbit, and draws no latent.
+  CollapsedData allOut(data);
+  allOut.mask.assign(rescaleN, 0.0);
+  check(sampler->setActiveRows(allOut.mask.data()),
+        "an all-inactive mask installs");
+  std::vector<double> latentsBefore(TestPeer::latents(chain),
+                                    TestPeer::latents(chain) + rescaleN);
+  double priorDisagreement = 0.0;
+  double priorKs =
+    collapsedInvarianceKs(frozen, allOut, collapsedDraws, priorDisagreement);
+  std::snprintf(what, sizeof what,
+                "%s: with every row out the move runs and keeps k's prior "
+                "along the orbit (sqrt(N) D %.3g)", link, priorKs);
+  check(priorKs < rescaleKsBound && priorDisagreement < 1.0e-10, what);
+  check(std::equal(latentsBefore.begin(), latentsBefore.end(),
+                   TestPeer::latents(chain)),
+        "with every row out the collapsed move draws no latent");
+
+  // 1 to 4 again on a near-separated fixture with no offset, counts or mask,
+  // where the target's right tail is as thick as the prior allows.
+  CollapsedData separated(data);
+  separated.offset.assign(rescaleN, 0.0);
+  separated.mask.assign(rescaleN, 1.0);
+  separated.counts.assign(rescaleN, 1.0);
+  for (size_t i = 0; i < rescaleN; ++i)
+    separated.y[i] =
+      6.0 * (data.x[i] - 0.5) + 0.3 * standardNormal() > 0.0 ? 1.0 : 0.0;
+  std::unique_ptr<ConstantLeafSampler> separatedSampler = makeRescaleSampler(
+    separated.x, separated.y, nullptr, nullptr, family, true, true, true,
+    &otherRng);
+  separatedSampler->run(rescaleBurnIn, 0, results);
+  std::snprintf(label, sizeof label, "%s, near-separated", link);
+  double separatedKs = runCollapsedStateTests(label, *separatedSampler,
+                                              separated, worstDisagreement);
+  separatedSampler.reset();
+  ext_rng_destroy(otherRng);
+
+  // 7. Every chain: two chains, each against a twin on its own seed with the
+  // move off.
+  std::vector<ext_rng*> onRngs(2), offRngs(2);
+  for (size_t c = 0; c < 2; ++c) {
+    onRngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    offRngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(onRngs[c], 21u + static_cast<std::uint32_t>(c));
+    ext_rng_setSeed(offRngs[c], 21u + static_cast<std::uint32_t>(c));
+  }
+  std::unique_ptr<ConstantLeafSampler> on = makeRescaleSampler(
+    data.x, data.y, data.counts.data(), data.offset.data(), family, true, true,
+    true, onRngs.data(), 2);
+  std::unique_ptr<ConstantLeafSampler> off = makeRescaleSampler(
+    data.x, data.y, data.counts.data(), data.offset.data(), family, true, true,
+    false, offRngs.data(), 2);
+  on->run(50, 0, results);
+  off->run(50, 0, results);
+  for (size_t c = 0; c < 2; ++c) {
+    std::snprintf(what, sizeof what, "%s: the move acts on chain %zu", link, c);
+    check(TestPeer::forestK(on->chain(c)) != TestPeer::forestK(off->chain(c)),
+          what);
+  }
+  on.reset();
+  off.reset();
+  for (size_t c = 0; c < 2; ++c) {
+    ext_rng_destroy(onRngs[c]);
+    ext_rng_destroy(offRngs[c]);
+  }
+
+  sampler.reset();
+  ext_rng_destroy(rng);
+  printf("ok: %s, %zu moves at %zu trees (sqrt(N) D %.3g, near-separated "
+         "%.3g, every row out %.3g; worst factor disagreement %.3g; coin "
+         "share %.4f)\n",
+         link, collapsedDraws, rescaleTrees, ks, separatedKs, priorKs,
+         std::max(worstDisagreement, priorDisagreement), share);
+}
+
 }  // namespace
 
 void runEnsembleTests() {
@@ -871,6 +1649,7 @@ void runEnsembleTests() {
   ext_rng_destroy(distRng);
 
   runForestRescaleTests();
+  runCollapsedRescaleTests();
 
   ext_rng_destroy(rng);
   rngState = savedRngState;
