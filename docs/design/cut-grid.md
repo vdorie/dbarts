@@ -8,7 +8,9 @@ dec-B411.
 
 A numeric predictor's cut grid is the set of thresholds a tree may split it at. The sampler picks among grid
 positions, uniformly or by the grid's weights, in the tree prior and in the proposals, and a stored split names
-its threshold by value.
+its threshold by value. A stored state records the grid its thresholds are points of and does not bring it
+back: a live `setState` puts the trees onto the grid the sampler holds
+([install-surface.md](install-surface.md)).
 Both assume a grid is a set. It was not: the uniform rule placed `n.cuts` points whatever the range, so a
 constant column held `n.cuts` copies of its value and a column narrower than the points resolve held a few
 values many times; the quantile rule could round two midpoints to one double. On such a grid a threshold was

@@ -276,12 +276,12 @@ items
     value and converts slopes instead of installing them; the manual's
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
-    draw. The design is not in docs/design yet. The grid half is
-    before 1.0-0: today setState puts back the cut grid a state was
-    stored under, undoing a later setCutPoints (run 2026-10-08: 3
-    points set, 100 after the restore, TRUE), against dec-B231 and
-    0.9-34, whose state carried no grid; shipped, a caller could rely
-    on it.
+    draw. The design is not in docs/design yet. The live half of the
+    grid is built (docs/plans/state-grid-install.md): a live setState
+    writes neither the cut points nor their weights, a change from
+    0.9-34, whose state carried the grid and whose restore installed
+    it. A copy and a reload still take the grid from the state, until
+    dbartsData records it.
   k-mixing-pg-families: before 1.0-0 (dec-B404, dec-B420, VD
     2026-10-09). Binary fits keep a drawn k under chi(1.5, 2), so the
     logistic collapsed scale move is built before 1.0-0; plan
@@ -335,17 +335,6 @@ items
     and slow fits, the fallback when the range cannot be estimated
     (dec-B437, VD 2026-10-10). About 1260 lines planned for the
     per-chain data, after response-scale-rows.
-  state-grid-replaces-sampler: a restored state leaves the sampler's
-    cut points alone (dec-B449, VD 2026-10-11: "Change it"), a change
-    from 0.9-34, whose restore put the stored grid back as the branch
-    does today (run 2026-10-11). Unforced, a state with a split off
-    the sampler's grid returns FALSE; forced, the split moves to the
-    nearest point or is merged. The old result by hand:
-    setCutPoints(attr(state, "cutPoints")) then setState(state),
-    exact but for a grid that carries weights on its points, where
-    only a refresh from the column's own values gives the weights
-    back. Plan docs/plans/state-grid-install.md on wt/state-grid-plan.
-    Before the merge; with state-frame-prior's grid half.
   variance-forest-inherited-tree-prior: a variance forest created with
     no base or power of its own (varianceForest(base = NULL)) takes
     the mean forest's tree prior at creation and keeps it when
@@ -382,8 +371,8 @@ items
     probs = argument, its validation (positive, finite, one per cut)
     and its help. Not before the merge to main (dec-B450, VD
     2026-10-11); until it is built the by-hand restore of a stored
-    grid (state-grid-replaces-sampler) cannot give back a weighted
-    grid's weights once the column holds other values.
+    grid (docs/plans/state-grid-install.md) cannot give back a
+    weighted grid's weights once the column holds other values.
   sigma-prior-setter: a setter for the residual prior in
     setLeafPrior's idiom, setSigmaPrior(chisq(df, scale)), and chisq()
     taking scale beside quant, the two not given together (dec-B314,

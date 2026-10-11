@@ -21,7 +21,8 @@ nothing else, and installing one should leave the model alone.
 | amplitudes, and a scale-mixture forest's amplitude variance | drawn coupling values | state | installed |
 | sigma, k, the Student-t df, the negative-binomial shape, the DART concentration | state where drawn, model where fixed | written only where drawn | installed only where the recipient draws it; absent keeps the recipient's |
 | `fit.scale` | the response mapping the chain was under when the state was read | a record | recorded, not compared: no install reads it (dec-B418) |
-| `cutPoints`, a leaf's covariate standardization, a heuristic gp lengthscale | the frame the trees and slopes are read through | scratch, frozen | installed as is |
+| `cutPoints` and `cutMass` | the cut grid the thresholds were stored on, and its weights | a record | compared by a live `setState`, which writes neither and puts the trees onto the sampler's grid; taken by a copy and a reload ([install-surface.md](install-surface.md)) |
+| a leaf's covariate standardization, a heuristic gp lengthscale | the frame the slopes and kernels are read through | scratch, frozen | installed as is |
 | a supplied gp lengthscale | the kernel | model | kept; saved draws under another are refused |
 | weights and censoring digests | which data the latents were drawn against | data, by digest | compared; mismatches are reconciled |
 
@@ -77,8 +78,9 @@ It does not hold in four places.
 
 - The frame. The cut grid, a linear or gp leaf's covariate standardization and a heuristic lengthscale are
   derived from data once and then kept while the data moves, so only the state still has them. They shape a
-  prior too - the split rule, the slope prior, the kernel - and they install with the state as they are. This
-  is the TODO item state-frame-prior.
+  prior too - the split rule, the slope prior, the kernel. A live `setState` no longer installs the grid or
+  its weights (dec-B449); a copy and a reload still take them from the state, and the standardization and
+  the lengthscale still install with it as they are. This is the TODO item state-frame-prior.
 - Writes through the C API. A host that re-anchors or writes a fixed sigma through `dbarts.h` changes the
   engine and not the R object, so a sampler re-created from that object holds the last values R saw.
 - A sampler made from a model and data as a first creation - `new("dbartsSampler", control, model, data)` -

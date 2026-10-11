@@ -2,7 +2,8 @@
 
 Status: LANDED 2026-10-10: Part A (missingness first seen, 2269918e) and Part B (setState's two forms, 062ef59a).
 Plan: [setstate-force-update.md](../plans/setstate-force-update.md). Rulings: dec-B305, dec-B310, dec-B318,
-dec-B398 to dec-B402 and dec-B418 in docs/decisions.md.
+dec-B398 to dec-B402 and dec-B418 in docs/decisions.md. The cut grid a state goes onto
+([state-grid-install.md](../plans/state-grid-install.md)): dec-B449 and dec-B450.
 
 A state is the chain, and installing one puts a chain into a sampler that has its own model and its own data.
 Most states fit. Some hold a tree the sampler cannot hold as it is stored. This note says what `setState` does
@@ -15,7 +16,9 @@ with each, and is the home of those rules; what a state carries is
 `setState(newState, forceUpdate = FALSE)` asks first. A state every tree of which fits is installed and the
 call returns TRUE. A state with a tree that would have to be changed is not installed: the call returns FALSE
 and the sampler is as it was, its trees, drawn values, latents, generators, cut grid, kept draws and cached
-`state` field, and a pointer that was dead stays dead. Both values are returned visibly, as an unforced
+`state` field. A sampler whose engine was gone is first rebuilt from its own saved state
+([The cut grid is the sampler's](#the-cut-grid-is-the-samplers)), and is then as that rebuild leaves it; one
+with no saved state that installs keeps its dead pointer. Both values are returned visibly, as an unforced
 `setPredictor`'s are.
 
 `setState(newState, forceUpdate = TRUE)` installs, repairing what does not fit, and returns NULL invisibly
@@ -25,8 +28,9 @@ having no other state to fall back on; so does stan4bart's reload (dec-B402).
 
 A state that is broken, or of a shape that does not fit, is an error in both forms: not a state, an older
 encoding, another count of chains, forests or trees, another leaf model, a malformed block or tree, a cut grid
-that repeats a point, latents the family cannot hold, saved gp draws under other lengthscales, saved-tree
-blocks that name different numbers of draws.
+that repeats a point, a live threshold that is no point of the grid the state itself records, another grid
+recorded on a column the sampler holds as an ordered factor, latents the family cannot hold, saved gp draws
+under other lengthscales, saved-tree blocks that name different numbers of draws.
 
 ## What does not fit, and its repair
 
@@ -35,6 +39,7 @@ sampler's rows. A kept draw is replayed over new rows and never held to this par
 
 | a tree that | forced |
 |---|---|
+| holds a split whose threshold is not a point of the sampler's cut grid | the split moves to the nearest point inside the range the splits above it leave, or, with none left, becomes one leaf with everything beneath |
 | has a leaf no row reaches | the split above it becomes one leaf with everything beneath |
 | holds a split outside the range the splits above it leave | the same |
 | records a side for missing values on a column, not pooled, that has never held one here | the side is dropped |
@@ -96,7 +101,8 @@ tree out of order. The coins are the state's own generators', which the install 
 state stored just before one whole-column or whole-matrix update raised its columns, and installed just after
 it, holds the update's directions and its generators. Nothing else is claimed to reproduce. A declined or
 refused state leaves each chain's generator where it was. The `state` field is the state as given, so a copy
-or a reload of it draws the same directions.
+or a reload of it draws the same directions; after an install onto another grid or weights the field is the
+sampler's state past the draw, and a copy or a reload draws nothing.
 
 A kept rule on a factor column that sends no level right and the missing value right is left as it is by this
 draw and by the first-sight draw ([`drawFlatMissingDirections`](../../src/bartcore/tree.hpp)): sent left it
@@ -107,6 +113,102 @@ is dropped, and a state never raises a flag (dec-B321).
 A warm start draws the same for the trees it installs, from each receiving chain's own generator and before
 the trees are judged, remapped or merged ([`Sampler::installForests`](../../src/bartcore/sampler.hpp),
 dec-B440); a donor state with no record draws nothing, and a refused start puts the generators back.
+
+## The cut grid is the sampler's
+
+A state's splits are stored by value, and a tree is built by putting each on the grid position that holds its
+value. Until this rule a live `setState` therefore installed the grid the state records first, with its
+weights, and judged the trees there, which is what released 0.9-34 did: three points set with `setCutPoints`
+and an earlier state restored gave the earlier 100 back. Cut points are data, derived from the predictors and
+then held while the predictors move (dec-B231), and a state is the chain (dec-B195), so a restore that
+rewrites them changes the model the chain is read against without being asked. dec-B449 rules that a live
+`setState` never writes the sampler's cut points or their weights. The grid and its weights are part of the
+tree prior, so this changes the posterior a chain targets after one call sequence: a state installed into a
+live sampler whose grid, or its weights, differ from what the state records. An install onto the recorded
+grid and weights, every copy and reload, and every fit that never calls `setState` are bit for bit what they
+were.
+
+On a sampler whose engine existed before the call, the first row that applies:
+
+| The state against the sampler | Unforced | Forced |
+|---|---|---|
+| a live threshold that is no point of the grid the state records; a recorded grid that repeats a point; a column an unordered factor on one side only; another recorded grid on a column the sampler holds as an ordered factor | error | error |
+| recorded points and weights equal the sampler's | as before | as before |
+| the points equal, the weights not | TRUE where the trees fit; the sampler's weights untouched | NULL; the same |
+| other points, every live threshold a point of the sampler's grid | TRUE where the trees fit, FALSE for a leaf no row reaches and the like; grid and weights untouched | NULL; the repairs of the table above |
+| a live threshold that is no point of the sampler's grid | FALSE, nothing touched | NULL; the move below |
+
+Whether the thresholds are points of a grid is read from the flat trees with no tree built
+([`Chain::liveThresholdsAreOnGrid`](../../src/bartcore/chain.hpp)), of the recorded grid first, where a miss
+is the refusal, and then of the sampler's. A state with a threshold off the sampler's grid is judged on the
+recorded one, swapped in for the builds ([`ScopedCutGrid`](../../src/bartcore/data.hpp)).
+
+The forced move is three passes over each live tree, mean and variance
+([`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp)):
+
+1. The tree is built as stored and the sampler's rows are routed through it by its stored thresholds, the
+   columns whose grids differ re-quantized on the recorded grid for the purpose. Each stored leaf then holds
+   the rows the stored tree sends it, the receiving sampler's rows where the state is another sampler's. A
+   leaf no row reaches is merged here, as on any forced install.
+2. The sampler's grid, weights and codes are put back as they were, byte for byte, and each split on a column
+   whose grid differs goes to the nearest point of the sampler's grid inside the interval the splits above it
+   leave, a tie to the upper point ([`Tree::mappedSplitIndex`](../../src/bartcore/tree.hpp)). A split with no
+   point left becomes, with everything beneath it, one leaf at the mean of the leaves beneath weighted by the
+   rows each held in pass 1, the plain mean where none holds a row (dec-B398).
+3. The rows are routed again by the moved thresholds and a leaf left without a row is merged, as after a
+   forced `setPredictor`.
+
+That is the state installed on its own grid followed by `setCutPoints(grid, splits = "value")`, the two calls
+that existed, with the sampler's weights kept; passes 2 and 3 are that call's own routine
+([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp)), so linear and gp leaves, the variance forest
+and the monotone reseed are handled as it handles them, and
+["equals the two calls"](../../inst/tinytest/test-state-grid-install.R) holds the two to one result. Measured
+on one tree of 200 rows, root on the 50th of 100 points, left child on the 30th, leaves 0.10, -0.20 and 0.05
+holding 73, 38 and 89 rows, forced onto the 50th and 75th points: the child has no point left and its two
+leaves become one at -0.0027. The plain mean is -0.05, and weighing by the rows after the child moved gives
+0.10. A fitted state of 20 trees forced from 100 points onto {0.25, 0.5, 0.75} keeps the three points; its
+17 splits on the column become 15 and 29 splits in all become 27.
+
+- A move is by value only and takes no argument. By position a restore onto a refreshed grid of the same
+  length would change every threshold and count as exact.
+- The weights are part of the grid. Other weights on equal points place no threshold and change no tree, so
+  such a state is clean (dec-B450): TRUE says the trees are the stored ones, not that the chain continues as
+  the stored chain would, since it runs on under the sampler's weights.
+- A state records no column kind (dec-B283). An unordered factor's entry is empty, which tells it from any
+  other column. An ordered factor's grid is fixed by its level count, so on a column the sampler holds as one
+  any other recorded grid is another column's and is refused. The reverse cannot be told: an ordered
+  factor's entry is what a numeric column of the same whole numbers records, so such a state into a numeric
+  column follows the numeric rule.
+- A rule's side for missing values rides the rule through a move, and the sides a state was stored without
+  are drawn before anything moves.
+- Kept draws go in as stored and are never moved, so they predict what they predicted. A kept draw can hold
+  a threshold the grid no longer has, as after `setCutPoints`.
+- Several chains share one grid: one chain's tree that needs a move declines the whole state.
+- The `state` field. After an install onto a grid or weights other than the state records, forced or not, the
+  field holds what `storeState()` gives, so a copy and a reload reach the sampler's grid, weights and trees.
+  After an install onto the recorded grid and weights it holds the state as given.
+
+A copy and a reload create a new engine, whose grid is the one a creation derives from the predictors as they
+now are. The stored state is the only record of a grid set with `setCutPoints` or held while a column moved,
+so a re-creation still takes the grid and weights its state records and then installs the state; taking that
+away before the data object records the grid (TODO state-frame-prior) would make a copy of a sampler with a
+set grid something other than a copy. `setState(newState)` on a sampler whose engine is gone first rebuilds
+the engine from the sampler's own saved state, where it has one that installs, and then applies the rule
+above, so the call gives one grid whether or not the engine was live. Only a sampler with no saved state, or
+one that is refused, takes `newState`'s grid.
+
+Putting a grid back is the caller's, before `setState`, with the state held in a variable:
+`setCutPoints(attr(st, "cutPoints"))`, the whole set in one call, and then `setState(st)`. Where no changed
+column's stored grid carries weights that is the stored grid and the stored chain, bit for bit, which is what
+0.9-34's restore gave. A column whose grid was changed and whose stored grid carries weights gets its points
+and not its weights, `setCutPoints` installing any grid other than the held one unweighted: the restore is
+TRUE and the chain runs with that column's points equally likely.
+`setPredictor(x[, j], j, updateCutPoints = "value")` gives back both while the column holds the values the
+grid was derived from, and nothing does once it holds others (TODO cut-point-weights).
+
+A warm start still moves a donor's trees with no rows under them and so merges at the plain mean
+([`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp)); the across-grids routine takes its
+install step as a parameter so that the warm start can hand in its own (TODO warm-start-salvage).
 
 ## Not in this note
 

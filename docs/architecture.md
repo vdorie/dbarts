@@ -348,7 +348,9 @@ re-quantization. docs/design/data-store.md is the standing reference for the
 cut grid, the code blocks, the source descriptors, the borrowed view's value
 channels and the mutation transaction. A cut grid holds each point once;
 [cut-grid.md](design/cut-grid.md) has that rule and where the splits on a
-replaced grid go. Four facts bear on the rest of this
+replaced grid go. The grid and its weights are the store's: a state
+installed into a live sampler goes onto them and writes neither
+([install-surface.md](design/install-surface.md)). Four facts bear on the rest of this
 document:
 
 - A column is `numeric`, `categorical` or `orderedFactor`, but rules, scans,

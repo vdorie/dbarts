@@ -256,6 +256,17 @@
             does not fit as a forced \code{$setPredictor} does, and returns
             \code{NULL} invisibly. 0.9-34 installed whatever state it was
             given and returned \code{NULL}.
+      \item \code{$setState} no longer brings back the cut points a state
+            was stored on, which 0.9-34's did: the cut points, like the
+            predictors, stay the sampler's. A state with a split on a
+            value the sampler's cut points do not hold is declined
+            (\code{FALSE}), and with \code{forceUpdate = TRUE} has that
+            split moved to the nearest cut point its tree allows, or
+            merged. To restore the cut points as well, hold the state in a
+            variable and set them first:
+            \code{sampler$setCutPoints(attr(state, "cutPoints"))}, then
+            \code{sampler$setState(state)}. A copy and a reloaded sampler
+            keep the cut points of their stored state.
       \item A state whose saved draws (\code{keepTrees}) number more or
             fewer than the sampler keeps is installed with the newest that
             fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a

@@ -324,9 +324,10 @@ state after a grid change.
    live install onto another grid or weights it caches the engine's state, not the one given. Docstrings
    of `setState`, `copy` and `storeState`.
 4. Tests ([Tests](#tests); ~1000 lines). Six tinytest cases pin today's rule and are rewritten, not
-   deleted: ["a state stored on the longer grid installs"](../../inst/tinytest/test-cut-points-undo.R) and
-   its neighbor, ["a state without them installs the grids unweighted"](../../inst/tinytest/test-cut-grid-distinct.R),
-   ["the setState cut-point replay"](../../inst/tinytest/test-data-mixed-mutation.R) and its sparse twin
+   deleted (the first three are named by wording the rewrite has since replaced):
+   retired: ["a state stored on the longer grid installs"](../../inst/tinytest/test-cut-points-undo.R) and
+   its neighbor, retired: ["a state without them installs the grids unweighted"](../../inst/tinytest/test-cut-grid-distinct.R),
+   retired: ["the setState cut-point replay"](../../inst/tinytest/test-data-mixed-mutation.R) and its sparse twin
    in [test-mutate-sparse-valued.R](../../inst/tinytest/test-mutate-sparse-valued.R) (both move to a
    reload, which still re-quantizes),
    ["a state on another cut grid"](../../inst/tinytest/test-setstate-force-update.R) (its last line
