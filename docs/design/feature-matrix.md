@@ -82,9 +82,9 @@ combined out-of-sample fit defined at all
 | hetero | S, gaussian [`bartcore_setWeights`](../../src/R_interface_bartcore.cpp) / R, aft [`refuseBinaryWeightChange`](../../src/R_interface_bartcore.cpp) [f13] | R [`refusePinnedSigmaChange`](../../src/R_interface_bartcore.cpp) | -, gaussian [`bartcore_getLatents`](../../src/R_interface_bartcore.cpp) / S, aft [`AFTResponse::latents`](../../src/bartcore/model.hpp) [f13] | S [`Chain::reanchorVarianceForest`](../../src/bartcore/chain.hpp) | S [`bartcore_setTestPredictor`](../../src/R_interface_bartcore.cpp) |
 
 Mutation channels and row subsetting read off the table: `setWeights`/`setSigma`/`getLatents`
-follow their columns; `updateScale = TRUE` follows the unit-scale column (a no-op where the
-transform is fixed, refused where a re-anchor would break a coupling's or a variance forest's
-calibration); test predictors, offsets and `predict()` follow the test-fits column;
+follow their columns; `updateScale = TRUE`, on `setResponse`, `setOffset`, `setWeights` and
+`setActiveRows`, follows the unit-scale column (a no-op where the transform is fixed, refused
+where a re-anchor would break a coupling's or a variance forest's calibration); test predictors, offsets and `predict()` follow the test-fits column;
 `setResponse`/`setOffset`/`setPredictor` (+ per-observation) are open wherever a sampler
 exists, except multinomial blocks the first two ([f9]) and hurdle has none. Three exceptions
 follow from no column:
@@ -292,7 +292,9 @@ use ([`ingestFormulaTerms`](../../R/formulaTerms.R)).
 
 [f7] `updateScale` re-derives the internal response transform. The latent families have
 `fitScale() == 1` and `fitShift() == 0` by definition, so there is nothing to re-anchor and
-the flag is ignored rather than refused.
+the flag is ignored rather than refused. A count fit's center is a shift, and is re-derived
+though its cell reads "-"; on `setWeights` and `setActiveRows` it is read from the rows the call
+leaves in.
 
 [f8] Logistic weights are the counts its Polya-Gamma latents are built from, so a swap is a
 model change: [`LogisticResponse::setWeights`](../../src/bartcore/model.hpp) redraws omega against the new counts, and

@@ -84,7 +84,7 @@ matrixPath <- file.path(
 # Deliberate: update these when the matrix, or the set of checks, changes on
 # purpose. nonDash counts the non-"-" alternatives parsed per table.
 pinNonDash <- c(table1 = 51L, table2 = 24L)
-pinChecks <- c(table1 = 61L, table2 = 27L, prose = 165L)
+pinChecks <- c(table1 = 61L, table2 = 27L, prose = 181L)
 
 pinStop <- function(what, got, pinned) {
   stop(
@@ -665,6 +665,19 @@ mutate <- list(
   },
   updateScale = function(s, v) {
     s$setOffset(rep(0, length(s$data@y)), updateScale = TRUE)
+  },
+  updateScaleActiveRows = function(s, v) {
+    nr <- length(s$data@y)
+    s$setActiveRows(c(rep(1, nr - 1L), 0), updateScale = TRUE)
+  },
+  updateScaleWeights = function(s, v) {
+    nr <- length(s$data@y)
+    w <- if (grepl("logistic", v, fixed = TRUE)) {
+      sample(1:3, nr, replace = TRUE)
+    } else {
+      runif(nr, 0.5, 1.5)
+    }
+    s$setWeights(w, updateScale = TRUE)
   },
   testSurface = function(s, v) {
     x <- s$data@x
@@ -1359,6 +1372,40 @@ for (v in samplerVariants) {
       probe,
       anchor = openAnchor,
       msg = if (blocked) multinomText else NULL
+    )
+  }
+}
+
+# -- prose: updateScale = TRUE on setActiveRows (every variant) and setWeights
+# (where the case-weights cell is S) follows the unit-scale cell: run where it
+# is a no-op or a re-anchor, refused on multinomial and bcf
+scaleAnchor <- paste0(
+  "`updateScale = TRUE`, on `setResponse`, `setOffset`, `setWeights` and ",
+  "`setActiveRows`, follows the unit-scale column"
+)
+for (v in samplerVariants) {
+  refused <- v %in% c("multinom", "bcf")
+  for (probe in c("updateScaleActiveRows", "updateScaleWeights")) {
+    if (
+      probe == "updateScaleWeights" &&
+        !v %in% c("gaussian", "student", "logistic", "hetero", "bcf")
+    ) {
+      next
+    }
+    addMutation(
+      "prose",
+      sprintf("%-8s %s", v, probe),
+      if (refused) "R" else "S",
+      v,
+      probe,
+      anchor = scaleAnchor,
+      msg = if (v == "multinom") {
+        multinomText
+      } else if (refused) {
+        "does not support a sampler that carries forest amplitudes"
+      } else {
+        NULL
+      }
     )
   }
 }
