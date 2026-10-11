@@ -59,8 +59,16 @@ jobs:
       # target here is memory-access errors and undefined behavior
       ASAN_OPTIONS: detect_leaks=0
       UBSAN_OPTIONS: print_stacktrace=1
+      # the containers' OpenBLAS 0.3.20 solves triangular systems wrongly on
+      # the CPUs it sends to its Cooper Lake kernels, so base R's backsolve()
+      # is wrong there; the Haswell kernels are right and every runner has
+      # AVX2
+      OPENBLAS_CORETYPE: HASWELL
     steps:
       - uses: actions/checkout@v7
+
+      - name: Record the runner's CPU
+        run: grep -m1 'model name' /proc/cpuinfo
 
       - name: Install test dependencies
         shell: Rscript {0}
