@@ -1,28 +1,28 @@
 # response-scale-rows: what the response gives a prior is taken from the rows in the likelihood at creation
 
-Status: PLANNED, revised from its critique 2026-10-09, then the same day to dec-B405, onto the bartcore
-of dec-A191's order, and from the scoped critique of those sections. Implements dec-B296, dec-B302,
+Status: PLANNED. Revised from its critique and to dec-B405 on 2026-10-09; rechecked on 2026-10-11
+against bartcore a2ef56a9, where every slice queued ahead of it has landed
+([Recheck against bartcore](#recheck-against-bartcore)). Implements dec-B296, dec-B302,
 dec-B309, dec-B314 (sigest held), dec-B315 (a hazard fit's periods), dec-B362 (several forests keep
 refusing), dec-B363 (slice B's half: no documented by-hand call yet), dec-B364 (for `setResponse` and
 `setOffset`), dec-B405 (the keep is a status: the engine returns it, the R interface warns, the flat
-entries return it), dec-B381 (the planning calls approved) and dec-B386 (a constant response's window
-where every row is in); rests on dec-B357 (a survival fit's range from observed times) and, for slice C,
-dec-B327; revises dec-A140. The C API's version stays 1/0 and the hash alone moves (dec-B424). One open
-dependency is recorded in [Open items](#open-items). This file plans slice B,
-creation. Slice A is [aft-reanchor-observed-times.md](aft-reanchor-observed-times.md), landed. Slices C
-and D are stated at the end and have no steps yet. dec-B303 stays in
-[forest-multiplier.md](forest-multiplier.md).
+entries return it), dec-B424 (the hash alone moves, the C API's version stays 1/0), dec-B381 (the
+planning calls approved) and dec-B386 (a constant response's window where every row is in); rests on
+dec-B357 (a survival fit's range from observed times), dec-B418 (every install goes in as stored),
+dec-B429, dec-B433 and dec-B439 (the starting sigma as landed), dec-B437 (stan4bart fixes its own range)
+and, for slice C, dec-B327; revises dec-A140. No open call. This file plans slice B, creation. Slice A is
+[aft-reanchor-observed-times.md](aft-reanchor-observed-times.md), landed. Slices C and D are stated at
+the end and have no steps yet. dec-B303 stays in [forest-multiplier.md](forest-multiplier.md).
 
 agent: one push. Opus implementer for the engine, the keep's status through the facade, the bridge and
 the flat entries, dbarts.h, and their tests; sonnet for the R code (the hazard grid included), the
-tinytest file, the gate scripts and the help once the engine is fixed; opus reviewer told to refute, and
-to read the diff three times: once for bits that must not move where no row is out, once for which rows
-each number reads, once for the ABI (the header, the token, the C API test). stan4bart's part: a sonnet
-implementer on its bartcore branch, reviewed by the same opus reviewer, landing in lockstep. Tier:
-changes draws ([Process by risk](README.md#process-by-risk)). Its blind critique ran at 8ad1fa58; the
-sections that dec-B405 and the rebase add (the keep's status, Interactions, stan4bart's part) take a
-blind critique scoped to them, which ran at b6d941cc (scratch/rsrrev/critique.md) and is answered here
-([Revision from the scoped critique](#revision-from-the-scoped-critique)).
+tinytest file, the gate scripts, the help once the engine is fixed, and stan4bart's part (a few lines in
+its range install and their test, on its bartcore branch); opus reviewer told to refute, and to read
+the diff three times: once for bits that must not move where no row is out, once for which rows each
+number reads, once for the ABI (the header, the token, the C API test). Tier: changes draws
+([Process by risk](README.md#process-by-risk)). Its blind critique ran at 8ad1fa58 and a second, scoped
+to the keep's status, on 2026-10-09; both are answered in the rule, the constraints, the keep's status
+and the calls below. The recheck changed no rule.
 rng: by call sequence, as [RNG classes and their gates](README.md#rng-classes-and-their-gates) defines
 them. A row is IN when its weight is positive and no mask switches it off, OUT otherwise; a hazard
 subject is in when its weight is positive.
@@ -30,40 +30,38 @@ subject is in when its weight is positive.
   zero weights installed after creation included); every probit, logistic, ordinal and multinomial
   sampler; a hazard fit with every subject in, with stated boundaries, or on the default grid whose
   subjects at weight 0 hold only times some subject in holds; a single-forest gaussian or Student-t
-  sampler created with rows out whose smallest and largest response less offset are both on rows in.
-  The keep (a re-derivation in rule 4's case) is the `updateScale = FALSE` call, literally: the sampler
-  makes that call on every chain. Its status, its warning and the flat entries' new return value move no
-  draw.
+  sampler created with rows out whose smallest and largest response less offset are both on rows in;
+  a stan4bart fit, which installs its own range over creation's (dec-B437; item 9 of
+  [The keep's status (dec-B405)](#the-keeps-status-dec-b405)). The keep (a re-derivation in rule 4's
+  case) is the `updateScale = FALSE` call, literally: the sampler makes that call on every chain. Its
+  status, its warning and the flat entries' new return value move no draw.
 - POSTERIOR-CHANGING, a default changes, for a sampler created with rows out: a gaussian or Student-t fit
   with an extreme on a row out (the range); a gaussian model of several forests with any row out (the
   unit, so every forest's default sd, and what a stated `sd` means until
   [forest-sd-unit.md](forest-sd-unit.md) lands); a count fit under 0/1 weights (the center); `xbart` with
-  a weight of 0 (each fold's range); any of them where sigest takes its fallback; a hazard fit with a
-  subject at weight 0 whose time no subject in holds, or under `breaks = K` with any subject at weight 0
-  (the periods, and the rows of the subjects in). And `setResponse` or `setOffset` with
-  `updateScale = TRUE` while rows are out, in every family that has a range or a center, through the R
-  methods and the two flat C entries: the rows in, or, where they hold fewer than two distinct values,
-  the transform kept in force where the tip reads every row. A stan4bart gaussian fit with a zero weight
-  is in this class, and so is a deprecated `rbart_vi` fit with one, which calls `setOffset(..., isWarmup)`
-  every warm-up sweep.
+  a weight of 0 (each fold's range); any of them where the rows in leave sigest's regression no residual
+  degrees of freedom (the sd that stands in) or take its floor; a hazard fit with a subject at weight 0
+  whose time no subject in holds, or under `breaks = K` with any subject at weight 0 (the periods, and
+  the rows of the subjects in). And `setResponse` or `setOffset` with `updateScale = TRUE` while rows
+  are out, in every family that has a range or a center, through the R methods and the two flat C
+  entries: the rows in, or, where they hold fewer than two distinct values, the transform kept in force
+  where the tip reads every row. A deprecated `rbart_vi` fit with a zero weight is in this class: it
+  calls `setOffset(..., isWarmup)` every warm-up sweep.
 - Moves one recorded baseline scenario, `zeroweights` of the main corpus; nothing else recorded moves
-  (the main corpus's `hazard` scenario carries no weight, read).
-window: before the merge to main: it changes draws against 0.9-34. dec-A191's engine order puts it after
-the k-internal slice (k-internal-parameter.md, branch wt/k-internal-plan) and setstate-force-update Parts A
-and B, with default-rule-per-gap landing ahead of both; and after sparse-starting-sigma, which is R only
-and not queued behind the engine ([Interactions](#interactions)). Before
-[forest-sd-unit.md](forest-sd-unit.md), so the unit's tests are written once against the rows that stay.
-Serial with any other work in model.hpp, the response setters of
+  ([Context](#context)).
+window: before the merge to main: it changes draws against 0.9-34. Everything dec-A191 queued ahead of it
+has landed, and so has sparse-starting-sigma. After stan4bart-creation-mapping has landed on stan4bart's
+bartcore branch (item 9). Before [forest-sd-unit.md](forest-sd-unit.md), so the unit's tests are written
+once against the rows that stay. Serial with any other work in model.hpp, the response setters of
 [`Chain`](../../src/bartcore/chain.hpp) and [`Sampler`](../../src/bartcore/sampler.hpp), the K-forest
 constructor of [`Chain`](../../src/bartcore/chain.hpp), [`resolveSamplerSpec`](../../R/spec.R),
 [`estimateSigmaFromLinearModel`](../../R/utility.R), [`expandDiscreteTimeHazard`](../../R/dbarts.R) or
-dbarts.h. stan4bart's part lands with this slice's header commit, on its bartcore branch.
-budget: ~2040 lines: engine ~175, of
-which the keep's decision and status ~40; facade, bridge, flat entries, dbarts.h and the token ~75;
-tests/cpp ~335; R ~170, of which the hazard grid ~30; tinytest ~580, of which ~540 a new file; the C API
-test ~75; benchmarks and the workflow ~250; help, header comments and NEWS ~115; design note, indexes,
-amended notes and TODO ~265. Upper figure 3700 ([Budget and stops](#budget-and-stops)). stan4bart's
-part, ~75 lines, is outside it.
+dbarts.h.
+budget: ~2065 lines planned: engine ~175; facade, bridge, flat entries, dbarts.h and the token ~75; R
+~170; tests/cpp ~335; tinytest ~580; the C API test ~75; benchmarks and the workflow ~265; help, header
+comments and NEWS ~125; design note, indexes, amended notes and TODO ~265. Forecast 3700 to 4750; stop at
+~4750, or at ~630 of package code ([Budget and stops](#budget-and-stops)). stan4bart's part, ~25 lines,
+is outside it.
 
 ## Goal
 
@@ -76,61 +74,57 @@ sampler from the R interface, and as a distinct return value from the flat C ent
 
 ## Context
 
-Marks: (ran) by the planner or the reviser on the tip's build, shipped mode, and on the design's
-prototype library where a line says so; (stands) measured by the design, its critic or the plan's
-critic and not rerun; (read) in the source. One fixture unless a line says otherwise: 200 rows, two
-predictors, rows 101 to 200 at weight 0 with their response 50 higher. The measurements were taken at
-8ad1fa58; the rebase onto a8884ef4 moved none of the code they read (read).
+Marks: (ran) rerun on 2026-10-11 on a shipped build of bartcore a2ef56a9, "the tip" below; (stands)
+measured on the design's prototype library, on 0.9-34 or by a critic at 8ad1fa58, and not rerun; (read)
+in the source at a2ef56a9. One fixture unless a line says otherwise: 200 rows, two predictors, rows 101
+to 200 at weight 0 with their response 50 higher.
 
 What reads which rows today.
 - (ran) The range ([`GaussianResponse::rescale`](../../src/bartcore/model.hpp)): every row. Recorded
   [-2.165, 56.371] where the rows in span [-2.165, 6.029] and `subset` gives the latter; `k.scale` 29.27
-  against 4.10 on the prototype. Student-t and aft hold a Gaussian response and inherit it (read).
+  against 4.10 on the prototype (stands). Student-t and aft hold a Gaussian response and inherit it
+  (read).
 - (ran) The count center ([`NBResponse::computeShift`](../../src/bartcore/model.hpp)): every row. Half
   the rows structural zeros under 0/1 weights: recorded 0.2964, the rows in give 0.9895, the prototype
-  0.9895. The 0/1 weights become the mask and the weights slot is empty.
+  0.9895 (stands). The 0/1 weights become the mask and the weights slot is empty.
 - (ran) The unit of a forest's sd in a model of several forests
   ([`scaledResponseSd`](../../src/bartcore/chain.hpp)): every row. 0.4313 of the range, 25.25 in y,
-  with or without the weights; 1.466 in y under `subset` and on the prototype. Held across a later
-  `setWeights` on both builds.
-- (ran) sigest ([`estimateSigmaFromLinearModel`](../../R/utility.R)) is already the weighted fit over
-  the rows in (1.0741, `lm`'s). Its fallback and its floor are not: with three rows in and two predictors
-  it is 25.245, the sd of every row, where the rows in give 0.890
-  ([`floorSigmaEstimate`](../../R/utility.R)); with four rows in at one value it is 8.4e-07, the floor
-  from the largest residual of every row ([`floorMarginalSigma`](../../R/utility.R)).
-- (ran) sigest's sparse paths (dec-B370), as on the tip. A caller's sparse x (a `dgCMatrix`) takes the
-  marginal fallback with its own warning: 25.245, the sd of every row, where the rows in give 1.466. An
-  indicator expansion R built sparse goes through [`sparseResidualStandardError`](../../R/utility.R),
-  already over positive weights (read). (read) sparse-starting-sigma (branch wt/sparse-sigma-plan,
-  d1be8904) replaces both: one routine for every sparse source, which drops the rows of weight 0 as
-  `lm.wfit` does, the caller's-sparse fallback and its warning class retired. After it lands, the sparse
-  paths read the rows in already, and only rule 4's case and the floor are this slice's.
+  with or without the weights; (stands) 1.466 in y under `subset` and on the prototype, and held across
+  a later `setWeights` on both builds.
+- (ran) sigest is already the weighted regression over the rows of positive weight, by each routine:
+  [`residualStandardError`](../../R/utility.R) for a matrix or a data frame and
+  [`sparseResidualStandardError`](../../R/utility.R) for a caller's sparse x both give 1.0741, `lm`'s.
+  What stands in for it is not. Where the rows in leave no residual degrees of freedom (three rows in,
+  two predictors) sigest is 25.245, the sd of every row, where the rows in give 0.890
+  ([`floorSigmaEstimate`](../../R/utility.R)); 40 rows, 20 at weight 0 with their response 100 higher,
+  25 predictors: 50.84 for 1.12. The floor is not either: four rows in at one value give 8.4e-07, from
+  the largest residual of every row ([`floorMarginalSigma`](../../R/utility.R)). No warning says so
+  since sparse-starting-sigma (dec-B429): a `dbartsSigmaFallback` condition is signaled, `bart` records
+  `sigest.fallback`, and a verbose fit prints a line that already counts the rows of positive weight
+  ("in 3 rows"). No estimate is made under a fixed residual sd (dec-B439) or beside a supplied number.
 - (ran) Held already: `setWeights` and `setActiveRows` move nothing. `setResponse` and `setOffset` with
   `updateScale = TRUE` under zero weights or a mask read every row ([-2.165, 56.371], with three rows in
-  at one value as well); on the prototype the rows in. On several forests `updateScale = TRUE` is
-  refused ("every forest keeps its leaf calibration stated against the scale fixed at creation").
-- (stands) A re-derivation on the prototype, which reads the rows in and falls back to every row: a
-  component created over its rows [-2.06, 2.02], left with one row and re-derived, jumps silently to
-  every row's [-2.06, 22.29]; left with 25 rows, [-1.91, 1.51]. That jump is what dec-B364 turned down.
-- (ran) No row in. Every weight 0: the sampler is created, with one warning that names another cause
-  ("starting sigma estimate falls back to the marginal response sd"), the range every row's, sigest 25.245
-  (the marginal sd; `lm` without the weights gives 25.006). A count fit under a mask of zeros is created
-  in silence.
-- (ran) One row in. The tip reads every row. The prototype gives the range [1.666, 1.666] and `k.scale`
-  0.5, and a count fit with one row in at zero the center log(1/2). (stands) Then with every row brought
-  back in and 600 sweeps the fit's rmse is 2.41 and sigma 2.66, where the fallback gives 0.46 and 0.90.
+  at one value as well). On several forests `updateScale = TRUE` is refused ("every forest keeps its
+  leaf calibration stated against the scale fixed at creation").
+- (ran) No row in. Every weight 0: the sampler is created in silence, the range every row's, sigest
+  25.245 (the sd of every row; `lm` without the weights gives 25.006), the verbose line reading "in 0
+  rows". A count fit under a mask of zeros is created in silence.
+- (ran) One row in. The tip reads every row, in silence. (stands) The prototype's window of width 1
+  gave, once every row was back in, rmse 2.41 and sigma 2.66 where the fallback gives 0.46 and 0.90.
 - (ran) Fractional weights with a zero among them raise the data object's validity warning ("rows with
-  'weights' of 0 are left out of the likelihood", [`dbartsData`](../../R/A_class.R)) at creation: one
-  row in at weight 0.5 gives two warnings today, that one and the sigma fallback's; half the rows out
-  at fractional weights gives that one alone. 0/1 weights raise none.
+  'weights' of 0 are left out of the likelihood", [`dbartsData`](../../R/A_class.R)) at creation, and
+  nothing else: one row in at weight 0.5, and half the rows out, each give that one warning. 0/1 weights
+  raise none.
 - (ran) `xbart` with a weight of 0: the response of the rows out reaches the result (1.38, 1.23 against
-  1.15, 1.20 with those responses ordinary); on the prototype the two are identical, the engine edit
-  alone closing it. `xbart` never calls `resolveSamplerSpec`: it calls
-  [`enforceWeightPolicy`](../../R/spec.R) and [`estimateStartingSigma`](../../R/spec.R) itself and
-  chooses each fold's sigma (`sigmaPerFold`, [`xbart`](../../R/xbart.R)) by catching
-  `dbartsSigmaFallbackWarning` (read). With every weight 0, and with one row in, it stops in its loss
-  ("loss function must return non-missing numeric values") after the sigma fallback's warning; with 60
-  rows in at one value it runs, silent today. Only several rows in at one value reach a result.
+  1.15, 1.20 with those responses ordinary); (stands) on the prototype the two are identical, the engine
+  edit alone closing it. `xbart` never calls `resolveSamplerSpec`: it calls
+  [`enforceWeightPolicy`](../../R/spec.R) and [`estimateStartingSigma`](../../R/spec.R) itself and fixes
+  the routine every fold runs (`sigmaPerFold`, [`xbart`](../../R/xbart.R): "dense", "sparse", "marginal"
+  where all rows leave no residual degrees of freedom, or "function") by reading the
+  `dbartsSigmaFallback` condition; each fold's estimate, its stand-in and its floor are made in
+  [`xbartRunUnits`](../../R/xbart.R) (read). With every weight 0, and with one row in, it stops in its
+  loss ("loss function must return non-missing numeric values"), with no warning; with 60 rows in at one
+  value it runs, silent.
 - (ran) A hazard fit's periods: 40 subjects on times 1 to 5, two at weight 0 holding 3.5 and 20: 7
   periods and 167 person-period rows, where the fit without the two has 5 and 134 and the two moved onto
   the grid (3 and 5) give 5 and 142. `breaks = 3`: periods 3, 4, 20 against 3, 4, 5 without the two.
@@ -139,18 +133,22 @@ What reads which rows today.
   response reaches no draw at the rows in: flipping it leaves the rows in `identical()` (3.3e-15 at the
   rows out). The periods are taken in [`resolveHazardGrid`](../../R/dbarts.R) from `gridTime`, which
   already narrows to the subjects the na.action keeps, a later time placed in the last period (read).
-- (ran) `rbart_vi` is deprecated on the tip ("is deprecated and is removed in dbarts 1.1-0"), so its
-  `rel.scale` is not in this slice.
+- (ran) `rbart_vi` is deprecated ("is deprecated and is removed in dbarts 1.1-0"), so its `rel.scale`
+  is not in this slice.
 
 What the setters return today (read).
 - [`SamplerBase`](../../src/bartcore/facade.hpp)'s `setResponse` and `setOffset` return nothing, and so
   do [`Sampler::setResponse`](../../src/bartcore/sampler.hpp),
   [`Chain::setResponse`](../../src/bartcore/chain.hpp) and the response models' virtuals. A chain's
-  `updateScale` arm always runs its tail: [`reanchorVarianceForest`](../../src/bartcore/chain.hpp) under
-  a variance forest and [`restateSavedDraws`](../../src/bartcore/chain.hpp); the sampler then runs
-  [`Sampler::recordAnchor`](../../src/bartcore/sampler.hpp). The engine's one typed outcome of a setter
-  is [`PredictorUpdateResult`](../../src/bartcore/sampler.hpp) (accepted, rolled back, invalid cut
-  points), which the bridge converts.
+  setter always runs its tail: [`reanchorVarianceForest`](../../src/bartcore/chain.hpp) under a variance
+  forest and [`restateSavedDraws`](../../src/bartcore/chain.hpp), and, at `updateScale` true only,
+  [`translateNamedSds`](../../src/bartcore/chain.hpp), which restates a named leaf sd against the moved
+  scale; the sampler then runs [`Sampler::recordAnchor`](../../src/bartcore/sampler.hpp). The engine's
+  one typed outcome of a setter is [`PredictorUpdateResult`](../../src/bartcore/sampler.hpp) (accepted,
+  rolled back, invalid cut points), which the bridge converts.
+- Every part of that tail is a no-op when the transform has not moved: `reanchorVarianceForest` returns
+  at an unchanged sigma scale and `restateSavedDraws` at a ratio of 1 and a shift of 0. So the keep
+  needs no branch in the chain: it is the false call.
 - [`bartcore_setResponse`](../../src/R_interface_bartcore.cpp) and
   [`bartcore_setOffset`](../../src/R_interface_bartcore.cpp) return NULL. The holder
   [`dbarts_sampler_t`](../../src/R_interface_bartcore_common.hpp) carries one warned-once flag,
@@ -162,56 +160,63 @@ What the setters return today (read).
   struct layouts, so a new return value of an `int` entry moves nothing unless it is named in a folded
   list. [`DBARTS_C_API_MINOR`](../../inst/include/dbarts/dbarts.h) is 0, and the header says the version
   pair does not move before the first release (dec-B60); the C API test pins it
-  (["expect_equal(versions, c(1L, 0L))"](../../inst/tinytest/test-capi.R)).
-- (read) Every part of a chain's tail is already a no-op when the transform has not moved:
-  `reanchorVarianceForest` returns at an unchanged sigma scale and `restateSavedDraws` at a ratio of 1
-  and a shift of 0, and the k-internal slice's named-sd translation is idempotent at an unmoved scale.
-  So the keep needs no branch in the chain: it is the false call (the critique's S1).
-- (read) Membership and served precision differ for Student-t: `TResponse` serves w x lambda x a to its
+  (["expect_equal(versions, c(1L, 0L))"](../../inst/tinytest/test-capi.R)). A consumer's handshake is
+  the version pair unless it defines `DBARTS_REQUIRE_EXACT_ABI`, so a consumer built against another
+  hash still loads.
+- Membership and served precision differ for Student-t: `TResponse` serves w x lambda x a to its
   Gaussian part, lambda drawn per chain, and counts the rows in by membership (`w * a > 0.0`). A product
   that underflows would make served precision and membership disagree, and chains with it.
-- Consumers (read). stan4bart (bartcore 963956b) builds its sampler through `dbartsSpec` and
-  `new("dbartsSampler", ...)` in its parent R process, then in each chain's worker (PSOCK or FORK
-  processes) calls `dbarts_sampler_setOffset` with `updateScale` true once after creation and on a
-  halving schedule through warm-up, and false after; it ignores the return. Its starting sigma is
-  `sigma()` of a weighted `lm`, so one row at positive weight stops it ("sigma_init is NaN", ran on the
-  scratch libraries). Its parametric mean has no intercept and is constant within a group and covariate
-  pattern. treatSens (dbarts-1.0) calls `dbarts_sampler_setOffset` on a probit sampler, and
-  `dbarts_sampler_setResponse(fit, ..., 1)` every sweep on its gaussian outcome sampler, created by
-  `dbartsData(x, y)` with no weights; it ignores both returns. bartCause and bairrtt make no flat call.
-  The deprecated `rbart_vi` calls `$setOffset(..., isWarmup)` every warm-up sweep, under the user's
-  weights.
+- Consumers (read on 2026-10-11, each on the branch named). stan4bart, as its creation-mapping slice
+  leaves it ([stan4bart-creation-mapping.md](stan4bart-creation-mapping.md), in build): it resolves its
+  spec by `dbartsSpec` in the calling process and creates each chain's sampler by
+  `new("dbartsSampler", ...)` in that chain's worker; it then installs one response range for every
+  chain through the R method `setResponse(updateScale = TRUE)` on a made-up response (the range's lower
+  end on the first row of positive weight, its upper end on every other row), gives the sampler back its
+  own response with the range held, and reads the range back, stopping if it did not land; its restore
+  does the same per chain. Both of its `dbarts_sampler_setOffset` calls pass the re-derive flag false;
+  a continuous fit fixes the residual variance in its family, so no starting sigma is estimated; and it
+  does not define `DBARTS_REQUIRE_EXACT_ABI`. treatSens (dbarts-1.0) calls
+  `dbarts_sampler_setOffset` on a probit sampler, and `dbarts_sampler_setResponse(fit, ..., 1)` every
+  sweep on its gaussian outcome sampler, created by `dbartsData(x, y)` with no weights; it ignores both
+  returns. bartCause and bairrtt make no flat call. The deprecated `rbart_vi` calls
+  `$setOffset(..., isWarmup)` every warm-up sweep, under the user's weights.
 
 What a correct change must not move.
-- (ran) The prototype's rewrite of the unit's loop changed its last bit on unweighted data: at n = 64 the
-  tip gives 0x1.c828f537ceda5p-3 and the prototype ...da4p-3. (stands) On a reference build that failed 3
-  of the 15 two-forest scenarios bitwise at max abs z 0.00; the suite did not see it.
-- (stands; the plan's critic re-ported the prototype onto 8ad1fa58) On a reference build of the
-  prototype: main corpus against equivalence-51201107 54 of 55 identical and `zeroweights` at max abs z
-  2.85, 0 skipped; two-forest 15 of 15; multinomial 11 of 11; the four snapshot files pass; the exact
-  gates and the zero-weight arm pass in `quick`. `zeroweights` is the one recorded scenario that holds a
-  zero weight when its sampler is created (80 of 500, the smallest response on one of them:
-  [1.3742, 25.2117] becomes [1.6243, 25.2117]). The hazard grid was not in the prototype; the `hazard`
-  scenario carries no weight (read). The main corpus's current file has moved since (equivalence-734441f1
-  on bartcore; default-rule-per-gap and sparse-starting-sigma each re-record other scenarios, neither
-  `zeroweights`, read): the compare is against whichever file is current at this slice's base.
+- (stands) The prototype's rewrite of the unit's loop changed its last bit on unweighted data: at
+  n = 64 its base gave 0x1.c828f537ceda5p-3 and the prototype ...da4p-3. On a reference build that
+  failed 3 of the 15 two-forest scenarios bitwise at max abs z 0.00; the suite did not see it.
+- (ran) Of the 55 scenarios of the main corpus's current file, `equivalence-2b48939b.rds`, one is
+  created with a row out: `zeroweights`, 80 of 500 at weight 0 with the smallest response on one of
+  them, so [1.3742, 25.2117] becomes [1.6243, 25.2117]. The two that carry a mask (`maskprobit`,
+  `maskordinal`) install it after creation, on families that take nothing from the response; the other
+  five that pass weights pass positive ones; `hazard` passes none.
+- (stands) On a reference build of the prototype, re-ported onto 8ad1fa58, against the main corpus's
+  file of that day (re-recorded twice since, for other scenarios): 54 of 55 identical and `zeroweights`
+  at max abs z 2.85; two-forest 15 of 15; multinomial 11 of 11; the snapshot files and the exact gates
+  pass. The hazard grid was not in the prototype.
 - (stands) The suite on the re-ported prototype: 2 failures of 19506 results, both the two-forest pin
   of test-active-rows-pins.R (["Bayesian causal forest, bitwise"](../../inst/tinytest/test-active-rows-pins.R)),
   which compares a sampler created with weights w and then masked against one created with w * a.
-- (read) No test hazard fit passes a weight of 0 (the hazard files pass weights of 1, refused
-  fractional ones, or none).
+- (ran) The suite as it stands, the 93 installed files that name weights or `updateScale`, with the R
+  entry points traced: ten create a gaussian or count sampler with a row out (test-active-rows-pins.R,
+  test-empty-leaf-veto-weights.R, test-gp-leaves.R, test-nbinom.R, test-pdbart-averaging.R,
+  test-pdbart.R, test-pointwise-loglik.R, test-predict-training-rows.R,
+  test-prior-init-empty-leaves.R, test-zero-weights.R); all but test-gp-leaves.R are as the prototype's
+  suite ran them, and its additions compare a copy, a `setState` and a reload with their own source.
+  None reaches rule 4's case at creation, re-derives with a row out on a family that has a range, or
+  takes sigest's stand-in or floor under a zero weight; no hazard or `xbart` test passes a weight of 0.
 
 Gates that can fail.
 - (ran) [`zeroWeightArm`](../../benchmarks/R/bd-balance.R) creates with every row and so proves nothing
   here. With the weights given at creation and the zeroed cells' response 3 higher, about 1 second in
   `quick`: the tip matches the oracle whose range is over every row (largest abs z 1.4) and misses the
   rows-in oracle by up to 106.6, at the (none) partition; (stands) the prototype matches the rows-in
-  oracle (2.1) and misses the other by 40.1. bd-balance.R holds three arms already, `zeroWeightArm`,
-  `narrowArm` and `constMissingArm`, behind one `stopifnot` (read).
+  oracle (2.1) and misses the other by 40.1. bd-balance.R holds four arms, `zeroWeightArm`,
+  `narrowArm`, `constMissingArm` and `weightedArm`, behind one `stopifnot` (read).
 - (ran) A count twin, from the fixed-shape arm of negbin-exact.R: 4 rows in of 25 a cell, the rows out 30
   higher, left out by 0/1 weights at creation, the oracle's likelihood over the rows in and its center
   over every row (3.334) or the rows in (1.056). 2 seconds for two seeds. Tip: gap 0.012 to the every-row
-  oracle, 0.493 to the rows-in one, tolerance 0.12. Prototype: 0.484 and 0.003.
+  oracle, 0.493 to the rows-in one, tolerance 0.12. (stands) Prototype: 0.484 and 0.003.
 
 Released behavior. (read) 0.9-34 took the range over every row, at creation and at
 `setOffset(updateScale = TRUE)`, and had no `updateScale` on `setResponse`; (stands) on its build two
@@ -228,8 +233,8 @@ release, and neither did dbarts.h: 0.9-34's C interface was the R_C_interface.hp
        dbarts(y ~ x, d, weights = w)    # range of (y - offset)[w > 0]; unit sd((y - offset)[w > 0])
 
 2. Held. No later call moves them unless it carries `updateScale = TRUE` (as today), and none of
-   `setWeights`, `setActiveRows`, `setState`, a copy, a reload or a warm start does. No argument is added
-   in this slice.
+   `setWeights`, `setActiveRows`, `setState` in either form, a copy, a reload or a warm start does. No
+   argument is added in this slice.
 3. Re-derived. `updateScale = TRUE` on `setResponse` and `setOffset` reads the rows in at that call.
    `setData` replaces the data and derives as creation does, rules 1 and 4, its warning included.
    Several forests still refuse `updateScale = TRUE` (dec-B362).
@@ -237,7 +242,8 @@ release, and neither did dbarts.h: 0.9-34's C interface was the R_C_interface.hp
    one in; several in at one value):
    - At creation and at `setData`, each number is taken over every row, as if no weight or mask had
      been given, sigest included where one is estimated (dec-B302, dec-B309). One warning, of its own
-     class, and the sigma fallback's warning is not raised for that cause:
+     class; the starting sigma records no stand-in for that cause (no `dbartsSigmaFallback`, no
+     `sigest.fallback`, no verbose line of it), its estimate being the regression on every row:
 
          fewer than two distinct values of the response are in the likelihood (<m> of <n> observations are in it), so the response's scale and the prior's center are taken from all <n>
 
@@ -254,11 +260,13 @@ release, and neither did dbarts.h: 0.9-34's C interface was the R_C_interface.hp
    creation and at a re-derivation, with no warning of this class and no kept status, so dec-B364 and
    dec-B386 never apply to the same call.
 5. Nothing out, nothing changed. With every row in, every number above has the bits it has today.
-6. sigest stays `lm`'s weighted estimate over the rows in and is re-estimated by no call (dec-B314). Its
-   fallback sd and its floor read the rows in, on each of its paths: the dense linear fit and the sparse
-   routine sparse-starting-sigma leaves. Under a fixed residual prior no estimate is made (that plan's
-   Change 4), and nothing here applies.
-7. `xbart`: each fold's range and sigma follow 1, 4 and 6 over the fold's training rows.
+6. sigest stays the weighted regression over the rows in and is re-estimated by no call (dec-B314).
+   Where that regression leaves no residual degrees of freedom, the sd that stands in for it (dec-B433)
+   reads the rows in, unweighted, and so does the floor, by the dense and the sparse routine alike; that
+   stand-in is announced as it is today (dec-B429). Nothing here applies under a fixed residual sd
+   (dec-B439) or beside a supplied number, where no estimate is made.
+7. `xbart`: each fold's range and sigma follow 1, 4 and 6 over the fold's training rows. A function
+   given as `sigest` is handed the fold's weights as today and nothing here touches it.
 8. Hazard periods. A hazard fit's default periods, and under `breaks = K` its quantiles, are read from
    the times of the subjects in the likelihood when it is created (weight positive, after `subset` and
    the na.action); stated boundaries are as they were, still checked against every subject's time. A
@@ -285,10 +293,11 @@ release, and neither did dbarts.h: 0.9-34's C interface was the R_C_interface.hp
   never on served precision. The sampler makes it from chain 0's response model, by the same read routine
   the model's own `rescale` uses; the unit follows the response model's answer, and the bridge and R read
   the status, none of them testing the rows again. At creation and `setData` R also tests rule 4, for
-  sigest and the creation warning, as before; step 8's literals hold the two in agreement.
+  sigest and the creation warning; step 8's literals hold the two in agreement.
 - dbarts.h keeps every signature. It gains one enumerator list, folded into the token, so
   `DBARTS_C_API_HASH` moves; `DBARTS_C_API_MINOR` stays 0 (dec-B424); the comments of the two
-  re-anchoring entries and the contract paragraph on capability statuses change (item 6). An ABI event: every LinkingTo consumer is rebuilt in lockstep.
+  re-anchoring entries and the contract paragraph on capability statuses change (item 6). An ABI event:
+  the lockstep consumers' CI rebuilds against it.
 - No state format change and no new record: the range is the model's `response.range`, the unit the
   forests' `anchor`, sigest the data object's, the periods the fit's `$periods`, as now. A re-creation
   restates the record and derives nothing.
@@ -318,7 +327,8 @@ rest.
    model the read against the incoming vector, once (through a one-line forward on `Chain`); on a keep
    they call every chain with `updateScale` false and skip `recordAnchor`, and return `scaleKept`;
    otherwise they run as today and return `accepted`. Chains cannot disagree, since one answer drives
-   them all; no chain, response model or tail gains a branch. Under per-chain responses
+   them all; no chain, response model or tail gains a branch, and on a keep no named sd is restated,
+   the arm that does it not being entered. Under per-chain responses
    ([5. Recommendation](../design/per-chain-responses.md#5-recommendation)) the pooled answer is that
    design's to state. [`SamplerBase`](../../src/bartcore/facade.hpp)'s two virtuals return the status and
    [`SamplerFacade`](../../src/bartcore/facade.hpp) forwards it.
@@ -353,12 +363,10 @@ rest.
    property, "test it once at setup rather than every sweep") gains that the two swap entries' 2 is a
    per-call outcome and not a capability. "All three ABI enums" becomes four in the header and in the
    fold's comment ([`dbarts_apiToken`](../../src/C_interface.cpp)); `DBARTS_C_API_HASH` is re-baked.
-7. The version (dec-B424; the critique's S5). Shown the hash alone against a bump of
-   `DBARTS_C_API_MINOR` to 1, the maintainer: "Hash only, we're still pre-release." The pair stays 1/0,
-   test-capi.R's version pins and the header's version paragraph stay; one stan4bart build serves both
-   libraries of the A/B gate (against the base library it passes the handshake and reads only 1); a
-   rebuilt stan4bart run against an older development build of dbarts never sees a 2, which costs it the
-   warning only. A consumer that wants exactness defines `DBARTS_REQUIRE_EXACT_ABI` as today.
+7. The version (dec-B424): "Hash only, we're still pre-release." The pair stays 1/0 and test-capi.R's
+   version pins and the header's version paragraph stay. A consumer built against the old header loads
+   and runs against the new library; one built against the new header and run against an older
+   development build never sees a 2.
 8. The C API test. [consumer.c](../../inst/tinytest/capi/consumer.c) exports the three constants;
    [test-capi.R](../../inst/tinytest/test-capi.R): the constants are 0, 1, 2; the hash its new literal;
    the version pins unchanged (item 7). A gaussian sampler with three rows in at one value, the rest at
@@ -367,47 +375,49 @@ rest.
    `$setOffset(updateScale = TRUE)` on the same sampler warns once (the flat call left the flag), and a
    second call none. Two rows in at two values: 1 and the rows-in transform. `updateScale` false: 1.
    Every row in at a constant response: 1. nbinom under a mask keeping one count: 2. probit: 1. The
-   stale-minor and wrong-hash handshake arms as they are; item 10's stale stan4bart binary is the proof
-   that an old consumer runs.
-9. stan4bart's part, in lockstep on its bartcore branch, after dec-B419's per-chain restore lands there.
-   What it does with the value:
-   - At each call with `updateScale` true (src/init.cpp: the call after creation and the warm-up loop's
-     scheduled calls), compare the return with `DBARTS_SWAP_SCALE_KEPT` and count the calls and the
-     keeps on its sampler struct. Both counts leave the worker through its two `.Call` entries (create,
-     for the call after creation, and run), since a warning raised inside a PSOCK worker does not reach
-     the user reliably; the parent, after the chains return, raises one warning per fit when any chain
-     kept: "the BART component's response scale was kept at <k> of <r> re-derivations in <c> of <C>
-     chains: fewer than two distinct values of the response less the offset are in the likelihood".
-     Whether it warns or only records is stan4bart's call (dec-B405, "stan4bart deciding what its users
-     see"); the plan recommends the warning, since dbarts's R methods warn for the same event.
-   - When it fires (read; the critique ran it). stan4bart's weights are fixed for a fit and its gaussian
-     fits take no mask, so a keep needs the rows in to share one response value and one parametric
-     mean: one group and one covariate pattern, its parametric mean having no intercept. Then every
-     response less offset among the rows in is equal at the call after creation (`bart_offset_init`,
-     the `lmer` fit, constant in the group) and at every scheduled call (the offset b_g). Creation warns
-     too, `data.bart` carrying no offset, so dbarts's creation warning and stan4bart's come as a pair.
-     One row in is not the case: stan4bart stops on it ("sigma_init is NaN").
-   - The test: `y ~ bart(x) + (1 | g)`, three rows in at y = 2 in one group, every other row at weight 0
-     (this fit runs today, ran), warm-up 10, two chains on one core: dbarts's creation warning and
-     stan4bart's one warning, each pinned by class or pattern; the rows in at two values: neither. One
-     core does not run the PSOCK path; the code is the same either way.
-   - Size: C++ ~25 (two read sites, the two counts, their way out through two entries), R ~15, the test
-     ~35: ~75 lines, and the rebuild against the new header.
-   - Either way of the open dependency ([Open items](#open-items)). If stan4bart stops re-deriving
-     during warm-up, the loop's read site goes and the call after creation is the only one: the same
-     counts and warning, worded for that call, ~55 lines. If it also stops calling with `updateScale`
-     true after creation (its sampler created at the initial fit less its intercept), nothing asks to
-     re-derive: its part is the rebuild against the new header, with no read, and dbarts's creation
-     warning is its only message. Nothing on dbarts's side depends on how often stan4bart asks.
-   - treatSens and bartCause change no source: treatSens's probit `setOffset` and its gaussian
-     outcome sampler's `setResponse`, created with no weights and no mask, always answer 1, and bartCause
-     makes no flat call. Their lockstep CI rebuilds against the new hash.
+   stale-minor and wrong-hash handshake arms, and the arm that drives the flat `setOffset` under a named
+   sd, as they are.
+9. stan4bart's part. stan4bart-creation-mapping (dec-B437) lands on stan4bart's bartcore branch first,
+   as its [Against response-scale-rows](stan4bart-creation-mapping.md#against-response-scale-rows)
+   recommends; this part is one commit on top of it, pushed with this slice's header commit. After that
+   slice stan4bart never asks dbarts to re-derive during a run and installs its own range (Context,
+   Consumers). So:
+   - Nothing of stan4bart's reads the new value: no flat call of its own can return 2. The read sites,
+     the counts and the per-fit warning this item once planned are gone, and dec-B405's "stan4bart's
+     branch reads it" has nothing left to read under dec-B437. The value serves treatSens's kind of
+     caller, which re-derives every sweep.
+   - The install under rule 3. With two or more rows of positive weight the made-up response holds both
+     ends of the range on rows in, so the install is exact under this slice as on the tip ((ran) on the
+     tip: it lands with the first 100 rows at weight 0, with two rows of positive weight and with one).
+     (ran, emulated) Twenty samplers built by hand under zero weights and given one range this way drew
+     15 sweeps bit for bit the same whatever range their creation had derived, which is why item 10
+     expects no stan4bart draw to move, zero weights or not.
+   - One row of positive weight. The rows in then hold one made-up value beside rows out: rule 4's keep,
+     the R method's warning inside a worker, and a range that did not land, which stan4bart's read-back
+     turns into "internal error: the BART response range was not installed". That plan expects this of
+     slice C; it arrives here, where dec-B364 is built for `setResponse`. Only a supplied `bart_range`
+     reaches the install with one such row (an estimated range has no width there and nothing is
+     installed: read, its plan), and under dec-B445 a supplied pair is the range. The change, in stan4bart's
+     install: where fewer than two of the sampler's weights are positive it sets the weights to 1 for
+     its two `setResponse` calls and then puts them back, rule 2 holding the range across both
+     `setWeights`. (ran) On the tip, ten samplers with one row of positive weight: the range lands, the
+     weights are back, and 10 sweeps are the plain install's bit for bit. So nothing a stan4bart user
+     sees changes.
+   - The test, in stan4bart, on its install: a sampler with one row of positive weight takes the range
+     exactly, holds its own weights afterwards, and the install raises no warning. R ~8 lines, the test
+     ~15; this plan's records amend that plan's sentence on slice C.
+   - Had this slice come first, the stan4bart before that slice would move its zero-weight fits here
+     and again there, and its restore, by a response alternating the two ends, would hold one value
+     among the rows in wherever the weights are zero on every second row: a keep, and dbarts's warning
+     the only sign. Hence the stop in [Budget and stops](#budget-and-stops).
+   - treatSens and bartCause change no source: treatSens's probit `setOffset` and its gaussian outcome
+     sampler's `setResponse`, created with no weights and no mask, always answer 1, and bartCause makes
+     no flat call. Their lockstep CI rebuilds against the new hash.
 10. Gates of this part: tests/cpp (step 4); the C API test; step 8's keep arm through the R methods;
-    stan4bart's suite and its new test against the slice's library; one seeded stan4bart gaussian fit
-    with zero weights on the base and slice libraries, differing, beside one without, identical (one
-    stan4bart build serves both, item 7); and once, reported, a stan4bart
-    binary built against the base header run against the slice's library, which must pass the handshake
-    and fit (it ignores the return).
+    stan4bart's suite and its new test against the slice's library; one seeded continuous stan4bart
+    fit with zero weights and one without, each on the base and the slice libraries with one stan4bart
+    build, both pairs identical; and once, reported, a stan4bart built against the base header loaded
+    and fitted against the slice's library.
 
 ## Steps
 
@@ -455,13 +465,13 @@ rest.
 4. The keep's status, engine to C API, as [The keep's status (dec-B405)](#the-keeps-status-dec-b405)
    items 2 to 8: the sampler's decision and its status, the facade, the bridge's logical and holder flag,
    the R warning, the flat entries' values, the header's list and comments and the token's fold, and the
-   version left at 1/0 (item 7). `--preclean`. tests/cpp, two
-   chains: re-derived with a row out and none in, one in, four in at one value, through `setResponse` and
-   `setOffset`: `scaleKept`, and the transform, the working response and 20 sweeps of both chains bit for
-   bit an `updateScale`-false twin's, `getAnchor` unchanged (fails today: every row); the same under a
-   variance forest, with kept draws of constant leaves (gp leaves holding saved draws refuse the call),
-   and with a named sd; rows in at two values: `accepted` and the rows-in transform; every row in at a
-   constant response: dec-B386's window and `accepted`; the facade forwards the status
+   version left at 1/0 (item 7). `--preclean`. tests/cpp, two chains: re-derived with a row out and none
+   in, one in, four in at one value, through `setResponse` and `setOffset`: `scaleKept`, and the
+   transform, the working response and 20 sweeps of both chains bit for bit an `updateScale`-false
+   twin's, `getAnchor` unchanged (fails today: every row); the same under a variance forest, with kept
+   draws of constant leaves (gp leaves holding saved draws refuse the call), and with a named sd, which
+   the keep leaves where it was; rows in at two values: `accepted` and the rows-in transform; every row
+   in at a constant response: dec-B386's window and `accepted`; the facade forwards the status
    ([`SpySampler`](../../tests/cpp/test_facade.cpp) takes the new return type). The C API test as item 8.
 5. R, the rows and the warnings. One function in [spec.R](../../R/spec.R) answers rule 4 for a data
    object and a mask and raises the creation warning, for the families that take something from the
@@ -469,31 +479,35 @@ rest.
    [`resolveSamplerSpec`](../../R/spec.R), after [`enforceWeightPolicy`](../../R/spec.R) (so `dbartsSpec`
    and every door that resolves a spec, stan4bart's included);
    [`bartcoreSamplerSetData`](../../R/bartcore.R), for `setData`; and [`xbart`](../../R/xbart.R), once,
-   after its own `enforceWeightPolicy` call and before the starting-sigma estimate whose warning chooses
-   `sigmaPerFold`. It is not called at a re-derivation: there the engine's status answers (step 4).
-   - sigest, written against sparse-starting-sigma's routine.
-     [`estimateSigmaFromLinearModel`](../../R/utility.R), in rule 4's case, fits without the weights on
-     the dense path and through the sparse routine; otherwise both keep the weights, which drops the rows
-     out, and [`floorSigmaEstimate`](../../R/utility.R)'s fallback and
-     [`floorMarginalSigma`](../../R/utility.R) read the rows in. The fallback's warning is not raised for
-     rule 4's cause.
-   - `xbart`. In rule 4's case the all-rows estimate is the unweighted fit, which raises no fallback
-     warning, so `sigmaPerFold` is "linear". Each fold tests rule 4 over its training rows with no
-     warning: in its case the fold's fit is unweighted; otherwise the weighted fit, and the fallback and
-     the floor over the training rows in. So `xbart` warns once and a fold falls back in silence.
+   after its own `enforceWeightPolicy` call and before the all-rows estimate that fixes `sigmaPerFold`.
+   It is not called at a re-derivation: there the engine's status answers (step 4).
+   - sigest. In rule 4's case [`estimateStartingSigma`](../../R/spec.R) is handed a copy of the data
+     without its weights, so the regression, the row count its verbose lines print, the stand-in and
+     the floor all read every row, and a `dbartsSigmaFallback` is signaled only if that regression too
+     leaves no residual degrees of freedom. Otherwise the regression keeps the weights, which drops the
+     rows out as today, and [`estimateSigmaFromLinearModel`](../../R/utility.R) hands
+     [`floorSigmaEstimate`](../../R/utility.R) and [`floorMarginalSigma`](../../R/utility.R) the
+     residual of the rows of positive weight, by either routine. With no weight the vector they are
+     handed is the one they are handed today (rule 5).
+   - `xbart`. In rule 4's case the all-rows estimate is the regression without the weights, so
+     `sigmaPerFold` is that regression's routine unless every row too leaves it nothing. Each fold tests
+     rule 4 over its training rows with no warning ([`xbartRunUnits`](../../R/xbart.R)): in its case the
+     fold's regression is unweighted; otherwise weighted, its stand-in and its floor over the training
+     rows in. So `xbart` warns once and a fold falls back in silence; the verbose count of units that
+     started from the response's sd counts as it does today.
 6. R, creation under a mask. Of the families whose 0/1 weights become the mask
    ([`isMaskedWeightFamily`](../../R/spec.R)) only nbinom takes anything from the response. For it,
    where rule 4's case does not hold, [`dbarts`](../../R/dbarts.R) and
    [`bartcoreSamplerSetData`](../../R/bartcore.R) follow their install of the mask with the sampler's own
    `setOffset(offset in force, updateScale = TRUE, updateState = FALSE)`, before the sampler is handed
-   back: it draws nothing and records the range; a named sd is retranslated by the engine at that call
-   (the k-internal slice; no R write-back remains). In rule 4's case the follow-up is skipped and the
-   every-row center of creation stands, under step 5's warning, so no keep can arise there. A sampler
-   built by hand from [`dbartsSpec`](../../R/spec.R) and `new("dbartsSampler", ...)` that installs
-   `spec$active` itself is created with every row in and, for a count fit, keeps the every-row center;
-   in this slice its help says so and gives no call. The documented call,
-   `setActiveRows(spec$active, updateScale = TRUE)` with its loop form, comes with slice C, which builds
-   it (dec-B363); the `setOffset` route is not documented.
+   back: it draws nothing ((ran) nbinom twins, one given the call with every row in, draw alike, under a
+   named sd too) and records the range; a named sd is restated by the engine at that call (read). In
+   rule 4's case the follow-up is skipped and the every-row center of creation stands, under step 5's
+   warning, so no keep can arise there. A sampler built by hand from [`dbartsSpec`](../../R/spec.R) and
+   `new("dbartsSampler", ...)` that installs `spec$active` itself is created with every row in and, for
+   a count fit, keeps the every-row center; in this slice its help says so and gives no call. The
+   documented call, `setActiveRows(spec$active, updateScale = TRUE)` with its loop form, comes with
+   slice C, which builds it (dec-B363); the `setOffset` route is not documented.
 7. R, the hazard periods. [`expandDiscreteTimeHazard`](../../R/dbarts.R)'s two callers in
    [`dbarts`](../../R/dbarts.R), the direct response and the formula's, pass as `gridTime` the times of
    the subjects kept by the na.action whose weight is positive, all of them where no weight is given or
@@ -501,7 +515,9 @@ rest.
    takes the default grid and the `breaks = K` quantiles from it unchanged; stated boundaries keep their
    check over every subject. A subject whose time is past the last period is expanded to every period
    with a response of 0. Nothing in the engine.
-8. tinytest, a new file test-response-scale-rows.R, fixtures with the rows out extreme in the response:
+8. tinytest, a new file test-response-scale-rows.R, fixtures with the rows out extreme in the response
+   and no missing value in any predictor (an install then draws no direction, so states compare bit for
+   bit):
    - Inert. Two fits that differ only in the response of the rows out at creation are `identical()` at
      the rows in and within 1e-12 at the rows out, in draws, sigma and every reader: gaussian, a fixed
      sigma, Student-t, a variance forest, linear and gp leaves (covariates equal across the pair), a
@@ -509,10 +525,10 @@ rest.
      `xbart` once each. Fails today on every arm.
    - Literals, with 0/1 weights. `response.shift`, `response.scale`, `k.scale`, `prior.mean`, the
      forests' `anchor` and sigest equal values written from the rows in, and equal the `subset` fit's.
-     `k.scale` is the data's scale over the rows in under the k and the sd spelling alike (the k-internal
-     slice), and an sd-spelled fit's k is `k.scale` over the named sd. With fractional weights in, sigest
-     is the weighted fit and the `subset` fit's is not, so that arm asserts the range, the center and the
-     unit only.
+     `k.scale` is the data's scale over the rows in under the k and the sd spelling alike, and an
+     sd-spelled fit's k is `k.scale` over the named sd. With fractional weights in, sigest is the
+     weighted fit and the `subset` fit's is not, so that arm asserts the range, the center and the unit
+     only.
    - Held. The readers are unchanged across `setWeights`, `setActiveRows`, a copy and a reload, read from
      the engine (`getLeafPrior`) and not from the record alone; five sweeps after a copy agree with the
      original's to 1e-10.
@@ -528,16 +544,21 @@ rest.
      engine. The flat entries' side is in the C API test (step 4).
    - Rule 4 at creation. Every weight 0; a mask of zeros (nbinom); one row in; rows in at one value:
      created, exactly one warning of the new class, counted with `withCallingHandlers`, its text as above
-     with m and n; the readers and sigest equal those of the fit with no weights; no warning where every
-     row is in and the response is constant; none for probit under a mask of zeros. Under fractional
-     weights with a zero among them the data object's validity warning is raised as well, as today, and
-     pinned by its own pattern exactly where it fires. `setData` to such rows: every row, the same one
-     warning. `dbartsSpec` with one row in: the one warning, from the spec.
-   - sigest: three rows in and two predictors gives the sd of the rows in with the existing fallback
-     warning; the floor reads the rows in. Sparse: a caller's `dgCMatrix` x and an indicator expansion
-     (`factors = "indicators"`) under the fixture give the dense design's sigest over the rows in; with
-     three rows in, the fallback over the rows in and its one warning; in rule 4's case both give the
-     unweighted fit over every row and the one new warning.
+     with m and n; the readers and sigest equal those of the fit with no weights; no
+     `dbartsSigmaFallback` is signaled, a `bart` fit has no `sigest.fallback`, and a verbose fit's
+     estimating line counts every row; no warning where every row is in and the response is constant;
+     none for probit under a mask of zeros. Under fractional weights with a zero among them the data
+     object's validity warning is raised as well, as today, and pinned by its own pattern exactly where
+     it fires. `setData` to such rows: every row, the same one warning. `dbartsSpec` with one row in:
+     the one warning, from the spec.
+   - sigest. Three rows in and two predictors: the sd of the rows in (fails today: every row's), no
+     warning, one `dbartsSigmaFallback`, `sigest.fallback` TRUE on a `bart` fit, the verbose line naming
+     3 rows; a response the predictors fit exactly among the rows in: the floor from the largest
+     response less offset among them. The same under `sigest = "dense"` and `"sparse"`, for a caller's
+     `dgCMatrix` x and for an indicator expansion (`factors = "indicators"`). With rows out and residual
+     degrees of freedom left, both routines give the dense design's sigest over the rows in, as today (a
+     pin). A fixed residual sd and a supplied number: the slot holds them, with rows out and in rule 4's
+     case.
    - `xbart` with 60 rows in at one value: one warning of the new class, none per fold, and each fold's
      sigma the unweighted fit over its training rows.
    - Creation routes for a count fit: `dbarts` with 0/1 weights and `setData` with 0/1 weights give the
@@ -552,30 +573,41 @@ rest.
      warning of the new class, its text. `hazard.logistic` still refuses a zero weight.
    - A mask over w against weights w * a: equal when both samplers are created under w, two fits when
      not (the readers differ), stated as such.
-   - A state across row sets: a single-forest, a gp and a two-forest state from a sampler created under
-     other zero weights install as stored on the internal scale (dec-B418), with no conversion and no
-     refusal; the recipient's range is unmoved and its internal leaves are the donor's bit for bit. Its
-     report is whatever setstate-force-update landed; a cross-mapping install is clean (read: the
-     k-internal plan).
+   - A state across row sets. A single-forest, a gp and a two-forest state from a sampler created under
+     other zero weights, whose range therefore differs, installs as stored (dec-B418): `setState(state)`
+     returns TRUE and `setState(state, forceUpdate = TRUE)` NULL, with no warning; the recipient's range
+     and `getLeafPrior` are unmoved; its stored forests are the donor's bit for bit, a gp forest's
+     compared by `tree.params` and structure. (ran) On the tip, across two ranges, all of this holds; a
+     gp forest's `tree.values` differ after any install, a sampler's own state included.
 9. Restated pins. In test-active-rows-pins.R the two-forest pin creates both samplers under w and masks
    or reweights after; the gaussian and Student-t pins above it get the same repair, since they pass only
    while the fixture's extremes are on rows in. The comments
    ["The log-mean shift is the full-data one by design"](../../inst/tinytest/test-active-rows-pins.R) and
    ["the response transform is the FULL-data one by design"](../../inst/tinytest/test-active-rows-pins.R)
-   say "creation's, every row then being in".
-10. Exact gates. bd-balance.R gains a fourth arm beside [`zeroWeightArm`](../../benchmarks/R/bd-balance.R),
-    `narrowArm` and `constMissingArm`: the weights at creation, the zeroed cells' response 3 higher, the
-    oracle's range over the rows in; its `stopifnot` over the arms takes the fourth. negbin-exact.R gains
-    a third arm beside its fixed-shape one, as measured in Context, with the oracle's center
-    ([`shiftOf`](../../benchmarks/R/negbin-exact.R)) over the rows in.
-    [exact-gates.yaml](../../.github/workflows/exact-gates.yaml) runs the bd-balance arm in its
-    `for arm in narrow constmissing` loop, whose comment widens; the negbin arm runs inside its script.
-    About 3 seconds more in `quick`. benchmarks/README.md names both.
-11. The baseline. `zeroweights` is recorded fresh on a reference build at the slice's newest code commit
-    and the other 54 scenarios are carried from the main corpus's current file at the slice's base after
-    they compare bitwise; the [MANIFEST](../../benchmarks/baselines/MANIFEST) row says so in its
-    predecessors' form and names the oracle (step 12's pair script, rows 3 and 4). The workflows that
-    pin the file's name follow.
+   say "creation's, every row then being in". Another existing test that fails is first looked for
+   among the ten files Context names.
+10. Exact gates. bd-balance.R gains a fifth arm beside [`zeroWeightArm`](../../benchmarks/R/bd-balance.R),
+    `narrowArm`, `constMissingArm` and `weightedArm`: the weights at creation, the zeroed cells' response
+    3 higher, the oracle's range over the rows in; its `stopifnot` over the arms takes the fifth.
+    negbin-exact.R gains a third arm beside its fixed-shape one, as measured in Context, with the
+    oracle's center ([`shiftOf`](../../benchmarks/R/negbin-exact.R)) over the rows in.
+    [exact-gates.yaml](../../.github/workflows/exact-gates.yaml) runs the bd-balance arm beside its
+    `zeroweight` one; the negbin arm runs inside its script. About 3 seconds more in `quick`.
+    benchmarks/README.md names both.
+11. The baseline, in its own commit after review, as d820097c did it. `zeroweights` is recorded fresh on
+    a `--preclean` reference install at the slice's newest package-code commit, which names the file,
+    and merged into a copy of `equivalence-2b48939b.rds` in its scenario order; the other 54 are
+    carried, being bitwise identical in the partition and identical objects in the two files; a
+    `--bitwise --strict-coverage` compare from a second `--preclean` reference install reproduces all
+    55. The [MANIFEST](../../benchmarks/baselines/MANIFEST) row is in its predecessor's form: the class
+    (posterior-changing: the range of a fit created with a zero weight) and its rulings; the partition
+    against 2b48939b with its counts (54 of 55 identical, 55 compared, 0 skipped) and `zeroweights`'s
+    number of summaries and max abs z, which size the move; the two-forest and multinomial files 15 of
+    15 and 11 of 11 and keeping their recordings; the snapshot files; the oracle (P17), step 12's row 3
+    run on the scenario's own data, where the slice's draws are bitwise the base build's given the 80
+    out rows' responses moved inside [1.6243, 25.2117]; the exact gates' count; the build mode and where
+    it was recorded; 2b48939b demoted to historical. The file's name is repinned where d820097c
+    repinned it: cpp-tests.yaml, equivalence.yaml, mutation-battery.R and feature-matrix.md.
 12. The pair script, benchmarks/R, run on the base and the slice builds with the same seeds, 20 sweeps:
     1. no row out, each family and composition (hazard included), weights all positive, a mask after
        creation, `updateScale = TRUE` with no row out, `xbart`: `identical()`;
@@ -594,52 +626,66 @@ rest.
     response's scale, the count center or a forest's default sd, that it stays in the design and the fit
     is close to the fit on the remaining rows without being it, that the step is at 0 and not at a small
     weight, and that a mask or weights set after creation leave the numbers creation set, so the three
-    ways to leave a row out differ by when it left; the nbinom paragraph names the rows of c; the hazard
-    paragraphs of both and of [dbartsFamilies.Rd](../../man/dbartsFamilies.Rd)
+    ways to leave a row out differ by when it left; the `sigest` item of the pages that take it says
+    the response's sd that stands in for the regression is over the observations of positive weight;
+    the nbinom paragraph names the rows of c; the hazard paragraphs of both and of
+    [dbartsFamilies.Rd](../../man/dbartsFamilies.Rd)
     (["sorted distinct observed times"](../../man/bart.Rd)) say the subjects in the likelihood;
-    [dbartsSampler-class.Rd](../../man/dbartsSampler-class.Rd): the response item
-    (["which reads every row"](../../man/dbartsSampler-class.Rd) becomes the rows in), the weights item,
-    the `active` item (["stay the FULL-data calibration"](../../man/dbartsSampler-class.Rd) becomes
-    creation's), `updateScale` with the keep and its once-per-sampler warning, and that `setData` and a
-    sampler made by hand from another's parts derive again; [dbartsSpec.Rd](../../man/dbartsSpec.Rd), the
-    `active` value: a count sampler made by hand keeps the every-row center in this slice; xbart.Rd,
-    `weights`. dbarts.h: the two entries' comments, the new list and the version paragraph (step 4).
+    bart.Rd's paragraph of warning classes (["Warning classes."](../../man/bart.Rd)) gains
+    `dbartsScaleFallbackWarning`; [dbartsSampler-class.Rd](../../man/dbartsSampler-class.Rd): the
+    response item (["which reads every row"](../../man/dbartsSampler-class.Rd) becomes the rows in),
+    the weights item, the `active` item
+    (["stay the FULL-data calibration"](../../man/dbartsSampler-class.Rd) becomes creation's),
+    `updateScale` with the keep and its once-per-sampler warning, and that `setData` and a sampler made
+    by hand from another's parts derive again; [dbartsSpec.Rd](../../man/dbartsSpec.Rd), the `active`
+    value: a count sampler made by hand keeps the every-row center in this slice; xbart.Rd, `weights`.
+    dbarts.h: the two entries' comments, the new list and the contract paragraph (step 4).
     NEWS, user-visible changes, one item: "An observation of weight zero no longer takes part in the
     response's scale, which the leaf prior is stated against, so a fit with zero weights has the leaf
     prior of the fit on the remaining rows; 0.9-34 took the scale over every row. The observation is
-    still in the design." The keep, its status, the flat entries' value and the hazard periods reached no
-    release and take no item. A design note, docs/design/response-scale-rows.md, with its index row: the
-    rule, the inventory, the measurements, the named-sd case (a prior centered at 52 where the rows in sit
-    near 2), why membership and not weight, the keep and how its status travels (engine, R, flat
-    entries), the hazard grid, the four slices. [active-rows-mask.md](../design/active-rows-mask.md),
+    still in the design." The keep, its status, the flat entries' value, the stand-in sd and the hazard
+    periods reached no release and take no item. A design note, docs/design/response-scale-rows.md,
+    with its index row: the rule, the inventory, the measurements, the named-sd case (a prior centered
+    at 52 where the rows in sit near 2), why membership and not weight, the keep and how its status
+    travels (engine, R, flat entries), the hazard grid, the four slices.
+    [active-rows-mask.md](../design/active-rows-mask.md),
     [negative-binomial.md](../design/negative-binomial.md), [nbinom-log-mean.md](nbinom-log-mean.md) and
     [survival.md](../design/survival.md) take a dated amendment where they say "full-data", "all rows" or
-    the hazard grid's source. TODO: the `response-scale-rows` entry is cut to slices C and D;
-    `hazard-periods-rows-in` is removed. The ledger entry for the calls made. The landing note here.
+    the hazard grid's source; [error-style.md](../design/error-style.md)'s list of warning classes takes
+    the new one; [stan4bart-creation-mapping.md](stan4bart-creation-mapping.md)'s sentence on slice C
+    names this slice and the lifted weights. TODO: the `response-scale-rows` entry is cut to slices C and D;
+    `hazard-periods-rows-in` is removed; `starting-sigma-fallback-zero-weights` is cut to its open half,
+    whether the stand-in sd should be weighted. The ledger entry for the calls made. The landing note
+    here.
 
 ## Verification
 
 - `R CMD INSTALL --preclean` into the slice's own library; tests/cpp builds and passes, clean under ASan
-  and UBSan; the full tinytest suite, expected clean after step 9 (2 failures without it); the new file
-  and test-capi.R under ASan on the R-loaded path.
+  and UBSan; the full tinytest suite, expected clean after step 9 (the two-forest pin's 2 failures
+  without it); the new file and test-capi.R under ASan on the R-loaded path; tests/cpp plain and under
+  the address, undefined-behavior and leak sanitizers and tinytest once on x86-64 Linux, as the recent
+  engine landings ran them.
 - On a reference build, the three compares, counted per scenario with no `max |z|` line but the one
   named:
-  - main corpus against its current file at the slice's base: 54 identical; `zeroweights` differs and is
-    the only one. Its statistical verdict against that file is reported, not gated: the posterior
-    changed (the re-ported prototype's was max abs z 2.85). Then all 55 identical against the new file.
-  - two-forest corpus against its current file (`bcf-equivalence-1b7d730c.rds` on bartcore; the
-    k-internal slice expects no move): 15 of 15 identical. Fewer is rule 5 broken in the unit's loop.
-  - multinomial corpus against `multinomial-equivalence-80b1c8d4.rds` or its successor: 11 of 11
-    identical.
-  - the four `test-reproducibility-*.R` files pass unchanged; none is regenerated.
-- Every gate of [exact-gates.yaml](../../.github/workflows/exact-gates.yaml) in `quick`, unchanged, and
-  the two new arms. Each new arm is also run once on the base build, where it must FAIL (measured: by
-  106.6 standard errors and by 0.49 against 0.12), and that run is reported.
+  - main corpus against `equivalence-2b48939b.rds`: 54 identical; `zeroweights` differs and is the only
+    one, being the one scenario created with a row out and its smallest response on such a row
+    (Context). Its statistical verdict against that file is reported, not gated: the posterior changed
+    (the re-ported prototype's was max abs z 2.85). Then all 55 identical against the new file.
+  - two-forest corpus against `bcf-equivalence-1b7d730c.rds`: 15 of 15 identical; its weighted scenarios
+    pass positive weights and its mask goes in after creation (read). Fewer is rule 5 broken in the
+    unit's loop.
+  - multinomial corpus against `multinomial-equivalence-80b1c8d4.rds`: 11 of 11 identical; the family
+    takes nothing from the response and no weight.
+  - the four `test-reproducibility-*.R` files pass unchanged, 27 results; none is regenerated. Their
+    weights are 1 and 2, and they install no mask and re-derive nothing (read).
+- Every gate of [exact-gates.yaml](../../.github/workflows/exact-gates.yaml) in `quick`, unchanged (41
+  runs at the current baseline's recording; each that leaves a row out does so after creation, read),
+  and the two new arms. Each new arm is also run once on the base build, where it must FAIL (measured:
+  by 106.6 standard errors and by 0.49 against 0.12), and that run is reported.
 - The pair script: rows 1 to 4 `identical()`, row 5 differing.
-- The C API test passes on the slice's library; it fails on the base library (the constants list, the
-  hash, the version under the bump, and 1 where 2 is expected).
-- stan4bart: item 10 of [The keep's status (dec-B405)](#the-keeps-status-dec-b405), its A/B fit on one
-  stan4bart build under the hash alone and on two under the bump.
+- The C API test passes on the slice's library; it fails on the base library (the constants, the hash,
+  and 1 where 2 is expected).
+- stan4bart: item 10 of [The keep's status (dec-B405)](#the-keeps-status-dec-b405).
 - Mutations, each to fail the named check:
   - the range over every row: step 8 "Inert" and "Literals"; the bd-balance arm;
   - the center ignoring the mask: step 2's literal; step 8's nbinom arm; the negbin arm;
@@ -656,6 +702,7 @@ rest.
   - the read on served precision, not membership: step 1's Student-t underflow arm;
   - the status dropped (the keep returns `accepted`): step 4's status checks; step 8's warning count;
     the C API's 2;
+  - a named sd restated on a keep: step 4's named-sd twin;
   - the R warning raised before `storeState()`: step 8's `options(warn = 2)` arm;
   - the flat entries warning (reading or setting `scaleKeptWarned`): the C API arm counting no condition,
     and the R call after it warning once;
@@ -664,37 +711,54 @@ rest.
     arm;
   - creation's re-derivation under the mask dropped: step 8 "Creation routes"; the negbin arm; and run
     for probit too: the suite's seeded probit-under-mask pins, if the call draws;
-  - sigest's fallback left on every row: step 8 "sigest", the sparse arm included; both warnings raised
-    with no row in: step 8's count of one;
+  - sigest's stand-in or its floor left on every row, in the dense and in the sparse routine: step 8
+    "sigest"; the stand-in weighted: its literal under fractional weights;
+  - the stand-in recorded in rule 4's case (the estimate left weighted there): step 8's absent
+    `sigest.fallback` and its sigest literal;
   - `xbart`'s folds warning each: step 8's `xbart` count of one;
   - the hazard grid over every subject: step 8 "Hazard", the periods and the `identical()` pair;
-  - `updateScale = TRUE` left reading every row: step 1's last bullet; step 8's fourth.
+  - `updateScale = TRUE` left reading every row: step 1's last bullet; step 8's fourth;
+  - in stan4bart, the weights left in place at the install: its test's range.
 - `lintr::lint_package()`, `air format --check .`, `Rscript tools/check-rc-codoc.R .`,
   `Rscript tools/check-win-drift.R .`, `Rscript tools/check-doc-freshness.R .`, each on its own exit
   status; inst/NEWS.Rd parses with a non-NULL result; dbarts.h compiles as C (`gcc -std=c99 -pedantic`,
   as its own comment requires); `R CMD check --as-cran` on a tarball from a clean copy. No new Rd topic.
 - Cost: creation and the two response setters at `updateScale` true gain a comparison per row where a
   weight vector or a mask is installed, and nothing where neither is (no row can be out); a hazard fit
-  one subset of its times; no sweep path. stan4bart's warm-up calls gain that pass at each scheduled
-  re-derivation, which already passes over every row; treatSens's per-sweep `setResponse(..., 1)` on a
-  sampler with no weights and no mask gains nothing. No bench compare.
+  one subset of its times; no sweep path. treatSens's per-sweep `setResponse(..., 1)` on a sampler with
+  no weights and no mask gains nothing, and stan4bart makes no re-deriving call in a sweep. No bench
+  compare.
 
 ## Budget and stops
 
-Planned ~2040 lines: engine ~175 (range ~60, center ~30,
-unit ~45, the read and the sampler's decision ~40); facade, bridge, flat entries, dbarts.h and the token
-~75; tests/cpp ~335; R ~170 (the warning moved into the dbarts.R methods); tinytest ~580; the C API test
-~75 (consumer.c ~15, test-capi.R ~60, ~15 more under the bump); benchmarks and the workflow ~250; help,
-header comments and NEWS ~115; docs ~265. Against the revision of faf8ca7d: +~40 engine and +~35
-tests/cpp for the keep's decision and status, +~75 for the ABI and +~75 for the C API test, where answer
-A had held ~40 of bridge; -~20 R and -~20 tinytest, the caller's-sparse fallback gone with
-sparse-starting-sigma and the named-sd write-back with the k-internal slice. Against b6d941cc: the
-decision moved from the response models' returns to one read and the sampler, about level. Forecast:
-recent engine slices ran 1.8 to 2.3 times their plans (leaf-conversions 2.3, almost all tests), so 3700
-is the upper figure. stan4bart's part, ~75 lines (~55 if it stops re-deriving in warm-up), is outside it.
+Planned ~2065 lines, by step:
+
+| step | package code | tests | the rest |
+|---|---|---|---|
+| 1 the range | engine 60 | tests/cpp 130 | |
+| 2 the center | engine 30 | tests/cpp 60 | |
+| 3 the unit | engine 45 | tests/cpp 50 | |
+| 4 the keep's status | engine 40; facade, bridge, flat entries, dbarts.h, token 75; R 15 | tests/cpp 95; C API test 75 | |
+| 5 rows, warnings, sigest, `xbart` | R 105 | | |
+| 6 creation under a mask | R 20 | | |
+| 7 hazard periods | R 30 | | |
+| 8 the new tinytest file | | 540 | |
+| 9 restated pins | | 40 | |
+| 10 exact arms | | | benchmarks, workflow, README 180 |
+| 11 the baseline | | | MANIFEST row and repins 15 |
+| 12 the pair script | | | 70 |
+| 14 records | | | help, header comments, NEWS 125; design note, indexes, amendments, TODO, ledger, landing 265 |
+
+Package code ~420, tests ~990, the rest ~655. The three most recent slices ran 1.8, 2.2 and 2.3 times
+their plans (setState's two forms, the sparse starting sigma, the state's record of missable columns),
+with 68, 52 and 83 percent of what they added in tests. Assumed here: the tests run to about
+2.5 times their figure and everything else to about 1.3, which is ~3900 lines, inside a forecast of 3700
+to 4750 (1.8 to 2.3 times). An overrun in tests is expected and is not a reason to stop; one in package
+code means the design moved. stan4bart's part, ~25 lines, is outside these counts.
 
 Stop and report when:
-- the diff passes ~3700 lines;
+- the diff passes ~4750 lines, or the package code (engine, facade, bridge, flat entries, header, R)
+  passes ~630, 1.5 times its figure;
 - a recorded scenario other than `zeroweights` moves, the two-forest or the multinomial corpus is not
   bitwise, or a snapshot moves;
 - the keep is not the `updateScale = FALSE` twin bit for bit on any arm (two chains, a variance forest,
@@ -703,36 +767,33 @@ Stop and report when:
   sampler;
 - the status needs a facade virtual beyond the two return types; or dbarts.h needs more than the
   enumerator list, the hash, the comments and the contract paragraph (any signature change is a stop);
-- stan4bart's part needs more than the read sites, the counts' way out and one warning, or moves a
-  stan4bart draw; or the stale stan4bart binary fails the handshake or a fit;
-- a hazard fit with every subject in changes;
-- sparse-starting-sigma has not landed when step 5 starts (step 5 is not written against the
-  caller's-sparse fallback), or the k-internal slice or setstate-force-update Part B has not landed when
-  the slice starts (the window).
+- an existing test fails that step 9 does not name and whose file is not among Context's ten;
+- stan4bart-creation-mapping has not landed on stan4bart's bartcore branch when this slice's header
+  commit is ready to push (item 9 says what landing first would do); stan4bart's part needs more than
+  the lifted weights in its install and their test; a stan4bart draw moves; or a stan4bart built
+  against the base header fails to load or to fit;
+- a hazard fit with every subject in changes.
 
 Expected verdicts: tests/cpp, tinytest and the C API test clean; the main corpus 54 identical and
 `zeroweights` moved, then 55 identical against its new file; two-forest 15 and multinomial 11 identical;
 the snapshots unchanged; every exact gate passing and the two new arms passing on the slice and failing
-on the base; the pair script's rows 1 to 4 identical and row 5 differing; stan4bart's suite clean.
+on the base; the pair script's rows 1 to 4 identical and row 5 differing; stan4bart's suite clean and
+its two fit pairs identical.
 
 ## What a consumer sees
 
 Read in each package's source (weights, `subset`, masks, `updateScale`, the flat setters' return); no
 consumer suite was run.
 
-- stan4bart. A gaussian fit hands its weights to the sampler at creation, zeros allowed (it refuses only
-  all zero), through `dbartsSpec` and `new("dbartsSampler", ...)`, and then calls the flat `setOffset`
-  entry with `updateScale` true once and through warm-up. Today both read every row. After this slice
-  creation reads the rows in, and so must every one of those calls, or the first would undo creation's
-  scale: that is why rule 3 is in this slice. A gaussian stan4bart fit with a zero weight therefore
-  changes its leaf prior and draws; one without is bit for bit unchanged. Where the rows in hold fewer
-  than two distinct values a call keeps the scale in force and returns 2, which stan4bart reads
-  ([The keep's status (dec-B405)](#the-keeps-status-dec-b405), item 9): with the rows in at one response
-  and one parametric mean, where `dbartsSpec` has by then raised the creation warning once in stan4bart's
-  parent process. Its binary fits install a mask after creation on
-  a probit sampler, which takes nothing from the response and always answers 1. No test of its suite
-  shows the change: test-15-weights_offset_k.R draws its weights from (0.5, 2) and from {4, 0.25}, and
-  test-22-binary-weight-mask.R is probit. It rebuilds against the new header in lockstep.
+- stan4bart, once its creation-mapping slice has landed (item 9 of
+  [The keep's status (dec-B405)](#the-keeps-status-dec-b405)). Each chain's sampler is created by hand
+  under the fit's weights, zeros allowed, and stan4bart at once installs its own range over creation's;
+  nothing re-derives afterwards, so no draw of a continuous fit moves. One thing a user can meet: where
+  the rows of positive weight share one response value `dbartsSpec` raises rule 4's creation warning,
+  once, in the calling process, which is true of the sampler as created and not of a range stan4bart
+  then installs from the response less its offset and parametric part. Its binary fits install a mask after
+  creation on a probit sampler, which takes nothing from the response. It rebuilds against the new
+  header in lockstep; a build made before loads and runs unchanged.
 - bartCause passes the user's weights and `subset` at creation, to `bcf` too, and changes neither
   afterwards. A fit with a zero weight moves as the `rng:` block says, under `bcf` by the unit as well.
   No test of its suite passes a zero weight (searched). No flat call.
@@ -747,39 +808,19 @@ consumer suite was run.
 
 ## Interactions
 
-- The k-internal slice (k-internal-parameter.md, branch wt/k-internal-plan, bfe38871; lands before this
-  under dec-A191). The engine holds a named sd and retranslates it wherever a chain's mapping moves,
-  among them the `updateScale` arms of `Chain::setResponse` and `Chain::setOffset`, and
-  `reissueNamedLeafSd` and its R callers go. Here: step 6's follow-up `setOffset` restates the named sd
-  in the engine; that plan places the translation in the `updateScale` arms, and on a keep the sampler
-  calls every chain with `updateScale` false, so the arm is not entered (it would be idempotent at an
-  unmoved scale if it were); step 8's `k.scale` literals read the data's scale over the rows in under
-  both spellings. Installs convert nothing (dec-B418), so step 8's state arm expects no conversion and no
-  gp or two-forest refusal, and Out of scope loses that bullet. That slice also adds an arm to
-  test-capi.R driving the flat `setOffset(updateScale)` with a named sd, and a dbarts.h comment line on
-  `k`: a rebase in test-capi.R, consumer.c and dbarts.h. Its stan4bart part (dec-B419's per-chain
-  restore) lands on stan4bart's bartcore branch first; this slice's stan4bart part rebases onto it.
-- setstate-force-update (branch wt/install-surface-plan; Parts A and B land before this). Its plan
-  records this slice as following it, meeting only through `setData`'s re-quantize: a rebase. Step 8
-  asserts no `setState` report beyond a clean cross-mapping install.
-- default-rule-per-gap (landing now). It re-records eight main-corpus scenarios, not `zeroweights`, and
-  changes no response setter: the base's baseline file name is the only effect.
-- sparse-starting-sigma (wt/sparse-sigma-plan, d1be8904; R only, may run beside an engine slice, before
-  the merge). It lands first: this slice is fourth in dec-A191's engine queue, and it is unqueued.
-  After it, every sparse source goes through one routine that already drops the rows of weight 0, the
-  caller's-sparse marginal fallback and its warning class are retired, and a fixed residual prior makes
-  no estimate. So this slice's sigest work narrows to rule 4's case (the routine called without the
-  weights) and to the floor and the non-finite fallback, which that plan leaves at sd(y) of every row
-  and this slice moves to the rows in; the call of faf8ca7d that a caller's sparse x in rule 4's case
-  gives two warnings is gone. That plan's tests of the fallback through `dbarts` ("sd(y) with one
-  dbartsSigmaFallbackWarning") are reread here: with no weight they hold, with a zero weight they read
-  the rows in. It re-records eight scenarios, not `zeroweights`. Had this slice landed first, that plan
-  would have had to carry the rows-in fallback into its routine's tests instead; it does not.
-- Per-chain responses ([per-chain-responses.md](../design/per-chain-responses.md), for decision under
-  dec-B419): if built, it follows this slice, whose range readers it reuses. This slice keeps the read
-  (the range over the rows in and whether they hold two values) one routine apart from the write, so a
-  pooled re-anchor can call it per chain; the status stays one answer per sampler, the pooled meaning
-  left to that design.
+Landed and built against ([Recheck against bartcore](#recheck-against-bartcore)): the per-gap
+default rule, the k-internal slice, setState's two forms, the state's record of missable columns and the
+sparse starting sigma. Still ahead:
+
+- stan4bart-creation-mapping ([stan4bart-creation-mapping.md](stan4bart-creation-mapping.md)): first, in
+  stan4bart; no dbarts code. Item 9 of [The keep's status (dec-B405)](#the-keeps-status-dec-b405).
+- [forest-sd-unit.md](forest-sd-unit.md): after this slice, whose unit it restates.
+- Per-chain responses ([per-chain-responses.md](../design/per-chain-responses.md)): dec-B437 took the
+  range fixed at creation for stan4bart; if the per-chain data is built it follows this slice, whose
+  range readers it reuses. This slice keeps the read (the range over the rows in and whether they hold
+  two values) one routine apart from the write, so a pooled re-anchor can call it per chain; the status
+  stays one answer per sampler.
+- The record slices of TODO `state-frame-prior`: slice D waits on them.
 
 ## Out of scope, and where it goes
 
@@ -790,12 +831,15 @@ consumer suite was run.
   rule; named in the help here, closed by the record slices of TODO `state-frame-prior`.
 - A setter for the residual prior, which is how a caller moves what sigest set (dec-B314): TODO
   `sigma-prior-setter`.
-- What stan4bart does about warm-up re-derivation itself ([Open items](#open-items)).
+- Whether the sd that stands in for an undefined starting-sigma regression should be weighted: TODO
+  `starting-sigma-fallback-zero-weights`, cut to that question. This slice's rulings say which rows.
+- A documented method that sets a sampler's response range, which stan4bart's made-up response stands
+  in for: deferred in that plan.
 
 ## Slices C and D, not planned here
 
-C. `updateScale` on `setWeights` and `setActiveRows`. Waits on: this slice; leaf-conversions, for the
-   conversion of the kept draws. Settled, to carry into its plan:
+C. `updateScale` on `setWeights` and `setActiveRows`. Waits on: this slice. Settled, to carry into its
+   plan:
    - What a re-derivation does to the live chain on a call that changes no response: as
      `setResponse(updateScale = TRUE)` does, the live leaves keeping their internal numbers and the
      kept draws converted (dec-B327). The critic measured the live fit at the rows in moving by up to
@@ -808,7 +852,8 @@ C. `updateScale` on `setWeights` and `setActiveRows`. Waits on: this slice; leaf
      once per sampler (dec-B364), as this slice builds for the two response setters; slice C extends it
      to the two new arguments, the sampler deciding from the same read and returning
      `ResponseUpdateResult` through the same facade path and holder flag (dec-B405). No flat entry sets
-     weights or a mask, so the C API gains nothing.
+     weights or a mask, so the C API gains nothing, and stan4bart's range install, which goes through
+     `setResponse`, is settled here.
    - The by-hand count sampler's call, `setActiveRows(spec$active, updateScale = TRUE)`, and the loop
      form `setActiveRows(mask, updateScale = i <= n.burn)`, written into dbartsSpec's help (dec-B363).
    - A help sentence, and a test, that `setState` does not undo a re-derivation.
@@ -821,162 +866,109 @@ D. dec-B304: a linear or gp leaf's covariate center and scale, and the default l
    `setOffset` step does not name, so either creation takes the mask or the install re-derives two
    things; the leaf is built from the column store, which holds no weights.
 
-## Open items
+## Open calls
 
-- Open dependency, recorded and not resolved here: the maintainer is deciding whether stan4bart stops
-  re-deriving the response scale during warm-up
-  ([5. Recommendation](../design/per-chain-responses.md#5-recommendation), rule (c)). stan4bart's part is
-  written to hold either way (item 9 of [The keep's status (dec-B405)](#the-keeps-status-dec-b405)): if
-  it stops, the warm-up read site goes (~75 to ~55 lines); if no call with `updateScale` true remains,
-  the part is the rebuild alone. dbarts's side is unchanged either way; the C API's value still serves
-  any host that re-derives.
+None. The dependency held here on 2026-10-09, whether stan4bart stops re-deriving during warm-up, is
+ruled (dec-B437) and item 9 is written to it.
 
 ## Calls made in planning
 
-Agent-made, each for the maintainer's later mark. The first seven are the coordinator's rulings on the
-critique of the design (2026-10-07); then the planner's; then the revisions' (2026-10-09).
+Agent-made, each for the maintainer's later mark. Those ruled or approved since are in the ledger and not
+repeated here: dec-B309 (the every-row fallback, not a window of width 1), dec-B327 and dec-B381 (slice
+C's argument and its live chain; the count tested for a count fit; only families that take something
+from the response warn; in rule 4's case sigest is the fit without the weights, under the one warning;
+`xbart` warns once; `rbart_vi` cut) and dec-B424 (the hash alone). Still the agents', from the design's
+critique (2026-10-07), the planner, the revisions (2026-10-09) and the recheck (2026-10-11):
 
 - Four slices: A the aft re-anchor fix; B creation; C the two new arguments; D dec-B304 with the record
   slices. Not taken: the design's one slice, estimated at 1380 lines before dec-B304 was ruled.
 - B is creation only, with `updateScale = TRUE` on the two existing response setters reading the rows
   in. No new argument or bridge arity.
-- Fewer than two distinct values among the rows in takes dec-B302's fallback and warning, not the window
-  of width 1. Ruled by the maintainer since, as dec-B309; the measurement is in Context.
-- With no row out every number keeps its bits, as a constraint on the loops and a gate.
-- Two exact arms that fail on the base build.
-- For slice C: the argument after `updateState`; a re-derivation through it treats the live chain as
-  `setResponse(updateScale = TRUE)` does. Both ruled since (dec-B327, dec-B381).
-- `rbart_vi` is cut: deprecated on the tip.
-- The value tested for "fewer than two distinct" is the count for a count fit. So rows in that all hold
-  one positive count take the fallback although their center is defined; the alternative is a second
-  test for one family. Approved (dec-B381).
-- The warning is raised only by families that take something from the response. A probit or ordinal
-  sampler under a mask of zeros is created in silence, as today; dec-B302's sentence would be false of
-  it. The alternative is a warning in every family with other words. Approved (dec-B381).
-- In rule 4's case sigest is the fit without the weights (25.006 on the fixture) where today it is the
-  marginal sd (25.245), and the sigma fallback's warning is not raised: one warning, as dec-B302 says.
-  Approved (dec-B381).
+- With no row out every number keeps its bits, as a constraint on the loops and a gate; two exact arms
+  that fail on the base build.
 - Creation under a mask is R's install followed by the sampler's own `setOffset`, for nbinom only.
   Not taken: the engine's creation taking the mask, which changes the creation entry's arity. The
   by-hand route's documented call is dec-B363's, with slice C.
-- `xbart` warns once, from the estimate on all rows, and a fold in rule 4's case falls back in silence.
-  Approved (dec-B381).
 - The unit follows the response model's decision of which rows were read; it does not test again.
 - The warning's class is `dbartsScaleFallbackWarning` (with `dbartsWarning`), for the creation text, the
-  keep's and the hazard grid's.
-- The negbin arm runs inside negbin-exact.R; the bd-balance arm is a named arm run by the workflow.
-- The test of a state across row sets does not assert `setState`'s return value beyond a clean install.
+  keep's and the hazard grid's; it is listed in bart.Rd's paragraph of warning classes and in
+  error-style.md, as its neighbors are.
+- The negbin arm runs inside negbin-exact.R; the bd-balance arm is a named arm the workflow runs beside
+  `zeroweight`, not in the loop of the two cut-grid arms.
 - NEWS names the response's scale only, with what 0.9-34 did.
-- Revision. dec-B364 is built here for `setResponse` and `setOffset` (the orchestrator), replacing the
-  plan's every-row reading in silence at a re-derivation; slice C extends it.
-- Revision. Rule 4's "where a row is out" stays, so dec-B364 (fewer than two distinct values) and
-  dec-B386 (a constant response's window) do not overlap: a constant response with every row in takes
-  the window and no warning, at creation and at a re-derivation (the orchestrator, the critique's M1).
-- Revision. `setData` in rule 4's case is treated as creation: every row, with dec-B302's warning. dec-B364
-  names four setters and not `setData`, which replaces the data (the orchestrator, the critique's M3).
-  The alternative was the keep, which would hold a scale from data no longer there.
-- Revision. The hazard periods (dec-B315) come into this slice: TODO `hazard-periods-rows-in` schedules
-  them "R only; with the creation slice of response-scale-rows, whose rule it follows". The
-  reviser's reading of that entry and of dec-B315, which puts the periods in dec-B296's class.
-- Revision. `breaks = K` takes its quantiles from the subjects in as the default grid does: the
-  positions are read from the response, and dec-B315 leaves only stated boundaries as they were. The
-  alternative was every subject's quantiles, which a far-out subject at weight 0 moves (20 against 5).
-- Revision. A hazard fit's only fallback is no subject in. One subject in, or several at one time, is a
-  grid of one period, which is a defined fit; dec-B309's window problem has no counterpart.
-- Against the design and the critique. Neither said what sigest is in the no-row case, where the tip
-  already warns once for another cause, so "one warning" needed the call above. The aft behavior
-  both report as found is recorded as a property in
-  [aft-status-setter.md](../design/aft-status-setter.md). Every measured claim rerun here held: the
-  per-chain aft transforms (1.872, 2.098), the unit's last bit at n = 64, the two pin failures, one row
-  in giving `k.scale` 0.5 on the prototype.
-- Revision to dec-B405, then to the scoped critique's S1. The sampler decides the keep once, from chain
-  0's response model by the read the model's own `rescale` uses, against the incoming vector, on
-  membership; it calls every chain with `updateScale && !keep`, skips `recordAnchor` on a keep, and
-  returns `ResponseUpdateResult { accepted, scaleKept }` through the facade (the coordinator, adopting
-  the critique's design). Not taken: each response model deciding and returning the status up through
-  the chain (b6d941cc's form), where chains could disagree under Student-t's served precision and the
-  chain's tail skip was a branch the false call does not take; and a flag read after the call through
-  a new facade read, which dec-B405's "a status the engine's setResponse and setOffset return" rules
-  out.
-- Revision to dec-B405. The once-per-sampler flag is the holder's (`scaleKeptWarned`), spent only by the
-  R entries, so a flat keep leaves the R interface's warning for the R methods' first keep. The
-  alternative, a flag on the R object, needs a new field on the reference class; the holder already
-  carries the flat run's equivalent and has the sampler's lifetime.
-- Revision to dec-B405. The flat value is named by a fourth enumerator list, `dbarts_swap_status`
+- dec-B364 is built here for `setResponse` and `setOffset` (the orchestrator), replacing the plan's
+  every-row reading in silence at a re-derivation; slice C extends it.
+- Rule 4's "where a row is out" stays, so dec-B364 (fewer than two distinct values) and dec-B386 (a
+  constant response's window) do not overlap: a constant response with every row in takes the window and
+  no warning, at creation and at a re-derivation (the orchestrator).
+- `setData` in rule 4's case is treated as creation: every row, with dec-B302's warning. dec-B364 names
+  four setters and not `setData`, which replaces the data (the orchestrator). The alternative was the
+  keep, which would hold a scale from data no longer there.
+- The hazard periods (dec-B315) come into this slice: TODO `hazard-periods-rows-in` schedules them "R
+  only; with the creation slice of response-scale-rows, whose rule it follows". `breaks = K` takes its
+  quantiles from the subjects in as the default grid does, dec-B315 leaving only stated boundaries as
+  they were; the alternative was every subject's quantiles, which a far-out subject at weight 0 moves
+  (20 against 5). A hazard fit's only fallback is no subject in: one subject in, or several at one time,
+  is a grid of one period, a defined fit.
+- To dec-B405. The sampler decides the keep once, from chain 0's response model by the read the model's
+  own `rescale` uses, against the incoming vector, on membership; it calls every chain with
+  `updateScale && !keep`, skips `recordAnchor` on a keep, and returns
+  `ResponseUpdateResult { accepted, scaleKept }` through the facade (the coordinator, adopting the
+  scoped critique's design). Not taken: each response model deciding and returning the status up through
+  the chain, where chains could disagree under Student-t's served precision; and a flag read after the
+  call through a new facade read, which dec-B405's "a status the engine's setResponse and setOffset
+  return" rules out.
+- To dec-B405. The once-per-sampler flag is the holder's (`scaleKeptWarned`), spent only by the R
+  entries, so a flat keep leaves the R interface's warning for the R methods' first keep. The
+  alternative, a flag on the R object, needs a new field on the reference class.
+- To dec-B405. The flat value is named by a fourth enumerator list, `dbarts_swap_status`
   (`DBARTS_SWAP_NONE`, `DBARTS_SWAP_DONE`, `DBARTS_SWAP_SCALE_KEPT`), folded into the token, the entries'
-  return type left `int`. The token folds signatures, lists and layouts only, so a bare new value would
-  not move the hash dec-B405 names; a named list gives the value a name a consumer compares against.
-  The alternative, the return type changed to the enum, changes two signatures for no reader's gain.
-- Revision to dec-B405. stan4bart counts keeps per chain and warns once per fit from its parent process,
-  recommended to it; the alternative, recording the count in the fit silently, is its call.
-- Revision to the scoped critique's S3. The R warning is the dbarts.R methods' last act, after
-  `storeState()`; the alternative, raising it in the bartcore.R helpers, left `$state` and the test offset
-  stale when the warning became an error.
-- Revision to the scoped critique's S5 (the coordinator). The minor bump was held for the maintainer,
-  who ruled the hash alone (dec-B424).
-- Revision. sparse-starting-sigma lands first and this slice is written against its routine (the
-  coordinator's reading of dec-A191's queue, which it is not in).
+  return type left `int`: a bare new value would not move the hash dec-B405 names. The alternative, the
+  return type changed to the enum, changes two signatures for no reader's gain.
+- The R warning is the dbarts.R methods' last act, after `storeState()`; raised in the bartcore.R
+  helpers it left `$state` and the test offset stale when the warning became an error.
+- Recheck. stan4bart reads no flat return: under dec-B437 it makes no re-deriving flat call, so
+  dec-B405's clause on its branch has nothing to apply to. The alternative, read sites and counts for a
+  value that cannot occur, was this plan's until dec-B437.
+- Recheck. stan4bart-creation-mapping lands first and this slice stops if it has not (item 9), and
+  stan4bart's install lifts the weights where fewer than two are positive, so a supplied range is still
+  used there (dec-B445) and no user sees a change. Not taken: leaving its read-back's "internal error"
+  for a legal call; and a refusal in plain words, about ten lines fewer, which no ruling covers.
+- Recheck. `dbartsSpec`'s creation warning passes through stan4bart unmuffled. Not taken: stan4bart
+  muffling the class where it will install a range, for the one case (the rows in share a response
+  value and not their parametric part) in which the scale the warning speaks of is then replaced.
+- Recheck. The sd that stands in for an undefined regression is unweighted over the rows in, as rule 1
+  counts a row and as dec-B433 words it ("sd(y) otherwise"). Not taken here: the weighted residual sd
+  of the intercept alone (1.28 for 1.12 on one run under weights between 0.5 and 2), which is on the
+  regression's scale where weights are far from 1 and which no ruling of this plan covers; it stays in
+  TODO.
+- Recheck. In rule 4's case the starting sigma signals no stand-in: the estimate is handed the data
+  without its weights, so its verbose lines count every row. The alternative, the weighted call
+  followed by a repair of its value, would announce a stand-in the fit does not use.
+- Recheck. The state arm asserts the landed values of `setState` (TRUE unforced, NULL forced) and
+  compares a gp forest by its leaf parameters; before the landing it asserted only a clean install.
 
-## Revision from critique
+## Recheck against bartcore
 
-The plan's critique (2026-10-09, at 8ad1fa58) said build after corrections; its nine edits were made at
-faf8ca7d. Step numbers in this list are that revision's; the dec-B405 revision inserted step 4, so its
-steps 4 to 13 are now 5 to 14.
+On 2026-10-11, against a2ef56a9: the notes of what landed since this plan was last revised were read
+(setState's two forms and the state's record of missable columns,
+[install-surface.md](../design/install-surface.md) and
+[`SamplerStateData`](../../src/bartcore/sampler.hpp); the k-internal slice; the sparse starting sigma, its
+[Landing note](sparse-starting-sigma.md#landing-note); stan4bart's
+[stan4bart-creation-mapping.md](stan4bart-creation-mapping.md), with dec-A197), then the code, and the
+runs below were made on a shipped build. The text above is written to that code throughout.
 
-1. dec-B364 is built for the two response setters: rule 3, rule 4's keep, steps 1, 2 and 7, two
-   mutations; the warning's route was held then and is ruled since (dec-B405).
-2. The baseline is the main corpus's current file; the (none) partition misses by 106.6, rerun.
-3. Step 7's creation routes drop the by-hand call, which slice C builds (dec-B363); step 13 says what
-   dbartsSpec.Rd carries meanwhile; step 5's sentence is tidied.
-4. The ruled questions (dec-B314, dec-B315, dec-B362) leave Out of scope and slice C; slice C's first
-   bullet is dec-B327.
-5. The hazard periods come in: rule 8, step 6, the `rng:` block, a fallback and tests.
-6. Step 4 names `xbart`'s own call and its `sigmaPerFold` choice, and the sparse paths; step 7 has a
-   sparse arm; the order against `sparse-starting-sigma` is stated.
-7. Rule 4's single warning is stated for 0/1 weights, the validity warning pinned where it fires, the
-   Literals fixture 0/1.
-8. bd-balance's new arm is the fourth, with its `stopifnot` and the workflow's loop.
-9. Status cites the rulings; M1 and M3 are recorded as calls.
+Runs: the planner's and the critics' behavior probes again (the range, the center, the unit, sigest, the
+setters, no row in, one row in, fractional weights, the sparse sources, the by-hand route, `xbart`, the
+hazard grid), every value as before and every starting-sigma warning gone; the two exact arms against
+both oracles; the corpus scan and the traced suite of Context; a state across two ranges and two weight
+sets, in both forms, for three leaf models; the stand-in under 0/1 and fractional weights; the nbinom
+follow-up call; stan4bart's install, plain and with the weights lifted, emulated on samplers built by
+hand.
 
-Rerun by the reviser on a shipped build of 8ad1fa58: the bd-balance arm (106.6; 1.4 against every
-row), the hazard grid, the sparse, fractional-weight and `xbart` cases, a masked probit row's response.
-Not rerun: the prototype's compares and suite, which are the critic's.
-
-## Revision to dec-B405 and the engine order (2026-10-09)
-
-On bartcore a8884ef4. The held question is replaced by the ruled design
-([The keep's status (dec-B405)](#the-keeps-status-dec-b405)) and step 4; the constraints on the facade
-and the header follow it; stan4bart's part is planned and sized. Read for the rebase: the k-internal plan
-(bfe38871), setstate-force-update (wt/install-surface-plan), default-rule-per-gap's baseline row,
-sparse-starting-sigma (d1be8904) and per-chain-responses.md; [Interactions](#interactions) says what each
-changes here. Landed since faf8ca7d's window: leaf-conversions and slice A. The baselines are named as
-the current files at the slice's base. Nothing was rerun; the new lines are marked (read).
-
-## Revision from the scoped critique
-
-The scoped blind critique of b6d941cc (2026-10-09, scratch/rsrrev/critique.md) found one blocking and
-seven should-fix items; each was checked against the code before it was taken.
-
-- B1. stan4bart's fixture and "when it fires": one row in stops stan4bart ("sigma_init is NaN", ran on
-  the scratch libraries), and its parametric mean is constant within a group and covariate pattern, so
-  the keep fires where the rows in share one response and one parametric mean. Item 9's test is three
-  rows at y = 2 in one group (runs today, ran).
-- S1, S2. The keep is decided once by the sampler on membership and every chain is called with
-  `updateScale` false (item 2; read: both tail routines return early on an unmoved scale, and `TResponse`
-  serves `w * lambda * a`). The tail-skip mutant, an equivalent mutant, is dropped; a served-precision
-  mutant and a Student-t underflow arm are added.
-- S3. The R warning is raised last in the dbarts.R methods (item 4), with an `options(warn = 2)` arm.
-- S4. The header's contract paragraph on capability statuses, "with a row out of the likelihood", the
-  constant-response 1, and the list's place before `#undef DBARTS_ENUMERATOR` (item 6; read).
-- S5. The minor bump is an open call before step 4, with each branch's cost (item 7); the second pin
-  (read) and the handshake's reach before a release are counted.
-- S6. The stan4bart A/B gate takes two builds under the bump and one under the hash alone (item 10).
-- S7. treatSens's per-sweep gaussian `setResponse` (read: no weights, so neutral) and the deprecated
-  `rbart_vi`'s warm-up `setOffset` under weights are named; the Cost line says what each pays.
-- Nits: N1 (the bridge returns "warn now"; tinytest sees later keeps through the readers), N2 (moot: no
-  assertion, one decision), N3 (the minor-0 arm proves arithmetic only), N4 (the stop is conditional on
-  the call), N5 (the translation's arm is not entered on a keep), N6 (the k-internal rebase in
-  test-capi.R, consumer.c and dbarts.h; dec-B419's stan4bart part first), N7 (kept-draw arms on constant
-  leaves), N8 (two `.Call` exits and the call count; ~75 lines), N9 (`setData` keeps the flag; the help
-  says so).
-
+Not verified: nothing of the slice is built, so no mutant and no new test was run. The numbers marked
+(stands) were not rerun, and the prototype's suite run predates about 3,800 lines of tests/cpp, which
+were not run against the rule. stan4bart was read on its creation-mapping branch, in build and not yet
+landed, and not built or run: its install was emulated on dbarts samplers, and whether a fit on one
+weighted row otherwise runs is not known. treatSens was read, not built; bartCause and bairrtt were
+not read again. No reference build, sanitizer, x86 run or `R CMD check` was made.
