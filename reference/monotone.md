@@ -111,30 +111,34 @@ An unforced update is refused instead, as one that would empty a leaf
 is. One unforced change can leave a tree out of order: the first missing
 value in an unordered factor column that has none. Two leaves that share
 no level of the factor can both be reached by a missing value, and the
-constraint then orders them. What each call does with such a value:
+constraint then orders them. Which leaves a missing value reaches is
+settled by the side each rule on the column draws when the value arrives
+(see ‘Missing values in predictors’ in
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
+so the same update can keep the order under one draw and break it under
+another. What each call does where the sides drawn leave a tree out of
+order:
 
-- `setPredictor` replacing the whole matrix with `forceUpdate = FALSE`,
-  the matrix numeric and holding the factor as its level codes from 0:
-  returns `FALSE`. The sampler's trees, fits, predictors and random
-  number generator are as they were before the call. As after any
-  refused update, the draws that follow can differ in their last digits
-  from those it would otherwise have made.
+- `setPredictor` with `forceUpdate = FALSE`, the whole data frame or
+  named columns: returns `FALSE`. The sampler's trees, fits, predictors
+  and random number generator are as they were before the call. As after
+  any refused update, the draws that follow can differ in their last
+  digits from those it would otherwise have made.
 
-- `setPredictor` with named columns, whatever `forceUpdate` is,
-  `"partial"` included, and
+- `setPredictor` with `forceUpdate = "partial"` and
   [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md):
-  an error, and nothing is changed. A factor column is given as its
-  labels and does not take a missing value when the column holds none. A
-  numeric column's first missing value breaks no order and is installed.
+  each row that brings the missing value is declined, and the other rows
+  are installed.
 
-Such a refusal is not cured by proposing other values, and running the
-sampler may not cure it either. Every update that brings the missing
-value is refused while any tree's leaf values would be out of order with
-it, and where the data favor such trees that can be for as long as the
-sampler runs: code that proposes the value again until it is accepted
-may never finish. The way to bring the value in is to replace the whole
-matrix with `forceUpdate = TRUE`, which completes and sets those trees
-to zero as above; the alternative is to leave the value as it was.
+A numeric column's first missing value breaks no order and is installed.
+
+Such a refusal is not cured by proposing other values: a refused update
+puts the generator back, so the same sides are drawn again until the
+sampler has run, and where the data favor such trees a later draw can
+break the order too. Code that proposes the value again until it is
+accepted may never finish. The way to bring the value in is
+`forceUpdate = TRUE`, which completes and sets those trees to zero as
+above; the alternative is to leave the value as it was.
 
 Only numeric and ordered columns are eligible: a direction on a
 categorical (unordered factor) predictor is an error. Names, positions

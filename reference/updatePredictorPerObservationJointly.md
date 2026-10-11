@@ -32,13 +32,14 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
   [`setPredictor`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   takes them for a named column. The order of the levels of the factor
   given does not matter; a label the column does not have is refused by
-  name, and so is a missing value when the column holds none. Numbers
-  are refused for such a column, as `setPredictor` refuses them for a
-  named column, even where the labels are numerals. One value is one
-  level in every sampler only if they hold the column with the same
-  levels in the same order, so samplers that hold it as a factor with
-  different levels are refused; update them in separate calls. Labels
-  are also refused when one sampler holds the column as a number.
+  name. A missing label is a missing value, taken whether or not the
+  column has held one. Numbers are refused for such a column, as
+  `setPredictor` refuses them for a named column, even where the labels
+  are numerals. One value is one level in every sampler only if they
+  hold the column with the same levels in the same order, so samplers
+  that hold it as a factor with different levels are refused; update
+  them in separate calls. Labels are also refused when one sampler holds
+  the column as a number.
 
 - column:
 
@@ -67,16 +68,17 @@ of
 A single sequential sweep installs each observation in every sampler at
 once, and only if its new value keeps every leaf non-empty in every tree
 of every *forest* of every chain of every sampler; otherwise that
-observation is rolled back to its previous value in all of them. A
+observation is rolled back to its previous value in all of them. Under a
 [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
-constraint declines no row for its order here: a factor column takes a
-missing value only where it already holds one, and a numeric column's
-first missing value breaks no order. Any of the samplers may itself
-carry more than one forest - a Bayesian causal forest, a multinomial
-sampler, or a heteroscedastic (`variance`) sampler - and each of its
-forests is checked on the same terms as an ordinary single-forest
-sampler's mean forest (see ‘Multi-forest and heteroscedastic predictor
-mutation’ in
+constraint a row that brings an unordered factor column its first
+missing value is declined, in every sampler, where the sides drawn for
+the column's rules would leave a tree's leaf values out of order in any
+of them; a numeric column's first missing value breaks no order. Any of
+the samplers may itself carry more than one forest - a Bayesian causal
+forest, a multinomial sampler, or a heteroscedastic (`variance`)
+sampler - and each of its forests is checked on the same terms as an
+ordinary single-forest sampler's mean forest (see ‘Multi-forest and
+heteroscedastic predictor mutation’ in
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
 Like the single-sampler partial mode, the update never changes tree
 structure – it only re-routes observations.

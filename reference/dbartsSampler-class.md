@@ -345,10 +345,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md),
   matched by label against the training levels, as a whole data-frame
   update is coded; several columns take a data frame. A label the column
-  does not declare, and a missing label in a column that has never held
-  a missing value, are refused by name, as is a number, which could only
-  be read as an internal code. What a column's first missing value does
-  is under ‘Missing values in predictors’ in ‘Details’.
+  does not declare is refused by name, as is a number, which could only
+  be read as an internal code. A missing label is a missing value:
+  `setPredictor` takes it whether or not the column has held one, and
+  `setTestPredictor` refuses a missing value, a label or a number, in a
+  column that has never held one in training, as the whole test set is
+  refused. What a column's first missing value does is under ‘Missing
+  values in predictors’ in ‘Details’.
 
 - x.test:
 
@@ -925,12 +928,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   order along a constrained predictor (that page says what this is).
   `TRUE` completes such an update, setting every leaf value of that tree
   to zero without a message; the next iteration draws them again.
-  `FALSE` refuses it and rolls it back, as for an empty leaf, but only
-  where the whole matrix is replaced: the one unforced change that can
-  do this is a factor column's first missing value, which a named column
-  does not take under any `forceUpdate`, `"partial"` included, stopping
-  with an error instead (see `x`). Row by row it is declined by
-  [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md).
+  `FALSE` refuses it and rolls it back, as for an empty leaf, and
+  `"partial"` declines each row that would do it. The one unforced
+  change that can do this is an unordered factor column's first missing
+  value, under the sides drawn for the column's rules when it arrives
+  (see
+  [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)).
   `"partial"` requires a single `column` and cannot be combined with
   `updateCutPoints`; it also requires a dense-backed column, since a
   sparse column's storage fixes its nonzero pattern per cell - replace
@@ -1132,18 +1135,20 @@ Route changes through the `set*` methods instead.
   values, the quantities the sampler draws, the cut grid (with its
   weights, the attribute `cutMass`, where a column's cut points are not
   equally likely) and leaf-covariate standardization they are read
-  through, and a record of the response mapping they were read under -
-  no leaf prior and no value the sampler holds fixed (see ‘Saving’). It
-  also carries each chain's generator state, so restoring it continues
-  the same streams the sampler was drawing from, typically to the last
-  few digits, not bitwise. The saved-tree store's write position and the
-  number of draws it has recorded both ride it, so `predict` after a
-  `setState` reports the same draws, in the same order, as before the
-  store. Reading it forces the sampler's *current* state only the first
-  time, before any value has been materialized; once set, it is a cached
-  snapshot that a later mutation does not refresh automatically - call
-  `storeState` again, or pass `updateState = TRUE` to the mutating call
-  (see `updateState` above), to bring it forward. It is the only field
+  through, a record of the response mapping they were read under, and
+  which predictor columns could hold a missing value when it was
+  stored - no leaf prior and no value the sampler holds fixed (see
+  ‘Saving’). It also carries each chain's generator state, so restoring
+  it continues the same streams the sampler was drawing from, typically
+  to the last few digits, not bitwise. The saved-tree store's write
+  position and the number of draws it has recorded both ride it, so
+  `predict` after a `setState` reports the same draws, in the same
+  order, as before the store. Reading it forces the sampler's *current*
+  state only the first time, before any value has been materialized;
+  once set, it is a cached snapshot that a later mutation does not
+  refresh automatically - call `storeState` again, or pass
+  `updateState = TRUE` to the mutating call (see `updateState` above),
+  to bring it forward. It is the only field
   [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
   requires `setState` - see ‘Saving’.
 
@@ -1285,19 +1290,24 @@ tree is cut back in the same way at the first split from its root that
 the forest's columns or its interaction limit do not allow, the splits
 above it kept; a rule stops recording a side its column cannot use; and
 a monotone tree whose values are out of order has every leaf value set
-to zero, to be drawn again at the next iteration. Forcing checks nothing
-first, so a loop that restores its own state onto rows it has already
-put back, where nothing can need repair, can pass `forceUpdate = TRUE`
-and skip the check, which costs about as much as one iteration of the
-sampler. To undo a predictor change exactly, put the old predictor back
-first, with `setPredictor(..., forceUpdate = TRUE)`, and then call
-`setState`. An unforced `setPredictor` can be refused, returning `FALSE`
-and leaving the changed predictor in place; `setState` then judges the
-state against the changed predictor, as it does when called before the
-predictor is put back. A factor column does not take missing values back
-through a column update, so a change that filled a factor column's
-missing values is undone by replacing the whole data with `setData` and
-then calling `setState`.
+to zero, to be drawn again at the next iteration. After a forced
+`setState` that repaired a tree the `state` field holds the state as it
+was given, not as repaired: installing the field again without
+`forceUpdate` returns `FALSE`, and a `copy` or a reload repairs it the
+same way. Likewise after an install that drew a side for missing values
+(see ‘Missing values in predictors’) the field holds the state as given,
+without the sides, and installing it again, as a `copy` or a reload
+does, draws the same ones. `storeState()` stores what the sampler now
+holds. Forcing checks nothing first, so a loop that restores its own
+state onto rows it has already put back, where nothing can need repair,
+can pass `forceUpdate = TRUE` and skip the check, which costs about as
+much as one iteration of the sampler. To undo a predictor change
+exactly, put the old predictor back first, with
+`setPredictor(..., forceUpdate = TRUE)`, and then call `setState`. An
+unforced `setPredictor` can be refused, returning `FALSE` and leaving
+the changed predictor in place; `setState` then judges the state against
+the changed predictor, as it does when called before the predictor is
+put back.
 
 Some states are refused, with an error, whether forced or not, and the
 sampler is left exactly as it was: one that is not a `bartcoreState` or
@@ -1431,10 +1441,26 @@ value and those made after. A column that has never held a missing value
 has no side to route by, and `predict` refuses a missing value in it.
 `copy` and a reload keep which columns can hold missing values.
 
-A column coded from a factor is given its first missing value at
-creation or by `setData`; `setPredictor` and
-`updatePredictorPerObservationJointly` take a missing label only in a
-factor column that has held one.
+A stored state records which columns could hold a missing value when it
+was stored. When `setState`, a `copy` or a reload installs it into a
+sampler where a further column can - a state stored before that column's
+first missing value, or by a sampler whose column never held one - every
+rule on that column, in the state's current trees and in its saved
+draws, has its side drawn in the same way before the state is judged,
+from the generators the state carries; a state stored just before a
+single `setPredictor` call gave the column its first missing value, and
+installed just after it, draws the sides that call drew. `setState`
+returns `TRUE` for such an install unless a drawn side leaves a leaf
+with no row or a
+[`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md) tree
+out of order, where it returns `FALSE` as for any state that does not
+fit (see ‘Saving’). A state stored before this record was kept draws
+nothing, and its rules on such a column send missing values left. A warm
+start (`installTrees`, or `warm.start` of
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md)) from a fit
+whose data could not hold a missing value in a column draws, from each
+receiving chain's own generator, the side of every rule on that column
+in the trees it installs.
 
 ### Mutation cost
 
