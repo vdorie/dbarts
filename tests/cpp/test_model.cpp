@@ -5873,10 +5873,11 @@ static void testGPLeafSortedMembers() {
 
   // rows, cap, and the bitmap's words: none where 6 words a member is passed
   // at the cap (64 members: 384 words, 24576 rows) or the cap or the row
-  // count is under 16 members
+  // count is under 16 members. At 6145 rows the 97 words are one past 6 a
+  // member at 16 members, where 6145 / 64 is not.
   struct Case { size_t n, cap, numWords; };
   const Case cases[] = {
-    {64, 64, 1}, {110, 64, 2}, {500, 64, 8}, {4097, 64, 65},
+    {64, 64, 1}, {110, 64, 2}, {500, 64, 8}, {4097, 64, 65}, {6145, 64, 97},
     {24576, 64, 384}, {24577, 64, 0}, {30000, 64, 0}, {500, 256, 8},
     {500, 16, 8}, {500, 15, 0}, {12, 64, 0}};
   bool sized = true, comparisonSorts = true, bitmapSorts = true,

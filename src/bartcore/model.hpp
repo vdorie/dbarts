@@ -3404,7 +3404,8 @@ private:
     std::size_t numObs = static_cast<std::size_t>(end - begin);
     memberScratch_.resize(numObs);
     index_t* out = memberScratch_.data();
-    if (sortsByBitmap(numObs, (numObservations_ + 63) / 64))
+    // the rule alone passes a bitmap of no words, which serves no span
+    if (!memberBits_.empty() && sortsByBitmap(numObs, memberBits_.size()))
       sortMembersByBitmap(begin, numObs, out);
     else
       sortMembersByComparison(begin, numObs, out);
