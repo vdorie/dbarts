@@ -342,9 +342,17 @@ items
     and slow fits, the fallback when the range cannot be estimated
     (dec-B437, VD 2026-10-10). About 1260 lines planned for the
     per-chain data, after response-scale-rows.
-  state-grid-replaces-sampler: a state's cut grid replaces the sampler's
-    on install, against dec-B231 (a grid is data, never installed by a
-    state). Before the merge; with state-frame-prior's grid half.
+  state-grid-replaces-sampler: a restored state leaves the sampler's
+    cut points alone (dec-B449, VD 2026-10-11: "Change it"), a change
+    from 0.9-34, whose restore put the stored grid back as the branch
+    does today (run 2026-10-11). Unforced, a state with a split off
+    the sampler's grid returns FALSE; forced, the split moves to the
+    nearest point or is merged. The old result by hand:
+    setCutPoints(attr(state, "cutPoints")) then setState(state),
+    exact but for a grid that carries weights on its points, where
+    only a refresh from the column's own values gives the weights
+    back. Plan docs/plans/state-grid-install.md on wt/state-grid-plan.
+    Before the merge; with state-frame-prior's grid half.
   variance-forest-mixture-reinstall: setControl installs a changed
     proposal.probs and n.perturb.cuts on the mean forest only; a
     heteroscedastic sampler's variance forest keeps the mixture and width
