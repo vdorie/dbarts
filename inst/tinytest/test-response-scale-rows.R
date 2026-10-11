@@ -436,19 +436,21 @@ expectKeep <- function(family, case, via, label, ctl = control) {
   }
   expect_equal(length(first$scale), 1L, info = info)
   expect_equal(length(first$others), 0L, info = info)
-  expect_true(
-    grepl(keepText, conditionMessage(first$scale[[1L]]), fixed = TRUE),
-    info = info
-  )
-  expect_true(
-    grepl(
-      "kept as they were (said once per sampler)",
-      conditionMessage(first$scale[[1L]]),
-      fixed = TRUE
-    ),
-    info = info
-  )
-  expect_true(inherits(first$scale[[1L]], "dbartsWarning"), info = info)
+  if (length(first$scale) == 1L) {
+    expect_true(
+      grepl(keepText, conditionMessage(first$scale[[1L]]), fixed = TRUE),
+      info = info
+    )
+    expect_true(
+      grepl(
+        "kept as they were (said once per sampler)",
+        conditionMessage(first$scale[[1L]]),
+        fixed = TRUE
+      ),
+      info = info
+    )
+    expect_true(inherits(first$scale[[1L]], "dbartsWarning"), info = info)
+  }
   expect_equal(length(second$warnings), 0L, info = info)
   expect_identical(readers(kept), before, info = info)
   expect_identical(readers(kept), readers(twin), info = info)
@@ -742,6 +744,15 @@ expect_identical(
   creationText(1L, n)
 )
 expect_equal(recordedRange(target), range(y))
+# an nbinom sampler's setData to data whose 0/1 weights keep rows holding one
+# count: the fall back is judged over the rows kept, and said once
+ySameCount <- responseFor("same", countsA, 2)
+countTarget <- sampler(countsA, family = "nbinom")
+countReplacement <- countTarget$data
+countReplacement@y <- ySameCount
+countReplacement@weights <- keepRows$same
+countCaught <- caught(countTarget$setData(countReplacement))
+expect_equal(length(countCaught$scale), 1L)
 # dbartsSpec with one row in: the one warning, from the spec
 specCaught <- caught(dbartsSpec(
   dbartsData(y ~ x1 + x2, df(yA), weights = creationCases$one$w)
@@ -765,7 +776,9 @@ made <- caught(sampler(
 ))
 expect_equal(length(made$scale), 1L)
 expect_equal(length(made$others), 0L)
-expect_identical(conditionMessage(made$scale[[1L]]), creationText(60L, n))
+if (length(made$scale) == 1L) {
+  expect_identical(conditionMessage(made$scale[[1L]]), creationText(60L, n))
+}
 expect_equal(
   recordedRange(made$value),
   range(ySame + offQuarters - offQuarters)

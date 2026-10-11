@@ -1189,7 +1189,8 @@ bartcoreSamplerSetData <- function(sampler, newData) {
 ## object, no test offset here or in the engine, and no store, the stored
 ## state being the caller's to take. The rows have just been found to hold
 ## two counts, so the engine keeps nothing and its once-per-sampler warning
-## is not spent.
+## is not spent; the bridge answers TRUE on a first keep, and that is an
+## internal error here.
 deriveCenterUnderMask <- function(sampler) {
   if (
     identical(sampler$model@family, "nbinom") &&
@@ -1203,7 +1204,12 @@ deriveCenterUnderMask <- function(sampler) {
       )
   ) {
     ptr <- sampler$getPointer()
-    .Call(C_dbarts_bartcore_setOffset, ptr, sampler$data@offset, TRUE)
+    kept <- .Call(C_dbarts_bartcore_setOffset, ptr, sampler$data@offset, TRUE)
+    if (isTRUE(kept)) {
+      stop(
+        "internal error: the engine kept the scale on rows R found to hold two counts"
+      )
+    }
     sampler$model <- recordAnchor(sampler$model, ptr)
   }
   invisible(NULL)
