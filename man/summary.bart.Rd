@@ -38,7 +38,9 @@
     Character vector of fields to summarize. By default the leaf-scale
     field follows how the leaf prior was named: \code{k} for a fit that
     named it by \code{k}, \code{leaf.prior.sd} (the \code{k.scale} over \code{k};
-    see \code{\link{bartBT}}) for one that named it by \code{sd}, and
+    see \code{\link{bartBT}}, where on a fit with several forests it is each
+    forest's \code{sd} in the response's units, printed under the table as
+    \code{leaf.prior.sd[<label>]}) for one that named it by \code{sd}, and
     either can be requested by name, as can \code{first.k}, the burn-in
     draws. A requested parameter the fit held fixed (\code{sigma} under
     \code{fixed()}, a fixed \code{k} or \code{leaf.prior.sd}, a fixed
@@ -74,7 +76,7 @@
   \code{stats} (a data frame with one row per requested sampled scalar, or
   \code{NULL} if none of \code{vars} are present on the fit), \code{vars},
   and \code{fixed}, a named list of the requested parameters the fit held
-  fixed and their values (a named vector, by forest, on a fit with several
+  fixed and their values (a vector named by the forests' labels on a fit with several
   forests). \code{stats} has columns \code{variable}, \code{mean}, \code{median},
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},
   \code{ess_bulk}, and \code{ess_tail} - the same columns

@@ -464,7 +464,13 @@
             \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)}
             declares the same thing. Gaussian, probit and logistic responses;
             \code{predict} and \code{extract} report each forest separately
-            (\code{type = "forest"}) or combined.
+            (\code{type = "forest"}) or combined. A forest's size is its
+            \code{sd}, \code{forest(sd = )}, a number of the response's
+            units (those of the latent index under probit and logistic),
+            which \code{$setLeafPrior(forests = )} restates and
+            \code{$getLeafPrior()} returns, with whether it was stated; the
+            one forest of a single-forest model states its size as
+            \code{leaf.prior = normal(sd = )}.
       \item Heteroscedastic BART (Pratola et al. 2020): \code{variance = ~ x1
             + x2}, \code{variance = TRUE} or a
             \code{\link{varianceForest}} in \code{bart} and \code{dbarts}
@@ -542,8 +548,9 @@
             \code{"k"}, \code{"leaf.prior.sd"} and \code{"varcount"}:
             draws for a parameter the fit sampled and one number for one it
             held fixed, \code{"sigma"} being 1 on a family with no residual
-            scale, and \code{"k"} and \code{"leaf.prior.sd"} one number
-            per forest on a fit with several. A fit stores the \code{k} its
+            scale, and on a fit with several forests \code{"k"} is one
+            number per forest and \code{"leaf.prior.sd"} a list of each
+            forest's \code{sd}, named by the forests' labels. A fit stores the \code{k} its
             sampler recorded, the \code{leaf.prior} it ran under and the
             scalars it held \code{fixed}. \code{\link{plotTree}} plots a
             tree directly from a fit. \code{\link{samplePriorPredictive}}

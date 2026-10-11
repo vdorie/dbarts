@@ -343,49 +343,82 @@ forest(
     \code{model@tree.prior} hold its first forest's.
   }
   \item{sd}{
-    This forest's prior scale, in units of the response family's own latent
-    scale and per unit of basis row norm: the total \eqn{a\,f(x)}{a f(x)} or
-    \eqn{(b_1 - b_0)f(x)}{(b1 - b0) f(x)} is placed at \code{sd} of them. The
-    unit is \eqn{\mathrm{sd}(y)}{sd(y)} for a gaussian response, \code{1} for
-    \code{"probit"} and \eqn{\pi/\sqrt{3}}{pi/sqrt(3)} for \code{"logistic"} -
-    the standard deviation of the link's own error law, a latent model having
-    no response standard deviation to name. A forest whose \code{basis} rows
-    have median non-zero norm \eqn{c}{c} contributes the scale named here, the
-    calibration map dividing \eqn{c}{c} out, so rescaling a basis column does
-    not silently rescale the prior. Which of the two channels carries it depends
-    on whether the forest has a \code{basis}: without one it is the half-Cauchy
-    median of the forest's scalar amplitude, with one it scales the forest's own
-    leaf prior. The two channels default differently, and neither default is a
-    bare constant. A forest with NO basis takes \code{2} under a gaussian
-    response, where the unit is the response's own
-    \eqn{\mathrm{sd}(y)}{sd(y)} and a drawn \eqn{\sigma}{sigma} absorbs the
-    difference, and \code{1} under \code{"probit"} and \code{"logistic"}, where
-    the unit is the link's fixed error scale and nothing does. A forest WITH a
-    basis takes \eqn{\sqrt{2/K}}{sqrt(2/K)} in a model of \eqn{K}{K} forests, so
-    that declaring more of them does not widen the prior on the combined
-    location without bound. \eqn{K = 2}{K = 2} is the fixed point of both
-    statements, \eqn{\sqrt{2/2} = 1}{sqrt(2/2) = 1}. A value declared here
-    overrides its default and keeps its per-forest reading at every \eqn{K}{K},
-    so \code{sd = 1} on each basis forest recovers the pre-\eqn{K}{K}-aware
-    model exactly. It is one unnamed number, positive and finite. For a basis
-    of several columns that one number is the size stated for each of them,
-    so \code{forest(basis = dose + age, sd = 2)} states 2 for the column
+    This forest's prior scale, in the response's units: units of \eqn{y}{y}
+    for a gaussian response and of the latent index for \code{"probit"} and
+    \code{"logistic"}. The total \eqn{a\,f(x)}{a f(x)} or
+    \eqn{(b_1 - b_0)f(x)}{(b1 - b0) f(x)} is placed at \code{sd} of them,
+    per unit of basis row norm: a forest whose \code{basis} rows have median
+    non-zero norm \eqn{c}{c} contributes the scale named here, the calibration
+    map dividing \eqn{c}{c} out, so rescaling a basis column does not silently
+    rescale the prior. The number is kept as written, and
+    \code{$getLeafPrior(f)$sd} returns it as it was written.
+
+    The sampler divides it by one number of its own, derived once, when the
+    sampler is first created: \eqn{\mathrm{sd}(y)}{sd(y)} of the response net
+    of its offset for a gaussian response, \code{1} for \code{"probit"} and
+    \eqn{\pi/\sqrt{3}}{pi/sqrt(3)} for \code{"logistic"}, the standard
+    deviation of the link's own error distribution, a latent model having no
+    response standard deviation to name. The rows it is read from are the rows
+    in the likelihood: those \code{subset} and the missing-value handling keep,
+    less those of weight zero, with a warning and every row where those rows
+    hold fewer than two distinct values. A later change of the response, the
+    weights or the active rows does not move it, and a copy, a saved and
+    reloaded sampler and a sampler made again from its own control, model and
+    data keep it. A control or a \code{forests} list taken to other data states
+    the same numbers in that data's units, and the sampler made from it
+    derives its own. A response that does not vary has no standard deviation to
+    state a forest's \code{sd} against, and a stated \code{sd} on one is
+    refused.
+
+    What \code{sd} is the size of. Where the forest has no \code{basis}, or a
+    factor or logical one, and its coefficient is drawn, it is the prior median
+    of the absolute size of the forest's contribution, to within a few percent.
+    Where the coefficient is held with \code{amplitude = fixed()} or the basis
+    is a numeric column it is not, and the size comes to a different multiple
+    of \code{sd}: a held forest with no basis has the size of the unit whatever
+    its \code{sd} is, a held factor 1.48 times \code{sd}, and a drawn numeric
+    column 0.71 times \code{sd} at a row whose basis has the median non-zero
+    norm.
+
+    Which of the two channels carries \code{sd} depends on whether the forest
+    has a \code{basis}: without one it is the median of the half-Cauchy prior
+    on the forest's scalar amplitude, with one it scales the forest's own leaf
+    prior. The two channels default differently. A forest with no basis takes
+    twice the response's standard deviation under a gaussian response, where a
+    drawn \eqn{\sigma}{sigma} absorbs the difference, and \code{1} under
+    \code{"probit"} and \eqn{\pi/\sqrt{3}}{pi/sqrt(3)}, 1.8138, under
+    \code{"logistic"}, where the link's error scale is fixed and nothing does.
+    A forest with a basis takes \eqn{\sqrt{2/K}}{sqrt(2/K)} times that unit in
+    a model of \eqn{K}{K} forests, so that declaring more of them does not
+    widen the prior on the combined location without bound; \eqn{K = 2}{K = 2}
+    is the fixed point, \eqn{\sqrt{2/2} = 1}{sqrt(2/2) = 1}. A default is a
+    multiple of the unit and not a stated number: \code{$getLeafPrior(f)$sd}
+    reports the number of the response's units it comes to, and
+    \code{$getLeafPrior(f)$sd.stated} is \code{FALSE}. A value stated here
+    overrides the default, in the response's units, at every \eqn{K}{K}.
+
+    It is one number, positive and finite, and a name on it is dropped. For a
+    basis of several columns that one number is the size stated for each of
+    them, so \code{forest(basis = dose + age, sd = 2)} states 2 for the column
     \code{dose} and 2 for the column \code{age}; to size two columns
     differently, rescale one of them in the basis, as \code{I(dose / 30)}. A
-    vector of any other length, a named number and anything that is not a
-    number are refused.
-    A model of one forest states its size as the fitting function's
-    \code{leaf.prior = normal(sd = )}.
+    vector of any other length and anything that is not a number are refused.
+    The one forest of a model of one forest takes it as the fitting function's
+    \code{leaf.prior = normal(sd = )}, in the same units, and stating the size
+    at both places is refused.
 
     It is the one argument a live sampler restates:
     \code{$setLeafPrior(forests = list(forest(sd = ), ...))} writes it in the
-    channel creation gave the forest, and \code{$getLeafPrior(f)$leaf.prior}
-    reads it back as \code{forest(sd = )} (see \code{\link{dbartsSampler}}).
-    The channel is fixed at creation: a forest created without a basis keeps
-    its half-Cauchy median after \code{$setForestBasis} gives it one, so its
-    \code{forest(sd = )} round-trips through \code{$setLeafPrior}, while a
-    fresh \code{dbarts()} given the same bases would read the same \code{sd}
-    as a leaf-scale factor and build a different prior.
+    channel creation gave the forest and states it from then on, also where it
+    is the number in force. \code{$getLeafPrior(f)$leaf.prior} returns the
+    statement, \code{forest(sd = )} where one was stated and \code{forest()}
+    where none was, and \code{forest()} written back leaves its forest as it is
+    (see \code{\link{dbartsSampler}}). The channel is fixed at creation: a
+    forest created without a basis keeps its half-Cauchy median after
+    \code{$setForestBasis} gives it one, so its \code{forest(sd = )}
+    round-trips through \code{$setLeafPrior}, while a fresh \code{dbarts()}
+    given the same bases would state it on a forest with a basis and build a
+    different prior.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on
@@ -416,8 +449,7 @@ forest(
     argument raises the total rather than redistributing it. Under \code{"probit"} and \code{"logistic"} that
     location IS the latent index and \eqn{\sigma}{sigma} is pinned, so nothing
     in the sampler absorbs a mis-scaled basis; under a gaussian response it is
-    in \eqn{\mathrm{sd}(y)}{sd(y)} units and a drawn \eqn{\sigma}{sigma}
-    partly does. Every input to that expression is readable off the fitted
+    in the response's units and a drawn \eqn{\sigma}{sigma} partly does. Every input to that expression is readable off the fitted
     sampler: \eqn{v_f}{v_f} is the \code{amplitude.prior.variance} entry of
     \code{$getLeafPrior(f)} and \eqn{B_f}{B_f} is \code{data@bases[[f]]},
     so the induced prior can be checked against what is in force rather than
@@ -467,8 +499,7 @@ forest(
   and the fitted probabilities. At two forests of the shipped shape - one
   carrying no basis - a probit model's prior puts
   \eqn{P(p < 0.01 \mathrm{~or~} p > 0.99)}{P(p < 0.01 or p > 0.99)} at 0.238,
-  which is the shipped single-forest binary default's own 0.239; before the
-  \code{sd} defaults above it was 0.376. The \eqn{\sqrt{2/K}}{sqrt(2/K)} factor
+  which is the shipped single-forest binary default's own 0.239. The \eqn{\sqrt{2/K}}{sqrt(2/K)} factor
   is what holds that as \eqn{K}{K} grows, and it holds it in two different
   senses. When EVERY forest carries a basis the induced prior standard
   deviation of the index is 1.484 latent units at every \eqn{K}{K} - 0.989 of
@@ -479,16 +510,20 @@ forest(
   rising from 0.699 of the budget at \eqn{K = 2}{K = 2} toward 0.989 and never
   reaching it; without the factor it would instead grow past twice the budget
   by ten forests. Read the values in force off
-  \code{$getLeafPrior(f)}'s \code{leaf.scale.factor} and
+  \code{$getLeafPrior(f)}'s \code{sd} entry, in the response's units, or as
+  multiples of the sampler's unit in its \code{leaf.scale.factor} and
   \code{amplitude.prior.scale} entries.
 
   Both forests' leaf scales come from the model's own calibration map rather
   than from the leaf prior, which is why a \code{k} hyperprior, a non-default
   \code{k}, a named leaf-prior \code{sd}, and a linear or Gaussian-process
-  leaf prior are refused when a second forest is declared. This \code{sd} is
-  not the leaf prior's: it states this forest's share of the combined
-  location's prior, per unit of basis row norm, where
-  \code{normal(sd = )} states a single forest's whole spread. Every value here is validated at fit time, and
+  leaf prior are refused when a second forest is declared, the size of the
+  forest with no basis being written on the forest, as
+  \code{forest(x1 + x2, sd = 2)}, in the response's units as
+  \code{normal(sd = )} is. The two are not the same thing: this \code{sd}
+  states one forest's share of the combined location's prior, per unit of
+  basis row norm, where \code{normal(sd = )} states a single forest's whole
+  spread. Every value here is validated at fit time, and
   anything today's engine cannot honour is refused there by name rather than
   dropped.
 
