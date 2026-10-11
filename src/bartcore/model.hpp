@@ -3366,8 +3366,10 @@ private:
     std::size_t numWords = memberBits_.size();
     assert(numWords == (numObservations_ + 63) / 64);
     std::uint64_t* bits = memberBits_.data();
-    for (std::size_t r = 0; r < numObs; ++r)
+    for (std::size_t r = 0; r < numObs; ++r) {
+      assert(members[r] < numObservations_);
       bits[members[r] >> 6] |= std::uint64_t(1) << (members[r] & 63);
+    }
     [[maybe_unused]] const index_t* outEnd = out + numObs;
     for (std::size_t w = 0; w < numWords; ++w) {
       std::uint64_t word = bits[w];
