@@ -418,59 +418,105 @@ expect_error(two$setResponse(yA, updateScale = TRUE), "forest amplitudes")
 # --- the keep: too little to read at a re-derivation ------------------------
 # The transform and the center in force stay, the call completes as
 # updateScale = FALSE does, and the R methods warn once per sampler.
+expectKeep <- function(family, case, via, label, ctl = control) {
+  info <- paste(label, case, via)
+  wk <- keepRows[[case]]
+  yk <- if (identical(family, "nbinom")) {
+    responseFor(case, countsA, 2)
+  } else {
+    responseFor(case, yA, 1.5)
+  }
+  kept <- createQuietly(yk, weights = wk, family = family, ctl = ctl)
+  twin <- createQuietly(yk, weights = wk, family = family, ctl = ctl)
+  before <- readers(kept)
+  first <- caught(rederive(kept, via, yk, offKeep))
+  second <- caught(rederive(kept, via, yk, offKeep))
+  for (call in 1:2) {
+    rederive(twin, via, yk, offKeep, updateScale = FALSE)
+  }
+  expect_equal(length(first$scale), 1L, info = info)
+  expect_equal(length(first$others), 0L, info = info)
+  expect_true(
+    grepl(keepText, conditionMessage(first$scale[[1L]]), fixed = TRUE),
+    info = info
+  )
+  expect_true(
+    grepl(
+      "kept as they were (said once per sampler)",
+      conditionMessage(first$scale[[1L]]),
+      fixed = TRUE
+    ),
+    info = info
+  )
+  expect_true(inherits(first$scale[[1L]], "dbartsWarning"), info = info)
+  expect_equal(length(second$warnings), 0L, info = info)
+  expect_identical(readers(kept), before, info = info)
+  expect_identical(readers(kept), readers(twin), info = info)
+  expect_identical(recordedRange(kept), recordedRange(twin), info = info)
+  expect_identical(
+    kept$run(3L, 5L)$train,
+    twin$run(3L, 5L)$train,
+    info = info
+  )
+  # the other setter does not warn again either
+  other <- caught(rederive(
+    kept,
+    if (via == "setResponse") "setOffset" else "setResponse",
+    yk,
+    offKeep
+  ))
+  expect_equal(length(other$warnings), 0L, info = info)
+}
 for (family in c("gaussian", "nbinom")) {
   for (case in names(keepRows)) {
     for (via in c("setResponse", "setOffset")) {
-      info <- paste(family, case, via)
-      wk <- keepRows[[case]]
-      yk <- if (family == "gaussian") {
-        responseFor(case, yA, 1.5)
-      } else {
-        responseFor(case, countsA, 2)
-      }
-      kept <- createQuietly(yk, weights = wk, family = family)
-      twin <- createQuietly(yk, weights = wk, family = family)
-      before <- readers(kept)
-      first <- caught(rederive(kept, via, yk, offKeep))
-      second <- caught(rederive(kept, via, yk, offKeep))
-      for (call in 1:2) {
-        rederive(twin, via, yk, offKeep, updateScale = FALSE)
-      }
-      expect_equal(length(first$scale), 1L, info = info)
-      expect_equal(length(first$others), 0L, info = info)
-      expect_true(
-        grepl(keepText, conditionMessage(first$scale[[1L]]), fixed = TRUE),
-        info = info
-      )
-      expect_true(
-        grepl(
-          "kept as they were (said once per sampler)",
-          conditionMessage(first$scale[[1L]]),
-          fixed = TRUE
-        ),
-        info = info
-      )
-      expect_true(inherits(first$scale[[1L]], "dbartsWarning"), info = info)
-      expect_equal(length(second$warnings), 0L, info = info)
-      expect_identical(readers(kept), before, info = info)
-      expect_identical(readers(kept), readers(twin), info = info)
-      expect_identical(recordedRange(kept), recordedRange(twin), info = info)
-      expect_identical(
-        kept$run(3L, 5L)$train,
-        twin$run(3L, 5L)$train,
-        info = info
-      )
-      # the other setter does not warn again either
-      other <- caught(rederive(
-        kept,
-        if (via == "setResponse") "setOffset" else "setResponse",
-        yk,
-        offKeep
-      ))
-      expect_equal(length(other$warnings), 0L, info = info)
+      expectKeep(family, case, via, family)
     }
   }
 }
+# Student-t counts its rows in by its own marks, and every chain keeps alike
+for (chains in 1:2) {
+  for (case in names(keepRows)) {
+    for (via in c("setResponse", "setOffset")) {
+      expectKeep(
+        dbarts:::student(df = 4),
+        case,
+        via,
+        paste("student-t,", chains, "chains"),
+        ctl = dbartsControl(
+          n.chains = chains,
+          n.threads = 1L,
+          n.trees = 10L,
+          updateState = FALSE,
+          n.samples = 10L,
+          seed = 7L
+        )
+      )
+    }
+  }
+}
+# a call that re-derives, or that does not ask to, spends nothing: the first
+# keep after them still warns, once
+spent <- sampler(yA, weights = w)
+expect_equal(
+  length(caught(spent$setResponse(yA, updateScale = TRUE))$warnings),
+  0L
+)
+expect_equal(
+  length(caught(spent$setOffset(rep(0, n), updateScale = TRUE))$warnings),
+  0L
+)
+expect_equal(length(caught(spent$setOffset(rep(0, n)))$warnings), 0L)
+spent$setWeights(keepRows$same)
+yk <- responseFor("same", yA, 1.5)
+expect_equal(
+  length(caught(spent$setResponse(yk, updateScale = TRUE))$scale),
+  1L
+)
+expect_equal(
+  length(caught(spent$setResponse(yk, updateScale = TRUE))$warnings),
+  0L
+)
 
 # the flag survives setData, which derives as creation does and says so; a
 # copy and a reload are new samplers and warn on their own first keep
@@ -546,6 +592,39 @@ expect_identical(strict$data@offset, offKeep)
 engineState <- strict$state
 strict$storeState()
 expect_identical(strict$state, engineState)
+# and where the stored state is behind the engine, so that the call's own
+# store is what brings it level: sweeps not stored, then the keep, by each
+# setter, on a continuous and on a count sampler
+for (family in c("gaussian", "nbinom")) {
+  for (via in c("setResponse", "setOffset")) {
+    info <- paste(family, via)
+    yk <- if (family == "gaussian") {
+      responseFor("same", yA, 1.5)
+    } else {
+      responseFor("same", countsA, 2)
+    }
+    behind <- createQuietly(yk, weights = keepRows$same, family = family)
+    behind$storeState()
+    stored <- behind$state
+    invisible(behind$run(0L, 3L, updateState = FALSE))
+    old <- options(warn = 2L)
+    result <- tryCatch(
+      if (via == "setResponse") {
+        behind$setResponse(yk, updateScale = TRUE, updateState = TRUE)
+      } else {
+        behind$setOffset(offKeep, updateScale = TRUE, updateState = TRUE)
+      },
+      error = function(e) e
+    )
+    options(old)
+    expect_true(inherits(result, "error"), info = info)
+    expect_true(grepl(keepText, conditionMessage(result), fixed = TRUE))
+    engineState <- behind$state
+    expect_false(identical(engineState, stored), info = info)
+    behind$storeState()
+    expect_identical(behind$state, engineState, info = info)
+  }
+}
 
 # --- rule 4 at creation -----------------------------------------------------
 # The numbers are taken over every row, one warning, and the starting sigma is
@@ -623,6 +702,25 @@ expect_equal(
 binary <- as.double(y > median(y))
 probit <- caught(sampler(binary, weights = rep(0, n), family = "probit"))
 expect_equal(length(probit$scale), 0L)
+# a survival fit takes no weights, so no row of one is ever out at creation:
+# the refusal, and no warning ahead of it
+refused <- caught(tryCatch(
+  dbarts(
+    x,
+    cbind(exp(y), 1),
+    weights = creationCases$one$w,
+    family = "aft",
+    control = control
+  ),
+  error = function(e) e
+))
+expect_true(inherits(refused$value, "error"))
+expect_true(grepl(
+  "do not support case weights",
+  conditionMessage(refused$value),
+  fixed = TRUE
+))
+expect_equal(length(refused$warnings), 0L)
 # fractional weights with a zero among them: the data object's own warning
 # as well
 fractional <- caught(sampler(yA, weights = c(0.5, rep(0, n - 1L))))
@@ -649,6 +747,91 @@ specCaught <- caught(dbartsSpec(
   dbartsData(y ~ x1 + x2, df(yA), weights = creationCases$one$w)
 ))
 expect_equal(length(specCaught$scale), 1L)
+# the value tested is the response less its offset. Rows in at one response
+# and several offsets hold a range, read with no warning; rows in whose
+# responses differ by their offsets alone hold none. Quarters, so the
+# difference is exact
+ySame <- yA
+ySame[1:60] <- 1.5
+sameIn <- creationCases$same$w
+offQuarters <- (seq_len(n) %% 4L) / 4
+made <- caught(sampler(ySame, weights = sameIn, offset = offQuarters))
+expect_equal(length(made$warnings), 0L)
+expect_equal(recordedRange(made$value), c(0.75, 1.5))
+made <- caught(sampler(
+  ySame + offQuarters,
+  weights = sameIn,
+  offset = offQuarters
+))
+expect_equal(length(made$scale), 1L)
+expect_equal(length(made$others), 0L)
+expect_identical(conditionMessage(made$scale[[1L]]), creationText(60L, n))
+expect_equal(
+  recordedRange(made$value),
+  range(ySame + offQuarters - offQuarters)
+)
+# a warning turned into an error. At creation nothing is handed back, by
+# every door; at setData the engine has the replacement by then, and the
+# record, the stored state and a copy have it too
+strictly <- function(expr) {
+  old <- options(warn = 2L)
+  on.exit(options(old))
+  tryCatch(expr, error = function(e) e)
+}
+oneIn <- creationCases$one$w
+doors <- list(
+  dbarts = function() sampler(yA, weights = oneIn),
+  bart = function() {
+    bart(x, yA, weights = oneIn, n.chains = 1L, n.threads = 1L, verbose = FALSE)
+  },
+  bartBT = function() {
+    bartBT(x, yA, weights = oneIn, nchain = 1L, nthread = 1L, verbose = FALSE)
+  },
+  xbart = function() {
+    xbart(x, ySame, weights = sameIn, n.threads = 1L, verbose = FALSE)
+  }
+)
+for (door in names(doors)) {
+  result <- strictly(doors[[door]]())
+  expect_true(inherits(result, "error"), info = door)
+  expect_true(
+    grepl(noValuesPattern, conditionMessage(result), fixed = TRUE),
+    info = door
+  )
+}
+target <- sampler(
+  y,
+  ctl = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.trees = 10L,
+    updateState = TRUE,
+    n.samples = 10L,
+    seed = 7L
+  )
+)
+stored <- target$state
+replacement <- target$data
+replacement@y <- 10 * y + 100
+replacement@weights <- oneIn
+result <- strictly(target$setData(replacement))
+expect_true(inherits(result, "error"))
+expect_identical(
+  conditionMessage(result),
+  paste0("(converted from warning) ", creationText(1L, n))
+)
+expect_equal(recordedRange(target), range(10 * y + 100))
+expect_equal(
+  readers(target)$response.shift,
+  mean(range(10 * y + 100)),
+  tolerance = 1e-14
+)
+engineState <- target$state
+expect_false(identical(engineState, stored))
+target$storeState()
+expect_identical(target$state, engineState)
+expect_identical(readers(target$copy()), readers(target))
+expect_identical(recordedRange(target$copy()), recordedRange(target))
 
 # --- sigest -----------------------------------------------------------------
 sigestCases <- function(build, label) {
@@ -702,6 +885,20 @@ fit <- caught(bart(
 expect_true(isTRUE(fit$value$sigest.fallback))
 lines <- startingLines(sampler(yA, weights = three, ctl = verboseControl))
 expect_true(any(grepl("in 3 rows", lines, fixed = TRUE)))
+# what stands in is unweighted over the rows of positive weight, one of
+# weight below 1 included: the sd of 1, 2 and 4, sqrt(7 / 3), written out
+yLiteral <- yA
+yLiteral[1:3] <- c(1, 2, 4)
+made <- caught(sampler(yLiteral, weights = c(0.5, 2, 3, rep(0, n - 3L))))
+expect_equal(made$sigmaFallbacks, 1L)
+expect_equal(made$value$data@sigma, 1.5275252316519468, tolerance = 1e-14)
+expect_equal(length(made$scale), 0L)
+expect_equal(length(made$others), 1L)
+expect_true(grepl(
+  "rows with 'weights' of 0 are left out of the likelihood",
+  conditionMessage(made$others[[1L]]),
+  fixed = TRUE
+))
 # a response the predictors fit exactly among the rows in: the floor reads
 # the rows in
 exact <- 1 + 2 * x[, 1L] - x[, 2L]
@@ -734,9 +931,6 @@ expect_equal(fixedSigma$value$data@sigma, sqrt(0.7))
 expect_equal(fixedSigma$sigmaFallbacks, 0L)
 
 # --- xbart in rule 4's case --------------------------------------------------
-sameIn <- creationCases$same$w
-ySame <- yA
-ySame[1:60] <- 1.5
 xb <- caught(xbart(
   x,
   ySame,
@@ -785,6 +979,93 @@ folds <- seen[seen[, "rows"] < n, , drop = FALSE]
 expect_true(nrow(folds) >= 4L)
 expect_true(all(is.finite(folds[, "sigma"])) && all(folds[, "sigma"] > 0.1))
 expect_true(all(folds[, "rows"] == n - n %/% 4L))
+# What each estimate hands the floor, the all-rows one first: the estimate
+# and the residual it stands in for.
+floorCalls <- function(...) {
+  calls <- list()
+  record <- function(sigma, residual) {
+    calls[[length(calls) + 1L]] <<- list(sigma = sigma, residual = residual)
+  }
+  trace(
+    "floorSigmaEstimate",
+    tracer = bquote(.(record)(sigma, residual)),
+    print = FALSE,
+    where = asNamespace("dbarts")
+  )
+  on.exit(untrace("floorSigmaEstimate", where = asNamespace("dbarts")))
+  made <- caught(xbart(
+    ...,
+    n.samples = 10L,
+    n.burn = 5L,
+    n.trees = 5L,
+    n.reps = 1L,
+    n.test = 4,
+    n.threads = 1L,
+    seed = 7L,
+    verbose = FALSE
+  ))
+  list(made = made, calls = calls)
+}
+# a fold with rows out, two values in and no residual degrees of freedom:
+# 13 rows in and 11 coefficients, so a fold that holds two of them out has
+# none left. What stands in, and the floor, read the fold's rows in
+xWide <- cbind(x, sin(outer(seq_len(n), 1:8)))
+thirteen <- seq.int(1L, by = 9L, length.out = 13L)
+wThirteen <- replace(rep(0, n), thirteen, 1)
+yFold <- y + 50 * (wThirteen == 0)
+seen <- floorCalls(xWide, yFold, weights = wThirteen)
+expect_equal(length(seen$made$warnings), 0L)
+expect_true(length(seen$calls) >= 5L)
+expect_true(is.finite(seen$calls[[1L]]$sigma))
+standsIn <- !vapply(seen$calls, function(call) is.finite(call$sigma), NA)
+expect_true(any(standsIn))
+expect_true(all(vapply(
+  seen$calls,
+  function(call) {
+    length(unique(call$residual)) >= 2L &&
+      all(call$residual %in% yFold[thirteen])
+  },
+  NA
+)))
+# a fold's rule 4 tests the response less its offset: rows in at one response
+# and several offsets hold a range, so its regression keeps the weights
+seen <- floorCalls(x, ySame, weights = sameIn, offset = off)
+expect_equal(length(seen$made$warnings), 0L)
+expect_true(length(seen$calls) >= 5L)
+expect_true(all(vapply(
+  seen$calls,
+  function(call) all(call$residual %in% (ySame - off)[1:60]),
+  NA
+)))
+# a function given as sigest is handed the fold's own weights, in rule 4's
+# case as in any other
+handed <- list()
+recordHanded <- function(x, y, weights, offset) {
+  handed[[length(handed) + 1L]] <<- list(y = y, weights = weights)
+  1
+}
+made <- caught(xbart(
+  x,
+  ySame,
+  weights = sameIn,
+  sigest = recordHanded,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.reps = 1L,
+  n.test = 4,
+  n.threads = 1L,
+  seed = 7L,
+  verbose = FALSE
+))
+expect_equal(length(made$scale), 1L)
+expect_equal(length(made$others), 0L)
+expect_true(length(handed) >= 4L)
+expect_true(all(vapply(
+  handed,
+  function(call) identical(call$weights, as.double(call$y == 1.5)),
+  NA
+)))
 
 # --- creation routes for a count fit ----------------------------------------
 rowsInCenter <- log(sum(countsA[rows.in]) / sum(rows.in))
@@ -808,6 +1089,161 @@ spec <- dbartsSpec(
 byHand <- new("dbartsSampler", spec$control, spec$model, spec$data)
 byHand$setActiveRows(spec$active)
 expect_equal(readers(byHand)$response.shift, everyRowCenter, tolerance = 1e-14)
+# The re-derivation under the mask moves the center and the record and
+# nothing else: a test offset, here of another row count than the training
+# rows, is what creation or setData left, in the object and in the engine.
+# The test rows repeat rows in, so a test prediction less its offset is its
+# training row's less its own; were the engine's test offset gone, or the
+# object's, the two would differ by it.
+testRows <- c(1L, 3L, 5L, 7L, 9L, 11L, 13L)
+countFrame <- data.frame(y = countsA, x, o = off, w = w)
+unitFrame <- countFrame
+unitFrame$w <- 1
+storing <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 10L,
+  updateState = TRUE,
+  n.samples = 10L,
+  seed = 7L
+)
+# the offset and its test counterpart are read in the call, so each form is
+# written out
+offsetForms <- list(
+  scalar = function(frame, ctl = control) {
+    dbarts(
+      y ~ x1 + x2,
+      frame,
+      test = frame[testRows, ],
+      weights = w,
+      offset = 0.7,
+      family = "nbinom",
+      control = ctl
+    )
+  },
+  vector = function(frame, ctl = control) {
+    dbarts(
+      y ~ x1 + x2,
+      frame,
+      test = frame[testRows, ],
+      weights = w,
+      offset = o,
+      family = "nbinom",
+      control = ctl
+    )
+  },
+  term = function(frame, ctl = control) {
+    dbarts(
+      y ~ x1 + x2 + offset(o),
+      frame,
+      test = frame[testRows, ],
+      weights = w,
+      family = "nbinom",
+      control = ctl
+    )
+  },
+  explicit = function(frame, ctl = control) {
+    dbarts(
+      y ~ x1 + x2,
+      frame,
+      test = frame[testRows, ],
+      weights = w,
+      offset = o,
+      offset.test = off[testRows] + 0.125,
+      family = "nbinom",
+      control = ctl
+    )
+  }
+)
+offsetLiterals <- list(
+  scalar = list(train = rep(0.7, n), test = rep(0.7, 7L)),
+  vector = list(train = off, test = off[testRows]),
+  term = list(train = off, test = off[testRows]),
+  explicit = list(train = off, test = off[testRows] + 0.125)
+)
+expectTestOffsetLeft <- function(s, form, label) {
+  literal <- offsetLiterals[[form]]
+  info <- paste(label, form)
+  expect_equal(s$data@offset.test, literal$test, info = info)
+  expect_equal(s$data@offset, literal$train, info = info)
+  expect_equal(
+    readers(s)$response.shift,
+    log(sum(countsA[rows.in]) / sum(exp(literal$train[rows.in]))),
+    tolerance = 1e-14,
+    info = info
+  )
+  expect_identical(
+    recordedRange(s)[1L],
+    readers(s)$response.shift,
+    info = info
+  )
+  draws <- s$run(3L, 4L)
+  expect_equal(
+    draws$test - literal$test,
+    draws$train[testRows, ] - literal$train[testRows],
+    tolerance = 1e-12,
+    info = info
+  )
+  draws
+}
+for (form in names(offsetForms)) {
+  masked <- caught(offsetForms[[form]](countFrame))
+  everyRow <- caught(offsetForms[[form]](unitFrame))
+  expect_equal(length(masked$scale), 0L, info = form)
+  # as creation leaves the slots where no mask follows it
+  expect_identical(
+    masked$value$data@offset.test,
+    everyRow$value$data@offset.test,
+    info = form
+  )
+  expect_identical(
+    masked$value$data@testUsesRegularOffset,
+    everyRow$value$data@testUsesRegularOffset,
+    info = form
+  )
+  # the center is that of the fit on the rows in
+  subset <- caught(offsetForms[[form]](countFrame[rows.in, ]))$value
+  expect_equal(
+    readers(masked$value)$response.shift,
+    readers(subset)$response.shift,
+    tolerance = 1e-14,
+    info = form
+  )
+  expectTestOffsetLeft(masked$value, form, "creation")
+  # a storing sampler's state, first read once creation is over, is the
+  # engine's
+  fresh <- caught(offsetForms[[form]](countFrame, storing))$value
+  engineState <- fresh$state
+  expect_true(inherits(engineState, "bartcoreState"), info = form)
+  fresh$storeState()
+  expect_identical(fresh$state, engineState, info = form)
+  # setData to the same data: the replacement's own slots, and the stored
+  # state the engine's
+  target <- caught(dbarts(
+    y ~ x1 + x2,
+    unitFrame,
+    test = unitFrame[testRows, ],
+    offset = 0.25,
+    family = "nbinom",
+    control = storing
+  ))$value
+  replacement <- masked$value$data
+  replacement@weights <- w
+  replaced <- caught(target$setData(replacement))
+  expect_equal(length(replaced$warnings), 0L, info = form)
+  expect_identical(target$activeRows, w, info = form)
+  engineState <- target$state
+  target$storeState()
+  expect_identical(target$state, engineState, info = form)
+  expectTestOffsetLeft(target, form, "setData")
+}
+# the response of a row out reaches no test prediction either
+inertTest <- function(response) {
+  frame <- countFrame
+  frame$y <- response
+  offsetForms$scalar(frame)$run(5L, 5L)$test
+}
+expect_identical(inertTest(countsA), inertTest(countsB))
 
 # --- a mask over w against weights w * a ------------------------------------
 wf <- 0.5 + runif(n)
@@ -929,6 +1365,50 @@ timeH2 <- timeH
 timeH2[1L] <- 3.7
 moved <- fitHazard(xh, timeH2, statusH, weightH)
 expect_identical(moved$value$yhat.train, with$value$yhat.train)
+expect_identical(moved$value$periods, with$value$periods)
+# the subject at 3.5 is at risk in four periods, the one at 20 in all five
+expect_identical(
+  ncol(with$value$yhat.train),
+  ncol(without$value$yhat.train) + 9L
+)
+# the formula interface reads its periods from the same subjects
+if (requireNamespace("survival", quietly = TRUE)) {
+  hazardFrame <- data.frame(xh, time = timeH, status = statusH)
+  viaFormula <- caught(bart(
+    survival::Surv(time, status) ~ x1 + x2,
+    hazardFrame,
+    weights = weightH,
+    family = "hazard",
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = FALSE
+  ))
+  expect_equal(length(viaFormula$warnings), 0L)
+  expect_identical(viaFormula$value$periods, as.double(1:5))
+  expect_identical(
+    unname(viaFormula$value$yhat.train),
+    unname(with$value$yhat.train)
+  )
+  noneIn <- caught(bart(
+    survival::Surv(time, status) ~ x1 + x2,
+    hazardFrame,
+    weights = rep(0, nh),
+    family = "hazard",
+    n.trees = 5L,
+    n.samples = 5L,
+    n.burn = 5L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 3L,
+    verbose = FALSE
+  ))
+  expect_equal(length(noneIn$scale), 1L)
+  expect_identical(noneIn$value$periods, sort(unique(timeH)))
+}
 # breaks = K reads the quantiles of the subjects in
 quantiled <- fitHazard(
   xh,
