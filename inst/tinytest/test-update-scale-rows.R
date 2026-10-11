@@ -309,6 +309,13 @@ for (via in c("setWeights", "setActiveRows")) {
   expectRange(s, range(yA - off), paste(via, "every row"))
   expect_equal(readers(s), readers(mkG()), info = via)
 }
+# a cleared mask re-derives too: every row's range again
+cleared <- mkG()
+cleared$setActiveRows(w01, updateScale = TRUE)
+expectRange(cleared, inRange, "masked before the clear")
+cleared$setActiveRows(NULL, updateScale = TRUE)
+expectRange(cleared, range(yA - off), "setActiveRows(NULL, updateScale = TRUE)")
+expect_null(cleared$activeRows)
 # a named sd: k restated against the new scale
 named <- mkG(leaf.prior = normal(sd = 0.65))
 named$setWeights(w01, updateScale = TRUE)
