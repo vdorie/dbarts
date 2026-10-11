@@ -811,9 +811,10 @@ is to log-transform or winsorize such values before fitting, or to let
 `k` adapt via the `chi` hyperprior
 ([`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
 The scale is fixed when the sampler is created; the sampler's
-`setResponse` and `setOffset` methods only re-anchor it when called with
-`updateScale = TRUE`, intended for burn-in only, since re-anchoring
-mid-run makes fits across iterations no longer comparable (see
+`setResponse`, `setOffset`, `setWeights` and `setActiveRows` methods
+only re-anchor it when called with `updateScale = TRUE`, intended for
+burn-in only, since re-anchoring mid-run makes fits across iterations no
+longer comparable (see
 [dbartsSampler-class](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
 
 ### Naming the leaf prior by k or sd
@@ -857,12 +858,12 @@ constrained axis (see `monotone` above).
 A named `sd` is absolute. It is applied at creation and re-derived at
 every `setModel` against the response transform then in force, and the
 sampler restates it after every channel that re-anchors the transform
-(`setResponse` or `setOffset` with `updateScale = TRUE`, and `setData`),
-so a fixed `sd` means the same spread throughout, and an `invchi` prior
-on it the same prior; `setLeafPrior` changes it, and the restatement
-then uses the latest write. The current value of a drawn `sd` is the
-sampler's `k`, which a re-anchor leaves, so it lags until its next draw
-(see
+(`setResponse`, `setOffset`, `setWeights` or `setActiveRows` with
+`updateScale = TRUE`, and `setData`), so a fixed `sd` means the same
+spread throughout, and an `invchi` prior on it the same prior;
+`setLeafPrior` changes it, and the restatement then uses the latest
+write. The current value of a drawn `sd` is the sampler's `k`, which a
+re-anchor leaves, so it lags until its next draw (see
 [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
 A `k`, relative to the data, moves with the transform instead.
 Two-forest (`forests`) and multinomial models take their forests' leaf

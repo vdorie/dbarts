@@ -183,9 +183,25 @@ A list with components
   case weights resolved to, `NULL` when they resolved to none; the
   `data` object's weights slot is cleared either way, since neither
   family carries one, so a caller building a sampler from this list must
-  install the mask on it. A count (`"nbinom"`) sampler made by hand from
-  the list is created with every row in and keeps the center taken over
-  every row, where `dbarts` takes it over the rows the mask keeps.
+  install the mask on it. For a count (`"nbinom"`) list,
+  `sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)`
+  followed by `sampler$setActiveRows(spec$active, updateScale = TRUE)`
+  makes the sampler `dbarts` makes: the center is taken over the rows
+  the mask keeps, and the two are
+  [`identical()`](https://rdrr.io/r/base/identical.html) in the leaf
+  prior, `$model`, `$data`, `$activeRows`, the stored state and every
+  array `run()` returns from the same seed. A caller who redraws the
+  mask each sweep and wants the center re-derived in burn-in and held
+  afterward passes `updateScale = i <= n.burn` to that call. Where the
+  mask keeps fewer than two distinct counts the call keeps the center
+  and warns, so the by-hand route has warned twice, here and at
+  `dbartsSpec`, and has spent the sampler's one warning: a later such
+  call is silent on it and warns once on `dbarts`'s sampler. For a
+  probit or ordinal list `sampler$setActiveRows(spec$active)` with no
+  argument makes it `dbarts`'s, there being nothing to re-derive, and a
+  list that carries several forests is refused the argument. A Gaussian
+  or Student-t list has no mask, its weights riding the data object into
+  creation, and needs no call.
 
 ## See also
 

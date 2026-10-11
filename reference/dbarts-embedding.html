@@ -102,7 +102,9 @@
     cold-start vector keeps that vector's range as its prior scale for the whole run. State the
     prior instead of inheriting it: <code>leaf.prior = normal(sd = )</code> at creation (see
     <code><a href="dbartsPriors.html">dbartsPriors</a></code>), or <code>$setLeafPrior(normal(sd = ))</code> afterward, with
-    <code>$getLeafPrior()</code> reporting what is actually in force. A named sd is absolute: a
+    <code>$getLeafPrior()</code> reporting what is actually in force. A caller whose rows enter and leave the
+    likelihood asks for the scale to be taken again from the rows then in with <code>updateScale = TRUE</code>
+    on <code>$setWeights</code> or <code>$setActiveRows</code>, in burn-in only. A named sd is absolute: a
     channel that does re-anchor the transform leaves it where it was.</p>
 <p>A decomposition across \(K\) samplers needs the same care in the other direction. Each
     carries a prior sized for the whole of \(f\), so their sum has \(\sqrt{K}\)

@@ -87,8 +87,11 @@ the prior instead of inheriting it: `leaf.prior = normal(sd = )` at
 creation (see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
 or `$setLeafPrior(normal(sd = ))` afterward, with `$getLeafPrior()`
-reporting what is actually in force. A named sd is absolute: a channel
-that does re-anchor the transform leaves it where it was.
+reporting what is actually in force. A caller whose rows enter and leave
+the likelihood asks for the scale to be taken again from the rows then
+in with `updateScale = TRUE` on `$setWeights` or `$setActiveRows`, in
+burn-in only. A named sd is absolute: a channel that does re-anchor the
+transform leaves it where it was.
 
 A decomposition across \\K\\ samplers needs the same care in the other
 direction. Each carries a prior sized for the whole of \\f\\, so their

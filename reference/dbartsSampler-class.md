@@ -42,7 +42,7 @@ setResponse(
 # S4 method for class 'dbartsSampler'
 setOffset(offset, updateScale = FALSE, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setWeights(weights, updateState = NULL)
+setWeights(weights, updateState = NULL, updateScale = FALSE)
 # S4 method for class 'dbartsSampler'
 setCounts(counts, updateState = NULL)
 # S4 method for class 'dbartsSampler'
@@ -50,7 +50,7 @@ setCategoryOffset(offset, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setCategoryTestOffset(offset.test)
 # S4 method for class 'dbartsSampler'
-setActiveRows(active, updateState = NULL)
+setActiveRows(active, updateState = NULL, updateScale = FALSE)
 # S4 method for class 'dbartsSampler'
 setForestWeights(forest, weights, updateState = NULL)
 # S4 method for class 'dbartsSampler'
@@ -397,38 +397,57 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - updateScale:
 
   Logical indicating whether BART's internal scale should re-anchor to
-  the new offset (`setOffset`) or response (`setResponse`). Defaults to
-  `FALSE`, locking the scale set at creation; should only be `TRUE`
-  during burn-in, as re-anchoring mid-run makes the fits across
+  the new offset (`setOffset`), response (`setResponse`), weights
+  (`setWeights`) or active rows (`setActiveRows`). On the last two it is
+  the argument after `updateState`, so the positional
+  `setWeights(w, TRUE)` of earlier releases still names `updateState`.
+  With `TRUE` they install the weights or the mask first and then take
+  the response's scale (a count sampler's center) again from the rows
+  then in the likelihood, as creation on those rows would, whether or
+  not the call moved a row in or out; the response and the offset are
+  not changed, and neither is a test offset, a cut point, a covariate
+  standardization or the residual prior. Nothing is taken again by a
+  one-forest `probit`, `ordinal`, `logistic` or `hazard` sampler, which
+  accepts the argument and ignores it, unless it has `gp` leaves holding
+  saved draws, which refuse it as below. A call refused for any reason
+  installs nothing; a call that keeps the scale (below) installs the
+  weights or the mask. A stored state does not undo a re-derivation, and
+  with `updateState` resolving to `TRUE` the state is stored after it.
+  Defaults to `FALSE`, locking the scale set at creation; should only be
+  `TRUE` during burn-in, as re-anchoring mid-run makes the fits across
   iterations no longer comparable. Draws already saved (`keepTrees`) are
   rewritten into the new scale, a heteroscedastic sampler's variance
   draws included, so `predict` returns the values it returned before the
   call; the current fit follows the new scale. `TRUE` is refused by a
   sampler with Gaussian-process (`gp`) leaves that holds saved draws,
-  whatever the new response or offset: make a new sampler, or leave
-  `updateScale` at `FALSE`. A draw is saved by every sweep run as a
-  sample while trees are kept, warm-up sweeps included, so such a
-  sampler takes a re-anchor during burn-in only as long as its sweeps
-  are run as burn-in, which saves nothing: `run(1, 0)` between
-  re-anchors, not `run(0, 1)`. For a survival (`aft`) sampler the scale
-  is always that of the observed times, a censored row's censoring time
-  among them, and never of a time the sampler has drawn for a censored
-  row. `TRUE` is refused by a multi-forest (`forests`) sampler, whose
-  calibration map is pinned at creation - whatever its response family,
-  and whether or not there is a transform to re-anchor - and is never
-  restated. A heteroscedastic (`variance`) sampler takes it: the
-  variance forest's leaf prior is re-derived from the residual prior on
-  the new scale, exactly as creation on the new response would have
-  stated it, and the drawn \\s^2(x)\\ is carried into the same units, so
-  the surface keeps its meaning in response units across the swap.
-  `setData` carries that restatement too, unconditionally: the
-  whole-data conduit has no `updateScale` to pin the transform with, so
-  a replacement data set always re-anchors it, over its rows in the
-  likelihood as creation would, and a sampler made by hand from
-  another's parts derives them again in the same way. Where rows are out
-  and the rows in hold fewer than two distinct values of the response,
-  `setData` takes every row, under a warning of class
-  `dbartsScaleFallbackWarning`; `setResponse` and `setOffset` with
+  whatever the new response, offset, weights or mask, and whatever the
+  family: make a new sampler, or leave `updateScale` at `FALSE`. A draw
+  is saved by every sweep run as a sample while trees are kept, warm-up
+  sweeps included, so such a sampler takes a re-anchor during burn-in
+  only as long as its sweeps are run as burn-in, which saves nothing:
+  `run(1, 0)` between re-anchors, not `run(0, 1)`. For a survival
+  (`aft`) sampler the scale is always that of the observed times, a
+  censored row's censoring time among them, and never of a time the
+  sampler has drawn for a censored row. `TRUE` is refused by a
+  multi-forest (`forests`) sampler, whose calibration map is pinned at
+  creation - whatever its response family, and whether or not there is a
+  transform to re-anchor - and is never restated; the response and a
+  basis scale may span different rows, which is why.
+  `setActiveRows(updateScale = TRUE)` is refused by a multinomial
+  sampler as its other response channels are. A heteroscedastic
+  (`variance`) sampler takes it: the variance forest's leaf prior is
+  re-derived from the residual prior on the new scale, exactly as
+  creation on the new response would have stated it, and the drawn
+  \\s^2(x)\\ is carried into the same units, so the surface keeps its
+  meaning in response units across the swap. `setData` carries that
+  restatement too, unconditionally: the whole-data conduit has no
+  `updateScale` to pin the transform with, so a replacement data set
+  always re-anchors it, over its rows in the likelihood as creation
+  would, and a sampler made by hand from another's parts derives them
+  again in the same way. Where rows are out and the rows in hold fewer
+  than two distinct values of the response, `setData` takes every row,
+  under a warning of class `dbartsScaleFallbackWarning`; `setResponse`,
+  `setOffset`, `setWeights` and `setActiveRows` with
   `updateScale = TRUE` instead keep the scale and the center in force,
   as with `updateScale = FALSE`, and warn with the same class once for a
   sampler (a copy or a reload is a new sampler, `setData` is not). On
@@ -545,7 +564,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   center or a forest's default sd, which are taken over the rows of
   positive weight when the sampler is created (a row is in when its
   weight is positive and no mask switches it off) and held when the
-  weights or the mask change, so the three ways to leave a row out - at
+  weights or the mask change, unless the call carries
+  `updateScale = TRUE`, so the three ways to leave a row out - at
   creation, by `setWeights` or `setActiveRows`, and by `subset` - differ
   by when the row left. It counts as a member of its leaf, so the rule
   that rejects a tree move leaving a leaf empty counts it too: the trees
@@ -671,10 +691,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   where an all-ones vector installs and is measurably distinct from
   carrying no weights at all. One channel states membership, the other
   precision, and the two deliberately carry opposite degenerate-value
-  policies. A `probit`, `ordinal` or `nbinom` sampler, which carries no
-  precision channel at all, reaches this one through `setWeights` and
-  `setData` as well: 0/1 weights there install the mask rather than
-  being refused.
+  policies. The response scale, the count center and a forest's default
+  sd are held across a mask as across weights, unless the call carries
+  `updateScale = TRUE`. A `probit`, `ordinal` or `nbinom` sampler, which
+  carries no precision channel at all, reaches this one through
+  `setWeights` and `setData` as well: 0/1 weights there install the mask
+  rather than being refused.
 
   An inactive row (`active[i] == 0`) contributes nothing to any leaf
   sufficient statistic, branch log-likelihood, birth-scan weight total,
@@ -1208,19 +1230,21 @@ matching per-category offset. Everything else on the mutation surface is
 refused, each by a message naming the capability and, where one exists,
 the channel that serves the caller instead: `$setResponse` and
 `$setOffset` (a flat vector cannot express the matrix, and a flat shift
-is the softmax's null direction), `$setWeights` (an integer case weight
-is already row-wise replication in the count response, and a non-integer
-one has no exact augmentation sampler), `$setSigma` (no residual scale),
-`$setData` and `$setModel` (the K category forests fix their data and
-their calibration at creation), a named sd or a `k` hyperprior on
-`$setLeafPrior`, which takes `normal(k = )` with a fixed `k` (the
-softmax map owns every category forest's leaf scale),
-`$setForestWeights` and `$setForestBasis` (its forests are its
-categories, which carry no amplitudes), and `$getFitsWithoutOffset` (its
-reported channels are probabilities, not one additive location).
-Per-forest masking is refused permanently rather than pending: a
-category's margin is a log-sum-exp over the other \\K-1\\, so a mask on
-one forest alone has no conditional to be a mask of.
+is the softmax's null direction), `$setActiveRows` at
+`updateScale = TRUE` (the categories keep their scale at creation),
+`$setWeights` (an integer case weight is already row-wise replication in
+the count response, and a non-integer one has no exact augmentation
+sampler), `$setSigma` (no residual scale), `$setData` and `$setModel`
+(the K category forests fix their data and their calibration at
+creation), a named sd or a `k` hyperprior on `$setLeafPrior`, which
+takes `normal(k = )` with a fixed `k` (the softmax map owns every
+category forest's leaf scale), `$setForestWeights` and `$setForestBasis`
+(its forests are its categories, which carry no amplitudes), and
+`$getFitsWithoutOffset` (its reported channels are probabilities, not
+one additive location). Per-forest masking is refused permanently rather
+than pending: a category's margin is a log-sum-exp over the other
+\\K-1\\, so a mask on one forest alone has no conditional to be a mask
+of.
 
 The composition rule follows from the table: an outer block conditions
 on \\f(x_i)\\, so it reads `$getFitsWithoutOffset()` and adds back
@@ -1363,6 +1387,7 @@ where it does not, so a state written before these blocks were dropped
 still installs. The response transform a `k`-named prior is anchored to,
 and which every leaf value is stored relative to, is model too: set when
 the sampler is created and when `setResponse` or `setOffset` at
+`updateScale = TRUE`, `setWeights` or `setActiveRows` at
 `updateScale = TRUE`, or `setData`, re-anchors it, and recorded on the
 `model` field so a `copy` or a reload is re-created in it. A state goes
 in as stored: its trees, leaf values, `k`, `sigma` and kept draws are
@@ -2082,9 +2107,10 @@ spread (see `monotone` in
 This is the authoritative reader of the prior in force. A named `sd` is
 absolute: the sampler holds it as `k = k.scale / sd`, or as the `chi`
 prior on `k` at that scale, and restates it whenever the response
-transform is re-anchored - `setResponse` or `setOffset` at
-`updateScale = TRUE`, `setData`, and the same calls made by compiled
-code through `dbarts.h` - so a fixed sd, and the prior on a drawn one,
+transform is re-anchored - `setResponse`, `setOffset`, `setWeights` or
+`setActiveRows` at `updateScale = TRUE`, `setData`, and `setResponse`
+and `setOffset` made by compiled code through `dbarts.h`, which has no
+entry for the other two - so a fixed sd, and the prior on a drawn one,
 keep their meaning in response units. A drawn sd's current value is
 `k`'s: at a re-anchor it stays where it was on the internal scale,
 stretching with the leaves, and lags until the next draw, as a drawn `k`
