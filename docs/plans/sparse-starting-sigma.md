@@ -434,5 +434,5 @@ and additions (dec-A200):
   2,000.
 
 Left open, as before the slice, and in TODO: the fallback's sd counts rows of weight 0
-(starting-sigma-fallback-zero-weights), and an integer column's NA in an indicator expansion
-(integer-na-in-model-matrix). Not verified: an older Matrix, a threaded BLAS, Windows, more than 1.2e7 rows.
+(starting-sigma-fallback-zero-weights). An integer column's NA in an indicator expansion, left open
+with it, was fixed in 5e0c9878. Not verified: an older Matrix, a threaded BLAS, Windows, more than 1.2e7 rows.
