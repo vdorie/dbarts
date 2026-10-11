@@ -1169,7 +1169,36 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   if (!is.null(active)) {
     sampler$setActiveRows(active, updateState = FALSE)
   }
+  deriveCenterUnderMask(sampler)
+  # the replacement derives as creation does, and says so last
+  scaleRowsFallBack(newData, sampler$model@family, active)
 
+  invisible(NULL)
+}
+
+## A count sampler's 0/1 weights, installed as the mask after creation, leave
+## the center creation derived over every row; this takes it over the rows the
+## mask keeps. Where those hold fewer than two distinct counts the every-row
+## center stands. Draws nothing and records the range; the stored state is the
+## caller's to take.
+deriveCenterUnderMask <- function(sampler) {
+  if (
+    identical(sampler$model@family, "nbinom") &&
+      !is.null(sampler$activeRows) &&
+      !samplerCarriesAmplitudes(sampler) &&
+      !scaleRowsFallBack(
+        sampler$data,
+        "nbinom",
+        sampler$activeRows,
+        warn = FALSE
+      )
+  ) {
+    sampler$setOffset(
+      sampler$data@offset,
+      updateScale = TRUE,
+      updateState = FALSE
+    )
+  }
   invisible(NULL)
 }
 

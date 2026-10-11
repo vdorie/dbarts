@@ -134,6 +134,30 @@ resolveHazardGrid <- function(time, breaks, gridTime = time) {
   list(periods = periods, terminalPeriod = terminal)
 }
 
+# The times a hazard grid is read from: those of the subjects in the
+# likelihood (weight positive). With none in, every subject's, under one
+# warning. 'time' and 'weights' are per subject, the subjects the fit keeps.
+hazardGridTimes <- function(time, weights) {
+  if (is.null(weights)) {
+    return(time)
+  }
+  if (length(weights) == 1L) {
+    weights <- rep_len(weights, length(time))
+  }
+  subjectsIn <- rowsInLikelihood(weights)
+  if (!any(subjectsIn)) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "no subject is in the likelihood (0 of ",
+      length(time),
+      " subjects are in it), so the hazard periods are taken from all ",
+      length(time)
+    )
+    return(time)
+  }
+  time[subjectsIn]
+}
+
 # The person-period expander: a subject
 # i observed to time_i (event or censoring) becomes its at-risk rows, one per
 # period k = 1..t_i, each carrying x_i, the ordinal period column (appended
@@ -179,6 +203,11 @@ expandDiscreteTimeHazard <- function(
   subjectOf <- rep.int(seq_len(n), terminal)
   periodOf <- sequence(terminal)
   y <- as.double(periodOf == terminal[subjectOf] & status[subjectOf] == 1.0)
+  # a subject past the last period (one out of the likelihood, whose time the
+  # grid was not read from) is at risk in every period and has no event in it
+  if (length(periods) > 0L) {
+    y[which(time[subjectOf] > periods[length(periods)])] <- 0
+  }
   # a subject missing its time or its status is at risk with a missing
   # response, which the na.action then drops or refuses as it would any
   # other: to its time when it has one, and otherwise in the first period
@@ -1028,9 +1057,16 @@ dbarts <- function(
       offset = offsetForExpansion,
       weights = weightsForExpansion,
       gridTime = if (!is.null(keptSubjects)) {
-        timeForExpansion[keptSubjects$keep]
+        hazardGridTimes(
+          timeForExpansion[keptSubjects$keep],
+          if (length(weightsForExpansion) > 1L) {
+            weightsForExpansion[keptSubjects$keep]
+          } else {
+            weightsForExpansion
+          }
+        )
       } else {
-        timeForExpansion
+        hazardGridTimes(timeForExpansion, weightsForExpansion)
       }
     )
     matchedCall$formula <- expansion$x
@@ -1394,7 +1430,8 @@ dbarts <- function(
         breaks = breaks,
         max.rows = max.rows,
         offset = data@offset,
-        weights = data@weights
+        weights = data@weights,
+        gridTime = hazardGridTimes(formulaSurvivalTime, data@weights)
       )
       # makeModelMatrix already typed the original columns (categorical vs
       # ordinal); the appended period column is ordinal by construction
@@ -1567,6 +1604,7 @@ dbarts <- function(
   # state current at first read.
   if (!is.null(spec$active)) {
     sampler$setActiveRows(spec$active, updateState = FALSE)
+    deriveCenterUnderMask(sampler)
   }
   sampler
 }
