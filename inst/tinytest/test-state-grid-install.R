@@ -40,9 +40,11 @@ withTree <- function(
   vars,
   values,
   chain = 1L,
-  flags = ifelse(vars > 0, 2L, 0L)
+  flags = ifelse(vars > 0, 2L, 0L),
+  forest = 1L
 ) {
-  forest <- state[[chain]]$forests[[1L]]
+  index <- forest
+  forest <- state[[chain]]$forests[[index]]
   first <- seq_len(forest$tree.sizes[1L])
   forest$tree.vars <- c(as.integer(vars), forest$tree.vars[-first])
   forest$tree.values <- c(
@@ -51,11 +53,11 @@ withTree <- function(
   )
   forest$tree.flags <- c(as.raw(flags), forest$tree.flags[-first])
   forest$tree.sizes[1L] <- length(vars)
-  state[[chain]]$forests[[1L]] <- forest
+  state[[chain]]$forests[[index]] <- forest
   state
 }
-firstTree <- function(state, chain = 1L) {
-  forest <- state[[chain]]$forests[[1L]]
+firstTree <- function(state, chain = 1L, forest = 1L) {
+  forest <- state[[chain]]$forests[[forest]]
   size <- forest$tree.sizes[1L]
   list(
     vars = forest$tree.vars[seq_len(size)],
@@ -64,12 +66,16 @@ firstTree <- function(state, chain = 1L) {
   )
 }
 # every threshold the live mean trees of a state hold on a column
-thresholdsOn <- function(state, column) {
+thresholdsOn <- function(state, column, forest = 1L) {
   unlist(lapply(state, function(chain) {
-    forest <- chain$forests[[1L]]
+    forest <- chain$forests[[forest]]
     values <- readBin(forest$tree.values, "double", length(forest$tree.vars))
     values[forest$tree.vars == column]
   }))
+}
+# what a call gives, an error as its message so that the checks after it run
+answerOf <- function(expr) {
+  tryCatch(withVisible(expr), error = conditionMessage)
 }
 expectError <- function(expr, info) {
   expect_error(
@@ -376,6 +382,64 @@ expect_true(
 )
 expect_identical(sampler$run(0L, 5L), twin$run(0L, 5L))
 
+# the same wherever the grids part and whatever is quantized against them:
+# declined, and forced the twin's state and next draws
+expectTwoCalls <- function(build, column, points, info) {
+  stored <- stateOf(build())
+  expect_false(all(thresholdsOn(stored, column) %in% points), info = info)
+  sampler <- build()
+  invisible(sampler$run(0L, 3L))
+  sampler$setCutPoints(points, column)
+  held <- stateOf(sampler)
+  expect_identical(
+    answerOf(sampler$setState(stored)),
+    visibly(FALSE),
+    info = info
+  )
+  expect_identical(stateOf(sampler), held, info = info)
+  expect_identical(
+    answerOf(sampler$setState(stored, forceUpdate = TRUE)),
+    forcedValue,
+    info = info
+  )
+  twin <- build()
+  expect_true(twin$setState(stored), info = info)
+  twin$setCutPoints(points, column, splits = "value")
+  moved <- stateOf(sampler)
+  expect_identical(moved, stateOf(twin), info = info)
+  expect_identical(attr(moved, "cutPoints")[[column]], points, info = info)
+  expect_true(all(thresholdsOn(moved, column) %in% points), info = info)
+  expect_identical(sampler$run(0L, 5L), twin$run(0L, 5L), info = info)
+}
+# on the second column alone
+expectTwoCalls(make, 2L, three, "second column")
+# with a test set, whose rows are requantized with the training rows and put
+# back with them: the draws hold the test fits
+xTest <- x[seq_len(40L), 2L:1L]
+colnames(xTest) <- colnames(x)
+withTest <- function() {
+  sampler <- dbarts::dbarts(x, y, test = xTest, control = controlWith())
+  invisible(sampler$run(20L, 1L))
+  sampler
+}
+expect_identical(dim(withTest()$run(0L, 2L)$test), c(40L, 2L))
+expectTwoCalls(withTest, 1L, three, "test set")
+# on a sparse store, whose columns hold their codes apart from a dense one's
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  xSparse <- x
+  xSparse[, 2L] <- ifelse(seq_len(n) %% 5L == 0L, round(x[, 2L], 1) + 0.1, 0)
+  xSparse <- Matrix::Matrix(xSparse, sparse = TRUE)
+  expect_identical(length(cutPointsOf(make(run = FALSE, data = xSparse))), 2L)
+  for (column in 1L:2L) {
+    expectTwoCalls(
+      function() make(data = xSparse),
+      column,
+      list(three, c(0.25, 0.55, 0.85))[[column]],
+      paste("sparse store, column", column)
+    )
+  }
+}
+
 # ---- field after crossing -------------------------------------------------
 
 # after an install onto other cut points or weights than the state records
@@ -437,6 +501,29 @@ expect_null(later$setState(stored, forceUpdate = TRUE))
 expect_identical(stateOf(first), stateOf(later))
 expect_identical(lengths(cutPointsOf(first)), c(3L, 100L))
 expect_identical(first$state, later$state)
+# the store of kept draws is rebuilt with the engine: a sampler saved with
+# four kept draws and a control then naming two holds four after a reload,
+# whichever call rebuilds it, and takes the newest four of another state's
+savedKeeping <- function(seed) {
+  sampler <- make(keepTrees = TRUE, seed = seed, run = FALSE)
+  invisible(sampler$run(20L, 4L))
+  sampler$storeState()
+  sampler
+}
+sampler <- savedKeeping(7L)
+other <- savedKeeping(8L)$state
+shorter <- sampler$control
+shorter@n.samples <- 2L
+sampler$setControl(shorter)
+first <- reloadOf(sampler)
+later <- reloadOf(sampler)
+invisible(later$getTrees())
+expect_identical(withVisible(first$setState(other)), visibly(TRUE))
+expect_identical(withVisible(later$setState(other)), visibly(TRUE))
+expect_identical(stateOf(first), stateOf(later))
+expect_identical(dim(first$predict(x)), c(n, 4L))
+expect_identical(first$predict(x), later$predict(x))
+
 # with no saved state of its own, or one that is refused, the new engine
 # holds no grid of the sampler's and takes the handed state's
 stateless <- reloadOf(sampler)
@@ -501,6 +588,23 @@ for (case in cases) {
   expect_identical(cutPointsOf(into), points, info = case$info)
   expect_identical(liveOf(stateOf(into)), liveOf(stored), info = case$info)
 }
+
+# and through a forced move: a state stored on other points of the first
+# column goes onto the weighted points, which keep their weights, in the
+# engine, in the state field and in a copy
+donor <- weighted(run = FALSE)
+donor$setCutPoints(points[[1L]] + 0.003, 1L)
+invisible(donor$run(20L, 1L))
+shifted <- stateOf(donor)
+expect_false(any(thresholdsOn(shifted, 1L) %in% points[[1L]]))
+sampler <- weighted()
+expect_identical(withVisible(sampler$setState(shifted)), visibly(FALSE))
+expect_null(sampler$setState(shifted, forceUpdate = TRUE))
+expect_identical(cutPointsOf(sampler), points)
+expect_identical(massOf(sampler), mass)
+expect_true(all(thresholdsOn(stateOf(sampler), 1L) %in% points[[1L]]))
+expect_identical(attr(sampler$state, "cutMass"), mass)
+expect_identical(massOf(sampler$copy()), mass)
 
 # by hand, half 1: three points set on the first column, then the stored
 # points of the whole set. The changed column has its points and no weights,
@@ -728,6 +832,54 @@ expect_identical(
   firstTree(moved, chain = 2L)$values,
   c(coarse[1L], 0.1, -0.2)
 )
+
+# ---- second forest --------------------------------------------------------
+
+# an off-grid split in the second of two mean forests alone: FALSE, the
+# sampler as it was; forced, that forest's split lies on the grid and the
+# first forest's trees are the stored ones
+twoForests <- data.frame(x, y = y, z = rep_len(c(0, 1, 1, 0, 1), n))
+sampler <- dbarts::dbarts(
+  y ~ a + b,
+  twoForests,
+  forests = list(forest(), forest(basis = ~ factor(z))),
+  control = controlWith(n.trees = 10L)
+)
+invisible(sampler$run(20L, 1L))
+sampler$setCutPoints(coarse, 1L, splits = "value")
+onCoarse <- stateOf(sampler)
+expect_identical(length(onCoarse[[1L]]$forests), 2L)
+attr(onCoarse, "cutPoints")[[1L]] <- fine
+expect_identical(withVisible(sampler$setState(onCoarse)), visibly(TRUE))
+offGrid <- withTree(
+  onCoarse,
+  c(1, -1, -1),
+  c(fine[30L], 0.1, -0.2),
+  forest = 2L
+)
+expect_identical(
+  offGrid[[1L]]$forests[[1L]][treeFields],
+  onCoarse[[1L]]$forests[[1L]][treeFields]
+)
+invisible(sampler$run(0L, 2L))
+held <- stateOf(sampler)
+expect_identical(answerOf(sampler$setState(offGrid)), visibly(FALSE))
+expect_identical(stateOf(sampler), held)
+expect_identical(
+  answerOf(sampler$setState(offGrid, forceUpdate = TRUE)),
+  forcedValue
+)
+moved <- stateOf(sampler)
+expect_identical(attr(moved, "cutPoints")[[1L]], coarse)
+expect_identical(
+  moved[[1L]]$forests[[1L]][treeFields],
+  onCoarse[[1L]]$forests[[1L]][treeFields]
+)
+expect_identical(
+  firstTree(moved, forest = 2L)$values,
+  c(coarse[1L], 0.1, -0.2)
+)
+expect_true(all(thresholdsOn(moved, 1L, forest = 2L) %in% coarse))
 
 # ---- neither grid ---------------------------------------------------------
 

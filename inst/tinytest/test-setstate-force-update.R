@@ -311,6 +311,7 @@ expect_identical(
 path <- tempfile(fileext = ".rds")
 saveRDS(afterCollapse()(), path)
 reloaded <- readRDS(path)
+revived <- readRDS(path)
 stateless <- readRDS(path)
 unlink(path)
 expect_false(isLive(reloaded))
@@ -318,6 +319,17 @@ expect_identical(reloaded$state, own$state)
 expect_identical(reloaded$setState(own$state), FALSE)
 expect_true(isLive(reloaded))
 expect_identical(reloaded$state, own$state)
+# the engine it is left with holds the saved state repaired, as the engine
+# any other call rebuilds does, and not the trees of a new sampler
+engineState <- function(sampler) {
+  .Call(dbarts:::C_dbarts_bartcore_storeState, sampler$pointer)
+}
+invisible(revived$getPointer())
+expect_identical(engineState(reloaded), engineState(revived))
+expect_false(identical(
+  engineState(reloaded)[[1L]]$forests[[1L]]$tree.sizes,
+  rep(1L, 10L)
+))
 expect_null(reloaded$setState(own$state, forceUpdate = TRUE))
 expect_true(isLive(reloaded))
 stateless$state <- NULL

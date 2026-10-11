@@ -121,6 +121,20 @@ expect_error(
   ),
   pattern = "owns its predictors"
 )
+# and in every form, the one that re-quantizes nothing included: unforced on
+# the view's own grid
+expect_error(
+  .Call(
+    dbarts:::C_dbarts_bartcore_setState,
+    bc.fold$ptr,
+    .Call(dbarts:::C_dbarts_bartcore_storeState, bc.fold$ptr),
+    NULL,
+    FALSE,
+    FALSE,
+    FALSE
+  ),
+  pattern = "^\\$setState: requires a sampler that owns its predictors"
+)
 
 # view samplers bin on the full data's grid: hold out the rows carrying
 # column 1's extremes and check every split against the parent's cut set
