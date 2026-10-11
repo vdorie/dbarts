@@ -742,7 +742,11 @@ attr(onOther, "cutPoints")[[1L]] <- fine
 # and one the recorded grid lacks though the sampler's holds it
 unrecorded <- withTree(held, c(1, -1, -1), c(coarse[2L], 0.1, -0.2))
 attr(unrecorded, "cutPoints")[[1L]] <- fine[-50L]
-for (state in list(stray, onOther, unrecorded)) {
+# and a state of another shape is refused before it is declined for the
+# thresholds the sampler's grid lacks
+misshapen <- stateOf(make(n.trees = 7L))
+expect_false(all(thresholdsOn(misshapen, 1L) %in% coarse))
+for (state in list(stray, onOther, unrecorded, misshapen)) {
   expectError(sampler$setState(state), "neither grid")
   expectError(sampler$setState(state, forceUpdate = TRUE), "neither grid")
 }

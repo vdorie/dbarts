@@ -123,6 +123,11 @@ expect_identical(
   attr(reloaded$state, "cutPoints"),
   attr(stored, "cutPoints")
 )
+# forced onto the three points, the state's splits are moved and the points
+# stay: the mutated column is requantized on the stored points and back
+expect_null(sampler.state$setState(stored, forceUpdate = TRUE))
+sampler.state$storeState()
+expect_identical(attr(sampler.state$state, "cutPoints")[[1L]], c(-1, 0, 1))
 sampler.state$setCutPoints(attr(stored, "cutPoints"))
 expect_true(sampler.state$setState(stored))
 expect_equal(sampler.state$getSumsOfSquaredResiduals(), ssr.stored)

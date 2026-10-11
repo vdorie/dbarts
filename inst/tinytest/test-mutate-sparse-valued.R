@@ -343,6 +343,14 @@ expect_identical(
   attr(reloaded.after$state, "cutPoints"),
   attr(stored.state, "cutPoints")
 )
+# forced onto the three points, the state's splits are moved and the points
+# stay, the sparse column requantized on the stored points and back
+expect_null(sampler.after$setState(stored.state, forceUpdate = TRUE))
+sampler.after$storeState()
+expect_identical(
+  attr(sampler.after$state, "cutPoints")[[1L]],
+  c(0.1, 0.5, 0.9)
+)
 sampler.after$setCutPoints(attr(stored.state, "cutPoints"))
 expect_true(sampler.after$setState(stored.state))
 expect_equal(sampler.after$getSumsOfSquaredResiduals(), ssr.after)
