@@ -386,6 +386,21 @@ expect_equal(
   sds[[1L]]
 )
 expect_equal(forests$fixed$k, c(forest1 = 1, forest2 = 1))
+# summary's line under the table names each forest's sd, in the response's
+# units, by the forest's label: the numbers extract returns
+multiSummary <- summary(forests)
+expect_identical(multiSummary$fixed$leaf.prior.sd, unlist(sds))
+shownSds <- format(unname(unlist(sds)), digits = 4L)
+expect_stdout(
+  print(multiSummary),
+  paste0(
+    "leaf.prior.sd[forest1] = ",
+    shownSds[1L],
+    ", leaf.prior.sd[z] = ",
+    shownSds[2L]
+  ),
+  fixed = TRUE
+)
 expect_error(extract(forests, "sigma", forest = 1L), "model parameter")
 expect_error(
   extract(fitOf(yGaussian, TRUE), "k", forest = 1L),
