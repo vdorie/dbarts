@@ -360,10 +360,10 @@ dbartsControl(
   ordinal, and it is inert on an all-categorical design. Unlike the four
   engine settings above, this one is not fixed at creation:
   [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  accepts a changed mixture between runs, installing it on the mean
-  forest with the priors exactly as at creation, and a refused install
-  rolls the stored control back. A heteroscedastic sampler's variance
-  forest keeps the mixture it was created with.
+  accepts a changed mixture between runs, installing it with the priors
+  exactly as at creation, on a heteroscedastic sampler's variance forest
+  as on its mean forest, and a refused install rolls the stored control
+  back.
 
 - n.perturb.cuts:
 
@@ -376,9 +376,8 @@ dbartsControl(
   how the proposal moves, not the posterior it targets; acceptance falls
   as the window widens. Like `proposal.probs`,
   [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
-  accepts a changed value between runs, installing it on the mean forest
-  with the mixture; a heteroscedastic sampler's variance forest keeps
-  the value it was created with.
+  accepts a changed value between runs, installing it with the mixture,
+  on a heteroscedastic sampler's variance forest as on its mean forest.
 
 - seed:
 
