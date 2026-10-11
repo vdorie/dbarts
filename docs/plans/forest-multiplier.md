@@ -506,7 +506,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
 1.1 The engine. [`ForestSpec`](../../src/bartcore/combiner.hpp) states a kind (nothing, levels,
     numbers) beside what forest-sd-unit has it state, and
     [`expandForestSpecs`](../../src/bartcore/combiner.hpp) states BCF's two forests as nothing and
-    levels. The law's function (`forestLaw`) takes the held rows of "The rule" for a forest with no basis
+    levels. The law's function (`forestMapEntry`) takes the held rows of "The rule" for a forest with no basis
     and a two-level block: a held forest with no basis has own sd s, by the leaf scale and not the
     half-Cauchy median; a held two-level block has no divisor. A held block is set to its kind's value
     when the combiner is built, at any position, after
@@ -656,7 +656,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     (fails with one pass); the constants 1, 0.5, 0.1, 61.7 and 1e8 + 0.1 each throw (the last three fail
     with a test of the computed sd against zero); 61.7 + 1e-9 sin(i) throws; one row throws.
 2.3 The law. [`ForestSpec`](../../src/bartcore/combiner.hpp) gains a scale (`basisScale`, not a number
-    for "take it"). `forestLaw`'s numeric row is "The rule"'s: s stated, or the default over the scale
+    for "take it"). `forestMapEntry`'s numeric row is "The rule"'s: s stated, or the default over the scale
     handed or taken; the forest's own sd s / 0.674 where the coefficient is drawn, under variance 1 and
     starting at 1, and s where it is held at 1. A numeric block of several columns throws, and a
     fixture of tests/cpp that builds one is restated on one column, or as a levels block where that is
@@ -951,7 +951,7 @@ Each requirement with what holds it; "test" is the step above that fails if it i
 | | the reader already says "stated" or "the default" | forest-sd-unit's `sd.stated`; no test here pins the class of `leaf.prior` |
 | | a stated forest keeps its record, so a default put back has the creation's scale | step 2.5's "stated, then put back" |
 | a heavy-tailed coefficient, `amplitude = student(3)` (dec-B262, dec-B271) | `amplitude` takes `fixed()` and nothing else | written-surface's pins |
-| | one row of `forestLaw`: a drawn numeric or factor block under the forest with no basis's law | the law is one function |
+| | one row of `forestMapEntry`: a drawn numeric or factor block under the forest with no basis's law | the law is one function |
 | | the state already carries one variance a forest and installs it where a size is half-Cauchy | Context; no edit |
 | | the reader has an `amplitude` entry to say it in | step 1.3 |
 | a forest for each level of a factor of three or more (dec-B281, TODO `factor-basis-per-level`) | the call is refused today | the kind-by-class slice's pin |

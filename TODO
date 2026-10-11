@@ -794,11 +794,12 @@ items
     shows cannot be told from no edit and is replaced by the carried
     one.
   forest-sd-unit: before 1.0-0 (dec-B246 as revised, dec-B253,
-    dec-B266), after forest-defaults-by-kind. A forest's sd is in
-    the response's units wherever it is written or read: the units
-    of y, and of the latent index under probit and logistic. The
-    engine divides a stated number by a unit it derives at a first
-    creation (sd(y - offset) over the rows kept, 1, pi/sqrt(3)) and
+    dec-B266), after the creation slice of response-scale-rows. A
+    forest's sd is in the response's units wherever it is written or
+    read: the units of y, and of the latent index under probit and
+    logistic. The engine divides a stated number by a unit it derives
+    at a first creation (sd(y - offset) over the rows in the
+    likelihood then, dec-B296; 1; pi/sqrt(3)) and
     R records beside the anchor; a default does not move, and is
     reported as the number of response units it comes to. The
     engine is handed the statement, an sd or none, a hold and whether
@@ -813,7 +814,9 @@ items
     logistic response and is left as written; respelled, such a
     call is equal to rounding; a fit that states none is unchanged
     to the bit. Four BCF exact gates and sbc.R are respelled, and
-    bartCause's sd.moderate defaults to NULL the same day.
+    bartCause's sd.moderate defaults to NULL the same day. Open:
+    whether this slice or the multiplier slice drops K from the
+    default of a forest with a basis (dec-B291).
     Plan: docs/plans/forest-sd-unit.md.
   forest-kind-by-class: before 1.0-0 (dec-B260), after forest-sd-unit
     and before the multiplier slice. What a forest multiplies is

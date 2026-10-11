@@ -1,14 +1,15 @@
 # forest-sd-unit: a forest's sd is stated and reported in the response's units, and the engine is handed the statement
 
-Status: PLANNED (dec-B246 as revised, dec-B253, dec-B266; dec-B269 as dec-B280 and dec-B282 revise it).
-Follows [forest-defaults-by-kind.md](forest-defaults-by-kind.md) and push 3 of
-[written-surface.md](written-surface.md), neither of which has landed. Amended 2026-10-07 after the
-critique of the multiplier slice: this slice takes in what was that law's first push (the engine is handed
-what was stated and holds the rule), gives the reader and `extract` the shape they keep, and takes a
-named single sd (dec-B280). Amended again 2026-10-07 for dec-B296: the unit is taken over the rows in
-the likelihood when the sampler is created, by slice B of [response-scale-rows.md](response-scale-rows.md),
-which lands first; the Context bullet on L, rule 1, step 3's "L written out", row 13 of the pair
-script and the mutation on the unit's rows are restated below.
+Status: PLANNED (dec-B246 as revised, dec-B253, dec-B266; dec-B269 as dec-B280 and dec-B282 revise it;
+dec-B296 and dec-B302 for the rows the unit is read from); rechecked 2026-10-11 against d5b637ee, bartcore
+with the creation slice of [response-scale-rows.md](response-scale-rows.md)
+([Recheck against bartcore](#recheck-against-bartcore)). One open call, on which slice builds dec-B291
+([Open calls](#open-calls)); the steps are written to the option that keeps this plan's rules. Follows
+[forest-defaults-by-kind.md](forest-defaults-by-kind.md) and [written-surface.md](written-surface.md),
+landed, and the creation slice of response-scale-rows, built at that tip and landing first. It carries
+what was first planned as the multiplier slice's neutral first push (the engine is handed what was
+stated and holds the rule), gives the reader and `extract` the shape they keep, and takes a named
+single sd (dec-B280).
 
 agent: one push. Opus implementer for the engine, the bridge and the R code; sonnet for the respelled tests,
 the benchmark scripts and the help once the code is fixed; opus reviewer told to refute, and to read the
@@ -16,15 +17,16 @@ diff twice: once for the change of shape, which must move no bit, and once for t
 happen exactly once. The reason for opus: every slip is a prior off by a factor of sd(y) with no message.
 The conversion is one division, and it can be made twice, or not at all, on any one of six paths
 (creation at four doors, the writer, a re-creation); the review of written-surface's second push found
-three such one-path faults in a slice that touched no arithmetic at all.
+three such one-path faults in a slice that touched no arithmetic at all. Tier: changes draws
+([Process by risk](README.md#process-by-risk)).
 rng: stated per call sequence, as [RNG classes and their gates](README.md#rng-classes-and-their-gates)
 defines the classes.
 - NEUTRAL for every fit that states no forest `sd`, and for every fit under probit, where the unit is 1.
-  That covers the change of shape too: the engine resolves the law R resolved, from four numbers a forest
-  where it was handed eight. Measured for the unit on a stand-in: 5 of 5 such pairs identical, and no
-  seeded draw of the suite moved. Not measured for the change of shape, none of which is built: its
-  gates are the three bitwise compares, the snapshot files, the pair script and the restated tests/cpp
-  fixtures.
+  That covers the change of shape too: the engine resolves the rule R resolved, from four numbers a
+  forest where it was handed eight. Measured for the unit on a stand-in at d5b637ee: 6 of 6 such pairs
+  identical, a pair created with ten rows of weight zero among them, and no seeded draw of the suite
+  moved. Not measured for the change of shape, none of which is built: its gates are the three bitwise
+  compares, the snapshot files, the pair script and the restated tests/cpp fixtures.
 - POSTERIOR-CHANGING for one sequence: a model of several forests that states `sd` on a forest, at
   creation or through `$setLeafPrior(forests = )`, under a gaussian or a logistic response, and is left as
   written. The same number now states another prior: `sd = 0.7` was 0.7 standard deviations of the
@@ -32,30 +34,28 @@ defines the classes.
   by the unit.
 - SHIFTING for that sequence respelled into the response's units (`sd = 0.7 * sd(y)`): the prior is the
   same to rounding and the draws are not always the same bits. Measured on the stand-in, 18 gaussian and
-  logistic pairs of 20 sweeps: 8 identical, 10 apart by 1e-14 to 1e-12.
-- No scenario of the three equivalence baselines and no snapshot file states a forest `sd` (searched), so
-  nothing is re-recorded. Four exact gates and `sbc.R` state one and are respelled.
+  logistic pairs of 20 sweeps: 9 identical, 9 apart by 1e-14 to 3e-14.
+- No scenario of the three equivalence baselines and no snapshot file states a forest `sd` (searched
+  again at d5b637ee), so no recorded scenario moves and nothing is re-recorded. Four exact gates and
+  `sbc.R` state one and are respelled.
 - Accepted where refused: `sd` on the one forest of a single-forest model; a named single `sd` on a
   forest and in the writer, its name dropped.
 - Not a released object: a sampler saved by an earlier build of this branch holds eight numbers a forest
   and is refused by the bridge's check of the record's length.
-window: pre-release, after forest-defaults-by-kind and before the kind by class and the multiplier slice, so
-that every later test, pinned string and help page states an sd once, in the unit it keeps, and reads it
-back in the shape it keeps. Serial with any other work in [`forestParams`](../../R/model.R), the
-multi-forest block of [`resolveSamplerSpec`](../../R/spec.R), [`reportLeafPrior`](../../R/dbarts.R),
+window: pre-release, after the creation slice of response-scale-rows, which fixed the rows the unit is
+read from, and before the kind by class and the multiplier slice, so that every later test, pinned string
+and help page states an sd once, in the unit it keeps, and reads it back in the shape it keeps. Serial
+with any other work in [`forestParams`](../../R/model.R), the multi-forest block of
+[`resolveSamplerSpec`](../../R/spec.R), [`reportLeafPrior`](../../R/dbarts.R),
 [`writeForestSpreads`](../../R/dbarts.R), [`extractParameter`](../../R/generics.R),
 [`applyForestAttributes`](../../src/R_interface_bartcore.cpp),
 [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp), [`ForestSpec`](../../src/bartcore/combiner.hpp),
 [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp) or the K-forest constructor of
-[`Chain`](../../src/bartcore/chain.hpp); so serial with [leaf-conversions.md](leaf-conversions.md).
-bartCause's edit lands the same day.
-budget: ~2250 lines changed (engine ~300; bridge ~160; tests/cpp ~480; R ~300; tinytest ~620, of which
-~450 in one new file and ~170 changed in about eight; benchmarks ~50; help ~130; design note,
-architecture, public-surface, TODO and the two indexes ~210), upper figure 3900 (engine 500, bridge 270,
-tests/cpp 800, R 520, tinytest 1100, benchmarks 90, help 250, records 370). As first planned the slice
-was 1300 and the law's first push 1250; folded, less the kind's route (about 300, now the law's held
-push's) and the refusals of development-build objects (about 120). The design estimated 800 and planned
-for 1500; written-surface's two landed pushes ran at 1.8 and 2.7 times their plans.
+[`Chain`](../../src/bartcore/chain.hpp). bartCause's edit lands the same day.
+budget: ~2340 lines planned: engine ~300; bridge ~160; R ~300; tests/cpp ~480; tinytest ~710, of which
+~480 in one new file and ~230 changed in about a dozen; benchmarks ~50; help ~130; design note,
+architecture, public-surface, TODO and the two indexes ~210. Forecast 4200 to 5400; stop at ~5400, or at
+~1140 of package code ([Budget and stops](#budget-and-stops)). bartCause's part, ~10 lines, is outside it.
 
 ## Goal
 
@@ -73,30 +73,35 @@ taken, the name dropped.
 
 ## Context
 
-Measured at the tip (4f2e79e6; written-surface pushes 1 and 2 landed, push 3 and forest-defaults-by-kind
-not) on the shipped build, R 4.6.1, unless a line says otherwise. The spellings below are the tip's, with
-a tilde on a basis written as code. L is the response's scale as the engine holds it; "size" is the prior
+Measured at the tip (d5b637ee) on the shipped build, R 4.6.1, unless a line says otherwise. A basis
+written as code carries a tilde. L is the response's scale as the engine holds it; "size" is the prior
 median of the absolute multiplier times the prior standard deviation of the forest's own fit, exact where
 the coefficient is held.
 
-- The suite. At the tip 231 files, of which 4 exit off a reference build and 3 ask for more than two
-  threads; the other 224 give 16065 results, none failing, 102 seconds in one process. On push 3's build
-  (4eeaf03d, traced 2026-10-07): 233 files, 230 without the three, 17121 results, none failing.
+- The suite. 253 files, of which 4 exit off a reference build and 3 ask for more than two threads; the
+  other 246 give 22978 results, none failing, 120 seconds in one process.
 - L. Under gaussian it is the sample standard deviation of the response net of its offset, n - 1 in the
-  divisor, unweighted, over the rows the sampler holds: 3.26736095623188 from the engine against R's
-  3.26736095623189 for `sd(y)`, one unit in the last place apart; `sd(y - offset)` with an offset;
-  `sd(y[subset])` under `subset`. Measured before response-scale-rows: unchanged by weights, rows of
-  weight zero counting. Once that slice has landed it is over the rows of positive weight when the
-  sampler is first created, still unweighted, and held when the weights or a mask change later; where
-  those rows hold fewer than two distinct values it is over every row (dec-B296, dec-B302). Under probit it is
-  1 and under logistic pi / sqrt(3), 1.8138. It is computed at a first creation
-  ([`scaledResponseSd`](../../src/bartcore/chain.hpp), [`latentScaleAnchor`](../../src/bartcore/chain.hpp)),
-  recorded by R as the forests' `anchor` and handed to every re-creation
+  divisor, unweighted, over the rows in the likelihood when the sampler is created: the rows `subset`
+  and the na.action keep, less those of weight zero (dec-B296). 3.26736095623188 from the engine against
+  R's 3.26736095623189 for `sd(y)`, one unit in the last place apart; `sd(y - offset)` with an offset;
+  `sd(y[subset])` under `subset`; unchanged by positive weights; with 50 rows of weight zero
+  3.32872882757977, which is `sd(y[weights > 0])`. It is held when the weights or a mask change later:
+  the same number after `$setWeights` brings the rows back. Where a row is out and the rows in hold fewer
+  than two distinct values it is over every row, under one warning of class
+  `dbartsScaleFallbackWarning` (dec-B302, dec-B309). Under probit it is 1 and under logistic
+  pi / sqrt(3), 1.8138. It is computed at a first creation
+  ([`latentScaleAnchor`](../../src/bartcore/chain.hpp), which reads
+  [`scaledResponseSdOver`](../../src/bartcore/chain.hpp) over the rows
+  [`GaussianResponse::scaleRows`](../../src/bartcore/model.hpp) marks, and
+  [`scaledResponseSd`](../../src/bartcore/chain.hpp) where the response model read every row), recorded
+  by R as the forests' `anchor` and handed to every re-creation
   ([`AmplitudeSpec::anchor`](../../src/bartcore/combiner.hpp)), so it is the same number after
   `setResponse(10 * y + 5, updateScale = FALSE)` and on a copy; `updateScale = TRUE` is refused on such a
-  sampler.
+  sampler (dec-B362).
 - What a stated or default number s is the size of today. Engine prior draws under a flat likelihood,
-  5000 sweeps a row, Monte Carlo error about 0.02; each entry is the measured size over s L.
+  5000 sweeps a row, Monte Carlo error about 0.02; each entry is the measured size over s L. Rerun at
+  d5b637ee at 2000 sweeps a row, the two rescaled columns apart: every entry within three standard
+  errors of the table.
 
   | forest | what was measured | gaussian | probit | logistic |
   |---|---|---|---|---|
@@ -110,7 +115,7 @@ the coefficient is held.
   | one numeric column w, drawn, default; `sd = 0.7` | a F, times the median nonzero abs(w) | 0.713; 0.691 | 0.701; 0.712 | 0.736; 0.693 |
   | the same column times 1000; times 0.001; an age (mean 50) | the same | 0.689; 0.665; 0.711 | | |
   | a 0/1 number at 50, 20, 5 percent treated | a F | 0.719; 0.700; 0.705 | | |
-  | one numeric column, held | | refused (dec-A171) | refused | refused |
+  | one numeric column, held | | refused (dec-B353) | refused | refused |
 
   So s is in units of L. It is the size of the forest's contribution where the forest has no basis or a
   factor and its coefficient is drawn. It is not where the coefficient is held (a held forest with no
@@ -119,16 +124,19 @@ the coefficient is held.
   unit of s and nothing in that table but its last factor. (Rows for a factor of three levels and for
   two numeric columns were measured and agree; both shapes are refused before the release, dec-B281 and
   dec-B282, and are left out.)
-- Who resolves the law today. R does: [`forestParams`](../../R/model.R) turns each forest's statement
-  into eight numbers (tree count, base, power, a leaf-scale factor, its divisor, the coefficients'
-  variance, a half-Cauchy median, the hold), the bridge passes them
-  ([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)), and
+- Who resolves the rule today. R does: [`forestParams`](../../R/model.R) turns each forest's statement
+  into eight numbers (tree count, base and power, by the forest's kind where it states none; a leaf-scale
+  factor, its divisor, the coefficients' variance, a half-Cauchy median, the hold), the bridge passes
+  them ([`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp)), and
   [`ForestSpec`](../../src/bartcore/combiner.hpp) carries the last five as `nodeScaleFactor`,
   `nodeScaleDivisor`, `amplitudePriorVariance`, `amplitudePriorScale` and the hold flag. The K-forest
   constructor of [`Chain`](../../src/bartcore/chain.hpp) then divides by
   [`basisRowNorm`](../../src/bartcore/chain.hpp) ([`mapLeafScale`](../../src/bartcore/chain.hpp)). The
   defaults live in R ([`defaultAmplitudePriorScale`](../../R/model.R), and `sqrt(2 / K)` written in
-  `forestParams`). Of a forest's kind the rule reads one thing, whether it has a basis.
+  `forestParams`). Of a forest's kind the rule reads one thing, whether it has a basis. The forests'
+  record on the control holds `params` (the eight numbers), `vars`, `labels`, `heldAmplitude`,
+  `interactions`, `blocks`, `basisTerms`, `control.n.trees` where the first forest has a basis, and
+  `anchor`; [`dbartsSampler$setForestBasis`](../../R/dbarts.R) reads the hold at the eighth number.
 - What reads and writes the number.
 
   | place | today | unit |
@@ -137,55 +145,60 @@ the coefficient is held.
   | `$getLeafPrior(f)$leaf.prior` | `forest(sd = s)`, s the engine's own number, stated or not | of L |
   | `$getLeafPrior(f)$k.scale` | the forest's own prior standard deviation, before its coefficient: L for a forest with no basis, s L / 0.674 over the row norm for one with a basis | the response's |
   | `amplitude.prior.scale`, `leaf.scale.factor` entries | s again | of L |
-  | `$getLeafPrior()` with no forest | a list with no names (read off push 3's build) | |
-  | `extract(fit, type = "leaf.prior.sd")` | `k.scale` over k, a vector named `forest1`, `forest2`: 1.7408 and 2.5828 for a default two-forest fit whose sd(y) is 1.7408; with `forest = 2` the bare number ([`selectForests`](../../R/generics.R)) | the response's, of another quantity |
+  | `$getLeafPrior()` with no forest | a list with no names | |
+  | `extract(fit, type = "leaf.prior.sd")` | `k.scale` over k, a vector named `forest1`, `forest2`: 1.7408 and 2.5828 for a default two-forest fit whose sd(y) is 1.7408; with `forest = 2`, with `"forest2"` or with the forest's label the bare number ([`selectForests`](../../R/generics.R)) | the response's, of another quantity |
   | `print` of a fit, `show` of a sampler, the verbose summary | no forest's sd is printed | |
-  | `leaf.prior = normal(sd = s)` on a single forest | the prior standard deviation of the forest's total, exactly | the response's |
+  | `leaf.prior = normal(sd = s)` on a single forest | the prior standard deviation of the forest's total, exactly; held by the engine as k = `k.scale` / s, `k.scale` the data's (dec-B416) | the response's |
 
   The reader and `extract` already disagree: for one default factor forest the reader says 1 and `extract`
   2.58. And the reader cannot say whether a number was stated.
 - One forest. `y ~ forest(x1 + x2, sd = 2)` and `forests = list(forest(sd = 2))` are refused at `dbarts`
-  and `bart` ("this model has one forest, so its size is the fitting function's leaf.prior = normal(sd = ),
-  not forest(sd = )"). `leaf.prior = normal(sd = 2)` beside several forests is refused ("a multi-forest
-  model does not support a named leaf-prior 'sd': the leaf prior's 'sd' is not a forest's 'sd'");
-  `normal(k = 3)` beside them is refused and a bare `normal` accepted.
+  and `bart`, on a formula and on a matrix ("this model has one forest, so its size is the fitting
+  function's leaf.prior = normal(sd = ), not forest(sd = )"). `leaf.prior = normal(sd = 2)` beside several
+  forests is refused ("a multi-forest model does not support a named leaf-prior 'sd': the leaf prior's
+  'sd' is not a forest's 'sd'"); `normal(k = 3)` beside them is refused, and a bare `normal` and
+  `normal(k = 2)` accepted.
 - A named single sd. `forest(basis = dose, sd = pars["s"])` is refused at creation and in
   `$setLeafPrior(forests = )` ("forest 'sd' must not be named"), on a forest with a basis and on one
-  with none; `leaf.prior = normal(sd = pars["s"])` on a single forest is taken (read off push 3's build).
+  with none; `leaf.prior = normal(sd = pars["s"])` on a single forest is taken.
 - A response with no spread. Two forests on a constant response are created with a warning; L is 0 and
   every forest's prior standard deviation is 0, with `sd = 0.7` stated or not.
-- Where a forest's sd is stated, counted by running the suite on a build that logs it: of 776 models of
-  several forests created in 53 test files, 43 forests state one, in 6 files (test-bcf-family.R 14,
-  test-bcf-creation.R 8, test-multiforest-leaf-prior-writer.R 8, test-forest-basis-r5.R 7,
-  test-forest-arguments.R 5, test-formula-terms.R 1): 20 under gaussian, 6 under logistic, 17 under
-  probit. On push 3's build (1186 models): 51 forests state one, 20 gaussian, 10 logistic, 21 probit.
-  `$setLeafPrior(forests = )` writes one 33 times in 3 files, 28 of them under gaussian. In
-  benchmarks/R the four BCF exact gates and `sbc.R` state `sd = sdControl` and `sd = sdModerate`, 10
-  lines; `bcf-equivalence.R`, `equivalence.R` and `multinomial-equivalence.R` state none. No vignette and
-  no help example states one.
+- Where a forest's sd is stated, counted by running the suite with the two R functions traced: of 1427
+  models of several forests created in 66 test files, 59 forests state one, in 8 files
+  (test-forest-selection.R 15, test-bcf-family.R 14, test-bcf-creation.R 8,
+  test-multiforest-leaf-prior-writer.R 8, test-forest-basis-r5.R 7, test-forest-arguments.R 5,
+  test-forest-defaults.R 1, test-formula-terms.R 1): 36 under gaussian, 6 under logistic, 17 under
+  probit. `$setLeafPrior(forests = )` writes one 39 times, in 24 calls of 5 files, 34 of them under
+  gaussian. 11 forests state `amplitude.prior.variance`, in 3 files. In benchmarks/R the four BCF exact
+  gates and `sbc.R` state `sd = sdControl` and `sd = sdModerate`, 10 lines; `bcf-equivalence.R`,
+  `equivalence.R` and `multinomial-equivalence.R` state none. No vignette and no help example states one.
 - What moves in the suite. For the unit, measured on a stand-in (the conversion done in R against
-  `sd(y - offset)`): no file stops and 15 assertions fail in 7 files: pins of the stored numbers behind a
-  stated sd (5), of the reader's `leaf.prior`, `leaf.scale.factor` and `amplitude.prior.scale` (5), of
-  `k.scale` against a stated multiple (2) and of `extract` (3). For the change of shape, measured on the
-  multiplier slice's stand-in: 72 assertions pin the eight stored numbers by position (test-bcf-family.R
-  46, test-forest-arguments.R 16, test-bcf-creation.R 8, test-multiforest-leaf-prior-writer.R 2). The two
-  sets overlap in the first five. In tests/cpp the fixtures of
-  [`testForestMapWriters`](../../tests/cpp/test_sampler.cpp),
+  `sd(y - offset)` over the rows of positive weight): no file stops and 17 assertions fail in 9 files:
+  pins of the stored numbers behind a stated sd (6), of the reader's `leaf.prior`, `leaf.scale.factor`
+  and `amplitude.prior.scale` (5), of `k.scale` against a stated multiple (2) and of `extract` (4). For
+  the change of shape, counted from the expectations the suite records at the tip, each read for
+  whether it indexes the fourth to the eighth stored number or compares against a literal of eight:
+  about 60 assertions in 7 files (test-bcf-family.R 33, test-forest-arguments.R 11,
+  test-bcf-creation.R 10, test-calibration-midchain.R 2, test-forest-basis-r5.R 2,
+  test-forest-capture.R 1, test-forest-defaults.R 1), and two records edited by hand in
+  test-forest-basis-r5.R. The two sets share six. Pins of the first three numbers (55 in
+  test-forest-defaults.R alone) and compares of one sampler's record with another's stand. In tests/cpp
+  about 60 lines of test_sampler.cpp and test_facade.cpp set or read the four derived numbers, most of
+  them in the fixtures of [`testForestMapWriters`](../../tests/cpp/test_sampler.cpp),
   [`testBCFCalibrationMap`](../../tests/cpp/test_sampler.cpp) and
-  [`testForestCalibration`](../../tests/cpp/test_sampler.cpp), and about 100 other lines, set the four
-  derived numbers.
+  [`testForestCalibration`](../../tests/cpp/test_sampler.cpp).
 - The same model on both builds, the stand-in's side respelled as s L: with no sd stated, and under
-  probit, identical; of 18 gaussian and logistic rows (each kind of forest, an offset, `subset`, weights,
-  three forests, a formula term, the writer, a copy, a value read and written back, `bart`) 8 identical
-  and 10 apart by at most 9.6e-13 after 20 sweeps. Left as written, `sd = 0.7` on both forests gives draws
-  2.31 apart under gaussian and 3.63 under logistic.
-- Consumers. bartCause's `bcf()` (dbarts-1.0, 6c1bff9) passes `sd = sd.control`, `NULL` by default, and
+  probit, identical; of 18 gaussian and logistic rows (each kind of forest, an offset, `subset`, positive
+  weights, ten weights of zero, three forests, a formula term, the writer, a copy, a value read and
+  written back, `bart`) 9 identical and 9 apart by at most 2.8e-14 after 20 sweeps. Left as written,
+  `sd = 0.7` on both forests gives draws 2.31 apart under gaussian and 3.63 under logistic.
+- Consumers. bartCause's `bcf()` (dbarts-1.0, e833be7) passes `sd = sd.control`, `NULL` by default, and
   `sd = sd.moderate`, 1 by default, and two of its test files build the same sampler by hand with
   `sd = 1` on the treatment forest. At K = 2 the default of a forest with a basis is exactly 1, so
   `sd = 1` and no sd are one fit today. It reads `getLeafPrior(1L)$response.scale` and
-  `$response.shift` and no other entry. stan4bart (bartcore, a9d081b), treatSens (dbarts-1.0, aecec71)
-  and bairrtt (main, 3f57f61) state no forest sd and read no leaf prior of a model of several forests
-  (searched again 2026-10-07).
+  `$response.shift` and no other entry. stan4bart (bartcore, d6cdad7), treatSens (dbarts-1.0, babfaa6)
+  and bairrtt (main, 3f57f61) fit one forest, state no forest sd and read no leaf prior of a model of
+  several forests (searched again 2026-10-11).
 
 ## The rule
 
@@ -193,12 +206,15 @@ the coefficient is held.
    the latent index under probit and logistic. One number of the sampler, the unit, converts it: L in the
    response's units, which under gaussian is `sd(y - offset)` over the rows in the likelihood when the
    sampler is created (the rows `subset` and the na.action keep, less those of weight zero; dec-B296),
-   1 under probit and pi / sqrt(3) under logistic.
+   and over every row where those rows hold fewer than two distinct values, under creation's one warning
+   (dec-B302, dec-B309); 1 under probit and pi / sqrt(3) under logistic.
 2. Stated. The engine is handed the number as written and divides it by the unit; what it then does with
-   the quotient is what the tip does with a number in units of L. Nothing else of the law changes.
-3. Not stated. The engine is told so and takes the default itself: a multiple of L (2 or 1 for a forest
-   with no basis, sqrt(2 / K) for one with a basis), which never passes through the unit on the way in.
-4. Who holds the law. The engine, in one function: a forest's statement (an sd or none, a hold, whether
+   the quotient is what the tip does with a number in units of L. Nothing else of the calibration map
+   changes.
+3. Not stated. The engine is told so and takes the default itself: the tip's multiple of L (2 or 1 for a
+   forest with no basis, sqrt(2 / K) for one with a basis), which never passes through the unit on the
+   way in. dec-B291 makes the second 1 whatever K; which slice builds that is the open call.
+4. Who holds the map. The engine, in one function: a forest's statement (an sd or none, a hold, whether
    it has a basis, and a coefficient variance where `amplitude.prior.variance` states one) is resolved
    there, once for each construction, into the numbers the tip's eight carried. R derives none of them.
 5. Read. `$getLeafPrior(f)` returns `leaf.prior`, the statement: `forest(sd = v)` where an sd was
@@ -215,9 +231,10 @@ the coefficient is held.
    every other quantity selected by `forest`.
 8. The unit is derived once, by the engine, at a first creation, and recorded beside the anchor. Every
    re-creation is handed the record: a copy, a reload, a sampler made again from its own control, model
-   and data. No later change of the response moves it, as none moves the anchor. A control or a `forests`
-   list carried to other data states the same numbers of that data's units: the record is not carried,
-   and the new sampler derives its own.
+   and data. No later change of the response, the weights or a mask moves it, as none moves the anchor;
+   `updateScale = TRUE` stays refused on several forests (dec-B362). A control or a `forests` list
+   carried to other data states the same numbers of that data's units: the record is not carried, and
+   the new sampler derives its own.
 9. One forest. `forest(sd = s)` on the one forest of a single-forest model is that model's
    `leaf.prior = normal(sd = s)`, in every family, with that family's own verdict on a stated sd. Stated
    at both places it is refused by name.
@@ -239,6 +256,7 @@ Before and after, per door. "Several" is a model of several forests.
 | the same on one forest; `extract(type = "k")` | | unchanged |
 | `print`, `show`, the verbose summary | no forest's sd | unchanged; the printed block is the multiplier slice's |
 | `$setForestBasis` | the forest's own scale is derived again from the new block's row norm, under the number in force | unchanged, the number in force being the stated one or the default |
+| `$setWeights`, `$setActiveRows` | move no forest's scale | unchanged: the unit is creation's |
 | `predict`, `fitted`, a state stored or installed | do not read a prior | unchanged |
 | `copy()`, a reload, `new("dbartsSampler", control, model, data)` | built from the eight numbers and the anchor | built from the statement, the anchor and the unit: the same prior, bit for bit |
 | `sd` on the one forest of a single-forest model | refused | the fit with `leaf.prior = normal(sd = )` |
@@ -262,27 +280,34 @@ forest(sd = )"; ["must not be named"](../../inst/tinytest/test-forest-arguments.
 `unname()`. Replaced by the third: "a multi-forest model does not support a named leaf-prior 'sd'", whose
 reason, that the two sds are different things, stops being true. The fourth is today's text for a longer
 `sd` without "for every column of its basis". Kept as they are: every other text of
-[`validateForestSd`](../../R/model.R).
+[`validateForestSd`](../../R/model.R). The second is met only where every row of the response less its
+offset holds one value: where the rows in the likelihood do and some row out differs, the unit is the
+every-row one and creation's warning has already said so.
 
 ## Constraints
 
 - A fit that states no forest sd draws what it draws on the base build, to the bit, in every family. No
   baseline is re-recorded and no snapshot file regenerated.
-- The law is not touched: which channel a forest's number reaches, the 0.674, the coefficient's variance,
-  the row norm, the held values and the starts by position, the defaults and the K in them. It moves
-  from R to the engine with every expression in its order of operations. `amplitude.prior.variance`
-  stays an argument.
-- The law is resolved in one function of the engine and nowhere in R; a forest's law is resolved once
+- The calibration map is not touched: which channel a forest's number reaches, the 0.674, the
+  coefficient's variance, the row norm, the held values and the starts by position, the defaults and the
+  K in them. It moves from R to the engine with every expression in its order of operations.
+  `amplitude.prior.variance` stays an argument.
+- The map is resolved in one function of the engine and nowhere in R; a forest's entry is resolved once
   for each construction, by the chain, and the combiner is handed the result.
 - The engine learns nothing of a forest's kind here beyond whether it has a basis, which is all the
   tip's rule reads. The kind's route from the data object is the multiplier slice's held push's.
 - The conversion is made in one place, the engine, against one recorded number. R divides nothing and
   multiplies nothing: it hands over what was written and reports what the engine returns.
+- The rows the unit is read from are those the response model read its range from, asked of it once
+  ([`GaussianResponse::scaleRows`](../../src/bartcore/model.hpp)); this slice adds no second test of
+  which rows are in.
 - A stated number is kept as written, so that the reader returns it bit for bit.
 - The reader's `sd` is one unnamed number a forest in this slice. A numeric forest's takes its column's
   name with the multiplier slice, when it becomes that many units per unit of the column.
 - The forests' record holds four numbers a forest (tree count, base, power, the hold), `sd` and, where
-  one is stated, the coefficient variance, each one number or NA a forest, the anchor and the unit.
+  one is stated, the coefficient variance, each one number or NA a forest, the anchor and the unit; its
+  other entries (`vars`, `labels`, `heldAmplitude`, `interactions`, `blocks`, `basisTerms`,
+  `control.n.trees`) are as they are.
 - The flat C header, the stored state and every state block are untouched.
 - A `forests` list written before the slice is still accepted, with every number read in the new unit.
 - No test this slice adds fits a factor of three or more levels or a basis of several numeric columns
@@ -292,68 +317,78 @@ reason, that the two sds are different things, stops being true. The fourth is t
 ## Steps
 
 "Fails today" is what the base build does where the test expects otherwise. New names are for the
-reader's sake. Calls are in push 3's spelling of a basis; the fixture is 150 rows with x1, x2, a 0/1 z, a
-factor zf, dose, an offset column and weights of which ten are 0.
+reader's sake. The fixture is 150 rows with x1, x2, a 0/1 z, a factor zf, dose, an offset column and
+weights of which ten are 0.
 
-1. The engine: the statement, the law and the unit. [`ForestSpec`](../../src/bartcore/combiner.hpp)
+1. The engine: the statement, the map and the unit. [`ForestSpec`](../../src/bartcore/combiner.hpp)
    loses its four derived numbers and states: `sd`, in the response's units, not a number where none is
    stated; the hold it has; and the coefficient variance, not a number where none is stated (the
    multiplier slice's held push removes it). For fixtures and for
    [`expandForestSpecs`](../../src/bartcore/combiner.hpp), whose two-forest spelling states BCF's sizes
    as multiples of L, it may state a multiple of L in place of `sd`; nothing R reaches sets that.
    [`AmplitudeSpec`](../../src/bartcore/combiner.hpp) gains `unit`, not a number where the engine is to
-   derive it. One function (`forestLaw`) turns a statement, whether the forest has a basis, K, the
+   derive it. One function (`forestMapEntry`) turns a statement, whether the forest has a basis, K, the
    family, the unit and the row norm into the forest's leaf-scale factor and divisor, its coefficients'
    variance and its half-Cauchy median, and one (`defaultForestSd`) holds the defaults; both give the
    tip's numbers, the row norm and the starts by position included, with every expression of
    [`mapLeafScale`](../../src/bartcore/chain.hpp) in its order of operations. The K-forest constructor
    of [`Chain`](../../src/bartcore/chain.hpp) takes the unit it is handed, or derives it beside the
-   anchor (under gaussian the anchor times the scale of the response transform at that moment, under
-   probit and logistic the anchor), resolves each forest once and hands
+   anchor (under gaussian the anchor [`latentScaleAnchor`](../../src/bartcore/chain.hpp) returns, which
+   is already over the rows the response model read, times the scale of the response transform at that
+   moment; under probit and logistic the anchor), resolves each forest once and hands
    [`AmplitudeForestCombiner`](../../src/bartcore/combiner.hpp) the result. A forest that states an sd
    has `sd / unit` where its number in units of L stood: the half-Cauchy median of a forest with no
    basis, the leaf-scale factor of one with a basis. A stated sd with a unit that is not positive and
    finite, and an sd that is not, throw. [`ForestCalibration`](../../src/bartcore/chain.hpp) gains the
-   unit, the sd in force in the response's units (the stated number itself, or the multiple of L times
-   the unit) and whether it was stated. [`Chain::setForestMapSd`](../../src/bartcore/chain.hpp) takes
-   the response's units and marks the forest stated; where the number is the sd in force as reported it
-   keeps the quotient it has, so no bit moves, and otherwise divides as creation does. Every struct
-   here is read by objects that do not track headers: `--preclean`.
+   unit and the sd in force in the response's units (the stated number itself, or the multiple of L
+   times the unit), and reports the stated number in its `namedSd`, which a map forest leaves not a
+   number today, so that "stated" is one test for every forest.
+   [`Chain::setForestMapSd`](../../src/bartcore/chain.hpp) takes the response's units and marks the
+   forest stated; where the number is the sd in force as reported it keeps the quotient it has, so no
+   bit moves, and otherwise divides as creation does. Every struct here is read by objects that do not
+   track headers: `--preclean`.
    Tests, tests/cpp:
    - The fixtures that set the four numbers are restated as statements, and every comparison they make
-     holds unchanged, to the bit.
-   - `testForestLawStatements`: for K = 2 and 3, a forest with no basis and one with a two-level block
+     holds unchanged, to the bit; [`testForestUnitRowsIn`](../../tests/cpp/test_sampler.cpp) among them,
+     whose anchor is unchanged.
+   - `testForestMapStatements`: for K = 2 and 3, a forest with no basis and one with a two-level block
      that state nothing have, under each family, the leaf scale, the coefficients' variance and the
-     half-Cauchy median of the tip's expressions written out with literals, to the bit. These literals
-     survive the multiplier slice. A numeric column's law is held by the restated fixtures alone, which
-     that law rewrites.
+     half-Cauchy median of the tip's expressions written out with literals, to the bit. The literals
+     for a forest with no basis, and those at K = 2, survive the multiplier slice; those for a block at
+     K = 3 hold sqrt(2 / 3) and go with dec-B291. A numeric column's entry is held by the restated
+     fixtures alone, which the multiplier slice rewrites.
    - `testForestSdUnit`, beside [`testForestMapWriters`](../../tests/cpp/test_sampler.cpp): one fixture
      of three forests (none, a two-level block, a column of numbers) per family, with a response whose
      standard deviation is neither 1 nor its range. (a) The derived unit equals the literal (the
-     fixture's `sd`, 1, pi / sqrt(3)) to 4 ulp. (b) Each forest stating v has the leaf scale, or the
-     half-Cauchy median, that the base spelling gives at v over the literal unit, to 4 ulp; a forest
-     stating none has the base spelling's bits. (c) The reader returns v itself and "stated", and a
-     default as its multiple times the unit and "not stated". (d) A write of the value read leaves 20
-     sweeps identical to an untouched twin's and the forest stated; a write of another value gives the
-     leaf scale of a chain created with it. (e) A chain made again over the response times 10 plus 5
-     with the first one's anchor and unit handed back has every leaf scale of the first, bit for bit.
-     (f) The two throws.
+     fixture's `sd`, 1, pi / sqrt(3)) to 4 ulp; with rows of weight zero that hold the response's
+     extremes it is the literal over the rows in, far from the every-row one, and with the rows in at
+     one value the every-row one. (b) Each forest stating v has the leaf scale, or the half-Cauchy
+     median, that the base spelling gives at v over the literal unit, to 4 ulp; a forest stating none
+     has the base spelling's bits. (c) The reader returns v itself and "stated", and a default as its
+     multiple times the unit and "not stated". (d) A write of the value read leaves 20 sweeps identical
+     to an untouched twin's and the forest stated; a write of another value gives the leaf scale of a
+     chain created with it. (e) A chain made again over the response times 10 plus 5 with the first
+     one's anchor and unit handed back has every leaf scale of the first, bit for bit. (f) The two
+     throws.
 2. The bridge. [`applyAmplitudeSpec`](../../src/R_interface_bartcore.cpp) reads four numbers a forest
    (tree count, base, power, the hold). [`applyForestAttributes`](../../src/R_interface_bartcore.cpp)
    reads three more entries of the forests' configuration: `sd` and `variance`, one number or NA for
    each forest, and `unit`, as it reads `anchor`, with the two texts for a malformed one.
-   [`bartcore_getLeafPrior`](../../src/R_interface_bartcore.cpp) reports the unit, the sd in force and
-   the stated flag as three more columns.
+   [`bartcore_getLeafPrior`](../../src/R_interface_bartcore.cpp) reports the unit and the sd in force as
+   two more columns, and a map forest's stated number in the `named.sd` column it has.
    [`bartcore_setForestSd`](../../src/R_interface_bartcore.cpp) hands its number on unchanged. No
    reading of a record of eight numbers is kept and no refusal by name is written for one: the length
    check answers.
-3. Creation. [`forestParams`](../../R/model.R) writes the four numbers and derives nothing;
-   [`defaultAmplitudePriorScale`](../../R/model.R) goes, and the two cites of it and of
-   `amplitudePriorScale` in docs/plans/bcf-latent-evidence.md and docs/design/feature-matrix.md are
-   marked `retired:`. The multi-forest block of [`resolveSamplerSpec`](../../R/spec.R) writes the
-   stated sds, as written, into the configuration's `sd`, and a stated `amplitude.prior.variance` into
-   `variance`; the sampler's `initialize` records `unit` from the reader where it records `anchor`, at
-   a first creation only. Tests, a new file test-forest-sd-unit.R:
+3. Creation. [`forestParams`](../../R/model.R) writes the four numbers and derives nothing: the count,
+   base and power it gives every forest by its kind stay its first three, and
+   [`dbartsSampler$setForestBasis`](../../R/dbarts.R) reads the hold at the fourth.
+   [`defaultAmplitudePriorScale`](../../R/model.R) goes, and the cites of it in
+   docs/plans/bcf-latent-evidence.md and of `ForestSpec::amplitudePriorScale` in
+   docs/design/feature-matrix.md are marked `retired:`. The multi-forest block of
+   [`resolveSamplerSpec`](../../R/spec.R) writes the stated sds, as written, into the configuration's
+   `sd`, and a stated `amplitude.prior.variance` into `variance`; the sampler's `initialize` records
+   `unit` from the reader where it records `anchor`, at a first creation only. Tests, a new file
+   test-forest-sd-unit.R:
    - Which model was fitted. `sd = 2` on a forest with no basis and `sd = 0.5` on a factor forest, at
      each of: a formula term at `dbarts` and at `bart`, a list on a formula, on a matrix and in
      `dbartsSpec`, a data object with `bases` and a list of sds. At every door the reader's `sd` is
@@ -363,16 +398,21 @@ factor zf, dose, an offset column and weights of which ten are 0.
    - L written out. With an offset, `subset`, a dropped missing response and weights with zeros, a
      default forest's reader `sd` is `sqrt(2 / K) * sd((y - offset)[kept])` to 1e-12, where `kept` is
      written in the test and leaves out the rows of weight zero (dec-B296); the same reader is
-     `identical()` after a later `$setWeights` that brings those rows back, the unit being held; and the
-     same four with `sd = 0.5` stated give `k.scale * 0.674 == 0.5` to 1e-12, so a unit from the wrong
-     rows cannot hide in a ratio.
+     `identical()` after a later `$setWeights` that brings those rows back and after a
+     `$setActiveRows`, the unit being held; and the same four with `sd = 0.5` stated give
+     `k.scale * 0.674 == 0.5` to 1e-12, so a unit from the wrong rows cannot hide in a ratio. With the
+     rows of positive weight at one value the reader's `sd` is the multiple of the every-row
+     `sd(y - offset)`, under exactly one warning of class `dbartsScaleFallbackWarning`, counted with
+     `withCallingHandlers`.
    - Probit and logistic: `sd = 0.5` gives `k.scale * 0.674 == 0.5` under both (fails today under
      logistic: 0.907).
    - The size, from the engine's own prior draws under a flat likelihood. Always on, one a family, 1500
      sweeps and 10 percent: a forest with no basis and a factor forest, each drawn and stating `sd = v`,
      have size v (fails today under gaussian and logistic). `at_home`, 5000 sweeps a row and 6 percent:
      the same at three values of v. `tinytest::test_package()` runs with `at_home` false, in CI too, so
-     the first is the one a push is gated on.
+     the first is the one a push is gated on. It is seeded; at 2000 sweeps the rerun's entries ran from
+     0.92 to 1.03 of v, so 10 percent at 1500 is about three standard errors, and the arm's sweep count
+     is raised before its tolerance is widened.
    - Not stated: a forest that states no sd has the engine's own multiple untouched: the reader's
      `leaf.scale.factor` is `identical()` to `sqrt(2 / K)` where the forest has a basis, and its
      `amplitude.prior.scale` to 2 (1 under a latent family) where it has none, at K = 2 and 3 under each
@@ -418,17 +458,18 @@ factor zf, dose, an offset column and weights of which ten are 0.
      the reader says 2 and 1); on one forest it is what it is today.
 5. One forest. [`resolveForests`](../../R/model.R) no longer refuses `sd` on the one forest; where the
    fitting function's own leaf prior is read, that forest's `sd` is `normal(sd = )`, and stated at both
-   places it is refused with the first text. "Stated" is forest-defaults-by-kind's record of what the
-   caller named. Tests: `y ~ forest(x1 + x2, sd = 2)` at `bart` and `dbarts`, and
-   `forests = list(forest(sd = 2))` on a formula and on a matrix, are draw for draw
-   `leaf.prior = normal(sd = 2)`, under gaussian and probit (fail today: refused); beside
-   `leaf.prior = normal(sd = 3)`, `normal`, `normal(k = 2)`, `bart`'s `k` and a linear leaf, refused with
-   the first text; `amplitude` on that forest keeps its refusal.
+   places it is refused with the first text. "Stated" is the record
+   [`plainForestStated`](../../R/model.R) keeps of what the caller named. Tests:
+   `y ~ forest(x1 + x2, sd = 2)` at `bart` and `dbarts`, and `forests = list(forest(sd = 2))` on a
+   formula and on a matrix, are draw for draw `leaf.prior = normal(sd = 2)`, under gaussian and probit
+   (fail today: refused); beside `leaf.prior = normal(sd = 3)`, `normal`, `normal(k = 2)`, `bart`'s `k`
+   and a linear leaf, refused with the first text; `amplitude` on that forest keeps its refusal.
 6. The two other texts. The engine's throw on a response with no spread is raised with the second text,
    naming nothing of the engine; [`resolveLeafPrior`](../../R/model.R) takes the third. Tests: two
    forests on a constant response are created with no sd (as today) and refused with `sd = 0.7` (fails
    today: created, every prior 0); the four pins of
-   ["a named leaf-prior 'sd'"](../../inst/tinytest/test-calibration-creation.R) take the third text.
+   ["a named leaf-prior 'sd'"](../../inst/tinytest/test-calibration-creation.R), two there and two in
+   test-bcf-family.R, take the third text.
 7. A named single sd (dec-B280). [`validateForestSd`](../../R/model.R) drops the name of a single
    number and refuses nothing for it; the text for a longer `sd` loses its words about columns. Tests:
    `sd = pars["s"]` on a forest with no basis, on a factor forest and on a numeric one, at a formula
@@ -437,37 +478,41 @@ factor zf, dose, an offset column and weights of which ten are 0.
    of the unnamed number (fail today: refused); `c(dose = 1, age = 2)` and `c(1, 2)` keep the length
    text at the three places; the pins of
    ["must not be named"](../../inst/tinytest/test-forest-arguments.R) are turned into these.
-8. Respell and repair. Run the suite first and repair what it shows. Expected: the 72 pins of the
-   stored numbers by position, each restated against the four numbers or against the reader; the 15
-   assertions of the unit in 7 files (test-bcf-creation.R 3, test-bcf-family.R 3, test-fit-stores-k.R 3,
+8. Respell and repair. Run the suite first and repair what it shows. Expected: the pins of the stored
+   numbers by position, about 60 in the 7 files Context lists, each restated against the four numbers
+   or against the reader, with the two hand-edited records of test-forest-basis-r5.R; the 17 assertions
+   of the unit in 9 files (test-bcf-creation.R 3, test-bcf-family.R 3, test-fit-stores-k.R 3,
    test-calibration-midchain.R 2, test-multiforest-leaf-prior-writer.R 2, test-forest-arguments.R 1,
-   test-forest-basis-r5.R 1), five of them among the 72; the pins of the reader's `leaf.prior` for a
-   forest that states nothing, which now read `sd`; and the three pins of
-   ["this model has one forest, so its size is"](../../inst/tinytest/test-bcf-creation.R), which become
-   step 5's fits. Each gaussian and logistic forest that states an sd, and each of the 28 gaussian
-   writes, is read: where the test means a multiple of the response's scale (the pins of the map in
-   test-bcf-family.R, the writer's ratios, the prior-draw tests) it is written `r * sd(y)` or
-   `r * pi / sqrt(3)` with the scale computed in the test; where it needs only some stated sd it is left,
-   and now states that many units. Benchmarks: the four BCF exact gates and `sbc.R` write
-   `sd = sdControl * s` and `sd = sdModerate * s`, s the scale their oracles already use, and their
-   oracles are not edited.
-9. Help and records. man/forest.Rd: the `sd` item, as push 3 leaves it, with the unit, what s is the size
-   of for each kind as "Context" measured it, the defaults as multiples of the response's standard
-   deviation and as the numbers they come to, that a name on the number is ignored, and one sentence
-   that a single forest takes it as `leaf.prior = normal(sd = )`; the Details paragraph on the budget
-   where it speaks of units.
+   test-forest-basis-r5.R 1, test-forest-defaults.R 1, test-forest-selection.R 1), six of them among
+   the first; the pins of the reader's `leaf.prior` for a forest that states nothing, which now read
+   `sd`; the pins of `extract`'s vector in test-fit-stores-k.R and test-forest-selection.R, which
+   becomes a list; and the three pins of
+   ["this model has one forest, so its size is"](../../inst/tinytest/test-bcf-creation.R), one there,
+   one in test-forest-arguments.R and one in test-formula-terms.R, which become step 5's fits. Each
+   gaussian and logistic forest that states an sd, and each of the 34 gaussian writes, is read: where
+   the test means a multiple of the response's scale (the pins of the map in test-bcf-family.R, the
+   writer's ratios, the prior-draw tests) it is written `r * sd(y)` or `r * pi / sqrt(3)` with the
+   scale computed in the test; where it needs only some stated sd it is left, and now states that many
+   units. Benchmarks: the four BCF exact gates and `sbc.R` write `sd = sdControl * s` and
+   `sd = sdModerate * s`, s the scale their oracles already use, and their oracles are not edited.
+9. Help and records. man/forest.Rd: the `sd` item, with the unit and the rows it is read from, what s
+   is the size of for each kind as "Context" measured it, the defaults as multiples of the response's
+   standard deviation and as the numbers they come to, that a name on the number is ignored, and one
+   sentence that a single forest takes it as `leaf.prior = normal(sd = )`; the Details paragraph on the
+   budget where it speaks of units.
    [`dbartsSampler$getLeafPrior`](../../man/dbartsSampler-class.Rd) and
    [`dbartsSampler$setLeafPrior`](../../man/dbartsSampler-class.Rd) with their docstrings: `leaf.prior`
    is what was stated and goes back as it is; `sd` is the number in force, in the response's units, and
    `sd.stated` whether it was stated; the list is named by label; `amplitude.prior.scale` and
-   `leaf.scale.factor` are multiples of the response's scale. The `extract` page's `leaf.prior.sd` item:
-   the list by label, a number for one forest. man/bart.Rd and man/dbarts.Rd: `leaf.prior` beside
-   several forests. docs/design/forest-sd-unit.md with its index row: the rule, who holds the law, the
-   unit's record, the table of "Context", the changed sequence and its oracle.
+   `leaf.scale.factor` are multiples of the response's scale. The `leaf.prior.sd` item of `extract` in
+   man/bartBT.Rd: the list by label, a number for one forest. man/bart.Rd and man/dbarts.Rd:
+   `leaf.prior` beside several forests. docs/design/forest-sd-unit.md with its index row: the rule, who
+   holds the map, the unit's record, the table of "Context", the changed sequence and its oracle.
    docs/design/multiplier-combiner.md, bcf.md, nameable-calibration.md and public-surface.md where they
-   give a forest's sd in units of the latent scale or have R derive the law; docs/architecture.md where
-   it lists the forests' configuration. TODO: `forest-prior-args` names this slice landed and
-   `named-single-sd` closes.
+   give a forest's sd in units of the latent scale or have R derive the map;
+   docs/design/response-scale-rows.md where it says what the unit sizes; docs/architecture.md where it
+   lists the forests' configuration. TODO: `forest-prior-args` names this slice landed, and
+   `forest-sd-unit` and `named-single-sd` close.
 10. bartCause, same day (its own commit on dbarts-1.0). `bcf()`'s `sd.moderate` defaults to `NULL` in both
     signatures of R/bcf.R, and man/bcf.Rd says of `sd.control` and `sd.moderate` that each is the forest's
     size in the response's units, `NULL` taking dbarts's default. The two hand-built samplers in
@@ -489,18 +534,18 @@ cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
   R-loaded path under the address sanitizer for test-forest-sd-unit.R and
   test-multiforest-leaf-prior-writer.R, as [Gate hygiene](README.md#gate-hygiene) gives the commands.
 - The full tinytest suite on the shipped build, in one process, counted per file: no failure, no file
-  stopping, and at least the base build's count plus the new file's assertions; the landing note gives the
-  figures.
+  stopping, and at least the base build's count (22978 over the 246 files that run in two threads) plus
+  the new file's assertions; the landing note gives the figures.
 - On a reference build (`--preclean --configure-args=--enable-reference-build`): the four
   `test-reproducibility-*.R` files pass unchanged, and the three compares are bitwise, every scenario
   reporting identical draws, counted per scenario with no `max |z|` line: 55 against
-  `equivalence-1b7d730c.rds`, 15 against `bcf-equivalence-1b7d730c.rds`, 11 against
+  `equivalence-308c45be.rds`, 15 against `bcf-equivalence-1b7d730c.rds`, 11 against
   `multinomial-equivalence-80b1c8d4.rds`. Nothing is re-recorded: no scenario states a forest sd, and a
-  scenario that did, or a law that moved with its move to the engine, would show here as a `max |z|`
+  scenario that did, or a map that moved with its move to the engine, would show here as a `max |z|`
   line. These three are the gate of the change of shape.
-- Every gate `.github/workflows/exact-gates.yaml` lists, in `quick`: the class is posterior-changing and
-  the four respelled BCF gates are the oracle for a stated sd in each channel. `sbc.R`'s respelled arm
-  constructs and runs its smallest setting.
+- Every command `.github/workflows/exact-gates.yaml` runs, 42 at the tip, in `quick`: the class is
+  posterior-changing and the four respelled BCF gates are the oracle for a stated sd in each channel.
+  `sbc.R`'s respelled arm constructs and runs its smallest setting.
 - `inst/include/dbarts/dbarts.h` has no diff and `tools/check-api-hash.sh` passes.
 - The pair script (below), old side on the base build, new side on the slice's.
 - `Rscript -e 'lintr::lint_package()'`, `air format --check .`, `Rscript tools/check-rc-codoc.R .`,
@@ -509,10 +554,10 @@ cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
   `pkgdown::check_pkgdown(".")`; `R CMD build` with every vignette rebuilt and `R CMD check --as-cran` on
   a tarball from a clean copy.
 - The consumers, each suite whole against a private install of the slice, none failing: bartCause on
-  dbarts-1.0 with step 10's edit (1412 expectations at its last run), stan4bart on bartcore (582),
-  treatSens on dbarts-1.0 (306), bairrtt on main (207), the last three unedited. bartCause unedited is run
-  once too and passes, its `sd = 1` now one unit and its tests pinning no draw under it; if that run
-  fails, the landing note says where.
+  dbarts-1.0 with step 10's edit, stan4bart on bartcore, treatSens on dbarts-1.0, bairrtt on main, the
+  last three unedited; the landing note gives each count beside its count on the base build. bartCause
+  unedited is run once too and passes, its `sd = 1` now one unit and its tests pinning no draw under it;
+  if that run fails, the landing note says where.
 
 The pair script. Each row is one model fitted on the base build as written there and on the slice's as
 written here, the same seed, 20 sweeps: train draws, sigma and the coefficients. Rows 01 to 06 and 21 to
@@ -521,10 +566,10 @@ rows 29 and 30 must differ.
 
 | | base build | slice |
 |---|---|---|
-| 01 to 04 | no sd stated: two forests; three; under `subset` with weights and an offset; `bart` with a term | the same text |
+| 01 to 04 | no sd stated: two forests; three; under `subset` with weights, ten of them zero, and an offset; `bart` with a term | the same text |
 | 05, 06 | logistic and probit, no sd stated | the same text |
 | 07 to 10 | `sd = r` on the forest with no basis; on a factor forest; on both; on a numeric column | `sd = r * sd(y)` |
-| 11 to 13 | r stated with an offset; under `subset`; with weights | `r * sd(y - offset)`; `r * sd(y[kept])`; `r * sd(y[w > 0])`, which is `r * sd(y)` only where no weight is zero (dec-B296: the base build already holds response-scale-rows, so its unit is over those rows too) |
+| 11 to 13 | r stated with an offset; under `subset`; with weights of which ten are zero | `r * sd(y - offset)`; `r * sd(y[kept])`; `r * sd(y[w > 0])`, the base build's unit being over those rows too (dec-B296) |
 | 14, 15 | a held factor; three forests each stating one | the same respelling |
 | 16 to 18 | `$setLeafPrior(forests = )` after 5 sweeps; a copy after 5; a value read and written back | the same respelling; the same text |
 | 19, 20 | logistic, r on both forests; `bart` with a term stating r | `r * pi / sqrt(3)`; `r * sd(y)` |
@@ -548,7 +593,7 @@ Mutations, each expected to fail the named test and no gate before it:
 - the hold read from the wrong one of the four numbers: pair rows 14, 22 and 23, and the suite's held
   pins;
 - the stated variance dropped between R and the engine: step 3's variance test, and pair row 26;
-- the row norm left out of the engine's law: the restated fixtures, and pair rows 10, 24 and 27;
+- the row norm left out of the engine's map: the restated fixtures, and pair rows 10, 24 and 27;
 - the reader returning the multiple of L: step 3's `identical()` to 2;
 - the reader's `leaf.prior` built from the number in force, so that a default reads as stated: step 4's
   "read then write" on a default sampler (`sd.stated` turns `TRUE`);
@@ -559,7 +604,9 @@ Mutations, each expected to fail the named test and no gate before it:
 - a write of the number in force skipped whole, the forest left unstated: step 4's `forest(sd = p$sd)`;
   the same write dividing again, so that a bit moves: the same test's twin;
 - the unit computed with weights, over every row before `subset`, or over the rows of weight zero
-  too: step 3's "L written out";
+  too: step 3's "L written out", and step 1 (a);
+- the unit taken over the rows in where they hold one value: step 3's fallback arm, and step 1 (a);
+- the unit moved by `$setWeights`: step 3's "L written out";
 - `extract` left returning `k.scale` over k; left a vector; named by position; a list of one where one
   forest is asked for: step 4's `extract` and names tests;
 - the stated number mirrored into the four numbers and not into `sd`: step 4's path "a write, a copy
@@ -567,7 +614,51 @@ Mutations, each expected to fail the named test and no gate before it:
 - the both-given refusal dropped: step 5;
 - a name kept on the stored sd: step 7's `identical()`.
 
-Not a hot-path change: the law is resolved when a forest is built or restated, never in a sweep.
+Not a hot-path change: the map is resolved when a forest is built or restated, never in a sweep.
+
+## Budget and stops
+
+Planned ~2340 lines, by step:
+
+| step | package code | tests | the rest |
+|---|---|---|---|
+| 1 the engine | engine 300 | tests/cpp 480 | |
+| 2 the bridge | bridge 160 | | |
+| 3 creation | R 110 | tinytest 260 | |
+| 4 the reader, the writer, `extract` | R 120 | tinytest 190 | the mutation battery 10 |
+| 5 one forest | R 40 | tinytest 30 | |
+| 6 the two other texts | R 15 | tinytest 10 | |
+| 7 a named single sd | R 15 | tinytest 20 | |
+| 8 respell and repair | | tinytest 200 | benchmarks 40 |
+| 9 help and records | | | help 130; design note, architecture, public-surface, TODO, indexes 210 |
+
+Package code ~760, tests ~1190, the rest ~390. The four most recent slices ran 1.8, 2.2, 2.3 and 1.9
+times their plans (setState's two forms, the sparse starting sigma, the state's record
+of missable columns, the creation slice of response-scale-rows), with 68, 52, 83 and 64 percent of what
+they changed in tests. Assumed here: the tests run to about 2.5 times their figure and everything else to
+about 1.3, which is ~4470 lines, inside a forecast of 4200 to 5400 (1.8 to 2.3 times). An overrun in
+tests is expected and is not a reason to stop; one in package code means the design moved. bartCause's
+part, ~10 lines, is outside these counts.
+
+Stop and report when:
+- the diff passes ~5400 lines, or the package code (engine, bridge, R) passes ~1140, 1.5 times its
+  figure;
+- a recorded scenario moves in any of the three compares, or a snapshot file moves;
+- a fit that states no forest sd is not bit for bit the base build's on any pair row (01 to 06, 21 to
+  28), or a respelled row is apart by more than 1e-10;
+- the conversion is needed anywhere but the one function of the engine, or R must divide or multiply by
+  the unit on any path;
+- the engine must be told more of a forest's kind than whether it has a basis;
+- the unit needs a test of which rows are in beyond what the response model answers;
+- dbarts.h needs any change, the ABI token moves, or a state block or the stored state changes;
+- an existing test fails in a file that steps 5 to 8 do not name: the ten of Context (the seven and
+  the nine, which share six), test-formula-terms.R and test-calibration-creation.R;
+- bartCause unedited fails, or a consumer's count falls.
+
+Expected verdicts: tests/cpp and tinytest clean; the three compares 55, 15 and 11 identical, no scenario
+moved and nothing re-recorded; the four snapshot files unchanged; all 42 exact-gate commands passing, the
+four respelled BCF gates among them; the pair script's rows 01 to 06 and 21 to 28 identical, 07 to 20
+within 1e-10 and 29 and 30 differing; the consumers' suites clean.
 
 ## NEWS
 
@@ -577,40 +668,46 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
 
 - What an sd is the size of where the coefficient is held or the basis is numeric: the table of "Context"
   with its rows off 1 is still true after this slice, in the response's units. The help says so, in those
-  words, until the law changes them.
-- The engine after this slice is handed a statement and holds the tip's law in one function. The law's
-  pushes change rows of that function and add one thing to the statement, the forest's kind; they keep
-  `sd` not-a-number for "not stated", the recorded unit, the division, the reader's `sd` and
-  `sd.stated`, and the four-number record.
+  words, until the multiplier slice changes them.
+- The engine after this slice is handed a statement and holds the tip's calibration map in one
+  function. The multiplier slice's pushes change rows of that function and add one thing to the
+  statement, the forest's kind; they keep `sd` not-a-number for "not stated", the recorded unit, the
+  division, the reader's `sd` and `sd.stated`, and the four-number record.
+- The defaults dec-B290 and dec-B291 revise (a held forest with no basis; a forest with a basis whatever
+  K), unless the open call puts dec-B291 here: `defaultForestSd` is the one place either changes.
 - The reader's `amplitude.prior.variance`, `amplitude.prior.scale`, `leaf.scale.factor`,
   `leaf.scale.divisor`, `basis.row.norm` and the words of `prior.sd.of`; a numeric forest's `sd` named
   by its column; the entries for a forest's kind and hold; the printed block: none is built or renamed
-  here.
-- What the law may assume: every stated sd in the tree, the benchmarks and bartCause is in the response's
-  units; the reader's and `extract`'s shapes are final but for the column's name; a fit of forests with
-  no basis or a two-level factor, coefficients drawn, stated or not, is unchanged by the law to the bit,
-  and can be gated so.
+  here. A forest of several keeps k at 1 and a `k.scale` of its own, which moves with a stated sd
+  (dec-B416 speaks of a forest with no map).
+- What the multiplier slice may assume: every stated sd in the tree, the benchmarks and bartCause is in
+  the response's units; the reader's and `extract`'s shapes are final but for the column's name; a fit
+  of forests with no basis or a two-level factor, coefficients drawn, stated or not, is unchanged by it
+  to the bit and can be gated so, at two forests if dec-B291 is built there and at any number if it is
+  built here.
 
 ## What waits on what
 
-- On push 3: the help's `sd` item is written over push 3's; every call in the tests and the help is in
-  its spelling; the forests' labels, which name the reader's and `extract`'s lists.
-- On forest-defaults-by-kind: step 5 reads its record of what the caller stated and its finder of the
-  forest with no basis; step 3 edits [`forestParams`](../../R/model.R) after it does, and keeps the
-  count, base and power it gives every forest as the first three of the four numbers; the third text
-  stands beside its refusal of a leaf prior where no forest is without a basis, which comes first;
-  selection by label, which step 4's `extract` by label uses; its interim refusal of held shapes, which
-  this slice does not touch.
-- To recheck once both have landed: the counts of "Context" (51 forests, 33 writes, 72 and 15
-  assertions), by running the logging build again; that no baseline scenario has gained a stated sd;
-  that [`resolveForests`](../../R/model.R) still holds the one-forest refusal step 5 removes; the names
-  of the functions cited here.
+- On forest-defaults-by-kind and written-surface, landed: step 5 reads the record of what the caller
+  stated ([`plainForestStated`](../../R/model.R)) and the finder of the forest with no basis
+  ([`plainForest`](../../R/model.R)); step 3 keeps the count, base and power `forestParams` gives every
+  forest as the first three of the four numbers; the third text stands beside the refusal of a leaf
+  prior where no forest is without a basis, which comes first; selection by label, which step 4's
+  `extract` by label uses; the interim refusal of held shapes
+  ([`refuseHeldShape`](../../R/model.R)), which this slice does not touch; the forests' labels, which
+  name the reader's and `extract`'s lists.
+- On the creation slice of response-scale-rows, which lands first: the rows the anchor is read from and
+  the response model's answer to which rows it read. Its tests pin the anchor's rows; this slice's pin the
+  unit's, which is the anchor times the transform's scale.
 - Order with the two slices after it: this one, then the kind by class, then the multiplier slice. This
   slice and the kind by class share R files and are serial; neither needs the other. They are not one
   slice: this one changes arithmetic in the engine and a prior, that one is R only. It is not folded
-  into the law's pushes that change a prior either: the law's cleanest gate is that forests with no
-  basis or a factor are bit for bit under it, stated sds included, and that gate exists only if the unit
-  moved first.
+  into the multiplier slice's pushes that change a prior either: that slice's cleanest gate is that
+  forests with no basis or a factor are bit for bit under it, stated sds included, and that gate exists
+  only if the unit moved first.
+- TODO `multiforest-scale-rederive`, after 1.0-0: a re-derived scale on several forests restates each
+  default on the new scale and keeps a stated `forest(sd = )` as given, which is what a number kept as
+  written and a default kept as a multiple make possible. Nothing of it is built here.
 
 ## Out of scope, and where it goes
 
@@ -620,29 +717,61 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
 - The kind by class, with the refusal of a factor of three or more levels and of several numeric
   columns; the multiplier slice with everything listed above; `leaf.prior = normal(sd = )` on `forest()`
   and `updateBasisScale`, after the merge to main (dec-B276).
+- `updateScale = TRUE` on a sampler of several forests: refused, as dec-B362 keeps it for 1.0-0.
+- A sampler made by hand from another sampler's control, model and data after its weights changed
+  derives the response's range again under the weights in force and keeps the anchor and the unit from
+  the control, so its stated sds are off by the ratio of the two ranges: the seam response-scale-rows
+  names, which this slice neither opens nor closes; closed by the record slices of TODO
+  `state-frame-prior`.
 - A way to put a stated forest back to its default: none exists before `normal()` objects are traded.
 - To TODO as a new entry: the verbose summary of a model of several forests prints one tree count and
   "k prior fixed to 2", the first forest's model slots, and nothing of the others.
 
+## Open calls
+
+One, opened by the recheck. The steps above are written to option A.
+
+1. Which slice makes the default sd of a forest with a basis 1 whatever the number of forests
+   (dec-B291)? The maintainer's words there: "Drop K". The ruling is recorded against
+   [forest-multiplier.md](forest-multiplier.md), which says the same holds for this plan wherever it
+   states the default; this plan's rule 3 and its first constraint say a default does not move here.
+   In a model of three forests on a response whose standard deviation is 10, a forest with a basis
+   that states no sd has a default sd of 8.16 today (sqrt(2 / 3) of 10) and 10 under dec-B291; at two
+   forests both are 10.
+   - (A) The multiplier slice builds it; this slice moves sqrt(2 / K) into the engine as it is. Every
+     fit that states no sd stays bit for bit through this slice, which is the gate of its change of
+     shape. Costs: the help's sentence on the default, `defaultForestSd` and step 1's literals at K = 3
+     are written here and rewritten one slice on; between the two slices the reader reports 8.16.
+   - (B) This slice builds it. The default is written once, in the engine and in the help. Costs: rule
+     3 and the first constraint change; the slice gains a second posterior-changing sequence, a model of
+     three or more forests with a forest that has a basis and states no sd, so its bitwise gate for
+     unstated fits holds at two forests only and pair row 02 is expected to differ; no recorded scenario
+     moves (every one of several forests has two) and nothing is re-recorded. Measured on the tip with
+     the default changed in R alone: 16 assertions fail, all in test-bcf-family.R, each a pin of
+     sqrt(2 / K) or of the prior's size at three and four forests; no seeded draw of the suite moves,
+     though it creates 220 such models in 13 files.
+
 ## Calls made in planning
 
-- The slice stands alone, before the kind by class and the law. Its draws do move, for a stated sd left
-  as written, so it is not a renaming that could ride with either; the reasons against folding it are
-  under "What waits on what".
-- The multiplier slice's first push as first planned is folded in here (the critique's finding 7, taken by
-  the coordinator). That push handed the engine the statement and moved no draw; this slice as first
+- The slice stands alone, before the kind by class and the multiplier slice. Its draws do move, for a
+  stated sd left as written, so it is not a renaming that could ride with either; the reasons against
+  folding it are under "What waits on what".
+- The multiplier slice's first push as first planned is folded in here (its critique's finding 7, taken
+  by the coordinator). That push handed the engine the statement and moved no draw; this slice as first
   planned added a stated sd beside four derived numbers it kept, a reader that returned a default as a
   number, a skip of an equal write, a reading of records saved before it and `extract` as a vector, and
-  the law then removed or reversed each and repaired the same pins a second time. Folded: one gate
-  battery fewer, the 72 pins repaired once, and nothing built to be removed. The cost is a review that
-  holds two things, a change of shape that must move no bit and a division that must happen once; the
-  bitwise compares gate the first and the unit's own tests the second, and the reviewer reads the diff
-  once for each. Not folded: the kind's route to the engine, which the tip's law does not read.
+  the multiplier slice then removed or reversed each and repaired the same pins a second time. Folded:
+  one gate battery fewer, the positional pins repaired once, and nothing built to be removed. The cost
+  is a review that holds two things, a change of shape that must move no bit and a division that must
+  happen once; the bitwise compares gate the first and the unit's own tests the second, and the reviewer
+  reads the diff once for each. Not folded: the kind's route to the engine, which the tip's rule does
+  not read.
 - The engine converts, against a unit it derives and R records. The alternative, R dividing by
   `sd(y - offset)` before the bridge, is shorter and was built as the stand-in. It was not chosen: R's
   estimate differs from the engine's in the last place, so the reader could not return a stated number
-  exactly; and a `forests` list or a control resolved against one data object and run on another would
-  carry the first one's unit in silence, where the engine derives the unit of the data it is given.
+  exactly; R would have to repeat the engine's choice of rows, the fallback included; and a `forests`
+  list or a control resolved against one data object and run on another would carry the first one's
+  unit in silence, where the engine derives the unit of the data it is given.
 - The record is one more number beside the anchor. It could be recomputed from the anchor and the
   recorded response range, which live in two places and would have to agree to the bit.
 - The reader gives the statement, a default as `forest()`, with the number beside it (dec-B269's words:
@@ -655,14 +784,15 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
   the critique's question (e)): the reader and writer trade `normal()` objects in a slice not yet
   planned.
 - `extract(type = "leaf.prior.sd")` takes its final shape here, with its new numbers: a list by label,
-  and for one forest the entry itself (the coordinator, on the critique's question (c)). The law's plan
-  had a list whatever was selected; `extract(type = "k", forest = 2)` returns a number, and one
-  argument should not give a number for one quantity and a list for the other. At the tip `extract` is
-  already in the response's units, of the forest's own standard deviation before its coefficient, which
-  is neither the stated number nor what dec-B253 and dec-B275 say it returns.
-- The reader's list and `extract`'s are named by label here and not with the law: dec-B275 names them
-  so, forest-defaults-by-kind has landed selection by label by then, and a second renaming of the same
-  list two slices on would repair its pins twice. A margin of draws keeps `forest<i>`.
+  and for one forest the entry itself (the coordinator, on the critique's question (c)). The multiplier
+  slice's plan had a list whatever was selected; `extract(type = "k", forest = 2)` returns a number, and
+  one argument should not give a number for one quantity and a list for the other. At the tip `extract`
+  is already in the response's units, of the forest's own standard deviation before its coefficient,
+  which is neither the stated number nor what dec-B253 and dec-B275 say it returns. dec-B376 approved
+  `extract` as `k.scale` over k as built; that is the one forest's computation, which stays.
+- The reader's list and `extract`'s are named by label here and not with the multiplier slice: dec-B275
+  names them so, selection by label has landed, and a second renaming of the same list two slices on
+  would repair its pins twice. A margin of draws keeps `forest<i>`.
 - A named single sd is taken on every forest, with no condition (dec-B280 as dec-B282 leaves it). At
   this slice's tip a basis may still have several columns, where dec-B280 alone would refuse the name;
   that case is closed by the kind-by-class slice's second push, and a condition built for the tips
@@ -673,7 +803,8 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
 - One prior-size test a family runs always, at 1500 sweeps and 10 percent (the critique's finding 3):
   the first plan's were all `at_home`, which the package's test run never is.
 - `amplitude.prior.scale` and `leaf.scale.factor` stay as the engine's multiples of L and are documented
-  so. They are entries the law removes; converting them would change two pins to change them again.
+  so. They are entries the multiplier slice removes; converting them would change two pins to change
+  them again.
 - A stated sd on a response with no spread is refused. Today it is taken and every prior is 0. Dividing
   by a unit of 0 would hand the engine an infinite scale.
 - One forest takes `sd` in this slice, as written-surface's table and the design say it does once the
@@ -683,8 +814,82 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
   other one is left to state units; the alternative, respelling all of them, keeps draws nothing pins.
 - The pair script is run at landing and not tracked: its old side needs the base build. What stays in
   the suite is step 3's pins of unstated fits and step 4's identities between paths.
-- Measured for this plan on stand-ins, not on the design: the 15 assertions, the 8 of 18 pairs and the
-  two "left as written" distances come from a build that converts in R; the 72 pins from the law's
-  stand-in, which keeps six numbers a forest. The engine's conversion divides by a number one unit in
-  the last place away, so the counts of identical pairs may differ; the class does not. Nothing of the
-  engine's statement is built.
+- Measured for this plan on stand-ins, not on the design: the 17 assertions, the 9 of 18 pairs and the
+  two "left as written" distances come from the tip with the conversion made in R; the positional pins
+  are read off the suite's recorded expectations, not run. The engine's conversion divides by a number
+  one unit in the last place away, so the counts of identical pairs may differ; the class does not.
+  Nothing of the engine's statement is built.
+- Recheck. The unit follows the response model's answer to which rows it read, as the anchor does since
+  response-scale-rows; this slice tests no row itself. In the fallback a stated sd is divided by the
+  every-row unit, under creation's warning and no second one.
+- Recheck. A map forest's stated number is reported in the calibration's `namedSd` and the bridge's
+  `named.sd` column, which the k-internal slice added for a forest with no map. Not taken: a third new
+  field, which would give one thing two names.
+- Recheck. The four numbers keep the hold though the record now holds `heldAmplitude` too: the bridge
+  reads the numbers and a fit reads the other, and the two sibling plans count on four. Not taken: three
+  numbers, the bridge reading `heldAmplitude`.
+- Recheck. The prior-size arm that always runs keeps its 10 percent and takes more sweeps if its seed
+  sits near the edge. Not taken: a wider tolerance, which lets more of a wrong unit through.
+
+## Recheck against bartcore
+
+On 2026-10-11, against d5b637ee: the notes of what landed since this plan was written were read
+([forest-defaults-by-kind.md](forest-defaults-by-kind.md), [written-surface.md](written-surface.md),
+[k-internal-parameter.md](k-internal-parameter.md), [default-rule-per-gap.md](default-rule-per-gap.md),
+[setstate-force-update.md](setstate-force-update.md), [sparse-starting-sigma.md](sparse-starting-sigma.md),
+[response-scale-rows.md](response-scale-rows.md) with its design note), then the code, the ledger for
+every ruling cited here and those made since, and the runs below on a shipped build of that tip. The
+text above is written to that code throughout.
+
+What changed:
+
+- What this plan waited on has landed, and its "to recheck once both have landed" list is done: the
+  counts of Context are today's, no baseline scenario has gained a stated sd,
+  [`resolveForests`](../../R/model.R) still holds the one-forest refusal step 5 removes, and every
+  function cited exists under its name.
+- The unit's rows. The anchor is read over the rows in the likelihood at creation, with the every-row
+  fallback and its warning; Context's L, rule 1, the constraint on rows, step 1 (a) and (e), step 3's
+  "L written out" with its fallback and `$setActiveRows` arms, pair rows 03 and 13 and three mutations
+  say so. Rule 8 names the weights and a mask among what moves no unit.
+- The suite: 253 files and 22978 results where the plan had 231 and 16065. 1427 models of several
+  forests in 66 files where it had 776 in 53; 59 forests stating an sd in 8 files (51 in 6); 39 written
+  in 5 files (33 in 3). The unit's stand-in fails 17 assertions in 9 files (15 in 7):
+  test-forest-defaults.R and test-forest-selection.R are new. The positional pins are about 60 in 7
+  files (72 in 4), counted another way.
+- The pairs: 9 of 18 identical and the rest within 2.8e-14 (8 of 18, within 9.6e-13); the row of two
+  numeric columns given as a matrix, which had the widest gap, is no longer a call the tip takes and was
+  replaced by a row with ten weights of zero, which is identical.
+- The record and its readers: `forestParams` takes the fitting function's count, base and power for the
+  forest with no basis; the record holds `labels`, `heldAmplitude`, `basisTerms` and `control.n.trees`;
+  `$setForestBasis` reads the hold by position (step 3). The reader's bridge matrix has `map.anchor`,
+  `k.prior.scale` and `named.sd`, the last reused (steps 1 and 2).
+- Names: the baseline is `equivalence-308c45be.rds`; the exact-gates workflow runs 42 commands; the
+  `leaf.prior.sd` item of `extract` is in man/bartBT.Rd; the cite to retire in feature-matrix.md is
+  `ForestSpec::amplitudePriorScale`; the refusal of a held numeric column is dec-B353's; the consumers'
+  tips. The names this plan proposes for the engine's function and its test are `forestMapEntry` and
+  `testForestMapStatements`.
+- The budget: ~2340 planned for ~2250, a forecast and stops where there was an upper figure of 3900.
+- dec-B291, ruled after the plan was amended, is the open call. dec-B290 and dec-B293 (a held forest
+  with no basis) stay the multiplier slice's and touch no rule here.
+
+What did not change: every rule but the words of 1, 3 and 8 named above; the refused texts; the
+constraints but the one on rows; the steps' order and number; the gate expectation that no recorded
+scenario moves. The rulings as they stand: dec-B246 as dec-B266 revises it, dec-B253, dec-B269 as
+dec-B280 and dec-B282 revise it, and dec-B275 have no later entry against them; dec-B296, dec-B302 and
+dec-B309 are built as the plan had restated them; dec-B362 and TODO `multiforest-scale-rederive` read
+right beside rule 8; dec-B416 to dec-B418 concern a forest with no map and a state, neither of which
+this slice touches; dec-B376's `fit$fixed` holds a held coefficient already.
+
+Runs: L with an offset, `subset`, positive weights, 50 and 10 rows of weight zero, the weights brought
+back, one row in, both latent families, `setResponse` without and with `updateScale`; the prior-size
+table at 2000 sweeps a row and one row three times at 5000; the reader, `extract` by position, by
+`forest<i>`, by label and by two labels, the one-forest, named-sd, leaf-prior and constant-response
+cases; the suite three times in one process, traced, under the unit's stand-in, and with dec-B291's
+default; the 27 pairs. The stand-ins were made by replacing R functions in the loaded namespace of the
+tip's build: nothing was compiled.
+
+Not verified: nothing of the slice is built, so no mutant and no new test was run, and the change of
+shape was run on no build: its count of pins is read, not measured. No reference build, bitwise compare,
+exact gate, sanitizer, x86 run or `R CMD check` was made: that no recorded scenario moves rests on the
+search of the three scripts and the four snapshot files. The consumers were searched at the tips named
+and not built or run. The 5000-sweep table was not rerun whole.
