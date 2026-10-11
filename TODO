@@ -802,10 +802,12 @@ items
     take the class the forest was created with, a factor is matched
     to its levels by name, a forest created without a basis takes
     none, and a held forest keeps its width. A value's empty level
-    or zero column is refused once, after subset. R only, two
+    is dropped silently (dec-B308) and a column of zeros is refused
+    once, after subset. A swap never changes the kind (dec-B452),
+    and predict refuses numbers for a factor forest (dec-B453). R only, two
     pushes. Moves no draw but for a logical vector through the data
     door and a factor swapped or predicted with its levels in
-    another order. The second push respells the 98 blocks of
+    another order. The second push respells the 91 blocks of
     indicator columns in the tests as the factors they stand for,
     bit for bit, and then refuses, at every door, swap and predict, a
     factor of three or more levels and a basis of several numeric
