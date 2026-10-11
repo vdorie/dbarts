@@ -2835,11 +2835,16 @@ dbartsSampler <- setRefClass(
           "new predictors contain missing values and the sampler was built with missing = \"error\""
         )
       }
-      bartcoreSamplerSetData(.self, newData)
+      allRows <- bartcoreSamplerSetData(.self, newData)
       selfEnv <- parent.env(environment())
       selfEnv$model <- recordAnchor(model, getPointer())
       if (resolveUpdateState(updateState, control)) {
         storeState()
+      }
+      # raised last, as warnScaleKept is: a warning turned into an error
+      # leaves the record and the stored state the new data's
+      if (allRows) {
+        scaleRowsFallBack(data, model@family, activeRows)
       }
       invisible(NULL)
     },

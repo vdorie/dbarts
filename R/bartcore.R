@@ -1170,10 +1170,15 @@ bartcoreSamplerSetData <- function(sampler, newData) {
     sampler$setActiveRows(active, updateState = FALSE)
   }
   deriveCenterUnderMask(sampler)
-  # the replacement derives as creation does, and says so last
-  scaleRowsFallBack(newData, sampler$model@family, active)
-
-  invisible(NULL)
+  # the replacement derives as creation does. Whether it had too little to
+  # read is the caller's to say, last: the record and the stored state are
+  # still the replaced data's here
+  invisible(scaleRowsFallBack(
+    newData,
+    sampler$model@family,
+    active,
+    warn = FALSE
+  ))
 }
 
 ## A count sampler's 0/1 weights, installed as the mask after creation, leave
