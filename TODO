@@ -368,10 +368,6 @@ items
     creation), so getK's help, "the value run()$k records per draw", is
     wrong for such a sampler. Found by the k-internal review; an
     R-surface slice. Before 1.0-0.
-  offset-test-name-capture: offset.test = s$offset[te] stops with
-    "cannot construct test offset": the name offset inside the
-    expression is taken for the offset argument, where a plain variable
-    works. Found by the negative binomial prior study. Before 1.0-0.
   leaf-covariate-single-value-off-centre: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
     relative to the centre closes it. A slope on a column moved to

@@ -169,3 +169,33 @@ expect_equal(data@testUsesRegularOffset, FALSE)
 rm(data, otherOffset)
 
 rm(testData)
+
+# a member named 'offset' inside the test offset expression is not the offset
+# argument
+set.seed(7)
+nameData <- data.frame(y = rnorm(30), x = rnorm(30))
+holder <- list(offset = rnorm(30), weights = runif(30) + 0.5)
+rows <- 1:8
+data <- dbarts::dbartsData(
+  y ~ x,
+  nameData,
+  nameData[rows, ],
+  offset = holder$offset,
+  offset.test = holder$offset[rows]
+)
+expect_equal(data@offset.test, holder$offset[rows])
+expect_equal(data@offset, holder$offset)
+
+# and the argument itself still stands in for the name by itself
+data <- dbarts::dbartsData(
+  y ~ x,
+  nameData,
+  nameData[rows, ],
+  offset = holder$offset,
+  offset.test = offset[rows] + holder$offset[rows]
+)
+expect_equal(data@offset.test, 2 * holder$offset[rows])
+
+data <- dbarts::dbartsData(y ~ x, nameData, weights = holder$weights)
+expect_equal(data@weights, holder$weights)
+rm(nameData, holder, rows, data)

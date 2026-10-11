@@ -561,7 +561,15 @@ subTermInLanguage <- function(lang, oldTerm, newTerm) {
     return(if (lang == oldTerm) newTerm else lang)
   }
 
+  # the name after $ or @ is a member's, not a variable's
+  isMember <- is.call(lang) &&
+    is.symbol(lang[[1L]]) &&
+    as.character(lang[[1L]]) %in% c("$", "@")
+
   for (i in seq_along(lang)) {
+    if (isMember && i == 3L) {
+      next
+    }
     if (is.symbol(lang[[i]])) {
       if (lang[[i]] == oldTerm) lang[[i]] <- newTerm
     } else if (is.language(lang[[i]])) {
