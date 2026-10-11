@@ -4,7 +4,10 @@
 # carries what it needs. The step's conditional, its mapping, that it acts on
 # every chain and its declines are tests/cpp gates; its posterior is the
 # probit-k-scale-exact gate; which fits take it is the equivalence baseline's
-# record.
+# record. The fits here that draw k under the default finite scale take the
+# collapsed rescaling move as well, on about one sweep in four
+# (test-collapsed-rescale.R); the one under an infinite scale takes the step
+# alone.
 
 set.seed(99)
 n <- 120L
