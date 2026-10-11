@@ -7340,8 +7340,12 @@ static void testActiveRowsGaussianDf(ext_rng*) {
           sigmaDf + static_cast<double>(numPositive),
         "a masked gaussian draws sigma at the COMPOSED positive-weight df");
 
-  GaussianResponse ref(y.data(), nullptr, composed.data(), n, 1.0, sigmaDf,
+  // created under w and then reweighted, as resp is created under w and then
+  // masked: the range is creation's in both, where one created under w * a
+  // would take its range from fewer rows
+  GaussianResponse ref(y.data(), nullptr, weights.data(), n, 1.0, sigmaDf,
                        rawScale);
+  ref.setWeights(composed.data(), nullptr, nullptr, 1.0);
   ext_rng* rngResp = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng* rngRef = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rngResp, 20260814u);
@@ -7379,6 +7383,415 @@ static void testActiveRowsGaussianDf(ext_rng*) {
   ext_rng_destroy(rngResp);
   rngState = savedRngState;
   printf("ok: active rows, gaussian df recount\n");
+}
+
+// The response range is read from the rows in the likelihood: those of
+// positive user weight that no mask switches off, each counted once whatever
+// its weight. Every model here has its extremes on rows that are out, so a
+// range over every row fails each literal. With no row out the transform is
+// the every-row expression, written out below, to the bit. Where the rows in
+// hold fewer than two distinct values creation and setData read every row,
+// and the read a re-derivation is decided on answers yes.
+namespace {
+struct RowRange {
+  double min, max;
+};
+// the unweighted range of y less offset over the rows `in` marks, or over
+// every row when it is null
+RowRange rangeOver(const std::vector<double>& y, const double* offset,
+                   const std::vector<unsigned char>* in) {
+  RowRange range{0.0, 0.0};
+  bool any = false;
+  for (std::size_t i = 0; i < y.size(); ++i) {
+    if (in != nullptr && (*in)[i] == 0) continue;
+    double value = offset != nullptr ? y[i] - offset[i] : y[i];
+    if (!any || value < range.min) range.min = value;
+    if (!any || value > range.max) range.max = value;
+    any = true;
+  }
+  return range;
+}
+// whether a model's transform is (min, max) and its working response the
+// engine's expression under it, to the bit; each step is its own statement
+// and the product goes through a volatile so no compiler fuses two of them
+bool transformIs(ResponseModel& model, const std::vector<double>& y,
+                 const double* offset, RowRange range) {
+  double width = range.max - range.min, inverse = 1.0 / width;
+  double lo = 0.0, hi = 0.0;
+  model.getScale(lo, hi);
+  bool same = lo == range.min && hi == range.max &&
+              model.fitScale() == width &&
+              model.fitShift() == width * 0.5 + range.min;
+  for (std::size_t i = 0; i < y.size(); ++i) {
+    double value = offset != nullptr ? y[i] - offset[i] : y[i];
+    value += -range.min;
+    volatile double scaled = value * inverse;
+    double working = scaled + -0.5;
+    if (model.workingResponse()[i] != working) same = false;
+  }
+  return same;
+}
+}  // namespace
+
+static void testScaleRowsRange() {
+  const std::size_t n = 24;
+  const double sigmaDf = 3.0, rawScale = 0.37804942330213542;
+  std::uint64_t state = 20261011u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  // rows 0, 4, 8, ... are out and hold the extremes; the rows in carry
+  // fractional weights on both sides of 1
+  std::vector<double> y(n), offset(n), weights(n), positive(n), mask(n),
+    ones(n, 1.0);
+  std::vector<unsigned char> in(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    in[i] = i % 4 == 0 ? 0 : 1;
+    y[i] = unif() + (in[i] != 0 ? 0.0 : (i % 8 == 0 ? 50.0 : -50.0));
+    offset[i] = 0.3 * unif() - 0.1;
+    weights[i] = in[i] != 0 ? 0.25 + 1.5 * unif() : 0.0;
+    positive[i] = 0.25 + 1.5 * unif();
+    mask[i] = in[i] != 0 ? 1.0 : 0.0;
+  }
+  RowRange rowsIn = rangeOver(y, offset.data(), &in);
+  RowRange everyRow = rangeOver(y, offset.data(), nullptr);
+  check(everyRow.max - everyRow.min > 10.0 * (rowsIn.max - rowsIn.min),
+        "the fixture's extremes are on rows out, so the literals can fail");
+
+  // created under zero weights: gaussian and Student-t
+  {
+    GaussianResponse gaussian(y.data(), offset.data(), weights.data(), n, 1.0,
+                              sigmaDf, rawScale);
+    check(transformIs(gaussian, y, offset.data(), rowsIn),
+          "a gaussian range at creation is the unweighted one of the rows in");
+    bool marked = gaussian.scaleRows() != nullptr;
+    for (std::size_t i = 0; marked && i < n; ++i)
+      if (gaussian.scaleRows()[i] != in[i]) marked = false;
+    check(marked, "a gaussian response answers which rows its range read");
+    TResponse student(y.data(), offset.data(), weights.data(), n, 1.0, sigmaDf,
+                      rawScale, 5.0);
+    check(transformIs(student, y, offset.data(), rowsIn),
+          "a Student-t range at creation is the unweighted one of the rows in");
+  }
+
+  // no row out: the every-row expression, bit for bit, and no rows recorded
+  {
+    GaussianResponse bare(y.data(), offset.data(), nullptr, n, 1.0, sigmaDf,
+                          rawScale);
+    GaussianResponse weighted(y.data(), offset.data(), positive.data(), n, 1.0,
+                              sigmaDf, rawScale);
+    GaussianResponse noOffset(y.data(), nullptr, positive.data(), n, 1.0,
+                              sigmaDf, rawScale);
+    check(transformIs(bare, y, offset.data(), everyRow) &&
+            bare.scaleRows() == nullptr,
+          "with no weights the transform is the every-row expression");
+    check(transformIs(weighted, y, offset.data(), everyRow) &&
+            weighted.scaleRows() == nullptr,
+          "with every weight positive the transform is the every-row "
+          "expression");
+    check(transformIs(noOffset, y, nullptr, rangeOver(y, nullptr, nullptr)),
+          "and without an offset");
+    TResponse student(y.data(), offset.data(), positive.data(), n, 1.0,
+                      sigmaDf, rawScale, 5.0);
+    check(transformIs(student, y, offset.data(), everyRow),
+          "a Student-t response with every weight positive likewise");
+  }
+
+  // too little to read: none in, one in, four in at one value. Creation and
+  // setData read every row; the read answers yes for either incoming vector
+  {
+    std::vector<double> flat(y), flatOffset(n, 0.0);
+    std::vector<double> none(n, 0.0), one(n, 0.0), four(n, 0.0);
+    one[5] = 0.7;
+    for (std::size_t i : {1u, 2u, 3u, 5u}) {
+      four[i] = 0.5 + 0.25 * static_cast<double>(i);
+      // one value of the response LESS the offset, on distinct responses;
+      // quarters, so the difference is exact
+      flatOffset[i] = 0.25 * static_cast<double>(i);
+      flat[i] = 2.0 + flatOffset[i];
+    }
+    RowRange flatEveryRow = rangeOver(flat, flatOffset.data(), nullptr);
+    const std::vector<double>* cases[] = {&none, &one, &four};
+    const char* names[] = {"none in", "one in", "four in at one value"};
+    for (std::size_t c = 0; c < 3; ++c) {
+      GaussianResponse created(flat.data(), flatOffset.data(),
+                               cases[c]->data(), n, 1.0, sigmaDf, rawScale);
+      check(transformIs(created, flat, flatOffset.data(), flatEveryRow) &&
+              created.scaleRows() == nullptr,
+            names[c]);
+      GaussianResponse replaced(y.data(), offset.data(), nullptr, n, 1.0,
+                                sigmaDf, rawScale);
+      double sigma = 0.4;
+      replaced.setData(flat.data(), flatOffset.data(), cases[c]->data(), n,
+                       &sigma);
+      check(transformIs(replaced, flat, flatOffset.data(), flatEveryRow),
+            "setData to such rows reads every row");
+      check(created.lacksDistinctRowsIn(IncomingVector::response,
+                                        flat.data()) &&
+              created.lacksDistinctRowsIn(IncomingVector::offset,
+                                          flatOffset.data()),
+            "the read answers yes for an incoming response and offset");
+    }
+    // the same four rows at two values of the response less the offset: no
+    GaussianResponse fourIn(flat.data(), flatOffset.data(), four.data(), n,
+                            1.0, sigmaDf, rawScale);
+    check(!fourIn.lacksDistinctRowsIn(IncomingVector::response, y.data()) &&
+            !fourIn.lacksDistinctRowsIn(IncomingVector::offset,
+                                        offset.data()) &&
+            !fourIn.lacksDistinctRowsIn(IncomingVector::offset, nullptr),
+          "the read answers no once the rows in hold two values");
+    // every row in at a constant response is the window's case, not this one
+    std::vector<double> constant(n, 3.0);
+    GaussianResponse window(constant.data(), nullptr, nullptr, n, 1.0, sigmaDf,
+                            rawScale);
+    GaussianResponse windowWeighted(constant.data(), nullptr, positive.data(),
+                                    n, 1.0, sigmaDf, rawScale);
+    check(!window.lacksDistinctRowsIn(IncomingVector::response,
+                                      constant.data()) &&
+            !windowWeighted.lacksDistinctRowsIn(IncomingVector::response,
+                                                constant.data()) &&
+            !windowWeighted.lacksDistinctRowsIn(IncomingVector::offset,
+                                                nullptr) &&
+            window.fitScale() == 1.0 && window.fitShift() == 3.0,
+          "a constant response with every row in is not too little to read");
+  }
+
+  // Student-t counts a row in by its weight and mask, not by the precision
+  // it serves: rows 1 and 2 are in, row 2 at the smallest positive weight,
+  // which its mixing scale takes to a served precision of exactly zero
+  {
+    std::vector<double> tiny(n, 0.0), lambda(n, 1.0);
+    tiny[1] = 1.0;
+    tiny[2] = std::numeric_limits<double>::denorm_min();
+    lambda[2] = 0.25;
+    TResponse student(y.data(), nullptr, tiny.data(), n, 1.0, sigmaDf,
+                      rawScale, 5.0);
+    student.restoreLatents(lambda.data());
+    check(student.workingWeights()[2] == 0.0 &&
+            student.workingWeights()[1] == 1.0,
+          "the fixture's served precision underflows");
+    check(!student.lacksDistinctRowsIn(IncomingVector::response, y.data()) &&
+            !student.lacksDistinctRowsIn(IncomingVector::offset,
+                                         offset.data()),
+          "a Student-t row whose served precision underflows is still in");
+    std::vector<unsigned char> two(n, 0);
+    two[1] = two[2] = 1;
+    double sigma = 0.4;
+    student.setOffset(offset.data(), true, &sigma);
+    check(transformIs(student, y, offset.data(),
+                      rangeOver(y, offset.data(), &two)),
+          "and a re-derivation reads it");
+  }
+
+  // a re-derivation reads the rows in at that call: under zero weights,
+  // under a mask, under both, and setData under the weights it is handed
+  {
+    std::vector<double> y2(n), offset2(n), weights2(n);
+    std::vector<unsigned char> in2(n), both(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      in2[i] = i % 3 == 0 ? 0 : 1;
+      both[i] = in[i] != 0 && in2[i] != 0 ? 1 : 0;
+      y2[i] = unif() + (both[i] != 0 ? 0.0 : (i % 2 == 0 ? 40.0 : -40.0));
+      offset2[i] = 0.2 * unif();
+      weights2[i] = in2[i] != 0 ? 0.5 + unif() : 0.0;
+    }
+    double sigma = 0.4;
+    GaussianResponse weighted(y.data(), offset.data(), weights.data(), n, 1.0,
+                              sigmaDf, rawScale);
+    weighted.setResponse(y2.data(), nullptr, nullptr, true, &sigma);
+    check(transformIs(weighted, y2, offset.data(),
+                      rangeOver(y2, offset.data(), &in)),
+          "setResponse re-derives over the rows of positive weight");
+    weighted.setOffset(offset2.data(), true, &sigma);
+    check(transformIs(weighted, y2, offset2.data(),
+                      rangeOver(y2, offset2.data(), &in)),
+          "setOffset re-derives over the rows of positive weight");
+    weighted.setOffset(nullptr, true, &sigma);
+    check(transformIs(weighted, y2, nullptr, rangeOver(y2, nullptr, &in)),
+          "and with the offset removed");
+
+    GaussianResponse masked(y.data(), offset.data(), nullptr, n, 1.0, sigmaDf,
+                            rawScale);
+    check(masked.setActiveRows(mask.data(), nullptr, nullptr, 1.0) &&
+            transformIs(masked, y, offset.data(), everyRow),
+          "a mask installed after creation moves no transform");
+    masked.setResponse(y2.data(), nullptr, nullptr, true, &sigma);
+    check(transformIs(masked, y2, offset.data(),
+                      rangeOver(y2, offset.data(), &in)),
+          "setResponse re-derives over the rows the mask keeps");
+    masked.setWeights(weights2.data(), nullptr, nullptr, 1.0);
+    masked.setOffset(offset2.data(), true, &sigma);
+    check(transformIs(masked, y2, offset2.data(),
+                      rangeOver(y2, offset2.data(), &both)),
+          "setOffset re-derives over the rows both the weights and the mask "
+          "keep");
+
+    // setData drops the mask and takes the new weights
+    masked.setData(y2.data(), offset2.data(), weights2.data(), n, &sigma);
+    check(transformIs(masked, y2, offset2.data(),
+                      rangeOver(y2, offset2.data(), &in2)),
+          "setData reads the rows in under the weights it is handed");
+
+    // Student-t: weights and mask, through each setter. A response swap
+    // resets the mixing scales, so the marks and not the composite decide
+    TResponse student(y.data(), offset.data(), weights2.data(), n, 1.0,
+                      sigmaDf, rawScale, 5.0);
+    check(transformIs(student, y, offset.data(),
+                      rangeOver(y, offset.data(), &in2)),
+          "a Student-t range at creation follows its own weights");
+    std::vector<double> fits(n, 0.0);
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261012u);
+    check(student.setActiveRows(mask.data(), rng, fits.data(), 0.4) &&
+            transformIs(student, y, offset.data(),
+                        rangeOver(y, offset.data(), &in2)),
+          "a Student-t mask moves no transform");
+    student.refreshLatents(rng, fits.data(), 0.4);
+    student.setOffset(offset2.data(), true, &sigma);
+    check(transformIs(student, y, offset2.data(),
+                      rangeOver(y, offset2.data(), &both)),
+          "a Student-t setOffset re-derives over the rows in");
+    student.setResponse(y2.data(), rng, fits.data(), true, &sigma);
+    check(transformIs(student, y2, offset2.data(),
+                      rangeOver(y2, offset2.data(), &both)),
+          "a Student-t setResponse re-derives over the rows in");
+    student.setData(y.data(), offset.data(), weights.data(), n, &sigma);
+    check(transformIs(student, y, offset.data(), rowsIn),
+          "a Student-t setData reads the rows in under the new weights");
+    ext_rng_destroy(rng);
+  }
+
+  // aft carries no weights: a mask, then setOffset. The range is that of
+  // the OBSERVED log-times the mask keeps, a censored row at its censoring
+  // time whatever its latent has been drawn to
+  {
+    std::vector<double> status(n, 1.0), drawn(y);
+    status[1] = status[4] = status[9] = 0.0;
+    AFTResponse aft(y.data(), status.data(), nullptr, n, 1.0, sigmaDf,
+                    rawScale);
+    check(transformIs(aft, y, nullptr, rangeOver(y, nullptr, nullptr)),
+          "aft at creation reads every row");
+    check(aft.setActiveRows(mask.data(), nullptr, nullptr, 1.0),
+          "aft accepts the mask");
+    // censored rows 1 and 9 are kept; move their latents far above every time
+    drawn[1] = 500.0;
+    drawn[9] = 600.0;
+    aft.restoreLatents(drawn.data());
+    check(!aft.lacksDistinctRowsIn(IncomingVector::offset, offset.data()) &&
+            !aft.lacksDistinctRowsIn(IncomingVector::response, y.data()),
+          "aft's kept rows hold a range");
+    double sigma = 0.4;
+    aft.setOffset(offset.data(), true, &sigma);
+    double lo = 0.0, hi = 0.0;
+    aft.getScale(lo, hi);
+    check(lo == rowsIn.min && hi == rowsIn.max &&
+            aft.fitScale() == rowsIn.max - rowsIn.min,
+          "aft setOffset re-derives over the observed times the mask keeps");
+    // a mask keeping one event row, and one keeping a censored row alone:
+    // too little, read from the observed time and not the drawn one. The
+    // second mask brings a censored row back in, which redraws its latent
+    std::vector<double> oneEvent(n, 0.0), oneCensored(n, 0.0), fits(n, 0.0);
+    oneEvent[2] = 1.0;
+    oneCensored[1] = 1.0;
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, 20261013u);
+    aft.setActiveRows(oneEvent.data(), rng, fits.data(), 0.4);
+    check(aft.lacksDistinctRowsIn(IncomingVector::offset, offset.data()) &&
+            aft.lacksDistinctRowsIn(IncomingVector::response, y.data()),
+          "aft with one row kept has too little to read");
+    aft.setActiveRows(oneCensored.data(), rng, fits.data(), 0.4);
+    check(aft.lacksDistinctRowsIn(IncomingVector::offset, nullptr),
+          "and with one censored row kept");
+    ext_rng_destroy(rng);
+  }
+  printf("ok: response range over the rows in the likelihood\n");
+}
+
+// The range creation read is HELD: neither a change of weights nor a mask
+// moves it, in either chain, and a sampler taken through both and put back
+// draws what an untouched twin created under the same weights draws.
+static void testScaleRowsHeld() {
+  const std::size_t n = 120, p = 2, numChains = 2, numSamples = 20;
+  std::uint64_t state = 20261014u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  std::vector<double> x(n * p), y(n), weights(n), mask(n), ones(n, 1.0);
+  std::vector<unsigned char> in(n);
+  for (double& v : x) v = unif();
+  for (std::size_t i = 0; i < n; ++i) {
+    in[i] = i % 3 == 0 ? 0 : 1;
+    y[i] = 3.0 * x[i] - 2.0 * x[i + n] + 0.3 * unif() +
+           (in[i] != 0 ? 0.0 : 50.0);
+    weights[i] = in[i] != 0 ? 0.5 + unif() : 0.0;
+    mask[i] = i % 5 == 0 ? 0.0 : 1.0;
+  }
+  RowRange rowsIn = rangeOver(y, nullptr, &in);
+
+  SamplerOptions options;
+  options.numTrees = 20;
+  options.numChains = numChains;
+  auto makeRngs = [&](std::vector<ext_rng*>& rngs) {
+    for (std::size_t c = 0; c < numChains; ++c) {
+      rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(rngs[c], 81000 + static_cast<std::uint32_t>(c));
+    }
+  };
+  std::vector<ext_rng*> rngsTouched(numChains), rngsTwin(numChains);
+  makeRngs(rngsTouched);
+  makeRngs(rngsTwin);
+  ConstantLeafSampler touched(x.data(), y.data(), n, p, weights.data(),
+                              nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, options,
+                              rngsTouched.data());
+  ConstantLeafSampler twin(x.data(), y.data(), n, p, weights.data(), nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, options, rngsTwin.data());
+
+  auto held = [&](ConstantLeafSampler& sampler) {
+    double lo = 0.0, hi = 0.0;
+    sampler.getAnchor(lo, hi);
+    bool same = lo == rowsIn.min && hi == rowsIn.max;
+    for (std::size_t c = 0; c < numChains; ++c) {
+      sampler.chain(c).getScale(lo, hi);
+      if (lo != rowsIn.min || hi != rowsIn.max) same = false;
+    }
+    return same;
+  };
+  check(held(touched) && held(twin),
+        "every chain is created on the range of the rows in");
+  touched.setWeights(ones.data());
+  check(held(touched), "setWeights bringing every row in moves no range");
+  touched.setWeights(weights.data());
+  check(touched.setActiveRows(mask.data()) && held(touched),
+        "setActiveRows moves no range");
+  check(touched.setActiveRows(nullptr) && held(touched),
+        "and clearing the mask moves none");
+
+  std::vector<double> sigmaTouched(numSamples * numChains),
+    sigmaTwin(numSamples * numChains),
+    fitsTouched(n * numSamples * numChains),
+    fitsTwin(n * numSamples * numChains);
+  Results resultsTouched, resultsTwin;
+  resultsTouched.sigma = sigmaTouched.data();
+  resultsTouched.trainingFits = fitsTouched.data();
+  resultsTwin.sigma = sigmaTwin.data();
+  resultsTwin.trainingFits = fitsTwin.data();
+  touched.run(0, numSamples, resultsTouched);
+  twin.run(0, numSamples, resultsTwin);
+  check(sigmaTouched == sigmaTwin && fitsTouched == fitsTwin,
+        "20 sweeps after the round trip are an untouched twin's, bit for bit");
+  check(held(touched) && sigmaTouched[0] != sigmaTouched[numSamples],
+        "the range is still creation's after the sweeps, in chains that "
+        "differ");
+
+  for (std::size_t c = numChains; c > 0; --c) {
+    ext_rng_destroy(rngsTwin[c - 1]);
+    ext_rng_destroy(rngsTouched[c - 1]);
+  }
+  printf("ok: response range held across weights and masks\n");
 }
 
 // Student-t: the mask annihilates lambda's contribution through the composite
@@ -10111,6 +10524,8 @@ void runModelTests(ext_rng* rng) {
   testActiveRowsProbitKernel(rng);
   testActiveRowsOrdinalKernels(rng);
   testActiveRowsGaussianDf(rng);
+  testScaleRowsRange();
+  testScaleRowsHeld();
   testActiveRowsStudentComposite(rng);
   testActiveRowsLogisticKernel(rng);
   testActiveRowsNBKernels(rng);

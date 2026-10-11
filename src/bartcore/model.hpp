@@ -4356,6 +4356,9 @@ inline void reshiftWorkingForOffset(double* working, const double* oldOffset,
   }
 }
 
+/// Which vector a re-derivation of the response transform is about to take.
+enum class IncomingVector { response, offset };
+
 /// Response models own the working response the backfitting engine sees and
 /// any per-iteration latent refresh; concrete classes own their O(n) loops.
 /// Response/offset pointers are borrowed: the caller keeps them alive.
@@ -4546,6 +4549,22 @@ public:
   /// what the chain keys restoration on.
   virtual void getScale(double& min, double& max) const { min = max = 0.0; }
   virtual void restoreScale(double /*min*/, double /*max*/) {}
+
+  /// Whether a re-derivation of the transform against \p values would find
+  /// too little to read: a row is out of the likelihood and the rows in hold
+  /// fewer than two distinct values of what the transform is derived from.
+  /// \p values is the incoming response, read against the offset in force, or
+  /// the incoming offset (null for none), read against the response in force.
+  /// A row is in by membership - a positive user weight and no mask switching
+  /// it off - whatever precision the family serves for it. False with every
+  /// row in, and for a family that derives nothing from the response.
+  virtual bool lacksDistinctRowsIn(IncomingVector, const double*) const {
+    return false;
+  }
+
+  /// The rows the last derivation of the transform read, a nonzero byte per
+  /// row read, or null where it read every row or the family records none.
+  virtual const unsigned char* scaleRows() const { return nullptr; }
 
   virtual double initialSigma() const = 0;
 
@@ -4850,6 +4869,29 @@ public:
     sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
   }
 
+  bool lacksDistinctRowsIn(IncomingVector which,
+                           const double* values) const override {
+    return which == IncomingVector::response ? rowsInLackRange(values, offset_)
+                                             : rowsInLackRange(y_, values);
+  }
+
+  /// lacksDistinctRowsIn with both vectors named: \p source less \p offset
+  /// (null for none). The answer rescale itself acts on.
+  bool rowsInLackRange(const double* source, const double* offset) const {
+    RowsInRange in = readRowsIn(source, offset);
+    return in.anyOut && !(in.max > in.min);
+  }
+  const unsigned char* scaleRows() const override {
+    return scaleRows_.empty() ? nullptr : scaleRows_.data();
+  }
+  /// Names the rows in the likelihood, a nonzero byte per row in, for an
+  /// owner that serves this model precisions which are not its membership;
+  /// null reads the weights and mask held here. Borrowed: the owner installs
+  /// it again when the array moves.
+  void setMembership(const unsigned char* membership) {
+    membership_ = membership;
+  }
+
 private:
   friend struct TestPeer;
 
@@ -4895,7 +4937,7 @@ private:
     }
   }
 
-  /// The one place a range is taken: the minimum and maximum of the working
+  /// The range over every row: the minimum and maximum of the working
   /// buffer, which the caller has filled with the vector the range is read
   /// from, less the offset. A range of zero width is held at 1.
   void readRange() {
@@ -4922,13 +4964,54 @@ private:
     }
   }
 
+  /// What readRowsIn found: the range over the rows in the likelihood, empty
+  /// (max below min) where none is in, and whether a row is out of it.
+  struct RowsInRange {
+    double min = std::numeric_limits<double>::infinity(), max = -min;
+    bool anyOut = false;
+  };
+
+  /// Whether row i is in the likelihood: as its owner names it, or by a
+  /// positive user weight and a mask that keeps it. Never by the served
+  /// precision, which a mixture scale can take to zero.
+  bool isRowIn(std::size_t i) const {
+    if (membership_ != nullptr) return membership_[i] != 0;
+    return (userWeights_ == nullptr || userWeights_[i] > 0.0) &&
+           (activeRows_.empty() || activeRows_[i] != 0.0);
+  }
+
+  /// The one read of the rows in: the unweighted range of \p source less
+  /// \p offset (null for none) over them, and whether a row is out. With no
+  /// weights, mask or membership no row can be out and none is read.
+  RowsInRange readRowsIn(const double* source, const double* offset) const {
+    RowsInRange in;
+    if (membership_ == nullptr && userWeights_ == nullptr &&
+        activeRows_.empty())
+      return in;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!isRowIn(i)) {
+        in.anyOut = true;
+        continue;
+      }
+      double value = offset != nullptr ? source[i] - offset[i] : source[i];
+      if (value < in.min) in.min = value;
+      if (value > in.max) in.max = value;
+    }
+    return in;
+  }
+
   /// Re-derives the range and rebuilds the working response under it. The
   /// range is read from rangeResponse less the offset, or from the response
   /// less the offset when rangeResponse is null; the working response is
   /// built from the response in either case. rangeResponse has
   /// numObservations values and is not kept. Where it equals the response
   /// element for element the result is bit for bit the null call's.
+  ///
+  /// Where a row is out of the likelihood the range is that of the rows in,
+  /// unless they hold fewer than two distinct values: every row is then read,
+  /// by the path a model with no row out takes.
   void rescale(const double* rangeResponse = nullptr) {
+    scaleRows_.clear();
     // an empty response has no min/max to seed from (yRescaled_[0] is OOB); hold
     // the identity scale
     if (numObservations_ == 0) {
@@ -4937,12 +5020,23 @@ private:
       setWindow();
       return;
     }
-    if (rangeResponse != nullptr) {
+    RowsInRange in =
+      readRowsIn(rangeResponse != nullptr ? rangeResponse : y_, offset_);
+    bool rowsIn = in.anyOut && in.max > in.min;
+    if (rangeResponse != nullptr && !rowsIn) {
       formOffsetAdjusted(rangeResponse);
       readRange();
     }
     formOffsetAdjusted(y_);
-    if (rangeResponse == nullptr) readRange();
+    if (rangeResponse == nullptr && !rowsIn) readRange();
+    if (rowsIn) {
+      min_ = in.min;
+      max_ = in.max;
+      setWindow();
+      scaleRows_.resize(numObservations_);
+      for (std::size_t i = 0; i < numObservations_; ++i)
+        scaleRows_[i] = isRowIn(i);
+    }
 
     misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -low_);
     misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
@@ -4959,6 +5053,9 @@ private:
   std::vector<double> activeRows_;  // the raw 0/1 mask; empty when none
   std::vector<double> composite_;   // c_i = w_i a_i, served while masked
   std::vector<double> yRescaled_;
+  const unsigned char* membership_ = nullptr;  // borrowed (setMembership)
+  // the rows the range in force was read from; empty when every row was
+  std::vector<unsigned char> scaleRows_;
   // the host's variance surface s^2(x) on the working scale, or null when
   // homoscedastic; borrowed, and re-installed at every reallocation
   const double* variance_ = nullptr;
@@ -5747,8 +5844,8 @@ private:
 /// The response range is never read from a draw. At creation and at every
 /// re-derivation (setResponse, setData, setOffset) it is the minimum and
 /// maximum of the observed log-time less the offset, an event's time and a
-/// censored row's censoring time, so chains whose drawn times differ share
-/// one transform.
+/// censored row's censoring time, over the rows the mask in force keeps, so
+/// chains whose drawn times differ share one transform.
 class AFTResponse final : public ResponseModel {
 public:
   /// logTime holds log of the observed time (event or censoring time);
@@ -5832,8 +5929,9 @@ public:
 
   /// The mask goes into the contained Gaussian's weights, so the node
   /// statistics and the sigma posterior's degrees of freedom inherit it through
-  /// the same recount a masked gaussian gets; the response transform stays the
-  /// FULL-data one (rescale spans all n rows), as it does under zero weights.
+  /// the same recount a masked gaussian gets; the response transform is held
+  /// where it was, as it is under a change of weights, and a later
+  /// re-derivation reads the rows the mask keeps.
   /// A reactivated censored row's log-time is redrawn above its bound at the
   /// current fit and residual scale; an event row holds data and draws none.
   bool setActiveRows(const double* active, ext_rng* rng,
@@ -6005,6 +6103,19 @@ public:
     gaussian_->restoreScale(min, max);
   }
 
+  /// The contained Gaussian's read over what a re-derivation reads here:
+  /// against an incoming offset the OBSERVED log-times, each censored row at
+  /// its censoring time (setOffset).
+  bool lacksDistinctRowsIn(IncomingVector which,
+                           const double* values) const override {
+    if (which == IncomingVector::response || censoredIndices_.empty())
+      return gaussian_->lacksDistinctRowsIn(which, values);
+    std::vector<double> observed(logT_);
+    for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
+      observed[censoredIndices_[k]] = censorBound_[k];
+    return gaussian_->rowsInLackRange(observed.data(), values);
+  }
+
   double initialSigma() const override { return gaussian_->initialSigma(); }
   double fitScale() const override { return gaussian_->fitScale(); }
   double fitShift() const override { return gaussian_->fitShift(); }
@@ -6149,9 +6260,12 @@ public:
     for (std::size_t i = 0; i < numObservations; ++i)
       composite_[i] = userWeights_ != nullptr ? userWeights_[i] : 1.0;
     markInformative();
+    // the cold composite is the user weights, so the range read here is by
+    // membership; once it carries lambda the Gaussian reads the marks instead
     gaussian_ = std::make_unique<GaussianResponse>(
       y, offset, composite_.data(), numObservations, sigmaEstimate, sigmaDf,
       sigmaRawScale);
+    gaussian_->setMembership(informative_.data());
   }
 
   double* workingResponse() override { return gaussian_->workingResponse(); }
@@ -6225,6 +6339,7 @@ public:
     lambda_.assign(numObservations, 1.0);
     composite_.assign(numObservations, 0.0);
     markInformative();
+    gaussian_->setMembership(informative_.data());  // the marks may have moved
     gaussian_->setData(y, offset, weights, numObservations, sigmaInOut);
     coldInit();
   }
@@ -6313,6 +6428,14 @@ public:
   }
   void restoreScale(double min, double max) override {
     gaussian_->restoreScale(min, max);
+  }
+
+  /// The contained Gaussian's read, which counts the rows in by the marks
+  /// handed to it (w_i a_i > 0), never by the composite it is served: a row
+  /// whose w_i lambda_i underflows is still in the likelihood.
+  bool lacksDistinctRowsIn(IncomingVector which,
+                           const double* values) const override {
+    return gaussian_->lacksDistinctRowsIn(which, values);
   }
 
   double initialSigma() const override { return gaussian_->initialSigma(); }
