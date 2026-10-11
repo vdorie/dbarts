@@ -1073,16 +1073,6 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     offset <- if (!is.null(data@offset)) data@offset[trainRows]
     weights <- if (hasWeights) data@weights[trainRows]
     y <- data@y[trainRows]
-    # rows out of the fold's likelihood leave nothing to read: its estimate
-    # is then the regression on every training row
-    allRows <- hasWeights &&
-      rowsInLackTwoValues(
-        if (is.null(offset)) y else y - offset,
-        rowsInLikelihood(weights)
-      )
-    if (allRows) {
-      weights <- NULL
-    }
     if (route == "function") {
       # the rows of the design are an argument, so they are not taken, and
       # the design is not built, unless the function reads them
@@ -1093,6 +1083,17 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
         offset
       )
       return(data)
+    }
+    # rows out of the fold's likelihood leave nothing to read: its estimate
+    # is then the regression on every training row. A function, above, is
+    # handed the fold's weights whatever they leave
+    allRows <- hasWeights &&
+      rowsInLackTwoValues(
+        if (is.null(offset)) y else y - offset,
+        rowsInLikelihood(weights)
+      )
+    if (allRows) {
+      weights <- NULL
     }
     # no routine, or one whose rows leave no residual degrees of freedom,
     # takes the sd of the fold's response
