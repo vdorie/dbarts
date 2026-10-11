@@ -558,33 +558,41 @@ expect_equal(
   1L
 )
 # a warning turned into an error leaves the mirrors, the record and the stored
-# state agreeing with the engine
+# state agreeing with the engine: sweeps not stored, then the keep with the
+# store asked for, so that the call's own store is what brings it level
 for (via in c("setWeights", "setActiveRows")) {
-  strict <- createQuietly(function() {
-    mkG(
-      response = yKeep("same"),
-      offset = offKeep,
-      weights = w01,
-      control = ctlStore
-    )
+  behind <- createQuietly(function() {
+    mkG(response = yKeep("same"), offset = offKeep, weights = w01)
   })
-  recorded <- recordedRange(strict)
+  behind$storeState()
+  stored <- behind$state
+  recorded <- recordedRange(behind)
+  invisible(behind$run(0L, 3L, updateState = FALSE))
   old <- options(warn = 2L)
   result <- tryCatch(
-    keepVia(NULL, via)(strict, TRUE, keepRows$same),
+    if (via == "setWeights") {
+      behind$setWeights(keepRows$same, updateScale = TRUE, updateState = TRUE)
+    } else {
+      behind$setActiveRows(
+        keepRows$same,
+        updateScale = TRUE,
+        updateState = TRUE
+      )
+    },
     error = function(e) e
   )
   options(old)
   expect_true(inherits(result, "error"), info = via)
   if (via == "setWeights") {
-    expect_identical(strict$data@weights, keepRows$same, info = via)
+    expect_identical(behind$data@weights, keepRows$same, info = via)
   } else {
-    expect_identical(strict$activeRows, keepRows$same, info = via)
+    expect_identical(behind$activeRows, keepRows$same, info = via)
   }
-  expect_identical(recordedRange(strict), recorded, info = via)
-  stateNow <- strict$state
-  strict$storeState()
-  expect_identical(strict$state, stateNow, info = via)
+  expect_identical(recordedRange(behind), recorded, info = via)
+  stateNow <- behind$state
+  expect_false(identical(stateNow, stored), info = via)
+  behind$storeState()
+  expect_identical(behind$state, stateNow, info = via)
 }
 
 # --- refused, and nothing installed -----------------------------------------
