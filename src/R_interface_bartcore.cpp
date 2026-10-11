@@ -3588,6 +3588,13 @@ void validateTestContainerAgainstStore(
   }
 }
 
+// A forest's sd stated where the engine has no unit to read it in, at
+// creation and on a later write.
+const char* const forestSdUnitMessage =
+  "a forest's 'sd' is in the response's units, and this response has no "
+  "spread to state one against (its standard deviation is 0); leave 'sd' "
+  "out, or give a response that varies";
+
 // family resolution: see resolveFamily() above.
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName) {
@@ -3695,20 +3702,33 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
 
     // dispatches on the leaf model: a linear leaf prior's designated columns
     // select the linear-leaf instantiation, everything else the constant leaf
-    std::unique_ptr<bartcore::SamplerBase> sampler =
-      createSamplerOrRaise(rngs, [&]() {
-        return carriesAmplitudes
-          ? bartcore::createAmplitudeSampler(
-              data.predictors.denseValues, y, data.numObservations,
-              data.numPredictors, weights, offset, data.sigmaEstimate,
-              model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
-              rngs.data())
-          : bartcore::createSampler(
-              data.predictors.denseValues, y, data.numObservations,
-              data.numPredictors, weights, offset, family,
-              data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
-              rngs.data());
+    // a forest's sd stated against a response with no spread is the caller's
+    // to mend, so it is raised in the caller's terms and not as a failure
+    bool sdHasNoUnit = false;
+    using OwnedSampler = std::unique_ptr<bartcore::SamplerBase>;
+    OwnedSampler sampler =
+      createSamplerOrRaise(rngs, [&]() -> OwnedSampler {
+        if (!carriesAmplitudes)
+          return bartcore::createSampler(
+            data.predictors.denseValues, y, data.numObservations,
+            data.numPredictors, weights, offset, family,
+            data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+            rngs.data());
+        try {
+          return bartcore::createAmplitudeSampler(
+            data.predictors.denseValues, y, data.numObservations,
+            data.numPredictors, weights, offset, data.sigmaEstimate,
+            model.sigmaDf, model.sigmaRawScale, options, amplitudeSpec,
+            rngs.data());
+        } catch (const bartcore::ForestSdUnitError&) {
+          sdHasNoUnit = true;
+          return nullptr;
+        }
       });
+    if (sdHasNoUnit) {
+      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      Rf_error("%s", forestSdUnitMessage);
+    }
     if (sampler == NULL) {
       // the R surface refuses these first, so only an entrance that skips it
       // (the flat C API) reaches this
@@ -4890,6 +4910,13 @@ SEXP bartcore_setForestSd(SEXP ptrExpr, SEXP forestExpr, SEXP sdExpr) {
   double sd = Rf_asReal(sdExpr);
   if (!std::isfinite(sd) || sd <= 0.0)
     Rf_error("a forest's sd must be a positive finite number");
+  // a map forest whose unit is not positive and finite takes no sd; off the
+  // map both are NaN and the engine's refusal below answers
+  bartcore::ForestCalibration calibration =
+    holder.sampler->forestCalibration(0, forestIndex);
+  if (!std::isnan(calibration.basisRowNorm) &&
+      (!(calibration.mapUnit > 0.0) || !std::isfinite(calibration.mapUnit)))
+    Rf_error("%s", bartcore_bridge::forestSdUnitMessage);
   if (!holder.sampler->setForestMapSd(forestIndex, sd))
     Rf_error("a forest's sd is restated only on a sampler whose forests "
              "carry amplitudes");

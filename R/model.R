@@ -2461,7 +2461,7 @@ validateLeafSd <- function(sd) {
 ## Every k spelling leaves prior.scale NA and reaches the engine as written.
 ## invchi(df, 0) is the improper limit, which no scale can state and
 ## chi(df, Inf) is. A multi-forest fit refuses a named sd before any of this:
-## its calibration map pins every forest's scale.
+## each of its forests states its size on the forest.
 resolveLeafPrior <- function(
   leaf.prior,
   binary,
@@ -2483,10 +2483,10 @@ resolveLeafPrior <- function(
   }
   if (multiForest) {
     stop(
-      "a multi-forest model does not support a named leaf-prior 'sd': the ",
-      "leaf prior's 'sd' is not a forest's 'sd': each forest's scale is set ",
-      "by forest(sd = ), which states that forest's share of the combined ",
-      "location's prior (see ?forest)"
+      "a model of several forests states each forest's size on the forest: ",
+      "write the size of the forest with no basis as forest(x1 + x2, sd = 2), ",
+      "which is in the response's units as leaf.prior = normal(sd = ) is, and ",
+      "leave 'sd' out of 'leaf.prior'"
     )
   }
   if (is.numeric(sd)) {
