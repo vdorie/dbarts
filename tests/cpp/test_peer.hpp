@@ -212,6 +212,20 @@ struct TestPeer {
   static bool& collapsedRescaleForest(Chain<L, R>& chain) {
     return chain.options_.collapsedRescaleForest;
   }
+#ifndef NDEBUG
+  /// The debug build's forest cache rule on forest 0, as a value: totalFits
+  /// within its bound of the leaves it caches and the accumulated factor
+  /// within its own.
+  template <IntegrableLeafModel L, typename R>
+  static bool forestCacheMatchesLeaves(const Chain<L, R>& chain) {
+    const auto& forest = chain.forests_[0];
+    return chain.totalFitsMatchLeaves(
+             forest, chain.forestResponseScale_.empty()
+                       ? 0.0 : chain.forestResponseScale_[0]) &&
+           forest.totalFitsScale >= 1.0 / totalFitsScaleBound &&
+           forest.totalFitsScale <= totalFitsScaleBound;
+  }
+#endif
   /// The chain's response model, for its likelihood evaluators.
   template <IntegrableLeafModel L, typename R>
   static const ResponseModel& responseModel(const Chain<L, R>& chain) {

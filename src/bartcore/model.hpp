@@ -440,6 +440,45 @@ inline double gaussianCdf(double z) {
   return Rf_pnorm5(z, 0.0, 1.0, 1, 0);
 }
 
+/// log Phi(x) through erfc, for a caller that sums it over the rows many
+/// times a sweep: about two thirds the cost of the log pnorm the engine
+/// links, and within 1e-14 relative of it wherever the result is a normal
+/// double. From 0 up it is log1p(-erfc(x / sqrt 2) / 2), which keeps the
+/// relative accuracy of a probability near 1; between -37 and 0 the log of
+/// erfc(-x / sqrt 2) / 2, which is finite there; and from -37 down, where
+/// erfc underflows, the asymptotic expansion
+/// -x^2 / 2 - log(sqrt(2 pi)) - log(-x) + log1p(t) with
+/// t = -1 / x^2 + 3 / x^4 - 15 / x^6 + ... carried until a term falls below
+/// 1e-17, seven terms at -37 and fewer below it.
+///
+/// erfc(t) moves by the relative amount 2 t^2 for a relative change of 1 in
+/// t, so in the upper form the rounding of x / sqrt 2 alone, half an ulp of
+/// the product and the constant's own error, would cost a relative 1e-16 x^2
+/// of the result, 2e-13 by x = 37. That form therefore carries the product's
+/// error to first order: delta is what the rounded product and the rounded
+/// constant leave out, and erfc(t + delta) is erfc(t) (1 - 2 t delta) to
+/// within 1 / (2 t^2) of the correction. The middle form needs none: there
+/// the same error is absolute in a result of size x^2 / 2.
+inline double logGaussianCdf(double x) {
+  // 1 / sqrt 2 rounded to a double, and what that rounding leaves out
+  constexpr double inverseRoot2 = 0.5 * std::numbers::sqrt2;
+  constexpr double inverseRoot2Low = -4.8336466567264565e-17;
+  if (x >= 0.0) {
+    double t = x * inverseRoot2;
+    double delta = std::fma(x, inverseRoot2, -t) + x * inverseRoot2Low;
+    return std::log1p(-0.5 * std::erfc(t) * (1.0 - 2.0 * t * delta));
+  }
+  if (x > -37.0) return std::log(0.5 * std::erfc(-x * inverseRoot2));
+  double inverseSquare = 1.0 / (x * x), term = 1.0, series = 0.0;
+  for (int j = 1; j < 32; j += 2) {
+    term *= -static_cast<double>(j) * inverseSquare;
+    if (std::fabs(term) < 1.0e-17) break;
+    series += term;
+  }
+  return -0.5 * x * x - 0.5 * std::log(2.0 * std::numbers::pi) -
+         std::log(-x) + std::log1p(series);
+}
+
 /// Adaptive Simpson quadrature of a smooth integrand over [a, b] to the
 /// absolute tolerance `tol`; the callers scale the integrand to 1 at its peak
 /// and confine [a, b] to a few peak widths, keeping the recursion shallow.
@@ -5543,6 +5582,21 @@ public:
       double eta = totalFits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
       out[i] = Rf_pnorm5(eta, 0.0, 1.0, y_[i] != 0.0 ? 1 : 0, 1);
     }
+  }
+
+  /// The sum of computeLogLikelihood's terms over the active rows at fits
+  /// multiplied by factor, each term through logGaussianCdf where the
+  /// reported one is a log pnorm: the two agree to rounding, and the
+  /// reported values are not this one's.
+  double logLikelihoodAtScaledFits(const double* fits,
+                                   double factor) const override {
+    double sum = 0.0;
+    for (std::size_t i = 0; i < numObservations_; ++i) {
+      if (!activeRows_.empty() && activeRows_[i] == 0.0) continue;
+      double eta = factor * fits[i] + (offset_ != nullptr ? offset_[i] : 0.0);
+      sum += logGaussianCdf(y_[i] != 0.0 ? eta : -eta);
+    }
+    return sum;
   }
 
 private:

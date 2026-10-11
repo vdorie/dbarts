@@ -708,6 +708,7 @@ constexpr double collapsedZBound = 4.5, collapsedRowZBound = 5.5;
 /// whatever the sampler was handed: zeros for no offset, ones for no counts
 /// and for no mask.
 struct CollapsedData {
+  ResponseFamily family = ResponseFamily::logistic;
   std::vector<double> x, y, offset, mask, counts;
 };
 
@@ -719,7 +720,10 @@ void checkLabeled(bool condition, const char* label, const char* what) {
 }
 
 /// One row's log-likelihood at location eta, written apart from the engine's.
-double binaryRowLogLikelihood(double y, double count, double eta) {
+double binaryRowLogLikelihood(ResponseFamily family, double y, double count,
+                              double eta) {
+  if (family == ResponseFamily::probit)
+    return Rf_pnorm5((2.0 * y - 1.0) * eta, 0.0, 1.0, 1, 1);
   return count * (y * eta - std::max(eta, 0.0) -
                   std::log1p(std::exp(-std::fabs(eta))));
 }
@@ -727,13 +731,14 @@ double binaryRowLogLikelihood(double y, double count, double eta) {
 /// The move's target at one frozen state: nu, C = k^2 / (2 s^2), and for each
 /// row in the likelihood its fit, offset, response and count.
 struct CollapsedTarget {
+  ResponseFamily family = ResponseFamily::logistic;
   double degreesOfFreedom = 0.0, kTerm = 0.0;
   std::vector<double> fit, offset, response, count;
 
   double logDensity(double v) const {
     double factor = std::exp(v), sum = 0.0;
     for (size_t j = 0; j < fit.size(); ++j)
-      sum += binaryRowLogLikelihood(response[j], count[j],
+      sum += binaryRowLogLikelihood(family, response[j], count[j],
                                     factor * fit[j] + offset[j]);
     return -degreesOfFreedom * v - kTerm * std::exp(-2.0 * v) + sum;
   }
@@ -822,6 +827,7 @@ struct FrozenForest {
 
   CollapsedTarget target(const CollapsedData& data) const {
     CollapsedTarget target;
+    target.family = data.family;
     std::vector<double> fit = gatherTotals();
     for (size_t i = 0; i < rescaleN; ++i) {
       if (data.mask[i] == 0.0) continue;
@@ -917,7 +923,7 @@ void checkCollapsedEvaluator(const char* label,
         continue;
       }
       sum += reported[i];
-      own += binaryRowLogLikelihood(data.y[i], data.counts[i],
+      own += binaryRowLogLikelihood(data.family, data.y[i], data.counts[i],
                                     factor * fits[i] + data.offset[i]);
     }
     double got = response.logLikelihoodAtScaledFits(fits.data(), factor);
@@ -993,11 +999,17 @@ void checkCollapsedMapping(const char* label, ConstantLeafSampler& sampler,
     redrawn = redrawn && latents[i] != latentsBefore[i] &&
               std::fabs(latents[i] - factor * latentsBefore[i]) >
                 rescaleMapTolerance * std::fabs(latents[i]);
-    double expected =
-      data.counts[i] * (data.y[i] - 0.5) / latents[i] - data.offset[i];
+    // logistic backfits kappa / omega - o at precision omega; probit z - o at
+    // the mask or no precisions at all, each z on its response's side
+    bool probit = data.family == ResponseFamily::probit;
+    double expected = probit
+      ? latents[i] - data.offset[i]
+      : data.counts[i] * (data.y[i] - 0.5) / latents[i] - data.offset[i];
     workingFollows = workingFollows &&
       std::fabs(working[i] - expected) <= 1.0e-12 * (1.0 + std::fabs(expected)) &&
-      weights[i] == latents[i];
+      (probit ? (weights == nullptr || weights[i] == 1.0) &&
+                  (data.y[i] != 0.0) == (latents[i] > 0.0)
+              : weights[i] == latents[i]);
   }
   frozen.moveTo(1.0);
   TestPeer::totalFitsScale(chain) = 1.0e6;
@@ -1079,6 +1091,45 @@ void checkLogisticRedraw(const char* label, FrozenForest& frozen,
           (numAtZero > 0) == zeroFit, what);
 }
 
+/// Test 3 under probit: over many moves from one state, the redrawn latent
+/// of every sixteenth row in the likelihood by its probability integral
+/// transform under N(psi_i, 1) truncated to its response's side at the moved
+/// fit, pooled and scored against the uniform by KS. Each transform is
+/// reflected where the factor fell below 1, which keeps a uniform uniform and
+/// lines up the shift a redraw at the fit before the move would leave.
+void checkProbitRedraw(const char* label, FrozenForest& frozen,
+                       const CollapsedData& data) {
+  Chain<ConstantGaussianLeaf>& chain = frozen.chain;
+  frozen.moveTo(1.0);
+  std::vector<double> fit = frozen.gatherTotals(), transformed;
+  const double* z = TestPeer::latents(chain);
+  std::vector<double> before(z, z + rescaleN);
+  bool rowsOutKept = true;
+  for (size_t m = 0; m < collapsedRedraws; ++m) {
+    frozen.moveTo(1.0);
+    double factor = 0.0;
+    TestPeer::drawCollapsedRescale(chain, &factor);
+    for (size_t i = 0; i < rescaleN; ++i) {
+      if (data.mask[i] == 0.0) rowsOutKept = rowsOutKept && z[i] == before[i];
+      if (data.mask[i] == 0.0 || i % 16 != 3) continue;
+      double sign = 2.0 * data.y[i] - 1.0;
+      double psi = sign * (factor * fit[i] + data.offset[i]);
+      double upper = Rf_pnorm5(sign * z[i], psi, 1.0, 0, 0) /
+                     Rf_pnorm5(0.0, psi, 1.0, 0, 0);
+      transformed.push_back(factor > 1.0 ? upper : 1.0 - upper);
+    }
+  }
+  double ks = scaledKsDistance(transformed, [](double u) {
+    return std::min(std::max(u, 0.0), 1.0);
+  });
+  char what[200];
+  std::snprintf(what, sizeof what,
+                "%s: each redrawn latent is N(psi, 1) on its response's side "
+                "at the moved fit (sqrt(N) D %.3g over %zu draws)", label, ks,
+                transformed.size());
+  check(ks < rescaleKsBound && rowsOutKept, what);
+}
+
 /// Tests 1 to 4 on one burned-in fixture; returns the conditional's
 /// sqrt(N) D.
 double runCollapsedStateTests(const char* label, ConstantLeafSampler& sampler,
@@ -1095,22 +1146,24 @@ double runCollapsedStateTests(const char* label, ConstantLeafSampler& sampler,
                 "%.3g against %.3g), leaves, k and the factor moving as one "
                 "(worst %.3g)", label, ks, rescaleKsBound, worstDisagreement);
   check(ks < rescaleKsBound && worstDisagreement < 1.0e-10, what);
-  checkLogisticRedraw(label, frozen, data, false);
+  if (data.family == ResponseFamily::probit)
+    checkProbitRedraw(label, frozen, data);
+  else checkLogisticRedraw(label, frozen, data, false);
   checkCollapsedMapping(label, sampler, frozen, data);
   frozen.moveTo(1.0);
   return ks;
 }
 
-void runCollapsedRescaleTests() {
+void runCollapsedRescaleLink(ResponseFamily family, const char* link) {
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng, 20261011u);
-  const ResponseFamily family = ResponseFamily::logistic;
-  const char* link = "collapsed logistic";
+  const bool logistic = family == ResponseFamily::logistic;
   char what[240], label[80];
 
   // the fixture: an offset that is exactly zero on every seventh row, every
-  // fifth row out of the likelihood, counts 1 to 3
+  // fifth row out of the likelihood, and under logistic counts 1 to 3
   CollapsedData data;
+  data.family = family;
   data.x.resize(rescaleN * rescaleP);
   data.y.resize(rescaleN);
   data.offset.resize(rescaleN);
@@ -1123,10 +1176,11 @@ void runCollapsedRescaleTests() {
     data.offset[i] =
       i % 7 == 0 ? 0.0 : 0.8 * (data.x[i + 2 * rescaleN] - 0.5);
     if (i % 5 == 0) data.mask[i] = 0.0;
-    data.counts[i] = static_cast<double>(1 + i % 3);
+    data.counts[i] = logistic ? static_cast<double>(1 + i % 3) : 1.0;
   }
+  const double* counts = logistic ? data.counts.data() : nullptr;
   std::unique_ptr<ConstantLeafSampler> sampler = makeRescaleSampler(
-    data.x, data.y, data.counts.data(), data.offset.data(), family, true, true,
+    data.x, data.y, counts, data.offset.data(), family, true, true,
     true, &rng);
   Results results;
   sampler->run(rescaleBurnIn, 0, results);
@@ -1145,8 +1199,30 @@ void runCollapsedRescaleTests() {
   FrozenForest frozen(chain);
   check(frozen.occupied.size() > rescaleTrees && frozen.numEmpty > 0,
         "the collapsed fixture's trees carry splits and an empty leaf");
-  std::snprintf(label, sizeof label, "%s at a zero fit", link);
-  checkLogisticRedraw(label, frozen, data, true);
+  if (logistic) {
+    std::snprintf(label, sizeof label, "%s at a zero fit", link);
+    checkLogisticRedraw(label, frozen, data, true);
+  } else {
+    // 8. With the probit step: the two on one state multiply into the one
+    // accumulated factor, each resetting it where it would pass the bound,
+    // and the cache rule every sweep of the fixture ran under still holds.
+    frozen.moveTo(1.0);
+    double alpha = 0.0, factor = 0.0;
+    bool both = TestPeer::drawForestRescale(chain, &alpha) &&
+                TestPeer::drawCollapsedRescale(chain, &factor);
+    auto bounded = [](double scale) {
+      return scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound
+               ? scale : 1.0;
+    };
+    bool accumulated =
+      TestPeer::totalFitsScale(chain) == bounded(bounded(alpha) * factor);
+#ifndef NDEBUG
+    accumulated = accumulated && TestPeer::forestCacheMatchesLeaves(chain);
+#endif
+    checkLabeled(both && alpha != 1.0 && factor != 1.0 && accumulated, link,
+                 "the probit step and the move multiply into one accumulated "
+                 "factor and leave the cache at the leaves");
+  }
   frozen.moveTo(1.0);
 
   // 1, continued. A row out given a fit of 1e6 against its response adds
@@ -1165,7 +1241,7 @@ void runCollapsedRescaleTests() {
                        "evaluator's sum");
 
     std::unique_ptr<ConstantLeafSampler> other = makeRescaleSampler(
-      data.x, data.y, data.counts.data(), data.offset.data(), family, true,
+      data.x, data.y, counts, data.offset.data(), family, true,
       true, true, &otherRng);
     other->run(10, 0, results);
     CollapsedData flipped(data);
@@ -1187,11 +1263,13 @@ void runCollapsedRescaleTests() {
       replaced.y.push_back(i % 2 == 0 ? data.y[first + i]
                                       : 1.0 - data.y[first + i]);
       replaced.offset.push_back(-data.offset[first + i]);
-      replaced.counts.push_back(static_cast<double>(1 + (i + 1) % 3));
+      replaced.counts.push_back(
+        logistic ? static_cast<double>(1 + (i + 1) % 3) : 1.0);
     }
+    replaced.family = family;
     check(other->setData(replaced.x.data(), replaced.y.data(), fewer,
-                         replaced.counts.data(), replaced.offset.data(),
-                         nullptr, 0),
+                         logistic ? replaced.counts.data() : nullptr,
+                         replaced.offset.data(), nullptr, 0),
           "the collapsed fixture takes new rows");
     other->run(5, 0, results);
     std::snprintf(label, sizeof label, "%s after setData", link);
@@ -1274,8 +1352,6 @@ void runCollapsedRescaleTests() {
         "the collapsed move declines at a fixed k");
   check(declinesOn(family, true, true),
         "the collapsed move declines on a stale tree map");
-  check(declinesOn(ResponseFamily::probit, true, false),
-        "the collapsed move declines under the probit family");
   check(declinesOn(ResponseFamily::gaussian, true, false),
         "the collapsed move declines under the gaussian family");
   check(declinesOn(ResponseFamily::nbinom, true, false),
@@ -1410,10 +1486,10 @@ void runCollapsedRescaleTests() {
     ext_rng_setSeed(offRngs[c], 21u + static_cast<std::uint32_t>(c));
   }
   std::unique_ptr<ConstantLeafSampler> on = makeRescaleSampler(
-    data.x, data.y, data.counts.data(), data.offset.data(), family, true, true,
+    data.x, data.y, counts, data.offset.data(), family, true, true,
     true, onRngs.data(), 2);
   std::unique_ptr<ConstantLeafSampler> off = makeRescaleSampler(
-    data.x, data.y, data.counts.data(), data.offset.data(), family, true, true,
+    data.x, data.y, counts, data.offset.data(), family, true, true,
     false, offRngs.data(), 2);
   on->run(50, 0, results);
   off->run(50, 0, results);
@@ -1436,6 +1512,40 @@ void runCollapsedRescaleTests() {
          "share %.4f)\n",
          link, collapsedDraws, rescaleTrees, ks, separatedKs, priorKs,
          std::max(worstDisagreement, priorDisagreement), share);
+}
+
+/// The probit evaluator's log Phi against the engine's log pnorm, within
+/// 1e-14 relative: on a grid from -60 to 40 and on each side of the points
+/// its three forms meet at. A value below the smallest normal double holds
+/// no such bound and is compared to within that double.
+void runLogGaussianCdfTests() {
+  double worst = 0.0, worstAt = 0.0;
+  auto score = [&](double x) {
+    double reference = Rf_pnorm5(x, 0.0, 1.0, 1, 1);
+    double error = std::fabs(logGaussianCdf(x) - reference);
+    double relative = error <= DBL_MIN ? 0.0 : error / std::fabs(reference);
+    if (!(relative <= worst)) {
+      worst = relative;
+      worstAt = x;
+    }
+  };
+  for (size_t j = 0; j <= 200000; ++j)
+    score(-60.0 + 100.0 * static_cast<double>(j) / 200000.0);
+  for (double edge : {0.0, -37.0})
+    for (double x : {edge, std::nextafter(edge, 1.0), std::nextafter(edge, -40.0),
+                     edge + 1.0e-9, edge - 1.0e-9})
+      score(x);
+  char what[160];
+  std::snprintf(what, sizeof what,
+                "the probit evaluator's log Phi is the log pnorm (worst %.3g "
+                "relative, at %.6g)", worst, worstAt);
+  check(worst < 1.0e-14, what);
+}
+
+void runCollapsedRescaleTests() {
+  runLogGaussianCdfTests();
+  runCollapsedRescaleLink(ResponseFamily::logistic, "collapsed logistic");
+  runCollapsedRescaleLink(ResponseFamily::probit, "collapsed probit");
 }
 
 }  // namespace

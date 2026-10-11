@@ -114,7 +114,8 @@ struct SamplerOptions {
   // factor drawn by a slice step from its conditional with the latents
   // integrated out, and the latents are then redrawn at the scaled fit. Taken
   // only where Chain::collapsedRescaleApplies holds - one plain constant-leaf
-  // logistic forest with a drawn k under a finite prior scale - and guarded
+  // logistic or probit forest with a drawn k under a finite prior scale,
+  // a probit one taking both steps - and guarded
   // before any generator call, so every other fit draws byte-for-byte as
   // with it off. Not a setting: it is false only in the engine's own tests,
   // which compare a path with the move against one without.
@@ -7314,7 +7315,8 @@ private:
   }
 
   /// Whether the collapsed rescaling move can apply this sweep: the engine's
-  /// toggle on, the logistic family, forestScaleOrbitApplies, and a finite
+  /// toggle on, the logistic or the probit family, forestScaleOrbitApplies,
+  /// and a finite
   /// scale on the k prior. Under an infinite scale the move's conditional is
   /// improper, k running to infinity with the fit to zero. The scale is tested
   /// itself and never through a term that carries k, which the move changes.
@@ -7324,7 +7326,8 @@ private:
       return false;
     } else {
       return options_.collapsedRescaleForest &&
-             family_ == ResponseFamily::logistic &&
+             (family_ == ResponseFamily::logistic ||
+              family_ == ResponseFamily::probit) &&
              forestScaleOrbitApplies() &&
              std::fabs(forests_[0].kHyperprior.scale) <= DBL_MAX;
     }
