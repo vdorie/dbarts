@@ -375,7 +375,7 @@ expect_identical(readers(held), before)
 positional <- mkG(weights = w01)
 before <- readers(positional)
 positional$setWeights(rep(1, n), TRUE)
-positional$setActiveRows(w01, TRUE)
+positional$setActiveRows(w2, TRUE)
 expect_identical(readers(positional), before)
 stored <- positional$state
 positional$storeState()
