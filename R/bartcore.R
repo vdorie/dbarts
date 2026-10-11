@@ -1011,7 +1011,7 @@ bartcoreSamplerSetResponse <- function(
   invisible(scaleKept)
 }
 
-## Raised by $setResponse and $setOffset as their last act, so a warning
+## Raised by the four setters that re-derive as their last act, so a warning
 ## turned into an error leaves the object and its stored state agreeing with
 ## the engine. 'first' is the bridge's answer: TRUE on the sampler's first
 ## re-derivation that kept the scale, FALSE on every other call.

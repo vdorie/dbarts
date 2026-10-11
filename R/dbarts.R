@@ -2919,15 +2919,24 @@ dbartsSampler <- setRefClass(
       warnScaleKept(scaleKept)
       invisible(NULL)
     },
-    setWeights = function(weights, updateState = NULL) {
-      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler redraws the scale of each row whose weight leaves zero, from the sampler's own generators. updateState follows control@updateState; see setData."
+    setWeights = function(weights, updateState = NULL, updateScale = FALSE) {
+      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler redraws the scale of each row whose weight leaves zero, from the sampler's own generators. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the new weights leave in, as setOffset(updateScale = TRUE) does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
+      updateScale <- checkUpdateScale(updateScale)
       refuseCountsMutation(
         .self,
         "$setWeights",
         "an integer case weight is already row-wise replication in its count ",
         "response, and a non-integer one has no exact augmentation sampler"
       )
+      if (updateScale) {
+        refuseAmplitudeMutation(
+          .self,
+          "setWeights(updateScale = TRUE)",
+          "every forest keeps its leaf calibration stated against the scale ",
+          "fixed at creation; use updateScale = FALSE instead"
+        )
+      }
       weights <- as.double(weights)
       if (length(weights) != length(data@y)) {
         stop("'weights' must have the same length as 'y'")
@@ -2960,7 +2969,11 @@ dbartsSampler <- setRefClass(
             }
           )
         }
-        setActiveRows(weights, updateState = updateState)
+        setActiveRows(
+          weights,
+          updateState = updateState,
+          updateScale = updateScale
+        )
         return(invisible(NULL))
       }
 
@@ -2970,7 +2983,7 @@ dbartsSampler <- setRefClass(
       oldWeights <- data@weights
       selfEnv$data@weights <- weights
       tryResult <- tryCatch(
-        .Call(C_dbarts_bartcore_setWeights, ptr, data@weights, FALSE),
+        .Call(C_dbarts_bartcore_setWeights, ptr, data@weights, updateScale),
         error = function(e) {
           selfEnv$data@weights <- oldWeights
           e
@@ -2980,9 +2993,13 @@ dbartsSampler <- setRefClass(
         stop(tryResult)
       }
 
+      if (updateScale) {
+        selfEnv$model <- recordAnchor(model, ptr)
+      }
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
+      warnScaleKept(tryResult)
       invisible(NULL)
     },
     setCounts = function(counts, updateState = NULL) {
@@ -3011,9 +3028,24 @@ dbartsSampler <- setRefClass(
       bartcoreSamplerSetCategoryTestOffset(.self, offset.test)
       invisible(NULL)
     },
-    setActiveRows = function(active, updateState = NULL) {
-      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. A row switched from inactive to active has its latent redrawn against the current fit before the call returns, from the sampler's own generators and not R's; a call that switches no row back in draws nothing. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData."
+    setActiveRows = function(active, updateState = NULL, updateScale = FALSE) {
+      "Sets the per-observation 0/1 mask of rows in the data set for this sampler. An inactive row leaves every sufficient statistic, every family-level parameter update and its own latent draw, but keeps its leaf occupancy and its fitted value. A row switched from inactive to active has its latent redrawn against the current fit before the call returns, from the sampler's own generators and not R's; a call that switches no row back in draws nothing. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the mask leaves in, as setOffset(updateScale = TRUE) does; it is refused on a multinomial sampler and on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. NULL clears, and an all-ones mask installs nothing. The mask does not ride the saved state; it is mirrored on an R5 field that getPointer, setState and copy reinstall on every re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
+      updateScale <- checkUpdateScale(updateScale)
+      if (updateScale) {
+        refuseCountsMutation(
+          .self,
+          "$setActiveRows(updateScale = TRUE)",
+          "its K category forests keep their scale at creation, and the count ",
+          "response is not a column of the data"
+        )
+        refuseAmplitudeMutation(
+          .self,
+          "setActiveRows(updateScale = TRUE)",
+          "every forest keeps its leaf calibration stated against the scale ",
+          "fixed at creation; use updateScale = FALSE instead"
+        )
+      }
       if (!is.null(active)) {
         active <- as.double(active)
         if (length(active) != length(data@y)) {
@@ -3027,10 +3059,11 @@ dbartsSampler <- setRefClass(
         }
       }
 
-      bartcoreSamplerSetActiveRows(.self, active, FALSE)
+      scaleKept <- bartcoreSamplerSetActiveRows(.self, active, updateScale)
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
+      warnScaleKept(scaleKept)
       invisible(NULL)
     },
     setForestWeights = function(forest, weights, updateState = NULL) {
