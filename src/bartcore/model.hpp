@@ -6640,8 +6640,9 @@ private:
 /// sigma is fixed at 1.
 ///
 /// c is the response transform: log(max(sum y, 1/2) / sum exp(offset)), the
-/// intercept of the Poisson model with offset, computed over ALL rows (a mask
-/// does not move it). It is fitShift, so reported fits and the leaf prior's
+/// intercept of the Poisson model with offset, over every row at creation. A
+/// mask does not move it; a re-derivation under one reads the rows it keeps
+/// (deriveShift). It is fitShift, so reported fits and the leaf prior's
 /// center carry it; fitScale stays 1. The state block stores it as
 /// (c, c + 1), which decodes exactly; a state whose pair is not increasing is
 /// not from this model.
@@ -6726,7 +6727,7 @@ public:
 
   /// Beyond the logistic composition, the shape block is the subsample's:
   /// the count kernel is REBUILT over the active rows here, which is the
-  /// channel's one per-install cost. The shift c stays the full-data one. A
+  /// channel's one per-install cost. The shift c is held where it was. A
   /// reactivated row's omega is redrawn as PG(y + r, psi) at the current fit
   /// and r, which is not redrawn here.
   bool setActiveRows(const double* active, ext_rng* rng,
@@ -6757,7 +6758,7 @@ public:
   void setResponse(const double* y, ext_rng* rng, const double* totalFits,
                    bool updateScale, double*) override {
     y_ = y;
-    if (updateScale) shift_ = computeShift(y_, offset_, numObservations_);
+    if (updateScale) shift_ = deriveShift();
     rPrior_.computeKernel(y, numObservations_, activePointer());
     drawOmega(rng, totalFits);
   }
@@ -6766,7 +6767,7 @@ public:
   /// the working response is rebuilt under the new anchor.
   void setOffset(const double* offset, bool updateScale, double*) override {
     offset_ = offset;
-    if (updateScale) shift_ = computeShift(y_, offset_, numObservations_);
+    if (updateScale) shift_ = deriveShift();
     rebuildWorking();
   }
 
@@ -6852,12 +6853,29 @@ public:
     }
   }
 
+  /// A re-derivation reads the COUNT, whichever vector comes in: an offset
+  /// moves no count.
+  bool lacksDistinctRowsIn(IncomingVector which,
+                           const double* values) const override {
+    return lacksDistinctCounts(which == IncomingVector::response ? values : y_);
+  }
+
   /// The response transform c = log(max(sum y, 1/2) / sum exp(offset)) over
   /// all n rows; a null offset sums to n. The floor keeps an all-zero response
-  /// finite.
+  /// finite. A non-null \p active restricts both sums to the rows it keeps,
+  /// in a loop of its own.
   static double computeShift(const double* y, const double* offset,
-                             std::size_t numObservations) {
+                             std::size_t numObservations,
+                             const double* active = nullptr) {
     double total = 0.0, exposure = 0.0;
+    if (active != nullptr) {
+      for (std::size_t i = 0; i < numObservations; ++i) {
+        if (active[i] == 0.0) continue;
+        total += y[i];
+        exposure += offset != nullptr ? std::exp(offset[i]) : 1.0;
+      }
+      return std::log(std::max(total, 0.5) / exposure);
+    }
     for (std::size_t i = 0; i < numObservations; ++i) {
       total += y[i];
       exposure += offset != nullptr ? std::exp(offset[i]) : 1.0;
@@ -6873,6 +6891,30 @@ private:
   }
   const double* activePointer() const {
     return activeRows_.empty() ? nullptr : activeRows_.data();
+  }
+
+  /// Whether the mask leaves a row out and the rows it keeps hold fewer than
+  /// two distinct values of \p y.
+  bool lacksDistinctCounts(const double* y) const {
+    bool anyOut = false;
+    double min = std::numeric_limits<double>::infinity(), max = -min;
+    for (std::size_t i = 0; i < activeRows_.size(); ++i) {
+      if (activeRows_[i] == 0.0) {
+        anyOut = true;
+        continue;
+      }
+      min = std::min(min, y[i]);
+      max = std::max(max, y[i]);
+    }
+    return anyOut && !(max > min);
+  }
+
+  /// c re-derived from the response and offset in force: over the rows the
+  /// mask keeps, or over every row where none is installed or the rows it
+  /// keeps hold fewer than two distinct counts.
+  double deriveShift() const {
+    return computeShift(y_, offset_, numObservations_,
+                        lacksDistinctCounts(y_) ? nullptr : activePointer());
   }
 
   /// a_i = offset_i + c - log r, what the trees' working response is shifted

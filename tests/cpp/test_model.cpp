@@ -8647,6 +8647,96 @@ static void testNBLogMeanAnchor() {
   printf("ok: nb log-mean anchor\n");
 }
 
+// The count center is held under a mask and re-derived over the rows the
+// mask keeps: the structural zeros a mask leaves out take no part in it.
+// Unmasked it is the every-row expression to the bit. A mask keeping fewer
+// than two distinct counts is too little to read.
+static void testNBShiftRowsIn() {
+  std::vector<double> y = {0, 3, 0, 6, 2, 0, 4, 0, 1, 0, 5, 3};
+  std::vector<double> offset = {0.5, -0.4, 0.0, 0.7,  0.2, -0.1,
+                                0.3, -0.6, 0.1, -0.3, 0.4, 0.0};
+  const std::size_t n = y.size();
+  std::vector<double> mask(n), fits(n, 0.0);
+  double total = 0.0, exposure = 0.0, kept = 0.0, totalIn = 0.0,
+         exposureIn = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    mask[i] = i % 2 == 0 && i != 4 ? 0.0 : 1.0;  // the zeros, and one more
+    total += y[i];
+    exposure += std::exp(offset[i]);
+    if (mask[i] == 0.0) continue;
+    kept += 1.0;
+    totalIn += y[i];
+    exposureIn += std::exp(offset[i]);
+  }
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rng, 20261015u);
+
+  // unmasked: the every-row sums in row order, to the bit, through creation
+  // and through each re-deriving setter
+  NBResponse plain(y.data(), nullptr, n, 3.0);
+  NBResponse exposed(y.data(), offset.data(), n, 3.0);
+  check(plain.fitShift() == std::log(total / static_cast<double>(n)) &&
+          exposed.fitShift() == std::log(total / exposure),
+        "nb c with no mask is the every-row expression, bit for bit");
+  plain.setOffset(offset.data(), true, nullptr);
+  check(plain.fitShift() == std::log(total / exposure),
+        "and re-derived with no mask");
+  plain.setOffset(nullptr, true, nullptr);
+
+  // held across the mask, then re-derived over the rows it keeps
+  check(plain.setActiveRows(mask.data(), rng, fits.data(), 1.0) &&
+          exposed.setActiveRows(mask.data(), rng, fits.data(), 1.0) &&
+          plain.fitShift() == std::log(total / static_cast<double>(n)) &&
+          exposed.fitShift() == std::log(total / exposure),
+        "nb c is held across setActiveRows");
+  check(!plain.lacksDistinctRowsIn(IncomingVector::offset, nullptr) &&
+          !plain.lacksDistinctRowsIn(IncomingVector::response, y.data()),
+        "the kept rows hold several counts");
+  plain.setOffset(nullptr, true, nullptr);
+  checkNear(plain.fitShift(), std::log(totalIn / kept), 1e-14,
+            "nb setOffset re-derives c over the rows the mask keeps");
+  exposed.setOffset(offset.data(), true, nullptr);
+  checkNear(exposed.fitShift(), std::log(totalIn / exposureIn), 1e-14,
+            "and per unit exposure of those rows under an offset");
+  check(std::fabs(exposed.fitShift() - std::log(total / exposure)) > 0.1,
+        "which the every-row center is not");
+  std::vector<double> y2(y);
+  for (std::size_t i = 0; i < n; ++i) y2[i] = mask[i] == 0.0 ? 40.0 : y[i] + 1.0;
+  exposed.setResponse(y2.data(), rng, fits.data(), true, nullptr);
+  checkNear(exposed.fitShift(), std::log((totalIn + kept) / exposureIn), 1e-14,
+            "nb setResponse re-derives c over the rows the mask keeps");
+
+  // too little to read: a mask keeping one row, and one keeping rows of one
+  // count. The read answers yes whichever vector comes in, on the COUNT: an
+  // offset that differs across the kept rows does not make two values
+  std::vector<double> oneRow(n, 0.0), oneCount(n, 0.0);
+  oneRow[3] = 1.0;
+  oneCount[1] = oneCount[11] = 1.0;  // both hold 3, at offsets -0.4 and 0
+  NBResponse lone(y.data(), offset.data(), n, 3.0);
+  check(!lone.lacksDistinctRowsIn(IncomingVector::offset, offset.data()),
+        "with no mask nothing is too little");
+  for (const std::vector<double>* few : {&oneRow, &oneCount}) {
+    lone.setActiveRows(few->data(), rng, fits.data(), 1.0);
+    check(lone.lacksDistinctRowsIn(IncomingVector::offset, offset.data()) &&
+            lone.lacksDistinctRowsIn(IncomingVector::offset, nullptr) &&
+            lone.lacksDistinctRowsIn(IncomingVector::response, y.data()),
+          "a mask keeping fewer than two distinct counts is too little to "
+          "read");
+    // and a model asked to re-derive all the same reads every row
+    lone.setOffset(nullptr, true, nullptr);
+    check(lone.fitShift() == std::log(total / static_cast<double>(n)),
+          "re-derived there, nb c is every row's");
+    lone.setOffset(offset.data(), false, nullptr);
+  }
+  std::vector<double> y3(y);
+  y3[11] = 7.0;
+  check(!lone.lacksDistinctRowsIn(IncomingVector::response, y3.data()),
+        "an incoming response with two counts on the kept rows is enough");
+
+  ext_rng_destroy(rng);
+  printf("ok: nb center over the rows the mask keeps\n");
+}
+
 // The nbinom shape state block round-trips through the Chain serialization
 // (getState/setState): the scalar r rides its own by-name block and the omega
 // latents ride the shared latents block, both exact, in fixed and grid-estimated
@@ -10534,6 +10624,7 @@ void runModelTests(ext_rng* rng) {
   testNBShapeGridConditional(rng);
   testNBSweepOrderAndRestore(rng);
   testNBLogMeanAnchor();
+  testNBShiftRowsIn();
   testNBStateRoundTrip();
   testSparseKernel();
   testSparseColumnStore();
