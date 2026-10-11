@@ -754,6 +754,37 @@ expect_equal(length(xb$scale), 1L)
 expect_equal(length(xb$others), 0L)
 expect_equal(xb$sigmaFallbacks, 0L)
 expect_true(all(is.finite(xb$value)))
+# each fold's sigma is the unweighted fit over its training rows: the floor is
+# handed a finite estimate and every training row's residual
+seen <- list()
+foldSigma <- function(sigma, residual) {
+  seen[[length(seen) + 1L]] <<- c(sigma = sigma, rows = length(residual))
+}
+trace(
+  "floorSigmaEstimate",
+  tracer = bquote(.(foldSigma)(sigma, residual)),
+  print = FALSE,
+  where = asNamespace("dbarts")
+)
+invisible(caught(xbart(
+  x,
+  ySame,
+  weights = sameIn,
+  n.samples = 10L,
+  n.burn = 5L,
+  n.trees = 5L,
+  n.reps = 1L,
+  n.test = 4,
+  n.threads = 1L,
+  seed = 7L,
+  verbose = FALSE
+)))
+untrace("floorSigmaEstimate", where = asNamespace("dbarts"))
+seen <- do.call(rbind, seen)
+folds <- seen[seen[, "rows"] < n, , drop = FALSE]
+expect_true(nrow(folds) >= 4L)
+expect_true(all(is.finite(folds[, "sigma"])) && all(folds[, "sigma"] > 0.1))
+expect_true(all(folds[, "rows"] == n - n %/% 4L))
 
 # --- creation routes for a count fit ----------------------------------------
 rowsInCenter <- log(sum(countsA[rows.in]) / sum(rows.in))
