@@ -1710,10 +1710,11 @@ sdKindRefused <- function(sd) {
   }
 }
 
-## A forest's 'sd', at creation and on $setLeafPrior: one unnamed number, finite
-## and positive. Infinity states no prior the map can scale, so it is refused
-## rather than carried into a leaf scale or a half-Cauchy median. A number is
-## a numeric or integer, whatever class it carries.
+## A forest's 'sd', at creation and on $setLeafPrior: one number, finite and
+## positive, a name on it dropped as base R drops one. Infinity states no
+## prior the map can scale, so it is refused rather than carried into a leaf
+## scale or a half-Cauchy median. A number is a numeric or integer, whatever
+## class it carries.
 validateForestSd <- function(sd) {
   if (isSingleNA(sd) || (is.numeric(sd) && length(sd) == 1L && is.nan(sd))) {
     stop("forest 'sd' must not be NA; leave it out for the default")
@@ -1732,16 +1733,8 @@ validateForestSd <- function(sd) {
     stop(
       "forest 'sd' must be a single number, not a vector of length ",
       length(sd),
-      ": a forest states one sd, for every column of its basis; to size the ",
-      "columns differently, rescale them in 'basis', as I(dose / 30)"
-    )
-  }
-  if (!is.null(names(sd))) {
-    stop(
-      "forest 'sd' must not be named (\"",
-      names(sd),
-      "\"): it is one number, for every column of a basis; drop the name ",
-      "with unname()"
+      ": a forest states one sd; to size a column differently, rescale it ",
+      "in 'basis', as I(dose / 30)"
     )
   }
   if (is.na(sd) || !is.finite(sd) || sd <= 0) {
