@@ -1448,7 +1448,7 @@ addMutation(
 )
 
 # -- prose: zero weights follow the case-weights column except logistic;
-# probit and ordinal take a 0/1 weight vector at creation
+# probit, ordinal and nbinom take a 0/1 weight vector at creation
 zeroAnchor <- "A zero weight, which takes a row out of the likelihood"
 for (v in c(
   "gaussian",
@@ -1464,7 +1464,7 @@ for (v in c(
 )) {
   local({
     v <- v
-    refused <- v %in% c("logistic", "bcf.logistic", "aft", "nbinom")
+    refused <- v %in% c("logistic", "bcf.logistic", "aft")
     addCheck(
       "prose",
       sprintf("zero weight at creation %-8s", v),
