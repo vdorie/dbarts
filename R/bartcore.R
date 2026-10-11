@@ -1179,8 +1179,12 @@ bartcoreSamplerSetData <- function(sampler, newData) {
 ## A count sampler's 0/1 weights, installed as the mask after creation, leave
 ## the center creation derived over every row; this takes it over the rows the
 ## mask keeps. Where those hold fewer than two distinct counts the every-row
-## center stands. Draws nothing and records the range; the stored state is the
-## caller's to take.
+## center stands. The engine re-derives from the offset it already holds and
+## the record follows; nothing else is touched: no draw, no slot of the data
+## object, no test offset here or in the engine, and no store, the stored
+## state being the caller's to take. The rows have just been found to hold
+## two counts, so the engine keeps nothing and its once-per-sampler warning
+## is not spent.
 deriveCenterUnderMask <- function(sampler) {
   if (
     identical(sampler$model@family, "nbinom") &&
@@ -1193,11 +1197,9 @@ deriveCenterUnderMask <- function(sampler) {
         warn = FALSE
       )
   ) {
-    sampler$setOffset(
-      sampler$data@offset,
-      updateScale = TRUE,
-      updateState = FALSE
-    )
+    ptr <- sampler$getPointer()
+    .Call(C_dbarts_bartcore_setOffset, ptr, sampler$data@offset, TRUE)
+    sampler$model <- recordAnchor(sampler$model, ptr)
   }
   invisible(NULL)
 }
