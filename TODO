@@ -880,10 +880,7 @@ items
     structure. Latents edited by hand to values that are not finite
     install into probit, ordinal and aft samplers. A warm start takes
     a linear or gp donor into a constant-leaf sampler, which then
-    runs. benchmarks/R/composition-matrix.R stops on the tip before
-    any cell runs: its header lookup finds no row for bart2() in
-    docs/design/feature-matrix.md since the rename to bart, so the
-    matrix gates nothing until that is fixed. A formula predictor with
+    runs. A formula predictor with
     a non-syntactic name and no space, such as a column named x1:x2
     written backticked, stops in dbartsData.
   forest-after-merge: built after the merge to main, for 1.0-0 still
