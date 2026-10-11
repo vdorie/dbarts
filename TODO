@@ -954,21 +954,15 @@ items
     section 10). After the multiplier slice's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
-  response-scale-rows: slices C and D (slice B, creation, has landed:
-    docs/design/response-scale-rows.md). C: setWeights and setActiveRows
-    take the response setters' argument to re-derive what creation took
-    over the rows in, with the response setters' effect on the live
-    chain (dec-B296, dec-B327), the keep for fewer than two distinct
-    values and its once-per-sampler warning extended to them (dec-B364,
-    dec-B405), and, in dbartsSpec's help, setActiveRows(spec$active,
-    updateScale = TRUE) as the call that makes a sampler made by hand
-    dbarts()'s, with the loop form (dec-B363). D: a linear or gp leaf's
+  response-scale-rows: slice D (slices B, creation, and C, updateScale
+    on setWeights and setActiveRows, have landed:
+    docs/design/response-scale-rows.md): a linear or gp leaf's
     covariate center and scale, and the default lengthscale, over the
     rows in (dec-B304), a multiplier's scale doing so in the multiplier
     plan (dec-B303); waits on the state-frame slices that give derived
     data its record. Cut points still span every row. Before 1.0-0,
     and before the merge if it can be. Stated at the end of
-    docs/plans/response-scale-rows.md and not planned.
+    docs/plans/response-scale-rows-c.md and not planned.
   rederive-same-range-ulp: a re-derivation that finds the range in
     force again is not a no-op in bits. GaussianResponse::setOffset
     and setResponse at updateScale = TRUE take sigma and its prior

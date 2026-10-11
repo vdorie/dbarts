@@ -202,6 +202,10 @@ says the response transform, the count center or a forest's default sd is the fu
 one, read it as creation's: a sampler created with rows out of the likelihood takes them
 over the rows in, and a mask installed afterwards leaves them as creation set them.
 
+Amended 2026-10-11: a mask installed afterwards leaves them as creation set them unless the call is
+`setActiveRows(mask, updateScale = TRUE)`, which takes them again over the rows the mask leaves in
+([Which rows a prior's scale is read from](response-scale-rows.md#which-rows-a-priors-scale-is-read-from)).
+
 Multinomial's mask is global, and lands on the softmax coupling rather than the
 response, which holds no precisions of its own
 ([`MultinomialResponse::supportsActiveRows`](../../src/bartcore/model.hpp),

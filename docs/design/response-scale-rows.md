@@ -16,19 +16,23 @@ What it no longer does is move the numbers the prior is stated against.
 
 1. Rows. The range, the count center and the unit of a forest's sd are computed over the rows in at creation,
    unweighted: a row of positive weight counts in full.
-2. Held. No later call moves them unless it carries `updateScale = TRUE`; `setWeights`, `setActiveRows`,
-   `setState` in either form, a copy, a reload and a warm start do not. So the three ways to leave a row out
-   differ by when it left: at creation (the numbers follow the rows in), by `setWeights` or `setActiveRows`
-   afterwards (the numbers stay creation's), by `subset` (the row is gone, cut points included).
-3. Re-derived. `updateScale = TRUE` on `setResponse` and `setOffset` reads the rows in at that call.
-   `setData` replaces the data and derives as creation does. Several forests keep refusing `updateScale = TRUE`.
+2. Held. No later call moves them unless it carries `updateScale = TRUE`; `setWeights` and `setActiveRows`
+   without it, `setState` in either form, a copy, a reload and a warm start do not. So the three ways to leave a
+   row out differ by when it left: at creation (the numbers follow the rows in), by `setWeights` or
+   `setActiveRows` afterwards (the numbers stay creation's, unless the call asks), by `subset` (the row is gone,
+   cut points included).
+3. Re-derived. `updateScale = TRUE` on `setResponse`, `setOffset`, `setWeights` and `setActiveRows` reads the rows
+   in at that call; on the last two it comes after `updateState`, installs first and reads after, whether or not
+   a row moved, and leaves the test offset alone. `setData` replaces the data and derives as creation does.
+   Several forests, and a multinomial sampler on `setActiveRows`, refuse `updateScale = TRUE` before anything is
+   installed, and so does a gp sampler holding saved draws.
 4. Too little to read. Where a row is out and the rows in hold fewer than two distinct values (of the response
    less its offset for a range, of the count for a center):
    - at creation and at `setData`, each number is taken over every row, sigest included, under one warning of
      class `dbartsScaleFallbackWarning`; the starting sigma records no stand-in for that cause;
-   - at a re-derivation through `setResponse` or `setOffset`, the transform and the center in force are kept:
-     the call completes as with `updateScale = FALSE`, bit for bit, and the R methods warn once per sampler with
-     the same class.
+   - at a re-derivation through `setResponse`, `setOffset`, `setWeights` or `setActiveRows`, the transform and the
+     center in force are kept: the call completes as with `updateScale = FALSE`, bit for bit, the weights or the
+     mask installed, and the R methods warn once per sampler with the same class.
    A constant response with every row in is not this case: it takes the window of width 1 about the constant,
    at creation and at a re-derivation, with no warning.
 5. Nothing out, nothing changed. With every row in every number has the bits it had before.
@@ -77,7 +81,8 @@ The engine decides the keep once, in the sampler, from chain 0's response model,
 `rescale` uses ([`GaussianResponse::readRowsIn`](../../src/bartcore/model.hpp)). On a keep it calls every chain
 with `updateScale` false and skips the anchor record, so the keep is that call, literally; no chain or response
 model grows a branch. The decision travels as a returned status, [`Sampler::setResponse`](../../src/bartcore/sampler.hpp)
-and `Sampler::setOffset` answering `ResponseUpdateResult::scaleKept`; the engine never warns.
+and `Sampler::setOffset` answering `ResponseUpdateResult::scaleKept`, and `Sampler::rederiveScale`, which
+`setWeights` and `setActiveRows` call after their install with the offset in force; the engine never warns.
 
 - R: the bridge returns a length-one logical, "warn now", true on a sampler's first keep, and the R methods raise
   the warning as their last act ([`warnScaleKept`](../../R/bartcore.R)), after the mirror and the stored state, so
@@ -97,13 +102,17 @@ engine reads every row there by the same rule.
 
 Of the families whose 0/1 weights become the mask only the count family takes anything from the response. Its
 creation is the install of the mask with the engine's re-derivation against the offset it already holds, in one
-bridge call ([`installWeightsMask`](../../R/bartcore.R)): the mask entry called with `updateScale` true, which
+bridge call ([`installWeightsMask`](../../R/bartcore.R)): the mask entry called with `updateScale` true, the same
+call `$setActiveRows(mask, updateScale = TRUE)` makes, which
 leaves the sampler where the bridge entry `$setOffset` uses, called with that offset and `updateScale` true,
 leaves it; then the record. It draws nothing and touches nothing else: the data object, the test offset
 in R and in the engine, and the stored state are as creation or `setData` left them. In rule 4's case the
-mask is installed without the re-derivation and the every-row center stands. A sampler built by hand from [`dbartsSpec`](../../R/spec.R)
-and `new("dbartsSampler", ...)` is created with every row in and keeps the every-row center; the documented call
-for it comes with the next slice.
+mask is installed without the re-derivation and the every-row center stands. A sampler built by hand from
+[`dbartsSpec`](../../R/spec.R) and `new("dbartsSampler", ...)` is created with every row in; calling
+`$setActiveRows(spec$active, updateScale = TRUE)` on it makes it `dbarts()`'s, `identical()` in every reader and
+draw, and the help documents that call and the loop form. It does not keep the every-row center. Where the mask
+keeps fewer than two distinct counts the by-hand route has warned twice, `dbartsSpec` and the keep, and has spent
+the sampler's one warning, so a later keep is silent on it and audible on `dbarts()`'s.
 
 ## 6. The hazard grid
 
@@ -123,6 +132,7 @@ response setters while rows are out. Of the recorded baseline scenarios one move
 ## 8. The four slices
 
 A: the survival re-anchor reads observed times (landed). B: this note, creation. C: `updateScale` on
-`setWeights` and `setActiveRows`, which extends the keep to them and documents the by-hand count sampler's call.
+`setWeights` and `setActiveRows`, which extends the keep to them and documents the by-hand count sampler's call
+(planned in [response-scale-rows-c.md](../plans/response-scale-rows-c.md)).
 D: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the rows in, which waits on
 the record slices of the state.
