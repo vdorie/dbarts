@@ -1,147 +1,156 @@
-# stan4bart-creation-mapping: stan4bart fixes its response range at creation, from a mixed model it fits itself
+# stan4bart-creation-mapping: stan4bart fixes its response range at creation, from a fit holding the forest's columns
 
-Status: PLANNED (dec-B437, dec-B441 to dec-B445). Two open calls. The code is stan4bart's; this file is its record.
+Status: PLANNED (dec-B437, dec-B441, dec-B444 to dec-B447; dec-B442 and dec-B443 are revised by dec-B446). No open
+call. Revised after the blind critique. The code is stan4bart's; this file is its record.
 
-agent: a blind critique of this plan; one opus implementer (new numerics in R, ten lines of C++); one opus
-reviewer who runs the mutants.
+agent: one opus implementer (R; two flags in C++); one opus reviewer who runs the mutants.
 rng: POSTERIOR-CHANGING for every continuous stan4bart fit (the leaf prior's center and spread change, and one
 range replaces one per chain). SHIFTING for a binary fit (its starting values). NEUTRAL for dbarts: no dbarts
 code changes, so no dbarts baseline, snapshot or exact gate moves.
 window: before the merge to main (dec-B437). Either side of [response-scale-rows.md](response-scale-rows.md);
 see [Against response-scale-rows](#against-response-scale-rows).
-budget: ~1150 lines, almost all in stan4bart (R ~390, C++ ~10, tinytest ~500, help and NEWS ~70, benchmarks
-~125; records here ~55). Stop at 1.5 times.
+budget: ~1050 lines, almost all in stan4bart (R ~330, C++ ~6, tinytest ~470, help and NEWS ~80, benchmarks
+~110; records here ~55). Stop at 2 times; steps 1 and 2 can land as their own slice.
 
 ## Goal
 
 A continuous stan4bart fit has one response range for its forest, computed once before sampling, the same for
-every chain and never re-derived: by default from a linear mixed model that stan4bart fits itself and that holds
-the forest's columns as linear terms; else as `bart_range` says. The fit records the pair and how it was
-obtained. lme4 has no use at run time. The tier is "Changes draws" ([Process by risk](README.md#process-by-risk)).
+every chain and never re-derived: by default from a linear mixed model that holds the forest's columns as linear
+terms, fitted by lme4 where the model has random terms, and never wider than the response's own range; else as
+`bart_range` says. The fit records the pair and how it was obtained. A build made beside lme4 runs without it.
+The tier is "Changes draws" ([Process by risk](README.md#process-by-risk)).
 
 ## Context
 
 Why, with the measurements: [stan4bart-response-range.md](../design/stan4bart-response-range.md). Ruled, each
-covering what it names: dec-B437 (one range, fixed at creation, shared, never re-derived), dec-B441 (the forest's
-columns enter linearly), dec-B442 (the mixed model is fitted inside stan4bart over Matrix, and matches lme4 on
-large crossed models in the tests before it replaces lme4), dec-B443 (no run-time use of lme4; a binary fit
-starts from glm with the grouping terms as fixed effects, once a check shows binary results after warm-up do not
-move), dec-B444 (where the fit cannot be computed the range is the response's own, less any offset), dec-B445
-(`bart_range`: a pair of numbers, "mixed", "lm" or "response"). dec-B419's restore of one sampler per chain
-stays, with dec-A197's calls.
+covering what it names: dec-B437 (one range, fixed at creation, shared, never re-derived); dec-B441 (the forest's
+columns enter linearly); dec-B444 (where the fit cannot be computed the range is the response's own, less any
+offset); dec-B445 (`bart_range`: a pair, "mixed", "lm" or "response"); dec-B446 (lme4 stays a suggested package
+and does the mixed-model fits; without it, a warning and a fallback, for continuous and binary alike; nothing of
+ours fits a mixed model); dec-B447 (the default is never wider than the response's own range, and the help lists
+no cases). dec-B419's restore of one sampler per chain stays, with dec-A197's calls.
 
-"Run" is this plan's: stan4bart's bartcore branch at 3d2a295 against a build of dbarts bartcore 1c64c477, arm64
-macOS, R 4.6.1, R's own BLAS, lme4 2.1.0, Matrix 1.7.5, on a shared machine.
+"Run" is this plan's or its critique's: stan4bart's bartcore branch at 3d2a295 against a build of dbarts bartcore
+1c64c477, arm64 macOS, R 4.6.1, lme4 2.1.0, on a shared machine.
 
-Today, read in stan4bart's source at that commit:
-- `stan4bart()` evaluates `lme4::lmer` (binary: `glmer`) on the formula without its `bart()` term; where lme4 is
-  not installed or the fit stops, `lm` (`glm`) with the grouping terms as fixed effects; then the fixed terms
-  alone. The fitted values are the forest's starting offset, the fit's sigma the starting residual sd.
-- The range is derived twice: when each chain's sampler is created, through
-  [`dbarts_sampler_setOffset`](../../inst/include/dbarts/dbarts.h) with its re-derive flag true (the response
-  less the starting offset); and through warm-up, the same entry with the flag true on a thinning schedule (every
-  sweep of the first eighth, every second of the next, and so on). Nothing else derives it.
-- The restore builds one sampler per chain and puts each on its chain's recorded pair by
+Today, read in stan4bart's source at that commit and run:
+- `stan4bart()` evaluates the call again as `lme4::lmer` (binary: `glmer`) on the formula less its `bart()`
+  term; without lme4, or where that stops, `lm` (`glm`) with the grouping terms as fixed effects; then the fixed
+  terms alone. The fitted values are the forest's starting offset, on the probability scale for a binary fit.
+  With the formula held in a variable both families stop ("invalid type (language)") after a full BART fit run
+  inside the initial fit.
+- The range is derived when each chain's sampler is created, through
+  [`dbarts_sampler_setOffset`](../../inst/include/dbarts/dbarts.h) with its re-derive flag true, and through
+  warm-up, the same entry with the flag true on a thinning schedule. Nothing else derives it.
+- The restore puts each chain's sampler on its recorded pair by
   [`dbartsSampler$setResponse`](../../man/dbartsSampler-class.Rd) with `updateScale = TRUE` on a vector
   alternating the pair, then the real response with the range held.
-- At the top of its lme4-derived source file two operators replace stan4bart's copies of lme4's and reformulas's
-  helpers with those packages' own.
+- Weights and the offset are not cut to the kept rows when a row is dropped for a missing value: with 4 of 60
+  rows dropped the response and the designs have 56 rows, the weights and offset 60. Weights then stop the fit
+  ("weights must be of length equal to 56"); an offset fits misaligned.
+- Two operators replace stan4bart's copies of lme4's and reformulas's helpers with those packages' own when the
+  package is installed. A build made beside lme4 holds 21 and 24 of their functions and, with lme4 hidden, stops
+  at the first call (`could not find function "chk.cconv"`).
 
 Run, and used below:
-- The install. On the tip, a sampler built as stan4bart builds it takes a pair exactly from a made-up response
-  (the lower end on the first row of positive weight, the upper on every other row): the model's recorded pair is
-  identical to the pair with and without zero weights on every second row, and stays so through `setOffset` with
-  the range held. A sampler created on other data and then installed gives bit-identical draws over 30 sweeps to
-  one whose creation derived the same pair, under the default leaf prior, a drawn k and a named sd. A state
-  forced into an installed sampler predicts identically. Today's alternating vector lands too, because dbarts
-  reads every row; on the rows of positive weight alone it would hold one value where zero weights fall on one
-  parity.
-- The routine. The design's prototype against lme4 on fifteen models, three of the design's four timing cases
-  among them: criterion equal within 5e-10, range ends within 2e-5 of the width, time 0.28 s for 0.36 (25,000 nested
-  groups at 1e5 rows), 39 s for 46 (5000 by 2000 crossed, 1e5 rows), 76 s for 96 (3000 by 3000, 3e4 rows). At
-  three crossed factors with slopes and 1e5 rows one evaluation takes 6.0 s for lme4's 9.5 and neither ends in
-  ten minutes. On a second draw of seven models one singular fit stopped on the boundary 0.017 above lme4's
-  criterion (ends off by 2.7e-4 of the width). The numbers are in the design note's section 6.
-- Three facts against the record: [Found against the record](#found-against-the-record).
+- The install. A sampler built as stan4bart builds it takes a pair exactly from a made-up response (the lower
+  end on the first row of positive weight, the upper on every other row): width identical in 1000 of 1000 random
+  pairs, with zero weights on the first rows and with one row of positive weight; draws bit-identical to a
+  sampler whose creation derived the pair under 5 of 5 leaf priors; held through `setOffset` with the range
+  held. In a patched stan4bart every chain's state held the pair in 17 of 17 configurations and a reload
+  replayed the stored fits to 1.7e-12 in 16 (gp leaves differ, as on today's build: not this slice's).
+- lme4 on the parsed pieces. `lme4::mkLmerDevfun` and `lme4::optimizeLmer`, given the fixed columns with the
+  forest's added, the random-effect structure cut to the rows of positive weight, and a frame of the response
+  less the offset with its weights, equal `lmer` on the written-out formula (fixed effects within 2e-10, the
+  own part on every row within 2e-9; levels left with no row get an effect of zero). `lme4::mkMerMod` refuses
+  such a frame ("can't find formula"), so the fit is read from the criterion's environment. Rank-deficient
+  columns stop it ("Downdated VtV is not positive definite"). One random effect per row, which `lmer` refuses,
+  runs to a flat criterion. The probit twin (`mkGlmerDevfun`, `optimizeGlmer` twice around
+  `updateGlmerDevfun`) equals `glmer` within 1.4e-5.
+- With the two operators removed, a build made beside lme4 holds none of its functions and fits a correlated
+  slope with a crossed term, and a binary model with nested terms, with lme4 hidden.
+- Near zero residual degrees of freedom the fit's residual sd runs from 0.008 to 6.5 for a generating 1, also
+  where dec-B447's bound does not take over (18 residual degrees of freedom and fewer, 20 seeds a cell).
 
 ## Design
 
-A. The argument. `bart_range = "mixed"`, last in `stan4bart()`'s formals.
-- A string is exactly "mixed", "lm" or "response", in lower case; NULL is "mixed". Anything else that is not a
-  pair stops: `'bart_range' must be c(lower, upper), "mixed", "lm" or "response"`.
-- A pair is two finite numbers, the second above the first; else
-  `'bart_range' must be two finite numbers, the lower first`. It is never reordered.
-- For a binary response a value other than "mixed" warns `'bart_range' is not used for a binary response`.
+A. The argument. `bart_range = c("mixed", "lm", "response")`, last in `stan4bart()`'s formals, checked before
+the `iter = 0` return.
+- A character value is matched as `offset_type` and `store` are (`match.arg`: abbreviations pass, anything else
+  is its error); NULL is "mixed".
+- A numeric value is a pair: two finite numbers, the first below the second, their difference finite; else
+  `'bart_range' must be c(lower, upper), lower below upper, with a finite width`. It is never reordered.
+- A pair that does not overlap the range of `y - offset - own` on the rows in (D) is used, with a warning:
+  `'bart_range' (<lower>, <upper>) lies wholly outside the values BART is fitted to (<a> to <b>)`.
+- For a binary response a value other than the default warns `'bart_range' is not used for a binary response`.
 
-B. Rows and columns, from what `stan4bart()` has parsed (the response, the model's fixed columns, the
-random-effect structure, the forest's data object, weights, offset).
-1. Rows in: the rows the model keeps, of positive weight. n is their count. The fit and the range read no other
-   row (the orchestrator's call; the design's rule 6).
-2. Added columns, from the forest's training matrix and its column kinds. A numeric or ordered column enters as
-   the value the forest splits on (a logical 0/1, an ordered factor its level score, a transformed term as
-   transformed). An unordered factor enters as indicators of its levels present among the rows in, less the
-   first; unless every one of those levels lies within one level of some grouping factor of the model, when the
-   factor is left out and its name recorded (rules 1 and 3).
-3. Aliasing. The fixed block is [1, the model's own columns, the added columns] on the rows in. A pivoted QR at
+B. Rows and columns, from what `stan4bart()` has parsed.
+1. Kept rows. Weights and the offset are cut to the rows the model keeps, where `stan4bart()` reads them: a
+   defect fix, in its own commit.
+2. Rows in: the kept rows of positive weight; n is their count. The fit and the range read no other row.
+3. Added columns, from the forest's training matrix and its column kinds. A numeric or ordered column enters as
+   the value the forest splits on. An unordered factor enters as indicators of its levels present among the rows
+   in, less the first; unless every such level lies within one level of some grouping factor of the model, when
+   it is left out and named (rules 1 and 3).
+4. Aliasing. The fixed block is [1, the model's own columns, the added columns] on the rows in. A pivoted QR at
    `lm`'s tolerance (1e-7) keeps the first of any dependent set, so the model's own columns are kept before the
-   added ones; the dropped names are recorded (rule 2). p counts the kept columns.
+   added ones; the dropped are named (rule 2). p counts the kept columns. lme4 never chooses: it would stop.
+5. Where no added column is left (each aliased or left out), the fit is the model's own; a verbose line says so:
+   `no BART predictor enters the initial fit, so the range is that of the model's own terms; see 'bart_range'`.
 
-C. The routine, one function over Matrix and stats.
-1. Inputs: z, the response less the offset on the rows in; X, the kept fixed columns; the random-effect
-   structure's transposed design `Zt` cut to the rows in, its factor template `Lambdat` with the index `Lind`
-   that places the variance parameters theta in it, their starting values and lower bounds; the weights w.
-2. With h = sqrt(w), Zw = Zt diag(h), Xw = h X and zw = h z: the factor L of `Lambda' Zw Zw' Lambda + I` is a
-   sparse Cholesky whose fill-reducing ordering is found once and whose values are updated at each theta
-   (`Matrix::Cholesky`, `Matrix::update`). Then, in Bates, Maechler, Bolker and Walker's notation (2015, section
-   3): cu = L^-1 P Lambda' Zw zw, RZX = L^-1 P Lambda' Zw Xw, RX the Cholesky factor of Xw'Xw - RZX'RZX, beta
-   from RX'RX beta = Xw'zw - RZX'cu, u from L'P'u = cu - RZX beta, b = Lambda u, and the penalized residual sum
-   r2 = sum(w (z - X beta - Zt'b)^2) + u'u. The criterion is
-   `2 log|L| + 2 log|RX| + (n - p) (1 + log(2 pi r2 / (n - p)))`. The crossproducts of X and z are formed once.
-3. Optimizer: `stats::nlminb` from the structure's starting values with its lower bounds (0 on a factor's
-   diagonal), relative tolerance 1e-8, iteration and evaluation limits 10,000. It is in base R, takes bounds and
-   needs no gradient; in the runs it took 0.4 to 3.3 times lme4's evaluations. A trial theta at which RX cannot
-   be formed returns Inf, a rejected step.
-4. A singular fit is an optimum on a bound: that term's column of Lambda is zero, L stays positive definite, its
-   predicted effects are zero, and the result is used as any other. So is a fit that ends at a limit or with a
-   nonzero convergence code (rule 10); the code and the evaluation count are recorded.
-5. Returns the kept columns' coefficients, b, the residual sd `sqrt(r2 / (n - p))`, theta, and the own part on
-   EVERY row: the model's own columns centered at the means the parametric sampler centers them at, times their
-   coefficients, plus Zt'b (zero for a level with no row in). The intercept and the added columns' part are left
-   out.
-6. A failure is an error at the optimum (RX not positive definite) or a non-finite criterion, coefficient or
-   own part there.
-7. Each evaluation returns to R, so an interrupt stops the fit between evaluations.
+C. The fits. z is the response less the offset on the rows in, w their weights.
+1. Mixed (the model has random terms, "mixed", lme4 available by H.2): `mkLmerDevfun` on a frame of z and w,
+   the kept columns, and the model's own random-effect structure with its design cut to the rows in, under
+   restricted likelihood and `lmerControl`'s defaults with the convergence checks off; `optimizeLmer` without
+   derivatives; the coefficients, predicted effects and residual sums read from the criterion's environment
+   (`pp$beta`, `pp$b`, `pp$sqrL`, `resp$wrss`). Warnings are muffled; a singular fit and an optimizer's
+   complaint change nothing (rule 10). Any error, or a non-finite value read, is a failure (E).
+2. Before C.1, lme4's own refusal, which its builder does not make: a random term with at least n effects makes
+   the fit undefined (E).
+3. Linear ("lm", or "mixed" on a model with no random term): `lm.wfit` of z on the kept columns.
+4. The own part, on EVERY kept row: the model's own columns centered at the means the parametric sampler centers
+   them at, times their coefficients, plus the predicted effects through the full random-effect design (zero for
+   a level with no row in; absent under C.3). The intercept and the added columns' part are left out.
 
-D. Routes. In each the range is the smallest and largest of `y - offset - own` over the rows in.
-- "mixed": own and the starting residual sd from C. A model with no random term has no C; it takes "lm" and
-  records "lm".
-- "lm": weighted least squares of z on the same kept columns, no random term; own is the model's centered
-  columns times their coefficients; the sd is that fit's on n - p degrees of freedom.
-- "response": own is zero, the range is that of `y - offset` over the rows in, the starting sd their sd. Nothing
-  is fitted.
-- A pair: the range is the pair. The starting offset and sd are "lm"'s (or "response"'s where "lm" is not
-  defined); no mixed model is fitted. Recorded as "supplied".
-- The forest's starting offset is own; the user's offset is added once, where the sweep loop adds it (rule 7).
-  Under an `offset_type` that swaps part of the model for the offset, own keeps only the parts the forest's
-  offset will hold in the sweeps (random part alone under "fixef", fixed alone under "ranef", none under
-  "parametric", both under "bart", where the user's offset is not subtracted for the range either); the C++
-  creation, which adds the starting offset under the default type only, follows.
-- A range of zero width (the rows in hold one value) is not installed; creation's own stands, as today.
+D. Routes and starting values.
+- "mixed" and "lm": the range is the smallest and largest of `y - offset - own` over the rows in. Where its
+  width exceeds that of `y - offset` over the rows in, the response's own range replaces both ends (dec-B447;
+  E). A pair is never bounded.
+- "response": own is zero and the range is that of `y - offset` over the rows in. Nothing is fitted.
+- A pair: the range is the pair; own is "lm"'s with its fallbacks, for the start only. No mixed model is fitted.
+- Starting values: the forest's first offset is own, the user's offset being added once, where the sweep loop
+  adds it (rule 7); the first residual sd is the sd of `y - offset - own` over the rows in, the spread of what
+  the forest is first given, or 1, today's default, where that is zero or not finite. Any fallback of E takes
+  the "response" route whole: both ends, own zero, its sd.
+- A fitted range of zero width is undefined (E); if the response's own is zero too, nothing is installed and
+  dbarts's own warning for a constant response stands.
+- `offset_type` other than "default" (a debugging aid): own keeps the parts the forest's offset holds in the
+  sweeps (random alone under "fixef", fixed alone under "ranef", both under "bart", where the offset is not
+  subtracted for the range); under "parametric" own is zero and no fit is run. The C++ creation is not changed:
+  under these types the forest's first offset is the user's alone, as today.
 
-E. Where the fit cannot be computed (dec-B444).
-1. Undefined: n - p < 1 under "mixed" or "lm". Failed: C.6. Either way the route is "response".
-2. Record, on the fit: `range.bart`, the pair (NULL for a binary fit); `range.route`, one of "mixed", "lm",
-   "response", "supplied"; `range.fallback`, "undefined" or "failed", present only where the route is not the
-   one asked for; `range.info`, a list of n, p, the added, dropped and left-out column names, theta, the
-   convergence code and the evaluation count.
-3. Verbose (`verbose` above 0), from the calling process and never from a chain's worker: before a fit,
-   `estimating the BART response range by a linear mixed model on <n> rows, <p> fixed columns and <q> random
-   effects; see 'bart_range'` ("by a linear model" under "lm"); on a fallback, `the BART response range is the
-   response's own, <lower> to <upper>: <the fit has no residual degrees of freedom in <n> rows | the fit
-   failed>; see 'bart_range'`.
-4. A warning only for "failed": `the initial fit for the BART response range failed (<message>); the response's
-   own range is used; see 'bart_range'`. None for "undefined", a singular fit or a convergence code.
-5. `summary()` prints one line: `BART response range: <lower> to <upper> (<route><, fallback>)`.
+E. When the range is the response's own though another was asked, and how the user is told.
+
+| `range.fallback` | when | told by |
+|---|---|---|
+| "lme4" | random terms, "mixed", lme4 not available | a warning |
+| "undefined" | n - p < 1; a random term with n effects or more; a fitted width of zero | a verbose line |
+| "failed" | C.1 or C.3 raised an error or gave a non-finite value | a warning |
+| "wider" | the fitted range is wider than the response's own, under "mixed" or "lm" | a verbose line |
+
+1. Record, on the fit: `range.bart`, the pair (NULL for a binary fit); `range.route`, what was asked, one of
+   "mixed", "lm", "response", "supplied"; `range.fallback`, present exactly in the table's cases;
+   `range.info`, a list of n, p, the fit that ran ("lme4", "linear" or "none"), the added, dropped and left-out
+   column names, the variance parameters and the optimizer's message.
+2. Warnings: `lme4 is not installed, so the BART response range is the response's own, not the mixed model's;
+   install lme4, or set 'bart_range'`; `the initial fit for the BART response range failed (<message>); the
+   response's own range is used; see 'bart_range'`.
+3. Verbose lines (`verbose` above 0), from the calling process and never from a chain's worker: before a fit,
+   `estimating the BART response range by a linear <mixed >model (lme4) on <n> rows and <p> fixed columns; see
+   'bart_range'`; on "undefined" or "wider", `the BART response range is the response's own, <lower> to <upper>:
+   <the initial fit is not defined on <n> rows | the fitted range was wider>; see 'bart_range'`.
+4. `summary()` prints `BART response range: <lower> to <upper> (<route>[; the response's own: <fallback>])`, and
+   no line for a fit that has no `range.bart`.
 
 F. Installing the range.
 1. One helper takes a sampler holding no offset and a pair. It makes the vector of Context's first run from the
@@ -149,180 +158,205 @@ F. Installing the range.
    own response and the range held, both with `updateState = FALSE`. It then reads the sampler's
    [`getLeafPrior`](../../man/dbartsSampler-class.Rd): `response.scale` must be identical to the pair's width
    and `response.shift` within 1e-12 of its middle, else it stops with an internal error. The vector is its own
-   function, so its property is tested without a sampler.
-2. Creation: each chain's worker installs the pair after it creates its sampler (and after a binary mask, which
-   takes none) and before the C++ creation. The C++ creation passes the re-derive flag false; the sweep loop
-   passes it false and loses its schedule. Those are the two places the range is derived today, and the only
-   C++ edits besides D's `offset_type` line.
-3. Restore: the restore takes the fit's `range.bart` for every chain. A fit saved before this change has none;
-   its chains take the pair each state records, as today, through the same helper. Data carrying an offset is
-   refused, as today.
-4. No dbarts change. A dbarts entry that sets the pair directly exists inside the engine
+   function.
+2. Creation: each chain's worker installs the pair after it creates its sampler and before the C++ creation.
+   The C++ creation passes the re-derive flag false; the sweep loop passes it false and loses its schedule. Those
+   are the two places the range is derived today, and the only C++ edits.
+3. Restore: the fit's `range.bart` for every chain. A fit saved before this change has none; its chains take the
+   pair each state records, as today, through the same helper. Data carrying an offset is refused, as today.
+4. No dbarts change. The engine holds an entry that sets the pair
    ([`Sampler::setAnchor`](../../src/bartcore/sampler.hpp), reached by a re-creation through
-   [`applyAnchor`](../../R/dbarts.R)) and is not a documented method: see Calls made.
+   [`applyAnchor`](../../R/dbarts.R)); it is not a documented method. See Calls made.
 
-G. Binary fits (dec-B443). No range. The start is `glm` with a probit link on the formula with its grouping
-terms as fixed effects, as today without lme4; on an error, on the fixed terms alone; on another, zero. The
-starting offset is the linear predictor less the user's offset, centered over the rows in, where today it is the
-fitted probability. See Open call 2 before this half is built.
+G. Binary fits. No range. The start is built from the parsed pieces, never by evaluating the call again.
+- Random terms and lme4 available: the probit mixed model of Context's second run on [1, the model's own
+  columns], the kept rows the 0/1 weights select, and the offset.
+- Otherwise `glm.fit` with a probit link on the same columns, with the warning `lme4 is not installed, so the
+  binary fit starts from a probit regression on the fixed effects alone; install lme4 to start from the mixed
+  model` where the model has random terms. Where it does not converge or reports fitted probabilities of 0 or 1
+  (separation), and where the mixed model fails (a warning), the start is zero.
+- The starting offset is the own part of C.4, on the linear-predictor scale, where today it is the fitted
+  probability.
 
-H. lme4 at run time. The calls to `lme4::lmer`, `glmer` and `lmerControl` go. The two operators go and every
-helper is the package's own copy. DESCRIPTION: lme4 stays under Suggests, for the tests and the help's links;
-reformulas leaves it, nothing else naming it.
+H. lme4 as a suggested package.
+1. The two operators go; every helper is the package's own copy. reformulas leaves Suggests, nothing else naming
+   it; lme4 stays, for the fits, the tests and the help's links. No call names lme4 outside C.1, G and H.2.
+2. One internal function answers whether lme4 is used: the option `stan4bart.lme4` is not FALSE and
+   `requireNamespace("lme4", quietly = TRUE)`. The option is how a test runs the paths without lme4 on a machine
+   that has it.
 
 ## Change
 
-stan4bart, by file: a new R file for B to E; `stan4bart()` (the argument, the initial-fit block replaced, G);
-the fit function and the chain worker (the pair handed down and installed); the restore and `summary`; the C++
-creation and sweep loop (F.2, D); the lme4-derived source file (H); DESCRIPTION; tests; help; NEWS; its TODO
-(per-chain-leaf-prior-anchor closes). Here: this plan's Status and Landing note, the design note's Status, TODO,
-the ledger entry, and the amendment of response-scale-rows named below.
+stan4bart, by file: a new R file for B to E and G; `stan4bart()` (the argument, B.1, the initial-fit block
+replaced); the fit function and the chain worker (the pair handed down and installed); the restore and
+`summary`; the two C++ flags; the lme4-derived source file (H); DESCRIPTION and NAMESPACE (the stats functions
+newly called); tests; help; NEWS; its TODO (per-chain-leaf-prior-anchor closes). Here: this plan's Status and
+Landing note, the design note's Status, TODO, the ledger entry, and the amendment of response-scale-rows named
+below.
 
 What a user sees:
 - Every continuous fit's draws change at a given seed, and at 200 rows the posterior moves by the amounts in the
-  design note's section 3.7. Chains share one prior.
+  design note's section 3.7. Chains share one prior. The estimated range is never wider than the response's own.
 - `bart_range`; `range.bart`, `range.route`, `range.fallback`, `range.info`; the summary's line; the verbose
-  lines; one new warning.
-- `predict`, `fitted` and `extract` return what they did in shape. `extract(type = "trees")` reports leaf values
-  in one internal unit for every chain: at a row, a tree's value times the range's width, summed over a draw's
-  trees, plus the range's middle, is that draw's fit. `sampler.bart` is still one sampler per chain.
-- A fit with rows of weight zero, or with an offset, starts from corrected values and takes its range from the
-  rows of positive weight.
-- A binary fit's draws change at a given seed (its start). A seed gives the same draws with lme4 installed or
-  not, and a build made beside lme4 runs without it.
-- A fit saved before the change reloads as it does today, each chain at its own range; it has no `range.bart`.
+  lines; the warnings of A, E and G.
+- A model with random terms fitted without lme4 warns, and its draws differ from the same seed's with lme4; they
+  can also differ between versions of lme4. A model with no random term never uses lme4.
+- `bart = list(...)` no longer reaches `bart_args` by partial matching; R reports it as ambiguous.
+- Weights beside a row dropped for a missing value no longer stop the fit, and an offset beside one is aligned
+  with its rows (such a fit's results change).
+- A formula held in a variable fits, and the initial fit no longer runs a hidden BART fit.
+- `extract(type = "trees")` reports leaf values in one internal unit for every chain: at a row, a tree's value
+  times the range's width, summed over a draw's trees, plus the range's middle, is that draw's fit.
+  `sampler.bart` is still one sampler per chain; `predict`, `fitted` and `extract` keep their shapes.
+- A fit with rows of weight zero or an offset starts from corrected values; a binary fit starts on the
+  linear-predictor scale. A fit saved before the change reloads as today and has no `range.bart`.
 
 Constraints: no dbarts code; no new dependency; no size or time constant chooses a route; `mvbart` untouched.
-Out of scope: one sampler for every chain, splines, a learned range, a drawn k, a dbarts method setting the range.
+Not in scope: one sampler for every chain, splines, a learned range, a dbarts method setting the range; and two
+defects that predate the slice, for TODO: a reload of a fit with gp leaves replays 0.013 off its stored fits,
+and `extract(type = "ranef")` stops ("subscript out of bounds") on a `||` term.
 
 ## Tests
 
-New file for the range. Fixtures of 150 to 400 rows; fits of 2 chains and 20 to 40 sweeps on 1 core unless said.
-The route function is called directly on a `stan4bart(iter = 0)` object where no sampling is needed.
-- Definition: two grouping terms, a fixed column, weights with zeros, an offset and a factor inside `bart()`.
-  `range.bart` equals, within 1e-4 of its width, the range over the rows of positive weight of the response less
-  the offset less the own part of `lme4::lmer` fitted to those rows with the forest's columns added (skipped
-  without lme4); the starting offset and sd agree likewise.
-- Columns (rules 1 to 3), on the column builder: a logical, an ordered factor, a log term; a constant, a sum of
-  two columns and a copy of the model's own fixed column dropped, the model's own kept; an unordered factor as
-  levels - 1 indicators; the grouping factor inside `bart()` and a factor finer than it left out and named; a
-  factor coarser than it kept.
-- Shared and held: after a fit with warm-up and `keepTrees`, every chain's state records a pair identical to
-  `range.bart`, and every sampler's `getLeafPrior` reports it.
-- The helper: its vector holds the lower end exactly once, on the first row of positive weight, for weights zero
-  on the even rows, on the odd rows, on all but two rows, and absent; installed on a sampler it lands exactly in
-  each case; a pair is installed on a sampler created at another range and the same state predicts identically.
-- Routes: "lm" equals `lm.wfit`'s range computed in the test within 1e-10 of the width; "response" is
-  `identical` to `range((y - offset)[weights > 0])`; a pair is `identical` to itself, route "supplied". Traced:
-  the routine is called once under "mixed" and never under the other three. A model with no random term
-  records "lm".
-- dec-B444: 30 rows and 40 forest columns give route "response", fallback "undefined", zero warnings (counted
-  with `withCallingHandlers`), the fallback line once under `verbose = 1` and nothing under 0. With the routine
-  stubbed to stop: fallback "failed" and exactly one warning. A singular fit (no group effect) keeps route
-  "mixed" with no warning.
-- The argument: each refusal by its words (length 3, NA, the upper end first, "MIXED", "splines", a function);
-  NULL is "mixed"; a binary response with "lm" warns once and has a NULL `range.bart`.
-- Restore: a fit with zero weights on every second row, saved and read back, predicts its stored fits within
-  1e-10; so does a fit object rebuilt without `range.bart` from two chains whose states record different pairs.
-- lme4: no function of the namespace has lme4's or reformulas's namespace as its environment; a seeded fit is
-  `identical` before and after `loadNamespace("lme4")`.
+Mechanisms: "without lme4" is `options(stan4bart.lme4 = FALSE)`, restored on exit; a failing fit is a function
+that stops, passed as the route function's fitter argument. A test that calls lme4 itself sits inside
+`requireNamespace("lme4", quietly = TRUE)`. Fits are 2 chains of 20 to 40 sweeps on 1 core unless said; the route
+function is called directly on a `stan4bart(iter = 0)` object where no sampling is needed.
 
-New file for the routine, skipped without lme4; lme4's criterion is `mkLmerDevfun`'s on the same pieces.
-- Criterion: at lme4's optimum and two other settings the routine's criterion equals lme4's plus the sum of the
-  log weights within 1e-8 relative, and its coefficients, b and sd at lme4's theta agree within 1e-8.
-- Optimum: range ends within 1e-3 of the width, sd within 1e-3 relative, criterion no more than 0.05 above
-  lme4's (the boundary stop of Context was 0.017 and 2.7e-4 of the width).
-- Models, on CRAN: a correlated intercept and slope; three correlated effects on 15 levels and on 6; a slope
-  with a crossed intercept; `||`; no group effect; a slope proportional to its intercept; nested terms with
-  weights and an offset; crossed 500 by 200 at 1e4 rows; 25,000 nested groups at 1e5 rows. At home: crossed 1000
-  by 1000 at 1e4 rows, three crossed factors with slopes at 1e4 rows, crossed 5000 by 2000 at 1e5 rows.
+- Kept rows (B.1): a fixture with a missing forest value, a missing fixed value, a missing response, a zero
+  weight and an offset, with and without `subset`: weights, offset, response and designs have one length; the
+  offset and weights equal the kept rows' by position; the fit runs.
+- Definition, with lme4: two random terms, one a correlated slope, weights with zeros, an offset, a factor and an
+  exact copy of a model column inside `bart()`: `range.bart`, the starting offset and the coefficients equal,
+  within 1e-6 of the width, those computed in the test from `lme4::lmer` on the written-out formula over the
+  rows of positive weight. A grouping level with no row of positive weight starts at zero.
+- Columns (rules 1 to 3), on the column builder: a logical, an ordered factor, a log term; a constant, a sum of
+  two columns and a copy of the model's own column dropped, the model's own kept; an unordered factor as levels
+  - 1 indicators; the grouping factor inside `bart()` and a factor finer than it left out and named; a coarser
+  one kept. B.5: a forest holding only the model's own column prints its line, and equals the model's own fit.
+- Shared and held: with a supplied pair far from the data's own, and under "mixed" with zero weights and an
+  offset, every chain's state records a pair identical to `range.bart` after warm-up and every sampler's
+  `getLeafPrior` reports it; once more at home on 2 workers.
+- The helper: its vector holds the lower end exactly once, on the first row of positive weight, for weights zero
+  on the even rows, on the odd rows, on all but two rows, and absent; installed, it lands exactly in each.
+- Routes: "lm" equals `lm.wfit`'s range computed in the test within 1e-10 of the width; "response" and each
+  fallback are `identical` to `range((y - offset)[weights > 0])`; a pair is `identical` to itself. Traced: lme4's
+  builder is called once under "mixed" and never under the other three, nor for a model with no random term. The
+  starting sd equals the sd of `y - offset - own` over the rows in, under each route.
+- The table of E, each row asserting the pair, the two record fields, the warnings counted with
+  `withCallingHandlers` and the lines captured under `verbose` 1 and 0: without lme4 (one warning naming lme4;
+  none under "lm", "response", a pair, or a model with no random term); 30 rows and 40 forest columns; one
+  random effect per row; a failing fitter (one warning); a forest column 0.99995 correlated with the model's own
+  ("wider", no warning, the response's own pair, start zero); a singular fit keeps "mixed" with no record.
+- The argument: "resp" is "response"; "splines", a function, length 3, NA, the upper end first and
+  `c(-1e308, 1e308)` stop by their words, also at `iter = 0`; a pair of 1000 to 1001 on data near 50 warns once
+  and is used; a binary response with "lm" warns once and has a NULL `range.bart`; `bart = list()` stops.
+- `offset_type`: under each of the five the route function's pair equals the D formula from the test's own lme4
+  parts; "parametric" calls no fitter.
+- Binary: with lme4 the starting offset equals `glmer`'s linear predictor less offset and intercept terms within
+  1e-4; without it, `glm.fit`'s, with one warning; a separated fixture starts at zero; a formula held in a
+  variable fits, for both families, and no BART output is printed by the initial fit.
+- Restore: a fit with zero weights on every second row, saved and read back, predicts its stored fits within
+  1e-10; so does a fit rebuilt without `range.bart` from two chains whose states record different pairs;
+  `summary` of it prints no range line.
+- lme4 as suggested: no function of the namespace has lme4's or reformulas's namespace as its environment.
 
 Edits: the serialization tests' precondition that no two chains share a range becomes that all do, and its
 leaf-sum identity uses the one pair; the weights-and-offset tests gain a zero weight; the at-home accuracy
-thresholds of the continuous and binary tests are rerun over five seeds (a seed moves if a threshold holds on
-four of five; else stop).
+thresholds are rerun over five seeds and reported, and a threshold that fails is a stop, not a moved seed.
 
-Reviewer's mutants, each of which must fail a test: the added columns left out; a factor's guard removed, or
-turned on a coarser factor; indicators for an ordered factor; the model's own column dropped for its copy; the
-offset subtracted twice, or not at all; zero-weight rows left in the fit, or in the range; the own part holding
-the intercept, or the added columns' part, or uncentered; either C++ flag back to true; the helper's vector
-alternating, or its lower end on row 1 whatever the weight; the read-back removed with the install skipped; "lm"
-running the mixed model; "response" reading every row; a pair sorted; an unknown string read as "mixed"; a
-warning on "undefined", none on "failed", a fallback on a singular fit, the fallback taken from the model's own
-fit; an old fit restored at creation's range; an operator left on one helper; in the routine, the weights' root
-dropped from Zw, log|RX| dropped, n for n - p, the penalty u'u dropped, the permutation dropped, Lambda not
-refreshed.
+Reviewer's mutants, each of which must fail a test: weights or offset left uncut; the added columns left out; a
+factor's guard removed, or turned on a coarser factor; indicators for an ordered factor; the model's own column
+dropped for its copy; lme4 handed the unpruned columns; the offset subtracted twice, or not at all; zero-weight
+rows left in the fit, or in the range; the own part holding the intercept, or the added columns' part, or
+uncentered; the starting sd taken from the fit; either C++ flag back to true; the helper's vector alternating,
+or its lower end on row 1 whatever the weight; the install skipped; "lm" calling lme4; "response" reading every
+row; the bound removed, applied to a pair, or replacing one end; a fallback keeping the fit's start; no warning
+without lme4, or one for a model with no random term; a warning on "undefined"; none on "failed"; a fallback on
+a singular fit; the n-effects check removed; a pair sorted; an infinite width accepted; the argument unchecked at
+`iter = 0`; the binary start on the probability scale, or from the call; an operator left on one helper.
+
+## Verification
+
+In stan4bart, on the slice's own library `<lib>` holding the dbarts under test and lme4, at most 2 cores:
+
+    R CMD INSTALL --preclean -l <lib> .
+    NOT_CRAN=true R_LIBS=<lib> Rscript -e 'tinytest::test_package("stan4bart")'
+    R_LIBS=<lib-without-lme4> Rscript -e 'tinytest::test_package("stan4bart")'
+    R CMD build <clean copy>; R_LIBS=<lib> R CMD check --as-cran stan4bart_*.tar.gz
+    _R_CHECK_DEPENDS_ONLY_=true R_LIBS=<lib> R CMD check --as-cran stan4bart_*.tar.gz
+
+Each ends with no failure, error or warning of the check's own; the last two differ only in the tests that sit
+behind lme4, and the help's example, whose model has random terms, runs in the last with the lme4 warning. Then
+the two gate scripts as stan4bart's benchmarks README gives them, and in dbarts
+`Rscript tools/check-doc-freshness.R .`.
 
 ## Gates and baselines
 
-- Before anything else replaces lme4: the routine's test file green, its at-home models included (dec-B442).
-- stan4bart's tinytest at home (`NOT_CRAN`) and `R CMD check --as-cran` from a tarball built from a clean copy,
-  each on a library holding lme4 and on one that does not, the package installed there; at most 2 cores.
 - stan4bart's CI: check-standard, sanitizers, and gates. Its exactness gate must pass unchanged. Its posterior
-  gate compares five recorded tiers; the four continuous tiers are reported against the recorded baseline, not
-  gated (the posterior changed), then all five are re-recorded and the MANIFEST row says why. The binary tier
-  must pass against the old baseline before the re-record: that is part of dec-B443's check.
-- dec-B443's check, rule fixed here: the documented binary model and a random intercept on groups of 4 and of
-  25, at 500 and 2000 rows, 5 seeds, 4 chains of 1000 + 1000; the branch before the slice with lme4 installed,
-  the built package, and the former at another seed. The new start passes if, in every cell, its paired
-  difference from today's in the error of the fitted probability and in split error has an interval containing
-  zero or a size no larger than the rerun's.
-- Consumers: bartCause's test suite on its dbarts-1.0 branch against the result (its `group.by` fits build `y ~
-  (1 | g) + bart(...)`, and it reads only whether `sampler.bart` is NULL); a seeded pin that moves is reported
-  with old and new value. dbarts's [revdep-smoke.yaml](../../.github/workflows/revdep-smoke.yaml) dispatched
-  once on the result. treatSens and bairrtt do not use stan4bart.
-- dbarts: `Rscript tools/check-doc-freshness.R .` for the records; nothing else here moves.
+  gate compares five recorded tiers: the binary tier must pass against the recorded baseline (its start changed,
+  its posterior did not); the four continuous tiers are reported against it, not gated; then all five are
+  re-recorded and the MANIFEST row says why.
+- Consumers, the three CRAN packages that suggest stan4bart. bartCause: its test suite on its dbarts-1.0 branch
+  with the built stan4bart and lme4 installed (its `group.by` fits build `y ~ (1 | g) + bart(...)`); a seeded
+  pin that moves is reported with old and new value. The bartCause leg of dbarts's
+  [revdep-smoke.yaml](../../.github/workflows/revdep-smoke.yaml) runs without stan4bart and is not this gate.
+  tidytreatment and WeightIt: their CRAN sources searched for calls of `stan4bart(` and of `bart =`, then
+  `R CMD check` of each tarball with the built stan4bart installed; a failure is reported, not repaired here.
 
 ## After the build
 
-A rerun of the design's deciding cells on the built package against the branch before the slice, same data and
-seeds, 4 chains of 1000 + 1000, 2 cores: many small groups at 200 rows (20 seeds) and 1000 (10), the control at
-200 (20), the group-level factor at 1000 (10), weights and an offset at 1000 (10). About 140 fits. Rule, fixed
-here:
-1. In every fit the built range equals, within 1e-3 of a width, the range computed in the script from
-   `lme4::lmer` with the forest's columns added (the Definition test's oracle).
+A rerun of the design's deciding cells on the built package (lme4 installed) against the branch before the
+slice, same data and seeds, 4 chains of 1000 + 1000, 2 cores: many small groups at 200 rows (20 seeds) and 1000
+(10), the control at 200 (20), the group-level factor at 1000 (10), weights and an offset at 1000 (10). About
+140 fits. Rule, fixed here; a miss on any is a stop for the orchestrator, with the table:
+1. In every fit the built range equals, within 1e-6 of a width, the range computed in the script from
+   `lme4::lmer` on the written-out formula, and dec-B447's bound takes over in none.
 2. At 1000 rows no accuracy quantity is worse under the design's rule (interval excluding zero on the bad side
    and a mean beyond 3 percent).
 3. Many small groups at 200 rows: expected-value error between +0.4 and +5.0 percent and split error between
    -14.3 and -0.3 percent against today's (the design's intervals widened by their own half-width).
 4. The control at 200 rows: neither quantity worse.
-A miss on any is a stop for the orchestrator, with the table.
+
+Reported beside it and gated on nothing, the cost of running without lme4: a random intercept on groups of 4 and
+of 25 at 500 rows, binary and continuous, 10 seeds, with lme4, without it, and with it at another seed (120
+fits). With 10 seeds a difference of about 1 percent in the fitted mean's error shows (the half-widths were 0.6
+and 1.6 percent at 5). The help's sentence on fitting without lme4 quotes what it finds.
 
 ## Help and docs
 
-- The `bart_range` item of stan4bart's help: what the range is (the prior on the forest's function has its mean
-  at the middle and, at `k = 2`, a standard deviation of a quarter of the width); the default and its definition;
-  the three other values and when each serves ("lm" for large crossed grouping factors, where the mixed model
-  can outlast the sampler, at a cost in small samples; a pair, for example `range(y)`, where the range is known
-  or a strongly curved group-level effect is expected); that too narrow a range leaves group-level signal in
-  the random effects and too wide a one costs accuracy and mixing in small samples; the two cases of the design
-  note's [7. What does not work](../design/stan4bart-response-range.md#7-what-does-not-work) (as many added
-  columns as rows; as many group-level covariates as groups) as cases for a pair; that the fit can be
-  interrupted between evaluations and a verbose fit says what it will compute. No timing is quoted.
-- Value: the four elements of E.2; `sampler.bart` unchanged. The generics' help: the unit of extracted leaf
-  values, as in Change. Details: the initial fit is the package's own; lme4 is not used.
+- The `bart_range` item: what the range is (the prior on the forest's function has its mean at the middle and,
+  at `k = 2`, a standard deviation of a quarter of the width); the default and its definition; that an estimated
+  range is never wider than the response's own, and that a user who wants another gives a pair, for example
+  `range(y)`; "lm" for large crossed grouping factors, where the mixed model can outlast the sampler, at a cost
+  in small samples; that too narrow a range leaves group-level signal in the random effects and too wide a one
+  costs accuracy and mixing in small samples; that a strongly curved group-level effect is a case for a pair.
+  No list of cases in which the estimate runs wide (dec-B447), and no timing.
+- lme4, in Details: it fits the initial mixed model when installed; without it a model with random terms takes
+  the response's own range (a binary fit a simpler start) with a warning, and results differ from those with
+  it. The `verbose` item names the two lines. Value: the four elements of E.1. The generics' help: the unit of
+  extracted leaf values.
 - NEWS, under upgrading: the range and its argument, with "results differ from earlier versions, including
-  under a fixed seed"; that zero-weight rows and an offset no longer enter the range twice or at all; that lme4
-  is no longer used when fitting and a binary fit's start changed.
+  under a fixed seed"; `bart =` no longer abbreviates `bart_args`; the kept-rows fix; the binary start's scale;
+  that a package built where lme4 is installed now runs where it is not.
 
 ## Steps
 
-Each ends with the suite green on the slice's own library.
-1. The routine (C) and its test file, lme4 untouched. ~230 lines. STOP for the orchestrator if any model misses
-   a tolerance (dec-B442's condition); its time beside lme4's on the at-home models is reported.
-2. Rows, columns and routes (B, D, E), the argument (A), the record and the lines, with their tests; the fit
-   still samples as today. ~330 lines.
-3. The install (F): the helper, the worker, the two C++ flags, the restore, the summary; the shared-and-held,
-   helper and restore tests and the edits. ~210 lines.
-4. Binary start (G) and lme4 out (H), with dec-B443's check. ~150 lines. STOP if the check fails, or before
-   building G at all if Open call 2 is unanswered.
-5. Help, NEWS, stan4bart's TODO. ~70 lines.
-6. After review: the confirming measurement, the posterior baseline's re-record, the consumer runs. ~125 lines.
+Each ends with the suite green on the slice's own library. Steps 1 and 2 change no draw where lme4 is installed
+and may land first, together; steps 3 to 5 land together (a range computed and not installed, or installed and
+not documented, is no state to leave the branch in).
+1. Kept rows (B.1) with its fixture. ~45 lines.
+2. The operators out, reformulas out of Suggests, H.2, the namespace test. ~95 lines, 60 of them mechanical.
+3. The range: A to F and the continuous start, with their tests and the edits. ~560 lines.
+4. The binary start (G) with its tests. ~120 lines.
+5. Help, NEWS, stan4bart's TODO. ~80 lines.
+6. After review: the confirming measurement and the table beside it, the posterior baseline's re-record, the
+   consumer runs. ~110 lines.
 7. Records here. ~55 lines.
 
-Stop when: the diff passes ~1700 lines; a tolerance of the routine's file is missed; the helper's read-back
-fails on any fixture; the exactness gate or the binary posterior tier moves; a test fails that Tests does not
-name; the change needs dbarts code; a rule of After the build is missed.
+Stop when: the diff passes ~2100 lines; the helper's read-back fails on any fixture; lme4's functions refuse the
+pieces on the lme4 under test; the exactness gate or the binary posterior tier moves; a test fails that Tests
+does not name; the change needs dbarts code; a rule of After the build is missed.
 
 ## Against response-scale-rows
 
@@ -343,109 +377,43 @@ that plan's rule 4 reads every row).
 
 ## Calls made
 
-The orchestrator's, written in by its direction: the enriched fit's width is accepted as it comes, with no
-factor toward today's method; rows of weight zero leave the initial fit and the range now, not with
-response-scale-rows; the restore of one sampler per chain stays, and only how a sampler is put on the range
-changes; the design's rules 1 to 11 stand; the binary starting-offset fault is fixed here; a fallback is
-announced under verbose and recorded, with a warning only for a numerical failure.
+The orchestrator's, written in by its direction: the fitted width is accepted as it comes up to dec-B447's
+bound, with no factor toward today's method; the bound holds for every estimated route, "mixed" and "lm"; rows of
+weight zero leave the initial fit and the range now, not with response-scale-rows; the restore of one sampler
+per chain stays; the design's rules 1 to 11 stand, but for the starting sd below; a fallback inherent in the data
+is a verbose line, one a user can repair (lme4 missing) or a failure is a warning; names are matched with
+`match.arg`; a pair that misses the data wholly warns and any other pair is the user's number; `bart =` stops
+abbreviating `bart_args`.
 
 The planner's:
+- The starting sd is the spread of what the forest is first given, not the fit's residual sd (rule 4's second
+  half): Context's last run, and it is what today's fit supplies in effect, its residual holding the forest's
+  signal. Rejected: the fit's sd bounded by a constant; the fit's sd kept where the bound does not take over.
+- A fallback takes the "response" route whole. Rejected: the response's ends with the fit's start, whose own part
+  is what made the range wide.
 - The install is the made-up response, by documented methods, with a read-back. Deferred: a documented dbarts
-  method setting the pair through the engine's existing entry, about 60 lines of R, help and tests there and a
-  new public method before the release candidate, with no change to the flat C header unless a C caller wants it
-  (then a minor version and a new hash). Rejected: calling the undocumented bridge entry from stan4bart.
-- nlminb at 1e-8. Rejected: `optim`'s L-BFGS-B (run on seven models: no better criterion, 6 to 416 evaluations
-  for nlminb's 6 to 285, and it refuses a non-finite value); nlminb's default tolerance (criterion within 1e-7
-  of lme4's for 4.5e-5, at 6 to 340 evaluations; at 1e-8 the range is already within 2e-5 of a width of lme4's).
-- A boundary stop at a singular fit is accepted (1 of 22 comparisons, 2.7e-4 of a width): rule 10.
-- A pair fits no mixed model; its start is the linear fit's. Rejected: the mixed fit for the start, which the
-  user supplying a pair to avoid it would still pay for; a zero start.
-- A model with no random term records "lm", what ran; "undefined" is no residual degree of freedom, "lm" too;
-  a zero-width range is left to dbarts's handling of a constant response, as today.
-- The record is four elements beside `sampler.bart`, not attributes of the pair. `range.bart` is the name the
-  help carried until dec-A197 removed it.
-- A binary response with a named range warns and fits (rejected: stopping, for a wrapper that passes one value
-  to both of its fits; silence).
+  method over the engine's existing entry, about 60 lines there. Rejected: calling the undocumented bridge entry.
+- lme4's fit is read from the criterion's environment, as its own constructor reads it; that constructor refuses
+  our frame. An error there, on any version of lme4, is the "failed" fallback with its warning, and the
+  Definition test shows it on CRAN's checks.
+- The check for a random term with n effects is ours, in lme4's words' meaning; lme4's builder skips it.
+- The option of H.2 is internal and not in the help. Offered to the orchestrator: documenting it would let a user
+  reproduce on one machine the fit of a machine without lme4.
+- The binary guard is `glm.fit`'s own report of non-convergence or of fitted probabilities of 0 or 1.
+- A pair fits no mixed model; its start is the linear fit's. `range.route` is what was asked; a model with no
+  random term records "mixed" with `range.info`'s fit "linear", so `range.fallback` means one thing.
+- Under an `offset_type` other than the default the range follows what the forest's offset holds and the C++
+  creation is left alone. Rejected: a C++ edit to start those types from the fit, with no reader to test it by.
 - reformulas leaves Suggests with its operator: the same defect, and identical parses on six formulas (run).
-- Under an `offset_type` other than the default the start and the range follow what the forest's offset holds.
-
-## Open calls
-
-### 1. Two corners where the default range comes out too wide
-
-Background. The initial fit gives the forest's covariates straight-line terms so that they can compete with the
-random effects for signal. Where there are almost as many such terms as there is data to estimate them from,
-they take too much, and the range comes out wider than it should. Two cases. (i) Few groups and many covariates
-that are constant within a group: with 8 groups and 10 such covariates the covariates reproduce the 8 group
-means exactly, the fit hands the forest all the variation between groups (range 1.32 to 1.35 times the right
-width), and the sampler's random-intercept sd came out 1.62 where the data were generated with 4, its interval
-covering 4 in 7 of 19 fits; with 6, 4 and 2 such covariates the range is 1.22, 1.17 and 1.07 times the right
-width. (ii) Nearly as many forest covariates as rows: with 159 at 200 rows the range is 1.42 times the right
-width and expected-value error 6.8 percent [5.5, 8.1] above today's method; with 59, 1.16 times. The design's
-idea for both, falling back to the response's own range whenever the fit puts a random effect's variance at zero
-that the fit without the forest's columns does not, was screened for this plan on 20 data sets a cell: it would
-have fired in 0 of 20 in each corner (1 of 20 with 6 group-level covariates), and the range it falls to is wider
-still (1.63 and 1.78).
-- (a) Leave the default as designed; the help names both cases and says to give a pair there. Nothing to build.
-  Cost: the numbers above for a user who does not read it. How realistic: 8 groups with several group-level
-  covariates is common (regions, sites), 10 for 8 extreme; 150 covariates on 200 rows with random effects is
-  rare.
-- (b) Where the fixed columns reproduce a grouping factor's indicators exactly (case (i) at its extreme, found by
-  a rank comparison with no tuning number), use the range of the model's own fit, without the forest's columns:
-  about 25 lines and a second fit of the same cost. In the 8-group cell that range gave a random-intercept sd of
-  4.06, covering in 20 of 20. Cost: it does nothing until the covariates reach the number of groups, so the
-  range jumps from about 1.3 to 0.62 of the right width between 6 and 7 covariates; it does nothing for case
-  (ii); and that range is the one that loses 10 to 20 percent of split accuracy with many small groups.
-- (c) The design's trigger with the response's own range. Cost: a second fit for a rule that did not fire.
-
-Recommended: (a). A user in either corner has a way out in one argument, and neither rule on offer helps a user
-who is near a corner without being in it. A measurement could decide between (a) and (b) only: 8 groups with 2,
-6, 7 and 10 group-level covariates at 200 and 1000 rows, 20 seeds, chains of 5000 + 5000 (nothing with 8 groups
-converged at the default length), (a) against (b) against today's method. Rule: adopt (b) if, in both cells where
-it acts, the random-intercept sd's interval covers the generating value in more fits than (a)'s by more than the
-difference between two runs of (a), and its expected-value error is not worse under the 3 percent rule.
-
-### 2. What a binary fit starts from when a grouping factor has many levels
-
-dec-B443 names the route; this is a cost its record does not carry, so it comes back as a question.
-
-Background. A binary fit takes no range from the initial fit, only the values its first sweep starts from. With
-lme4 no longer used, that start is a probit regression with each grouping factor entered as ordinary indicator
-columns. That regression is dense in the number of groups. Run for this plan: at 8,000 rows in 2,000 groups of 4
-it took 353 seconds where lme4's probit mixed model took 0.7; at 2,000 rows in 500 groups, 6 seconds for 0.15;
-it holds rows times groups numbers, 20 GB at 100,000 rows in 25,000 groups. And once the start is put on the
-linear-predictor scale, as it should be, groups whose outcomes are all 0 or all 1 are fitted exactly: with
-groups of 4 the start is beyond 4 in size (a probability under 0.0001 or over 0.9999) on 41 to 44 percent of
-rows, where the mixed model's runs from -0.7 to 1.3. Also run: the start hardly matters. Over 30 fits at 500
-rows, swapping lme4's start for the indicator regression's (both on the probability scale, as today) moved each
-row's fitted probability by a median 0.026 to 0.046 posterior sd, where two runs with the same start differ by
-0.025 to 0.040.
-- (a) As ruled. Cost: the minutes and the memory above for a user with thousands of groups, who today (with lme4
-  installed) waits under a second; the extreme start, unmeasured.
-- (b) Start from a probit regression on the fixed columns only, the random effects not in the start: about 5
-  lines fewer than (a) (it is today's last resort), 0.01 seconds at any number of groups. Cost: a start that
-  ignores the groups, which the run above suggests costs nothing after warm-up; not measured for (b) itself.
-- (c) Fit a probit mixed model inside stan4bart by repeating the new routine on a working response: about 40
-  lines and a second numerical routine to hold to lme4 in the tests. Cost: that upkeep, for one sweep's start.
-
-Recommended: (b), if dec-B443's check passes for it. The maintainer wanted no run-time lme4 and a start that does
-not depend on what is installed; (b) gives both at no cost in time. The check (Gates and baselines) is run with
-(b)'s start in place of (a)'s, under the same rule; if (b) fails it and (a) passes, (a) is built with the help
-saying how long it can take.
-
-## Found against the record
-
-- dec-B443 says stan4bart prefers lme4's helpers "at load". The choice is made when the package is installed.
-  Run: a build made beside lme4 holds lme4's and reformulas's own functions; loaded where neither is installed it
-  attaches, then stops at the first call (`could not find function "chk.cconv"`). A build made without them
-  holds stan4bart's copies. H removes both operators, which also repairs this.
-- The design found the fitted-probability start on the lme4 route. The route without lme4 has it too: `fitted`
-  on a `glm` ignores `type = "link"` (run: values 1.6e-9 to 1 where the linear predictor runs -5.9 to 5.9).
-- The design's fallback trigger for its two corners does not fire in them (Open call 1).
+- The critique's items on the withdrawn routine (its optimizer, its tolerance, its boundary stop, one random
+  effect per row as its problem) are moot; the last became C.2.
 
 ## Not verified
 
-Nothing was built in stan4bart. The routine's numbers are the prototype's, to 5000 by 2000 crossed levels. Read
-and not run: nlminb's handling of an Inf trial value, L-BFGS-B's refusal of one. Not run: the `offset_type` rule,
-the zero-width rule, the old-fit restore, Open call 2's option (b), the helper on a build with
-response-scale-rows, bartCause's suite and stan4bart's posterior gate, an older Matrix, Windows, a threaded BLAS.
+Nothing was built in stan4bart. lme4's functions were run on 2.1.0 only, and not on a model with more than two
+random terms beyond the timing cases. Not run: the route function as a whole, the bound inside a sampler, the
+starting-sd rule in a fit, the `offset_type` rule, the zero-width rule, the old-fit restore, the binary start on
+the linear-predictor scale, `glm.fit`'s guard on a separated fixture, the helper on a build with
+response-scale-rows, the cost of a many-level forest factor's indicator columns, a check with
+`_R_CHECK_DEPENDS_ONLY_`, bartCause's suite, tidytreatment's and WeightIt's use of stan4bart (not read),
+stan4bart's posterior gate, Windows, forked workers.
