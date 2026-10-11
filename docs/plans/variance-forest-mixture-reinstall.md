@@ -76,16 +76,17 @@ variance forest's `base` and `power` are its own and are not touched here.
 
 ## Tests
 
-- tests/cpp, a new test in test_sampler.cpp, reading the installed fields through a new
-  [`TestPeer`](../../tests/cpp/test_peer.hpp) accessor: after `setModel` the variance forest's six
-  probabilities and width are the model's and its base and power are creation's; a heteroscedastic sampler
-  handed the model before any run draws bitwise what creation under it draws, as a mean-only one does.
-- tinytest, a new file test-variance-forest-mixture.R, heteroscedastic single chain: frozen by setControl
-  after growing sweeps, the mean trees (getTrees) and the variance surface's cells (rows grouped by equal
-  getVariance values) both stand over the following sweeps while the surface's values keep moving;
-  setControl before any run equals creation under the control, once for a changed mixture and once for a
-  changed width alone; a live sampler and its copy both stand after the frozen install; a sampler handed
-  its own unchanged control draws what a twin that never calls setControl draws.
+- tests/cpp, [`testVarianceForestMixtureInstall`](../../tests/cpp/test_sampler.cpp), reading the installed
+  fields through [`TestPeer::varianceForest`](../../tests/cpp/test_peer.hpp): after `setModel` the variance
+  forest's six probabilities and width are the model's and its base and power are creation's; handed the
+  model before any run, a heteroscedastic sampler draws bitwise what creation under it draws, as a
+  mean-only one does; a frozen install holds the variance trees.
+- tinytest, test-variance-forest-mixture.R, one heteroscedastic chain: frozen by setControl after growing
+  sweeps, the mean trees (getTrees) and the variance trees (read off the stored state; the surface's cells
+  are no reader, rows of one cell differing by rounding history) stand while the surface keeps moving, on
+  the sampler and on its copy; setControl before any run equals creation under the control, for a changed
+  mixture and for a changed width alone; a sampler handed its own control and model draws what a twin
+  that calls neither draws.
 - Mutants, each failing a named expectation: the block removed; the width left out; one probability left out.
 
 ## Verification
@@ -105,14 +106,14 @@ variance forest's `base` and `power` are its own and are not touched here.
 
 - The fix is the reinstall, not a record of why not: creation gives the variance forest the control's
   mixture and width, and a copy already takes the new ones.
-- The write lives in `Chain::setModel`, beside the mean forest's, so `$setModel` alone re-installs the
-  stored control's mixture on both forests: the values already in force, a bitwise no-op.
-- `Chain::setModel` is not widened to every mean forest: the R surface and the bridge refuse the install
-  on a multi-forest sampler, and the rest of the install (leaf scale, tree prior) is single-forest there.
+- The write sits beside the mean forest's, so `$setModel` alone re-installs the mixture in force: a no-op.
+- `Chain::setModel` is not widened to every mean forest: R and the bridge refuse a multi-forest install.
 
 ## Not verified
 
-- No exact-posterior gate changes the mixture part way through a run on a heteroscedastic sampler. The
-  claim that the stationary distribution stands rests on each mixture being a valid kernel for the
-  variance forest, which creation under any mixture already relies on.
-- Several chains: by construction ([`Sampler::setModel`](../../src/bartcore/sampler.hpp) loops them), no test.
+- No checked-in exact gate changes the mixture part way through a heteroscedastic run. A scratch copy of
+  heteroscedastic-exact.R part (b) switching two mixtures by setControl every 500 sweeps passed in quick
+  mode (s^2 gap 0.023 against 0.110, f gap 0.001 against 0.035).
+- Several chains ([`Sampler::setModel`](../../src/bartcore/sampler.hpp) loops them) and an aft sampler (one
+  scratch run: frozen by setControl, its variance trees stand) have no test. The width and one-probability
+  mutants ran against tests/cpp only; the tinytest ran against the block removed.
