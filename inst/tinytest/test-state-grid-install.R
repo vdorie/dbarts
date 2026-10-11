@@ -1089,10 +1089,17 @@ expect_identical(tree$flags, c(3L, 0L, 0L))
 
 # a state stored before the column's first missing value has its sides
 # drawn before any split is moved: the draws are the ones a twin makes that
-# takes the state on its own grid and has its grid replaced afterwards
+# takes the state on its own grid and has its grid replaced afterwards. Its
+# first tree holds a rule on the column that the move merges away, which
+# takes its draw all the same, so the sides of every rule after it and the
+# generator are the twin's only where the draws come first
 donor <- make()
 invisible(donor$run(0L, 3L))
-stored <- stateOf(donor)
+stored <- withTree(
+  stateOf(donor),
+  c(1, 1, -1, -1, -1),
+  c(fine[25L], fine[10L], 0.1, -0.2, 0.05)
+)
 expect_identical(attr(stored, "missing.columns"), c(FALSE, FALSE))
 sampler <- holed()
 twin <- holed()
@@ -1100,8 +1107,11 @@ sampler$setCutPoints(coarse, 1L)
 expect_null(sampler$setState(stored, forceUpdate = TRUE))
 twin$setCutPoints(attr(stored, "cutPoints"))
 expect_null(twin$setState(stored, forceUpdate = TRUE))
+expect_identical(firstTree(stateOf(twin))$vars, c(1L, 1L, -1L, -1L, -1L))
 twin$setCutPoints(coarse, 1L, splits = "value")
 moved <- stateOf(sampler)
+expect_identical(firstTree(moved)$vars, c(1L, -1L, -1L))
+expect_identical(firstTree(moved)$values[1L], coarse[1L])
 expect_identical(moved, stateOf(twin))
 sides <- bitwAnd(as.integer(moved[[1L]]$forests[[1L]]$tree.flags), 1L) == 1L
 expect_true(any(sides[moved[[1L]]$forests[[1L]]$tree.vars == 1L]))
