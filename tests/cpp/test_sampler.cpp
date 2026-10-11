@@ -8808,6 +8808,141 @@ static void testForestCalibration() {
          calibration.priorScale);
 }
 
+// The every-row unit, as the engine has always computed it: the sample sd of
+// a working response in two passes. Kept statement for statement, so the
+// compiler treats it as it treats the engine's.
+static double everyRowSd(const double* yScaled, size_t n) {
+  double mean = 0.0;
+  for (size_t i = 0; i < n; ++i) mean += yScaled[i];
+  mean /= static_cast<double>(n);
+  double sumSquares = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    double d = yScaled[i] - mean;
+    sumSquares += d * d;
+  }
+  return std::sqrt(sumSquares / static_cast<double>(n - 1));
+}
+
+// The unit a forest's sd is stated in, for a gaussian model of several
+// forests: the sample sd of the working response over the rows its range was
+// read from. With a row out that is the sd of the rows in, one less than
+// their count in the divisor; with none out it is the every-row loop's value
+// to the last bit, at sizes that would show a reordered sum. A carried anchor
+// replaces either.
+static void testForestUnitRowsIn() {
+  std::uint64_t state = 20261016u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const size_t p = 2, numChains = 2;
+  SamplerOptions options;
+  options.numChains = numChains;
+  struct Built {
+    std::unique_ptr<ConstantLeafSampler> sampler;
+    std::vector<ext_rng*> rngs;
+    Built() = default;
+    Built(Built&&) = default;
+    ~Built() {
+      sampler.reset();
+      destroyDrawRngs(rngs);
+    }
+  };
+  std::vector<double> x, y, basis;
+  auto build = [&](size_t n, const double* weights, double anchor) {
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[0].forest.numTrees = 12;
+    spec.forests[0].amplitudePriorScale = 2.0;
+    spec.forests[1].forest.numTrees = 8;
+    spec.forests[1].nodeScaleDivisor = 0.674;
+    spec.forests[1].amplitudePriorVariance = 0.5;
+    spec.forests[1].basis = basis.data();
+    spec.forests[1].numBasisColumns = 2;
+    spec.anchor = anchor;
+    Built built;
+    built.rngs = makeDrawRngs(numChains, 9400);
+    built.sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, weights, nullptr, 1.0, 3.0,
+      0.37804942330213542, options, spec, built.rngs.data());
+    return built;
+  };
+  auto fill = [&](size_t n) {
+    x.resize(n * p);
+    y.resize(n);
+    basis.resize(2 * n);
+    for (double& v : x) v = unif();
+    for (size_t i = 0; i < n; ++i) {
+      double zi = unif() < 0.5 ? 1.0 : 0.0;
+      basis[2 * i] = 1.0 - zi;
+      basis[2 * i + 1] = zi;
+      y[i] = 5.0 * x[i] + zi * (1.0 + x[i + n]) + 0.3 * (unif() - 0.5);
+    }
+  };
+  double nan = std::numeric_limits<double>::quiet_NaN();
+
+  // no row out: the every-row loop over the engine's own working response
+  for (size_t n : {64u, 100u, 137u, 250u}) {
+    fill(n);
+    std::vector<double> positive(n);
+    for (double& w : positive) w = 0.25 + 1.5 * unif();
+    Built bare = build(n, nullptr, nan);
+    Built weighted = build(n, positive.data(), nan);
+    double expected =
+      everyRowSd(TestPeer::workingResponse(bare.sampler->chain(0)), n);
+    bool same = true;
+    for (size_t c = 0; c < numChains; ++c)
+      for (size_t f = 0; f < 2; ++f)
+        if (bare.sampler->forestCalibration(c, f).mapAnchor != expected ||
+            weighted.sampler->forestCalibration(c, f).mapAnchor != expected)
+          same = false;
+    check(same && expected > 0.0,
+          "with no row out the unit is the every-row loop's, bit for bit");
+  }
+
+  // rows out, holding the response's extremes, the rows in at fractional
+  // weights: the unweighted sd of the rows in over their own range
+  const size_t n = 137;
+  fill(n);
+  std::vector<double> weights(n);
+  double lo = 0.0, hi = 0.0, mean = 0.0, sumSquares = 0.0, numIn = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    bool in = i % 3 != 0;
+    weights[i] = in ? 0.25 + 1.5 * unif() : 0.0;
+    if (!in) {
+      y[i] += i % 2 == 0 ? 50.0 : -50.0;
+      continue;
+    }
+    if (numIn == 0.0 || y[i] < lo) lo = y[i];
+    if (numIn == 0.0 || y[i] > hi) hi = y[i];
+    mean += y[i];
+    numIn += 1.0;
+  }
+  mean /= numIn;
+  for (size_t i = 0; i < n; ++i)
+    if (weights[i] > 0.0) sumSquares += (y[i] - mean) * (y[i] - mean);
+  double literal = std::sqrt(sumSquares / (numIn - 1.0)) / (hi - lo);
+  {
+    Built out = build(n, weights.data(), nan);
+    bool same = out.sampler->fitScale() == hi - lo;
+    for (size_t c = 0; c < numChains; ++c)
+      for (size_t f = 0; f < 2; ++f)
+        if (std::fabs(out.sampler->forestCalibration(c, f).mapAnchor /
+                        literal - 1.0) > 1.0e-14)
+          same = false;
+    check(same, "with rows out the unit is the sd of the rows in");
+    double everyRow =
+      everyRowSd(TestPeer::workingResponse(out.sampler->chain(0)), n);
+    check(everyRow > 10.0 * literal,
+          "which the sd over every row is far from, so the literal can fail");
+    Built carried = build(n, weights.data(), 0.125);
+    check(carried.sampler->forestCalibration(0, 0).mapAnchor == 0.125 &&
+            carried.sampler->forestCalibration(1, 1).mapAnchor == 0.125,
+          "a carried anchor replaces the unit, rows out or not");
+  }
+  printf("ok: forest unit over the rows in the likelihood\n");
+}
+
 /// The leaf prior's named sd inside the engine. A fixed sd is the k that
 /// states it against the data's scale, and a prior on the sd is the chi
 /// prior on k at that scale, so each is checked against the reader's own
@@ -9710,6 +9845,7 @@ void runSamplerTests(ext_rng* rng) {
   testWarmStartMissingDirections();
   testLogLikelihood();
   testForestCalibration();
+  testForestUnitRowsIn();
   testNamedSd();
   testForestMapWriters();
   testBCFCalibrationMap();

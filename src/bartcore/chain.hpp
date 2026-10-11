@@ -7056,11 +7056,33 @@ private:
     return std::sqrt(sumSquares / static_cast<double>(n - 1));
   }
 
+  /// scaledResponseSd over the rows \p rows marks (a nonzero byte each), one
+  /// less than their count in the divisor: the anchor where the response
+  /// model read its range from the rows in the likelihood alone.
+  double scaledResponseSdOver(const unsigned char* rows) const {
+    std::size_t n = data_.numObservations, numRows = 0;
+    const double* yScaled = response_->workingResponse();
+    double mean = 0.0, sumSquares = 0.0;
+    for (std::size_t i = 0; i < n; ++i) {
+      if (rows[i] == 0) continue;
+      mean += yScaled[i];
+      ++numRows;
+    }
+    mean /= static_cast<double>(numRows);
+    for (std::size_t i = 0; i < n; ++i) {
+      if (rows[i] == 0) continue;
+      double d = yScaled[i] - mean;
+      sumSquares += d * d;
+    }
+    return std::sqrt(sumSquares / static_cast<double>(numRows - 1));
+  }
+
   /// The scale the K-forest calibration map states every forest's node scale
   /// against: the family's own latent scale, so that `forest(sd = )` names one
   /// unit of the scale the combined index actually lives on.
   ///
-  ///   gaussian - the sample sd of the range-scaled working response
+  ///   gaussian - the sample sd of the range-scaled working response, over
+  ///              the rows the response model read its range from
   ///   probit   - 1, the standard normal link's error sd
   ///   logistic - pi/sqrt(3), the logistic law's standard deviation
   ///
@@ -7096,7 +7118,8 @@ private:
     // value: the map's expressions are bitwise-sensitive to reassociation, and
     // the O(n) scan must not run on a family that does not use it, where a
     // later reader would mistake it for the anchor
-    return scaledResponseSd();
+    const unsigned char* rows = response_->scaleRows();
+    return rows != nullptr ? scaledResponseSdOver(rows) : scaledResponseSd();
   }
 
   /// The unit a forest's node scale is stated PER: the median of the NONZERO
