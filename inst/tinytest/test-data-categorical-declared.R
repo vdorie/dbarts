@@ -114,6 +114,21 @@ expect_equal(
   match(labels.mut, levels.gap) - 1
 )
 rm(sampler.col, whole)
+# once the training column has held a missing value its test column takes
+# one: by the record of it, the training column now holding none
+sampler.seen <- dbarts(train.gap, y.gap, test = test.gap, control = control)
+for (column in c("g", "x1")) {
+  expect_true(
+    sampler.seen$setPredictor(replace(train.gap[[column]], 3L, NA), column)
+  )
+  expect_true(sampler.seen$setPredictor(train.gap[[column]], column))
+  expect_silent(
+    sampler.seen$setTestPredictor(replace(test.gap[[column]], 2L, NA), column)
+  )
+}
+expect_false(anyNA(sampler.seen$data@x))
+expect_identical(unname(is.na(sampler.seen$data@x.test[2L, ])), c(TRUE, TRUE))
+rm(sampler.seen)
 
 # STILL BOUNDED: a label past the declared ones is refused by name, and a
 # code at the declared count is out of range on the matrix side

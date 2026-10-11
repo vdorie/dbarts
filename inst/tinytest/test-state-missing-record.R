@@ -110,7 +110,6 @@ for (bad in list(c(TRUE, FALSE), c(1, 0, 0), c(TRUE, NA, FALSE), "x1")) {
   state <- before
   attr(state, "missing.columns") <- bad
   refusal <- if (is.logical(bad) && !anyNA(bad)) inconsistent else malformed
-  twin <- make()
   for (force in c(FALSE, TRUE)) {
     expect_error(sampler$setState(state, forceUpdate = force), refusal)
   }
@@ -492,9 +491,22 @@ for (case in list(
     sides(recipient, TRUE),
     rep(1:2, each = length(sides(recipient, TRUE)) / 2L)
   )
+  # each chain holds rules on x1
+  expect_identical(length(drawn), 2L)
   for (chain in drawn) {
     expect_true(all(chain == case$sides))
   }
+}
+# a donor state whose record is not one is refused, where a state with no
+# record is taken
+for (bad in list(c(1, 0, 0), c(TRUE, NA, FALSE), "x1")) {
+  misrecorded <- stored(donor)
+  attr(misrecorded, "missing.columns") <- bad
+  expect_error(
+    receiving(3L)$installTrees(misrecorded),
+    "malformed missing-value columns in warm-start donor",
+    fixed = TRUE
+  )
 }
 
 # The draw comes before the install merges what the rows leave empty. A
