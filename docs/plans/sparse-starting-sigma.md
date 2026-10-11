@@ -148,10 +148,12 @@ holds n by p doubles. D differs from `lm.fit`, at any size: in dec-B421's band, 
 carries signal and on rows weighted 1e12 times the rest (carried); on a value recorded on the rows of two or more
 levels of a factor with a large offset and a small spread (1.325 for 0.501; run); on two complete sets of a caller's
 own one-hot columns under weights that are not whole numbers, by one rank and 8e-8 in sigma on 1 of 30 designs at n
-6e6 and none of 36 at 1e6 and 3e6 (fix round; one set, or unit weights, is exact at every n run, to 3.2e7; not on a
-frame's factor; before that round one set alone gave a rank too many from n 21,000, on 31 of 120 designs, and
-this sentence put it near n 3e6); and downward where `lm.fit` drops a time within 60 s beside its indicator and D
-keeps it (run).
+6e6 and none of 36 at 1e6 and 3e6 (fix round; one set, or unit weights, is exact at every n run, to 3.2e7; a frame's
+factor does not show this, but where a factor is eliminated and the weights take few values (0.1, 1, 7) what is left
+of the intercept grows with n, 7.4e-11 at 1.2e7 rows, and would cross the 1e-10 tolerance near 1.6e7, the rank right
+on 30 of 30 designs up to 1.2e7; before that round one set alone gave a rank too many from n 21,000, on 31 of 120
+designs, and this sentence put it near n 3e6); and downward where `lm.fit` drops a time within 60 s beside its
+indicator and D keeps it (run).
 
 E. No regression defined (dec-B429). Under a fixed residual prior none of E.2 to E.6 applies.
 1. Value: `sd(y - offset)` through [`floorMarginalSigma`](../../R/utility.R), as today. No warning.
