@@ -333,21 +333,23 @@ items
     and slow fits, the fallback when the range cannot be estimated
     (dec-B437, VD 2026-10-10). About 1260 lines planned for the
     per-chain data, after response-scale-rows.
-  stan4bart-creation-mapping: stan4bart fixes its response mapping at
+  stan4bart-creation-mapping: stan4bart fixes its response range at
     creation from a richer initial fit, shared by every chain and
     never re-derived (dec-B437): the model's own terms plus the
-    forest's columns as linear fixed effects (dec-B441), fitted
-    inside stan4bart over Matrix and held to lme4 on large crossed
-    models in the tests (dec-B442); lme4 has no run-time use left, a
-    binary fit starting from glm, once a check shows binary results
-    after warm-up do not move (dec-B443); where that fit cannot be
-    computed the range is the response's own, less any offset
-    (dec-B444). A user sets it by bart_range: a pair of numbers, or
-    "mixed" (the default), "lm" (the fit without the random terms)
-    or "response" (dec-B445). Plan next. With it: the per-chain
-    restore's alternating-response vector lands on the wrong mapping
-    when zero weights fall on one parity (dec-A197), to be replaced
-    by the shared mapping's restore. Before the merge to main.
+    forest's columns as linear fixed effects (dec-B441), fitted by
+    lme4, which stays a suggested package; a model with random terms
+    and no lme4 installed warns and falls back, a continuous fit to
+    the response's own range and a binary fit to a probit start on
+    its fixed columns (dec-B446, revising dec-B442 and dec-B443).
+    Where the fit cannot be computed the range is the response's own,
+    less any offset (dec-B444), and the estimated range is never
+    wider than that (dec-B447). A user sets it by bart_range: a pair
+    of numbers, or "mixed" (the default), "lm" or "response"
+    (dec-B445). Plan: docs/plans/stan4bart-creation-mapping.md, in
+    build. Found beside it in stan4bart and not in the slice: a
+    reloaded fit with gp leaves replays its stored fits 0.013 off;
+    extract(type = "ranef") stops on a `||` term. Before the merge to
+    main.
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
@@ -1004,46 +1006,6 @@ items
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
     leave n.threads out of the call to dbarts when the guess is NA.
-  state-before-first-missing: a state stored before a column's first
-    missing value and installed after it sends every missing value
-    left with no draw, in current trees and kept draws, and setState
-    reports a clean install (dec-A198). Ruled: the state records the
-    columns that could hold a missing value when it was stored, and
-    an install into a sampler where a further column can draws those
-    splits' directions at one half (dec-B435, VD 2026-10-10); a warm
-    start does the same from the donor's record (dec-B440). Its own
-    slice, after setState's two forms. Before the merge to main.
-  factor-first-missing-setpredictor: a factor column's first missing
-    value by setPredictor is refused at the R surface; ruled: lift
-    the refusal, a factor column taking it as a numeric column does
-    (dec-B436, VD 2026-10-10; the engine needs no change, dec-A198).
-    About 5 lines and three test pins; with state-before-first-missing.
-    Before the merge to main.
-  first-sight-kept-one-way-rule: the first-sight draw takes a coin for
-    a kept subset rule that sends no category right and the missing
-    value right; drawn left, the kept draw is malformed and the sampler
-    can no longer install, copy or reload its own state ("state is not
-    consistent with this sampler"), though predict still answers. Such
-    rules reach a never-flagged sampler only in kept draws copied from
-    another sampler's state (a state from a sampler with missing
-    values in a factor, installed where the factor is complete), and
-    are hit when that column then gets its first missing value
-    (setData today; setPredictor once dec-B436 lands). Run 2026-10-10
-    on c4ea26ab: 11 of 11 seeds holding such a rule (39 tried) could
-    not reinstall; 4 of 4 without the other sampler's state could.
-    Fixed with state-before-first-missing: such a rule keeps its
-    direction and takes no coin. Before the merge to main.
-  test-column-missing-not-refused: setTestPredictor(column =) takes a
-    missing value in a numeric test column whose training column never
-    held one, and the next run fits the row, where the whole test set
-    and predict refuse it (dec-B322). Found planning
-    state-before-first-missing, 2026-10-10; fixed with it. Before the
-    merge to main.
-  first-missing-test-seeds: three tests of missingness first seen hold
-    by one seed (the row declined for emptying a leaf, the two-forest
-    block, and the joint sweep's every-row form, which loses its kill
-    silently if the plain sampler declines the last row); search for
-    the seed and assert the precondition.
   copy-merge-weight-order: after a forced setCutPoints or refresh that
     merges, a copy's merged leaf can differ from its original's by one
     unit in the last place when the leaf's weights do not sum exactly
@@ -1056,20 +1018,6 @@ items
     invisibly when it is built, as a forced setPredictor and setState
     do (dec-B310); with the warm start's slices. Before the merge to
     main.
-  setstate-test-gaps: from the review of setState's two forms
-    (2026-10-10; the code is right in the reviewer's probes): a kept
-    store repacked on a sampler with a pooled factor is untested and a
-    mutant clearing the saved masks there crashes R in getTrees; no
-    test pins that a declined install skips the latent
-    reconciliation (a logistic sampler under other weights); four
-    expectations in test-state-missing-direction.R sit in an arm its
-    seed never takes; the capacity agreement across chains and across
-    mean forests, and a decline across cut grids, are tested only by
-    the fuzzer; negbin-mixing.R and sbc.R drop setState's value; the
-    help does not say that after a forced install that repaired a
-    tree the state field holds the state as given (dec-A199). About
-    60 lines of tests and one help sentence; with
-    state-before-first-missing. Before the merge to main.
   precision-floor-edge-values: the floor that refuses scales and
     Polya-Gamma variates that are not positive and finite passes a
     value at the edge of what a double holds: a variate of 1e-320 in a

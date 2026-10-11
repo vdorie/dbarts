@@ -1,8 +1,7 @@
 # state-before-first-missing: a state records which columns could be missing, and an install draws what it lacks
 
-Status: PLANNED (dec-B435, dec-B436, dec-B440; read with dec-B305, dec-B310, dec-B318, dec-B320 to dec-B322,
-dec-B378, dec-B398 to dec-B402, dec-A198, dec-A199). Revised from its blind critique, then against Part B of
-[setstate-force-update.md](setstate-force-update.md) AS LANDED (b95ac390..062ef59a; section 6). No open call.
+Status: LANDED 2026-10-11 as a66b8f65..d180dcc2 (dec-B435, dec-B436, dec-B440, dec-A201). See the
+[Landing note](#landing-note).
 
 agent: opus implementer, one; one opus reviewer who runs the mutants below.
 rng: SHIFTING on four paths: an install whose state's record lacks a column the sampler has flagged (coins from
@@ -354,3 +353,30 @@ sections mark rerun, the suite probe, the arms of test-state-missing-direction.R
 claim cited by symbol; Part B's landing note; dec-A199, dec-B440; step G's two TODO items. Not run, no build of
 the slice existing: the completion, the exempt rule, the warm start's draw, every mutant and new test; tests/cpp
 was not built; the review's crash under the masks mutant and 06 (0.9-34) were not rerun.
+
+## Landing note
+
+Landed 2026-10-11 as a66b8f65..d180dcc2: one opus implementer, one opus review that ran 55 mutants of its own and found
+nothing blocking, a fix round of tests, and an x86 run of tests/cpp plain and under the address, undefined-behavior
+and leak sanitizers and of tinytest. Nothing recorded moved: the equivalence baselines (against equivalence-2b48939b,
+which replaced the baseline section 8 names while the slice was in review), the snapshot files and the exact gates
+are bit for bit; every install that draws nothing is what the base build did (253 of 253 in the review's comparison).
+What was built is sections 1 to 5 and step G, with these departures and additions (dec-A201):
+
+- An install that drew is a clean install: TRUE unforced, NULL forced. The sampler's cached state still shows the
+  state as given.
+- A warm start whose donor tree cannot be walked makes no draw and keeps the refusal it had; the plan returned a new
+  one.
+- A record of another length is refused by the engine; the bridge refuses a record that is not logical, holds NA or
+  is empty.
+- The plan's randomized test was unsound: a sampler's own state with a flagged column cleared from its record can
+  complete to a state it would never produce (refused in 26 of 40 seeds). In its place an earlier state completed at
+  an install must reinstall unforced and round-trip (826 of 826 at 600 seeds).
+- The engine tests of the record and of the warm-start draw sit beside the first-seen fixture they reuse.
+- The help sentence that a factor column does not take missing values back through a column update is removed.
+- One test's lambda took a local as its default argument, which g++ refuses and clang accepts; found on the x86 run.
+- Size: about 2,400 lines added beside this plan against about 1,035 planned; about 2,000 of them tests.
+
+The live defect of section 6 is fixed: over 91 seeds, 14 held a kept one-way rule; the sampler reinstalled its own
+state after a first missing value, unforced and forced, in 14 of 14, for 1 of 14 on the base build. Not verified:
+Windows, more than two threads, bench-sampler's timing.
