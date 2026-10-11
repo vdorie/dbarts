@@ -271,6 +271,22 @@ handed over as an object, `do.call(forest, list(basis = B))`.
   test-generics-multithreaded.R 2), and 12, all in test-forest-basis-terms.R, hand two to four columns
   to a numeric forest. Swaps of two numeric columns onto a numeric forest: 7, in test-forest-labels.R
   and test-forest-basis-r5.R.
+- The trace again, step 1.0, on a15b05ca, the tree push 1 is built on, before any edit: the 73 test
+  files that name a basis, 11494 results. 1444 models of several forests in 68 files (1194 of two
+  forests, 236 of three, 14 of four). Per forest with a basis, 1794 in all: two levels 463, of which 5
+  handed over as a value; one numeric column 1018 (a 0/1 column 374, a constant column 31, another
+  613); the six shapes of a refused size 222 in 11 files, the blocks of two indicator columns 91 in 14
+  files, 78 of them through the data door, and the 70 held forests, each file's count as above.
+  `$setForestBasis` reaches the function that reads a replacement 58 times in 12 files, 27 of them
+  against push 1's rule, file for file as above; the one more is a number given to a numeric forest in
+  test-forest-sd-unit.R. `predict` is given `bases` 85 times in 6 files, 29 of them numbers for a
+  forest of levels, of which 10 hand the fit's own `bases` back (8 in test-predict-blend.R, 2 in
+  test-generics-multithreaded.R); one more hands back a numeric forest's. A fit's `bases` is read
+  outside the package 115 times in 8 files, counted by execution and not by line
+  (test-forest-basis-terms.R 48, test-argument-surface.R 32, test-bcf-loglik.R 14,
+  test-predict-blend.R 12, test-bcf-forest-channel.R 3, test-forest-capture.R 3,
+  test-generics-multithreaded.R 2, test-predict-forest.R 1). No count that sizes a step is over the
+  earlier tree's by a fifth.
 - Who reads a fit's `bases`, by search of 37b59ea0. In R/ the three functions named above. In the tests
   21 lines of 8 files: handed back to `predict` in test-predict-blend.R
   (["blendAtTraining"](../../inst/tinytest/test-predict-blend.R), whose first use holds the result to
