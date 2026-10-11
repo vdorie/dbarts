@@ -2476,6 +2476,8 @@ public:
   size_t numTestObservations() const { return data_.numTestObservations; }
 
 private:
+  friend struct TestPeer;
+
   /// The store's cut grid, its weights and everything quantized against it,
   /// copied so that a grid installed for a while can be taken out again byte
   /// for byte. Rank columns re-quantize into their own storage and not into
@@ -2520,7 +2522,9 @@ private:
   /// by the rows install gave them. The trees \p install leaves must be
   /// whole trees with fits on the stored grid, as Chain::setState leaves
   /// them. A false from install puts the store's grid back, moves nothing
-  /// and is returned.
+  /// and is returned. So does a throw, from install or from the
+  /// re-quantization before it: the store's grid, weights and codes are back
+  /// before it leaves, and the chains are as install left them.
   template <typename Install>
   bool installAcrossGrids(
       const std::vector<std::vector<double>>& storedCutPoints,
@@ -2531,12 +2535,18 @@ private:
           storedCutPoints[j] != data_.cutPoints[j])
         moved[j] = storedCutPoints[j];
     GridSnapshot own(data_);
-    for (size_t j = 0; j < data_.numPredictors; ++j)
-      if (!moved[j].empty())
-        data_.setCutPointsForColumn(
-          j, moved[j].data(), static_cast<std::uint32_t>(moved[j].size()),
-          currentPredictors);
-    bool installed = install();
+    bool installed = false;
+    try {
+      for (size_t j = 0; j < data_.numPredictors; ++j)
+        if (!moved[j].empty())
+          data_.setCutPointsForColumn(
+            j, moved[j].data(), static_cast<std::uint32_t>(moved[j].size()),
+            currentPredictors);
+      installed = install();
+    } catch (...) {
+      own.restore(data_);
+      throw;
+    }
     own.restore(data_);
     if (!installed) return false;
     for (auto& chain : chains_)

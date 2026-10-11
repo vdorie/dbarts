@@ -1,5 +1,7 @@
 #include "common.hpp"
 
+#include <stdexcept>
+
 static void testFlattenRoundTrip() {
   // one categorical column (codes 0..3) and one ordinal, a hand-built tree
   // with one rule of each kind
@@ -5473,6 +5475,31 @@ static void testLiveGridInstall() {
   check(usesOthers && refusesLiveUntouched(sampler, recordLacks, x.data()),
         "live grid: a threshold the recorded grid lacks is refused though "
         "the store's holds it");
+
+  // an install step that throws, standing on the recorded grid: the store's
+  // grid, weights and codes are back when the throw leaves
+  {
+    const std::vector<std::vector<double>> points = sampler.data().cutPoints;
+    const std::vector<std::vector<double>> mass = sampler.data().cutMass;
+    std::vector<xint_t> codes = storageDigest(sampler.data());
+    bool thrown = false, onRecorded = false;
+    try {
+      TestPeer::installAcrossGrids(sampler, own.cutPoints, x.data(),
+                                   [&]() -> bool {
+        onRecorded = sampler.data().cutPoints[0] == fine &&
+          storageDigest(sampler.data()) != codes;
+        throw std::runtime_error("install step");
+      });
+    } catch (const std::runtime_error&) {
+      thrown = true;
+    }
+    check(thrown && onRecorded && points[0] == coarse &&
+            sampler.data().cutPoints == points &&
+            sampler.data().cutMass == mass &&
+            storageDigest(sampler.data()) == codes,
+          "live grid: a throw out of the install step puts the store's grid, "
+          "weights and codes back");
+  }
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
 

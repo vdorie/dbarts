@@ -406,6 +406,17 @@ struct TestPeer {
                                  std::size_t k) {
     return prior.weight_[k];
   }
+
+  // Sampler
+
+  /// Sampler::installAcrossGrids with an install step of the test's own.
+  template <typename S, typename Install>
+  static bool installAcrossGrids(
+      S& sampler, const std::vector<std::vector<double>>& storedCutPoints,
+      const double* currentPredictors, Install&& install) {
+    return sampler.installAcrossGrids(storedCutPoints, currentPredictors,
+                                      std::forward<Install>(install));
+  }
 };
 
 }  // namespace bartcore
