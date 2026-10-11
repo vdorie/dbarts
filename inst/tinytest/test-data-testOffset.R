@@ -199,3 +199,46 @@ expect_equal(data@offset.test, 2 * holder$offset[rows])
 data <- dbarts::dbartsData(y ~ x, nameData, weights = holder$weights)
 expect_equal(data@weights, holder$weights)
 rm(nameData, holder, rows, data)
+
+# the substitution reaches every use of the name as a variable and skips only
+# the member after $ or @
+subTerm <- dbarts:::subTermInLanguage
+repl <- quote(base)
+expect_identical(
+  subTerm(quote(s$offset[te]), quote(offset), repl),
+  quote(s$offset[te])
+)
+expect_identical(subTerm(quote(s@offset), quote(offset), repl), quote(s@offset))
+expect_identical(
+  subTerm(quote(s@offset[te]), quote(offset), repl),
+  quote(s@offset[te])
+)
+# the left side of $ and @ is a variable, whatever its position
+expect_identical(subTerm(quote(offset$x), quote(offset), repl), quote(base$x))
+expect_identical(subTerm(quote(offset@x), quote(offset), repl), quote(base@x))
+expect_identical(
+  subTerm(quote(offset[te]), quote(offset), repl),
+  quote(base[te])
+)
+# the second argument of any other call (the third element) is a variable too
+expect_identical(
+  subTerm(quote(pmax(0, offset, 1)), quote(offset), repl),
+  quote(pmax(0, base, 1))
+)
+expect_identical(
+  subTerm(quote(f(a, offset$offset, b)), quote(offset), repl),
+  quote(f(a, base$offset, b))
+)
+
+nameData <- data.frame(y = rnorm(30), x = rnorm(30))
+base <- rnorm(30)
+rows <- 1:8
+data <- dbarts::dbartsData(
+  y ~ x,
+  nameData,
+  nameData[rows, ],
+  offset = base,
+  offset.test = pmin(10, offset[rows], 20)
+)
+expect_equal(data@offset.test, base[rows])
+rm(nameData, base, rows, data, subTerm, repl)
