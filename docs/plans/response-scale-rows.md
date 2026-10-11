@@ -848,8 +848,8 @@ C. `updateScale` on `setWeights` and `setActiveRows`: planned in
    two setters through the same status, facade path and holder flag (dec-B364, dec-B405), and the C API
    gains nothing, no flat entry setting weights or a mask. The by-hand count sampler's call,
    `setActiveRows(spec$active, updateScale = TRUE)`, and its loop form go into dbartsSpec's help
-   (dec-B363), with a sentence and a test that `setState` does not undo a re-derivation. That plan holds
-   one open call, on a multinomial sampler.
+   (dec-B363), with a sentence and a test that `setState` does not undo a re-derivation. A multinomial
+   sampler refuses the argument, and that plan holds no open call.
 D. dec-B304: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the
    rows in at creation, held, re-derived by `updateStandardization`; `xbart`'s folds taking their own.
    Waits on: the record slices of TODO `state-frame-prior` (a state install today replaces the

@@ -969,6 +969,23 @@ items
     data its record. Cut points still span every row. Before 1.0-0,
     and before the merge if it can be. Stated at the end of
     docs/plans/response-scale-rows.md and not planned.
+  rederive-same-range-ulp: a re-derivation that finds the range in
+    force again is not a no-op in bits. GaussianResponse::setOffset
+    and setResponse at updateScale = TRUE take sigma and its prior
+    through * range_ then / range_, which can move sigma by one ulp
+    (run 2026-10-11 on d5b637ee): after setOffset(offset in force,
+    updateScale = TRUE) and no other change, 15 of 200 one-chain
+    gaussian samplers then draw differently from an untouched twin,
+    setResponse on the same 15 seeds; with two chains and an offset,
+    7 of 25 gaussian, 11 of 25 Student-t and 4 of 25 aft; at most
+    2.5e-15 in a draw over 1000 sweeps. updateScale = FALSE is inert
+    (200 of 200), and probit, logistic, ordinal and nbinom are inert
+    at TRUE (0 of 25 each). setWeights and setActiveRows with
+    updateScale = TRUE inherit it (docs/plans/response-scale-rows-c.md).
+    Leaving sigma and its prior alone where the range did not move
+    shifts draws of both response setters, so it takes that class's
+    re-record. After 1.0-0 unless a slice touching that function takes
+    it.
   bartcause-thread-default: on bartCause's dbarts-1.0 branch, bcf.R
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
