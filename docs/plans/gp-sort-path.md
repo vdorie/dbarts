@@ -170,9 +170,11 @@ too); `& 63` or `* 64` wrong, or bits read from the top (every equality); the wo
 round-up (row n - 1 at 110 and 500 rows, the helper's assert and the address sanitizer); `memberBits_`
 not resized (the reinitialized leaf, same); the bitmap allocated where it cannot be used, or not where it
 can (its size); a constant of the predicate moved (the table); the in-order return dropped (the pointer);
-eviction against the unsorted span (the held entry). One mutant no test sees: `sortedMembers` calling the
-comparison helper whatever the predicate says returns the same array, and only the box's reading below
-catches it; the reviewer runs that reading on the mutant, or says it was not run.
+eviction against the unsorted span (the held entry). `sortedMembers` calling the comparison helper
+whatever the predicate says returns the same array, and as planned only the box's reading below caught
+it; as built a test does: `testGPLeafSortedMembers` leaves a member's bit set before the dispatch, which
+only the walk clears ("a gp leaf sorts by the method its rule names"), so no mutant here waits on a
+timing.
 
 ## Verification
 
