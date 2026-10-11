@@ -582,6 +582,48 @@ pins the identity bitwise across shuffled spans and
 test-gp-leaves.R checks copy, `setState` and reload against an
 uninterrupted twin.
 
+2026-10-11, the sort itself. An in-order span is still returned as it
+stands. One out of order is sorted by one of two methods, as
+[`GPGaussianLeaf::sortsByBitmap`](../../src/bartcore/model.hpp) rules:
+[`GPGaussianLeaf::sortMembersByBitmap`](../../src/bartcore/model.hpp)
+sets each member's bit in a bitmap over the observations (`memberBits_`,
+one bit a row) and reads the set bits back word by word, clearing each
+word as it goes, where the span has at least 16 members and the bitmap at
+most 6 words a member;
+[`GPGaussianLeaf::sortMembersByComparison`](../../src/bartcore/model.hpp)
+copies the span and calls `std::sort` otherwise. A span holds distinct
+observation indices, which have one ascending arrangement, so the two
+return the same array and the rule chooses a cost, never a value: no draw
+moves, for any sampler. `reinitialize` leaves the bitmap unallocated
+where the rule refuses the largest gp leaf the data can hold (cap 64:
+above 24576 rows; cap 256: above 98304), since the rule grows with the
+member count and no span under the cap can then pass.
+
+The rule is read off a microbenchmark of the two methods on spans in
+random order (x86-64 Linux, g++ 13.3; ns a span, `std::sort` then the
+bitmap walk):
+
+| rows (bitmap words) | 8 to 15 members | 16 to 31 | 32 to 64 |
+|---|---|---|---|
+| 500 (8) | 83.5, 63.0 | 273, 80 | 699, 107 |
+| 2000 (32) | 82.5, 101 | 275, 162 | 701, 214 |
+| 8000 (125) | 82.5, 144 | 275, 215 | 700, 358 |
+
+From 16 members the walk wins in every cell; under 16 it wins only at
+500 rows, by 20 ns. The walk's cost in the bitmap's length puts the
+crossing at 16 members near 100 words, hence 6 words a member, a limit
+interpolated between the measured rows and not timed at its edge. In
+place, a prototype under an earlier rule (8 members, 4 words a member)
+ran a warm sweep at cap 64, 500 rows and 50 trees in 0.941 of its base's
+time on identical chains, and a cold one in 0.934: there 80 of a sweep's
+301 leaf evaluations are gp computations, 96 percent of them on a span
+out of order. `testGPLeafSortedMembers` calls each method at every span
+size against `std::sort`, reads which method the dispatch ran from a
+member's bit left set beforehand (only the walk clears it), and pins the
+rule's two boundaries and the bitmap's allocation; a repeated member or
+one past the row count is outside the walk's contract and is caught by
+its assertions, which the shipped build compiles out.
+
 ## Status
 
 Stages 1 (engine), 2 (formats), and 3 (R surface) LANDED, and stage
