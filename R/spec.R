@@ -164,14 +164,15 @@ rowsInLackTwoValues <- function(value, rowsIn) {
 
 ## Whether a data object created with rows out has too little in the
 ## likelihood to read the response's scale or the prior's center from, for the
-## families that take something from the response (gaussian with any residual
-## distribution, aft and nbinom; no other). The scale and the center are then
-## taken over every row, and so is the starting sigma: the caller hands the
-## estimate the data without its weights. 'active' is the mask the weights
-## resolved to, NULL for none. Raises the creation warning unless 'warn' is
-## FALSE.
+## families that take something from the response and can be created with a
+## row out (gaussian with any residual distribution, and nbinom; no other: an
+## aft sampler takes no weights, and a mask reaches it only after creation,
+## where the engine answers). The scale and the center are then taken over
+## every row, and so is the starting sigma: the caller hands the estimate the
+## data without its weights. 'active' is the mask the weights resolved to,
+## NULL for none. Raises the creation warning unless 'warn' is FALSE.
 scaleRowsFallBack <- function(data, family, active = NULL, warn = TRUE) {
-  if (!(family %in% c("gaussian", "aft", "nbinom"))) {
+  if (!(family %in% c("gaussian", "nbinom"))) {
     return(FALSE)
   }
   n <- length(data@y)
