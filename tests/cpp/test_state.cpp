@@ -5274,7 +5274,8 @@ static bool refusesLiveUntouched(S& sampler, const SamplerStateData& state,
 /// in a mean or a variance tree of any chain, is declined without force and
 /// with it leaves what installing it on its own grid and then calling
 /// setCutPoints by value leaves, kept draws untouched. A threshold on neither
-/// grid and another grid on an ordered factor are refused.
+/// grid and another grid on an ordered factor are refused; an adopting
+/// install takes a state recording another grid on an ordered factor.
 static void testLiveGridInstall() {
   std::uint64_t savedRngState = rngState;
   rngState = 271828u;
@@ -5560,10 +5561,20 @@ static void testLiveGridInstall() {
             firstOrdinalSplit(levels.chains[0].forests[0].trees) != nullptr &&
             LiveInstall(ordered, levels, xo.data(), false).clean(),
           "live grid: an ordered factor's state installs on its own grid");
-    check(refusesLiveUntouched(ordered, fiveLevels, xo.data()) &&
-            refusesUntouched(ordered, fiveLevels, xo.data()),
-          "live grid: another grid recorded on an ordered factor is refused, "
-          "adopting or not");
+    check(refusesLiveUntouched(ordered, fiveLevels, xo.data()),
+          "live grid: another grid recorded on an ordered factor is refused "
+          "by an install that keeps the store's");
+    // an adopting install does not hold the record against the state, and
+    // writes no grid on a factor column: the state goes in as stored on the
+    // grid of the store's level count
+    SamplerStateData adopted;
+    bool taken = restoresExactly(ordered, fiveLevels, xo.data());
+    ordered.getState(adopted);
+    check(taken && adopted.cutPoints[0] == levels.cutPoints[0] &&
+            samplerStatesAgree(levels, adopted),
+          "live grid: an adopting install takes a state recording another "
+          "grid on an ordered factor, the column's grid still its level "
+          "count's");
     ext_rng_destroy(orderedRng);
   }
 

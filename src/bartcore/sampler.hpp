@@ -1177,8 +1177,14 @@ public:
   /// the family cannot hold, saved-tree blocks that name different draw
   /// counts, a record of missable columns of another length, a live
   /// threshold that is no point of the grid the state itself records, and,
-  /// on a column the store holds as an ordered factor, whose grid its level
-  /// count fixes, a recorded grid other than the store's.
+  /// without adoptGrid, on a column the store holds as an ordered factor,
+  /// whose grid its level count fixes, a recorded grid other than the
+  /// store's. With adoptGrid that record is not held against the state: no
+  /// install writes a factor column's grid
+  /// (ColumnStore::setCutPointsForColumn), so the store of a sampler just
+  /// created keeps the grid of the levels its data declares, which a
+  /// whole-data replacement can leave other than the one the sampler held
+  /// when it stored the state, and the state is judged on the store's.
   /// lengthscaleRefused names a state whose saved gp draws were made
   /// under other lengthscales than the ones this sampler was given
   /// (Chain::lengthscaleStateFeasible), asked only where a saved draw would
@@ -1289,9 +1295,10 @@ public:
                   !cutMassIsValid(state.cutMass[j],
                                   state.cutPoints[j].size()))) {
         return false;
-      } else if (data_.types[j] == ColumnKind::orderedFactor &&
+      } else if (!adoptGrid && data_.types[j] == ColumnKind::orderedFactor &&
                  state.cutPoints[j] != data_.cutPoints[j]) {
-        // the level count fixes this grid, so another is another column's
+        // the level count fixes the grid the store keeps, so another is
+        // another column's
         return false;
       }
     }

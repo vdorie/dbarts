@@ -829,6 +829,58 @@ sampler <- kindOf("whole")
 expect_identical(cutPointsOf(sampler)[[1L]], c(0.5, 1.5, 2.5))
 expect_identical(withVisible(sampler$setState(states$ordered)), visibly(TRUE))
 
+# an ordered factor after a whole-data replacement declaring fewer levels.
+# The engine keeps the grid of the levels it was created with, the stored
+# state records that grid, and a new engine holds the grid of the levels the
+# data declares now. A copy and a reload are made all the same: the state is
+# not held to the record where the engine is new, its trees go in as stored,
+# and the two then draw alike. The sampler takes its own state back
+levels6 <- ordered(rep_len(c(1L, 3L, 2L, 6L, 4L, 5L, 2L), n))
+kept <- as.integer(levels6) <= 4L
+sampler <- dbarts::dbarts(
+  y ~ a + b,
+  data.frame(a = levels6, b = x[, 2L]),
+  control = controlWith()
+)
+invisible(sampler$run(20L, 1L))
+sampler$setData(dbarts::dbartsData(
+  y ~ a + b,
+  data.frame(y = y[kept], a = droplevels(levels6[kept]), b = x[kept, 2L])
+))
+invisible(sampler$run(0L, 2L))
+sampler$storeState()
+own <- sampler$state
+expect_identical(attr(own, "cutPoints")[[1L]], c(0.5, 1.5, 2.5, 3.5, 4.5))
+expect_true(length(thresholdsOn(own, 1L)) > 0L)
+doors <- list(
+  copy = tryCatch(sampler$copy(), error = conditionMessage),
+  reload = tryCatch(
+    {
+      reloaded <- reloadOf(sampler)
+      invisible(reloaded$getPointer())
+      reloaded
+    },
+    error = conditionMessage
+  )
+)
+made <- vapply(doors, inherits, NA, what = "dbartsSampler")
+expect_identical(
+  made,
+  c(copy = TRUE, reload = TRUE),
+  info = unlist(doors[!made])
+)
+if (all(made)) {
+  for (door in doors) {
+    remade <- stateOf(door)
+    expect_identical(attr(remade, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
+    expect_identical(liveOf(remade), liveOf(own))
+    expect_identical(door$state, own)
+  }
+  expect_identical(doors$copy$run(0L, 5L), doors$reload$run(0L, 5L))
+}
+expect_identical(withVisible(sampler$setState(own)), visibly(TRUE))
+expect_identical(stateOf(sampler), own)
+
 # a subset rule beside a moved column is as stored: the root splits the
 # factor, its left child a threshold the grid lacks with a point left for it
 sampler <- dbarts::dbarts(
