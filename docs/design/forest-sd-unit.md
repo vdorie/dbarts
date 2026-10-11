@@ -1,6 +1,6 @@
 # A forest's sd is in the response's units
 
-Status: BUILT on the slice's branch, not landed: the review and the landing records are ahead. The plan is
+Status: LANDED 2026-10-11 (e84c0dd0 to 37b59ea0, calls dec-A208). The plan is
 [forest-sd-unit.md](../plans/forest-sd-unit.md), which carries the steps, the gates and the calls made in
 planning; this note is the standing statement of the rule. Rulings: dec-B246 as revised, dec-B253, dec-B266,
 dec-B269 as dec-B280 and dec-B282 revise it, and dec-B296, dec-B302 and dec-B309 for the rows the unit is read

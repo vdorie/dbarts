@@ -1,15 +1,15 @@
 # forest-sd-unit: a forest's sd is stated and reported in the response's units, and the engine is handed the statement
 
-Status: PLANNED (dec-B246 as revised, dec-B253, dec-B266; dec-B269 as dec-B280 and dec-B282 revise it;
-dec-B296 and dec-B302 for the rows the unit is read from); rechecked 2026-10-11 against d5b637ee, bartcore
-with the creation slice of [response-scale-rows.md](response-scale-rows.md)
-([Recheck against bartcore](#recheck-against-bartcore)). One open call, on which slice builds dec-B291
-([Open calls](#open-calls)); the steps are written to the option that keeps this plan's rules. Follows
+Status: LANDED 2026-10-11 (e84c0dd0 to 37b59ea0; calls dec-A208; [Landing note](#landing-note)). Rests on
+dec-B246 as revised, dec-B253, dec-B266, dec-B269 as dec-B280 and dec-B282 revise it, and dec-B296 and
+dec-B302 for the rows the unit is read from; rechecked 2026-10-11 against d5b637ee, bartcore with the
+creation slice of [response-scale-rows.md](response-scale-rows.md)
+([Recheck against bartcore](#recheck-against-bartcore)). The one open call, on which slice builds dec-B291,
+went to the multiplier slice ([Open calls](#open-calls)). Follows
 [forest-defaults-by-kind.md](forest-defaults-by-kind.md) and [written-surface.md](written-surface.md),
-landed, and the creation slice of response-scale-rows, built at that tip and landing first. It carries
-what was first planned as the multiplier slice's neutral first push (the engine is handed what was
-stated and holds the rule), gives the reader and `extract` the shape they keep, and takes a named
-single sd (dec-B280).
+landed, and the creation slice of response-scale-rows. It carries what was first planned as the multiplier
+slice's neutral first push (the engine is handed what was stated and holds the rule), gives the reader and
+`extract` the shape they keep, and takes a named single sd (dec-B280).
 
 agent: one push. Opus implementer for the engine, the bridge and the R code; sonnet for the respelled tests,
 the benchmark scripts and the help once the code is fixed; opus reviewer told to refute, and to read the
@@ -898,3 +898,68 @@ shape was run on no build: its count of pins is read, not measured. No reference
 exact gate, sanitizer, x86 run or `R CMD check` was made: that no recorded scenario moves rests on the
 search of the three scripts and the four snapshot files. The consumers were searched at the tips named
 and not built or run. The 5000-sweep table was not rerun whole.
+
+## Landing note
+
+Landed 2026-10-11 as e84c0dd0 to 37b59ea0, 21 commits on 5c3bcdc2, with bartCause's lockstep commit 70ad798
+on its dbarts-1.0 branch (`bcf()`'s `sd.moderate` defaults to NULL, and its two hand-built samplers drop
+`sd = 1`), pushed with it. An opus implementer built the engine, the bridge and the R code (41fc386c,
+ba9f4a15, 9eda35d0, 5bb61ea7, dc34b927, 2de0eefe, 0787f8b1, 49ee1e44); a sonnet implementer the restated
+tests, the BCF exact gates and sbc.R, the help and NEWS, the pin of summary's line and the design note
+(a8e8684f, 4a7b7a77, 8ba72184, 612c61a8, 77562f66, e88b78eb); an opus review with 27 mutants; and a fix round
+(f30f0920, 22f5acf9, 8b87950e, c7ed6d60, 37b59ea0).
+
+Built as planned: the engine divides a stated number once, in `forestMapEntry`, by a unit it derives over the
+rows in the likelihood at the first creation, and R divides nothing; the reader returns the statement with
+`sd` and `sd.stated` beside it; `extract(type = "leaf.prior.sd")` is a list by label; the one forest of a
+single-forest model takes `sd` as its `leaf.prior = normal(sd = )`, and the two stated together are refused;
+a named single sd is taken; a stated sd on a response with no spread is refused. Departures, the calls of
+dec-A208: the record keeps `hasBasis` and the engine's spec `createdWithoutBasis`; a stated sd equal to the
+default's number takes the default's multiple; two engine branches no R call reaches are kept and tested in
+tests/cpp; the three bcf-exact gates state `sd = sdControl * sd(y)`, the reviewer confirming that sd(y) and
+not sd of the scaled response is the oracle's number to 2e-16.
+
+The review found no defect in the shape or in the division (55 of 55 pairs identical to the build before,
+every path checked per chain against a unit computed in R, no seventh path) and five findings, all closed:
+the help called a forest's sd and `normal(sd = )` "not the same thing" where they are one statement; the
+`setForestBasis` path for a stated sd hung on one expectation; two engine branches (the in-force shortcut in
+`Chain::setForestMapSd`, the unit derived from the handed anchor) no test needed; each of the two bit-exact
+rules was pinned in one tier only, the default-number rule by tests/cpp and the reader's return of a stated
+number by tinytest; and, minor, a restated assertion that passed under two mutants, help that said
+`extract(type = "k")` is named by label, and no test of the prior per chain after a write. The fix round
+added a tests/cpp case and a tinytest arm for the basis swap, one tests/cpp case for each branch, a
+tinytest that stretches the response until `sqrt(2 / 3) * u / u` differs from `sqrt(2 / 3)` and tests/cpp
+values that the unit and back do not return, a pin of a stated variance with the forest with no basis
+second, eight reader assertions and a two-chain arm. The eight mutants it targeted fail where they should
+(E04, E05, E07, E08, E11, E14, E16 and B02); no mutant was run on the rebased tip.
+
+Gates at the landed tree (tip 00764fc7 of the combined re-gate, whose tree equals 37b59ea0's but for the
+docs of 5c3bcdc2): tests/cpp 397 ok plain and under ASAN+UBSAN; full tinytest 24124 results, 0 failed, 252
+files; the three bitwise compares 55 of 55, 15 of 15, 11 of 11; the four snapshot files 27 / 0; the 42
+exact-gate commands at `quick`, all exit 0; the composition matrix 269 checks and no disagreement; lintr,
+air, rc-codoc, win-drift, doc-freshness and verify-anchors clean; `R CMD check --as-cran --no-manual` one
+NOTE (the Date field). The interplay probe of this slice with `updateScale = TRUE` on `setWeights`,
+`setActiveRows`, `setResponse` and `setOffset` ran 220 comparisons: a stated sd of 2 stays 2 while
+`k.scale` is re-derived, several forests refuse and are left untouched, and nothing differed in the
+combination; the four unexplained differences are a copy after `setResponse`, which this slice does not
+cause (TODO copy-after-response-swap-ulp). The R-loaded ASAN run of the review's tip (14 files, 3224
+results, 240 refusals, no report) was not repeated at the landed tip.
+
+The x86-64 leg at 00764fc7: tests/cpp 397 ok plain and under ASAN+UBSAN with no sanitizer report; tinytest
+24157 results, 0 failed; the main equivalence compare statistically indistinguishable on 55 scenarios.
+bartCause's suite on the slice with its edit has the same 7 failures, with the same numbers, as on the
+build before; unedited, `sd.moderate = 1` now means one response unit and not one sd(y), which is why its
+commit was pushed with the landing.
+
+Size against the plan: the plan estimated ~2340 lines and forecast 4200 to 5400, stopping at ~5400 or ~1140
+of package code. The landed range is +3314 -1014 over 53 files, 4328 changed lines: package code 611 added
+(src 455, R 156), tinytest 1161 added against ~710 planned, tests/cpp 763 against ~480, benchmarks 39, man
+97, docs 608. Inside the forecast and the stops; the tests ran past the plan because the review added the
+cases above.
+
+Left: dec-B291's default of one unit of the response's scale for a forest with a basis, whatever the number
+of forests, is built in the forest-multiplier slice, and until it lands the reader reports sqrt(2 / K) times
+the unit at three forests or more. What `k` and `k.scale` report for a forest in a model of several forests
+(today k = 1 for each forest and `k.scale` the forest's own prior sd) is decided with forests-shared-total.
+`fit$leaf.prior` is still named `forest<i>` where the reader and `extract` use labels. The consumers' suites
+other than bartCause's, pkgdown and the manual were not run on the landed tip.
