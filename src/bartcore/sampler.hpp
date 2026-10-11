@@ -86,6 +86,13 @@ private:
 /// through installation, nothing has been modified.
 enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 
+/// Outcome of a response or offset swap. scaleKept: the swap asked for the
+/// response transform to be re-derived while a row was out of the likelihood
+/// and the rows in held fewer than two distinct values of what it is derived
+/// from, so the transform in force was kept and the swap made as with
+/// updateScale false. Nothing is raised: the caller decides what to say.
+enum class ResponseUpdateResult { accepted, scaleKept };
+
 /// A whole sampler's serializable state: per-chain states, the store's cut
 /// points (setCutPoints may have replaced the ones creation induces), the
 /// saved-tree write position, and the draw count that position is read
@@ -1685,15 +1692,29 @@ public:
   // Between-sample mutation, fanned out to every chain; new-vector lifetimes
   // are the caller's problem. A re-anchor restates the retained draws in the
   // transform it leaves, so a replay returns what it did before.
-  void setOffset(const double* offset, bool updateScale) {
+  // Whether a re-derivation has too little to read is decided here, once,
+  // from chain 0's response model against the incoming vector: rows are in
+  // by membership, which every chain shares. Where it has, every chain takes
+  // the swap with updateScale false, so none of them branches on the keep.
+  ResponseUpdateResult setOffset(const double* offset, bool updateScale) {
+    bool keep = updateScale && chains_[0]->lacksDistinctRowsIn(
+                                 IncomingVector::offset, offset);
+    updateScale = updateScale && !keep;
     SavedDrawSlots kept = savedDrawSlots();
     for (auto& chain : chains_) chain->setOffset(offset, updateScale, kept);
     if (updateScale) recordAnchor();
+    return keep ? ResponseUpdateResult::scaleKept
+                : ResponseUpdateResult::accepted;
   }
-  void setResponse(const double* y, bool updateScale) {
+  ResponseUpdateResult setResponse(const double* y, bool updateScale) {
+    bool keep = updateScale && chains_[0]->lacksDistinctRowsIn(
+                                 IncomingVector::response, y);
+    updateScale = updateScale && !keep;
     SavedDrawSlots kept = savedDrawSlots();
     for (auto& chain : chains_) chain->setResponse(y, updateScale, kept);
     if (updateScale) recordAnchor();
+    return keep ? ResponseUpdateResult::scaleKept
+                : ResponseUpdateResult::accepted;
   }
 
   /// Makes (min, max) the sampler's transform - the units its chains hold

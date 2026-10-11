@@ -8943,6 +8943,223 @@ static void testForestUnitRowsIn() {
   printf("ok: forest unit over the rows in the likelihood\n");
 }
 
+// A re-derivation that finds too little to read - a row out of the
+// likelihood and the rows in at fewer than two distinct values - KEEPS the
+// transform: the sampler answers scaleKept and every chain is where the
+// same swap with updateScale false leaves it, to the bit, in its transform,
+// its working response, its state and the 20 sweeps that follow. That holds
+// under a variance forest, with kept draws and with a named sd, which the
+// keep does not restate. The vectors that come in span another range than
+// creation's, so a sampler that re-derived from every row instead fails each
+// comparison. With enough to read the answer is accepted and the transform
+// the rows-in one; a constant response with every row in is accepted too.
+static void testScaleKeptStatus() {
+  std::uint64_t state = 20261017u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const size_t n = 90, p = 2, numChains = 2, numSweeps = 20;
+  const size_t four[] = {3, 11, 20, 41};
+  std::vector<double> x(n * p), y(n), yNew(n), offsetNew(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    y[i] = 3.0 * x[i] - 2.0 * x[i + n] + 0.3 * unif();
+    yNew[i] = 1.5 * y[i] + 4.0 + unif();
+    offsetNew[i] = 2.0 * unif() - 3.0 * x[i];
+  }
+  // the four rows hold one value of the incoming response, and one of the
+  // response less the incoming offset; quarters, so the difference is exact
+  const double quarters[] = {1.25, 2.5, 0.75, 3.0};
+  for (size_t k = 0; k < 4; ++k) {
+    y[four[k]] = quarters[k];
+    yNew[four[k]] = 2.0;
+    offsetNew[four[k]] = quarters[k] - 0.5;
+  }
+  std::vector<double> none(n, 0.0), one(n, 0.0), fourIn(n, 0.0), two(n, 0.0);
+  one[7] = 0.6;
+  for (size_t k = 0; k < 4; ++k)
+    fourIn[four[k]] = 0.4 + 0.3 * static_cast<double>(k);
+  two[7] = 0.6;
+  two[9] = 1.7;
+
+  struct Variant {
+    const char* name;
+    size_t numVarianceTrees;
+    bool keepTrees, namedSd;
+  };
+  const Variant variants[] = {{"plain", 0, false, false},
+                              {"variance forest", 5, false, false},
+                              {"kept draws", 0, true, false},
+                              {"named sd", 0, false, true}};
+  struct Built {
+    std::unique_ptr<ConstantLeafSampler> sampler;
+    std::vector<ext_rng*> rngs;
+    Built() = default;
+    Built(Built&&) = default;
+    ~Built() {
+      sampler.reset();
+      destroyDrawRngs(rngs);
+    }
+  };
+  // burnt in and holding recorded draws, every row in
+  auto build = [&](const Variant& variant, const double* response) {
+    SamplerOptions options;
+    options.numTrees = 15;
+    options.numChains = numChains;
+    options.numVarianceTrees = variant.numVarianceTrees;
+    options.keepTrees = variant.keepTrees;
+    Built built;
+    built.rngs = makeDrawRngs(numChains, 9500);
+    built.sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), response, n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, built.rngs.data());
+    if (variant.keepTrees) built.sampler->setTreeStorage(true, 4);
+    if (variant.namedSd) built.sampler->setForestNamedSd(0, 0.7);
+    std::vector<double> sigma(4 * numChains), fits(n * 4 * numChains);
+    Results results;
+    results.sigma = sigma.data();
+    results.trainingFits = fits.data();
+    built.sampler->run(5, 4, results);
+    return built;
+  };
+  auto sweeps = [&](ConstantLeafSampler& sampler) {
+    std::vector<double> out(numSweeps * numChains * (1 + n));
+    Results results;
+    results.sigma = out.data();
+    results.trainingFits = out.data() + numSweeps * numChains;
+    sampler.run(0, numSweeps, results);
+    return out;
+  };
+
+  size_t numKept = 0;
+  for (const Variant& variant : variants) {
+    for (const std::vector<double>* weights : {&none, &one, &fourIn}) {
+      for (bool response : {true, false}) {
+        Built a = build(variant, y.data()), b = build(variant, y.data());
+        a.sampler->setWeights(weights->data());
+        b.sampler->setWeights(weights->data());
+        double lo = 0.0, hi = 0.0, loAfter = 0.0, hiAfter = 0.0;
+        a.sampler->getAnchor(lo, hi);
+        double kBefore = a.sampler->forestCalibration(1, 0).k;
+        ResponseUpdateResult kept =
+          response ? a.sampler->setResponse(yNew.data(), true)
+                   : a.sampler->setOffset(offsetNew.data(), true);
+        ResponseUpdateResult twin =
+          response ? b.sampler->setResponse(yNew.data(), false)
+                   : b.sampler->setOffset(offsetNew.data(), false);
+        a.sampler->getAnchor(loAfter, hiAfter);
+        bool same = kept == ResponseUpdateResult::scaleKept &&
+                    twin == ResponseUpdateResult::accepted && lo == loAfter &&
+                    hi == hiAfter;
+        for (size_t c = 0; c < numChains; ++c) {
+          double chainLo = 0.0, chainHi = 0.0;
+          a.sampler->chain(c).getScale(chainLo, chainHi);
+          ForestCalibration ca = a.sampler->forestCalibration(c, 0);
+          ForestCalibration cb = b.sampler->forestCalibration(c, 0);
+          if (chainLo != lo || chainHi != hi || ca.k != cb.k ||
+              ca.k != kBefore || ca.priorScale != cb.priorScale ||
+              TestPeer::workingSigma(a.sampler->chain(c)) !=
+                TestPeer::workingSigma(b.sampler->chain(c)) ||
+              std::memcmp(TestPeer::workingResponse(a.sampler->chain(c)),
+                          TestPeer::workingResponse(b.sampler->chain(c)),
+                          n * sizeof(double)) != 0)
+            same = false;
+        }
+        SamplerStateData stateA, stateB;
+        a.sampler->getState(stateA);
+        b.sampler->getState(stateB);
+        if (!samplerStatesAgree(stateA, stateB)) same = false;
+        if (sweeps(*a.sampler) != sweeps(*b.sampler)) same = false;
+        check(same, variant.name);
+        ++numKept;
+      }
+    }
+  }
+  check(numKept == 24, "every keep arm ran");
+
+  // enough to read: two rows in at two values
+  {
+    Built a = build(variants[0], y.data());
+    a.sampler->setWeights(two.data());
+    double lo = 0.0, hi = 0.0;
+    check(a.sampler->setResponse(yNew.data(), true) ==
+            ResponseUpdateResult::accepted,
+          "two rows in at two values re-derive");
+    a.sampler->getAnchor(lo, hi);
+    check(lo == std::min(yNew[7], yNew[9]) && hi == std::max(yNew[7], yNew[9]),
+          "onto the range of the rows in");
+    check(a.sampler->setOffset(offsetNew.data(), true) ==
+            ResponseUpdateResult::accepted,
+          "and through setOffset");
+    a.sampler->getAnchor(lo, hi);
+    double d7 = yNew[7] - offsetNew[7], d9 = yNew[9] - offsetNew[9];
+    check(lo == std::min(d7, d9) && hi == std::max(d7, d9),
+          "onto the range of the rows in, less the offset");
+  }
+  // every row in at a constant response: the window, and no keep
+  {
+    std::vector<double> constant(n, 3.0), positive(n);
+    for (double& w : positive) w = 0.25 + unif();
+    Built a = build(variants[0], y.data());
+    a.sampler->setWeights(positive.data());
+    double lo = 0.0, hi = 0.0;
+    check(a.sampler->setResponse(constant.data(), true) ==
+            ResponseUpdateResult::accepted,
+          "a constant response with every row in is accepted");
+    a.sampler->getAnchor(lo, hi);
+    check(lo == 3.0 && hi == 3.0 && a.sampler->fitScale() == 1.0,
+          "and takes the window of width one about its value");
+  }
+  // without updateScale nothing is asked, so nothing is kept
+  {
+    Built a = build(variants[0], y.data());
+    a.sampler->setWeights(one.data());
+    check(a.sampler->setResponse(yNew.data(), false) ==
+              ResponseUpdateResult::accepted &&
+            a.sampler->setOffset(offsetNew.data(), false) ==
+              ResponseUpdateResult::accepted,
+          "a swap that does not ask for the scale reports no keep");
+  }
+  // a count sampler under a mask keeping rows of one count
+  {
+    std::vector<double> counts(n), mask(n, 0.0), exposure(n);
+    for (size_t i = 0; i < n; ++i) {
+      counts[i] = std::floor(4.0 * unif());
+      exposure[i] = 0.5 * unif();
+    }
+    counts[7] = counts[9] = 2.0;
+    mask[7] = mask[9] = 1.0;
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.numChains = numChains;
+    options.shape = 3.0;
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 9600);
+    ConstantLeafSampler sampler(x.data(), counts.data(), n, p, nullptr,
+                                nullptr, ResponseFamily::nbinom, 1.0, 3.0,
+                                0.37804942330213542, options, rngs.data());
+    double lo = 0.0, hi = 0.0, loAfter = 0.0, hiAfter = 0.0;
+    sampler.getAnchor(lo, hi);
+    check(sampler.setActiveRows(mask.data()) &&
+            sampler.setOffset(exposure.data(), true) ==
+              ResponseUpdateResult::scaleKept,
+          "a count sampler keeps its center under a mask of one count");
+    sampler.getAnchor(loAfter, hiAfter);
+    double chainLo = 0.0, chainHi = 0.0;
+    sampler.chain(1).getScale(chainLo, chainHi);
+    check(lo == loAfter && hi == hiAfter && chainLo == lo,
+          "and its center is where it was");
+    counts[9] = 5.0;
+    check(sampler.setResponse(counts.data(), true) ==
+            ResponseUpdateResult::accepted,
+          "and re-derives once the kept rows hold two counts");
+    sampler.getAnchor(loAfter, hiAfter);
+    check(loAfter != lo, "moving the center");
+    destroyDrawRngs(rngs);
+  }
+  printf("ok: a re-derivation with too little to read keeps the scale\n");
+}
+
 /// The leaf prior's named sd inside the engine. A fixed sd is the k that
 /// states it against the data's scale, and a prior on the sd is the chi
 /// prior on k at that scale, so each is checked against the reader's own
@@ -9846,6 +10063,7 @@ void runSamplerTests(ext_rng* rng) {
   testLogLikelihood();
   testForestCalibration();
   testForestUnitRowsIn();
+  testScaleKeptStatus();
   testNamedSd();
   testForestMapWriters();
   testBCFCalibrationMap();

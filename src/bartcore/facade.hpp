@@ -150,8 +150,12 @@ public:
                    const SweepCallback& onSweep = {},
                    const DrawHook& onDraw = DrawHook(),
                    bool* stoppedByCallback = nullptr) = 0;
-  virtual void setOffset(const double* offset, bool updateScale) = 0;
-  virtual void setResponse(const double* y, bool updateScale) = 0;
+  /// The two response-side swaps report whether a transform they were asked
+  /// to re-derive was kept instead (ResponseUpdateResult).
+  virtual ResponseUpdateResult setOffset(const double* offset,
+                                         bool updateScale) = 0;
+  virtual ResponseUpdateResult setResponse(const double* y,
+                                           bool updateScale) = 0;
   virtual void setWeights(const double* weights) = 0;
   /// A digest of the case weights in force, over their bytes rather than any
   /// summary of them: two vectors agreeing in every moment still differ here.
@@ -555,11 +559,13 @@ public:
     return impl_.run(numBurnIn, numSamples, results, pollInterrupt, onSweep,
                      onDraw, stoppedByCallback);
   }
-  void setOffset(const double* offset, bool updateScale) override {
-    impl_.setOffset(offset, updateScale);
+  ResponseUpdateResult setOffset(const double* offset,
+                                 bool updateScale) override {
+    return impl_.setOffset(offset, updateScale);
   }
-  void setResponse(const double* y, bool updateScale) override {
-    impl_.setResponse(y, updateScale);
+  ResponseUpdateResult setResponse(const double* y,
+                                   bool updateScale) override {
+    return impl_.setResponse(y, updateScale);
   }
   void setWeights(const double* weights) override {
     impl_.setWeights(weights);

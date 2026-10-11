@@ -102,8 +102,9 @@ public:
            const std::function<bool()>& p, const SweepCallback& c,
            const DrawHook& d, bool* stopped),
           (b, s, r, p, c, d, stopped))
-  SPY_VOID(setOffset, (const double* o, bool u), (o, u))
-  SPY_VOID(setResponse, (const double* y, bool u), (y, u))
+  SPY_RET(ResponseUpdateResult, setOffset, (const double* o, bool u), (o, u))
+  SPY_RET(ResponseUpdateResult, setResponse, (const double* y, bool u),
+          (y, u))
   SPY_VOID(setWeights, (const double* w), (w))
   SPY_RET(std::uint64_t, weightsDigest, () const, ())
   SPY_VOID(reapplyWeights, (const unsigned char* z), (z))
@@ -602,9 +603,20 @@ const Row rows[] = {
             f.g.impl().sumOfSquaredResiduals(0) != residuals,
           "facade setOffset: at updateScale false the offset moves the "
           "residual and not the transform");
-    f.g.base().setOffset(f.offset3.data(), true);
-    check(f.g.impl().fitScale() != scale,
+    check(f.g.base().setOffset(f.offset3.data(), true) ==
+              ResponseUpdateResult::accepted &&
+            f.g.impl().fitScale() != scale,
           "facade setOffset: at updateScale true the transform re-anchors");
+    // one row in: the impl keeps the scale, and the boundary says so
+    std::vector<double> oneRow(Fixtures::n, 0.0);
+    oneRow[1] = 1.0;
+    scale = f.g.impl().fitScale();
+    f.g.impl().setActiveRows(oneRow.data());
+    check(f.g.base().setOffset(nullptr, true) ==
+              ResponseUpdateResult::scaleKept &&
+            f.g.impl().fitScale() == scale,
+          "facade setOffset: a kept scale is reported as kept");
+    f.g.impl().setActiveRows(nullptr);
     f.g.base().setOffset(nullptr, true);
   }},
   {FacadeVirtual::setResponse, "setResponse", [](Fixtures& f) {
@@ -615,9 +627,19 @@ const Row rows[] = {
             f.g.impl().sumOfSquaredResiduals(0) != residuals,
           "facade setResponse: at updateScale false the response moves the "
           "residual and not the transform");
-    f.g.base().setResponse(f.y3.data(), true);
-    check(f.g.impl().fitScale() != scale,
+    check(f.g.base().setResponse(f.y3.data(), true) ==
+              ResponseUpdateResult::accepted &&
+            f.g.impl().fitScale() != scale,
           "facade setResponse: at updateScale true the transform re-anchors");
+    std::vector<double> oneRow(Fixtures::n, 0.0);
+    oneRow[1] = 1.0;
+    scale = f.g.impl().fitScale();
+    f.g.impl().setActiveRows(oneRow.data());
+    check(f.g.base().setResponse(f.y.data(), true) ==
+              ResponseUpdateResult::scaleKept &&
+            f.g.impl().fitScale() == scale,
+          "facade setResponse: a kept scale is reported as kept");
+    f.g.impl().setActiveRows(nullptr);
     f.g.base().setResponse(f.y.data(), true);
   }},
   {FacadeVirtual::setWeights, "setWeights", [](Fixtures& f) {
