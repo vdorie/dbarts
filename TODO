@@ -304,19 +304,6 @@ items
     same pass moves British spellings to American (VD 2026-10-09):
     about 576 uses of centre, behaviour, colour, favour, modelling and
     the like, in R, docs and benchmarks; identifiers where not public.
-  gp-sort-path: before the merge. The quiet x86 rerun of the gp
-    member-order A/B (da19dec4 against 734441f1, cap 64, 3 seeds x 5
-    reps an arm) puts cap64-n500-t50 at 1.05 to 1.08 warm over four
-    runs (cold 1.03), past the member-order plan's stop condition of
-    any arm above 1.05 (docs/plans/gp-copy-continuation.md, Stop
-    conditions; dec-A192 states no bound); the other six arms 1.03 or
-    under, pooled warm 1.018. Built: a gp leaf sorts a span of 16
-    members or more through a bitmap over the observations where the
-    bitmap has at most 6 words a member, and by comparison otherwise
-    (docs/plans/gp-sort-path.md), every draw unchanged. Left: the
-    plan's timing on the box, the slice against its base on identical
-    chains (cap64-n500-t50, seeds 25 to 48, pooled warm at or under
-    0.98), and the tip against da19dec4 reported beside it.
   nbinom-default-prior: the negative binomial default stays k drawn
     under chi(1.5, 2) (dec-B431, VD 2026-10-10) after the prior
     predictive study of dec-B412. The maintainer judged the study

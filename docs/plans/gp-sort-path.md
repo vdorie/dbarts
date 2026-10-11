@@ -1,8 +1,8 @@
 # gp-sort-path: a gp leaf sorts its members through a bitmap, and its speed is read on identical chains
 
-Status: PLANNED 2026-10-11 (built on the outcome of a rule fixed before its data,
-[The rule and its outcome](#the-rule-and-its-outcome)). Revised to the blind critique of its first version,
-whose nine findings are answered here, and to the x86-64 box's measurements. No open call.
+Status: LANDED 2026-10-11 (b43bd706 to 5237e33a; calls dec-A206; [Landing note](#landing-note)). Built on the
+outcome of a rule fixed before its data ([The rule and its outcome](#the-rule-and-its-outcome)), revised to
+the blind critique of its first version and to the x86-64 box's measurements.
 
 agent: opus implementer, one; one opus reviewer who runs the mutants below. Tier: changes draws
 ([Process by risk](README.md#process-by-risk)): the class is neutral, but the sorted list feeds every gp
@@ -90,8 +90,8 @@ the box timed; it carries an earlier rule (8 members, 4 words a member) and one 
    - `sortMembersByComparison`: today's copy and `std::sort`.
 2. A private static predicate `sortsByBitmap(numObs, numWords)`: at least 16 members and at most 6 words a
    member. [`GPGaussianLeaf::sortedMembers`](../../src/bartcore/model.hpp) keeps its in-order return of the
-   span itself, then calls the helper the predicate names, with `numWords` this data's
-   `(numObservations_ + 63) / 64`.
+   span itself, then calls the helper the predicate names, with `numWords` the bitmap's own
+   word count; an empty bitmap sorts by comparison.
 3. [`GPGaussianLeaf::reinitialize`](../../src/bartcore/model.hpp) sizes `memberBits_` to that many zero
    words when the predicate holds at `min(maxLeafSize_, numObservations_)` members, and leaves it empty
    otherwise: the predicate grows with the member count, so no span under the cap can then pass (cap 64:
@@ -252,3 +252,20 @@ anything outside `GPGaussianLeaf` and the tests; reading 1 misses.
   leaf's own indexing of `u_`, not tested; the helper's assert is the first check of it.
 - The Mac's times (the 2.5 percent, the 6 us, the two-level figures) were taken under load. The revision
   has had no second critique.
+
+## Landing note
+
+Landed 2026-10-11 as b43bd706 to 5237e33a: this plan, the engine change in `GPGaussianLeaf` (80 lines of
+model.hpp), its tests and the records. One opus implementer; one opus review with 27 mutants, which found
+every draw unchanged (a hard check inside `sortedMembers` saw no repeated or out-of-range member over
+603,360 calls) and one test gap, since closed: a leaf moved to fewer rows, or past the rows its bitmap
+serves, is pinned, and the dispatch reads the bitmap's own word count, so a wrong count cannot be handed
+to the walk. A mutant that drops the dispatch's empty-bitmap guard still fails only the walk's assert.
+
+The bound, read on the x86-64 box on identical chains (cap 64, 500 rows, 50 trees, seeds 25 to 48, 3
+repetitions, pooled warm sweep time, slice over base): 0.901 with the slice loaded second and 0.926 with it
+loaded first, against 0.98; cold 0.910 and 0.944. Reported without a bound, the landed code against the
+build before the member-order change (da19dec4), whose chains differ: 1.026 warm (interval 0.919 to 1.167)
+and 1.017 cold, one library order. The x86 leg, the bitwise compares on the reference build, the snapshot
+files and CI's seven workflows passed on 5237e33a.
+

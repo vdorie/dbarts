@@ -1,7 +1,7 @@
 # response-scale-rows, slice C: setWeights and setActiveRows re-derive on request
 
-Status: PLANNED 2026-10-11, against d5b637ee (bartcore with slice B, creation). Revised from its blind
-critique 2026-10-11; no open call. Implements, for `setWeights` and `setActiveRows`: dec-B296 (the
+Status: LANDED 2026-10-11 (46f2e2a2 to 6f5b9610; calls dec-A207; [Landing note](#landing-note)). Planned
+against d5b637ee (bartcore with slice B, creation) and revised from its blind critique. Implements, for `setWeights` and `setActiveRows`: dec-B296 (the
 setters that change the rows take the response setters' argument), dec-B327 (its effect on the live
 chain), dec-B364 and dec-B405 (the keep, its status and its one warning) and dec-B363 (the by-hand call,
 in dbartsSpec's help). Rests on dec-B362 (several forests refuse), dec-B330 and dec-B331 (kept draws),
@@ -519,3 +519,22 @@ mask, were not rerun; its test-offset, weights-with-mask, keep-from-another-rang
 runs were. The 0.9-34 reading is from prior draws, not from a reader of the range. No reference build,
 sanitizer, x86 run, `R CMD check` or consumer suite was run; that no recorded scenario moves is read
 from the manifest, and rows-pair.R was read, not recorded. stan4bart and treatSens were read, not run.
+
+## Landing note
+
+Landed 2026-10-11 as 46f2e2a2 to 6f5b9610, in two halves: an opus implementer for the engine's
+`Sampler::rederiveScale`, the facade virtual and the bridge, and a sonnet implementer for the R methods, the
+test file, the matrix runner and the help. Neutral: the three bitwise compares, the snapshot files, the 42
+exact gates and the recording of count creation under a mask against the base build did not move. One opus
+review with 35 mutants found no defect in the package and three gaps, since closed: the position of
+`setActiveRows`'s argument is pinned by a mask under which a re-derivation moves the readers, a cleared mask
+with the argument is tested, and the help's fourth enumeration of the channels that re-anchor the transform
+names the two setters. Two mutants are left alive on purpose: the bridge reading `NA` as TRUE on one forest,
+which R's check keeps from the bridge, and the test for a family with no units, which is equivalent.
+
+Departures from the steps: the sampler has no pointwise log-likelihood channel, so the keep's install is
+pinned by the mirrors and by equality with the `updateScale = FALSE` twin's sweeps; the mask has its own
+conduit in the bridge's refusal, so a multinomial sampler is not told to use the counts channel; the
+multinomial refusal on `setActiveRows` names the call without the argument as the remedy. The calls made
+building it are dec-A207.
+

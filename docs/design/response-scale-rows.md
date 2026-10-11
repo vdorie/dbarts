@@ -133,6 +133,6 @@ response setters while rows are out. Of the recorded baseline scenarios one move
 
 A: the survival re-anchor reads observed times (landed). B: this note, creation. C: `updateScale` on
 `setWeights` and `setActiveRows`, which extends the keep to them and documents the by-hand count sampler's call
-(planned in [response-scale-rows-c.md](../plans/response-scale-rows-c.md)).
+(landed, [response-scale-rows-c.md](../plans/response-scale-rows-c.md)).
 D: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the rows in, which waits on
 the record slices of the state.
