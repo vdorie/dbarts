@@ -96,11 +96,12 @@ engine reads every row there by the same rule.
 ## 5. Creation under a mask
 
 Of the families whose 0/1 weights become the mask only the count family takes anything from the response. Its
-creation is the install of the mask followed by the engine's re-derivation against the offset it already holds
-([`deriveCenterUnderMask`](../../R/bartcore.R)): the bridge entry `$setOffset` uses, called with that offset and
-`updateScale` true, then the record. It draws nothing and touches nothing else: the data object, the test offset
+creation is the install of the mask with the engine's re-derivation against the offset it already holds, in one
+bridge call ([`installWeightsMask`](../../R/bartcore.R)): the mask entry called with `updateScale` true, which
+leaves the sampler where the bridge entry `$setOffset` uses, called with that offset and `updateScale` true,
+leaves it; then the record. It draws nothing and touches nothing else: the data object, the test offset
 in R and in the engine, and the stored state are as creation or `setData` left them. In rule 4's case the
-follow-up is skipped and the every-row center stands. A sampler built by hand from [`dbartsSpec`](../../R/spec.R)
+mask is installed without the re-derivation and the every-row center stands. A sampler built by hand from [`dbartsSpec`](../../R/spec.R)
 and `new("dbartsSampler", ...)` is created with every row in and keeps the every-row center; the documented call
 for it comes with the next slice.
 

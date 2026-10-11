@@ -24,8 +24,8 @@ them.
 - NEW, and defined by an identity: `setWeights(w, updateScale = TRUE)` and
   `setActiveRows(a, updateScale = TRUE)` leave the sampler where today's `setWeights(w)` or
   `setActiveRows(a)`, then the bridge's offset entry called with the offset in force and `updateScale`
-  true as [`deriveCenterUnderMask`](../../R/bartcore.R) calls it, then the record, leave it: bit for
-  bit, the keep's status included. Not the R method `setOffset`, which also resets a test offset that
+  true as retired: [`deriveCenterUnderMask`](../../R/bartcore.R) called it, then the record, leave it:
+  bit for bit, the keep's status included. Not the R method `setOffset`, which also resets a test offset that
   follows the training one ([Context](#context)). No draw of an existing call changes.
 - Moves no recorded scenario: none passes the argument, which does not exist, and none creates a count
   fit under 0/1 weights ([MANIFEST](../../benchmarks/baselines/MANIFEST), `equivalence-308c45be`'s row).
@@ -145,8 +145,9 @@ A sampler made by hand (dec-B363), emulated with today's calls.
 - (ran) The loop, the mask redrawn each of 8 sweeps and re-derived in the first 5: the center is the
   log rate of the rows in at each of the 5 (0.483, 0.452, 0.442, -0.066, 0.720) and 0.720 for the last 3.
 - (read) [`dbarts`](../../R/dbarts.R) and [`bartcoreSamplerSetData`](../../R/bartcore.R) follow a count
-  fit's mask with [`deriveCenterUnderMask`](../../R/bartcore.R): the bridge's offset entry, called with
-  the offset in force and `updateScale` true, then the record; no slot of the data object is touched.
+  fit's mask with retired: [`deriveCenterUnderMask`](../../R/bartcore.R), gone with step 3: the
+  bridge's offset entry, called with the offset in force and `updateScale` true, then the record; no
+  slot of the data object is touched.
 
 ## The rule
 
@@ -270,7 +271,7 @@ None. The one this plan raised, a multinomial sampler given the argument, is set
    family and keeps its rollback of `data@weights` on a refused call. `reapplyActiveRows` passes FALSE:
    a re-creation restates the record and derives nothing. One helper in [bartcore.R](../../R/bartcore.R)
    holds the mask's install for the method, creation and `setData`;
-   [`deriveCenterUnderMask`](../../R/bartcore.R) goes, creation and `setData` passing `updateScale`
+   retired: [`deriveCenterUnderMask`](../../R/bartcore.R) goes, creation and `setData` passing `updateScale`
    true exactly where it ran (a count sampler, a mask installed, no amplitudes, not slice B's rule 4)
    and keeping its internal error where the bridge answers a keep. They do not store and do not warn,
    as today.
@@ -499,7 +500,7 @@ the critique.
   setters, which would make the two setters of rows differ from each other.
 - One new facade virtual, called by the bridge after the install inside one entry. Not taken: the
   argument on the two existing virtuals, which changes two signatures.
-- [`deriveCenterUnderMask`](../../R/bartcore.R) goes and `dbarts()` runs the documented call's own path,
+- retired: [`deriveCenterUnderMask`](../../R/bartcore.R) goes and `dbarts()` runs the documented call's own path,
   so rule 7 holds by construction and not by a test alone.
 - The help's by-hand call is for a count list, dec-B363's case; a probit or ordinal list keeps the plain
   install, which a several-forest one needs. The by-hand call in slice B's rule 4 case warns a second
