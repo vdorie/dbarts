@@ -831,9 +831,9 @@ basisClass <- function(value) {
   } else if (is.numeric(value)) {
     answer("numeric", "numbers")
   } else {
-    class <- class(value)[1L]
-    article <- if (grepl("^[aeiouAEIOU]", class)) "an " else "a "
-    answer(NA_character_, paste0(article, class))
+    named <- class(value)[1L]
+    article <- if (grepl("^[aeiouAEIOU]", named)) "an " else "a "
+    answer(NA_character_, paste0(article, named))
   }
 }
 
@@ -904,7 +904,7 @@ refuseConstantLogical <- function(read, levels, subject) {
 ## Returns the blocks the engine takes, `bases`, and the levels of their
 ## columns, `levels`, NULL for numbers. Never called where a sampler is made
 ## again from its own data: a swap may leave a level or a column with no row.
-finishForestBases <- function(bases, argument, labels = NULL) {
+finishBasisRows <- function(bases, argument, labels = NULL) {
   levels <- if (!is.null(bases)) vector("list", length(bases))
   for (index in seq_along(bases)) {
     value <- bases[[index]]
@@ -1031,9 +1031,9 @@ conformBasis <- function(value, kind, levels, argument, forest) {
 
 ## The columns of a basis from the model frame of its code, on the rows the
 ## frame holds. A basis is one factor, a character vector or a logical
-## vector, by class (basisClass), with a column for each level that has a row, built by
-## expandForestBasis and by no contrast; or numeric terms, with the columns
-## model.matrix() gives them. The columns are named as model.matrix() names
+## vector, by class (basisClass), with a column for each level that has a
+## row, built by expandForestBasis and by no contrast; or numeric terms, with
+## the columns model.matrix() gives them. The columns are named as model.matrix() names
 ## them. With `atPrediction` the rows are new rows of a fit whose basis had
 ## the levels `levels`, NULL for a numeric one: the same columns are built, a
 ## level the new rows lack included, and a level the fit did not have and a
@@ -1353,7 +1353,7 @@ basisRowNumbers <- function(numRows) {
 ## given whole. Returns `bases` and, beside them, `records`, the record of
 ## each code basis. A basis has one row for each observation the fit keeps. A
 ## value's place holds its block, finished on those rows already
-## (finishForestBases), and is named here by the rule for a value handed to
+## (finishBasisRows), and is named here by the rule for a value handed to
 ## a forest(). `levels` is the levels recorded for the values, and comes back
 ## with those of each code basis beside them.
 buildFitBases <- function(reads, bases, numObservations, levels = NULL) {
@@ -1362,7 +1362,9 @@ buildFitBases <- function(reads, bases, numObservations, levels = NULL) {
   if (is.null(bases)) {
     bases <- vector("list", numForests)
   }
-  length(levels) <- numForests
+  if (is.null(levels)) {
+    levels <- vector("list", numForests)
+  }
   records <- vector("list", numForests)
   for (index in seq_len(numForests)) {
     read <- reads[[index]]

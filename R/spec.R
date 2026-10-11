@@ -1486,7 +1486,7 @@ dbartsSpec <- function(
     forests <- declared$forests
     # the data object holds the rows it holds: every row of a code basis,
     # and the rows a value is judged on, as the data object judges one
-    finished <- finishForestBases(
+    finished <- finishBasisRows(
       validateForestBases(
         structure(
           forest.labels = names(forests),

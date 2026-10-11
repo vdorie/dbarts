@@ -2192,7 +2192,7 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 # refused, numbers are coerced to a numeric matrix and a factor, a character
 # vector or a logical vector stays as it is. Only the length is checked
 # against the data as handed over; what the kept rows hold, a missing value
-# among it, is judged where they are final (finishForestBases). 'subsetRows'
+# among it, is judged where they are final (finishBasisRows). 'subsetRows'
 # (resolveFormulaBasisSubset's
 # result, R/model.R), when given, resolves each element the way a forests =
 # declaration's basis already does - alignForestBasisToSubset, the same
@@ -3715,7 +3715,7 @@ dbartsData <- function(
 
   # the rows are final here, on either interface, so this is where a basis
   # handed over is judged and becomes its block
-  finished <- finishForestBases(bases, "bases", basisLabels)
+  finished <- finishBasisRows(bases, "bases", basisLabels)
   bases <- finished$bases
   basisLevels <- finished$levels
   result <- newValidated(
