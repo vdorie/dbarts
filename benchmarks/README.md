@@ -279,6 +279,17 @@ bd-balance takes a second arm, `zeroweight`, which the workflow runs after its
 loop: the same enumeration under a weight vector that zeroes two adjacent
 cells, installed on whatever tree the chain has grown, against the exact
 posterior in which a leaf of only zero-weight rows is legal and scores nothing.
+A third, `zerocreate`, is the same gate with the weights given at creation and
+the zeroed cells' response 3 higher, so the exact posterior calibrates against
+the range of the rows in the likelihood, which a sampler that read every row
+misses.
+
+    Rscript benchmarks/R/bd-balance.R quick zerocreate
+
+negbin-exact takes a third arm, run inside the script: a fixed shape with 4 rows
+in of 25 a cell and the rows out 30 higher, left out by 0/1 weights at creation.
+The reference takes its likelihood and its center over the rows in, and the gate
+also requires the fit to miss the reference whose center is over every row.
 
     Rscript benchmarks/R/change-balance.R        # full
     Rscript benchmarks/R/change-balance.R quick  # fast smoke

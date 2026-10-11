@@ -175,6 +175,17 @@ jobs:
             fail=1
           fi
           echo "::endgroup::"
+          # the same arm with the weights given at creation, the zeroed cells'
+          # response 3 higher: the response's range is then the rows in the
+          # likelihood's
+          echo "::group::bd-balance.R zerocreate"
+          if Rscript benchmarks/R/bd-balance.R ${GATE_ARG} zerocreate; then
+            echo "PASS bd-balance.R zerocreate"
+          else
+            echo "::error::gate bd-balance.R zerocreate FAILED"
+            fail=1
+          fi
+          echo "::endgroup::"
           # perturb-balance at a window of three, set by n.perturb.cuts
           echo "::group::perturb-balance.R width=3"
           if Rscript benchmarks/R/perturb-balance.R ${GATE_ARG} width=3; then

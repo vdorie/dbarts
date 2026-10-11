@@ -65,18 +65,29 @@
 # posterior; the posterior with equally likely cuts is another distribution,
 # which the arm reports its distance from.
 #
-# Usage: Rscript bd-balance.R [quick] [zeroweight | narrow | constmissing |
-#   weighted [mix=bd | change | swap | perturb | gibbs]]
+# The zerocreate arm (Rscript bd-balance.R zerocreate) is the zero-weight arm
+# with the weights given at creation, and the two zeroed cells' response 3
+# higher. What the response gives the prior is then taken from the rows in the
+# likelihood, so the oracle's range is the rows in the likelihood's, 3 lower
+# than every row's; a sampler that read every row would be calibrated against
+# the other range and miss the exact posterior.
+#
+# Usage: Rscript bd-balance.R [quick] [zeroweight | zerocreate | narrow |
+#   constmissing | weighted [mix=bd | change | swap | perturb | gibbs]]
 
 suppressPackageStartupMessages(library(dbarts))
 
 args <- commandArgs(trailingOnly = TRUE)
 quick <- "quick" %in% args
 zeroWeightArm <- "zeroweight" %in% args
+zeroCreateArm <- "zerocreate" %in% args
 narrowArm <- "narrow" %in% args
 constMissingArm <- "constmissing" %in% args
 weightedArm <- "weighted" %in% args
-stopifnot(zeroWeightArm + narrowArm + constMissingArm + weightedArm <= 1L)
+stopifnot(
+  zeroWeightArm + zeroCreateArm + narrowArm + constMissingArm + weightedArm <=
+    1L
+)
 mixArg <- grep("^mix=", args, value = TRUE)
 mixture <- if (length(mixArg) > 0L) sub("^mix=", "", mixArg[1L]) else "bd"
 proposalProbs <- switch(
@@ -121,6 +132,9 @@ cell <- rep(seq_len(K), each = nPer)
 x <- as.double(cell)
 n <- length(x)
 y <- muCell[cell] + rnorm(n, sd = noiseSd)
+if (zeroCreateArm) {
+  y[cell == 2L | cell == 3L] <- y[cell == 2L | cell == 3L] + 3
+}
 
 base <- 0.8
 power <- 2
@@ -150,8 +164,17 @@ if (narrowArm) {
 # a cut's weight: the gap's width on the weighted arm, one elsewhere
 gapWeights <- if (weightedArm) diff(values) else rep(1, K - 1L)
 
-yRange <- max(y) - min(y)
-zScaled <- (y - min(y)) / yRange - 0.5
+# the rows in the likelihood: every row, or those the zero weights leave
+kept <- if (zeroWeightArm || zeroCreateArm) {
+  cell == 1L | cell == K
+} else {
+  rep(TRUE, n)
+}
+# the range the oracle calibrates against: the rows in the likelihood where
+# they were left out at creation, every row where the weights come after
+rangeRows <- if (zeroCreateArm) kept else rep(TRUE, n)
+yRange <- max(y[rangeRows]) - min(y[rangeRows])
+zScaled <- (y - min(y[rangeRows])) / yRange - 0.5
 residVar <- (1 / yRange)^2
 
 logSumExp <- function(v) {
@@ -166,7 +189,6 @@ priorPrecision <- (kLeaf / nodeScale)^2
 # its member count. Two ADJACENT cells are zeroed rather than one so that the
 # trees include a split with no weighted row on either side, whose two leaves
 # and their parent all score nothing.
-kept <- if (zeroWeightArm) cell == 1L | cell == K else rep(TRUE, n)
 logIL <- function(cells) {
   idx <- cell >= cells[1L] & cell <= cells[2L] & kept
   z <- zScaled[idx]
@@ -318,6 +340,7 @@ sampler <- dbarts(
   matrix(x, ncol = 1L),
   y,
   control = ctl,
+  weights = if (zeroCreateArm) as.double(kept),
   tree.prior = cgm(power, base),
   leaf.prior = normal(kLeaf),
   family = gaussian(sigma = fixed(1)),
@@ -417,7 +440,7 @@ for (name in partitionNames) {
   ))
 }
 
-if (zeroWeightArm) {
+if (zeroWeightArm || zeroCreateArm) {
   # non-vacuity: the target that counts weight instead of members is a
   # different distribution, and the chain is not on it
   engineProbs <- vapply(

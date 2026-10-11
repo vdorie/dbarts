@@ -36,6 +36,12 @@
 # engine's state after each sweep, so the run is driven one kept sample at a
 # time; the gated mean is exp(train - offset) at one row of each cell.
 #
+# A third arm leaves rows out by 0/1 weights at creation: 4 rows in of 25 a
+# cell, the rows out 30 higher, a fixed shape. The likelihood is over the rows
+# in and so is the center c, the count fit's analogue of a range, so the
+# exact reference takes both from them; the same reference with c over every
+# row is another distribution, and the arm requires the fit to miss it.
+#
 # STATED LIMITATION: fork (A) draws only integer-shape (exact) PG variates, so
 # this gate exercises NO approximate path; the reference is omega-free.
 #
@@ -87,7 +93,15 @@ y <- as.double(c(cntA, cntB))
 offsetEst <- rep(c(0, log(2)), length.out = length(y))
 offsetFixed <- rep(0, length(y))
 
-shiftOf <- function(offset) log(max(sum(y), 0.5) / sum(exp(offset)))
+shiftOf <- function(offset, yy = y, rows = seq_along(yy)) {
+  log(max(sum(yy[rows]), 0.5) / sum(exp(offset[rows])))
+}
+
+# the masked arm: rows in are the first nIn of each cell, the others 30 higher
+nIn <- 4L
+rowsIn <- rep(seq_len(nPerCell) <= nIn, 2L)
+yMasked <- y
+yMasked[!rowsIn] <- yMasked[!rowsIn] + 30
 
 # ---- exact posterior by structure enumeration + nested quadrature ----
 
@@ -96,12 +110,17 @@ nGrid <- length(grid)
 # The exact posterior for one arm: for a cell with counts cnt, offsets off and
 # shape r, integrate over the cell log mean m ~ N(c, tau^2): g = marginal
 # likelihood, mc = its mean-count numerator E[exp(m)].
-exactArm <- function(offset) {
-  c0 <- shiftOf(offset)
+exactArm <- function(
+  offset,
+  yy = y,
+  inRows = rep(TRUE, length(yy)),
+  centerRows = inRows
+) {
+  c0 <- shiftOf(offset, yy, centerRows)
   mGrid <- c0 + seq(-10, 10, by = 0.01)
   wM <- dnorm(mGrid, c0, tau) * (mGrid[2L] - mGrid[1L])
   cellIntegral <- function(rows, r) {
-    cnt <- y[rows]
+    cnt <- yy[rows]
     off <- offset[rows]
     nobs <- length(cnt)
     loglik <- sum(lgamma(cnt + r)) -
@@ -116,8 +135,8 @@ exactArm <- function(offset) {
     wl <- wM * exp(loglik)
     list(g = sum(wl), mc = sum(wl * exp(mGrid)))
   }
-  rowsA <- which(cell == 0L)
-  rowsB <- which(cell == 1L)
+  rowsA <- which(cell == 0L & inRows)
+  rowsB <- which(cell == 1L & inRows)
   out <- list(
     rootG = numeric(nGrid),
     rootMC = numeric(nGrid),
@@ -168,9 +187,36 @@ mcRootNumF <- priorRoot * fx0$rootMC[kf]
 exactFixedA <- (mcRootNumF + priorSplit * fx0$mcA[kf] * fx0$gB[kf]) / denF
 exactFixedB <- (mcRootNumF + priorSplit * fx0$mcB[kf] * fx0$gA[kf]) / denF
 
+# ---- masked arm: the rows out reach neither the likelihood nor c ----
+
+fxMask <- exactArm(offsetFixed, yMasked, rowsIn)
+fxEvery <- exactArm(
+  offsetFixed,
+  yMasked,
+  rowsIn,
+  centerRows = rep(TRUE, length(y))
+)
+fixedMeans <- function(ex) {
+  denM <- priorRoot * ex$rootG[kf] + priorSplit * ex$gA[kf] * ex$gB[kf]
+  mcRootM <- priorRoot * ex$rootMC[kf]
+  c(
+    (mcRootM + priorSplit * ex$mcA[kf] * ex$gB[kf]) / denM,
+    (mcRootM + priorSplit * ex$mcB[kf] * ex$gA[kf]) / denM
+  )
+}
+exactMaskedIn <- fixedMeans(fxMask)
+exactMaskedEvery <- fixedMeans(fxEvery)
+
 # ---- sampler fits: single tree, per-draw r and mean counts from the state ----
 
-fitSeed <- function(seed, shape, offset) {
+fitSeed <- function(
+  seed,
+  shape,
+  offset,
+  yy = y,
+  weights = NULL,
+  inRows = rep(TRUE, length(yy))
+) {
   set.seed(seed)
   control <- dbartsControl(
     n.chains = 1L,
@@ -186,15 +232,18 @@ fitSeed <- function(seed, shape, offset) {
   )
   sampler <- dbarts(
     data.frame(x1 = factor(cell)), # the cell predictor, categorical
-    y,
+    yy,
     offset = offset,
+    weights = weights,
     family = nbinom(shape = shape),
     control = control,
     tree.prior = cgm(power, base),
     leaf.prior = normal(k),
     verbose = FALSE
   )
-  shiftGap <- abs(sampler$getLeafPrior()$response.shift - shiftOf(offset))
+  shiftGap <- abs(
+    sampler$getLeafPrior()$response.shift - shiftOf(offset, yy, inRows)
+  )
   if (!(shiftGap <= 1e-12)) {
     cat(sprintf(
       "engine log-mean shift off the formula by %g <- FAIL\n",
@@ -203,8 +252,8 @@ fitSeed <- function(seed, shape, offset) {
     quit(status = 1L)
   }
 
-  iA <- which(cell == 0L)[1L]
-  iB <- which(cell == 1L)[1L]
+  iA <- which(cell == 0L & inRows)[1L]
+  iB <- which(cell == 1L & inRows)[1L]
   meanA <- 0
   meanB <- 0
   gridCounts <- numeric(nGrid)
@@ -218,10 +267,10 @@ fitSeed <- function(seed, shape, offset) {
   c(meanA / ndpost, meanB / ndpost, gridCounts / ndpost)
 }
 
-runArm <- function(shape, offset) {
+runArm <- function(shape, offset, ...) {
   rows <- do.call(
     rbind,
-    lapply(seq_len(nSeeds), function(sd) fitSeed(sd, shape, offset))
+    lapply(seq_len(nSeeds), function(sd) fitSeed(sd, shape, offset, ...))
   )
   colMeans(rows)
 }
@@ -237,9 +286,22 @@ fx <- runArm(rFixed, offsetFixed)
 fitFixedA <- fx[1L]
 fitFixedB <- fx[2L]
 
+# masked arm
+mk <- runArm(
+  rFixed,
+  offsetFixed,
+  yy = yMasked,
+  weights = as.double(rowsIn),
+  inRows = rowsIn
+)
+fitMaskedA <- mk[1L]
+fitMaskedB <- mk[2L]
+
 gapMeanEst <- max(abs(c(fitMeanA - exactMeanA, fitMeanB - exactMeanB)))
 gapGrid <- max(abs(fitGrid - gridPost))
 gapMeanFixed <- max(abs(c(fitFixedA - exactFixedA, fitFixedB - exactFixedB)))
+gapMasked <- max(abs(c(fitMaskedA, fitMaskedB) - exactMaskedIn))
+gapMaskedEvery <- max(abs(c(fitMaskedA, fitMaskedB) - exactMaskedEvery))
 
 cat("Negative-binomial exact-posterior gate (single tree, two cells):\n")
 cat("--- estimated r (grid posterior), exposure offset ---\n")
@@ -294,7 +356,37 @@ cat(sprintf(
   if (gapMeanFixed > tolMean) "  <- FAIL" else ""
 ))
 
-if (gapMeanEst > tolMean || gapGrid > tolGrid || gapMeanFixed > tolMean) {
+cat(sprintf("--- fixed r = %g, rows out by weights at creation ---\n", rFixed))
+cat(sprintf(
+  "  mean count A  exact %.4f  sampler %.4f\n",
+  exactMaskedIn[1L],
+  fitMaskedA
+))
+cat(sprintf(
+  "  mean count B  exact %.4f  sampler %.4f\n",
+  exactMaskedIn[2L],
+  fitMaskedB
+))
+cat(sprintf(
+  "  max mean-count gap %.4f (tol %.3f)%s\n",
+  gapMasked,
+  tolMean,
+  if (gapMasked > tolMean) "  <- FAIL" else ""
+))
+cat(sprintf(
+  "  gap to the reference centered on every row %.4f, which must exceed tol %.3f%s\n",
+  gapMaskedEvery,
+  tolMean,
+  if (gapMaskedEvery <= tolMean) "  <- FAIL" else ""
+))
+
+if (
+  gapMeanEst > tolMean ||
+    gapGrid > tolGrid ||
+    gapMeanFixed > tolMean ||
+    gapMasked > tolMean ||
+    gapMaskedEvery <= tolMean
+) {
   quit(status = 1L)
 }
 cat("\nOK: negative-binomial sampler matches the exact posterior\n")
