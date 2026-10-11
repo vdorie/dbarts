@@ -5,16 +5,26 @@
 # issue #79.
 
 set.seed(2, sample.kind = "Rejection")
-n <- 200L
-x <- matrix(runif(n * 2L), n, 2L)
-# a moderate slope keeps the TRUE p away from 0/1; the fitted probability of
-# an individual row can still sit at the boundary, where an intermediate
-# count is not near-certain, so the check below reads only the rows whose
-# posterior mean probability is interior
-f <- 0.6 * x[, 1L] - 0.3
-p <- plogis(f)
-y <- rbinom(n, 1L, p)
-w <- rep_len(c(1L, 3L, 5L), n)
+# Binomial counts: at each predictor point 1, 5 or 9 independent trials,
+# entered as a row of successes and a row of failures, a count of 0 left out,
+# so a row's count never repeats one trial. A row of weight 5 is mostly one
+# side of a 4 to 5 split of nine trials.
+n.points <- 200L
+x.points <- matrix(runif(n.points * 2L), n.points, 2L)
+# a moderate slope keeps the true p away from 0 and 1, and the fitted
+# probability of each row with it; at the boundary an intermediate count is
+# not near-certain, so the check below reads only the rows whose posterior
+# mean probability is interior and requires that there are enough of them
+p.points <- plogis(0.6 * x.points[, 1L] - 0.3)
+trials <- rep_len(c(1L, 5L, 9L), n.points)
+successes <- rbinom(n.points, trials, p.points)
+counts <- c(successes, trials - successes)
+rows <- which(counts > 0L)
+point <- rep(seq_len(n.points), 2L)[rows]
+x <- x.points[point, , drop = FALSE]
+y <- rep(c(1L, 0L), each = n.points)[rows]
+w <- counts[rows]
+n <- length(rows)
 
 fit <- bart(
   y ~ x,
@@ -49,7 +59,7 @@ interior <- w5cols[
   colMeans(ev[, w5cols, drop = FALSE]) > 0.1 &
     colMeans(ev[, w5cols, drop = FALSE]) < 0.9
 ]
-expect_true(length(interior) >= 20L)
+expect_true(length(interior) >= 30L)
 hitsIntermediate <- vapply(
   interior,
   function(j) any(ppd[, j] %in% 1:4),
@@ -68,7 +78,8 @@ ppd2 <- extract(fit, type = "ppd")
 expect_equal(ppd, ppd2)
 
 rm(inRange, w5cols, hitsIntermediate, ppd2)
-rm(x, f, p, y, w, fit, ppd, ev, n)
+rm(n.points, x.points, p.points, trials, successes, counts, rows, point)
+rm(x, y, w, fit, ppd, ev, n)
 
 # 2. column-alignment proof: only the observation with weight 5 may draw a
 # value above 1; every weight-1 column must stay in {0, 1}. This guards the

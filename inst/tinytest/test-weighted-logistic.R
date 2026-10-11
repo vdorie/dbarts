@@ -6,12 +6,27 @@
 # pin the sampler kind: an earlier suite file leaks sample.kind = "Rounding",
 # which would shift the drawn data and the Monte Carlo comparison below
 set.seed(2, sample.kind = "Rejection")
-n <- 160L
-x <- matrix(runif(n * 2L), n)
-f <- 2.5 * x[, 1L] - 1.2
-p <- plogis(f)
-y <- rbinom(n, 1L, p)
-w <- sample(1:3, n, replace = TRUE)
+# Binomial counts: at each predictor point 1 to 3 independent trials, entered
+# as a row of successes and a row of failures, a count of 0 left out. A count
+# states that many independent trials sharing the row's outcome, so a row's
+# count must not repeat one trial.
+n.points <- 160L
+x.points <- matrix(runif(n.points * 2L), n.points)
+p.points <- plogis(2.5 * x.points[, 1L] - 1.2)
+trials <- sample(1:3, n.points, replace = TRUE)
+successes <- rbinom(n.points, trials, p.points)
+counts <- c(successes, trials - successes)
+rows <- which(counts > 0L)
+point <- rep(seq_len(n.points), 2L)[rows]
+x <- x.points[point, , drop = FALSE]
+p <- p.points[point]
+y <- rep(c(1L, 0L), each = n.points)[rows]
+w <- counts[rows]
+n <- length(rows)
+# both outcomes at one point occur, and every count from 1 to 3
+expect_true(anyDuplicated(point) > 0L)
+expect_equal(sort(unique(w)), 1:3)
+expect_equal(sum(w), sum(trials))
 
 # an integer-weighted logistic model fits and recovers the signal
 fit.w <- bart(
@@ -29,10 +44,13 @@ fit.w <- bart(
 expect_equal(fit.w$family, "logistic")
 phat.w <- fitted(fit.w)
 expect_true(all(is.finite(phat.w) & phat.w >= 0 & phat.w <= 1))
-expect_true(cor(phat.w, p) > 0.5)
+expect_true(cor(phat.w, p) > 0.8)
 
 # the count semantics: replicate each row w times, fit unweighted, and the
-# per-point posterior mean probabilities agree within Monte Carlo error
+# per-row posterior mean probabilities agree within Monte Carlo error. The
+# bounds must stay below what a fit that ignores the counts gives against the
+# replicated one: a mean absolute difference near 0.04 at a correlation near
+# 0.96, against 0.01 and 0.996 for the weighted fit.
 idx <- rep(seq_len(n), times = w)
 yr <- y[idx]
 xr <- x[idx, , drop = FALSE]
@@ -48,8 +66,8 @@ fit.rep <- bart(
   keepTrees = TRUE
 )
 phat.rep <- fitted(fit.rep)[!duplicated(idx)]
-expect_true(cor(phat.w, phat.rep) > 0.9)
-expect_true(mean(abs(phat.w - phat.rep)) < 0.06)
+expect_true(cor(phat.w, phat.rep) > 0.99)
+expect_true(mean(abs(phat.w - phat.rep)) < 0.02)
 
 # non-integer weights are not counts and are refused
 expect_error(
@@ -165,10 +183,17 @@ rm(
   sampler,
   samples,
   x,
-  f,
   p,
   y,
   w,
+  n.points,
+  x.points,
+  p.points,
+  trials,
+  successes,
+  counts,
+  rows,
+  point,
   idx,
   yr,
   xr,

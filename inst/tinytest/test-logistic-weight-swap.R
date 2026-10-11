@@ -90,7 +90,11 @@ expect_true(abs(mean(eightCounts$getLatents()) - 2) < 0.4)
 # the new pointer, so a deferred refresh costs one sweep. ALTERNATING exposure
 # never heals - every harvested sweep would move its trees under the other
 # vector's precisions - so this is the arm with teeth. Outcome-tied counts
-# separate the weighted curve from the unweighted one.
+# separate the weighted curve from the unweighted one. The leaf scale k is
+# fixed at 2: counts tied to the outcome claim trials that all agreed, and
+# under a drawn k the posterior they give sits near a perfect fit, which a run
+# of this length reaches or not by how fast k mixes. At a fixed k both curves
+# are settled within the burn-in.
 set.seed(410L, sample.kind = "Rejection")
 nAlt <- 200L
 xAlt <- matrix(runif(nAlt * 2L), nAlt)
@@ -110,6 +114,7 @@ altSampler <- function(weights) {
     yAlt,
     weights = weights,
     family = "logistic",
+    leaf.prior = normal(k = 2),
     control = altControl
   )
 }
@@ -133,8 +138,9 @@ invisible(tiedReference$run(100L, 1L))
 invisible(flatReference$run(100L, 1L))
 tiedFit <- plogis(rowMeans(tiedReference$run(0L, 200L)$train))
 flatFit <- plogis(rowMeans(flatReference$run(0L, 200L)$train))
-# the harvested sweeps sit on the weighted curve
-expect_true(cor(altFit, tiedFit) > 0.9)
+# the harvested sweeps sit on the weighted curve; the sweeps taken under the
+# flat counts correlate with it at 0.92 and sit 0.21 from it
+expect_true(cor(altFit, tiedFit) > 0.95)
 expect_true(mean(abs(altFit - tiedFit)) < 0.08)
 # and the two curves are far enough apart for that to mean something
 expect_true(mean(abs(tiedFit - flatFit)) > 0.12)
