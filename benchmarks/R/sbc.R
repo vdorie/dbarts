@@ -1361,18 +1361,28 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
     verbose = FALSE,
     keepTrainingFits = TRUE
   )
+  # a forest's sd is in the response's units, and config$sdControl and
+  # config$sdModerate are multiples of the unit the sampler derives at creation:
+  # the standard deviation of the build response, or the link's own error
+  # standard deviation under a latent family
+  unit <- switch(
+    config$family,
+    probit = 1,
+    logistic = pi / sqrt(3),
+    sd(config$yBuild)
+  )
   # the treatment forest's basis is factor(z), the two-level indicator pair
   # (b0, b1); the prognostic forest declares none, so it gets the engine's
   # implicit intercept. n.trees/base/power stay at their forest() defaults
   # (50, 0.25, 3).
   forests <- list(
     dbarts::dbartsForests$forest(
-      sd = config$sdControl,
+      sd = config$sdControl * unit,
       amplitude = if (fixedGlue) dbarts::dbartsPriors$fixed()
     ),
     dbarts::dbartsForests$forest(
       basis = ~ factor(config$z),
-      sd = config$sdModerate,
+      sd = config$sdModerate * unit,
       amplitude.prior.variance = config$bPriorVariance,
       amplitude = if (fixedGlue) dbarts::dbartsPriors$fixed()
     )

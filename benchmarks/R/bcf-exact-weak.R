@@ -78,6 +78,10 @@ stopifnot(identical(findInterval(x[, 1L], cuts) + 1L, cell))
 yRange <- max(y) - min(y)
 yScaled <- (y - min(y)) / yRange - 0.5
 s <- sd(yScaled)
+# a forest's sd is stated in the response's units, so the sd multiples above
+# are multiples of the response's standard deviation (s on the range scale,
+# s * yRange here)
+sdY <- sd(y)
 scaleMu <- s # mu leaf prior sd (single tree, k = 1)
 scaleTau <- sdModerate * s / 0.674 # tau leaf prior sd (half-normal median)
 aPriorScale <- sdControl
@@ -280,13 +284,13 @@ samplerFit <- function(seed) {
     tree.prior = cgm(muPower, muBase),
     leaf.prior = normal(2),
     forests = list(
-      forest(sd = sdControl),
+      forest(sd = sdControl * sdY),
       forest(
         basis = ~ factor(z),
         n.trees = 1L,
         base = tauBase,
         power = tauPower,
-        sd = sdModerate,
+        sd = sdModerate * sdY,
         amplitude.prior.variance = bVar,
         amplitude = fixed()
       )

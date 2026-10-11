@@ -119,7 +119,7 @@ muBase <- 0.95
 muPower <- 2
 tauBase <- 0.25
 tauPower <- 3
-sdControl <- 1 # the latent families' defaultAmplitudePriorScale
+sdControl <- 1 # the latent families' default, as a multiple of the link's anchor
 sdModerate <- 1
 bVar <- 0.5
 nodeScaleDivisor <- 0.674 # the half-normal median of b1 - b0 ~ N(0, 1)
@@ -611,7 +611,7 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
   # unevaluated argument, resolved inside dbarts()'s own frame
   bcfForests <- list(
     dbarts::dbartsForests$forest(
-      sd = sdControl,
+      sd = sdControl * arm$link$anchor,
       amplitude = if (updateA) NULL else dbarts::dbartsPriors$fixed()
     ),
     dbarts::dbartsForests$forest(
@@ -619,7 +619,7 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       n.trees = 1L,
       base = tauBase,
       power = tauPower,
-      sd = sdModerate,
+      sd = sdModerate * arm$link$anchor,
       amplitude.prior.variance = bVar,
       amplitude = if (updateB) NULL else dbarts::dbartsPriors$fixed()
     )
