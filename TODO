@@ -447,27 +447,6 @@ items
     respects a monotone constraint, changing a split's rule while the
     leaves stay in order, so that fits of very few trees mix
     (dec-A133). Research, after 1.0-0.
-  monotone-exact-birth-death: before 1.0-0 (VD 2026-09-29,
-    docs/decisions.md dec-B144): the monotone birth/death move targets the
-    documented prior exactly - the whole tree's cone normalizer ratio in
-    place of the conditional cone masses - with an exact gate over
-    multi-split trees and the monotone SBC arm as verification. Design
-    first; the normalizer counts the leaf orderings the constraints admit,
-    and the design bounds its cost with several constrained predictors.
-    Planned in docs/plans/monotone-exact-birth-death.md (dec-B145..B153);
-    stages 1 (redraw, empty leaves, reachability), 2 (the monotone()
-    constructor and vocabulary) and 3 (the counter, not wired in) landed;
-    3b (leaf geometry on factor and missing-value axes), 4 (the exact move
-    under both priors) and 5 (slow counts, cancel, setModel refusals)
-    landed; the checkpoint fired its trigger (the hybrid is
-    monotone-barker-hybrid below).
-    Stage 6 landed: the equivalence scenarios, the successive-conditional
-    check, the SBC arms (both 20-tree arms pass), the feel study, the
-    default flip to "joint" (dec-B151; cgm()'s tree prior, mBART's values
-    an opt-in, dec-B152) and step 12's docs. Open: the Verification's
-    quiet-machine speed check (monotone sweep time at 20 trees under each
-    prior within 5% of the pre-plan engine, and bench-sampler compare on
-    the unconstrained paths).
   monotone-slow-count-test-intermittent: tests/cpp's "monotone slow
     counts: a lowered threshold tallies counts and sizes" failed once in
     sixteen runs of an unchanged test_monotone.cpp. The check asks that
@@ -798,10 +777,8 @@ items
     for bit: the next 5 sweeps differ in the last bits (7.1e-15 at
     most with two chains on the current build, equal with one;
     1.8e-15 and 3.6e-15 on 0.9-34 with one chain and with two), so
-    it is not a regression. Found by the combined re-gate of
-    forest-sd-unit with response-scale-rows, not before the merge.
-    Unproven reading: the copy rebuilds a running total the
-    original carries. Before 1.0-0.
+    it is not a regression. Unproven reading: the copy rebuilds a
+    running total the original carries. Not before the merge.
   constant-response-copy-refused: copy() of a sampler made on a
     response with one value is refused, "the forests' calibration
     anchor must be a positive finite number": the response has no
