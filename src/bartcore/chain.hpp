@@ -7150,25 +7150,65 @@ private:
     }
   }
 
-  /// Whether the probit rescaling step can apply this sweep, on what the
-  /// chain holds alone: one plain constant-leaf forest, no combiner and no
-  /// variance forest, the probit family, k drawn and finite and positive, and
-  /// every tree's obs-to-leaf map current. A stale map (the sweep after a
-  /// prior draw or a wholesale reset) does not name the leaves the cached fits
-  /// were gathered from. Reads no generator.
-  bool forestRescaleApplies() const {
+  /// Whether a move along the orbit (mu, k) -> (r mu, k / r) of one forest can
+  /// apply this sweep, on what the chain holds alone and whatever the family:
+  /// one plain constant-leaf forest, no combiner and no variance forest, k
+  /// drawn and finite and positive, and every tree's obs-to-leaf map current.
+  /// A stale map (the sweep after a prior draw or a wholesale reset) does not
+  /// name the leaves the cached fits were gathered from. Every move on that
+  /// orbit tests these here, so no two of them can disagree on one. Reads no
+  /// generator.
+  bool forestScaleOrbitApplies() const {
     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
       return false;
     } else {
-      if (forests_.size() != 1 || combiner_ || varianceForest_ ||
-          family_ != ResponseFamily::probit)
-        return false;
+      if (forests_.size() != 1 || combiner_ || varianceForest_) return false;
       const Forest<L, ResidT>& forest = forests_[0];
       if (!forest.updateK || !(forest.k > 0.0 && forest.k <= DBL_MAX))
         return false;
       for (size_t t = 0; t < forest.numTrees; ++t)
         if (forest.leafOfStale[t] != 0) return false;
       return true;
+    }
+  }
+
+  /// Whether the probit rescaling step can apply this sweep: the probit
+  /// family, and forestScaleOrbitApplies. Reads no generator.
+  bool forestRescaleApplies() const {
+    return family_ == ResponseFamily::probit && forestScaleOrbitApplies();
+  }
+
+  /// Moves a forest along its scale orbit: every occupied leaf of every tree
+  /// multiplied by factor, k divided by it, and totalFits brought along. An
+  /// empty leaf sits at zero and stays there. totalFits is multiplied in place
+  /// while the forest's accumulated factor stays within
+  /// [1 / totalFitsScaleBound, totalFitsScaleBound], and re-derived from the
+  /// scaled leaves in tree order when it would leave that range: a cache gap a
+  /// factor multiplies compounds across sweeps, so the factor is what bounds
+  /// it, and every move on the orbit multiplies into the one accumulated
+  /// factor. Draws nothing and reads nothing of the response, so a caller may
+  /// treat its latents on either side of the call.
+  void scaleForestAlongOrbit(Forest<L, ResidT>& forest, double factor) {
+    if constexpr (std::is_same_v<L, ConstantGaussianLeaf>) {
+      for (size_t t = 0; t < forest.numTrees; ++t) {
+        Tree& tree(forest.trees[t]);
+        std::vector<double>& mu(forest.muByTree[t]);
+        tree.bottomScratch.clear();
+        tree.fillBottom(0, tree.bottomScratch);
+        for (int32_t nodeIndex : tree.bottomScratch)
+          if (tree.at(nodeIndex).numObservations() != 0)
+            mu[static_cast<size_t>(nodeIndex)] *= factor;
+      }
+      forest.k /= factor;
+      double scale = forest.totalFitsScale * factor;
+      if (scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound) {
+        const size_t n = data_.numObservations;
+        double* total = forest.totalFits.data();
+        for (size_t i = 0; i < n; ++i) total[i] *= factor;
+        forest.totalFitsScale = scale;
+      } else {
+        rebuildForestTotalFits(forest);
+      }
     }
   }
 
@@ -7192,12 +7232,8 @@ private:
   /// not hold, where R is not positive, and where C is zero and n <= nu, the
   /// conditional then being improper. Every decline reads only quantities the
   /// group leaves invariant, so mixing the step with the identity keeps the
-  /// posterior. totalFits is multiplied by alpha in place while the forest's
-  /// accumulated factor stays within [1 / totalFitsScaleBound,
-  /// totalFitsScaleBound], and re-derived from the scaled leaves in tree order
-  /// when it would leave that range: a cache gap a factor multiplies compounds
-  /// across sweeps, so the factor is what bounds it. alphaOut, when non-null,
-  /// receives the factor applied, 1 on a decline.
+  /// posterior. The leaves, k and totalFits move by scaleForestAlongOrbit.
+  /// alphaOut, when non-null, receives the factor applied, 1 on a decline.
   bool drawForestRescale(double* alphaOut = nullptr) {
     if (alphaOut != nullptr) *alphaOut = 1.0;
     if constexpr (!std::is_same_v<L, ConstantGaussianLeaf>) {
@@ -7239,27 +7275,10 @@ private:
                                             rescaleSliceStepLimit));
       if (alphaOut != nullptr) *alphaOut = alpha;
 
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        Tree& tree(forest.trees[t]);
-        std::vector<double>& mu(forest.muByTree[t]);
-        tree.bottomScratch.clear();
-        tree.fillBottom(0, tree.bottomScratch);
-        for (int32_t nodeIndex : tree.bottomScratch)
-          if (tree.at(nodeIndex).numObservations() != 0)
-            mu[static_cast<size_t>(nodeIndex)] *= alpha;
-      }
-      forest.k = k / alpha;
+      scaleForestAlongOrbit(forest, alpha);
       bool scaled = response_->scaleLatents(alpha);
       assert(scaled);
       (void) scaled;
-      double scale = forest.totalFitsScale * alpha;
-      if (scale >= 1.0 / totalFitsScaleBound && scale <= totalFitsScaleBound) {
-        double* total = forest.totalFits.data();
-        for (size_t i = 0; i < n; ++i) total[i] *= alpha;
-        forest.totalFitsScale = scale;
-      } else {
-        rebuildForestTotalFits(forest);
-      }
       return true;
     }
   }
