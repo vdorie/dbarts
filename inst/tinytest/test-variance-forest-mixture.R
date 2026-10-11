@@ -166,3 +166,84 @@ expect_identical(
   drawsOf(reinstalled, 9L, 0L, 10L),
   drawsOf(untouched, 9L, 0L, 10L)
 )
+
+# ---- every chain, a variance forest's own tree prior, a single tree ----------
+
+# the variance trees' shapes and split variables, chain by chain
+chainStructures <- function(sampler) {
+  sampler$storeState()
+  lapply(sampler$state, function(chainState) {
+    list(vars = chainState$variance.vars, sizes = chainState$variance.sizes)
+  })
+}
+chainsMoved <- function(sampler, sweeps) {
+  at <- chainStructures(sampler)
+  moved <- integer(length(at))
+  for (sweep in seq_len(sweeps)) {
+    invisible(sampler$run(0L, 1L))
+    moved <- moved + !mapply(identical, chainStructures(sampler), at)
+  }
+  moved
+}
+freeze <- function(sampler) {
+  control <- sampler$control
+  control@proposal.probs <- frozenProbs
+  sampler$setControl(control)
+  invisible(NULL)
+}
+
+# the install reaches the variance forest of every chain
+set.seed(12L)
+twoChains <- dbarts::dbarts(
+  x,
+  y,
+  variance = varianceForest(n.trees = 5L),
+  control = dbarts::dbartsControl(
+    n.chains = 2L,
+    n.threads = 1L,
+    n.trees = 5L,
+    updateState = FALSE
+  )
+)
+set.seed(13L)
+invisible(twoChains$run(50L, 1L))
+expect_true(all(chainsMoved(twoChains, 30L) > 0L))
+freeze(twoChains)
+expect_identical(chainsMoved(twoChains, 30L), c(0L, 0L))
+rm(twoChains)
+
+# and a variance forest of one tree
+set.seed(14L)
+oneTree <- dbarts::dbarts(
+  x,
+  y,
+  variance = varianceForest(n.trees = 1L),
+  control = mixtureControl()
+)
+set.seed(15L)
+invisible(oneTree$run(50L, 1L))
+expect_true(chainsMoved(oneTree, 100L) > 0L)
+freeze(oneTree)
+expect_identical(chainsMoved(oneTree, 100L), 0L)
+rm(oneTree)
+
+# a variance forest that states its own tree prior keeps it: installed before
+# any run, the mixture gives creation under that prior, which is not creation
+# under the mean forest's
+ownPrior <- function(control, seed) {
+  set.seed(seed)
+  dbarts::dbarts(
+    x,
+    y,
+    variance = varianceForest(n.trees = 5L, base = 0.7, power = 1.2),
+    control = control
+  )
+}
+createdOwn <- ownPrior(mixtureControl(proposal.probs = movingProbs), 5L)
+installedOwn <- ownPrior(mixtureControl(), 5L)
+ownControl <- installedOwn$control
+ownControl@proposal.probs <- createdOwn$control@proposal.probs
+installedOwn$setControl(ownControl)
+atOwn <- drawsOf(createdOwn, 6L, 20L, 20L)
+expect_identical(drawsOf(installedOwn, 6L, 20L, 20L), atOwn)
+expect_false(identical(atOwn, atMoving))
