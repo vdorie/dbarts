@@ -319,10 +319,15 @@ struct dbarts_sampler_t {
   std::vector<double> ownedCategoryTestOffset{};
 
   // whether the flat run has raised its slow-count warning on this holder,
-  // which lives as long as the engine handle. LAST, because the creation
-  // sites build the holder by positional aggregate initialization: a member
-  // placed anywhere else would shift every initializer after it.
+  // which lives as long as the engine handle. The two flags are LAST, because
+  // the creation sites build the holder by positional aggregate
+  // initialization: a member placed anywhere else would shift every
+  // initializer after it.
   bool slowCountWarned = false;
+  // whether the R setters have said that a re-derivation kept the response
+  // scale, which they say once per holder. Only the R entries read or set
+  // it: a flat entry returns its status and spends nothing.
+  bool scaleKeptWarned = false;
 
   ~dbarts_sampler_t() {
     for (std::size_t c = rngs.size(); c > 0; --c)

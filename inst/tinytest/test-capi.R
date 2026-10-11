@@ -83,9 +83,13 @@ expect_false(identical(hashes$text, "0x6380bf095d5cae3f"))
 # the token before the nbinom shape fields: two struct fields renamed, which only
 # the by-name layout fold sees
 expect_false(identical(hashes$text, "0xa7415a6f1bcc93c3"))
+# the token before the swap entries' status took names: a fourth enumerator
+# list joined the fold with no signature moving, so a token that folded only
+# the lists it already knew would still read this
+expect_false(identical(hashes$text, "0xa33182bf349aa60d"))
 # and it does NOT move for doc text outside what it folds, which the token
 # cannot see
-expect_identical(hashes$text, "0xa33182bf349aa60d")
+expect_identical(hashes$text, "0xa84b67742536fbc4")
 
 # the two version components did NOT move: no version of this API has shipped,
 # so whatever they read at the first release becomes the initial contract, and
@@ -97,6 +101,8 @@ expect_equal(versions, c(1L, 0L))
 # agrees with the installed header's, in header (not alphabetical) order
 familyConstants <- CALL("capi_family_constants")
 expect_equal(unname(familyConstants), 0:8)
+# and the swap entries' status: none, done, scale kept
+expect_identical(CALL("capi_swap_constants"), 0:2)
 
 set.seed(0)
 n <- 150L
@@ -498,6 +504,116 @@ expect_identical(drawnAfter[, "k"], drawnBefore[, "k"])
 # and without the scale update nothing is restated
 expect_equal(CALL("capi_set_offset", drawnSd$getPointer(), offset, FALSE), 1L)
 expect_identical(engineLeafPrior(drawnSd), drawnAfter)
+
+# the swap status. A re-derivation with a row out of the likelihood and the
+# rows in at fewer than two distinct values of the response less the offset
+# has too little to read: the entry keeps the scale, answers 2 and raises
+# nothing, and the sampler is where the same swap without updateScale leaves
+# it, in its calibration and in the sweeps that follow. Each sampler is
+# created with every row in and loses its rows afterwards, so creation has
+# nothing to say; the vectors handed over span another range than creation's,
+# so an entry that re-derived from every row would move the calibration.
+keepRows <- 1:3
+keepWeights <- replace(numeric(n), keepRows, 1)
+keepOffset <- replace(rangeOffset, keepRows, 0.25)
+keepResponse <- replace(3 * y + 10, keepRows, 7)
+keepSampler <- function() {
+  sampler <- dbarts(x, replace(y, keepRows, 1.5), control = namedControl)
+  sampler$setWeights(keepWeights)
+  sampler
+}
+countConditions <- function(expr, class = "condition") {
+  count <- 0L
+  value <- withCallingHandlers(expr, condition = function(cond) {
+    if (inherits(cond, class)) {
+      count <<- count + 1L
+    }
+    if (inherits(cond, "warning")) invokeRestart("muffleWarning")
+  })
+  list(value = value, count = count)
+}
+kept <- keepSampler()
+twin <- keepSampler()
+keptBefore <- engineLeafPrior(kept)
+flatKeep <- countConditions(c(
+  CALL("capi_set_offset", kept$getPointer(), keepOffset, TRUE),
+  CALL("capi_set_response", kept$getPointer(), keepResponse, TRUE)
+))
+expect_identical(flatKeep$value, c(2L, 2L))
+expect_identical(flatKeep$count, 0L)
+expect_identical(
+  c(
+    CALL("capi_set_offset", twin$getPointer(), keepOffset, FALSE),
+    CALL("capi_set_response", twin$getPointer(), keepResponse, FALSE)
+  ),
+  c(1L, 1L)
+)
+expect_identical(engineLeafPrior(kept), keptBefore)
+expect_identical(engineLeafPrior(kept), engineLeafPrior(twin))
+expect_identical(
+  CALL("capi_run", kept$getPointer(), 0L, 5L, TRUE, FALSE),
+  CALL("capi_run", twin$getPointer(), 0L, 5L, TRUE, FALSE)
+)
+# the flat keeps spent nothing: the R method's first keep on the same sampler
+# still warns, once, and its second does not
+methodKeep <- countConditions(
+  kept$setOffset(keepOffset, updateScale = TRUE),
+  "dbartsScaleFallbackWarning"
+)
+expect_identical(methodKeep$count, 1L)
+methodKeep <- countConditions(
+  kept$setOffset(keepOffset, updateScale = TRUE),
+  "warning"
+)
+expect_identical(methodKeep$count, 0L)
+# and a flat keep after it is still a 2, as a swap that does not ask is a 1
+expect_identical(
+  CALL("capi_set_offset", kept$getPointer(), keepOffset, TRUE),
+  2L
+)
+expect_identical(
+  CALL("capi_set_offset", kept$getPointer(), keepOffset, FALSE),
+  1L
+)
+# two rows in at two values are enough: 1, and the transform is theirs
+twoRows <- dbarts(x, y, control = namedControl)
+twoRows$setWeights(replace(numeric(n), 4:5, 1))
+expect_identical(CALL("capi_set_response", twoRows$getPointer(), y, TRUE), 1L)
+expect_identical(
+  engineLeafPrior(twoRows)[, "response.scale"],
+  rep(max(y[4:5]) - min(y[4:5]), 2L)
+)
+# a constant response with every row in takes its window and answers 1
+constantRows <- dbarts(x, y, control = namedControl)
+expect_identical(
+  CALL("capi_set_response", constantRows$getPointer(), rep(3, n), TRUE),
+  1L
+)
+expect_identical(
+  engineLeafPrior(constantRows)[1L, c("response.scale", "response.shift")],
+  c(response.scale = 1, response.shift = 3)
+)
+# a count sampler under a mask keeping rows of one count keeps its center
+keepCounts <- replace(rpois(n, 3), keepRows, 2L)
+countRows <- dbarts(x, keepCounts, family = "nbinom", control = namedControl)
+countBefore <- engineLeafPrior(countRows)
+countRows$setActiveRows(keepWeights)
+expect_identical(
+  CALL("capi_set_offset", countRows$getPointer(), rangeOffset / 10, TRUE),
+  2L
+)
+expect_identical(
+  engineLeafPrior(countRows)[, "response.shift"],
+  countBefore[, "response.shift"]
+)
+# a probit sampler takes nothing from its response, so it has nothing to keep
+probitRows <- dbarts(x, as.double(y > 2), control = namedControl)
+probitRows$setActiveRows(keepWeights)
+expect_identical(
+  CALL("capi_set_offset", probitRows$getPointer(), rangeOffset / 10, TRUE),
+  1L
+)
+rm(kept, twin, twoRows, constantRows, countRows, probitRows, countConditions)
 
 specFixed <- dbarts(
   x,

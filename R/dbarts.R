@@ -2845,7 +2845,7 @@ dbartsSampler <- setRefClass(
         "express and which a length-n integer vector would only be guessed ",
         "into; replace it with $setCounts"
       )
-      bartcoreSamplerSetResponse(.self, y, updateScale, status)
+      scaleKept <- bartcoreSamplerSetResponse(.self, y, updateScale, status)
       if (isTRUE(updateScale)) {
         selfEnv <- parent.env(environment())
         selfEnv$model <- recordAnchor(model, getPointer())
@@ -2853,6 +2853,7 @@ dbartsSampler <- setRefClass(
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
+      warnScaleKept(scaleKept)
       invisible(NULL)
     },
     setOffset = function(offset, updateScale = FALSE, updateState = NULL) {
@@ -2865,7 +2866,7 @@ dbartsSampler <- setRefClass(
         "so a flat offset is inert; the shift that is not is the n x K ",
         "matrix $setCategoryOffset takes"
       )
-      bartcoreSamplerSetOffset(.self, offset, updateScale)
+      scaleKept <- bartcoreSamplerSetOffset(.self, offset, updateScale)
       if (isTRUE(updateScale)) {
         selfEnv <- parent.env(environment())
         selfEnv$model <- recordAnchor(model, getPointer())
@@ -2873,6 +2874,7 @@ dbartsSampler <- setRefClass(
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
+      warnScaleKept(scaleKept)
       invisible(NULL)
     },
     setWeights = function(weights, updateState = NULL) {

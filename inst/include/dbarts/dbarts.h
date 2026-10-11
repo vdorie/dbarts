@@ -65,7 +65,11 @@
 ///   the caller's frames, so call from contexts that are safe to unwind. A
 ///   DISCARDED capability 0 leaves the sampler unchanged and the run
 ///   conditioned on what it held before; that answer is a fixed property of
-///   the sampler, so test it once at setup rather than every sweep.
+///   the sampler, so test it once at setup rather than every sweep. The two
+///   swap entries, dbarts_sampler_setResponse and dbarts_sampler_setOffset,
+///   also return DBARTS_SWAP_SCALE_KEPT (dbarts_swap_status), which is a
+///   PER-CALL outcome and not a capability: it depends on the vector handed
+///   over and on the rows in the likelihood at that call.
 /// - Where an entry names a forest, forest is the argument after the sampler:
 ///   a 0-based index over the sampler's own forests, qualifying every argument
 ///   after it - a tree index list is read against THAT forest's tree count.
@@ -145,7 +149,7 @@
 /// literal, usable from C.
 ///
 /// It folds, in fixed order: the stringized DBARTS_C_API_LIST signatures
-/// (return types, names, parameter lists), the three ABI enums' enumerator
+/// (return types, names, parameter lists), the four ABI enums' enumerator
 /// names and values, and the LAYOUT of every struct that crosses the ABI -
 /// dbarts_results, dbarts_predictor_source, dbarts_draw - as the compiler
 /// reports it: each struct's size, and each field's name paired with its
@@ -182,7 +186,7 @@
 /// A consumer may pre-define DBARTS_C_API_HASH to force a mismatch; nothing
 /// but a test of the handshake itself has reason to.
 #ifndef DBARTS_C_API_HASH
-#  define DBARTS_C_API_HASH 0xa33182bf349aa60dULL
+#  define DBARTS_C_API_HASH 0xa84b67742536fbc4ULL
 #endif
 
 #ifdef __cplusplus
@@ -426,7 +430,7 @@ typedef int (*dbarts_draw_callback)(void* context, const dbarts_draw* draw);
 /// ordered-factor ones carry 0-based level codes whose order is meaningful,
 /// so they are cut on those codes rather than masked.
 ///
-/// All three ABI enums are generated from a list macro, which is also what
+/// All four ABI enums are generated from a list macro, which is also what
 /// the compile-time token folds: an enumerator ADDED to the enum body
 /// directly would be invisible to a hand-kept fold, while one added to the
 /// list cannot be. DBARTS_ENUMERATOR is the shared body emitter, #undef'd
@@ -581,6 +585,18 @@ typedef enum { DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR) } dbarts_leaf_model;
   X(DBARTS_FAMILY_STUDENT, 7) \
   X(DBARTS_FAMILY_MULTINOMIAL, 8)
 typedef enum { DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR) } dbarts_family;
+
+/// What dbarts_sampler_setResponse and dbarts_sampler_setOffset return, as
+/// an int. NONE is the capability 0: the sampler admits no such swap and
+/// nothing was touched. DONE and SCALE_KEPT both say the swap was made, so a
+/// caller asking whether it happened tests for nonzero, not for 1. SCALE_KEPT
+/// says in addition that the call asked for updateScale and the response
+/// transform in force was kept all the same; each entry states when.
+#define DBARTS_SWAP_STATUS_LIST(X) \
+  X(DBARTS_SWAP_NONE, 0) \
+  X(DBARTS_SWAP_DONE, 1) \
+  X(DBARTS_SWAP_SCALE_KEPT, 2)
+typedef enum { DBARTS_SWAP_STATUS_LIST(DBARTS_ENUMERATOR) } dbarts_swap_status;
 #undef DBARTS_ENUMERATOR
 
 // ---------------------------------------------------------------------------
@@ -878,9 +894,19 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// per-forest state across sweeps rather than re-deriving it. COPIED, on the
 /// copy-on-set rule above: the caller's y is free on return.
 ///
-/// A CAPABILITY STATUS: 1 on a swap, or 0 touching nothing where the coupling
-/// admits no response conduit at all. The updateScale refusals above are the
-/// other channel and raise.
+/// updateScale reads the rows in the likelihood, those of positive weight
+/// that no mask switches off, each counted once.
+///
+/// Returns a dbarts_swap_status. 0 is the CAPABILITY STATUS, touching nothing
+/// where the coupling admits no response conduit at all; 1 is a swap. 2 is a
+/// swap that asked for updateScale on a sampler with a row out of the
+/// likelihood whose rows in hold fewer than two distinct values of the
+/// response less the offset (of the count, for nbinom): there is too little
+/// to derive a transform from, so the transform and the count center in
+/// force were kept and the swap made as with updateScale false. Nothing is
+/// raised for it. A constant response with every row in answers 1, and takes
+/// the window of width 1 about its value. The updateScale refusals above are
+/// the other channel and raise.
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                int updateScale);
 /// offset has numObservations finite values or is null to remove; a non-finite
@@ -892,8 +918,10 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
 /// offset. COPIED, on the copy-on-set rule above: the caller's offset is free on
 /// return.
 ///
-/// A CAPABILITY STATUS on dbarts_sampler_setResponse's rule: 1 on a swap, 0
-/// where the coupling carries no offset at all.
+/// Returns a dbarts_swap_status on dbarts_sampler_setResponse's rule: 0, the
+/// CAPABILITY STATUS, where the coupling carries no offset at all; 1 on a
+/// swap; 2 on a swap whose updateScale found too little to read among the
+/// rows in the likelihood and kept the transform and count center in force.
 int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                              int updateScale);
 /// Holds the residual standard deviation at sigma (original response scale)

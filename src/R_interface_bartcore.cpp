@@ -5516,6 +5516,16 @@ SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   return R_NilValue;
 }
 
+// What the two response setters return to R: whether to warn NOW that the
+// scale was kept, which is on this holder's first keep and never again.
+static SEXP firstScaleKept(BartcoreHolder& holder,
+                           bartcore::ResponseUpdateResult result) {
+  bool first = result == bartcore::ResponseUpdateResult::scaleKept &&
+               !holder.scaleKeptWarned;
+  if (first) holder.scaleKeptWarned = true;
+  return Rf_ScalarLogical(first ? TRUE : FALSE);
+}
+
 SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -5529,10 +5539,10 @@ SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
     Rf_error("length of replacement offset is not equal to number of observations");
   const double* offset = Rf_isNull(offsetExpr) ? NULL : REAL(offsetExpr);
   refuseNonFinite(offset, shape.numObservations, "$setOffset", "offset");
-  holder.sampler->setOffset(
-    adoptVector(holder.ownedOffset, offset, shape.numObservations),
-    updateScale == TRUE);
-  return R_NilValue;
+  return firstScaleKept(
+    holder, holder.sampler->setOffset(
+              adoptVector(holder.ownedOffset, offset, shape.numObservations),
+              updateScale == TRUE));
 }
 
 // A null status is the response-only call, bit for bit. A non-null one is the
@@ -5566,11 +5576,11 @@ SEXP bartcore_setResponse(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr,
   }
   GetRNGstate(); // probit latent redraw
   if (status != NULL) holder.sampler->setSurvivalStatus(status);
-  holder.sampler->setResponse(
+  bartcore::ResponseUpdateResult result = holder.sampler->setResponse(
     adoptVector(holder.ownedResponse, REAL(yExpr), shape.numObservations),
     updateScale == TRUE);
   PutRNGstate();
-  return R_NilValue;
+  return firstScaleKept(holder, result);
 }
 
 SEXP bartcore_setSigma(SEXP ptrExpr, SEXP sigmaExpr) {

@@ -544,9 +544,21 @@ SEXP capi_run_loglik(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr) {
   return resultExpr;
 }
 
-/* the conditioning setters answer a capability status, which the R side reads
- * as an integer: 1 on a mutation, 0 where the sampler carries no such channel
- * at all and nothing was touched */
+/* every dbarts_swap_status value, in header order, as this consumer compiled
+ * them in */
+SEXP capi_swap_constants(void) {
+  SEXP result = PROTECT(Rf_allocVector(INTSXP, 3));
+  INTEGER(result)[0] = DBARTS_SWAP_NONE;
+  INTEGER(result)[1] = DBARTS_SWAP_DONE;
+  INTEGER(result)[2] = DBARTS_SWAP_SCALE_KEPT;
+  UNPROTECT(1);
+  return result;
+}
+
+/* the conditioning setters answer a dbarts_swap_status, which the R side
+ * reads as an integer: 0 where the sampler carries no such channel at all and
+ * nothing was touched, 1 on a mutation, 2 on one that kept the scale it was
+ * asked to re-derive */
 SEXP capi_set_response(SEXP ptrExpr, SEXP yExpr, SEXP updateScaleExpr) {
   return Rf_ScalarInteger(dbarts_sampler_setResponse(
     samplerFromExpr(ptrExpr), REAL(yExpr),

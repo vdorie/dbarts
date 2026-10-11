@@ -992,7 +992,7 @@ bartcoreSamplerSetResponse <- function(
   # validate (the C length, family and support checks) before installing, so a
   # rejected y or status never leaves data@y or the control attribute holding
   # the bad replacement
-  .Call(
+  scaleKept <- .Call(
     C_dbarts_bartcore_setResponse,
     sampler$getPointer(),
     y,
@@ -1007,6 +1007,22 @@ bartcoreSamplerSetResponse <- function(
     newControl <- sampler$control
     attr(newControl, "bartcore.survival") <- status
     sampler$control <- newControl
+  }
+  invisible(scaleKept)
+}
+
+## Raised by $setResponse and $setOffset as their last act, so a warning
+## turned into an error leaves the object and its stored state agreeing with
+## the engine. 'first' is the bridge's answer: TRUE on the sampler's first
+## re-derivation that kept the scale, FALSE on every other call.
+warnScaleKept <- function(first) {
+  if (isTRUE(first)) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of the response are in the ",
+      "likelihood, so the response's scale and the prior's center are kept ",
+      "as they were (said once per sampler)"
+    )
   }
   invisible(NULL)
 }
@@ -1069,7 +1085,7 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
   # the engine copies the offset, so the mirror is installed only once the
   # engine has taken it: a refused swap leaves data@offset what the live
   # sampler holds, which a save and load re-creates from
-  .Call(C_dbarts_bartcore_setOffset, ptr, offset, updateScale)
+  scaleKept <- .Call(C_dbarts_bartcore_setOffset, ptr, offset, updateScale)
   sampler$data@offset <- offset
 
   if (!identical(offset.test, NA)) {
@@ -1085,7 +1101,7 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
     if (inherits(tryResult, "error")) stop(tryResult)
   }
 
-  invisible(NULL)
+  invisible(scaleKept)
 }
 
 bartcoreSamplerSetData <- function(sampler, newData) {

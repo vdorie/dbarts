@@ -512,6 +512,7 @@ constexpr std::uint64_t dbarts_apiToken() {
   hash = dbarts_fnv1a(hash, DBARTS_COLUMN_TYPE_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR_TEXT));
   hash = dbarts_fnv1a(hash, DBARTS_FAMILY_LIST(DBARTS_ENUMERATOR_TEXT));
+  hash = dbarts_fnv1a(hash, DBARTS_SWAP_STATUS_LIST(DBARTS_ENUMERATOR_TEXT));
   return dbarts_foldLayout(hash);
 }
 } // namespace
@@ -668,11 +669,20 @@ void dbarts_sampler_sampleTreesFromPrior(dbarts_sampler* sampler) {
   });
 }
 
+/// A swap's status as the flat entries report it. A kept scale is a value
+/// and nothing else here: no warning, and the R setters' once is not spent.
+static int swapStatus(bartcore::ResponseUpdateResult result) {
+  return result == bartcore::ResponseUpdateResult::scaleKept
+           ? DBARTS_SWAP_SCALE_KEPT
+           : DBARTS_SWAP_DONE;
+}
+
 int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
                                int updateScale) {
   // the capability answer, which no argument would have changed: a coupling
   // that fixes its response conduit at creation
-  if (responseConduitIsFixed(samplerOf(sampler).shape())) return 0;
+  if (responseConduitIsFixed(samplerOf(sampler).shape()))
+    return DBARTS_SWAP_NONE;
   // the shared conduit guard, not the whole-data refusal: a two-forest
   // sampler's response swap is opt-in and scale-pinned rather than refused -
   // the same rule bartcore_setResponse applies
@@ -690,17 +700,17 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
   validateResponseSupport(shape.family, shape.numOrdinalThresholds + 1, y,
                           shape.numObservations, "dbarts_sampler_setResponse");
   // the probit latent redraw draws from the chain RNG, not R's stream
-  samplerOf(sampler).setResponse(
+  return swapStatus(samplerOf(sampler).setResponse(
     adoptVector(sampler->ownedResponse, y, shape.numObservations),
-    updateScale != 0);
-  return 1;
+    updateScale != 0));
 }
 
 int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                              int updateScale) {
   // the offset is the response-side swap under a different pointer, so it
   // carries the same conditions; see dbarts_sampler_setResponse
-  if (responseConduitIsFixed(samplerOf(sampler).shape())) return 0;
+  if (responseConduitIsFixed(samplerOf(sampler).shape()))
+    return DBARTS_SWAP_NONE;
   refuseMultiForestResponseMutation(samplerOf(sampler),
                                     "dbarts_sampler_setOffset",
                                     ResponseConduit::offset, updateScale);
@@ -708,11 +718,10 @@ int dbarts_sampler_setOffset(dbarts_sampler* sampler, const double* offset,
                             updateScale);
   refuseNonFinite(offset, samplerOf(sampler).shape().numObservations,
                   "dbarts_sampler_setOffset", "offset");
-  samplerOf(sampler).setOffset(
+  return swapStatus(samplerOf(sampler).setOffset(
     adoptVector(sampler->ownedOffset, offset,
                 samplerOf(sampler).shape().numObservations),
-    updateScale != 0);
-  return 1;
+    updateScale != 0));
 }
 
 int dbarts_sampler_setSigma(dbarts_sampler* sampler, double sigma) {
