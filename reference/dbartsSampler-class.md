@@ -297,7 +297,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   mid-chain, mark it inactive with `setActiveRows` and give it any value
   in the support, which enters no draw while the row stays inactive
   unless the call re-anchors the scale (`updateScale = TRUE`), which
-  reads every row.
+  reads the rows in the likelihood.
 
 - status:
 
@@ -423,11 +423,19 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the surface keeps its meaning in response units across the swap.
   `setData` carries that restatement too, unconditionally: the
   whole-data conduit has no `updateScale` to pin the transform with, so
-  a replacement data set always re-anchors it. On `setResponse`,
-  supplying this argument positionally (`setResponse(y, TRUE)`) rather
-  than by name warns once per session - it is the second argument, where
-  a caller porting code written before this order had `updateState`
-  there instead.
+  a replacement data set always re-anchors it, over its rows in the
+  likelihood as creation would, and a sampler made by hand from
+  another's parts derives them again in the same way. Where rows are out
+  and the rows in hold fewer than two distinct values of the response,
+  `setData` takes every row, under a warning of class
+  `dbartsScaleFallbackWarning`; `setResponse` and `setOffset` with
+  `updateScale = TRUE` instead keep the scale and the center in force,
+  as with `updateScale = FALSE`, and warn with the same class once for a
+  sampler (a copy or a reload is a new sampler, `setData` is not). On
+  `setResponse`, supplying this argument positionally
+  (`setResponse(y, TRUE)`) rather than by name warns once per session -
+  it is the second argument, where a caller porting code written before
+  this order had `updateState` there instead.
 
 - offset.test:
 
@@ -533,19 +541,26 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   larger than \\10^6\\, a zero count being a dropped row rather than a
   down-weighted one (`active` is the supported way to take a row out of
   the data set for a sweep). A zero-weight row is IN THE DESIGN BUT NOT
-  IN THE LIKELIHOOD. It counts as a member of its leaf, so the rule that
-  rejects a tree move leaving a leaf empty counts it too: the trees a
-  sampler may hold do not depend on the weights, and a leaf may hold
+  IN THE LIKELIHOOD, and takes no part in the response scale, the count
+  center or a forest's default sd, which are taken over the rows of
+  positive weight when the sampler is created (a row is in when its
+  weight is positive and no mask switches it off) and held when the
+  weights or the mask change, so the three ways to leave a row out - at
+  creation, by `setWeights` or `setActiveRows`, and by `subset` - differ
+  by when the row left. It counts as a member of its leaf, so the rule
+  that rejects a tree move leaving a leaf empty counts it too: the trees
+  a sampler may hold do not depend on the weights, and a leaf may hold
   zero-weight rows only, in which case no likelihood term reaches it and
   its value is a draw from the leaf prior. A fit with zero weights is
   therefore close to the fit on the remaining rows alone but is not that
   fit, since the trees can spend splits on regions of zero-weight rows.
-  In one measured case, 300 rows with 50 trees and the cut points and
-  scales held equal: with a random half of the rows at weight zero the
-  posterior mean fit at the remaining rows moved by at most 0.02 of a
-  posterior standard deviation, and with a whole region at weight zero
-  by at most 0.05; the residual standard deviation did not move, and the
-  fit at the zero-weight rows was 1 to 2 percent more variable.
+  In one measured case, 300 rows with 50 trees and the cut points held
+  equal and the scale that of the remaining rows: with a random half of
+  the rows at weight zero the posterior mean fit at the remaining rows
+  moved by at most 0.02 of a posterior standard deviation, and with a
+  whole region at weight zero by at most 0.05; the residual standard
+  deviation did not move, and the fit at the zero-weight rows was 1 to 2
+  percent more variable.
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
   `subset` drops rows outright, and with them their part in the cut
   points and the response scale. In exchange, an outer sampler that
@@ -720,15 +735,16 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   wanting them recomputed on the active subset must re-create the
   sampler instead: the split-candidate cut grid stays the FULL-data
   grid, holding the tree prior fixed while the row set moves; the
-  response transform and residual prior scale stay the FULL-data
+  response transform and residual prior scale stay creation's
   calibration (a masked gaussian - and so `aft`, and any `variance`
-  decoration - keeps the range and residual-prior scale of every row);
-  and an ordinal sampler keeps its FULL-data number of categories, free
-  thresholds, and log-gap prior even when a mask empties a boundary
-  category - only `setData` changes them. `setData` also CLEARS an
-  installed mask - the mask is a per-row vector and `setData` may change
-  the number of rows - so a caller replacing the data must reinstall any
-  mask it wants kept.
+  decoration - keeps the range and residual-prior scale creation set,
+  which were taken over the rows in the likelihood then, every row when
+  none was out); and an ordinal sampler keeps its FULL-data number of
+  categories, free thresholds, and log-gap prior even when a mask
+  empties a boundary category - only `setData` changes them. `setData`
+  also CLEARS an installed mask - the mask is a per-row vector and
+  `setData` may change the number of rows - so a caller replacing the
+  data must reinstall any mask it wants kept.
 
   The mask does not ride a sampler's saved `state` - the state carries
   derived quantities and no raw conditioning vector - so, exactly as

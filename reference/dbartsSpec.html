@@ -106,7 +106,7 @@
 <dd><p>the resolved family token, never <code>"auto"</code>.</p></dd>
 
   <dt>active</dt>
-<dd><p>the active-row mask a <code>"probit"</code>, <code>"ordinal"</code> or <code>"nbinom"</code> fit's 0/1 case weights resolved to, <code>NULL</code> when they resolved to none; the <code>data</code> object's weights slot is cleared either way, since neither family carries one, so a caller building a sampler from this list must install the mask on it.</p></dd>
+<dd><p>the active-row mask a <code>"probit"</code>, <code>"ordinal"</code> or <code>"nbinom"</code> fit's 0/1 case weights resolved to, <code>NULL</code> when they resolved to none; the <code>data</code> object's weights slot is cleared either way, since neither family carries one, so a caller building a sampler from this list must install the mask on it. A count (<code>"nbinom"</code>) sampler made by hand from the list is created with every row in and keeps the center taken over every row, where <code>dbarts</code> takes it over the rows the mask keeps.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -104,7 +104,12 @@ xbart(
   observation counts and so requires positive integers (its Polya-Gamma
   latent for a count \\w\\ is a sum of \\w\\ unit draws, so a sweep's
   time grows with the total count, and a count above \\10^6\\ is
-  refused).
+  refused). A gaussian row of weight 0 takes no part in a fold's
+  response scale or starting sigma: each fold reads the rows of positive
+  weight among its training rows, and where those hold fewer than two
+  distinct values of the response it reads every training row, one
+  warning of class `dbartsScaleFallbackWarning` being raised for the
+  whole call when that is so of all rows.
 
 - offset:
 
@@ -305,30 +310,30 @@ xbart(
   function that makes one. Each name gives the residual standard
   deviation of the linear regression of the response on the predictors,
   factors entering as indicator columns whatever the trees are given,
-  and the standard deviation of the response where that regression
-  leaves no residual degrees of freedom, which a line under `verbose`
-  says, with no warning. `"auto"` is `lm`'s own routine (`"dense"`) for
-  a matrix or a data frame and an exact sparse one (`"sparse"`) where
-  the caller supplied a sparse-stored column. `NULL` (the default) is
-  `"auto"`; an explicit `NA` is a missing value and is refused. The
-  estimate is made separately for each fold on that fold's training
-  rows, so no fold's prior reads its held-out responses; it is made on
-  all rows once beforehand, to raise any refusal once, to print its
-  lines under `verbose` and to settle the routine every fold runs, a
-  fold taking its own response's standard deviation where all rows, or
-  its own, leave no residual degrees of freedom; where all rows allow
-  the regression and some folds' rows do not, one more line under
-  `verbose` gives the number of those folds. A function is called once
-  for each fold in place of any of that, as
-  `function(x, y, weights, offset)` or in `loss`'s list form with an
-  environment, on the worker that runs the fold and so under what `loss`
-  and `seed` say of workers and random numbers. `x` is the fold's
-  training rows of the design `"auto"` would read, a numeric matrix or
-  for a sparse `x` a `dgCMatrix`, built only if the function reads it;
-  `y`, `weights` and `offset` are those rows', `NULL` where the call has
-  none; the value must be one positive finite number.
-  `function(x, y, weights, offset) sd(y)` skips an expensive estimate,
-  and the alternatives
+  and the standard deviation of the response over the observations of
+  positive weight where that regression leaves no residual degrees of
+  freedom, which a line under `verbose` says, with no warning. `"auto"`
+  is `lm`'s own routine (`"dense"`) for a matrix or a data frame and an
+  exact sparse one (`"sparse"`) where the caller supplied a
+  sparse-stored column. `NULL` (the default) is `"auto"`; an explicit
+  `NA` is a missing value and is refused. The estimate is made
+  separately for each fold on that fold's training rows, so no fold's
+  prior reads its held-out responses; it is made on all rows once
+  beforehand, to raise any refusal once, to print its lines under
+  `verbose` and to settle the routine every fold runs, a fold taking its
+  own response's standard deviation where all rows, or its own, leave no
+  residual degrees of freedom; where all rows allow the regression and
+  some folds' rows do not, one more line under `verbose` gives the
+  number of those folds. A function is called once for each fold in
+  place of any of that, as `function(x, y, weights, offset)` or in
+  `loss`'s list form with an environment, on the worker that runs the
+  fold and so under what `loss` and `seed` say of workers and random
+  numbers. `x` is the fold's training rows of the design `"auto"` would
+  read, a numeric matrix or for a sparse `x` a `dgCMatrix`, built only
+  if the function reads it; `y`, `weights` and `offset` are those rows',
+  `NULL` where the call has none; the value must be one positive finite
+  number. `function(x, y, weights, offset) sd(y)` skips an expensive
+  estimate, and the alternatives
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) lists
   for one can be written the same way. Every entry point spells this
   `sigest` - `xbart`,

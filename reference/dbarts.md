@@ -125,26 +125,38 @@ dbarts(
   weights that are all 0 and 1: those name the rows in the data set
   rather than a precision, so they install as the sampler's active-row
   mask, where a 0 row leaves the likelihood but keeps its leaf
-  occupancy, its latent and its fitted value. For `"nbinom"` a 0 row
-  still counts toward the leaf prior's centre, the log of the total
-  count over the total exposure, as a gaussian or aft fit's response
-  transform is taken over all rows. A `"logistic"` model differs again:
-  it treats them as observation counts and so requires positive integers
-  (its Polya-Gamma latent for a count \\w\\ is a sum of \\w\\ unit
-  draws, so a sweep's time grows with the total count, and a count above
-  \\10^6\\ is refused). A weight of 0 takes an observation out of the
-  likelihood and out of the residual degrees of freedom but not out of
-  the design: the row still occupies a leaf, which the trees may split
-  around, and still receives a fitted value, so the fit is close to the
-  fit on the remaining rows without being that fit (see the `weights`
-  item of
+  occupancy, its latent and its fitted value. For `"nbinom"` the leaf
+  prior's centre, the log of the total count over the total exposure, is
+  taken over the rows of weight 1, as a gaussian or Student-t fit's
+  response transform is taken over the rows of positive weight (an
+  `"aft"` fit takes no weights, so every row is in when it is created).
+  A `"logistic"` model differs again: it treats them as observation
+  counts and so requires positive integers (its Polya-Gamma latent for a
+  count \\w\\ is a sum of \\w\\ unit draws, so a sweep's time grows with
+  the total count, and a count above \\10^6\\ is refused). A weight of 0
+  takes an observation out of the likelihood and out of the residual
+  degrees of freedom but not out of the design: the row still occupies a
+  leaf, which the trees may split around, and still receives a fitted
+  value, so the fit is close to the fit on the remaining rows without
+  being that fit (see the `weights` item of
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md);
-  `subset` drops rows). It is warned about unless every weight is 0 or
-  1 - a vector of nothing but those states which rows are in the data
-  set, and is the active-row mask outright for a `"probit"`, `"ordinal"`
-  or `"nbinom"` fit; the same class covers `weights` going unused for
-  `test` - when the model is not specified as a formula, and when
-  `weights` names a column `test` does not carry.
+  `subset` drops rows). A row of weight 0 takes no part in the
+  response's scale, which the leaf prior is stated against, in the
+  center of a count fit's leaf prior, or in the default sd of a forest
+  in a model of several forests: they are taken over the rows of
+  positive weight when the sampler is created. The step is at 0 and not
+  at a small weight, and weights or a mask set after creation leave the
+  numbers creation set, so the three ways to leave a row out - weights
+  or a mask at creation, weights or a mask set later, and `subset` -
+  differ by when the row left. Where rows are out and the rows in hold
+  fewer than two distinct values of the response, every row is used
+  instead, under a warning of class `dbartsScaleFallbackWarning`. It is
+  warned about unless every weight is 0 or 1 - a vector of nothing but
+  those states which rows are in the data set, and is the active-row
+  mask outright for a `"probit"`, `"ordinal"` or `"nbinom"` fit; the
+  same class covers `weights` going unused for `test` - when the model
+  is not specified as a formula, and when `weights` names a column
+  `test` does not carry.
 
 - offset:
 
@@ -437,9 +449,9 @@ dbarts(
   naming how one is made: each gives the residual standard deviation of
   the linear regression of the response on the predictors, factors
   entering as indicator columns whatever the trees are given, and the
-  standard deviation of the response where that regression leaves no
-  residual degrees of freedom, which a line under `verbose` says, with
-  no warning (the `summary` of a
+  standard deviation of the response over the observations of positive
+  weight where that regression leaves no residual degrees of freedom,
+  which a line under `verbose` says, with no warning (the `summary` of a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit says
   it too). `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a
   data frame and an exact sparse one (`"sparse"`) where the caller
@@ -711,7 +723,8 @@ dbarts(
   chosen binary link \\g\\ (probit for `"hazard"`, logistic for
   `"hazard.logistic"`), and the fit IS an ordinary
   `"probit"`/`"logistic"` fit on the expanded rows - it adds no engine
-  code. The time grid is the sorted distinct observed times by default;
+  code. The time grid is the sorted distinct observed times of the
+  subjects in the likelihood, those of positive weight, by default;
   `hazard(breaks = )` replaces it with a given number of quantile bins
   or with explicit interval boundaries (see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).

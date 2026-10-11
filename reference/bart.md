@@ -268,8 +268,18 @@ print(x, ...)
   occupies a leaf and receives a fitted value, so a fit with zero
   weights is close to the fit on the remaining rows alone without being
   that fit: the trees may split off regions of zero-weight rows, whose
-  fitted values then come from the prior. In one measured case (300
-  rows, 50 trees, the cut points and the response scale held equal) the
+  fitted values then come from the prior. A row of weight 0 takes no
+  part in the response's scale, which the leaf prior is stated against,
+  in the center of a count fit's leaf prior, or in the default sd of a
+  forest in a model of several forests: they are taken over the rows of
+  positive weight when the sampler is created. The step is at 0 and not
+  at a small weight, and weights or a mask set after creation leave the
+  numbers creation set, so the three ways to leave a row out - weights
+  or a mask at creation, weights or a mask set later, and `subset` -
+  differ by when the row left. Where rows are out and the rows in hold
+  fewer than two distinct values of the response, every row is used
+  instead, under a warning of class `dbartsScaleFallbackWarning`. In one
+  measured case (300 rows, 50 trees, the cut points held equal) the
   fitted mean at the remaining rows moved by no more than 0.02 of a
   posterior standard deviation with a random half of the rows at weight
   zero, and 0.05 with a whole region at weight zero;
@@ -283,19 +293,18 @@ print(x, ...)
   the data set and install as the fit's active-row mask, a 0 row leaving
   the likelihood but keeping its leaf occupancy, its latent and its
   fitted value (the same holds for `family = "ordinal"` and `"nbinom"`;
-  for `"nbinom"` a 0-weight row still counts toward the leaf prior's
-  centre, the log of the total count over the total exposure, as a
-  gaussian or aft fit's response transform is taken over all rows); a
-  `family = "logistic"` fit treats them as observation counts and
-  requires positive integers no larger than \\10^6\\, as a sweep's time
-  grows with the total count. For a weighted logistic fit, the `"ppd"`
-  draw at an observation with weight \\w\\ is the number of successes
-  among \\w\\ trials, \\\mathrm{Binomial}(w, p)\\ with \\p\\ the fitted
-  probability. On a gaussian, Student-t or `aft` fit, the `"ppd"` draw
-  of a training row at weight 0 is that of an ordinary observation,
-  drawn at weight 1, in `extract` and in `fitted(type = "ppd")`;
-  `predict(type = "ppd", weights = )` refuses a weight of 0 by name, so
-  pass 1 for an ordinary observation.
+  for `"nbinom"` the leaf prior's centre, the log of the total count
+  over the total exposure, is taken over the rows of weight 1, and a 0
+  row takes no part in it); a `family = "logistic"` fit treats them as
+  observation counts and requires positive integers no larger than
+  \\10^6\\, as a sweep's time grows with the total count. For a weighted
+  logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
+  the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
+  p)\\ with \\p\\ the fitted probability. On a gaussian, Student-t or
+  `aft` fit, the `"ppd"` draw of a training row at weight 0 is that of
+  an ordinary observation, drawn at weight 1, in `extract` and in
+  `fitted(type = "ppd")`; `predict(type = "ppd", weights = )` refuses a
+  weight of 0 by name, so pass 1 for an ordinary observation.
 
 - offset:
 
@@ -659,22 +668,28 @@ print(x, ...)
   `"probit"`/`"logistic"` fit on the expanded rows - a hazard fit is
   byte-identical, draw for draw, to the binary fit on the hand-expanded
   design with the same seed. The time grid defaults to the sorted
-  distinct observed times (the BART `surv.bart` convention);
+  distinct observed times of the subjects in the likelihood, those of
+  positive weight (the BART `surv.bart` convention; every subject's if
+  none is in, under a warning of class `dbartsScaleFallbackWarning`);
   `family = hazard(breaks = )` replaces it (a single integer bins at
-  that many quantiles, a boundary vector gives explicit right-closed
-  intervals), and `hazard(max.rows = )` guards the expansion size, 1e7
-  rows by default, at about 0.85 KB a row a chain at 75 trees (so about
-  8.5 GB on one chain and 27 GB on the four of `bart`; see
+  that many quantiles of those times, a boundary vector gives explicit
+  right-closed intervals), and `hazard(max.rows = )` guards the
+  expansion size, 1e7 rows by default, at about 0.85 KB a row a chain at
+  75 trees (so about 8.5 GB on one chain and 27 GB on the four of
+  `bart`; see
   [`dbartsFamilies`](https://vdorie.github.io/dbarts/reference/dbartsFamilies.md)).
   Offsets are on the link scale and replicate per subject; `weights`
   replicate and then follow the chosen binary family's policy (probit
-  refuses non-unit weights, logistic requires integer counts). A `Surv`
-  response requires the family to be requested explicitly
-  (`family = "auto"` selects `"aft"`), on either interface - a `Surv`
-  left-hand side on `formula` works too, and both interfaces honour
-  `subset` (applied before the person-period expansion). Both interfaces
-  accept a `test` set, person-period-expanded on the SAME period grid as
-  training (no event time - every subject expands to every period);
+  refuses non-unit weights, logistic requires integer counts); a subject
+  at weight 0 is expanded on that grid, its time in the interval it
+  falls in, and one past the last period is at risk in every period with
+  no event. A `Surv` response requires the family to be requested
+  explicitly (`family = "auto"` selects `"aft"`), on either interface -
+  a `Surv` left-hand side on `formula` works too, and both interfaces
+  honour `subset` (applied before the person-period expansion). Both
+  interfaces accept a `test` set, person-period-expanded on the SAME
+  period grid as training (no event time - every subject expands to
+  every period);
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   then reads its hazards straight off the fit with no `keepTrees`
   needed. Any OTHER `newdata` passed to
@@ -754,13 +769,16 @@ print(x, ...)
   each gives the residual standard deviation of the linear regression of
   the response on the predictors, factors entering as indicator columns
   whatever the trees are given, and the standard deviation of the
-  response where that regression leaves no residual degrees of freedom,
-  which a line under `verbose` and one in the fit's `summary` say, with
-  no warning. `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or
-  a data frame and an exact sparse one (`"sparse"`) where the caller
-  supplied a sparse-stored column. `NULL` (the default) is `"auto"`; an
-  explicit `NA` reads as `NULL` for one release, with a once-per-session
-  warning.
+  response over the observations of positive weight where that
+  regression leaves no residual degrees of freedom, which a line under
+  `verbose` and one in the fit's `summary` say, with no warning. (Where
+  rows are out and the observations of positive weight hold fewer than
+  two distinct values of the response, the regression is made on every
+  row instead, under the warning of class `dbartsScaleFallbackWarning`.)
+  `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a data
+  frame and an exact sparse one (`"sparse"`) where the caller supplied a
+  sparse-stored column. `NULL` (the default) is `"auto"`; an explicit
+  `NA` reads as `NULL` for one release, with a once-per-session warning.
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) says
   what the two routines cost, where they differ, and what to pass in
   place of an expensive estimate, which cannot be interrupted once
@@ -1527,11 +1545,14 @@ inherits base R's `deprecatedWarning`; see
 [`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)),
 the slow-count warning of a monotone fit (`dbartsSlowCountWarning`; see
 [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)),
-and warnings that a supplied input was replaced by another
+warnings that a supplied input was replaced by another
 (`dbartsFallbackWarning`; `dbartsGPFallbackWarning` for Gaussian-process
 leaves, see
-[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
-Every other warning is an ordinary one, matched by its text.
+[`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
+and the warning that the rows in the likelihood leave nothing to read
+the response's scale from, so every row is used
+(`dbartsScaleFallbackWarning`; see the `weights` item). Every other
+warning is an ordinary one, matched by its text.
 
 **Chains and `n.threads`.** Results never depend on the thread count: a
 fit, its `predict`, and
@@ -2092,7 +2113,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001448
+#> total seconds in loop: 0.001143
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2141,7 +2162,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001620
+#> total seconds in loop: 0.001237
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 4 2 3 2 2 2 2 3 

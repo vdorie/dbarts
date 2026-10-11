@@ -183,7 +183,9 @@ A list with components
   case weights resolved to, `NULL` when they resolved to none; the
   `data` object's weights slot is cleared either way, since neither
   family carries one, so a caller building a sampler from this list must
-  install the mask on it.
+  install the mask on it. A count (`"nbinom"`) sampler made by hand from
+  the list is created with every row in and keeps the center taken over
+  every row, where `dbarts` takes it over the rows the mask keeps.
 
 ## See also
 
