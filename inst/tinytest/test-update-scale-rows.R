@@ -367,6 +367,11 @@ subset <- dbarts(
   family = "aft",
   control = ctl
 )
+expect_equal(
+  recordedRange(sv),
+  range((ySurv - off)[rows.in]),
+  tolerance = 1e-14
+)
 expect_equal(recordedRange(sv), recordedRange(subset), tolerance = 1e-14)
 expect_equal(readers(sv), readers(subset), tolerance = 1e-14)
 
@@ -660,7 +665,7 @@ for (build in list(mkTwoForests, mkTwoProbit)) {
 expectRefused(
   mkMultinomial,
   function(s) s$setActiveRows(w01, updateScale = TRUE),
-  "is not available on a multinomial sampler",
+  "is not available on a multinomial sampler: .*; call it without updateScale$",
   "multinomial, mask"
 )
 expectRefused(
@@ -992,17 +997,10 @@ byIdentity <- loopCount(function(s, m, u) {
 expect_identical(byCall$centers, byIdentity$centers)
 expect_identical(byCall$centers[6:8], rep(byCall$centers[5L], 3L))
 for (i in 1:5) {
-  rowsInReference <- dbarts(
-    y ~ x1 + x2,
-    countFrame,
-    weights = masks[[i]],
-    offset = off,
-    family = "nbinom",
-    control = ctl
-  )
+  m <- as.logical(masks[[i]])
   expect_equal(
     byCall$centers[i],
-    readers(rowsInReference)$response.shift,
+    log(sum(countsA[m]) / sum(exp(off[m]))),
     tolerance = 1e-14
   )
 }

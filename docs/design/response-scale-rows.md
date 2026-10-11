@@ -82,7 +82,7 @@ The engine decides the keep once, in the sampler, from chain 0's response model,
 with `updateScale` false and skips the anchor record, so the keep is that call, literally; no chain or response
 model grows a branch. The decision travels as a returned status, [`Sampler::setResponse`](../../src/bartcore/sampler.hpp)
 and `Sampler::setOffset` answering `ResponseUpdateResult::scaleKept`, and `Sampler::rederiveScale`, which
-`setWeights` and `setActiveRows` call after their install with the offset in force; the engine never warns.
+the bridge calls for `setWeights` and `setActiveRows` after their install, with the offset in force; the engine never warns.
 
 - R: the bridge returns a length-one logical, "warn now", true on a sampler's first keep, and the R methods raise
   the warning as their last act ([`warnScaleKept`](../../R/bartcore.R)), after the mirror and the stored state, so

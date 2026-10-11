@@ -3037,7 +3037,7 @@ dbartsSampler <- setRefClass(
           .self,
           "$setActiveRows(updateScale = TRUE)",
           "its K category forests keep their scale at creation, and the count ",
-          "response is not a column of the data"
+          "response is not a column of the data; call it without updateScale"
         )
         refuseAmplitudeMutation(
           .self,
