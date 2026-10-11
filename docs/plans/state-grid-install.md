@@ -234,7 +234,9 @@ grid change with no store since is re-created on the stored state's grid, as tod
 Undoing a grid change is the caller's, before `setState` (dec-B449), with the state held in a variable
 (`setCutPoints` replaces the `state` field under `updateState`): `setCutPoints(attr(st, "cutPoints"))`,
 the whole set in one call, and then `setState(st)`. Where no changed column's stored grid carries weights
-that is the stored grid and the stored chain, bit for bit, what 0.9-34's restore gave. A column whose grid
+that is the stored grid and the stored chain, bit for bit, what the branch's `setState` alone gave before
+this rule. 0.9-34's own restore brought back the grid and the splits and not the leaf values (the review's
+run: leaf values off by up to 0.13). A column whose grid
 was changed and whose stored grid carries weights (`attr(st, "cutMass")` holds an entry for it) gets its
 points and not its weights, so the restore is TRUE and the chain runs unweighted on that column;
 `setPredictor(x[, j], j, updateCutPoints = "value")` gives back both while the column holds the values the
@@ -496,3 +498,38 @@ The blind critique (scratch/sgp-crit.md, its probes beside it) said revise. Item
   for the family.
 - The state keeps both grid attributes: a re-creation has no other grid, pass 1 needs the recorded
   points, and the tests and the by-hand sequence read them.
+
+## Review and fix round
+
+The review of the built slice (2026-10-11) found one defect and test gaps. What the fix round changed, and
+the calls in it:
+
+- The ordered-factor refusal belongs to an install that does not adopt (settled by the orchestrator,
+  2026-10-11). As built it ran when adopting too, and `copy()` and a reload errored after `setData` had
+  replaced an ordered factor with one declaring fewer levels: a live engine keeps the level table it was
+  created with, its stored state records that grid (5 points for 6 levels), and a new engine reads the
+  levels the data declares (3 points for 4). [`Sampler::setState`](../../src/bartcore/sampler.hpp) now
+  makes the check only without `adoptGrid`, and a copy and a reload are again made as before the slice,
+  draw for draw.
+- An adopting install does not take the grid recorded on a factor column, before the slice or after: no
+  install writes one ([`ColumnStore::setCutPointsForColumn`](../../src/bartcore/data.hpp)). So in that
+  sequence the copy and the reload hold 3 points where the original holds 5, their draws are not the
+  original's, and their `setState` refuses the state the original stored, which records 5 points on a column
+  whose live grid is 3. Before the slice that call returned TRUE with the grid left at 3. Left as the live
+  rule gives it, the state being recorded on another grid than the live one. With an unordered factor in the
+  same sequence neither a copy nor a reload can be made, before the slice as after. Having a re-creation
+  take the level table belongs with the data record (TODO `state-frame-prior`) and is not built here.
+- A sampler whose engine is gone keeps, at its first `setState`, the kept-draw capacity of its own stored
+  state, where the base build took the control's: after `setControl` to 3 draws on a sampler stored with
+  5, a reload's first `setState` of another state keeps 5 draws, as a later call does. Base kept 3 as a
+  first call and 5 after any other. Pinned beside "reload, first call".
+- A throw during pass 1 puts the store's grid, weights and codes back before it leaves
+  ([`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp)); pinned in
+  [`testLiveGridInstall`](../../tests/cpp/test_state.cpp) through the test peer.
+- Pins added, each run against the mutant it answers: the weights through a forced move; a move on the
+  second column alone; a threshold off the grid in the second of two mean forests alone; "equals the two
+  calls" with a test set and on a sparse store; the engine a declined call leaves a sampler whose engine was
+  gone; the refusal on a view in the unforced form; and "direction rides the move" now holds a rule the move
+  merges, so the stored state differs where the sides are drawn after it.
+- The sentence on 0.9-34's restore is corrected: it brought back the grid and the splits, not the leaf
+  values.

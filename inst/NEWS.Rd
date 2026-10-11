@@ -266,7 +266,8 @@
             variable and set them first:
             \code{sampler$setCutPoints(attr(state, "cutPoints"))}, then
             \code{sampler$setState(state)}. A copy and a reloaded sampler
-            keep the cut points of their stored state.
+            keep the cut points their stored state records for numeric
+            columns.
       \item A state whose saved draws (\code{keepTrees}) number more or
             fewer than the sampler keeps is installed with the newest that
             fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a

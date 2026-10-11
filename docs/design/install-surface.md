@@ -192,7 +192,14 @@ A copy and a reload create a new engine, whose grid is the one a creation derive
 now are. The stored state is the only record of a grid set with `setCutPoints` or held while a column moved,
 so a re-creation still takes the grid and weights its state records and then installs the state; taking that
 away before the data object records the grid (TODO state-frame-prior) would make a copy of a sampler with a
-set grid something other than a copy. `setState(newState)` on a sampler whose engine is gone first rebuilds
+set grid something other than a copy. A factor column is outside this: no install writes its grid
+([`ColumnStore::setCutPointsForColumn`](../../src/bartcore/data.hpp)), which stays the one its level table
+gives, so a re-creation does not hold its state to the grid recorded on an ordered factor, as a live install
+does. A live engine keeps its level table through `setData` and a new one reads the levels the data declares,
+so after `setData` to an ordered factor declaring fewer levels a copy and a reload hold the shorter grid, draw
+other draws than the original, and refuse a state the original stored; with an unordered factor they cannot
+be made at all, as before this rule. The level table at a re-creation is the data record's
+(TODO state-frame-prior). `setState(newState)` on a sampler whose engine is gone first rebuilds
 the engine from the sampler's own saved state, where it has one that installs, and then applies the rule
 above, so the call gives one grid whether or not the engine was live. Only a sampler with no saved state, or
 one that is refused, takes `newState`'s grid.
@@ -200,7 +207,8 @@ one that is refused, takes `newState`'s grid.
 Putting a grid back is the caller's, before `setState`, with the state held in a variable:
 `setCutPoints(attr(st, "cutPoints"))`, the whole set in one call, and then `setState(st)`. Where no changed
 column's stored grid carries weights that is the stored grid and the stored chain, bit for bit, which is what
-0.9-34's restore gave. A column whose grid was changed and whose stored grid carries weights gets its points
+`setState` alone gave before this rule; 0.9-34's own restore brought back the grid and the splits and not
+the leaf values. A column whose grid was changed and whose stored grid carries weights gets its points
 and not its weights, `setCutPoints` installing any grid other than the held one unweighted: the restore is
 TRUE and the chain runs with that column's points equally likely.
 `setPredictor(x[, j], j, updateCutPoints = "value")` gives back both while the column holds the values the

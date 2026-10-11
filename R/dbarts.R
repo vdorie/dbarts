@@ -2526,7 +2526,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     copy = function(shallow = FALSE) {
-      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing, on the cut points and weights that state records, and otherwise as setState does with forceUpdate = TRUE: a tree that no longer fits the sampler is repaired, silently; see setState."
+      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing, on the cut points and weights that state records for its numeric columns, and otherwise as setState does with forceUpdate = TRUE: a tree that no longer fits the sampler is repaired, silently; see setState."
       # a copy introduces no rows, so it does not raise the creation warning
       dupe <- withoutZeroTrialsWarning(
         if (shallow) {
