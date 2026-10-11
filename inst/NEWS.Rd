@@ -191,6 +191,11 @@
   }
   \subsection{USER-VISIBLE CHANGES}{
     \itemize{
+      \item An observation of weight zero no longer takes part in the
+            response's scale, which the leaf prior is stated against, so a
+            fit with zero weights has the leaf prior of the fit on the
+            remaining rows; 0.9-34 took the scale over every row. The
+            observation is still in the design.
       \item A probit or logistic fit whose response holds one class is
             fitted, with one warning saying so; 0.9-34 stopped on it with
             an unrelated message.

@@ -54,7 +54,7 @@ dbartsSpec(
   \item{model}{a \code{dbartsModel}, carrying the parsed priors and any monotone, interaction, block, and residual-degrees-of-freedom attributes.}
   \item{data}{a \code{dbartsData}, with the response coded and \code{sigma} resolved.}
   \item{family}{the resolved family token, never \code{"auto"}.}
-  \item{active}{the active-row mask a \code{"probit"}, \code{"ordinal"} or \code{"nbinom"} fit's 0/1 case weights resolved to, \code{NULL} when they resolved to none; the \code{data} object's weights slot is cleared either way, since neither family carries one, so a caller building a sampler from this list must install the mask on it.}
+  \item{active}{the active-row mask a \code{"probit"}, \code{"ordinal"} or \code{"nbinom"} fit's 0/1 case weights resolved to, \code{NULL} when they resolved to none; the \code{data} object's weights slot is cleared either way, since neither family carries one, so a caller building a sampler from this list must install the mask on it. A count (\code{"nbinom"}) sampler made by hand from the list is created with every row in and keeps the center taken over every row, where \code{dbarts} takes it over the rows the mask keeps.}
 }
 \seealso{
   \code{\link{dbarts}}, \code{\link{dbartsData}}, \code{\link{dbartsControl}}, \code{\link{dbartsPriors}}

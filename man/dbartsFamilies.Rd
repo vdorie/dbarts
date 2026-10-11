@@ -117,8 +117,9 @@
                        link = c("probit", "logistic"))}}{
       Discrete-time survival hazard by person-period expansion.
       \code{breaks} sets the period grid: \code{NULL} uses the sorted
-      distinct observed times, a single positive integer bins at that many
-      quantiles, and a numeric boundary vector gives explicit right-closed
+      distinct observed times of the subjects in the likelihood (those of
+      positive weight), a single positive integer bins at that many
+      quantiles of those times, and a numeric boundary vector gives explicit right-closed
       intervals. \code{max.rows} refuses an over-large expansion, naming
       the coarsening levers and what a row costs: about 210 bytes shared
       plus about 630 bytes a chain at 75 trees (one stored value a row a
