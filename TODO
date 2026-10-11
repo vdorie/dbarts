@@ -993,15 +993,6 @@ items
     arguments and dec-B304, stated at that plan's end and not planned.
     Fewer than two distinct response values in take the fallback too
     (dec-B309).
-  state-store-size-install: setState installs a state whose store of
-    kept trees is larger or smaller than the sampler's: the live chain
-    as from any state, the most recent kept draws that fit, the
-    sampler's n.samples unchanged, and TRUE, the store being output
-    and not model (dec-B318), where it refuses today with "state is not
-    consistent with this sampler" (dec-B294, revising dec-A138 in
-    part). Before the merge to main; the kept-draw store in the
-    engine and the state's reader, after leaf-conversions, which
-    works in the same store.
   bartcause-thread-default: on bartCause's dbarts-1.0 branch, bcf.R
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;
