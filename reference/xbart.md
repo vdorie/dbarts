@@ -300,32 +300,51 @@ xbart(
 
 - sigest:
 
-  A positive numeric estimate of the residual standard deviation. If
-  `NULL` (the default), a linear model is used with all of the
-  predictors to obtain one, fit separately for each fold on that fold's
-  training rows, so no fold's prior reads its held-out responses (a fit
-  on all rows runs once beforehand to raise any refusal or fallback
-  once; where that fit falls back to the marginal standard deviation, as
-  described below, each fold takes its own training rows' marginal
-  standard deviation without repeating the linear model); an explicit
-  `NA` is a missing value and is refused. Every entry point spells this
+  A positive numeric estimate of the residual standard deviation; one of
+  `"auto"`, `"dense"` and `"sparse"`, naming how one is made; or a
+  function that makes one. Each name gives the residual standard
+  deviation of the linear regression of the response on the predictors,
+  factors entering as indicator columns whatever the trees are given,
+  and the standard deviation of the response where that regression
+  leaves no residual degrees of freedom, which a line under `verbose`
+  says, with no warning. `"auto"` is `lm`'s own routine (`"dense"`) for
+  a matrix or a data frame and an exact sparse one (`"sparse"`) where
+  the caller supplied a sparse-stored column. `NULL` (the default) is
+  `"auto"`; an explicit `NA` is a missing value and is refused. The
+  estimate is made separately for each fold on that fold's training
+  rows, so no fold's prior reads its held-out responses; it is made on
+  all rows once beforehand, to raise any refusal once, to print its
+  lines under `verbose` and to settle the routine every fold runs, a
+  fold taking its own response's standard deviation where all rows, or
+  its own, leave no residual degrees of freedom; where all rows allow
+  the regression and some folds' rows do not, one more line under
+  `verbose` gives the number of those folds. A function is called once
+  for each fold in place of any of that, as
+  `function(x, y, weights, offset)` or in `loss`'s list form with an
+  environment, on the worker that runs the fold and so under what `loss`
+  and `seed` say of workers and random numbers. `x` is the fold's
+  training rows of the design `"auto"` would read, a numeric matrix or
+  for a sparse `x` a `dgCMatrix`, built only if the function reads it;
+  `y`, `weights` and `offset` are those rows', `NULL` where the call has
+  none; the value must be one positive finite number.
+  `function(x, y, weights, offset) sd(y)` skips an expensive estimate,
+  and the alternatives
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) lists
+  for one can be written the same way. Every entry point spells this
   `sigest` - `xbart`,
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)/`bart`
   and the sampler constructors
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)/`dbartsSpec`
   alike; `sigma` is the retired 0.9-x spelling on `dbarts` and on
   `xbart` itself (`dbartsSpec` refuses it); a family object's own
-  `sigma` is the prior this estimate calibrates, not the estimate. That
-  estimate falls back to the marginal standard deviation of the response
-  when the linear model's residual standard error comes out non-finite,
-  warning as it does so (class `dbartsSigmaFallbackWarning`); a design
-  with sparse-backed predictor columns skips the linear model altogether
-  and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
-  a `dbartsSigmaFallbackWarning`). It is the estimate a `chisq` residual
-  prior's quantile is calibrated against, so it stands beside
-  `family = gaussian(sigma = chisq(df, quant))` and is refused beside
-  `family = gaussian(sigma = fixed(value))`, which fixes the residual
-  scale outright and would overwrite the estimate with its square root.
+  `sigma` is the prior this estimate calibrates, not the estimate. It is
+  the estimate a `chisq` residual prior's quantile is calibrated
+  against, so it stands beside
+  `family = gaussian(sigma = chisq(df, quant))` and has nothing to
+  calibrate beside `family = gaussian(sigma = fixed(value))`, which
+  fixes the residual scale outright: no estimate is made there, by any
+  rule, and a number that differs from the square root of `value`, or a
+  function, is refused.
 
 - seed:
 

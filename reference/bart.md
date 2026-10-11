@@ -749,16 +749,22 @@ print(x, ...)
 
   For continuous response models, an estimate of the residual standard
   deviation (residual standard error), \\\sigma\\, used to calibrate an
-  inverse-chi-squared prior on the error variance. If `NULL` (the
-  default), the least-squares estimate is derived instead; an explicit
-  `NA` reads as `NULL` for one release, with a once-per-session warning.
-  That estimate falls back to the marginal standard deviation of the
-  response when the linear model's residual standard error comes out
-  non-finite, warning as it does so (class
-  `dbartsSigmaFallbackWarning`); a design with sparse-backed predictor
-  columns skips the linear model altogether and falls back the same way
-  (class `dbartsSparseSigmaFallbackWarning`, a
-  `dbartsSigmaFallbackWarning`). The prior it calibrates is
+  inverse-chi-squared prior on the error variance. A positive number, or
+  one of `"auto"`, `"dense"` and `"sparse"`, naming how one is made:
+  each gives the residual standard deviation of the linear regression of
+  the response on the predictors, factors entering as indicator columns
+  whatever the trees are given, and the standard deviation of the
+  response where that regression leaves no residual degrees of freedom,
+  which a line under `verbose` and one in the fit's `summary` say, with
+  no warning. `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or
+  a data frame and an exact sparse one (`"sparse"`) where the caller
+  supplied a sparse-stored column. `NULL` (the default) is `"auto"`; an
+  explicit `NA` reads as `NULL` for one release, with a once-per-session
+  warning.
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) says
+  what the two routines cost, where they differ, and what to pass in
+  place of an expensive estimate, which cannot be interrupted once
+  begun. The prior it calibrates is
   `family = gaussian(sigma = chisq(df, quant))`, whose `quant` is the
   prior probability that \\\sigma\\ is less than this estimate. Not
   applicable when \\y\\ is binary: under a family with no free residual
@@ -771,12 +777,14 @@ print(x, ...)
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md). It is
   the estimate a `chisq` residual prior's quantile is calibrated
   against, so it stands beside
-  `family = gaussian(sigma = chisq(df, quant))` and is refused beside
-  `family = gaussian(sigma = fixed(value))`, which fixes the residual
-  scale outright and would overwrite the estimate with its square root.
-  An estimate that equals that square root (to within a few units in the
-  last place) is accepted with a message saying it has no effect, as
-  0.9-34 ran it; that is an error from dbarts 1.1-0.
+  `family = gaussian(sigma = chisq(df, quant))` and has nothing to
+  calibrate beside `family = gaussian(sigma = fixed(value))`, which
+  fixes the residual scale outright: no estimate is made there, by any
+  rule, the fit reports the square root of `value` as its `sigest`, and
+  a number that differs from it is refused. An estimate that equals that
+  square root (to within a few units in the last place) is accepted with
+  a message saying it has no effect, as 0.9-34 ran it; that is an error
+  from dbarts 1.1-0.
 
 - k:
 
@@ -1520,9 +1528,8 @@ inherits base R's `deprecatedWarning`; see
 the slow-count warning of a monotone fit (`dbartsSlowCountWarning`; see
 [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)),
 and warnings that a supplied input was replaced by another
-(`dbartsFallbackWarning`; `dbartsSigmaFallbackWarning` and
-`dbartsSparseSigmaFallbackWarning` for the starting `sigma`;
-`dbartsGPFallbackWarning` for Gaussian-process leaves, see
+(`dbartsFallbackWarning`; `dbartsGPFallbackWarning` for Gaussian-process
+leaves, see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)).
 Every other warning is an ordinary one, matched by its text.
 
@@ -2085,7 +2092,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001436
+#> total seconds in loop: 0.001432
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2107,6 +2114,7 @@ y  <- x1 + z * (1 + x2) + rnorm(n, 0, 0.2)
 fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
+#> estimating the starting sigma by a dense linear regression on 60 rows and 2 columns; see 'sigest'
 #> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
 #> 
 #> Running BART with numeric y
@@ -2133,7 +2141,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001672
+#> total seconds in loop: 0.001619
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 4 2 3 2 2 2 2 3 

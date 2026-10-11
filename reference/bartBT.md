@@ -123,15 +123,23 @@ family(object, ...)
 
   For continuous response models, an estimate of the residual standard
   deviation (residual standard error), \\\sigma\\, used to calibrate an
-  inverse-chi-squared prior on the error variance. If not supplied, the
-  least-squares estimate is derived instead. That estimate falls back to
-  the marginal standard deviation of the response when the linear
-  model's residual standard error comes out non-finite, warning as it
-  does so (class `dbartsSigmaFallbackWarning`); a design with
-  sparse-backed predictor columns skips the linear model altogether and
-  falls back the same way (class `dbartsSparseSigmaFallbackWarning`, a
-  `dbartsSigmaFallbackWarning`). See `sigquant` for more information.
-  Not applicable when \\y\\ is binary. Same concept as `sigest` in
+  inverse-chi-squared prior on the error variance. A positive number, or
+  one of `"auto"`, `"dense"` and `"sparse"`, naming how one is made:
+  each gives the residual standard deviation of the linear regression of
+  the response on the predictors, factors entering as indicator columns
+  whatever the trees are given, and the standard deviation of the
+  response where that regression leaves no residual degrees of freedom,
+  which a line under `verbose` and one in the fit's `summary` say, with
+  no warning. `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or
+  a data frame and an exact sparse one (`"sparse"`) where the caller
+  supplied a sparse-stored column. `NA` (the default) is `"auto"`; the
+  lines under `verbose` are printed with the rest of this function's
+  output.
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) says
+  what the two routines cost, where they differ, and what to pass in
+  place of an expensive estimate, which cannot be interrupted once
+  begun. See `sigquant` for more information. Not applicable when \\y\\
+  is binary. Same concept as `sigest` in
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) and
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md).
 
@@ -1034,9 +1042,12 @@ returned. In the numeric \\y\\ case, the list has components:
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s ‘Value’
   section.
 
-- `sigest`:
+- `sigest`, `sigest.fallback`:
 
   The rough error standard deviation (\\\sigma\\) used in the prior.
+  `sigest.fallback` is `TRUE`, and otherwise absent, where that was the
+  standard deviation of the response because the linear regression had
+  no residual degrees of freedom.
 
 - `resid.scale`, `resid.df`:
 
@@ -1252,6 +1263,7 @@ y  <- rnorm(n, Ey, sigma)
 ## run BART
 set.seed(99)
 bartFit <- bartBT(x, y)
+#> estimating the starting sigma by a dense linear regression on 100 rows and 10 columns; see 'sigest'
 #> 
 #> Running BART with numeric y
 #> 
@@ -1289,7 +1301,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.169355
+#> total seconds in loop: 0.169489
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

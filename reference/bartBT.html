@@ -136,7 +136,7 @@ bartBT is the BayesTree-compatible surface: 0.9-34's argument list exactly, no n
 <dd><p>Explanatory variables for test (out of sample) data. Should have same column structure as <code>x.train</code>. <code>bartBT</code> will generate draws of \(f(x)\) for each \(x\) which is a row of <code>x.test</code>.</p></dd>
 
    <dt id="arg-sigest">sigest<a class="anchor" aria-label="anchor" href="#arg-sigest"></a></dt>
-<dd><p>For continuous response models, an estimate of the residual standard deviation (residual standard error), \(\sigma\), used to calibrate an inverse-chi-squared prior on the error variance. If not supplied, the least-squares estimate is derived instead. That estimate falls back to the marginal standard deviation of the response when the linear model's residual standard error comes out non-finite, warning as it does so (class <code>dbartsSigmaFallbackWarning</code>); a design with sparse-backed predictor columns skips the linear model altogether and falls back the same way (class <code>dbartsSparseSigmaFallbackWarning</code>, a <code>dbartsSigmaFallbackWarning</code>). See <code>sigquant</code> for more information. Not applicable when \(y\) is binary. Same concept as <code>sigest</code> in <code><a href="dbarts.html">dbarts</a></code> and <code><a href="xbart.html">xbart</a></code>.</p></dd>
+<dd><p>For continuous response models, an estimate of the residual standard deviation (residual standard error), \(\sigma\), used to calibrate an inverse-chi-squared prior on the error variance. A positive number, or one of <code>"auto"</code>, <code>"dense"</code> and <code>"sparse"</code>, naming how one is made: each gives the residual standard deviation of the linear regression of the response on the predictors, factors entering as indicator columns whatever the trees are given, and the standard deviation of the response where that regression leaves no residual degrees of freedom, which a line under <code>verbose</code> and one in the fit's <code>summary</code> say, with no warning. <code>"auto"</code> is <code>lm</code>'s own routine (<code>"dense"</code>) for a matrix or a data frame and an exact sparse one (<code>"sparse"</code>) where the caller supplied a sparse-stored column. <code>NA</code> (the default) is <code>"auto"</code>; the lines under <code>verbose</code> are printed with the rest of this function's output. <code><a href="dbarts.html">dbarts</a></code> says what the two routines cost, where they differ, and what to pass in place of an expensive estimate, which cannot be interrupted once begun. See <code>sigquant</code> for more information. Not applicable when \(y\) is binary. Same concept as <code>sigest</code> in <code><a href="dbarts.html">dbarts</a></code> and <code><a href="xbart.html">xbart</a></code>.</p></dd>
 
    <dt id="arg-sigdf">sigdf<a class="anchor" aria-label="anchor" href="#arg-sigdf"></a></dt>
 <dd><p>Degrees of freedom for error variance prior. Not applicable when \(y\) is binary. Default 3, Chipman, George, and McCulloch's calibration (see References); an aggressive choice rather than a derived one.</p></dd>
@@ -347,8 +347,8 @@ bartBT is the BayesTree-compatible surface: 0.9-34's argument list exactly, no n
   <dt><code>row.names.train</code>, <code>row.names.test</code></dt>
 <dd><p>The names of the training and test rows, which every per-observation output carries; absent when the rows are unnamed. See the row names paragraph of <code><a href="bart.html">bart</a></code>'s ‘Value’ section.</p></dd>
 
-  <dt><code>sigest</code></dt>
-<dd><p>The rough error standard deviation (\(\sigma\)) used in the prior.</p></dd>
+  <dt><code>sigest</code>, <code>sigest.fallback</code></dt>
+<dd><p>The rough error standard deviation (\(\sigma\)) used in the prior. <code>sigest.fallback</code> is <code>TRUE</code>, and otherwise absent, where that was the standard deviation of the response because the linear regression had no residual degrees of freedom.</p></dd>
 
   <dt><code>resid.scale</code>, <code>resid.df</code></dt>
 <dd><p><code>resid.scale</code> is present only on a family with a residual law (<code>"gaussian"</code>, <code>"student"</code>, <code>"aft"</code>): the law's scale model, <code>"constant"</code> or <code>"forest"</code> for a heteroscedastic fit (<code>variance</code> on <code><a href="bart.html">bart</a></code>), whose draws are <code>s.train</code>/<code>s.test</code>. The law's shape is the family's own (see <code><a href="dbarts.html">dbarts</a></code>'s <code>family = student()</code>). <code>resid.df</code> is present only for a <code>student()</code> fit: the degrees of freedom \(\nu\) each draw was conditioned on, in <code>sigma</code>'s layout - a fixed \(\nu\) repeats its value, an estimated one gives that draw's grid value. <code>extract(type = "loglik")</code> reads both.</p></dd>
@@ -451,6 +451,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-in"><span><span class="co">## run BART</span></span></span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">99</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">bartFit</span> <span class="op">&lt;-</span> <span class="fu">bartBT</span><span class="op">(</span><span class="va">x</span>, <span class="va">y</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> estimating the starting sigma by a dense linear regression on 100 rows and 10 columns; see 'sigest'</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running BART with numeric y</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
@@ -488,7 +489,7 @@ their own MCMC loop, while <code><a href="dbarts.html">dbarts</a></code> returns
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 800 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 900 (of 1000)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> iteration: 1000 (of 1000)</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.169355</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.169489</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 </span>

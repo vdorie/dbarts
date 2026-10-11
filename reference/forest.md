@@ -620,6 +620,7 @@ fit <- bart(y ~ forest(x1 + x3) +
               forest(x1 + x3, basis = scale(w), n.trees = 10L),
             d, n.trees = 10L, n.samples = 10L, n.burn = 10L,
             n.chains = 1L, n.threads = 1L, keepTrees = TRUE)
+#> estimating the starting sigma by a dense linear regression on 100 rows and 2 columns; see 'sigest'
 #> family = "auto": continuous response detected, fitting family = "gaussian"; set 'family' to override
 #> 
 #> Running BART with numeric y
@@ -646,7 +647,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000522
+#> total seconds in loop: 0.000546
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 

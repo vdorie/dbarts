@@ -433,27 +433,54 @@ dbarts(
 - sigest:
 
   A positive numeric estimate of the residual standard deviation
-  supplied at creation. If `NULL` (the default), a linear model is used
-  with all of the predictors to obtain one; an explicit `NA` is a
-  missing value and is refused. Spelled the same way on
-  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
+  supplied at creation, or one of `"auto"`, `"dense"` and `"sparse"`,
+  naming how one is made: each gives the residual standard deviation of
+  the linear regression of the response on the predictors, factors
+  entering as indicator columns whatever the trees are given, and the
+  standard deviation of the response where that regression leaves no
+  residual degrees of freedom, which a line under `verbose` says, with
+  no warning (the `summary` of a
+  [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) fit says
+  it too). `"auto"` is `lm`'s own routine (`"dense"`) for a matrix or a
+  data frame and an exact sparse one (`"sparse"`) where the caller
+  supplied a sparse-stored column. `NULL` (the default) is `"auto"`; an
+  explicit `NA` is a missing value and is refused. Spelled the same way
+  on [`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
   [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md); the
   sampler's own `setSigma`, which sets the parameter rather than an
-  estimate of it, is a different thing and keeps its own name. That
-  estimate falls back to the marginal standard deviation of the response
-  when the linear model's residual standard error comes out non-finite,
-  warning as it does so (class `dbartsSigmaFallbackWarning`); a design
-  with sparse-backed predictor columns skips the linear model altogether
-  and falls back the same way (class `dbartsSparseSigmaFallbackWarning`,
-  a `dbartsSigmaFallbackWarning`). It is the estimate a `chisq` residual
-  prior's quantile is calibrated against, so it stands beside
-  `family = gaussian(sigma = chisq(df, quant))` and is refused beside
-  `family = gaussian(sigma = fixed(value))`, which fixes the residual
-  scale outright and would overwrite the estimate with its square root.
-  An estimate that equals that square root (to within a few units in the
-  last place) is accepted with a message saying it has no effect, as
-  0.9-34 ran it; that is an error from dbarts 1.1-0.
+  estimate of it, is a different thing and keeps its own name.
+  `"sparse"` needs the Matrix package. It agrees with `lm` to rounding
+  except on nearly dependent columns (a near-copy of another column, a
+  tiny spread beside a large mean), where it may drop a column `lm`
+  keeps, and on several complete sets of a caller's own one-hot columns
+  in some millions of weighted rows, where it may keep one `lm` drops;
+  its last digit follows the BLAS library and its thread count, so a
+  seeded fit reproduces at a fixed BLAS and thread count; and it reads a
+  [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md),
+  not a caller's own one-hot columns, as a factor. Pass `"sparse"` for a
+  data frame with a factor of thousands of levels, and `"dense"` for
+  `lm`'s handling of nearly dependent columns or for a sparse fit's
+  draws to match its dense twin's. No size turns the estimate off:
+  `"sparse"` factors a square matrix as wide as the columns left beside
+  the widest factor and can fail to allocate it, `"dense"` holds rows
+  times columns doubles, and neither can be interrupted once it has
+  begun, so a `verbose` fit first prints what it is about to compute.
+  For an expensive estimate pass a number instead: `sd(y)`, which is too
+  high where there is linear signal; the residual standard deviation of
+  a regression on a random subset of the rows; or the root of the
+  cross-validated error of a lasso
+  (`sqrt(min(glmnet::cv.glmnet(x, y)$cvm))`) for a wide or sparse `x`.
+  It is the estimate a `chisq` residual prior's quantile is calibrated
+  against, so it stands beside
+  `family = gaussian(sigma = chisq(df, quant))` and has nothing to
+  calibrate beside `family = gaussian(sigma = fixed(value))`, which
+  fixes the residual scale outright: no estimate is made there, by any
+  rule, the fit reports the square root of `value` as its `sigest`, and
+  a number that differs from it is refused. An estimate that equals that
+  square root (to within a few units in the last place) is accepted with
+  a message saying it has no effect, as 0.9-34 ran it; that is an error
+  from dbarts 1.1-0.
 
 - na.action:
 

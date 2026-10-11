@@ -135,12 +135,14 @@ does not arise.
 
 ### Differences from dbarts()
 
-`sigest` defaults to `NULL`, which leaves the data object's own value
-alone, rather than overwriting it: a caller that computed a starting
-estimate keeps it, and an unset (`NA`) value is still estimated during
-resolution. An explicit `NA` for `sigest` is a missing value and is
-refused. Cut points are taken from `control` only when the data does not
-already carry resolved per-column counts.
+`sigest` defaults to `NULL`, which like `"auto"` leaves the data
+object's own value alone, rather than overwriting it: a caller that
+computed a starting estimate keeps it, and an unset (`NA`) value is
+still estimated during resolution. A number replaces the data object's
+value, and `"dense"` or `"sparse"` estimates over it. An explicit `NA`
+for `sigest` is a missing value and is refused. Cut points are taken
+from `control` only when the data does not already carry resolved
+per-column counts.
 
 Families that require ingestion this function does not perform are
 unavailable: `"hazard"` needs person-period expansion, and
