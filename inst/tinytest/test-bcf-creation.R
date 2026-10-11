@@ -123,10 +123,11 @@ expect_true(all(tauCounts[1:2, ] == 0L))
 expect_true(sum(tauCounts[3:4, ]) > 0L)
 
 # --- the whole knob map is honoured, not accepted and dropped. Each knob of
-# the second forest reaches the eight doubles the control attribute carries,
-# and the FIRST forest's structural knobs restate the fit's own control and
-# tree prior rather than adding a second set. A knob that went nowhere would
-# leave a default here. ---
+# the second forest reaches the four doubles the control attribute carries
+# (its `sd` and `amplitude.prior.variance` go beside them, as written), and
+# the FIRST forest's structural knobs restate the fit's own control and tree
+# prior rather than adding a second set. A knob that went nowhere would leave
+# a default here. ---
 knobs <- dbartsSpec(
   dbartsData(x, y),
   seededControlBcfCreation(),
@@ -149,17 +150,19 @@ knobs <- dbartsSpec(
     )
   )
 )
-# ragged: one length-8 vector per forest. The first forest declares no basis,
-# so its `sd` is the half-Cauchy median of a plain scalar amplitude and its
-# leaf scale stays at the response sd; the second declares one, so its `sd`
-# rides the leaf scale through the half-normal median and its
-# amplitude.prior.variance is the fixed prior on the block
+# one length-4 vector per forest: tree count, base, power and the hold, 0 where
+# the coefficient is held. Which magnitude channel a forest's `sd` reaches is
+# the engine's to decide from whether it carries a basis, so the stated sds go
+# to the engine as written, in the response's units, one a forest, and the
+# second forest's amplitude.prior.variance beside them, NA where none is stated
 expect_equal(
   attr(knobs$control, "bartcore.forests")$params,
-  list(
-    c(30, 0.7, 1.5, 1, 1, 1, 2.5, 0),
-    c(15, 0.4, 2, 1.25, 0.674, 0.75, 0, 0)
-  )
+  list(c(30, 0.7, 1.5, 0), c(15, 0.4, 2, 0))
+)
+expect_identical(attr(knobs$control, "bartcore.forests")$sd, c(2.5, 1.25))
+expect_identical(
+  attr(knobs$control, "bartcore.forests")$variance,
+  c(NA_real_, 0.75)
 )
 expect_identical(knobs$control@n.trees, 30L)
 expect_equal(knobs$model@tree.prior@base, 0.7)
@@ -342,19 +345,26 @@ offSlot <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
   seededControlBcfCreation()
 )
-# the transport is RAGGED - one length-8 vector per forest, not one length-8
-# vector for the pair - and which magnitude channel `sd` reaches is decided by
-# whether the forest carries a basis
+# the transport is RAGGED - one length-4 vector per forest, not one length-4
+# vector for the pair - and a forest that states no sd or variance sends NA for
+# each, the engine holding every default
 expect_equal(
   attr(offSlot$control, "bartcore.forests")$params,
-  list(c(50, 0.95, 2, 1, 1, 1, 2, 1), c(50, 0.25, 3, 1, 0.674, 0.5, 0, 1))
+  list(c(50, 0.95, 2, 1), c(50, 0.25, 3, 1))
+)
+expect_identical(
+  attr(offSlot$control, "bartcore.forests")$sd,
+  c(NA_real_, NA_real_)
+)
+expect_identical(
+  attr(offSlot$control, "bartcore.forests")$variance,
+  c(NA_real_, NA_real_)
 )
 # the same transport under a LATENT family, which no assertion above has
-# run: `sd` still reaches slot 4 on a forest carrying a basis and slot 7 on one
-# carrying none, and the family reaches the model without disturbing either.
-# The two declared values DIFFER, and neither is 1, so a confusion between the
-# slots - or between a forest's own vector and its neighbour's - is visible;
-# both defaults are 1 in this stretch of the vector and would not be.
+# run: each forest's `sd` is carried in its own position as written, and the
+# family reaches the model without disturbing either. The two declared values
+# DIFFER, and neither is 1, so a confusion between a forest's own entry and its
+# neighbour's is visible.
 latentSlots <- dbartsSpec(
   dbartsData(x, as.double(y > median(y)), bases = list(NULL, zBasis)),
   seededControlBcfCreation(),
@@ -364,8 +374,9 @@ latentSlots <- dbartsSpec(
 expect_equal(latentSlots$model@family, "logistic")
 expect_equal(
   attr(latentSlots$control, "bartcore.forests")$params,
-  list(c(50, 0.95, 2, 1, 1, 1, 3.5, 1), c(50, 0.25, 3, 1.25, 0.674, 0.5, 0, 1))
+  list(c(50, 0.95, 2, 1), c(50, 0.25, 3, 1))
 )
+expect_identical(attr(latentSlots$control, "bartcore.forests")$sd, c(3.5, 1.25))
 # and a basis declared alongside subset reaches dbartsData's own alignment
 subsetForests <- dbarts(
   x,
@@ -392,10 +403,7 @@ sdViaHasBasis <- dbartsSpec(
   seededControlBcfCreation(),
   forests = list(forest(sd = 3.5))
 )
-expect_equal(
-  attr(sdViaHasBasis$control, "bartcore.forests")$params[[1L]][7L],
-  3.5
-)
+expect_identical(attr(sdViaHasBasis$control, "bartcore.forests")$sd[1L], 3.5)
 
 noUpdateViaHasBasis <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, zBasis)),
@@ -403,7 +411,7 @@ noUpdateViaHasBasis <- dbartsSpec(
   forests = list(forest(amplitude = fixed()))
 )
 expect_equal(
-  attr(noUpdateViaHasBasis$control, "bartcore.forests")$params[[1L]][8L],
+  attr(noUpdateViaHasBasis$control, "bartcore.forests")$params[[1L]][4L],
   0
 )
 
@@ -747,9 +755,9 @@ priorOnFirst <- dbarts(
   ),
   control = uncountedControlBcfCreation()
 )
-expect_equal(
-  attr(priorOnFirst$control, "bartcore.forests")$params[[1L]][6L],
-  1
+expect_identical(
+  attr(priorOnFirst$control, "bartcore.forests")$variance,
+  c(1, NA_real_)
 )
 expect_error(
   dbarts(
@@ -777,9 +785,22 @@ expect_error(
   ),
   "forest 4 has no 'basis'"
 )
-expect_error(
-  dbarts(x, y, forests = list(forest(sd = 1.5)), control = control),
-  "this model has one forest, so its size is"
+# the one forest of a single-forest model takes `sd` as the fitting function's
+# leaf.prior = normal(sd = ) does, in the same units: the same fit, draw for
+# draw
+expect_identical(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(sd = 1.5)),
+    control = seededControlBcfCreation()
+  )$run(0L, 10L),
+  dbarts(
+    x,
+    y,
+    leaf.prior = normal(sd = 1.5),
+    control = seededControlBcfCreation()
+  )$run(0L, 10L)
 )
 
 # --- K = 1 THROUGH THE K-FOREST PATH. A lone forest CARRYING A BASIS is a
@@ -1265,15 +1286,13 @@ amplitudeExcused <- dbarts(
   ),
   control = uncountedControlBcfCreation()
 )
-expect_equal(
-  attr(amplitudeExcused$control, "bartcore.forests")$params[[1L]][6L],
-  2
+expect_identical(
+  attr(amplitudeExcused$control, "bartcore.forests")$variance,
+  c(2, NA_real_)
 )
 # forest 2's own default applies too, unaffected by forest 1's excuse
-expect_equal(
-  attr(amplitudeExcused$control, "bartcore.forests")$params[[2L]][6L],
-  0.5
-)
+expect_equal(amplitudeExcused$getLeafPrior(1L)$amplitude.prior.variance, 2)
+expect_equal(amplitudeExcused$getLeafPrior(2L)$amplitude.prior.variance, 0.5)
 dataNoBasisOnFirst <- dbartsData(x, y, bases = list(NULL, zBasis))
 expect_error(
   dbarts(
@@ -1294,9 +1313,9 @@ amplitudeExcusedBoth <- dbarts(
   ),
   control = uncountedControlBcfCreation()
 )
-expect_equal(
-  attr(amplitudeExcusedBoth$control, "bartcore.forests")$params[[2L]][6L],
-  3
+expect_identical(
+  attr(amplitudeExcusedBoth$control, "bartcore.forests")$variance,
+  c(NA_real_, 3)
 )
 # a second forest that has no basis anywhere is the model's forest with no
 # basis, which may stand at any place: it takes the control's count and the
@@ -1309,7 +1328,7 @@ plainSecond <- dbarts(
 )
 expect_equal(
   attr(plainSecond$control, "bartcore.forests")$params,
-  list(c(50, 0.25, 3, 1, 0.674, 2, 0, 1), c(20, 0.95, 2, 1, 1, 1, 2, 1))
+  list(c(50, 0.25, 3, 1), c(20, 0.95, 2, 1))
 )
 # forest 1's excuse does not extend to it: an amplitude.prior.variance
 # declared on THAT forest answers the amplitude refusal

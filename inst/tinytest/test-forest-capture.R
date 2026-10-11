@@ -1001,7 +1001,7 @@ held <- dbarts(
 expect_identical(
   vapply(
     attr(held$control, "bartcore.forests")$params,
-    function(params) params[8L],
+    function(params) params[4L],
     0
   ),
   c(0, 0)

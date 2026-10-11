@@ -166,19 +166,25 @@ expect_identical(a$getK(), matrix(4, 3L, 2L))
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
-a$setLeafPrior(forests = list(forest(), forest(sd = 0.6)))
+# 0.6 of the response's standard deviation, which is the default size of this
+# forest (a factor forest at two forests: 1 of it), in the response's units
+a$setLeafPrior(forests = list(forest(), forest(sd = 0.6 * sd(y))))
 expect_equal(
   a$getLeafPrior(2L)$k.scale / b$getLeafPrior(2L)$k.scale,
   0.6,
   tolerance = 1e-14
 )
-expect_identical(a$getLeafPrior(2L)$leaf.prior, forest(sd = 0.6))
+expect_identical(a$getLeafPrior(2L)$leaf.prior, forest(sd = 0.6 * sd(y)))
 expect_identical(a$getLeafPrior(1L), b$getLeafPrior(1L))
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
-a$setLeafPrior(forests = list(forest(sd = 0.35)))
-expect_identical(a$getLeafPrior(1L)$amplitude.prior.scale, 0.35)
+a$setLeafPrior(forests = list(forest(sd = 0.35 * sd(y))))
+expect_equal(
+  a$getLeafPrior(1L)$amplitude.prior.scale,
+  0.35,
+  tolerance = 1e-14
+)
 expect_identical(a$getLeafPrior(1L)$k.scale, b$getLeafPrior(1L)$k.scale)
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 

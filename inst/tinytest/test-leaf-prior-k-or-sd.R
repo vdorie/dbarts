@@ -230,7 +230,7 @@ for (namedSd in list(0.5, priors$invchi(1.5, 0.5))) {
       leaf.prior = normal(sd = namedSd),
       control = pinControl()
     ),
-    "leaf-prior 'sd'.*forest\\(sd = \\)"
+    "states each forest's size on the forest.*forest\\(x1 \\+ x2, sd = 2\\)"
   )
 }
 # a hurdle fit refuses a named sd before either half is built

@@ -187,40 +187,66 @@ expect_error(threeForests$getForestAmplitudes(4L), "out of range")
 expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 
 # --- the amplitude prior's kind is transported per forest. Two halves. First
-# the transported scale itself: a forest carrying a basis has a FIXED-variance
-# amplitude, so its half-Cauchy scale is 0; a forest carrying none has the
-# scale mixture, so its scale is its `sd`. ---
+# the transported statement itself: each forest's `sd` goes to the engine as
+# written, in the response's units, with whether the forest was created with a
+# basis; a forest carrying a basis has a FIXED-variance amplitude, so it
+# reports no half-Cauchy scale; a forest carrying none has the scale mixture,
+# so its scale is its `sd` (over the response's standard deviation here, with
+# no offset, subset or zero weight). ---
 priorSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, cbind(1 - z, z))),
   seededControlForestBasisR5(),
   forests = list(forest(sd = 2.5), forest(sd = 1.25))
 )
-priorParams <- attr(priorSpec$control, "bartcore.forests")$params
-# forest 1: no basis -> variance 1, half-Cauchy median 2.5
-expect_equal(priorParams[[1L]][6:7], c(1, 2.5))
-# forest 2: a basis -> fixed variance 0.5, scale 0
-expect_equal(priorParams[[2L]][6:7], c(0.5, 0))
+priorStated <- attr(priorSpec$control, "bartcore.forests")
+expect_identical(priorStated$sd, c(2.5, 1.25))
+expect_identical(priorStated$variance, c(NA_real_, NA_real_))
+expect_identical(priorStated$hasBasis, c(FALSE, TRUE))
+priorSampler <- new(
+  "dbartsSampler",
+  priorSpec$control,
+  priorSpec$model,
+  priorSpec$data
+)
+# forest 1: no basis -> no variance, half-Cauchy median 2.5 in the response's
+# units, which is 2.5 / sd(y) of the response's standard deviation
+priorFree <- priorSampler$getLeafPrior(1L)
+expect_identical(priorFree$sd, 2.5)
+expect_null(priorFree$amplitude.prior.variance)
+expect_equal(priorFree$amplitude.prior.scale, 2.5 / sd(y), tolerance = 1e-12)
+# forest 2: a basis -> fixed variance 0.5, no half-Cauchy scale
+priorBasis <- priorSampler$getLeafPrior(2L)
+expect_identical(priorBasis$sd, 1.25)
+expect_equal(priorBasis$amplitude.prior.variance, 0.5)
+expect_null(priorBasis$amplitude.prior.scale)
 
-# and second, the scale is really READ: a positive scale on either forest makes
-# its prior variance a live auxiliary, redrawn after the amplitude every sweep,
-# and a zero holds it fixed, so flipping it moves every subsequent draw. A
-# bridge that ignored the transported scale would leave these fits identical.
+# and second, the statement is really READ: a forest read as having no basis
+# takes the scale mixture, its prior variance a live auxiliary redrawn after the
+# amplitude every sweep, and one with a basis holds it fixed, so flipping the
+# channel moves every subsequent draw, as does the half-Cauchy median itself. A
+# bridge that ignored the transported statement would leave these fits
+# identical.
 buildFromSpec <- function(spec) {
   new("dbartsSampler", spec$control, spec$model, spec$data)
 }
 baseline <- buildFromSpec(priorSpec)$run(0L, 4L)$train
 
+# (the channel a forest's `sd` reaches is the record's `hasBasis`: flipping it
+# moves the forest from one channel to the other)
 mixtureOnBasis <- priorSpec
-attr(mixtureOnBasis$control, "bartcore.forests")$params[[2L]][7L] <- 2
+attr(mixtureOnBasis$control, "bartcore.forests")$hasBasis[2L] <- FALSE
 expect_false(identical(
   buildFromSpec(mixtureOnBasis)$run(0L, 4L)$train,
   baseline
 ))
 
-fixedFirst <- priorSpec
-attr(fixedFirst$control, "bartcore.forests")$params[[1L]][7L] <- 0
+# the channel of a forest created with no basis is not flipped the other way by
+# the record (the engine reads a basis from the data), so the first forest's
+# half-Cauchy median is moved instead
+movedMedian <- priorSpec
+attr(movedMedian$control, "bartcore.forests")$sd[1L] <- 5
 expect_false(identical(
-  buildFromSpec(fixedFirst)$run(0L, 4L)$train,
+  buildFromSpec(movedMedian)$run(0L, 4L)$train,
   baseline
 ))
 

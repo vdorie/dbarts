@@ -1,7 +1,8 @@
 # forest()'s coefficient and size arguments. A forest's coefficient law is one
 # argument, 'amplitude': fixed() holds the coefficient and nothing stated draws
-# it. A forest's 'sd' is one unnamed number, judged one way at creation,
-# through $setLeafPrior(forests = ) and in the front door's normal(sd = ).
+# it. A forest's 'sd' is one number, a name on it dropped, judged one way at
+# creation, through $setLeafPrior(forests = ) and in the front door's
+# normal(sd = ).
 
 forest <- dbartsForests$forest
 
@@ -32,7 +33,7 @@ twoForests <- function(...) {
   )
 }
 heldParams <- function(sampler, forest) {
-  attr(sampler$control, "bartcore.forests")$params[[forest]][8L]
+  attr(sampler$control, "bartcore.forests")$params[[forest]][4L]
 }
 termControl <- list(
   n.trees = 5L,
@@ -238,7 +239,7 @@ for (refused in list(quote(dbartsPriors$normal()), "fixed", FALSE)) {
     fixed = TRUE
   )
 }
-# a model of one forest has no coefficient to hold, and no forest size
+# a model of one forest has no coefficient to hold
 expect_error(
   dbarts(
     x,
@@ -249,9 +250,30 @@ expect_error(
   "this model has one forest, which has no coefficient to hold; 'amplitude' needs a model of several forests",
   fixed = TRUE
 )
+# but it has a size: its sd is the fitting function's leaf.prior = normal(sd = ),
+# in the same units, so the two spellings are one fit, draw for draw, and stated
+# at both places is refused
+expect_identical(
+  dbarts(
+    x,
+    y,
+    forests = list(forest(sd = 2)),
+    control = argumentControl()
+  )$run(0L, 5L),
+  dbarts(x, y, leaf.prior = normal(sd = 2), control = argumentControl())$run(
+    0L,
+    5L
+  )
+)
 expect_error(
-  dbarts(x, y, forests = list(forest(sd = 2)), control = argumentControl()),
-  "this model has one forest, so its size is the fitting function's leaf.prior = normal(sd = ), not forest(sd = )",
+  dbarts(
+    x,
+    y,
+    forests = list(forest(sd = 2)),
+    leaf.prior = normal(sd = 3),
+    control = argumentControl()
+  ),
+  "this model has one forest and states its size twice",
   fixed = TRUE
 )
 
@@ -337,7 +359,7 @@ local({
       control = argumentControl()
     )$control |>
       attr("bartcore.forests") |>
-      (\(info) info$params[[2L]][8L])(),
+      (\(info) info$params[[2L]][4L])(),
     1
   )
 })
@@ -408,7 +430,7 @@ local({
     control = argumentControl()
   )
   expect_identical(
-    attr(sampler$control, "bartcore.forests")$params[[2L]][4L],
+    attr(sampler$control, "bartcore.forests")$sd[2L],
     2
   )
 })
@@ -554,7 +576,7 @@ sdValues <- list(
   list(as.difftime(2, units = "secs"), FALSE),
   list(2 + 0i, FALSE),
   list(as.raw(2), FALSE),
-  list(c(a = 1), c(FALSE, FALSE, TRUE)),
+  list(c(a = 1), TRUE),
   list(c(a = -1), FALSE),
   list(c(a = 0), FALSE),
   list(numeric(0), FALSE),
@@ -623,14 +645,16 @@ for (place in c("creation", "writer")) {
   )
   expect_match(sdMessage(list(2), place), "must be a number, not a list")
   expect_match(sdMessage(matrix(2), place), "must be a number, not a matrix")
+  # a name on a single number is dropped, not refused
+  expect_identical(sdMessage(c(dose = 1), place), "accepted")
   expect_match(
-    sdMessage(c(dose = 1), place),
-    "forest 'sd' must not be named (\"dose\"): it is one number, for every column of a basis; drop the name with unname()",
+    sdMessage(c(1, 2), place),
+    "forest 'sd' must be a single number, not a vector of length 2: a forest states one sd; to size a column differently, rescale it in 'basis', as I(dose / 30)",
     fixed = TRUE
   )
   expect_match(
-    sdMessage(c(1, 2), place),
-    "forest 'sd' must be a single number, not a vector of length 2: a forest states one sd",
+    sdMessage(c(dose = 1, age = 2), place),
+    "forest 'sd' must be a single number, not a vector of length 2",
     fixed = TRUE
   )
   expect_match(
@@ -659,9 +683,12 @@ for (place in c("creation", "writer")) {
     "must be a number, not invchi(): a law on a forest's sd is not supported yet",
     fixed = TRUE
   )
-  # a named number is refused as named whatever its value
+  # a named number is judged as its value is, the name dropped
   for (bad in list(c(a = -1), c(a = 0))) {
-    expect_match(sdMessage(bad, place), "must not be named")
+    expect_match(
+      sdMessage(bad, place),
+      "forest 'sd' must be positive and finite"
+    )
   }
   expect_match(
     sdMessage(NA_real_, place),

@@ -604,7 +604,7 @@ moved <- build(listOf(paste0(
   "), forest(basis = age)"
 )))
 expect_identical(forestTable(moved), tableOf(fitStated, multiplied))
-expect_identical(forestInfo(moved)$params[[1L]][4L], 2)
+expect_identical(forestInfo(moved)$sd[1L], 2)
 besidePlain <- build(
   plainSecond[2L],
   stated = TRUE,

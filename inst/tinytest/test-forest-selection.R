@@ -462,7 +462,7 @@ expect_match(
 
 ## --- Block C: a fit ---------------------------------------------------------
 fitted <- bart(
-  y ~ forest(x1, basis = dose) +
+  y ~ forest(x1, basis = dose, sd = 2) +
     forest(x2, basis = age) +
     forest(x3, basis = scale(age)),
   frame,
@@ -522,7 +522,11 @@ for (index in 1:3) {
     predict(fitted, newRows, type = "forest", forest = index)
   )
 }
-# the leaf prior's sd differs by forest, so the identity says something
+# the leaf prior's sd differs by forest, so the identity says something: the
+# first forest states 2 (in the response's units) and the other two take the
+# default, which is the same number for both, a forest's sd no longer carrying
+# its basis' row norm
+expect_identical(extract(fitted, "leaf.prior.sd", forest = "dose"), 2)
 expect_false(
   identical(
     extract(fitted, "leaf.prior.sd", forest = "dose"),

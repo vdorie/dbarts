@@ -1052,9 +1052,17 @@ refuses(
   )
 )
 # what one forest cannot state
+# but it has a size: the one forest's sd is the fitting function's
+# leaf.prior = normal(sd = ), in the same units, so the two are one fit, and
+# stated at both places is refused
+expect_identical(
+  fit(y ~ forest(x1 + x2, sd = 2))$yhat.train,
+  fit(y ~ forest(x1 + x2), leaf.prior = quote(normal(sd = 2)))$yhat.train
+)
 refuses(
   y ~ forest(x1 + x2, sd = 2),
-  "this model has one forest, so its size is the fitting function's"
+  "this model has one forest and states its size twice",
+  leaf.prior = quote(normal(sd = 3))
 )
 refuses(
   y ~ forest(x1 + x2, amplitude = fixed()),

@@ -363,14 +363,12 @@ expect_identical(forests$n.forests, 2L)
 expect_identical(names(forests$leaf.prior), c("forest1", "forest2"))
 expect_null(forests[["k"]])
 perForest <- forests$fit$getLeafPrior()
-anchors <- vapply(perForest, function(prior) prior$k.scale, 0)
-expect_equal(
-  extract(forests, "leaf.prior.sd"),
-  setNames(
-    anchors / apply(forests$fit$getK(), 1L, held),
-    c("forest1", "forest2")
-  )
-)
+# a forest's sd, in the response's units, is what the reader returns for it:
+# `extract` hands back those numbers as a list named by the forests' labels, the
+# second forest's being its basis term (the fit's own leaf.prior keeps forest<i>)
+sds <- lapply(perForest, function(prior) prior$sd)
+expect_identical(names(perForest), c("forest1", "z"))
+expect_identical(extract(forests, "leaf.prior.sd"), sds)
 expect_equal(
   extract(forests, "k"),
   c(forest1 = 1, forest2 = 1)
@@ -381,11 +379,11 @@ expect_equal(
 )
 expect_equal(
   extract(forests, "leaf.prior.sd", forest = 2L),
-  unname(anchors[2L])
+  sds[[2L]]
 )
 expect_equal(
   extract(forests, "leaf.prior.sd", forest = "forest1"),
-  unname(anchors[1L])
+  sds[[1L]]
 )
 expect_equal(forests$fixed$k, c(forest1 = 1, forest2 = 1))
 expect_error(extract(forests, "sigma", forest = 1L), "model parameter")
