@@ -1,7 +1,7 @@
 # sparse-starting-sigma: a sparse x takes the linear-model starting sigma
 
-Status: PLANNED 2026-10-09 (dec-B403); rewritten 2026-10-10 for dec-B433 and dec-B434. Not built. Two calls are open
-([Open calls](#open-calls)); the steps build the side of each that adds nothing.
+Status: LANDED 2026-10-10 as 8c27f225..d820097c (dec-B403, dec-B421, dec-B422, dec-B429, dec-B430, dec-B433, dec-B434,
+dec-B438, dec-B439, dec-A200). See the [Landing note](#landing-note).
 
 agent: one sonnet implementer (R only, no engine code); one opus reviewer who runs the mutants below.
 rng: POSTERIOR-CHANGING for a continuous response under a chisq residual prior with no sigest, in two cases: a
@@ -407,3 +407,32 @@ fixed value only where the two agree, and refuses any from 1.1-0.
   identical (run, two chains of 50).
 
 Recommended: (b). A user who fixed sigma gets nothing from the estimate and can wait minutes for it.
+
+## Landing note
+
+Landed 2026-10-10 as 8c27f225..d820097c: one opus implementer, one opus review that ran the plan's mutants and 49 of
+its own, a fix round, the same reviewer's check of it with 27 more mutants, and two x86 runs of tests/cpp and tinytest.
+The twelve scenarios the plan names moved and no other; they are re-recorded as equivalence-2b48939b, and the
+MANIFEST row gives the old and new starting sigma of ten of them. What was built is the Design, with these departures
+and additions (dec-A200):
+
+- The step that eliminates no factor is not the plan's. The review found a caller's complete set of one-hot columns
+  given one rank too many from about 400 levels (31 of 120 designs; sigma off by at most 2.5e-5): after unit norm the
+  intercept tied the indicators at the first pivot. The crossproduct is now taken before unit norm, and the intercept
+  stays out of the factorization and joins by what the other columns leave of it (0 of 120, and 0 of 216 adversarial
+  designs in the review's check).
+- Two limits are accepted. Two complete sets of a caller's one-hot columns under non-integer weights gave one rank too
+  many in 1 of 30 designs at 6e6 rows in the fix round, and in 0 of 155 in the review's check. Where a factor is
+  eliminated under weights of few distinct values the intercept's leftover grows with the number of rows and would
+  cross the tolerance near 1.6e7 (rank right in 30 of 30 up to 1.2e7).
+- Under dec-B429's "wherever": a verbose xbart run prints one line counting the (replication, fold) units that started
+  from the response's sd where the all-rows design allowed a regression, and an rbart_vi fit records `sigest.fallback`.
+- `bartBT(sigest = NULL)` is "auto"; `dbarts(sigest = list(1.5))` is 1.5; a rule's name is matched in lower case only;
+  the estimate's generic failure carries its cause; the rule helpers sit beside the starting-sigma code.
+- Two tests the plan did not name moved from the old coercion message to the refusal of an unknown rule.
+- Size: about 2,200 lines added beside this plan, 1,140 of them tests, against a stop the orchestrator lifted to about
+  2,000.
+
+Left open, as before the slice, and in TODO: the fallback's sd counts rows of weight 0
+(starting-sigma-fallback-zero-weights), and an integer column's NA in an indicator expansion
+(integer-na-in-model-matrix). Not verified: an older Matrix, a threaded BLAS, Windows, more than 1.2e7 rows.

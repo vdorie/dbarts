@@ -124,6 +124,12 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
+  integer-na-in-model-matrix: makeModelMatrixFromDataFrame turns an
+    integer column's NA into -2147483648 (a double column's stays NA;
+    0.9-34 does the same). Reachable in 1.0 through factors =
+    "indicators" under na.keepPredictors. Run 2026-10-10:
+    data.frame(a = c(1L, NA, 3L, 4L), f = factor(...)) gives a[2] =
+    -2147483648. Before 1.0-0.
   interaction-constraints: formal heredity (an ensemble lattice prior)
     - a fourth formal beside interactions(max.order, groups, forbid)
     plus a prior change. Value gate lifted: it enables
@@ -185,6 +191,15 @@ items
     mixture that does not reach the variance forest, raw leaf-prior
     slots edited alone, and a residual prior stored on a family with no
     residual scale.
+  starting-sigma-fallback-zero-weights: where no regression is defined
+    the starting sigma is sd(y - offset) over every row
+    (floorSigmaEstimate), while the regression and its test of
+    residual degrees of freedom leave out rows of weight 0; so before
+    the sparse starting sigma too. Run 2026-10-10: 40 rows, 20 of
+    weight 0 with responses shifted by 100, 25 columns: 50.74, the sd
+    over all rows, for 0.87 over the rows with a weight. Decide
+    whether the fallback is over the positive-weight rows, and
+    weighted. With response-scale-rows.
   warm-start-across-models: a warm start from a donor that is another
     model, such as a fast fit on a transformed response seeding a slower
     model on the original scale, with whatever scale or dispersion the
@@ -319,46 +334,19 @@ items
     (dec-B437, VD 2026-10-10). About 1260 lines planned for the
     per-chain data, after response-scale-rows.
   stan4bart-creation-mapping: stan4bart fixes its response mapping at
-    creation from the richer initial fit, shared by every chain and
-    never re-derived (dec-B437); design in progress. With it:
-    stan4bart's initial fit silently falls back from lme4 (Suggests)
-    to lm or glm with different terms; and the per-chain restore's
-    alternating-response vector lands on the wrong mapping when zero
-    weights fall on one parity (dec-A197), to be replaced by the
-    shared mapping's restore. Before the merge to main.
-  sparse-starting-sigma: before the merge (dec-B403, VD 2026-10-09).
-    A caller's sparse x takes the same linear-model starting sigma as
-    its dense equivalent, with no warning (today: sd(y) and a warning
-    on every fit). Measure the fit's cost first: the existing sparse QR
-    took 65 s at n 20000, p 2000 and over 20 minutes at n 100000, p
-    5000 (one refactor per dependent column); a sparse crossproduct
-    with a pivoted Cholesky is the candidate. Draws change for sparse
-    fits without sigest; the help names sigest for large designs.
-    Factors enter the regression as indicators (dec-B422); the rank
-    band is dec-B421. sigest is a number or one of "auto", "dense" and
-    "sparse": "auto", the default, gives a matrix or data frame lm.fit
-    on the dense indicator form and a caller's sparse matrix the exact
-    sparse routine, a zero-filled column beside its missing indicator
-    re-centered first; "dense" and "sparse" force either; no size
-    constant (dec-B434, VD 2026-10-10, revising dec-B427). The
-    regression runs whenever the design, factors expanded, leaves
-    residual degrees of freedom, at any size; otherwise sd(y); no cost
-    cutoff and no iterative solver; the help says the estimate can be
-    slow or fail to allocate on a very large sparse design and names
-    alternatives to pass as sigest; xbart's sigest may be a function
-    called per fold (dec-B433, VD 2026-10-10, revising dec-B426 and
-    dec-B428; docs/design/starting-sigma-sensitivity.md).
-    The estimate is not made interruptible; the help says so and a
-    verbose fit prints a line before it starts (dec-B438, VD
-    2026-10-10).
-    Under a fixed residual sd no estimate is made and the fit's
-    sigest is the fixed value (dec-B439, VD 2026-10-10).
-    A starting sigma taken from sd(y) is printed under verbose and
-    shown in a line of the summary; no warning (dec-B429, VD
-    2026-10-10).
-    The sparse routine's last digit may follow the BLAS and its thread
-    count; the help says a seeded fit reproduces at a fixed BLAS and
-    thread count (dec-B430, VD 2026-10-10).
+    creation from a richer initial fit, shared by every chain and
+    never re-derived (dec-B437): the model's own terms plus the
+    forest's columns as linear fixed effects (dec-B441), fitted
+    inside stan4bart over Matrix and held to lme4 on large crossed
+    models in the tests (dec-B442); lme4 has no run-time use left, a
+    binary fit starting from glm, once a check shows binary results
+    after warm-up do not move (dec-B443); where that fit cannot be
+    computed the range is the response's own, less any offset
+    (dec-B444). Still to put to the maintainer: the argument that
+    lets a user set the range. Then a plan. With it: the per-chain
+    restore's alternating-response vector lands on the wrong mapping
+    when zero weights fall on one parity (dec-A197), to be replaced
+    by the shared mapping's restore. Before the merge to main.
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
