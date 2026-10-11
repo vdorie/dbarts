@@ -658,7 +658,7 @@ Inventory, one representative site per class:
 | `dbartsSlowCountWarning` | [`warnOnSlowCount`](../../R/bartcore.R) |
 | `dbartsFallbackWarning` | [`pdbart.prologue`](../../R/partialDependence.R) |
 | `dbartsGPFallbackWarning` | [`warnOnGPFallback`](../../R/bartcore.R) |
-| `dbartsScaleFallbackWarning` | [`scaleRowsFallBack`](../../R/spec.R), [`warnScaleKept`](../../R/bartcore.R) |
+| `dbartsScaleFallbackWarning` | [`scaleRowsFallBack`](../../R/spec.R), [`hazardGridTimes`](../../R/dbarts.R), [`warnScaleKept`](../../R/bartcore.R) |
 
 ---
 

@@ -930,8 +930,9 @@ items
     covariate center and scale, and the default lengthscale, over the
     rows in (dec-B304), a multiplier's scale doing so in the multiplier
     plan (dec-B303); waits on the state-frame slices that give derived
-    data its record. Cut points still span every row. Stated at the end
-    of docs/plans/response-scale-rows.md and not planned.
+    data its record. Cut points still span every row. Before 1.0-0,
+    and before the merge if it can be. Stated at the end of
+    docs/plans/response-scale-rows.md and not planned.
   bartcause-thread-default: on bartCause's dbarts-1.0 branch, bcf.R
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;

@@ -4,13 +4,14 @@ Status: BUILT on the slice's branch, not landed: the review, the baseline re-rec
 records are ahead. The plan is [response-scale-rows.md](../plans/response-scale-rows.md), which carries the
 steps, the gates and the calls made in planning; this note is the standing statement of the rule.
 
-What a fit takes from the response to place or size a prior - the gaussian, Student-t and survival response
-range, a count fit's center, the unit of a forest's default sd in a model of several forests, sigest's
-stand-in and its floor, and a hazard fit's periods - is taken from the rows in the likelihood when the sampler
-is created. A row is IN when its weight is positive and no mask switches it off, OUT otherwise. A row of
-weight 0 stays in the design: it occupies a leaf and receives a fitted value, so a fit with zero weights is
-close to the fit on the remaining rows without being it. What it no longer does is move the numbers the prior
-is stated against.
+What a fit takes from the response to place or size a prior - the gaussian and Student-t response range, a
+count fit's center, the unit of a forest's default sd in a model of several forests, sigest's stand-in and its
+floor, and a hazard fit's periods - is taken from the rows in the likelihood when the sampler is created. A
+survival (aft) fit takes no weights, so it has no row out at creation and its range is every row's then; a mask
+installed afterwards is where the rule reaches it, at a re-derivation. A row is IN when its weight is positive
+and no mask switches it off, OUT otherwise. A row of weight 0 stays in the design: it occupies a leaf and
+receives a fitted value, so a fit with zero weights is close to the fit on the remaining rows without being it.
+What it no longer does is move the numbers the prior is stated against.
 
 ## 1. The rule
 
@@ -49,7 +50,7 @@ with their response 50 higher):
 
 | quantity | read by | before | rows in |
 | --- | --- | --- | --- |
-| response range | [`GaussianResponse::rescale`](../../src/bartcore/model.hpp), inherited by Student-t and aft | [-2.165, 56.371] | [-2.165, 6.029] |
+| response range | [`GaussianResponse::rescale`](../../src/bartcore/model.hpp), inherited by Student-t, and by aft, which meets a row out only at a re-derivation under a mask | [-2.165, 56.371] | [-2.165, 6.029] |
 | count center | [`NBResponse::computeShift`](../../src/bartcore/model.hpp) | 0.2964 | 0.9895 (half the rows structural zeros) |
 | unit of a forest's sd | [`scaledResponseSd`](../../src/bartcore/chain.hpp) | 25.25 in y | 1.466 |
 | sigest's stand-in | [`floorSigmaEstimate`](../../R/utility.R) | 25.245 (three rows in, two predictors) | 0.890 |
@@ -96,8 +97,10 @@ engine reads every row there by the same rule.
 ## 5. Creation under a mask
 
 Of the families whose 0/1 weights become the mask only the count family takes anything from the response. Its
-creation is the install of the mask followed by the sampler's own `setOffset(offset in force, updateScale = TRUE)`
-([`deriveCenterUnderMask`](../../R/bartcore.R)), which draws nothing and records the range. In rule 4's case the
+creation is the install of the mask followed by the engine's re-derivation against the offset it already holds
+([`deriveCenterUnderMask`](../../R/bartcore.R)): the bridge entry `$setOffset` uses, called with that offset and
+`updateScale` true, then the record. It draws nothing and touches nothing else: the data object, the test offset
+in R and in the engine, and the stored state are as creation or `setData` left them. In rule 4's case the
 follow-up is skipped and the every-row center stands. A sampler built by hand from [`dbartsSpec`](../../R/spec.R)
 and `new("dbartsSampler", ...)` is created with every row in and keeps the every-row center; the documented call
 for it comes with the next slice.
