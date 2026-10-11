@@ -44,12 +44,33 @@ twoForests <- function(...) {
   )
 }
 
+# A forest created with no basis takes none, so the forest whose block
+# widens below is created on one numeric column. No forest of that model is
+# without a basis, so the count is stated on a forest and the control names
+# none.
+widening <- function() {
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(basis = x[, 4L], n.trees = 25L),
+      forest(basis = ~ factor(z))
+    ),
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.samples = 6L,
+      updateState = FALSE,
+      seed = 41L
+    )
+  )
+}
 wide <- cbind(1, x[, 4L])
 
 # --- arm 6, both orderings at the surface. Installing on one forest never
 # disturbs the other, and the two orderings leave the same per-forest fits and
 # the same amplitudes. RED against a route that re-synthesizes on install. ---
-widenThenSwap <- twoForests()
+widenThenSwap <- widening()
 widenThenSwap$run(5L, 2L)
 before <- widenThenSwap$getForestAmplitudes()
 widenThenSwap$setForestBasis(1L, wide)
@@ -63,7 +84,7 @@ expect_equal(ncol(widenThenSwap$data@bases[[1L]]), 2L)
 # a width-preserving swap is the bitwise identity on every amplitude
 expect_identical(widenThenSwap$getForestAmplitudes(1L), widened)
 
-swapThenWiden <- twoForests()
+swapThenWiden <- widening()
 swapThenWiden$run(5L, 2L)
 swapThenWiden$setForestBasis(2L, factor(1L - z))
 swapThenWiden$setForestBasis(1L, wide)
@@ -81,7 +102,7 @@ expect_identical(
 # rather than the constructed ones - the restore-then-widen half of the
 # contract, asserted on the amplitude VALUES and not only on the surviving
 # width. ---
-persisted <- twoForests()
+persisted <- widening()
 persisted$run(5L, 2L)
 persisted$setForestBasis(1L, wide)
 persisted$setForestBasis(2L, factor(1L - z))
@@ -98,11 +119,14 @@ expect_equal(ncol(reloaded$data@bases[[1L]]), 2L)
 expect_identical(reloaded$getForestAmplitudes(), restoredAmplitudes)
 # and a widening applied AFTER that restore keeps the restored values, which is
 # the half a reapply running after setState would lose
-reloaded$setForestBasis(2L, cbind(1 - z, z, x[, 1L]))
+reloaded$setForestBasis(1L, cbind(wide, x[, 1L]))
 widerAmplitudes <- reloaded$getForestAmplitudes()
 expect_equal(nrow(widerAmplitudes), 5L)
-expect_identical(widerAmplitudes[1:4, , drop = FALSE], restoredAmplitudes)
-expect_equal(widerAmplitudes[5L, 1L], 1)
+expect_identical(
+  widerAmplitudes[c(1:2, 4:5), , drop = FALSE],
+  restoredAmplitudes
+)
+expect_equal(widerAmplitudes[3L, 1L], 1)
 
 # $copy() carries the mirror too, on the same terms setForestWeights' does
 copied <- persisted$copy()
@@ -122,7 +146,7 @@ ragged$run(5L, 2L)
 ragged$storeState()
 raggedState <- ragged$state
 
-square <- twoForests()
+square <- widening()
 square$run(5L, 2L)
 square$setForestBasis(1L, wide)
 square$storeState()
@@ -386,10 +410,16 @@ priorScale <- function(sampler, forest) {
 
 # (i) STALENESS: a basis whose median nonzero row norm is 4x the old one moves
 # the divisor with it. RED against a divisor left at its construction value.
-stale <- probitForests()
+# A forest of levels takes no numbers, so the forest is created on a number.
+stale <- dbarts(
+  x,
+  yBinary,
+  forests = list(forest(), forest(basis = z)),
+  control = seededControlForestBasisR5()
+)
 expect_equal(priorScale(stale, 2L), 1 / 0.674, tolerance = 1e-12)
 stale$run(5L, 1L)
-stale$setForestBasis(2L, 4 * cbind(1 - z, z))
+stale$setForestBasis(2L, 4 * z)
 expect_equal(priorScale(stale, 2L), 1 / (0.674 * 4), tolerance = 1e-12)
 # and the untouched forest keeps its own
 expect_equal(priorScale(stale, 1L), 1, tolerance = 1e-12)
@@ -402,7 +432,7 @@ swapped <- probitForests()
 twin <- probitForests()
 swapped$run(5L, 1L)
 twin$run(5L, 1L)
-swapped$setForestBasis(2L, cbind(1 - z, z))
+swapped$setForestBasis(2L, factor(z))
 expect_identical(priorScale(swapped, 2L), priorScale(twin, 2L))
 swappedResult <- swapped$run(5L, 2L)
 twinResult <- twin$run(5L, 2L)
@@ -473,14 +503,16 @@ expect_equal(
 # no fixed amplitude variance - both are model - so the recipient's map is
 # still the decomposition in force after $setState, whatever the donor ran
 # under. Four arms. ---
-donorForests <- function(sd, variance) {
+donorForests <- function(sd, variance, basis = ~ factor(z)) {
+  multiplied <- list(
+    basis = basis,
+    sd = sd,
+    amplitude.prior.variance = variance
+  )
   dbarts(
     x,
     yBinary,
-    forests = list(
-      forest(),
-      forest(basis = ~ factor(z), sd = sd, amplitude.prior.variance = variance)
-    ),
+    forests = list(forest(), do.call(forest, multiplied)),
     control = seededControlForestBasisR5()
   )
 }
@@ -528,8 +560,14 @@ expect_null(mapColumn(recipient, 1L, "amplitude.prior.variance"))
 expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 1)
 
 # (c) RE-DERIVATION. $setForestBasis re-derives the leaf scale from the stored
-# factor and divisor and the new basis, and the identity holds on it.
-recipient$setForestBasis(2L, 4 * zBasis)
+# factor and divisor and the new basis, and the identity holds on it. The
+# recipient here multiplies a number, which is what takes a rescaled column.
+donor <- donorForests(2, 0.125, as.double(z))
+donor$run(5L, 1L)
+donor$storeState()
+recipient <- donorForests(0.5, 0.5, as.double(z))
+recipient$setState(donor$state)
+recipient$setForestBasis(2L, 4 * z)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
 expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 4)
@@ -582,9 +620,9 @@ expect_error(
 expect_true(all(is.finite(direct$run(0L, 2L)$sigma)))
 expect_equal(ncol(direct$data@bases[[2L]]), 2L)
 
-# --- edge bases: a factor level no row takes would leave an amplitude only
-# its prior moves, so creation refuses it, while setForestBasis keeps a
-# declared level the current data leave empty (test-bcf-r5-surface.R); a row
+# --- edge bases: a factor level no kept row takes is no column at creation,
+# in every spelling, while setForestBasis keeps a level of the forest that
+# the current data leave empty (test-bcf-r5-surface.R); a row
 # norm that overflows poisons the calibration that divides by it, at either
 emptyLevel <- factor(z, levels = 0:2)
 # written as code, a level no kept row has is no column, as in lm()
@@ -599,15 +637,15 @@ expect_identical(
   ),
   c("emptyLevel0", "emptyLevel1")
 )
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(forest(), do.call(forest, list(basis = emptyLevel))),
-    control = seededControlForestBasisR5()
-  ),
-  "factor level with no observations contributes nothing to a forest: '2'"
+# and handed over as a value it is the same two columns
+fromValue <- dbarts(
+  x,
+  y,
+  forests = list(forest(), do.call(forest, list(basis = emptyLevel))),
+  control = seededControlForestBasisR5()
 )
+expect_identical(fromValue$data@basis.levels, list(NULL, c("0", "1")))
+expect_identical(fromValue$data@bases[[2L]], unname(cbind(1 - z, z)))
 expect_error(
   dbarts(
     x,
@@ -617,6 +655,6 @@ expect_error(
   ),
   "row's norm is not representable"
 )
-edge <- twoForests()
+edge <- widening()
 expect_error(edge$setForestBasis(1L, rep(1e300, n)), "not representable")
 expect_true(all(is.finite(edge$run(0L, 2L)$train)))

@@ -48,7 +48,7 @@ bcfLocation <- function(fit, offset = NULL) {
     n.obs
   )
   for (k in seq_len(fit$n.forests)) {
-    basis <- fit$bases[[k]]
+    basis <- dbarts:::storedBasisBlock(fit$bases[[k]])
     if (is.null(basis)) {
       basis <- matrix(1, n.obs, 1L)
     }

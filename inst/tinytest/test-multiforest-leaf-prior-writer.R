@@ -204,7 +204,7 @@ saveRDS(live, file)
 loaded <- readRDS(file)
 unlink(file)
 rebased <- live$copy()
-rebased$setForestBasis(2L, cbind(1 - z, z))
+rebased$setForestBasis(2L, factor(z))
 for (other in list(copied, loaded, rebased)) {
   expect_identical(anchorOf(other), anchorOf(live))
   expect_identical(factorOf(other), factorOf(live))
@@ -246,10 +246,15 @@ expect_identical(a$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
 expect_identical(a$getLeafPrior(), twin$getLeafPrior())
 expect_identical(a$run(0L, 3L), twin$run(0L, 3L))
 
-# a basis install on the scale-mixture forest keeps its median and channel
+# the scale-mixture forest was created with no basis and takes none, so no
+# basis install reaches it: the refusal leaves its median and channel
 a <- amplitudeSampler(twoDefault)
 a$setLeafPrior(forests = list(forest(sd = 0.35)))
-a$setForestBasis(1L, matrix(2, n, 1L))
+expect_error(
+  a$setForestBasis(1L, matrix(2, n, 1L)),
+  "'basis' gives forest 1 a basis, and forest 1 was created without one",
+  fixed = TRUE
+)
 expect_identical(a$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
 expect_identical(a$getLeafPrior(1L)$prior.sd.of, "amplitude scale")
 expect_identical(a$getLeafPrior(2L)$prior.sd.of, "forest total")

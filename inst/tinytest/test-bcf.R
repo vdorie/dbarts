@@ -58,15 +58,15 @@ expect_equal(dim(glue), c(3L, 1L))
 expect_true(all(is.finite(glue)))
 expect_true(glue[2L, 1L] != glue[3L, 1L])
 
-# an all-zero basis column has no rows for its amplitude to multiply, which a
-# swap takes as it takes a factor level no row holds (dec-B346): the forest's
-# part on it is drawn under its prior until a row returns. Creation refuses it
+# a level no row holds has an all-zero column, with no rows for its amplitude
+# to multiply, which a swap takes (dec-B346): the forest's part on it is
+# drawn under its prior until a row returns. Creation refuses such a column
 zeroBasis <- cbind(rep(1, n), rep(0, n))
-bcSampler$setForestBasis(2L, zeroBasis)
+bcSampler$setForestBasis(2L, factor(rep(0, n), levels = 0:1))
 expect_identical(unname(bcSampler$data@bases[[2L]]), zeroBasis)
 expect_true(all(is.finite(bcSampler$run(0L, 2L)$train)))
 expect_true(all(is.finite(bcSampler$getForestAmplitudes())))
-bcSampler$setForestBasis(2L, cbind(rep(1, n), rep(c(0, 1), length.out = n)))
+bcSampler$setForestBasis(2L, factor(rep(c(0, 1), length.out = n)))
 expect_true(all(is.finite(bcSampler$run(0L, 2L)$train)))
 expect_error(
   dbarts(
@@ -77,9 +77,16 @@ expect_error(
   ),
   "all zeros"
 )
-# a formula basis of one numeric column of zeros is taken the same way
-bcSampler$setForestBasis(2L, ~ rep(0, n))
-expect_identical(ncol(bcSampler$data@bases[[2L]]), 1L)
+# a numeric forest takes a formula basis of one column of zeros the same way
+onNumber <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = z)),
+  control = dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L)
+)
+onNumber$setForestBasis(2L, ~ rep(0, n))
+expect_identical(unname(onNumber$data@bases[[2L]]), matrix(0, n, 1L))
+expect_true(all(is.finite(onNumber$run(0L, 2L)$train)))
 bcSampler$setForestBasis(2L, ~ factor(z))
 
 # out-of-range forest index errors
@@ -98,7 +105,7 @@ expect_error(
 )
 
 # state round-trip: store, restore into a fresh BCF sampler, continue
-bcSampler$setForestBasis(2L, cbind(1 - z, z))
+bcSampler$setForestBasis(2L, factor(z))
 bcSampler$run(0L, 5L)
 bcSampler$storeState()
 state <- bcSampler$state
@@ -175,7 +182,7 @@ bcPi$run(100L, 20L)
 z2 <- rbinom(n, 1L, pihat)
 x.pi[, ncol(x.pi)] <- plogis(x[, 2L] - 0.5)
 bcPi$setPredictor(x.pi, forceUpdate = TRUE)
-bcPi$setForestBasis(2L, cbind(1 - z2, z2))
+bcPi$setForestBasis(2L, factor(z2))
 result.pi <- bcPi$run(0L, 20L)
 expect_equal(dim(result.pi$train), c(n, 20L))
 expect_true(all(is.finite(result.pi$train)))

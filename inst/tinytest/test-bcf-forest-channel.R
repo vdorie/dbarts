@@ -51,7 +51,9 @@ expect_equal(dim(fit$glue), c(6L, 3L))
 expect_identical(attr(fit$glue, "forest"), c("forest1", "forest2", "forest2"))
 expect_equal(fit$n.forests, 2L)
 expect_null(fit$bases[[1L]])
-expect_equal(dim(fit$bases[[2L]]), c(n, 2L))
+# a forest of levels stores the factor, one value for each row
+expect_identical(length(fit$bases[[2L]]), n)
+expect_identical(levels(fit$bases[[2L]]), c("0", "1"))
 expect_identical(attr(fit, "forest.labels"), c("forest1", "factor(z)"))
 
 # --- forest.labels rides the declaration's own names ---
@@ -96,7 +98,8 @@ expect_equal(dim(contrib), dim(fit$forestFits))
 glueForest <- attr(fit$glue, "forest")
 expected1 <- fit$glue[1L, glueForest == "forest1"] * fit$forestFits[1L, , 1L]
 expected2 <- as.vector(
-  fit$bases[[2L]] %*% fit$glue[1L, glueForest == "forest2"]
+  dbarts:::storedBasisBlock(fit$bases[[2L]]) %*%
+    fit$glue[1L, glueForest == "forest2"]
 ) *
   fit$forestFits[1L, , 2L]
 expect_equal(contrib[1L, , 1L], expected1)

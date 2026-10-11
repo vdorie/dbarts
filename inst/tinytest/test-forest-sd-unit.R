@@ -364,9 +364,14 @@ expectStated(swappedColumn, 2L, 0.5, "setForestBasis, a column in other units")
 expect_identical(afterSwap$leaf.scale.factor, 0.5 / unitOf(swappedColumn))
 expect_identical(afterSwap, overColumn(3 * d$dose + 1)$getLeafPrior(2L))
 expect_identical(swappedColumn$copy()$getLeafPrior(2L), afterSwap)
-# and a column given to the forest created with no basis leaves that forest
-# the kind it was created as, on the sampler and on a copy
-swappedBasis$setForestBasis(1L, d$dose)
+# a forest created with no basis takes none, so the prior of such a forest
+# given a column has no case left from R: the swap is refused, and the forest
+# is the kind it was created as, on the sampler and on a copy
+expect_error(
+  swappedBasis$setForestBasis(1L, d$dose),
+  "'basis' gives forest 1 a basis, and forest 1 was created without one",
+  fixed = TRUE
+)
 expect_identical(swappedBasis$getLeafPrior(1L)$sd, 2)
 expect_identical(swappedBasis$getLeafPrior(1L)$prior.sd.of, "amplitude scale")
 expect_identical(

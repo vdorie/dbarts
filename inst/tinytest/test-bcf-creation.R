@@ -298,7 +298,8 @@ expect_error(
 # a non-finite value is refused rather than reaching the multiplier
 expect_error(
   dbartsData(x, y, bases = list(NULL, cbind(rep(Inf, n), 0))),
-  "must all be finite"
+  "a 'bases' must be finite",
+  fixed = TRUE
 )
 
 # ... while a caller who declared a forest's BASIS is refused in that word, on
@@ -1086,6 +1087,7 @@ expect_error(
 )
 strippedTreatment <- resolved
 strippedTreatment$data@bases <- NULL
+strippedTreatment$data@basis.levels <- NULL
 expect_error(
   new(
     "dbartsSampler",

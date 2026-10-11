@@ -810,7 +810,7 @@ reconstructionIdentityError <- function(res) {
   for (s in seq_len(nrow(res$fit$glue))) {
     recon <- rep(shift, ncol(res$fit$yhat.train))
     for (k in seq_along(forestNames)) {
-      basis <- res$fit$bases[[k]]
+      basis <- dbarts:::storedBasisBlock(res$fit$bases[[k]])
       if (is.null(basis)) {
         basis <- matrix(1, ncol(res$fit$yhat.train), 1L)
       }

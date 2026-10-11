@@ -469,7 +469,15 @@ for (text in fitted) {
     # the model is the one the same columns handed over as a value fit
     expect_identical(draws(fit), handedOver, info = paste(door, text))
   }
-  expect_identical(bartFit(text)$bases[[2L]], expected, info = text)
+  # a fit stores the factor for a forest of levels, so the columns are read
+  # through its entry, and their names on the kept sampler's block
+  stored <- bartFit(text)
+  expect_identical(stored$fit$data@bases[[2L]], expected, info = text)
+  expect_identical(
+    unname(dbarts:::storedBasisBlock(stored$bases[[2L]])),
+    unname(expected),
+    info = text
+  )
 }
 expect_identical(lmNames("I(dose/30)"), "I(dose/30)")
 expect_identical(lmNames("1 + dose"), c("(Intercept)", "dose"))
@@ -897,12 +905,17 @@ for (text in rebuilt) {
       info = info
     )
     # at the fitted rows it is the basis the fit used
-    expect_equal(replayed(fit, frame), fit$bases[[2L]], info = info)
+    expect_equal(replayed(fit, frame), fit$fit$data@bases[[2L]], info = info)
     # and predict uses it: the same as the basis rebuilt by hand from the new
-    # rows and handed over
+    # rows and handed over, a forest of levels being handed the levels
+    handed <- if (text %in% c("factor(z)", "g", "zl")) {
+      eval(str2lang(text), newRows)
+    } else {
+      atNewRows(text, newRows)
+    }
     expect_identical(
       predict(fit, newRows),
-      predict(fit, newRows, bases = atNewRows(text, newRows)),
+      predict(fit, newRows, bases = handed),
       info = info
     )
   }
@@ -946,7 +959,8 @@ unseen <- newRows
 unseen$g[2L] <- "new"
 expect_error(predict(levelFit, unseen), "new")
 droppedFit <- bartFit("g", subset = noW)
-expect_identical(colnames(droppedFit$bases[[2L]]), c("gu", "gv"))
+expect_identical(levels(droppedFit$bases[[2L]]), c("u", "v"))
+expect_identical(colnames(droppedFit$fit$data@bases[[2L]]), c("gu", "gv"))
 expect_identical(
   replayed(droppedFit, newRows),
   atNewRows("g", newRows)[, 1:2, drop = FALSE]
@@ -963,7 +977,11 @@ expect_error(
 ordered <- frame
 ordered$h <- factor(frame$g, levels = c("w", "u", "v"))
 orderFit <- bartFit("h", ordered)
-expect_identical(colnames(orderFit$bases[[2L]]), c("hw", "hu", "hv"))
+expect_identical(levels(orderFit$bases[[2L]]), c("w", "u", "v"))
+expect_identical(
+  colnames(orderFit$fit$data@bases[[2L]]),
+  c("hw", "hu", "hv")
+)
 reordered <- newRows
 reordered$g <- c("v", "u", "w", "w", "v", "u", "v", "u", "w")
 inFitOrder <- cbind(

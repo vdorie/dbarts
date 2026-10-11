@@ -7,7 +7,11 @@ recombine <- function(perForest, bases, nRows) {
   out <- matrix(shift, nrow(fit$glue), nRows)
   # nolint next: object_usage_linter. resolves from the caller (file header).
   for (k in seq_len(fit$n.forests)) {
-    basis <- if (is.null(bases[[k]])) matrix(1, nRows, 1L) else bases[[k]]
+    # an entry of a fit's 'bases' is a factor for a forest of levels
+    basis <- dbarts:::storedBasisBlock(bases[[k]])
+    if (is.null(basis)) {
+      basis <- matrix(1, nRows, 1L)
+    }
     # nolint next: object_usage_linter. resolves from the caller (file header).
     g <- fit$glue[, glueForest == dimnames(perForest)[[3L]][k], drop = FALSE]
     out <- out + (g %*% t(basis)) * perForest[,, k]

@@ -176,7 +176,7 @@ expect_silent(bc.bcf$setOffset(NULL))
 
 # setForestBasis is still allowed and a subsequent run stays sane
 z.new <- rbinom(n, 1L, 0.5)
-bc.bcf$setForestBasis(2L, cbind(1 - z.new, z.new))
+bc.bcf$setForestBasis(2L, factor(z.new))
 result.bcf <- bc.bcf$run(0L, 5L)
 expect_equal(dim(result.bcf$train), c(n, 5L))
 expect_true(all(is.finite(result.bcf$train)))

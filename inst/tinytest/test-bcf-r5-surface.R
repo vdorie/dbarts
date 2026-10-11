@@ -136,11 +136,15 @@ expect_silent(refused$setPredictor(x, forceUpdate = TRUE))
 expect_silent(refused$setResponse(y, updateScale = FALSE))
 expect_silent(refused$setOffset(rep(0, n), updateScale = FALSE))
 expect_silent(refused$setForestBasis(2L, factor(z)))
-# any forest takes a basis, the first included - it widens that forest's
-# amplitude block from the implicit intercept's single coordinate to one per
-# level - while the index itself still refuses on both sides
-expect_silent(refused$setForestBasis(1L, factor(z)))
-expect_equal(nrow(refused$getForestAmplitudes(1L)), 2L)
+# a forest created with no basis takes none, what a forest multiplies being
+# fixed at creation: its amplitude block stays the implicit intercept's
+# single coordinate. The index itself still refuses on both sides
+expect_error(
+  refused$setForestBasis(1L, factor(z)),
+  "'basis' gives forest 1 a basis, and forest 1 was created without one",
+  fixed = TRUE
+)
+expect_equal(nrow(refused$getForestAmplitudes(1L)), 1L)
 expect_error(refused$setForestBasis(0L, factor(z)), "single positive integer")
 expect_error(refused$setForestBasis(3L, factor(z)), "out of range")
 

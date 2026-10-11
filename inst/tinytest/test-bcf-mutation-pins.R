@@ -88,7 +88,7 @@ expect_error(
 # invisible(NULL)")
 expect_silent(bc$setPredictor(x, forceUpdate = TRUE))
 # --- succeeds: the treatment swap is the supported multi-forest data swap
-expect_silent(bc$setForestBasis(2L, cbind(1 - z, z)))
+expect_silent(bc$setForestBasis(2L, factor(z)))
 # --- succeeds: the scale-pinned response, offset and weight swaps
 expect_silent(bc$setResponse(y, updateScale = FALSE))
 expect_silent(bc$setOffset(rep(0, n), updateScale = FALSE))

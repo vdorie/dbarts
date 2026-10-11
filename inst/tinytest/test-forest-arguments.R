@@ -491,7 +491,7 @@ expect_error(
   "'amplitude' is fixed at creation"
 )
 
-# --- a held forest keeps the width it was created with ---
+# --- a held forest keeps the kind and the width it was created with ---
 heldSwap <- function() {
   dbarts(
     x,
@@ -505,9 +505,10 @@ heldSwap <- function() {
 }
 swapped <- heldSwap()
 twin <- heldSwap()
+# numbers on a forest of levels meet the rule of the kind first
 expect_error(
   swapped$setForestBasis(2L, x[, 1L]),
-  "$setForestBasis cannot change the width of forest 2's basis (2 to 1): its coefficients are held (amplitude = fixed()), and the held value is defined for that width only; make a new sampler",
+  "forest 2 ('factor(z)') multiplies a factor with the levels '0', '1', and 'basis' gives it numbers",
   fixed = TRUE
 )
 expect_identical(swapped$data@bases, twin$data@bases)
@@ -526,7 +527,7 @@ expect_identical(swapped$run(0L, 5L), twin$run(0L, 5L))
 expect_equal(swapped$getForestAmplitudes()[, 1L], c(1, 0, 1))
 expect_error(
   swapped$setForestBasis(2L, ~z),
-  "$setForestBasis cannot change the width of forest 2's basis (2 to 1)",
+  "forest 2 ('factor(z)') multiplies a factor with the levels '0', '1', and 'basis' gives it numbers",
   fixed = TRUE
 )
 expect_identical(swapped$data@bases, twin$data@bases)
@@ -535,7 +536,7 @@ expect_identical(describedBy(swapped), describedBy(twin))
 plainSwap <- heldSwap()
 expect_error(
   plainSwap$setForestBasis(1L, x[, 1L]),
-  "$setForestBasis cannot change the width of forest 1's basis (0 to 1): its coefficients are held (amplitude = fixed()), and the held value is defined for that width only; make a new sampler",
+  "'basis' gives forest 1 a basis, and forest 1 was created without one",
   fixed = TRUE
 )
 plainTwin <- heldSwap()
@@ -544,12 +545,30 @@ expect_identical(plainSwap$data@bases, plainTwin$data@bases)
 expect_identical(describedBy(plainSwap), describedBy(plainTwin))
 expect_identical(plainSwap$run(0L, 5L), plainTwin$run(0L, 5L))
 expect_equal(plainSwap$getForestAmplitudes()[, 1L], c(1, 0, 1))
-# a drawn forest swaps as before, and a held one to a factor or two columns
-drawnSwap <- twoForests()
+# a drawn forest of numbers swaps to another width as before; a held one
+# takes its own width and refuses another
+numericSwap <- function(...) {
+  dbarts(
+    x,
+    y,
+    forests = list(forest(), do.call(forest, list(basis = x[, 1:2], ...))),
+    control = argumentControl()
+  )
+}
+drawnSwap <- numericSwap()
 drawnSwap$setForestBasis(2L, x[, 1L])
 expect_equal(ncol(drawnSwap$data@bases[[2L]]), 1L)
+heldNumeric <- numericSwap(amplitude = dbartsPriors$fixed())
+heldNumeric$setForestBasis(2L, cbind(x[, 3L], x[, 2L]))
+expect_identical(unname(heldNumeric$data@bases[[2L]]), unname(x[, 3:2]))
+expect_error(
+  heldNumeric$setForestBasis(2L, x[, 1L]),
+  "$setForestBasis cannot change the width of forest 2's basis (2 to 1): its coefficients are held (amplitude = fixed()), and the held value is defined for that width only; make a new sampler",
+  fixed = TRUE
+)
+expect_identical(unname(heldNumeric$data@bases[[2L]]), unname(x[, 3:2]))
 swapped$setForestBasis(2L, factor(z))
-swapped$setForestBasis(2L, cbind(x[, 1L], x[, 2L]))
+swapped$setForestBasis(2L, factor(1L - z))
 swapped$setForestBasis(2L, factor(z))
 expect_equal(swapped$run(0L, 3L)$train |> dim() |> length(), 2L)
 # a held forest copies, saves and reloads

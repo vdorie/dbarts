@@ -336,9 +336,15 @@ expect_identical(
     dimnames = list(NULL, c("factor(z)0", "factor(z)1"))
   )
 )
-levelled$setForestBasis(2L, ~ factor(rep("a", n), levels = c("a", "b")))
+levelled$setForestBasis(2L, ~ factor(rep(0L, n), levels = 0:1))
 expect_identical(unname(colSums(levelled$data@bases[[2L]])), c(n + 0, 0))
-# a replacement of another width brings its own names
-levelled$setForestBasis(2L, cbind(u = frame$dose, v = frame$age, w = frame$x1))
-expect_identical(colnames(levelled$data@bases[[2L]]), c("u", "v", "w"))
+expect_identical(
+  colnames(levelled$data@bases[[2L]]),
+  c("factor(z)0", "factor(z)1")
+)
 expect_identical(labelsOf(levelled), c("forest1", "factor(z)"))
+# a replacement of another width brings its own names, on a forest of
+# numbers: a forest of levels has the columns of its levels for life
+replaced$setForestBasis(2L, cbind(u = frame$dose, v = frame$age, w = frame$x1))
+expect_identical(colnames(replaced$data@bases[[2L]]), c("u", "v", "w"))
+expect_identical(labelsOf(replaced), c("forest1", "dose + age"))

@@ -145,7 +145,8 @@ for (index in seq_along(plainSecond)) {
   expect_identical(second$getLeafPrior(1L)$prior.sd.of, "forest total")
   expect_true(all(is.finite(second$run(0L, 5L)$train)), info = info)
 }
-# it restores, copies and takes a new basis on either forest
+# it restores, copies and takes a new basis on the forest that has one; the
+# forest created with none takes none, wherever it stands
 second$storeState()
 stored <- second$state
 ahead <- second$run(0L, 3L)
@@ -157,8 +158,12 @@ expect_identical(dim(copied$run(0L, 3L)$forestFits), c(n, 2L, 3L))
 second$setForestBasis(1L, age)
 expect_identical(second$data@bases[[1L]][, 1L], age)
 expect_null(second$data@bases[[2L]])
-second$setForestBasis(2L, dose)
-expect_identical(second$data@bases[[2L]][, 1L], dose)
+expect_error(
+  second$setForestBasis(2L, dose),
+  "'basis' gives forest 2 a basis, and forest 2 was created without one",
+  fixed = TRUE
+)
+expect_null(second$data@bases[[2L]])
 expect_true(all(is.finite(second$run(0L, 3L)$train)))
 # and a fit of it predicts: at the training rows, the training fit
 plainSecondFit <- bart(

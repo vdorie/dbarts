@@ -145,7 +145,9 @@ wideFit <- fitFromPredictBlend(list(
   dbarts::dbartsForests$forest(),
   dbarts::dbartsForests$forest(basis = ~g3)
 ))
-expect_identical(dim(wideFit$bases[[2L]]), c(n, 3L))
+# a forest of levels stores the factor, one value for each row
+expect_identical(length(wideFit$bases[[2L]]), n)
+expect_identical(nlevels(wideFit$bases[[2L]]), 3L)
 expect_true(
   max(abs(blendAtTraining(wideFit, type = "bart") - wideFit$yhat.train)) < 1e-12
 )
@@ -180,8 +182,9 @@ source(
   system.file("common", "recombine.R", package = "dbarts"),
   local = TRUE
 )
-zeroBasis <- list(NULL, unname(cbind(rep(1, nNew), rep(0, nNew))))
-oneBasis <- list(NULL, unname(cbind(rep(0, nNew), rep(1, nNew))))
+# an arm is the factor with every row at one of the fit's levels
+zeroBasis <- list(NULL, factor(rep(0, nNew), levels = 0:1))
+oneBasis <- list(NULL, factor(rep(1, nNew), levels = 0:1))
 atZero <- predict(fit, xNew, type = "bart", bases = zeroBasis)
 atOne <- predict(fit, xNew, type = "bart", bases = oneBasis)
 expect_equal(dim(atZero), c(n.samples, nNew))
@@ -297,7 +300,8 @@ factorFit <- bart(
   keepTrees = TRUE,
   verbose = FALSE
 )
-expect_identical(dim(factorFit$bases[[2L]]), c(nFrame, 2L))
+expect_identical(length(factorFit$bases[[2L]]), nFrame)
+expect_identical(levels(factorFit$bases[[2L]]), c("0", "1"))
 expect_true(
   max(abs(predict(factorFit, frame, type = "bart") - factorFit$yhat.train)) <
     1e-12
@@ -310,7 +314,7 @@ expect_identical(
     factorFit,
     allControl,
     type = "bart",
-    bases = list(NULL, cbind(rep(1, nFrame), rep(0, nFrame)))
+    bases = list(NULL, factor(rep(0, nFrame), levels = 0:1))
   )
 )
 
@@ -327,40 +331,30 @@ expect_error(
   pattern = "must be a length-2 list"
 )
 expect_error(
-  predict(fit, xNew, type = "bart", bases = list(NULL, cbind(1:3, 3:1))),
+  predict(fit, xNew, type = "bart", bases = list(NULL, factor(c(0, 1, 0)))),
   pattern = "same length as 'newdata'"
 )
 expect_error(
-  predict(fit, xNew, type = "bart", bases = list(NULL, rep(1, nNew))),
-  pattern = "gives forest 2 1 column; its amplitudes take 2"
+  predict(termFit, newFrame, type = "bart", bases = cbind(newFrame$z, 1)),
+  pattern = "gives forest 2 2 columns; its amplitudes take 1"
 )
 # non-finite, which the predict path refuses on its own rather than carrying
 # into the blend and reporting infinite or NA fits
 expect_error(
-  predict(
-    fit,
-    xNew,
-    type = "bart",
-    bases = list(NULL, cbind(rep(Inf, nNew), 0))
-  ),
-  pattern = "a 'basis' must be finite"
+  predict(termFit, newFrame, type = "bart", bases = rep(Inf, 10L)),
+  pattern = "a 'bases' must be finite"
 )
 expect_error(
-  predict(
-    fit,
-    xNew,
-    type = "bart",
-    bases = list(NULL, cbind(rep(NA_real_, nNew), 0))
-  ),
-  pattern = "a 'basis' cannot be NA"
+  predict(termFit, newFrame, type = "bart", bases = rep(NA_real_, 10L)),
+  pattern = "a 'bases' cannot be NA"
 )
 # a bare value is unambiguous only at one basis-carrying forest
 expect_error(
   predict(bothBasesFit, xNew, type = "bart", bases = rep(1, nNew)),
   pattern = "bare value only when exactly one forest carries a basis"
 )
-# a basis for a forest that declared none, whose amplitude has an implicit
-# all-ones column of its own
+# a basis for a forest that was created without one, whose amplitude has an
+# implicit all-ones column of its own
 expect_error(
   predict(
     fit,
@@ -368,7 +362,7 @@ expect_error(
     type = "bart",
     bases = list(rep(1, nNew), zeroBasis[[2L]])
   ),
-  pattern = "which it declares none of"
+  pattern = "'bases' gives forest 1 a basis, and forest 1 was created without"
 )
 # and nothing at all: the basis's own variable, a vector with a value for
 # every fitted row found where the forest was written, has none for the new
