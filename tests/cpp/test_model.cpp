@@ -5721,7 +5721,7 @@ static void testGPLeafMemberOrder() {
 
   size_t columns[] = {0, 1};
   const double k = 2.0, sigmaSq = 0.04, scale = 0.5 / std::sqrt(10.0);
-  bool allMatch = true;
+  bool allMatch = true, entriesKept = true;
   for (size_t numMembers : {size_t(8), size_t(48)}) {
     // members: every other observation from 3, ascending in one tree and
     // reversed then pairwise swapped in the other
@@ -5786,6 +5786,18 @@ static void testGPLeafMemberOrder() {
         leaves[1].logIntegratedLikelihoodForNode(shuffledTree, y.data(),
                                                  weights, k, sigmaSq, 0) ==
           scores[0];
+      // eviction keeps an entry whose members stand whatever order the span
+      // holds them in, and drops one whose count moved. Read straight after
+      // beginTreeDraw: the node's next lookup would rebuild a dropped entry.
+      leaves[1].beginTreeDraw(shuffledTree);
+      entriesKept = entriesKept &&
+        TestPeer::holdsKernelEntry(leaves[1], shuffledTree, 0) ==
+          (numMembers >= 32);
+      shuffledTree.at(0).end = numMembers - 1;
+      leaves[1].beginTreeDraw(shuffledTree);
+      entriesKept = entriesKept &&
+        !TestPeer::holdsKernelEntry(leaves[1], shuffledTree, 0);
+      shuffledTree.at(0).end = numMembers;
       std::reverse(shuffled.begin(), shuffled.begin() + numMembers);
     }
 
@@ -5813,7 +5825,151 @@ static void testGPLeafMemberOrder() {
     ext_rng_destroy(twin);
   }
   check(allMatch, "gp leaf computations ignore the span's member order");
+  check(entriesKept,
+        "a cached gp kernel outlives a reordered span and not a resized one");
   printf("ok: gp leaf member order\n");
+}
+
+// A gp leaf sorts a span through a bitmap over the observations or by
+// comparison, as sortsByBitmap rules. A span holds distinct observations, so
+// both return the one ascending arrangement: each is called directly at every
+// span size against std::sort, then through the dispatch, where a member's
+// bit left set beforehand says which ran (only the bitmap's walk clears it).
+// The spans come from the test's own generator in random order and hold rows
+// 0 and n - 1 and, from three members and 64 rows, a row in the upper half of
+// a bitmap word. A repeated member, or one at or past the row count, is
+// outside the helpers' contract: the bitmap's assertions and the address
+// sanitizer are what catch one, and the suite cannot expect an abort, so no
+// case here hands one in.
+static void testGPLeafSortedMembers() {
+  ext_rng* spanRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(spanRng, 4242);
+  auto below = [&](size_t bound) {
+    double u = ext_rng_simulateContinuousUniform(spanRng);
+    return std::min(bound - 1, static_cast<size_t>(u * (double) bound));
+  };
+  auto drawSpan = [&](size_t n, size_t numMembers) {
+    std::vector<index_t> rows(n);
+    for (size_t i = 0; i < n; ++i) rows[i] = static_cast<index_t>(i);
+    std::swap(rows[1], rows[n - 1]);
+    size_t numFixed = 2;
+    if (numMembers > 2 && n >= 64)
+      std::swap(rows[numFixed++], rows[32 + numMembers % 31]);
+    for (size_t i = numFixed; i < numMembers; ++i)
+      std::swap(rows[i], rows[i + below(n - i)]);
+    for (size_t i = numMembers - 1; i > 0; --i)
+      std::swap(rows[i], rows[below(i + 1)]);
+    rows.resize(numMembers);
+    return rows;
+  };
+  auto leafOver = [](ColumnStore& store, std::vector<double>& x, size_t n) {
+    x.resize(n);
+    for (size_t i = 0; i < n; ++i)
+      x[i] = static_cast<double>((i * 7919) % n) / static_cast<double>(n);
+    size_t gather[] = {0};
+    built(store.build(x.data(), n, 1, 100, false, nullptr, gather, 1));
+  };
+  size_t columns[] = {0};
+
+  // rows, cap, and the bitmap's words: none where 6 words a member is passed
+  // at the cap (64 members: 384 words, 24576 rows) or the cap or the row
+  // count is under 16 members
+  struct Case { size_t n, cap, numWords; };
+  const Case cases[] = {
+    {64, 64, 1}, {110, 64, 2}, {500, 64, 8}, {4097, 64, 65},
+    {24576, 64, 384}, {24577, 64, 0}, {30000, 64, 0}, {500, 256, 8},
+    {500, 16, 8}, {500, 15, 0}, {12, 64, 0}};
+  bool sized = true, comparisonSorts = true, bitmapSorts = true,
+    dispatchSorts = true, dispatchFollowsRule = true, inOrderIsSpan = true,
+    bitmapLeftZero = true;
+  for (const Case& c : cases) {
+    size_t n = c.n;
+    std::vector<double> x;
+    ColumnStore store;
+    leafOver(store, x, n);
+    GPGaussianLeaf leaf;
+    leaf.initialize(store, columns, 1, nullptr, c.cap);
+    std::vector<std::uint64_t>& bits = TestPeer::memberBits(leaf);
+    sized = sized && bits.size() == c.numWords;
+    std::vector<index_t> indices(n);
+    Tree tree;
+    tree.initialize(indices.data(), n);
+
+    std::vector<size_t> sizes;
+    for (size_t m = 2; m <= std::min({n, c.cap, size_t(64)}); ++m)
+      sizes.push_back(m);
+    if (c.cap == 256) sizes.insert(sizes.end(), {65, 128, 200});
+    for (size_t m : sizes) {
+      std::vector<index_t> span = drawSpan(n, m), sorted(span);
+      std::sort(sorted.begin(), sorted.end());
+      std::vector<index_t> byComparison(m), byBitmap(m);
+      TestPeer::sortMembersByComparison(span.data(), m, byComparison.data());
+      comparisonSorts = comparisonSorts && byComparison == sorted;
+      if (!bits.empty()) {
+        TestPeer::sortMembersByBitmap(leaf, span.data(), m, byBitmap.data());
+        bitmapSorts = bitmapSorts && byBitmap == sorted;
+      }
+
+      std::copy(span.begin(), span.end(), indices.begin());
+      tree.at(0).end = m;
+      bool inOrder = span == sorted;
+      std::uint64_t bit = std::uint64_t(1) << (span[0] % 64);
+      if (!bits.empty()) bits[span[0] / 64] |= bit;
+      const index_t* members = TestPeer::sortedMembers(leaf, tree, 0);
+      dispatchSorts = dispatchSorts &&
+        std::equal(sorted.begin(), sorted.end(), members) &&
+        (members == indices.data()) == inOrder;
+      if (!bits.empty()) {
+        bool walked = (bits[span[0] / 64] & bit) == 0;
+        dispatchFollowsRule = dispatchFollowsRule &&
+          walked == (!inOrder && TestPeer::sortsByBitmap(m, bits.size()));
+        bits[span[0] / 64] &= ~bit;
+      }
+      std::copy(sorted.begin(), sorted.end(), indices.begin());
+      inOrderIsSpan = inOrderIsSpan &&
+        TestPeer::sortedMembers(leaf, tree, 0) == indices.data();
+    }
+    for (std::uint64_t word : bits) bitmapLeftZero = bitmapLeftZero && word == 0;
+  }
+  check(sized, "a gp leaf holds a member bitmap only where a span can use it");
+  check(comparisonSorts, "the comparison sort orders a gp leaf's members");
+  check(bitmapSorts, "the bitmap walk orders a gp leaf's members");
+  check(dispatchSorts, "a gp leaf's sorted members are the ascending span");
+  check(dispatchFollowsRule,
+        "a gp leaf sorts by the method its rule names");
+  check(inOrderIsSpan, "an in-order span is returned as it stands");
+  check(bitmapLeftZero, "the bitmap walk leaves the member bitmap zero");
+
+  // the rule: from 16 members, at most 6 words a member
+  check(!TestPeer::sortsByBitmap(15, 1) && TestPeer::sortsByBitmap(16, 1) &&
+          TestPeer::sortsByBitmap(17, 1) && !TestPeer::sortsByBitmap(15, 90) &&
+          TestPeer::sortsByBitmap(16, 96) && !TestPeer::sortsByBitmap(16, 97) &&
+          TestPeer::sortsByBitmap(17, 102) &&
+          !TestPeer::sortsByBitmap(17, 103) &&
+          TestPeer::sortsByBitmap(64, 384) && !TestPeer::sortsByBitmap(64, 385),
+        "the bitmap serves spans of 16 members up to 6 words a member");
+
+  // a leaf moved to data of another row count sizes its bitmap to it
+  std::vector<double> xSmall, xLarge;
+  ColumnStore small, large;
+  leafOver(small, xSmall, 100);
+  leafOver(large, xLarge, 300);
+  GPGaussianLeaf moved;
+  moved.initialize(small, columns, 1, nullptr, 64);
+  bool resized = TestPeer::memberBits(moved).size() == 2;
+  moved.reinitialize(large);
+  resized = resized && TestPeer::memberBits(moved).size() == 5;
+  check(resized, "a reinitialized gp leaf sizes its bitmap to the new rows");
+  std::vector<index_t> high(30), highSorted(30), highOut(30);
+  for (size_t r = 0; r < 30; ++r) {
+    high[r] = static_cast<index_t>(299 - r);
+    highSorted[r] = static_cast<index_t>(270 + r);
+  }
+  TestPeer::sortMembersByBitmap(moved, high.data(), 30, highOut.data());
+  check(highOut == highSorted,
+        "a reinitialized gp leaf sorts rows past its first data");
+  ext_rng_destroy(spanRng);
+  printf("ok: gp leaf sorted members\n");
 }
 
 // AFT log-normal survival (docs/design/survival.md): the free reduction gate
@@ -10648,6 +10804,7 @@ void runModelTests(ext_rng* rng) {
   testGPLeafFormats(rng);
   testGPLeafKernelCache(rng);
   testGPLeafMemberOrder();
+  testGPLeafSortedMembers();
   testGPLeafZeroWeights(rng);
   testSparseTestDataEndToEnd();
   testMonotoneFeasibility();
