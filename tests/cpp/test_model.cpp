@@ -5968,6 +5968,29 @@ static void testGPLeafSortedMembers() {
   TestPeer::sortMembersByBitmap(moved, high.data(), 30, highOut.data());
   check(highOut == highSorted,
         "a reinitialized gp leaf sorts rows past its first data");
+
+  // and back to fewer rows: the bitmap shrinks to them, where one left at
+  // its larger size would break the walk's contract, and a leaf moved past
+  // the rows the rule serves at its cap drops it
+  moved.reinitialize(small);
+  bool shrunk = TestPeer::memberBits(moved).size() == 2;
+  check(shrunk, "a gp leaf moved to fewer rows shrinks its bitmap to them");
+  if (shrunk) {
+    std::vector<index_t> low(30), lowSorted(30), lowOut(30);
+    for (size_t r = 0; r < 30; ++r) {
+      low[r] = static_cast<index_t>(99 - r);
+      lowSorted[r] = static_cast<index_t>(70 + r);
+    }
+    TestPeer::sortMembersByBitmap(moved, low.data(), 30, lowOut.data());
+    check(lowOut == lowSorted,
+          "a gp leaf moved to fewer rows sorts its last rows");
+  }
+  std::vector<double> xPast;
+  ColumnStore past;
+  leafOver(past, xPast, 24577);
+  moved.reinitialize(past);
+  check(TestPeer::memberBits(moved).empty(),
+        "a gp leaf moved past the rows its bitmap serves drops it");
   ext_rng_destroy(spanRng);
   printf("ok: gp leaf sorted members\n");
 }
