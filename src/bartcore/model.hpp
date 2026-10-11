@@ -2959,7 +2959,13 @@ struct GPGaussianLeaf {
         ? medianPairwiseDistance(u_.data() + j * numObservations_,
                                  numObservations_)
         : suppliedLengthscales_[j];
-    memberScratch_.reserve(std::min(maxLeafSize_, numObservations_));
+    // sortsByBitmap grows with the member count, so a bitmap it refuses at
+    // the largest gp leaf serves no span and stays unallocated
+    std::size_t maxMembers = std::min(maxLeafSize_, numObservations_);
+    std::size_t numWords = (numObservations_ + 63) / 64;
+    memberScratch_.clear();
+    memberScratch_.reserve(maxMembers);
+    memberBits_.assign(sortsByBitmap(maxMembers, numWords) ? numWords : 0, 0);
     rebuildTestCovariates(data);
   }
 
@@ -3334,17 +3340,73 @@ private:
     return median > 0.0 ? median : 1.0;
   }
 
+  /// Spans shorter than this sort by comparison.
+  static constexpr std::size_t bitmapMinMembers = 16;
+  /// Bitmap words a member above which the walk over the words costs more
+  /// than a comparison sort of the span.
+  static constexpr std::size_t bitmapMaxWordsPerMember = 6;
+
+  /// Whether a span of \p numObs members sorts through a bitmap of
+  /// \p numWords words rather than by comparison. Non-decreasing in
+  /// \p numObs. It chooses a cost, never a value: a span holds distinct
+  /// observations, which have one ascending arrangement.
+  static bool sortsByBitmap(std::size_t numObs, std::size_t numWords) {
+    return numObs >= bitmapMinMembers &&
+           numWords <= bitmapMaxWordsPerMember * numObs;
+  }
+
+  /// Fills \p out with the \p numObs members in ascending order by marking
+  /// each in memberBits_ and reading the set bits back, one pass over the
+  /// bitmap's words. The members are distinct and below numObservations_,
+  /// and memberBits_ is allocated; a repeated member would leave \p out
+  /// short. Every word read is cleared, so the bitmap is zero on return as
+  /// it was on entry.
+  void sortMembersByBitmap(const index_t* members, std::size_t numObs,
+                           index_t* out) const {
+    std::size_t numWords = memberBits_.size();
+    assert(numWords == (numObservations_ + 63) / 64);
+    std::uint64_t* bits = memberBits_.data();
+    for (std::size_t r = 0; r < numObs; ++r)
+      bits[members[r] >> 6] |= std::uint64_t(1) << (members[r] & 63);
+    [[maybe_unused]] const index_t* outEnd = out + numObs;
+    for (std::size_t w = 0; w < numWords; ++w) {
+      std::uint64_t word = bits[w];
+      if (word == 0) continue;
+      bits[w] = 0;
+      do {
+        *out++ = static_cast<index_t>(
+          w * 64 + static_cast<std::size_t>(std::countr_zero(word)));
+        word &= word - 1;
+      } while (word != 0);
+    }
+    assert(out == outEnd);
+  }
+
+  /// Fills \p out with the \p numObs members in ascending order by a
+  /// comparison sort.
+  static void sortMembersByComparison(const index_t* members,
+                                      std::size_t numObs, index_t* out) {
+    std::copy(members, members + numObs, out);
+    std::sort(out, out + numObs);
+  }
+
   /// A node's members sorted by observation index: the span itself when it
   /// is already in order, otherwise a sorted copy in a scratch that keeps
   /// its capacity; valid until the next call or tree change, and no caller
-  /// holds two.
+  /// holds two. The two sorts return the one ascending arrangement of the
+  /// span, so which one runs is not observable in the array.
   const index_t* sortedMembers(const Tree& tree, const Node& node) const {
     const index_t* begin = tree.indices + node.begin;
     const index_t* end = tree.indices + node.end;
     if (std::is_sorted(begin, end)) return begin;
-    memberScratch_.assign(begin, end);
-    std::sort(memberScratch_.begin(), memberScratch_.end());
-    return memberScratch_.data();
+    std::size_t numObs = static_cast<std::size_t>(end - begin);
+    memberScratch_.resize(numObs);
+    index_t* out = memberScratch_.data();
+    if (sortsByBitmap(numObs, (numObservations_ + 63) / 64))
+      sortMembersByBitmap(begin, numObs, out);
+    else
+      sortMembersByComparison(begin, numObs, out);
+    return out;
   }
 
   /// Leaf rows' standardized covariates pre-divided by the lengthscales,
@@ -3739,6 +3801,10 @@ private:
   mutable std::vector<std::size_t> positiveScratch_;  // w > 0 member offsets
   // sortedMembers' scratch; capacity kept across calls
   mutable std::vector<index_t> memberScratch_;
+  // sortMembersByBitmap's bitmap, one bit an observation and all zero
+  // between calls; empty where sortsByBitmap refuses every gp leaf of this
+  // data
+  mutable std::vector<std::uint64_t> memberBits_;
   // the draw cache: alphaBuffer_[o + r] is the weight of observation
   // memberBuffer_[o + r] for a node's offset o, members in ascending index
   mutable std::vector<double> alphaBuffer_;
@@ -3750,6 +3816,8 @@ private:
   mutable std::vector<TreeKernelCache> kernelCaches_;
   mutable std::size_t kernelCacheUsedBytes_ = 0;
   std::size_t kernelCacheBudget_ = kernelCacheTotalBudgetBytes;
+
+  friend struct TestPeer;
 };
 
 static_assert(FunctionLeafModel<GPGaussianLeaf>);
