@@ -22,7 +22,9 @@ against the live tree.
 | `-` | N/A. The concept does not apply to this row; the row footnote says why. |
 
 No cell carries `P` (planned) or `?` (unverified), and `[fN by family]` flags a cell whose
-code varies with the base family the row is built over.
+code varies with the base family the row is built over. A code followed by a comma and words
+qualifies the cell (`S, as probit` is shipped through the sampler the probit row names), and
+`as probit` alone copies that row's cell.
 
 Cites are markdown links whose text is the symbol and whose target is the file, and they are
 existence-checked by `tools/check-doc-freshness.R`; a cell's VALUE is adjudicated separately
@@ -131,13 +133,14 @@ object's external pointer.
 | nbinom | M [`xbart`](../../R/xbart.R) | S [`resolveFamily`](../../src/R_interface_bartcore.cpp), [`nbinom`](../../src/R_interface_bartcore.cpp) [f3] |
 | multinom | R [`resolveClassificationFamily`](../../R/data.R) | S [`dbarts_sampler_numFittedValuesPerObservation`](../../inst/include/dbarts/dbarts.h) [f4] |
 | aft | M [`xbart`](../../R/xbart.R) | S [`DBARTS_FAMILY_AFT`](../../inst/include/dbarts/dbarts.h) |
-| hazard | M [`xbart`](../../R/xbart.R) | M [f5] |
+| hazard | M [`xbart`](../../R/xbart.R) | S, as probit [f5] |
 | hurdle | M | M [f10] |
 | bcf | M [`xbart`](../../R/xbart.R) | S [`dbartsSpec`](../../R/spec.R), [`forests`](../../R/spec.R) |
 | hetero | M [`xbart`](../../R/xbart.R) | S [`applyVarianceAttributes`](../../src/R_interface_bartcore.cpp) [f3] |
 
-Construction reach through `bart()`, `bartBT()` and `dbarts()` + R5: gaussian, student, probit,
-logistic and aft reach all three ([`bart`](../../R/bart.R), [`bartBT`](../../R/bart.R), [`dbarts`](../../R/dbarts.R)).
+Construction reach through `bart()`, `bartBT()` and `dbarts()` + R5: gaussian and probit reach all
+three ([`bart`](../../R/bart.R), [`bartBT`](../../R/bart.R), [`dbarts`](../../R/dbarts.R)), `bartBT()` fitting a binary
+response as probit; student, logistic and aft reach `bart()` and `dbarts()` only.
 Ordinal, nbinom, multinomial, hurdle, hazard, bcf and hetero are out of `bartBT()`'s reach
 entirely: it carries no `family` formal, so the by-name refusals it once held are gone
 (retired: [`refuseBartOwnClassFamily`](../../R/bart.R), [`refuseBartRedirectedFamily`](../../R/bart.R)), and its
@@ -223,8 +226,8 @@ is VD's. REFUSED (`R`) cells are absent, being part of the models.
 
 **Not gaps** - structurally impossible or settled by decision, not open work:
 
-- Hazard's and hurdle's absence from the flat C API and `xbart()`: neither owns engine code to
-  expose ([f5], [f10]).
+- Hazard's and hurdle's absence from `xbart()`, and hurdle's from the flat C API: neither owns
+  engine code to expose ([f5], [f10]).
 - Their absence from the SBC matrix: both designs break exchangeability on `y0` and neither
   owns sampling code (docs/plans/sbc-family-tiers.md).
 - BCF's missing `bcf()`/`bartBCF` verb: it ships in bartCause, the K-forest capability itself
@@ -277,8 +280,10 @@ category offsets stay R methods.
 [f5] The three `"hazard"` spellings are person-period ingestion sugar:
 [`expandDiscreteTimeHazard`](../../R/dbarts.R) expands the design and remaps the token -
 `"hazard"`/`"hazard.probit"` to `"probit"`, `"hazard.logistic"` to `"logistic"` - before any
-model is built, adding no engine code. The row is therefore the probit row, or the logistic
-one under that third spelling: case weights `S`, latents the Polya-Gamma omegas
+model is built, adding no engine code. The row is therefore the probit row (case weights `R`,
+latents the truncated-normal draws) or, under the third spelling, the logistic row (case weights
+`S` as positive-integer counts, latents the Polya-Gamma omegas). The expansion stays on the R side,
+so the flat API drives the probit or logistic sampler that results and has no hazard entry
 ([Discrete-time hazard (LANDED 2026-07-18, 4bcdccf)](survival.md#discrete-time-hazard-landed-2026-07-18-4bcdccf)).
 
 [f6] `treatment` is not a `bart()` formal; the K-forest amplitude capability comes from a
