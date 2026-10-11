@@ -12,11 +12,11 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    name: probe ${{ matrix.n }}
+    name: probe ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        n: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+        runner: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
     container:
       image: ghcr.io/r-hub/containers/clang-asan:latest
     env:
@@ -46,3 +46,7 @@ jobs:
           OPENBLAS_VERBOSE=2 Rscript probe.R 2>&1
           echo "== Haswell kernels"
           OPENBLAS_CORETYPE=HASWELL OPENBLAS_VERBOSE=2 Rscript probe.R 2>&1
+          echo "== Cooper Lake kernels, forced where the CPU can run them"
+          OPENBLAS_CORETYPE=COOPERLAKE OPENBLAS_VERBOSE=2 Rscript probe.R 2>&1 || true
+          echo "== SkylakeX kernels, forced where the CPU can run them"
+          OPENBLAS_CORETYPE=SKYLAKEX OPENBLAS_VERBOSE=2 Rscript probe.R 2>&1 || true
