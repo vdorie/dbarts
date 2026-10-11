@@ -699,7 +699,10 @@ void runForestRescaleTests() {
 // p = 1e-3 bound is 1.95 / sqrt(N) at any N.
 constexpr size_t collapsedDraws = 50000, collapsedRedraws = 2000,
                  collapsedCoinCalls = 4000;
-constexpr double collapsedZBound = 4.5;
+// collapsedRowZBound holds the worst of some two hundred rows' means of a
+// right-skewed variate, where one mean's 4.5 would fail a correct sampler on
+// one stream in a few hundred.
+constexpr double collapsedZBound = 4.5, collapsedRowZBound = 5.5;
 
 /// One fixture's data as the reference reads it, every vector full length
 /// whatever the sampler was handed: zeros for no offset, ones for no counts
@@ -1025,10 +1028,10 @@ void checkCollapsedMapping(const char* label, ConstantLeafSampler& sampler,
 }
 
 /// Test 3 under logistic: over many moves from one state, each row's redrawn
-/// omega standardized by PG(w_i, psi_i)'s moments at the moved fit. Per row
-/// the mean over moves is scored, and over every row and move the mean
-/// signed by whether the factor passed 1, which a redraw at the fit before
-/// the move shifts one way throughout. zeroFit runs it from zeroed leaves,
+/// omega standardized by PG(w_i, psi_i)'s moments at the moved fit. Scored
+/// are the mean over every row and move, the same mean signed by whether the
+/// factor passed 1, which a redraw at the fit before the move shifts one way
+/// throughout, and the worst row's mean. zeroFit runs it from zeroed leaves,
 /// where a row with no offset sits at psi = 0 exactly.
 void checkLogisticRedraw(const char* label, FrozenForest& frozen,
                          const CollapsedData& data, bool zeroFit) {
@@ -1038,7 +1041,7 @@ void checkLogisticRedraw(const char* label, FrozenForest& frozen,
   std::vector<double> fit = frozen.gatherTotals();
   const double* omega = TestPeer::latents(chain);
   std::vector<double> before(omega, omega + rescaleN), rowSum(rescaleN, 0.0);
-  double signedSum = 0.0, numTerms = 0.0;
+  double sum = 0.0, signedSum = 0.0, numTerms = 0.0;
   size_t numAtZero = 0;
   bool rowsOutKept = true;
   for (size_t m = 0; m < collapsedRedraws; ++m) {
@@ -1056,6 +1059,7 @@ void checkLogisticRedraw(const char* label, FrozenForest& frozen,
       polyaGammaMoments(data.counts[i], psi, mean, variance);
       double standardized = (omega[i] - mean) / std::sqrt(variance);
       rowSum[i] += standardized;
+      sum += standardized;
       signedSum += factor > 1.0 ? standardized : -standardized;
       numTerms += 1.0;
     }
@@ -1064,14 +1068,15 @@ void checkLogisticRedraw(const char* label, FrozenForest& frozen,
   for (size_t i = 0; i < rescaleN; ++i)
     worstRowZ = std::max(worstRowZ, std::fabs(rowSum[i]) /
                            std::sqrt(static_cast<double>(collapsedRedraws)));
-  double signedZ = signedSum / std::sqrt(numTerms);
-  char what[200];
+  double z = sum / std::sqrt(numTerms), signedZ = signedSum / std::sqrt(numTerms);
+  char what[240];
   std::snprintf(what, sizeof what,
-                "%s: each redrawn omega is PG(w, psi) at the moved fit (worst "
-                "row |z| %.3g, signed z %.3g, %zu rows at psi = 0)", label,
-                worstRowZ, signedZ, numAtZero);
-  check(worstRowZ < collapsedZBound && std::fabs(signedZ) < collapsedZBound &&
-          rowsOutKept && (numAtZero > 0) == zeroFit, what);
+                "%s: each redrawn omega is PG(w, psi) at the moved fit (z "
+                "%.3g, signed by the factor %.3g, worst row %.3g, %zu rows at "
+                "psi = 0)", label, z, signedZ, worstRowZ, numAtZero);
+  check(std::fabs(z) < collapsedZBound && std::fabs(signedZ) < collapsedZBound &&
+          worstRowZ < collapsedRowZBound && rowsOutKept &&
+          (numAtZero > 0) == zeroFit, what);
 }
 
 /// Tests 1 to 4 on one burned-in fixture; returns the conditional's
@@ -1227,8 +1232,10 @@ void runCollapsedRescaleTests() {
   }
   TestPeer::kHyperprior(chain) = savedPrior;
   // a k whose square underflows: eligible, and its move finite. From a zero
-  // fit, where the k prior's term alone bounds the orbit on that side,
-  // repeated moves carry k into its prior's range and not past it.
+  // fit the k prior's term alone bounds the orbit on the side k grows on,
+  // and the slice is spent before 0.5 (k / s)^2 passes 1.5 log(k / 1e-170)
+  // by more than its depth: one move leaves k under 100. A term that had
+  // underflowed would leave that side open, and one move in forty past it.
   frozen.moveTo(1.0);
   TestPeer::forestK(chain) = 1.0e-170;
   double tinyFactor = 0.0;
@@ -1239,15 +1246,18 @@ void runCollapsedRescaleTests() {
                     TestPeer::forestK(chain) <= DBL_MAX;
   for (double v : forestTotals(*sampler, 0))
     tinyFinite = tinyFinite && std::isfinite(v);
-  frozen.moveToZeroFit();
-  TestPeer::forestK(chain) = 1.0e-170;
-  for (size_t m = 0; m < 60; ++m) TestPeer::drawCollapsedRescale(chain, nullptr);
+  double tinyWorstK = 0.0;
+  for (size_t m = 0; m < 400; ++m) {
+    frozen.moveToZeroFit();
+    TestPeer::forestK(chain) = 1.0e-170;
+    TestPeer::drawCollapsedRescale(chain, nullptr);
+    tinyWorstK = std::max(tinyWorstK, TestPeer::forestK(chain));
+  }
   std::snprintf(what, sizeof what,
                 "%s: a k whose square underflows takes a finite move, and "
-                "from a zero fit returns to its prior's range (k %.3g)", link,
-                TestPeer::forestK(chain));
-  check(tinyTaken && tinyFinite && TestPeer::forestK(chain) > 1.0e-6 &&
-          TestPeer::forestK(chain) < 1.0e3, what);
+                "from a zero fit no move passes its prior's reach (largest k "
+                "%.3g)", link, tinyWorstK);
+  check(tinyTaken && tinyFinite && tinyWorstK < 100.0, what);
   frozen.moveTo(1.0);
 
   auto declinesOn = [&](ResponseFamily otherFamily, bool updateK,
