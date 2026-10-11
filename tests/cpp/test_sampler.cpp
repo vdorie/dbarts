@@ -10713,6 +10713,10 @@ static void testBCFCalibrationMap() {
   std::vector<double> even(n, 0.0), zeros(n, 0.0);
   for (size_t i = 0; i + 2 < n; ++i) even[i] = static_cast<double>(i + 1);
 
+  // A forest states its multiple and nothing else of the map: the divisor is
+  // the map's own for its kind, so no forest here has one of its choosing,
+  // and a forest with a basis has no half-Cauchy median, so the forest that
+  // carries one is a fourth, with no basis.
   const size_t K = 4;
   const double factors[K] = {1.0, 2.5, 0.4, 1.75};
   const double divisors[K] = {1.0, 0.674, 0.674, 0.674};
@@ -10803,6 +10807,8 @@ static void testBCFCalibrationMap() {
     ext_rng_setSeed(conventionRng, 9311);
     AmplitudeSpec conventionSpec;
     conventionSpec.family = family;
+    // both forests have a basis, so both divisors are the map's 0.674: a
+    // forest states no divisor to tell the two apart by
     conventionSpec.forests.resize(2);
     conventionSpec.forests[0].forest.numTrees = 20;
     conventionSpec.forests[0].sdMultiple = 1.25;

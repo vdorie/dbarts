@@ -635,6 +635,9 @@ sdMessage <- function(value, place = c("creation", "writer", "front")) {
     error = conditionMessage
   )
 }
+# the validator returns the number alone. The record and the reader hold an
+# unnamed number whether or not it does, so only this sees a name kept here.
+expect_identical(dbarts:::validateForestSd(c(dose = 1)), 1)
 for (place in c("creation", "writer")) {
   expect_match(sdMessage("2", place), "must be a number, not a string")
   expect_match(sdMessage(TRUE, place), "must be a number, not a logical")
@@ -647,9 +650,6 @@ for (place in c("creation", "writer")) {
   expect_match(sdMessage(matrix(2), place), "must be a number, not a matrix")
   # a name on a single number is dropped, not refused
   expect_identical(sdMessage(c(dose = 1), place), "accepted")
-  # and it is the number alone that is kept: nothing downstream drops the name
-  # for it, so the validated sd is the unnamed number
-  expect_identical(dbarts:::validateForestSd(c(dose = 1)), 1)
   expect_match(
     sdMessage(c(1, 2), place),
     "forest 'sd' must be a single number, not a vector of length 2: a forest states one sd; to size a column differently, rescale it in 'basis', as I(dose / 30)",

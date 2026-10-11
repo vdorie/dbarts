@@ -1330,6 +1330,21 @@ expect_equal(
   attr(plainSecond$control, "bartcore.forests")$params,
   list(c(50, 0.25, 3, 1), c(20, 0.95, 2, 1))
 )
+# each forest's channel follows its kind, not its place: the variance stated
+# on the first reaches its coefficients, and the second carries the median
+expect_identical(
+  attr(plainSecond$control, "bartcore.forests")$variance,
+  c(2, NA_real_)
+)
+plainSecondPriors <- plainSecond$getLeafPrior()
+expect_identical(plainSecondPriors[[1L]]$amplitude.prior.variance, 2)
+expect_null(plainSecondPriors[[1L]]$amplitude.prior.scale)
+expect_identical(plainSecondPriors[[1L]]$prior.sd.of, "forest total")
+expect_identical(plainSecondPriors[[1L]]$leaf.scale.divisor, 0.674)
+expect_identical(plainSecondPriors[[2L]]$amplitude.prior.scale, 2)
+expect_null(plainSecondPriors[[2L]]$amplitude.prior.variance)
+expect_identical(plainSecondPriors[[2L]]$prior.sd.of, "amplitude scale")
+expect_identical(plainSecondPriors[[2L]]$leaf.scale.divisor, 1)
 # forest 1's excuse does not extend to it: an amplitude.prior.variance
 # declared on THAT forest answers the amplitude refusal
 expect_error(

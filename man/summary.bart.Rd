@@ -76,8 +76,9 @@
   \code{stats} (a data frame with one row per requested sampled scalar, or
   \code{NULL} if none of \code{vars} are present on the fit), \code{vars},
   and \code{fixed}, a named list of the requested parameters the fit held
-  fixed and their values (a vector named by the forests' labels on a fit with several
-  forests). \code{stats} has columns \code{variable}, \code{mean}, \code{median},
+  fixed and their values (on a fit with several forests a vector with one
+  entry for each forest, \code{k} named \code{forest1}, \code{forest2},
+  \dots and \code{leaf.prior.sd} by the forests' labels). \code{stats} has columns \code{variable}, \code{mean}, \code{median},
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},
   \code{ess_bulk}, and \code{ess_tail} - the same columns
   \code{posterior::summarise_draws} reports for a plain array, computed

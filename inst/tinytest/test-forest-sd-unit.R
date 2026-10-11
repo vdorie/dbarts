@@ -252,6 +252,49 @@ written$setLeafPrior(forests = list(forest(sd = 3), forest(sd = 0.25)))
 expectStated(written, 1L, 3, "the writer")
 expectStated(written, 2L, 0.25, "the writer")
 
+# a write reaches every chain: the engine's own reading, a row a chain, after
+# a write on a sampler of two chains
+chainRows <- function(sampler, f) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_getLeafPrior,
+    sampler$getPointer(),
+    f - 1L
+  )
+}
+twoChains <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = d$zf)),
+  control = dbartsControl(
+    n.chains = 2L,
+    n.threads = 1L,
+    n.samples = 20L,
+    n.burn = 0L,
+    updateState = FALSE,
+    seed = 31L
+  )
+)
+twoChains$setLeafPrior(forests = list(forest(sd = 3), forest(sd = 0.25)))
+plainRows <- chainRows(twoChains, 1L)
+factorRows <- chainRows(twoChains, 2L)
+expect_identical(nrow(plainRows), 2L)
+expect_identical(unname(plainRows[, "named.sd"]), c(3, 3))
+expect_identical(unname(plainRows[, "map.sd"]), c(3, 3))
+expect_equal(
+  unname(plainRows[, "amplitude.prior.scale"]) * unitOf(twoChains),
+  c(3, 3),
+  tolerance = 1e-12
+)
+expect_identical(unname(factorRows[, "named.sd"]), c(0.25, 0.25))
+expect_identical(unname(factorRows[, "map.sd"]), c(0.25, 0.25))
+expect_equal(
+  unname(factorRows[, "prior.scale"]) * 0.674,
+  c(0.25, 0.25),
+  tolerance = 1e-12
+)
+expect_identical(plainRows[1L, ], plainRows[2L, ])
+expect_identical(factorRows[1L, ], factorRows[2L, ])
+
 copied <- created$copy()
 expectStated(copied, 1L, 2, "copy")
 expectStated(copied, 2L, 0.5, "copy")
