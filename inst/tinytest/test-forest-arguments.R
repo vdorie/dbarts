@@ -647,6 +647,9 @@ for (place in c("creation", "writer")) {
   expect_match(sdMessage(matrix(2), place), "must be a number, not a matrix")
   # a name on a single number is dropped, not refused
   expect_identical(sdMessage(c(dose = 1), place), "accepted")
+  # and it is the number alone that is kept: nothing downstream drops the name
+  # for it, so the validated sd is the unnamed number
+  expect_identical(dbarts:::validateForestSd(c(dose = 1)), 1)
   expect_match(
     sdMessage(c(1, 2), place),
     "forest 'sd' must be a single number, not a vector of length 2: a forest states one sd; to size a column differently, rescale it in 'basis', as I(dose / 30)",
