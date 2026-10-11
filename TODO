@@ -353,6 +353,13 @@ items
     only a refresh from the column's own values gives the weights
     back. Plan docs/plans/state-grid-install.md on wt/state-grid-plan.
     Before the merge; with state-frame-prior's grid half.
+  variance-forest-inherited-tree-prior: a variance forest created with
+    no base or power of its own (varianceForest(base = NULL)) takes
+    the mean forest's tree prior at creation and keeps it when
+    setModel changes that prior; live sampler and copy agree, the
+    value being resolved once into the control (run 2026-10-11).
+    Decide with dec-B254's per-forest tree priors whether it follows.
+    Before 1.0-0.
   treatsens-cibart-chains: after 1.0-0, on treatSens's own schedule
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state

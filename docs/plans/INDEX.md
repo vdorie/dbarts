@@ -46,7 +46,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | latent-subset-mask.md | LANDED, 2026-08-13 | Adds a per-observation active-row mask (`$setActiveRows`) that lets every response family, including the latent ones zero weights cannot reach, drop rows from a fit between draws. |
-| variance-forest-mixture-reinstall.md | PLANNED 2026-10-11 | Has a `proposal.probs` or `n.perturb.cuts` changed through `setControl` reach a heteroscedastic sampler's variance forest as well as its mean forest, as both take the control's at creation. |
+| variance-forest-mixture-reinstall.md | LANDED 2026-10-11 (2b0df1c0 to d02e61d6; dec-A205) | Has a `proposal.probs` or `n.perturb.cuts` changed through `setControl` reach a heteroscedastic sampler's variance forest as well as its mean forest, as both take the control's at creation. |
 
 ## Data-store / predictor-storage cluster
 

@@ -1,6 +1,6 @@
 # variance-forest-mixture-reinstall: setControl's mixture and perturb width reach the variance forest
 
-Status: PLANNED 2026-10-11.
+Status: LANDED 2026-10-11 (2b0df1c0 to d02e61d6; calls dec-A205; [Landing note](#landing-note)).
 
 agent: opus implementer, one; opus reviewer who runs the mutants below.
 rng: NEUTRAL, bit for bit, for every sampler that never calls setControl with a changed proposal.probs or
@@ -117,3 +117,27 @@ variance forest's `base` and `power` are its own and are not touched here.
 - Several chains ([`Sampler::setModel`](../../src/bartcore/sampler.hpp) loops them) and an aft sampler (one
   scratch run: frozen by setControl, its variance trees stand) have no test. The width and one-probability
   mutants ran against tests/cpp only; the tinytest ran against the block removed.
+
+## Landing note
+
+Landed 2026-10-11 as 2b0df1c0 to d02e61d6: this plan, the engine change (16 lines in `Chain::setModel`), its
+tests, two help sentences, and three assertions added after review. One opus implementer; one opus review
+with sixteen mutants, which found the change correct and neutral where claimed and served as the plan's
+second reader, no separate blind critique having run (dec-A205). The review's three test gaps are closed:
+the install is pinned on every chain, on a variance forest of one tree, and under a variance tree prior of
+its own, each formerly surviving mutant now failing an expectation.
+
+Gates on the landed code, arm64 macOS: tests/cpp 393 plain and under address and undefined sanitizers; the
+full tinytest suite 23105 results, 0 failures, before the three added assertions (21 of 21 in the new file
+after them); the three bitwise compares on the reference build 55, 15 and 11 identical; the four snapshot
+files; the three exact gates that fit a variance forest, and a scratch variant switching four mixtures by
+`setControl` during the run (s^2 gap 0.0013 against a tolerance of 0.045 at full length); the lint chain;
+`R CMD check --as-cran` one NOTE (Date). x86-64 Linux, g++ 13: tests/cpp 393 plain and under address,
+undefined and leak sanitizers with no report; tinytest 23144 results, 0 failures; the main corpus
+statistically indistinguishable.
+
+Left for later, in TODO: a variance forest that inherited its `base` and `power` does not follow a tree
+prior changed through `setModel` (variance-forest-inherited-tree-prior, with dec-B254's per-forest tree
+priors). Told to the maintainer: a heteroscedastic sampler's mean forest can no longer be frozen alone,
+which the defect allowed by accident, and `rule_gibbs`'s share is spent on nothing in the variance forest,
+as it already was at creation.
