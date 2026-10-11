@@ -1967,12 +1967,6 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 
   first <- resolved[[1L]]
   if (numForests == 1L) {
-    if (!is.null(first$sd) && !any(hasBasis)) {
-      stop(
-        "this model has one forest, so its size is the fitting function's ",
-        "leaf.prior = normal(sd = ), not forest(sd = )"
-      )
-    }
     if (!is.null(first$amplitude) && !any(hasBasis)) {
       stop(
         "this model has one forest, which has no coefficient to hold; ",

@@ -751,6 +751,25 @@ resolveSamplerSpec <- function(
   parsePriorsCall$multiForest <- !is.null(declaredBases)
   parsePriorsCall$kHyperprior <- drawsLeafKByDefault(family)
   parsePriorsCall$parentEnv <- evalEnv
+  # the one forest of a single-forest model states its size as the fitting
+  # function's leaf prior does: its 'sd' is that prior's, in the same units,
+  # and the two together state one thing twice
+  if (is.null(declaredBases) && !is.null(firstForest$sd)) {
+    if ("leaf.prior" %in% names(stated)) {
+      stop(
+        "this model has one forest and states its size twice: 'sd' on the ",
+        "forest and '",
+        stated[["leaf.prior"]],
+        "' given to the fitting function are one statement; give one",
+        call. = FALSE
+      )
+    }
+    parsePriorsCall <- setCallArgument(
+      parsePriorsCall,
+      "leaf.prior",
+      bquote(normal(sd = .(firstForest$sd)))
+    )
+  }
 
   # The residual prior has one home, the family object it rides, so it
   # arrives here already resolved (the entry point reads it off that object,
