@@ -10147,7 +10147,8 @@ static void testForestMapStatements() {
 /// A forest's stated sd is in the response's units, divided by the unit once
 /// at each construction and each restatement. One fixture of three forests
 /// (none, a two-level block, a column of numbers) per family, over a response
-/// whose sd is neither 1 nor its range.
+/// whose sd is neither 1 nor its range. A basis swapped under a stated sd
+/// moves the row norm and leaves the quotient.
 static void testForestSdUnit() {
   std::uint64_t state = 20261102u;
   auto unif = [&]() {
@@ -10168,6 +10169,17 @@ static void testForestSdUnit() {
   }
   const size_t trees[K] = {14, 9, 6};
   double nan = std::numeric_limits<double>::quiet_NaN();
+  // the bases a swap installs, in other units than creation's: the block at
+  // row norm 4 and the column at 3 * dose + 1, whose median row is dose's
+  std::vector<double> wideBlock(2 * n), wideDose(n);
+  for (size_t i = 0; i < 2 * n; ++i) wideBlock[i] = 4.0 * block[i];
+  for (size_t i = 0; i < n; ++i) wideDose[i] = 3.0 * dose[i] + 1.0;
+  std::vector<double> sortedDose = wideDose;
+  std::sort(sortedDose.begin(), sortedDose.end());
+  const double wideDoseNorm = sortedDose[n / 2];  // n is odd
+  // the basis the forests of numbers and of the block are built over
+  const double* blockBasis = block.data();
+  const double* doseBasis = dose.data();
   // the sample sd of the rows \p in marks, one less than their count below
   auto sampleSd = [&](const std::vector<double>& response,
                       const std::vector<double>* in) {
@@ -10210,9 +10222,9 @@ static void testForestSdUnit() {
       if (sds != nullptr) spec.forests[f].sd = sds[f];
       if (multiples != nullptr) spec.forests[f].sdMultiple = multiples[f];
     }
-    spec.forests[1].basis = block.data();
+    spec.forests[1].basis = blockBasis;
     spec.forests[1].numBasisColumns = 2;
-    spec.forests[2].basis = dose.data();
+    spec.forests[2].basis = doseBasis;
     spec.forests[2].numBasisColumns = 1;
     spec.anchor = anchor;
     spec.unit = unit;
@@ -10391,6 +10403,49 @@ static void testForestSdUnit() {
                  10.0 * literal, 8.0) &&
               leafScales(derived) != leafScales(created),
             "sd unit: which a unit derived again would not");
+    }
+
+    // (g) a basis swapped under stated sds: the row norm moves, the quotient
+    // by the unit stands, and the chain is the one created over the new basis
+    {
+      Built swapped = build(family, response, nullptr, stated, nullptr, nan,
+                            nan);
+      blockBasis = wideBlock.data();
+      doseBasis = wideDose.data();
+      Built over = build(family, response, nullptr, stated, nullptr, nan, nan);
+      blockBasis = block.data();
+      doseBasis = dose.data();
+      double s = swapped.sampler->forestCalibration(0, 0).mapAnchor;
+      double doseNorm = swapped.sampler->forestCalibration(0, 2).basisRowNorm;
+      check(swapped.sampler->setForestBasis(1, wideBlock.data(), 2) &&
+              swapped.sampler->setForestBasis(2, wideDose.data(), 1),
+            "sd unit: a block and a column in other units are installed");
+      const double norms[K] = {1.0, 4.0, wideDoseNorm};
+      bool moved = doseNorm != wideDoseNorm, quotient = true, product = true,
+           same = leafScales(swapped) == leafScales(over);
+      for (size_t c = 0; c < numChains; ++c) {
+        for (size_t f = 1; f < K; ++f) {
+          ForestCalibration a = swapped.sampler->forestCalibration(c, f);
+          ForestCalibration b = over.sampler->forestCalibration(c, f);
+          moved = moved && ulps(a.basisRowNorm, norms[f], 4.0);
+          quotient = quotient && a.nodeScaleFactor == stated[f] / unit &&
+                     a.namedSd == stated[f] && a.mapSd == stated[f];
+          product = product &&
+                    TestPeer::leafScale(swapped.sampler->chain(c), f) ==
+                      stated[f] / unit * s / (0.674 * a.basisRowNorm) /
+                        std::sqrt(static_cast<double>(trees[f]));
+          same = same && a.nodeScaleFactor == b.nodeScaleFactor &&
+                 a.basisRowNorm == b.basisRowNorm &&
+                 a.priorScale == b.priorScale;
+        }
+      }
+      check(moved, "sd unit: a swapped basis moves the row norm");
+      check(quotient, "sd unit: a swapped basis leaves a stated sd its "
+                      "quotient by the unit, and the reader its number");
+      check(product, "sd unit: the leaf scale after a swap is the quotient "
+                     "on the anchor over the new row norm");
+      check(same, "sd unit: the swapped chain has the calibration of the one "
+                  "created over the new basis");
     }
   }
 

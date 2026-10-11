@@ -301,6 +301,26 @@ expect_identical(forestInfo(written)$sd, c(3, 0.25))
 swappedBasis <- twoForests()
 swappedBasis$setForestBasis(2L, factor(1L - d$z))
 expectStated(swappedBasis, 2L, 0.5, "setForestBasis")
+# a column swapped for one in other units moves the row norm and leaves the
+# stated number: the forest is the one created over the new column, on the
+# sampler and on a copy
+overColumn <- function(column) {
+  twoForests(list(forest(sd = 2), forest(basis = column, sd = 0.5)))
+}
+swappedColumn <- overColumn(d$dose)
+normBefore <- swappedColumn$getLeafPrior(2L)$basis.row.norm
+swappedColumn$setForestBasis(2L, 3 * d$dose + 1)
+afterSwap <- swappedColumn$getLeafPrior(2L)
+expect_equal(normBefore, median(d$dose), tolerance = 1e-12)
+expect_equal(
+  afterSwap$basis.row.norm,
+  3 * median(d$dose) + 1,
+  tolerance = 1e-12
+)
+expectStated(swappedColumn, 2L, 0.5, "setForestBasis, a column in other units")
+expect_identical(afterSwap$leaf.scale.factor, 0.5 / unitOf(swappedColumn))
+expect_identical(afterSwap, overColumn(3 * d$dose + 1)$getLeafPrior(2L))
+expect_identical(swappedColumn$copy()$getLeafPrior(2L), afterSwap)
 # and a column given to the forest created with no basis leaves that forest
 # the kind it was created as, on the sampler and on a copy
 swappedBasis$setForestBasis(1L, d$dose)
