@@ -520,7 +520,7 @@ forest(
   leaf prior are refused when a second forest is declared, the size of the
   forest with no basis being written on the forest, as
   \code{forest(x1 + x2, sd = 2)}, in the response's units as
-  \code{normal(sd = )} is. The two are not the same thing: this \code{sd}
+  \code{normal(sd = )} is. In a model of several forests this \code{sd}
   states one forest's share of the combined location's prior, per unit of
   basis row norm, where \code{normal(sd = )} states a single forest's whole
   spread. Every value here is validated at fit time, and
