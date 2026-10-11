@@ -263,15 +263,20 @@ run alone by naming it.
 
     Rscript benchmarks/R/mask-redraw-exact.R quick probit
 
-probit-k-scale-exact is the gate for the probit rescaling step: one frozen
-tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are
-exact by one quadrature a leaf, on four arms (every leaf separated, none, an
-offset, a mask). It bounds P(k < q) at the exact deciles and the unseparated leaves'
-means at |z| 4.5, and the separated arm's batch-means error of P(k < q) at
-0.01 in full mode (0.014 quick), which a sampler without the step does not
-meet, so a step that silently declines fails. It cannot see k left unscaled
-after a correct draw; the engine's mapping test catches that. Quick mode is
-about 30 seconds, full about 2 minutes.
+probit-k-scale-exact is the gate for the moves that rescale a binary forest
+against its drawn k, the probit rescaling step and the collapsed rescaling
+move: per link, probit and logistic, one frozen tree with k ~ chi(1.5, 2),
+whose posterior of k and leaf means are exact by one quadrature a leaf, on four
+arms (every leaf separated, none, an offset, a mask) and under logistic a fifth
+with counts 1 to 3 as weights. It bounds P(k < q) at the exact deciles and the
+unseparated leaves' means at |z| 4.5, and under probit the separated arm's
+batch-means error of P(k < q) at 0.01 in full mode (0.014 quick), which a
+sampler without the step does not meet, so a step that silently declines fails;
+the logistic separated arm reports that error and is held to no bound. It
+cannot see k left unscaled after a correct draw; the engine's mapping tests
+catch that. A link or an arm runs alone by naming it. Quick mode is about 5
+minutes on a laptop under load, the logistic arms 3 of them; full mode runs
+four times the sweeps.
 
     Rscript benchmarks/R/probit-k-scale-exact.R quick
 
