@@ -839,25 +839,17 @@ sparse starting sigma. Still ahead:
 
 ## Slices C and D, not planned here
 
-C. `updateScale` on `setWeights` and `setActiveRows`. Waits on: this slice. Settled, to carry into its
-   plan:
-   - What a re-derivation does to the live chain on a call that changes no response: as
-     `setResponse(updateScale = TRUE)` does, the live leaves keeping their internal numbers and the
-     kept draws converted (dec-B327). The critic measured the live fit at the rows in moving by up to
-     15.07 with no data change until the next sweep; the ruling accepts it.
-   - Position. The new argument goes after `updateState`, so 0.9-34's positional `setWeights(w, TRUE)`
-     keeps its meaning (dec-B327, dec-B381).
-   - A sampler of several forests keeps refusing `updateScale = TRUE` in 1.0-0, the help saying the
-     response's scale and a re-derived basis scale (dec-B303) may span different rows (dec-B362).
-   - A re-derivation whose rows in hold fewer than two distinct values keeps the prior in force and warns
-     once per sampler (dec-B364), as this slice builds for the two response setters; slice C extends it
-     to the two new arguments, the sampler deciding from the same read and returning
-     `ResponseUpdateResult` through the same facade path and holder flag (dec-B405). No flat entry sets
-     weights or a mask, so the C API gains nothing, and stan4bart's range install, which goes through
-     `setResponse`, is settled here.
-   - The by-hand count sampler's call, `setActiveRows(spec$active, updateScale = TRUE)`, and the loop
-     form `setActiveRows(mask, updateScale = i <= n.burn)`, written into dbartsSpec's help (dec-B363).
-   - A help sentence, and a test, that `setState` does not undo a re-derivation.
+C. `updateScale` on `setWeights` and `setActiveRows`: planned in
+   [response-scale-rows-c.md](response-scale-rows-c.md), which carries what was settled here. The live
+   chain is treated as `setResponse(updateScale = TRUE)` treats it, the live leaves keeping their
+   internal numbers and the kept draws converted (dec-B327). The argument goes after `updateState`, so
+   0.9-34's positional `setWeights(w, TRUE)` keeps its meaning (dec-B327, dec-B381). A sampler of
+   several forests keeps refusing (dec-B362). The keep and its once-per-sampler warning extend to the
+   two setters through the same status, facade path and holder flag (dec-B364, dec-B405), and the C API
+   gains nothing, no flat entry setting weights or a mask. The by-hand count sampler's call,
+   `setActiveRows(spec$active, updateScale = TRUE)`, and its loop form go into dbartsSpec's help
+   (dec-B363), with a sentence and a test that `setState` does not undo a re-derivation. That plan holds
+   one open call, on a multinomial sampler.
 D. dec-B304: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the
    rows in at creation, held, re-derived by `updateStandardization`; `xbart`'s folds taking their own.
    Waits on: the record slices of TODO `state-frame-prior` (a state install today replaces the
