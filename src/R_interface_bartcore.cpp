@@ -2582,15 +2582,12 @@ SEXP forestListElement(SEXP listExpr, size_t f) {
 }
 
 // Fill the K-length forest spec from the resolved R objects. The FIRST forest
-// takes its tree count and structure prior from the host model, since the
-// fit's own control@n.trees and tree prior are its declaration; every forest
-// takes the rest from its own length-8 params vector - tree count, base,
-// power, the leaf-scale factor and divisor the calibration map reads, the
-// amplitude prior's variance and half-Cauchy scale, and the amplitude update
-// flag. The per-forest vars/interactions()/blocks() lists are optional and
-// parallel. Shared by the internal entry, which passes these as arguments, and
-// the public creation path, which reads them off a control attribute - so the
-// two build the same sampler.
+// takes its tree count and structure prior from the model, since the fit's
+// own control@n.trees and tree prior are its declaration; every forest takes
+// the rest from its own length-4 params vector - tree count, base, power and
+// the amplitude update flag. What a forest states of its size is not here:
+// applyForestStatements reads it. The per-forest vars/interactions()/blocks()
+// lists are optional and parallel.
 void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
                         SEXP blocksExpr, const ParsedModel& model,
                         size_t numTrees, size_t numPredictors,
@@ -2609,8 +2606,8 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
 
   for (size_t f = 0; f < numForests; ++f) {
     SEXP forestParamsExpr = VECTOR_ELT(paramsExpr, static_cast<R_xlen_t>(f));
-    if (!Rf_isReal(forestParamsExpr) || Rf_xlength(forestParamsExpr) != 8)
-      Rf_error("forest parameters must be a length-8 numeric vector per forest");
+    if (!Rf_isReal(forestParamsExpr) || Rf_xlength(forestParamsExpr) != 4)
+      Rf_error("forest parameters must be a length-4 numeric vector per forest");
     const double* params = REAL(forestParamsExpr);
     bartcore::ForestSpec& forest = spec.forests[f];
     // leaf scales come from the calibration map, not the host model
@@ -2618,13 +2615,7 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
       f == 0 ? numTrees : static_cast<size_t>(params[0]);
     forest.forest.base = f == 0 ? model.base : params[1];
     forest.forest.power = f == 0 ? model.power : params[2];
-    // the numbers R resolved, stated to the engine as multiples of the map's
-    // anchor: a positive half-Cauchy median marks a forest created with no
-    // basis, whose number it is
-    forest.createdWithoutBasis = params[6] > 0.0;
-    forest.sdMultiple = forest.createdWithoutBasis ? params[6] : params[3];
-    if (!forest.createdWithoutBasis) forest.amplitudePriorVariance = params[5];
-    forest.updateAmplitude = params[7] != 0.0;
+    forest.updateAmplitude = params[3] != 0.0;
     // The tree-move mixture is a property of the FIT, not of a forest: one
     // control slot, so every forest of a coupling proposes from the same
     // mixture. Carried here because the K-forest chain builds each forest from
@@ -2699,10 +2690,48 @@ void applyForestBases(const ParsedData& data, bartcore::AmplitudeSpec& spec,
   }
 }
 
+// One number or NA for each forest, from an entry of the forests'
+// configuration: null when the entry is absent, which states nothing.
+const double* forestNumbers(SEXP forestsExpr, const char* name,
+                            size_t numForests) {
+  SEXP valuesExpr = rc_getListElement(forestsExpr, name);
+  if (Rf_isNull(valuesExpr)) return NULL;
+  if (!Rf_isReal(valuesExpr) ||
+      static_cast<size_t>(Rf_xlength(valuesExpr)) != numForests)
+    Rf_error("the forests' '%s' must hold one number, or NA, for each forest",
+             name);
+  return REAL(valuesExpr);
+}
+
+// What each forest states of its size, handed to the engine as written: `sd`
+// in the response's units and `variance`, the prior variance of its
+// amplitudes, each NA where none is stated, and `hasBasis`, whether the forest
+// was created with a basis, which a forest given one since keeps reading
+// FALSE. Nothing is derived here: the engine holds the map and its defaults.
+void applyForestStatements(SEXP forestsExpr, bartcore::AmplitudeSpec& spec) {
+  size_t numForests = spec.forests.size();
+  const double* sds = forestNumbers(forestsExpr, "sd", numForests);
+  const double* variances = forestNumbers(forestsExpr, "variance", numForests);
+  SEXP hasBasisExpr = rc_getListElement(forestsExpr, "hasBasis");
+  if (!Rf_isNull(hasBasisExpr) &&
+      (!Rf_isLogical(hasBasisExpr) ||
+       static_cast<size_t>(Rf_xlength(hasBasisExpr)) != numForests))
+    Rf_error("the forests' 'hasBasis' must hold TRUE or FALSE for each forest");
+  for (size_t f = 0; f < numForests; ++f) {
+    bartcore::ForestSpec& forest = spec.forests[f];
+    if (sds != NULL && !ISNAN(sds[f])) forest.sd = sds[f];
+    if (variances != NULL && !ISNAN(variances[f]))
+      forest.amplitudePriorVariance = variances[f];
+    if (!Rf_isNull(hasBasisExpr))
+      forest.createdWithoutBasis = LOGICAL(hasBasisExpr)[f] == FALSE;
+  }
+}
+
 // The multi-forest twin of applyVarianceAttributes: the forests' configuration
 // arrives on the internal control attribute `bartcore.forests`, a list
-// carrying the K-length params list and the parallel per-forest
-// vars/interactions()/blocks() lists. Absent leaves the fit single-forest and
+// carrying the K-length params list, the parallel per-forest
+// vars/interactions()/blocks() lists and the forests' statements. Absent
+// leaves the fit single-forest and
 // returns false, so every existing creation path reads one attribute and moves
 // on. The bases themselves ride the data object; createHolder cross-checks the
 // two halves.
@@ -2727,6 +2756,15 @@ bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
                "number");
     spec.anchor = REAL(anchorExpr)[0];
   }
+  // the response units in one s, recorded and handed back as the anchor is
+  SEXP unitExpr = rc_getListElement(forestsExpr, "unit");
+  if (!Rf_isNull(unitExpr)) {
+    if (!Rf_isReal(unitExpr) || Rf_xlength(unitExpr) != 1 ||
+        !std::isfinite(REAL(unitExpr)[0]) || REAL(unitExpr)[0] <= 0.0)
+      Rf_error("the forests' unit must be a positive finite number");
+    spec.unit = REAL(unitExpr)[0];
+  }
+  applyForestStatements(forestsExpr, spec);
   return true;
 }
 
@@ -4734,22 +4772,23 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // the chains carry their own transforms and their own drawn k. The R reader
 // takes k per chain and reports each other quantity once, NA where the chains
 // disagree. The leaf-model tag rides as an attribute because it is a property
-// of the sampler, not of a chain. The last three columns are internal: R
-// records the map's anchor s at creation and does not report it, and the chi
-// prior's scale and the named sd the engine holds are read by tests.
+// of the sampler, not of a chain. map.anchor and map.unit are internal: R
+// records both at creation and reports neither. named.sd is the sd the forest
+// states, NaN where it states none, and map.sd a map forest's sd in force,
+// both response units.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t forestIndex = forestIndexFrom(forestExpr, shape);
-  // the seven reported since the reader shipped, then the five calibration-map
-  // quantities: NaN on a forest with no map entry, and the two amplitude
-  // columns exclusive per forest on one that has
+  // the seven every forest reports, then the calibration map's: NaN on a
+  // forest with no map entry, and the two amplitude columns exclusive per
+  // forest on one that has
   const char* const columnNames[] = {
     "prior.scale", "prior.sd", "prior.mean", "k",
     "k.has.hyperprior", "response.scale", "response.shift",
     "amplitude.prior.variance", "amplitude.prior.scale",
     "leaf.scale.factor", "leaf.scale.divisor", "basis.row.norm",
-    "map.anchor", "k.prior.scale", "named.sd"
+    "map.anchor", "k.prior.scale", "named.sd", "map.unit", "map.sd"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -4774,6 +4813,8 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     result[c + 12 * numChains] = calibration.mapAnchor;
     result[c + 13 * numChains] = calibration.kPriorScale;
     result[c + 14 * numChains] = calibration.namedSd;
+    result[c + 15 * numChains] = calibration.mapUnit;
+    result[c + 16 * numChains] = calibration.mapSd;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);
@@ -4839,8 +4880,9 @@ SEXP bartcore_setForestK(SEXP ptrExpr, SEXP kExpr) {
   return R_NilValue;
 }
 
-// Restates one calibration-map forest's spread in the channel its amplitude
-// prior names, as forest(sd = ) does at creation.
+// States one calibration-map forest's sd, in the response's units, as
+// forest(sd = ) does at creation. The number is handed on as written: the
+// engine divides it by the unit.
 SEXP bartcore_setForestSd(SEXP ptrExpr, SEXP forestExpr, SEXP sdExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
