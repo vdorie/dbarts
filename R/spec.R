@@ -138,6 +138,68 @@ isMaskedWeightFamily <- function(family) {
   family %in% c("probit", "ordinal", "nbinom")
 }
 
+## The rows in the likelihood: weight positive and no mask switching them off.
+## NA counts as out, as in sigest's regression.
+rowsInLikelihood <- function(
+  weights,
+  active = NULL,
+  n = max(length(weights), length(active))
+) {
+  rows <- rep_len(TRUE, n)
+  if (!is.null(weights)) {
+    rows <- rows & !is.na(weights) & weights > 0
+  }
+  if (!is.null(active)) {
+    rows <- rows & active != 0
+  }
+  rows
+}
+
+## Whether a row is out of the likelihood and the rows in hold fewer than two
+## distinct values of 'value'. Rule 4 of response-scale-rows: nothing is out,
+## or two values are in, is not that case.
+rowsInLackTwoValues <- function(value, rowsIn) {
+  !all(rowsIn) && length(unique(value[rowsIn & !is.na(value)])) < 2L
+}
+
+## Whether a data object created with rows out has too little in the
+## likelihood to read the response's scale or the prior's center from, for the
+## families that take something from the response (gaussian with any residual
+## distribution, aft and nbinom; no other). The scale and the center are then
+## taken over every row, and so is the starting sigma: the caller hands the
+## estimate the data without its weights. 'active' is the mask the weights
+## resolved to, NULL for none. Raises the creation warning unless 'warn' is
+## FALSE.
+scaleRowsFallBack <- function(data, family, active = NULL, warn = TRUE) {
+  if (!(family %in% c("gaussian", "aft", "nbinom"))) {
+    return(FALSE)
+  }
+  n <- length(data@y)
+  rowsIn <- rowsInLikelihood(data@weights, active, n)
+  value <- if (identical(family, "nbinom") || is.null(data@offset)) {
+    data@y
+  } else {
+    data@y - data@offset
+  }
+  if (!rowsInLackTwoValues(value, rowsIn)) {
+    return(FALSE)
+  }
+  if (warn) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of the response are in the ",
+      "likelihood (",
+      sum(rowsIn),
+      " of ",
+      n,
+      " observations are in it), so the response's scale and the prior's ",
+      "center are taken from all ",
+      n
+    )
+  }
+  TRUE
+}
+
 ## The starting sigma for a data object, by the rule 'sigest' named. Wraps
 ## estimateSigmaFromLinearModel so every caller raises the same failure
 ## message instead of a bare lm() error. An infinite predictor value is
@@ -201,6 +263,13 @@ estimateStartingSigma <- function(data, rule = "auto", verbose = FALSE) {
     )
   }
   tryResult
+}
+
+## The data object with its weights slot emptied, for an estimate made over
+## every row.
+withoutWeights <- function(data) {
+  data@weights <- NULL
+  data
 }
 
 ## One line about the starting sigma under 'verbose', in announceAutoFamily's
@@ -538,13 +607,21 @@ resolveSamplerSpec <- function(
   data <- weightPolicy$data
   active <- weightPolicy$active
 
+  # the rows in the likelihood leave nothing to read a scale from: every
+  # number is taken over every row, the starting sigma's regression included
+  allRows <- scaleRowsFallBack(data, family, active)
+
   if (is.na(data@sigma) && !fixedUnitScale) {
     data@sigma <- if (is(residPrior, "dbartsFixedPrior")) {
       # a fixed residual standard deviation is the scale itself: no estimate
       # has anything to calibrate, so none is made and the slot holds it
       sqrt(residPrior@value)
     } else {
-      estimateStartingSigma(data, sigestRule, control@verbose)
+      estimateStartingSigma(
+        if (allRows) withoutWeights(data) else data,
+        sigestRule,
+        control@verbose
+      )
     }
   }
 

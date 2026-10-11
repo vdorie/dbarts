@@ -283,6 +283,9 @@ xbart <- function(
     )
   }
   data <- weightPolicy$data
+  # one warning for the rows in the likelihood leaving nothing to read a scale
+  # from; the folds fall back in silence
+  allRows <- scaleRowsFallBack(data, family)
 
   if (
     !is.character(method) || method[1L] %not_in% eval(formals(xbart)$method)
@@ -519,7 +522,11 @@ xbart <- function(
   } else if (is.na(data@sigma)) {
     fellBack <- FALSE
     data@sigma <- withCallingHandlers(
-      estimateStartingSigma(data, sigestRule, verbose),
+      estimateStartingSigma(
+        if (allRows) withoutWeights(data) else data,
+        sigestRule,
+        verbose
+      ),
       dbartsSigmaFallback = function(condition) fellBack <<- TRUE
     )
     sigmaPerFold <- if (fellBack) {
@@ -1066,6 +1073,16 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     offset <- if (!is.null(data@offset)) data@offset[trainRows]
     weights <- if (hasWeights) data@weights[trainRows]
     y <- data@y[trainRows]
+    # rows out of the fold's likelihood leave nothing to read: its estimate
+    # is then the regression on every training row
+    allRows <- hasWeights &&
+      rowsInLackTwoValues(
+        if (is.null(offset)) y else y - offset,
+        rowsInLikelihood(weights)
+      )
+    if (allRows) {
+      weights <- NULL
+    }
     if (route == "function") {
       # the rows of the design are an argument, so they are not taken, and
       # the design is not built, unless the function reads them
@@ -1086,7 +1103,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
       sparseResidualStandardError(
         data@y,
         sigmaDesign,
-        data@weights,
+        if (!allRows) data@weights,
         data@offset,
         rows = trainRows
       )
@@ -1096,7 +1113,10 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
     if (route != "marginal" && !is.finite(sigma)) {
       numSigmaFallbacks <<- numSigmaFallbacks + 1L
     }
-    residual <- if (!is.null(offset)) y - offset else y
+    residual <- residualOfRowsIn(
+      if (!is.null(offset)) y - offset else y,
+      weights
+    )
     data@sigma <- floorSigmaEstimate(sigma, residual)
     data
   }

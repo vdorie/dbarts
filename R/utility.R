@@ -1750,7 +1750,10 @@ estimateSigmaFromLinearModel <- function(
   rule = "auto",
   design = startingSigmaDesign(data@x, rule)
 ) {
-  residual <- if (!is.null(data@offset)) data@y - data@offset else data@y
+  residual <- residualOfRowsIn(
+    if (!is.null(data@offset)) data@y - data@offset else data@y,
+    data@weights
+  )
   sigma <- if (inherits(design, "dbartsSparseSigmaDesign")) {
     sparseResidualStandardError(data@y, design, data@weights, data@offset)
   } else {
@@ -1766,6 +1769,17 @@ estimateSigmaFromLinearModel <- function(
     ))
   }
   floorSigmaEstimate(sigma, residual)
+}
+
+## The response less its offset over the rows of positive weight, which the
+## regression behind the starting sigma reads; what stands in for it and its
+## floor read the same rows. No weight, or none out: the vector itself.
+residualOfRowsIn <- function(residual, weights) {
+  if (is.null(weights) || all(!is.na(weights) & weights > 0)) {
+    residual
+  } else {
+    residual[!is.na(weights) & weights > 0]
+  }
 }
 
 ## The dense design the starting sigma's linear fit reads: NAs mean-imputed.
