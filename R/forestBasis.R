@@ -795,21 +795,243 @@ refuseSharedBasisNames <- function(names, label = NULL) {
   invisible(NULL)
 }
 
-## A value handed over as a basis, expanded to its columns
-## (expandForestBasis) and named by the rule for a value.
-expandValueBasis <- function(value, ...) {
-  expanded <- expandForestBasis(value, ...)
-  if (is.null(expanded)) {
-    return(NULL)
+## A block's columns named by the rule for a value handed to a forest().
+nameValueBasis <- function(block) {
+  given <- valueBasisNames(colnames(block))
+  dimnames(block) <- if (is.null(given)) NULL else list(NULL, given)
+  block
+}
+
+## What a basis is, by the class of what was handed over and by nothing of
+## its content: the one place the class of a basis is looked at, for every
+## door. `kind` is "levels" for a factor, ordered or not, a character vector
+## or a logical vector, with `factor` the value as a factor, its levels the
+## factor's own in their order, a character vector's sorted values, or FALSE
+## then TRUE; "numeric" for numbers, a vector or a matrix, whatever their
+## values; and NA for anything else. `what` names the class in words. Nothing
+## is refused here: each caller words its own refusal from the answer.
+basisClass <- function(value) {
+  answer <- function(kind, what, factor = NULL) {
+    list(kind = kind, what = what, factor = factor)
   }
-  given <- valueBasisNames(colnames(expanded))
-  dimnames(expanded) <- if (is.null(given)) NULL else list(NULL, given)
-  expanded
+  shape <- if (is.null(dim(value))) "vector" else "matrix"
+  kind <- if (shape == "vector") "levels" else NA_character_
+  if (is.factor(value)) {
+    answer("levels", "a factor", value)
+  } else if (is.character(value)) {
+    answer(kind, paste("a character", shape), if (!is.na(kind)) factor(value))
+  } else if (is.logical(value)) {
+    asFactor <- if (!is.na(kind)) factor(value, levels = c(FALSE, TRUE))
+    answer(kind, paste("a logical", shape), asFactor)
+  } else if (is.list(value)) {
+    answer(
+      NA_character_,
+      if (is.data.frame(value)) "a data frame" else "a list"
+    )
+  } else if (is.numeric(value)) {
+    answer("numeric", "numbers")
+  } else {
+    class <- class(value)[1L]
+    article <- if (grepl("^[aeiouAEIOU]", class)) "an " else "a "
+    answer(NA_character_, paste0(article, class))
+  }
+}
+
+## A forest as a message names it: by position, with its label where the
+## label is not the position's own.
+forestName <- function(index, labels = NULL) {
+  label <- if (length(labels) >= index) labels[[index]] else ""
+  own <- is.na(label) || label %in% c("", paste0("forest", index))
+  paste0("forest ", index, if (!own) paste0(" ('", label, "')"))
+}
+
+## The refusal of a value of a class a basis does not take (basisClass), at
+## the doors that take a value, in `argument`, the caller's word for it.
+refuseBasisClass <- function(read, argument, forest) {
+  advice <- switch(
+    read$what,
+    "a logical matrix" = ". Give its column as a logical vector for two levels, or as numbers for one coefficient",
+    "a character matrix" = ". Give its column as a character vector",
+    "a data frame" = ,
+    "a list" = ". Give one of its columns"
+  )
+  stop(
+    sprintf("'%s' gives %s %s", argument, forest, read$what),
+    "; a basis is a factor, a character vector, a logical vector, or numbers",
+    advice,
+    call. = FALSE
+  )
+}
+
+## The levels of a factor handed over as a basis that have a row, in the
+## factor's order; a row at an NA level is refused, a level of a basis being
+## matched by its name. `subject` opens the refusal.
+keptBasisLevels <- function(asFactor, subject) {
+  kept <- tabulate(as.integer(asFactor), nlevels(asFactor)) > 0L
+  if (anyNA(levels(asFactor)[kept])) {
+    stop(
+      subject,
+      " a factor with NA as a level, and a level of a basis has a name: ",
+      "give that level one",
+      call. = FALSE
+    )
+  }
+  levels(asFactor)[kept]
+}
+
+## A logical basis with one value on the rows a fit keeps is refused in
+## these words; `subject` opens them and `levels` is the levels kept.
+refuseConstantLogical <- function(read, levels, subject) {
+  if (length(levels) < 2L && read$what == "a logical vector") {
+    stop(
+      subject,
+      " is ",
+      levels,
+      " on every row the fit keeps, so its other level has no ",
+      "observations and the forest would be multiplied by a constant",
+      call. = FALSE
+    )
+  }
+}
+
+## Every forest's basis finished on the rows the fit keeps: `bases` holds
+## each as it was handed over, cut to those rows, and NULL where a forest has
+## none. This is the one place those rows are judged, at a creation only, so
+## that what 'subset' or the na.action dropped decides nothing: a missing
+## value on a kept row is refused, and a kept row at a factor's NA level; a
+## level no kept row has gives no column, and fewer than two left are
+## refused; a numeric column that is zero on every kept row is refused.
+## Returns the blocks the engine takes, `bases`, and the levels of their
+## columns, `levels`, NULL for numbers. Never called where a sampler is made
+## again from its own data: a swap may leave a level or a column with no row.
+finishForestBases <- function(bases, argument, labels = NULL) {
+  levels <- if (!is.null(bases)) vector("list", length(bases))
+  for (index in seq_along(bases)) {
+    value <- bases[[index]]
+    read <- basisClass(value)
+    if (!is.null(read$factor)) {
+      if (anyNA(value)) {
+        stop("a '", argument, "' cannot be NA")
+      }
+      gives <- sprintf("'%s' gives %s", argument, forestName(index, labels))
+      kept <- keptBasisLevels(read$factor, gives)
+      refuseConstantLogical(read, kept, paste0("'", argument, "'"))
+      value <- factor(as.character(read$factor), levels = kept)
+      levels[index] <- list(kept)
+    }
+    bases[index] <- list(expandForestBasis(value, argument = argument))
+  }
+  list(bases = bases, levels = levels)
+}
+
+## What a forest multiplies: "none", "levels" or "numeric". The one reader of
+## a forest's kind after creation: for a forest of a data object from its
+## block and the levels recorded for it (dataBasisLevels), and for an entry
+## of a fit's 'bases', which is the factor itself for a forest of levels.
+forestBasisKind <- function(basis, levels = NULL) {
+  if (is.null(basis)) {
+    "none"
+  } else if (!is.null(levels) || is.factor(basis)) {
+    "levels"
+  } else {
+    "numeric"
+  }
+}
+
+## What a fit stores as each forest's basis, from its data object: for a
+## forest of levels the factor, one value for each row the fit kept and its
+## levels those recorded at creation, which is what predict(bases = ) takes
+## for that forest; the block for a forest of numbers; NULL for one with none.
+storedForestBases <- function(data) {
+  levels <- dataBasisLevels(data)
+  lapply(seq_along(data@bases), function(index) {
+    block <- data@bases[[index]]
+    recorded <- if (index <= length(levels)) levels[[index]]
+    if (forestBasisKind(block, recorded) != "levels") {
+      return(block)
+    }
+    factor(recorded[drop(block %*% seq_len(ncol(block)))], levels = recorded)
+  })
+}
+
+## The block of an entry of a fit's 'bases': a forest of levels' factor
+## expanded on its own levels, anything else as it is stored.
+storedBasisBlock <- function(entry) {
+  if (forestBasisKind(entry) == "levels") {
+    entry <- expandForestBasis(entry, atPrediction = TRUE)
+  }
+  entry
+}
+
+## A basis given to a forest after its creation, at $setForestBasis and at
+## predict(bases = ), as the block the engine takes: `kind` is what the
+## forest was created multiplying (forestBasisKind) and `levels` its recorded
+## levels. A forest takes the kind it was created with and no other. A forest
+## of levels is matched to its levels by name, by the values the rows carry:
+## a level the value declares and no row has is passed by, a level of the
+## forest that no row has is a column of zeros, and a row at a level the
+## forest lacks, or at an NA level, is refused, so the columns are creation's
+## in creation's order whatever the value's own. A forest of numbers takes
+## numbers, a column of zeros among them, at whatever width they have.
+conformBasis <- function(value, kind, levels, argument, forest) {
+  refuse <- function(...) stop(..., call. = FALSE)
+  gives <- sprintf("'%s' gives %s", argument, forest)
+  read <- basisClass(value)
+  if (kind == "none") {
+    refuse(
+      gives,
+      " a basis, and ",
+      forest,
+      " was created without one: what a forest multiplies is fixed at ",
+      "creation. Create the model again, with the basis, to give it one"
+    )
+  }
+  if (is.na(read$kind)) {
+    refuseBasisClass(read, argument, forest)
+  }
+  multiplies <- sprintf(
+    "%s multiplies %s, and '%s' gives it %s. ",
+    forest,
+    if (kind == "numeric") {
+      "numbers"
+    } else {
+      paste0("a factor with the levels ", toString(sQuote(levels, FALSE)))
+    },
+    argument,
+    read$what
+  )
+  if (kind != read$kind) {
+    refuse(
+      multiplies,
+      if (kind == "levels") {
+        "Give a factor, a character vector or a logical vector with those levels; if the numbers are a factor's indicator columns, give the factor itself. To multiply numbers, create the model again with them"
+      } else if (read$what == "a logical vector") {
+        "Give numbers: as.numeric() of a logical vector is its 0/1 column. To multiply two levels, create the model again with the vector"
+      } else {
+        "Give the column the forest was created with, at these rows; to multiply a factor's levels, create the model again with the factor"
+      }
+    )
+  }
+  if (kind == "levels" && !anyNA(value)) {
+    given <- keptBasisLevels(read$factor, gives)
+    if (any(given %not_in% levels)) {
+      refuse(
+        gives,
+        " the level '",
+        given[given %not_in% levels][1L],
+        "', which it does not have: its levels are ",
+        toString(sQuote(levels, FALSE)),
+        ", fixed at creation. Give every row one of them"
+      )
+    }
+    value <- factor(as.character(read$factor), levels = levels)
+  }
+  expandForestBasis(value, atPrediction = TRUE, argument = argument)
 }
 
 ## The columns of a basis from the model frame of its code, on the rows the
 ## frame holds. A basis is one factor, a character vector or a logical
-## vector, by class, with a column for each level that has a row, built by
+## vector, by class (basisClass), with a column for each level that has a row, built by
 ## expandForestBasis and by no contrast; or numeric terms, with the columns
 ## model.matrix() gives them. The columns are named as model.matrix() names
 ## them. With `atPrediction` the rows are new rows of a fit whose basis had
@@ -828,15 +1050,8 @@ basisColumns <- function(
     stop("a 'basis' cannot be NA")
   }
   termLabels <- attr(terms, "term.labels")
-  isLevels <- vapply(
-    frame,
-    function(variable) {
-      is.factor(variable) ||
-        is.character(variable) ||
-        (is.logical(variable) && is.null(dim(variable)))
-    },
-    NA
-  )
+  reads <- lapply(frame, basisClass)
+  isLevels <- !vapply(reads, function(read) is.null(read$factor), NA)
   if (any(isLevels)) {
     if (
       length(frame) != 1L ||
@@ -853,7 +1068,7 @@ basisColumns <- function(
         call. = FALSE
       )
     }
-    value <- frame[[1L]]
+    value <- reads[[1L]]$factor
     if (atPrediction && is.null(levels)) {
       stop(
         "'basis' (",
@@ -864,26 +1079,10 @@ basisColumns <- function(
       )
     }
     if (!atPrediction) {
-      if (is.logical(value)) {
-        if (all(value) || !any(value)) {
-          stop(
-            "'basis' (",
-            label,
-            ") is ",
-            if (all(value)) "TRUE" else "FALSE",
-            " on every row the fit keeps, so its other level has no ",
-            "observations and the forest would be multiplied by a constant",
-            call. = FALSE
-          )
-        }
-        levels <- c("FALSE", "TRUE")
-      } else {
-        # a level the kept rows leave empty is no column, whatever emptied it
-        asFactor <- if (is.factor(value)) value else factor(value)
-        levels <- levels(asFactor)[
-          tabulate(as.integer(asFactor), nlevels(asFactor)) > 0L
-        ]
-      }
+      # a level the kept rows leave empty is no column, whatever emptied it
+      written <- paste0("'basis' (", label, ")")
+      levels <- keptBasisLevels(value, paste(written, "is"))
+      refuseConstantLogical(reads[[1L]], levels, written)
     }
     leveled <- factor(as.character(value), levels = levels)
     if (anyNA(leveled)) {
@@ -908,22 +1107,19 @@ basisColumns <- function(
       call. = FALSE
     )
   }
-  for (variable in frame) {
-    if (!is.numeric(variable)) {
-      kind <- if (is.logical(variable)) {
-        "a logical matrix"
-      } else {
-        paste0(
-          if (grepl("^[aeiouAEIOU]", class(variable)[1L])) "an " else "a ",
-          class(variable)[1L]
-        )
-      }
+  for (index in seq_along(frame)) {
+    read <- reads[[index]]
+    if (is.na(read$kind)) {
+      # a matrix of one column has a vector to write in its place
+      oneColumn <- grepl("matrix$", read$what) && ncol(frame[[index]]) == 1L
       stop(
         "'basis' (",
         label,
         ") has a term that is ",
-        kind,
+        read$what,
         ": a basis is a factor, a character or logical vector, or numeric",
+        if (oneColumn) "; write its column as a vector, as ",
+        if (oneColumn) paste0(names(frame)[index], "[, 1]"),
         call. = FALSE
       )
     }
@@ -1156,21 +1352,23 @@ basisRowNumbers <- function(numRows) {
 ## their place. `bases` is NULL where a fit keeps every row of data it was
 ## given whole. Returns `bases` and, beside them, `records`, the record of
 ## each code basis. A basis has one row for each observation the fit keeps. A
-## value that the kept rows leave multiplying its forest by a constant, or
-## by nothing, is refused as the same basis written as code is
-## (refuseEmptiedValueBasis).
-buildFitBases <- function(reads, bases, numObservations) {
+## value's place holds its block, finished on those rows already
+## (finishForestBases), and is named here by the rule for a value handed to
+## a forest(). `levels` is the levels recorded for the values, and comes back
+## with those of each code basis beside them.
+buildFitBases <- function(reads, bases, numObservations, levels = NULL) {
   numForests <- length(reads)
   kept <- bases
   if (is.null(bases)) {
     bases <- vector("list", numForests)
   }
+  length(levels) <- numForests
   records <- vector("list", numForests)
   for (index in seq_len(numForests)) {
     read <- reads[[index]]
     if (is.null(read$frame)) {
       if (!is.null(read) && !is.null(kept)) {
-        refuseEmptiedValueBasis(read$value, kept[[index]])
+        bases[index] <- list(nameValueBasis(kept[[index]]))
       }
       next
     }
@@ -1191,77 +1389,31 @@ buildFitBases <- function(reads, bases, numObservations) {
       )
     }
     bases[index] <- list(built$basis)
+    levels[index] <- list(built$record$levels)
     records[index] <- list(built$record)
   }
-  list(bases = bases, records = records)
+  list(bases = bases, levels = levels, records = records)
 }
 
-## A basis handed over as a value is expanded over every row of the data and
-## cut by the data object, to `kept`, so 'subset' or the na.action can leave
-## it what the same basis written as code is refused for, in these words: a
-## factor, a character or a logical vector with one level among the rows
-## kept, and one numeric column that is zero on every one of them. A factor
-## that keeps two or more of its levels keeps a column of zeros for each
-## level emptied, where code drops it.
-refuseEmptiedValueBasis <- function(value, kept) {
-  hasRow <- colSums(kept != 0) > 0L
-  isLevels <- is.factor(value) ||
-    is.character(value) ||
-    (is.logical(value) && is.null(dim(value)))
-  if (isLevels && sum(hasRow) < 2L) {
-    if (is.logical(value)) {
-      stop(
-        "'basis' is ",
-        if (isTRUE(hasRow[2L])) "TRUE" else "FALSE",
-        " on every row the fit keeps, so its other level has no ",
-        "observations and the forest would be multiplied by a constant",
-        call. = FALSE
-      )
-    }
-    stop("a 'basis' factor must have at least two levels")
-  }
-  if (!isLevels && ncol(kept) == 1L && !hasRow) {
-    stop("a 'basis' column of all zeros contributes nothing to a forest")
-  }
-  invisible(NULL)
-}
-
-## The basis $setForestBasis installs, expanded to its columns over the
-## sampler's `numRows` observations. A one-sided formula is read as the basis
-## of a forest() is, with no data, so its names are found where it was
-## written; anything else is a value. A level that no row has keeps its
-## column, a replacement being free to leave one unobserved for a while, so
-## a factor's columns here are every level's, and a numeric column of all zeros
-## is taken as a level no row holds is (dec-B346); creation refuses both.
+## The basis $setForestBasis is given, as the value conformBasis holds to
+## the kind its forest was created with, over the sampler's `numRows`
+## observations. A one-sided formula is read as the basis of a forest() is,
+## with no data, so its names are found where it was written, and gives what
+## a value would: the factor, character vector or logical vector of its model
+## frame, or its numeric columns, named as code's are, a column of all zeros
+## among them (dec-B346). Anything else is a value, returned as it is.
 replacementForestBasis <- function(basis, numRows) {
   if (!inherits(basis, "formula")) {
     refuseSingleBasisValue(basis)
-    return(expandValueBasis(basis, allowEmptyLevels = TRUE))
+    return(basis)
   }
   read <- readForestBasis(basisCode(basis, environment(basis)), NULL, numRows)
   if (is.null(read)) {
     stop("'basis' cannot be NULL")
   }
   frame <- read$frame
-  value <- if (length(frame) == 1L) frame[[1L]]
-  if (
-    is.factor(value) ||
-      is.character(value) ||
-      (is.logical(value) && is.null(dim(value)))
-  ) {
-    # every level of the factor as written, one with no row among them
-    expanded <- expandForestBasis(value, allowEmptyLevels = TRUE)
-    colnames(expanded) <- paste0(
-      attr(attr(frame, "terms"), "term.labels"),
-      if (is.logical(value)) {
-        c("FALSE", "TRUE")
-      } else if (is.factor(value)) {
-        levels(value)
-      } else {
-        levels(factor(value))
-      }
-    )
-    return(expanded)
+  if (length(frame) == 1L && !is.null(basisClass(frame[[1L]])$factor)) {
+    return(frame[[1L]])
   }
   buildCodeBasis(read, allowEmptyColumns = TRUE)$basis
 }

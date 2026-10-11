@@ -698,6 +698,14 @@ methods::setClass(
     # after a state restore preserves the restored amplitudes rather than the
     # constructed ones.
     bases = "listOrNULL",
+    # the levels of each forest whose basis is a factor's, a character
+    # vector's or a logical vector's, in the order of its block's columns in
+    # 'bases': NULL, or a list with one entry per forest, NULL where a forest
+    # has no basis or multiplies numbers. Written with 'bases' at creation
+    # and never afterwards, so it is what says which kind a forest is. A data
+    # object saved before the slot existed lacks it, so every read goes
+    # through dataBasisLevels.
+    basis.levels = "listOrNULL",
     # The multinomial (K-forest softmax) response: an n x K integer matrix
     # whose column k holds category k's counts, null
     # for every other family. It rides the data object rather than an R5 field
@@ -734,6 +742,7 @@ methods::setClass(
     response.n.levels = NA_integer_,
     response.levels = NULL,
     bases = NULL,
+    basis.levels = NULL,
     counts = NULL,
     offset.category = NULL,
     offset.category.test = NULL,
@@ -831,6 +840,10 @@ methods::setValidity("dbartsData", function(object) {
         return("'bases' values must all be finite")
       }
     }
+  }
+  fault <- checkBasisRecord(object, refuse = FALSE)
+  if (!is.null(fault)) {
+    return(fault)
   }
   # the multinomial response and its two category offsets. Read bare,
   # unlike every read outside this function: a

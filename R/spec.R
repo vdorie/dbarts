@@ -424,8 +424,12 @@ resolveSamplerSpec <- function(
   familySpec = NULL,
   basisRecords = NULL,
   written = names(matchedCall),
-  sigestRule = "auto"
+  sigestRule = "auto",
+  basisLevels = NULL
 ) {
+  # a data object handed in whole is held to its own record here, at
+  # dbarts() and at dbartsSpec() alike
+  checkBasisRecord(data)
   # a control taken from a fit whose first forest has a basis holds that
   # forest's tree count, where the bridge reads it. The count this call is to
   # inherit rides the forests' record and goes back on the slot before the
@@ -1078,12 +1082,10 @@ resolveSamplerSpec <- function(
   # The bridge cross-checks the two halves in both directions, so a stripped
   # attribute is a loud error, never a silent single-forest fit.
   if (!is.null(bases)) {
-    # the only caller supplies these as forests' bases, so a refusal names that
-    data@bases <- validateForestBases(
-      bases,
-      length(data@y),
-      argument = "basis"
-    )
+    # a declaration's blocks, finished by the one caller that supplies them,
+    # replace the data object's, and their levels with them
+    data@bases <- bases
+    data@basis.levels <- basisLevels
   }
   if (!is.null(data@bases)) {
     # the RESOLVED forest count, which is the data object's own bases or the
@@ -1477,28 +1479,44 @@ dbartsSpec <- function(
   # where forest() was called; the caller's data object has already had its
   # own 'subset' applied, so a basis covers the rows it holds
   basis <- NULL
+  basisLevels <- NULL
   basisRecords <- NULL
   if (!is.null(forestBasisDeclarations(forests))) {
     declared <- readDeclaredBases(forests, NULL, length(data@y))
     forests <- declared$forests
-    # the data object holds the rows it holds: every row of a code basis
+    # the data object holds the rows it holds: every row of a code basis,
+    # and the rows a value is judged on, as the data object judges one
+    finished <- finishForestBases(
+      validateForestBases(
+        structure(
+          forest.labels = names(forests),
+          lapply(declared$reads, function(read) {
+            if (is.null(read)) {
+              NULL
+            } else if (is.null(read$frame)) {
+              read$value
+            } else {
+              basisRowNumbers(length(data@y))
+            }
+          })
+        ),
+        length(data@y),
+        argument = "basis"
+      ),
+      "basis",
+      names(forests)
+    )
     built <- buildFitBases(
       declared$reads,
-      lapply(declared$reads, function(read) {
-        if (is.null(read)) {
-          NULL
-        } else if (is.null(read$frame)) {
-          expandValueBasis(read$value)
-        } else {
-          basisRowNumbers(length(data@y))
-        }
-      }),
-      length(data@y)
+      finished$bases,
+      length(data@y),
+      finished$levels
     )
     # as in dbarts(): a list in which no forest declares a basis names no
     # multi-forest model, and falls through to resolveForests' refusal
     if (any(!vapply(built$bases, is.null, logical(1L)))) {
       basis <- built$bases
+      basisLevels <- built$levels
       if (any(!vapply(built$records, is.null, logical(1L)))) {
         basisRecords <- built$records
       }
@@ -1528,6 +1546,7 @@ dbartsSpec <- function(
     survivalStatus = survival,
     hazardPeriods = NULL,
     bases = basis,
+    basisLevels = basisLevels,
     forests = forests,
     evalEnv = parentEnv,
     residPrior = residPrior,

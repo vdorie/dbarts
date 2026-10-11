@@ -897,9 +897,7 @@ predict.bart <- function(
     bases <- subsetPredictBases(
       bases,
       rows,
-      lapply(object$bases, function(basis) {
-        if (is.null(basis)) NULL else basis[1L, , drop = FALSE]
-      })
+      lapply(object$bases, cutBasisRows, rows = 1L)
     )
     return(padPredictedRows(
       predictBlend(
@@ -1461,7 +1459,7 @@ extractForest <- function(object, sample, combineChains, forest, contribution) {
   )
   for (j in seq_along(idx)) {
     k <- idx[j]
-    basis <- object$bases[[k]]
+    basis <- storedBasisBlock(object$bases[[k]])
     if (is.null(basis)) {
       basis <- matrix(1, n.obs, 1L)
     }
@@ -1622,8 +1620,22 @@ resolveForestBases <- function(object, bases, newdata, n.new) {
       attr(object, "forest.labels", exact = TRUE),
       numForests
     )
+    # a list's entry and a bare value alike: each forest takes the kind it
+    # was created with, read from the fit's own entry for it
+    labels <- attr(object, "forest.labels", exact = TRUE)
+    bases <- lapply(seq_len(numForests), function(k) {
+      if (is.null(bases[[k]])) {
+        return(NULL)
+      }
+      conformBasis(
+        bases[[k]],
+        forestBasisKind(storedBases[[k]]),
+        levels(storedBases[[k]]),
+        "bases",
+        forestName(k, labels)
+      )
+    })
   }
-  bases <- lapply(bases, expandForestBasis, atPrediction = TRUE)
   bases <- validateForestBases(
     bases,
     n.new,
@@ -1631,17 +1643,11 @@ resolveForestBases <- function(object, bases, newdata, n.new) {
     rows = "'newdata'"
   )
   for (k in seq_len(numForests)) {
-    width <- if (is.null(storedBases[[k]])) 0L else ncol(storedBases[[k]])
-    if (width == 0L) {
-      if (!is.null(bases[[k]])) {
-        stop(
-          "'bases' gives forest ",
-          k,
-          " a basis, which it declares none of: its single amplitude ",
-          "multiplies an implicit all-ones column"
-        )
-      }
-    } else if (is.null(bases[[k]])) {
+    width <- NCOL(storedBasisBlock(storedBases[[k]]))
+    if (is.null(storedBases[[k]])) {
+      next
+    }
+    if (is.null(bases[[k]])) {
       stop(
         "forest ",
         k,

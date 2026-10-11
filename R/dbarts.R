@@ -1353,15 +1353,18 @@ dbarts <- function(
     logical(1L)
   )
   if (!is.null(basisReads)) {
+    # a value goes on as it was handed over, so that the data object's
+    # reading of it, on the rows it keeps, is the one reading of a value
     handed$bases <- lapply(basisReads, function(read) {
       if (is.null(read)) {
         NULL
       } else if (is.null(read$frame)) {
-        expandValueBasis(read$value)
+        read$value
       } else {
         basisRowNumbers(basisRows$full)
       }
     })
+    attr(handed$bases, "forest.labels") <- names(forests)
   }
   if (!is.null(multinomialCounts)) {
     handed$counts <- multinomialCounts
@@ -1539,14 +1542,16 @@ dbarts <- function(
 
   # A basis written as code is built now, on the rows the data object kept,
   # whose numbers it handed back in the basis's place. data@bases is
-  # positional against the forests, the forest with no basis first; the
-  # values it cut are already in their places, and are looked at there for
-  # what the kept rows leave of them.
+  # positional against the forests; the blocks of the values it read are
+  # already in their places, with their levels, and the levels of a code
+  # basis are recorded beside them here.
   basisRecords <- NULL
   if (!is.null(basisReads)) {
-    built <- buildFitBases(basisReads, data@bases, length(data@y))
+    recorded <- dataBasisLevels(data)
+    built <- buildFitBases(basisReads, data@bases, length(data@y), recorded)
+    data@bases <- built$bases
+    data@basis.levels <- built$levels
     if (any(basisIsCode)) {
-      data@bases <- built$bases
       basisRecords <- built$records
     }
   }
@@ -2380,6 +2385,10 @@ dbartsSampler <- setRefClass(
       if (!inherits(data, "dbartsData")) {
         stop("'data' must inherit from dbartsData")
       }
+      # what holds of a sampler's data for its whole life, a copy coming
+      # through here; never the class's validity, which refuses an object
+      # saved before a slot existed
+      checkBasisRecord(data)
       # a model handed in directly is held to what the fitting functions hold
       # the one they resolve to
       refuseNoSplittableColumn(
@@ -3188,14 +3197,27 @@ dbartsSampler <- setRefClass(
       if (index >= length(data@bases)) {
         stop("forest index out of range")
       }
-      values <- validateForestBases(
-        list(replacementForestBasis(basis, length(data@y))),
-        length(data@y),
-        argument = "basis"
-      )[[1L]]
+      # the forest takes the kind it was created with, read from the data
+      # object, and nothing is stored before the value has been held to it
+      current <- data@bases[[index + 1L]]
+      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      recorded <- dataBasisLevels(data)
+      recorded <- if (index < length(recorded)) recorded[[index + 1L]]
+      values <- conformBasis(
+        replacementForestBasis(basis, length(data@y)),
+        forestBasisKind(current, recorded),
+        recorded,
+        "basis",
+        forestName(index + 1L, forestInfo$labels)
+      )
+      if (nrow(values) != length(data@y)) {
+        stop("'basis' must have the same length as 'y'")
+      }
+      if (!inherits(basis, "formula")) {
+        values <- nameValueBasis(values)
+      }
       # columns are taken by position and the names recorded at creation
       # stay; a replacement of another width brings its own
-      current <- data@bases[[index + 1L]]
       refuseReorderedBasisNames(values, current, index + 1L)
       if (!is.null(current) && ncol(values) == ncol(current)) {
         dimnames(values) <- if (!is.null(colnames(current))) {
@@ -3205,7 +3227,6 @@ dbartsSampler <- setRefClass(
 
       # a held coefficient's value goes by the width its forest was created
       # with, a forest with no basis having none
-      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
       currentWidth <- if (is.null(current)) 0L else ncol(current)
       if (
         ncol(values) != currentWidth &&

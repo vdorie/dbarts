@@ -1114,6 +1114,16 @@ bartcoreSamplerSetData <- function(sampler, newData) {
     "every forest is calibrated against the data at creation; make a new ",
     "sampler instead"
   )
+  # a sampler of one forest has no forest for a basis to multiply
+  if (!is.null(newData@bases)) {
+    stop(
+      "$setData: the data carry forest bases, and this sampler was created ",
+      "with one forest and none; a sampler's forests are fixed at creation. ",
+      "Make a new sampler from the data with dbarts(), or hand over data ",
+      "without 'bases'",
+      call. = FALSE
+    )
+  }
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }

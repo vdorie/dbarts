@@ -577,10 +577,10 @@ packageBartResults <- function(
   if (hasForestReporting) {
     result$forestFits <- forestFits
     result$glue <- glue
-    # the expanded per-forest bases, no draw axis: what makes the
-    # reconstruction identity evaluable from the fit alone, since
-    # neither run() channel carries them
-    result$bases <- fit$data@bases
+    # the per-forest bases, no draw axis: a forest of levels' as the factor
+    # and a forest of numbers' as its block, each what predict(bases = )
+    # takes for its forest (storedBasisBlock gives an entry's block)
+    result$bases <- storedForestBases(fit$data)
     forestInfo <- attr(fit$control, "bartcore.forests")
     # the record of every basis written as code, at either door, which is
     # what lets the same basis be rebuilt at NEW rows; the element stays

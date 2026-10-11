@@ -193,9 +193,18 @@ restrictBasesToRows <- function(bases, keep) {
   if (is.null(bases) || all(keep)) {
     return(bases)
   }
-  lapply(bases, function(basis) {
-    if (is.null(basis)) NULL else basis[keep, , drop = FALSE]
-  })
+  lapply(bases, cutBasisRows, rows = keep)
+}
+
+## The rows `rows` of a basis as it was handed over, a vector or a matrix.
+cutBasisRows <- function(basis, rows) {
+  if (is.null(basis)) {
+    NULL
+  } else if (is.null(dim(basis))) {
+    basis[rows]
+  } else {
+    basis[rows, , drop = FALSE]
+  }
 }
 
 ## An out-of-range 'subset' is silent in base R: row indexing pads an
@@ -268,6 +277,43 @@ dataMissingSeen <- function(data) {
     return(NULL)
   }
   data@missing.seen
+}
+
+## The levels a data object records for its forests' bases: NULL, or a list
+## with one entry per forest. A data object saved before the slot existed has
+## none, and its forests read as multiplying numbers.
+dataBasisLevels <- function(data) {
+  if (!methods::.hasSlot(data, "basis.levels")) {
+    return(NULL)
+  }
+  data@basis.levels
+}
+
+## What a data object's record must hold for as long as a sampler has it: a
+## forest's recorded levels are as many as its block has columns. Nothing
+## here looks at a row, a swap being free to leave a level or a column with
+## none. Returns the fault as text where `refuse` is FALSE, for the class's
+## validity.
+checkBasisRecord <- function(data, refuse = TRUE) {
+  levels <- dataBasisLevels(data)
+  for (index in seq_along(levels)) {
+    block <- if (index <= length(data@bases)) data@bases[[index]]
+    width <- if (is.null(block)) 0L else NCOL(block)
+    if (!is.null(levels[[index]]) && length(levels[[index]]) != width) {
+      fault <- sprintf(
+        "'basis.levels' gives forest %d %d levels and its block in 'bases' has %d %s; dbartsData() and dbarts() write the two together",
+        index,
+        length(levels[[index]]),
+        width,
+        if (width == 1L) "column" else "columns"
+      )
+      if (refuse) {
+        stop(fault, call. = FALSE)
+      }
+      return(fault)
+    }
+  }
+  NULL
 }
 
 ## Brings a sampler's record up to its engine's flags, which only the engine
@@ -353,6 +399,7 @@ methods::setMethod(
       .Object@offset <- modelMatrices$offset
       .Object@offset.test <- modelMatrices$offset.test
       .Object@bases <- modelMatrices$bases
+      .Object@basis.levels <- modelMatrices$basisLevels
       .Object@counts <- modelMatrices$counts
       .Object@offset.category <- modelMatrices$offset.category
       .Object@offset.category.test <- modelMatrices$offset.category.test
@@ -2141,7 +2188,12 @@ validateXYWeights <- function(weights, initialNumObservations, subset) {
 # Validate and subset a user-supplied list of per-forest amplitude bases, the
 # matrices a multi-forest fit combines its forests through. A NULL passes
 # through; otherwise every non-null element
-# is coerced to a numeric matrix. 'subsetRows' (resolveFormulaBasisSubset's
+# is read by class (basisClass): one of a class a basis does not take is
+# refused, numbers are coerced to a numeric matrix and a factor, a character
+# vector or a logical vector stays as it is. Only the length is checked
+# against the data as handed over; what the kept rows hold, a missing value
+# among it, is judged where they are final (finishForestBases). 'subsetRows'
+# (resolveFormulaBasisSubset's
 # result, R/model.R), when given, resolves each element the way a forests =
 # declaration's basis already does - alignForestBasisToSubset, the same
 # function - so the formula path and the x/y path converge on one rule: a
@@ -2169,28 +2221,29 @@ validateForestBases <- function(
   if (!is.list(bases)) {
     stop("'", argument, "' must be a list of per-forest basis matrices")
   }
+  labels <- attr(bases, "forest.labels", exact = TRUE)
   lapply(seq_along(bases), function(i) {
     basis <- bases[[i]]
     if (is.null(basis)) {
       return(NULL)
     }
-    if (!is.numeric(basis) && !is.logical(basis)) {
-      stop("'", argument, "' must be numeric or logical")
+    read <- basisClass(basis)
+    if (is.na(read$kind)) {
+      refuseBasisClass(read, argument, forestName(i, labels))
     }
-    basis <- as.matrix(basis)
-    storage.mode(basis) <- "double"
+    if (read$kind == "numeric") {
+      basis <- as.matrix(basis)
+      storage.mode(basis) <- "double"
+    }
     if (!is.null(subsetRows)) {
       basis <- alignForestBasisToSubset(basis, i, subsetRows)
     } else {
-      if (nrow(basis) != initialNumObservations) {
+      if (NROW(basis) != initialNumObservations) {
         stop("'", argument, "' must have the same length as ", rows)
       }
       if (!is.null(subset)) {
-        basis <- basis[subset, , drop = FALSE]
+        basis <- cutBasisRows(basis, subset)
       }
-    }
-    if (anyNA(basis) || !all(is.finite(basis))) {
-      stop("'", argument, "' values must all be finite")
     }
     basis
   })
@@ -2548,6 +2601,8 @@ dbartsData <- function(
     }
     return(formula)
   }
+  # the forests' labels, where a fitting function named the bases it handed on
+  basisLabels <- attr(bases, "forest.labels", exact = TRUE)
 
   if (!is.formula(formula)) {
     formula <- asNumericPredictors(formula)
@@ -3658,6 +3713,11 @@ dbartsData <- function(
     stop("'offset.test' contains missing values")
   }
 
+  # the rows are final here, on either interface, so this is where a basis
+  # handed over is judged and becomes its block
+  finished <- finishForestBases(bases, "bases", basisLabels)
+  bases <- finished$bases
+  basisLevels <- finished$levels
   result <- newValidated(
     "dbartsData",
     modelMatrices = namedList(
@@ -3669,6 +3729,7 @@ dbartsData <- function(
       offset,
       offset.test,
       bases,
+      basisLevels,
       counts,
       offset.category,
       offset.category.test,

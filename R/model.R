@@ -1339,47 +1339,35 @@ forestBasisDeclarations <- function(forests) {
 ## than about the expansion - a factor needing two levels, and a numeric column
 ## needing a nonzero entry - because at prediction a constant arm is the whole
 ## point: everyone under z = 1 gives an all-zero control column, and the width
-## it must match is the fit's, checked against it there.
+## it must match is the fit's, checked against it there. The class is read by
+## basisClass, and a class a basis does not take is the caller's to refuse
+## before it comes here; a level no row takes expands to an all-zero column.
+## The texts name the basis by `argument`, the caller's word for it.
 expandForestBasis <- function(
   basis,
   atPrediction = FALSE,
-  allowEmptyLevels = atPrediction
+  allowEmptyLevels = atPrediction,
+  argument = "basis"
 ) {
   if (is.null(basis)) {
     return(NULL)
   }
-  if (is.character(basis)) {
-    basis <- factor(basis)
-  }
-  if (is.logical(basis) && is.null(dim(basis))) {
-    basis <- factor(basis, levels = c(FALSE, TRUE))
-  }
+  read <- basisClass(basis)
   if (anyNA(basis)) {
-    stop("a 'basis' cannot be NA")
+    stop("a '", argument, "' cannot be NA")
   }
-  if (is.factor(basis)) {
+  if (!is.null(read$factor)) {
+    basis <- read$factor
     if (!atPrediction && nlevels(basis) < 2L) {
-      stop("a 'basis' factor must have at least two levels")
+      stop("a '", argument, "' factor must have at least two levels")
     }
     codes <- as.integer(basis)
-    # a level no row takes expands to an all-zero column, refused below for a
-    # numeric basis for the same reason; a mutation may keep a declared level
-    # the data currently leave empty, so the amplitudes keep their columns
-    empty <- tabulate(codes, nlevels(basis)) == 0L
-    if (!allowEmptyLevels && any(empty)) {
-      stop(
-        "a 'basis' factor level with no observations contributes nothing to ",
-        "a forest: '",
-        levels(basis)[which(empty)[1L]],
-        "'; drop it with droplevels()"
-      )
-    }
     expanded <- matrix(0, length(codes), nlevels(basis))
     expanded[cbind(seq_along(codes), codes)] <- 1
     return(expanded)
   }
-  if (!is.numeric(basis)) {
-    stop("a 'basis' must be numeric, a factor, or a character vector")
+  if (is.na(read$kind)) {
+    stop("a '", argument, "' cannot be ", read$what)
   }
   basis <- as.matrix(basis)
   storage.mode(basis) <- "double"
@@ -1387,7 +1375,7 @@ expandForestBasis <- function(
     stop("a 'basis' must have at least one column")
   }
   if (!all(is.finite(basis))) {
-    stop("a 'basis' must be finite")
+    stop("a '", argument, "' must be finite")
   }
   # the calibration divides by the median nonzero row norm, so a norm that
   # overflows, or underflows to zero on a nonzero row, poisons the sampler
@@ -1401,7 +1389,11 @@ expandForestBasis <- function(
   # an all-zero column has no observation for its amplitude to multiply, so it
   # is not a degenerate prior but a missing predictor wearing one
   if (!atPrediction && !allowEmptyLevels && any(colSums(basis != 0) == 0L)) {
-    stop("a 'basis' column of all zeros contributes nothing to a forest")
+    stop(
+      "a '",
+      argument,
+      "' column of all zeros contributes nothing to a forest"
+    )
   }
   basis
 }
@@ -1526,7 +1518,7 @@ alignForestBasisToSubset <- function(basis, forestIndex, subsetRows) {
   }
   n <- NROW(basis)
   if (n == subsetRows$full) {
-    return(basis[subsetRows$index, , drop = FALSE])
+    return(cutBasisRows(basis, subsetRows$index))
   }
   if (n == length(subsetRows$index)) {
     stop(
