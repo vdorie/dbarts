@@ -357,11 +357,6 @@ items
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
     and buffers, the draws combined.
-  run-k-after-setleafprior: run()$k is NULL after setLeafPrior turns a
-    fixed k into a drawn one (whether k is recorded is decided at
-    creation), so getK's help, "the value run()$k records per draw", is
-    wrong for such a sampler. Found by the k-internal review; an
-    R-surface slice. Before 1.0-0.
   leaf-covariate-single-value-off-centre: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
     relative to the centre closes it. A slope on a column moved to

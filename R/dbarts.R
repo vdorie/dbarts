@@ -3464,7 +3464,7 @@ dbartsSampler <- setRefClass(
       lapply(seq_len(numForests) - 1L, read)
     },
     getK = function(forest = NULL) {
-      "Returns each chain's current leaf-prior k, the value run()$k records per draw, read without running, as getSigmas reports sigma; after a run it is bitwise the last draw. A fixed k repeats per chain, and a forest whose scale a multi-forest calibration map sets reports 1. It is k whatever terms the prior was named in, relative to getLeafPrior()$k.scale. A vector of length n.chains at one forest, or, at the default forest = NULL on a multi-forest sampler, an n.forests x n.chains matrix; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
+      "Returns each chain's current leaf-prior k, the value run()$k records per draw (run() records k whenever the forest's k is drawn in that run, and records nothing when it is fixed there), read without running, as getSigmas reports sigma; after a run it is bitwise the last draw. A fixed k repeats per chain, and a forest whose scale a multi-forest calibration map sets reports 1. It is k whatever terms the prior was named in, relative to getLeafPrior()$k.scale. A vector of length n.chains at one forest, or, at the default forest = NULL on a multi-forest sampler, an n.forests x n.chains matrix; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
       ptr <- getPointer()
       read <- function(index) {
         .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)[, "k"]

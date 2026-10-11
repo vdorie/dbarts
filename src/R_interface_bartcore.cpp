@@ -5164,8 +5164,12 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
               : allocWideChannel(REALSXP, numTestObservations, numLocations));
   SEXP varcountExpr = installChannel(
     "varcount", allocWideChannel(INTSXP, numPredictors, numVCForests));
+  // k is recorded when the reported forest draws it now, which a setLeafPrior
+  // can change after creation in either direction; the shape's flag is the
+  // creation option and does not follow it
+  bool kIsDrawn = sampler.forestCalibration(0, 0).kHasHyperprior;
   SEXP kExpr =
-    installChannel("k", !shape.kIsSampled ? R_NilValue : allocScalarChannel());
+    installChannel("k", !kIsDrawn ? R_NilValue : allocScalarChannel());
   SEXP varprobsExpr = installChannel(
     "varprobs",
     !shape.usesDart ? R_NilValue : allocChannel(REALSXP, {numPredictors}));
@@ -5256,7 +5260,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
     results.forestFitsStride = 0;
   }
   results.variableCounts = variableCounts.data();
-  results.k = shape.kIsSampled ? REAL(kExpr) : NULL;
+  results.k = kIsDrawn ? REAL(kExpr) : NULL;
   results.splitProbabilities = shape.usesDart ? REAL(varprobsExpr) : NULL;
   // one per-observation fits channel per reported location; 1 for every
   // additive model, K for multinomial. The location stride drives the
