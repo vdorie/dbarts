@@ -1,6 +1,6 @@
 # mutating a dense-backed column of a mixed dense/sparse container: the store
 # owns its dense block, so cut-point requantization, a rolled-back
-# transactional update, the setState cut-point replay, and a linear leaf's
+# transactional update, a reload's cut-point replay, and a linear leaf's
 # covariate regather all read the mutated values rather than the ones the
 # container was built from
 
@@ -99,8 +99,11 @@ sampler.roll$setCutPoints(
 )
 expect_equal(sampler.roll$getSumsOfSquaredResiduals(), ssr.forced)
 
-# SET STATE: replaying a stored state reinstalls its cut points, which
-# requantize the mutated column back to the codes the state was stored under
+# STORED STATE: a sampler re-created from a stored state takes the state's
+# cut points, which requantize the mutated column back to the codes the
+# state was stored under. A live setState leaves the sampler's cut points
+# alone, so the replay is a reload's; set by hand first, the stored points
+# requantize the same column and the state goes in as stored
 set.seed(77)
 sampler.state <- dbarts(x.frame, y, control = control, sigest = 1)
 invisible(sampler.state$run(100L, 10L))
@@ -110,7 +113,18 @@ sampler.state$storeState()
 stored <- sampler.state$state
 
 sampler.state$setCutPoints(list(c(-1, 0, 1)), 1L)
-sampler.state$setState(stored)
+path <- tempfile(fileext = ".rds")
+saveRDS(sampler.state, path)
+reloaded <- readRDS(path)
+unlink(path)
+expect_equal(reloaded$getSumsOfSquaredResiduals(), ssr.stored)
+reloaded$storeState()
+expect_identical(
+  attr(reloaded$state, "cutPoints"),
+  attr(stored, "cutPoints")
+)
+sampler.state$setCutPoints(attr(stored, "cutPoints"))
+expect_true(sampler.state$setState(stored))
 expect_equal(sampler.state$getSumsOfSquaredResiduals(), ssr.stored)
 
 # LINEAR LEAVES: the leaf covariate is served from the store's raw, so a

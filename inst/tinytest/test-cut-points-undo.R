@@ -89,15 +89,17 @@ for (useQuantiles in c(FALSE, TRUE)) {
   expect_identical(cutPointsOf(sampler), derived, info = rule)
   expect_identical(sampler$data@n.cuts, c(20L, 20L), info = rule)
 
-  # nor does one a state brought: a state stored on the longer grid installs
-  # it, the grid is set back, and setData derives n.cuts points
+  # nor does a state bring one: a state stored on the longer grid leaves the
+  # sampler's grid as it is, declined as stored and moved onto it when
+  # forced, and setData derives n.cuts points
   donor <- warmed(x, y, control = control)
   donor$setCutPoints(longer, 1L)
   donor$storeState()
   sampler <- warmed(x, y, control = control)
-  sampler$setState(donor$state)
-  expect_identical(lengths(cutPointsOf(sampler)), c(50L, 20L), info = rule)
-  sampler$setCutPoints(original[[1L]], 1L)
+  expect_false(sampler$setState(donor$state), info = rule)
+  expect_identical(cutPointsOf(sampler), original, info = rule)
+  expect_null(sampler$setState(donor$state, forceUpdate = TRUE), info = rule)
+  expect_identical(cutPointsOf(sampler), original, info = rule)
   sampler$setData(newData)
   expect_identical(cutPointsOf(sampler), derived, info = rule)
 
@@ -126,14 +128,17 @@ for (useQuantiles in c(FALSE, TRUE)) {
   expect_identical(cutPointsOf(sampler), derived, info = rule)
 
   # states that come and go leave a longer grid as it was: one on a shorter
-  # grid installed and the longer grid set again, then one refused, and the
-  # column still refreshes to the grid a derivation gives it
+  # grid declined and then forced onto it, then one refused, and the column
+  # still refreshes to the grid a derivation gives it
   sampler <- warmed(x, y, control = control)
   sampler$setCutPoints(longer, 1L)
+  held <- cutPointsOf(sampler)
+  expect_identical(lengths(held), c(50L, 20L), info = rule)
   donor <- warmed(x, y, control = control)
-  expect_true(sampler$setState(donor$state), info = rule)
-  expect_identical(lengths(cutPointsOf(sampler)), c(20L, 20L), info = rule)
-  sampler$setCutPoints(longer, 1L)
+  expect_false(sampler$setState(donor$state), info = rule)
+  expect_identical(cutPointsOf(sampler), held, info = rule)
+  expect_null(sampler$setState(donor$state, forceUpdate = TRUE), info = rule)
+  expect_identical(cutPointsOf(sampler), held, info = rule)
   donor <- warmed(x, y, control = controlWith(7L))
   expect_error(
     sampler$setState(donor$state),

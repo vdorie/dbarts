@@ -263,6 +263,7 @@ expect_error(
     wrongTrees$state,
     x,
     TRUE,
+    TRUE,
     TRUE
   ),
   "not consistent"

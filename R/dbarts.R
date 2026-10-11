@@ -1893,23 +1893,38 @@ predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
 ## engine was just created from a control that can name another saved-tree
 ## capacity than the state holds. force installs a state a tree of which has
 ## to be changed to fit, changing it; without it such a state is not
-## installed, the engine and the mirrors are left alone and FALSE is
-## returned. TRUE says the state went in.
-installStateOnto <- function(sampler, ptr, state, predictors, adopt, force) {
-  installed <- .Call(
+## installed, the engine and the mirrors are left alone and 0L is returned.
+## adoptGrid is TRUE only where the engine was just created and so holds the
+## cut points a creation derives, which need not be the ones the sampler
+## held: the engine then takes the points and weights the state records.
+## Without it the engine's cut points and weights are not written. Returns 1L
+## for a state that went in, and 2L for one that went in onto cut points or
+## weights other than the ones it records, which only an install that does
+## not adopt them gives.
+installStateOnto <- function(
+  sampler,
+  ptr,
+  state,
+  predictors,
+  adopt,
+  force,
+  adoptGrid
+) {
+  status <- .Call(
     C_dbarts_bartcore_setState,
     ptr,
     state,
     predictors,
     adopt,
-    force
+    force,
+    adoptGrid
   )
-  if (!installed) {
-    return(FALSE)
+  if (status == 0L) {
+    return(0L)
   }
   sampler$reapplyForestWeights(ptr)
   sampler$reapplyActiveRows(ptr)
-  TRUE
+  status
 }
 
 ## The response transform a sampler's leaf prior is anchored to and its
@@ -2511,7 +2526,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     copy = function(shallow = FALSE) {
-      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing, and as setState does with forceUpdate = TRUE: a tree that no longer fits the sampler is repaired, silently; see setState."
+      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing, on the cut points and weights that state records, and otherwise as setState does with forceUpdate = TRUE: a tree that no longer fits the sampler is repaired, silently; see setState."
       # a copy introduces no rows, so it does not raise the creation warning
       dupe <- withoutZeroTrialsWarning(
         if (shallow) {
@@ -2562,6 +2577,7 @@ dbartsSampler <- setRefClass(
           dupe$pointer,
           installing,
           rawPredictorMatrix(data@x),
+          TRUE,
           TRUE,
           TRUE
         )
@@ -3701,8 +3717,11 @@ dbartsSampler <- setRefClass(
         }
         refuseLegacyState(state)
         ptr <- recreatePointer(control, model, data)
-        # a same-spec continuation skips re-quantization; data@x serves any
-        # cross-grid column (the engine keeps no predictor matrix)
+        # the new engine holds the cut points a creation derives from the
+        # predictors as they now are, and the stored state is the only record
+        # of the ones the sampler held, so it takes the state's; data@x
+        # serves a column whose points change (the engine keeps no predictor
+        # matrix)
         # a store sized through the flat API is in no control, so the
         # re-created sampler takes the stored state's capacity
         installStateOnto(
@@ -3710,6 +3729,7 @@ dbartsSampler <- setRefClass(
           ptr,
           state,
           rawPredictorMatrix(data@x),
+          TRUE,
           TRUE,
           TRUE
         )
@@ -3723,7 +3743,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState, forceUpdate = FALSE) {
-      "Installs a stored state: the chains, never the model. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired, and NULL is returned invisibly. See Saving and Value in ?dbartsSampler."
+      "Installs a stored state: the chains, never the model, and never the cut points or their weights, which stay this sampler's. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a split whose threshold is not one of this sampler's cut points, a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired - a split off the cut points moved to the nearest point its tree still allows, or merged with what is beneath it into one leaf - and NULL is returned invisibly. A state does not bring its cut points: to restore them too, hold the state in a variable st and call setCutPoints(attr(st, \"cutPoints\")), the whole set, before setState(st). A column whose cut points were changed and that attr(st, \"cutMass\") lists then has its points and not its weights: the restore still returns TRUE and the chain runs with that column's points equally likely; setPredictor(x[, j], j, updateCutPoints = \"value\") restores both while the column holds the values its cut points were derived from. See Saving and Value in ?dbartsSampler."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
@@ -3737,26 +3757,68 @@ dbartsSampler <- setRefClass(
       }
       selfEnv <- parent.env(environment())
       ptr <- pointer
+      adoptGrid <- FALSE
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
-        ptr <- recreatePointer(control, model, data)
+        # a sampler whose engine is gone is first rebuilt from its own saved
+        # state, as getPointer rebuilds it, so that the call below finds the
+        # cut points the sampler held and gives what it gives a live sampler.
+        # Where it has no saved state, or one that does not install, the new
+        # engine holds no grid of the sampler's and takes newState's
+        ptr <- NULL
+        if (!is.null(state)) {
+          ptr <- tryCatch(
+            {
+              refuseLegacyState(state)
+              own <- recreatePointer(control, model, data)
+              installStateOnto(
+                .self,
+                own,
+                state,
+                rawPredictorMatrix(data@x),
+                TRUE,
+                TRUE,
+                TRUE
+              )
+              own
+            },
+            error = function(e) NULL
+          )
+        }
+        if (is.null(ptr)) {
+          ptr <- recreatePointer(control, model, data)
+          adoptGrid <- TRUE
+        } else {
+          # this engine carries the sampler's own state: bound now, a state
+          # then refused or declined leaves the sampler it would leave live
+          selfEnv$pointer <- ptr
+        }
       }
-      installed <- installStateOnto(
+      status <- installStateOnto(
         .self,
         ptr,
         newState,
         rawPredictorMatrix(data@x),
         FALSE,
-        forceUpdate
+        forceUpdate,
+        adoptGrid
       )
-      # as in getPointer: a re-created engine is bound only after the install
-      # succeeds, so a refusal, or a state declined, leaves a dead pointer
-      # dead instead of live and unfitted, and leaves 'state' the one that is
-      # still installed
-      if (!installed) {
+      # as in getPointer: an engine created bare is bound only after the
+      # install succeeds, so a refusal, or a state declined, leaves a dead
+      # pointer dead instead of live and unfitted, and leaves 'state' the one
+      # that is still installed
+      if (status == 0L) {
         return(FALSE)
       }
       selfEnv$pointer <- ptr
-      selfEnv$state <- newState
+      # a state that went onto other cut points or weights than it records
+      # is no longer what the engine holds: a copy or a reload made from it
+      # would take its grid and its trees unmoved, so the engine's own state
+      # is the one kept
+      if (status == 2L) {
+        storeState(ptr)
+      } else {
+        selfEnv$state <- newState
+      }
       if (!forceUpdate) TRUE else invisible(NULL)
     },
     startThreads = function(n.threads = control@n.threads) {
@@ -3768,7 +3830,7 @@ dbartsSampler <- setRefClass(
       noOpThreadMethod("stopThreads")
     },
     storeState = function(ptr = getPointer()) {
-      "Updates the cached internal state used for saving/loading: the chains and the units they are stored in, no prior or fixed value."
+      "Updates the cached internal state used for saving/loading: the chains and the units they are stored in, no prior or fixed value, with the cut points and weights in force, which a copy and a reload take from it."
       selfEnv <- parent.env(environment())
       selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
       invisible(NULL)

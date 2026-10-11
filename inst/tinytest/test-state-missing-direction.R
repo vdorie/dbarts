@@ -108,6 +108,9 @@ local({
     stale <- source$state
     other <- make(filled, seed)
     invisible(other$run(5L, 1L))
+    # a state does not bring its cut points, and the filled column derives
+    # others than the holed one, so the state's are set by hand first
+    other$setCutPoints(attr(stale, "cutPoints"))
     status <- tryCatch(other$setState(stale), error = conditionMessage)
     arm <- if (isFALSE(status)) "declined" else "refused"
     if (met[[arm]]) {

@@ -72,7 +72,9 @@ expectClean <- function(make, state, info) {
 # state its engine then stores (sigma, k, cut points, latents and generator
 # among it) and its next 20 draws. Forced, the state goes in, NULL invisibly.
 # Returns the forced sampler, its state stored.
-expectDeclined <- function(make, state, info) {
+# crossesGrid: the state records other cut points than the sampler holds, so
+# the forced install leaves the engine's own state in the field
+expectDeclined <- function(make, state, info, crossesGrid = FALSE) {
   sampler <- make()
   twin <- make()
   forced <- make()
@@ -92,8 +94,15 @@ expectDeclined <- function(make, state, info) {
     forcedValue,
     info = info
   )
-  expect_identical(forced$state, state, info = info)
-  forced$storeState()
+  if (crossesGrid) {
+    field <- forced$state
+    expect_false(identical(field, state), info = info)
+    forced$storeState()
+    expect_identical(forced$state, field, info = info)
+  } else {
+    expect_identical(forced$state, state, info = info)
+    forced$storeState()
+  }
   forced
 }
 
@@ -294,18 +303,30 @@ expect_identical(
   merged$state[[1L]][varianceFields]
 )
 
-# a dead pointer stays dead after a state is declined, and the field stays
+# a sampler whose engine is gone is rebuilt from its own saved state before
+# the state handed in is judged, as any other call rebuilds it: a state then
+# declined leaves that engine and the field. With no saved state of its own
+# the engine is created bare and is bound only once the state has gone in, so
+# a state declined leaves the pointer dead
 path <- tempfile(fileext = ".rds")
 saveRDS(afterCollapse()(), path)
 reloaded <- readRDS(path)
+stateless <- readRDS(path)
 unlink(path)
 expect_false(isLive(reloaded))
 expect_identical(reloaded$state, own$state)
 expect_identical(reloaded$setState(own$state), FALSE)
-expect_false(isLive(reloaded))
+expect_true(isLive(reloaded))
 expect_identical(reloaded$state, own$state)
 expect_null(reloaded$setState(own$state, forceUpdate = TRUE))
 expect_true(isLive(reloaded))
+stateless$state <- NULL
+expect_identical(stateless$setState(own$state), FALSE)
+expect_false(isLive(stateless))
+expect_null(stateless$state)
+expect_null(stateless$setState(own$state, forceUpdate = TRUE))
+expect_true(isLive(stateless))
+expect_identical(stateless$state, own$state)
 
 # ---- not clean: a side for missing values on a column never missing -------
 
@@ -645,12 +666,21 @@ for (case in cases) {
 
 # ---- declined on another cut grid -----------------------------------------
 
-# a state is judged on its own cut points, which are in place while it is;
-# declined, the sampler's own come back with everything else
+# a state does not bring its cut points: one whose thresholds the sampler's
+# points do not hold is declined, the sampler as it was, and forced it is
+# moved onto the sampler's points, which stay
 coarse <- afterCollapse(control = controlWith(n.cuts = 20L))
 expect_false(identical(
   attr(coarse()$state, "cutPoints"),
   attr(own$state, "cutPoints")
 ))
-forced <- expectDeclined(coarse, own$state, "a state on another cut grid")
-expect_identical(attr(forced$state, "cutPoints"), attr(own$state, "cutPoints"))
+forced <- expectDeclined(
+  coarse,
+  own$state,
+  "a state on another cut grid",
+  crossesGrid = TRUE
+)
+expect_identical(
+  attr(forced$state, "cutPoints"),
+  attr(coarse()$state, "cutPoints")
+)

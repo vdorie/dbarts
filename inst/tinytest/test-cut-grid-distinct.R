@@ -847,12 +847,16 @@ expect_identical(massOf(reloaded), mass)
 expect_identical(copied$run(0L, 3L)$train, reloaded$run(0L, 3L)$train)
 expect_true(sampler$setState(stored))
 
-# a state without them installs the grids unweighted, and a malformed one is
-# refused by column
+# the weights are the sampler's: a state without them installs and leaves
+# them, where a sampler re-created from it is unweighted, and a malformed one
+# is refused by column
 bare <- stored
 attr(bare, "cutMass") <- NULL
 expect_true(sampler$setState(bare))
-expect_null(massOf(sampler))
+expect_identical(massOf(sampler), mass)
+unweighted <- sampler$copy()
+unweighted$state <- bare
+expect_null(massOf(unweighted$copy()))
 expect_true(sampler$setState(stored))
 expect_identical(massOf(sampler), mass)
 malformed <- stored

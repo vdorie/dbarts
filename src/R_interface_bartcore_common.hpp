@@ -364,16 +364,20 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 
 /// Restores a state object into a sampler of matching shape; raises R
 /// errors on malformed or inconsistent states. currentPredictors is the
-/// call-time predictor matrix a cross-grid restore re-quantizes from (data@x,
-/// or the retained creation spec's @x); null for CSC/mixed stores and for a
-/// same-spec continuation, which re-quantizes nothing. adoptStoreCapacity
+/// call-time predictor matrix a column whose grid is replaced re-quantizes
+/// from (data@x, or the retained creation spec's @x); null for CSC/mixed
+/// stores and for an install that replaces no grid. adoptStoreCapacity
 /// lets the state's saved-tree capacity replace the sampler's once the state
-/// is accepted, the re-creation path's need. force is Sampler::setState's.
+/// is accepted, the re-creation path's need. force, adoptGrid and
+/// gridDiffers are Sampler::setState's: adoptGrid makes the cut points and
+/// weights the state records the sampler's, again a re-creation's need, and
+/// gridDiffers, which must not be null, reports an install onto points or
+/// weights other than the state records.
 /// Returns whether the state was installed: false only without force, for a
 /// state a tree of which would have to be changed, the sampler untouched.
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity,
-              bool force);
+              bool force, bool adoptGrid, bool* gridDiffers);
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then

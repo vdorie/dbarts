@@ -116,7 +116,8 @@ expect_error(
     .Call(dbarts:::C_dbarts_bartcore_storeState, bc.fold$ptr),
     NULL,
     FALSE,
-    TRUE
+    TRUE,
+    FALSE
   ),
   pattern = "owns its predictors"
 )

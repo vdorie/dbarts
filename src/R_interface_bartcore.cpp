@@ -6842,23 +6842,35 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
   return bartcore_bridge::storeState(*holder.sampler);
 }
 
+// Returns 0 for a state declined, 1 for one installed and 2 for one
+// installed onto cut points or weights other than the ones it records, which
+// only a call that does not adopt the state's grid gives.
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
                        SEXP currentPredictorsExpr,
-                       SEXP adoptStoreCapacityExpr, SEXP forceExpr) {
+                       SEXP adoptStoreCapacityExpr, SEXP forceExpr,
+                       SEXP adoptGridExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  // restoring cut points re-quantizes from raw values, which views lack
+  // an install that adopts the state's grid, and a forced one that moves a
+  // state's splits onto the sampler's, re-quantize from raw values, which
+  // views lack; no other install reads them, and the refusal is one rule for
+  // every call
   refuseMutationOnView(*holder.sampler, "$setState");
-  // a cross-grid restore re-quantizes dense columns from the supplied data@x;
-  // a same-spec continuation skips per column, so a null source is harmless
+  // those two re-quantize dense columns from the supplied data@x, column by
+  // column where the grids differ, so a null source is harmless elsewhere
   const double* currentPredictors =
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
-  // TRUE only from a re-creation, whose control may not record a store the
-  // flat API sized; a live $setState keeps the sampler's own capacity
+  // both TRUE only from a re-creation: its control may not record a store
+  // the flat API sized, and its engine holds the grid a creation derives,
+  // not the one the sampler held. A live $setState keeps the sampler's own
+  // capacity and its own grid
+  bool gridDiffers = false;
   bool installed =
     bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
                               Rf_asLogical(adoptStoreCapacityExpr) == TRUE,
-                              Rf_asLogical(forceExpr) == TRUE);
-  return Rf_ScalarLogical(installed);
+                              Rf_asLogical(forceExpr) == TRUE,
+                              Rf_asLogical(adoptGridExpr) == TRUE,
+                              &gridDiffers);
+  return Rf_ScalarInteger(!installed ? 0 : gridDiffers ? 2 : 1);
 }
 
 // The sampler's response transform, (min, max) as a state's fit.scale holds
@@ -8194,7 +8206,8 @@ static bool readMissingColumns(SEXP stateExpr,
 
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity,
-              bool force) {
+              bool force, bool adoptGrid, bool* gridDiffers) {
+  *gridDiffers = false;
   bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
     Rf_error("'state' must be a bartcore state object");
@@ -8663,7 +8676,7 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     captureExceptions(restoreError, [&]() {
       restored = sampler.setState(state, currentPredictors,
                                   &lengthscaleRefused, nullptr, adoptCapacity,
-                                  force, &notClean);
+                                  force, &notClean, adoptGrid, gridDiffers);
     });
     if (restoreError.failed)
       errorMessage = "state's saved trees cannot be stored by this sampler";
