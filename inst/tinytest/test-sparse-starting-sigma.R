@@ -898,6 +898,24 @@ for (x in list(frame, levelPerRow)) {
   said <- signals(attempt(xbartOf(x, response, verbose = TRUE)))$message
   expect_false(any(grepl("(replication, fold) units", said, fixed = TRUE)))
 }
+# the line counts the folds that fell back, not the folds: 31 rows in 5 folds
+# leave one fold of each replication 24 training rows for 23 columns
+set.seed(22)
+wide31 <- matrix(rnorm(31L * 23L), 31L)
+some <- signals(attempt(xbart(
+  wide31,
+  rnorm(31L),
+  n.samples = 3L,
+  n.burn = c(2L, 1L),
+  n.reps = 3L,
+  n.test = 5L,
+  n.trees = 3L,
+  n.threads = 2L,
+  seed = 3L,
+  verbose = TRUE
+)))$message
+expect_equal(sum(some == sub("5 of 5", "3 of 15", perFold, fixed = TRUE)), 1L)
+expect_equal(sum(grepl("starting sigma", some)), 2L)
 
 # --- no size turns the regression off: designs past the cutoffs that once
 # sent a sparse design, or a large one, to the sd of the response ---
@@ -982,3 +1000,37 @@ twoFit <- dbarts:::sparseSigmaRoutine(dbarts:::sparseSigmaFrontEnd(
   NULL
 ))
 expect_identical(twoFit$rank, 407L)
+# a row none of them covers makes the intercept a column of its own where the
+# row carries over 1e-10 of the weight; under that the routine drops the
+# intercept and lm.fit keeps it, which is dec-B421's band
+set.seed(9)
+level <- sample.int(6L, 399L, TRUE)
+xu <- rnorm(400L)
+yu <- xu + c(rnorm(6L)[level], 3) + rnorm(400L, sd = 0.5)
+uncovered <- cbind(
+  Matrix::sparseMatrix(i = seq_len(399L), j = level, x = 1, dims = c(400L, 6L)),
+  columns(x = xu)
+)
+lmFit <- function(x, w) {
+  fit <- lm.wfit(x, yu, w)
+  sigma <- sqrt(sum(w * fit$residuals^2) / fit$df.residual)
+  list(sigma = sigma, rank = fit$rank)
+}
+for (fraction in c(3e-9, 3e-12)) {
+  w <- c(rep.int(1, 399L), 399 * fraction)
+  fit <- attempt(dbarts:::sparseSigmaRoutine(dbarts:::sparseSigmaFrontEnd(
+    dbarts:::sparseSigmaDesign(uncovered),
+    yu,
+    w,
+    NULL
+  )))
+  withIntercept <- lmFit(cbind(1, as.matrix(uncovered)), w)
+  expect_identical(withIntercept$rank, 8L, info = fraction)
+  expected <- if (fraction > 1e-10) {
+    withIntercept
+  } else {
+    lmFit(as.matrix(uncovered), w)
+  }
+  expect_identical(fit$rank, expected$rank, info = fraction)
+  expect_equal(fit$sigma, expected$sigma, tolerance = 1e-10, info = fraction)
+}
