@@ -182,8 +182,8 @@ public:
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
           (const SamplerStateData& s, const double* cp, bool* l, bool* e,
-           std::size_t a, bool f, bool* n),
-          (s, cp, l, e, a, f, n))
+           std::size_t a, bool f, bool* n, bool g, bool* d),
+          (s, cp, l, e, a, f, n, g, d))
   SPY_VOID(setAnchor, (double lo, double hi), (lo, hi))
   SPY_VOID(getAnchor, (double& lo, double& hi) const, (lo, hi))
   SPY_RET(WarmStartResult, installForests,
@@ -986,6 +986,27 @@ const Row rows[] = {
     check(installsClean(f.gt.base(), donor) &&
             declinesUntouched(f.gt.base(), flagged),
           "facade setState: force and the verdict cross the boundary");
+    // a state recording a grid with one more point: kept off it, the twin's
+    // grid stays and the difference is reported; adopted, the grid is taken
+    SamplerStateData finer(donor);
+    finer.cutPoints[0].insert(
+      finer.cutPoints[0].begin() + 1,
+      0.5 * (finer.cutPoints[0][0] + finer.cutPoints[0][1]));
+    bool gridDiffers = false;
+    check(f.gt.base().setState(finer, f.x.data(), nullptr, nullptr,
+                               keepStoreCapacity, false, nullptr, false,
+                               &gridDiffers) &&
+            gridDiffers && f.gt.impl().data().cutPoints == donor.cutPoints,
+          "facade setState: an install that keeps the grid crosses the "
+          "boundary and reports the difference");
+    gridDiffers = true;
+    check(f.gt.base().setState(finer, f.x.data(), nullptr, nullptr,
+                               keepStoreCapacity, false, nullptr, true,
+                               &gridDiffers) &&
+            !gridDiffers && f.gt.impl().data().cutPoints == finer.cutPoints &&
+            restoresExactly(f.gt.base(), donor, f.x.data()),
+          "facade setState: an adopting install takes the grid and reports "
+          "none");
   }},
   {FacadeVirtual::setAnchor, "setAnchor", [](Fixtures& f) {
     // the count family's pair is its shift, which a move carries exactly,

@@ -13,6 +13,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #ifndef _WIN32
 #include <csignal>  // block SIGINT in worker threads; see run()
 #endif
@@ -93,16 +94,21 @@ enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 /// updateScale false. Nothing is raised: the caller decides what to say.
 enum class ResponseUpdateResult { accepted, scaleKept };
 
-/// A whole sampler's serializable state: per-chain states, the store's cut
-/// points (setCutPoints may have replaced the ones creation induces), the
-/// saved-tree write position, and the draw count that position is read
-/// against.
+/// A whole sampler's serializable state: per-chain states, the cut grid they
+/// were read on, the saved-tree write position, and the draw count that
+/// position is read against.
 struct SamplerStateData {
   std::vector<ChainStateData> chains;
-  std::vector<std::vector<double>> cutPoints;  // empty vector per categorical column
-  // the grid's weights (ColumnStore::cutMass), empty per unweighted column;
-  // the whole vector empty where none is weighted, as a state stored without
-  // weights reads
+  /// The store's cut points when the state was read, an empty vector per
+  /// column that splits by subset: the grid every live threshold of the
+  /// chains is a point of. A record of where the trees were stored, which an
+  /// install compares with the store's grid or, asked to adopt it, makes the
+  /// store's (Sampler::setState).
+  std::vector<std::vector<double>> cutPoints;
+  /// That grid's weights (ColumnStore::cutMass), empty per unweighted column;
+  /// the whole vector empty where none is weighted, as a state stored without
+  /// weights reads. Written to the store only by an install that adopts the
+  /// grid.
   std::vector<std::vector<double>> cutMass;
   size_t currentSampleNum = 0;
   /// Recorded draws the store retains, capped at its capacity. Required: it
@@ -1115,10 +1121,10 @@ public:
 
   // State serialization: getState captures everything needed to reconstruct
   // the sampler's posterior state in a fresh instance over the same data;
-  // setState validates every chain against the state's cut points before
-  // touching anything, so failure leaves the sampler unchanged. The grid's
-  // weights travel with it: a state installs the weights it carries, and one
-  // carrying none leaves every grid it installs unweighted.
+  // setState validates every chain before touching anything, so failure
+  // leaves the sampler unchanged. The cut grid and its weights are the
+  // store's: a state records the ones it was read on, and only an install
+  // told to adopt them writes them.
 
   void getState(SamplerStateData& state) {
     state.chains.resize(chains_.size());
@@ -1133,22 +1139,52 @@ public:
     state.missingColumns = data_.hasMissing;
   }
 
-  /// currentPredictors is the call-time predictor matrix a cross-grid column
-  /// re-quantizes from (data@x, or the retained creation spec's @x); null for
-  /// CSC/mixed stores. A same-spec restore (the continuation contract) matches
-  /// the live grid column for column, so its per-column skip guard re-quantizes
-  /// nothing and needs no raw.
+  /// Installs \p state's chains. The cut grid and its weights are the
+  /// store's, and \p adoptGrid says which grid the state goes onto.
+  ///
+  /// With adoptGrid the store first takes the points and weights the state
+  /// records, its columns re-quantized against them, and the state is judged
+  /// and installed there: the call of a sampler just created, which holds no
+  /// grid of its own to keep. A state that is refused or declined puts the
+  /// store's grid, weights and codes back.
+  ///
+  /// Without it no point and no weight of the store is written. A state
+  /// whose recorded points are the store's is judged and installed as it is,
+  /// whatever weights it records. So is one recorded on other points every
+  /// live threshold of which, mean and variance, is a point of the store's
+  /// grid (Chain::liveThresholdsAreOnGrid): its trees resolve there as
+  /// stored. A state holding a live threshold the store's grid lacks cannot
+  /// stand as stored and is declined without force; with force it is
+  /// installed across the grids (installAcrossGrids): each tree is built and
+  /// its rows routed on the recorded grid, then every split on a column whose
+  /// grids differ is moved to the nearest point of the store's grid inside
+  /// the interval the splits above it leave, a split left no point merging
+  /// with everything beneath it into one leaf at the mean of the leaves
+  /// beneath weighted by the rows each held, and a leaf the moved splits
+  /// leave empty is merged as after a forced predictor update. That is the
+  /// state installed on its own grid followed by setCutPoints back to the
+  /// store's by value, with the store's weights kept. The kept draws are
+  /// copied as stored either way and never moved.
+  ///
+  /// currentPredictors is the call-time predictor matrix a column whose grid
+  /// is replaced re-quantizes from (data@x, or the retained creation spec's
+  /// @x); null for CSC/mixed stores. Only an adopted grid other than the
+  /// store's and an install across grids read it.
   ///
   /// A refusal - false with notClean down - is the same with and without
   /// force and leaves the sampler exactly as it was: a state of another
   /// shape, a malformed block or tree, a grid that repeats a point, latents
   /// the family cannot hold, saved-tree blocks that name different draw
-  /// counts, a record of missable columns of another length.
+  /// counts, a record of missable columns of another length, a live
+  /// threshold that is no point of the grid the state itself records, and,
+  /// on a column the store holds as an ordered factor, whose grid its level
+  /// count fixes, a recorded grid other than the store's.
   /// lengthscaleRefused names a state whose saved gp draws were made
   /// under other lengthscales than the ones this sampler was given
   /// (Chain::lengthscaleStateFeasible), asked only where a saved draw would
-  /// be kept. Everything is judged against the state's own cut grid, where
-  /// its splits resolve, and before any chain is touched.
+  /// be kept. Everything is judged before any chain is touched, against the
+  /// grid the state is installed on or, for an install across grids, the one
+  /// it records.
   ///
   /// A state that records the columns that could hold a missing value where
   /// it was stored (missingColumns) is first completed for the columns that
@@ -1181,7 +1217,7 @@ public:
   /// the root are merged into one leaf at the weighted mean of the leaves
   /// beneath (Chain::rebuildLiveForest, Chain::rebuildVarianceForest), the
   /// direction is dropped, the monotone tree is reseeded at 0. Without force
-  /// the state is not installed: the grid is put back, notClean, when
+  /// the state is not installed: an adopted grid is put back, notClean, when
   /// non-null, is set, and false is returned with the chains, the store, the
   /// generators and the latents untouched. Only LIVE trees are held to any of
   /// this, a saved slot being a replay target routed over new rows rather
@@ -1206,24 +1242,34 @@ public:
   /// restored and nothing else changed.
   ///
   /// altered, when non-null, reports whether a state was installed other
-  /// than as stored: true exactly when a live tree was repaired as above, so
-  /// a forced install sets it exactly when the same call without force
-  /// declines. Only the installing build reports: the scratch builds that
-  /// validate a state never do, and a refusal leaves it false.
+  /// than as stored: true exactly when a live tree was repaired as above or
+  /// moved across grids, so a forced install sets it exactly when the same
+  /// call without force declines. Only the installing build reports: the
+  /// scratch builds that validate a state never do, and a refusal leaves it
+  /// false.
   /// Not reported, since the chain is still the stored one: a value the
   /// sampler holds fixed or the state lacks, a generator of another kind left
   /// in place, a pooled categorical rule keeping a missing bit its column no
   /// longer routes, and the saved draws, which are copied.
+  ///
+  /// gridDiffers, when non-null, reports whether the state was installed on
+  /// cut points or weights other than the ones it records, which only an
+  /// install that does not adopt them can be: the trees, or the tree prior
+  /// they run under, are then not the stored chain's. A state not installed
+  /// leaves it false.
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors,
                 bool* lengthscaleRefused = nullptr,
                 bool* altered = nullptr,
                 size_t adoptCapacity = keepStoreCapacity,
                 bool force = true,
-                bool* notClean = nullptr) {
+                bool* notClean = nullptr,
+                bool adoptGrid = true,
+                bool* gridDiffers = nullptr) {
     if (lengthscaleRefused != nullptr) *lengthscaleRefused = false;
     if (altered != nullptr) *altered = false;
     if (notClean != nullptr) *notClean = false;
+    if (gridDiffers != nullptr) *gridDiffers = false;
     bool installAltered = false;
     if (state.chains.size() != chains_.size()) return false;
     if (state.cutPoints.size() != data_.numPredictors) return false;
@@ -1242,6 +1288,10 @@ public:
                  (stateWeighted &&
                   !cutMassIsValid(state.cutMass[j],
                                   state.cutPoints[j].size()))) {
+        return false;
+      } else if (data_.types[j] == ColumnKind::orderedFactor &&
+                 state.cutPoints[j] != data_.cutPoints[j]) {
+        // the level count fixes this grid, so another is another column's
         return false;
       }
     }
@@ -1301,58 +1351,76 @@ public:
     }
     const std::vector<ChainStateData>& chainStates =
       completed.empty() ? state.chains : completed;
-    // install the state's cuts, snapshotting for rollback: tree validity is
-    // defined against them
-    std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
-    std::vector<std::uint32_t> oldNumCuts(data_.numCuts);
-    std::vector<std::vector<double>> oldCutMass(data_.cutMass);
-    std::vector<xint_t> oldCodes(data_.train.codes);
-    std::vector<xint_t> oldTestCodes(data_.test.codes);
-    // rank columns re-quantize into their own storage, not codes; a rank-backed
-    // test column likewise re-quantizes into test.sparseColumns (empty, hence a
-    // no-op restore, on every dense-test path)
-    std::vector<SparseColumnData> oldSparseColumns(data_.train.sparseColumns);
-    std::vector<SparseColumnData> oldTestSparseColumns(data_.test.sparseColumns);
+    // where the recorded grid and the store's part: the points of a column,
+    // or the weights of equal points
+    bool pointsDiffer = false, massDiffers = false;
     for (size_t j = 0; j < data_.numPredictors; ++j) {
       if (data_.splitsBySubset(j)) continue;
-      const double* mass = stateWeighted && !state.cutMass[j].empty()
-        ? state.cutMass[j].data() : nullptr;
-      // a restored grid equal to the live one leaves the codes already correct
-      // (the continuation contract), so skip its re-quantization and its raw;
-      // its weights are the state's either way
-      if (state.cutPoints[j] == data_.cutPoints[j]) {
-        if (mass != nullptr)
-          data_.cutMass[j] = state.cutMass[j];
-        else
-          data_.cutMass[j].clear();
-        continue;
+      if (state.cutPoints[j] != data_.cutPoints[j])
+        pointsDiffer = true;
+      else if (stateWeighted ? state.cutMass[j] != data_.cutMass[j]
+                             : data_.cutsWeighted(j))
+        massDiffers = true;
+    }
+    // a state kept off its recorded points: a live threshold the record
+    // lacks is the refusal, and one the store's grid lacks takes the install
+    // across the grids
+    bool acrossGrids = false;
+    if (!adoptGrid && pointsDiffer) {
+      for (size_t c = 0; c < chains_.size(); ++c) {
+        if (!chains_[c]->liveThresholdsAreOnGrid(chainStates[c],
+                                                 state.cutPoints))
+          return false;
+        acrossGrids = acrossGrids ||
+          !chains_[c]->liveThresholdsAreOnGrid(chainStates[c],
+                                               data_.cutPoints);
       }
-      data_.setCutPointsForColumn(j, state.cutPoints[j].data(),
-                                  static_cast<std::uint32_t>(
-                                    state.cutPoints[j].size()),
-                                  currentPredictors, mass);
+    }
+    // adopting: install the state's cuts, snapshotting for rollback, tree
+    // validity being defined against them
+    std::optional<GridSnapshot> adopted;
+    if (adoptGrid) {
+      adopted.emplace(data_);
+      for (size_t j = 0; j < data_.numPredictors; ++j) {
+        if (data_.splitsBySubset(j)) continue;
+        const double* mass = stateWeighted && !state.cutMass[j].empty()
+          ? state.cutMass[j].data() : nullptr;
+        // a restored grid equal to the live one leaves the codes already
+        // correct (the continuation contract), so skip its re-quantization
+        // and its raw; its weights are the state's either way
+        if (state.cutPoints[j] == data_.cutPoints[j]) {
+          if (mass != nullptr)
+            data_.cutMass[j] = state.cutMass[j];
+          else
+            data_.cutMass[j].clear();
+          continue;
+        }
+        data_.setCutPointsForColumn(j, state.cutPoints[j].data(),
+                                    static_cast<std::uint32_t>(
+                                      state.cutPoints[j].size()),
+                                    currentPredictors, mass);
+      }
     }
 
     // validity for every chain, then the verdict where the call is not
-    // forced: both judge the state against the grid just installed, and a
-    // state refused for one chain is refused whatever another's trees need
+    // forced: both judge the state against the grid it is installed on, and a
+    // state refused for one chain is refused whatever another's trees need.
+    // Across grids the trees resolve only on the recorded points, swapped in
+    // for the builds, and no verdict is asked: every such state is moved
     bool allValid = blocksAgree;
-    bool needsRepair = false;
-    for (size_t c = 0; c < chains_.size() && allValid; ++c)
-      allValid = chains_[c]->stateIsValid(chainStates[c],
-                                          force ? nullptr : &needsRepair);
+    bool needsRepair = acrossGrids;
+    if (acrossGrids) {
+      ScopedCutGrid recorded(data_, state.cutPoints);
+      for (size_t c = 0; c < chains_.size() && allValid; ++c)
+        allValid = chains_[c]->stateIsValid(chainStates[c]);
+    } else {
+      for (size_t c = 0; c < chains_.size() && allValid; ++c)
+        allValid = chains_[c]->stateIsValid(chainStates[c],
+                                            force ? nullptr : &needsRepair);
+    }
 
-    auto restoreGrid = [&]() {
-      data_.cutPoints = std::move(oldCutPoints);
-      data_.numCuts = std::move(oldNumCuts);
-      data_.cutMass = std::move(oldCutMass);
-      data_.train.codes = std::move(oldCodes);
-      data_.test.codes = std::move(oldTestCodes);
-      data_.train.sparseColumns = std::move(oldSparseColumns);
-      data_.test.sparseColumns = std::move(oldTestSparseColumns);
-    };
-    if (!allValid || needsRepair) {
-      restoreGrid();
+    if (!allValid || (needsRepair && !force)) {
+      if (adopted) adopted->restore(data_);
       if (notClean != nullptr) *notClean = allValid;
       return false;
     }
@@ -1360,7 +1428,7 @@ public:
       try {
         resizeSavedTrees(adoptCapacity);
       } catch (...) {
-        restoreGrid();
+        if (adopted) adopted->restore(data_);
         throw;
       }
       options_.keepTrees = adoptCapacity > 0;
@@ -1374,14 +1442,27 @@ public:
     if (repack && keptDraws > 0)
       newest = SavedDrawSlots{
         (stateCursor + stateCapacity - keptDraws) % stateCapacity, keptDraws};
-    for (size_t c = 0; c < chains_.size(); ++c)
-      if (!chains_[c]->setState(chainStates[c], &installAltered, newest))
+    auto installChains = [&]() {
+      for (size_t c = 0; c < chains_.size(); ++c)
+        if (!chains_[c]->setState(chainStates[c], &installAltered, newest))
+          return false;
+      return true;
+    };
+    if (acrossGrids) {
+      if (!installAcrossGrids(state.cutPoints, currentPredictors,
+                              installChains))
         return false;
+      installAltered = true;
+    } else if (!installChains()) {
+      return false;
+    }
     currentSampleNum_ =
       capacity > 0 ? (repack ? keptDraws : state.currentSampleNum) % capacity
                    : 0;
     recordedDraws_ = keptDraws;
     if (altered != nullptr) *altered = installAltered;
+    if (gridDiffers != nullptr)
+      *gridDiffers = !adoptGrid && (pointsDiffer || massDiffers);
     return true;
   }
 
@@ -2388,6 +2469,74 @@ public:
   size_t numTestObservations() const { return data_.numTestObservations; }
 
 private:
+  /// The store's cut grid, its weights and everything quantized against it,
+  /// copied so that a grid installed for a while can be taken out again byte
+  /// for byte. Rank columns re-quantize into their own storage and not into
+  /// codes, and a rank-backed test column into test.sparseColumns (empty,
+  /// hence a no-op restore, on every dense-test path), so both are held.
+  struct GridSnapshot {
+    std::vector<std::vector<double>> cutPoints, cutMass;
+    std::vector<std::uint32_t> numCuts;
+    std::vector<xint_t> codes, testCodes;
+    std::vector<SparseColumnData> sparseColumns, testSparseColumns;
+    explicit GridSnapshot(const ColumnStore& data)
+      : cutPoints(data.cutPoints), cutMass(data.cutMass),
+        numCuts(data.numCuts), codes(data.train.codes),
+        testCodes(data.test.codes), sparseColumns(data.train.sparseColumns),
+        testSparseColumns(data.test.sparseColumns) {}
+    /// Moves the copy back; the snapshot is spent.
+    void restore(ColumnStore& data) {
+      data.cutPoints = std::move(cutPoints);
+      data.numCuts = std::move(numCuts);
+      data.cutMass = std::move(cutMass);
+      data.train.codes = std::move(codes);
+      data.test.codes = std::move(testCodes);
+      data.train.sparseColumns = std::move(sparseColumns);
+      data.test.sparseColumns = std::move(testSparseColumns);
+    }
+  };
+
+  /// Installs trees stored on \p storedCutPoints, a grid other than the
+  /// store's, and moves them onto the store's, which with its weights and
+  /// codes is the same before and after, byte for byte. \p storedCutPoints
+  /// holds one entry per predictor, empty exactly where the column splits by
+  /// subset and a valid grid elsewhere.
+  ///
+  /// The stored grid goes in on every column where the two differ,
+  /// unweighted, its codes re-quantized from \p currentPredictors (null for
+  /// CSC/mixed stores); \p install, called as install() and returning
+  /// whether it succeeded, then builds and partitions every chain's live
+  /// trees there, so each stored leaf holds the rows the stored tree sends
+  /// it; the store's own grid is put back; and each chain moves its splits
+  /// on the differing columns by value and re-routes
+  /// (Chain::forceRefreshTrees), a merged leaf weighing the leaves beneath it
+  /// by the rows install gave them. The trees \p install leaves must be
+  /// whole trees with fits on the stored grid, as Chain::setState leaves
+  /// them. A false from install puts the store's grid back, moves nothing
+  /// and is returned.
+  template <typename Install>
+  bool installAcrossGrids(
+      const std::vector<std::vector<double>>& storedCutPoints,
+      const double* currentPredictors, Install&& install) {
+    std::vector<std::vector<double>> moved(data_.numPredictors);
+    for (size_t j = 0; j < data_.numPredictors; ++j)
+      if (data_.splitsByThreshold(j) &&
+          storedCutPoints[j] != data_.cutPoints[j])
+        moved[j] = storedCutPoints[j];
+    GridSnapshot own(data_);
+    for (size_t j = 0; j < data_.numPredictors; ++j)
+      if (!moved[j].empty())
+        data_.setCutPointsForColumn(
+          j, moved[j].data(), static_cast<std::uint32_t>(moved[j].size()),
+          currentPredictors);
+    bool installed = install();
+    own.restore(data_);
+    if (!installed) return false;
+    for (auto& chain : chains_)
+      chain->forceRefreshTrees(&moved, SplitPlacement::byValue);
+    return true;
+  }
+
   /// Shared constructor tail: one chain per rng over the built store, plus
   /// saved-tree storage under keepTrees.
   void initializeChains(const double* y, const double* weights,

@@ -5235,6 +5235,342 @@ static void testLiveThresholdsOnGrid() {
   printf("ok: a chain state's live thresholds are read against a grid\n");
 }
 
+/// One Sampler::setState call that keeps the store's grid, its answers
+/// preset to the ones that would hide a call never writing them.
+struct LiveInstall {
+  bool installed, notClean, altered, gridDiffers;
+  template <typename S>
+  LiveInstall(S& sampler, const SamplerStateData& state, const double* x,
+              bool force)
+    : notClean(!force), altered(!force), gridDiffers(false) {
+    installed = sampler.setState(state, x, nullptr, &altered,
+                                 keepStoreCapacity, force, &notClean, false,
+                                 &gridDiffers);
+  }
+  bool clean() const { return installed && !notClean && !altered; }
+  bool declined() const { return !installed && notClean; }
+  bool refused() const { return !installed && !notClean; }
+};
+
+/// Whether both forms of an install that keeps the store's grid refuse a
+/// state and leave the sampler, its grid, weights and codes as they were.
+template <typename S>
+static bool refusesLiveUntouched(S& sampler, const SamplerStateData& state,
+                                 const double* x) {
+  SamplerStateData before, after;
+  sampler.getState(before);
+  std::vector<xint_t> codes = storageDigest(sampler.data());
+  bool refused = LiveInstall(sampler, state, x, false).refused() &&
+    LiveInstall(sampler, state, x, true).refused();
+  sampler.getState(after);
+  return refused && samplerStatesAgree(before, after) &&
+    storageDigest(sampler.data()) == codes;
+}
+
+/// Sampler::setState without adoptGrid: the store's grid, weights and codes
+/// are never written. A state on the store's own grid installs as an adopting
+/// call installs it; one whose thresholds the grid holds installs as stored
+/// whatever grid or weights it records; one with a threshold the grid lacks,
+/// in a mean or a variance tree of any chain, is declined without force and
+/// with it leaves what installing it on its own grid and then calling
+/// setCutPoints by value leaves, kept draws untouched. A threshold on neither
+/// grid and another grid on an ordered factor are refused.
+static void testLiveGridInstall() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 271828u;
+  const size_t n = 200, p = 2, numChains = 2;
+  std::vector<double> x(n * p), y(n);
+  for (double& v : x) v = runif01();
+  for (size_t i = 0; i < n; ++i)
+    y[i] = 4.0 * (x[i] > 0.5 ? 1.0 : 0.0) + x[i + n] +
+      (x[i] > 0.5 ? 2.0 : 0.2) * (runif01() - 0.5);
+  SamplerOptions options;
+  options.numTrees = 10;
+  options.numVarianceTrees = 6;
+  options.numChains = numChains;
+  options.keepTrees = true;
+  options.numSamplesToStore = 3;
+  std::vector<ext_rng*> rngs;
+  auto make = [&]() {
+    size_t first = rngs.size();
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(
+        ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr));
+      ext_rng_setSeed(rngs.back(), 577u + static_cast<std::uint_least32_t>(c));
+    }
+    auto sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, rngs.data() + first);
+    Results empty;
+    sampler->run(60, 3, empty);
+    return sampler;
+  };
+  rngs.reserve(4 * numChains);
+  auto live = make(), twin = make();
+  ConstantLeafSampler& sampler = *live;
+  SamplerStateData own, got, other;
+  sampler.getState(own);
+  auto sigmaDraws = [](ConstantLeafSampler& from) {
+    std::vector<double> draws(5 * numChains);
+    Results results;
+    results.sigma = draws.data();
+    from.run(0, 5, results);
+    return draws;
+  };
+  auto onGrid = [](ConstantLeafSampler& of, const SamplerStateData& state) {
+    for (size_t c = 0; c < state.chains.size(); ++c)
+      if (!of.chain(c).liveThresholdsAreOnGrid(state.chains[c],
+                                               of.data().cutPoints))
+        return false;
+    return true;
+  };
+
+  // its own grid: what the adopting call does, and no difference reported
+  Results none;
+  sampler.run(5, 0, none);
+  twin->run(5, 0, none);
+  LiveInstall same(sampler, own, nullptr, false);
+  sampler.getState(got);
+  check(same.clean() && !same.gridDiffers && samplerStatesAgree(own, got) &&
+          restoresExactly(*twin, own),
+        "live grid: a state on the store's grid installs as stored");
+  check(sigmaDraws(sampler) == sigmaDraws(*twin),
+        "live grid: and continues as an adopting install continues");
+  check(LiveInstall(sampler, own, nullptr, false).clean() &&
+          restoresExactly(*twin, own),
+        "live grid: both go back to the stored state");
+
+  // three of column 0's points: the stored thresholds on it are mostly gone
+  const std::vector<double> fine(own.cutPoints[0]);
+  check(fine.size() > 80, "live grid: the fixture's first column holds a grid");
+  const std::vector<double> coarse = {fine[24], fine[49], fine[74]};
+  const size_t column = 0;
+  auto setGrid = [&](ConstantLeafSampler& on, const std::vector<double>& grid,
+                     SplitPlacement placement) {
+    const double* grids[] = {grid.data()};
+    std::uint32_t counts[] = {static_cast<std::uint32_t>(grid.size())};
+    on.setCutPoints(grids, counts, &column, 1, x.data(), placement);
+  };
+  setGrid(sampler, coarse, SplitPlacement::byPosition);
+  SamplerStateData onCoarse;
+  sampler.getState(onCoarse);
+  std::vector<xint_t> coarseCodes = storageDigest(sampler.data());
+  check(!onGrid(sampler, own) && onGrid(sampler, onCoarse),
+        "live grid: the stored state holds thresholds the coarse grid lacks");
+  LiveInstall unforced(sampler, own, x.data(), false);
+  sampler.getState(got);
+  check(unforced.declined() && samplerStatesAgree(onCoarse, got) &&
+          storageDigest(sampler.data()) == coarseCodes,
+        "live grid: a threshold off the grid declines, nothing written");
+
+  LiveInstall forced(sampler, own, x.data(), true);
+  sampler.getState(got);
+  check(forced.installed && forced.altered && forced.gridDiffers &&
+          got.cutPoints == onCoarse.cutPoints &&
+          got.cutMass == onCoarse.cutMass &&
+          storageDigest(sampler.data()) == coarseCodes,
+        "live grid: forced, the store's grid, weights and codes are as they "
+        "were");
+  bool keptAsStored = true;
+  for (size_t c = 0; c < numChains; ++c)
+    keptAsStored = keptAsStored &&
+      sameFlatTrees(got.chains[c].forests[0].savedTrees,
+                    own.chains[c].forests[0].savedTrees) &&
+      sameFlatTrees(got.chains[c].savedVarianceTrees,
+                    own.chains[c].savedVarianceTrees);
+  check(onGrid(sampler, got) && liveTreesAreOccupied(sampler) &&
+          !sameLiveTrees(got, own) && keptAsStored &&
+          got.currentSampleNum == own.currentSampleNum &&
+          got.recordedDraws == own.recordedDraws,
+        "live grid: forced, the trees are moved onto the grid and the kept "
+        "draws are not");
+  // the twin: the state on its own grid, then the grid replaced by value
+  check(restoresExactly(*twin, own), "live grid: the twin takes the state");
+  setGrid(*twin, coarse, SplitPlacement::byValue);
+  twin->getState(other);
+  check(samplerStatesAgree(got, other) &&
+          storageDigest(twin->data()) == coarseCodes,
+        "live grid: a forced install across grids leaves what the install "
+        "on the state's grid followed by setCutPoints by value leaves");
+  check(sigmaDraws(sampler) == sigmaDraws(*twin),
+        "live grid: and the two continue alike");
+
+  // a grid holding every stored point: clean, kept, the trees as stored
+  std::vector<double> finer;
+  for (size_t k = 0; k + 1 < fine.size(); ++k) {
+    finer.push_back(fine[k]);
+    finer.push_back(0.5 * (fine[k] + fine[k + 1]));
+  }
+  finer.push_back(fine.back());
+  setGrid(sampler, finer, SplitPlacement::byValue);
+  std::vector<xint_t> finerCodes = storageDigest(sampler.data());
+  LiveInstall onto(sampler, own, x.data(), false);
+  sampler.getState(got);
+  check(onto.clean() && onto.gridDiffers && got.cutPoints[0] == finer &&
+          storageDigest(sampler.data()) == finerCodes && statesAgree(own, got),
+        "live grid: a state whose thresholds the grid holds installs as "
+        "stored on it");
+  LiveInstall ontoForced(sampler, own, x.data(), true);
+  sampler.getState(got);
+  check(ontoForced.installed && !ontoForced.altered &&
+          ontoForced.gridDiffers && statesAgree(own, got),
+        "live grid: and forced, with nothing altered");
+
+  // one tree of the second chain: a threshold of the recorded grid the
+  // store's lacks, in a mean tree and in a variance tree each alone
+  setGrid(sampler, coarse, SplitPlacement::byValue);
+  SamplerStateData base;
+  sampler.getState(base);
+  base.cutPoints = own.cutPoints;
+  check(LiveInstall(sampler, base, x.data(), false).clean(),
+        "live grid: thresholds on the coarse grid, recorded on the fine one, "
+        "install as stored");
+  SamplerStateData meanOff(base), varianceOff(base);
+  FlatNode* meanSplit = firstOrdinalSplit(meanOff.chains[1].forests[0].trees);
+  FlatNode* varianceSplit = firstOrdinalSplit(varianceOff.chains[1].varianceTrees);
+  check(meanSplit != nullptr && varianceSplit != nullptr,
+        "live grid: the second chain splits in both kinds of tree");
+  meanSplit->variable = 0;
+  meanSplit->value = fine[10];
+  varianceSplit->variable = 0;
+  varianceSplit->value = fine[60];
+  for (const SamplerStateData* state : {&meanOff, &varianceOff}) {
+    sampler.getState(other);
+    LiveInstall declined(sampler, *state, x.data(), false);
+    sampler.getState(got);
+    bool untouched = declined.declined() && samplerStatesAgree(other, got);
+    LiveInstall moved(sampler, *state, x.data(), true);
+    sampler.getState(got);
+    check(untouched && moved.installed && moved.altered && onGrid(sampler, got) &&
+            got.cutPoints[0] == coarse && liveTreesAreOccupied(sampler),
+          state == &meanOff
+            ? "live grid: one mean threshold of the second chain declines "
+              "the state, and forced it is moved"
+            : "live grid: one variance threshold of the second chain "
+              "declines the state, and forced it is moved");
+  }
+
+  // a threshold that is a point of neither grid, whatever grid is recorded
+  SamplerStateData neither(base), neitherEqual(base);
+  firstOrdinalSplit(neither.chains[1].forests[0].trees)->variable = 0;
+  firstOrdinalSplit(neither.chains[1].forests[0].trees)->value =
+    0.5 * (fine[10] + fine[11]);
+  neitherEqual.chains = neither.chains;
+  neitherEqual.cutPoints[0] = coarse;
+  check(refusesLiveUntouched(sampler, neither, x.data()) &&
+          refusesLiveUntouched(sampler, neitherEqual, x.data()),
+        "live grid: a threshold on neither grid is refused under the store's "
+        "recorded grid and under another");
+  // and one the record lacks though the store's grid holds it
+  SamplerStateData recordLacks(base);
+  recordLacks.cutPoints[0] = {fine[5], fine[49], fine[90]};
+  bool usesOthers = false;
+  for (size_t c = 0; c < numChains; ++c)
+    usesOthers = usesOthers ||
+      !sampler.chain(c).liveThresholdsAreOnGrid(recordLacks.chains[c],
+                                                recordLacks.cutPoints);
+  check(usesOthers && refusesLiveUntouched(sampler, recordLacks, x.data()),
+        "live grid: a threshold the recorded grid lacks is refused though "
+        "the store's holds it");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+
+  // weights are the store's: a state recording none, or others, on equal
+  // points installs as stored and writes none
+  {
+    std::vector<double> xw(n * p);
+    for (size_t i = 0; i < n; ++i) {
+      xw[i] = static_cast<double>((i % 6) * (i % 6));
+      xw[i + n] = x[i + n];
+    }
+    ext_rng* weightedRngs[2];
+    std::unique_ptr<ConstantLeafSampler> weighted[2];
+    for (size_t k = 0; k < 2; ++k) {
+      weightedRngs[k] =
+        ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+      ext_rng_setSeed(weightedRngs[k], 3141u);
+      SamplerOptions weightedOptions;
+      weightedOptions.numTrees = 10;
+      weighted[k] = std::make_unique<ConstantLeafSampler>(
+        xw.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+        1.0, 3.0, 0.37804942330213542, weightedOptions, &weightedRngs[k]);
+      Results empty;
+      weighted[k]->run(30, 0, empty);
+    }
+    const std::vector<std::vector<double>> weights = weighted[0]->data().cutMass;
+    SamplerStateData withWeights, bare, after;
+    weighted[0]->getState(withWeights);
+    bare = withWeights;
+    bare.cutMass.clear();
+    LiveInstall bareUnforced(*weighted[0], bare, xw.data(), false);
+    LiveInstall bareForced(*weighted[0], bare, xw.data(), true);
+    weighted[0]->getState(after);
+    check(weighted[0]->data().cutsWeighted(0) && bareUnforced.clean() &&
+            bareUnforced.gridDiffers && bareForced.installed &&
+            !bareForced.altered && bareForced.gridDiffers &&
+            weighted[0]->data().cutMass == weights &&
+            samplerStatesAgree(withWeights, after),
+          "live grid: a state recording no weights leaves a weighted grid "
+          "its weights");
+    // the twin made unweighted by an adopting install of the bare state
+    check(restoresExactly(*weighted[1], bare) &&
+            !weighted[1]->data().cutsWeighted(0),
+          "live grid: the twin's grid is unweighted");
+    LiveInstall heavyUnforced(*weighted[1], withWeights, xw.data(), false);
+    LiveInstall heavyForced(*weighted[1], withWeights, xw.data(), true);
+    weighted[1]->getState(after);
+    check(heavyUnforced.clean() && heavyUnforced.gridDiffers &&
+            heavyForced.installed && !heavyForced.altered &&
+            heavyForced.gridDiffers && !weighted[1]->data().cutsWeighted(0) &&
+            samplerStatesAgree(bare, after),
+          "live grid: a state recording weights leaves an unweighted grid "
+          "unweighted");
+    for (ext_rng* r : weightedRngs) ext_rng_destroy(r);
+  }
+
+  // an ordered factor's grid is its level count's: a state recording another
+  // on that column is another column's, on thresholds both grids hold
+  {
+    std::vector<double> xo(n * p);
+    for (size_t i = 0; i < n; ++i) {
+      xo[i] = static_cast<double>(i % 4);
+      xo[i + n] = x[i + n];
+    }
+    std::vector<double> yo(n);
+    for (size_t i = 0; i < n; ++i)
+      yo[i] = (i % 4 >= 2 ? 3.0 : 0.0) + xo[i + n] + 0.2 * (runif01() - 0.5);
+    ColumnKind kinds[] = {ColumnKind::orderedFactor, ColumnKind::numeric};
+    ext_rng* orderedRng =
+      ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(orderedRng, 1618u);
+    SamplerOptions orderedOptions;
+    orderedOptions.numTrees = 10;
+    orderedOptions.predictors.columnTypes = kinds;
+    ConstantLeafSampler ordered(xo.data(), yo.data(), n, p, nullptr, nullptr,
+                                ResponseFamily::gaussian, 1.0, 3.0,
+                                0.37804942330213542, orderedOptions,
+                                &orderedRng);
+    Results empty;
+    ordered.run(30, 0, empty);
+    SamplerStateData levels, fiveLevels;
+    ordered.getState(levels);
+    fiveLevels = levels;
+    fiveLevels.cutPoints[0].push_back(3.5);
+    check(levels.cutPoints[0] == std::vector<double>({0.5, 1.5, 2.5}) &&
+            firstOrdinalSplit(levels.chains[0].forests[0].trees) != nullptr &&
+            LiveInstall(ordered, levels, xo.data(), false).clean(),
+          "live grid: an ordered factor's state installs on its own grid");
+    check(refusesLiveUntouched(ordered, fiveLevels, xo.data()) &&
+            refusesUntouched(ordered, fiveLevels, xo.data()),
+          "live grid: another grid recorded on an ordered factor is refused, "
+          "adopting or not");
+    ext_rng_destroy(orderedRng);
+  }
+
+  rngState = savedRngState;
+  printf("ok: a state installs onto the store's cut grid\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -5267,6 +5603,7 @@ void runStateTests(ext_rng* rng) {
   testRepeatedGridRefused();
   testWeightedGridState();
   testLiveThresholdsOnGrid();
+  testLiveGridInstall();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

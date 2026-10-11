@@ -363,13 +363,21 @@ public:
   /// force installs a state whose live trees need repair, repairing them;
   /// without it such a state is left uninstalled, false returned and
   /// notClean, when non-null, set, which a refusal leaves down.
+  /// adoptGrid makes the cut points and weights the state records the
+  /// store's before the state is judged, the call of a sampler just created;
+  /// without it the store's grid and weights are not written and the state's
+  /// trees go onto them, moved where a forced call finds a threshold the
+  /// grid lacks. gridDiffers, when non-null, reports an install onto points
+  /// or weights other than the state records.
   virtual bool setState(const SamplerStateData& state,
                         const double* currentPredictors,
                         bool* lengthscaleRefused = nullptr,
                         bool* altered = nullptr,
                         std::size_t adoptCapacity = keepStoreCapacity,
                         bool force = true,
-                        bool* notClean = nullptr) = 0;
+                        bool* notClean = nullptr,
+                        bool adoptGrid = true,
+                        bool* gridDiffers = nullptr) = 0;
   /// The sampler's response transform, Sampler::setAnchor's: written by a
   /// host re-creating a sampler from its record, read back to keep one.
   virtual void setAnchor(double min, double max) = 0;
@@ -693,9 +701,10 @@ public:
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors, bool* lengthscaleRefused,
                 bool* altered, std::size_t adoptCapacity, bool force,
-                bool* notClean) override {
+                bool* notClean, bool adoptGrid, bool* gridDiffers) override {
     return impl_.setState(state, currentPredictors, lengthscaleRefused,
-                          altered, adoptCapacity, force, notClean);
+                          altered, adoptCapacity, force, notClean, adoptGrid,
+                          gridDiffers);
   }
   void setAnchor(double min, double max) override {
     impl_.setAnchor(min, max);
