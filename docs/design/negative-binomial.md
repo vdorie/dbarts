@@ -77,7 +77,7 @@ update useless in practice.
 
 **Response transform and leaf prior.** c = log(max(sum_i y_i, 1/2) /
 sum_i exp(o_i)) is the intercept of the Poisson model with offset, computed
-over all rows (the aft precedent for a full-data transform), with the floor
+over all rows at the time of writing (the aft precedent for a full-data transform; see the amendment below), with the floor
 keeping an all-zero response finite. It is [`NBResponse::fitShift`](../../src/bartcore/model.hpp);
 fitScale and sigmaScale stay 1. The latent binary families center their leaf
 prior at 0 because their link has a natural zero; a log mean has none, so the
@@ -709,3 +709,7 @@ primitive only if the (B) door opens).
   test contract serves both - fork (B)'s specification is written to be that
   shared design). If VD overrides to (B) here, NB pays for the primitive and
   weighted-binary becomes its thin consumer, the original framing.
+
+Amended 2026-10-11 by [Which rows a prior's scale is read from](response-scale-rows.md#which-rows-a-priors-scale-is-read-from): c is taken over the rows in the
+likelihood when the sampler is created (the rows of weight 1 under a 0/1 mask, the mask followed by the
+sampler's own re-derivation), every row where those hold fewer than two distinct counts, and is then held.

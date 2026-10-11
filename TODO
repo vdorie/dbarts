@@ -186,14 +186,11 @@ items
     slots edited alone, and a residual prior stored on a family with no
     residual scale.
   starting-sigma-fallback-zero-weights: where no regression is defined
-    the starting sigma is sd(y - offset) over every row
-    (floorSigmaEstimate), while the regression and its test of
-    residual degrees of freedom leave out rows of weight 0; so before
-    the sparse starting sigma too. Run 2026-10-10: 40 rows, 20 of
-    weight 0 with responses shifted by 100, 25 columns: 50.74, the sd
-    over all rows, for 0.87 over the rows with a weight. Decide
-    whether the fallback is over the positive-weight rows, and
-    weighted. With response-scale-rows.
+    the starting sigma is sd(y - offset) over the rows of positive
+    weight, unweighted (response-scale-rows). Decide whether it should
+    be weighted: the residual sd of the intercept alone, which is on
+    the regression's scale where the weights are far from 1 (1.28 for
+    1.12 on one run under weights between 0.5 and 2).
   warm-start-across-models: a warm start from a donor that is another
     model, such as a fast fit on a transformed response seeding a slower
     model on the original scale, with whatever scale or dispersion the
@@ -376,14 +373,6 @@ items
     scale, a relative one following updateScale = TRUE. With or after
     the slice of response-scale-rows that adds the re-derivation
     arguments.
-  hazard-periods-rows-in: a hazard fit's default periods are the
-    distinct observed times of the subjects in the likelihood at
-    creation, where today a subject at weight 0 gives its time too
-    and adds rows to the subjects in (dec-B315, VD 2026-10-07). A
-    subject at weight 0 is expanded on that grid, its time in the
-    interval it falls in, one past the last period at risk throughout
-    with no event. R only; with the creation slice of
-    response-scale-rows, whose rule it follows.
   level-shift-capi: two flat C API entries so a host can move a constant
     between the forest and its own intercepts - a read of the occupied
     leaves' count and value sum (original response units) and an apply
@@ -929,38 +918,20 @@ items
     section 10). After the multiplier slice's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
-  response-scale-rows: what a fit takes from the response to place or
-    size a prior (the count fit's centre, the gaussian and Student-t
-    response scale, the survival fit's, the unit of a forest's sd) is
-    computed over the rows in the likelihood when the sampler is
-    created, rows at weight 0 or masked out left aside; it is held
-    when weights or the mask change, and setWeights and setActiveRows
-    take the response setters' argument to re-derive it, with the
-    response setters' effect on the live chain (dec-B296, revising
-    dec-A140; dec-B327). A sampler created with no row in takes them
-    over every row, with a warning (dec-B302); a re-derivation whose
-    rows in hold fewer than two distinct values keeps the prior in
-    force and warns once per sampler (dec-B364): the engine returns the
-    keep as a status, the R interface warns, and the flat C setters
-    return a value of their own for it (dec-B405); stan4bart, which
-    installs its own range, makes no such call (dec-B437). A linear or
-    gp leaf's covariate center and scale follow the same rule (dec-B304), and a
-    multiplier's scale does in the multiplier plan (dec-B303).
-    A sampler made by hand is created with every row in; with slice C,
-    dbartsSpec's help gives setActiveRows(spec$active, updateScale =
-    TRUE) as the call that makes it dbarts()'s, and the loop form, in
-    place of the plan's setOffset call (dec-B363).
-    Cut points still span every row. Changes the
-    draws of every fit created with rows at weight 0. Before 1.0-0,
-    and before the merge if it can be: design first, with the
-    state-frame slices that give derived data its record and with
-    docs/plans/forest-sd-unit.md, which states the unit.
-    Planned as four slices (dec-A176): the survival re-anchor from
-    observed times, landed 2026-10-07; creation
-    only, docs/plans/response-scale-rows.md; then the two new
-    arguments and dec-B304, stated at that plan's end and not planned.
-    Fewer than two distinct response values in take the fallback too
-    (dec-B309).
+  response-scale-rows: slices C and D (slice B, creation, is built:
+    docs/design/response-scale-rows.md). C: setWeights and setActiveRows
+    take the response setters' argument to re-derive what creation took
+    over the rows in, with the response setters' effect on the live
+    chain (dec-B296, dec-B327), the keep for fewer than two distinct
+    values and its once-per-sampler warning extended to them (dec-B364,
+    dec-B405), and, in dbartsSpec's help, setActiveRows(spec$active,
+    updateScale = TRUE) as the call that makes a sampler made by hand
+    dbarts()'s, with the loop form (dec-B363). D: a linear or gp leaf's
+    covariate center and scale, and the default lengthscale, over the
+    rows in (dec-B304), a multiplier's scale doing so in the multiplier
+    plan (dec-B303); waits on the state-frame slices that give derived
+    data its record. Cut points still span every row. Stated at the end
+    of docs/plans/response-scale-rows.md and not planned.
   bartcause-thread-default: on bartCause's dbarts-1.0 branch, bcf.R
     computes n.threads from dbarts::guessNumCores() and passes it as
     stated, so where the cores cannot be counted bcf() is refused;

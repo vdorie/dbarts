@@ -582,8 +582,8 @@ rest.
 9. Restated pins. In test-active-rows-pins.R the two-forest pin creates both samplers under w and masks
    or reweights after; the gaussian and Student-t pins above it get the same repair, since they pass only
    while the fixture's extremes are on rows in. The comments
-   ["The log-mean shift is the full-data one by design"](../../inst/tinytest/test-active-rows-pins.R) and
-   ["the response transform is the FULL-data one by design"](../../inst/tinytest/test-active-rows-pins.R)
+   "The log-mean shift is the full-data one by design" and
+   "the response transform is the FULL-data one by design"
    say "creation's, every row then being in". Another existing test that fails is first looked for
    among the ten files Context names.
 10. Exact gates. bd-balance.R gains a fifth arm beside [`zeroWeightArm`](../../benchmarks/R/bd-balance.R),
@@ -621,8 +621,8 @@ rest.
        the `rng:` block: must differ, and by how much.
 13. Mutations (Verification).
 14. Records. Help: the `weights` item of [bart.Rd](../../man/bart.Rd) and [dbarts.Rd](../../man/dbarts.Rd)
-    (the sentences holding ["still counts toward"](../../man/bart.Rd) and
-    ["the response scale held equal"](../../man/bart.Rd)) say that a row of weight 0 takes no part in the
+    (the sentences holding "still counts toward" and
+    "the response scale held equal") say that a row of weight 0 takes no part in the
     response's scale, the count center or a forest's default sd, that it stays in the design and the fit
     is close to the fit on the remaining rows without being it, that the step is at 0 and not at a small
     weight, and that a mask or weights set after creation leave the numbers creation set, so the three
@@ -633,9 +633,9 @@ rest.
     (["sorted distinct observed times"](../../man/bart.Rd)) say the subjects in the likelihood;
     bart.Rd's paragraph of warning classes (["Warning classes."](../../man/bart.Rd)) gains
     `dbartsScaleFallbackWarning`; [dbartsSampler-class.Rd](../../man/dbartsSampler-class.Rd): the
-    response item (["which reads every row"](../../man/dbartsSampler-class.Rd) becomes the rows in),
+    response item ("which reads every row" becomes the rows in),
     the weights item, the `active` item
-    (["stay the FULL-data calibration"](../../man/dbartsSampler-class.Rd) becomes creation's),
+    ("stay the FULL-data calibration" becomes creation's),
     `updateScale` with the keep and its once-per-sampler warning, and that `setData` and a sampler made
     by hand from another's parts derive again; [dbartsSpec.Rd](../../man/dbartsSpec.Rd), the `active`
     value: a count sampler made by hand keeps the every-row center in this slice; xbart.Rd, `weights`.

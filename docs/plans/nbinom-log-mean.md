@@ -107,7 +107,7 @@ a_i = o_i + c - log r used by every working-response build:
 - c at construction and in [`NBResponse::setData`](../../src/bartcore/model.hpp):
   c = log(max(sum_i y_i, 1/2) / sum_i e^{o_i}), sum_i e^{o_i} = n with no offset. This is the intercept MLE of the
   Poisson model with offset (and of the NB model when o is constant). The 1/2 floor keeps an all-zero response
-  finite. Computed over all rows: the response transform is the full-data one by design, the aft precedent.
+  finite. Computed over all rows: the response transform is the full-data one by design, the aft precedent (amended 2026-10-11 by [Which rows a prior's scale is read from](../design/response-scale-rows.md#which-rows-a-priors-scale-is-read-from): over the rows in the likelihood at creation).
 - `fitShift()` returns c; fitScale and sigmaScale stay 1. The train and test channels, the fits without offset, the
   predict replay and `forestCalibration().priorMean` then carry c with no chain edit
   ([`Chain::storeSample`](../../src/bartcore/chain.hpp), [`Chain::fitsWithoutOffset`](../../src/bartcore/chain.hpp),

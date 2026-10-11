@@ -193,8 +193,14 @@ pass over the rows ([`NBResponse::setActiveRows`](../../src/bartcore/model.hpp),
 [`NBShapePrior::computeKernel`](../../src/bartcore/model.hpp)).
 
 AFT composes into its contained gaussian, inheriting that recount, and skips an
-inactive censored row's log-time redraw; the response transform stays the
-full-data one ([`AFTResponse::setActiveRows`](../../src/bartcore/model.hpp)).
+inactive censored row's log-time redraw; the response transform stays
+creation's, which was taken over the rows in the likelihood then, every row when
+none was out ([`AFTResponse::setActiveRows`](../../src/bartcore/model.hpp)).
+
+Amended 2026-10-11 by [Which rows a prior's scale is read from](response-scale-rows.md#which-rows-a-priors-scale-is-read-from): where this note
+says the response transform, the count center or a forest's default sd is the full-data
+one, read it as creation's: a sampler created with rows out of the likelihood takes them
+over the rows in, and a mask installed afterwards leaves them as creation set them.
 
 Multinomial's mask is global, and lands on the softmax coupling rather than the
 response, which holds no precisions of its own

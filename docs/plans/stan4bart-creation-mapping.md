@@ -374,7 +374,10 @@ that plan's rule 4 reads every row).
 - That first: nothing here changes but Context's sentence on the alternating vector, which then fails in fact.
 - Its slice C (dec-B364: a re-derivation whose rows in hold fewer than two distinct values keeps the range and
   warns) would leave the install undone on a fit with one row of positive weight; the read-back turns that into
-  a stop, and slice C's plan must name the helper.
+  a stop, and slice C's plan must name the helper. Amended 2026-10-11: [Which rows a prior's scale is read from](../design/response-scale-rows.md#which-rows-a-priors-scale-is-read-from)
+  builds that keep for `setResponse` and `setOffset` (slice B), so the install on a fit with one row of positive
+  weight meets it there, and the lifted weights (the sampler's weights set to 1 for the two `setResponse` calls,
+  then put back) belong to this slice's helper and to that plan's item 9, not to slice C.
 
 ## Calls made
 

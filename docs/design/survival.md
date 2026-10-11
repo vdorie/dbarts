@@ -264,7 +264,9 @@ who defines the grid and how. The survey below is decisive here and MOVED
 this fork's recommendation: an earlier draft refused continuous times
 outright unless `breaks` was given, a stance no surveyed package shares.
 
-- Settled (revised per the survey): the default grid is the sorted
+- Settled (revised per the survey; amended 2026-10-11 by
+  [Which rows a prior's scale is read from](response-scale-rows.md#which-rows-a-priors-scale-is-read-from): the times are those of the subjects in the
+  likelihood, weight positive): the default grid is the sorted
   DISTINCT OBSERVED TIMES - exactly surv.bart's default (events <-
   unique(sort(times)), all observed times, censoring times included) and
   pammtools' (cut = NULL -> all unique event times). A `breaks` argument

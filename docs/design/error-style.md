@@ -628,7 +628,11 @@ BART and bartMachine class none. These warnings carry a class, signaled as
   (the input supplied cannot serve the call, so another was used) and
   `dbartsGPFallbackWarning`. A starting sigma taken from the response sd is
   not one: it is said in a `dbartsStartingSigmaMessage` under verbose and in
-  the fit's summary ([`estimateStartingSigma`](../../R/spec.R)).
+  the fit's summary ([`estimateStartingSigma`](../../R/spec.R));
+- the rows in the likelihood leaving nothing to read a scale from, so every row is used or the scale in force
+  is kept: `dbartsScaleFallbackWarning` (creation, `setData`, a hazard fit's periods, and a
+  `setResponse` or `setOffset` re-derivation that keeps the scale, once per sampler;
+  [`scaleRowsFallBack`](../../R/spec.R)).
 
 Every other warning is a plain `warning()`, or a plain `warnOnce()` with a
 string, matched by its text; a test checks that such a warning fires by
@@ -654,6 +658,7 @@ Inventory, one representative site per class:
 | `dbartsSlowCountWarning` | [`warnOnSlowCount`](../../R/bartcore.R) |
 | `dbartsFallbackWarning` | [`pdbart.prologue`](../../R/partialDependence.R) |
 | `dbartsGPFallbackWarning` | [`warnOnGPFallback`](../../R/bartcore.R) |
+| `dbartsScaleFallbackWarning` | [`scaleRowsFallBack`](../../R/spec.R), [`warnScaleKept`](../../R/bartcore.R) |
 
 ---
 
