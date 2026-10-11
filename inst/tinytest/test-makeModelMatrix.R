@@ -508,3 +508,38 @@ expect_false(is.null(attr(
   "indicator.levels"
 )))
 rm(frame.levels)
+
+
+# An integer or logical column's missing value stays NA_real_ in the matrix,
+# as a double column's does, rather than becoming the integer sentinel.
+df <- data.frame(
+  a = c(1L, NA, 3L, 4L),
+  l = c(TRUE, NA, FALSE, TRUE),
+  d = c(0.5, NA, 1.5, 2.5),
+  f = factor(c("u", "v", "w", "u"))
+)
+mm <- dbarts::makeModelMatrixFromDataFrame(df)
+expect_identical(mm[, "a"], c(1, NA, 3, 4))
+expect_identical(mm[, "l"], c(1, NA, 0, 1))
+expect_identical(mm[, "d"], c(0.5, NA, 1.5, 2.5))
+expect_false(any(mm[!is.na(mm)] < -1e9))
+
+# the same through a stored drop pattern, as a test set is coded
+newdata <- data.frame(
+  a = c(NA, 2L),
+  l = c(FALSE, NA),
+  d = c(1, 2),
+  f = factor(c("v", "w"), levels = levels(df$f))
+)
+mmTest <- dbarts::makeModelMatrixFromDataFrame(newdata, attr(mm, "drop"))
+expect_identical(mmTest[, "a"], c(NA, 2))
+expect_identical(mmTest[, "l"], c(0, NA))
+
+# and for integer and logical matrix columns
+df <- data.frame(z = c(1, 2, 3))
+df$m <- cbind(c(1L, NA, 3L), c(2L, 5L, NA))
+df$p <- cbind(c(TRUE, NA, FALSE), c(FALSE, TRUE, NA))
+mm <- dbarts::makeModelMatrixFromDataFrame(df)
+expect_identical(unname(mm[, 2:3]), cbind(c(1, NA, 3), c(2, 5, NA)))
+expect_identical(unname(mm[, 4:5]), cbind(c(1, NA, 0), c(0, 1, NA)))
+rm(df, mm, mmTest, newdata)

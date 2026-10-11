@@ -124,12 +124,6 @@ items
     docs/design/gpu-bart.md.
   grow-from-root: frontier 3.1's exact informed-proposal use of the
     shared cut scan (docs/design/parallel-bart-frontier.md sec 3.1).
-  integer-na-in-model-matrix: makeModelMatrixFromDataFrame turns an
-    integer column's NA into -2147483648 (a double column's stays NA;
-    0.9-34 does the same). Reachable in 1.0 through factors =
-    "indicators" under na.keepPredictors. Run 2026-10-10:
-    data.frame(a = c(1L, NA, 3L, 4L), f = factor(...)) gives a[2] =
-    -2147483648. Before 1.0-0.
   interaction-constraints: formal heredity (an ensemble lattice prior)
     - a fourth formal beside interactions(max.order, groups, forbid)
     plus a prior change. Value gate lifted: it enables

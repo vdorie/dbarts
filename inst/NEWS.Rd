@@ -740,6 +740,11 @@
             a warning; a seeded call leaves
             the random stream as it found it; and \code{set.seed}
             reproduces a multithreaded run at the same \code{n.threads}.
+      \item \code{makeModelMatrixFromDataFrame} keeps the missing value of
+            an integer or logical column, or of an integer or logical
+            matrix column, as \code{NA}; 0.9-34 turned it into
+            -2147483648, which a factor expanded to indicators under
+            \code{na.keepPredictors} then carried into the design.
     }
   }
 }

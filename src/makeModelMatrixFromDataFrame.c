@@ -30,6 +30,7 @@ typedef enum {
 
 static bool numericVectorIsConstant(SEXP x, column_type t);
 static bool integerVectorIsConstant(const int* i, size_t n);
+static double integerToReal(int i);
 
 static size_t getNumRowsForDataFrame(SEXP x);
 
@@ -244,6 +245,15 @@ static bool numericVectorIsConstant(SEXP x, column_type t) {
   return false;
 }
 
+/**
+ * An integer or logical missing value is NA_INTEGER, a code no double
+ * conversion keeps as missing; it maps to NA_REAL so the matrix carries the
+ * same missing value a double column does.
+ */
+static double integerToReal(int i) {
+  return i == NA_INTEGER ? NA_REAL : (double) i;
+}
+
 static bool integerVectorIsConstant(const int* i, size_t n) {
   if (n <= 1) return true;
   
@@ -391,7 +401,7 @@ static void createMatrix_matrix(SEXP col, size_t colIndex, size_t numRows, doubl
         memcpy(result + numRows * *resultCol, REAL(col) + numRows * j, numRows * sizeof(double));
       } else {
         int* colData = INTEGER(col);
-        for (size_t k = 0; k < numRows; ++k) result[k + numRows * *resultCol] = colData[k + numRows * j];
+        for (size_t k = 0; k < numRows; ++k) result[k + numRows * *resultCol] = integerToReal(colData[k + numRows * j]);
       }
       setMatrixColumnName(names, colIndex, colNames, j, resultNames, *resultCol);
       ++*resultCol;
@@ -433,7 +443,7 @@ static int createMatrix(SEXP x, size_t numRows, SEXP resultExpr, const column_ty
       case LOGICAL_VECTOR:
       if (dropPatternExpr == R_NilValue || LOGICAL(VECTOR_ELT(dropPatternExpr, i))[0] == FALSE) {
         int* colData = INTEGER(col);
-        for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = (double) colData[j];
+        for (size_t j = 0; j < numRows; ++j) result[j + numRows * resultCol] = integerToReal(colData[j]);
         if (names != R_NilValue) SET_STRING_ELT(resultNames, resultCol, STRING_ELT(names, i));
         ++resultCol;
       }
