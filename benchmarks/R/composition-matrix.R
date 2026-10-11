@@ -1,34 +1,55 @@
 #!/usr/bin/env Rscript
 
-# Executable composition matrix: for every (family x capability) cell that
-# docs/design/feature-matrix.md marks S (shipped) or ? (unverified), builds a
-# minimal fixture, actually attempts the composition, and classifies the
-# outcome as CONSTRUCTS (fits without error), REFUSES (a named validation
-# stop()) or ERRORS (anything else - the finding class: a generic R/engine
-# failure rather than a deliberate refusal). The recorded verdict is then
-# diffed against the matrix's own claim: an S cell that does not CONSTRUCT is
-# a disagreement, a ? cell's verdict is a resolution (reported, never a
-# failure), and an R cell that CONSTRUCTS - reachable only if some other
-# probe happens to also cover it - would be a disagreement too. Lives in
-# benchmarks/R/ rather than tools/: it is a local correctness gate against a
-# design document, the same role equivalence.R and bench-sampler.R play
-# against a baseline, not a build-freshness check.
+# Executable composition matrix: an oracle for docs/design/feature-matrix.md.
+# Every claim the matrix makes is turned into one small composition that is
+# actually attempted, and the outcome is classified as CONSTRUCTS (runs without
+# error), REFUSES (a named validation stop()) or ERRORS (anything else - the
+# finding class: a generic R/engine failure rather than a deliberate refusal).
+# The outcome is then diffed against what the matrix says:
+#
+#   S  (shipped)   must CONSTRUCT
+#   R  (refused)   must REFUSE by name; a CONSTRUCTS or an ERRORS disagrees
+#   M  (missing)   must not CONSTRUCT; a named refusal agrees, a generic
+#                  error is counted as agreeing but listed as a note
+#   -  (n/a)       unchecked, except the unit-scale column, whose footnote [f7]
+#                  says updateScale = TRUE is ignored rather than refused there
+#
+# Two kinds of claim are read. The two tables (section 1, five capability
+# columns; section 2, the xbart() and flat C columns) are parsed out of the
+# file cell by cell, qualifiers included ("S, gaussian/logistic", "S, no
+# variance forest / R, variance forest", "as probit"), and a cell or qualifier
+# this runner has no fixture for stops the run. The prose rules (construction
+# reach, the universal capabilities, zero weights, variance forest, DART, warm
+# start and grow-from-root) have no table, so each is a hand-written probe
+# anchored to a phrase that must still be in the matrix; a phrase that has
+# moved or been reworded stops the run, so the matrix cannot drift past the
+# runner unnoticed.
+#
+# Lives in benchmarks/R/ rather than tools/: it is a local correctness gate
+# against a design document, the same role equivalence.R and bench-sampler.R
+# play against a baseline, not a build-freshness check. It runs in no
+# workflow; run it by hand at the release candidate.
 #
 # Every fixture is tiny (n = 40, a handful of trees, 0 burn-in, 1 sample,
-# n.threads = 1L throughout - CRAN's core limit fires before any validation
-# this runner cares about) and reseeded per cell, so a run is deterministic
+# n.threads = 1L throughout) and reseeded per check, so a run is deterministic
 # and fast; nothing here is a statistical check.
 #
-# Usage: Rscript benchmarks/R/composition-matrix.R
-# Exit status is nonzero iff at least one disagreement was recorded.
+# Usage: Rscript benchmarks/R/composition-matrix.R [--verbose] [--flip=<text>]
+# Exit status is nonzero iff at least one disagreement or harness failure was
+# recorded. --verbose prints every check. --flip=<text> inverts the expectation of every check whose label
+# contains <text>, to show that a check can fail.
 
 suppressPackageStartupMessages(library(dbarts))
 
+cmdArgs <- commandArgs()
 scriptDir <- dirname(sub(
   "--file=",
   "",
-  grep("--file=", commandArgs(), value = TRUE)
+  grep("--file=", cmdArgs, value = TRUE)
 ))
+flipText <- sub("^--flip=", "", grep("^--flip=", cmdArgs, value = TRUE))
+flipText <- if (length(flipText) == 1L) flipText else ""
+verbose <- "--verbose" %in% cmdArgs
 matrixPath <- file.path(
   scriptDir,
   "..",
@@ -38,7 +59,7 @@ matrixPath <- file.path(
   "feature-matrix.md"
 )
 
-## ---- 1. Parse the matrix's S/? cells out of tables 1-4 --------------------
+## ---- 1. Parse the matrix's two tables --------------------------------------
 
 rowKeys <- c(
   "gaussian",
@@ -54,108 +75,113 @@ rowKeys <- c(
   "bcf",
   "hetero"
 )
-# transcribed once from the doc's table headers (docs/design/feature-matrix.md
-# section titles), used only as dispatch keys and a header sanity check - the
-# cell VALUES themselves are read out of the file, not transcribed
-tableCols <- list(
-  bart.R = c("bart", "bart2", "dbarts5", "xbart", "flatc"),
-  R.R = c(
-    "setResponse",
-    "setOffset",
-    "updateScale",
-    "setPredictor",
-    "setWeights",
-    "setSigma",
-    "testSurface"
+# transcribed once from the doc's table headers; the first element of each
+# entry is the header line's start, used to find the table, the rest are the
+# dispatch keys of its columns - the cell VALUES are read out of the file
+tables <- list(
+  structure(
+    c(
+      setWeights = "case weights",
+      setSigma = "sigma",
+      getLatents = "latents",
+      updateScale = "unit-scale transform",
+      testSurface = "test fits defined"
+    ),
+    start = "| model | case weights |"
   ),
-  R.R2 = c(
-    "zeroWeightSubset",
-    "activeRowsMask",
-    "getLatents",
-    "pointwiseLoglik",
-    "calibration"
-  ),
-  R.R3 = c(
-    "varianceForest",
-    "dart",
-    "warmStart",
-    "growFromRoot"
+  structure(
+    c(xbart = "`xbart()`", flatc = "flat C `dbarts.h`"),
+    start = "| model | `xbart()` |"
   )
 )
-tableMarkers <- c(
-  "`bart2()`",
-  "`setResponse`",
-  "zero-weight row subset",
-  "variance forest"
-)
-names(tableCols) <- tableMarkers
 
-parseCells <- function(path) {
-  lines <- readLines(path)
-  legend <- c("S", "R", "P", "M", "-", "?")
-  cells <- list()
-  for (marker in tableMarkers) {
-    hdr <- grep(marker, lines, fixed = TRUE)
-    hdr <- hdr[startsWith(trimws(lines[hdr]), "| model |")]
-    if (length(hdr) != 1L) {
-      stop("composition-matrix: no unique table header for '", marker, "'")
+# a cell is one or more alternatives split by " / "; each is a token (S, R, M,
+# -) with an optional qualifier after a comma, or "as <row>", which copies
+# that row's cell
+parseCell <- function(text) {
+  alts <- strsplit(text, " / ", fixed = TRUE)[[1L]]
+  lapply(alts, function(a) {
+    a <- gsub("\\[[^]]*\\]\\([^)]*\\)", "", a) # cites
+    a <- gsub("\\[f[0-9]+\\]", "", a) # footnote marks
+    a <- gsub("\\s+", " ", trimws(a))
+    a <- sub(" ,", ",", a, fixed = TRUE)
+    a <- sub("[ ,]+$", "", a)
+    if (grepl("^as [a-z]+$", a)) {
+      return(list(token = "as", qualifier = sub("^as ", "", a)))
     }
-    cols <- tableCols[[marker]]
+    m <- regmatches(a, regexec("^(S|R|M|-)(?:, (.+))?$", a))[[1L]]
+    if (length(m) == 0L) {
+      stop(
+        "composition-matrix: cell '",
+        text,
+        "' has no legend token - matrix vocabulary needs a human look"
+      )
+    }
+    list(token = m[2L], qualifier = if (nzchar(m[3L])) m[3L] else "")
+  })
+}
+
+parseTables <- function(lines) {
+  claims <- list()
+  for (cols in tables) {
+    start <- attr(cols, "start")
+    hdr <- which(startsWith(trimws(lines), start))
+    if (length(hdr) != 1L) {
+      stop("composition-matrix: no unique table header '", start, "'")
+    }
+    headerCells <- trimws(strsplit(lines[hdr], "|", fixed = TRUE)[[1L]][-1L])
+    if (!identical(headerCells[-1L], as.character(cols))) {
+      stop(
+        "composition-matrix: columns under '",
+        start,
+        "' read '",
+        paste(headerCells[-1L], collapse = "' '"),
+        "', expected '",
+        paste(cols, collapse = "' '"),
+        "' - column drift"
+      )
+    }
     body <- lines[seq(hdr + 2L, length.out = length(rowKeys))]
+    parsed <- list()
     for (i in seq_along(rowKeys)) {
-      raw <- strsplit(body[i], "|", fixed = TRUE)[[1]]
-      raw <- trimws(raw[-1L]) # a leading "| " splits off a leading "", never a trailing one
-      if (length(raw) != length(cols) + 1L) {
-        stop(
-          "composition-matrix: '",
-          rowKeys[i],
-          "' under '",
-          marker,
-          "' has ",
-          length(raw),
-          " cells, expected ",
-          length(cols) + 1L
-        )
-      }
-      key <- gsub("`", "", raw[1L])
-      if (!identical(key, rowKeys[i])) {
+      raw <- trimws(strsplit(body[i], "|", fixed = TRUE)[[1L]][-1L])
+      if (length(raw) != length(cols) + 1L || raw[1L] != rowKeys[i]) {
         stop(
           "composition-matrix: row ",
           i,
           " under '",
-          marker,
+          start,
           "' reads '",
-          key,
-          "', expected '",
+          raw[1L],
+          "' with ",
+          length(raw),
+          " cells, expected '",
           rowKeys[i],
-          "' - row order drifted"
+          "' with ",
+          length(cols) + 1L,
+          " - row drift"
         )
       }
+      parsed[[rowKeys[i]]] <- lapply(raw[-1L], parseCell)
+    }
+    for (family in rowKeys) {
       for (j in seq_along(cols)) {
-        token <- sub("^(\\S+).*$", "\\1", raw[j + 1L])
-        if (!token %in% legend) {
-          stop(
-            "composition-matrix: cell (",
-            rowKeys[i],
-            ", ",
-            cols[j],
-            ") = '",
-            raw[j + 1L],
-            "' has no legend token - ",
-            "matrix vocabulary needs a human look"
-          )
+        alts <- parsed[[family]][[j]]
+        if (alts[[1L]]$token == "as") {
+          alts <- parsed[[alts[[1L]]$qualifier]][[j]]
         }
-        if (token %in% c("S", "?")) {
-          cells[[length(cells) + 1L]] <- list(
-            family = rowKeys[i],
-            capability = cols[j],
-            claim = token
+        for (alt in alts) {
+          claims[[length(claims) + 1L]] <- list(
+            family = family,
+            capability = names(cols)[j],
+            token = alt$token,
+            qualifier = alt$qualifier
           )
         }
       }
     }
   }
-  cells
+  claims
 }
 
 ## ---- 2. Shared fixture data -----------------------------------------------
@@ -194,62 +220,83 @@ ctl <- function(seed, ...) {
   )
 }
 
-## ---- 3. Per-family base fixture (the R5 dbartsSampler tables 2-4 mutate) --
-## Everything but multinom/hurdle: those two host-shell families carry only
-## one or two S/? cells total (table1/table3 and table4 respectively) and are
-## special-cased directly in their probes instead of forcing a 13th shape into
-## this recipe.
+varForest <- function() dbartsForests$varianceForest(n.trees = 3L)
 
-buildBase <- function(family, seed, extra = list()) {
+## ---- 3. Per-variant base fixture (the R5 dbartsSampler the mutations act on)
+
+# variants: the twelve row keys, plus the qualified sub-cases the cells name -
+# aft.var (aft under a variance forest), bcf.probit and bcf.logistic (bcf over
+# a latent family; plain "bcf" is the gaussian one). hurdle has no sampler:
+# dbarts() refuses it, and that refusal is itself a checked claim.
+buildBase <- function(variant, seed, extra = list()) {
   d <- mkXY(seed)
+  test <- d$x[1:5, , drop = FALSE]
+  bcfForests <- function() {
+    list(
+      dbartsForests$forest(),
+      dbartsForests$forest(basis = ~ factor(d$z))
+    )
+  }
+  # no 'test =' for bcf: a treatment forest refuses test predictors outright
+  # (docs/design/bcf.md), and none of the cells this fixture backs need one
   args <- switch(
-    family,
-    gaussian = list(
-      d$x,
-      d$y,
-      test = d$x[1:5, , drop = FALSE],
-      control = ctl(seed)
-    ),
+    variant,
+    gaussian = list(d$x, d$y, test = test, control = ctl(seed)),
     student = list(
       d$x,
       d$y,
-      test = d$x[1:5, , drop = FALSE],
+      test = test,
       family = dbarts:::student(df = 5),
       control = ctl(seed)
     ),
     probit = list(
       d$x,
       d$yBin,
-      test = d$x[1:5, , drop = FALSE],
+      test = test,
       family = "probit",
       control = ctl(seed)
     ),
     logistic = list(
       d$x,
       d$yBin,
-      test = d$x[1:5, , drop = FALSE],
+      test = test,
       family = "logistic",
       control = ctl(seed)
     ),
     ordinal = list(
       d$x,
       d$yOrd,
-      test = d$x[1:5, , drop = FALSE],
+      test = test,
       family = "ordinal",
       control = ctl(seed)
     ),
     nbinom = list(
       d$x,
       d$yNb,
-      test = d$x[1:5, , drop = FALSE],
+      test = test,
       family = dbarts:::nbinom(shape = 5),
+      control = ctl(seed)
+    ),
+    multinom = list(
+      d$x,
+      factor(d$label),
+      test = test,
+      family = "multinomial",
       control = ctl(seed)
     ),
     aft = list(
       d$x,
       cbind(d$time, d$status),
-      test = d$x[1:5, , drop = FALSE],
+      test = test,
       family = "aft",
+      control = ctl(seed)
+    ),
+    aft.var = list(
+      d$x,
+      cbind(d$time, d$status),
+      test = test,
+      family = "aft",
+      variance = varForest(),
       control = ctl(seed)
     ),
     hazard = list(
@@ -258,25 +305,35 @@ buildBase <- function(family, seed, extra = list()) {
       family = "hazard",
       control = ctl(seed)
     ),
-    # no 'test =': a treatment forest refuses test predictors outright
-    # (docs/design/bcf.md), and none of the cells this fixture backs need one
-    bcf = list(
+    hurdle = list(
       d$x,
-      d$y,
-      forests = list(
-        dbartsForests$forest(),
-        dbartsForests$forest(basis = ~ factor(d$z))
-      ),
+      ifelse(d$yBin == 1L, exp(d$x[, 1L]) + 0.1, 0),
+      family = "hurdle.lognormal",
+      control = ctl(seed)
+    ),
+    bcf = list(d$x, d$y, forests = bcfForests(), control = ctl(seed)),
+    bcf.probit = list(
+      d$x,
+      d$yBin,
+      forests = bcfForests(),
+      family = "probit",
+      control = ctl(seed)
+    ),
+    bcf.logistic = list(
+      d$x,
+      d$yBin,
+      forests = bcfForests(),
+      family = "logistic",
       control = ctl(seed)
     ),
     hetero = list(
       d$x,
       d$y,
-      test = d$x[1:5, , drop = FALSE],
-      variance = dbartsForests$varianceForest(n.trees = 3L),
+      test = test,
+      variance = varForest(),
       control = ctl(seed)
     ),
-    stop("composition-matrix: no base fixture recipe for '", family, "'")
+    stop("composition-matrix: no base fixture recipe for '", variant, "'")
   )
   if (length(extra) > 0L) {
     args[names(extra)] <- extra
@@ -321,43 +378,24 @@ attempt <- function(expr) {
   list(verdict = if (isGeneric) "ERRORS" else "REFUSES", detail = ok)
 }
 
-## ---- 5. Table 1: construction surfaces ------------------------------------
+## ---- 5. Construction doors -------------------------------------------------
 
-probeBart1 <- function(family, seed) {
-  d <- mkXY(seed)
-  a <- function(...) {
-    list(
-      ntree = 3L,
-      ndpost = 1L,
-      nskip = 0L,
-      nchain = 1L,
-      nthread = 1L,
-      verbose = FALSE,
-      ...
-    )
-  }
-  switch(
-    family,
-    gaussian = do.call(bart, c(list(d$x, d$y), a())),
-    student = do.call(
-      bart,
-      c(list(d$x, d$y, family = dbarts:::student(df = 5)), a())
-    ),
-    probit = do.call(bart, c(list(d$x, d$yBin), a())),
-    logistic = do.call(bart, c(list(d$x, d$yBin, family = "logistic"), a())),
-    aft = do.call(
-      bart,
-      c(list(d$x, cbind(d$time, d$status), family = "aft"), a())
-    ),
-    stop("composition-matrix: no bart() recipe for '", family, "'")
+doorArgs <- function(...) {
+  list(
+    n.trees = 3L,
+    n.burn = 0L,
+    n.samples = 1L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE,
+    ...
   )
 }
 
-# the bart2() argument recipe shared by probeBart2 (table 1) and
-# pointwiseLoglik (table 3) for every family that reaches bart2() plainly;
-# NULL for the families each caller must still handle on its own (bcf's
-# forest() term, ordinal/nbinom/multinom/hurdle for probeBart2 only)
-bart2Args <- function(family, d) {
+# the bart() argument recipe shared by the bart door and extract(loglik) for
+# every family that reaches bart() plainly; NULL for bcf, whose forest() term
+# is a formula
+bartArgs <- function(family, d) {
   switch(
     family,
     gaussian = list(d$x, d$y),
@@ -374,340 +412,803 @@ bart2Args <- function(family, d) {
       ifelse(d$yBin == 1L, exp(d$x[, 1L]) + 0.1, 0),
       family = "hurdle.lognormal"
     ),
-    hetero = list(
-      d$x,
-      d$y,
-      variance = dbartsForests$varianceForest(n.trees = 3L)
-    ),
+    hetero = list(d$x, d$y, variance = varForest()),
     NULL
   )
 }
 
-probeBart2 <- function(family, seed) {
-  d <- mkXY(seed)
-  a <- function(...) {
-    list(
-      n.trees = 3L,
-      n.burn = 0L,
-      n.samples = 1L,
-      n.chains = 1L,
-      n.threads = 1L,
-      verbose = FALSE,
-      ...
-    )
-  }
-  if (family == "bcf") {
-    df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L], z = d$z, y = d$y)
-    return(do.call(
-      bart2,
-      c(list(y ~ x1 + x2 + forest(x1 + x2, basis = ~z), df), a())
-    ))
-  }
-  args <- bart2Args(family, d)
-  if (is.null(args)) {
-    stop("composition-matrix: no bart2() recipe for '", family, "'")
-  }
-  do.call(bart2, c(args, a()))
+bcfBartFit <- function(d, ...) {
+  df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L], z = d$z, y = d$y)
+  do.call(
+    bart,
+    c(list(y ~ x1 + x2 + forest(x1 + x2, basis = ~z), df), doorArgs(...))
+  )
 }
 
-probeXbart <- function(family, seed) {
+doBart <- function(family, seed, ...) {
   d <- mkXY(seed)
-  df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L])
-  a <- function(...) {
-    list(
-      n.samples = 2L,
-      n.reps = 1L,
-      n.burn = c(1L, 1L),
-      n.trees = 3L,
-      n.threads = 1L,
-      verbose = FALSE,
-      ...
-    )
+  if (family == "bcf") {
+    return(bcfBartFit(d, ...))
   }
+  do.call(bart, c(bartArgs(family, d), doorArgs(...)))
+}
+
+# bartBT() takes 0.9-x's argument names and has no family formal, so a
+# family is passed as one anyway - the matrix's reach sentence says some of
+# these reach it
+doBartBT <- function(family, seed) {
+  d <- mkXY(seed)
+  a <- list(
+    ntree = 3L,
+    ndpost = 1L,
+    nskip = 0L,
+    nchain = 1L,
+    nthread = 1L,
+    verbose = FALSE
+  )
+  y <- if (family %in% c("probit", "logistic")) d$yBin else d$y
+  famArg <- if (family %in% c("gaussian", "probit")) {
+    list()
+  } else {
+    list(family = family)
+  }
+  do.call(bartBT, c(list(d$x, y), famArg, a))
+}
+
+doXbart <- function(family, seed) {
+  d <- mkXY(seed)
+  df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L], y = d$y, yBin = d$yBin)
+  a <- list(
+    n.samples = 2L,
+    n.reps = 1L,
+    n.burn = c(1L, 1L),
+    n.trees = 3L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+  call <- function(f, ...) do.call(xbart, c(list(f, df), a, list(...)))
   switch(
     family,
-    gaussian = do.call(xbart, c(list(y ~ x1 + x2, cbind(df, y = d$y)), a())),
-    probit = do.call(
-      xbart,
-      c(list(y ~ x1 + x2, cbind(df, y = d$yBin), family = "probit"), a())
-    ),
-    logistic = do.call(
-      xbart,
-      c(list(y ~ x1 + x2, cbind(df, y = d$yBin), family = "logistic"), a())
-    ),
+    gaussian = call(y ~ x1 + x2),
+    probit = call(yBin ~ x1 + x2, family = "probit"),
+    logistic = call(yBin ~ x1 + x2, family = "logistic"),
+    student = call(y ~ x1 + x2, family = dbarts:::student(df = 5)),
+    ordinal = call(y ~ x1 + x2, family = "ordinal"),
+    nbinom = call(y ~ x1 + x2, family = "nbinom"),
+    multinom = call(y ~ x1 + x2, family = "multinomial"),
+    aft = call(y ~ x1 + x2, family = "aft"),
+    hazard = call(y ~ x1 + x2, family = "hazard"),
+    hurdle = call(y ~ x1 + x2, family = "hurdle.lognormal"),
+    bcf = call(y ~ x1 + x2 + forest(x1 + x2, basis = ~yBin)),
+    hetero = call(y ~ x1 + x2, variance = varForest()),
     stop("composition-matrix: no xbart() recipe for '", family, "'")
   )
 }
 
 # the flat C dbarts.h route: the same compiled consumer test-capi.R drives,
-# resolved through R_GetCCallable exactly as a LinkingTo package would. Reuses
-# whichever base fixture the family already needed for tables 2-4 - the R5
-# sampler's $control/$model/$data slots are the flat API's own creation
-# arguments, so this is not a second construction path, just a second entry
-# point onto the first one.
-capiDll <- local({
-  consumerSource <- system.file(
-    "tinytest",
-    "capi",
-    "consumer.c",
-    package = "dbarts"
-  )
-  if (!nzchar(consumerSource)) {
+# resolved through R_GetCCallable exactly as a LinkingTo package would. The
+# header creates no sampler, so the handle is the address in an R-built
+# sampler's external pointer; the probe reads the sampler's dimensions and
+# runs it through the flat entry.
+capiConsumer <- local({
+  helper <- system.file("common", "capiConsumer.R", package = "dbarts")
+  if (!nzchar(helper)) {
     return(NULL)
   }
-  buildDir <- tempfile("capi")
-  dir.create(buildDir)
-  file.copy(consumerSource, file.path(buildDir, "consumer.c"))
-  includeDir <- system.file("include", package = "dbarts")
-  writeLines(
-    sprintf('PKG_CPPFLAGS = -I"%s"', includeDir),
-    file.path(buildDir, "Makevars")
-  )
-  owd <- setwd(buildDir)
-  on.exit(setwd(owd))
-  system2(
-    file.path(R.home("bin"), "R"),
-    c("CMD", "SHLIB", "consumer.c"),
-    stdout = FALSE,
-    stderr = FALSE
-  )
-  lib <- file.path(buildDir, paste0("consumer", .Platform$dynlib.ext))
-  if (!file.exists(lib)) NULL else dyn.load(lib)
+  env <- new.env()
+  source(helper, local = env)
+  consumer <- env$compileCapiConsumer("capi", "the C API consumer")
+  if (!is.null(consumer$skip)) NULL else consumer
 })
 
-probeFlatC <- function(family, seed) {
-  if (is.null(capiDll)) {
+doFlatC <- function(sampler) {
+  if (is.null(capiConsumer)) {
     stop("could not compile the flat C API consumer")
   }
-  sampler <- buildBase(family, seed)
-  # every other family resolves off model@family / control attributes with an
-  # empty family string; aft's survival status attribute needs the explicit
-  # token or creation reads it against a defaulted, non-aft family
-  token <- if (family == "aft") "aft" else ""
-  .Call(
-    getNativeSymbolInfo("capi_create", capiDll),
-    sampler$control,
-    sampler$model,
-    sampler$data,
-    token
-  )
+  ptr <- sampler$getPointer()
+  capiConsumer$CALL("capi_dims", ptr)
+  capiConsumer$CALL("capi_run_plain", ptr, 0L, 1L)
 }
 
-table1Probes <- list(
-  bart = probeBart1,
-  bart2 = probeBart2,
-  dbarts5 = function(family, seed) buildBase(family, seed),
-  xbart = probeXbart,
-  flatc = probeFlatC
-)
+## ---- 6. Mutation channels (table 1) and universal capabilities ------------
 
-## ---- 6. Tables 2-4: mutation channels, subsetting, composition -----------
-
-# multinom and hurdle carry only one S/? cell apiece outside table 1
-# (multinom: table3 active-rows mask; hurdle: table4 DART); special-cased
-# rather than forced through the shared R5 recipe above.
-multinomActiveRows <- function(seed) {
-  d <- mkXY(seed)
-  sampler <- dbarts(
-    d$x,
-    factor(d$label),
-    family = "multinomial",
-    control = ctl(seed)
-  )
-  sampler$setActiveRows(c(rep(1, n - 1L), 0))
-}
-multinomBase <- function(seed) {
-  d <- mkXY(seed)
-  sampler <- dbarts(
-    d$x,
-    factor(d$label),
-    family = "multinomial",
-    control = ctl(seed)
-  )
-  invisible(sampler$run(0L, 1L))
-  sampler
-}
-hurdleDart <- function(seed) {
-  d <- mkXY(seed)
-  bart2(
-    d$x,
-    ifelse(d$yBin == 1L, exp(d$x[, 1L]) + 0.1, 0),
-    family = "hurdle.lognormal",
-    tree.prior = dbarts::dbartsPriors$dart(),
-    n.trees = 3L,
-    n.burn = 0L,
-    n.samples = 1L,
-    n.chains = 1L,
-    n.threads = 1L,
-    verbose = FALSE
-  )
-}
-
-# pointwise loglik (table 3) dispatches on a bart-classed FIT object
-# (extract.bart), not the raw R5 sampler every other probe
-# below mutates - its own small per-family fixture builder
-pointwiseLoglik <- function(family, seed) {
-  d <- mkXY(seed)
-  a <- function(...) {
-    list(
-      n.trees = 3L,
-      n.burn = 0L,
-      n.samples = 1L,
-      n.chains = 1L,
-      n.threads = 1L,
-      verbose = FALSE,
-      ...
-    )
-  }
-  args <- bart2Args(family, d)
-  if (is.null(args)) {
-    stop("composition-matrix: no pointwise-loglik fixture for '", family, "'")
-  }
-  extract(do.call(bart2, c(args, a())), type = "loglik")
-}
-
-# generic capability probes shared by every family the base R5 recipe covers.
-# Every probe derives its own row count from the sampler rather than closing
-# over the fixture's nominal n: the hazard family expands (x, time, status)
-# into a longer person-period design at creation (docs/design/survival.md),
-# so its sampler's actual shape disagrees with the un-expanded fixture.
+# each takes the sampler and the variant it was built as
 mutate <- list(
-  setResponse = function(s, d) s$setResponse(s$data@y),
-  setOffset = function(s, d) s$setOffset(rep(0, length(s$data@y))),
-  updateScale = function(s, d) {
-    s$setOffset(rep(0, length(s$data@y)), updateScale = TRUE)
-  },
-  setPredictor = function(s, d) s$setPredictor(s$data@x),
-  setWeights = function(s, d) {
-    w <- if (identical(d$family, "logistic")) {
-      sample(1:3, length(s$data@y), replace = TRUE)
+  setWeights = function(s, v) {
+    nr <- length(s$data@y)
+    w <- if (grepl("logistic", v, fixed = TRUE)) {
+      sample(1:3, nr, replace = TRUE)
     } else {
-      runif(length(s$data@y), 0.5, 1.5)
+      runif(nr, 0.5, 1.5)
     }
     s$setWeights(w)
   },
-  setSigma = function(s, d) s$setSigma(1.0),
-  testSurface = function(s, d) {
+  setSigma = function(s, v) s$setSigma(1.0),
+  getLatents = function(s, v) {
+    latents <- s$getLatents()
+    # the matrix's multinomial cell is R by a DECIDED decline that "reports
+    # nothing" (docs/design/multinomial.md): the refusal is a NULL, not a stop
+    if (v == "multinom" && is.null(latents)) {
+      stop("$getLatents reports NULL on a multinomial sampler")
+    }
+    latents
+  },
+  updateScale = function(s, v) {
+    s$setOffset(rep(0, length(s$data@y)), updateScale = TRUE)
+  },
+  testSurface = function(s, v) {
     x <- s$data@x
     s$setTestPredictor(x[seq_len(min(5L, nrow(x))), , drop = FALSE])
   },
-  zeroWeightSubset = "extra:weights",
-  activeRowsMask = function(s, d) {
+  setResponse = function(s, v) s$setResponse(s$data@y),
+  setOffset = function(s, v) s$setOffset(rep(0, length(s$data@y))),
+  setPredictor = function(s, v) s$setPredictor(s$data@x),
+  activeRows = function(s, v) {
     nr <- length(s$data@y)
     s$setActiveRows(c(rep(1, nr - 1L), 0))
   },
-  getLatents = function(s, d) s$getLatents(),
   # a named sd written over the sampler's own prior, fixed where its k is
   # fixed and under invchi() where its k is drawn; the engine states either
   # as k against the data's scale, so the probe is the named-sd writer
-  calibration = function(s, d) {
-    law <- s$getLeafPrior()$leaf.prior@k
-    if (is.numeric(law)) {
-      s$setLeafPrior(normal(sd = 1.2 / law))
+  leafSd = function(s, v) {
+    # the couplings carry no single leaf prior to read; the writer is the probe
+    if (v %in% c("bcf", "multinom")) {
+      return(s$setLeafPrior(dbarts:::normal(sd = 0.5)))
+    }
+    kPrior <- s$getLeafPrior()$leaf.prior@k
+    if (is.numeric(kPrior)) {
+      s$setLeafPrior(dbarts:::normal(sd = 1.2 / kPrior))
     } else {
-      s$setLeafPrior(normal(sd = invchi(law@degreesOfFreedom, 0.6)))
+      s$setLeafPrior(dbarts:::normal(
+        sd = dbarts:::invchi(kPrior@degreesOfFreedom, 0.6)
+      ))
     }
   },
-  varianceForest = "extra:variance",
-  dart = "extra:dart",
-  warmStart = function(s, d) {
-    donor <- buildBase(d$family, d$seed + 1000L)
-    s$installTrees(donor)
-  },
-  growFromRoot = function(s, d) s$growFromRoot(1L)
+  growFromRoot = function(s, v) s$growFromRoot(1L)
 )
 
-runProbe <- function(family, capability, seed) {
-  if (family == "multinom" && capability == "activeRowsMask") {
-    return(attempt(multinomActiveRows(seed)))
-  }
-  if (family == "hurdle" && capability == "dart") {
-    return(attempt(hurdleDart(seed)))
-  }
-  if (family == "multinom" && capability == "dbarts5") {
-    return(attempt(multinomBase(seed)))
-  }
-  if (capability %in% names(table1Probes)) {
-    return(attempt(table1Probes[[capability]](family, seed)))
-  }
-  if (capability == "pointwiseLoglik") {
-    return(attempt(pointwiseLoglik(family, seed)))
-  }
-  probe <- mutate[[capability]]
-  if (identical(probe, "extra:weights")) {
-    return(attempt(buildBase(
-      family,
-      seed,
-      list(weights = c(0, rep(1, n - 1L)))
-    )))
-  }
-  if (identical(probe, "extra:variance")) {
-    return(attempt(buildBase(
-      family,
-      seed,
-      list(variance = dbartsForests$varianceForest(n.trees = 3L))
-    )))
-  }
-  if (identical(probe, "extra:dart")) {
-    return(attempt(buildBase(family, seed, list(tree.prior = dbarts:::dart()))))
-  }
-  d <- mkXY(seed)
-  d$family <- family
-  d$seed <- seed
-  sampler <- buildBase(family, seed)
-  attempt(probe(sampler, d))
+# how a table 1 qualifier picks fixtures; "" is the row itself (the gaussian
+# bcf for plain "bcf"). A qualifier absent here stops the run.
+qualifierVariants <- list(
+  "bcf|setWeights|gaussian/logistic" = c("bcf", "bcf.logistic"),
+  "bcf|setSigma|gaussian only" = "bcf",
+  "bcf|getLatents|probit/logistic only" = c("bcf.probit", "bcf.logistic"),
+  "aft|setSigma|no variance forest" = "aft",
+  "aft|setSigma|variance forest" = "aft.var",
+  "aft|updateScale|a variance forest re-anchored with it" = c("aft", "aft.var"),
+  "hetero|setWeights|gaussian" = "hetero",
+  "hetero|setWeights|aft" = "aft.var",
+  "hetero|getLatents|aft" = "aft.var"
+)
+
+## ---- 7. The checks ---------------------------------------------------------
+
+checks <- list()
+# act(setupResult, seed) runs inside attempt(); setup(seed) does not, so a
+# fixture that fails to build is a harness failure rather than a refusal -
+# unless the claim is S (then the failure is the disagreement) or the check
+# says the fixture's construction is itself the claim (setupClaim)
+addCheck <- function(
+  source,
+  label,
+  expect,
+  act,
+  setup = NULL,
+  anchor = NULL,
+  setupClaim = FALSE
+) {
+  checks[[length(checks) + 1L]] <<- list(
+    source = source,
+    label = label,
+    expect = expect,
+    act = act,
+    setup = setup,
+    anchor = anchor,
+    setupClaim = setupClaim
+  )
+}
+addMutation <- function(source, label, expect, variant, probe, anchor = NULL) {
+  force(variant)
+  force(probe)
+  addCheck(
+    source,
+    label,
+    expect,
+    act = function(s, seed) mutate[[probe]](s, variant),
+    setup = function(seed) buildBase(variant, seed),
+    anchor = anchor
+  )
 }
 
-## ---- 7. Run every S/? cell, diff against the matrix's claim --------------
+lines <- readLines(matrixPath)
+matrixText <- gsub("\\s+", " ", paste(lines, collapse = " "))
 
-cells <- parseCells(matrixPath)
+# -- tables 1 and 2, read from the file
+invisible(lapply(parseTables(lines), function(cl) {
+  fam <- cl$family
+  cap <- cl$capability
+  label <- sprintf("%-8s %-11s %s", fam, cap, cl$token)
+  if (cl$qualifier != "") {
+    label <- paste0(label, ", ", cl$qualifier)
+  }
+  if (fam == "hurdle" && cl$token == "-") {
+    return(invisible()) # no sampler, no concept: the row's footnote [f10] says why
+  }
+  if (cap %in% c("xbart", "flatc")) {
+    if (cap == "xbart") {
+      addCheck(
+        "table2",
+        label,
+        cl$token,
+        act = function(s, seed) doXbart(fam, seed)
+      )
+    } else {
+      addCheck(
+        "table2",
+        label,
+        cl$token,
+        act = function(s, seed) doFlatC(s),
+        setup = function(seed) buildBase(fam, seed),
+        setupClaim = fam == "hurdle"
+      )
+    }
+    return(invisible())
+  }
+  if (cl$token == "-") {
+    if (cap == "updateScale") {
+      # [f7]: ignored rather than refused where the transform is fixed
+      addMutation("table1", label, "S", fam, cap)
+    }
+    return(invisible())
+  }
+  variants <- if (cl$qualifier == "") {
+    fam
+  } else {
+    key <- paste(fam, cap, cl$qualifier, sep = "|")
+    if (is.null(qualifierVariants[[key]])) {
+      stop(
+        "composition-matrix: no fixture for qualifier '",
+        key,
+        "' - matrix vocabulary needs a human look"
+      )
+    }
+    qualifierVariants[[key]]
+  }
+  for (v in variants) {
+    addMutation(
+      "table1",
+      if (length(variants) > 1L) paste0(label, " [", v, "]") else label,
+      cl$token,
+      v,
+      cap
+    )
+  }
+}))
+
+# -- prose: construction reach
+reachAnchor <- "gaussian, student, probit, logistic and aft reach all three"
+bartBTAnchor <- "are out of `bartBT()`'s reach entirely"
+invisible(lapply(
+  c("gaussian", "student", "probit", "logistic", "aft"),
+  function(fam) {
+    addCheck(
+      "prose",
+      sprintf("reach %-8s bartBT", fam),
+      "S",
+      function(s, seed) doBartBT(fam, seed),
+      anchor = reachAnchor
+    )
+    addCheck(
+      "prose",
+      sprintf("reach %-8s bart", fam),
+      "S",
+      function(s, seed) doBart(fam, seed),
+      anchor = reachAnchor
+    )
+    addMutation(
+      "prose",
+      sprintf("reach %-8s dbarts", fam),
+      "S",
+      fam,
+      "getLatents",
+      anchor = reachAnchor
+    )
+  }
+))
+invisible(lapply(
+  c("ordinal", "nbinom", "multinom", "hurdle", "hazard", "bcf"),
+  function(fam) {
+    addCheck(
+      "prose",
+      sprintf("reach %-8s bartBT", fam),
+      "M",
+      function(s, seed) doBartBT(fam, seed),
+      anchor = bartBTAnchor
+    )
+  }
+))
+addCheck(
+  "prose",
+  "reach hetero   bartBT",
+  "M",
+  function(s, seed) {
+    d <- mkXY(seed)
+    bartBT(d$x, d$y, variance = varForest())
+  },
+  anchor = bartBTAnchor
+)
+invisible(lapply(
+  c(
+    "ordinal",
+    "nbinom",
+    "multinom",
+    "hurdle",
+    "hazard",
+    "bcf",
+    "hetero"
+  ),
+  function(fam) {
+    addCheck(
+      "prose",
+      sprintf("reach %-8s bart", fam),
+      "S",
+      function(s, seed) doBart(fam, seed),
+      anchor = "`bart()` ships all six"
+    )
+  }
+))
+invisible(lapply(
+  c("ordinal", "nbinom", "multinom", "hazard", "bcf", "hetero"),
+  function(fam) {
+    addCheck(
+      "prose",
+      sprintf("reach %-8s dbarts", fam),
+      "S",
+      function(s, seed) NULL,
+      setup = function(seed) buildBase(fam, seed),
+      anchor = "`dbarts()` + R5 ships every one but hurdle"
+    )
+  }
+))
+addCheck(
+  "prose",
+  "reach hurdle   dbarts",
+  "R",
+  function(s, seed) buildBase("hurdle", seed),
+  anchor = "`dbarts()` + R5 ships every one but hurdle"
+)
+addCheck(
+  "prose",
+  "reach twopart  bart",
+  "R",
+  function(s, seed) {
+    d <- mkXY(seed)
+    do.call(bart, c(list(d$x, d$y, family = "twopart"), doorArgs()))
+  },
+  anchor = "is not a family token at either door"
+)
+addCheck(
+  "prose",
+  "bartBT factor of three levels",
+  "R",
+  function(s, seed) {
+    d <- mkXY(seed)
+    bartBT(d$x, factor(d$label), ntree = 3L, ndpost = 1L, nskip = 0L)
+  },
+  anchor = "a factor of three or more levels"
+)
+
+# -- prose: forests = admits gaussian/probit/logistic only; variance forest
+# requires gaussian or aft (the "extra:variance" threading that
+# docs/design/aft-variance-forest.md cites is the buildBase(extra = list(variance
+# = ...)) calls below)
+invisible(lapply(c("aft", "ordinal", "nbinom"), function(fam) {
+  addCheck(
+    "prose",
+    sprintf("forests= %-8s dbarts", fam),
+    "R",
+    function(s, seed) {
+      d <- mkXY(seed)
+      y <- switch(fam, aft = cbind(d$time, d$status), ordinal = d$yOrd, d$yNb)
+      dbarts(
+        d$x,
+        y,
+        forests = list(
+          dbartsForests$forest(),
+          dbartsForests$forest(basis = ~ factor(d$z))
+        ),
+        family = fam,
+        control = ctl(seed)
+      )
+    },
+    anchor = "A `forests =` fit resolves gaussian, probit or logistic only"
+  )
+}))
+addCheck(
+  "prose",
+  "forests= aft      bart forest() term",
+  "R",
+  function(s, seed) {
+    d <- mkXY(seed)
+    df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L], z = d$z, y = d$time)
+    do.call(
+      bart,
+      c(
+        list(
+          survival::Surv(y, rep(1, n)) ~ x1 + forest(x1, basis = ~z),
+          df,
+          family = "aft"
+        ),
+        doorArgs()
+      )
+    )
+  },
+  setup = NULL,
+  anchor = "under an identical gate"
+)
+invisible(lapply(c("gaussian", "aft"), function(fam) {
+  v <- if (fam == "aft") "aft.var" else "hetero"
+  addCheck(
+    "prose",
+    sprintf("variance= %-8s", fam),
+    "S",
+    function(s, seed) NULL,
+    setup = function(seed) buildBase(v, seed),
+    anchor = "requires `family = \"gaussian\"` or `\"aft\"`"
+  )
+}))
+invisible(lapply(
+  c("probit", "logistic", "ordinal", "nbinom", "student"),
+  function(fam) {
+    addCheck(
+      "prose",
+      sprintf("variance= %-8s", fam),
+      "R",
+      function(s, seed) buildBase(fam, seed, list(variance = varForest())),
+      anchor = if (fam == "student") {
+        "it refuses Student-t residuals"
+      } else {
+        "The other four single-forest families"
+      }
+    )
+  }
+))
+addCheck(
+  "prose",
+  "variance= gaussian monotone",
+  "R",
+  function(s, seed) {
+    d <- mkXY(seed)
+    do.call(
+      bart,
+      c(
+        list(d$x, d$y, variance = varForest(), monotone = c(1L, 0L)),
+        doorArgs()
+      )
+    )
+  },
+  anchor = "not supported with monotone constraints"
+)
+
+# -- prose: DART refused for both couplings
+dartAnchor <- "DART is refused for both multi-forest couplings by name"
+addCheck(
+  "prose",
+  "dart bcf",
+  "R",
+  function(s, seed) {
+    buildBase("bcf", seed, list(tree.prior = dbarts:::dart()))
+  },
+  anchor = dartAnchor
+)
+addCheck(
+  "prose",
+  "dart multinom",
+  "R",
+  function(s, seed) {
+    d <- mkXY(seed)
+    do.call(
+      bart,
+      c(bartArgs("multinom", d), doorArgs(tree.prior = dbarts:::dart()))
+    )
+  },
+  anchor = dartAnchor
+)
+
+# -- prose: warm start and grow-from-root
+warmAnchor <- "Warm start and grow-from-root are refused, as `M` rather than `R`, for the four alternate-family `bart` arcs"
+invisible(lapply(c("ordinal", "nbinom", "multinom", "hurdle"), function(fam) {
+  addCheck(
+    "prose",
+    sprintf("grow-from-root %-8s bart", fam),
+    "M",
+    function(s, seed) {
+      d <- mkXY(seed)
+      do.call(bart, c(bartArgs(fam, d), doorArgs(n.grow.sweeps = 1L)))
+    },
+    anchor = warmAnchor
+  )
+}))
+invisible(lapply(
+  c("gaussian", "student", "probit", "logistic", "aft", "hazard"),
+  function(fam) {
+    addMutation(
+      "prose",
+      sprintf("grow-from-root %-8s", fam),
+      "S",
+      fam,
+      "growFromRoot",
+      anchor = "grow-from-root itself ships"
+    )
+    addCheck(
+      "prose",
+      sprintf("warm start %-8s", fam),
+      "S",
+      function(s, seed) s$sampler$installTrees(s$donor),
+      setup = function(seed) {
+        list(
+          sampler = buildBase(fam, seed),
+          donor = buildBase(fam, seed + 1000L)
+        )
+      },
+      anchor = warmAnchor
+    )
+  }
+))
+addMutation(
+  "prose",
+  "grow-from-root bcf (two forests)",
+  "S",
+  "bcf",
+  "growFromRoot",
+  anchor = "covered at two forests"
+)
+addMutation(
+  "prose",
+  "grow-from-root hetero",
+  "S",
+  "hetero",
+  "growFromRoot",
+  anchor = "grow-from-root itself ships"
+)
+addCheck(
+  "prose",
+  "warm start bcf donor (multi-forest)",
+  "M",
+  function(s, seed) s$sampler$installTrees(s$donor),
+  setup = function(seed) {
+    list(
+      sampler = buildBase("bcf", seed),
+      donor = buildBase("bcf", seed + 1000L)
+    )
+  },
+  anchor = "and for the multi-forest donor warm start"
+)
+
+# -- prose: setResponse / setOffset / setPredictor open wherever a sampler
+# exists, multinomial blocking the first two
+openAnchor <- "are open wherever a sampler exists"
+samplerVariants <- c(
+  "gaussian",
+  "student",
+  "probit",
+  "logistic",
+  "ordinal",
+  "nbinom",
+  "multinom",
+  "aft",
+  "hazard",
+  "bcf",
+  "hetero"
+)
+invisible(lapply(samplerVariants, function(v) {
+  for (probe in c("setResponse", "setOffset", "setPredictor")) {
+    blocked <- v == "multinom" && probe != "setPredictor"
+    addMutation(
+      "prose",
+      sprintf("%-8s %s", v, probe),
+      if (blocked) "R" else "S",
+      v,
+      probe,
+      anchor = openAnchor
+    )
+  }
+}))
+
+# -- prose: zero weights follow the case-weights column except logistic;
+# probit and ordinal take a 0/1 weight vector at creation
+zeroAnchor <- "A zero weight, which takes a row out of the likelihood"
+invisible(lapply(
+  c(
+    "gaussian",
+    "student",
+    "probit",
+    "ordinal",
+    "hetero",
+    "bcf",
+    "logistic",
+    "bcf.logistic"
+  ),
+  function(v) {
+    addCheck(
+      "prose",
+      sprintf("zero weight at creation %-8s", v),
+      if (grepl("logistic", v, fixed = TRUE)) "R" else "S",
+      function(s, seed) {
+        buildBase(v, seed, list(weights = c(0, rep(1, n - 1L))))
+      },
+      anchor = zeroAnchor
+    )
+  }
+))
+
+# -- prose: the universal capabilities
+invisible(lapply(
+  c(samplerVariants, "aft.var", "bcf.probit", "bcf.logistic"),
+  function(v) {
+    addMutation(
+      "prose",
+      sprintf("active-rows mask %-12s", v),
+      "S",
+      v,
+      "activeRows",
+      anchor = "the mid-chain active-rows mask"
+    )
+  }
+))
+invisible(lapply(
+  c(
+    "gaussian",
+    "student",
+    "probit",
+    "logistic",
+    "ordinal",
+    "nbinom",
+    "multinom",
+    "aft",
+    "hazard",
+    "hurdle",
+    "bcf",
+    "hetero"
+  ),
+  function(fam) {
+    addCheck(
+      "prose",
+      sprintf("extract loglik %-8s", fam),
+      "S",
+      function(s, seed) extract(s, type = "loglik"),
+      setup = function(seed) doBart(fam, seed),
+      anchor = "`extract(type = \"loglik\")` (every row"
+    )
+  }
+))
+invisible(lapply(
+  c(
+    "gaussian",
+    "student",
+    "probit",
+    "logistic",
+    "ordinal",
+    "nbinom",
+    "aft",
+    "hazard",
+    "hetero",
+    "bcf",
+    "multinom"
+  ),
+  function(v) {
+    coupled <- v %in% c("bcf", "multinom")
+    addMutation(
+      "prose",
+      sprintf("named leaf sd %-8s", v),
+      if (coupled) "R" else "S",
+      v,
+      "leafSd",
+      anchor = "A named leaf-prior sd"
+    )
+  }
+))
+
+for (ck in checks) {
+  if (!is.null(ck$anchor) && !grepl(ck$anchor, matrixText, fixed = TRUE)) {
+    stop(
+      "composition-matrix: the matrix no longer says '",
+      ck$anchor,
+      "' (check '",
+      ck$label,
+      "') - the prose probe needs a human look"
+    )
+  }
+}
+
+## ---- 8. Run every check, diff against the matrix --------------------------
+
 cat(sprintf(
-  "composition-matrix: %d cells claimed S or ? across %d families\n",
-  length(cells),
-  length(rowKeys)
+  "composition-matrix: %d checks (%d table 1, %d table 2, %d prose)\n",
+  length(checks),
+  sum(vapply(checks, function(ck) ck$source == "table1", logical(1L))),
+  sum(vapply(checks, function(ck) ck$source == "table2", logical(1L))),
+  sum(vapply(checks, function(ck) ck$source == "prose", logical(1L)))
 ))
 
 confirmations <- 0L
-resolutions <- list()
-disagreements <- list()
+notes <- character()
+disagreements <- character()
+harnessFailures <- character()
 
-for (cell in cells) {
-  seed <- sum(utf8ToInt(paste(cell$family, cell$capability))) %% 100000L + 1L
-  result <- tryCatch(
-    runProbe(cell$family, cell$capability, seed),
-    error = function(e) {
-      list(verdict = "ERRORS", detail = paste("harness:", conditionMessage(e)))
+for (ck in checks) {
+  seed <- sum(utf8ToInt(ck$label)) %% 100000L + 1L
+  setupResult <- NULL
+  if (!is.null(ck$setup)) {
+    setupResult <- tryCatch(
+      ck$setup(seed),
+      error = function(e) e
+    )
+    if (inherits(setupResult, "error")) {
+      if (ck$expect != "S" && !ck$setupClaim) {
+        harnessFailures <- c(
+          harnessFailures,
+          sprintf(
+            "[%s] %s: fixture did not build (%s)",
+            ck$source,
+            ck$label,
+            conditionMessage(setupResult)
+          )
+        )
+        next
+      }
+      result <- attempt(stop(conditionMessage(setupResult)))
+    } else {
+      result <- attempt(ck$act(setupResult, seed))
     }
-  )
-  label <- sprintf("%-10s %-16s", cell$family, cell$capability)
-  if (cell$claim == "?") {
-    suffix <- if (nzchar(result$detail)) sprintf(" (%s)", result$detail) else ""
-    resolutions[[length(resolutions) + 1L]] <- sprintf(
-      "%s -> %s%s",
-      label,
-      result$verdict,
-      suffix
-    )
-  } else if (result$verdict != "CONSTRUCTS") {
-    disagreements[[length(disagreements) + 1L]] <- sprintf(
-      "%s claimed S, got %s (%s)",
-      label,
-      result$verdict,
-      result$detail
-    )
   } else {
+    result <- attempt(ck$act(NULL, seed))
+  }
+  expect <- ck$expect
+  if (nzchar(flipText) && grepl(flipText, ck$label, fixed = TRUE)) {
+    expect <- switch(expect, S = "R", R = "S", M = "S")
+  }
+  agree <- switch(
+    expect,
+    S = result$verdict == "CONSTRUCTS",
+    R = result$verdict == "REFUSES",
+    M = result$verdict != "CONSTRUCTS"
+  )
+  line <- sprintf(
+    "[%s] %s: matrix %s, got %s%s",
+    ck$source,
+    ck$label,
+    expect,
+    result$verdict,
+    if (nzchar(result$detail)) sprintf(" (%s)", result$detail) else ""
+  )
+  if (verbose) {
+    cat(if (agree) "ok   " else "FAIL ", line, "\n")
+  }
+  if (agree) {
     confirmations <- confirmations + 1L
+    if (expect == "M" && result$verdict == "ERRORS") {
+      notes <- c(notes, line)
+    }
+  } else {
+    disagreements <- c(disagreements, line)
   }
 }
 
-cat(sprintf("\nconfirmations: %d\n", confirmations))
-cat(sprintf("\n? resolutions (%d):\n", length(resolutions)))
-for (line in resolutions) {
+cat(sprintf("\nconfirmations: %d of %d\n", confirmations, length(checks)))
+cat(sprintf("\nnotes, generic error on an unbuilt cell (%d):\n", length(notes)))
+for (line in notes) {
   cat("  ", line, "\n")
 }
 cat(sprintf("\nDISAGREEMENTS (%d):\n", length(disagreements)))
 for (line in disagreements) {
   cat("  ", line, "\n")
 }
+cat(sprintf("\nHARNESS FAILURES (%d):\n", length(harnessFailures)))
+for (line in harnessFailures) {
+  cat("  ", line, "\n")
+}
 
-quit(status = if (length(disagreements) > 0L) 1L else 0L)
+quit(
+  status = if (length(disagreements) + length(harnessFailures) > 0L) 1L else 0L
+)
