@@ -7443,8 +7443,7 @@ static void testScaleRowsRange() {
   };
   // rows 0, 4, 8, ... are out and hold the extremes; the rows in carry
   // fractional weights on both sides of 1
-  std::vector<double> y(n), offset(n), weights(n), positive(n), mask(n),
-    ones(n, 1.0);
+  std::vector<double> y(n), offset(n), weights(n), positive(n), mask(n);
   std::vector<unsigned char> in(n);
   for (std::size_t i = 0; i < n; ++i) {
     in[i] = i % 4 == 0 ? 0 : 1;
@@ -8660,7 +8659,7 @@ static void testNBShiftRowsIn() {
   double total = 0.0, exposure = 0.0, kept = 0.0, totalIn = 0.0,
          exposureIn = 0.0;
   for (std::size_t i = 0; i < n; ++i) {
-    mask[i] = i % 2 == 0 && i != 4 ? 0.0 : 1.0;  // the zeros, and one more
+    mask[i] = y[i] == 0.0 && i != 5 ? 0.0 : 1.0;  // the zeros but one
     total += y[i];
     exposure += std::exp(offset[i]);
     if (mask[i] == 0.0) continue;
@@ -8698,8 +8697,10 @@ static void testNBShiftRowsIn() {
   exposed.setOffset(offset.data(), true, nullptr);
   checkNear(exposed.fitShift(), std::log(totalIn / exposureIn), 1e-14,
             "and per unit exposure of those rows under an offset");
-  check(std::fabs(exposed.fitShift() - std::log(total / exposure)) > 0.1,
-        "which the every-row center is not");
+  check(std::fabs(plain.fitShift() -
+                    std::log(total / static_cast<double>(n))) > 0.1 &&
+          std::fabs(exposed.fitShift() - std::log(total / exposure)) > 0.1,
+        "which the every-row center is not, with or without the offset");
   std::vector<double> y2(y);
   for (std::size_t i = 0; i < n; ++i) y2[i] = mask[i] == 0.0 ? 40.0 : y[i] + 1.0;
   exposed.setResponse(y2.data(), rng, fits.data(), true, nullptr);
