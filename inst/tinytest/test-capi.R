@@ -594,7 +594,8 @@ expect_identical(
   c(response.scale = 1, response.shift = 3)
 )
 # a count sampler under a mask keeping rows of one count keeps its center
-keepCounts <- replace(rpois(n, 3), keepRows, 2L)
+# counts written out, not drawn: nothing here moves the session's stream
+keepCounts <- replace(as.double(seq_len(n) %% 5L), keepRows, 2)
 countRows <- dbarts(x, keepCounts, family = "nbinom", control = namedControl)
 countBefore <- engineLeafPrior(countRows)
 countRows$setActiveRows(keepWeights)
