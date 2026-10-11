@@ -430,8 +430,10 @@ void refuseMultiForestWarmStart(const bartcore::SamplerBase& sampler,
 
 /// The response-side conduits refuseMultiForestResponseMutation covers. They
 /// carry one rule and differ only in what a refusal names and in whether the
-/// conduit has a scale to pin (weights do not).
-enum class ResponseConduit { response, offset, weights };
+/// conduit has a scale to pin: weights have none unless the call asks for the
+/// transform to be re-derived over the rows they leave in. activeRows is the
+/// mask, which no coupling fixes: it is named here for that request alone.
+enum class ResponseConduit { response, offset, weights, activeRows };
 
 /// True where a coupling fixes every response-side conduit at creation, which
 /// is refuseMultiForestResponseMutation's first arm alone: the sampler caches
@@ -446,8 +448,10 @@ bool responseConduitIsFixed(const bartcore::SamplerShape& shape);
 /// conduit at creation - its coupling caches something per forest across
 /// sweeps rather than re-deriving it (!supportsResponseMutation) - or was asked
 /// to move the response transform its per-forest leaf calibrations are stated
-/// against (any updateScale but FALSE, which the scaleless weight conduit
-/// ignores). The one multi-forest mutation family that is opt-in rather than
+/// against (any updateScale but FALSE, which a weight or mask call that asks
+/// for no re-derivation passes). The mask conduit is held to that second
+/// condition alone. The one multi-forest mutation family that is opt-in
+/// rather than
 /// refused; both the R bridge and the flat C API guard with this, so the two
 /// surfaces cannot state different rules. A coupling whose response is its own
 /// count matrix (SamplerShape::supportsCountsMutation) is still refused here -

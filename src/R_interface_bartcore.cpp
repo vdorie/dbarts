@@ -3135,7 +3135,10 @@ void refuseMultiForestWarmStart(const bartcore::SamplerBase& sampler,
 // that does not opt in has no offset semantics at all, since the K-forest
 // softmax is invariant to a common per-observation shift. Weights carry no
 // scale - setWeights never moves the transform, and BCF's scaledResponseSd is
-// unweighted - so only the opt-in half applies to them.
+// unweighted - so only the opt-in half applies to them, unless the call also
+// asks for the transform to be re-derived over the rows the weights leave in.
+// A mask is no response conduit - every coupling takes one - so it is held to
+// the scale half alone, on the same request.
 // External linkage: the flat C API reuses this guard's SCALE arm on its own
 // setResponse and setOffset entries, and answers the conduit arm - a fixed
 // property of the sampler, so no argument would have worked - through the
@@ -3149,7 +3152,7 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
                                        ResponseConduit conduit,
                                        int updateScale) {
   bartcore::SamplerShape shape = sampler.shape();
-  if (responseConduitIsFixed(shape)) {
+  if (conduit != ResponseConduit::activeRows && responseConduitIsFixed(shape)) {
     // A coupling that owns its response as a count matrix does not fix it at
     // creation - it swaps through its own entry, and an integer case weight is
     // exactly the row-wise count replication that matrix already expresses - so
@@ -3183,12 +3186,16 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
     Rf_error("%s: this multi-forest sampler %s; make a new sampler instead",
              caller, fixed);
   }
-  if (shape.numForests >= 2 && conduit != ResponseConduit::weights &&
-      updateScale != FALSE)
-    Rf_error("%s: a multi-forest sampler supports %s swap only with "
+  if (shape.numForests >= 2 && updateScale != FALSE) {
+    const char* what = "a response swap";
+    if (conduit == ResponseConduit::offset) what = "an offset swap";
+    else if (conduit == ResponseConduit::weights) what = "a case-weight swap";
+    else if (conduit == ResponseConduit::activeRows)
+      what = "an active-row mask";
+    Rf_error("%s: a multi-forest sampler supports %s only with "
              "updateScale = FALSE, which pins the response transform its "
-             "per-forest leaf calibrations are stated against", caller,
-             conduit == ResponseConduit::response ? "a response" : "an offset");
+             "per-forest leaf calibrations are stated against", caller, what);
+  }
 }
 
 // A saved gp draw is a set of kernel weights: it has no
@@ -4520,6 +4527,36 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   return R_NilValue;
 }
 
+// What the setters that can re-derive the response transform return to R:
+// whether to warn NOW that the scale was kept, which is on this holder's
+// first keep, through whichever of them, and never again.
+static SEXP firstScaleKept(BartcoreHolder& holder,
+                           bartcore::ResponseUpdateResult result) {
+  bool first = result == bartcore::ResponseUpdateResult::scaleKept &&
+               !holder.scaleKeptWarned;
+  if (first) holder.scaleKeptWarned = true;
+  return Rf_ScalarLogical(first ? TRUE : FALSE);
+}
+
+// The two setters of rows refuse a re-derivation before they install
+// anything, so a refused call leaves the weights and the mask as they were:
+// on a sampler of several forests, whose conduit the caller names, and on gp
+// leaves holding saved draws.
+static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
+                                   const char* caller, ResponseConduit conduit,
+                                   int updateScale) {
+  refuseMultiForestResponseMutation(sampler, caller, conduit, updateScale);
+  refuseSavedGPDrawReanchor(sampler, caller, updateScale);
+}
+
+// And once the rows are installed: at updateScale true the transform
+// re-derived over the rows now in and firstScaleKept's answer, FALSE and no
+// engine call otherwise.
+static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale) {
+  if (updateScale != TRUE) return Rf_ScalarLogical(FALSE);
+  return firstScaleKept(holder, holder.sampler->rederiveScale());
+}
+
 // A per-observation 0/1 mask saying which rows are in the data set this sweep:
 // an inactive row leaves every sufficient statistic, every family-level
 // parameter update and its own latent draw, while keeping its leaf occupancy
@@ -4528,9 +4565,14 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
 // reports as gaussian - then the length; the exact-{0,1} scan and the all-ones
 // normalization are the engine's, so every surface inherits them. NULL clears.
 // The values are copied into the sampler, so nothing is retained here.
-SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
+// updateScale re-derives the response transform over the rows the mask leaves
+// in, after the install; every refusal comes before it. The answer is
+// firstScaleKept's.
+SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
+                            SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
+  int updateScale = Rf_asLogical(updateScaleExpr);
   // Every shipped family implements the channel, multinomial included (there
   // the mask is GLOBAL: it lands on the softmax coupling's K interleaved
   // precisions, since the response holds none of its own). The probe stays as
@@ -4539,19 +4581,21 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr) {
   // r-c-division defect this channel's shape exists to avoid.
   if (!shape.supportsActiveRows)
     Rf_error("active-row masking is not implemented for this response family");
+  refuseRowsRederivation(*holder.sampler, "$setActiveRows",
+                         ResponseConduit::activeRows, updateScale);
   if (activeExpr == R_NilValue) {
     holder.sampler->setActiveRows(NULL);
-    return R_NilValue;
+    return rederiveAfterInstall(holder, updateScale);
   }
   size_t n = shape.numObservations;
   if (!Rf_isReal(activeExpr) ||
       static_cast<size_t>(Rf_xlength(activeExpr)) != n)
     Rf_error("active row length must match the number of observations");
   // the value refusal, stated once for both surfaces; with the capability
-  // probed above, no other reason to refuse remains
+  // and the re-derivation probed above, no other reason to refuse remains
   refuseNonBinaryMask(REAL(activeExpr), n);
   holder.sampler->setActiveRows(REAL(activeExpr));
-  return R_NilValue;
+  return rederiveAfterInstall(holder, updateScale);
 }
 
 // The sampler's forest count, the R twin of dbarts_sampler_numForests. The R5
@@ -5516,16 +5560,6 @@ SEXP bartcore_growFromRoot(SEXP ptrExpr, SEXP numSweepsExpr) {
   return R_NilValue;
 }
 
-// What the two response setters return to R: whether to warn NOW that the
-// scale was kept, which is on this holder's first keep and never again.
-static SEXP firstScaleKept(BartcoreHolder& holder,
-                           bartcore::ResponseUpdateResult result) {
-  bool first = result == bartcore::ResponseUpdateResult::scaleKept &&
-               !holder.scaleKeptWarned;
-  if (first) holder.scaleKeptWarned = true;
-  return Rf_ScalarLogical(first ? TRUE : FALSE);
-}
-
 SEXP bartcore_setOffset(SEXP ptrExpr, SEXP offsetExpr, SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -5890,13 +5924,17 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // stream, which is why no GetRNGstate bracket appears here. Student-t draws
 // from the same generator, the scale of each row whose weight leaves zero.
 // refuseBinaryWeightChange refuses the families whose likelihood has no weight
-// slot at all.
-SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
+// slot at all. updateScale re-derives the response transform over the rows
+// the weights leave in, after the install; every refusal comes before it. The
+// answer is firstScaleKept's.
+SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr,
+                         SEXP updateScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t numObservations = shape.numObservations;
-  refuseMultiForestResponseMutation(*holder.sampler, "$setWeights",
-                                    ResponseConduit::weights, FALSE);
+  int updateScale = Rf_asLogical(updateScaleExpr);
+  refuseRowsRederivation(*holder.sampler, "$setWeights",
+                         ResponseConduit::weights, updateScale);
   refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) != numObservations)
@@ -5910,7 +5948,7 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr) {
                             "$setWeights");
   holder.sampler->setWeights(
     adoptVector(holder.ownedWeights, weights, numObservations));
-  return R_NilValue;
+  return rederiveAfterInstall(holder, updateScale);
 }
 
 // Between-run reconfiguration. The R side refuses changes to the engine, rng,

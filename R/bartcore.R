@@ -1167,9 +1167,8 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   sampler$activeRows <- NULL
   # the caller's own updateState decides the store, once, after the swap
   if (!is.null(active)) {
-    sampler$setActiveRows(active, updateState = FALSE)
+    installWeightsMask(sampler, active)
   }
-  deriveCenterUnderMask(sampler)
   # the replacement derives as creation does. Whether it had too little to
   # read is the caller's to say, last: the record and the stored state are
   # still the replaced data's here
@@ -1181,36 +1180,46 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   ))
 }
 
-## A count sampler's 0/1 weights, installed as the mask after creation, leave
-## the center creation derived over every row; this takes it over the rows the
-## mask keeps. Where those hold fewer than two distinct counts the every-row
-## center stands. The engine re-derives from the offset it already holds and
-## the record follows; nothing else is touched: no draw, no slot of the data
-## object, no test offset here or in the engine, and no store, the stored
-## state being the caller's to take. The rows have just been found to hold
-## two counts, so the engine keeps nothing and its once-per-sampler warning
-## is not spent; the bridge answers TRUE on a first keep, and that is an
-## internal error here.
-deriveCenterUnderMask <- function(sampler) {
-  if (
-    identical(sampler$model@family, "nbinom") &&
-      !is.null(sampler$activeRows) &&
-      !samplerCarriesAmplitudes(sampler) &&
-      !scaleRowsFallBack(
-        sampler$data,
-        "nbinom",
-        sampler$activeRows,
-        warn = FALSE
-      )
-  ) {
-    ptr <- sampler$getPointer()
-    kept <- .Call(C_dbarts_bartcore_setOffset, ptr, sampler$data@offset, TRUE)
-    if (isTRUE(kept)) {
-      stop(
-        "internal error: the engine kept the scale on rows R found to hold two counts"
-      )
-    }
+## The mask's install for $setActiveRows, creation and setData, on a mask the
+## caller has checked: the engine takes it, then the mirror, normalized as the
+## engine normalizes (an all-ones vector installs nothing, so it records as no
+## mask and not as a vector to re-apply), then the record where the call
+## re-derived. With updateScale the engine takes the response's scale or the
+## count center over the rows the mask leaves in, in the same call and after
+## the install; nothing else is touched: no draw beyond the install's own, no
+## slot of the data object, no test offset here or in the engine. No store
+## and no warning, both being the caller's; the answer is the bridge's, TRUE
+## on the sampler's first re-derivation that kept the scale.
+bartcoreSamplerSetActiveRows <- function(sampler, active, updateScale) {
+  ptr <- sampler$getPointer()
+  scaleKept <- .Call(C_dbarts_bartcore_setActiveRows, ptr, active, updateScale)
+  sampler$activeRows <- if (is.null(active) || all(active == 1)) {
+    NULL
+  } else {
+    active
+  }
+  if (updateScale) {
     sampler$model <- recordAnchor(sampler$model, ptr)
+  }
+  invisible(scaleKept)
+}
+
+## Creation's and setData's install of the mask a latent family's 0/1 weights
+## resolved to. A count sampler takes its center over the rows the mask keeps
+## in the same call; where those hold fewer than two distinct counts, or the
+## sampler carries amplitudes, the center derived over every row stands. The
+## rows have just been found to hold two counts, so the engine keeps nothing
+## and its once-per-sampler warning is not spent; the bridge answers TRUE on a
+## first keep, and that is an internal error here.
+installWeightsMask <- function(sampler, active) {
+  active <- as.double(active)
+  updateScale <- identical(sampler$model@family, "nbinom") &&
+    !samplerCarriesAmplitudes(sampler) &&
+    !scaleRowsFallBack(sampler$data, "nbinom", active, warn = FALSE)
+  if (isTRUE(bartcoreSamplerSetActiveRows(sampler, active, updateScale))) {
+    stop(
+      "internal error: the engine kept the scale on rows R found to hold two counts"
+    )
   }
   invisible(NULL)
 }

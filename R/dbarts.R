@@ -1603,8 +1603,7 @@ dbarts <- function(
   # No store: a fresh sampler's state stays the promise that captures the
   # state current at first read.
   if (!is.null(spec$active)) {
-    sampler$setActiveRows(spec$active, updateState = FALSE)
-    deriveCenterUnderMask(sampler)
+    installWeightsMask(sampler, spec$active)
   }
   sampler
 }
@@ -2971,7 +2970,7 @@ dbartsSampler <- setRefClass(
       oldWeights <- data@weights
       selfEnv$data@weights <- weights
       tryResult <- tryCatch(
-        .Call(C_dbarts_bartcore_setWeights, ptr, data@weights),
+        .Call(C_dbarts_bartcore_setWeights, ptr, data@weights, FALSE),
         error = function(e) {
           selfEnv$data@weights <- oldWeights
           e
@@ -3028,19 +3027,9 @@ dbartsSampler <- setRefClass(
         }
       }
 
-      ptr <- getPointer()
-      .Call(C_dbarts_bartcore_setActiveRows, ptr, active)
-      # mirrored only once the engine has taken it, and normalized the way the
-      # engine normalizes: an all-ones vector installs nothing, so it records
-      # as no mask rather than as a vector to re-apply
-      selfEnv <- parent.env(environment())
-      selfEnv$activeRows <- if (is.null(active) || all(active == 1)) {
-        NULL
-      } else {
-        active
-      }
+      bartcoreSamplerSetActiveRows(.self, active, FALSE)
       if (resolveUpdateState(updateState, control)) {
-        storeState(ptr)
+        storeState()
       }
       invisible(NULL)
     },
@@ -3640,7 +3629,7 @@ dbartsSampler <- setRefClass(
     reapplyActiveRows = function(ptr) {
       "Re-installs the active-row mask mirrored on this sampler onto ptr, a freshly (re-)created or restated engine pointer that carries none. Called from getPointer, setState and copy, never recursing through getPointer."
       if (!is.null(activeRows)) {
-        .Call(C_dbarts_bartcore_setActiveRows, ptr, activeRows)
+        .Call(C_dbarts_bartcore_setActiveRows, ptr, activeRows, FALSE)
       }
       invisible(NULL)
     },

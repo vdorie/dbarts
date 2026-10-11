@@ -350,7 +350,7 @@ runChain <- function(d, seed, numBatches) {
     for (i in seq_len(batchSize)) {
       f <- .Call(runEntry, pointer, 0L, 1L, NULL, NULL, keepFits)$train
       p <- 1 / (1 + exp(-logOdds(f)))
-      .Call(maskEntry, pointer, as.double(runif(n) < p))
+      .Call(maskEntry, pointer, as.double(runif(n) < p), FALSE)
       membershipSum <- membershipSum + p
       fitSum <- fitSum + f[firstRow]
     }
