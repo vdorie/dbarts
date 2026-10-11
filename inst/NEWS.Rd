@@ -742,9 +742,12 @@
             reproduces a multithreaded run at the same \code{n.threads}.
       \item \code{makeModelMatrixFromDataFrame} keeps the missing value of
             an integer or logical column, or of an integer or logical
-            matrix column, as \code{NA}; 0.9-34 turned it into
-            -2147483648, which a factor expanded to indicators under
-            \code{na.keepPredictors} then carried into the design.
+            matrix column, as \code{NA}. 0.9-34 turned it into
+            -2147483648 in the model matrix, where a double column's
+            stayed \code{NA}. A call to the function met it directly, and
+            \code{factors = "indicators"} with missing predictors kept
+            (\code{na.keepPredictors}) reaches it through a data frame
+            that has an integer column holding \code{NA}.
     }
   }
 }
