@@ -1,8 +1,11 @@
 # Warm starts that take part of a donor
 
-Status: PROPOSED 2026-10-11. Not built. TODO: warm-start-salvage, warm-start-tree-count,
-forced-update-returns-null. Rulings: dec-B247, dec-B295, dec-B310, dec-B323 to dec-B326, dec-B343, dec-B398,
-dec-B418 and dec-B440 in docs/decisions.md.
+Status: DECIDED 2026-10-11, not built. The six choices of section 3 are settled as recommended there: (a) A,
+(b) A, (c) A, (d) the errors stay, (e) A (dec-B448), (f) one line at every warm start. Plan:
+[warm-start-salvage.md](../plans/warm-start-salvage.md), which records what the state grid slice changed
+under sections 1 and 4. TODO: warm-start-salvage, warm-start-tree-count, forced-update-returns-null.
+Rulings: dec-B247, dec-B295, dec-B310, dec-B323 to dec-B326, dec-B343, dec-B398, dec-B418, dec-B440 and
+dec-B448 in docs/decisions.md.
 
 A warm start copies an earlier fit's trees into a new sampler as its starting point: `bart(warm.start = )`, or
 the sampler's `installTrees(donor, samples = NULL)`. The earlier fit is the donor and the new sampler the
