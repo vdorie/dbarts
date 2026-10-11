@@ -46,14 +46,16 @@ print(x, ...)
   Character vector of fields to summarize. By default the leaf-scale
   field follows how the leaf prior was named: `k` for a fit that named
   it by `k`, `leaf.prior.sd` (the `k.scale` over `k`; see
-  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)) for
-  one that named it by `sd`, and either can be requested by name, as can
-  `first.k`, the burn-in draws. A requested parameter the fit held fixed
-  (`sigma` under `fixed()`, a fixed `k` or `leaf.prior.sd`, a fixed
-  `shape` or `resid.df`) is not tabulated but named on the line under
-  the table; with the default `vars` that includes a fixed Student-t
-  `resid.df`, and a sampled one is tabulated; other requested fields
-  absent from `object` are silently dropped. `sigma`, `k` and
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md), where
+  on a fit with several forests it is each forest's `sd` in the
+  response's units, printed under the table as `leaf.prior.sd[<label>]`)
+  for one that named it by `sd`, and either can be requested by name, as
+  can `first.k`, the burn-in draws. A requested parameter the fit held
+  fixed (`sigma` under `fixed()`, a fixed `k` or `leaf.prior.sd`, a
+  fixed `shape` or `resid.df`) is not tabulated but named on the line
+  under the table; with the default `vars` that includes a fixed
+  Student-t `resid.df`, and a sampled one is tabulated; other requested
+  fields absent from `object` are silently dropped. `sigma`, `k` and
   `leaf.prior.sd` contribute one summarized variable each; any other
   field (`varcount`, `varprobs`, `yhat.train`, `yhat.test`) contributes
   one variable per column, named `"field[column]"`.
@@ -84,10 +86,11 @@ print(x, ...)
 An object of class `summary.bart` with elements `call`, `stats` (a data
 frame with one row per requested sampled scalar, or `NULL` if none of
 `vars` are present on the fit), `vars`, and `fixed`, a named list of the
-requested parameters the fit held fixed and their values (a named
-vector, by forest, on a fit with several forests). `stats` has columns
-`variable`, `mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`,
-`ess_bulk`, and `ess_tail` - the same columns
+requested parameters the fit held fixed and their values (on a fit with
+several forests a vector with one entry for each forest, `k` named
+`forest1`, `forest2`, ... and `leaf.prior.sd` by the forests' labels).
+`stats` has columns `variable`, `mean`, `median`, `sd`, `mad`, `q5`,
+`q95`, `rhat`, `ess_bulk`, and `ess_tail` - the same columns
 `posterior::summarise_draws` reports for a plain array, computed without
 that package. Its print method notes when any R-hat exceeds 1.01; this
 does not withhold the rest of the summary or error, as dbarts does not

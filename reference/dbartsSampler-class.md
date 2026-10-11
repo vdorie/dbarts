@@ -889,15 +889,20 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   Names, where given, must be the creation's: the forest's label, or
   `forest<i>` for position *i*. A short list reaches only the first
   forests, and a forest whose `sd` is not stated is left as it is; an
-  `sd` that is not one unnamed positive finite number is refused, as at
-  creation; every other
+  `sd` is a number of the response's units (see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)),
+  positive and finite, a name on it dropped, and one that is not is
+  refused, as at creation; every other
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   argument, `amplitude` included, is fixed at creation (a basis changes
   through `setForestBasis`). Each `sd` lands in the channel creation
   gave it - the half-Cauchy median of a forest created without a basis,
-  the leaf-scale factor of one created with one - and is recorded on the
-  `control` attribute creation reads, so every re-creation builds with
-  it. Give exactly one of `leaf.prior` and `forests`.
+  the leaf-scale factor of one created with one - divided by the
+  sampler's unit as creation divides it, states the forest from then on,
+  also where it is the number `getLeafPrior` reports in force, which
+  moves nothing, and is recorded on the `control` attribute creation
+  reads, so every re-creation builds with it. Give exactly one of
+  `leaf.prior` and `forests`.
 
 - cuts:
 
@@ -2049,19 +2054,31 @@ force, read off the engine; an `sd`, a number or under `invchi()`, is
 reported as it was named. Every chain runs under the sampler's one prior
 and one response transform, which no state install moves, so every value
 is shared by the chains. A drawn `k` is chain state, read by `getK`. At
-the default `forest = NULL` a multi-forest sampler returns an unnamed
-list of one prior per forest; a single-forest sampler's `NULL` read is
-bitwise its `forest = 1` read. An `NA` spread is refused by
-`setLeafPrior`, `setModel` and the fitting functions. On a forest whose
-scale a multi-forest calibration map sets, `k` is pinned at 1 and
-`leaf.prior` is the
-[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = )`
-creation takes, which goes back into `setLeafPrior(forests = )`: the
-half-Cauchy median, with `prior.sd.of` `"amplitude scale"`, on a forest
-created without a basis, and the leaf-scale factor, with `prior.sd.of`
-`"forest total"`, on one created with one. The list then adds
-`basis.row.norm`, `leaf.scale.factor`, `leaf.scale.divisor` and one of
-`amplitude.prior.variance` or `amplitude.prior.scale`.
+the default `forest = NULL` a multi-forest sampler returns a list of one
+prior per forest, named by the forests' labels where the forests have
+them, which a multinomial sampler's category forests do not; a
+single-forest sampler's `NULL` read is bitwise its `forest = 1` read. An
+`NA` spread is refused by `setLeafPrior`, `setModel` and the fitting
+functions. On a forest whose scale a multi-forest calibration map sets,
+`k` is pinned at 1 and `leaf.prior` is the statement of the forest's
+size:
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)`(sd = v)`,
+`v` the number as it was written, where an `sd` was stated, and
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) where
+none was. It goes back into `setLeafPrior(forests = )` as it is, and
+[`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
+written back leaves its forest as it is. The list then begins with
+`leaf.prior`, `sd`, the forest's `sd` in force in the response's units -
+`v` itself, bit for bit, or the default's multiple of the response's
+scale times the unit the sampler derived at creation - and `sd.stated`,
+`TRUE` or `FALSE`. It adds `basis.row.norm`, `leaf.scale.factor`,
+`leaf.scale.divisor` and one of `amplitude.prior.variance` or
+`amplitude.prior.scale`: the half-Cauchy median, with `prior.sd.of`
+`"amplitude scale"`, on a forest created without a basis, and the
+leaf-scale factor, with `prior.sd.of` `"forest total"`, on one created
+with one. `leaf.scale.factor` and `amplitude.prior.scale` are multiples
+of the unit, the engine's channels for the `sd`, and not numbers of the
+response's units; `k.scale` is in the response's units.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
@@ -2140,15 +2157,15 @@ applies the `k` to every category forest, leaving the softmax map's leaf
 scale; a named sd or a `k` hyperprior is refused there, as at creation.
 A sampler whose forests carry amplitudes takes
 `forests = list(forest(sd = ), ...)`, restating each named forest's
-spread in the channel its creation gave it, and any `leaf.prior` other
-than the no-ops `normal()` and `normal(k = 2)` is refused there. Both
-writes are recorded where re-creation reads them. The map's k.scale is
-recorded at creation too, so a re-creation after `setResponse` or
-`setOffset` at `updateScale = FALSE` states every forest against the
-same k.scale as the live sampler. A value that is not a single positive
-finite number is an error. A heteroscedastic sampler's variance forest
-is a separate leaf model and is not addressable. `setModel` changes
-everything else.
+spread, in the response's units, in the channel its creation gave it,
+and any `leaf.prior` other than the no-ops `normal()` and
+`normal(k = 2)` is refused there. Both writes are recorded where
+re-creation reads them. The map's k.scale is recorded at creation too,
+so a re-creation after `setResponse` or `setOffset` at
+`updateScale = FALSE` states every forest against the same k.scale as
+the live sampler. A value that is not a single positive finite number is
+an error. A heteroscedastic sampler's variance forest is a separate leaf
+model and is not addressable. `setModel` changes everything else.
 
 For `storeState`, `NULL` invisibly; it is called for its side effect of
 capturing the sampler's current engine state into the serializable

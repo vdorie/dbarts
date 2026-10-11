@@ -384,50 +384,83 @@ forest(
 
 - sd:
 
-  This forest's prior scale, in units of the response family's own
-  latent scale and per unit of basis row norm: the total \\a\\f(x)\\ or
-  \\(b_1 - b_0)f(x)\\ is placed at `sd` of them. The unit is
-  \\\mathrm{sd}(y)\\ for a gaussian response, `1` for `"probit"` and
-  \\\pi/\sqrt{3}\\ for `"logistic"` - the standard deviation of the
-  link's own error law, a latent model having no response standard
-  deviation to name. A forest whose `basis` rows have median non-zero
-  norm \\c\\ contributes the scale named here, the calibration map
-  dividing \\c\\ out, so rescaling a basis column does not silently
-  rescale the prior. Which of the two channels carries it depends on
-  whether the forest has a `basis`: without one it is the half-Cauchy
-  median of the forest's scalar amplitude, with one it scales the
-  forest's own leaf prior. The two channels default differently, and
-  neither default is a bare constant. A forest with NO basis takes `2`
-  under a gaussian response, where the unit is the response's own
-  \\\mathrm{sd}(y)\\ and a drawn \\\sigma\\ absorbs the difference, and
-  `1` under `"probit"` and `"logistic"`, where the unit is the link's
-  fixed error scale and nothing does. A forest WITH a basis takes
-  \\\sqrt{2/K}\\ in a model of \\K\\ forests, so that declaring more of
-  them does not widen the prior on the combined location without bound.
-  \\K = 2\\ is the fixed point of both statements, \\\sqrt{2/2} = 1\\. A
-  value declared here overrides its default and keeps its per-forest
-  reading at every \\K\\, so `sd = 1` on each basis forest recovers the
-  pre-\\K\\-aware model exactly. It is one unnamed number, positive and
-  finite. For a basis of several columns that one number is the size
-  stated for each of them, so `forest(basis = dose + age, sd = 2)`
-  states 2 for the column `dose` and 2 for the column `age`; to size two
-  columns differently, rescale one of them in the basis, as
-  `I(dose / 30)`. A vector of any other length, a named number and
-  anything that is not a number are refused. A model of one forest
-  states its size as the fitting function's
-  `leaf.prior = normal(sd = )`.
+  This forest's prior scale, in the response's units: units of \\y\\ for
+  a gaussian response and of the latent index for `"probit"` and
+  `"logistic"`. The total \\a\\f(x)\\ or \\(b_1 - b_0)f(x)\\ is placed
+  at `sd` of them, per unit of basis row norm: a forest whose `basis`
+  rows have median non-zero norm \\c\\ contributes the scale named here,
+  the calibration map dividing \\c\\ out, so rescaling a basis column
+  does not silently rescale the prior. The number is kept as written,
+  and `$getLeafPrior(f)$sd` returns it as it was written.
+
+  The sampler divides it by one number of its own, derived once, when
+  the sampler is first created: \\\mathrm{sd}(y)\\ of the response net
+  of its offset for a gaussian response, `1` for `"probit"` and
+  \\\pi/\sqrt{3}\\ for `"logistic"`, the standard deviation of the
+  link's own error distribution, a latent model having no response
+  standard deviation to name. The rows it is read from are the rows in
+  the likelihood: those `subset` and the missing-value handling keep,
+  less those of weight zero, with a warning and every row where those
+  rows hold fewer than two distinct values. A later change of the
+  response, the weights or the active rows does not move it, and a copy,
+  a saved and reloaded sampler and a sampler made again from its own
+  control, model and data keep it. A control or a `forests` list taken
+  to other data states the same numbers in that data's units, and the
+  sampler made from it derives its own. A response that does not vary
+  has no standard deviation to state a forest's `sd` against, and a
+  stated `sd` on one is refused.
+
+  What `sd` is the size of. Where the forest has no `basis`, or a factor
+  or logical one, and its coefficient is drawn, it is the prior median
+  of the absolute size of the forest's contribution, to within a few
+  percent. Where the coefficient is held with `amplitude = fixed()` or
+  the basis is a numeric column it is not, and the size comes to a
+  different multiple of `sd`: a held forest with no basis has the size
+  of the unit whatever its `sd` is, a held factor 1.48 times `sd`, and a
+  drawn numeric column 0.71 times `sd` at a row whose basis has the
+  median non-zero norm.
+
+  Which of the two channels carries `sd` depends on whether the forest
+  has a `basis`: without one it is the median of the half-Cauchy prior
+  on the forest's scalar amplitude, with one it scales the forest's own
+  leaf prior. The two channels default differently. A forest with no
+  basis takes twice the response's standard deviation under a gaussian
+  response, where a drawn \\\sigma\\ absorbs the difference, and `1`
+  under `"probit"` and \\\pi/\sqrt{3}\\, 1.8138, under `"logistic"`,
+  where the link's error scale is fixed and nothing does. A forest with
+  a basis takes \\\sqrt{2/K}\\ times that unit in a model of \\K\\
+  forests, so that declaring more of them does not widen the prior on
+  the combined location without bound; \\K = 2\\ is the fixed point,
+  \\\sqrt{2/2} = 1\\. A default is a multiple of the unit and not a
+  stated number: `$getLeafPrior(f)$sd` reports the number of the
+  response's units it comes to, and `$getLeafPrior(f)$sd.stated` is
+  `FALSE`. A value stated here overrides the default, in the response's
+  units, at every \\K\\.
+
+  It is one number, positive and finite, and a name on it is dropped.
+  For a basis of several columns that one number is the size stated for
+  each of them, so `forest(basis = dose + age, sd = 2)` states 2 for the
+  column `dose` and 2 for the column `age`; to size two columns
+  differently, rescale one of them in the basis, as `I(dose / 30)`. A
+  vector of any other length and anything that is not a number are
+  refused. The one forest of a model of one forest takes it as the
+  fitting function's `leaf.prior = normal(sd = )`, in the same units,
+  and stating the size at both places is refused.
 
   It is the one argument a live sampler restates:
   `$setLeafPrior(forests = list(forest(sd = ), ...))` writes it in the
-  channel creation gave the forest, and `$getLeafPrior(f)$leaf.prior`
-  reads it back as `forest(sd = )` (see
+  channel creation gave the forest and states it from then on, also
+  where it is the number in force. `$getLeafPrior(f)$leaf.prior` returns
+  the statement, `forest(sd = )` where one was stated and `forest()`
+  where none was, and `forest()` written back leaves its forest as it is
+  (see
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
   The channel is fixed at creation: a forest created without a basis
   keeps its half-Cauchy median after `$setForestBasis` gives it one, so
   its `forest(sd = )` round-trips through `$setLeafPrior`, while a fresh
   [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  given the same bases would read the same `sd` as a leaf-scale factor
-  and build a different prior.
+  given the same bases would state it on a forest with a basis and build
+  a different prior.
 
 - interactions, blocks:
 
@@ -462,16 +495,15 @@ forest(
   raising this argument raises the total rather than redistributing it.
   Under `"probit"` and `"logistic"` that location IS the latent index
   and \\\sigma\\ is pinned, so nothing in the sampler absorbs a
-  mis-scaled basis; under a gaussian response it is in
-  \\\mathrm{sd}(y)\\ units and a drawn \\\sigma\\ partly does. Every
-  input to that expression is readable off the fitted sampler: \\v_f\\
-  is the `amplitude.prior.variance` entry of `$getLeafPrior(f)` and
-  \\B_f\\ is `data@bases[[f]]`, so the induced prior can be checked
-  against what is in force rather than against what the call asked for.
-  See the example below. A lone forest carrying a `basis` is refused,
-  the amplitudes being what distinguish a forest from another. For
-  varying coefficients declare an intercept forest plus one basis forest
-  per covariate,
+  mis-scaled basis; under a gaussian response it is in the response's
+  units and a drawn \\\sigma\\ partly does. Every input to that
+  expression is readable off the fitted sampler: \\v_f\\ is the
+  `amplitude.prior.variance` entry of `$getLeafPrior(f)` and \\B_f\\ is
+  `data@bases[[f]]`, so the induced prior can be checked against what is
+  in force rather than against what the call asked for. See the example
+  below. A lone forest carrying a `basis` is refused, the amplitudes
+  being what distinguish a forest from another. For varying coefficients
+  declare an intercept forest plus one basis forest per covariate,
   `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
   use one forest with `linear()` leaves.
 
@@ -514,29 +546,31 @@ family that location IS the index and no drawn \\\sigma\\ stands between
 it and the fitted probabilities. At two forests of the shipped shape -
 one carrying no basis - a probit model's prior puts \\P(p \< 0.01
 \mathrm{~or~} p \> 0.99)\\ at 0.238, which is the shipped single-forest
-binary default's own 0.239; before the `sd` defaults above it was 0.376.
-The \\\sqrt{2/K}\\ factor is what holds that as \\K\\ grows, and it
-holds it in two different senses. When EVERY forest carries a basis the
-induced prior standard deviation of the index is 1.484 latent units at
-every \\K\\ - 0.989 of the classic \\k = 2\\ binary leaf-scale budget -
-because the whole location is then a sum of fixed-variance channels.
-When one forest carries none, its amplitude is Cauchy and has no
-variance to enter that budget with, so the fixed-variance part is
-BOUNDED by 1.484 rather than pinned at it, rising from 0.699 of the
-budget at \\K = 2\\ toward 0.989 and never reaching it; without the
-factor it would instead grow past twice the budget by ten forests. Read
-the values in force off `$getLeafPrior(f)`'s `leaf.scale.factor` and
-`amplitude.prior.scale` entries.
+binary default's own 0.239. The \\\sqrt{2/K}\\ factor is what holds that
+as \\K\\ grows, and it holds it in two different senses. When EVERY
+forest carries a basis the induced prior standard deviation of the index
+is 1.484 latent units at every \\K\\ - 0.989 of the classic \\k = 2\\
+binary leaf-scale budget - because the whole location is then a sum of
+fixed-variance channels. When one forest carries none, its amplitude is
+Cauchy and has no variance to enter that budget with, so the
+fixed-variance part is BOUNDED by 1.484 rather than pinned at it, rising
+from 0.699 of the budget at \\K = 2\\ toward 0.989 and never reaching
+it; without the factor it would instead grow past twice the budget by
+ten forests. Read the values in force off `$getLeafPrior(f)`'s `sd`
+entry, in the response's units, or as multiples of the sampler's unit in
+its `leaf.scale.factor` and `amplitude.prior.scale` entries.
 
 Both forests' leaf scales come from the model's own calibration map
 rather than from the leaf prior, which is why a `k` hyperprior, a
 non-default `k`, a named leaf-prior `sd`, and a linear or
 Gaussian-process leaf prior are refused when a second forest is
-declared. This `sd` is not the leaf prior's: it states this forest's
-share of the combined location's prior, per unit of basis row norm,
-where `normal(sd = )` states a single forest's whole spread. Every value
-here is validated at fit time, and anything today's engine cannot honour
-is refused there by name rather than dropped.
+declared, the size of the forest with no basis being written on the
+forest, as `forest(x1 + x2, sd = 2)`, in the response's units as
+`normal(sd = )` is. In a model of several forests this `sd` states one
+forest's share of the combined location's prior, per unit of basis row
+norm, where `normal(sd = )` states a single forest's whole spread. Every
+value here is validated at fit time, and anything today's engine cannot
+honour is refused there by name rather than dropped.
 
 In a [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) formula
@@ -647,7 +681,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000663
+#> total seconds in loop: 0.000671
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 

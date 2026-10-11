@@ -233,7 +233,12 @@ dbarts(
   the same specifications through its own `leaf.prior` argument. See
   “Response scaling” below for how `k` interacts with the response's
   internal scaling. In a model of several forests it is the leaf prior
-  of the forest with no `basis`; see `forests`.
+  of the forest with no `basis`; see `forests`. A named `sd` is refused
+  there: each forest states its size on the forest, as
+  `forest(x1 + x2, sd = 2)`, in the response's units as `normal(sd = )`
+  is. The one forest of a model of one forest states its size either
+  way, `forest(sd = )` being this prior's `normal(sd = )`, and not at
+  both.
 
 - monotone:
 
@@ -403,8 +408,8 @@ dbarts(
   forest is still selected by its position. Gaussian, `"probit"` and
   `"logistic"` responses: under a latent family the forests combine into
   the index rather than into the mean, on the link's own fixed scale, so
-  every forest's `sd` is stated in latent standard deviations, `sigma`
-  is pinned and there is no response transform to re-anchor. `"aft"`,
+  every forest's `sd` is stated in units of the latent index, `sigma` is
+  pinned and there is no response transform to re-anchor. `"aft"`,
   `"ordinal"` and `"nbinom"` are refused at creation, each naming what
   it is missing. The `control`'s `proposal.probs` mixture is a property
   of the fit and reaches every forest of the declaration, the frozen
@@ -868,7 +873,9 @@ re-anchor leaves, so it lags until its next draw (see
 A `k`, relative to the data, moves with the transform instead.
 Two-forest (`forests`) and multinomial models take their forests' leaf
 scales from their own calibration maps and refuse a named `sd` rather
-than drop it.
+than drop it; a forest of the first states its own, in the response's
+units (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)).
 
 ## Value
 

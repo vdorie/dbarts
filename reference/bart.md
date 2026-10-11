@@ -848,7 +848,9 @@ print(x, ...)
   residual scale and rides the family object instead -
   `family = gaussian(sigma = chisq(3, 0.9))`,
   `family = gaussian(sigma = fixed(1))`; see `family` below. In a model
-  of several forests they are those of the forest with no `basis`; see
+  of several forests they are those of the forest with no `basis`, and a
+  named leaf-prior `sd` is refused there: each forest states its size on
+  the forest, in the response's units, as `forest(x1 + x2, sd = 2)`; see
   ‘Formula Terms’.
 
 - monotone:
@@ -2113,7 +2115,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001762
+#> total seconds in loop: 0.001746
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2162,7 +2164,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002143
+#> total seconds in loop: 0.002138
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 2 4 2 3 2 2 2 2 3 

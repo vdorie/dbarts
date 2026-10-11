@@ -598,12 +598,13 @@ family(object, ...)
   selected; `type = "trees"` returns a data frame and keeps no such
   margin. For `extract(type = "k")` and
   `extract(type = "leaf.prior.sd")` on a fit with several forests, it
-  selects among the named per-forest numbers (one number for a single
-  forest). Selecting a forest outside those is refused by name: every
-  other arm has already recombined the forests into the location it
-  reports, except `"sigma"` (a model parameter with no forest axis) and
-  `"varcount"` (which already keeps every forest on its own trailing
-  margin), each naming its own reason instead.
+  selects among the per-forest entries, which `"k"` names `forest1`,
+  `forest2`, ... and `"leaf.prior.sd"` by the forests' labels (the entry
+  itself for a single forest). Selecting a forest outside those is
+  refused by name: every other arm has already recombined the forests
+  into the location it reports, except `"sigma"` (a model parameter with
+  no forest axis) and `"varcount"` (which already keeps every forest on
+  its own trailing margin), each naming its own reason instead.
 
 - bases:
 
@@ -780,10 +781,14 @@ deviation of depends on the leaf model: the leaf value for a constant
 leaf, each coefficient for a linear leaf and the amplitude for a
 Gaussian-process leaf. Under a monotone constraint the total's prior
 spread runs a few percent wider than this number. On a fit with several
-forests it is each forest's own total before its amplitude multiplies
-it, one named number per forest (`forest1`, `forest2`, ...), or the one
-that `forest` selects; `k` is pinned at 1 on each. A hurdle fit returns
-a list of its zero and positive parts, each in its own units.
+forests it is each forest's `sd` as the sampler's `$getLeafPrior()`
+reported it when the run ended (see
+[`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
+in the response's units: the number the forest stated, or its default,
+before its amplitude multiplies the forest. It comes back as a list
+named by the forests' labels, or as the one number that `forest`
+selects; `k` is pinned at 1 on each. A hurdle fit returns a list of its
+zero and positive parts, each in its own units.
 
 ### Generics
 
@@ -1304,7 +1309,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.220152
+#> total seconds in loop: 0.221401
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

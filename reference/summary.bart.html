@@ -116,7 +116,9 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
 <dd><p>Character vector of fields to summarize. By default the leaf-scale
     field follows how the leaf prior was named: <code>k</code> for a fit that
     named it by <code>k</code>, <code>leaf.prior.sd</code> (the <code>k.scale</code> over <code>k</code>;
-    see <code><a href="bartBT.html">bartBT</a></code>) for one that named it by <code>sd</code>, and
+    see <code><a href="bartBT.html">bartBT</a></code>, where on a fit with several forests it is each
+    forest's <code>sd</code> in the response's units, printed under the table as
+    <code>leaf.prior.sd[&lt;label&gt;]</code>) for one that named it by <code>sd</code>, and
     either can be requested by name, as can <code>first.k</code>, the burn-in
     draws. A requested parameter the fit held fixed (<code>sigma</code> under
     <code>fixed()</code>, a fixed <code>k</code> or <code>leaf.prior.sd</code>, a fixed
@@ -153,8 +155,9 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   <code>stats</code> (a data frame with one row per requested sampled scalar, or
   <code>NULL</code> if none of <code>vars</code> are present on the fit), <code>vars</code>,
   and <code>fixed</code>, a named list of the requested parameters the fit held
-  fixed and their values (a named vector, by forest, on a fit with several
-  forests). <code>stats</code> has columns <code>variable</code>, <code>mean</code>, <code>median</code>,
+  fixed and their values (on a fit with several forests a vector with one
+  entry for each forest, <code>k</code> named <code>forest1</code>, <code>forest2</code>,
+  ... and <code>leaf.prior.sd</code> by the forests' labels). <code>stats</code> has columns <code>variable</code>, <code>mean</code>, <code>median</code>,
   <code>sd</code>, <code>mad</code>, <code>q5</code>, <code>q95</code>, <code>rhat</code>,
   <code>ess_bulk</code>, and <code>ess_tail</code> - the same columns
   <code>posterior::summarise_draws</code> reports for a plain array, computed
