@@ -1,7 +1,8 @@
 # stan4bart-creation-mapping: stan4bart fixes its response range at creation, from a fit holding the forest's columns
 
-Status: PLANNED (dec-B437, dec-B441, dec-B444 to dec-B447; dec-B442 and dec-B443 are revised by dec-B446). No open
-call. Revised after the blind critique. The code is stan4bart's; this file is its record.
+Status: LANDED 2026-10-11 on stan4bart's bartcore branch (stan4bart 45cd951 to 122821e; dec-B437, dec-B441,
+dec-B444 to dec-B447; dec-B442 and dec-B443 are revised by dec-B446; calls dec-A203). Revised after the blind
+critique. The code is stan4bart's; this file is its record.
 
 agent: one opus implementer (R; two flags in C++); one opus reviewer who runs the mutants.
 rng: POSTERIOR-CHANGING for every continuous stan4bart fit (the leaf prior's center and spread change, and one
@@ -417,3 +418,43 @@ the linear-predictor scale, `glm.fit`'s guard on a separated fixture, the helper
 response-scale-rows, the cost of a many-level forest factor's indicator columns, a check with
 `_R_CHECK_DEPENDS_ONLY_`, bartCause's suite, tidytreatment's and WeightIt's use of stan4bart (not read),
 stan4bart's posterior gate, Windows, forked workers.
+
+## Landing note
+
+Landed 2026-10-11 as stan4bart 45cd951 to 122821e (twenty commits on its bartcore branch) on dbarts bartcore
+972e54a5: steps 1 to 5 by one opus implementer, one opus review with mutants, a fix round by a second
+implementer that the reviewer checked, a short second fix round the orchestrator read, then step 6. No dbarts
+code changed. Calls: dec-A203.
+
+The review's three blocking findings, each fixed with its test: the helper's read-back compared the middle to
+an absolute 1e-12 and stopped fits whose response ran to the tens of thousands (now relative to the pair's
+larger end, the middle formed as dbarts forms it); a binary model with random terms stopped on lme4 1.1-35.5
+(now lme4's documented modular sequence with both stages named and no reach into its namespace; C.1's read of
+the criterion's environment stays for the continuous fit); a missing value in one component of the model left
+the components on different rows, which predates the slice and under `bart(. - x)` read past a buffer (every
+component is now cut by the union of dropped rows, in the fit and in test data). Beside them: a C++ exception
+at any entry point is an R error where it ended the session; a constant response under the default prior on the
+residual standard deviation stops with an error that says why (no earlier build returned a fit there);
+integer weights and offsets are read as the numbers they hold; under `na.exclude` a dropped row's parts are
+built from the fit's own frame, so an `offset()` term, a transformed term and `contrasts` work.
+
+After the build, 140 fits against the branch before the slice, all four rules met: the built range equals
+lmer's on the written-out formula to 4.5e-9 of a width in every fit and the bound takes over in none; many
+small groups at 200 rows, expected-value error +4.0 percent [+2.6, +5.5] and split error -9.9 percent
+[-14.4, -5.1]; at 1000 rows and in the control no quantity worse. Without lme4 (120 fits at 500 rows) a
+continuous response's range is 1.3 to 1.4 times as wide and its fitted mean's error 0.5 to 1.5 percent higher,
+which the help quotes. Gates on the landed tip: the suite in one process 1631 results with lme4 2.1.0 and with
+1.1-35.5, 1494 without lme4, no failure and no warning but the two ruled ones; `R CMD check --as-cran` one NOTE,
+and with `_R_CHECK_DEPENDS_ONLY_`; exactness 4 of 4 tiers within 1e-10; the binary posterior tier 55 of 55
+against the recorded baseline; the five tiers re-recorded as posterior-baselines-83e0c1a. The continuous_nc2
+tier read 43 of 45 on the mean gate before the re-record, its recorded seed being the lowest of 25 for the
+slope's scale on that data on both builds. Consumers: bartCause's suite on its dbarts-1.0 branch moves no pin
+for stan4bart (its four failures are dbarts-only seeded pins in test-06-regression.R, the same with the branch
+before the slice, restated in the consumer sweep before the merge); tidytreatment 0.3.2 and WeightIt 2.1.0
+check OK. Not run: Windows, forked workers, sanitizers on the landed tip beyond stan4bart's CI.
+
+Left in stan4bart's TODO: a fixed factor level that sits only on rows another component dropped changes the
+design (lost-factor-level); the continuous_nc2 tier's seed (posterior-nc2-seed); `y = 7 + offset` gets a range
+two units in the last place wide; a flaky `glmer` stop in test-02 under lme4 1.1-35.5. Held for the maintainer:
+a missing value in a column named only as `bart(. - z)` drops the row from the whole model, which predates the
+slice.

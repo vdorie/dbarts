@@ -1,6 +1,6 @@
 # stan4bart's response range: one mapping, fixed at creation from an initial fit that holds the forest's columns
 
-Status: PROPOSED, 2026-10-10 (dec-B437, dec-B441, dec-B444 to dec-B447; dec-B442 and dec-B443 were revised by
+Status: LANDED 2026-10-11 (stan4bart 122821e; dec-B437, dec-B441, dec-B444 to dec-B447; dec-B442 and dec-B443 were revised by
 dec-B446). Built by [stan4bart-creation-mapping.md](../plans/stan4bart-creation-mapping.md). For stan4bart it
 replaces the recommendation of [per-chain-responses.md](per-chain-responses.md), whose initial fit left the
 forest's columns out. Measured on stan4bart's bartcore branch and dbarts's, arm64 macOS, on a shared machine.

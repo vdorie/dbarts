@@ -327,23 +327,6 @@ items
     and slow fits, the fallback when the range cannot be estimated
     (dec-B437, VD 2026-10-10). About 1260 lines planned for the
     per-chain data, after response-scale-rows.
-  stan4bart-creation-mapping: stan4bart fixes its response range at
-    creation from a richer initial fit, shared by every chain and
-    never re-derived (dec-B437): the model's own terms plus the
-    forest's columns as linear fixed effects (dec-B441), fitted by
-    lme4, which stays a suggested package; a model with random terms
-    and no lme4 installed warns and falls back, a continuous fit to
-    the response's own range and a binary fit to a probit start on
-    its fixed columns (dec-B446, revising dec-B442 and dec-B443).
-    Where the fit cannot be computed the range is the response's own,
-    less any offset (dec-B444), and the estimated range is never
-    wider than that (dec-B447). A user sets it by bart_range: a pair
-    of numbers, or "mixed" (the default), "lm" or "response"
-    (dec-B445). Plan: docs/plans/stan4bart-creation-mapping.md, in
-    build. Found beside it in stan4bart and not in the slice: a
-    reloaded fit with gp leaves replays its stored fits 0.013 off;
-    extract(type = "ranef") stops on a `||` term. Before the merge to
-    main.
   state-grid-replaces-sampler: a state's cut grid replaces the sampler's
     on install, against dec-B231 (a grid is data, never installed by a
     state). Before the merge; with state-frame-prior's grid half.
