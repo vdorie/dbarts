@@ -126,8 +126,37 @@ made <- function(door, B, response = y, ...) {
     }
   )
 }
+# A call that may be refused never stops this file: its refusal's text, or
+# NULL where it is taken; and its value, or the refusal's text in its place.
+refusalOf <- function(expr) {
+  tryCatch(
+    {
+      expr
+      NULL
+    },
+    error = function(e) conditionMessage(e)
+  )
+}
+valueOf <- function(expr) {
+  tryCatch(expr, error = function(e) conditionMessage(e))
+}
+# `made` is a sampler and not the text of a refusal, asserted
+expectSampler <- function(made, info = NA_character_) {
+  isSampler <- inherits(made, "dbartsSampler")
+  expect_true(isSampler, info = info)
+  isSampler
+}
 shapeOf <- function(result) {
   result[c("kind", "levels", "block", "draws")]
+}
+# Two doors' results are one creation: neither refused, and one kind, one
+# set of levels, one block and one sum of draws.
+expectSameShape <- function(other, first, info) {
+  created <- is.null(first$refused) && is.null(other$refused)
+  expect_true(created, info = info)
+  if (created) {
+    expect_identical(shapeOf(other), shapeOf(first), info = info)
+  }
 }
 # `B` at each of `at`, every door held to the first: one kind, one block and
 # one sum of draws, or one refusal. Returns the first door's result.
@@ -137,9 +166,9 @@ expectOneReading <- function(B, at, info, ...) {
     other <- made(door, B, ...)
     where <- paste(info, "at", door)
     if (is.null(first$refused)) {
-      expect_identical(shapeOf(other), shapeOf(first), info = where)
+      expectSameShape(other, first, where)
       # the levels are kept beside the block and never on it
-      bare <- other$kind != "levels" ||
+      bare <- !identical(other$kind, "levels") ||
         all(other$attributes %in% c("dim", "dimnames"))
       expect_true(bare, info = where)
     } else if (door %in% codeDoors == at[1L] %in% codeDoors) {
@@ -198,7 +227,7 @@ for (object in objects) {
   expect_identical(ncol(first$block), object[[4L]], info = info)
   expect_identical(
     lengths(first$levels),
-    c(0L, if (first$kind == "levels") object[[4L]] else 0L),
+    c(0L, if (identical(first$kind, "levels")) object[[4L]] else 0L),
     info = info
   )
   expect_true(all(first$attributes %in% c("dim", "dimnames")), info = info)
@@ -374,7 +403,7 @@ for (complete in list(dose, zf)) {
     first <- do.call(expectOneReading, c(list(onDropped, rowDoors, info), rows))
     expect_null(first$refused, info = info)
     whole <- do.call(made, c(list("term.dbarts", complete), rows))
-    expect_identical(shapeOf(first), shapeOf(whole), info = info)
+    expectSameShape(first, whole, info)
     # on a row the fit keeps it is refused, in one text
     for (door in rowDoors) {
       refused <- do.call(made, c(list(door, onKept), rows))$refused
@@ -508,11 +537,15 @@ madeFrom <- list(
   }
 )
 for (door in names(madeFrom)) {
-  sampler <- madeFrom[[door]](slotless)
+  sampler <- valueOf(madeFrom[[door]](slotless))
+  if (!expectSampler(sampler, door)) {
+    next
+  }
   expect_identical(dim(sampler$run(0L, 3L)$train), c(n, 3L), info = door)
   expect_null(dbarts:::dataBasisLevels(sampler$data), info = door)
   # as a forest of numbers it takes numbers
-  expect_null(sampler$setForestBasis(2L, cbind(1 - z, z)), info = door)
+  swapped <- refusalOf(sampler$setForestBasis(2L, cbind(1 - z, z)))
+  expect_null(swapped, info = door)
 }
 # recorded levels of another count than the block's columns are refused
 miscounted <- proto$data
@@ -601,8 +634,8 @@ fit <- fitDoors$term(reversed)
 block <- dbarts:::storedBasisBlock(fit$bases[[2L]])
 glue <- fit$glue[, 2:3]
 expect_identical(
-  unname(extract(fit, type = "forest", contribution = TRUE)[,, 2L]),
-  unname((glue %*% t(block)) * extract(fit, type = "forest")[,, 2L])
+  valueOf(unname(extract(fit, type = "forest", contribution = TRUE)[,, 2L])),
+  valueOf(unname((glue %*% t(block)) * extract(fit, type = "forest")[,, 2L]))
 )
 
 # --- after creation: a forest takes the kind it was created with ---
@@ -707,15 +740,6 @@ swapSampler <- function(B) {
   sampler$run(0L, 3L)
   sampler
 }
-refusalOf <- function(expr) {
-  tryCatch(
-    {
-      expr
-      NULL
-    },
-    error = function(e) conditionMessage(e)
-  )
-}
 for (kind in names(forestKinds)) {
   sampler <- swapSampler(forestKinds[[kind]])
   twin <- swapSampler(forestKinds[[kind]])
@@ -726,11 +750,13 @@ for (kind in names(forestKinds)) {
     refused <- refusalOf(sampler$setForestBasis(2L, swapValues[[value]]))
     if (is.null(expected)) {
       expect_null(refused, info = info)
+    } else {
+      expect_identical(refused, sprintf(expected, "basis"), info = info)
+    }
+    if (is.null(refused)) {
       taken <- c(taken, value)
       # the twin takes it too, so that the two stay one sampler
       twin$setForestBasis(2L, swapValues[[value]])
-    } else {
-      expect_identical(refused, sprintf(expected, "basis"), info = info)
     }
     # a refused swap has written nothing
     expect_identical(sampler$data, twin$data, info = info)
@@ -794,7 +820,7 @@ for (kind in names(forestKinds)) {
 # prediction being linear in a numeric forest's column
 atOne <- predict(fits$dose, newRows, bases = rep(1, n), type = "ev")
 atTwo <- predict(fits$dose, newRows, bases = rep(2, n), type = "ev")
-atZero <- predict(fits$dose, newRows, bases = rep(0, n), type = "ev")
+atZero <- valueOf(predict(fits$dose, newRows, bases = rep(0, n), type = "ev"))
 expect_equal(atZero, 2 * atOne - atTwo, tolerance = 1e-12)
 expect_false(isTRUE(all.equal(atZero, atOne)))
 
@@ -808,7 +834,7 @@ heldForests <- list(
 held <- dbarts(x, y, forests = heldForests, control = kindControl())
 creationBlock <- held$data@bases[[2L]]
 expect_identical(creationBlock, unname(cbind(1 - z, z)))
-held$setForestBasis(2L, reversed)
+expect_null(refusalOf(held$setForestBasis(2L, reversed)))
 expect_identical(held$data@bases[[2L]], creationBlock)
 expect_identical(held$data@basis.levels, list(NULL, c("control", "treated")))
 
@@ -816,10 +842,10 @@ drawn <- swapSampler(zc)
 before <- drawn$getForestAmplitudes()
 # a vector left with one value: the forest keeps its two columns, one of
 # them zero, and its coefficients, and has them back with the vector
-drawn$setForestBasis(2L, rep("treated", n))
+expect_null(refusalOf(drawn$setForestBasis(2L, rep("treated", n))))
 expect_identical(drawn$data@bases[[2L]], cbind(rep(0, n), rep(1, n)))
 expect_identical(drawn$getForestAmplitudes(), before)
-drawn$setForestBasis(2L, zc)
+expect_null(refusalOf(drawn$setForestBasis(2L, zc)))
 expect_identical(drawn$data@bases[[2L]], creationBlock)
 expect_identical(drawn$getForestAmplitudes(), before)
 # a row at a level the forest lacks is refused; the same level declared and
@@ -830,7 +856,7 @@ expect_error(
   fixed = TRUE
 )
 declaredMore <- factor(zc2, levels = c("other", "treated", "control"))
-drawn$setForestBasis(2L, declaredMore)
+expect_null(refusalOf(drawn$setForestBasis(2L, declaredMore)))
 expect_identical(drawn$data@bases[[2L]], creationBlock[n:1L, ])
 expect_identical(drawn$data@basis.levels, list(NULL, c("control", "treated")))
 # a name is the forest's level character for character
@@ -856,14 +882,14 @@ expect_error(
   paste0("'basis' gives forest 2", naLevel),
   fixed = TRUE
 )
-expect_null(drawn$setForestBasis(2L, addNA(factor(zc))))
+expect_null(refusalOf(drawn$setForestBasis(2L, addNA(factor(zc)))))
 # the factor a forest was created from, an unused level among its levels,
 # is taken again and gives the block of creation
 withUnused <- factor(zc, levels = c("control", "never", "treated"))
 fromUnused <- swapSampler(withUnused)
 expect_identical(fromUnused$data@bases[[2L]], creationBlock)
-fromUnused$setForestBasis(2L, rev(withUnused))
-fromUnused$setForestBasis(2L, withUnused)
+expect_null(refusalOf(fromUnused$setForestBasis(2L, rev(withUnused))))
+expect_null(refusalOf(fromUnused$setForestBasis(2L, withUnused)))
 expect_identical(fromUnused$data@bases[[2L]], creationBlock)
 # the sampler's own stored block is numbers, which a forest of levels
 # refuses: a caller keeps the factor it handed over
@@ -889,31 +915,35 @@ expect_error(
   gsub("forest 1", "forest 2", sprintf(noneText, "basis"), fixed = TRUE),
   fixed = TRUE
 )
-basisFirst$setForestBasis(1L, reversed)
+expect_null(refusalOf(basisFirst$setForestBasis(1L, reversed)))
 expect_identical(basisFirst$data@bases[[1L]], creationBlock)
 
 # --- predict, by name ---
 trainRows <- data.frame(x1, x2)
 fromTerm <- fitDoors$term(zf)
 fromData <- fitDoors$data(zf)
-aligned <- predict(fromTerm, newRows, bases = factor(z2))
+predicted <- function(fit, rows, bases) {
+  valueOf(unname(predict(fit, rows, bases = bases)))
+}
+aligned <- predicted(fromTerm, newRows, factor(z2))
+expect_identical(dim(aligned), c(20L, n))
 # another order of levels is the same prediction
-expect_identical(
-  predict(fromTerm, newRows, bases = factor(z2, levels = c("1", "0"))),
-  aligned
-)
-expect_identical(predict(fromTerm, newRows, bases = as.character(z2)), aligned)
+flipped <- factor(z2, levels = c("1", "0"))
+expect_identical(predicted(fromTerm, newRows, flipped), aligned)
+expect_identical(predicted(fromTerm, newRows, as.character(z2)), aligned)
 # a fit over a data object from the data door predicts by name as well
 expect_identical(
-  predict(fromData, newRows, bases = factor(z2, levels = c("1", "0"))),
-  predict(fromData, newRows, bases = factor(z2))
+  predicted(fromData, newRows, flipped),
+  predicted(fromData, newRows, factor(z2))
 )
+expect_identical(dim(predicted(fromData, newRows, flipped)), c(20L, n))
 # every row at one level
-allTreated <- predict(fromTerm, newRows, bases = rep("1", n))
+allTreated <- predicted(fromTerm, newRows, rep("1", n))
 expect_identical(
-  predict(fromTerm, newRows, bases = factor(rep(1, n), levels = 0:1)),
+  predicted(fromTerm, newRows, factor(rep(1, n), levels = 0:1)),
   allTreated
 )
+expect_identical(dim(allTreated), c(20L, n))
 expect_false(identical(allTreated, aligned))
 expect_error(
   predict(fromTerm, newRows, bases = ifelse(z2 == 1, "one", "0")),
@@ -938,7 +968,7 @@ unsorted <- fitDoors$term(reversed)
 expect_identical(levels(unsorted$bases[[2L]]), c("treated", "control"))
 for (handed in list(unsorted$bases, reversed, zc)) {
   expect_equal(
-    unname(predict(unsorted, trainRows, bases = handed)),
+    predicted(unsorted, trainRows, handed),
     unname(unsorted$yhat.train),
     tolerance = 1e-12
   )
@@ -953,18 +983,26 @@ again <- function(sampler) {
   saveRDS(sampler, file)
   reloaded <- readRDS(file)
   unlink(file)
-  invisible(reloaded$run(0L, 1L))
   list(
-    copy = sampler$copy(),
-    reload = reloaded,
-    new = new("dbartsSampler", sampler$control, sampler$model, sampler$data)
+    copy = valueOf(sampler$copy()),
+    reload = valueOf({
+      reloaded$run(0L, 1L)
+      reloaded
+    }),
+    new = valueOf(
+      new("dbartsSampler", sampler$control, sampler$model, sampler$data)
+    )
   )
 }
 original <- swapSampler(zc)
 for (how in c("copy", "reload", "new")) {
   sampler <- again(original)[[how]]
+  if (!expectSampler(sampler, how)) {
+    next
+  }
   expect_identical(sampler$data@basis.levels, original$data@basis.levels)
-  sampler$setForestBasis(2L, factor(zc2, levels = c("treated", "control")))
+  flippedRows <- factor(zc2, levels = c("treated", "control"))
+  expect_null(refusalOf(sampler$setForestBasis(2L, flippedRows)), info = how)
   expect_identical(sampler$data@bases[[2L]], creationBlock[n:1L, ], info = how)
   expect_error(
     sampler$setForestBasis(2L, cbind(1 - z, z)),
@@ -976,12 +1014,15 @@ for (how in c("copy", "reload", "new")) {
 # a level, or a numeric column, that a swap left with no row is in the
 # sampler's data for good: the rows are judged at a creation and nowhere else
 emptied <- swapSampler(zc)
-emptied$setForestBasis(2L, rep("treated", n))
+expect_null(refusalOf(emptied$setForestBasis(2L, rep("treated", n))))
 zeroed <- swapSampler(dose)
-zeroed$setForestBasis(2L, rep(0, n))
+expect_null(refusalOf(zeroed$setForestBasis(2L, rep(0, n))))
 for (how in c("copy", "reload", "new")) {
   for (swapped in list(emptied, zeroed)) {
     sampler <- again(swapped)[[how]]
+    if (!expectSampler(sampler, how)) {
+      next
+    }
     expect_identical(sampler$data@bases, swapped$data@bases, info = how)
     expect_identical(dim(sampler$run(0L, 5L)$train), c(n, 5L), info = how)
   }
@@ -995,7 +1036,7 @@ donor$run(0L, 5L)
 donor$storeState()
 ownBlock <- recipient$data@bases[[2L]]
 expect_identical(ownBlock, unname(cbind(z, 1 - z)))
-expect_true(recipient$setState(donor$state))
+expect_true(valueOf(recipient$setState(donor$state)))
 expect_identical(
   recipient$getForestAmplitudes(),
   donor$getForestAmplitudes()
@@ -1020,11 +1061,13 @@ expect_error(
 )
 expect_identical(oneForest$data, untouched$data)
 set.seed(3)
-copied <- oneForest$copy()
+copied <- valueOf(oneForest$copy())
 set.seed(3)
 twinCopied <- untouched$copy()
-expect_identical(copied$data, untouched$data)
-expect_identical(copied$run(0L, 5L), twinCopied$run(0L, 5L))
+if (expectSampler(copied)) {
+  expect_identical(copied$data, untouched$data)
+  expect_identical(copied$run(0L, 5L), twinCopied$run(0L, 5L))
+}
 expect_identical(oneForest$run(0L, 5L), untouched$run(0L, 5L))
 # the same data without its bases is taken
-expect_null(oneForest$setData(dbartsData(x, rev(y))))
+expect_null(refusalOf(oneForest$setData(dbartsData(x, rev(y)))))
