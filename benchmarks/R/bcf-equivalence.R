@@ -320,7 +320,7 @@ runScenarios <- function() {
       control = makeControl()
     )
     bc$run(n.burn, n.samples)
-    bc$setForestBasis(2L, cbind(1 - z2, z2))
+    bc$setForestBasis(2L, factor(z2))
     res <- bc$run(n.burn, n.samples)
     result$set_treatment <- recordChannels(bc, res)
   }
