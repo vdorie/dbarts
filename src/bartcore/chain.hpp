@@ -3520,7 +3520,10 @@ public:
   /// Whether drawFlatMissingDirections can walk every flat tree of \p state,
   /// live and saved, mean and variance: each well formed, with a mask channel
   /// where its block has one. It recurses by the records alone, with no
-  /// bound. A state that fails here fails stateIsValid.
+  /// bound. A state that fails here fails stateIsValid, but for one case:
+  /// of a chain with no variance forest stateIsValid asks that the variance
+  /// tree blocks be empty and reads no variance mask block, so a state that
+  /// holds a variance mask block and no variance tree fails here alone.
   bool flatTreesAreWalkable(const ChainStateData& state) const {
     auto walkable = [&](const std::vector<std::vector<FlatNode>>& trees,
                         const std::vector<std::vector<std::uint64_t>>& masks) {
