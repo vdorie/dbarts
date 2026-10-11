@@ -342,8 +342,9 @@ items
     binary fit starting from glm, once a check shows binary results
     after warm-up do not move (dec-B443); where that fit cannot be
     computed the range is the response's own, less any offset
-    (dec-B444). Still to put to the maintainer: the argument that
-    lets a user set the range. Then a plan. With it: the per-chain
+    (dec-B444). A user sets it by bart_range: a pair of numbers, or
+    "mixed" (the default), "lm" (the fit without the random terms)
+    or "response" (dec-B445). Plan next. With it: the per-chain
     restore's alternating-response vector lands on the wrong mapping
     when zero weights fall on one parity (dec-A197), to be replaced
     by the shared mapping's restore. Before the merge to main.
