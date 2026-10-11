@@ -72,7 +72,8 @@ makeSamplerActiveRowsPins <- function(weights = NULL, ...) {
 # because only the unweighted path takes the fused node-average roll.
 masked <- makeSamplerActiveRowsPins(w)
 masked$setActiveRows(a)
-composed <- withZeroWeights(makeSamplerActiveRowsPins(w * a))
+composed <- makeSamplerActiveRowsPins(w)
+composed$setWeights(w * a)
 draws.masked <- masked$run(20L, 10L)
 draws.composed <- composed$run(20L, 10L)
 expect_identical(draws.masked$train, draws.composed$train)
@@ -83,10 +84,8 @@ rm(masked, composed, draws.masked, draws.composed)
 # so the mask annihilates the composite without moving the stream
 masked.t <- makeSamplerActiveRowsPins(w, family = dbarts:::student(df = 4))
 masked.t$setActiveRows(a)
-composed.t <- withZeroWeights(makeSamplerActiveRowsPins(
-  w * a,
-  family = dbarts:::student(df = 4)
-))
+composed.t <- makeSamplerActiveRowsPins(w, family = dbarts:::student(df = 4))
+composed.t$setWeights(w * a)
 draws.masked.t <- masked.t$run(20L, 10L)
 draws.composed.t <- composed.t$run(20L, 10L)
 expect_identical(draws.masked.t$train, draws.composed.t$train)
@@ -109,14 +108,15 @@ masked.bcf <- dbarts::dbarts(
   sigest = 1
 )
 masked.bcf$setActiveRows(a)
-composed.bcf <- withZeroWeights(dbarts::dbarts(
+composed.bcf <- dbarts::dbarts(
   x,
   y,
   forests = list(forest(), forest(basis = ~ factor(z.bcf))),
-  weights = w * a,
+  weights = w,
   control = control,
   sigest = 1
-))
+)
+composed.bcf$setWeights(w * a)
 draws.masked.bcf <- masked.bcf$run(20L, 10L)
 draws.composed.bcf <- composed.bcf$run(20L, 10L)
 expect_identical(draws.masked.bcf$train, draws.composed.bcf$train)
@@ -347,8 +347,8 @@ logisticSamplerActiveRowsPins <- function(
 
 # nbinom: the substituted counts move the shape kernel too, so this arm
 # also fails unless the count kernel is rebuilt over the ACTIVE rows at every
-# mask change. The log-mean shift is the full-data one by design, as aft's
-# extremes are, so the substitution keeps the inactive rows' total count: it
+# mask change. The log-mean shift is creation's, every row then being in, as
+# aft's extremes are, so the substitution keeps the inactive rows' total count: it
 # piles that total on one inactive row and zeroes the rest.
 counts <- as.double(rpois(n, 3))
 counts.other <- counts
@@ -384,8 +384,8 @@ rm(arms, train.a, train.b)
 
 # aft: the censored rows' log-time redraw is the latent. The substituted times
 # stay strictly inside the observed range and leave the extremes alone, because
-# the response transform is the FULL-data one by design and a new extreme would
-# move both arms' scale rather than just one row.
+# the response transform is creation's, every row then being in, and a new
+# extreme would move both arms' scale rather than just one row.
 status <- as.double(seq_len(n) %% 3L != 1L)
 aftSamplerActiveRowsPins <- function(logTime, mask = a) {
   sampler <- dbarts::dbarts(
