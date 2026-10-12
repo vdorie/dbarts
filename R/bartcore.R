@@ -1124,6 +1124,9 @@ bartcoreSamplerSetData <- function(sampler, newData) {
       call. = FALSE
     )
   }
+  # nor for levels: a record that names some for a block the data lack is
+  # refused before anything is stored, as it is where a sampler is made
+  checkBasisRecord(newData)
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }
