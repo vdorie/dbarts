@@ -516,16 +516,32 @@ the calls in it:
   sequence the copy and the reload hold 3 points where the original holds 5, their draws are not the
   original's, and their `setState` refuses the state the original stored, which records 5 points on a column
   whose live grid is 3. Before the slice that call returned TRUE with the grid left at 3. Left as the live
-  rule gives it, the state being recorded on another grid than the live one. With an unordered factor in the
-  same sequence neither a copy nor a reload can be made, before the slice as after. Having a re-creation
-  take the level table belongs with the data record (TODO `state-frame-prior`) and is not built here.
+  rule gives it, the state being recorded on another grid than the live one. The copy and the reload are
+  made only where no rule of the stored state lies above the declared levels; a rule there that sends
+  missing values right keeps both children occupied through `setData`, and then neither can be made. With
+  an unordered factor in the same sequence they are refused where a rule sends a dropped level right, and
+  made where none does, as of a sampler never run. Both refusals are the base build's. Having a
+  re-creation take the level table is scoped out of this slice (settled by the orchestrator, 2026-10-11).
+- A sampler's own `state` field always installs on that sampler (settled by the orchestrator, 2026-10-11,
+  from the second review). Where a re-creation leaves the engine on other points than the adopted state
+  records, which only an ordered factor's column can, the field takes the engine's state
+  ([`heldAfterAdoption`](../../R/dbarts.R)), as after a live install onto another grid. So
+  `copy$setState(copy$state)` and a reload's `setState` of its own field, as a first call too, return what
+  the base build returned, and no draw moves. The alternative, the field as given, had a copy refuse its
+  own field until its next `storeState()`.
 - A sampler whose engine is gone keeps, at its first `setState`, the kept-draw capacity of its own stored
   state, where the base build took the control's: after `setControl` to 3 draws on a sampler stored with
   5, a reload's first `setState` of another state keeps 5 draws, as a later call does. Base kept 3 as a
-  first call and 5 after any other. Pinned beside "reload, first call".
+  first call and 5 after any other. The other way round too: stored with 4 and the control then naming 6,
+  base took 6 as a first call and 4 after any other, and the slice keeps 4. Pinned beside "reload, first
+  call" for the shorter control.
 - A throw during pass 1 puts the store's grid, weights and codes back before it leaves
   ([`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp)); pinned in
-  [`testLiveGridInstall`](../../tests/cpp/test_state.cpp) through the test peer.
+  [`testLiveGridInstall`](../../tests/cpp/test_state.cpp) through the test peer, for a throw out of the
+  install step. That the re-quantization before it sits inside the same guard is not pinned: only an
+  allocation failure reaches it. A throw that follows a chain's install leaves that chain's trees on the
+  recorded grid over a store back on its own, and the sampler is not to be read or run until a state is
+  installed; only an allocation failure inside the install reaches that too.
 - Pins added, each run against the mutant it answers: the weights through a forced move; a move on the
   second column alone; a threshold off the grid in the second of two mean forests alone; "equals the two
   calls" with a test set and on a sparse store; the engine a declined call leaves a sampler whose engine was
@@ -533,3 +549,6 @@ the calls in it:
   merges, so the stored state differs where the sides are drawn after it.
 - The sentence on 0.9-34's restore is corrected: it brought back the grid and the splits, not the leaf
   values.
+- From the second review, two more pins, each run against its mutant: "equals the two calls" on a sparse
+  store with a sparse test set, for the test rows' sparse codes put back after a move; and a state recording
+  as many points as an ordered factor's grid, other ones, refused.
