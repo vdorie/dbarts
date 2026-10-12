@@ -25,7 +25,7 @@ rng, per slice:
   forest. What they newly install is an error today.
 - No install draws beyond dec-B440's. No recorded scenario, snapshot file or exact gate calls `installTrees`
   or `warm.start` (searched), so no baseline is re-recorded.
-window: after state-grid-install lands (this plan's base is its tip, 9fb70c48) and before the merge to main
+window: after state-grid-install, which has landed (a15b05ca to 480d7d69), and before the merge to main
 (TODO `forced-update-returns-null`). Engine slices stay serial: A, B, C, D.
 budget: A about 1730 lines, B about 455, C about 820, D about 950; the table and the stops are under Budget
 and stops.
@@ -143,7 +143,7 @@ Code as it stands:
 
 ### Measured on this tree
 
-Run on scratch/libs/sgi (shipped build of 9fb70c48 with the design note on top), gaussian unless said, 300
+Run on scratch/libs/sgi (shipped build of state-grid-install at acfd56ac, before its review's fix rounds, with the design note on top), gaussian unless said, 300
 rows, 4 numeric columns, 10 to 50 trees, one chain. Every error left the recipient's stored state identical.
 A row that names a script is a run of the critique's or of this revision's, on the same build, the script
 under scratch/wsc.
@@ -955,7 +955,7 @@ slice landed at 2400 lines against 1035), and the stops follow. Stop and report,
 
 ## Revision from critique
 
-The blind critique (opus, 2026-10-11, of b5021268; its probes in scratch/wsc) and what the plan now says.
+The blind critique (2026-10-11, of this plan as first written; its probes in scratch/wsc) and what the plan now says.
 Slice B of the critique's text is slices C and D here.
 
 - BLOCKING 1, the leaf-kind row: right, a recipient of constant leaves reads no `tree.params`. In A a linear
