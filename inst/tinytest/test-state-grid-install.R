@@ -438,6 +438,35 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
       paste("sparse store, column", column)
     )
   }
+  # and with a sparse test set, whose mostly zero columns hold their codes
+  # apart too and are put back with the training rows'
+  rows <- seq_len(40L)
+  xSparseTest <- Matrix::Matrix(
+    cbind(
+      a = ifelse(rows %% 8L == 0L, x[rows, 1L], 0),
+      b = ifelse(rows %% 10L == 0L, round(x[rows, 2L], 1) + 0.1, 0)
+    ),
+    sparse = TRUE
+  )
+  sparseWithTest <- function() {
+    sampler <- dbarts::dbarts(
+      xSparse,
+      y,
+      test = xSparseTest,
+      control = controlWith()
+    )
+    invisible(sampler$run(20L, 1L))
+    sampler
+  }
+  expect_identical(dim(sparseWithTest()$run(0L, 2L)$test), c(40L, 2L))
+  for (column in 1L:2L) {
+    expectTwoCalls(
+      sparseWithTest,
+      column,
+      list(three, c(0.25, 0.55, 0.85))[[column]],
+      paste("sparse store and test set, column", column)
+    )
+  }
 }
 
 # ---- field after crossing -------------------------------------------------
@@ -967,6 +996,24 @@ expectError(
 )
 expect_identical(stateOf(sampler), held)
 expect_true(sampler$setState(held))
+# and so is another grid of the same length: one split, on a point both
+# grids hold, recorded on {0.25, 0.5, 0.75}
+sampler <- dbarts::dbarts(
+  y ~ a + b,
+  levelFrame("ordered"),
+  control = controlWith(n.trees = 5L)
+)
+held <- stateOf(sampler)
+expect_identical(attr(held, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
+expect_identical(length(thresholdsOn(held, 1L)), 0L)
+shifted <- withTree(held, c(1, -1, -1), c(0.5, 0.1, -0.2))
+attr(shifted, "cutPoints")[[1L]] <- c(0.25, 0.5, 0.75)
+expectError(sampler$setState(shifted), "ordered, as many other points")
+expectError(
+  sampler$setState(shifted, forceUpdate = TRUE),
+  "ordered, as many other points"
+)
+expect_identical(stateOf(sampler), held)
 # the other way round cannot be told: an ordered factor's entry is what a
 # numeric column of whole numbers records, so its state follows the numeric
 # rule, FALSE where a threshold is off the grid and TRUE where none is
