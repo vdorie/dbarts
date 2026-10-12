@@ -190,10 +190,12 @@ forest(
     columns. The values are never looked at to decide: a column of 0s and 1s
     is one column with one coefficient, and is two levels only when written
     \code{factor(z)} or as a logical vector. A matrix of characters or of
-    logicals is refused, one of a single column included, since a vector is
-    levels and a matrix is numbers: hand over its column as a vector,
-    \code{cm[, 1]}. A data frame and any other class are refused too, with
-    the class named.
+    logicals, and a factor that has dimensions, is refused, one of a single
+    column included, since a vector is levels and a matrix is numbers: hand
+    over its column as a vector, \code{cm[, 1]}. A data frame and any other
+    class are refused too. Handed over as a value, the refusal names the
+    class; written as code, a class a model frame does not take, a data frame
+    or a list, is refused in R's own words.
 
     The kind is fixed when the forest is created. A forest created with no
     basis cannot be given one, and a forest of levels keeps the same levels,
@@ -217,7 +219,7 @@ forest(
     a value. \code{NA} is not a level: a factor made with \code{addNA()} or
     \code{exclude = NULL} that has a kept row at \code{NA} is refused, and
     the remedy is to give that level a name, as in
-    \code{factor(ifelse(is.na(w), "none", w))}. With no kept row at it the
+    \code{levels(f)[is.na(levels(f))] <- "none"}. With no kept row at it the
     \code{NA} level is dropped like any other level no row has.
 
     Some forms a model formula would take are refused, each by name and with
