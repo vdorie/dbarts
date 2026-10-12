@@ -1637,6 +1637,36 @@ warmStartState <- function(donor) {
   sampler$state
 }
 
+# The warm start behind the sampler's installTrees method and bart's
+# 'warm.start': the donor's trees go into the sampler, which keeps its own
+# model, cut points and data. Without force a donor that would have to be
+# changed to fit is not installed and the sampler is left as it was, its
+# stored state included; with it such a donor goes in with the changes. The
+# predictors are handed over for a forced install of a donor recorded on
+# other cut points, which re-quantizes them on the way. Returns the engine's
+# report, a list whose 'installed' is FALSE only for a donor declined; the
+# sampler's state is stored again only when the donor went in.
+installDonorTrees <- function(sampler, donor, samples, force) {
+  ptr <- sampler$getPointer()
+  refuseMultiForestWarmStart(ptr, "$installTrees")
+  donorState <- warmStartState(donor)
+  if (!is.null(samples)) {
+    samples <- coerceOrError(samples, "integer")
+  }
+  report <- .Call(
+    C_dbarts_bartcore_installForests,
+    ptr,
+    donorState,
+    samples,
+    rawPredictorMatrix(sampler$data@x),
+    force
+  )
+  if (report$installed) {
+    sampler$storeState(ptr)
+  }
+  report
+}
+
 # Draws from the BART prior (issue #31): repeatedly redraws trees and node
 # parameters on a private sampler and evaluates the resulting forest at
 # x.test, for calibrating priors before fitting - e.g. the prior
@@ -3898,27 +3928,35 @@ dbartsSampler <- setRefClass(
       selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
       invisible(NULL)
     },
-    installTrees = function(donor, samples = NULL) {
+    installTrees = function(donor, samples = NULL, forceUpdate = FALSE) {
       "Warm-starts the forests from a donor sampler or bart fit over the same
-       predictors, keeping this sampler's model. The donor's trees and leaf
-       values, and its k and sigma where this sampler draws them, go in as
-       stored on the internal scale, not converted to this sampler's
-       response; linear-leaf coefficients drawn under covariates centered and
-       scaled differently are restated in this sampler's. Where the donor's
-       data could hold no missing value in a column this sampler's can, each
-       chain draws the side of every rule on that column in the trees it
-       takes. 'samples' maps each chain to a 1-based donor-sample index; NULL
-       spreads the chains across the donor's kept samples. Single-forest
-       samplers only."
-      ptr <- getPointer()
-      refuseMultiForestWarmStart(ptr, "$installTrees")
-      donorState <- warmStartState(donor)
-      if (!is.null(samples)) {
-        samples <- coerceOrError(samples, "integer")
+       predictors, keeping this sampler's model and cut points. The donor's
+       trees and leaf values, and its k and sigma where this sampler draws
+       them, go in as stored on the internal scale, not converted to this
+       sampler's response; linear-leaf coefficients drawn under covariates
+       centered and scaled differently are restated in this sampler's. Where
+       the donor's data could hold no missing value in a column this
+       sampler's can, each chain draws the side of every rule on that column
+       in the trees it takes. 'samples' maps each chain to a 1-based
+       donor-sample index; NULL spreads the chains across the donor's kept
+       samples. A donor every tree of which fits this sampler as stored is
+       installed and TRUE is returned. One that would have to be changed - a
+       split off this sampler's cut points, a leaf no row reaches, a split
+       its forest does not allow, a missing-value side on a column that has
+       never held a missing value, monotone leaf values out of order, leaf
+       values this sampler does not read - is not installed: the sampler is
+       left as it was and FALSE is returned. With forceUpdate = TRUE such a
+       donor is installed with the changes and NULL is returned invisibly.
+       Single-forest samplers only. See Warm starts in ?dbartsSampler."
+      if (
+        !is.logical(forceUpdate) ||
+          length(forceUpdate) != 1L ||
+          is.na(forceUpdate)
+      ) {
+        stop("'forceUpdate' must be TRUE or FALSE", call. = FALSE)
       }
-      .Call(C_dbarts_bartcore_installForests, ptr, donorState, samples)
-      storeState(ptr)
-      invisible(NULL)
+      report <- installDonorTrees(.self, donor, samples, forceUpdate)
+      if (!forceUpdate) report$installed else invisible(NULL)
     },
     printTrees = function(treeNums, chainNums, sampleNums) {
       "Produces an info dump of the internal state of the trees."

@@ -2885,11 +2885,12 @@ struct ColumnStore {
 /// structural tree rebuild, restoring the live grid on scope exit. Only
 /// cutPoints, the per-column cut counts and the weights move, the donor grid
 /// going in unweighted (a rebuild reads no weight); the quantized observation
-/// codes are the live data's and are never touched, so buildFromFlat resolves a
-/// donor tree's split values against the donor grid while a later repartition
-/// still routes the live observations. Categorical columns (empty donor cuts,
-/// fixed category counts) pass through unchanged. Cross-grid warm start's
-/// build-then-remap uses this (Chain::rebuildLiveForestRemapped); the caller
+/// codes are the live data's and are never touched, so buildFromFlat resolves
+/// a donor tree's split values against the donor grid, and a tree built under
+/// it must not be partitioned: the codes do not belong to that grid.
+/// Categorical columns (empty donor cuts, fixed category counts) pass through
+/// unchanged. A state install and a warm start judge trees recorded on other
+/// points this way (Sampler::setState, Sampler::installForests); the caller
 /// guarantees donorCutPoints has one entry per predictor, matching the store's
 /// categorical/ordinal split column for column.
 class ScopedCutGrid {

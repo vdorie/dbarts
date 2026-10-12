@@ -4408,6 +4408,139 @@ public:
     return true;
   }
 
+  /// One live mean tree of a state as stateIsValid judges it: tree \p t of
+  /// \p fs built on \p scratch, which is initialized over \p scratchIndices
+  /// (one index per row) and given forest \p forest's interaction constraint
+  /// and the tree's column mask. False where the flat tree does not build.
+  /// With \p notClean non-null and down the tree is staged as the install
+  /// stages it (Tree::stageFromFlat) and the flag set where it would not be
+  /// installed as stored; otherwise it is only built.
+  bool stageLiveTree(const Forest<L, ResidT>& forest, const ForestStateData& fs,
+                     size_t t, Tree& scratch, index_t* scratchIndices,
+                     std::vector<double>& params, bool* notClean) const {
+    scratch.initialize(scratchIndices, data_.numObservations);
+    // carry this forest's interaction constraint and column mask (both null
+    // when unrestricted, so the walks short-circuit and the default path is
+    // unchanged)
+    scratch.setInteractionConstraint(forest.interaction.get());
+    // the effective per-tree mask: a block row (already intersected with any
+    // base mask at install) when blocks() is active, else the shared columnMask
+    scratch.setColumnMask(
+      !forest.blockMasks.empty()
+        ? forest.blockMasks.data() + forest.blockOfTree[t] * data_.numPredictors
+        : (forest.columnMask.empty() ? nullptr : forest.columnMask.data()));
+    const std::uint64_t* masks =
+      fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
+    size_t numMaskWords = fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
+    // a tree the install would merge, collapse or reseed is not a refusal
+    // (rebuildLiveForest); it is what the verdict reports
+    if (notClean == nullptr || *notClean)
+      return scratch.buildFromFlat(data_, fs.trees[t].data(),
+                                   fs.trees[t].size(), params, 1, nullptr,
+                                   masks, numMaskWords);
+    bool needsMerge = false, directionDropped = false;
+    if (!scratch.stageFromFlat(data_, fs.trees[t].data(), fs.trees[t].size(),
+                               params, 1, nullptr, masks, numMaskWords,
+                               needsMerge, &directionDropped))
+      return false;
+    bool inCone = true;
+    if constexpr (TreeDrawLeafModel<L>)
+      inCone = monotoneTreeIsFeasible(
+        scratch, data_, forest.leaf.directions.data(), params.data());
+    if (needsMerge || directionDropped || !inCone) *notClean = true;
+    return true;
+  }
+
+  /// The variance forest's twin, over live variance tree \p j of \p state:
+  /// false also where the flat tree is not well formed or holds a leaf that
+  /// is not a positive scale. Requires a variance forest.
+  bool stageLiveVarianceTree(const ChainStateData& state, size_t j,
+                             Tree& scratch, index_t* scratchIndices,
+                             std::vector<double>& params,
+                             bool* notClean) const {
+    const std::vector<FlatNode>& tree(state.varianceTrees[j]);
+    const std::uint64_t* masks = state.varianceTreeMasks.empty()
+      ? nullptr : state.varianceTreeMasks[j].data();
+    size_t numMaskWords = state.varianceTreeMasks.empty()
+      ? 0 : state.varianceTreeMasks[j].size();
+    if (!flatTreeIsWellFormed(data_, tree.data(), tree.size(), masks,
+                              numMaskWords))
+      return false;
+    for (const FlatNode& node : tree)
+      if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+        return false;
+    scratch.initialize(scratchIndices, data_.numObservations);
+    // the variance forest carries no interaction constraint; clear the mean
+    // trees', which a shared scratch would otherwise still hold
+    scratch.setInteractionConstraint(nullptr);
+    scratch.setColumnMask(varianceForest_->columnMask.empty()
+                            ? nullptr : varianceForest_->columnMask.data());
+    if (notClean == nullptr || *notClean)
+      return scratch.buildFromFlat(data_, tree.data(), tree.size(), params, 1,
+                                   nullptr, masks, numMaskWords);
+    bool needsMerge = false, directionDropped = false;
+    if (!scratch.stageFromFlat(data_, tree.data(), tree.size(), params, 1,
+                               nullptr, masks, numMaskWords, needsMerge,
+                               &directionDropped))
+      return false;
+    if (needsMerge || directionDropped) *notClean = true;
+    return true;
+  }
+
+  /// Whether the live trees a warm start has assembled for this chain build,
+  /// mean and then variance, each by the routine stateIsValid judges a
+  /// state's by, against the store's cut points as they stand: the store's
+  /// own, or a donor's the caller has swapped in. False where one does not,
+  /// \p varianceFailed saying whether it was a variance tree. \p notClean is
+  /// stateIsValid's: non-null, the trees are staged over the store's rows and
+  /// the flag is set, never cleared, where the install would change one;
+  /// null, they are only built, as they must be over a swapped grid, which
+  /// the rows' codes do not belong to. Nothing of the chain is touched.
+  bool donorTreesStage(const ChainStateData& state, bool* notClean,
+                       bool& varianceFailed) const {
+    varianceFailed = false;
+    if (state.forests.size() != forests_.size()) return false;
+    Tree scratch;
+    std::vector<index_t> scratchIndices(data_.numObservations);
+    std::vector<double> params;
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      const ForestStateData& fs = state.forests[f];
+      if (fs.trees.size() != forests_[f].numTrees ||
+          (!fs.treeMasks.empty() && fs.treeMasks.size() != fs.trees.size()))
+        return false;
+      for (size_t t = 0; t < fs.trees.size(); ++t)
+        if (!stageLiveTree(forests_[f], fs, t, scratch, scratchIndices.data(),
+                           params, notClean))
+          return false;
+    }
+    if (!varianceForest_) return true;
+    varianceFailed = true;
+    if (state.varianceTrees.size() != varianceForest_->numTrees ||
+        (!state.varianceTreeMasks.empty() &&
+         state.varianceTreeMasks.size() != state.varianceTrees.size()))
+      return false;
+    for (size_t j = 0; j < state.varianceTrees.size(); ++j)
+      if (!stageLiveVarianceTree(state, j, scratch, scratchIndices.data(),
+                                 params, notClean))
+        return false;
+    varianceFailed = false;
+    return true;
+  }
+
+  /// Sets every live tree's per-row fits in \p state, a warm start's
+  /// assembled scratch, to 0: a function leaf's fits are values by row, and a
+  /// donor recorded on other cut points gives no sign that its rows are this
+  /// chain's. Compiled out off function leaves.
+  void coldStartFunctionFits(ChainStateData& state) const {
+    if constexpr (L::hasFunctionParams) {
+      for (ForestStateData& fs : state.forests)
+        for (std::vector<double>& fits : fs.treeParams)
+          std::fill(fits.begin(), fits.end(), 0.0);
+    } else {
+      (void) state;
+    }
+  }
+
   /// Whether \p state can be installed in this chain, touching nothing: its
   /// shape, its values and every tree's form, live trees built on a scratch
   /// tree against the store's current cuts.
@@ -4489,43 +4622,10 @@ public:
                                   numMaskWords))
           return false;
       }
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        scratch.initialize(scratchIndices.data(), n);
-        // carry this forest's interaction constraint and column mask (both null
-        // when unrestricted, so the walks short-circuit and the default path is
-        // unchanged)
-        scratch.setInteractionConstraint(forest.interaction.get());
-        // the effective per-tree mask: a block row (already intersected with any
-        // base mask at install) when blocks() is active, else the shared columnMask
-        scratch.setColumnMask(
-          !forest.blockMasks.empty()
-            ? forest.blockMasks.data() + forest.blockOfTree[t] * data_.numPredictors
-            : (forest.columnMask.empty() ? nullptr : forest.columnMask.data()));
-        const std::uint64_t* masks =
-          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
-        size_t numMaskWords =
-          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-        // a tree the install would merge, collapse or reseed is not a
-        // refusal (rebuildLiveForest); it is what the verdict reports
-        if (notClean == nullptr || *notClean) {
-          if (!scratch.buildFromFlat(data_, fs.trees[t].data(),
-                                     fs.trees[t].size(), params, 1, nullptr,
-                                     masks, numMaskWords))
-            return false;
-          continue;
-        }
-        bool needsMerge = false, directionDropped = false;
-        if (!scratch.stageFromFlat(data_, fs.trees[t].data(),
-                                   fs.trees[t].size(), params, 1, nullptr,
-                                   masks, numMaskWords, needsMerge,
-                                   &directionDropped))
+      for (size_t t = 0; t < forest.numTrees; ++t)
+        if (!stageLiveTree(forest, fs, t, scratch, scratchIndices.data(),
+                           params, notClean))
           return false;
-        bool inCone = true;
-        if constexpr (TreeDrawLeafModel<L>)
-          inCone = monotoneTreeIsFeasible(
-            scratch, data_, forest.leaf.directions.data(), params.data());
-        if (needsMerge || directionDropped || !inCone) *notClean = true;
-      }
     }
     if (!state.latents.empty() &&
         (response_->latents() == nullptr || state.latents.size() != n))
@@ -4587,38 +4687,10 @@ public:
           state.savedVarianceTreeMasks.size() !=
             state.savedVarianceTrees.size())
         return false;
-      const std::uint8_t* varianceMask = varianceForest_->columnMask.empty()
-        ? nullptr : varianceForest_->columnMask.data();
-      for (size_t j = 0; j < state.varianceTrees.size(); ++j) {
-        const std::vector<FlatNode>& tree(state.varianceTrees[j]);
-        const std::uint64_t* masks = state.varianceTreeMasks.empty()
-          ? nullptr : state.varianceTreeMasks[j].data();
-        size_t numMaskWords = state.varianceTreeMasks.empty()
-          ? 0 : state.varianceTreeMasks[j].size();
-        if (!flatTreeIsWellFormed(data_, tree.data(), tree.size(), masks,
-                                  numMaskWords))
+      for (size_t j = 0; j < state.varianceTrees.size(); ++j)
+        if (!stageLiveVarianceTree(state, j, scratch, scratchIndices.data(),
+                                   params, notClean))
           return false;
-        for (const FlatNode& node : tree)
-          if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
-            return false;
-        scratch.initialize(scratchIndices.data(), n);
-        // the variance forest carries no interaction constraint; clear the
-        // mean loop's, which the shared scratch would otherwise still hold
-        scratch.setInteractionConstraint(nullptr);
-        scratch.setColumnMask(varianceMask);
-        if (notClean == nullptr || *notClean) {
-          if (!scratch.buildFromFlat(data_, tree.data(), tree.size(), params,
-                                     1, nullptr, masks, numMaskWords))
-            return false;
-          continue;
-        }
-        bool needsMerge = false, directionDropped = false;
-        if (!scratch.stageFromFlat(data_, tree.data(), tree.size(), params, 1,
-                                   nullptr, masks, numMaskWords, needsMerge,
-                                   &directionDropped))
-          return false;
-        if (needsMerge || directionDropped) *notClean = true;
-      }
       // the saved trees: form and the scale-leaf positivity law. A saved slot
       // is a historical replay target routed over NEW rows, never over this
       // sampler's partition.
@@ -4638,115 +4710,6 @@ public:
     } else if (!state.varianceTrees.empty() ||
                !state.savedVarianceTrees.empty()) {
       return false;
-    }
-    return true;
-  }
-
-  /// Whether every live tree in `state` satisfies its forest's interaction
-  /// constraint - the warm-start containment gate (design "Containment"): a
-  /// donor grown under a different (or no) constraint may hold a tree this
-  /// sampler's constraint forbids, which treeLogProbability would mis-score.
-  /// installForests calls this before touching live state so it can report a
-  /// clear refusal; a state install collapses such a tree instead, or
-  /// declines it (stateIsValid's verdict).
-  /// Trivially true for an unconstrained forest, so the default warm start is
-  /// byte-for-byte unchanged. Mirrors stateIsValid's structural scratch build
-  /// (paramStride 1: only the rule structure, not leaf params, is examined).
-  bool interactionStateFeasible(const ChainStateData& state) const {
-    if (state.forests.size() != forests_.size()) return true;  // shape gate elsewhere
-    size_t n = data_.numObservations;
-    Tree scratch;
-    std::vector<index_t> scratchIndices(n);
-    std::vector<double> params;
-    for (size_t f = 0; f < forests_.size(); ++f) {
-      const Forest<L, ResidT>& forest = forests_[f];
-      if (!forest.interaction || !forest.interaction->active()) continue;  // unconstrained: nothing to check
-      const ForestStateData& fs = state.forests[f];
-      if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        scratch.initialize(scratchIndices.data(), n);
-        scratch.setInteractionConstraint(forest.interaction.get());
-        const std::uint64_t* masks =
-          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
-        size_t numMaskWords =
-          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-        // a malformed tree is the caller's shape concern (installForest fails
-        // it); here we only judge the interaction feasibility of a buildable one
-        if (!scratch.buildFromFlat(data_, fs.trees[t].data(), fs.trees[t].size(),
-                                   params, 1, nullptr, masks, numMaskWords))
-          continue;
-        if (!scratch.interactionSubtreeIsValid(0)) return false;
-      }
-    }
-    return true;
-  }
-
-  /// Whether every live tree in `state` respects its forest's column mask - the
-  /// warm-start containment gate for the split-variable restriction (BCF
-  /// moderators, a column-restricted variance forest): a donor grown under a
-  /// different (or no) restriction may hold a tree that splits on a column this
-  /// sampler's forest forbids, which splitVariableLogProbability would mis-score
-  /// against an availability menu (collectAvailableVariables) that excludes it.
-  /// installForests calls this before touching live state, against the
-  /// donor's grid; a state install collapses such a tree instead, or declines
-  /// it (stateIsValid's verdict), and rebuildLiveForest keeps the same test
-  /// per tree as the invariant's backstop.
-  /// Trivially true for an unrestricted forest, so the default warm start is
-  /// byte-for-byte unchanged. Mirrors interactionStateFeasible's scratch build
-  /// (paramStride 1: only the rule structure, not leaf params, is examined).
-  bool columnMaskStateFeasible(const ChainStateData& state) const {
-    if (state.forests.size() != forests_.size()) return true;  // shape gate elsewhere
-    size_t n = data_.numObservations;
-    Tree scratch;
-    std::vector<index_t> scratchIndices(n);
-    std::vector<double> params;
-    for (size_t f = 0; f < forests_.size(); ++f) {
-      const Forest<L, ResidT>& forest = forests_[f];
-      // a blocks() forest carries its per-tree restriction in blockMasks, not the
-      // shared columnMask; either (or an intersected tau block row) must be gated
-      if (forest.columnMask.empty() && forest.blockMasks.empty()) continue;  // unrestricted
-      const ForestStateData& fs = state.forests[f];
-      if (fs.trees.size() != forest.numTrees) return true;  // shape gate elsewhere
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        scratch.initialize(scratchIndices.data(), n);
-        // the effective per-tree mask: a block row (already intersected with any
-        // base moderator/variance mask at install) when blocks() is active, else
-        // the shared forest columnMask
-        scratch.setColumnMask(forest.blockMasks.empty()
-          ? forest.columnMask.data()
-          : forest.blockMasks.data() + forest.blockOfTree[t] * data_.numPredictors);
-        const std::uint64_t* masks =
-          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
-        size_t numMaskWords =
-          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-        // a malformed tree is the caller's shape concern (installForest fails
-        // it); here we only judge the column feasibility of a buildable one
-        if (!scratch.buildFromFlat(data_, fs.trees[t].data(), fs.trees[t].size(),
-                                   params, 1, nullptr, masks, numMaskWords))
-          continue;
-        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
-      }
-    }
-    // the variance forest sits outside forests_, so a `variance = ~ subset`
-    // restriction needs its own pass over the state's variance trees - the
-    // same scratch build, against varianceForest_->columnMask. A state
-    // carrying no variance trees skips, as does an unrestricted variance
-    // forest (no mask).
-    if (varianceForest_ && !varianceForest_->columnMask.empty() &&
-        state.varianceTrees.size() == varianceForest_->numTrees) {
-      for (size_t j = 0; j < state.varianceTrees.size(); ++j) {
-        const std::vector<FlatNode>& flat(state.varianceTrees[j]);
-        const std::uint64_t* masks = state.varianceTreeMasks.empty()
-          ? nullptr : state.varianceTreeMasks[j].data();
-        size_t numMaskWords = state.varianceTreeMasks.empty()
-          ? 0 : state.varianceTreeMasks[j].size();
-        scratch.initialize(scratchIndices.data(), n);
-        scratch.setColumnMask(varianceForest_->columnMask.data());
-        if (!scratch.buildFromFlat(data_, flat.data(), flat.size(), params, 1,
-                                   nullptr, masks, numMaskWords))
-          continue;
-        if (!scratch.columnMaskSubtreeIsValid(0)) return false;
-      }
     }
     return true;
   }
@@ -4890,181 +4853,21 @@ public:
     return true;
   }
 
-  /// Cross-grid warm start's per-forest rebuild: the donor's flat trees were
-  /// grown on donorCutPoints, a grid this sampler no longer carries, so build
-  /// each tree's structure against that grid - where its ordinal split values
-  /// resolve exactly - then remap the recovered split indices onto the live
-  /// grid, collapsing splits the coarser or shifted grid starves, exactly as
-  /// setData's applyNewData does. The donor grid is installed over the shared
-  /// store only for the structural buildFromFlat (ScopedCutGrid; the live
-  /// observation codes are never touched) and reverts before the remap and
-  /// repartition. The leaf's standardization and lengthscales are this
-  /// sampler's and stay: the caller has already stated the donor's
-  /// coefficients in them (convertDonorStandardization). Node parameters carry
-  /// through the remap; function fits, being per-donor-observation,
-  /// cold-start. False if a flat tree fails to rebuild or the remapped tree
-  /// violates this forest's constraint. store is
-  /// this chain's own shared data (the const data_ aliases it), handed in
-  /// mutably because only the sampler owns it: the donor grid is swapped over it
-  /// for the structural build alone.
-  bool rebuildLiveForestRemapped(
-      size_t f, const ForestStateData& fs,
-      const std::vector<std::vector<double>>& donorCutPoints,
-      std::vector<double>& params, ColumnStore& store) {
-    Forest<L, ResidT>& forest = forests_[f];
-    size_t n = data_.numObservations;
-    misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
-    forest.totalFitsScale = 1.0;
-
-    // every tree is rebuilt whole, so what the leaf cached per tree goes
-    if constexpr (L::hasVectorParams)
-      forest.leaf.invalidateStatistics();
-    else if constexpr (L::hasFunctionParams)
-      forest.leaf.invalidateKernels();
-
-    size_t paramStride = 1;
-    if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
-
-    for (size_t t = 0; t < forest.numTrees; ++t) {
-      forest.trees[t].initialize(forest.indexBuffer.data() + t * n, n);
-      const std::uint64_t* masks =
-        fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
-      size_t numMaskWords =
-        fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-
-      // recover the donor split indices by building against the donor grid; the
-      // swap is structural (codes untouched) and reverts before the remap even
-      // on the failure return (ScopedCutGrid's destructor)
-      {
-        ScopedCutGrid donorGrid(store, donorCutPoints);
-        if constexpr (!L::hasVectorParams) {
-          if (!forest.trees[t].buildFromFlat(store, fs.trees[t].data(),
-                                             fs.trees[t].size(), params, 1,
-                                             nullptr, masks, numMaskWords))
-            return false;
-        } else {
-          if (!forest.trees[t].buildFromFlat(store, fs.trees[t].data(),
-                                             fs.trees[t].size(), params,
-                                             forest.leaf.numParams(),
-                                             fs.treeParams[t].data(), masks,
-                                             numMaskWords))
-            return false;
-        }
-      }
-
-      // function-valued fits are per-donor-observation; cold-start them, as
-      // applyNewData does (the next sweep's draws replace them)
-      if constexpr (L::hasFunctionParams)
-        params.assign(forest.trees[t].nodes.size(), 0.0);
-
-      // remap onto the live grid, then re-route and collapse starved or emptied
-      // subtrees - the applyNewData body, without the response/store rebuild
-      forest.trees[t].mapOldCutPointsOntoNew(data_, donorCutPoints, params,
-                                             paramStride);
-      forest.trees[t].repartitionSubtree(data_, 0);
-      forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
-                                         params, paramStride);
-      // containment backstop (as rebuildLiveForest): a donor grown unconstrained
-      // cannot leave an infeasible live tree, even after the remap collapses
-      if (!forest.trees[t].interactionSubtreeIsValid(0)) return false;
-      if (!forest.trees[t].columnMaskSubtreeIsValid(0)) return false;
-      reseedInfeasibleMonotoneLeaves(forest, t, params);
-      if constexpr (!L::hasVectorParams) {
-        setTreeFitsFromParameters(forest, t, params);
-      } else {
-        forest.paramsByTree[t] = params;
-        setTreeFitsFromParameterBlocks(forest, t, params);
-      }
-      if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
-      addTreeFitsToTotal(forest, t);
-    }
-    return true;
-  }
-
   /// Warm start: seed the live forest(s) from a donor's flat trees, and
   /// sigma, k, the DART concentration and the amplitudes where this chain
   /// draws them, leaving its rng, latents, and saved-tree buffer untouched -
   /// the donor supplies a starting position, not a continuation, and never a
-  /// model value. Callers guarantee shape compatibility; false signals only a
-  /// flat tree that failed to rebuild. donorCutPoints null installs the donor's
-  /// splits verbatim (the donor shares this sampler's grid); non-null remaps
-  /// them onto the live grid, collapsing starved splits (a cross-grid start),
-  /// and requires store - this chain's shared data, mutable so the donor grid
-  /// can be swapped in for the structural build.
-  /// Whether every live tree in \p state builds from its flat form against the
-  /// store as it stands - the live grid, or a donor grid the caller has swapped
-  /// in - on scratch trees, touching nothing: the one way installForest's
-  /// rebuild can fail that the warm start's other gates do not see, checked
-  /// before any chain is replaced.
-  bool forestsRebuildable(const ChainStateData& state) const {
-    if (state.forests.size() != forests_.size()) return false;
-    size_t n = data_.numObservations;
-    Tree scratch;
-    std::vector<index_t> scratchIndices(n);
-    std::vector<double> params;
-    for (size_t f = 0; f < forests_.size(); ++f) {
-      const Forest<L, ResidT>& forest = forests_[f];
-      const ForestStateData& fs = state.forests[f];
-      if (fs.trees.size() != forest.numTrees) return false;
-      for (size_t t = 0; t < forest.numTrees; ++t) {
-        scratch.initialize(scratchIndices.data(), n);
-        const std::uint64_t* masks =
-          fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
-        size_t numMaskWords =
-          fs.treeMasks.empty() ? 0 : fs.treeMasks[t].size();
-        bool built;
-        if constexpr (!L::hasVectorParams)
-          built = scratch.buildFromFlat(data_, fs.trees[t].data(),
-                                        fs.trees[t].size(), params, 1, nullptr,
-                                        masks, numMaskWords);
-        else
-          built = scratch.buildFromFlat(data_, fs.trees[t].data(),
-                                        fs.trees[t].size(), params,
-                                        forest.leaf.numParams(),
-                                        fs.treeParams[t].data(), masks,
-                                        numMaskWords);
-        if (!built) return false;
-      }
-    }
-    return true;
-  }
-
-  /// The variance forest's twin: every tree builds.
-  bool varianceForestRebuildable(
-      const std::vector<std::vector<FlatNode>>& trees,
-      const std::vector<std::vector<std::uint64_t>>& masks) const {
-    const VarianceForest& vf = *varianceForest_;
-    if (trees.size() != vf.numTrees) return false;
-    size_t n = data_.numObservations;
-    Tree scratch;
-    std::vector<index_t> scratchIndices(n);
-    std::vector<double> leafValues;
-    for (size_t j = 0; j < vf.numTrees; ++j) {
-      scratch.initialize(scratchIndices.data(), n);
-      const std::uint64_t* maskWords =
-        masks.empty() ? nullptr : masks[j].data();
-      size_t numMaskWords = masks.empty() ? 0 : masks[j].size();
-      if (!scratch.buildFromFlat(data_, trees[j].data(), trees[j].size(),
-                                 leafValues, 1, nullptr, maskWords,
-                                 numMaskWords))
-        return false;
-    }
-    return true;
-  }
-
-  bool installForest(const ChainStateData& state,
-                     const std::vector<std::vector<double>>* donorCutPoints =
-                       nullptr,
-                     ColumnStore* store = nullptr) {
+  /// model value. The trees are built against the store's cut points as they
+  /// stand, by the routine a state's install builds them by
+  /// (rebuildLiveForest), whose \p altered this is. Callers guarantee shape
+  /// compatibility; false signals only a flat tree that failed to rebuild.
+  bool installForest(const ChainStateData& state, bool* altered = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       const ForestStateData& fs = state.forests[f];
       if (fs.trees.size() != forests_[f].numTrees) return false;
-      bool rebuilt = donorCutPoints == nullptr
-        ? rebuildLiveForest(f, fs, params)
-        : rebuildLiveForestRemapped(f, fs, *donorCutPoints, params, *store);
-      if (!rebuilt) return false;
+      if (!rebuildLiveForest(f, fs, params, altered)) return false;
       if (forests_[f].updateK && !std::isnan(fs.k)) forests_[f].k = fs.k;
     }
     installDrawnScalars(state);
@@ -5074,44 +4877,14 @@ public:
 
   /// The warm start's variance half, run by installForests right after
   /// installForest so a refusal can name the variance forest rather than the
-  /// shape. Same grid: the donor's flat trees resolve against the live grid and
-  /// rebuildVarianceForest installs them verbatim, as setState does. Cross
-  /// grid: build each tree's structure against the donor grid - where its
-  /// ordinal split values resolve exactly - then hand it to
-  /// refreshVarianceForest's remap arm, mirroring rebuildLiveForestRemapped
-  /// (the recovered factors come from the flat trees, not from the live slab,
-  /// which still holds the destination's own surface). False when a flat tree
-  /// fails to rebuild. Both arms merge a bottom no row reaches, so no installed
-  /// tree reports a scale this data never supported.
+  /// shape: the donor's flat trees, built against the store's cut points as
+  /// they stand, as setState installs them (rebuildVarianceForest), whose
+  /// \p altered this is. False when a flat tree fails to rebuild.
   bool installVarianceForest(
       const std::vector<std::vector<FlatNode>>& trees,
       const std::vector<std::vector<std::uint64_t>>& masks,
-      const std::vector<std::vector<double>>* donorCutPoints,
-      ColumnStore* store) {
-    VarianceForest& vf = *varianceForest_;
-    std::size_t n = data_.numObservations;
-    if (trees.size() != vf.numTrees) return false;
-    if (donorCutPoints == nullptr) {
-      if (!rebuildVarianceForest(trees, masks)) return false;
-    } else {
-      TreeParameters recovered(vf.numTrees);
-      {
-        ScopedCutGrid donorGrid(*store, *donorCutPoints);
-        for (std::size_t j = 0; j < vf.numTrees; ++j) {
-          Tree& tree = vf.trees[j];
-          tree.initialize(vf.indexBuffer.data() + j * n, n);
-          const std::uint64_t* maskWords =
-            masks.empty() ? nullptr : masks[j].data();
-          std::size_t numMaskWords = masks.empty() ? 0 : masks[j].size();
-          if (!tree.buildFromFlat(*store, trees[j].data(), trees[j].size(),
-                                  recovered[j], 1, nullptr, maskWords,
-                                  numMaskWords))
-            return false;
-        }
-      }
-      refreshVarianceForest(donorCutPoints, &recovered);
-    }
-    return true;
+      bool* altered = nullptr) {
+    return rebuildVarianceForest(trees, masks, altered);
   }
 
   /// Restates the linear coefficients of \p install's live trees - a warm
@@ -5119,14 +4892,18 @@ public:
   /// into this chain's own, so the trees seed the function the donor held on
   /// whatever standardization it was drawn under; this chain's own is never
   /// moved. A column without spread on both sides is left as the donor built
-  /// it (convertLinearCoefficients). Nothing is done where the
+  /// it (convertLinearCoefficients), and \p keptAcrossValues is set, never
+  /// cleared, where such a column is centered elsewhere here under a slope
+  /// that is not 0: the leaf is then not the donor's function at this chain's
+  /// value of the column. Nothing is done where the
   /// donor records no standardization or the two are equal, so such an
   /// install is the donor's values bit for bit, and nothing on any other
   /// leaf. False where the donor's record does not fit the leaf
   /// (leafCalibrationIsValid) or a tree's slopes do not match its leaves;
   /// \p install, the caller's scratch, may then be part converted.
   bool convertDonorStandardization(ChainStateData& install,
-                                   const ChainStateData& donor) const {
+                                   const ChainStateData& donor,
+                                   bool& keptAcrossValues) const {
     if constexpr (L::hasVectorParams) {
       std::size_t numForests =
         std::min({install.forests.size(), donor.forests.size(),
@@ -5147,10 +4924,22 @@ public:
           if (!convertFlatLinearTree(fs.trees[t], fs.treeParams[t], from, to,
                                      /*keepWithoutSpread=*/true))
             return false;
+        // a kept column's slopes are as the donor built them, one block of
+        // slopes per leaf
+        std::size_t numSlopes = from.centers.size();
+        for (std::size_t j = 0; j < numSlopes; ++j) {
+          if (from.hasSpread[j] || to.hasSpread[j] ||
+              from.centers[j] == to.centers[j])
+            continue;
+          for (const std::vector<double>& slopes : fs.treeParams)
+            for (std::size_t b = j; b < slopes.size(); b += numSlopes)
+              if (slopes[b] != 0.0) keptAcrossValues = true;
+        }
       }
     } else {
       (void) install;
       (void) donor;
+      (void) keptAcrossValues;
     }
     return true;
   }
@@ -6162,9 +5951,7 @@ private:
       // the empty-leaf veto admits no unoccupied bottom into live state, so
       // every factor recovered HERE is a drawn (positive) scale. A
       // caller supplying recoveredFactors read them itself and owns that
-      // invariant: setData's from its own live partition, the warm start's
-      // from a donor's flat trees, whose partition is not built until the
-      // repartition below.
+      // invariant, as setData does from its own live partition.
       assert(recoveredFactors != nullptr || tree.bottomNodesAreOccupied());
       if (recoveredFactors != nullptr)
         leafValues = (*recoveredFactors)[j];

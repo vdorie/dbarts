@@ -383,9 +383,14 @@ public:
   /// host re-creating a sampler from its record, read back to keep one.
   virtual void setAnchor(double min, double max) = 0;
   virtual void getAnchor(double& min, double& max) const = 0;
+  /// Sampler::installForests: force installs a donor that is not clean with
+  /// the changes it needs, where an unforced call declines it; altered, when
+  /// non-null, reports an install of such a donor.
   virtual WarmStartResult installForests(
       const SamplerStateData& donor,
-      const std::vector<std::pair<std::size_t, int>>& sampleMap) = 0;
+      const std::vector<std::pair<std::size_t, int>>& sampleMap,
+      const double* currentPredictors, bool force = true,
+      bool* altered = nullptr, bool leafBlocksUnread = false) = 0;
   virtual void sampleTreesFromPrior() = 0;
   virtual void sampleNodeParametersFromPrior() = 0;
   virtual void sampleVarianceForestFromPrior() = 0;
@@ -715,8 +720,11 @@ public:
   }
   WarmStartResult installForests(
       const SamplerStateData& donor,
-      const std::vector<std::pair<std::size_t, int>>& sampleMap) override {
-    return impl_.installForests(donor, sampleMap);
+      const std::vector<std::pair<std::size_t, int>>& sampleMap,
+      const double* currentPredictors, bool force = true,
+      bool* altered = nullptr, bool leafBlocksUnread = false) override {
+    return impl_.installForests(donor, sampleMap, currentPredictors, force,
+                                altered, leafBlocksUnread);
   }
   void sampleTreesFromPrior() override { impl_.sampleTreesFromPrior(); }
   void sampleNodeParametersFromPrior() override {

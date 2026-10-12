@@ -122,16 +122,20 @@ struct SamplerStateData {
   std::vector<std::uint8_t> missingColumns;
 };
 
-/// Why a warm start (installForests) refused; ok on success. A single donor
+/// What a warm start (installForests) did: ok for a donor installed, declined
+/// for one an unforced call did not install because a tree or a leaf value
+/// would have had to change, and otherwise why it was refused. A single donor
 /// forest can seed several chains, so the donor's chain count need not match.
+/// gridMismatch: another number of columns, a column that splits by subset on
+/// one side only, a donor grid that repeats a point, or, on a column the
+/// store holds as an ordered factor, a donor grid other than the store's.
 /// varianceShapeMismatch: the donor's variance forest holds another tree
-/// count. rebuildFailed: a donor tree that passed every
-/// up-front check failed to rebuild on this sampler's data, the one refusal
-/// that arrives mid-install and is undone.
+/// count. rebuildFailed: a donor tree does not build, on the grid the donor
+/// records or on the store's; found on scratch before anything is written,
+/// and undone where an install fails all the same.
 enum class WarmStartResult {
-  ok, shapeMismatch, gridMismatch, dartMismatch, interactionMismatch,
-  columnMaskMismatch, varianceMismatch, varianceSlotMismatch,
-  varianceShapeMismatch, rebuildFailed
+  ok, declined, shapeMismatch, gridMismatch, dartMismatch, varianceMismatch,
+  varianceSlotMismatch, varianceShapeMismatch, rebuildFailed
 };
 
 /// A sequential per-observation predictor update: stage one observation's
@@ -1481,44 +1485,88 @@ public:
   /// the donor chain's live trees, else its saved slot (slot-major, one forest
   /// per slot). Only trees, DART, and the sigma, k, concentration and
   /// amplitudes this sampler draws transfer - rng and auxiliary state stay
-  /// fresh, so each chain evolves independently from its own stream. A donor
-  /// that records the columns that could hold a missing value where its trees
-  /// were grown (missingColumns) holds no direction on the others: for each
-  /// of those this sampler can hold one in, every rule on it in the trees a
-  /// chain takes draws its direction with probability one half from that
-  /// chain's own generator, before the trees are judged or remapped
-  /// (Chain::drawDonorMissingDirections), and a start then refused puts the
-  /// generators back. A donor with no record draws nothing. Leaf
-  /// values, k and sigma go in as the donor stored them, numbers on the
-  /// internal scale read against this sampler's response transform, never
-  /// converted from the donor's; a linear leaf's coefficients drawn under
-  /// another covariate standardization are restated in this sampler's, whose
-  /// standardization and lengthscales stay its own. Under a variance forest the scale surface
-  /// rides along, taken from
-  /// the same slot as the mean forest. A donor on a different cut grid has its
-  /// splits remapped onto this sampler's grid (starved splits collapse), as
-  /// setData remaps a data replacement; the donor must still share this
-  /// sampler's per-forest tree counts, variance tree count and DART mode. On
-  /// any mismatch nothing is touched: a rebuild that fails part way restores
-  /// every chain installed before it.
+  /// fresh, so each chain evolves independently from its own stream. The cut
+  /// grid, its weights and the codes are the store's, the same before and
+  /// after, byte for byte. The donor must share this sampler's per-forest
+  /// tree counts, variance tree count and DART mode.
+  ///
+  /// How a donor is read, none of it a change to it. A donor that records
+  /// the columns that could hold a missing value where its trees were grown
+  /// (missingColumns) holds no direction on the others: for each of those
+  /// this sampler can hold one in, every rule on it in the trees a chain
+  /// takes draws its direction with probability one half from that chain's
+  /// own generator, before the trees are judged
+  /// (Chain::drawDonorMissingDirections); a donor with no record draws
+  /// nothing. Leaf values, k and sigma go in as the donor stored them,
+  /// numbers on the internal scale read against this sampler's response
+  /// transform, never converted from the donor's; a linear leaf's
+  /// coefficients drawn under another covariate standardization are restated
+  /// in this sampler's, whose standardization and lengthscales stay its own.
+  /// Under a variance forest the scale surface rides along, taken from the
+  /// same slot as the mean forest.
+  ///
+  /// A donor is clean when every tree a chain takes stands in this sampler
+  /// as the donor holds it and every leaf is the donor's. It is not where
+  /// - a live threshold, mean or variance, is no point of the store's grid;
+  /// - a tree would be installed other than as its flat form holds it, by
+  ///   the staging and for the reasons a state's verdict gives
+  ///   (Chain::donorTreesStage, Sampler::setState), judged after the
+  ///   directions are drawn;
+  /// - the leaves are function leaves and the donor's recorded points are
+  ///   not the store's, equal points being the one sign that the fits, values
+  ///   by row, are of these rows: the fits then start at 0;
+  /// - \p leafBlocksUnread: the caller's word that the donor carries leaf
+  ///   blocks this sampler's leaves do not read;
+  /// - a linear leaf's covariate holds one value in the donor's data and
+  ///   another single value here under a slope that is not 0, the
+  ///   coefficients being kept as built (Chain::convertDonorStandardization).
+  /// Without \p force such a donor is not installed: declined is returned
+  /// with nothing written and the generators back where they were. With it
+  /// the donor goes in with the changes. Where every live threshold is a
+  /// point of the store's grid the trees are built there and repaired as a
+  /// forced state install repairs them (Chain::rebuildLiveForest,
+  /// Chain::rebuildVarianceForest). Otherwise they go in across the grids
+  /// (installAcrossGrids): built and routed on the donor's recorded points,
+  /// then every split on a column whose grids differ moved to the nearest
+  /// point of the store's grid inside the interval the splits above it
+  /// leave, a split left no point and a leaf left no row merging at the mean
+  /// of the leaves beneath weighted by the rows each held. A clean donor is
+  /// installed the same with and without force.
+  ///
+  /// \p currentPredictors is the call-time predictor matrix the columns
+  /// re-quantize from on the way across grids (null for CSC/mixed stores),
+  /// read by no other install.
+  ///
+  /// A refusal is the same in both forms and leaves the sampler as it was,
+  /// generators included: every chain's trees are built on scratch before
+  /// any answer is given, on the donor's recorded points where they are not
+  /// the store's and on the store's unless the install goes across grids. An
+  /// install that fails all the same, or throws, restores every chain
+  /// touched from a snapshot taken on the store's grid, after that grid is
+  /// back in place.
+  ///
+  /// An install drops the kept draws, which belong to another fit's
+  /// position, and leaves each chain's generator past its coins. \p altered,
+  /// when non-null, is false on every exit but an install and then true
+  /// exactly where the donor was not clean, so a forced call sets it exactly
+  /// when the same call without force declines; on the store's grid the
+  /// installing builds report it, never a scratch build.
   WarmStartResult installForests(
       const SamplerStateData& donor,
-      const std::vector<std::pair<size_t, int>>& sampleMap) {
+      const std::vector<std::pair<size_t, int>>& sampleMap,
+      const double* currentPredictors, bool force = true,
+      bool* altered = nullptr, bool leafBlocksUnread = false) {
+    if (altered != nullptr) *altered = false;
     if (sampleMap.size() != chains_.size())
       return WarmStartResult::shapeMismatch;
     if (!donor.missingColumns.empty() &&
         donor.missingColumns.size() != data_.numPredictors)
       return WarmStartResult::shapeMismatch;
 
-    // A donor grown on a different cut grid is remapped onto this sampler's
-    // grid at install (as setData remaps a data replacement's old splits onto
-    // the freshly rebuilt cuts), collapsing splits the new grid starves; a
-    // same-grid donor installs verbatim but for a bottom node no row of this
-    // data reaches, which merges into its parent. Only a structural predictor mismatch
-    // the remap cannot bridge - a categorical/continuous disagreement, or a
-    // malformed donor grid - is refused here as gridMismatch.
-    bool crossGrid = donor.cutPoints != data_.cutPoints;
-    if (crossGrid) {
+    // a donor recorded on other points is still about these columns unless
+    // the two disagree on what a column is
+    bool pointsDiffer = donor.cutPoints != data_.cutPoints;
+    if (pointsDiffer) {
       if (donor.cutPoints.size() != data_.numPredictors)
         return WarmStartResult::gridMismatch;
       for (size_t j = 0; j < data_.numPredictors; ++j) {
@@ -1527,6 +1575,11 @@ public:
           return WarmStartResult::gridMismatch;
         if (!categorical && !cutGridIsValid(donor.cutPoints[j].data(),
                                             donor.cutPoints[j].size()))
+          return WarmStartResult::gridMismatch;
+        // the level count fixes the grid the store keeps, and no column
+        // re-quantizes its levels against another
+        if (data_.types[j] == ColumnKind::orderedFactor &&
+            donor.cutPoints[j] != data_.cutPoints[j])
           return WarmStartResult::gridMismatch;
       }
     }
@@ -1546,6 +1599,7 @@ public:
       };
 
     std::vector<ChainStateData> install(chains_.size());
+    bool coefficientsKept = false;
     for (size_t c = 0; c < chains_.size(); ++c) {
       size_t dc = sampleMap[c].first;
       int slot = sampleMap[c].second;
@@ -1647,15 +1701,16 @@ public:
         return WarmStartResult::varianceShapeMismatch;
       // the donor's linear coefficients in this sampler's standardization;
       // a record that does not fit the leaf is the donor's shape
-      if (!chains_[c]->convertDonorStandardization(dst, src))
+      if (!chains_[c]->convertDonorStandardization(dst, src,
+                                                   coefficientsKept))
         return WarmStartResult::shapeMismatch;
     }
 
     // the directions the donor's trees were grown without, each chain's from
-    // its own generator. They are drawn on the scratch, before the checks
+    // its own generator. They are drawn on the scratch, before the builds
     // below, which then judge the trees as they will be installed, and before
     // the install's collapse of what the rows leave empty. A tree the draw
-    // cannot walk is left for those checks to refuse. Every exit but the
+    // cannot walk is left for those builds to refuse. Every exit but the
     // last puts the generators back.
     struct GeneratorGuard {
       std::vector<std::unique_ptr<Chain<L, ResidT>>>& chains;
@@ -1688,70 +1743,68 @@ public:
       }
     }
 
-    // containment (design "Containment"): a donor grown under a different (or
-    // no) interaction constraint may hold a tree this sampler's constraint
-    // forbids, and one under a split-variable restriction (BCF moderators, a
-    // column-restricted variance forest) may split on a forbidden column;
-    // either would be mis-scored, so refuse before touching live state. A no-op
-    // when no chain is constrained. On the cross-grid path the donor's flat
-    // trees resolve only against the donor grid, so install it over the store
-    // for the scratch builds these feasibility checks make (ScopedCutGrid
-    // restores the live grid on scope exit); the remap only ever collapses
-    // splits, so a donor feasible pre-remap stays feasible after.
-    // The rebuild itself is judged here too, on scratch trees over the same
-    // grid: a donor tree that does not build is refused before anything is
-    // touched. A bottom node the destination's rows do not reach is merged at
-    // install, on either grid.
-    auto checkContainment = [&]() -> WarmStartResult {
-      for (size_t c = 0; c < chains_.size(); ++c)
-        if (!chains_[c]->interactionStateFeasible(install[c]))
-          return WarmStartResult::interactionMismatch;
-      for (size_t c = 0; c < chains_.size(); ++c)
-        if (!chains_[c]->columnMaskStateFeasible(install[c]))
-          return WarmStartResult::columnMaskMismatch;
-      for (size_t c = 0; c < chains_.size(); ++c)
-        if (!chains_[c]->forestsRebuildable(install[c]))
-          return WarmStartResult::rebuildFailed;
-      for (size_t c = 0; c < chains_.size(); ++c)
-        if (chains_[c]->hasVarianceForest() &&
-            !chains_[c]->varianceForestRebuildable(
-              install[c].varianceTrees, install[c].varianceTreeMasks))
-          return WarmStartResult::varianceMismatch;
-      return WarmStartResult::ok;
-    };
-    WarmStartResult containment;
-    if (crossGrid) {
-      ScopedCutGrid donorGrid(data_, donor.cutPoints);
-      containment = checkContainment();
-    } else {
-      containment = checkContainment();
+    bool fitsCold = false;
+    if constexpr (L::hasFunctionParams) {
+      if (pointsDiffer) {
+        for (size_t c = 0; c < chains_.size(); ++c)
+          chains_[c]->coldStartFunctionFits(install[c]);
+        fitsCold = true;
+      }
     }
-    if (containment != WarmStartResult::ok) return containment;
+
+    // every chain's trees are built before any answer is given, with and
+    // without force, so a donor that does not build is refused and never
+    // declined: on the points it records where those are not the store's,
+    // swapped in for the builds, and then on the store's, with the verdict
+    // where the call is not forced. Across grids the trees resolve on the
+    // recorded points alone and no verdict is asked: every such donor moves
+    bool acrossGrids = false;
+    for (size_t c = 0; c < chains_.size() && pointsDiffer; ++c)
+      acrossGrids = acrossGrids || !chains_[c]->liveThresholdsAreOnGrid(
+                                     install[c], data_.cutPoints);
+    bool builds = true, varianceFailed = false, needsRepair = false;
+    if (pointsDiffer) {
+      ScopedCutGrid recorded(data_, donor.cutPoints);
+      for (size_t c = 0; c < chains_.size() && builds; ++c)
+        builds = chains_[c]->donorTreesStage(install[c], nullptr,
+                                             varianceFailed);
+    }
+    for (size_t c = 0; c < chains_.size() && builds && !acrossGrids; ++c)
+      builds = chains_[c]->donorTreesStage(
+        install[c], force ? nullptr : &needsRepair, varianceFailed);
+    if (!builds)
+      return varianceFailed ? WarmStartResult::varianceMismatch
+                            : WarmStartResult::rebuildFailed;
+    bool notClean = acrossGrids || needsRepair || fitsCold ||
+                    leafBlocksUnread || coefficientsKept;
+    if (notClean && !force) return WarmStartResult::declined;
 
     // Every check above ran before this point, so the installs below are not
     // expected to fail. They are still undoable: each chain's live state is
-    // snapshotted first, store excluded since nothing here writes it, and a
-    // rebuild that fails anyway, or an exception (an allocation), restores
-    // every chain touched - from the flattened trees, as a save and load
-    // does, so its fits match the snapshot to rounding - before the refusal
-    // or the rethrow. A warm start installs no model value, so the state is
-    // all there is to put back.
+    // snapshotted first, on the store's grid and with the store excluded
+    // since nothing here writes it, and a rebuild that fails anyway, or an
+    // exception (an allocation), restores every chain touched - from the
+    // flattened trees, as a save and load does, so its fits match the
+    // snapshot to rounding - before the refusal or the rethrow. A warm start
+    // installs no model value, so the state is all there is to put back.
+    // Across grids every chain counts as touched from the start, and the
+    // restore runs only once installAcrossGrids has put the store's grid
+    // back: the snapshots' thresholds resolve on that grid alone.
     std::vector<ChainStateData> snapshot(chains_.size());
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->getState(snapshot[c], false);
-    size_t touched = 0;
+    size_t touched = acrossGrids ? chains_.size() : 0;
     auto restoreTouched = [&]() {
       for (size_t c = 0; c < touched; ++c) chains_[c]->setState(snapshot[c]);
     };
 
-    const std::vector<std::vector<double>>* donorGridPtr =
-      crossGrid ? &donor.cutPoints : nullptr;
+    bool installAltered = false;
     WarmStartResult failure = WarmStartResult::ok;
-    try {
+    auto installChains = [&]() {
       for (size_t c = 0; c < chains_.size() && failure ==
              WarmStartResult::ok; ++c) {
-        touched = c + 1;
-        if (!chains_[c]->installForest(install[c], donorGridPtr, &data_))
+        touched = std::max(touched, c + 1);
+        if (!chains_[c]->installForest(install[c], &installAltered))
           failure = WarmStartResult::rebuildFailed;
       }
       // the variance half, separately so a refusal names the variance forest
@@ -1760,9 +1813,16 @@ public:
         if (chains_[c]->hasVarianceForest() &&
             !chains_[c]->installVarianceForest(install[c].varianceTrees,
                                                install[c].varianceTreeMasks,
-                                               donorGridPtr, &data_))
+                                               &installAltered))
           failure = WarmStartResult::varianceMismatch;
       }
+      return failure == WarmStartResult::ok;
+    };
+    try {
+      if (acrossGrids)
+        installAcrossGrids(donor.cutPoints, currentPredictors, installChains);
+      else
+        installChains();
     } catch (...) {
       restoreTouched();
       throw;
@@ -1777,6 +1837,7 @@ public:
     currentSampleNum_ = 0;
     recordedDraws_ = 0;
     generators.bytes.clear();
+    if (altered != nullptr) *altered = notClean || installAltered;
     return WarmStartResult::ok;
   }
 

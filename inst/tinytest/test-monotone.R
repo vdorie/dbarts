@@ -616,10 +616,12 @@ expect_error(
 monoReach$control <- storedControl
 rm(changeControl, storedControl)
 
-# a warm start from an unconstrained donor installs its trees, reseeding
-# every tree outside the cone to all-zero, so the fit is monotone at once
+# a warm start from an unconstrained donor is declined as it stands; forced,
+# it installs the donor's trees, reseeding every tree outside the cone to
+# all-zero, so the fit is monotone at once
 expect_true(maxDrop(freeReach) > 0.1)
-monoReach$installTrees(freeReach)
+expect_identical(monoReach$installTrees(freeReach), FALSE)
+expect_null(monoReach$installTrees(freeReach, forceUpdate = TRUE))
 expect_true(maxDrop(monoReach) <= 1e-8)
 invisible(monoReach$run(0L, 1L))
 expect_true(maxDrop(monoReach) <= 1e-8)

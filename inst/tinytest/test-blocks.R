@@ -344,14 +344,12 @@ expect_error(
   "available predictors"
 )
 
-# ---- warm-start refusal + pre-mutation integrity -------------------------------
+# ---- warm start: declined, pre-mutation integrity, and the forced cut-back ----
 
 # an unconstrained donor is free to mix x1 with x2/x3 in any tree; a target
 # whose block 0 confines 15 of its 20 trees to {x1} alone almost certainly
-# receives a donor tree that splits outside that mask, and
-# columnMaskStateFeasible (chain.hpp) must refuse the whole install before
-# touching any live state - the same mechanism and error text as the BCF
-# cross-moderator installForests refusal in test-interactions.R.
+# receives a donor tree that splits outside that mask, and the install must
+# decline the whole donor before touching any live state.
 wsControl <- dbartsControl(
   n.chains = 1L,
   n.threads = 1L,
@@ -373,12 +371,21 @@ wsTarget <- dbarts(
     trees.per.group = c(15L, 5L)
   )
 )
-expect_error(wsTarget$installTrees(wsDonor), "column restriction")
+expect_identical(wsTarget$installTrees(wsDonor), FALSE)
 
-# the refusal happened before any live state mutation: the target sampler is
-# still usable afterwards
+# the donor was declined before any live state mutation: the target sampler
+# is still usable afterwards
 wsSamples <- wsTarget$run()
 expect_equal(dim(wsSamples$train), c(n, 15L))
+
+# forced, each tree is cut back at its first split outside its block
+expect_null(wsTarget$installTrees(wsDonor, forceUpdate = TRUE))
+wsTrees <- wsTarget$getTrees()
+wsSplits <- wsTrees[wsTrees$var > 0L, ]
+expect_true(nrow(wsSplits) > 0L)
+expect_true(all(wsSplits$var[wsSplits$tree <= 15L] == 1L))
+expect_true(all(wsSplits$var[wsSplits$tree > 15L] != 1L))
+rm(wsTrees, wsSplits)
 
 # ---- multinomial: every category forest is confined ------------------------
 yc <- factor(ifelse(x1 > 0.5 & x2 > 0.5, "a", ifelse(x3 > 0.5, "b", "c")))

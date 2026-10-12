@@ -516,13 +516,15 @@ gpOffStandard <- function(seed, grid) {
 recipient <- gpOffStandard(31L, cutGrid(gp.donor))
 own <- standardization(recipient)
 expect_false(identical(own, standardization(gp.donor)))
-recipient$installTrees(gp.donor)
+expect_true(recipient$installTrees(gp.donor))
 expect_true(max(abs(liveFits(recipient) - liveFits(gp.donor))) < 1e-12)
 expect_identical(standardization(recipient), own)
 
+# fits that would start at zero are a change to the donor: declined unforced
 recipient <- gpOffStandard(32L, finer)
 own <- standardization(recipient)
-recipient$installTrees(gp.donor)
+expect_identical(recipient$installTrees(gp.donor), FALSE)
+expect_null(recipient$installTrees(gp.donor, forceUpdate = TRUE))
 expect_identical(standardization(recipient), own)
 expect_true(diff(range(liveFits(recipient))) == 0)
 
@@ -598,9 +600,16 @@ for (constant in c(1000, 0.1)) {
   expect_true(drawsLikeTwin(constant.fit, twin), info = constant)
 
   # the same pair through a warm start, and through bart, which runs a sweep
-  # before anything can be read and is held to the donor's range
+  # before anything can be read and is held to the donor's range. The slopes
+  # arrive as built across the two constants, which is not the donor's
+  # function at this sampler's constant, so the start is declined unforced
   recipient <- madeOn(withLeafColumn(x, 2 * constant), 41L, keepTrees = FALSE)
-  recipient$installTrees(donor, samples = newest)
+  expect_identical(
+    recipient$installTrees(donor, samples = newest),
+    FALSE,
+    info = constant
+  )
+  recipient$installTrees(donor, samples = newest, forceUpdate = TRUE)
   expect_true(
     worstGap(live, liveMatrix(recipient)) < tolerance,
     info = constant
@@ -660,9 +669,11 @@ expect_true(drawsLikeTwin(given, twin))
 # a copy holds what the sampler does, so it converts the same way
 copied$setData(dbartsData(x.more, y.more))
 expect_true(worstGap(before, liveMatrix(copied)) < tolerance)
-# as a donor into a sampler made on the values
+# as a donor into a sampler made on the values, whose cut points on the
+# column are other ones, so the donor's splits there move: forced
 recipient <- madeOn(x, 42L, keepTrees = FALSE)
-recipient$installTrees(donor, samples = newest)
+expect_identical(recipient$installTrees(donor, samples = newest), FALSE)
+recipient$installTrees(donor, samples = newest, forceUpdate = TRUE)
 expect_true(worstGap(live, liveMatrix(recipient)) < tolerance)
 expect_true(max(abs(slopes(recipient))) > 0.1)
 expect_true(drawsLikeTwin(recipient, donor))

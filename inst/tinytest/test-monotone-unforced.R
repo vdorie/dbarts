@@ -451,8 +451,9 @@ for (seed in 7:60) {
   }
 }
 expect_identical(met, c(declined = TRUE, clean = TRUE))
-# a warm start from a donor on another cut grid, onto a sampler whose factor
-# holds a missing value: the route that maps the donor's rules onto the grid.
+# a forced warm start from a donor on another cut grid, onto a sampler whose
+# factor holds a missing value: the route that moves the donor's rules onto
+# the grid.
 # The donor's f could hold none, so each f rule draws its side from the
 # receiving sampler's generator before the trees are judged. Left at both
 # leaves `breaks` out of order and the tree is set to zero; any other sides
@@ -478,7 +479,7 @@ expect_false(identical(
 met <- c(broken = FALSE, kept = FALSE)
 for (seed in 7:60) {
   probe <- shifted(seed)
-  probe$installTrees(make(list(holds)))
+  probe$installTrees(make(list(holds)), forceUpdate = TRUE)
   sides <- sidesOf(probe)
   arm <- if (all(sides == "L")) "broken" else "kept"
   if (met[[arm]]) {
@@ -487,10 +488,14 @@ for (seed in 7:60) {
   met[[arm]] <- TRUE
   onto <- shifted(seed)
   if (arm == "broken") {
-    completes(function(s) s$installTrees(make()), NULL, onto)
+    completes(
+      function(s) s$installTrees(make(), forceUpdate = TRUE),
+      NULL,
+      onto
+    )
   } else {
     expect_identical(
-      observe(onto$installTrees(make())),
+      observe(onto$installTrees(make(), forceUpdate = TRUE)),
       outcome(NULL, visible = FALSE)
     )
     expect_identical(leaves(onto), breaks)

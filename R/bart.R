@@ -1811,7 +1811,8 @@ bart <- function(
   }
 
   if (!is.null(warm.start)) {
-    sampler$installTrees(warm.start)
+    # best effort: a donor that does not fit as it stands goes in changed
+    installDonorTrees(sampler, warm.start, NULL, TRUE)
   } else if (n.grow.sweeps > 0L) {
     sampler$growFromRoot(n.grow.sweeps, updateState = FALSE)
   } else {

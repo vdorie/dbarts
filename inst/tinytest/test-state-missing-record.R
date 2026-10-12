@@ -514,7 +514,9 @@ for (bad in list(c(1, 0, 0), c(TRUE, NA, FALSE), "x1")) {
 # the one row above it there is missing here. Sent right, the missing row
 # keeps the right leaf and the split stands; sent left, the split is merged.
 # On the donor's cut points and on others, the receiving seed searched for
-# each side.
+# each side. Unforced, the donor is taken only on its own cut points with the
+# split standing; a start declined puts its coins back, so the forced call
+# that follows draws the same sides.
 aboveAll <- function(top, seed, bring) {
   data <- complete
   data$x1[1L] <- top
@@ -536,13 +538,17 @@ for (top in c(5, 6)) {
   met <- c(stands = FALSE, merged = FALSE)
   for (seed in 1:40) {
     recipient <- aboveAll(top, seed, TRUE)
-    recipient$installTrees(handDonor)
+    taken <- recipient$installTrees(handDonor)
+    if (!taken) {
+      recipient$installTrees(handDonor, forceUpdate = TRUE)
+    }
     trees <- recipient$getTrees(current = TRUE)
     arm <- if (nrow(trees) == 3L) "stands" else "merged"
     if (met[[arm]]) {
       next
     }
     met[[arm]] <- TRUE
+    expect_identical(taken, top == 5 && arm == "stands", info = top)
     if (arm == "stands") {
       expect_identical(trees$missing[1L], "R", info = top)
       expect_identical(trees$n, c(n, n - 1L, 1L), info = top)

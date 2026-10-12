@@ -1,6 +1,7 @@
 # Interaction constraints: the
 # interactions() surface and its fit-time validation, a constrained fit obeying
-# max.order / forbid / groups, the per-forest BCF split, and warm-start refusal.
+# max.order / forbid / groups, the per-forest BCF split, and the warm start's
+# cut-back.
 # The exactness and containment gates live in tests/cpp/test_interaction.cpp and
 # test_state.cpp.
 
@@ -172,29 +173,44 @@ expect_silent(doFitInteractions(dbarts::dbartsForests$interactions(
   groups = list(c(1, 3), 2)
 )))
 
-# ---- warm-start refusal: an unconstrained donor's order-2 trees cannot seed a
-#      max.order = 1 fit ---------------------------------------------------------
+# ---- warm start: an unconstrained donor's order-2 trees seed a max.order = 1
+#      fit cut back, and the sampler declines them as they stand --------------
 
 donorArgs <- modifyList(fitArgs, list(keepSampler = TRUE, n.burn = 80L))
 donor <- do.call(
   bart,
   c(list(y ~ x1 + x2 + x3, df, interactions = NULL), donorArgs)
 )
-expect_error(
-  do.call(
-    bart,
-    c(
-      list(
-        y ~ x1 + x2 + x3,
-        df,
-        interactions = dbarts::dbartsForests$interactions(max.order = 1),
-        warm.start = donor
-      ),
-      fitArgs
-    )
-  ),
-  "interaction constraint"
+expect_true(worstOrder(extract(donor, type = "trees")) > 1L)
+warmed <- do.call(
+  bart,
+  c(
+    list(
+      y ~ x1 + x2 + x3,
+      df,
+      interactions = dbarts::dbartsForests$interactions(max.order = 1),
+      warm.start = donor
+    ),
+    fitArgs
+  )
 )
+expect_equal(worstOrder(extract(warmed, type = "trees")), 1L)
+additive <- dbarts(
+  y ~ x1 + x2 + x3,
+  df,
+  interactions = dbarts::dbartsForests$interactions(max.order = 1),
+  control = dbartsControl(
+    n.trees = fitArgs$n.trees,
+    n.chains = 1L,
+    n.threads = 1L,
+    updateState = FALSE
+  )
+)
+expect_identical(additive$installTrees(donor), FALSE)
+expect_null(additive$installTrees(donor, forceUpdate = TRUE))
+expect_equal(worstOrder(additive$getTrees()), 1L)
+expect_true(any(additive$getTrees()$var > 0L))
+rm(warmed, additive)
 
 # ---- per-forest BCF: tau capped additive, mu free -----------------------------
 
@@ -274,7 +290,9 @@ expect_error(
     dbarts:::C_dbarts_bartcore_installForests,
     targetBC$getPointer(),
     donorState,
-    NULL
+    NULL,
+    NULL,
+    TRUE
   ),
   "a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )

@@ -522,7 +522,7 @@ static void testStateRoundTripScaledOffset() {
                              0.37804942330213542, options, &rngW);
     warm.setOffset(offset.data(), false);
     const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-    check(warm.installForests(state, liveMap) == WarmStartResult::ok,
+    check(warm.installForests(state, liveMap, x.data()) == WarmStartResult::ok,
           "warm start from another transform: installs");
     SamplerStateData warmed;
     warm.getState(warmed);
@@ -1365,27 +1365,30 @@ static void testInteractionContainment() {
     return satisfied;
   };
 
-  // (2) a max.order = 1 target declines the donor's state without force,
-  // collapses its violating splits with it, and refuses the warm start
+  // (2) a max.order = 1 target declines the donor's state without force and
+  // collapses its violating splits with it, and a warm start does the same
   auto k1Target = makeSampler(777, 1, nullptr);
   check(declinesUntouched(*k1Target, donorState),
         "containment: setState without force declines an "
         "interaction-violating state, the sampler untouched");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(k1Target->installForests(donorState, liveMap) ==
-          WarmStartResult::interactionMismatch,
-        "containment: warm start refuses an interaction-violating donor");
+  SamplerStateData cutBack, repaired;
+  check(warmStartsAltered(*k1Target, donorState, liveMap, x.data()) &&
+          liveTreesSatisfy(*k1Target, k1),
+        "containment: a warm start declines an interaction-violating donor "
+        "and, forced, cuts every tree back into the constraint");
+  k1Target->getState(cutBack);
 
   check(restoresAltered(*k1Target, donorState) &&
           liveTreesSatisfy(*k1Target, k1),
         "containment: forced, every tree is collapsed into the constraint "
         "and the install reports it");
-  {
-    SamplerStateData repaired;
-    k1Target->getState(repaired);
-    check(installsClean(*k1Target, repaired),
-          "containment: the repaired sampler's own state is clean");
-  }
+  k1Target->getState(repaired);
+  check(sameFlatTrees(cutBack.chains[0].forests[0].trees,
+                      repaired.chains[0].forests[0].trees),
+        "containment: the warm start's trees are the forced state install's");
+  check(installsClean(*k1Target, repaired),
+        "containment: the repaired sampler's own state is clean");
 
   // (3) a forbid(x0, x1) target does likewise (a distinct predicate)
   size_t pair[] = {0, 1};
@@ -1395,9 +1398,10 @@ static void testInteractionContainment() {
   check(declinesUntouched(*forbidTarget, donorState),
         "containment: setState without force declines a forbidden-pair "
         "violation");
-  check(forbidTarget->installForests(donorState, liveMap) ==
-          WarmStartResult::interactionMismatch,
-        "containment: warm start refuses a forbidden-pair violation");
+  check(warmStartsAltered(*forbidTarget, donorState, liveMap, x.data()) &&
+          liveTreesSatisfy(*forbidTarget, forbid01),
+        "containment: a warm start declines a forbidden-pair violation and, "
+        "forced, leaves no forbidden pair on a path");
   check(restoresAltered(*forbidTarget, donorState) &&
           liveTreesSatisfy(*forbidTarget, forbid01),
         "containment: forced, no tree keeps a forbidden pair on a path");
@@ -1408,7 +1412,7 @@ static void testInteractionContainment() {
   SamplerStateData k1DonorState;
   k1Donor->getState(k1DonorState);
   auto k1Target2 = makeSampler(111, 1, nullptr);
-  check(k1Target2->installForests(k1DonorState, liveMap) == WarmStartResult::ok,
+  check(warmStartsClean(*k1Target2, k1DonorState, liveMap, x.data()),
         "containment: a same-constraint donor warm-starts cleanly");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
@@ -1522,17 +1526,21 @@ static void testBlockAdditiveConfinement() {
   // each live tree's columnMask_ is its block row, so the one column-mask
   // rule holds a state to its blocks: without force the out-of-block state is
   // declined, with it each tree is collapsed into its own group, and a warm
-  // start refuses the donor
+  // start does the same with the donor
   auto target = makeSampler(999, true);
   check(declinesUntouched(*target, donorState),
         "blocks: setState without force declines an out-of-block state");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(target->installForests(donorState, liveMap) != WarmStartResult::ok,
-        "blocks: warm start refuses an out-of-block donor");
+  bool warmStarts = warmStartsAltered(*target, donorState, liveMap, x.data());
+  SamplerStateData cutBack, collapsedState;
+  target->getState(cutBack);
   bool installs = restoresAltered(*target, donorState);
-  SamplerStateData collapsedState;
   target->getState(collapsedState);
   const auto& collapsedTrees = collapsedState.chains[0].forests[0].trees;
+  check(warmStarts &&
+          sameFlatTrees(cutBack.chains[0].forests[0].trees, collapsedTrees),
+        "blocks: a warm start declines an out-of-block donor and, forced, "
+        "cuts each tree back as the forced state install does");
   bool confined = true;
   for (size_t t = 0; t < collapsedTrees.size(); ++t) {
     scratch.initialize(idx.data(), n);
@@ -1551,7 +1559,7 @@ static void testBlockAdditiveConfinement() {
   SamplerStateData compliantState;
   compliantDonor->getState(compliantState);
   auto target2 = makeSampler(4321, true);
-  check(target2->installForests(compliantState, liveMap) == WarmStartResult::ok,
+  check(warmStartsClean(*target2, compliantState, liveMap, x.data()),
         "blocks: a same-blocks donor warm-starts cleanly");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
@@ -1787,8 +1795,8 @@ static void testSingleForestColumnRestriction() {
           std::fabs(redrawn[0] + redrawn[1] - 1.0) < 1e-12,
         "forest columns: a DART draw zeroes an excluded column a state carried");
 
-  // an out-of-list donor is refused by a warm start and its state declined
-  // without force, and the chain's own state is not
+  // an out-of-list donor is declined by a warm start without force, as its
+  // state is, and the chain's own state is not
   SamplerStateData donorState, ownState;
   donor->getState(donorState);
   constant->getState(ownState);
@@ -1796,14 +1804,15 @@ static void testSingleForestColumnRestriction() {
         "forest columns: setState without force declines an out-of-list "
         "state");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(constant->installForests(donorState, liveMap) ==
-          WarmStartResult::columnMaskMismatch,
-        "forest columns: warm start refuses an out-of-list donor");
+  check(constant->installForests(donorState, liveMap, x.data(), false) ==
+          WarmStartResult::declined,
+        "forest columns: a warm start without force declines an out-of-list "
+        "donor");
   SamplerStateData afterRefusals;
   constant->getState(afterRefusals);
   check(statesAgree(ownState, afterRefusals) &&
           installsClean(*constant, ownState),
-        "forest columns: a refusal leaves the chain, whose own state restores");
+        "forest columns: a decline leaves the chain, whose own state restores");
   SamplerStateData freeCategoryState;
   freeCategories->getState(freeCategoryState);
   check(declinesUntouched(*categories, freeCategoryState),
@@ -1823,6 +1832,15 @@ static void testSingleForestColumnRestriction() {
   categories->getState(categoriesRepaired);
   check(offList(donorState) && constantInstalls && !offList(constantRepaired),
         "forest columns: forced, no split outside the list is left");
+  SamplerStateData constantWarm;
+  bool constantWarmStarts =
+    warmStartsAltered(*constant, donorState, liveMap, x.data());
+  constant->getState(constantWarm);
+  check(constantWarmStarts &&
+          sameFlatTrees(constantWarm.chains[0].forests[0].trees,
+                        constantRepaired.chains[0].forests[0].trees),
+        "forest columns: a forced warm start cuts the donor back as the "
+        "forced state install does");
   check(offList(freeCategoryState) && categoriesInstall &&
           !offList(categoriesRepaired),
         "forest columns: forced, no category forest keeps one either");
@@ -1832,12 +1850,14 @@ static void testSingleForestColumnRestriction() {
   printf("ok: single-forest column restriction\n");
 }
 
-// Cross-grid warm start (docs/plans/warm-starts.md): a donor grown on a fine
-// cut grid seeds a destination on a coarser one. The refusal is lifted; the
-// donor's split indices remap onto the live grid and any the coarser grid
-// starves collapse - setData's contract - so every installed tree stays
-// occupied (no empty leaf a naive remap would leave), the install reports ok,
-// and the sampler runs. Mirrors testSetDataQuantileShrink's collapse gate.
+// Cross-grid warm start: a donor grown on a fine cut grid seeds a destination
+// on a coarser one, by force, since no such donor stands as stored. The
+// donor's trees are built and routed on its own points, a leaf none of the
+// destination's rows reaches merging there, and the splits then move onto
+// the destination's grid, one left no point merging at the mean of the
+// leaves beneath by the rows each held: what a forced state install gives.
+// Every installed tree stays occupied, the store's grid and codes are as
+// they were, and the sampler runs.
 static void testCrossGridWarmStart() {
   std::uint64_t savedRngState = rngState;
   rngState = 909090u;
@@ -1899,14 +1919,35 @@ static void testCrossGridWarmStart() {
   check(dest.data().numCuts[0] == 1,
         "cross-grid: destination holds a single-cut column-0 grid");
 
-  // the refusal is lifted: a genuinely different grid now installs
-  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(dest.installForests(donorState, liveMap) == WarmStartResult::ok,
-        "cross-grid: a different-grid donor warm-starts by remapping");
+  // a twin takes the donor as a state, forced and keeping its own grid
+  ext_rng* twinRng = newRng(717);
+  ConstantLeafSampler twin(xDest.data(), yDest.data(), n, p, nullptr, nullptr,
+                           ResponseFamily::gaussian, 1.0, 3.0,
+                           0.37804942330213542, destOptions, &twinRng);
+  bool twinMoved = false;
+  check(twin.setState(donorState, xDest.data(), nullptr, &twinMoved,
+                      keepStoreCapacity, true, nullptr, false) && twinMoved,
+        "cross-grid: the twin takes the donor's state across the grids");
 
-  // no starved split left an empty leaf; the remap only ever merges leaves, so
-  // the live leaf count is below the donor's (a genuine collapse fired) and yet
-  // real structure survived (more than one leaf remains)
+  // declined as it stands, installed by force, the store's grid untouched
+  std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  const std::vector<std::vector<double>> ownCutPoints(dest.data().cutPoints);
+  const std::vector<xint_t> ownCodes(dest.data().train.codes);
+  check(warmStartsAltered(dest, donorState, liveMap, xDest.data()),
+        "cross-grid: a different-grid donor is declined and, forced, "
+        "installs across the grids");
+  check(dest.data().cutPoints == ownCutPoints &&
+          dest.data().train.codes == ownCodes,
+        "cross-grid: the destination's cut points and codes are as they were");
+  SamplerStateData warm, moved;
+  dest.getState(warm);
+  twin.getState(moved);
+  check(sameFlatTrees(warm.chains[0].forests[0].trees,
+                      moved.chains[0].forests[0].trees),
+        "cross-grid: the trees are the forced state install's");
+
+  // no leaf is left empty and no split outside its interval, and the live
+  // leaf count is below the donor's (a genuine collapse fired)
   bool occupied = true;
   size_t donorLeaves = 0, liveLeaves = 0;
   std::vector<int32_t> bottoms;
@@ -1917,7 +1958,7 @@ static void testCrossGridWarmStart() {
     dest.chain(0).tree(t).fillBottom(0, bottoms);
     liveLeaves += bottoms.size();
   }
-  check(occupied, "cross-grid: remap collapses starved splits, no empty leaves");
+  check(occupied, "cross-grid: the install leaves no empty leaf");
   bool inside = true;
   for (size_t t = 0; t < numTrees; ++t) {
     const Tree& tree = dest.chain(0).tree(t);
@@ -1931,8 +1972,53 @@ static void testCrossGridWarmStart() {
         "cross-grid: no split sits outside its interval on the shorter grid");
   check(liveLeaves < donorLeaves,
         "cross-grid: a starved split collapsed (fewer live leaves than donor)");
-  check(liveLeaves > numTrees,
-        "cross-grid: the donor's structure survived the remap");
+
+  // a split left no point merges by rows. Column 1 of a coarse destination
+  // holds one cut; the hand tree splits it at two of the donor's points, a
+  // below b, both nearest that cut. The root moves there and the split
+  // beneath it, with no point left, becomes one leaf at the mean of its two
+  // leaves weighted by the destination's rows each held before the move
+  {
+    SamplerOptions coarseOptions;
+    coarseOptions.numTrees = numTrees;
+    coarseOptions.maxNumCuts = 1;
+    ext_rng* coarseRng = newRng(919);
+    ConstantLeafSampler coarse(xDest.data(), yDest.data(), n, p, nullptr,
+                               nullptr, ResponseFamily::gaussian, 1.0, 3.0,
+                               0.37804942330213542, coarseOptions, &coarseRng);
+    const std::vector<double>& points(donorState.cutPoints[1]);
+    double a = points[(2 * points.size()) / 5], b = points[points.size() / 2];
+    SamplerStateData hand = donorState;
+    std::vector<FlatNode>& tree(hand.chains[0].forests[0].trees[0]);
+    tree.assign(5, FlatNode());
+    tree[0].variable = tree[2].variable = 1;
+    tree[0].value = a;
+    tree[2].value = b;
+    setFlatKind(tree[0], FlatKind::ordinal);
+    setFlatKind(tree[2], FlatKind::ordinal);
+    tree[1].value = 0.10;
+    tree[3].value = -0.20;
+    tree[4].value = 0.05;
+    size_t numMiddle = 0, numRight = 0;
+    for (size_t i = 0; i < n; ++i) {
+      numMiddle += xDest[i + n] > a && xDest[i + n] <= b;
+      numRight += xDest[i + n] > b;
+    }
+    double merged = (numMiddle * -0.20 + numRight * 0.05) /
+                    static_cast<double>(numMiddle + numRight);
+    bool installs = coarse.data().numCuts[1] == 1 && a < b &&
+      warmStartsAltered(coarse, hand, liveMap, xDest.data());
+    SamplerStateData after;
+    coarse.getState(after);
+    const std::vector<FlatNode>& got(after.chains[0].forests[0].trees[0]);
+    check(installs && numMiddle > 0 && numRight > 0 && got.size() == 3 &&
+            got[0].variable == 1 &&
+            got[0].value == coarse.data().cutPoints[1][0] &&
+            got[1].value == 0.10 && std::fabs(got[2].value - merged) < 1e-12 &&
+            std::fabs(merged - -0.075) > 1e-3,
+          "cross-grid: a split left no point merges at the mean of its "
+          "leaves by the rows each held before the move");
+  }
 
   // the sampler runs from the warm-started state
   std::vector<double> sigmaDraws(5);
@@ -2094,7 +2180,7 @@ static void testWarmStartStandardization() {
             !sameConstants(before, donorState),
           "warm standardization: the donor's grid, another standardization");
     // the store is not read: the donor's live trees seed both chains
-    check(recipient->installForests(donorState, liveMap) ==
+    check(recipient->installForests(donorState, liveMap, xStretched.data()) ==
             WarmStartResult::ok,
           "warm standardization: a donor under another standardization "
           "installs");
@@ -2123,7 +2209,7 @@ static void testWarmStartStandardization() {
     const std::vector<std::pair<size_t, int>> slotMap = {
       {1, static_cast<int>(donor->savedSlotForDraw(numKept - 1))},
       {0, static_cast<int>(donor->savedSlotForDraw(0))}};
-    check(recipient->installForests(donorState, slotMap) ==
+    check(recipient->installForests(donorState, slotMap, xStretched.data()) ==
             WarmStartResult::ok,
           "warm standardization: a kept draw installs");
     std::vector<double> seeded = liveFits(*recipient);
@@ -2146,7 +2232,7 @@ static void testWarmStartStandardization() {
     recipient->getState(before);
     check(recipient->data().cutPoints != donorState.cutPoints,
           "warm standardization: the recipient is on another grid");
-    check(recipient->installForests(donorState, liveMap) ==
+    check(recipient->installForests(donorState, liveMap, xStretched.data()) ==
             WarmStartResult::ok,
           "warm standardization: a donor on another grid installs");
     recipient->getState(after);
@@ -2174,7 +2260,8 @@ static void testWarmStartStandardization() {
     recipient->getState(before);
     check(sameConstants(before, donorState),
           "warm standardization: the twin standardizes as the donor does");
-    check(recipient->installForests(edited, liveMap) == WarmStartResult::ok,
+    check(recipient->installForests(edited, liveMap, xStretched.data()) ==
+            WarmStartResult::ok,
           "warm standardization: an equal-standardization donor installs");
     recipient->getState(after);
     check(sameLiveValues(after, edited),
@@ -2190,7 +2277,7 @@ static void testWarmStartStandardization() {
       chain.forests[0].leafCovariateScales.clear();
     }
     std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 600);
-    check(recipient->installForests(unrecorded, liveMap) ==
+    check(recipient->installForests(unrecorded, liveMap, xStretched.data()) ==
             WarmStartResult::ok,
           "warm standardization: a donor recording no standardization "
           "installs");
@@ -2213,7 +2300,7 @@ static void testWarmStartStandardization() {
     tooLong.chains[last].forests[0].leafCovariateScales.push_back(1.0);
     halfRecord.chains[last].forests[0].leafCovariateScales.clear();
     for (const SamplerStateData* bad : {&zeroScale, &tooLong, &halfRecord})
-      check(recipient->installForests(*bad, liveMap) ==
+      check(recipient->installForests(*bad, liveMap, xStretched.data()) ==
               WarmStartResult::shapeMismatch,
             "warm standardization: a malformed donor record is refused");
     recipient->getState(after);
@@ -2235,7 +2322,7 @@ static void testWarmStartStandardization() {
     recipient->getState(before);
     check(!sameConstants(before, gpDonorState),
           "warm standardization, gp: the recipient's constants differ");
-    check(recipient->installForests(gpDonorState, liveMap) ==
+    check(recipient->installForests(gpDonorState, liveMap, xStretched.data()) ==
             WarmStartResult::ok,
           "warm standardization, gp: a same-grid donor installs");
     recipient->getState(after);
@@ -2248,7 +2335,8 @@ static void testWarmStartStandardization() {
     std::unique_ptr<SamplerBase> other = makeOffStandard(true, 1000);
     refineGrid(*other, gpDonorState.cutPoints);
     other->getState(before);
-    check(other->installForests(gpDonorState, liveMap) == WarmStartResult::ok,
+    check(other->installForests(gpDonorState, liveMap, xStretched.data()) ==
+            WarmStartResult::ok,
           "warm standardization, gp: a donor on another grid installs");
     other->getState(after);
     bool cold = true;
@@ -2486,7 +2574,7 @@ static void testNoSpreadLiveConversion() {
     // the same pair through a warm start
     donor->getState(donorState);
     std::unique_ptr<SamplerBase> recipient = make(xDonee, 20);
-    check(recipient->installForests(donorState, liveMap) ==
+    check(recipient->installForests(donorState, liveMap, xDonee.data()) ==
             WarmStartResult::ok,
           "no-spread conversion: a donor at another constant installs");
     check(worstGap(liveFits(*recipient), n, liveFits(*donor), n, 0, n) <
@@ -2542,7 +2630,7 @@ static void testNoSpreadLiveConversion() {
     SamplerStateData donorState;
     donor->getState(donorState);
     std::unique_ptr<SamplerBase> recipient = make(xReal, 40);
-    check(recipient->installForests(donorState, liveMap) ==
+    check(recipient->installForests(donorState, liveMap, xReal.data()) ==
             WarmStartResult::ok,
           "no-spread conversion: a donor whose placeholder took values "
           "installs");
@@ -2762,7 +2850,8 @@ static void testVarianceWarmStart() {
   check(!sameFlatTrees(before.chains[0].varianceTrees,
                        donorState.chains[0].varianceTrees),
         "variance warm start: the destination's own surface differs first");
-  check(dest->installForests(donorState, liveMap) == WarmStartResult::ok,
+  check(dest->installForests(donorState, liveMap, x.data()) ==
+          WarmStartResult::ok,
         "variance warm start: a heteroscedastic donor installs");
   SamplerStateData after;
   dest->getState(after);
@@ -2777,7 +2866,8 @@ static void testVarianceWarmStart() {
   auto coarse = makeSampler(6072, 8, false);
   check(coarse->data().cutPoints != donorState.cutPoints,
         "variance warm start: the coarse destination is on another grid");
-  check(coarse->installForests(donorState, liveMap) == WarmStartResult::ok,
+  check(coarse->installForests(donorState, liveMap, x.data()) ==
+          WarmStartResult::ok,
         "variance warm start: a cross-grid donor installs by remapping");
   const double* remapped = TestPeer::varianceFits(coarse->chain(0));
   bool positive = true;
@@ -2806,7 +2896,7 @@ static void testVarianceWarmStart() {
   stranded[3].value = 0.7;  // the unreachable bottom
   stranded[4].value = 1.1;
   auto strandTarget = makeSampler(8096, 100, false);
-  check(strandTarget->installForests(emptyBottom, liveMap) ==
+  check(strandTarget->installForests(emptyBottom, liveMap, x.data()) ==
           WarmStartResult::ok,
         "variance warm start: an unoccupied variance bottom installs");
   SamplerStateData strandedAfter;
@@ -2826,16 +2916,35 @@ static void testVarianceWarmStart() {
   onOne[1].value = 1.2;
   onOne[2].value = 0.8;
   auto restricted = makeSampler(1120, 100, true);
-  check(restricted->installForests(outOfMask, liveMap) ==
-          WarmStartResult::columnMaskMismatch,
-        "variance warm start: an out-of-mask variance tree is refused");
+  {
+    // the variance split is the only change: 1.2 over the rows at or below
+    // the cut and 0.8 over the rest merge at their geometric mean by rows
+    SamplerStateData meanOnly = outOfMask, merged;
+    for (std::vector<FlatNode>& tree : meanOnly.chains[0].varianceTrees) {
+      tree.assign(1, FlatNode());
+      tree[0].value = 1.1;
+    }
+    meanOnly.chains[0].varianceTrees[0] = onOne;
+    size_t numLeft = 0;
+    for (size_t i = 0; i < n; ++i) numLeft += x[i + n] <= onOne[0].value;
+    double expected = std::exp((numLeft * std::log(1.2) +
+                                (n - numLeft) * std::log(0.8)) / n);
+    bool cutBack = warmStartsAltered(*restricted, meanOnly, liveMap, x.data());
+    restricted->getState(merged);
+    const std::vector<FlatNode>& leaf(merged.chains[0].varianceTrees[0]);
+    check(cutBack && numLeft > 0 && numLeft < n && leaf.size() == 1 &&
+            std::fabs(leaf[0].value - expected) < 1e-12,
+          "variance warm start: an out-of-mask variance tree is declined "
+          "and, forced, cut back to one leaf at the geometric mean by rows");
+  }
   SamplerStateData compliant = outOfMask;
   for (std::vector<FlatNode>& tree : compliant.chains[0].varianceTrees) {
     tree.assign(1, FlatNode());
     tree[0].value = 1.1;
   }
   auto restricted2 = makeSampler(1344, 100, true);
-  check(restricted2->installForests(compliant, liveMap) == WarmStartResult::ok,
+  check(restricted2->installForests(compliant, liveMap, x.data()) ==
+          WarmStartResult::ok,
         "variance warm start: an in-mask variance donor installs");
 
   // (5) setState holds a state's variance trees to the same mask: without
@@ -2909,7 +3018,8 @@ static void testStateLeafScale(ext_rng* rng) {
 
   auto warm = make(y2.data());
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(warm->installForests(donorState, liveMap) == WarmStartResult::ok,
+  check(warm->installForests(donorState, liveMap, x.data()) ==
+          WarmStartResult::ok,
         "leaf scale: the donor warm-starts");
   check(scales(*warm) == constructed,
         "leaf scale: a warm start leaves the destination's scales");
@@ -3337,7 +3447,8 @@ static void testVarianceWarmStartSlot() {
           "variance slot warm start: the destination's own surface differs "
           "first");
     std::vector<std::pair<size_t, int>> slotMap = {{0, static_cast<int>(slot)}};
-    check(dest->installForests(donorState, slotMap) == WarmStartResult::ok,
+    check(dest->installForests(donorState, slotMap, x.data()) ==
+            WarmStartResult::ok,
           "variance slot warm start: a slot-sourced heteroscedastic donor "
           "installs");
     SamplerStateData after;
@@ -3362,13 +3473,13 @@ static void testVarianceWarmStartSlot() {
   shortBuffer.chains[0].savedVarianceTrees.pop_back();
   std::vector<std::pair<size_t, int>> lastMap = {
     {0, static_cast<int>(numSamples - 1)}};
-  check(target->installForests(shortBuffer, lastMap) ==
+  check(target->installForests(shortBuffer, lastMap, x.data()) ==
           WarmStartResult::varianceSlotMismatch,
         "variance slot warm start: a short saved buffer is refused");
 
   SamplerStateData noBlock = donorState;
   noBlock.chains[0].savedVarianceTrees.clear();
-  check(target->installForests(noBlock, lastMap) ==
+  check(target->installForests(noBlock, lastMap, x.data()) ==
           WarmStartResult::varianceSlotMismatch,
         "variance slot warm start: an absent saved buffer is refused");
 
@@ -3376,7 +3487,7 @@ static void testVarianceWarmStartSlot() {
   // two sweeps' trees and still hand installVarianceForest the right COUNT
   SamplerStateData spliced = donorState;
   spliced.chains[0].varianceTrees.resize(numVarianceTrees - 2);
-  check(target->installForests(spliced, lastMap) ==
+  check(target->installForests(spliced, lastMap, x.data()) ==
           WarmStartResult::varianceSlotMismatch,
         "variance slot warm start: a stride the live block contradicts is "
         "refused");
@@ -3386,12 +3497,13 @@ static void testVarianceWarmStartSlot() {
   SamplerStateData nonPositive = donorState;
   nonPositive.chains[0].savedVarianceTrees[0].back().value = 0.0;
   std::vector<std::pair<size_t, int>> firstMap = {{0, 0}};
-  check(target->installForests(nonPositive, firstMap) ==
+  check(target->installForests(nonPositive, firstMap, x.data()) ==
           WarmStartResult::varianceMismatch,
         "variance slot warm start: a non-positive saved scale leaf is refused");
   // and the refusal is SLOT-specific: the same state installs from any slot
   // whose own trees are intact
-  check(target->installForests(nonPositive, lastMap) == WarmStartResult::ok,
+  check(target->installForests(nonPositive, lastMap, x.data()) ==
+          WarmStartResult::ok,
         "variance slot warm start: another slot of the same state installs");
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
@@ -3632,7 +3744,7 @@ static void checkStaleStateMerges(Sampler<L>& sampler,
 
   std::vector<std::pair<size_t, int>> liveMap;
   for (size_t c = 0; c < sampler.numChains(); ++c) liveMap.push_back({c, -1});
-  bool warmStarts = sampler.installForests(stale, liveMap) ==
+  bool warmStarts = sampler.installForests(stale, liveMap, xNew.data()) ==
     WarmStartResult::ok;
   SamplerStateData warm;
   sampler.getState(warm);
@@ -3805,7 +3917,8 @@ static void testRepeatedGridRefused() {
   check(!sampler.setState(repeated, nullptr),
         "a state whose grid repeats a point is refused");
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(sampler.installForests(repeated, liveMap) != WarmStartResult::ok,
+  check(sampler.installForests(repeated, liveMap, x.data()) !=
+          WarmStartResult::ok,
         "a warm-start donor whose grid repeats a point is refused");
   check(sampler.data().cutPoints == own.cutPoints,
         "the refusals leave the sampler's grids as they were");
@@ -3820,7 +3933,7 @@ static void testRepeatedGridRefused() {
   check(draws[0] == draws[1],
         "after the refusals the sampler draws what its twin draws");
   check(restoresExactly(sampler, own) &&
-          sampler.installForests(own, liveMap) == WarmStartResult::ok,
+          sampler.installForests(own, liveMap, x.data()) == WarmStartResult::ok,
         "the state and the donor with distinct grids are taken");
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
@@ -3897,7 +4010,7 @@ static void testWeightedGridState() {
   SamplerStateData donor(own);
   donor.cutPoints[1].push_back(donor.cutPoints[1].back() + 1.0);
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  WarmStartResult warm = sampler.installForests(donor, liveMap);
+  WarmStartResult warm = sampler.installForests(donor, liveMap, x.data());
   check(warm == WarmStartResult::ok &&
           sampler.data().cutMass == weights,
         "a cross-grid warm start leaves the live weights");
@@ -4043,7 +4156,8 @@ static void testStackedSplitsMerge() {
 
   // a same-grid warm start merges it too
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
-  check(sampler.installForests(meanStacked, liveMap) == WarmStartResult::ok &&
+  check(sampler.installForests(meanStacked, liveMap, x.data()) ==
+          WarmStartResult::ok &&
           !liveTreesHoldSplitOutsideInterval(sampler) &&
           liveTreesAreOccupied(sampler),
         "stacked splits: a warm start from the state merges the child");
@@ -4426,7 +4540,7 @@ static void checkStaleDirectionRestores(Make make, const std::vector<double>& x,
   for (const ForestStateData& fs : taken.chains[0].forests)
     strangerRight += countMissingRight(fs.trees);
 
-  bool warmStarts = sampler->installForests(stale, {{0, -1}}) ==
+  bool warmStarts = sampler->installForests(stale, {{0, -1}}, x.data()) ==
     WarmStartResult::ok;
   sampler->getState(warm);
   sampler->run(5, 0, empty);

@@ -4077,10 +4077,14 @@ BartcoreHolder* createMultinomialDataHolder(SEXP controlExpr, SEXP modelExpr,
 /// Warm start: seed the sampler's live forests from a donor "bartcoreState"
 /// over the same predictors. samplesExpr, when non-null, maps each chain to a
 /// 1-based donor-sample index; NULL spreads chains across the donor pool.
-/// Raises R errors on malformed states or an incompatible donor. Declared here
-/// because its one caller precedes the state readers it is defined among.
-void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
-                    SEXP samplesExpr);
+/// currentPredictors and force are Sampler::installForests's. Returns whether
+/// the donor went in, false being an unforced call's decline, and sets
+/// altered where it went in with a change. Raises R errors on malformed
+/// states or an incompatible donor. Declared here because its one caller
+/// precedes the state readers it is defined among.
+bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
+                    SEXP samplesExpr, const double* currentPredictors,
+                    bool force, bool& altered);
 
 } // namespace bartcore_bridge
 
@@ -6901,13 +6905,29 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
   return resultExpr;
 }
 
+// A list: 'installed', FALSE only for a donor an unforced call declined, and
+// 'altered', whether an installed donor went in other than as it holds its
+// trees and leaf values.
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
-                             SEXP samplesExpr) {
+                             SEXP samplesExpr, SEXP currentPredictorsExpr,
+                             SEXP forceExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  // a forced install of a donor recorded on other cut points re-quantizes
+  // from raw values, which views lack; the refusal is one rule for every call
   refuseMutationOnView(*holder.sampler, "$installTrees");
   refuseMultiForestWarmStart(*holder.sampler, "$installTrees");
-  bartcore_bridge::installForests(*holder.sampler, donorStateExpr, samplesExpr);
-  return R_NilValue;
+  const double* currentPredictors =
+    Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
+  bool altered = false;
+  bool installed = bartcore_bridge::installForests(
+    *holder.sampler, donorStateExpr, samplesExpr, currentPredictors,
+    Rf_asLogical(forceExpr) == TRUE, altered);
+  const char* names[] = {"installed", "altered", ""};
+  SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
+  SET_VECTOR_ELT(resultExpr, 0, Rf_ScalarLogical(installed));
+  SET_VECTOR_ELT(resultExpr, 1, Rf_ScalarLogical(altered));
+  UNPROTECT(1);
+  return resultExpr;
 }
 
 // The shared tail of both predict entrances: allocate the surface's result
@@ -8124,15 +8144,6 @@ bool readAmplitudeGlue(SEXP glueExpr, bartcore::ChainStateData& chainState) {
   return true;
 }
 
-/// The refusal a warm start reports when a donor tree splits on a column the
-/// recipient forest's mask forbids. A state install does not refuse such a
-/// tree: it declines it or, forced, collapses it (Sampler::setState).
-static const char* const columnMaskMismatchMessage =
-  "warm-start donor holds a tree that splits on a variable outside "
-  "this forest's allowed column set; the donor's fit is "
-  "incompatible with the column restriction (a forest's own "
-  "column subset or a restricted variance forest) in force here";
-
 /// The refusal for a stored cut grid that holds a value twice, naming the
 /// column, counted from one, and the value; null where no two neighbours are
 /// equal. \p what names the source. No sampler of this version writes such a
@@ -8727,11 +8738,15 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 // destination to redraw.
 // Function-leaf donors seed from their live trees, so their saved channel is
 // skipped. The donor's own chain count is honored (a short donor may seed
-// many chains). Returns an error string, or NULL, rather than longjmping so
-// the caller can free state first.
+// many chains). leafBlocksUnread is set where a donor forest carries a
+// tree.params block and this sampler's leaves are constants, which read
+// none: the trees then go in at each leaf's stored value, a linear leaf's
+// intercept, and are not the donor's function. Returns an error string, or
+// NULL, rather than longjmping so the caller can free state first.
 static const char* readWarmStartState(SEXP stateExpr,
                                       bartcore::SamplerBase& sampler,
-                                      bartcore::SamplerStateData& state) {
+                                      bartcore::SamplerStateData& state,
+                                      bool& leafBlocksUnread) {
   bartcore::SamplerShape shape = sampler.shape();
   size_t numChains = static_cast<size_t>(Rf_xlength(stateExpr));
   if (numChains == 0) return "warm-start donor holds no chains";
@@ -8824,6 +8839,8 @@ static const char* readWarmStartState(SEXP stateExpr,
                             fs.savedTrees, numLeafCovariates,
                             fs.savedTreeParams, &errorMessage))
           break;
+      } else if (!Rf_isNull(rc_getListElement(forestExpr, "tree.params"))) {
+        leafBlocksUnread = true;
       }
 
       if (sampler.data().hasPooledCategorical) {
@@ -8963,8 +8980,9 @@ static const char* readWarmStartState(SEXP stateExpr,
   return errorMessage;
 }
 
-void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
-                    SEXP samplesExpr) {
+bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
+                    SEXP samplesExpr, const double* currentPredictors,
+                    bool force, bool& altered) {
   if (!Rf_inherits(donorStateExpr, "bartcoreState"))
     Rf_error("'warm.start' must supply a bartcore state object");
 
@@ -8979,7 +8997,9 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
              formatVersion, minReadableStateFormatVersion);
 
   bartcore::SamplerStateData donor;
-  const char* errorMessage = readWarmStartState(donorStateExpr, sampler, donor);
+  bool leafBlocksUnread = false;
+  const char* errorMessage =
+    readWarmStartState(donorStateExpr, sampler, donor, leafBlocksUnread);
 
   // The mapping vectors live in a scope that closes before any Rf_error, so
   // the longjmp cannot leak them.
@@ -9036,7 +9056,8 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     if (errorMessage == NULL) {
       bartcore_bridge::CapturedError installError;
       captureExceptions(installError, [&]() {
-        result = sampler.installForests(donor, sampleMap);
+        result = sampler.installForests(donor, sampleMap, currentPredictors,
+                                        force, &altered, leafBlocksUnread);
       });
       if (installError.failed)
         errorMessage = "warm-start install failed: out of memory";
@@ -9050,6 +9071,8 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
   switch (result) {
     case bartcore::WarmStartResult::ok:
       break;
+    case bartcore::WarmStartResult::declined:
+      return false;
     case bartcore::WarmStartResult::gridMismatch:
       Rf_error("this sampler does not support the warm-start donor's "
                "predictor structure (a categorical/continuous column "
@@ -9058,12 +9081,6 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
     case bartcore::WarmStartResult::dartMismatch:
       Rf_error("DART state transfers only between two DART fits; the donor and "
                "destination disagree on dart");
-    case bartcore::WarmStartResult::interactionMismatch:
-      Rf_error("warm-start donor holds a tree that violates this sampler's "
-               "interaction constraint; the donor's fit is incompatible with "
-               "the interactions() prior in force here");
-    case bartcore::WarmStartResult::columnMaskMismatch:
-      Rf_error("%s", columnMaskMismatchMessage);
     case bartcore::WarmStartResult::varianceMismatch:
       Rf_error("warm-start donor's variance trees cannot be installed on this "
                "sampler's data (a scale leaf is not positive, or a flat tree "
@@ -9086,6 +9103,7 @@ void installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "data (a donor tree no longer routes onto the current "
                "predictors); nothing was installed");
   }
+  return true;
 }
 
 // Column-major gather of the requested trees, plus the flags that decide

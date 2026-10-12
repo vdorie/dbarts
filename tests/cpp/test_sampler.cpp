@@ -4657,7 +4657,8 @@ static void testWarmStartMissingDirections() {
   {
     FirstSeenSampler recipient(x, y, raised);
     SamplerStateData given = recipient.state();
-    bool ok = recipient->installForests(donor, map) == WarmStartResult::ok;
+    bool ok = recipient->installForests(donor, map, x.data()) ==
+      WarmStartResult::ok;
     SamplerStateData got = recipient.state();
     bool asDrawn = ok, generators = ok, othersKept = ok, mixed = ok;
     std::vector<std::uint8_t> held[2];
@@ -4707,7 +4708,7 @@ static void testWarmStartMissingDirections() {
       FirstSeenSampler recipient(x, y, raised);
       SamplerStateData before = recipient.state();
       undrawn = undrawn &&
-        recipient->installForests(*state, map) == WarmStartResult::ok;
+        recipient->installForests(*state, map, x.data()) == WarmStartResult::ok;
       SamplerStateData after = recipient.state();
       for (size_t c = 0; c < numChains; ++c)
         undrawn = undrawn &&
@@ -4721,8 +4722,10 @@ static void testWarmStartMissingDirections() {
     FirstSeenSampler recipient(x, y, raised);
     SamplerStateData before = recipient.state();
     bool refused =
-      recipient->installForests(broken, map) == WarmStartResult::rebuildFailed &&
-      recipient->installForests(shorter, map) == WarmStartResult::shapeMismatch;
+      recipient->installForests(broken, map, x.data()) ==
+        WarmStartResult::rebuildFailed &&
+      recipient->installForests(shorter, map, x.data()) ==
+        WarmStartResult::shapeMismatch;
     check(moved && refused && samplerStatesAgree(before, recipient.state()),
           "warm start: a start refused after the draw leaves trees and "
           "generators");
@@ -4754,7 +4757,8 @@ static void testWarmStartMissingDirections() {
       forest.savedTreeMasks[first + 1].assign(k == 0 ? 2 : 0, 0);
       FirstSeenSampler recipient(withMissing, y);
       installed = installed &&
-        recipient->installForests(state, map) == WarmStartResult::ok;
+        recipient->installForests(state, map, withMissing.data()) ==
+          WarmStartResult::ok;
       got[k] = recipient.state();
     }
     bool kept = installed;

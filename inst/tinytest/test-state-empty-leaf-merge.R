@@ -182,14 +182,15 @@ for (name in c("logistic", "nbinom", "student")) {
   }
 }
 
-# a same-grid warm start whose donor leaves a leaf with no rows: the
-# destination's trees are merged, so it carries no empty leaf, and it restores
-# and copies itself
+# a warm start whose donor leaves a leaf with no rows is declined as it
+# stands; forced, the destination's trees are merged, so it carries no empty
+# leaf, and it restores and copies itself
 donor <- dbarts(x, y, control = control)
 invisible(donor$run(40L, 3L))
 donor$storeState()
 destination <- dbarts(xNew, y, control = control)
-destination$installTrees(donor)
+expect_identical(destination$installTrees(donor), FALSE)
+expect_null(destination$installTrees(donor, forceUpdate = TRUE))
 invisible(destination$run(0L, 1L))
 expect_true(noEmptyLeaf(destination))
 destination$storeState()

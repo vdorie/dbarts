@@ -342,7 +342,9 @@ expect_error(
     dbarts:::C_dbarts_bartcore_installForests,
     installTarget$getPointer(),
     installDonorState,
-    NULL
+    NULL,
+    NULL,
+    TRUE
   ),
   "\\$installTrees: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )

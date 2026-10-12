@@ -188,8 +188,9 @@ public:
   SPY_VOID(getAnchor, (double& lo, double& hi) const, (lo, hi))
   SPY_RET(WarmStartResult, installForests,
           (const SamplerStateData& d,
-           const std::vector<std::pair<std::size_t, int>>& m),
-          (d, m))
+           const std::vector<std::pair<std::size_t, int>>& m, const double* cp,
+           bool f, bool* a, bool u),
+          (d, m, cp, f, a, u))
   SPY_VOID(sampleTreesFromPrior, (), ())
   SPY_VOID(sampleNodeParametersFromPrior, (), ())
   SPY_VOID(sampleVarianceForestFromPrior, (), ())
@@ -1045,7 +1046,8 @@ const Row rows[] = {
     check(treeStructureSignature(f.gt.impl().chain(1).tree(0)) != target,
           "facade installForests: the twin's trees start elsewhere");
     std::vector<std::pair<std::size_t, int>> map = {{0, -1}, {1, -1}};
-    check(f.gt.base().installForests(donor, map) == WarmStartResult::ok &&
+    check(f.gt.base().installForests(donor, map, f.x.data()) ==
+              WarmStartResult::ok &&
             treeStructureSignature(f.gt.impl().chain(1).tree(0)) == target,
           "facade installForests: the donor's live trees seed the twin");
   }},

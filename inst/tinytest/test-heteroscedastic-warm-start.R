@@ -200,12 +200,14 @@ expect_true(all(is.finite(dest$run(0L, 3L)$sigma)))
 
 ## ---- a saved slot the destination's rows no longer support ----
 # a donor that kept sweeps can hold a slot whose region is empty against the
-# destination's rows. The variance install merges a scale leaf no row reaches
-# into its parent, as a forced setPredictor does, so no installed leaf reports
-# a scale the data never supported and the sampler restores itself.
+# destination's rows: declined as it stands. Forced, the variance install
+# merges a scale leaf no row reaches into its parent, as a forced
+# setPredictor does, so no installed leaf reports a scale the data never
+# supported and the sampler restores itself.
 strandDest <- hetSampler(FALSE)
 strandDest$setPredictor(rep(0.97, n), 1L, forceUpdate = TRUE)
-expect_silent(strandDest$installTrees(donor, samples = 1L))
+expect_identical(strandDest$installTrees(donor, samples = 1L), FALSE)
+expect_silent(strandDest$installTrees(donor, samples = 1L, forceUpdate = TRUE))
 strandDest$storeState()
 # the merge itself: on the same grid an unmerged slot would install verbatim,
 # node for node, so fewer live nodes than the slot carried is the merge
@@ -223,23 +225,8 @@ expect_true(all(is.finite(strandDest$run(0L, 3L)$sigma)))
 # A `variance = <subset>` forest may split only on its own columns:
 # splitVariableLogProbability prices a rule against an availability menu that
 # drops the rest, so a tree carrying a forbidden split is mis-scored for as
-# long as it lives. Neither entry admits one: installTrees refuses the donor
-# by name, and setState declines the state or, forced, collapses the split.
-maskRefusal <- paste0(
-  "warm-start donor holds a tree that splits on a variable outside this ",
-  "forest's allowed column set; the donor's fit is incompatible with the ",
-  "column restriction (a forest's own column subset or a restricted ",
-  "variance forest) in force here"
-)
-refusalOf <- function(expr) {
-  tryCatch(
-    {
-      expr
-      NA_character_
-    },
-    error = function(e) conditionMessage(e)
-  )
-}
+# long as it lives. Neither entry admits one: installTrees and setState both
+# decline it or, forced, collapse the split.
 restrictedSampler <- function() {
   dbarts(
     xHet,
@@ -262,8 +249,8 @@ expect_false(any(maskRecipient$state[[1L]][["variance.vars"]] == 1L))
 maskBefore <- maskRecipient$state
 # a state holding such a tree is declined, not refused
 expect_identical(maskRecipient$setState(maskDonor$state), FALSE)
-# the same donor as a warm start is refused, by name
-expect_identical(refusalOf(maskRecipient$installTrees(maskDonor)), maskRefusal)
+# and so is the same donor as a warm start
+expect_identical(maskRecipient$installTrees(maskDonor), FALSE)
 # transactional: both judge before they mutate, so the recipient is the
 # sampler it was, and still runs
 maskRecipient$storeState()
@@ -272,6 +259,10 @@ expect_true(all(is.finite(maskRecipient$run(0L, 3L)$variance)))
 # forced, the state goes in with every forbidden variance split collapsed
 expect_null(maskRecipient$setState(maskDonor$state, forceUpdate = TRUE))
 maskRecipient$storeState()
+expect_false(any(maskRecipient$state[[1L]][["variance.vars"]] == 1L))
+expect_true(all(is.finite(maskRecipient$run(0L, 3L)$variance)))
+# and so does the donor as a forced warm start
+expect_null(maskRecipient$installTrees(maskDonor, forceUpdate = TRUE))
 expect_false(any(maskRecipient$state[[1L]][["variance.vars"]] == 1L))
 expect_true(all(is.finite(maskRecipient$run(0L, 3L)$variance)))
 
