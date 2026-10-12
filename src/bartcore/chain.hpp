@@ -790,6 +790,21 @@ struct FusedSuffstatCheck {
   double worstWeightRelativeError = 0.0;
 };
 
+/// What a warm start did with the trees it gave one chain, summed over that
+/// chain's mean forests or counted for its variance forest: how many were
+/// offered and taken, and of those taken how many went in changed, each
+/// counted once under the first that holds - reset, a monotone tree whose
+/// leaves are all 0 where the donor's were not; cutBack, a tree that lost a
+/// split; moved, one that kept every split and holds one on another point;
+/// sideDropped, one whose rules stand but for a missing-value side.
+struct WarmStartTreeCounts {
+  std::size_t offered = 0, taken = 0, moved = 0, cutBack = 0, sideDropped = 0,
+              reset = 0;
+  bool changed() const {
+    return moved + cutBack + sideDropped + reset > 0 || taken != offered;
+  }
+};
+
 /// The slots of a chain's saved-tree ring that hold recorded draws: count of
 /// them from first, wrapping at the store's capacity. The chain writes the
 /// ring but only the sampler knows how much of it the runs have filled, so a
@@ -4885,6 +4900,60 @@ public:
       const std::vector<std::vector<std::uint64_t>>& masks,
       bool* altered = nullptr) {
     return rebuildVarianceForest(trees, masks, altered);
+  }
+
+  /// Counts what the warm start just installed changed in the trees it was
+  /// given: this chain's live trees, flattened, against \p assembled, the
+  /// scratch the install read. That scratch holds the sides drawn and the
+  /// coefficients restated, so neither is counted. \p mean gathers the mean
+  /// forests and \p variance the variance forest, each adding to what it
+  /// holds. Requires the install of \p assembled to have just succeeded.
+  void countDonorTrees(const ChainStateData& assembled,
+                       WarmStartTreeCounts& mean,
+                       WarmStartTreeCounts& variance) {
+    using Trees = std::vector<std::vector<FlatNode>>;
+    ChainStateData live;
+    getState(live, false);
+    auto allZero = [](const std::vector<FlatNode>& tree) {
+      for (const FlatNode& node : tree)
+        if (flatKindOf(node) == FlatKind::leaf && node.value != 0.0)
+          return false;
+      return true;
+    };
+    auto count = [&](const Trees& given, const Trees& got, bool monotone,
+                     WarmStartTreeCounts& counts) {
+      counts.offered += given.size();
+      counts.taken += got.size();
+      for (size_t t = 0; t < got.size(); ++t) {
+        const std::vector<FlatNode>& before(given[t]);
+        const std::vector<FlatNode>& after(got[t]);
+        if (monotone && allZero(after) && !allZero(before)) {
+          ++counts.reset;
+        } else if (after.size() < before.size()) {
+          ++counts.cutBack;
+        } else {
+          // node for node the tree the donor gave: a split's payload or its
+          // side for missing values is all that can differ
+          bool moved = false, dropped = false;
+          for (size_t i = 0; i < after.size(); ++i) {
+            FlatKind kind = flatKindOf(before[i]);
+            if (kind == FlatKind::leaf) continue;
+            moved = moved || (kind == FlatKind::ordinal &&
+                              before[i].value != after[i].value);
+            dropped = dropped || ((before[i].flags ^ after[i].flags) &
+                                  flatMissingGoesRight) != 0;
+          }
+          if (moved)
+            ++counts.moved;
+          else if (dropped)
+            ++counts.sideDropped;
+        }
+      }
+    };
+    for (size_t f = 0; f < forests_.size(); ++f)
+      count(assembled.forests[f].trees, live.forests[f].trees,
+            TreeDrawLeafModel<L>, mean);
+    count(assembled.varianceTrees, live.varianceTrees, false, variance);
   }
 
   /// Restates the linear coefficients of \p install's live trees - a warm

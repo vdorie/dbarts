@@ -138,6 +138,25 @@ enum class WarmStartResult {
   varianceSlotMismatch, varianceShapeMismatch, rebuildFailed
 };
 
+/// What a warm start installed, filled by installForests for a donor that
+/// went in: a chain's counts for its mean forests and for its variance
+/// forest, and the three ways the leaves it holds are not the donor's -
+/// function fits started at 0 for a donor recorded on other cut points, leaf
+/// blocks the sampler's leaves do not read, and linear coefficients kept as
+/// built across a covariate of one value on each side. An install is altered
+/// exactly when a count names a change or a flag is up.
+struct WarmStartReport {
+  std::vector<WarmStartTreeCounts> mean, variance;
+  bool fitsCold = false, leafBlocksUnread = false, coefficientsKept = false;
+  bool changed() const {
+    bool any = fitsCold || leafBlocksUnread || coefficientsKept;
+    for (const WarmStartTreeCounts& counts : mean) any = any || counts.changed();
+    for (const WarmStartTreeCounts& counts : variance)
+      any = any || counts.changed();
+    return any;
+  }
+};
+
 /// A sequential per-observation predictor update: stage one observation's
 /// leaf moves, test that no leaf empties, then commit or skip, with a single
 /// fits rebuild at the end. Type-erased so several samplers sharing an
@@ -1550,12 +1569,17 @@ public:
   /// when non-null, is false on every exit but an install and then true
   /// exactly where the donor was not clean, so a forced call sets it exactly
   /// when the same call without force declines; on the store's grid the
-  /// installing builds report it, never a scratch build.
+  /// installing builds report it, never a scratch build. \p report, when
+  /// non-null, is filled for a donor that went in and left as it was on every
+  /// other exit: the counts are read off the installed trees
+  /// (Chain::countDonorTrees), so they and altered are two readings of one
+  /// install.
   WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<size_t, int>>& sampleMap,
       const double* currentPredictors, bool force = true,
-      bool* altered = nullptr, bool leafBlocksUnread = false) {
+      bool* altered = nullptr, WarmStartReport* report = nullptr,
+      bool leafBlocksUnread = false) {
     if (altered != nullptr) *altered = false;
     if (sampleMap.size() != chains_.size())
       return WarmStartResult::shapeMismatch;
@@ -1838,6 +1862,16 @@ public:
     recordedDraws_ = 0;
     generators.bytes.clear();
     if (altered != nullptr) *altered = notClean || installAltered;
+    if (report != nullptr) {
+      report->mean.assign(chains_.size(), WarmStartTreeCounts());
+      report->variance.assign(chains_.size(), WarmStartTreeCounts());
+      for (size_t c = 0; c < chains_.size(); ++c)
+        chains_[c]->countDonorTrees(install[c], report->mean[c],
+                                    report->variance[c]);
+      report->fitsCold = fitsCold;
+      report->leafBlocksUnread = leafBlocksUnread;
+      report->coefficientsKept = coefficientsKept;
+    }
     return WarmStartResult::ok;
   }
 

@@ -853,6 +853,56 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
   list(samples = samples, burnInSigma = burnInSigma, burnInK = burnInK)
 }
 
+# The line bart prints for a warm start under verbose = TRUE, from the
+# report installDonorTrees returns. Trees are counted per chain, every chain
+# taking as many, and changes are summed over the chains, each changed tree
+# under one name. The variance forest has its own clause where one of its
+# trees changed, and each way the leaves are not the donor's has its own.
+warmStartLine <- function(report) {
+  changes <- c(
+    moved = "moved to this fit's cut points",
+    cut.back = "cut back to fit",
+    side.dropped = "with a side for missing values dropped",
+    reset = "reset to 0"
+  )
+  taken <- function(counts) {
+    sprintf("%d of %d", counts[1L, "taken"], counts[1L, "offered"])
+  }
+  changed <- function(counts) {
+    totals <- colSums(counts[, names(changes), drop = FALSE])
+    said <- paste(totals[totals > 0L], changes[totals > 0L], collapse = ", ")
+    if (nzchar(said) && nrow(counts) > 1L) {
+      said <- paste0(said, ", over ", nrow(counts), " chains")
+    }
+    said
+  }
+  clauses <- c(
+    paste(taken(report$trees), "donor trees taken"),
+    changed(report$trees)
+  )
+  if (!is.null(report$variance.trees)) {
+    said <- changed(report$variance.trees)
+    if (nzchar(said)) {
+      clauses <- c(
+        clauses,
+        paste0(
+          "variance trees: ",
+          taken(report$variance.trees),
+          " taken, ",
+          said
+        )
+      )
+    }
+  }
+  clauses <- c(
+    clauses,
+    if (report$fits.cold) "gp fits started at 0",
+    c("slopes left behind", "gp fits left behind")[report$blocks.unread],
+    if (report$coefficients.kept) "slopes kept across a covariate of one value"
+  )
+  paste0("warm start: ", paste(clauses[nzchar(clauses)], collapse = "; "))
+}
+
 # The alternate-family bart2 arcs (multinomial/ordinal/nbinom/hurdle.lognormal)
 # all refuse warm.start/n.grow.sweeps, keepTrainingFits = FALSE, and
 # keepFits = FALSE, differing only in the family name and the reason (which
@@ -1812,7 +1862,10 @@ bart <- function(
 
   if (!is.null(warm.start)) {
     # best effort: a donor that does not fit as it stands goes in changed
-    installDonorTrees(sampler, warm.start, NULL, TRUE)
+    report <- installDonorTrees(sampler, warm.start, NULL, TRUE)
+    if (control@verbose) {
+      cat(warmStartLine(report), "\n", sep = "")
+    }
   } else if (n.grow.sweeps > 0L) {
     sampler$growFromRoot(n.grow.sweeps, updateState = FALSE)
   } else {

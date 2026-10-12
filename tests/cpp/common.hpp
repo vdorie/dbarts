@@ -258,35 +258,43 @@ static bool installsClean(S& sampler, const SamplerStateData& state,
 // declines exactly when the forced install reports a change; and a donor one
 // form refuses the other refuses, the same way. A call that does not install
 // leaves the sampler as it was. Every flag is preset to the answer that
-// would hide a call never writing it. result and altered report the forced
-// call.
+// would hide a call never writing it. The report agrees with altered: it
+// holds a count or a flag exactly for an install that is, and a call that
+// does not install leaves it empty. result, altered and report are the
+// forced call's.
 template <typename S>
 static bool warmVerdictMatchesInstall(
     S& sampler, const SamplerStateData& donor,
     const std::vector<std::pair<std::size_t, int>>& map,
     const double* currentPredictors, WarmStartResult& result, bool& altered,
-    bool leafBlocksUnread = false) {
+    bool leafBlocksUnread = false, WarmStartReport* report = nullptr) {
   SamplerStateData before, unforced, forced;
   sampler.getState(before);
   bool unforcedAltered = true;
-  WarmStartResult first = sampler.installForests(
-    donor, map, currentPredictors, false, &unforcedAltered, leafBlocksUnread);
+  WarmStartReport first, second;
+  WarmStartResult answer = sampler.installForests(
+    donor, map, currentPredictors, false, &unforcedAltered, &first,
+    leafBlocksUnread);
   sampler.getState(unforced);
-  bool took = first == WarmStartResult::ok;
+  bool took = answer == WarmStartResult::ok;
   bool untouched = took || samplerStatesAgree(before, unforced);
   if (took && !sampler.setState(before, currentPredictors)) return false;
-  altered = first != WarmStartResult::declined;
+  altered = answer != WarmStartResult::declined;
   result = sampler.installForests(donor, map, currentPredictors, true,
-                                  &altered, leafBlocksUnread);
+                                  &altered, &second, leafBlocksUnread);
   sampler.getState(forced);
+  if (report != nullptr) *report = second;
   if (result != WarmStartResult::ok)
-    return first == result && !unforcedAltered && !altered && untouched &&
+    return answer == result && !unforcedAltered && !altered && untouched &&
+           first.mean.empty() && second.mean.empty() &&
            samplerStatesAgree(before, forced);
+  if (second.changed() != altered || second.mean.size() != map.size())
+    return false;
   if (took)
-    return !unforcedAltered && !altered &&
+    return !unforcedAltered && !altered && !first.changed() &&
            samplerStatesAgree(unforced, forced);
-  return first == WarmStartResult::declined && untouched && !unforcedAltered &&
-         altered;
+  return answer == WarmStartResult::declined && untouched &&
+         !unforcedAltered && first.mean.empty() && altered;
 }
 // A donor both forms of a warm start take as it stands.
 template <typename S>
@@ -305,11 +313,13 @@ template <typename S>
 static bool warmStartsAltered(
     S& sampler, const SamplerStateData& donor,
     const std::vector<std::pair<std::size_t, int>>& map,
-    const double* currentPredictors, bool leafBlocksUnread = false) {
+    const double* currentPredictors, bool leafBlocksUnread = false,
+    WarmStartReport* report = nullptr) {
   WarmStartResult result;
   bool altered;
   return warmVerdictMatchesInstall(sampler, donor, map, currentPredictors,
-                                   result, altered, leafBlocksUnread) &&
+                                   result, altered, leafBlocksUnread,
+                                   report) &&
          result == WarmStartResult::ok && altered;
 }
 // Flags the first ordinal rule among flat trees as sending missing values

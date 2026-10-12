@@ -4078,13 +4078,14 @@ BartcoreHolder* createMultinomialDataHolder(SEXP controlExpr, SEXP modelExpr,
 /// over the same predictors. samplesExpr, when non-null, maps each chain to a
 /// 1-based donor-sample index; NULL spreads chains across the donor pool.
 /// currentPredictors and force are Sampler::installForests's. Returns whether
-/// the donor went in, false being an unforced call's decline, and sets
-/// altered where it went in with a change. Raises R errors on malformed
-/// states or an incompatible donor. Declared here because its one caller
+/// the donor went in, false being an unforced call's decline, and then
+/// fills reportExpr, the list bartcore_installForests allocates, from the
+/// third element on. Raises R errors on malformed states or an incompatible
+/// donor, and allocates nothing in R. Declared here because its one caller
 /// precedes the state readers it is defined among.
 bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                     SEXP samplesExpr, const double* currentPredictors,
-                    bool force, bool& altered);
+                    bool force, SEXP reportExpr);
 
 } // namespace bartcore_bridge
 
@@ -6905,9 +6906,18 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
   return resultExpr;
 }
 
-// A list: 'installed', FALSE only for a donor an unforced call declined, and
-// 'altered', whether an installed donor went in other than as it holds its
-// trees and leaf values.
+// The warm start's report, a list. 'installed' is FALSE only for a donor an
+// unforced call declined, and the rest then says nothing. 'altered': whether
+// the donor went in other than as it holds its trees and leaf values.
+// 'trees' and 'variance.trees': integer matrices of one row per chain, the
+// trees offered and taken and, of those taken, the ones moved to other cut
+// points, cut back, left without a side for missing values or reset, each
+// tree counted once; 'variance.trees' is NULL for a sampler with no variance
+// forest. 'fits.cold': function fits started at 0. 'blocks.unread': 1 for
+// slopes and 2 for gp fits the donor carries and this sampler's constant
+// leaves do not read, else 0. 'coefficients.kept': linear coefficients kept
+// as built across a covariate of one value on each side. Everything is
+// allocated before the install, which then only writes into it.
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr, SEXP currentPredictorsExpr,
                              SEXP forceExpr) {
@@ -6918,15 +6928,35 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
   refuseMultiForestWarmStart(*holder.sampler, "$installTrees");
   const double* currentPredictors =
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
-  bool altered = false;
-  bool installed = bartcore_bridge::installForests(
-    *holder.sampler, donorStateExpr, samplesExpr, currentPredictors,
-    Rf_asLogical(forceExpr) == TRUE, altered);
-  const char* names[] = {"installed", "altered", ""};
+  const char* names[] = {"installed", "altered", "trees", "variance.trees",
+                         "fits.cold", "blocks.unread", "coefficients.kept",
+                         ""};
+  const char* countNames[] = {"offered", "taken", "moved", "cut.back",
+                              "side.dropped", "reset"};
+  int numChains = static_cast<int>(holder.sampler->shape().numChains);
   SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
-  SET_VECTOR_ELT(resultExpr, 0, Rf_ScalarLogical(installed));
-  SET_VECTOR_ELT(resultExpr, 1, Rf_ScalarLogical(altered));
-  UNPROTECT(1);
+  SEXP countNamesExpr = PROTECT(Rf_allocVector(STRSXP, 6));
+  for (int k = 0; k < 6; ++k)
+    SET_STRING_ELT(countNamesExpr, k, Rf_mkChar(countNames[k]));
+  SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
+  SET_VECTOR_ELT(dimNamesExpr, 1, countNamesExpr);
+  for (int k = 2; k <= 3; ++k) {
+    SEXP countsExpr = Rf_allocMatrix(INTSXP, numChains, 6);
+    SET_VECTOR_ELT(resultExpr, k, countsExpr);
+    std::memset(INTEGER(countsExpr), 0, sizeof(int) * 6 * numChains);
+    Rf_setAttrib(countsExpr, R_DimNamesSymbol, dimNamesExpr);
+  }
+  // vectors of the report's own: a scalar logical made by R is one shared
+  // object per value and is not to be written
+  for (int k : {0, 1, 4, 5, 6}) {
+    SEXP flagExpr = Rf_allocVector(k == 5 ? INTSXP : LGLSXP, 1);
+    SET_VECTOR_ELT(resultExpr, k, flagExpr);
+    INTEGER(flagExpr)[0] = 0;
+  }
+  LOGICAL(VECTOR_ELT(resultExpr, 0))[0] = bartcore_bridge::installForests(
+    *holder.sampler, donorStateExpr, samplesExpr, currentPredictors,
+    Rf_asLogical(forceExpr) == TRUE, resultExpr);
+  UNPROTECT(3);
   return resultExpr;
 }
 
@@ -8738,15 +8768,17 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 // destination to redraw.
 // Function-leaf donors seed from their live trees, so their saved channel is
 // skipped. The donor's own chain count is honored (a short donor may seed
-// many chains). leafBlocksUnread is set where a donor forest carries a
+// many chains). blocksUnread is set where a donor forest carries a
 // tree.params block and this sampler's leaves are constants, which read
 // none: the trees then go in at each leaf's stored value, a linear leaf's
-// intercept, and are not the donor's function. Returns an error string, or
-// NULL, rather than longjmping so the caller can free state first.
+// intercept, and are not the donor's function. It is 2 where the block is a
+// gp leaf's fits, which come with lengthscales, and 1 for slopes. Returns an
+// error string, or NULL, rather than longjmping so the caller can free state
+// first.
 static const char* readWarmStartState(SEXP stateExpr,
                                       bartcore::SamplerBase& sampler,
                                       bartcore::SamplerStateData& state,
-                                      bool& leafBlocksUnread) {
+                                      int& blocksUnread) {
   bartcore::SamplerShape shape = sampler.shape();
   size_t numChains = static_cast<size_t>(Rf_xlength(stateExpr));
   if (numChains == 0) return "warm-start donor holds no chains";
@@ -8840,7 +8872,9 @@ static const char* readWarmStartState(SEXP stateExpr,
                             fs.savedTreeParams, &errorMessage))
           break;
       } else if (!Rf_isNull(rc_getListElement(forestExpr, "tree.params"))) {
-        leafBlocksUnread = true;
+        blocksUnread =
+          Rf_isNull(rc_getListElement(forestExpr, "leaf.lengthscales")) ? 1
+                                                                        : 2;
       }
 
       if (sampler.data().hasPooledCategorical) {
@@ -8982,7 +9016,7 @@ static const char* readWarmStartState(SEXP stateExpr,
 
 bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                     SEXP samplesExpr, const double* currentPredictors,
-                    bool force, bool& altered) {
+                    bool force, SEXP reportExpr) {
   if (!Rf_inherits(donorStateExpr, "bartcoreState"))
     Rf_error("'warm.start' must supply a bartcore state object");
 
@@ -8997,9 +9031,9 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
              formatVersion, minReadableStateFormatVersion);
 
   bartcore::SamplerStateData donor;
-  bool leafBlocksUnread = false;
+  int blocksUnread = 0;
   const char* errorMessage =
-    readWarmStartState(donorStateExpr, sampler, donor, leafBlocksUnread);
+    readWarmStartState(donorStateExpr, sampler, donor, blocksUnread);
 
   // The mapping vectors live in a scope that closes before any Rf_error, so
   // the longjmp cannot leak them.
@@ -9054,13 +9088,39 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
 
     // the snapshot that makes a refused install undoable allocates
     if (errorMessage == NULL) {
+      bool altered = false;
+      bartcore::WarmStartReport report;
       bartcore_bridge::CapturedError installError;
       captureExceptions(installError, [&]() {
         result = sampler.installForests(donor, sampleMap, currentPredictors,
-                                        force, &altered, leafBlocksUnread);
+                                        force, &altered, &report,
+                                        blocksUnread != 0);
       });
       if (installError.failed)
         errorMessage = "warm-start install failed: out of memory";
+      if (!installError.failed && result == bartcore::WarmStartResult::ok) {
+        LOGICAL(VECTOR_ELT(reportExpr, 1))[0] = altered;
+        int* mean = INTEGER(VECTOR_ELT(reportExpr, 2));
+        int* variance = INTEGER(VECTOR_ELT(reportExpr, 3));
+        bool anyVariance = false;
+        for (size_t c = 0; c < numChains; ++c) {
+          int* counts = mean;
+          for (const bartcore::WarmStartTreeCounts* from :
+                 {&report.mean[c], &report.variance[c]}) {
+            const size_t values[] = {from->offered, from->taken, from->moved,
+                                     from->cutBack, from->sideDropped,
+                                     from->reset};
+            for (size_t k = 0; k < 6; ++k)
+              counts[c + k * numChains] = static_cast<int>(values[k]);
+            counts = variance;
+          }
+          anyVariance = anyVariance || report.variance[c].offered > 0;
+        }
+        if (!anyVariance) SET_VECTOR_ELT(reportExpr, 3, R_NilValue);
+        LOGICAL(VECTOR_ELT(reportExpr, 4))[0] = report.fitsCold;
+        INTEGER(VECTOR_ELT(reportExpr, 5))[0] = blocksUnread;
+        LOGICAL(VECTOR_ELT(reportExpr, 6))[0] = report.coefficientsKept;
+      }
     }
   }
   {
