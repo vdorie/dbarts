@@ -68,7 +68,7 @@ Defects, measured (response sd about 2 throughout):
   standardizations are equal ([`Sampler::installForests`](../../src/bartcore/sampler.hpp) does not copy the
   donor's blocks; [`readWarmStartState`](../../src/R_interface_bartcore.cpp) does not read them).
 - A warm start from another grid replaces the recipient's standardization:
-  [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp) calls `reinitialize`. A recipient
+  retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), a routine since removed, calls `reinitialize`. A recipient
   holding 4.94, 2.92 ends at -0.019, 0.973, on linear and gp leaves (the gp lengthscale is re-derived too).
 
 What already works, and is kept:
@@ -217,7 +217,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
    into [`ForestStateData`](../../src/bartcore/combiner.hpp);
    [`Sampler::installForests`](../../src/bartcore/sampler.hpp) converts the donor's coefficients, live or
    from a kept slot, into the recipient's standardization where the two differ (guard on);
-   [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp) no longer calls `reinitialize` and
+   retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), since removed, no longer calls `reinitialize` and
    keeps only the leaf's cache invalidation, the covariates no longer changing. tests/cpp, beside
    [`testCrossGridWarmStart`](../../tests/cpp/test_state.cpp): same grid, other standardization: the
    recipient's live fit equals the donor's function on the recipient's rows to 1e-12 (off by about 6

@@ -410,7 +410,7 @@ Open `src/bartcore/facade.hpp`, `sampler.hpp` and `chain.hpp`:
 [`fanOutPredictSlabs`](../../src/bartcore/sampler.hpp);
 [`Chain`](../../src/bartcore/chain.hpp),
 [`setActiveRows`](../../src/bartcore/chain.hpp),
-[`columnMaskStateFeasible`](../../src/bartcore/chain.hpp). On random
+[`donorTreesStage`](../../src/bartcore/chain.hpp). On random
 numbers and threads, prefer `docs/architecture.md`.
 
 The leaf model - the prior on a terminal node's value and its draw - is

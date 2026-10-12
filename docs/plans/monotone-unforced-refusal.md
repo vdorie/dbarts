@@ -192,8 +192,8 @@ with the new values. Either failure refuses it.
    [`Chain::rebuildFitsFromParameters`](../../src/bartcore/chain.hpp) goes, with its comment. Its four
    other callers keep theirs ([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp),
    [`Chain::applyNewData`](../../src/bartcore/chain.hpp),
-   [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp),
-   [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp)). The comments on
+   [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp), and the warm start's remap arm, since
+   removed, retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp)). The comments on
    [`Sampler::setPredictor`](../../src/bartcore/sampler.hpp),
    [`Sampler::runPredictorTransaction`](../../src/bartcore/sampler.hpp) and
    [`Sampler::revalidateAllChains`](../../src/bartcore/sampler.hpp) name both reasons; their code stands.
@@ -429,7 +429,7 @@ with the new values. Either failure refuses it.
     hand tree second or last, out of order in the second chain alone, and a decreasing constraint with the
     mirrored values; the tinytest has three trees and two chains, and a decreasing sampler. The earlier
     two-chain one-tree cases became these.
-  - The reset kept in [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp) is pinned by a
+  - The reset kept in retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), since removed, is pinned by a
     warm start from a donor on another cut grid, in place of the same-grid one.
   - A factor of more than 63 levels keeps its rules' sides for a missing value when the column loses its
     missing values, so a regained value can go right: Context's "goes left at every rule" is false for

@@ -206,21 +206,17 @@ items
     cancelling the run and an error keeping its message. The entry has
     no caller in R/ today.
   warm-start-salvage: bart(warm.start = ) takes all it can from a
-    donor: a donor tree the recipient cannot hold (a split on a column
-    its forest may not use, an order a monotone leaf forbids) is
-    collapsed at that split to one leaf and the fit proceeds, where
-    today the whole donor is refused; installTrees gains a force
-    argument, without which it accepts or refuses the donor whole, as
-    built (dec-B295, VD 2026-10-07). Before 1.0-0; designed with
-    warm-start-tree-count, the same question for a donor of another
-    tree count. Ruled since: a part only one side has, DART's
-    weights or a variance forest, does not transfer and the trees do
-    (dec-B324); a constant donor seeds linear leaves exactly and a
-    linear donor constant ones at the covariates' centre, gp refused
-    (dec-B325); bart says what was taken in one verbose line
-    (dec-B326); forced forms return NULL (dec-B310). To design: the
-    argument's name and default, a collapsed leaf's value, and what
-    stays refused under force.
+    donor (dec-B295, VD 2026-10-07). Built, slice A of
+    docs/plans/warm-start-salvage.md: installTrees's two forms, the
+    cut-back at a split a forest does not allow, the move across cut
+    points and bart's verbose line. Left, slices B and D, before
+    1.0-0: a monotone tree out of order is collapsed where the order
+    breaks and not set to 0 (dec-B355); a part only one side has,
+    DART's weights or a variance forest, does not transfer and the
+    trees do (dec-B324); a constant donor seeds linear leaves exactly,
+    a linear donor on another number of covariates gives its
+    intercepts, and a gp leaf against another kind is an error by name
+    (dec-B325).
   warm-start-by-position: a warm start matches the donor's columns and
     a factor's levels to the recipient's by position, not by name: a
     donor fitted with a factor's levels reversed installs with no
@@ -960,10 +956,6 @@ items
   refused-update-rounding: after a refused whole-matrix setPredictor
     the next draws differ from an untouched twin's by about 1.8e-15,
     where the help says the fits are as they were.
-  forced-update-returns-null: installTrees's forced form returns NULL
-    invisibly when it is built, as a forced setPredictor and setState
-    do (dec-B310); with the warm start's slices. Before the merge to
-    main.
   precision-floor-edge-values: the floor that refuses scales and
     Polya-Gamma variates that are not positive and finite passes a
     value at the edge of what a double holds: a variate of 1e-320 in a

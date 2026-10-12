@@ -107,8 +107,8 @@ Code read on 7f948d02:
   [`rebuildVarianceForest`](../../src/bartcore/chain.hpp): a bottom no row reaches, a split outside its
   interval ([`holdsSplitOutsideInterval`](../../src/bartcore/tree.hpp)), or a direction dropped by
   [`Tree::buildFromFlat`](../../src/bartcore/tree.hpp). It refuses a live split outside a forest's
-  column mask ([`columnMaskStateFeasible`](../../src/bartcore/chain.hpp)), a live tree breaking an
-  interaction limit ([`interactionStateFeasible`](../../src/bartcore/chain.hpp)) and a monotone tree
+  column mask (retired: [`columnMaskStateFeasible`](../../src/bartcore/chain.hpp), since removed), a live tree breaking an
+  interaction limit (retired: [`interactionStateFeasible`](../../src/bartcore/chain.hpp), since removed) and a monotone tree
   out of its cone (retired: [`monotoneStateFeasible`](../../src/bartcore/chain.hpp), folded by Part B into
   [`Chain::stateIsValid`](../../src/bartcore/chain.hpp)'s verdict), each by its own message
   from [`bartcore_setState`](../../src/R_interface_bartcore.cpp)'s helper.
@@ -451,8 +451,8 @@ merges), [test-monotone-unforced.R](../../inst/tinytest/test-monotone-unforced.R
 split-moved install's value: [test-cut-grid-distinct.R](../../inst/tinytest/test-cut-grid-distinct.R),
 [test-cut-points-undo.R](../../inst/tinytest/test-cut-points-undo.R). Each merged install takes
 `forceUpdate = TRUE` and gains its unforced FALSE. The setState refusal pins that become FALSE and
-repaired (ran: grep on 7f948d02): ["allowed column set"](../../inst/tinytest/test-single-forest-vars.R)
-(the warm-start pin beside it stays), retired: ["violates this sampler's interaction constraint"](../../inst/tinytest/test-interactions.R)
+repaired (ran: grep on 7f948d02): retired: ["allowed column set"](../../inst/tinytest/test-single-forest-vars.R)
+(the warm-start pin beside it stays, and went when the warm start took its two forms), retired: ["violates this sampler's interaction constraint"](../../inst/tinytest/test-interactions.R)
 (two), retired: ["leaf values violate this sampler's monotone constraint"](../../inst/tinytest/test-monotone.R),
 both messages gone with Part B.
 test-blocks.R pins no setState refusal (ran: grep). The full suite finds the rest.

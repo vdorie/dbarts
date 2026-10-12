@@ -72,8 +72,8 @@ nothing moves.
   donor's state records into the recipient's, as live coefficients are
   ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), the blocks read by
   [`readWarmStartState`](../../src/R_interface_bartcore.cpp)). The recipient keeps its centre, scale and
-  lengthscale on either grid: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp) no longer
-  re-derives them (dec-B231, derived data changes only by a call that names it). A donor that records no
+  lengthscale on either grid: no install re-derives them, and the remap arm that did,
+  retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), is gone with the warm start's two forms (dec-B231, derived data changes only by a call that names it). A donor that records no
   standardization is read as before. A record that does not fit the leaf is refused with nothing touched.
 - `setState` is unchanged: it installs the standardization a state holds.
 

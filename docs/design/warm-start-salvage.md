@@ -1,6 +1,7 @@
 # Warm starts that take part of a donor
 
-Status: DECIDED 2026-10-11, not built. The six choices of section 3 are settled as recommended there: (a) A,
+Status: DECIDED 2026-10-11; slice A of the plan is built, the two forms, the report and the line, and
+slices B to D are not. The six choices of section 3 are settled as recommended there: (a) A,
 (b) A, (c) A, (d) the errors stay, (e) A (dec-B448), (f) one line at every warm start. Plan:
 [warm-start-salvage.md](../plans/warm-start-salvage.md), which records what the state grid slice changed
 under sections 1 and 4. TODO: warm-start-salvage, warm-start-tree-count, forced-update-returns-null.
@@ -45,8 +46,9 @@ in each. An install drops the recipient's kept draws and stores its state again.
 | recipient of two or more forests | error, by name |
 
 The refusals sit in [`Sampler::installForests`](../../src/bartcore/sampler.hpp) (shape, grid, DART, variance
-forest, and the two containment checks, [`Chain::interactionStateFeasible`](../../src/bartcore/chain.hpp),
-[`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp)), in the bridge's
+forest, and the two containment checks, removed in the build,
+retired: [`Chain::interactionStateFeasible`](../../src/bartcore/chain.hpp) and
+retired: [`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp)), in the bridge's
 [`readWarmStartState`](../../src/R_interface_bartcore.cpp), which reads the donor's leaf blocks in the
 recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
 [`checkFamilyUnsupportedArgs`](../../R/bart.R)). `bart` prints nothing about a warm start.
@@ -264,8 +266,8 @@ missing-value sides, and then judges every tree on scratch as it will be install
 the donor's grid under [`ScopedCutGrid`](../../src/bartcore/data.hpp), moved
 ([`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp)), partitioned and marked. Unforced, anything
 marked returns a new [`WarmStartResult`](../../src/bartcore/sampler.hpp) value, declined, with nothing
-written. Forced, [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) and
-[`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp) install, the second arming the forbidden-
+written. Forced, [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) and the remap arm, removed in
+the build, retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), install, the second arming the forbidden-
 split predicate as the first does; the two containment checks stop being refusals and feed the verdict. The
 bridge's [`bartcore_installForests`](../../src/R_interface_bartcore.cpp) takes the flag and returns the
 report; [`readWarmStartState`](../../src/R_interface_bartcore.cpp) reads the donor's leaf blocks in the

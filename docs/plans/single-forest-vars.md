@@ -84,7 +84,7 @@ on any forest, and what the manual says. That is (i) or (ii); (iii) keeps the ma
 - It survives `copy`, a save and reload, `setPredictor` (a column, the whole matrix), `setData`,
   `sampleTreesFromPrior` and `growFromRoot`. `setState` with a state that splits on an excluded column and
   `installTrees` from an unrestricted donor are refused with the messages a restricted variance forest
-  gives ([`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp) reads the same mask).
+  gives (retired: [`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp), since removed, reads the same mask).
 - 20 kinds of fit that state no `vars` on a single forest are bitwise the tip's (families, DART,
   `split.probs`, `interactions`, `blocks`, linear and monotone leaves, a restricted variance forest, two
   forests with and without `vars`, multinomial, `bart`, `xbart`); the full tinytest suite (13897 results)

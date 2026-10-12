@@ -1,7 +1,7 @@
 # warm-start-salvage: a warm start takes what fits of a donor
 
-Status: PLANNED 2026-10-11, revised from its blind critique, no call open. Four slices, A to D, serial. Nothing
-is built. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
+Status: PLANNED 2026-10-11, revised from its blind critique, no call open. Four slices, A to D, serial. Slice A
+is built ([Slice A as built](#slice-a-as-built)); B to D are not. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
 `forceUpdate = FALSE`, (b) FALSE for a split that has to move or merge, (c) the mean weighted by rows, (d) the
 three errors stay, (e) the mean forest's rule for the variance forest (dec-B448), (f) one line. Where this plan
 and the design note part, on the monotone tree and the number of slices, the plan is the later record
@@ -86,16 +86,16 @@ Released 0.9-34 has neither `installTrees` nor `warm.start` (run on scratch/libs
 matching install, warm or State are `setState` and `storeState`; `bart`, `bart2` and `rbart_vi` have no
 `warm.start`). So no call's behavior changes from a release, and NEWS describes a new feature.
 
-Code as it stands:
+Code as it stood before slice A:
 
 - [`Sampler::installForests`](../../src/bartcore/sampler.hpp) assembles each chain's trees from the donor
   sample it takes, restates linear coefficients
   ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp)), draws the missing-value sides
-  ([`Chain::drawDonorMissingDirections`](../../src/bartcore/chain.hpp)), refuses on four scratch passes
-  ([`Chain::interactionStateFeasible`](../../src/bartcore/chain.hpp),
-  [`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp),
-  [`Chain::forestsRebuildable`](../../src/bartcore/chain.hpp),
-  [`Chain::varianceForestRebuildable`](../../src/bartcore/chain.hpp)) and installs by
+  ([`Chain::drawDonorMissingDirections`](../../src/bartcore/chain.hpp)), refuses on four scratch passes,
+  which slice A removed (retired: [`Chain::interactionStateFeasible`](../../src/bartcore/chain.hpp);
+  retired: [`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp);
+  retired: [`Chain::forestsRebuildable`](../../src/bartcore/chain.hpp);
+  retired: [`Chain::varianceForestRebuildable`](../../src/bartcore/chain.hpp)) and installs by
   [`Chain::installForest`](../../src/bartcore/chain.hpp) and
   [`Chain::installVarianceForest`](../../src/bartcore/chain.hpp). It reports nothing of what the install
   changed.
@@ -109,8 +109,8 @@ Code as it stands:
   every leaf of a monotone tree out of order to 0
   ([`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp)). Only the refusals ahead of it
   keep a warm start from cutting a tree back today.
-- A donor on other cut points goes through
-  [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp): built on the donor's grid with no rows
+- A donor on other cut points goes through the remap arm, which slice A removed,
+  retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp): built on the donor's grid with no rows
   under it, moved, then partitioned, so a merge at the move takes the plain mean, and gp fits start at 0.
 - [`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp) is the state grid slice's routine: the
   recorded grid goes in with re-quantized codes, the install step it is handed builds and partitions the
@@ -407,8 +407,8 @@ note's (f) where it gives them.
      counts per forest kind, a row per chain, and the flags.
    - [`readWarmStartState`](../../src/R_interface_bartcore.cpp) notes, for a recipient of constant leaves, a
      donor forest that carries `tree.params`: about 10 lines, and the flag above.
-   - [`columnMaskMismatchMessage`](../../src/R_interface_bartcore.cpp) and the two cases that read the
-     deleted results go.
+   - retired: [`columnMaskMismatchMessage`](../../src/R_interface_bartcore.cpp) and the two cases that read
+     the deleted results go, and went.
    - In [R/dbarts.R](../../R/dbarts.R) an internal `installDonorTrees(sampler, donor, samples, force)` does
      what the method does today, passes [`rawPredictorMatrix`](../../R/dbarts.R) of the sampler's
      predictors, stores the state only when the donor went in, and returns the list.
@@ -430,14 +430,15 @@ note's (f) where it gives them.
      leave a call that returns TRUE alone.
    - The critique's tracer on sgi (scratch/wsc/tracer.R, which approximates the verdict by comparing trees)
      finds 15 to 17 executed calls that turn FALSE, in 8 files:
-     ["column restriction"](../../inst/tinytest/test-blocks.R) 1,
+     retired: ["column restriction"](../../inst/tinytest/test-blocks.R) 1, an expectation since rewritten,
      [test-single-forest-vars.R](../../inst/tinytest/test-single-forest-vars.R) 1,
      [test-heteroscedastic-warm-start.R](../../inst/tinytest/test-heteroscedastic-warm-start.R) 2,
      [test-leaf-conversions.R](../../inst/tinytest/test-leaf-conversions.R) 2 to 4,
      test-monotone-unforced.R 4, [test-monotone.R](../../inst/tinytest/test-monotone.R) 1,
      [test-state-empty-leaf-merge.R](../../inst/tinytest/test-state-empty-leaf-merge.R) 1 and
      test-state-missing-record.R 3 or more (the tracer cannot tell a dropped side from a drawn one); and
-     ["interaction constraint"](../../inst/tinytest/test-interactions.R) through `bart`, which now fits.
+     retired: ["interaction constraint"](../../inst/tinytest/test-interactions.R), since rewritten, through
+     `bart`, which now fits.
      These nine are the named files.
    - An expectation in a named file that pins today's cross-grid values is changed only to the by-hand
      twin's value. 6 executed calls of test-leaf-conversions.R give a donor on other recorded points with
@@ -1020,3 +1021,35 @@ Slice B of the critique's text is slices C and D here.
 - The cost of the trial installs, across grids above all; several chains across grids.
 - The 44 tests/cpp calls and the family pairs beyond the two.
 - The consumers: read, not run.
+
+## Slice A as built
+
+Built 2026-10-11 on 480d7d69 in four commits: the two forms, the report and the line, the tests, the help and
+notes. What was measured on the base build (480d7d69, the state grid slice with its fix rounds) and where the
+build parts from the steps above.
+
+- Every number of [Measured on this tree](#measured-on-this-tree) that the build's oracles re-ran is the base
+  build's: the cross-build script (scratch/wsa/cross.R) is identical on its 30 fixtures, the same-grid ones,
+  the 8 of p6.R, the gp pair on a finer grid and a `setState` battery. So a gp donor on other recorded points
+  with every threshold on the grid, argued only above, is the base build's remap arm bit for bit: trees, stored
+  state and the next 5 draws.
+- The tracer on the built verdict: 11 lines in eight of the nine named files return FALSE, the ninth,
+  test-interactions.R, expecting the refusal through `bart`, and none elsewhere. One line of
+  test-monotone-unforced.R is FALSE on each of its 55 passes, every one across grids, and one of
+  test-state-missing-record.R takes both answers.
+- The donor's trees are built on its recorded points wherever those are not the sampler's, and then on the
+  sampler's unless the install goes across grids. A threshold that is no point of the donor's own grid is so
+  refused by the build that names its forest, with today's two messages, and no separate check is made.
+- "Equals the two calls" holds for the chains on 30 rows and for the next draws only under equal weights:
+  cut points derived from 30 rows carry weights, the forced start keeps them and the twin's `setCutPoints`
+  leaves its points unweighted, so the two samplers draw under other tree priors from identical trees. The
+  test sets both samplers' points to the donor's and back first, which leaves them unweighted, holds the pair
+  to one state and one stream, and holds a third sampler with its weights to the same trees and to its
+  weights kept.
+- [`testCrossGridWarmStart`](../../tests/cpp/test_state.cpp) pinned the remap arm's 3 live leaves of 11; the
+  routine leaves 1, every split on the donor's wider column having a side none of the destination's rows
+  reaches. It now holds the trees to a forced state install's and a hand tree to its merge by rows.
+- The line's unread leaf blocks are told apart by the bridge, slopes from gp fits by the lengthscales a gp
+  forest records; the engine takes one flag. The codes of a store are compared before and after in tests/cpp
+  only: R has no reader for them.
+- Left to the reviewer's build: the mutant that keeps the remap arm, the routine being deleted.

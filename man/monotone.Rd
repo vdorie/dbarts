@@ -93,7 +93,7 @@ monotone(directions, prior = c("joint", "leaf"))
   \code{\linkS4class{dbartsSampler}}) can leave a tree's leaf values out of
   order. The calls that always complete - \code{setPredictor} with
   \code{forceUpdate = TRUE} (its default when the whole matrix is replaced),
-  \code{setData}, \code{setCutPoints}, \code{installTrees}, and
+  \code{setData}, \code{setCutPoints}, and \code{installTrees} and
   \code{setState} with \code{forceUpdate = TRUE} - set every leaf value of
   such a tree to zero, without a message, and the next iteration draws them
   again;

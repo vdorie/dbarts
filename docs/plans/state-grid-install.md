@@ -94,7 +94,7 @@ Code as it stands:
   and merges a leaf left empty; mean forests of every leaf kind, the variance forest and the monotone
   reseed included.
 - The warm start moves a donor's trees too ([`Sampler::installForests`](../../src/bartcore/sampler.hpp),
-  [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp)), but builds each on the donor's grid
+  and its remap arm, since removed, retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp)), but builds each on the donor's grid
   with no rows under it ([`ScopedCutGrid`](../../src/bartcore/data.hpp)), so its merge has no row sums and
   takes the plain mean.
 - R re-creates an engine from `(control, model, data)` in three places and then installs a state

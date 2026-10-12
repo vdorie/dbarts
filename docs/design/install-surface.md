@@ -50,9 +50,10 @@ sampler's rows. A kept draw is replayed over new rows and never held to this par
 A merged leaf takes the mean of the leaves it replaces, weighted by their rows under the state's own working
 weights, geometric in the variance forest. On each path from the root the first offending split goes and the
 splits above it stay. A merge can leave a monotone tree out of order, and it is then reseeded as well. The
-last three rows are repaired under dec-B398 ("Repair, as we do elsewhere."). A warm start is not a state
-install: it refuses a donor that breaks a column restriction or an interaction limit, and reseeds one out of
-the monotone order.
+last three rows are repaired under dec-B398 ("Repair, as we do elsewhere."). A warm start judges and
+repairs a donor's trees by the same table and the same staging
+([`Chain::donorTreesStage`](../../src/bartcore/chain.hpp)): `installTrees(donor)` returns FALSE where a
+row applies and `forceUpdate = TRUE` makes the change ([Warm starts](#warm-starts)).
 
 The verdict and the install stage a tree by one routine,
 [`Tree::stageFromFlat`](../../src/bartcore/tree.hpp), the verdict on a scratch tree
@@ -111,8 +112,9 @@ never flagged. A column the state records and the sampler has never seen missing
 is dropped, and a state never raises a flag (dec-B321).
 
 A warm start draws the same for the trees it installs, from each receiving chain's own generator and before
-the trees are judged, remapped or merged ([`Sampler::installForests`](../../src/bartcore/sampler.hpp),
-dec-B440); a donor state with no record draws nothing, and a refused start puts the generators back.
+the trees are judged, moved or merged ([`Sampler::installForests`](../../src/bartcore/sampler.hpp),
+dec-B440); a donor state with no record draws nothing, and a start refused or declined puts the generators
+back.
 
 ## The cut grid is the sampler's
 
@@ -217,10 +219,25 @@ TRUE and the chain runs with that column's points equally likely.
 `setPredictor(x[, j], j, updateCutPoints = "value")` gives back both while the column holds the values the
 grid was derived from, and nothing does once it holds others (TODO cut-point-weights).
 
-A warm start still moves a donor's trees with no rows under them and so merges at the plain mean
-([`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp)); the across-grids routine takes its
-install step as a parameter so that the warm start can hand in its own (TODO warm-start-salvage).
+## Warm starts
 
-## Not in this note
+`installTrees(donor, samples = NULL, forceUpdate = FALSE)` has `setState`'s two forms and values
+(dec-B295, dec-B310; [warm-start-salvage.md](warm-start-salvage.md)). Unforced it returns TRUE for a donor
+installed as it holds its trees and FALSE, the sampler untouched, for one that would have to be changed;
+forced it installs with the changes and returns NULL invisibly. A donor is changed where a row of the
+table above applies to a tree a chain takes, where a live threshold is no point of the sampler's cut grid,
+and where its leaves would not be the donor's: gp fits recorded on other cut points, which start at 0;
+slopes or gp fits that a sampler of constant leaves does not read; and linear coefficients kept across a
+covariate that holds one value on each side and not the same one. The sides drawn under dec-B440 and
+coefficients restated in the sampler's standardization are how a donor is read and are not changes.
 
-`installTrees`'s `forceUpdate`, and its NULL, come with the warm start's salvage.
+The forced move across grids is the state install's routine handed the warm start's own install step
+([`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp)), so a merged leaf weighs by rows there
+too and the sampler's cut points, weights and codes are the same before and after. What differs from a
+state install: the donor's generators, latents and kept draws are not taken, the sampler's kept draws are
+dropped, and its `state` field is stored again after every install. On a column the sampler holds as an
+ordered factor a donor recorded on other points is an error in both forms, as for a state. A monotone tree
+out of order is reset to 0, a tree count, DART setting or variance forest on one side only is an error, and
+a leaf kind is read in the sampler's shape (TODO warm-start-salvage, warm-start-tree-count).
+`bart(warm.start = )` forces and, under `verbose = TRUE`, prints one line saying what was taken and
+changed, from counts read off the installed trees ([`Chain::countDonorTrees`](../../src/bartcore/chain.hpp)).

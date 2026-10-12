@@ -243,9 +243,10 @@ Split availability is restricted per forest, not per chain: a forest may
 carry a column mask (BCF moderators, a column-restricted variance forest) and
 an `InteractionConstraint` (`src/bartcore/tree.hpp`), a maximum interaction
 order plus a forbidden co-occurrence adjacency that every tree of that forest
-borrows. Since a donor grown under a different restriction may hold a tree
-the destination forbids, warm start refuses on containment before touching
-live state (`Chain::interactionStateFeasible`, `columnMaskStateFeasible`).
+borrows. A donor grown under a different restriction may hold a tree the
+destination forbids: a warm start declines it before touching live state
+and, forced, cuts the tree back at the split, as a state install does
+(`Chain::donorTreesStage`, `Chain::rebuildLiveForest`).
 
 Design notes: docs/design/forest-combiner.md for the hierarchy,
 multiplier-combiner.md for the amplitude family, and

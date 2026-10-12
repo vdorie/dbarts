@@ -47,8 +47,9 @@ interactions(max.order = NULL, groups = NULL, forbid = NULL)
   new predictor once the path's distinct count reaches the cap, while
   \code{groups} and \code{forbid} bar a predictor whose forbidden partner sits
   above it. The constraint is hard (an availability ban), applied inside the
-  tree proposals and enforced on any warm start, so a constrained fit never
-  visits a path that violates it; an unconstrained fit is unaffected.
+  tree proposals, and a warm start cuts back a tree that breaks it, so a
+  constrained fit never visits a path that violates it; an unconstrained fit
+  is unaffected.
 
   Names and indices resolve against the model matrix at fit time, where every
   value is validated: an unrecognized name, an empty group, a \code{max.order}

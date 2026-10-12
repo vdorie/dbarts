@@ -533,11 +533,17 @@
             matrices are taken as numbers, in fitting and in
             \code{predict}; 0.9-34 refused an integer matrix.
       \item Starting points. \code{bart}'s \code{warm.start} starts the
-            chains from a previous fit's trees, and \code{n.grow.sweeps}
-            builds the starting trees by XBART-style grow-from-root sweeps
-            (He et al. 2019); the sampler offers both as
-            \code{$installTrees} and \code{$growFromRoot}. Neither changes
-            the posterior, only where the chains start.
+            chains from a previous fit's trees, taking all of the earlier
+            fit that the new one can hold, and with \code{verbose = TRUE}
+            says in one line how many trees were taken, moved and cut
+            back; \code{n.grow.sweeps} builds the starting trees by
+            XBART-style grow-from-root sweeps (He et al. 2019); the sampler
+            offers both as \code{$installTrees} and \code{$growFromRoot};
+            \code{installTrees(donor)} returns \code{TRUE} for a donor
+            taken as stored and \code{FALSE}, the sampler untouched, for
+            one that would have to be changed, which
+            \code{forceUpdate = TRUE} installs. Neither changes the
+            posterior, only where the chains start.
       \item Tree moves. \code{proposal.probs} gains two optional moves,
             \code{"perturb"} (shift one split point, by at most
             \code{dbartsControl(n.perturb.cuts = )} cut positions) and
