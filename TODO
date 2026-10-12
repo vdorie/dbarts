@@ -272,16 +272,32 @@ items
     records on dbartsData; creation and setData using a carried
     record (setData's updateCutPoints, updateScale and
     updateStandardization; setPredictor's updateStandardization); a
-    state install that compares the stored values, moves splits by
-    value and converts slopes instead of installing them; the manual's
+    state install that compares the stored values and converts
+    slopes instead of installing them (splits already move by value); the manual's
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
-    draw. The design is not in docs/design yet. The live half of the
-    grid is built (docs/plans/state-grid-install.md): a live setState
-    writes neither the cut points nor their weights, a change from
-    0.9-34, whose state carried the grid and whose restore installed
-    it. A copy and a reload still take the grid from the state, until
-    dbartsData records it.
+    draw. The design is not in docs/design yet. The grid half of the
+    state install is landed (docs/plans/state-grid-install.md): a live
+    setState writes neither the cut points nor their weights, a change
+    from 0.9-34, whose state carried the grid and whose restore
+    installed it. What remains of the grid is that a copy and a reload
+    still take it from the state, until dbartsData records it.
+  factor-levels-across-setdata: before 1.0-0. After setData hands a
+    sampler a factor with another set of levels, the live sampler keeps
+    the level table it was created with, while a copy or a reload
+    takes the levels the data now declare, so a copy does not continue
+    as its original does (ordered factor, fewer levels: grids of 5 and
+    3 points; the same on the build before the state-grid-install
+    slice). With an unordered factor copy() and a reload are refused,
+    "state is not consistent with this sampler", where a rule of the
+    trees sends a dropped level right, and with an ordered factor where
+    a rule of the trees lies above the declared levels (reachable
+    through a missing value on that factor). The original's stored
+    state is refused by its copy except as a reload's first call.
+    Reproducers: docs/plans/state-grid-install.md, "Review and fix
+    round". To decide: whether setData gives the live sampler the new
+    level table, or a re-creation takes the table from the state
+    (about 30 engine lines, a draw change for such copies).
   k-mixing-pg-families: before 1.0-0 (dec-B404, dec-B420, VD
     2026-10-09). Binary fits keep a drawn k under chi(1.5, 2), so the
     logistic collapsed scale move is built before 1.0-0; plan

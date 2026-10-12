@@ -3,7 +3,7 @@
 Status: LANDED 2026-10-10: Part A (missingness first seen, 2269918e) and Part B (setState's two forms, 062ef59a).
 Plan: [setstate-force-update.md](../plans/setstate-force-update.md). Rulings: dec-B305, dec-B310, dec-B318,
 dec-B398 to dec-B402 and dec-B418 in docs/decisions.md. The cut grid a state goes onto
-([state-grid-install.md](../plans/state-grid-install.md)): dec-B449 and dec-B450.
+([state-grid-install.md](../plans/state-grid-install.md), landed 2026-10-11): dec-B449, dec-B450 and dec-A209.
 
 A state is the chain, and installing one puts a chain into a sampler that has its own model and its own data.
 Most states fit. Some hold a tree the sampler cannot hold as it is stored. This note says what `setState` does

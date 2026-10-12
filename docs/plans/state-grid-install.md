@@ -1,9 +1,9 @@
 # state-grid-install: a state goes onto the sampler's cut grid and does not replace it
 
-Status: PLANNED 2026-10-11 (dec-B449, dec-B450; dec-B398 for the merged leaf); revised from its blind
-critique 2026-10-11 ([Revision from critique](#revision-from-critique)). Nothing is built; no call is open.
-The rule is a change from released 0.9-34, which stores the cut grid in its state and installs it, as the
-branch does today.
+Status: LANDED 2026-10-11 (d0ee0a97 to 480d7d69; calls dec-A209; [Landing note](#landing-note)). Rests on
+dec-B449 and dec-B450, and dec-B398 for the merged leaf; revised from its blind critique 2026-10-11
+([Revision from critique](#revision-from-critique)). The rule is a change from released 0.9-34, which stores
+the cut grid in its state and installs it, as the branch did before this slice.
 
 agent: opus implementer, one; one opus reviewer who runs the mutants under [Tests](#tests). The blind
 critique ran (scratch/sgp-crit.md). Tier "Changes draws" ([Process by risk](README.md#process-by-risk)):
@@ -566,3 +566,71 @@ the calls in it:
   are equal, or by comparing whole states. Two mutants are equivalent and unpinned: the early return for
   a sampler with no ordered factor dropped, and the grids compared by their lengths, an ordered factor's
   points being its level count's.
+
+## Landing note
+
+Landed 2026-10-11 as d0ee0a97 to 480d7d69, 20 commits on a15b05ca. The plan and its revision are d0ee0a97
+and b2144581 (with 43d3747b); the engine's flag and read are ca5c9f10 and f38b3536, the bridge and R e7532d1b,
+the tests a685456a and acfd56ac, and the help, NEWS and notes 892e53f9. One planner, a blind critique, one implementer, a review, three fix rounds by the implementer and a fresh
+review of the fixes, which checked the second round and sent a third.
+
+Built as planned: a live `setState` writes neither the cut points nor their weights; a threshold the sampler's
+grid holds goes in as stored, one it lacks is declined unforced and, forced, installed on the recorded grid and
+moved by value as `setCutPoints` moves it (the merged leaf at the mean of the stored leaves by the rows each
+held); the state field follows an install onto another grid; a reloaded sampler is built from its own saved
+state first; an ordered factor refuses another recorded grid; a copy and a reload keep adopting the grid the
+state records. Departures, the calls of dec-A209: the bridge returns the integer 0, 1 or 2; a dead pointer's
+failure to install its own saved state falls back to bare creation; the store's grid is put back on a throw as
+on a false return; the ordered-factor refusal runs only in an install that keeps the sampler's grid; and the
+field of a copy or a reload is refreshed. The state keeps both grid attributes, as planned.
+
+The first review (the implementer's tip) found one must-fix and test gaps. The must-fix: the ordered-factor
+refusal also ran when adopting, so `copy()` and a reload errored after `setData` replaced an ordered factor
+with one declaring fewer levels, where the build before made them. Eight engine mutants survived the suite
+(weights through a forced move, a column other than the first, a second forest, a sparse store's and a test
+set's codes, a dead pointer's repair, the kept-draw capacity, a view's refusal). The first fix round ended the
+refusal's run when adopting, put the store's grid back on a throw, pinned those mutants, gave the direction
+test a rule the move merges, and corrected what the plan said 0.9-34's restore brought back (the grid and the
+splits, not the leaf values). The fresh review found no must-fix and four should-fix: the help's claim that a
+copy and a reload can always be made (it is false with a missing value on the factor), two surviving mutants
+(the test set's sparse codes, the ordered check by length), and that the refused state was the copy's own
+field. The second round refreshed the field at a re-creation, pinned the two mutants, qualified the help and
+corrected the comments. Its check found no must-fix and five surviving mutants of the refresh and two help
+sentences too absolute; the third round, tests and help only (07b1d8ed, 480d7d69), pinned the five, said that
+a reload takes the original's stored state as its first call only and that a sampler's own field is never
+refused for its cut points, named the stored state's rules that prevent a copy, and recorded the repair
+corner above. What each round changed and the reproducers are in [Review and fix round](#review-and-fix-round).
+
+Gates. First fix round's tip (ef70e2bd): tests/cpp 399 ok plain and under ASAN+UBSAN, no report; full
+tinytest 24531 results, 0 failed, 253 files; the three bitwise compares 55 of 55, 15 of 15 and 11 of 11 and
+the four snapshot files 27 / 0; the 42 exact-gate commands at `quick`, all pass; the composition matrix 269
+checks and no disagreement; lintr, air, rc-codoc, win-drift, doc-freshness and verify-anchors clean; the
+R-loaded ASAN+UBSAN run over the nine new and changed files clean. Second round's tip (b0e229a7): tests/cpp
+399 ok plain and under ASAN+UBSAN; tinytest 24568, 0 failed; the bitwise compares and snapshots as above; the
+lint chain clean. The exact gates, the composition matrix and the R-loaded sanitizer run were not repeated
+there: under `src/` only comments changed, and under `R/` the field refresh. Landed tip (480d7d69): the full
+suite 24584 results, 0 failed, 253 files; the third round changed no code. `R CMD check --as-cran --no-manual`
+ran on the implementer's tip only (one NOTE, the Date field), as did stan4bart's suite (1641 / 0). The review
+mutants ran on the tips they reviewed, the first fix round's before its rebase; the first review's other
+mutants were not rerun on the landed tip. Neutrality: a same-grid install is byte-identical to the build
+before on 16 fixtures, and a copy's and a reload's states and next 20 draws match the build before on the
+`setData` to fewer ordered levels sequence.
+
+The x86-64 leg, on the first fix round's tip (since then only comments changed under `src/`, and nothing under
+tests/cpp): tests/cpp 399 ok plain and under ASAN+UBSAN with no sanitizer report; tinytest 24564 results, 0
+failed; the main equivalence compare statistically indistinguishable on 55 scenarios.
+
+Size against the plan: the plan estimated about 1475 lines and stopped at 2200. The implementer's tip added
+2092 (engine 275, bridge and R 118, tests 1549, help and notes 150), inside the stop; the range adds 3155 and
+removes 190 over 31 files: src 337, R 128, tinytest 1440, tests/cpp 521, man 10, docs 699 (the plan and the
+records among them). The engine is near the plan's figure; the tests ran past it because the reviews found
+the gaps above, and the docs because the plan carries its review and fix round.
+
+Left: what a factor's level table does across `setData`, scoped out ([Review and fix round](#review-and-fix-round),
+TODO `factor-levels-across-setdata`): the live sampler keeps the table it was created with and a copy or a
+reload takes the levels the data now declare, so a copy does not continue as its original does, and the
+original's stored state is refused by its copy except as a reload's first call. Taking the grid from a record
+on `dbartsData`, so that a copy and a reload stop adopting it from the state, remains in TODO `state-frame-prior`.
+A throw in the re-quantization before pass 1 is not pinned (only an allocation failure reaches it), and the
+ordered-column early return and the comparison of grids by length are equivalent mutants. Not run: bartCause,
+treatSens, Windows, and the consumers' suites other than stan4bart's at the implementer's tip.
