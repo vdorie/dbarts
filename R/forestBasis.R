@@ -975,7 +975,10 @@ storedBasisBlock <- function(entry) {
 ## numbers, a column of zeros among them, at whatever width they have.
 conformBasis <- function(value, kind, levels, argument, forest) {
   refuse <- function(...) stop(..., call. = FALSE)
-  gives <- sprintf("'%s' gives %s", argument, forest)
+  # a text is worded where its refusal is raised and not before: a swap that
+  # is taken, made every sweep by the code that runs the BART sampler inside
+  # a larger sampler, words none
+  delayedAssign("gives", sprintf("'%s' gives %s", argument, forest))
   read <- basisClass(value)
   if (kind == "none") {
     refuse(
@@ -989,18 +992,18 @@ conformBasis <- function(value, kind, levels, argument, forest) {
   if (is.na(read$kind)) {
     refuseBasisClass(read, argument, forest)
   }
-  multiplies <- sprintf(
-    "%s multiplies %s, and '%s' gives it %s. ",
-    forest,
-    if (kind == "numeric") {
-      "numbers"
-    } else {
-      paste0("a factor with the levels ", toString(sQuote(levels, FALSE)))
-    },
-    argument,
-    read$what
-  )
   if (kind != read$kind) {
+    multiplies <- sprintf(
+      "%s multiplies %s, and '%s' gives it %s. ",
+      forest,
+      if (kind == "numeric") {
+        "numbers"
+      } else {
+        paste0("a factor with the levels ", toString(sQuote(levels, FALSE)))
+      },
+      argument,
+      read$what
+    )
     refuse(
       multiplies,
       if (kind == "levels") {
@@ -1024,7 +1027,12 @@ conformBasis <- function(value, kind, levels, argument, forest) {
         ", fixed at creation. Give every row one of them"
       )
     }
-    value <- factor(as.character(read$factor), levels = levels)
+    # each row's code carried to the forest's level of the same name; every
+    # level with a row is one of the forest's, so no code is lost
+    codes <- match(levels(read$factor), levels)[as.integer(read$factor)]
+    block <- matrix(0, length(codes), length(levels))
+    block[cbind(seq_along(codes), codes)] <- 1
+    return(block)
   }
   expandForestBasis(value, atPrediction = TRUE, argument = argument)
 }
