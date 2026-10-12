@@ -1094,9 +1094,67 @@ if (all(made)) {
   expect_identical(first$state, stateOf(first))
   expect_identical(attr(first$state, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
   expect_identical(first$run(0L, 5L), sampler$copy()$run(0L, 5L))
+  # so does the state the original stored, the same as that field, but only
+  # as the first call: after any other use the field is the engine's and the
+  # original's state is another
+  first <- reloadOf(sampler)
+  expect_identical(answerOf(first$setState(own)), visibly(TRUE))
+  later <- reloadOf(sampler)
+  invisible(later$getTrees())
+  expectError(later$setState(own), "the original's state, later")
+  # only the field stands in for itself: another state that installs goes
+  # in as handed, as a first call too
+  ahead <- sampler$copy()
+  invisible(ahead$run(0L, 3L))
+  other <- stateOf(ahead)
+  expect_false(identical(liveOf(other), liveOf(own)))
+  first <- reloadOf(sampler)
+  expect_identical(answerOf(first$setState(other)), visibly(TRUE))
+  expect_identical(liveOf(stateOf(first)), liveOf(other))
+  expect_identical(first$state, other)
+  # a state on the original's grid that is not the field is refused as a
+  # first call, and the field is by then the rebuilt engine's and installs
+  changed <- own
+  forest <- changed[[1L]]$forests[[1L]]
+  values <- readBin(forest$tree.values, "double", length(forest$tree.vars))
+  leaf <- which(forest$tree.vars < 0L)[1L]
+  values[leaf] <- values[leaf] + 0.01
+  forest$tree.values <- writeBin(values, raw())
+  changed[[1L]]$forests[[1L]] <- forest
+  first <- reloadOf(sampler)
+  expectError(first$setState(changed), "the original's grid, not the field")
+  expect_identical(attr(first$state, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
+  expect_identical(answerOf(first$setState(first$state)), visibly(TRUE))
+  # with no field of its own a reload takes the original's state, and its
+  # field is then its engine's, which installs
+  bare <- reloadOf(sampler)
+  bare$state <- NULL
+  expect_identical(answerOf(bare$setState(own)), visibly(TRUE))
+  expect_identical(attr(bare$state, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
+  expect_identical(answerOf(bare$setState(bare$state)), visibly(TRUE))
 }
 expect_identical(withVisible(sampler$setState(own)), visibly(TRUE))
 expect_identical(stateOf(sampler), own)
+# where the levels are unchanged the engine holds the points the state
+# records and the field stays the state as given: one holding a split
+# outside its interval is repaired in a copy's and a reload's engine, not in
+# their field, which they decline unforced as the sampler does
+sampler <- kindOf("ordered")
+field <- stateOf(sampler)
+points <- attr(field, "cutPoints")[[2L]]
+field <- withTree(
+  field,
+  c(2, 2, -1, -1, -1),
+  c(points[50L], points[60L], 0.1, -0.2, 0.3)
+)
+sampler$state <- field
+copied <- sampler$copy()
+reloaded <- reloadOf(sampler)
+invisible(reloaded$getTrees())
+expect_identical(copied$state, field)
+expect_identical(reloaded$state, field)
+expect_identical(firstTree(stateOf(copied))$vars, c(2L, -1L, -1L))
+expect_identical(answerOf(copied$setState(copied$state)), visibly(FALSE))
 
 # a subset rule beside a moved column is as stored: the root splits the
 # factor, its left child a threshold the grid lacks with a point left for it
