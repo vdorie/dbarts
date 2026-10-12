@@ -517,18 +517,26 @@ the calls in it:
   original's, and their `setState` refuses the state the original stored, which records 5 points on a column
   whose live grid is 3. Before the slice that call returned TRUE with the grid left at 3. Left as the live
   rule gives it, the state being recorded on another grid than the live one. The copy and the reload are
-  made only where no rule of the stored state lies above the declared levels; a rule there that sends
-  missing values right keeps both children occupied through `setData`, and then neither can be made. With
+  made only where no rule of the stored state's trees lies above the declared levels, kept draws holding
+  higher points not preventing them; a rule there that sends missing values right keeps both children
+  occupied through `setData`, and then neither can be made. With
   an unordered factor in the same sequence they are refused where a rule sends a dropped level right, and
   made where none does, as of a sampler never run. Both refusals are the base build's. Having a
   re-creation take the level table is scoped out of this slice (settled by the orchestrator, 2026-10-11).
-- A sampler's own `state` field always installs on that sampler (settled by the orchestrator, 2026-10-11,
-  from the second review). Where a re-creation leaves the engine on other points than the adopted state
-  records, which only an ordered factor's column can, the field takes the engine's state
-  ([`heldAfterAdoption`](../../R/dbarts.R)), as after a live install onto another grid. So
+- A sampler's own `state` field is never refused for the cut points it records (settled by the
+  orchestrator, 2026-10-11, from the second review). Where a re-creation leaves the engine on other points
+  than the adopted state records, which only an ordered factor's column can, the field takes the engine's
+  state ([`heldAfterAdoption`](../../R/dbarts.R)), as after a live install onto another grid. So
   `copy$setState(copy$state)` and a reload's `setState` of its own field, as a first call too, return what
   the base build returned, and no draw moves. The alternative, the field as given, had a copy refuse its
-  own field until its next `storeState()`.
+  own field until its next `storeState()`. A reload's field is refreshed at its first use: the state the
+  original stored, the same as that field, installs as the reload's first call and is refused after any
+  other, as is a state read from the field before the first use and handed in after it.
+- One corner does not return what the base build returned: where the grids differ and the field also needs
+  a repair (a split outside its interval, say), the refreshed field is the repaired state, so a reload's
+  first unforced `setState` of its own field, and a copy's, return TRUE with the tree repaired where the
+  base build returned FALSE. Where the grids are equal the field stays the state as given and the call is
+  FALSE, as on base.
 - A sampler whose engine is gone keeps, at its first `setState`, the kept-draw capacity of its own stored
   state, where the base build took the control's: after `setControl` to 3 draws on a sampler stored with
   5, a reload's first `setState` of another state keeps 5 draws, as a later call does. Base kept 3 as a
@@ -552,3 +560,9 @@ the calls in it:
 - From the second review, two more pins, each run against its mutant: "equals the two calls" on a sparse
   store with a sparse test set, for the test rows' sparse codes put back after a move; and a state recording
   as many points as an ordered factor's grid, other ones, refused.
+- From its check of the field's refresh, pins for five mutants that the suite let through: the stand-in for
+  the field made unconditional, or by length; the field not set where a sampler whose engine was gone is
+  rebuilt; no refresh where a sampler with no field takes a handed state; and a refresh where the grids
+  are equal, or by comparing whole states. Two mutants are equivalent and unpinned: the early return for
+  a sampler with no ordered factor dropped, and the grids compared by their lengths, an ordered factor's
+  points being its level count's.
