@@ -84,9 +84,9 @@ changes it.
   response is created when no sd is stated.
 - The forests' record on the control holds four numbers a forest (tree count, base, power, the hold), `sd`
   and `variance` (one number or NA a forest), `hasBasis`, the anchor and the unit, with the record's other
-  entries as they were. `hasBasis` stays: `$setForestBasis` can give a basis to a forest created with none,
-  and the four numbers do not record which channel the forest's sd reached, which the map reads from the
-  forest's first kind for the life of the sampler
+  entries as they were. `hasBasis` stays: the four numbers do not record which channel the forest's sd
+  reached, which the map reads from the forest's first kind for the life of the sampler, and
+  `$setForestBasis` refuses a basis for a forest created with none
   ([`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp)). The record can mark a forest as
   created without a basis; it cannot give a forest with no basis in the data one.
 - The flat C header, the stored state and every state block are untouched.

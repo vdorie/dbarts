@@ -32,8 +32,10 @@ defines the classes.
   value), and 2 are the first sequence below. Of the 28 cells of a number and a factor with a missing
   value on a row the fit drops (the 7 doors such a row reaches, under `subset` and under a missing
   response) 15 are created today and keep their draws, and 13 are created where they are refused: 9 for
-  the rows a missing value is judged on, 4 the factor at the data door. One refusal has no cell:
-  `$setData` on a sampler of one forest handed a data object that carries bases.
+  the rows a missing value is judged on, 4 the factor at the data door. Three refusals have no cell,
+  their objects being none of the 37: `$setData` on a sampler of one forest handed a data object that
+  carries bases; at the data door a basis with a row whose norm is not representable and a matrix of no
+  columns, which the forest doors refuse already; and a factor that has dimensions, at every door.
   POSTERIOR-CHANGING for four sequences, none in a test, a benchmark, a help example or a consumer
   (traced over the test files that name a basis, and searched elsewhere):
   1. a logical vector handed to `dbartsData(bases = )`: one 0/1 numeric column before, two levels after,
@@ -340,7 +342,7 @@ At creation, at every door. The bracket is the push that makes the row so.
 | an integer or double vector, or a matrix of one column, whatever its values; `I()` of one; one numeric term of one column [1] | numbers | one |
 | a factor, a character vector or a logical vector of three or more levels | levels until push 2; then refused by name [2] | |
 | a numeric matrix of several columns; several numeric terms; one term of several columns, a spline or a polynomial among them; `1 +` beside a column | numbers until push 2; then refused by name [2] | |
-| a matrix of logicals or of characters, of one column or of several; a data frame; anything else | refused by name [1] | |
+| a matrix of logicals or of characters, or a factor that has dimensions, of one column or of several; a data frame; anything else | refused by name [1] | |
 | a factor with NA as a level and a kept row at it | refused by name [1] | |
 
 - The class is looked at by one function, which every reader of a basis calls. It answers levels,
@@ -431,9 +433,12 @@ response, at the data door on the matrix interface (13 cells of Context's 28); a
 at a swap and at predict, where its level is one of the forest's (every new row treated). Changed with
 no refusal: a logical vector at the data door, and a value's level that the rows empty, the first and
 fourth sequences of the `rng:` line; and what a fit stores for a forest of levels. Refused where
-accepted: at the data door a matrix of logicals, of one column or of several, a column of zeros and a
-logical vector with one value; a character matrix of one column at the forest doors, code included (a
-vector is levels, a matrix is numbers or nothing); a factor with NA as a level and a row at it, as a
+accepted: at the data door a matrix of logicals, of one column or of several, a column of zeros, a
+logical vector with one value, a basis with a row whose norm is not representable and a matrix of no
+columns, the last two refused as the forest doors refuse them already; a character matrix of one column
+at the forest doors, code included (a vector is levels, a matrix is numbers or nothing), and a factor
+that has dimensions at the forest doors, at a swap and at predict, its one column read as levels
+before; a factor with NA as a level and a row at it, as a
 value at a forest door and at a swap; a value of several numeric columns of which the rows empty one,
 which is refused as code today; `$setData` on a sampler of one forest handed bases; every cell of the
 second table's last column, the sampler's own stored block handed back to a factor forest among them;
@@ -467,16 +472,16 @@ hands a refusal on. `<f>` is `forest 2`, or `forest 2 ('dose')` where the forest
 says `forest 2`. Every new text names the forest and says what to do at the door that raised it, in
 words wherever the door has no code of the caller's to show. The push that adds each is in brackets.
 
-    [1] '<arg>' gives <f> a logical matrix; a basis is a factor, a character vector, a logical vector, or numbers. Give its column as a logical vector for two levels, or as numbers for one coefficient            (a character matrix: "Give its column as a character vector")
+    [1] '<arg>' gives <f> a logical matrix; a basis is a factor, a character vector, a logical vector, or numbers. Give its column as a logical vector for two levels, or as numbers for one coefficient            (a character matrix: "Give its column as a character vector"; a factor that has dimensions, named "a factor matrix": "Give its column as a factor"; a matrix of several columns: "Give one of its columns as ...")
     [1] '<arg>' gives <f> a data frame; a basis is a factor, a character vector, a logical vector, or numbers. Give one of its columns            (a list the same; a Date, a complex: named by its class, the first sentence alone)
-    [1] 'basis' (cm) has a term that is a character matrix: a basis is a factor, a character or logical vector, or numeric; write its column as a vector, as cm[, 1]            (a logical matrix of one column the same; of several columns, the tip's text as it is)
+    [1] 'basis' (cm) has a term that is a character matrix: a basis is a factor, a character or logical vector, or numeric; write its column as a vector, as cm[, 1]            (a logical matrix and a factor matrix of one column the same; of several columns, the tip's text as it is)
     [1] '<arg>' gives <f> a factor with NA as a level, and a level of a basis has a name: give that level one            (written as code it begins "'basis' (B) is a factor with NA as a level")
     [1] '<arg>' gives <f> a basis, and <f> was created without one: what a forest multiplies is fixed at creation. Create the model again, with the basis, to give it one
     [1] <f> multiplies a factor with the levels '0', '1', and '<arg>' gives it numbers. Give a factor, a character vector or a logical vector with those levels; if the numbers are a factor's indicator columns, give the factor itself. To multiply numbers, create the model again with them
     [1] <f> multiplies numbers, and '<arg>' gives it a logical vector. Give numbers: as.numeric() of a logical vector is its 0/1 column. To multiply two levels, create the model again with the vector
     [1] <f> multiplies numbers, and '<arg>' gives it a factor. Give the column the forest was created with, at these rows; to multiply a factor's levels, create the model again with the factor            (a character vector the same)
     [1] '<arg>' gives <f> the level 's', which it does not have: its levels are 'p', 'q', fixed at creation. Give every row one of them
-    [1] 'basis.levels' gives forest 2 3 levels and its block in 'bases' has 2 columns; dbartsData() and dbarts() write the two together
+    [1] 'basis.levels' gives forest 2 3 levels and its block in 'bases' has 2 columns; dbartsData() and dbarts() write the two together            (a count of one is "1 level", "1 column")
     [1] $setData: the data carry forest bases, and this sampler was created with one forest and none; a sampler's forests are fixed at creation. Make a new sampler from the data with dbarts(), or hand over data without 'bases'
     [2] <f> has a basis of 3 levels ('a', 'b', 'c'); in this version a factor, a character or a logical basis has two levels. Give each level but the first a forest of its own, as forest(x1, basis = arm == "b") + forest(x1, basis = arm == "c")            (a value: "Give each level but the first a forest of its own, its basis a logical vector that is TRUE on that level's rows")
     [2] <f> has a basis of 2 numeric columns ('dose', 'age'); in this version a basis is one numeric column, or a factor, a character or a logical vector of two levels. Give each column a forest of its own, as forest(x1, basis = dose) + forest(x1, basis = age)            (a value, or one term of several columns: "If the columns are a factor's indicators, give the factor itself; otherwise give each column a forest of its own")
@@ -514,7 +519,9 @@ push 2: [`refuseHeldShape`](../../R/model.R)'s text for a held basis of three or
 [`refuseReorderedBasisNames`](../../R/forestBasis.R)'s refusal of a swap whose columns stand in another
 order, which has no case left. Kept in the tip's words and extended to the doors that lack them: "a
 'basis' column of all zeros contributes nothing to a forest", "a 'basis' factor must have at least two
-levels" and the text for a logical with one value, each now met at the data door too, with `<arg>`.
+levels" and the text for a logical with one value, each now met at the data door too, with `<arg>`;
+so are "a 'basis' row's norm is not representable" and "a 'basis' must have at least one column", which
+take `<arg>` with them.
 Kept as they are: the texts about a basis's length, the at-least-two-forests text,
 [`refuseHeldOneColumn`](../../R/model.R)'s refusal of a held single numeric column (dec-B353),
 forest-defaults-by-kind's two interim texts by position, at `predict` the refusal of `bases` with no
@@ -650,9 +657,11 @@ at `predict`: a name written in a call of `forest()` is code.
     rows and never left on the stored block; where `dbarts()` puts the blocks of its code bases on the
     data object, from the levels [`buildCodeBasis`](../../R/forestBasis.R) returns in its record; and
     where a declaration's bases are put on a data object ([`resolveSamplerSpec`](../../R/spec.R)),
-    replacing what the object had for each forest the declaration gives a basis and leaving the rest:
-    a list that states settings and no basis leaves the object's blocks and their levels as they are,
-    and a numeric declaration for a forest that had levels leaves it `NULL`. The slot is read through
+    replacing the object's blocks and levels whole when any forest of the declaration gives a basis,
+    as the base build replaces the blocks: a list that states settings and no basis leaves the
+    object's blocks and their levels as they are, a numeric declaration for a forest that had levels
+    leaves it `NULL`, and a forest the declaration gives no basis has none afterwards, whatever the
+    object carried at its place. The slot is read through
     an accessor (`dataBasisLevels`) that answers `NULL` for an object saved without it, as
     [`dataRowNames`](../../R/data.R) and [`dataMissingSeen`](../../R/data.R) do. One function,
     `forestBasisKind`, answers "none", "levels" or "numeric" for a forest of a data object and for an
@@ -811,7 +820,9 @@ at `predict`: a name written in a call of `forest()` is code.
 1.7 `$setData` on a sampler of one forest. [`bartcoreSamplerSetData`](../../R/bartcore.R) refuses a
     data object whose `bases` is not `NULL` where the sampler carries no amplitudes, with the eleventh
     text, beside its refusal of a sampler that carries them
-    ([`refuseAmplitudeMutation`](../../R/bartcore.R)) and before anything is stored. Test: the text;
+    ([`refuseAmplitudeMutation`](../../R/bartcore.R)) and before anything is stored, and runs the
+    record's check on the object there, so that one whose `bases` were taken off by hand and whose
+    levels stayed is refused as a sampler made from it is. Test: the text;
     afterwards the sampler's data, its next 5 sweeps and a `copy()` of it are `identical()` to an
     untouched twin's (fails today: taken, and the copy fails); the same data object without its
     `bases` is taken, as today.
@@ -1382,6 +1393,19 @@ is settled, and is in "Calls made in planning" with its alternative and its cost
   install where the two samplers' recorded levels differ, which needs the levels in the state. The
   cost: for a caller who moves a state between two such samplers the two levels' coefficients exchange
   with no message; the help says so in one sentence.
+- A factor that has dimensions is refused at every door, at a swap and at predict, of one column or
+  of several, as a matrix of characters or of logicals is: a vector is levels, a matrix is numbers or
+  nothing. Run on the base build: of one column it is levels at the forest doors, as code and as a
+  value, at a swap and at predict, and refused at the data door as not numeric. The alternative reads
+  it as its vector. The cost: the forest doors, a swap and a prediction turn from taken to refused for
+  it; nothing hands one over (no test, benchmark, help example or consumer).
+- `dbartsSpec()` replaces a data object's blocks and levels whole when a forest of its list declares a
+  basis, as the base build replaces the blocks (run on both). The alternative replaces forest by
+  forest and keeps what the object carried for a forest the list gives no basis. The cost of the
+  alternative is code for cases no test or consumer has, the grammar refusing most partial lists; the
+  cost of this is that a data object of three forests under a list of two becomes two forests, and a
+  list that moves the forest with no basis drops the block the object had at that place, with no
+  message.
 - `$setData` on a sampler of one forest refuses a data object that carries bases, in push 1. It is a
   defect of the tip and not of the rule: the run is the plain model's and `copy()` then fails. The
   alternative leaves it to the control-migration arc, with a TODO entry. The cost: one check, one text

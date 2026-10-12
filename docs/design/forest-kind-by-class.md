@@ -16,8 +16,8 @@ takes one: a `forest()` term, a `forests` list, `dbartsSpec()`, `dbartsData(base
 1. Class. A factor, ordered or not, a character vector and a logical vector are levels, with a coefficient for
    each: the factor's own order, the sorted values of a character vector, `FALSE` then `TRUE`. An integer or a
    double, a vector or a matrix, is numbers, whatever its values: a 0/1 number is one column and one
-   coefficient, and `factor(z)` is how two levels are written. A matrix of logicals or of characters, of one
-   column or several, a data frame and any other class are refused by name. One function answers
+   coefficient, and `factor(z)` is how two levels are written. A matrix of logicals or of characters and a
+   factor that has dimensions, of one column or several, a data frame and any other class are refused by name. One function answers
    ([`basisClass`](../../R/forestBasis.R)); it refuses nothing, and the reader that called it words the refusal.
 2. Rows. A basis is judged on the rows the fit keeps, after `subset` and the na.action, in every spelling:
    a level no kept row has gives no column, with no message; fewer than two left is refused; a missing value on
@@ -30,8 +30,8 @@ takes one: a `forest()` term, a `forests` list, `dbartsSpec()`, `dbartsData(base
    stays the engine's form, a factor's indicator columns among them. A forest's kind is read from the block
    and the levels by [`forestBasisKind`](../../R/forestBasis.R) and from nowhere else. A plain function
    ([`checkBasisRecord`](../../R/data.R)) holds that a forest's recorded levels are as many as its block has
-   columns; the sampler's `initialize`, `dbarts()` and `dbartsSpec()` call it, so `copy()` does too, and a
-   reload's re-creation does not.
+   columns; the sampler's `initialize`, `dbarts()`, `dbartsSpec()` and `$setData` call it, so `copy()` does too,
+   and a reload's re-creation does not.
 4. After creation ([`conformBasis`](../../R/forestBasis.R)), by one function that every spelling reaches:
 
    | forest created as | takes | refuses |
@@ -47,14 +47,15 @@ takes one: a `forest()` term, a `forests` list, `dbartsSpec()`, `dbartsData(base
 5. What a fit stores. A fit's `bases` holds, for a forest of levels, the factor, one value for each row the fit
    kept, its levels those recorded at creation ([`storedForestBases`](../../R/forestBasis.R)); for a numeric
    forest the block; `NULL` for none. Each entry is what `predict(bases = )` takes for its forest, so
-   `predict(fit, x, bases = fit$bases)` at the training rows is the training fit. The prediction turns the
+   `predict(fit, x, bases = fit$bases)` at the training rows is the training fit, to rounding. The prediction turns the
    factor back to its block with [`storedBasisBlock`](../../R/forestBasis.R).
 6. What the sampler keeps. The block and the levels, not the factor: a caller that will hand a basis back keeps
-   the factor it handed over, and reads the forest's levels at `data@basis.levels[[f]]`.
+   the factor it handed over, and reads the forest's levels at `data@basis.levels[[f]]`, `f` its position: the list has no names.
 7. State. A state carries no data, and the levels are data. Installed in a sampler whose factor has the same
    levels in another order, it goes by position, with no message; the recipient's levels and block are its own.
 8. `$setData` on a sampler of one forest refuses a data object that carries bases, before anything is stored
-   ([`bartcoreSamplerSetData`](../../R/bartcore.R)); the sampler has no forest to multiply them.
+   ([`bartcoreSamplerSetData`](../../R/bartcore.R)); the sampler has no forest to multiply them. One that
+   records levels and carries no block for them is refused there too, by the record's check.
 9. A saved sampler. A data object saved without the slot has no levels
    ([`dataBasisLevels`](../../R/data.R) answers `NULL`), so its forests read as multiplying numbers and its
    record passes the check; a saved factor forest then takes numbers at a swap and refuses a factor.
