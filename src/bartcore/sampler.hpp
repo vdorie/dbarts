@@ -1143,10 +1143,12 @@ public:
   /// store's, and \p adoptGrid says which grid the state goes onto.
   ///
   /// With adoptGrid the store first takes the points and weights the state
-  /// records, its columns re-quantized against them, and the state is judged
-  /// and installed there: the call of a sampler just created, which holds no
-  /// grid of its own to keep. A state that is refused or declined puts the
-  /// store's grid, weights and codes back.
+  /// records on every column that is not a factor, those columns
+  /// re-quantized against them, and the state is judged and installed there:
+  /// the call of a sampler just created, which holds no grid of its own to
+  /// keep. A factor column keeps the grid of its level table, which no
+  /// install writes, whatever the state records on it. A state that is
+  /// refused or declined puts the store's grid, weights and codes back.
   ///
   /// Without it no point and no weight of the store is written. A state
   /// whose recorded points are the store's is judged and installed as it is,
@@ -1258,11 +1260,12 @@ public:
   /// in place, a pooled categorical rule keeping a missing bit its column no
   /// longer routes, and the saved draws, which are copied.
   ///
-  /// gridDiffers, when non-null, reports whether the state was installed on
-  /// cut points or weights other than the ones it records, which only an
-  /// install that does not adopt them can be: the trees, or the tree prior
-  /// they run under, are then not the stored chain's. A state not installed
-  /// leaves it false.
+  /// gridDiffers, when non-null, reports whether an install that does not
+  /// adopt them put the state on cut points or weights other than the ones
+  /// it records: the trees, or the tree prior they run under, are then not
+  /// the stored chain's. An adopting install leaves it false, also where an
+  /// ordered factor's column kept other points than the state records, and
+  /// so does a state not installed.
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors,
                 bool* lengthscaleRefused = nullptr,
@@ -2522,9 +2525,12 @@ private:
   /// by the rows install gave them. The trees \p install leaves must be
   /// whole trees with fits on the stored grid, as Chain::setState leaves
   /// them. A false from install puts the store's grid back, moves nothing
-  /// and is returned. So does a throw, from install or from the
-  /// re-quantization before it: the store's grid, weights and codes are back
-  /// before it leaves, and the chains are as install left them.
+  /// and is returned. A throw, from install or from the re-quantization
+  /// before it, leaves with the store's grid, weights and codes back and
+  /// nothing moved. The chains are then as install left them: a chain it
+  /// had finished holds trees built on the stored grid over a store that is
+  /// back on its own, so after a throw that follows an install the sampler
+  /// must not be read or run until a state is installed.
   template <typename Install>
   bool installAcrossGrids(
       const std::vector<std::vector<double>>& storedCutPoints,

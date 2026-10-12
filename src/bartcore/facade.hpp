@@ -364,11 +364,12 @@ public:
   /// without it such a state is left uninstalled, false returned and
   /// notClean, when non-null, set, which a refusal leaves down.
   /// adoptGrid makes the cut points and weights the state records the
-  /// store's before the state is judged, the call of a sampler just created;
-  /// without it the store's grid and weights are not written and the state's
-  /// trees go onto them, moved where a forced call finds a threshold the
-  /// grid lacks. gridDiffers, when non-null, reports an install onto points
-  /// or weights other than the state records.
+  /// store's, on every column that is not a factor, before the state is
+  /// judged, the call of a sampler just created; without it the store's grid
+  /// and weights are not written and the state's trees go onto them, moved
+  /// where a forced call finds a threshold the grid lacks. gridDiffers, when
+  /// non-null, reports an install without adoptGrid onto points or weights
+  /// other than the state records.
   virtual bool setState(const SamplerStateData& state,
                         const double* currentPredictors,
                         bool* lengthscaleRefused = nullptr,

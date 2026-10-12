@@ -3872,7 +3872,7 @@ dbartsSampler <- setRefClass(
       noOpThreadMethod("stopThreads")
     },
     storeState = function(ptr = getPointer()) {
-      "Updates the cached internal state used for saving/loading: the chains and the units they are stored in, no prior or fixed value, with the cut points and weights in force, which a copy and a reload take from it."
+      "Updates the cached internal state used for saving/loading: the chains and the units they are stored in, no prior or fixed value, with the cut points and weights in force, which a copy and a reload take from it for numeric columns."
       selfEnv <- parent.env(environment())
       selfEnv$state <- .Call(C_dbarts_bartcore_storeState, ptr)
       invisible(NULL)

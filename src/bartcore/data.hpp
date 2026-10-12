@@ -1588,8 +1588,10 @@ struct ColumnStore {
                              const double* mass = nullptr) {
     // a factor column's grid is the level table's, fixed at build: an
     // externally chosen one would strand its codes off their own levels, and
-    // it retains no raw to re-quantize against one. Every reachable caller
-    // refuses one first; this is the backstop
+    // it retains no raw to re-quantize against one. A caller choosing a grid
+    // refuses one first; an install that adopts a state's grid hands in
+    // every column that splits by threshold and relies on this return to
+    // leave an ordered factor's as it is
     if (isFactor(j)) return;
     cutPoints[j].assign(cuts, cuts + numCutPoints);
     numCuts[j] = numCutPoints;

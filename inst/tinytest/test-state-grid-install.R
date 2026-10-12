@@ -987,11 +987,11 @@ for (case in refusals) {
 # all points of the sampler's: the five-level grid holds the four-level one
 sampler <- kindOf("ordered")
 held <- stateOf(sampler)
-relabelled <- held
-attr(relabelled, "cutPoints")[[1L]] <- c(0.5, 1.5, 2.5, 3.5)
-expectError(sampler$setState(relabelled), "ordered, other levels")
+relabeled <- held
+attr(relabeled, "cutPoints")[[1L]] <- c(0.5, 1.5, 2.5, 3.5)
+expectError(sampler$setState(relabeled), "ordered, other levels")
 expectError(
-  sampler$setState(relabelled, forceUpdate = TRUE),
+  sampler$setState(relabeled, forceUpdate = TRUE),
   "ordered, other levels"
 )
 expect_identical(stateOf(sampler), held)
