@@ -1155,7 +1155,7 @@ existing item, "Multi-forest models", shows the colon form and is respelled in p
   - A value left with one level. A factor, a character or a logical vector handed over as a value that
     `subset` or a dropped row leaves with one level among the rows kept, and one numeric column left
     all zeros, are refused in the words the same basis written as code is refused in
-    ([`refuseEmptiedValueBasis`](../../R/forestBasis.R)); before they were fitted with a column of ones
+    (retired: [`refuseEmptiedValueBasis`](../../R/forestBasis.R), a function gone since); before they were fitted with a column of ones
     beside a column of zeros, or with a column of zeros alone. A value that keeps two or more levels
     keeps its zero columns for the others, which is slice K's.
   - A name or a call handed on by `Map()`'s `MoreArgs` is the caller's code ("The capture rule").

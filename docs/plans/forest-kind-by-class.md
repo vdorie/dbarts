@@ -599,7 +599,8 @@ at `predict`: a name written in a call of `forest()` is code.
 1.1 One reader of a class. The class of a basis is tested in five places today, each written out:
     [`expandForestBasis`](../../R/model.R) (a value, and the factor a code basis hands it),
     [`basisColumns`](../../R/forestBasis.R) (the variables of a code basis's model frame),
-    [`refuseEmptiedValueBasis`](../../R/forestBasis.R) (a value against the rows kept),
+    retired: [`refuseEmptiedValueBasis`](../../R/forestBasis.R) (a value against the rows kept; gone
+    since step 1.3 was built),
     [`replacementForestBasis`](../../R/forestBasis.R) (a formula given to a swap) and
     [`validateForestBases`](../../R/data.R) (the data door's "numeric or logical"). One function
     (`basisClass`) answers levels, numbers, or the name of a class it does not take ("a logical
@@ -613,7 +614,7 @@ at `predict`: a name written in a call of `forest()` is code.
     ([`restrictBasesToRows`](../../R/data.R), [`alignForestBasisToSubset`](../../R/model.R)), to that
     point, so the data door has no rule of its own. `dbarts()` and `dbartsSpec()` hand a value on to
     the data object as it was given and no longer expand it first
-    ([`expandValueBasis`](../../R/forestBasis.R)), so that the data object's reading is the one reading
+    (retired: [`expandValueBasis`](../../R/forestBasis.R), gone since), so that the data object's reading is the one reading
     of a value. A code basis's column of row numbers passes as it does. Tests, a new file
     test-forest-kind.R, built as one loop that asserts against the FIRST door, so that no door can be
     right alone.
@@ -701,8 +702,8 @@ at `predict`: a name written in a call of `forest()` is code.
     a declaration. A code basis is built on the kept rows already: its frame's check of a missing
     value is the same rule and stays, and its factor's NA level takes the fourth text there. The
     function is called nowhere else: not from the sampler's `initialize`, and so not from `copy()`, and
-    not from [`recreatePointer`](../../R/dbarts.R). [`refuseEmptiedValueBasis`](../../R/forestBasis.R)
-    folds into it, and at creation [`expandForestBasis`](../../R/model.R) no longer refuses an unused
+    not from [`recreatePointer`](../../R/dbarts.R). retired: [`refuseEmptiedValueBasis`](../../R/forestBasis.R),
+    gone since, folds into it, and at creation [`expandForestBasis`](../../R/model.R) no longer refuses an unused
     level or looks for a missing value: it is handed the kept rows. Tests, each at the doors a value
     reaches (a list on a formula, the matrix interface, `dbartsSpec()`, the data door), with one text
     or one block: a factor value with a level never used is created with two levels (fails today:
@@ -803,8 +804,8 @@ at `predict`: a name written in a call of `forest()` is code.
       column on a held forest with none: each meets the rule first and takes its text, and the
       function is left the one case of two numeric columns held as the second forest until push 2.
     - The pin of
-      ["factor level with no observations contributes nothing"](../../inst/tinytest/test-forest-basis-r5.R)
-      becomes a creation with two levels. A pin of the data door's "must all be finite" or of "must
+      retired: ["factor level with no observations contributes nothing"](../../inst/tinytest/test-forest-basis-r5.R),
+      gone since, becomes a creation with two levels. A pin of the data door's "must all be finite" or of "must
       be numeric or logical" takes the text that replaces it. `bcf-equivalence.R`'s swap becomes
       `factor(z2)`; its scenario is unchanged to the bit.
 1.7 `$setData` on a sampler of one forest. [`bartcoreSamplerSetData`](../../R/bartcore.R) refuses a
