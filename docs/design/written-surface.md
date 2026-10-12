@@ -95,8 +95,9 @@ computes across rows, `scale()`, `poly()` and `I(age - mean(age))` alike, comes 
 level that the kept rows leave empty is no column, whatever emptied it.
 
 A basis handed over as a value has no code, and is cut by the data object, which refuses a value that was
-already cut. A value is not built again on the kept rows: a level that `subset` empties keeps a column of
-zeros, where code drops it. Giving a value and code one builder is the kind-by-class slice's. What code is
+already cut. The kind-by-class slice's first push gave a value and code one rule
+([forest-kind-by-class.md](forest-kind-by-class.md)): a value is judged on the kept rows, and a level they leave
+empty is no column, whatever emptied it. What code is
 refused for is refused for a value too, in the same words (retired: [`refuseEmptiedValueBasis`](../../R/forestBasis.R),
 gone since the kind-by-class slice's first push, where [`finishBasisRows`](../../R/forestBasis.R) judges a value on the rows kept):
 a factor, a character or a logical vector with one level among the rows kept, and one numeric column that is

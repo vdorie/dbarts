@@ -539,8 +539,9 @@ outside its numbered proposals. Landed 2026-08-10 to 2026-08-11
 )))`/`dbartsSpec()` build an ordinary `dbartsSampler` (the same model is
 written in a formula as `forest()` terms, and a basis is the right-hand side
 of a model formula with no tilde: docs/design/written-surface.md); the (1 - z, z) pair the
-factor basis expands to rides the K-length `data@bases` list (the `weights`
-precedent) and the forests' configuration rides
+factor basis expands to (a factor's level indicators) rides the K-length `data@bases` list (the `weights`
+precedent), beside a record of each factor's levels in `data@basis.levels`
+(docs/design/forest-kind-by-class.md), and the forests' configuration rides
 `attr(control, "bartcore.forests")` (the `bartcore.variance` precedent),
 cross-checked both directions at creation.
 `$setForestBasis`/`$getForestFits`/`$getForestAmplitudes`/`$getForestVariableCounts`

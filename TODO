@@ -754,10 +754,7 @@ items
     draws its rows averages the curve over other rows; bartBT and the
     hazard, multinomial and hurdle paths still put values in their
     inner calls, each read once, and an error there prints them. predict(bases = ) checks no name of a column or a forest
-    (forest-defaults-by-kind). setForestBasis with a factor whose
-    levels are reordered keeps the old column names, and a zero
-    column in a basis given to dbartsData(bases = ) is fitted
-    (forest-kind-by-class). A name R or an attached
+    (forest-defaults-by-kind). A name R or an attached
     package supplies, pi or scale, is looked up at the fit, not when
     forest() is called. A forest built by a wrapper whose formal holds the basis,
     function(b) forest(basis = b), is given the formal's value, so
@@ -814,6 +811,10 @@ items
     columns (dec-B281, dec-B282); the gaussian baseline's
     three-level scenario is rewritten and re-recorded. bartCause's
     bcf passes factor(z) between the two pushes.
+    Push 1 is built on branch wt/forest-kind-recheck (code, tests,
+    help, NEWS and design note; its gates pass) and waits on review
+    and landing. Left: the review, the landing, bartCause's
+    factor(z) edit and push 2.
     Plan: docs/plans/forest-kind-by-class.md.
   forest-multiplier: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
     dec-B269, dec-B271, dec-B272, dec-B275, dec-B354; dec-A171),
