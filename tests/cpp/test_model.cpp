@@ -10134,9 +10134,12 @@ static void testMonotoneReachability() {
 
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   auto warm = makeSampler();
-  check(warm->installForests(infeasibleState, liveMap, x.data()) ==
-          WarmStartResult::ok,
-        "reachability: an infeasible donor installs");
+  WarmStartReport reseeded;
+  check(warmStartsAltered(*warm, infeasibleState, liveMap, x.data(), false,
+                          &reseeded) &&
+          reseeded.mean[0].reset == 1 && reseeded.mean[0].cutBack == 0,
+        "reachability: an infeasible donor is declined and, forced, "
+        "installs with the one tree reported reset");
   std::vector<double> values;
   bool feasible = liveFeasible(*warm, &values);
   bool allZero = !values.empty();
@@ -10144,9 +10147,8 @@ static void testMonotoneReachability() {
   check(feasible && allZero,
         "reachability: the infeasible donor tree is reseeded to all-zero");
   auto warmOk = makeSampler();
-  check(warmOk->installForests(feasibleState, liveMap, x.data()) ==
-          WarmStartResult::ok,
-        "reachability: a feasible donor installs");
+  check(warmStartsClean(*warmOk, feasibleState, liveMap, x.data()),
+        "reachability: a feasible donor installs as it stands");
   liveFeasible(*warmOk, &values);
   check(values.size() == 4 && values[0] == 0.0 && values[2] == 0.02,
         "reachability: a feasible donor keeps its leaf values");

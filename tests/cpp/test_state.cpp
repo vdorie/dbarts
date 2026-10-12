@@ -2180,7 +2180,7 @@ static void testWarmStartStandardization() {
             !sameConstants(before, donorState),
           "warm standardization: the donor's grid, another standardization");
     // the store is not read: the donor's live trees seed both chains
-    check(recipient->installForests(donorState, liveMap, xStretched.data()) ==
+    check(recipient->installForests(donorState, liveMap, x.data()) ==
             WarmStartResult::ok,
           "warm standardization: a donor under another standardization "
           "installs");
@@ -2209,7 +2209,7 @@ static void testWarmStartStandardization() {
     const std::vector<std::pair<size_t, int>> slotMap = {
       {1, static_cast<int>(donor->savedSlotForDraw(numKept - 1))},
       {0, static_cast<int>(donor->savedSlotForDraw(0))}};
-    check(recipient->installForests(donorState, slotMap, xStretched.data()) ==
+    check(recipient->installForests(donorState, slotMap, x.data()) ==
             WarmStartResult::ok,
           "warm standardization: a kept draw installs");
     std::vector<double> seeded = liveFits(*recipient);
@@ -2232,7 +2232,7 @@ static void testWarmStartStandardization() {
     recipient->getState(before);
     check(recipient->data().cutPoints != donorState.cutPoints,
           "warm standardization: the recipient is on another grid");
-    check(recipient->installForests(donorState, liveMap, xStretched.data()) ==
+    check(recipient->installForests(donorState, liveMap, x.data()) ==
             WarmStartResult::ok,
           "warm standardization: a donor on another grid installs");
     recipient->getState(after);
@@ -2260,7 +2260,7 @@ static void testWarmStartStandardization() {
     recipient->getState(before);
     check(sameConstants(before, donorState),
           "warm standardization: the twin standardizes as the donor does");
-    check(recipient->installForests(edited, liveMap, xStretched.data()) ==
+    check(recipient->installForests(edited, liveMap, x.data()) ==
             WarmStartResult::ok,
           "warm standardization: an equal-standardization donor installs");
     recipient->getState(after);
@@ -2277,7 +2277,7 @@ static void testWarmStartStandardization() {
       chain.forests[0].leafCovariateScales.clear();
     }
     std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 600);
-    check(recipient->installForests(unrecorded, liveMap, xStretched.data()) ==
+    check(recipient->installForests(unrecorded, liveMap, x.data()) ==
             WarmStartResult::ok,
           "warm standardization: a donor recording no standardization "
           "installs");
@@ -2300,7 +2300,7 @@ static void testWarmStartStandardization() {
     tooLong.chains[last].forests[0].leafCovariateScales.push_back(1.0);
     halfRecord.chains[last].forests[0].leafCovariateScales.clear();
     for (const SamplerStateData* bad : {&zeroScale, &tooLong, &halfRecord})
-      check(recipient->installForests(*bad, liveMap, xStretched.data()) ==
+      check(recipient->installForests(*bad, liveMap, x.data()) ==
               WarmStartResult::shapeMismatch,
             "warm standardization: a malformed donor record is refused");
     recipient->getState(after);
@@ -2322,9 +2322,9 @@ static void testWarmStartStandardization() {
     recipient->getState(before);
     check(!sameConstants(before, gpDonorState),
           "warm standardization, gp: the recipient's constants differ");
-    check(recipient->installForests(gpDonorState, liveMap, xStretched.data()) ==
-            WarmStartResult::ok,
-          "warm standardization, gp: a same-grid donor installs");
+    check(warmStartsClean(*recipient, gpDonorState, liveMap, x.data()),
+          "warm standardization, gp: a same-grid donor installs as it "
+          "stands");
     recipient->getState(after);
     check(worstGap(liveFits(*recipient), liveFits(*gpDonor)) < 1e-12,
           "warm standardization, gp: the donor's fits are copied");
@@ -2335,9 +2335,14 @@ static void testWarmStartStandardization() {
     std::unique_ptr<SamplerBase> other = makeOffStandard(true, 1000);
     refineGrid(*other, gpDonorState.cutPoints);
     other->getState(before);
-    check(other->installForests(gpDonorState, liveMap, xStretched.data()) ==
-            WarmStartResult::ok,
-          "warm standardization, gp: a donor on another grid installs");
+    WarmStartReport coldStart;
+    check(warmStartsAltered(*other, gpDonorState, liveMap, x.data(), false,
+                            &coldStart) &&
+            coldStart.fitsCold && !coldStart.mean[0].changed() &&
+            !coldStart.mean[1].changed(),
+          "warm standardization, gp: a donor recorded on other points is "
+          "declined though every split stands and, forced, installs with "
+          "its fits reported cold and no tree changed");
     other->getState(after);
     bool cold = true;
     std::vector<double> totals(n);
@@ -2574,9 +2579,12 @@ static void testNoSpreadLiveConversion() {
     // the same pair through a warm start
     donor->getState(donorState);
     std::unique_ptr<SamplerBase> recipient = make(xDonee, 20);
-    check(recipient->installForests(donorState, liveMap, xDonee.data()) ==
-            WarmStartResult::ok,
-          "no-spread conversion: a donor at another constant installs");
+    WarmStartReport kept;
+    check(warmStartsAltered(*recipient, donorState, liveMap, xDonee.data(),
+                            false, &kept) &&
+            kept.coefficientsKept && !kept.mean[0].changed(),
+          "no-spread conversion: a donor at another constant is declined "
+          "and, forced, installs with its coefficients reported kept");
     check(worstGap(liveFits(*recipient), n, liveFits(*donor), n, 0, n) <
             tolerance,
           "no-spread conversion: between two constants the seeded fit is the "
@@ -2878,6 +2886,35 @@ static void testVarianceWarmStart() {
   coarse->getState(remappedState);
   check(coarse->setState(remappedState, nullptr),
         "variance warm start: the remapped surface serializes legally");
+
+  // (2b) a variance threshold off the grid alone: the destination's own
+  // state as the donor, recorded on its points and one more on column 1,
+  // where one variance tree splits. The mean trees stand, the donor is
+  // declined, and forced that one tree is the only one moved
+  {
+    auto own = makeSampler(5060, 100, false);
+    own->run(20, 0, empty);
+    SamplerStateData offGrid;
+    own->getState(offGrid);
+    std::vector<double>& points(offGrid.cutPoints[1]);
+    double between = 0.5 * (points[40] + points[41]);
+    points.insert(points.begin() + 41, between);
+    std::vector<FlatNode>& tree(offGrid.chains[0].varianceTrees[0]);
+    tree.assign(3, FlatNode());
+    tree[0].variable = 1;
+    tree[0].value = between;
+    setFlatKind(tree[0], FlatKind::ordinal);
+    tree[1].value = 1.2;
+    tree[2].value = 0.8;
+    WarmStartReport report;
+    check(warmStartsAltered(*own, offGrid, liveMap, x.data(), false,
+                            &report) &&
+            !report.mean[0].changed() && report.variance[0].moved == 1 &&
+            report.variance[0].cutBack == 0 &&
+            report.variance[0].taken == numVarianceTrees,
+          "variance warm start: a variance threshold off the grid alone "
+          "declines the donor and, forced, is the one tree moved");
+  }
 
   // (3) a variance bottom no row reaches merges at install: x0 <= cut[2] then
   // x0 > cut[8] is a region no row can reach
@@ -5723,6 +5760,213 @@ static void testLiveGridInstall() {
   printf("ok: a state installs onto the store's cut grid\n");
 }
 
+// The two forms of a warm start on hand-built donors, each held to one answer
+// both ways (warmVerdictMatchesInstall): what the report counts, the verdict
+// taken after the sides are drawn, a donor that does not build refused in
+// both forms, and the unforced answer against the forced install over seeded
+// pairs.
+static void testWarmStartForms() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 271828u;
+  const size_t n = 200, p = 2, numTrees = 4;
+  const double missing = std::numeric_limits<double>::quiet_NaN();
+  std::vector<double> x(n * p), xOther(n * p), xHoled, y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    xOther[i] = runif01();
+    xOther[i + n] = runif01();
+    y[i] = 2.0 * x[i] + std::sin(4.0 * x[i + n]) + 0.2 * (runif01() - 0.5);
+  }
+  // column 1 with a missing value in every tenth row and one value far above
+  // the rest, in the row of the largest column 0
+  xHoled = x;
+  size_t top = 0;
+  for (size_t i = 0; i < n; ++i) {
+    if (i % 10 == 3) xHoled[i + n] = missing;
+    if (x[i] > x[top]) top = i;
+  }
+  xHoled[top + n] = 2.0;
+
+  std::vector<ext_rng*> rngs;
+  auto make = [&](const std::vector<double>& xs, std::uint32_t seed,
+                  size_t maxOrder = 0) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    options.interactionMaxOrder = maxOrder;
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return std::make_unique<ConstantLeafSampler>(
+      xs.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &r);
+  };
+  auto split = [](int32_t variable, double value, bool missingRight = false) {
+    FlatNode node;
+    node.variable = variable;
+    node.value = value;
+    setFlatKind(node, FlatKind::ordinal);
+    if (missingRight) node.flags |= flatMissingGoesRight;
+    return node;
+  };
+  auto leaf = [](double value) {
+    FlatNode node;
+    node.value = value;
+    return node;
+  };
+  const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  Results none;
+
+  // --- the report, a tree counted once under the first name that holds. The
+  // donor is recorded on other points of column 1: a tree as stored; one
+  // moved, which also loses a side; one cut back, whose splits are off the
+  // grid too; and one that only loses its side
+  auto recipient = make(x, 11);
+  SamplerStateData hand;
+  recipient->getState(hand);
+  const std::vector<double> own0(hand.cutPoints[0]), own1(hand.cutPoints[1]);
+  std::vector<double>& other1(hand.cutPoints[1]);
+  double half = 0.5 * (own1[1] - own1[0]);
+  other1.pop_back();
+  for (double& point : other1) point += half;
+  std::vector<std::vector<FlatNode>>& trees(hand.chains[0].forests[0].trees);
+  trees[0] = {split(0, own0[40]), leaf(0.1), leaf(-0.1)};
+  trees[1] = {split(1, other1[30], true), leaf(0.2), leaf(-0.2)};
+  trees[2] = {split(1, other1[20]), split(1, other1[60]), leaf(0.3),
+              leaf(0.5), leaf(-0.3)};
+  trees[3] = {split(0, own0[50], true), leaf(0.05), leaf(-0.05)};
+  {
+    WarmStartReport report;
+    bool installs =
+      warmStartsAltered(*recipient, hand, liveMap, x.data(), false, &report);
+    SamplerStateData after;
+    recipient->getState(after);
+    const WarmStartTreeCounts& counts(report.mean[0]);
+    check(installs && counts.offered == 4 && counts.taken == 4 &&
+            counts.moved == 1 && counts.cutBack == 1 &&
+            counts.sideDropped == 1 && counts.reset == 0 &&
+            !report.variance[0].changed() && !report.fitsCold &&
+            !report.leafBlocksUnread && !report.coefficientsKept &&
+            sameFlatTrees({after.chains[0].forests[0].trees[0]}, {trees[0]}) &&
+            after.chains[0].forests[0].trees[2].size() == 3,
+          "warm start forms: the report counts each changed tree once, moved "
+          "ahead of a side dropped and cut back ahead of moved");
+  }
+  // the caller's word that the donor's leaf blocks go unread is a change of
+  // its own, with no tree counted
+  {
+    SamplerStateData clean;
+    recipient->getState(clean);
+    WarmStartReport report;
+    check(warmStartsClean(*recipient, clean, liveMap, x.data()) &&
+            warmStartsAltered(*recipient, clean, liveMap, x.data(), true,
+                              &report) &&
+            report.leafBlocksUnread && !report.mean[0].changed(),
+          "warm start forms: a clean donor whose leaf blocks go unread is "
+          "declined and, forced, reports that alone");
+  }
+
+  // --- a donor that does not build is refused in both forms, never
+  // declined: a threshold that is no point of the grid the donor records,
+  // beside one off the store's grid, and where every threshold is a point of
+  // the store's
+  {
+    SamplerStateData offOwn = hand, onStore = hand;
+    offOwn.chains[0].forests[0].trees[1][0].value += 0.25 * half;
+    for (size_t t = 1; t < numTrees; ++t)
+      onStore.chains[0].forests[0].trees[t] = {leaf(0.0)};
+    onStore.chains[0].forests[0].trees[1] =
+      {split(1, own1[30]), leaf(0.2), leaf(-0.2)};
+    WarmStartResult result;
+    bool altered;
+    bool refused = true;
+    for (const SamplerStateData* bad : {&offOwn, &onStore})
+      refused = refused &&
+        warmVerdictMatchesInstall(*recipient, *bad, liveMap, x.data(), result,
+                                  altered) &&
+        result == WarmStartResult::rebuildFailed;
+    check(refused, "warm start forms: a threshold off the donor's own "
+                   "recorded grid is the rebuild refusal in both forms, the "
+                   "sampler untouched");
+  }
+
+  // --- the verdict follows the draw. The donor could hold no missing value
+  // in column 1 and the recipient holds some. The lower split sits above
+  // every value of column 1 its branch holds, so its right leaf is reached by
+  // missing rows alone: sent right the split stands and the donor is clean,
+  // sent left the leaf is empty and merges. Both are met over the seeds, and
+  // the unforced answer is the forced install's each time
+  {
+    size_t stood = 0, merged = 0;
+    bool agree = true;
+    for (std::uint32_t seed = 1; seed <= 16; ++seed) {
+      auto holed = make(xHoled, 100 + seed);
+      SamplerStateData donor;
+      holed->getState(donor);
+      donor.missingColumns.assign(p, 0);
+      std::vector<std::vector<FlatNode>>& given(
+        donor.chains[0].forests[0].trees);
+      for (std::vector<FlatNode>& tree : given) tree = {leaf(0.0)};
+      given[0] = {split(0, donor.cutPoints[0][50]),
+                  split(1, donor.cutPoints[1].back()), leaf(0.1), leaf(0.3),
+                  leaf(-0.2)};
+      WarmStartResult result;
+      bool altered;
+      agree = agree &&
+        warmVerdictMatchesInstall(*holed, donor, liveMap, xHoled.data(),
+                                  result, altered) &&
+        result == WarmStartResult::ok;
+      SamplerStateData after;
+      holed->getState(after);
+      const std::vector<FlatNode>& got(after.chains[0].forests[0].trees[0]);
+      bool stands = got.size() == 5 &&
+        (got[1].flags & flatMissingGoesRight) != 0;
+      agree = agree && (stands ? !altered : altered && got.size() == 3);
+      ++(stands ? stood : merged);
+    }
+    check(agree && stood > 0 && merged > 0,
+          "warm start forms: the unforced answer is taken after the sides "
+          "are drawn, clean where the drawn side keeps the split");
+  }
+
+  // --- the unforced answer is the forced install's over seeded pairs: the
+  // donor's own rows, other rows, rows moved under the donor's grid, a limit
+  // on interactions, and sides to draw
+  {
+    size_t taken = 0, changed = 0;
+    bool agree = true;
+    for (std::uint32_t seed = 0; seed < 40; ++seed) {
+      bool holes = seed % 5 == 4;
+      auto donor = make(holes ? xHoled : x, 200 + seed);
+      donor->run(30, 0, none);
+      SamplerStateData state;
+      donor->getState(state);
+      if (holes) state.missingColumns.assign(p, 0);
+      const std::vector<double>& rows(
+        seed % 5 == 1 || seed % 5 == 2 ? xOther : holes ? xHoled : x);
+      auto pair = make(seed % 5 == 2 ? x : rows, 300 + seed,
+                       seed % 5 == 3 ? 1 : 0);
+      if (seed % 5 == 2) pair->setPredictor(xOther.data(), true, false);
+      WarmStartResult result;
+      bool altered;
+      agree = agree &&
+        warmVerdictMatchesInstall(*pair, state, liveMap, rows.data(), result,
+                                  altered) &&
+        result == WarmStartResult::ok;
+      ++(altered ? changed : taken);
+    }
+    check(agree && taken >= 8 && changed >= 8,
+          "warm start forms: over 40 seeded pairs the unforced call declines "
+          "exactly when the forced install is altered, and the report says "
+          "so");
+    printf("ok: warm start forms (%zu pairs taken as stored, %zu changed)\n",
+           taken, changed);
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -5743,6 +5987,7 @@ void runStateTests(ext_rng* rng) {
   testBlockAdditiveConfinement();
   testSingleForestColumnRestriction();
   testCrossGridWarmStart();
+  testWarmStartForms();
   testWarmStartStandardization();
   testNoSpreadLiveConversion();
   testVarianceWarmStart();

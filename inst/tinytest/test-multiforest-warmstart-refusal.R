@@ -56,6 +56,11 @@ expect_error(
   bcf$installTrees(donor),
   "\\$installTrees does not support a multi-forest sampler: this one carries 2 forests"
 )
+# force repairs trees, not this: the refusal is the same in both forms
+expect_error(
+  bcf$installTrees(donor, forceUpdate = TRUE),
+  "\\$installTrees does not support a multi-forest sampler: this one carries 2 forests"
+)
 
 # the donor is not even resolved before the refusal fires, so a caller offering
 # a donor this sampler could never take reads the forest count rather than a
