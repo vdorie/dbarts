@@ -474,7 +474,21 @@
             indicator as the basis. In a \code{bart} or \code{dbarts}
             formula, each forest is a term:
             \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)}
-            declares the same thing. Gaussian, probit and logistic responses;
+            declares the same thing. A basis is either levels, when it is
+            a factor, a character vector or a logical vector, with a
+            coefficient for each level, or numbers, with one for each
+            column; its class decides which, whatever its values, so a
+            0/1 number is one column and \code{factor(z)} is two levels.
+            The same basis is the same fit however it is handed over, in
+            a formula, in \code{forests}, to \code{dbartsData(bases = )},
+            to \code{$setForestBasis} or to \code{predict(bases = )}:
+            a level no kept row has gives no column, and a missing value
+            matters only on a row the fit keeps. A forest keeps its kind
+            for life, and a replacement basis must be of its class, a
+            factor being matched to the forest's levels by name. A fit's
+            \code{bases} holds the factor for a forest of levels, which
+            \code{predict(bases = )} takes back.
+            Gaussian, probit and logistic responses;
             \code{predict} and \code{extract} report each forest separately
             (\code{type = "forest"}) or combined. A forest's size is its
             \code{sd}, \code{forest(sd = )}, a number of the response's

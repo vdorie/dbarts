@@ -132,7 +132,9 @@ forest(
       \item \code{+} separates columns, each with a coefficient of its own:
         \code{dose + age}. \code{I(dose + age)} is one column, their sum.
       \item A factor, a character column or a logical column is one column
-        for each of its levels.
+        for each of its levels. A number is one column, whatever its values:
+        \code{basis = z} for a \code{z} of 0s and 1s is one coefficient, and
+        \code{basis = factor(z)} is the two levels.
       \item Anything that is not a column of \code{data} is read where
         \code{forest()} is called, at that moment, with or without a tilde
         written in place: \code{forest(basis = w)}, \code{forest(basis = ~ w)}.
@@ -175,6 +177,48 @@ forest(
     columns; the two are not mixed in one forest. The forest does not centre
     or scale a basis, so a multiplier that should be standardized is written
     so: \code{basis = scale(age)}.
+
+    \strong{Which kind it is.} The class of the basis decides whether the
+    forest multiplies levels or numbers, the same way at every place a basis
+    is given: \code{forest()} written as code or with a value,
+    \code{\link{dbartsData}}'s \code{bases}, \code{$setForestBasis} and
+    \code{predict}'s \code{bases}. A factor, ordered or not, a character
+    vector and a logical vector are levels, with a coefficient for each: in
+    the order of a factor's levels, in sorted order for a character vector,
+    \code{FALSE} then \code{TRUE} for a logical vector. An integer or a
+    double is numbers, whatever its values, and a numeric matrix is its
+    columns. The values are never looked at to decide: a column of 0s and 1s
+    is one column with one coefficient, and is two levels only when written
+    \code{factor(z)} or as a logical vector. A matrix of characters or of
+    logicals is refused, one of a single column included, since a vector is
+    levels and a matrix is numbers: hand over its column as a vector,
+    \code{cm[, 1]}. A data frame and any other class are refused too, with
+    the class named.
+
+    The kind is fixed when the forest is created. A forest created with no
+    basis cannot be given one, and a forest of levels keeps the same levels,
+    in the same order, for as long as the sampler lives, so that coefficient
+    \eqn{j}{j} multiplies level \eqn{j}{j}'s rows after any replacement. See
+    \code{$setForestBasis} in \code{\linkS4class{dbartsSampler}} and the
+    \code{bases} argument of \code{predict} in \code{\link{bartBT}} for what
+    a replacement takes.
+
+    A level that no row the fit keeps has gives no column and no message,
+    written as code or handed over as a value: \code{factor(z, levels = 0:2)}
+    of a \code{z} with no 2, or a factor of three levels under a
+    \code{subset} that leaves two of them, is the two columns of the levels
+    that remain. The count is made after the rows are cut, and fewer than two
+    levels left is refused. A row of weight zero is a row the fit keeps.
+
+    A missing value is looked for on the rows the fit keeps, after
+    \code{subset} and the \code{na.action}, as \code{lm} looks for one in its
+    variables. On a kept row it is refused. On a row the fit drops it is not
+    looked at, so a basis fits the same way written as code or handed over as
+    a value. \code{NA} is not a level: a factor made with \code{addNA()} or
+    \code{exclude = NULL} that has a kept row at \code{NA} is refused, and
+    the remedy is to give that level a name, as in
+    \code{factor(ifelse(is.na(w), "none", w))}. With no kept row at it the
+    \code{NA} level is dropped like any other level no row has.
 
     Some forms a model formula would take are refused, each by name and with
     what to write instead: \code{*} between terms (write \code{I(dose * age)}
@@ -303,14 +347,13 @@ forest(
     \strong{A value.} What is handed over as an object, through
     \code{do.call()} or in a call built by a program, is used as it is: a
     numeric vector or matrix is its columns, and a factor, a character vector
-    or a logical vector is its levels. Its columns keep their names when every
+    or a logical vector is its levels, as written as code. Its columns keep their names when every
     column has one, and have none when any column lacks one; two columns of
     one name are refused. Its forest's label is \code{forest<i>}. It has one
     row for every row of \code{data} and is cut to the rows the fit keeps; a
     value already cut to those rows is refused by name. A level that no row
-    of \code{data} has is refused, while one that only \code{subset} empties
-    keeps a column of zeros, a value not being built again on the rows kept.
-    A value that the rows kept leave with one level, or one numeric column
+    the fit keeps has gives no column, whether \code{data}, \code{subset} or
+    the \code{na.action} is what empties it. A value that the rows kept leave with one level, or one numeric column
     that is zero on all of them, is refused as the same basis written as code
     is.
     A single string or number is refused: \code{basis = "dose"} names no
@@ -413,12 +456,11 @@ forest(
     is the number in force. \code{$getLeafPrior(f)$leaf.prior} returns the
     statement, \code{forest(sd = )} where one was stated and \code{forest()}
     where none was, and \code{forest()} written back leaves its forest as it is
-    (see \code{\link{dbartsSampler}}). The channel is fixed at creation: a
-    forest created without a basis keeps its half-Cauchy median after
-    \code{$setForestBasis} gives it one, so its \code{forest(sd = )}
-    round-trips through \code{$setLeafPrior}, while a fresh \code{dbarts()}
-    given the same bases would state it on a forest with a basis and build a
-    different prior.
+    (see \code{\link{dbartsSampler}}). The channel is fixed at creation, with
+    the forest's kind: \code{$setForestBasis} refuses to give a basis to a
+    forest created without one, so a forest's channel always agrees with
+    what it multiplies and its \code{forest(sd = )} round-trips through
+    \code{$setLeafPrior}.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on

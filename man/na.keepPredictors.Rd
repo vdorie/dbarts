@@ -90,8 +90,11 @@ na.keepPredictors(object, \dots)
   returns \code{NA} for it, and \code{na.omit}/\code{na.exclude} drop it
   (\code{na.exclude} padding it back). A missing value in a single
   (length-one) \code{offset} or \code{weights} is always an error, whatever
-  \code{na.action} is, since there is then no row for it to mark; the same
-  goes for any missing value in \code{bases}. The sampler's own
+  \code{na.action} is, since there is then no row for it to mark. A missing
+  value in \code{bases} never marks its row: on a row whose predictors are
+  incomplete, which the \code{na.action} drops or returns \code{NA} for, it
+  is passed by, and on any other row it is an error, whatever
+  \code{na.action} is. The sampler's own
   \code{predict}, \code{predictForests} and \code{getTrees} methods take no
   \code{na.action}, keep the default, and check no per-row
   \code{offset.test} for a missing value at all: an \code{NA} there reaches

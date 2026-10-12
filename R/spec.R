@@ -1074,8 +1074,10 @@ resolveSamplerSpec <- function(
 
   # the Bayesian causal forest: a second forest with a
   # two-level factor basis selects the model y = a mu(x) + b_z tau(x) + eps.
-  # The 0/1 column that basis expands to is conditioning DATA and rides the
-  # data object beside the weights it mirrors; the second forest's
+  # The block that basis expands to (a factor's level indicators) and the
+  # factor's levels are conditioning DATA and ride the data object beside the
+  # weights they mirror; a block put here by dbartsSpec() was finished there,
+  # on the rows kept, and a data object handed in whole was checked on entry; the second forest's
   # CONFIGURATION - its tree count and structure prior, its column mask, the
   # amplitude scales and the per-forest constraints - rides the control
   # attribute the C bridge reads, exactly as the variance forest's does above.
@@ -1474,7 +1476,7 @@ dbartsSpec <- function(
 
   # this surface does no data ingestion of its own, so a declared basis is
   # read here, as dbarts() reads one, and reaches data@bases through the same
-  # validation dbartsData() applies on the fitting path. There is no data
+  # class rule and row judgement dbartsData() applies on the fitting path. There is no data
   # frame for a basis's code to name a column of, so code is the value it had
   # where forest() was called; the caller's data object has already had its
   # own 'subset' applied, so a basis covers the rows it holds
