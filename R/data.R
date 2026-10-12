@@ -301,9 +301,10 @@ checkBasisRecord <- function(data, refuse = TRUE) {
     width <- if (is.null(block)) 0L else NCOL(block)
     if (!is.null(levels[[index]]) && length(levels[[index]]) != width) {
       fault <- sprintf(
-        "'basis.levels' gives forest %d %d levels and its block in 'bases' has %d %s; dbartsData() and dbarts() write the two together",
+        "'basis.levels' gives forest %d %d %s and its block in 'bases' has %d %s; dbartsData() and dbarts() write the two together",
         index,
         length(levels[[index]]),
+        if (length(levels[[index]]) == 1L) "level" else "levels",
         width,
         if (width == 1L) "column" else "columns"
       )
@@ -2229,7 +2230,7 @@ validateForestBases <- function(
     }
     read <- basisClass(basis)
     if (is.na(read$kind)) {
-      refuseBasisClass(read, argument, forestName(i, labels))
+      refuseBasisClass(read, argument, forestName(i, labels), NCOL(basis))
     }
     if (read$kind == "numeric") {
       basis <- as.matrix(basis)

@@ -808,8 +808,10 @@ nameValueBasis <- function(block) {
 ## or a logical vector, with `factor` the value as a factor, its levels the
 ## factor's own in their order, a character vector's sorted values, or FALSE
 ## then TRUE; "numeric" for numbers, a vector or a matrix, whatever their
-## values; and NA for anything else. `what` names the class in words. Nothing
-## is refused here: each caller words its own refusal from the answer.
+## values; and NA for anything else, a factor with dimensions among it: a
+## vector is levels, a matrix is numbers or nothing. `what` names the class in
+## words. Nothing is refused here: each caller words its own refusal from the
+## answer.
 basisClass <- function(value) {
   answer <- function(kind, what, factor = NULL) {
     list(kind = kind, what = what, factor = factor)
@@ -817,7 +819,11 @@ basisClass <- function(value) {
   shape <- if (is.null(dim(value))) "vector" else "matrix"
   kind <- if (shape == "vector") "levels" else NA_character_
   if (is.factor(value)) {
-    answer("levels", "a factor", value)
+    if (is.na(kind)) {
+      answer(kind, "a factor matrix")
+    } else {
+      answer(kind, "a factor", value)
+    }
   } else if (is.character(value)) {
     answer(kind, paste("a character", shape), if (!is.na(kind)) factor(value))
   } else if (is.logical(value)) {
@@ -847,11 +853,19 @@ forestName <- function(index, labels = NULL) {
 
 ## The refusal of a value of a class a basis does not take (basisClass), at
 ## the doors that take a value, in `argument`, the caller's word for it.
-refuseBasisClass <- function(read, argument, forest) {
+## `columns` is how many columns the value has, a matrix's advice naming its
+## column where it has one and one of them otherwise.
+refuseBasisClass <- function(read, argument, forest, columns = 1L) {
+  column <- if (columns == 1L) "its column" else "one of its columns"
   advice <- switch(
     read$what,
-    "a logical matrix" = ". Give its column as a logical vector for two levels, or as numbers for one coefficient",
-    "a character matrix" = ". Give its column as a character vector",
+    "a logical matrix" = paste0(
+      ". Give ",
+      column,
+      " as a logical vector for two levels, or as numbers for one coefficient"
+    ),
+    "a character matrix" = paste0(". Give ", column, " as a character vector"),
+    "a factor matrix" = paste0(". Give ", column, " as a factor"),
     "a data frame" = ,
     "a list" = ". Give one of its columns"
   )
@@ -990,7 +1004,7 @@ conformBasis <- function(value, kind, levels, argument, forest) {
     )
   }
   if (is.na(read$kind)) {
-    refuseBasisClass(read, argument, forest)
+    refuseBasisClass(read, argument, forest, NCOL(value))
   }
   if (kind != read$kind) {
     multiplies <- sprintf(

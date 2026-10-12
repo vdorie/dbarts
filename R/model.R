@@ -1372,7 +1372,7 @@ expandForestBasis <- function(
   basis <- as.matrix(basis)
   storage.mode(basis) <- "double"
   if (ncol(basis) < 1L) {
-    stop("a 'basis' must have at least one column")
+    stop("a '", argument, "' must have at least one column")
   }
   if (!all(is.finite(basis))) {
     stop("a '", argument, "' must be finite")
@@ -1382,8 +1382,9 @@ expandForestBasis <- function(
   rowNorms <- sqrt(rowSums(basis * basis))
   if (any(!is.finite(rowNorms) | (rowNorms == 0 & rowSums(basis != 0) > 0L))) {
     stop(
-      "a 'basis' row's norm is not representable; rescale the basis to ",
-      "moderate values"
+      "a '",
+      argument,
+      "' row's norm is not representable; rescale the basis to moderate values"
     )
   }
   # an all-zero column has no observation for its amplitude to multiply, so it
