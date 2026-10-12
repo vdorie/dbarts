@@ -681,7 +681,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000671
+#> total seconds in loop: 0.000724
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 

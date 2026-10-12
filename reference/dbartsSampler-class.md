@@ -921,11 +921,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   are not read, whatever they are. Cut points apply to numeric
   predictors only: naming a factor column of either kind is refused,
   naming the kind, its grid following its level table rather than any
-  externally chosen one. A later `setData` derives every numeric
-  column's cut points again whatever grid was set, at most as many as
-  the `n.cuts` the sampler was created with: with `useQuantiles`, a
-  column with no more distinct values than `n.cuts` gets one cut point
-  fewer than it has distinct values, and a constant column gets one.
+  externally chosen one. A later `setState` does not undo the change: a
+  state goes onto the cut points the sampler holds (see ‘Saving’). A
+  later `setData` derives every numeric column's cut points again
+  whatever grid was set, at most as many as the `n.cuts` the sampler was
+  created with: with `useQuantiles`, a column with no more distinct
+  values than `n.cuts` gets one cut point fewer than it has distinct
+  values, and a constant column gets one.
 
 - column:
 
@@ -1008,10 +1010,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   old threshold. In either case a split stays between the splits above
   it in its tree; one left with no cut point there is merged when the
   update is forced, and otherwise the update is refused and rolled back,
-  trees and cut points included. Anything but `"none"` cannot be
-  combined with `forceUpdate = "partial"`. A logical is taken until
-  dbarts 1.1-0, `TRUE` as `"position"` and `FALSE` as `"none"`, with a
-  warning once per session
+  trees and cut points included. A later `setState` does not bring back
+  the cut points a state was stored on (see ‘Saving’). Anything but
+  `"none"` cannot be combined with `forceUpdate = "partial"`. A logical
+  is taken until dbarts 1.1-0, `TRUE` as `"position"` and `FALSE` as
+  `"none"`, with a warning once per session
   ([`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)).
 
 - splits:
@@ -1126,7 +1129,13 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   another over the same data: its `state` field, calling `storeState()`
   first to refresh it if a later mutation may have gone unstored
   (`storeState` itself returns `NULL` invisibly, so its return value
-  cannot be passed here). Must inherit from `bartcoreState`.
+  cannot be passed here). A sampler's own `state` field is never refused
+  for the cut points it records: where a `copy` or a reload is made on
+  other cut points than its stored state records, as on an ordered
+  factor after `setData` (see ‘Saving’), the field holds the state of
+  its engine in place of the stored one. A reload's field is brought to
+  its engine's at first use, and a state read from it before that is the
+  stored one. Must inherit from `bartcoreState`.
 
 - ...:
 
@@ -1175,23 +1184,29 @@ Route changes through the `set*` methods instead.
 
   The cached, serializable engine state, or `NULL` until one is
   materialized. It holds the chains and not the model: trees, leaf
-  values, the quantities the sampler draws, the cut grid (with its
-  weights, the attribute `cutMass`, where a column's cut points are not
-  equally likely) and leaf-covariate standardization they are read
-  through, a record of the response mapping they were read under, and
-  which predictor columns could hold a missing value when it was
-  stored - no leaf prior and no value the sampler holds fixed (see
-  ‘Saving’). It also carries each chain's generator state, so restoring
-  it continues the same streams the sampler was drawing from, typically
-  to the last few digits, not bitwise. The saved-tree store's write
-  position and the number of draws it has recorded both ride it, so
-  `predict` after a `setState` reports the same draws, in the same
-  order, as before the store. Reading it forces the sampler's *current*
-  state only the first time, before any value has been materialized;
-  once set, it is a cached snapshot that a later mutation does not
-  refresh automatically - call `storeState` again, or pass
-  `updateState = TRUE` to the mutating call (see `updateState` above),
-  to bring it forward. It is the only field
+  values, the quantities the sampler draws, the cut points the trees'
+  split thresholds were stored on (the attribute `cutPoints`, a list
+  with one entry per predictor column, `NULL` for a factor column that
+  splits by subsets of its levels; with their weights, the attribute
+  `cutMass`, where a column's cut points are not equally likely) and the
+  leaf-covariate standardization they are read through, a record of the
+  response mapping they were read under, and which predictor columns
+  could hold a missing value when it was stored - no leaf prior and no
+  value the sampler holds fixed (see ‘Saving’). It also carries each
+  chain's generator state, so restoring it continues the same streams
+  the sampler was drawing from, typically to the last few digits, not
+  bitwise. The saved-tree store's write position and the number of draws
+  it has recorded both ride it, so `predict` after a `setState` reports
+  the same draws, in the same order, as before the store. Reading it
+  forces the sampler's *current* state only the first time, before any
+  value has been materialized; once set, it is a cached snapshot that a
+  later mutation does not refresh automatically - call `storeState`
+  again, or pass `updateState = TRUE` to the mutating call (see
+  `updateState` above), to bring it forward. After a `setState` that put
+  a state onto cut points, or weights of them, other than the ones the
+  state records, the field holds the sampler's state as `storeState()`
+  gives it and not the state as it was given, so that a `copy` or a
+  reload has the sampler's cut points and trees. It is the only field
   [`save`](https://rdrr.io/r/base/save.html) needs, and restoring one
   requires `setState` - see ‘Saving’.
 
@@ -1299,48 +1314,63 @@ To restore a saved state into a sampler, call `setState(newState)` and
 check what it returns, as in
 `if (!sampler$setState(state)) stop("the state no longer fits")`.
 `setState` validates that `newState` inherits from `bartcoreState` and
-re-creates the underlying engine if needed. Then, where every tree of
-the state fits the sampler as it stands, it installs the state, caches
-it on the `state` field and returns `TRUE`; where one does not, it
-installs nothing, leaves the sampler, its engine and its `state` field
-exactly as they were, and returns `FALSE`. `TRUE` does not mean bit for
-bit. It means the trees and leaf values are the stored ones, and the
-quantities the sampler draws are the stored ones where the state holds
-them. Of the kept draws (`keepTrees`) the newest that fit the sampler's
-own store are taken, whatever number the state holds. The latent
-variables may be redrawn (see the case weights, below), and the chain
-continues the state's own generator streams from where they left off,
-typically to the last few digits, not bitwise (see the Reproducibility
-section of [bart](https://vdorie.github.io/dbarts/reference/bart.md)).
+re-creates the underlying engine if needed: a sampler whose engine is
+gone, as after a [`load`](https://rdrr.io/r/base/load.html), is first
+rebuilt from its own saved state, as any other call rebuilds it, so that
+`setState` gives what it gives a sampler that was never saved; only one
+with no saved state, or one whose saved state is refused, is created
+anew and takes the cut points `newState` records. Then, where every tree
+of the state fits the sampler as it stands, it installs the state,
+caches it on the `state` field and returns `TRUE`; where one does not,
+it installs nothing, leaves the sampler, its engine and its `state`
+field exactly as they were, and returns `FALSE`. `TRUE` does not mean
+bit for bit. It means the trees and leaf values are the stored ones, and
+the quantities the sampler draws are the stored ones where the state
+holds them. Of the kept draws (`keepTrees`) the newest that fit the
+sampler's own store are taken, whatever number the state holds. The
+latent variables may be redrawn (see the case weights, below), and the
+chain continues the state's own generator streams from where they left
+off, typically to the last few digits, not bitwise (see the
+Reproducibility section of
+[bart](https://vdorie.github.io/dbarts/reference/bart.md)).
 
 A tree does not fit, and `setState` returns `FALSE`, when it would have
 to be changed before the sampler could hold it. The trees are judged
-against the predictors the sampler holds at the call and against its own
-constraints: a leaf that no row of those predictors reaches; a split the
-state holds outside the range the splits above it leave; a rule that
-records a side for missing values on a column that has never held one in
-this sampler (see ‘Missing values in predictors’); a split on a column
-the tree's forest may not use - a forest's `vars`, a `blocks` group, a
-moderator forest's columns or a `variance = ~ x1 + x2` variance
-forest's; a split that breaks the forest's `interactions` limit; and,
-under a
+against the predictors and the cut points the sampler holds at the call
+and against its own constraints: a split whose threshold is not one of
+the sampler's cut points for its column; a leaf that no row of those
+predictors reaches; a split the state holds outside the range the splits
+above it leave; a rule that records a side for missing values on a
+column that has never held one in this sampler (see ‘Missing values in
+predictors’); a split on a column the tree's forest may not use - a
+forest's `vars`, a `blocks` group, a moderator forest's columns or a
+`variance = ~ x1 + x2` variance forest's; a split that breaks the
+forest's `interactions` limit; and, under a
 [`monotone`](https://vdorie.github.io/dbarts/reference/monotone.md)
 constraint, leaf values that are out of order as stored.
 `setState(newState, forceUpdate = TRUE)` installs such a state all the
 same, as a forced `setPredictor` leaves the trees it meets, and returns
-`NULL` invisibly: a split with a side no row reaches becomes a single
-leaf, along with everything beneath it, at the mean of the leaves it
-replaces, weighted by their rows; so does a split outside its range; a
-tree is cut back in the same way at the first split from its root that
-the forest's columns or its interaction limit do not allow, the splits
-above it kept; a rule stops recording a side its column cannot use; and
-a monotone tree whose values are out of order has every leaf value set
-to zero, to be drawn again at the next iteration. After a forced
-`setState` that repaired a tree the `state` field holds the state as it
-was given, not as repaired: installing the field again without
-`forceUpdate` returns `FALSE`, and a `copy` or a reload repairs it the
-same way. Likewise after an install that drew a side for missing values
-(see ‘Missing values in predictors’) the field holds the state as given,
+`NULL` invisibly: a split whose threshold is not a cut point moves to
+the nearest cut point inside the range the splits above it leave, to the
+upper one of two equally near, and one with no cut point left there
+becomes a single leaf, along with everything beneath it, at the mean of
+the leaves it replaces, weighted by the rows each held under the stored
+thresholds; a split with a side no row reaches becomes a single leaf,
+along with everything beneath it, at the mean of the leaves it replaces,
+weighted by their rows; so does a split outside its range; a tree is cut
+back in the same way at the first split from its root that the forest's
+columns or its interaction limit do not allow, the splits above it kept;
+a rule stops recording a side its column cannot use; and a monotone tree
+whose values are out of order has every leaf value set to zero, to be
+drawn again at the next iteration. After a forced `setState` that
+repaired a tree of a state stored on the sampler's own cut points and
+weights the `state` field holds the state as it was given, not as
+repaired: installing the field again without `forceUpdate` returns
+`FALSE`, and a `copy` or a reload repairs it the same way. A state that
+went onto other cut points or weights than it records, forced or not, is
+not kept: the field then holds what the sampler holds after the install.
+Likewise after an install that drew a side for missing values (see
+‘Missing values in predictors’) the field holds the state as given,
 without the sides, and installing it again, as a `copy` or a reload
 does, draws the same ones. `storeState()` stores what the sampler now
 holds. Forcing checks nothing first, so a loop that restores its own
@@ -1418,10 +1448,46 @@ stored before one does not undo it; to roll a re-anchoring
 `setResponse(y2, updateScale = TRUE)` back, re-anchor to the old
 response with `setResponse(y, updateScale = TRUE)` and then `setState`
 the saved state, so that the response is restored with the state. The
-cut grid and a linear or Gaussian-process leaf's covariate
-standardization come with the state as they are. A leaf covariate that
-held a single value when its standardization was derived has no scale:
-the state records `NA` for it, and the covariate is divided by 1.
+cut points and their weights are the sampler's, and `setState` writes
+neither: a state records the ones its thresholds were stored on (its
+`cutPoints` and `cutMass` attributes) and goes onto the sampler's. Where
+every threshold of the state is one of the sampler's cut points, as on a
+grid that only gained points, the trees are the stored ones and
+`setState` returns `TRUE` if they fit; where one is not, the state is
+declined or, forced, has that split moved (above). Other weights on
+equal cut points change no tree: the state goes in, `TRUE`, and the
+chain runs on under the sampler's weights, which is not the chain the
+state was stored from. So restoring a state does not undo a change of
+cut points made by `setCutPoints` or by
+`setPredictor(updateCutPoints = )`; 0.9-x's `setState` did. To restore
+the cut points too, hold the state in a variable, since `setCutPoints`
+replaces the `state` field under `updateState`, and set them first, the
+whole set in one call: `sampler$setCutPoints(attr(st, "cutPoints"))` and
+then `sampler$setState(st)`. A column whose cut points had been changed
+and for which `attr(st, "cutMass")` holds an entry then has its points
+back and not its weights: `setState` still returns `TRUE`, and the chain
+runs with that column's cut points equally likely.
+`setPredictor(x[, j], j, updateCutPoints = "value")` gives back both
+while the column holds the values its cut points were derived from. A
+`copy` and a reload, which create a new engine, take the cut points and
+weights their stored state records for every numeric column, so a
+sampler copied or saved after a change of cut points with no
+`storeState()` since is re-created on the earlier ones. On a column the
+sampler holds as an ordered factor, whose cut points its number of
+levels fixes, a state recording other cut points is refused by
+`setState`. A `copy` and a reload do not hold their stored state to that
+and take no cut points for a factor: theirs are those of the levels the
+data declares. After `setData` has replaced an ordered factor with one
+declaring fewer levels, a `copy` and a reload are made, with the cut
+points of the declared levels, where no rule of the stored state's trees
+lies above the declared levels; otherwise neither can be made. The
+sampler itself keeps the cut points of the levels it was created with,
+and a state it stored is refused by the `setState` of its copy or its
+reload, except as a reload's first call, where it is that reload's own
+field. A linear or Gaussian-process leaf's covariate standardization
+comes with the state as it is. A leaf covariate that held a single value
+when its standardization was derived has no scale: the state records
+`NA` for it, and the covariate is divided by 1.
 
 The case weights are not in the state, so a restore is reconciled
 against the DESTINATION's own rather than governed by the source's:
@@ -1785,24 +1851,27 @@ tree of every forest valid.
 
 For `setState`, `TRUE` if the state was installed and `FALSE` if it was
 not, the sampler then being exactly as it was. It is `FALSE` when a tree
-of any chain would have to be changed to fit the sampler: a leaf that no
-row of the current predictors reaches, a split that the state holds
-outside the range the splits above it leave, a rule with a side for
-missing values on a column that has never held one, a split its forest's
-columns or interaction limit do not allow, or monotone leaf values out
-of order (see ‘Saving’). No warning is given. `TRUE` means the trees and
-leaf values are the stored ones. It does not promise the latents, which
-are re-derived when the case weights or an `aft` censoring status differ
-from those the state was stored under; the generator, which is left as
-the sampler's own when the state's is of another kind; or every kept
-draw, of which the newest that fit the sampler's store are taken. Nor
-does it cover a value the sampler holds fixed, which a state never
-changes. A state stored under another response mapping is installed as
-stored and reports `TRUE`. With `forceUpdate = TRUE` the state is
-installed, repaired where it has to be, and the value is `NULL`,
-invisibly, whether or not anything was repaired: a caller who needs to
-know calls without it first. `copy` and a reload install a state that
-way and report nothing.
+of any chain would have to be changed to fit the sampler: a split whose
+threshold is not one of the sampler's cut points, a leaf that no row of
+the current predictors reaches, a split that the state holds outside the
+range the splits above it leave, a rule with a side for missing values
+on a column that has never held one, a split its forest's columns or
+interaction limit do not allow, or monotone leaf values out of order
+(see ‘Saving’). No warning is given. `TRUE` means the trees and leaf
+values are the stored ones. It does not promise the cut points or their
+weights, which stay the sampler's whatever the state records, so that a
+chain restored onto other weights or a finer grid is not the stored
+chain continued; the latents, which are re-derived when the case weights
+or an `aft` censoring status differ from those the state was stored
+under; the generator, which is left as the sampler's own when the
+state's is of another kind; or every kept draw, of which the newest that
+fit the sampler's store are taken. Nor does it cover a value the sampler
+holds fixed, which a state never changes. A state stored under another
+response mapping is installed as stored and reports `TRUE`. With
+`forceUpdate = TRUE` the state is installed, repaired where it has to
+be, and the value is `NULL`, invisibly, whether or not anything was
+repaired: a caller who needs to know calls without it first. `copy` and
+a reload install a state that way and report nothing.
 
 Under `keepTrees` the draws `predict`, `predictForests`, `getTrees` and
 `printTrees` report come out OLDEST FIRST: the store keeps the most
