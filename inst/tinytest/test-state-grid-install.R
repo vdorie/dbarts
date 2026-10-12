@@ -986,7 +986,10 @@ expect_identical(withVisible(sampler$setState(states$ordered)), visibly(TRUE))
 # state records that grid, and a new engine holds the grid of the levels the
 # data declares now. A copy and a reload are made all the same: the state is
 # not held to the record where the engine is new, its trees go in as stored,
-# and the two then draw alike. The sampler takes its own state back
+# and the two then draw alike. Their state field is then the state their
+# engine holds, which records the grid it is on and so installs on them; the
+# state the original stored records another grid than theirs and is refused.
+# The sampler takes its own state back
 levels6 <- ordered(rep_len(c(1L, 3L, 2L, 6L, 4L, 5L, 2L), n))
 kept <- as.integer(levels6) <= 4L
 sampler <- dbarts::dbarts(
@@ -1026,9 +1029,24 @@ if (all(made)) {
     remade <- stateOf(door)
     expect_identical(attr(remade, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
     expect_identical(liveOf(remade), liveOf(own))
-    expect_identical(door$state, own)
+    expect_identical(door$state, remade)
+    expect_identical(answerOf(door$setState(door$state)), visibly(TRUE))
+    expectError(door$setState(own), "the original's state")
+    expectError(
+      door$setState(own, forceUpdate = TRUE),
+      "the original's state"
+    )
+    expect_identical(stateOf(door), remade)
   }
   expect_identical(doors$copy$run(0L, 5L), doors$reload$run(0L, 5L))
+  # a reloaded sampler handed its field as its first call takes it too, and
+  # then draws as a copy that made no call
+  first <- reloadOf(sampler)
+  expect_identical(first$state, own)
+  expect_identical(answerOf(first$setState(first$state)), visibly(TRUE))
+  expect_identical(first$state, stateOf(first))
+  expect_identical(attr(first$state, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
+  expect_identical(first$run(0L, 5L), sampler$copy()$run(0L, 5L))
 }
 expect_identical(withVisible(sampler$setState(own)), visibly(TRUE))
 expect_identical(stateOf(sampler), own)

@@ -388,7 +388,7 @@
     For \code{storeState}, the sampler's engine pointer to capture from; defaults to \code{getPointer()} and is rarely passed explicitly.
   }
   \item{newState}{
-    For \code{setState}, a state object previously produced by this sampler or another over the same data: its \code{state} field, calling \code{storeState()} first to refresh it if a later mutation may have gone unstored (\code{storeState} itself returns \code{NULL} invisibly, so its return value cannot be passed here). Must inherit from \code{bartcoreState}.
+    For \code{setState}, a state object previously produced by this sampler or another over the same data: its \code{state} field, calling \code{storeState()} first to refresh it if a later mutation may have gone unstored (\code{storeState} itself returns \code{NULL} invisibly, so its return value cannot be passed here). A sampler's own \code{state} field always installs on that sampler: where a \code{copy} or a reload is made on other cut points than its stored state records, as on an ordered factor after \code{setData} (see \sQuote{Saving}), its field holds the state as it holds it. Must inherit from \code{bartcoreState}.
   }
   \item{...}{
     For \code{plotTree}, extra arguments to \code{\link{plot}}. For

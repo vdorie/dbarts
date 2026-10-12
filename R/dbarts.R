@@ -1896,11 +1896,14 @@ predictForestsCodedTest <- function(sampler, x.test, offset.test, n.threads) {
 ## installed, the engine and the mirrors are left alone and 0L is returned.
 ## adoptGrid is TRUE only where the engine was just created and so holds the
 ## cut points a creation derives, which need not be the ones the sampler
-## held: the engine then takes the points and weights the state records.
-## Without it the engine's cut points and weights are not written. Returns 1L
-## for a state that went in, and 2L for one that went in onto cut points or
-## weights other than the ones it records, which only an install that does
-## not adopt them gives.
+## held: the engine then takes the points and weights the state records for
+## every numeric column. A factor column's are never written, so on an
+## ordered factor the engine keeps the points of the levels the data
+## declares whatever the state records (heldAfterAdoption). Without
+## adoptGrid the engine's cut points and weights are not written. Returns 1L
+## for a state that went in, and 2L for one that went in without adoptGrid
+## onto cut points or weights other than the ones it records; an adopting
+## install returns 1L on an ordered factor's other points too.
 installStateOnto <- function(
   sampler,
   ptr,
@@ -1925,6 +1928,24 @@ installStateOnto <- function(
   sampler$reapplyForestWeights(ptr)
   sampler$reapplyActiveRows(ptr)
   status
+}
+
+## After an install that adopted state's cut points into the engine at ptr:
+## NULL where the engine holds the points the state records, and the engine's
+## own state where it does not, which is then the one the sampler's field
+## keeps, so that the field always installs on its sampler. Only an ordered
+## factor's column can differ, the engine writing every numeric column's
+## points and an unordered factor having none, so no state is read for a
+## sampler without one.
+heldAfterAdoption <- function(sampler, ptr, state) {
+  if (!any(sampler$data@varTypes == ORDERED_FACTOR_VARIABLE)) {
+    return(NULL)
+  }
+  held <- .Call(C_dbarts_bartcore_storeState, ptr)
+  if (identical(attr(held, "cutPoints"), attr(state, "cutPoints"))) {
+    return(NULL)
+  }
+  held
 }
 
 ## The response transform a sampler's leaf prior is anchored to and its
@@ -2582,9 +2603,12 @@ dbartsSampler <- setRefClass(
           TRUE
         )
         # the cached field is the source's: an updateState = FALSE source has
-        # none, and neither does its copy
+        # none, and neither does its copy. Where the copy's engine holds
+        # other cut points than that state records, the field is the engine's
+        # state
         if (!is.null(state)) {
-          dupe$state <- state
+          held <- heldAfterAdoption(dupe, dupe$pointer, installing)
+          dupe$state <- if (is.null(held)) state else held
         }
       } else {
         dupe$reapplyForestWeights(dupe$pointer)
@@ -3739,6 +3763,12 @@ dbartsSampler <- setRefClass(
         # from and then store over the fitted state. The abandoned pointer
         # carries its own holder and finalizes itself.
         selfEnv$pointer <- ptr
+        # an engine left on other cut points than the state records keeps its
+        # own state in the field
+        held <- heldAfterAdoption(.self, ptr, state)
+        if (!is.null(held)) {
+          selfEnv$state <- held
+        }
       }
       pointer
     },
@@ -3765,6 +3795,7 @@ dbartsSampler <- setRefClass(
         # Where it has no saved state, or one that does not install, the new
         # engine holds no grid of the sampler's and takes newState's
         ptr <- NULL
+        held <- NULL
         if (!is.null(state)) {
           ptr <- tryCatch(
             {
@@ -3779,6 +3810,7 @@ dbartsSampler <- setRefClass(
                 TRUE,
                 TRUE
               )
+              held <- heldAfterAdoption(.self, own, state)
               own
             },
             error = function(e) NULL
@@ -3789,8 +3821,17 @@ dbartsSampler <- setRefClass(
           adoptGrid <- TRUE
         } else {
           # this engine carries the sampler's own state: bound now, a state
-          # then refused or declined leaves the sampler it would leave live
+          # then refused or declined leaves the sampler it would leave live.
+          # Where it holds other cut points than that state records its own
+          # state is the field, as in getPointer, and stands for the field
+          # where the field is what was handed in
           selfEnv$pointer <- ptr
+          if (!is.null(held)) {
+            if (identical(newState, state)) {
+              newState <- held
+            }
+            selfEnv$state <- held
+          }
         }
       }
       status <- installStateOnto(
@@ -3817,7 +3858,8 @@ dbartsSampler <- setRefClass(
       if (status == 2L) {
         storeState(ptr)
       } else {
-        selfEnv$state <- newState
+        held <- if (adoptGrid) heldAfterAdoption(.self, ptr, newState)
+        selfEnv$state <- if (is.null(held)) newState else held
       }
       if (!forceUpdate) TRUE else invisible(NULL)
     },
