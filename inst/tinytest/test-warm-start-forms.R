@@ -503,6 +503,11 @@ expect_identical(
   answerOf(rising()$installTrees(withTrees(given, stumps(inOrder)))),
   visibly(TRUE)
 )
+# out of order alone, with no leaf to merge, is enough to decline
+expect_identical(
+  rising()$installTrees(withTrees(given, stumps(falling))),
+  FALSE
+)
 
 # ---- sides for missing values ------------------------------------------------
 
@@ -719,6 +724,10 @@ onFactor <- withTrees(
   stumps(tree(c(4L, -1L, -1L), c(points4[length(points4)], 0.1, -0.1)))
 )
 expect_identical(framed(levels4)$installTrees(onFactor), TRUE)
+# and where another column's points are not the donor's, the factor's being
+elsewhereFiner <- framed(levels4)
+elsewhereFiner$setCutPoints(finer[[1L]], 1L)
+expect_identical(elsewhereFiner$installTrees(onFactor), TRUE)
 expect_true(points4[length(points4)] > max(x[, 4L]))
 merged <- expectChanged(function() framed(x[, 4L]), onFactor, "factor donor")
 expect_identical(treeOf(merged$state)$vars, -1L)
