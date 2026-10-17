@@ -1,12 +1,11 @@
 # Derived data on the data object: the cut grid, the leaf standardization and the response range
 
-Status: PROPOSED 2026-10-17, no code; revised the same day from its blind critique. Plan:
-[state-frame-prior.md](../plans/state-frame-prior.md). Rulings: dec-B231, dec-B232 and dec-B233, with
-dec-B200 as dec-B418 revises it, dec-B230, dec-B237, dec-B304, dec-B305, dec-B310, dec-B329, dec-B330, dec-B449
-and dec-B450 in docs/decisions.md; dec-A159 (the forest calibration anchor goes to the data object beside the
-range) was confirmed under dec-B378. Calls no ruling covers are either [Open questions](#open-questions), each
-self-contained for the maintainer, or [Smaller calls](#smaller-calls), each with its alternative. Nothing
-below settles an open question; where the rule depends on one, it says so.
+Status: DECIDED 2026-10-17, no code; revised from its blind critique and then to the maintainer's rulings.
+Plan: [state-frame-prior.md](../plans/state-frame-prior.md). Rulings: dec-B231, dec-B232 and dec-B233, with
+dec-B200 as dec-B418 revises it, dec-B230, dec-B237, dec-B304, dec-B305, dec-B310, dec-B329, dec-B330, dec-B449,
+dec-B450, and for this design dec-B457 to dec-B461 ([Rulings](#rulings)) in docs/decisions.md; dec-A159 (the
+forest calibration anchor goes to the data object beside the range) was confirmed under dec-B378. The calls
+no ruling names are [Smaller calls](#smaller-calls), each with its alternative.
 
 A sampler holds a few numbers it derived from the data when it was made and then keeps while the data move:
 the cut grid and its weights, a linear or Gaussian-process (gp) leaf's covariate center and scale with the
@@ -49,7 +48,7 @@ the class's validity. Names: the first three are dec-B233's.
 |---|---|
 | `cutPoints` | a list, one entry per predictor column in the object's column order: the strictly increasing points; `NULL` for an unordered factor. A column whose points carry weights has them as the entry's `mass` attribute, the increasing sequence a state's `cutMass` holds for it |
 | `standardization` | a list, one entry per forest, `NULL` where the forest's leaves take no covariate: `center` and `scale` (`NA` for a column without spread), each named by the leaf covariates, and `lengthscale` only on a gp leaf whose lengthscale the model does not supply |
-| `response.range` | `c(min, max)`, what [`bartcore_anchor`](../../src/R_interface_bartcore.cpp) reports today, under a family that reads one from the response: gaussian, Student-t, aft, and nbinom, whose window of width 1 about its count center is that center's record. `NULL` under probit, logistic, ordinal and multinomial, which today report `c(0, 0)`. A constant response is `c(c, c)` |
+| `response.range` | `c(min, max)`, what [`bartcore_anchor`](../../src/R_interface_bartcore.cpp) reports today, under a family that reads one from the response: gaussian, Student-t, aft, and nbinom, whose window of width 1 about its count center is that center's record. `NULL` under probit, logistic, ordinal and multinomial, which today report `c(0, 0)` and read none. A constant response is `c(c, c)`. It carries no family: one carried to a sampler of another family is used as it is ([Smaller calls](#smaller-calls)) |
 | `forest.calibration` | `c(anchor = , unit = )` on a model of several forests with a calibration map, what the control's attribute holds today; `NULL` elsewhere, a multinomial sampler's K forests included |
 
 The record lives in three places, each holding what its layer can:
@@ -88,12 +87,13 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   training rows, which a whole-data record would override. `xbart(s$data)` is therefore today's `xbart`.
 - `setData(newData, updateState = NULL, updateCutPoints = NULL, updateScale = NULL, updateStandardization =
   NULL)`. Each record separately: an argument given is followed (derive, or keep what the sampler holds); with
-  none, a record `newData` carries is used, and one it lacks is derived. A record the sampler wrote into its
-  own data object counts as carried; whether it should is open question 2. Where `setData` puts the columns
+  none, a record `newData` carries is used, and one it lacks is derived. Presence alone decides: a record
+  the sampler wrote into its own data object counts as carried, and nothing is compared (dec-B458). Where `setData` puts the columns
   in the sampler's order (dec-A215) the grid's entries move with their columns. A linear leaf's slopes, live
   and kept, are converted wherever the standardization changes (dec-B329), and kept draws are rewritten
-  wherever the range changes, as today ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)). The argument
-  values are open question 4.
+  wherever the range changes, as today ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)). Each argument
+  defaults to `NULL`, the rule; `updateCutPoints` takes "none", "position" or "value", the other two `TRUE`
+  (derive) or `FALSE` (keep the sampler's own, never the carried one), all after `updateState` (dec-B460).
 - `setPredictor(x, column, forceUpdate, updateCutPoints = "none", updateState = NULL, updateStandardization =
   FALSE)`. `TRUE` derives the center, scale and heuristic lengthscale of the leaf covariates over the new
   values and converts linear slopes, live and kept; a gp sampler holding kept draws refuses `TRUE` (dec-B237).
@@ -101,23 +101,28 @@ and if values are supplied, use them. If explicit arguments are given, we could 
 - `setCutPoints`, `setModel`, and `updateScale = TRUE` on `setResponse`, `setOffset`, `setWeights` and
   `setActiveRows`: unchanged, except that the record they write or carry over is the data object's.
 - A live `setState`. Writes no record. The grid: dec-B449 as landed. The standardization: compared forest by
-  forest. Equal, the install is today's, bit for bit. Different, the sampler keeps its own; what happens to
-  the slopes is open question 1. A gp leaf's live fits go in as stored, and kept gp draws made under another
+  forest. Equal, the install is today's, bit for bit. Different, the sampler keeps its own and a linear
+  leaf's slopes, live and kept, go in as stored (dec-B457); the next draws move the live ones, and kept
+  linear draws predict under the sampler's standardization until replaced. A gp leaf's live fits go in as stored, and kept gp draws made under another
   center, scale or heuristic lengthscale are refused (dec-B237), beside kept draws under another supplied
   lengthscale ([`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp)). The range: as stored
   (dec-B418).
 - `copy()`, a reload's first use, and `setState` on a sampler whose engine is gone. The engine is re-created
   from `(control, model, data)` by creation's rule, so it takes every record from the data object and none
-  from the state, and the stored state then goes in by the live rule, forced as these always are (dec-B305).
-  A dead-pointer `setState` with no saved state takes the record's grid too, where today it adopts the handed
-  state's. Open question 3 is the copy whose stored state is older than a grid change. The field refresh
-  after an install onto another grid ([`heldAfterAdoption`](../../R/dbarts.R)) stays.
-- A warm start: unchanged. The recipient keeps its own values; a donor's slopes are converted from the
-  standardization its state records ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp),
-  dec-B329).
+  from the state. `copy()` of a live sampler, one whose engine exists in this R session
+  (`bartcore_isValidPointer`), then installs its engine's current chain; a sampler that is not live installs
+  its stored state by the live rule, forced as these always are (dec-B305), the stored trees moved onto the
+  data object's grid by value, and is refused without one, as today (dec-B459). A dead-pointer `setState`
+  with no saved state takes the record's grid too, where today it adopts the handed state's. The field
+  refresh after an install onto another grid ([`heldAfterAdoption`](../../R/dbarts.R)) stays.
+- A warm start. The recipient keeps its own values, and a linear donor's slopes go in as stored (dec-B457),
+  where today they are converted from the standardization the donor's state records
+  ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), which goes). The seeded fit then
+  starts away from the donor's function where the two standardizations differ, and the next draws move it.
 - Saved objects. A 0.9-34 sampler is refused at its first use ([`refuseLegacyState`](../../R/tombstones.R)), as
   today; a 0.9-34 data object has no slots and derives, as 0.9-34 did. An object saved by an earlier bartcore
-  build is open question 5.
+  build has no record and derives afresh, as any record-less data object does; no migration (dec-B461:
+  compatibility is owed to shipped versions only).
 - The flat C API has no record. A host that re-anchors through it changes the engine and leaves the R record
   stale, as it leaves the model's record today ([state-not-model.md](state-not-model.md)).
 
@@ -126,7 +131,7 @@ dec-B230 is untouched: a data object, like a state, is not checked against the d
 A gp sampler holding kept draws is then refused by `setData` only where the call would change the
 standardization or the range in force, and served where it keeps both; the grid never refuses, kept draws
 holding their thresholds by value. Where the call derives either, dec-B237 and dec-B330 refuse it already;
-the one open case is a carried record other than the sampler's, open question 6.
+a carried record other than the sampler's is refused too ([Smaller calls](#smaller-calls)).
 
 ## What changes for users
 
@@ -142,12 +147,16 @@ the runs). "Held" was emulated on the tip with the calls that exist: `setCutPoin
 | creation from `s$data`: `new()`, `dbarts()`, `bart()`, `dbartsSpec()`, `samplePriorPredictive` | grid and range derived from the data | the same; the range from the model where the door re-creates | the sampler's grid and range; `samplePriorPredictive` on the sampler's grid where it derived one from the data |
 | a control taken from a sampler of several forests, handed other data | no anchor | the control's anchor (0.190 where the data give 0.0796) | the data's own, derived |
 | `xbart(s$data)` | derived | derived | derived: the handle ignores records |
-| copy or reload whose stored state is older than `setCutPoints(c(0.25, 0.5, 0.75), 1)` (`updateState = FALSE`) | the state's grid | the state's 100 points and its 17 splits, where the sampler has 3 and 16; the same for a multinomial sampler | open question 3; as recommended, the 3 points with the stored splits moved onto them, 16 |
+| `copy()` of a live sampler whose stored state is older than `setCutPoints(c(0.25, 0.5, 0.75), 1)` (`updateState = FALSE`) | the state's grid and chain | the state's 100 points and its 17 splits, where the sampler has 3 and 16; the same for a multinomial sampler | the live chain on the 3 points: the sampler as it stands |
+| a reload of the same object | the state's grid | the state's 100 points, 17 splits | the 3 points, the stored splits moved onto them, 16 |
 | the same with `updateState = TRUE` | 3 points | 3 points, 16 splits | the same |
 | dead-pointer `setState(st)` with no saved state | the state's grid | the handed state's grid | the record's grid |
-| forced `setState` across a standardization (linear leaf, a column replaced by 3 a + 5 through `setData`) | no leaf models | the state's (0.518, 0.269) installed over data whose own are (6.55, 0.807): the slope's prior three times as wide in the column's units | the sampler's (6.55, 0.807) kept; the slopes by open question 1 |
+| forced `setState` across a standardization (linear leaf, a column replaced by 3 a + 5 through `setData`) | no leaf models | the state's (0.518, 0.269) installed over data whose own are (6.55, 0.807): the slope's prior three times as wide in the column's units; kept draws predict as stored | the sampler's (6.55, 0.807) kept, slopes as stored; kept linear draws predict under it until replaced |
+| warm start from a linear donor under another standardization | no leaf models | slopes converted: the seeded fit is the donor's | slopes as stored: the seeded fit is not the donor's until the draws move it (leaf-conversions.md measured up to 6.30 between the two) |
+| a sampler saved by an earlier development build | refused (0.9-34's own) | its state's grid adopted | derived afresh |
 | gp sampler holding kept draws, `setData(s$data)` | no leaf models | refused | served |
 | `attr(s$model, "response.range")`, the control's `anchor` and `unit` | absent | read by tests | gone; the data object's slots |
+| `setData` of a gp sampler holding kept draws, the data carrying another standardization or range | no leaf models | refused | refused, with dec-B237's remedy |
 
 Nothing moves for a fit that never reaches one of these doors: every creation from a fresh data object
 derives what it derives today, and a re-creation from a current record gives the values today's re-creation
@@ -182,8 +191,9 @@ dec-B450 defers past the merge.
   force for the new row count, and installs the response without moving the transform. Derive is today's
   path, unchanged.
 - [`Chain::setState`](../../src/bartcore/chain.hpp) stops calling `restoreCalibration` on an install; the
-  slopes as open question 1 has them. `adoptGrid` in [`Sampler::setState`](../../src/bartcore/sampler.hpp)
-  goes, unless open question 5 keeps it.
+  slopes go in as stored, and the warm start's conversion,
+  [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), goes with it. `adoptGrid` in
+  [`Sampler::setState`](../../src/bartcore/sampler.hpp) goes (dec-B461).
 - One reader of the four values, read by the bridge after every call that can change one.
 - The bridge resolves the R arguments and the carried slots into the per-value choice; the engine does not
   know which door asked.
@@ -206,172 +216,45 @@ that call.
 - A hidden field on the sampler: every re-creation path would need its own carrying, and a host could not hand
   a sampler a range or grid with its data. The data object is already what creation, copy and reload read.
 - Holding at every plain `setData`, or requiring the arguments on every call: dec-B231's two rejected options.
-- `setState` installing the standardization, as the tip does: open question 1, option (c).
+- `setState` installing the standardization, as the tip does, and converting slopes at every install: not
+  taken (dec-B457).
 
-## Open questions
+## Rulings
 
-Each is written to be put to the maintainer alone, costliest first. The plan is written to each
-recommendation and says what another answer changes.
+Put to the maintainer one at a time on 2026-10-17, each with its background, 0.9-34's behavior and its
+options; the entries hold the alternatives and their costs.
 
-### 1. A restored state whose slopes were drawn under another standardization
-
-Background. A linear leaf fits a line in each leaf against its covariate after centering and scaling it, so a
-stored slope is a number per scaled unit. The center and scale are data and stay with the sampler. When a
-state stored under one standardization is installed into a sampler holding another (after `setData` with
-new values, or `setPredictor(updateStandardization = TRUE)`), its slopes can either be read as they are, which
-changes the line each leaf draws, or rewritten so that each leaf draws the same line. Two rulings speak.
-dec-B329, 2026-10-08, on `setData` and the warm start: "Convert by the formula here too, in both
-directions." dec-B418, 2026-10-09, on every install: a warm start, `setState`, `copy()` and a reload "install
-the chain's parameters (tree structure, leaves, k, sigma and the rest) as stored on the internal scale ...
-and never convert them", the maintainer adding "The mental model of the sampler is a linear one through
-time, with each sample being a snapshot." The two meet on this case; the code today follows dec-B329 at a
-warm start and installs the state's standardization at `setState`. 0.9-34 had no linear leaves.
-
-Options:
-
-- (a) The sampler keeps its own; live and kept slopes are converted so each leaf draws its stored line; the
-  install reports clean. About 60 engine lines. A gp leaf's live fits cannot be converted and go in as
-  stored, so the "same function" promise holds for linear leaves only.
-- (b) As (a), but not clean: unforced it declines, forced it converts. No unforced way to restore a state
-  stored before `updateStandardization = TRUE`.
-- (c) Install the state's standardization, as the tip does: restoring a state then changes the slope prior,
-  which is model, and a state carries data.
-- (d) The sampler keeps its own and the slopes go in as stored: bit for bit, no conversion code, clean. The
-  live leaves and the kept draws then draw other lines until the next sweeps move the live ones; `predict`
-  reads the kept draws under the sampler's standardization, as it reads kept draws across a change of
-  response range under dec-B418.
-
-Recommended: (d). dec-B418 is the later ruling and the one about installs, and its intent, a chain as a
-sequence of snapshots under one model and data, with a restore across a change legal and of no special
-meaning, is what (d) does; it is also how the package already treats the response range, where a re-anchor
-rewrites kept draws but an install does not. dec-B329 governs the calls that move the units themselves,
-`setData` and the warm start, and stays. The cost of (d): after a restore across a change of standardization,
-kept linear draws predict other values until replaced, which the help says, as it says for the range.
-
-### 2. The sampler's own data object handed back to setData
-
-Background. Under the new records, `s$data` carries what the sampler derived. A caller who edits it and hands
-it back (`d <- s$data; d@x[, 1] <- newValues; s$setData(d)`) then gets the old cut grid, range and
-standardization held, where 0.9-34 derived them again from the new values: on the measured fixture the fit
-was twice as far from the truth. dec-B231 gives the default: "re-derive if no values are present ... and if
-values are supplied, use them". It does not say whether a record the sampler itself wrote counts as
-supplied. Its other words cut both ways: "You don't want to update derived data in an ambiguous case. It
-needs to be explicit, because a caller might not understand that setData is changing a different part of
-the sampler." Holding is not changing; but the 0.9-34 caller expects the change. A host that moves predictors
-or the response every sweep wants the hold.
-
-Options:
-
-- (a) A record the sampler wrote counts as supplied: held. A NEWS line, and the help names the three
-  arguments and a `NULL` slot as the ways to derive.
-- (b) As (a), and a warning where a held grid leaves a column's new values past its last point or a held range
-  leaves the new response outside it. About 40 lines and a warning class; it fires inside a host's loop where
-  the hold is meant.
-- (c) A record identical to the sampler's own counts as absent: the edited idiom derives as in 0.9-34, but a
-  host handing back `s$data` with a new response re-derives every sweep, which dec-B296 rules out, and the
-  record is "supplied" only when the caller changed it.
-
-Recommended: (a). It is dec-B231's rule read plainly, it serves the host case the ruling was made for, and the
-change from 0.9-34 is one idiom the help can name.
-
-### 3. A copy or reload whose stored state is older than a grid change
-
-Background. A copy and a reload are rebuilt from the sampler's control, model and data, then given its stored
-state. With `updateState = FALSE` the stored state can predate a `setCutPoints` call. 0.9-34 and the tip both
-rebuild on the stored state's grid. Under the records the rebuilt engine has the data object's grid, which is
-the live sampler's.
-
-Options:
-
-- (a) The record's grid; the stored trees are moved onto it by value, as a forced `setState` moves them. The
-  copy has the sampler's grid and the stored chain's trees moved: neither the live sampler nor the stored
-  state exactly (measured: 17 stored splits become 16 on 3 points). The help says to `storeState()` before
-  copying or saving after a grid change.
-- (b) As (a), and `copy()` reads the live state where the source's engine is alive, so a copy is the sampler as
-  it stands. A sampler kept with `updateState = FALSE` no longer copies its stored state; a reload has no
-  live engine and stays (a). About 20 lines.
-- (c) Today's: the stored state's grid. The copy is the stored state exactly, on a grid the sampler no longer
-  holds; a state installs a grid on these two paths, against dec-B231, and the adopting code stays.
-
-Recommended: (a). It keeps "a state never installs a grid" on every path; the case is reached only with
-`updateState = FALSE` and a grid change since the last store, which the help can prevent.
-
-### 4. setData's three argument values
-
-Background. dec-B233 names `updateCutPoints`, `updateScale` and `updateStandardization` on `setData`, not their
-values. `setPredictor`'s `updateCutPoints` already takes "none", "position" and "value"; the other setters'
-`updateScale` is `TRUE` or `FALSE`. 0.9-34's `setData` took `(newData, updateState)`.
-
-Options:
-
-- (a) Each `NULL` by default, meaning the rule; `updateCutPoints` takes `setPredictor`'s words, "none" keeping
-  the sampler's grid and "position" or "value" deriving and placing the splits (today's `setData` is
-  "value"); the other two take `TRUE` (derive) or `FALSE` (keep the sampler's). An explicit keep is the
-  sampler's value, never the carried one. They follow `updateState`, so `setData(d, TRUE)` keeps its 0.9-34
-  meaning.
-- (b) Logical throughout, `updateCutPoints = TRUE` placing by value: loses "position".
-- (c) A fourth value naming the carried record: a word for what `NULL` already does.
-
-Recommended: (a): one vocabulary for the grid across the three setters, and `NULL` as base R's absent.
-
-### 5. Samplers saved by a bartcore build before this one
-
-Background. A sampler saved before the records existed has a data object without them. No release wrote such
-objects: 1.0-0 is not released and 0.9-34 samplers are refused already. Of the consumers, stan4bart saves its
-own control, model and data with the states and restores by making a new sampler from them, a data object
-that never carried a record; bartCause and treatSens save no sampler (read with `git grep`).
-
-Options:
-
-- (a) Migrate at the first rebuild: grid and weights adopted from the stored state, standardization installed
-  from it, range from the model's old attribute, anchor from the control's; the reload is today's bit for
-  bit. About 50 lines of R, and the adopting paths stay in 1.0-0 for development objects only.
-- (b) Derive afresh, as a data object without records does anywhere: no code. Such a reload keeps every value
-  that was never changed after creation; one with a grid set by `setCutPoints` or a re-anchored range comes
-  back on derived values, its trees moved.
-- (c) Refuse, with a refit message: about 10 lines.
-
-Recommended: (b). The objects exist only on development machines, no consumer needs them, and (b) needs
-nothing beyond the rule every other record-less object follows; (c) would also refuse the many such objects
-(b) reloads exactly.
-
-### 6. A gp sampler with kept draws handed a record other than its own
-
-Background. A kept gp draw replays only under the standardization and response range it was drawn with.
-dec-B237 refuses a change of standardization on such a sampler and dec-B330 refuses a re-derived range
-"outright, whatever the new values", so a `setData` that derives either is refused, and one that keeps both
-is served. The case no ruling names: a data object carrying a standardization or range other than the
-sampler's, used under the default rule.
-
-Options:
-
-- (a) Refused when any number of the carried record differs from the sampler's, with the remedy (`FALSE` for
-  the argument, or a new sampler).
-- (b) The carried record ignored and the sampler's kept, silently.
-
-Recommended: (a): it is the same change dec-B237 and dec-B330 refuse, reached without an argument; (b) drops
-what the caller supplied without a word, against dec-B231's "use them".
-
-### 7. A range carried to a sampler of another family
-
-Background. A range is read from the response under the family that made it: an aft fit's from the observed
-times, a count fit's window about its center. A data object made for one family can be handed to a sampler of
-another (the test suite hands a gaussian sampler's data to an aft one). dec-B232 named the cost that a range
-"derived under the settings of the sampler that made it" is used under others.
-
-Options:
-
-- (a) Used as it is, the cost dec-B232 named.
-- (b) The record carries its family; under another family it counts as absent and is derived. A string on the
-  record, about 15 lines.
-
-Recommended: (b). The cost dec-B232 named was a carried value a fresh derivation would not give; across
-families the value does not mean the same thing, and (b) costs little.
+- A restored state's slopes (dec-B457). A linear leaf's stored slope is a number per unit of the scaled
+  covariate. dec-B329 converts slopes at `setData`, which moves the data under a live chain; dec-B418 has
+  every install put parameters in "as stored ... and never convert them", and the code converted at a warm
+  start. The maintainer: "install as stored", at every install, the warm start included. The sampler keeps
+  its standardization; kept linear draws predict under it until replaced, which the help says.
+- The sampler's own data handed back (dec-B458). Presence of a record alone decides; nothing is compared.
+  The edited `s$data` idiom holds where 0.9-34 derived; NEWS and the help name it. "Hold is fine."
+- A copy whose stored state is older than a grid change (dec-B459). `copy()` of a live sampler copies its
+  engine's current chain; a sampler that is not live is rebuilt from its stored state on the data object's
+  grid, its trees moved by value; the help says to `storeState()` before saving after a grid change. Against
+  this design's first recommendation, which installed the stored state in both cases.
+- setData's argument values (dec-B460). `NULL` by default, then the setters' existing vocabularies.
+- Objects saved by a development build (dec-B461). No migration; such an object derives afresh. A standing
+  rule: compatibility is owed to shipped versions only.
 
 ## Smaller calls
 
-Agent-made, each with its alternative, for the maintainer's later mark:
+Two are the orchestrator's readings of rulings already made; the rest are agent-made, each with its
+alternative, for the maintainer's later mark.
 
+- A gp sampler holding kept draws, handed by `setData` a carried standardization or range other than its
+  own, is refused with dec-B237's remedy (`updateStandardization = FALSE` and `updateScale = FALSE`, or a new
+  sampler): it is the change dec-B237 and dec-B330 refuse, reached without an argument. Read as settled by
+  dec-B237. The alternative, ignoring the carried record silently, drops what the caller supplied.
+- A range carried to a sampler of another family is used as it is: dec-B232 accepted exactly that cost, a
+  range "derived under the settings of the sampler that made it" used under others. No family is recorded.
+  A family that reads no range (probit, logistic, ordinal, multinomial) does not read it, and its sampler
+  writes `NULL`. The alternative, a family tag under which another family derives, is not taken.
+- The copy's own `state` field after `copy()` of a live sampler holds the chain it was made from, so a
+  reload of the copy rebuilds what the copy was. Alternative: the source's field, as today, which can be older
+  than the copy's chain.
 - The weights are the entry's `mass` attribute. Alternative: a fifth slot parallel to `cutPoints`.
 - The standardization is keyed by forest and by covariate name. Alternative: by column index, which a
   reordered `setData` would have to remap.
@@ -393,7 +276,6 @@ Agent-made, each with its alternative, for the maintainer's later mark:
 
 Weights on `setCutPoints` (dec-B450, TODO `cut-point-weights`); the rows a leaf's center and scale are read
 from, and `xbart`'s folds (response-scale-rows slice D, dec-B304); kept gp draws that store their own kernel
-(dec-B237's later option); the conversion of a warm start's slopes, which dec-B329 and dec-B418 also both
-reach and which this item does not change; a multiplier's basis scale, a fifth record of the same kind, which
+(dec-B237's later option); a multiplier's basis scale, a fifth record of the same kind, which
 forest-multiplier push 2 adds to the data object itself and whose write-back folds into this one's whichever
 lands second; the columns' level tables (factor-levels-across-setdata.md).

@@ -1,48 +1,53 @@
 # state-frame-prior: the derived data's records on dbartsData, and every door reading them
 
-Status: PLANNED 2026-10-17; revised the same day from its blind critique (scratch/sfdc-crit.md, sound after
-revisions; [Revision from critique](#revision-from-critique)). Seven questions open with the maintainer
-([Open questions](../design/state-frame-prior.md#open-questions)), the steps written to each recommendation.
-Design: [state-frame-prior.md](../design/state-frame-prior.md). Rests on dec-B231 to dec-B233, dec-B237,
-dec-B304, dec-B305, dec-B310, dec-B329, dec-B330, dec-B418, dec-B449, dec-B450 and dec-A159 (confirmed under
-dec-B378).
+Status: PLANNED 2026-10-17; revised from its blind critique (scratch/sfdc-crit.md, sound after revisions;
+[Revision from critique](#revision-from-critique)) and then to the maintainer's rulings dec-B457 to dec-B461
+([Revision to the rulings](#revision-to-the-rulings)). No call open. Design:
+[state-frame-prior.md](../design/state-frame-prior.md). Rests on dec-B231 to dec-B233, dec-B237, dec-B304,
+dec-B305, dec-B310, dec-B329, dec-B330, dec-B418, dec-B449, dec-B450, dec-B457 to dec-B461 and dec-A159
+(confirmed under dec-B378).
 
 agent: per slice, one opus implementer and one opus reviewer who runs that slice's mutants. Tier "Changes
 draws" ([Process by risk](README.md#process-by-risk)) for all three: each edits the engine's creation,
 `setData` or install path.
 rng, per slice, against equivalence-32418b6e, bcf-equivalence-1b7d730c and multinomial-equivalence-80b1c8d4
-(bcf-equivalence-0fdeb37e if forest-multiplier push 1 lands first). No recorded scenario reaches a changed
+(bcf-equivalence-0fdeb37e now that forest-multiplier push 1 has landed). No recorded scenario reaches a changed
 sequence: the `setdata` and `hetsetdata` scenarios hand a fresh `dbartsData()`, the `setPredictor` scenarios
 name no new argument, none copies, reloads, calls `setState` or `samplePriorPredictive`, or hands one
-sampler's control or data to another. Expected 55, 15 and 11 identical in every slice, no re-record; a moved
+sampler's control or data to another, and none makes a warm start. Expected 55, 15 and 11 identical in every slice, no re-record; a moved
 stream is a stop.
 - 1, grid, range and anchor. NEUTRAL, bit for bit, for every creation from a data object that carries no
   record, every live call, `xbart` (its handle ignores records), and every copy, reload and dead-pointer
-  `setState` whose stored state records the grid in force. POSTERIOR-CHANGING on six sequences, each a
-  changed tree prior or leaf prior: a copy or reload whose stored state is older than a grid change (the
-  record's grid, design question 3); a dead-pointer `setState` with no saved state (the record's grid, not
+  `setState` whose stored state records the grid and chain in force. POSTERIOR-CHANGING on seven sequences,
+  each a changed tree prior or leaf prior or a changed chain: `copy()` of a live sampler whose stored state is
+  older than its chain (the engine's current chain and grid, dec-B459); a reload of such an object (the
+  record's grid, the stored trees moved by value); a dead-pointer `setState` with no saved state (the record's grid, not
   the handed state's); a creation from a data object carrying a record other than a fresh derivation's
   (`new()`, `dbarts()`, `bart()`, `bart2()` or `dbartsSpec()` handed `s$data`); `samplePriorPredictive` (the
   sampler's grid, where it derived one from `data@x`); a control of several forests handed other data (the
   data's anchor, not the control's); a reload of an object saved before this slice whose grid or range was
-  changed after creation (derived, design question 5).
-- 2, standardization. NEUTRAL for every install and re-creation under the standardization in force.
-  POSTERIOR-CHANGING for an install across a standardization: the sampler keeps its own where the tip
-  installs the state's, and the slopes go in as stored (design question 1, option (d)). Refused where the tip
-  installs: kept gp draws under another standardization or heuristic lengthscale.
+  changed after creation (derived, dec-B461).
+- 2, standardization. NEUTRAL for every install, warm start and re-creation under the standardization in
+  force. POSTERIOR-CHANGING for a `setState`, copy or reload across a standardization: the sampler keeps its
+  own where the tip installs the state's, and the slopes go in as stored (dec-B457). SHIFTING for a warm start
+  from a linear donor under another standardization: the slopes go in as stored where the tip converts
+  them, so the seeded fit and the draws after it differ and the recipient's posterior does not; such a donor
+  that the tip declined unforced for a column without spread (`keptAcrossValues`) is clean. Refused where the
+  tip installs: kept gp draws under another standardization or heuristic lengthscale.
 - 3, setData and setPredictor. NEUTRAL for `setData` of a data object carrying no record and `setPredictor`
   without `updateStandardization`. POSTERIOR-CHANGING for `setData` of a carried record (held where the tip
   derives) and for the new arguments. Accepted where refused: a gp sampler's `setData` that keeps the
-  standardization and range.
+  standardization and range. Still refused: a carried standardization or range other than the gp sampler's.
 window: before the merge to main. Engine slices stay serial (Order and interactions).
-budget: 1 about 1840 lines, 2 about 980, 3 about 1650; [Budget and stops](#budget-and-stops).
+budget: 1 about 1860 lines, 2 about 1100, 3 about 1650; [Budget and stops](#budget-and-stops).
 
 ## Goal
 
 Each derived value has one record, on the data object: `cutPoints` (with its weights), `standardization`,
 `response.range` and `forest.calibration`. Creation and `setData` use a carried record, derive an absent one
-and follow an explicit argument; `setPredictor` takes `updateStandardization`; a state install keeps the
-sampler's standardization; a copy and a reload take every value from the record and none from the state; the
+and follow an explicit argument; `setPredictor` takes `updateStandardization`; every install, the warm start included, keeps the
+sampler's standardization and puts slopes in as stored; a copy of a live sampler copies its current chain,
+and every re-creation takes every value from the record and none from the state; the
 gp `setData` refusal covers only calls that would change a kept draw; the help carries the table of what puts
 each value back. Closes TODO `state-frame-prior` and unblocks response-scale-rows slice D.
 
@@ -85,20 +90,13 @@ each value back. Closes TODO `state-frame-prior` and unblocks response-scale-row
 
 ## Decision
 
-The design's seven open questions. What another answer changes:
-
-1. (a) or (b): slice 2 adds the conversion of live and kept linear coefficients (about 60 engine lines, 150
-   of tests), and under (b) a FALSE verdict. (c): slice 2 keeps `restoreCalibration` and shrinks to the gp
-   refusal.
-2. (b): about 40 lines and a warning class in slice 3. (c): slice 3 compares a carried record with the
-   sampler's before using it.
-3. (b): about 20 lines in slice 1 and a sentence of `copy`'s help. (c): slice 1 keeps `adoptGrid` on the
-   copy and reload paths.
-4. (b): slice 3 loses `"position"`. (c): one more branch in step 3.3.
-5. (a): about 50 lines of R in slice 1, and slice 1 keeps `adoptGrid` and slice 2 `restoreCalibration` for
-   record-less objects. (c): one refusal in slice 1.
-6. (b): slice 3's refusal ignores a carried record instead.
-7. (a): slice 1's record carries no family, about 15 lines fewer.
+Ruled, 2026-10-17: install as stored at every install, the warm start included (dec-B457); a carried record
+holds at `setData` by presence alone (dec-B458); `copy()` of a live sampler copies its current chain, one not
+live rebuilds from its stored state on the data object's grid (dec-B459); `NULL` defaults and the existing
+vocabularies (dec-B460); no migration for development objects (dec-B461). The orchestrator's readings: a gp
+sampler's carried record other than its own is refused with dec-B237's remedy; a range carried across
+families is used as it is (dec-B232). The design's [Smaller calls](../design/state-frame-prior.md#smaller-calls)
+are agent-made and the steps follow them.
 
 ## Constraints
 
@@ -124,13 +122,13 @@ The design's seven open questions. What another answer changes:
     [facade.hpp](../../src/bartcore/facade.hpp)). Optional supplied grids and weights at construction,
     installed before the columns are quantized, through the standard and the multinomial factories. One
     reader of the grids, weights, range, anchor and unit, through a facade virtual. `adoptGrid` and its path
-    in [`Sampler::setState`](../../src/bartcore/sampler.hpp) go (design question 5, (b)). `--preclean`.
+    in [`Sampler::setState`](../../src/bartcore/sampler.hpp) go (dec-B461). `--preclean`.
 1.2 Bridge (about 160 lines). [`parseData`](../../src/R_interface_bartcore.cpp) reads `cutPoints`,
     `response.range` and `forest.calibration`, each guarded for an object without it; the two creating
     factories take them; [`bartcore_createDataHandle`](../../src/R_interface_bartcore.cpp) skips them. The
-    anchor and unit come from `data@forest.calibration`. The reader entry. A range record carries its family
-    (question 7) and is skipped under another.
-1.3 R (about 260 lines). The three slots on [`dbartsData`](../../R/A_class.R), accessors in
+    anchor and unit come from `data@forest.calibration`. The reader entry. A range record carries no family
+    and is used under any family that reads one (dec-B232).
+1.3 R (about 280 lines). The three slots on [`dbartsData`](../../R/A_class.R), accessors in
     [R/data.R](../../R/data.R), `checkDerivedRecord` at the creation doors and `setData` (a grid out of order
     sorted, a repeated point refused, a misfit refused naming the slot). The sampler writes them after
     creation and after `setCutPoints`, `setPredictor`, `setData` and each `updateScale = TRUE`;
@@ -138,6 +136,9 @@ The design's seven open questions. What another answer changes:
     multinomial) and `setModel` no longer carries the attribute; the anchor and unit leave the control and
     its `initialize` block. `copy`, [`getPointer`](../../R/dbarts.R), [`recreatePointer`](../../R/dbarts.R),
     the dead-pointer `setState` and [`samplePriorPredictive`](../../R/dbarts.R) re-create from the record.
+    `copy()` of a live sampler (`C_dbarts_bartcore_isValidPointer`) installs its engine's current chain, read
+    without touching the source's field, and the copy's field holds that chain (about 20 lines, dec-B459); a
+    sampler that is not live installs its stored state, forced, onto the record's grid.
     Docstrings of `copy`, `setState` and `storeState`.
 1.4 Existing tests: the range and unit reads of Context; the adoption pins of
     [test-state-grid-install.R](../../inst/tinytest/test-state-grid-install.R) ("re-creation adopts", "reload,
@@ -155,18 +156,20 @@ The design's seven open questions. What another answer changes:
 | written at creation | each door: the records equal the engine's reader; the caller's object carries none; probit, logistic, ordinal, multinomial: range `NULL`; multinomial: calibration `NULL` | the caller's object written; `c(0, 0)` recorded |
 | fresh object neutral | 16 fixtures (each leaf kind, weights, a mask, a factor, a sparse store, several forests, multinomial): readers and the next 20 draws equal literals recorded from the base build | the supplied path taken with derived values |
 | copy and reload bitwise | after `storeState()`, the same fixtures: state, readers and next 20 draws equal the recorded literals | the range supplied at construction |
-| copy holds the sampler's grid | `updateState = FALSE`, 3 points set: copy and reload have 3 points and the stored trees moved by value (16 splits), multinomial too | adopting from the state |
+| copy is the live sampler | `updateState = FALSE`, 3 points set, 20 more sweeps: `copy()` has 3 points, the source's current trees, generator and readers, and its next 20 draws equal the source's; its field holds that chain; the source's field untouched; multinomial too | the stored state installed |
+| reload moves the stored trees | the same object saved and read: 3 points, the stored trees moved by value (16 splits) | adopting from the state |
+| copy of a live sampler with a current field | `updateState = TRUE`: the copy's state and next 20 draws equal the recorded literals | the field and the live read differing |
 | dead pointer, no saved state | `setState(st)`: the record's grid | the handed state's grid adopted |
 | carried at creation | `new()`, `dbarts()`, `bart()` and `dbartsSpec()` handed `s$data` after `setCutPoints`, `setPredictor(updateCutPoints = "value")` and `setResponse(updateScale = TRUE)`: the sampler's grid, weights and range; `samplePriorPredictive` on the sampler's grid | the record ignored at one door |
 | xbart ignores | `xbart(s$data)` after `setResponse(updateScale = TRUE)`: each fold's range its own, equal to `xbart` of a fresh object | the handle handed the record |
 | control anchor | a control of several forests handed other data: the data's anchor (q7's 0.0796, not 0.190) | the control's read |
-| family tag | a gaussian sampler's data handed to an aft and a probit sampler: derived | the range used across families |
+| family as is | a gaussian sampler's data handed to an aft sampler: the range used as carried; to a probit sampler: not read, `NULL` written | derived across families; `c(0, 0)` read under probit |
 | weights ride | a 30-value integer column: copy and reload keep its weights | weights dropped |
 | misfit and order | wrong column count, an ordered factor's other grid, a range of length 1: refused, nothing created; an unsorted grid sorted; a repeated point refused | the check skipped at one door |
 | record-less object | the slots removed (as test-missingness-first-seen.R removes one): derived, as a fresh object | migration |
 | constant response | several forests on a constant response (forest-multiplier push 1's case): the anchor recorded and a copy created | the record's anchor of 0 |
 
-## Slice 2: the standardization record, and a state install that keeps it
+## Slice 2: the standardization record, and every install keeping it
 
 ### Steps
 
@@ -175,18 +178,27 @@ The design's seven open questions. What another answer changes:
     construction, through both creating factories, served as
     [`ColumnStore::suppliedStandardization`](../../src/bartcore/data.hpp) serves a view. The reader returns
     them. [`Chain::setState`](../../src/bartcore/chain.hpp) no longer calls `restoreCalibration`: the
-    sampler's standardization stays and the slopes go in as stored (question 1, (d)); a gp forest whose kept
+    sampler's standardization stays and the slopes go in as stored (dec-B457); a gp forest whose kept
     draws were made under another center, scale or heuristic lengthscale is refused beside
-    [`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp).
+    [`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp). The warm start's conversion goes:
+    [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), its call in `Sampler::installForests`
+    and its `keptAcrossValues` reason for an install that is not clean (about 70 lines removed).
 2.2 Bridge and R (about 110 lines): the slot, its accessor and check, its write-back; the refusal's text
-    beside the lengthscale one; docstrings.
-2.3 Existing tests: the pins of a restore that expects the state's standardization
-    ([test-leaf-conversions.R](../../inst/tinytest/test-leaf-conversions.R), tests/cpp
-    [`testWarmStartStandardization`](../../tests/cpp/test_state.cpp) is the warm start's and stays).
-2.4 Tests (about 650 lines with 2.3).
-2.5 Help, NEWS, notes (about 100 lines): the `setState` sentences (kept linear draws predict under the
-    sampler's standardization after a restore across a change); the standardization row of
-    [state-not-model.md](../design/state-not-model.md); [leaf-conversions.md](../design/leaf-conversions.md).
+    beside the lengthscale one; [`readWarmStartState`](../../src/R_interface_bartcore.cpp) no longer reads a
+    donor's standardization blocks; docstrings of `setState`, `installTrees` and `bart`'s `warm.start`.
+2.3 Existing tests: the pins of a restore that expects the state's standardization, and of the warm start's
+    conversion: section 4 of [test-leaf-conversions.R](../../inst/tinytest/test-leaf-conversions.R) ("a warm
+    start between standardizations") and its donor without spread, the conversion pins of
+    [test-warm-start-forms.R](../../inst/tinytest/test-warm-start-forms.R), and tests/cpp
+    [`testWarmStartStandardization`](../../tests/cpp/test_state.cpp), each rewritten to slopes as stored.
+    warm-start-salvage slice D's pins ("linear, other covariates", "linear into constant") already expect no
+    restatement and stand.
+2.4 Tests (about 750 lines with 2.3).
+2.5 Help, NEWS, notes (about 120 lines): the `setState`, `installTrees` and `warm.start` sentences (kept
+    linear draws predict under the sampler's standardization after a restore across a change; a seeded fit
+    starts away from the donor's where the standardizations differ); NEWS; the standardization row of
+    [state-not-model.md](../design/state-not-model.md); [leaf-conversions.md](../design/leaf-conversions.md)'s
+    warm-start rule and its table row; [warm-start-salvage.md](../design/warm-start-salvage.md).
 
 ### Tests
 
@@ -197,6 +209,8 @@ The design's seven open questions. What another answer changes:
 | copy holds it | a copy and a reload after `setPredictor(updateStandardization = TRUE)` emulated through `setData`: the record's standardization | derived at re-creation |
 | gp kept refused | kept gp draws under another standardization and under another heuristic lengthscale: error, sampler untouched; live fits alone install | live fits refused too |
 | supplied lengthscale | a gp leaf whose lengthscale the model supplies: no `lengthscale` in the record, the model's in force | the record's read over the model's |
+| warm start as stored | a linear donor under another standardization, live and from a kept draw: the recipient's slopes are the donor's stored numbers, its standardization its own; TRUE unforced, a column without spread on both sides included | the conversion left in; FALSE kept for `keptAcrossValues` |
+| warm start, same frame | a donor under the recipient's standardization: equal to the recorded literals | a branch on equal standardizations |
 
 ## Slice 3: setData and setPredictor under the rule, and the manual's table
 
@@ -211,11 +225,12 @@ The design's seven open questions. What another answer changes:
     the new values, then the conversion of live and kept linear coefficients (dec-B329).
 3.2 Bridge (about 90 lines). [`bartcore_setData`](../../src/R_interface_bartcore.cpp) takes the three choices;
     its outright gp refusal becomes: refused where the call derives the standardization or the range (dec-B237,
-    dec-B330) or brings a carried one whose numbers differ from the sampler's (question 6), with the remedy.
+    dec-B330) or brings a carried one whose numbers differ from the sampler's (the orchestrator's reading of
+    dec-B237), with dec-B237's remedy.
     The predictor entries take the flag; a gp sampler holding kept draws refuses `TRUE`.
 3.3 R (about 160 lines). `setData(newData, updateState = NULL, updateCutPoints = NULL, updateScale = NULL,
-    updateStandardization = NULL)` resolves each choice by question 4; a record the sampler wrote counts as
-    carried (question 2); the carried records are aligned with the columns before the call
+    updateStandardization = NULL)` resolves each choice (dec-B460); a record the sampler wrote counts as
+    carried, by presence alone (dec-B458); the carried records are aligned with the columns before the call
     ([`alignDataFactorLevels`](../../R/bartcore.R)'s order); the fallback warning
     ([`scaleRowsFallBack`](../../R/spec.R)) is tested only where the range is derived.
     `setPredictor(..., updateStandardization = FALSE)`.
@@ -265,18 +280,17 @@ Per slice, against the slice's own library ([Landing](README.md#landing)):
 
 | | 1 | 2 | 3 |
 |---|---|---|---|
-| engine | about 170 | about 120 | about 230 |
-| bridge and R | about 420 | about 110 | about 250 |
-| tests | about 1100 | about 650 | about 1000 |
-| help, NEWS, notes | about 150 | about 100 | about 170 |
-| planned | about 1840 | about 980 | about 1650 |
+| engine | about 170 | about 120 added, 70 removed | about 230 |
+| bridge and R | about 430 | about 110 | about 250 |
+| tests | about 1100 | about 750 | about 1000 |
+| help, NEWS, notes | about 150 | about 120 | about 170 |
+| planned | about 1860 | about 1100 | about 1650 |
 | stop, engine lines added | 320 | 220 | 380 |
-| stop, all | 2800 | 1500 | 2500 |
+| stop, all | 2800 | 1700 | 2500 |
 
 Sized from the landed history: state-grid-install planned 250 engine lines and landed 275, and 1475 in all
 against 2092 at the implementer's tip (1.4 times), tests 1549 against 1000. Slice 1 names three factories and
-a facade reader where that slice had one install path. Under question 1 (a) or (b) slice 2 grows by about 60
-engine and 150 test lines. Stop and report, building nothing further: a bitwise compare prints "max |z|" or a
+a facade reader where that slice had one install path. Stop and report, building nothing further: a bitwise compare prints "max |z|" or a
 snapshot moves; a fixture's recorded literal differs where the slice is to be neutral; a test outside those
 named in steps 1.4, 2.3 and 3.4 fails because it expected a value derived where the record now holds it
 (list it, do not edit it); a slice's stop in the table.
@@ -289,9 +303,11 @@ The serial engine order: warm-start-salvage slice C (wt/warm-start-c), forest-mu
 - warm-start-salvage slice C: the install paths in sampler.hpp and chain.hpp; slice 1 rebases on it.
 - forest-multiplier push 1: [`parseData`](../../src/R_interface_bartcore.cpp) and the anchor on a constant
   response; slice 1 moves that anchor and carries its value ("constant response").
-- warm-start-salvage slice D: leaf kinds, `readWarmStartState` and
-  [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), beside slice 2's state reader; it lands
-  first so slice 2 rebases on one reader of the standardization block.
+- warm-start-salvage slice D: leaf kinds, [`readWarmStartState`](../../src/R_interface_bartcore.cpp) and
+  [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp). It lands first, as planned, and needs
+  no change: where it drops a donor's slopes for other covariates it already makes no restatement, and its
+  pins expect none. Slice 2 here then removes the conversion and its flag for every warm start, and rewrites
+  the pins slice A of that plan and leaf-conversions left on it (step 2.3).
 - forest-multiplier push 2: adds `basis.scale` to the data object and writes it where the anchor is written.
   After slice 1 it writes beside `forest.calibration`; before it, whichever lands second folds the two
   write-backs into one (that plan's "With the state-frame arc's data record"). Either order.
@@ -310,7 +326,7 @@ read and the last state slice's ratios, not an itemization.
 
 ## Revision from critique
 
-Item by item, the critique's numbering:
+Item by item, the critique's numbering; the question numbers are the design's before the rulings:
 
 1. Question 1 lacked the install as stored and narrowed dec-B418. Taken: option (d), dec-B329's and dec-B418's
    words and their conflict, recommended (d) from dec-B418's intent; slice 2 written to it.
@@ -333,3 +349,20 @@ Item by item, the critique's numbering:
 12. Slice 1 too large. Taken: split into grid, range and anchor (1) and standardization (2); re-estimated.
 13. to 16. Taken: lengthscale absent rather than `NA`; multinomial's calibration `NULL`; dec-B305 and dec-B310
     in place of dec-B234; the probes, counts and commit moved here from the design note.
+
+## Revision to the rulings
+
+dec-B457 to dec-B461, 2026-10-17, settle the design's five open questions; dec-B237 and dec-B232 settle the
+other two as the orchestrator reads them. What changed here:
+
+- dec-B457: slice 2 installs slopes as stored and also removes the warm start's conversion
+  (`convertDonorStandardization`, the donor's blocks in `readWarmStartState`, `keptAcrossValues`); its draw
+  class gains the warm start (shifting); its tests and help cover the warm start.
+- dec-B458: step 3.3 counts presence alone.
+- dec-B459: step 1.3 copies a live sampler's current chain (about 20 lines, against the design's first
+  recommendation); slice 1's draw class and tests split the live copy from the reload.
+- dec-B460: step 3.3's vocabulary.
+- dec-B461: no migration; `adoptGrid` goes in slice 1 and the install's `restoreCalibration` in slice 2.
+- dec-B232 read: no family tag, slice 1's test "family as is". dec-B237 read: step 3.2's refusal of a carried
+  record other than a gp sampler's own.
+

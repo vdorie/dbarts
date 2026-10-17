@@ -265,14 +265,13 @@ items
     that can be put back (docs/plans/cut-points-undo.md) and the leaf
     conversions (docs/plans/leaf-conversions.md). Designed and
     planned, not built (docs/design/state-frame-prior.md,
-    docs/plans/state-frame-prior.md; seven calls open with the
-    maintainer): the records on dbartsData, the forest calibration
+    docs/plans/state-frame-prior.md; ruled below, no call open):
+    the records on dbartsData, the forest calibration
     anchor beside the range (dec-A159); creation and setData using a
     carried record (setData's updateCutPoints, updateScale and
     updateStandardization; setPredictor's updateStandardization); a
     state install that compares the stored values instead of
-    installing them, whether slopes convert being open (splits
-    already move by value); the manual's
+    installing them (splits already move by value); the manual's
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
     draw. Three engine slices, before response-scale-rows slice D. The grid half of the
