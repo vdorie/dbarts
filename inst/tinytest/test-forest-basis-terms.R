@@ -593,26 +593,25 @@ for (door in doors) {
 frame$L <- NULL
 frame$A <- NULL
 
-# a held coefficient on a basis of one numeric column is refused however the
-# column is written, and two numeric columns are refused held as drawn
-heldOneColumn <- paste0(
-  "forest 2: amplitude = fixed() on a basis of one numeric column is not ",
-  "supported yet"
-)
+# a held coefficient on a basis of one numeric column is held at 1 however
+# the column is written, and two numeric columns are refused held as drawn
+heldAt <- function(sampler) {
+  sampler$run(0L, 3L)
+  sampler$getForestAmplitudes()[2L, 1L]
+}
 for (text in c("dose", "I(dose / 30)", "scale(age)", "dose:age", "~ dose")) {
   code <- str2lang(text)
-  expect_error(
-    eval(bquote(dbarts(
+  expect_identical(
+    heldAt(eval(bquote(dbarts(
       y ~ x1 + x2 + forest(x1, basis = .(code), amplitude = fixed()),
       frame,
       control = basisControl()
-    ))),
-    heldOneColumn,
-    fixed = TRUE,
+    )))),
+    1,
     info = text
   )
-  expect_error(
-    eval(bquote(dbarts(
+  expect_identical(
+    heldAt(eval(bquote(dbarts(
       y ~ x1 + x2,
       frame,
       forests = list(
@@ -620,9 +619,8 @@ for (text in c("dose", "I(dose / 30)", "scale(age)", "dose:age", "~ dose")) {
         forest(x1, basis = .(code), amplitude = fixed())
       ),
       control = basisControl()
-    ))),
-    heldOneColumn,
-    fixed = TRUE,
+    )))),
+    1,
     info = text
   )
 }

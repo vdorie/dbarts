@@ -523,10 +523,10 @@ for (index in 1:3) {
   )
 }
 # the leaf prior's sd differs by forest, so the identity says something: the
-# first forest states 2 (in the response's units) and the other two take the
-# default, which is the same number for both, a forest's sd no longer carrying
-# its basis' row norm
-expect_identical(extract(fitted, "leaf.prior.sd", forest = "dose"), 2)
+# first forest states 2 (in the response's units, per unit of its column, whose
+# name it carries) and the other two take the default, one unit for one
+# standard deviation of their own columns
+expect_identical(extract(fitted, "leaf.prior.sd", forest = "dose"), c(dose = 2))
 expect_false(
   identical(
     extract(fitted, "leaf.prior.sd", forest = "dose"),

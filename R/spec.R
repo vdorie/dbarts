@@ -1085,9 +1085,20 @@ resolveSamplerSpec <- function(
   # attribute is a loud error, never a silent single-forest fit.
   if (!is.null(bases)) {
     # a declaration's blocks, finished by the one caller that supplies them,
-    # replace the data object's, and their levels with them
+    # replace the data object's, and their levels with them; the scale the
+    # object records for a forest whose basis is replaced goes, and is taken
+    # from the new column
     data@bases <- bases
     data@basis.levels <- basisLevels
+    scales <- dataBasisScale(data)
+    if (!is.null(scales)) {
+      for (index in seq_along(bases)) {
+        if (!is.null(bases[[index]]) && index <= length(scales)) {
+          scales[index] <- list(NULL)
+        }
+      }
+      data@basis.scale <- if (all(vapply(scales, is.null, NA))) NULL else scales
+    }
   }
   if (!is.null(data@bases)) {
     # the RESOLVED forest count, which is the data object's own bases or the
@@ -1228,20 +1239,6 @@ resolveSamplerSpec <- function(
       specs <- c(specs, rep(list(NULL), numForests - length(specs)))
     }
     hasBasis <- !vapply(data@bases, is.null, logical(1L))
-    # a coefficient is held where its kind has a held value, wherever the
-    # forest stands
-    levels <- dataBasisLevels(data)
-    for (index in seq_len(numForests)) {
-      if (identical(specs[[index]]$amplitude, "fixed")) {
-        refuseHeldShape(
-          index,
-          forestBasisKind(
-            data@bases[[index]],
-            if (index <= length(levels)) levels[[index]]
-          )
-        )
-      }
-    }
     params <- forestParams(specs, hasBasis, fitTree)
     statements <- forestStatements(specs)
     treeCounts <- vapply(params, function(forest) as.integer(forest[1L]), 0L)

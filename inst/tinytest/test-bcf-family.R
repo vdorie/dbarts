@@ -39,11 +39,17 @@ seededControlBcfFamily <- function(...) {
 }
 # A model in which every forest has a basis takes no tree count from the
 # control and no tree prior from the fitting function. Its first forest states
-# the count and the tree prior the other fits of this file run under.
+# the count and the tree prior the other fits of this file run under; where it
+# multiplies a constant column, which has no standard deviation to take a
+# default from, it states one unit of the response's scale too, the size a
+# factor takes by default.
 everyForestHasBasis <- function(bases) !any(vapply(bases, is.null, NA))
-statedOnFirst <- function(forests = NULL) {
+unitOf <- function(y, family) {
+  switch(family, probit = 1, logistic = pi / sqrt(3), sd(y))
+}
+statedOnFirst <- function(forests = NULL, sd = NULL) {
   if (is.null(forests)) {
-    forests <- list(dbarts::dbartsForests$forest())
+    forests <- list(dbarts::dbartsForests$forest(sd = sd))
   }
   forests[[1L]][c("n.trees", "base", "power")] <- list(25L, 0.95, 2)
   forests
@@ -59,9 +65,8 @@ hFactor <- factor(x[, 1L] > 0.5)
 unitBases2 <- list(ones, zFactor)
 unitBases3 <- list(ones, zFactor, gLevel)
 unitBases4 <- list(ones, zFactor, gLevel, hFactor)
-# and one cell whose rows are NOT unit norm, which is what pins the map's
-# per-unit-of-row-norm divisor rather than assuming it. LOAD-BEARING: delete
-# the 4 and the dropped-divisor mutation goes green.
+# and one cell whose rows are four, which is what pins that a numeric column
+# multiplies its forest as it is given, never divided
 scaledBases <- list(4 * ones, zFactor)
 # the product pin's own fixture, whose every factor discriminates; see (d)
 pinBases <- list(3 * ones, 5 * ones)
@@ -75,11 +80,12 @@ pinScalesFor <- function(s) {
 }
 
 basisSampler <- function(y, bases, family = "auto", forests = NULL, ...) {
+  resolved <- if (family == "auto") "gaussian" else family
   dbarts(
     dbartsData(x, y, bases = bases),
     control = uncountedControlBcfFamily(),
     family = family,
-    forests = statedOnFirst(forests),
+    forests = statedOnFirst(forests, unitOf(y, resolved)),
     ...
   )
 }
@@ -90,25 +96,31 @@ priorScales <- function(sampler) {
     numeric(1L)
   ))
 }
-medianRowNorm <- function(basis) {
-  if (!is.numeric(basis)) {
-    basis <- stats::model.matrix(~ 0 + basis)
-  }
-  norms <- sqrt(rowSums(basis^2))
-  median(norms[norms > 0])
+# the engine's own reading of forest `f`: the half-Cauchy median a drawn
+# forest with no basis carries its sd in, which the reader does not report
+engineSlot <- function(sampler, f, name) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_getLeafPrior,
+    sampler$getPointer(),
+    f - 1L
+  )[[1L, name]]
 }
 
 # --- the all-basis fixture itself, gaussian, K = 2 and K = 3. Both halves of
 # what makes it the honest test of an anchor: every forest resolves to the
-# fixed-variance channel (divisor the half-normal median, no half-Cauchy
-# amplitude scale), and it runs. ---
+# fixed-variance channel (its own scale its sd over the half-normal median,
+# no half-Cauchy amplitude scale), and it runs. ---
 for (bases in list(unitBases2, unitBases3, scaledBases)) {
   fit <- basisSampler(yContinuous, bases)
   expect_equal(length(fit$data@bases), length(bases))
   for (forestIndex in seq_along(bases)) {
     reported <- fit$getLeafPrior(forestIndex)
-    expect_equal(reported$leaf.scale.divisor, 0.674)
-    expect_null(reported$amplitude.prior.scale)
+    expect_equal(
+      reported$k.scale * 0.674,
+      unname(reported$sd),
+      tolerance = 1e-12
+    )
+    expect_true(is.nan(engineSlot(fit, forestIndex, "amplitude.prior.scale")))
   }
   expect_true(all(is.finite(fit$run(4L, 2L)$train)))
 }
@@ -128,92 +140,66 @@ for (family in names(anchors)) {
   expect_identical(priorScales(balanced), priorScales(rare))
 
   # (b) THE ABSOLUTE ANCHOR: the map's own expression, with s written as a
-  # literal and the row-norm divisor recomputed here rather than read back
-  expect_equal(
-    priorScales(balanced),
-    1.0 * s / (0.674 * vapply(scaledBases, medianRowNorm, numeric(1L))),
-    tolerance = 1e-12
-  )
+  # literal; the column of 4s stating one unit per unit of it is not divided
+  expect_equal(priorScales(balanced), c(s, s) / 0.674, tolerance = 1e-12)
 
-  # (c) THE INDUCED INDEX: sqrt(sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2) at
-  # the default amplitude prior variance and unit row norms. Each forest with a
+  # (c) THE INDUCED INDEX: sqrt(sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2), a
+  # numeric coefficient's variance 1 and a level's 1/2. Each forest with a
   # basis defaults to one unit whatever the number of forests (dec-B291), so
-  # the map disperses as 1.04912 sqrt(K): the index prior grows with every
-  # forest the caller adds, which is the ruling's stated cost. Three counts,
-  # because the claim is the growth in K rather than a value at one K, and
-  # K = 2 is the count every shipped configuration sits on.
+  # the map disperses as 1.04912 sqrt(K + 1) with a numeric forest among them:
+  # the index prior grows with every forest the caller adds, which is the
+  # ruling's stated cost. Three counts, because the claim is the growth in K
+  # rather than a value at one K.
   for (bases in list(unitBases2, unitBases3, unitBases4)) {
     scales <- priorScales(basisSampler(yBalanced, bases, family))
+    variances <- c(1, rep(0.5, length(bases) - 1L))
     expect_equal(
-      sqrt(sum(scales^2 * 0.5)),
-      1.04912 * sqrt(length(bases)) * s,
+      sqrt(sum(scales^2 * variances)),
+      1.04912 * sqrt(length(bases) + 1) * s,
       tolerance = 1e-4
     )
   }
-  # and that index is INVARIANT to a rescaled basis, which is the whole point
-  # of dividing the row norm out: the same two forests, one of them at four
-  # times the norm, induce the same prior on the index
+  # and a stated sd is per unit of the column as given: the same forest on a
+  # column four times as large induces four times the prior on the index
   scaled <- priorScales(basisSampler(yBalanced, scaledBases, family))
   expect_equal(
-    sqrt(sum(scaled^2 * 0.5 * c(4, 1)^2)),
-    1.04912 * sqrt(2) * s,
+    sqrt(sum(scaled^2 * c(1, 0.5) * c(4, 1)^2)),
+    1.04912 * sqrt(2 * 16 + 1) * s,
     tolerance = 1e-4
   )
 
-  # (d) THE PRODUCT ITSELF, at a DECLARED forest(sd = ). Every assertion above
-  # runs at the default leaf scale factor, the literal 1, so three of the map's
-  # four factors are pinned and the fourth is vacated - a recorded
-  # hazard (unit values silently vacate pins) sitting on the expression whose
-  # default is about to move. Here each of the four discriminates: the
-  # multiple of s the forest states (sd = 2.5 s and 0.4 s, in the response's
-  # units, so the leaf scale factor is the multiple) in {2.5, 0.4}, s in {1, 1.813799}, c in {3, 5}, divisor 0.674, no two equal
-  # and none 1. The oracle, re-derived: probit 1.236399604352 and
-  # 0.118694362018, logistic 2.242580816313 and 0.215287758366.
+  # (d) THE PRODUCT ITSELF, at a DECLARED forest(sd = ). Each factor
+  # discriminates: the multiple of s the forest states (sd = 2.5 s and 0.4 s,
+  # in the response's units, so the leaf scale factor is the multiple) in
+  # {2.5, 0.4}, s in {1, 1.813799} and the divisor 0.674, none 1, on columns
+  # of 3s and 5s that a stated sd never reads.
   #
   # BOTH families, because probit ALONE CANNOT SEE A DROPPED ANCHOR - s = 1
-  # there, so sd / (0.674 c) and sd s / (0.674 c) are the same number. Under
-  # logistic they differ by 81 percent. Deleting the logistic arm leaves the
-  # anchor unpinned, which is the near-miss this test guards against.
-  expect_equal(
-    priorScales(basisSampler(
-      yBalanced,
-      pinBases,
-      family,
-      forests = pinScalesFor(s)
-    )),
-    c(2.5, 0.4) * s / (0.674 * vapply(pinBases, medianRowNorm, numeric(1L))),
-    tolerance = 1e-12
-  )
-
-  # (e) THE FACTORS THEMSELVES, which the reader now reports beside the
-  # product. Each column against the value this fixture declares, and then the
-  # ANCHOR recovered by the identity the Rd states - prior.sd * divisor *
-  # row norm / factor - which is the only route to s and is what the
-  # decomposition exists for. The recovery is what the logistic arm
-  # discriminates: a map that dropped the anchor recovers 1 here rather than
-  # 1.813799, while probit cannot tell the two apart.
+  # there, so sd / 0.674 and sd s / 0.674 are the same number. Under logistic
+  # they differ by 81 percent. Deleting the logistic arm leaves the anchor
+  # unpinned, which is the near-miss this test guards against.
   declaredMap <- basisSampler(
     yBalanced,
     pinBases,
     family,
     forests = pinScalesFor(s)
   )
+  expect_equal(
+    priorScales(declaredMap),
+    c(2.5, 0.4) * s / 0.674,
+    tolerance = 1e-12
+  )
+  # (e) and the reader's sd is the number stated, its own scale that over the
+  # half-normal median, with no half-Cauchy median on a forest with a basis
   for (f in seq_along(pinBases)) {
     reported <- declaredMap$getLeafPrior(f)
-    expect_equal(reported$leaf.scale.factor, c(2.5, 0.4)[f])
-    expect_equal(reported$leaf.scale.divisor, 0.674)
-    expect_equal(reported$basis.row.norm, medianRowNorm(pinBases[[f]]))
+    expect_equal(unname(reported$sd), c(2.5, 0.4)[f] * s, tolerance = 1e-12)
     expect_equal(
-      reported$k.scale *
-        reported$leaf.scale.divisor *
-        reported$basis.row.norm /
-        reported$leaf.scale.factor,
-      s,
+      reported$k.scale * 0.674,
+      unname(reported$sd),
       tolerance = 1e-12
     )
-    # every forest here carries a basis, so every one takes the fixed-variance
-    # channel and reports no half-Cauchy median
-    expect_null(reported$amplitude.prior.scale)
+    expect_true(is.nan(engineSlot(declaredMap, f, "amplitude.prior.scale")))
   }
 }
 
@@ -243,32 +229,23 @@ for (fit in list(probit, logistic)) {
   s <- anchors[[fit$model@family]]
   # forest 1 declares no basis, so its leaf scale stays at the anchor itself
   expect_equal(priorScales(fit), c(s, s / 0.674), tolerance = 1e-12)
-  # and the reader SHOWS that rather than leaving it to be inferred: factor,
-  # divisor and row norm are each 1 on that forest. A basis-free forest
-  # carries the half-Cauchy scale mixture and reports its median, a basis
-  # forest none, and which a forest gets is the engine's, from what it
+  # a basis-free forest carries the half-Cauchy scale mixture and its median,
+  # a basis forest none, and which a forest gets is the engine's, from what it
   # multiplies: the control carries no sd for either forest, so the numbers
   # the reader reports are the engine's own defaults.
   transported <- attr(fit$control, "bartcore.forests")
   expect_identical(transported$sd, c(NA_real_, NA_real_))
   free <- fit$getLeafPrior(1L)
   carried <- fit$getLeafPrior(2L)
-  expect_equal(
-    unlist(free[c(
-      "leaf.scale.factor",
-      "leaf.scale.divisor",
-      "basis.row.norm"
-    )]),
-    c(leaf.scale.factor = 1, leaf.scale.divisor = 1, basis.row.norm = 1)
-  )
   # and the median that reaches it is the FAMILY's own default, one anchor unit
   # rather than gaussian's two: under a pinned sigma nothing absorbs the
   # difference, and at 1 the induced index prior sits on the shipped
   # single-forest binary default's coverage rather than 1.6x outside it
-  expect_equal(free$amplitude.prior.scale, 1)
+  expect_equal(engineSlot(fit, 1L, "amplitude.prior.scale"), 1)
+  expect_equal(free$sd, s)
   expect_identical(free$multiplier, "none")
   expect_identical(carried$multiplier, "factor")
-  expect_null(carried$amplitude.prior.scale)
+  expect_true(is.nan(engineSlot(fit, 2L, "amplitude.prior.scale")))
   result <- fit$run(4L, 2L)
   expect_true(all(is.finite(result$train)))
   # sigma is pinned by the family, not merely fixed by a prior
@@ -300,20 +277,11 @@ expect_equal(
 )
 expect_identical(rownames(countsAll), colnames(x))
 
-# --- THE TWO DEFAULTS THEMSELVES, as the reader reports them. Everything
-# above reads them only after the calibration map has folded factor, anchor,
-# divisor and row norm into one number, so a confusion between the two channels
-# or between the families would have to survive as a coincidence of products.
-# The engine resolves both: the control carries no number for either, and the
-# reader's `amplitude.prior.scale` and `leaf.scale.factor` are the multiples of
-# the response's scale it resolved.
-#
-# The GAUSSIAN arm is MANDATORY rather than decorative: under a latent family a
-# basis-free forest's factor, divisor, row norm and median are all the literal
-# 1, so a latent-only fixture cannot see a confusion among those at all. Only
-# gaussian, where the median is 2, discriminates. That is the same "unit values
-# silently vacate pins" hazard arriving through the new default introduced
-# here. ---
+# --- THE TWO DEFAULTS THEMSELVES, as the engine resolves them: the control
+# carries no number for either. The GAUSSIAN arm is MANDATORY rather than
+# decorative: under a latent family a basis-free forest's median and unit are
+# the literal 1, so a latent-only fixture cannot see a confusion between the
+# two channels. Only gaussian, where the median is 2, discriminates. ---
 mapSampler <- function(y, bases, family, forests = NULL, ...) {
   allBasis <- everyForestHasBasis(bases)
   dbarts(
@@ -324,7 +292,11 @@ mapSampler <- function(y, bases, family, forests = NULL, ...) {
       seededControlBcfFamily()
     },
     family = family,
-    forests = if (allBasis) statedOnFirst(forests) else forests,
+    forests = if (allBasis) {
+      statedOnFirst(forests, unitOf(y, family))
+    } else {
+      forests
+    },
     ...
   )
 }
@@ -334,7 +306,7 @@ readerSlot <- function(sampler, name) {
     seq_along(sampler$data@bases),
     function(f) {
       value <- sampler$getLeafPrior(f)[[name]]
-      if (is.null(value)) NA_real_ else value
+      if (is.null(value)) NA_real_ else unname(value)
     },
     numeric(1L)
   )
@@ -347,45 +319,50 @@ freeBases4 <- list(NULL, zFactor, gLevel, hFactor)
 # anchor is the response's own sd and sigma is DRAWN, 1 where the anchor is the
 # link's error sd and sigma is PINNED
 expect_equal(
-  readerSlot(
+  engineSlot(
     mapSampler(yContinuous, freeBases2, "gaussian"),
+    1L,
     "amplitude.prior.scale"
-  )[1L],
+  ),
   2
 )
 expect_equal(
-  readerSlot(
+  engineSlot(
     mapSampler(yBalanced, freeBases2, "probit"),
+    1L,
     "amplitude.prior.scale"
-  )[1L],
+  ),
   1
 )
 expect_equal(
-  readerSlot(
+  engineSlot(
     mapSampler(yBalanced, freeBases2, "logistic"),
+    1L,
     "amplitude.prior.scale"
-  )[1L],
+  ),
   1
 )
 
-# the fixed-variance channel's leaf scale factor is 1 at K = 2, 3 and 4: a
-# forest with a basis defaults to one unit whatever the number of forests
-# (dec-B291), all-basis or beside a forest with none, and the basis-free
-# forest keeps the literal 1 for its factor. The default is a multiple of the
-# response's scale and is reported as that multiple, so it is 1 itself, not a
-# number that went through the unit and back.
+# a factor's sd is one unit at K = 2, 3 and 4: a forest with a basis defaults
+# to one unit whatever the number of forests (dec-B291), all-basis or beside a
+# forest with none, and the default is a multiple of the response's scale
+# reported as that multiple times the unit
 for (family in c("gaussian", "probit", "logistic")) {
   response <- if (family == "gaussian") yContinuous else yBalanced
   for (bases in list(unitBases2, unitBases3, unitBases4)) {
+    sampler <- mapSampler(response, bases, family)
+    unit <- attr(sampler$control, "bartcore.forests")$unit
     expect_identical(
-      readerSlot(mapSampler(response, bases, family), "leaf.scale.factor"),
-      rep(1, length(bases))
+      readerSlot(sampler, "sd")[-1L],
+      rep(unit, length(bases) - 1L)
     )
   }
   for (bases in list(freeBases2, freeBases3, freeBases4)) {
+    sampler <- mapSampler(response, bases, family)
+    unit <- attr(sampler$control, "bartcore.forests")$unit
     expect_identical(
-      readerSlot(mapSampler(response, bases, family), "leaf.scale.factor"),
-      rep(1, length(bases))
+      readerSlot(sampler, "sd")[-1L],
+      rep(unit, length(bases) - 1L)
     )
   }
 }
@@ -404,7 +381,7 @@ declaredAll <- mapSampler(
     dbarts::dbartsForests$forest(sd = 1)
   )
 )
-expect_equal(readerSlot(declaredAll, "leaf.scale.factor"), rep(1, 3L))
+expect_equal(readerSlot(declaredAll, "sd"), rep(1, 3L))
 declaredShape <- mapSampler(
   yBalanced,
   freeBases3,
@@ -415,8 +392,8 @@ declaredShape <- mapSampler(
     dbarts::dbartsForests$forest(sd = 1)
   )
 )
-expect_equal(readerSlot(declaredShape, "leaf.scale.factor"), c(1, 1, 1))
-expect_equal(readerSlot(declaredShape, "amplitude.prior.scale")[1L], 2)
+expect_equal(readerSlot(declaredShape, "sd"), c(2, 1, 1))
+expect_equal(engineSlot(declaredShape, 1L, "amplitude.prior.scale"), 2)
 
 # --- the two adjacent guards that fire on the plainest binary two-forest call
 # unless they are keyed to the family. Both are silent above, which is what
@@ -564,6 +541,7 @@ rm(
   binaryFits,
   counts,
   declaredAll,
+  declaredMap,
   declaredShape,
   doorSpec,
   eta,
@@ -579,7 +557,6 @@ rm(
   kForest,
   logistic,
   mapSampler,
-  medianRowNorm,
   n,
   name,
   ones,
@@ -589,21 +566,27 @@ rm(
   priorScales,
   probit,
   rare,
+  engineSlot,
   readerSlot,
+  reported,
   response,
   result,
   s,
   scaled,
   scaledBases,
+  sampler,
   scales,
   seededControlBcfFamily,
   spec,
   statedOnFirst,
+  unitOf,
   twoForests,
   uncountedControlBcfFamily,
+  unit,
   unitBases2,
   unitBases3,
   unitBases4,
+  variances,
   x,
   yBalanced,
   yContinuous,

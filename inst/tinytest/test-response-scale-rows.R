@@ -145,9 +145,12 @@ startingLines <- function(expr) {
 
 three <- c(rep(1, 3L), rep(0, n - 3L))
 
+# z is 1 on every row in the likelihood, so a forest on it has no default to
+# take from its standard deviation there and states one
+
 bcf <- function(...) {
   dbarts(
-    y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
+    y ~ forest(x1 + x2) + forest(x1 + x2, basis = z, sd = 1),
     control = control,
     ...
   )
@@ -212,7 +215,7 @@ expectInert(
 expectInert(
   function(r) {
     dbarts(
-      y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
+      y ~ forest(x1 + x2) + forest(x1 + x2, basis = x2),
       df(r),
       weights = w,
       control = control
@@ -1315,7 +1318,7 @@ stateArm(
 stateArm(
   function(r, ww) {
     dbarts(
-      y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
+      y ~ forest(x1 + x2) + forest(x1 + x2, basis = z, sd = 1),
       df(r),
       weights = ww,
       control = control

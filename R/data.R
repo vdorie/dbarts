@@ -289,6 +289,16 @@ dataBasisLevels <- function(data) {
   data@basis.levels
 }
 
+## The scale a data object records for each numeric forest's column: NULL, or
+## a list with one entry per forest. A data object saved before the slot
+## existed has none.
+dataBasisScale <- function(data) {
+  if (!methods::.hasSlot(data, "basis.scale")) {
+    return(NULL)
+  }
+  data@basis.scale
+}
+
 ## What a data object's record must hold for as long as a sampler has it: a
 ## forest's recorded levels are as many as its block has columns, and its
 ## basis is of a size this version takes (basisSizeFault), read from the

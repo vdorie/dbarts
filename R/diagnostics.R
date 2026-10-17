@@ -445,8 +445,9 @@ fixedSummaryValues <- function(object, vars) {
     }
     value <- if (v == "leaf.prior.sd") {
       if (!is.null(fixed[["k"]])) {
-        # one number a forest, by its label, on a fit of several
-        unlist(extractParameter(object, v, TRUE))
+        # one number a forest, by its label, on a fit of several; a numeric
+        # forest's carries its column's name, which the label stands for
+        unlist(lapply(extractParameter(object, v, TRUE), unname))
       }
     } else {
       fixed[[v]]
@@ -470,7 +471,7 @@ defaultLeafScaleVars <- function(object, vars) {
     prior <- prior[[1L]]
   }
   named <- if (
-    !is.null(prior[["basis.row.norm"]]) || !is.null(prior$leaf.prior@prior.sd)
+    !is.null(prior[["multiplier"]]) || !is.null(prior$leaf.prior@prior.sd)
   ) {
     "leaf.prior.sd"
   } else {

@@ -474,33 +474,26 @@ bcf <- dbarts(
 bcfCalibration <- bcf$getLeafPrior(1L)
 bcfCalibration2 <- bcf$getLeafPrior(2L)
 # BCF pins k at 1 per its map, which the sampler-wide option does not say, so
-# each forest has a spread of its own, in the response's units: the
-# half-Cauchy median on the forest without a basis, the leaf-scale factor on
-# the one with, each the engine's default multiple of the response's standard
-# deviation here (no offset, subset or zero weight), and neither stated, so the
-# statement the reader returns is empty and goes back as it came
+# each forest has a spread of its own, in the response's units: twice the
+# response's standard deviation on the forest without a basis, carried as its
+# half-Cauchy median, and one standard deviation on the factor, carried in its
+# leaf scale over 0.674 (no offset, subset or zero weight here), and neither
+# stated, so the statement the reader returns is empty and goes back as it
+# came
 expect_identical(bcf$getK(1L), c(1, 1))
 expect_identical(bcfCalibration$leaf.prior, dbartsForests$forest())
 expect_identical(bcfCalibration2$leaf.prior, dbartsForests$forest())
 expect_false(bcfCalibration$sd.stated)
 expect_false(bcfCalibration2$sd.stated)
-expect_equal(
-  bcfCalibration$sd,
-  bcfCalibration$amplitude.prior.scale * sd(yBCF),
-  tolerance = 1e-12
-)
-expect_equal(
-  bcfCalibration2$sd,
-  bcfCalibration2$leaf.scale.factor * sd(yBCF),
-  tolerance = 1e-12
-)
+expect_equal(bcfCalibration$sd, 2 * sd(yBCF), tolerance = 1e-12)
+expect_equal(bcfCalibration2$sd, sd(yBCF), tolerance = 1e-12)
+expect_equal(bcfCalibration$k.scale, sd(yBCF), tolerance = 1e-12)
+expect_equal(bcfCalibration2$k.scale, sd(yBCF) / 0.674, tolerance = 1e-12)
 expect_identical(bcfCalibration$prior.sd.of, "forest (prior median)")
 expect_identical(bcfCalibration2$prior.sd.of, "level difference (prior median)")
 expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
-# here the map entries are the ones IN FORCE: forest 1 declares no basis, so
-# it carries the half-Cauchy scale mixture and its median, and forest 2 none.
-# The control carries no number for either: the engine's default, 2 under a
-# gaussian response, is what the reader reports
+# the control carries no number for either: the engine's defaults are what
+# the reader reports, and the reader has no entry for the engine's channels
 bcfStated <- attr(bcf$control, "bartcore.forests")
 expect_identical(bcfStated$sd, c(NA_real_, NA_real_))
 expect_identical(
@@ -515,21 +508,12 @@ expect_identical(
     "prior.mean",
     "k.scale",
     "response.scale",
-    "response.shift",
-    "amplitude.prior.scale",
-    "leaf.scale.factor",
-    "leaf.scale.divisor",
-    "basis.row.norm"
+    "response.shift"
   )
 )
-expect_identical(
-  names(bcfCalibration2),
-  setdiff(names(bcfCalibration), "amplitude.prior.scale")
-)
+expect_identical(names(bcfCalibration2), names(bcfCalibration))
 expect_identical(bcfCalibration$multiplier, "none")
 expect_identical(bcfCalibration2$multiplier, "factor")
-expect_equal(bcfCalibration$amplitude.prior.scale, 2)
-expect_null(bcfCalibration2$amplitude.prior.scale)
 
 # forest = NULL lists every forest's prior; a single-forest sampler's NULL
 # read is its forest = 1 read
@@ -541,21 +525,6 @@ expect_identical(
 expect_identical(plain$getK(), plain$getK(1L))
 expect_identical(bcf$getK(), rbind(bcf$getK(1L), bcf$getK(2L)))
 
-# and the anchor s the map states every leaf scale against is recoverable from
-# the reported decomposition (k is pinned at 1, so the anchor is the map's leaf
-# scale): the two forests recover the SAME s
-recoveredAnchor <- function(prior) {
-  prior$k.scale *
-    prior$leaf.scale.divisor *
-    prior$basis.row.norm /
-    prior$leaf.scale.factor
-}
-expect_equal(
-  recoveredAnchor(bcfCalibration2),
-  recoveredAnchor(bcfCalibration),
-  tolerance = 1e-12
-)
-expect_true(recoveredAnchor(bcfCalibration) > 0)
 expect_error(
   bcf$setLeafPrior(normal(sd = 0.75)),
   "multi-forest calibration map.*forest\\(sd = \\)"

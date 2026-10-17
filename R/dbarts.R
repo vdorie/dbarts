@@ -1578,43 +1578,58 @@ dbarts <- function(
     survivalStatus <- survivalStatus[-unclass(data@na.action)]
   }
 
-  spec <- resolveSamplerSpec(
-    matchedCall,
-    formals(dbarts),
-    control,
-    data,
-    family,
-    requestedFamily = requestedFamily,
-    shape = shape,
-    residDf = residDf,
-    proposal.probs = proposal.probs,
-    monotone = monotone,
-    interactions = interactions,
-    blocks = blocks,
-    variance = variance,
-    survivalStatus = survivalStatus,
-    hazardPeriods = hazardPeriods,
-    # the bases already ride the data object: dbartsData() is the one place
-    # that knows which rows 'subset' kept
-    bases = NULL,
-    forests = forests,
-    evalEnv = evalEnv,
-    residPrior = residPrior,
-    familySpec = familySpec,
-    basisRecords = basisRecords,
-    written = writtenArgs,
-    sigestRule = sigestRule
+  # where a numeric column's scale is read from every row with the
+  # response's, one warning names both; the response's alone is held until
+  # the engine has said
+  heldWarning <- NULL
+  spec <- withCallingHandlers(
+    resolveSamplerSpec(
+      matchedCall,
+      formals(dbarts),
+      control,
+      data,
+      family,
+      requestedFamily = requestedFamily,
+      shape = shape,
+      residDf = residDf,
+      proposal.probs = proposal.probs,
+      monotone = monotone,
+      interactions = interactions,
+      blocks = blocks,
+      variance = variance,
+      survivalStatus = survivalStatus,
+      hazardPeriods = hazardPeriods,
+      # the bases already ride the data object: dbartsData() is the one place
+      # that knows which rows 'subset' kept
+      bases = NULL,
+      forests = forests,
+      evalEnv = evalEnv,
+      residPrior = residPrior,
+      familySpec = familySpec,
+      basisRecords = basisRecords,
+      written = writtenArgs,
+      sigestRule = sigestRule
+    ),
+    dbartsScaleFallbackWarning = function(w) {
+      heldWarning <<- w
+      invokeRestart("muffleWarning")
+    }
   )
 
-  sampler <- new("dbartsSampler", spec$control, spec$model, spec$data)
   # a latent family's 0/1 case weights are membership, which the sampler
   # carries as its active-row mask rather than as weights: the spec has
-  # already cleared the weights slot, so this is the only place the vector
-  # lands. All-ones never reaches here, having resolved to no mask at all.
-  # No store: a fresh sampler's state stays the promise that captures the
-  # state current at first read.
-  if (!is.null(spec$active)) {
-    installWeightsMask(sampler, spec$active)
+  # already cleared the weights slot, so the creation is the only place the
+  # vector lands. All-ones never reaches here, having resolved to no mask at
+  # all.
+  sampler <- new(
+    "dbartsSampler",
+    spec$control,
+    spec$model,
+    spec$data,
+    active = spec$active
+  )
+  if (!is.null(heldWarning) && length(basisScaleFallbacks(sampler)) == 0L) {
+    warning(heldWarning)
   }
   sampler
 }
@@ -1689,6 +1704,13 @@ samplePriorPredictive <- function(
 ) {
   if (!inherits(sampler, "dbartsSampler")) {
     stop("'sampler' must inherit from dbartsSampler")
+  }
+  if (samplerCarriesAmplitudes(sampler)) {
+    stop(
+      "samplePriorPredictive does not support a sampler of several forests: ",
+      "their coefficients are not drawn from the prior here",
+      call. = FALSE
+    )
   }
   type <- match.arg(type)
   n.samples <- coerceOrError(n.samples, "integer")[1L]
@@ -1999,6 +2021,93 @@ recordAnchor <- function(model, ptr) {
   model
 }
 
+## The forests whose numeric column's scale the engine read from every row,
+## too few being in the likelihood to read it from: the engine's status, raised
+## only by a first creation, which takes the scale.
+basisScaleFallbacks <- function(sampler) {
+  ptr <- sampler$pointer
+  numForests <- length(sampler$data@bases)
+  Filter(
+    function(forest) {
+      raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, forest - 1L)
+      identical(raw[[1L, "basis.scale.all.rows"]], 1)
+    },
+    seq_len(numForests)
+  )
+}
+
+## Records on a sampler's data the scale the engine holds for each numeric
+## forest's column, where the object has no entry for that forest: a first
+## creation's, which every later creation from the object is handed. Raises
+## the one warning where the engine read a scale from every row: under
+## gaussian with the response's, whose scale was read from every row too.
+recordBasisScales <- function(sampler, ptr) {
+  data <- sampler$data
+  numForests <- length(data@bases)
+  scales <- dataBasisScale(data)
+  if (is.null(scales)) {
+    scales <- vector("list", numForests)
+  }
+  length(scales) <- max(length(scales), numForests)
+  written <- FALSE
+  for (forest in seq_len(numForests)) {
+    raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, forest - 1L)
+    scale <- raw[[1L, "basis.scale"]]
+    if (is.nan(scale) || !is.null(scales[[forest]])) {
+      next
+    }
+    scales[[forest]] <- scale
+    written <- TRUE
+  }
+  if (written) {
+    data@basis.scale <- scales
+    sampler$data <- data
+  }
+  fellBack <- basisScaleFallbacks(sampler)
+  if (length(fellBack) == 0L) {
+    return(invisible(NULL))
+  }
+  n <- length(data@y)
+  labels <- samplerForestLabels(sampler$control)
+  named <- vapply(fellBack, forestName, "", labels = labels)
+  what <- if (length(named) == 1L) {
+    paste0("the scale of ", named, "'s basis")
+  } else {
+    paste0(
+      "the scales of ",
+      paste(paste0(named, "'s"), collapse = " and "),
+      " bases"
+    )
+  }
+  if (sampler$model@family %in% c("probit", "logistic")) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "no observation is in the likelihood (0 of ",
+      n,
+      " have a positive weight), so ",
+      what,
+      if (length(named) == 1L) " is" else " are",
+      " taken from all ",
+      n
+    )
+  } else {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of the response are in the ",
+      "likelihood (",
+      sum(rowsInLikelihood(data@weights, NULL, n)),
+      " of ",
+      n,
+      " observations are in it), so the response's scale, the prior's ",
+      "center and ",
+      what,
+      " are taken from all ",
+      n
+    )
+  }
+  invisible(NULL)
+}
+
 ## A re-creation from a sampler's own model takes its record as the engine's
 ## transform, and the chains are moved there at once: no install moves them,
 ## so a state that follows is read against the record only because they are
@@ -2017,7 +2126,8 @@ recreatePointer <- function(control, model, data) {
     control,
     model,
     data,
-    if (model@family == "auto") "" else model@family
+    if (model@family == "auto") "" else model@family,
+    NULL
   )
   applyAnchor(ptr, model)
 }
@@ -2062,13 +2172,14 @@ priorSdOf <- function(leafModel) {
 ## response's units, and `sd.stated` whether it was stated; both are the
 ## engine's, and nothing is converted here. `multiplier` is what the engine
 ## was told the forest multiplies, and `amplitude` fixed() where its
-## coefficient is held. The map's own entries follow, in units of the map's
-## anchor.
-reportLeafPrior <- function(sampler, raw) {
+## coefficient is held. A numeric forest's `sd` is per unit of its column and
+## carries the column's name, and `basis.scale` is the scale the data object
+## records for it. `index` is the forest's position from 0.
+reportLeafPrior <- function(sampler, raw, index) {
   shared <- function(column) raw[[1L, column]]
   model <- sampler$model
   hyperprior <- model@leaf.hyperprior
-  mapped <- !is.nan(raw[1L, "basis.row.norm"])
+  mapped <- !is.nan(raw[1L, "map.anchor"])
   drawn <- raw[1L, "k.has.hyperprior"] != 0
   anchor <- shared("prior.scale")
   spec <- model@leaf.prior
@@ -2101,9 +2212,19 @@ reportLeafPrior <- function(sampler, raw) {
   multiplier <- c("none", "factor", "numeric")[shared("multiplier") + 1]
   held <- shared("amplitude.held") != 0
   stated <- !is.nan(shared("named.sd"))
+  sd <- shared("map.sd")
+  # a numeric forest's number is per unit of its column, and carries the
+  # column's name where the basis has one
+  column <- NULL
+  if (multiplier == "numeric") {
+    column <- colnames(sampler$data@bases[[index + 1L]])
+    if (length(column) == 1L && !is.na(column) && nzchar(column)) {
+      names(sd) <- column
+    }
+  }
   statement <- list(
     leaf.prior = if (stated) forest(sd = shared("named.sd")) else forest(),
-    sd = shared("map.sd"),
+    sd = sd,
     sd.stated = stated,
     multiplier = multiplier
   )
@@ -2117,19 +2238,21 @@ reportLeafPrior <- function(sampler, raw) {
     multiplier,
     none = "forest",
     factor = "level difference",
-    numeric = "forest total"
+    numeric = "forest, per unit of basis"
   )
-  if (!held && multiplier != "numeric") {
+  if (!held) {
     prior$prior.sd.of <- paste(prior$prior.sd.of, "(prior median)")
   }
-  columns <- c("leaf.scale.factor", "leaf.scale.divisor")
-  if (!is.nan(shared("amplitude.prior.scale"))) {
-    columns <- c("amplitude.prior.scale", columns)
+  # the scale the data object records for the column, which a default was
+  # taken from
+  if (multiplier == "numeric") {
+    recorded <- dataBasisScale(sampler$data)
+    if (index + 1L <= length(recorded) && !is.null(recorded[[index + 1L]])) {
+      scale <- recorded[[index + 1L]]
+      names(scale) <- names(sd)
+      prior$basis.scale <- scale
+    }
   }
-  for (column in columns) {
-    prior[[column]] <- shared(column)
-  }
-  prior$basis.row.norm <- shared("basis.row.norm")
   prior
 }
 
@@ -2425,7 +2548,7 @@ dbartsSampler <- setRefClass(
     activeRows = "ANY"
   ),
   methods = list(
-    initialize = function(control, model, data, ...) {
+    initialize = function(control, model, data, ..., active = NULL) {
       if (!inherits(control, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -2451,13 +2574,16 @@ dbartsSampler <- setRefClass(
       .self$forestWeights <- list()
       .self$activeRows <- NULL
 
-      # "auto" (a hand-built model) keeps the bridge's own dispatch
+      # "auto" (a hand-built model) keeps the bridge's own dispatch; the mask
+      # a latent family's 0/1 weights resolve to, installed below, gives the
+      # rows a numeric column's scale is read from
       .self$pointer <- .Call(
         C_dbarts_bartcore_create,
         .self$control,
         .self$model,
         .self$data,
-        if (model@family == "auto") "" else model@family
+        if (model@family == "auto") "" else model@family,
+        if (!is.null(active)) as.double(active)
       )
       # a first creation anchors to its own data, whatever record the model
       # handed in carries; copy and the re-creations restate the saver's
@@ -2480,6 +2606,9 @@ dbartsSampler <- setRefClass(
         }
         attr(control, "bartcore.forests") <- forestInfo
         .self$control <- control
+      }
+      if (!is.null(forestInfo)) {
+        recordBasisScales(.self, .self$pointer)
       }
       # after the call, so a refused creation never spends the warning's key;
       # re-creation from state (getPointer, setState) does not come through
@@ -2504,6 +2633,13 @@ dbartsSampler <- setRefClass(
         eval.env = as.environment(.self),
         assign.env = as.environment(.self)
       )
+      # the mask a latent family's 0/1 weights resolve to, which the creation
+      # read the rows of a numeric column's scale from. No store: a fresh
+      # sampler's state stays the promise that captures the state current at
+      # first read.
+      if (!is.null(active)) {
+        installWeightsMask(.self, active)
+      }
 
       callSuper(...)
     },
@@ -3630,7 +3766,8 @@ dbartsSampler <- setRefClass(
       read <- function(index) {
         reportLeafPrior(
           .self,
-          .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)
+          .Call(C_dbarts_bartcore_getLeafPrior, ptr, index),
+          index
         )
       }
       if (!is.null(forest)) {

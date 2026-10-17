@@ -142,7 +142,10 @@ for (index in seq_along(plainSecond)) {
   expect_identical(dim(second$data@bases[[1L]]), c(n, 1L))
   # the half-Cauchy channel is on the plain forest wherever it stands
   expect_identical(second$getLeafPrior(2L)$prior.sd.of, "forest (prior median)")
-  expect_identical(second$getLeafPrior(1L)$prior.sd.of, "forest total")
+  expect_identical(
+    second$getLeafPrior(1L)$prior.sd.of,
+    "forest, per unit of basis (prior median)"
+  )
   expect_true(all(is.finite(second$run(0L, 5L)$train)), info = info)
 }
 # it restores, copies and takes a new basis on the forest that has one; the

@@ -1248,10 +1248,17 @@ expect_identical(
   plainSecondPriors[[1L]]$prior.sd.of,
   "level difference (prior median)"
 )
-expect_identical(plainSecondPriors[[1L]]$leaf.scale.divisor, 0.674)
-expect_identical(plainSecondPriors[[2L]]$amplitude.prior.scale, 2)
+expect_equal(
+  plainSecondPriors[[1L]]$k.scale,
+  plainSecondPriors[[1L]]$sd / 0.674,
+  tolerance = 1e-12
+)
+expect_equal(
+  plainSecondPriors[[2L]]$sd,
+  2 * plainSecondPriors[[2L]]$k.scale,
+  tolerance = 1e-12
+)
 expect_identical(plainSecondPriors[[2L]]$prior.sd.of, "forest (prior median)")
-expect_identical(plainSecondPriors[[2L]]$leaf.scale.divisor, 1)
 
 # --- dec-A109: the lone basis forest stays refused, and the refusal points at
 # the p + 1 forest form and linear() leaves ---

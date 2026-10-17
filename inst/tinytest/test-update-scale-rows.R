@@ -885,15 +885,27 @@ expectByHand(
   ),
   "ordinal list"
 )
-# a probit list with bases = carries amplitudes: the plain install makes it
-# dbarts()'s, and the argument is refused with the mask not installed
+# a probit list with bases = carries amplitudes: the mask handed at creation
+# makes it dbarts()'s, a numeric column's default scale read from the rows the
+# mask keeps, and the argument is refused with the mask not installed
 basesData <- function() {
-  dbartsData(x, binary, weights = w01, bases = list(NULL, matrix(z, n, 1L)))
+  dbartsData(
+    x,
+    binary,
+    weights = w01,
+    bases = list(NULL, matrix(x[, 1L], n, 1L))
+  )
 }
 basesSpec <- dbartsSpec(basesData(), control = ctl, family = "probit")
 expect_false(is.null(basesSpec$active))
 expectByHand(
-  byHandOf(basesSpec),
+  new(
+    "dbartsSampler",
+    basesSpec$control,
+    basesSpec$model,
+    basesSpec$data,
+    active = basesSpec$active
+  ),
   dbarts(basesData(), family = "probit", control = ctl),
   "probit bases list"
 )

@@ -1576,30 +1576,6 @@ validateForestKnobs <- function(spec) {
   spec
 }
 
-## The refusal of a held coefficient on a basis of one numeric column, which
-## has no held value until the numeric multiplier is built (dec-B353).
-refuseHeldOneColumn <- function(index) {
-  stop(
-    "forest ",
-    index,
-    ": amplitude = fixed() on a basis of one numeric column is not ",
-    "supported yet; it would hold the forest at zero. Let the coefficient be ",
-    "drawn; a column of two values can be held if it is written as a factor",
-    call. = FALSE
-  )
-}
-
-## What a held coefficient may sit on, by what the forest multiplies
-## (forestBasisKind) and wherever it stands: a forest with no basis is held at
-## 1 and one of two levels at 0 and 1 (dec-B354), and a numeric column is
-## refused until it has a held value.
-refuseHeldShape <- function(index, kind) {
-  if (kind == "numeric") {
-    refuseHeldOneColumn(index)
-  }
-  invisible(NULL)
-}
-
 ## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which
 ## holds it at 1, the basis carrying the coding. Returns "fixed" for the hold.
 ## A bare fixed is fixed(), as a constructor given where a value is.
@@ -1619,8 +1595,10 @@ validateForestAmplitude <- function(amplitude) {
       "'amplitude = fixed(",
       paste(deparse(value), collapse = ""),
       ")': a held coefficient is 1, and what it multiplies is the basis: ",
-      "nothing, or 0 and 1 for the two levels of a factor; fixed() takes no ",
-      "other value. Write fixed(), and state the forest's size with 'sd'"
+      "nothing, a numeric column as given, or 0 and 1 for the two levels of ",
+      "a factor; fixed() takes no other value. Write fixed(), state the ",
+      "forest's size with 'sd', and write another coding as the basis, as ",
+      "basis = z - 0.5"
     )
   }
   "fixed"

@@ -184,11 +184,7 @@ expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 a <- amplitudeSampler(twoDefault)
 b <- amplitudeSampler(twoDefault)
 a$setLeafPrior(forests = list(forest(sd = 0.35 * sd(y))))
-expect_equal(
-  a$getLeafPrior(1L)$amplitude.prior.scale,
-  0.35,
-  tolerance = 1e-14
-)
+expect_equal(a$getLeafPrior(1L)$sd, 0.35 * sd(y), tolerance = 1e-14)
 expect_identical(a$getLeafPrior(1L)$k.scale, b$getLeafPrior(1L)$k.scale)
 expect_false(identical(counted(a$run(3L, 2L)), counted(b$run(3L, 2L))))
 
@@ -201,7 +197,7 @@ live$storeState()
 anchorOf <- function(sampler) {
   vapply(sampler$getLeafPrior(), `[[`, 0, "k.scale")
 }
-factorOf <- function(sampler) sampler$getLeafPrior(2L)$leaf.scale.factor
+factorOf <- function(sampler) sampler$getLeafPrior(2L)$sd
 copied <- live$copy()
 file <- tempfile(fileext = ".rds")
 saveRDS(live, file)

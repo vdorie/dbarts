@@ -707,6 +707,15 @@ methods::setClass(
     # object saved before the slot existed lacks it, so every read goes
     # through dataBasisLevels.
     basis.levels = "listOrNULL",
+    # the scale of each numeric forest's column as the sampler first created
+    # on this object took it: NULL, or a list with one entry per forest, NULL
+    # or one number for each column of that forest's basis. The engine takes
+    # it, at a first creation, for a numeric forest that states no sd, and
+    # every later creation from the object is handed it, so the prior stays
+    # the first creation's whatever column is then in force. A data object
+    # saved before the slot existed lacks it, so every read goes through
+    # dataBasisScale.
+    basis.scale = "listOrNULL",
     # The multinomial (K-forest softmax) response: an n x K integer matrix
     # whose column k holds category k's counts, null
     # for every other family. It rides the data object rather than an R5 field
@@ -744,6 +753,7 @@ methods::setClass(
     response.levels = NULL,
     bases = NULL,
     basis.levels = NULL,
+    basis.scale = NULL,
     counts = NULL,
     offset.category = NULL,
     offset.category.test = NULL,

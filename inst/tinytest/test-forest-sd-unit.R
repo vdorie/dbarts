@@ -53,14 +53,25 @@ counted <- function(expr, class = "warning") {
 # carries it in k.scale, over the half-normal median and per unit of row
 # norm; one with none carries it as its half-Cauchy median, in units of the
 # unit.
+# the engine's own reading of forest `f`, the first chain's: the half-Cauchy
+# median a drawn forest with no basis carries its sd in, which the reader does
+# not report
+engineEntry <- function(sampler, f, column) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_getLeafPrior,
+    sampler$getPointer(),
+    f - 1L
+  )[[1L, column]]
+}
 expectStated <- function(sampler, f, value, info) {
   prior <- sampler$getLeafPrior(f)
-  expect_identical(prior$sd, value, info = info)
+  expect_identical(unname(prior$sd), value, info = info)
   expect_true(prior$sd.stated, info = info)
-  inForce <- if (is.null(prior$amplitude.prior.scale)) {
-    prior$k.scale * 0.674 * prior$basis.row.norm
+  median <- engineEntry(sampler, f, "amplitude.prior.scale")
+  inForce <- if (is.nan(median)) {
+    prior$k.scale * if (is.null(prior[["amplitude"]])) 0.674 else 1
   } else {
-    prior$amplitude.prior.scale * unitOf(sampler)
+    median * unitOf(sampler)
   }
   expect_equal(inForce, value, tolerance = 1e-12, info = info)
 }
@@ -203,7 +214,8 @@ for (family in c("probit", "logistic")) {
 }
 
 # --- not stated: the engine's own multiple, which never meets the unit; a
-# forest with a basis takes one unit however many forests there are ---
+# factor takes one unit and a number one unit for one sd of its column,
+# however many forests there are ---
 for (family in c("gaussian", "probit", "logistic")) {
   response <- if (family == "gaussian") y else d$yb
   for (numForests in 2:4) {
@@ -221,14 +233,26 @@ for (family in c("gaussian", "probit", "logistic")) {
     info <- paste(family, numForests)
     plain <- sampler$getLeafPrior(1L)
     median <- if (family == "gaussian") 2 else 1
-    expect_identical(plain$amplitude.prior.scale, median, info = info)
+    expect_identical(
+      engineEntry(sampler, 1L, "amplitude.prior.scale"),
+      median,
+      info = info
+    )
     expect_false(plain$sd.stated, info = info)
     expect_identical(plain$sd, median * unitOf(sampler), info = info)
     for (f in seq_len(numForests)[-1L]) {
       multiplied <- sampler$getLeafPrior(f)
-      expect_identical(multiplied$leaf.scale.factor, 1, info = info)
       expect_false(multiplied$sd.stated, info = info)
-      expect_identical(multiplied$sd, unitOf(sampler), info = info)
+      if (f == 3L) {
+        expect_equal(
+          unname(multiplied$sd),
+          unitOf(sampler) / sd(d$dose),
+          tolerance = 1e-12,
+          info = info
+        )
+      } else {
+        expect_identical(multiplied$sd, unitOf(sampler), info = info)
+      }
     }
     expect_identical(forestInfo(sampler)$sd, rep(NA_real_, numForests))
   }
@@ -241,7 +265,7 @@ for (family in c("gaussian", "probit", "logistic")) {
     list(
       forest(),
       forest(basis = d$zf, sd = unit),
-      forest(basis = d$dose, sd = unit)
+      forest(basis = d$dose, sd = unname(defaulted$getLeafPrior(3L)$sd))
     ),
     response,
     family = family
@@ -359,24 +383,18 @@ expect_identical(forestInfo(written)$sd, c(3, 0.25))
 swappedBasis <- twoForests()
 swappedBasis$setForestBasis(2L, factor(1L - d$z))
 expectStated(swappedBasis, 2L, 0.5, "setForestBasis")
-# a column swapped for one in other units moves the row norm and leaves the
-# stated number: the forest is the one created over the new column, on the
-# sampler and on a copy
+# a column swapped for one in other units leaves the stated number and the
+# forest's own scale: a stated sd is per unit of the column as given, so the
+# forest is the one created over the new column, on the sampler and on a copy
 overColumn <- function(column) {
   twoForests(list(forest(sd = 2), forest(basis = column, sd = 0.5)))
 }
 swappedColumn <- overColumn(d$dose)
-normBefore <- swappedColumn$getLeafPrior(2L)$basis.row.norm
+beforeSwap <- swappedColumn$getLeafPrior(2L)
 swappedColumn$setForestBasis(2L, 3 * d$dose + 1)
 afterSwap <- swappedColumn$getLeafPrior(2L)
-expect_equal(normBefore, median(d$dose), tolerance = 1e-12)
-expect_equal(
-  afterSwap$basis.row.norm,
-  3 * median(d$dose) + 1,
-  tolerance = 1e-12
-)
 expectStated(swappedColumn, 2L, 0.5, "setForestBasis, a column in other units")
-expect_identical(afterSwap$leaf.scale.factor, 0.5 / unitOf(swappedColumn))
+expect_identical(afterSwap, beforeSwap)
 expect_identical(afterSwap, overColumn(3 * d$dose + 1)$getLeafPrior(2L))
 expect_identical(swappedColumn$copy()$getLeafPrior(2L), afterSwap)
 # a forest created with no basis takes none, so the prior of such a forest
@@ -449,8 +467,10 @@ threeDefaults <- list(
 inexact <- NULL
 for (stretch in seq(1, 4, by = 0.125)) {
   sampler <- twoForests(threeDefaults, stretch * y)
-  held <- sampler$getLeafPrior(1L)$leaf.scale.factor
   unit <- unitOf(sampler)
+  # the held default's multiple of the anchor, a quarter of the window over
+  # the anchor the engine recorded
+  held <- 0.25 / forestInfo(sampler)$anchor
   if (held * unit / unit != held) {
     inexact <- stretch * y
     break
@@ -463,12 +483,7 @@ inForce <- lapply(written$getLeafPrior(), function(prior) prior$sd)
 written$setLeafPrior(forests = lapply(inForce, function(sd) forest(sd = sd)))
 channelsOf <- function(sampler) {
   lapply(sampler$getLeafPrior(), function(prior) {
-    list(
-      sd = prior$sd,
-      k.scale = prior$k.scale,
-      factor = prior$leaf.scale.factor,
-      median = prior$amplitude.prior.scale
-    )
+    list(sd = prior$sd, k.scale = prior$k.scale)
   })
 }
 statingDefaults <- list(
@@ -492,11 +507,13 @@ for (path in names(statingDefaults)) {
     info = path
   )
   expect_identical(channelsOf(sampler), twinChannels, info = path)
-  expect_identical(
-    sampler$getLeafPrior(1L)$leaf.scale.factor,
-    twin$getLeafPrior(1L)$leaf.scale.factor,
-    info = path
-  )
+  for (f in 1:3) {
+    expect_identical(
+      engineEntry(sampler, f, "prior.scale"),
+      engineEntry(twin, f, "prior.scale"),
+      info = path
+    )
+  }
   expect_identical(sampler$run(0L, 20L), twinDraws, info = path)
 }
 
@@ -760,7 +777,10 @@ expect_identical(namedOnTerm$run()$train, unnamedDraws)
 namedOnColumn <- twoForests(
   list(forest(), forest(basis = d$dose, sd = pars["s"]))
 )
-expect_identical(namedOnColumn$getLeafPrior(2L)$sd, 0.5)
+# a numeric forest's number carries its column's name, never the one written
+# on the sd
+expect_identical(unname(namedOnColumn$getLeafPrior(2L)$sd), 0.5)
+expect_false(identical(names(namedOnColumn$getLeafPrior(2L)$sd), "s"))
 namedWrite <- twoForests(list(forest(), forest(basis = d$zf)))
 namedWrite$setLeafPrior(
   forests = list(forest(sd = pars["t"]), forest(sd = pars["s"]))

@@ -4,7 +4,7 @@
 # the size of what it contributes, exactly. A held forest with no basis that
 # states no sd has the size bart() gives its one forest under a continuous
 # response (dec-B290) and one unit of the link's error otherwise (dec-B293).
-# A held numeric column stays refused (dec-B353).
+# A held numeric column is held at 1, the column as given (dec-B354).
 
 forest <- dbartsForests$forest
 fixed <- dbartsPriors$fixed
@@ -114,9 +114,12 @@ shapes <- list(
   c("factor*", "dose"),
   c("factor*", "none"),
   c("dose", "none*", "factor*"),
-  c("none*", "factor*")
+  c("none*", "factor*"),
+  c("none", "dose*", "factor"),
+  c("none", "factor", "dose*"),
+  c("dose*", "none")
 )
-heldBlock <- function(kind) if (kind == "none") 1 else c(0, 1)
+heldBlock <- function(kind) if (kind %in% c("none", "dose")) 1 else c(0, 1)
 for (shape in shapes) {
   plainFirst <- !("none" %in% kindOf(shape[-1L]))
   at <- if (plainFirst) names(heldDoors) else setdiff(names(heldDoors), "term")
@@ -398,15 +401,15 @@ expect_error(
   ),
   paste0(
     "'amplitude = fixed(2)': a held coefficient is 1, and what it multiplies ",
-    "is the basis: nothing, or 0 and 1 for the two levels of a factor; ",
-    "fixed() takes no other value. Write fixed(), and state the forest's ",
-    "size with 'sd'"
+    "is the basis: nothing, a numeric column as given, or 0 and 1 for the ",
+    "two levels of a factor; fixed() takes no other value. Write fixed(), ",
+    "state the forest's size with 'sd', and write another coding as the ",
+    "basis, as basis = z - 0.5"
   ),
   fixed = TRUE
 )
 
-# --- not moved: a drawn numeric column beside a held factor keeps its prior,
-# and a held numeric column is still refused (dec-B353) ---
+# --- not moved: a drawn numeric column beside a held factor keeps its prior
 numericOf <- function(holdFactor) {
   dbarts(
     x,
@@ -421,13 +424,112 @@ numericOf <- function(holdFactor) {
 }
 beside <- numericOf(TRUE)
 expect_identical(beside$k.scale, numericOf(FALSE)$k.scale)
-expect_identical(beside$prior.sd.of, "forest total")
+expect_identical(beside$prior.sd.of, "forest, per unit of basis (prior median)")
 expect_null(beside[["amplitude"]])
-for (door in c("list.formula", "list.matrix", "spec", "data")) {
-  expect_error(
-    heldDoors[[door]](c("none", "dose*")),
-    "amplitude = fixed() on a basis of one numeric column is not supported yet",
-    fixed = TRUE,
-    info = door
-  )
+
+# --- a held numeric column: its sd exact, stated or one unit for one sd of
+# the column, and the hold kept by a swap, a column of zeros among them ---
+for (sd in c(0.3, NA)) {
+  for (shape in list(c("none", "dose*"), c("none", "factor", "dose*"))) {
+    for (door in c("list.formula", "list.matrix", "spec", "data")) {
+      info <- paste(door, length(shape), if (is.na(sd)) "default" else sd)
+      sampler <- if (is.na(sd)) {
+        heldDoors[[door]](shape)
+      } else {
+        dbarts(
+          x,
+          y,
+          forests = c(
+            lapply(shape[-length(shape)], valueForest),
+            list(forest(basis = dose, amplitude = fixed(), sd = sd))
+          ),
+          control = heldControl()
+        )
+      }
+      f <- length(shape)
+      prior <- sampler$getLeafPrior(f)
+      unit <- attr(sampler$control, "bartcore.forests", exact = TRUE)$unit
+      expect_equal(
+        unname(prior$sd),
+        if (is.na(sd)) unit / sd(dose) else sd,
+        tolerance = 1e-12,
+        info = info
+      )
+      expect_equal(
+        prior$k.scale,
+        unname(prior$sd),
+        tolerance = 1e-12,
+        info = info
+      )
+      expect_identical(
+        prior$prior.sd.of,
+        "forest, per unit of basis",
+        info = info
+      )
+      for (column in list(dose / 10, rep(0, n))) {
+        sampler$setForestBasis(f, column)
+        expect_identical(
+          sampler$getLeafPrior(f)$k.scale,
+          prior$k.scale,
+          info = info
+        )
+        invisible(sampler$run(0L, 5L))
+        expect_identical(c(sampler$getForestAmplitudes(f)), 1, info = info)
+      }
+    }
+  }
 }
+heldDose <- bart(
+  y ~ forest(x1 + x2) + forest(x1, basis = dose, amplitude = fixed()),
+  d,
+  n.samples = 10L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 43L,
+  verbose = FALSE
+)
+expect_identical(unname(heldDose$fixed$amplitude), 1)
+expect_identical(names(heldDose$fixed$amplitude), "forest2")
+
+# --- another coding is another basis: z - 0.5 held at 1 is the forest's fit
+# times -0.5 and 0.5 ---
+d$zc <- z - 0.5
+centered <- bart(
+  y ~ forest(x1 + x2) + forest(x1, basis = zc, amplitude = fixed()),
+  d,
+  n.samples = 10L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 44L,
+  verbose = FALSE
+)
+term <- extract(centered, type = "forest", contribution = TRUE)[,, 2L]
+own <- extract(centered, type = "forest")[,, 2L]
+expect_equal(term, sweep(own, 2L, z - 0.5, `*`), tolerance = 1e-12)
+expect_true(all(centered$glue[, 2L] == 1))
+
+# --- a held 0/1 number and the held factor of the same column, at one stated
+# sd, draw the same ---
+heldPair <- function(basis) {
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(),
+      forest(basis = basis, amplitude = fixed(), sd = 0.7)
+    ),
+    control = heldControl()
+  )$run()$train
+}
+expect_identical(heldPair(z), heldPair(zf))
+expect_error(
+  heldDoors$list.matrix(c("none", "dose"))$setForestBasis(
+    2L,
+    dose,
+    updateBasisScale = TRUE
+  ),
+  "unused argument (updateBasisScale = TRUE)",
+  fixed = TRUE
+)

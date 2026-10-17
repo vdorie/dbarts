@@ -179,7 +179,7 @@ sharedValue <- function(x) {
 # forest pins it, and elsewhere the reader states a drawn k as a law object and
 # a fixed one as a number.
 leafPriorIsDrawn <- function(prior) {
-  if (!is.null(prior[["basis.row.norm"]])) {
+  if (!is.null(prior[["multiplier"]])) {
     return(FALSE)
   }
   spec <- prior$leaf.prior

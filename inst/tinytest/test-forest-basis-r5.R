@@ -241,17 +241,17 @@ priorSampler <- new(
   priorSpec$model,
   priorSpec$data
 )
-# forest 1: no basis -> no variance, half-Cauchy median 2.5 in the response's
-# units, which is 2.5 / sd(y) of the response's standard deviation
+# forest 1: no basis -> its size is its coefficient's, so its own scale is the
+# response's standard deviation; forest 2: a factor -> its size is in its own
+# scale, over the half-normal median
 priorFree <- priorSampler$getLeafPrior(1L)
 expect_identical(priorFree$sd, 2.5)
 expect_identical(priorFree$multiplier, "none")
-expect_equal(priorFree$amplitude.prior.scale, 2.5 / sd(y), tolerance = 1e-12)
-# forest 2: a basis -> fixed variance, no half-Cauchy scale
+expect_equal(priorFree$k.scale, sd(y), tolerance = 1e-12)
 priorBasis <- priorSampler$getLeafPrior(2L)
 expect_identical(priorBasis$sd, 1.25)
 expect_identical(priorBasis$multiplier, "factor")
-expect_null(priorBasis$amplitude.prior.scale)
+expect_equal(priorBasis$k.scale, 1.25 / 0.674, tolerance = 1e-12)
 
 # and second, the statement is really READ: the half-Cauchy median moves every
 # subsequent draw. A bridge that ignored the transported statement would leave
@@ -381,13 +381,10 @@ expect_error(
   "carry no amplitudes"
 )
 
-# --- the leaf scale a swap leaves behind. The calibration map divides
-# out the median nonzero row norm of each forest's basis, and that divisor is
-# otherwise a construction-time constant - no mutation re-derives a K-forest
-# leaf scale - so $setForestBasis owns the staleness. Pinned on a PROBIT
-# K-forest, where the anchor is the literal 1 and $getLeafPrior's
-# anchor (k pinned at 1) IS the map's leaf scale, so the assertion is exact. Nothing
-# else in the suite or in the equivalence trio calls this mutator at all. ---
+# --- a swap moves the basis and nothing else (dec-B452): no scale, no sd in
+# force and no coefficient. Pinned on a PROBIT K-forest, where the unit is the
+# literal 1 and $getLeafPrior's k.scale (k pinned at 1) is the forest's own
+# prior sd, so each assertion is exact. ---
 yBinary <- as.double(y > median(y))
 probitForests <- function() {
   dbarts(
@@ -401,26 +398,25 @@ priorScale <- function(sampler, forest) {
   sampler$getLeafPrior(forest)$k.scale
 }
 
-# (i) STALENESS: a basis whose median nonzero row norm is 4x the old one moves
-# the divisor with it. RED against a divisor left at its construction value.
-# A forest of levels takes no numbers, so the forest is created on a number.
+# (i) A NUMBER swapped to four times itself keeps the prior its creation took
+# from the first column: one unit for one sd of z, over 0.674. RED against a
+# scale taken again at the swap.
 stale <- dbarts(
   x,
   yBinary,
   forests = list(forest(), forest(basis = z)),
   control = seededControlForestBasisR5()
 )
-expect_equal(priorScale(stale, 2L), 1 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(stale, 2L), 1 / (0.674 * sd(z)), tolerance = 1e-12)
 stale$run(5L, 1L)
+staleBefore <- stale$getLeafPrior(2L)
 stale$setForestBasis(2L, 4 * z)
-expect_equal(priorScale(stale, 2L), 1 / (0.674 * 4), tolerance = 1e-12)
+expect_identical(stale$getLeafPrior(2L), staleBefore)
 # and the untouched forest keeps its own
 expect_equal(priorScale(stale, 1L), 1, tolerance = 1e-12)
 
 # (ii) BITWISE: a re-install of the SAME values is the identity, on the
-# calibration and on every draw after it. That is the claim retaining the
-# construction-time anchor rests on - recomputing it would recalibrate this
-# forest onto a scale the others are not on - and only this pins it.
+# calibration and on every draw after it.
 swapped <- probitForests()
 twin <- probitForests()
 swapped$run(5L, 1L)
@@ -434,13 +430,9 @@ expect_identical(swapped$getForestAmplitudes(), twin$getForestAmplitudes())
 expect_identical(swappedResult$sigma, twinResult$sigma)
 expect_identical(swappedResult$train, twinResult$train)
 
-# (iii) THE WHOLE PRODUCT, re-derived across the swap. (i) and (ii) both run at
-# the DEFAULT leaf scale factor - a literal 1 - so a swap that lost the stored
-# factor would pass them both; only a DECLARED forest(sd = ) can see it. Every
-# factor of sd_f * s / (0.674 c_f) discriminates here: sd in {2.5, 0.4}, c in
-# {3, 5} then 7, divisor 0.674, and s is probit's 1 (the anchor's own arm is
-# test-bcf-family.R's, which runs the same fixture under logistic too, where a
-# dropped anchor is a 81 percent miss).
+# (iii) A STATED sd is per unit of the column as given: a column of 3s and one
+# of 5s, never divided, take the forest's sd over 0.674, and a swap to 7s
+# leaves both.
 ones <- matrix(1, n, 1L)
 # No forest of this model is without a basis, so the count and the tree prior
 # are stated on a forest and the control names no count.
@@ -458,43 +450,16 @@ declared <- dbarts(
     seed = 41L
   )
 )
-expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
-expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 5), tolerance = 1e-12)
+expect_equal(priorScale(declared, 1L), 2.5 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(declared, 2L), 0.4 / 0.674, tolerance = 1e-12)
 declared$run(5L, 1L)
 declared$setForestBasis(2L, 7 * ones)
-# the new row norm enters and the DECLARED factor survives: 0.084781687156
-expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 7), tolerance = 1e-12)
-expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
-
-# --- the row norm IN FORCE is reported rather than only divided out, and it
-# follows the swap. A stored-and-stale value is what this catches: the
-# construction-time norm was 5 and the swap makes it 7. The second install
-# carries the convention as well - zero rows excluded, an EVEN nonzero count
-# averaging the two central order statistics - which R's own median reproduces
-# from data@bases, so the assertion is against the R-side rule rather than
-# against a number copied out of the engine. ---
-mapColumn <- function(sampler, forest, column) {
-  sampler$getLeafPrior(forest)[[column]]
-}
-expect_equal(mapColumn(declared, 2L, "basis.row.norm"), 7)
-expect_equal(mapColumn(declared, 1L, "basis.row.norm"), 3)
-evenBasis <- matrix(c(rep(0, 4L), seq_len(n - 4L)), n, 1L)
-evenNorms <- sqrt(rowSums(evenBasis^2))
-declared$setForestBasis(2L, evenBasis)
-expect_equal(
-  mapColumn(declared, 2L, "basis.row.norm"),
-  median(evenNorms[evenNorms > 0])
-)
-expect_equal(
-  priorScale(declared, 2L),
-  0.4 / (0.674 * median(evenNorms[evenNorms > 0])),
-  tolerance = 1e-12
-)
+expect_equal(priorScale(declared, 2L), 0.4 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(declared, 1L), 2.5 / 0.674, tolerance = 1e-12)
 
 # --- the SPEC ECHO across a state install. A state carries no leaf scale and
-# no fixed amplitude variance - both are model - so the recipient's map is
-# still the decomposition in force after $setState, whatever the donor ran
-# under. Four arms. ---
+# no fixed amplitude variance - both are model - so the recipient's prior is
+# still the one in force after $setState, whatever the donor ran under. ---
 donorForests <- function(sd, basis = ~ factor(z)) {
   multiplied <- list(basis = basis, sd = sd)
   dbarts(
@@ -515,76 +480,37 @@ donorState <- donor$state
 recipientScale <- priorScale(recipient, 2L)
 
 # (a) THE RECIPIENT'S CALIBRATION STANDS. The install is accepted - the
-# widths and tree counts agree - and the recipient runs under its own scale,
-# which its factor and divisor still decompose.
+# widths and tree counts agree - and the recipient runs under its own scale.
 recipient$setState(donorState)
 expect_identical(priorScale(recipient, 2L), recipientScale)
-expect_identical(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
-expect_identical(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
-expect_equal(
-  mapColumn(recipient, 2L, "k.scale") *
-    mapColumn(recipient, 2L, "leaf.scale.divisor") *
-    mapColumn(recipient, 2L, "basis.row.norm") /
-    mapColumn(recipient, 2L, "leaf.scale.factor"),
-  1,
-  tolerance = 1e-12
-)
-# the row norm needs no rule - bases are not state, so the recipient's own is
-# still the one in force
-expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 1)
-expect_equal(mapColumn(recipient, 1L, "leaf.scale.factor"), 1)
-expect_equal(mapColumn(recipient, 1L, "leaf.scale.divisor"), 1)
+expect_equal(priorScale(recipient, 2L), 0.5 / 0.674, tolerance = 1e-12)
+expect_equal(priorScale(recipient, 1L), 1, tolerance = 1e-12)
+# neither sampler states the first forest's sd, so both carry the family's
+# default, one unit under this probit fixture rather than gaussian's two
+expect_identical(recipient$getLeafPrior(1L)$sd, 1)
 
-# (d) THE AMPLITUDE PRIOR IS THE RECIPIENT'S, which is what the next draw will
-# use. Forest 1 carries the scale mixture, whose serialized variance is a live
-# auxiliary rather than a prior, and forest 2 none.
-expect_null(mapColumn(recipient, 2L, "amplitude.prior.scale"))
-# neither sampler declares that forest's sd, so both carry the family's own
-# default median - 1 under this probit fixture, where the anchor is the link's
-# error sd and sigma is pinned, rather than gaussian's 2
-expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 1)
-
-# (c) RE-DERIVATION. $setForestBasis re-derives the leaf scale from the stored
-# factor and divisor and the new basis, and the identity holds on it. The
-# recipient here multiplies a number, which is what takes a rescaled column.
+# (c) A SWAP AFTER THE INSTALL. The recipient here multiplies a number, which
+# is what takes a rescaled column, and the stated sd stands per unit of it.
 donor <- donorForests(2, as.double(z))
 donor$run(5L, 1L)
 donor$storeState()
 recipient <- donorForests(0.5, as.double(z))
 recipient$setState(donor$state)
 recipient$setForestBasis(2L, 4 * z)
-expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
-expect_equal(mapColumn(recipient, 2L, "leaf.scale.divisor"), 0.674)
-expect_equal(mapColumn(recipient, 2L, "basis.row.norm"), 4)
-expect_equal(
-  mapColumn(recipient, 2L, "k.scale") *
-    mapColumn(recipient, 2L, "leaf.scale.divisor") *
-    mapColumn(recipient, 2L, "basis.row.norm") /
-    mapColumn(recipient, 2L, "leaf.scale.factor"),
-  1,
-  tolerance = 1e-12
-)
+expect_equal(priorScale(recipient, 2L), 0.5 / 0.674, tolerance = 1e-12)
+expect_identical(unname(recipient$getLeafPrior(2L)$sd), 0.5)
 
 # (b) SELF-RESTORE. A store, a run and a restore of a sampler's OWN state
-# leaves every entry and the identity as they were.
+# leaves every entry as it was.
 selfRestore <- donorForests(2)
 selfRestore$run(5L, 1L)
 selfRestore$storeState()
 ownState <- selfRestore$state
-ownScale <- priorScale(selfRestore, 2L)
+ownPrior <- selfRestore$getLeafPrior(2L)
 selfRestore$run(0L, 1L)
 selfRestore$setState(ownState)
-expect_equal(priorScale(selfRestore, 2L), ownScale)
-expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.factor"), 2)
-expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.divisor"), 0.674)
-expect_equal(
-  mapColumn(selfRestore, 2L, "k.scale") *
-    mapColumn(selfRestore, 2L, "leaf.scale.divisor") *
-    mapColumn(selfRestore, 2L, "basis.row.norm") /
-    mapColumn(selfRestore, 2L, "leaf.scale.factor"),
-  1,
-  tolerance = 1e-12
-)
+expect_identical(selfRestore$getLeafPrior(2L), ownPrior)
+expect_equal(priorScale(selfRestore, 2L), 2 / 0.674, tolerance = 1e-12)
 
 # The C entry re-checks what the R method already refuses, and it holds an
 # owning transposition buffer while it does: a non-finite value is rejected

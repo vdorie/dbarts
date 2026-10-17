@@ -240,7 +240,6 @@ objects <- list(
   list("1 and 2", z + 1, "numeric", 1L, "stays"),
   list("three values", as.double(as.integer(arm)), "numeric", 1L, "stays"),
   list("dose", dose, "numeric", 1L, "stays"),
-  list("a constant column", rep(1, n), "numeric", 1L, "stays"),
   list("indicator columns", cbind(1 - z, z), "numeric", 2L, "refused"),
   list("two numeric columns", cbind(dose, age), "numeric", 2L, "refused"),
   list(
@@ -253,6 +252,20 @@ objects <- list(
   list("a factor of three levels", arm, "levels", 3L, "refused"),
   list("a character vector of three values", g, "levels", 3L, "refused")
 )
+# a constant column is a number with no standard deviation to take a default
+# from: refused at every door that states no sd
+for (door in sevenDoors) {
+  said <- made(door, rep(1, n))$refused
+  expect_true(
+    startsWith(said, "forest 2") &&
+      grepl(
+        "states no sd and its basis is constant (1 on every row",
+        said,
+        fixed = TRUE
+      ),
+    info = paste("a constant column at", door)
+  )
+}
 for (object in objects) {
   info <- object[[1L]]
   if (object[[5L]] == "refused") {

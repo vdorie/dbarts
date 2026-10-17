@@ -24,7 +24,14 @@ control <- dbartsControl(
 )
 sampler <- dbarts(x, y, control = control)
 create <- function(control = sampler$control, model = sampler$model) {
-  .Call(dbarts:::C_dbarts_bartcore_create, control, model, sampler$data, "")
+  .Call(
+    dbarts:::C_dbarts_bartcore_create,
+    control,
+    model,
+    sampler$data,
+    "",
+    NULL
+  )
 }
 
 # --- R/A_class.R dbartsControl validity: rule proposal probabilities ------

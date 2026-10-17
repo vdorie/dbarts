@@ -115,81 +115,92 @@ termHeld <- dbarts(
 termHeld$run(0L, 10L)
 expect_equal(termHeld$getForestAmplitudes()[2:3, 1L], c(0, 1))
 
-# --- a hold on one numeric column would multiply the forest by zero ---
-oneColumn <- "amplitude = fixed\\(\\) on a basis of one numeric column is not supported yet"
-expect_error(
-  dbarts(
+# --- a hold on one numeric column holds it at 1, the column as given, at
+# every door (dec-B354) ---
+heldOnNumber <- function(sampler, forest = 2L) {
+  sampler$run(0L, 5L)
+  widths <- vapply(
+    sampler$data@bases,
+    function(block) if (is.null(block)) 1L else NCOL(block),
+    0L
+  )
+  offsets <- cumsum(c(0L, widths))
+  amplitudes <- sampler$getForestAmplitudes()[, 1L]
+  amplitudes[offsets[forest] + 1L]
+}
+expect_identical(
+  heldOnNumber(dbarts(
     x,
     y,
     forests = list(forest(), forest(basis = ~z, amplitude = fixed())),
     control = argumentControl()
-  ),
-  oneColumn
+  )),
+  1
 )
-expect_error(
-  dbarts(
+expect_identical(
+  heldOnNumber(dbarts(
     x,
     y,
     forests = list(forest(), forest(basis = z, amplitude = fixed())),
     control = argumentControl()
-  ),
-  "forest 2: amplitude = fixed() on a basis of one numeric column",
-  fixed = TRUE
+  )),
+  1
 )
-expect_error(
-  dbartsSpec(
-    dbartsData(x, y),
-    argumentControl(),
-    forests = list(forest(), forest(basis = ~z, amplitude = fixed()))
-  ),
-  oneColumn
-)
-expect_error(
-  dbarts(
+expect_identical(
+  heldOnNumber(dbarts(
     y ~ x1 + x2 + forest(x1 + x2, basis = ~z, amplitude = fixed()),
     dataFrame,
     control = argumentControl()
-  ),
-  oneColumn
+  )),
+  1
 )
-expect_error(
-  do.call(
-    bart,
-    c(
-      list(y ~ x1 + x2 + forest(x1 + x2, basis = ~z, amplitude = fixed())),
-      list(dataFrame),
-      termControl
-    )
-  ),
-  oneColumn
+heldSpec <- dbartsSpec(
+  dbartsData(x, y),
+  argumentControl(),
+  forests = list(forest(), forest(basis = ~z, amplitude = fixed()))
 )
-# a held FIRST forest of an all-multiplied model is refused as well; no forest
-# of that model is without a basis, so the count and the tree prior are
-# stated on a forest and the control names no count
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(
-      forest(
-        basis = ~z,
-        amplitude = fixed(),
-        n.trees = 10L,
-        base = 0.95,
-        power = 2
+expect_identical(
+  attr(heldSpec$control, "bartcore.forests")$heldAmplitude,
+  c(FALSE, TRUE)
+)
+heldFit <- do.call(
+  bart,
+  c(
+    list(y ~ x1 + x2 + forest(x1 + x2, basis = ~z, amplitude = fixed())),
+    list(dataFrame),
+    termControl
+  )
+)
+expect_identical(unname(heldFit$fixed$amplitude), 1)
+# a held FIRST forest of an all-multiplied model is held at 1 as well; no
+# forest of that model is without a basis, so the count and the tree prior
+# are stated on a forest and the control names no count
+expect_identical(
+  heldOnNumber(
+    dbarts(
+      x,
+      y,
+      forests = list(
+        forest(
+          basis = ~z,
+          amplitude = fixed(),
+          n.trees = 10L,
+          base = 0.95,
+          power = 2
+        ),
+        forest(basis = ~ factor(z))
       ),
-      forest(basis = ~ factor(z))
+      control = dbartsControl(
+        n.chains = 1L,
+        n.threads = 1L,
+        n.samples = 5L,
+        updateState = FALSE,
+        seed = 23L
+      )
     ),
-    control = dbartsControl(
-      n.chains = 1L,
-      n.threads = 1L,
-      n.samples = 5L,
-      updateState = FALSE,
-      seed = 23L
-    )
+    1L
   ),
-  "forest 1: amplitude = fixed() on a basis of one numeric column",
-  fixed = TRUE
+  1
 )
 # the same column drawn is accepted
 expect_silent(dbarts(
@@ -225,7 +236,7 @@ for (entry in list(
 }
 expect_error(
   twoForests(amplitude = dbartsPriors$fixed(2)),
-  "'amplitude = fixed(2)': a held coefficient is 1, and what it multiplies is the basis: nothing, or 0 and 1 for the two levels of a factor; fixed() takes no other value. Write fixed(), and state the forest's size with 'sd'",
+  "'amplitude = fixed(2)': a held coefficient is 1, and what it multiplies is the basis: nothing, a numeric column as given, or 0 and 1 for the two levels of a factor; fixed() takes no other value. Write fixed(), state the forest's size with 'sd', and write another coding as the basis, as basis = z - 0.5",
   fixed = TRUE
 )
 for (bad in list(c(1, 1), NA_real_, NaN)) {

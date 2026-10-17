@@ -389,7 +389,10 @@ expect_equal(forests$fixed$k, c(forest1 = 1, forest2 = 1))
 # summary's line under the table names each forest's sd, in the response's
 # units, by the forest's label: the numbers extract returns
 multiSummary <- summary(forests)
-expect_identical(multiSummary$fixed$leaf.prior.sd, unlist(sds))
+expect_identical(
+  multiSummary$fixed$leaf.prior.sd,
+  unlist(lapply(sds, unname))
+)
 shownSds <- format(unname(unlist(sds)), digits = 4L)
 expect_stdout(
   print(multiSummary),
