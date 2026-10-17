@@ -338,7 +338,7 @@ for (seed in 1L:2L) {
     family = "logistic",
     control = list(n.trees = 1L, seed = seed)
   )
-  invisible(logistic$run(50L, 1L))
+  invisible(logistic$run(200L, 1L))
   draws <- stateOf(logistic)[[1L]]$latents
   expect_true(mean(draws[far]) < 0.7 * mean(draws[!far]), info = seed)
   expect_null(logistic$installTrees(handDonor(close), forceUpdate = TRUE))
@@ -366,11 +366,11 @@ expect_identical(
   crossed[2L]
 )
 
-# under blocks each tree is tried in the slots of every row, and each row
-# in turn keeps its count of the trees that vary most there among those no
-# earlier row kept: slots 1 and 2 split on x1 alone, 3 and 4 on the others.
-# Trees 5 and 6 vary most on x1 and go to the first row, trees 3 and 4 on
-# x2 to the second, each as stored
+# under blocks each tree is tried in the slots of every block, and each
+# block in turn keeps its count of the trees that vary most there among
+# those no earlier block kept: slots 1 and 2 split on x1 alone, 3 and 4 on
+# the others. Trees 5 and 6 vary most on x1 and go to the first block, trees
+# 3 and 4 on x2 to the second, each as stored
 blocked <- list(
   split1(1L, at(1L, 50L), 0.01, -0.01),
   split1(1L, at(1L, 50L), 0.01, -0.01),
@@ -379,36 +379,52 @@ blocked <- list(
   split1(1L, at(1L, 50L), 0.4, -0.4),
   split1(1L, at(1L, 50L), 0.4, -0.4)
 )
-twoRows <- function(first, second, groups = list("x1", c("x2", "x3", "x4"))) {
+twoBlocks <- function(first, second, groups = list("x1", c("x2", "x3", "x4"))) {
   dbartsForests$blocks(groups = groups, trees.per.group = c(first, second))
 }
 expect_identical(
-  forcedInto(handDonor(blocked), 4L, blocks = twoRows(2L, 2L)),
+  forcedInto(handDonor(blocked), 4L, blocks = twoBlocks(2L, 2L)),
   blocked[c(5L, 6L, 3L, 4L)]
 )
 
-# a row that keeps more trees than vary there takes trees cut back to a
-# leaf, which tie at 0, the earliest first and never one an earlier row
-# kept: into 1 and 3 the first row keeps tree 1, and the second trees 3 and 4
-# and tree 2 as a leaf near 0, where tree 1's would sit near 0.3
+# a block that keeps more trees than vary there takes trees cut back to a
+# leaf, which tie at 0, the earliest first and never one an earlier block
+# kept: into 1 and 3 the first block keeps tree 1, and the second trees 3 and
+# 4 and tree 2 as a leaf near 0, where tree 1's would sit near 0.3
 blocked[c(1L, 2L, 5L, 6L)] <- list(
   split1(1L, at(1L, 50L), 0.6, 0.0),
   split1(1L, at(1L, 50L), 0.01, -0.01),
   split1(1L, at(1L, 50L), 0.02, -0.02),
   split1(1L, at(1L, 50L), 0.02, -0.02)
 )
-held <- forcedInto(handDonor(blocked), 4L, blocks = twoRows(1L, 3L))
+held <- forcedInto(handDonor(blocked), 4L, blocks = twoBlocks(1L, 3L))
 expect_identical(held[c(1L, 3L, 4L)], blocked[c(1L, 3L, 4L)])
 expect_identical(held[[2L]]$vars, -1L)
 expect_true(abs(held[[2L]]$values) < 0.05)
 
+# a tree a block keeps is not kept again by a later one: into 2 and 2 the
+# first block keeps tree 1 and the single leaf tree 2, the earliest of those
+# that vary by 0 there, and the second tree 3 and then tree 4, the earliest
+# such left
+stumped <- list(
+  split1(1L, at(1L, 50L), 0.6, 0.0),
+  stump(0.3),
+  split1(2L, at(2L, 50L), 0.5, -0.5),
+  stump(0.7),
+  stump(0.9)
+)
+expect_identical(
+  forcedInto(handDonor(stumped), 4L, blocks = twoBlocks(2L, 2L)),
+  stumped[1L:4L]
+)
+
 # a donor of 100 and 100 trees on x1 and x2 and on x3 and x4: into 25 and 25,
-# and into 40 and 10, each row keeps the most varying of the donor's trees
+# and into 40 and 10, each block keeps the most varying of the donor's trees
 # on its own columns, from both halves of the donor
 halves <- list(c("x1", "x2"), c("x3", "x4"))
 blockDonor <- make(
   sweeps = 200L,
-  blocks = twoRows(100L, 100L, halves),
+  blocks = twoBlocks(100L, 100L, halves),
   control = trees(200L)
 )
 blockTrees <- treesOf(stateOf(blockDonor))
@@ -421,10 +437,10 @@ for (counts in list(c(25L, 25L), c(40L, 10L))) {
     forcedInto(
       blockDonor,
       sum(counts),
-      blocks = twoRows(counts[1L], counts[2L], halves)
+      blocks = twoBlocks(counts[1L], counts[2L], halves)
     ),
     blockTrees[kept],
-    info = counts
+    info = paste(counts, collapse = "/")
   )
 }
 
