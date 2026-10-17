@@ -85,10 +85,11 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
   variance of a tree's fitted values over the recipient's rows under its case weights, of the tree as it
   will be installed (moved to the recipient's grid, cut back); each chain chooses among the trees of the
   donor sample it takes; ties go to the earlier tree. Under `blocks`, whatever the count, each block in turn
-  first takes in the donor's order, up to its count, the trees it holds as stored, and a donor all of whose
-  trees go in so is clean and taken whole; otherwise each block in turn keeps up to its count of the trees that
-  vary most as installed there, none it would hold as a single leaf, and starts the rest as single leaves.
-  Section 3 (e) shows what this does to the sum.
+  first takes in the donor's order, up to its count, the trees it holds as stored, and where that leaves a
+  tree out, once more with the donor's single leaves offered last; a donor all of whose trees go in so is
+  clean and taken whole. Otherwise each block in turn keeps up to its count of the trees that vary most as
+  installed there, none it would hold as a single leaf when the donor holds it as more, and starts the rest as
+  single leaves. Section 3 (e) shows what this does to the sum.
 - dec-B324, "Take the trees; a part only one side has does not transfer.": DART weights go only between two
   DART fits, a variance forest only where both have one; the recipient's own part starts as a new fit's.
 - dec-B325, "Take what translates.": a constant donor seeds a linear recipient exactly, slopes 0. A linear

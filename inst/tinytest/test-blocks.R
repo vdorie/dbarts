@@ -344,7 +344,7 @@ expect_error(
   "available predictors"
 )
 
-# ---- warm start: declined, pre-mutation integrity, and the forced cut-back ----
+# ---- warm start: declined, pre-mutation integrity, and the forced choice ----
 
 # an unconstrained donor is free to mix x1 with x2/x3 in any tree; a target
 # whose block 0 confines 15 of its 20 trees to {x1} alone almost certainly
@@ -378,7 +378,8 @@ expect_identical(wsTarget$installTrees(wsDonor), FALSE)
 wsSamples <- wsTarget$run()
 expect_equal(dim(wsSamples$train), c(n, 15L))
 
-# forced, each tree is cut back at its first split outside its block
+# forced, each block keeps the donor's trees that vary most there as it
+# holds them, so no live tree splits outside its block
 expect_null(wsTarget$installTrees(wsDonor, forceUpdate = TRUE))
 wsTrees <- wsTarget$getTrees()
 wsSplits <- wsTrees[wsTrees$var > 0L, ]

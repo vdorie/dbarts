@@ -1525,8 +1525,9 @@ static void testBlockAdditiveConfinement() {
 
   // each live tree's columnMask_ is its block row, so the one column-mask
   // rule holds a state to its blocks: without force the out-of-block state is
-  // declined, with it each tree is collapsed into its own group, and a warm
-  // start does the same with the donor
+  // declined, with it each tree is collapsed into its own group; a warm start
+  // is declined too and, forced, keeps by rank the trees each block holds
+  // within its columns
   auto target = makeSampler(999, true);
   check(declinesUntouched(*target, donorState),
         "blocks: setState without force declines an out-of-block state");

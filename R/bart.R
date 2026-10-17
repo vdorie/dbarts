@@ -854,11 +854,11 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
 }
 
 # The line bart prints for a warm start under verbose = TRUE, from the
-# report installDonorTrees returns. Trees are counted per chain, every chain
-# taking as many, and changes are summed over the chains, each changed tree
-# under one name. The single leaves that fill a forest of more trees than the
-# donor's are counted per chain too and said before the changes in both
-# forests' clauses. The variance forest has its own clause where one of its
+# report installDonorTrees returns. Trees taken and offered are counted per
+# chain, as a range where the chains differ, and changes are summed over the
+# chains, each changed tree under one name. The single leaves that fill a
+# forest are counted per chain too, as a range, and said before the changes
+# in both forests' clauses. The variance forest has its own clause where one of its
 # trees changed or was left out or it took single leaves, and each way the
 # leaves are not the donor's has its own.
 warmStartLine <- function(report) {
@@ -867,15 +867,22 @@ warmStartLine <- function(report) {
     cut.back = "cut back to fit",
     side.dropped = "with a side for missing values dropped"
   )
+  span <- function(values) {
+    bounds <- as.integer(range(values))
+    if (bounds[1L] == bounds[2L]) {
+      return(sprintf("%d", bounds[1L]))
+    }
+    sprintf("%d to %d", bounds[1L], bounds[2L])
+  }
   taken <- function(counts) {
-    sprintf("%d of %d", counts[1L, "taken"], counts[1L, "offered"])
+    paste(span(counts[, "taken"]), "of", span(counts[, "offered"]))
   }
   single <- function(counts, noun = NULL) {
-    count <- counts[1L, "single.leaves"]
-    if (count == 0L) {
+    count <- counts[, "single.leaves"]
+    if (all(count == 0L)) {
       return("")
     }
-    paste(c(count, noun, "started as single leaves"), collapse = " ")
+    paste(c(span(count), noun, "started as single leaves"), collapse = " ")
   }
   changed <- function(counts) {
     totals <- colSums(counts[, names(changes), drop = FALSE])
@@ -894,7 +901,7 @@ warmStartLine <- function(report) {
   if (!is.null(variance)) {
     said <- c(single(variance), changed(variance))
     said <- said[nzchar(said)]
-    if (length(said) > 0L || variance[1L, "taken"] < variance[1L, "offered"]) {
+    if (length(said) > 0L || any(variance[, "taken"] < variance[, "offered"])) {
       clauses <- c(
         clauses,
         paste(

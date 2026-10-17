@@ -25,7 +25,9 @@ rng, per slice:
 - B is NEUTRAL except for a forced warm start into a monotone recipient that holds a donor tree out of
   order, which is SHIFTING: the tree starts collapsed where today every leaf is 0.
 - C and D are NEUTRAL for every donor of the recipient's tree counts, leaf kind, DART setting and variance
-  forest. What they newly install is an error today.
+  forest, with one exception in C: a forced warm start of the recipient's tree counts under `blocks` with a
+  tree its slot does not hold as stored goes by rank, where today tree t is cut back in slot t, which is
+  SHIFTING ([Slice C as built](#slice-c-as-built)). What they newly install is an error today.
 - No install draws beyond dec-B440's. No recorded scenario, snapshot file or exact gate calls `installTrees`
   or `warm.start` (searched), so no baseline is re-recorded.
 window: after state-grid-install, which has landed (a15b05ca to 480d7d69), and before the merge to main

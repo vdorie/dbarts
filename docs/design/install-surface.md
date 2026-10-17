@@ -245,10 +245,11 @@ out of order is collapsed where its order breaks, each merged leaf at the mean o
 rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and not reset to 0. A donor of fewer trees
 is taken whole, the rest single leaves, and a donor of more gives the trees whose fits vary most over the
 sampler's rows ([`Sampler::chooseDonorTrees`](../../src/bartcore/sampler.hpp)). Under `blocks`, whatever the
-count, each block first takes in the donor's order the trees it holds as stored
-([`Chain::placeDonorTrees`](../../src/bartcore/chain.hpp)), and a donor all of whose trees go in so is clean;
-otherwise each block keeps the trees that vary most there, none it would hold as a single leaf. A DART
-setting or variance forest on one side only is an error, and
+count, each block first takes in the donor's order the trees it holds as stored, and where that leaves a
+tree out, once more with the donor's single leaves offered last
+([`Chain::placeDonorTrees`](../../src/bartcore/chain.hpp)); a donor all of whose trees go in so is clean.
+Otherwise each block keeps the trees that vary most there, none it would hold as a single leaf when the
+donor holds it as more. A DART setting or variance forest on one side only is an error, and
 a leaf kind is read in the sampler's shape (TODO warm-start-salvage).
 `bart(warm.start = )` forces and, under `verbose = TRUE`, prints one line saying what was taken and
 changed, from counts read off the installed trees ([`Chain::countDonorTrees`](../../src/bartcore/chain.hpp)).

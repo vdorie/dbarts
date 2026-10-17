@@ -366,6 +366,20 @@ expect_identical(
   crossed[2L]
 )
 
+# without blocks a tree installed as a single leaf is ranked like any
+# other: into a forest increasing in x1, trees 2 and 3, decreasing, collapse
+# to one leaf each and tie at 0, and the earlier, tree 2, is kept at the
+# mean of its fits over the rows
+falling <- list(
+  split1(1L, at(1L, 50L), -0.5, 0.5),
+  split1(1L, at(1L, 50L), 0.6, 0.2),
+  split1(1L, at(1L, 50L), 0.3, 0.1)
+)
+held <- forcedInto(handDonor(falling), 2L, monotone = c(x1 = "increasing"))
+expect_identical(held[[1L]], falling[[1L]])
+expect_identical(held[[2L]]$vars, -1L)
+expect_equal(held[[2L]]$values, mean(fitsOf(falling[[2L]], x)))
+
 # under blocks each tree is tried in the slots of every block, and each
 # block in turn keeps its count of the trees that vary most there among
 # those no earlier block kept: slots 1 and 2 split on x1 alone, 3 and 4 on
@@ -430,6 +444,76 @@ expect_identical(
     "1 cut back to fit"
   )
 )
+
+# chain 1 holds trees each block holds as stored and chain 2 the trees
+# above, which fit no block: declined, and forced chain 1 goes in as placed
+# and chain 2 by rank, its first block the tree that splits on x1 and then
+# on x2 cut back, and tree 3, its second trees 1 and 4
+placeable <- list(
+  split1(1L, at(1L, 50L), 0.5, -0.5),
+  stump(0.1),
+  split1(2L, at(2L, 50L), 0.4, -0.4),
+  split1(3L, at(3L, 50L), 0.2, -0.2)
+)
+mixed <- tree(
+  c(1L, 2L, -1L, -1L, -1L),
+  c(at(1L, 50L), at(2L, 50L), 0.3, -0.1, 0.5)
+)
+unplaceable <- list(
+  split1(2L, at(2L, 40L), 0.3, -0.3),
+  mixed,
+  split1(1L, at(1L, 30L), 0.2, -0.2),
+  split1(3L, at(3L, 50L), 0.25, -0.25)
+)
+twoChains <- list(n.trees = 4L, n.chains = 2L)
+chained <- withTrees(
+  withTrees(stateOf(make(control = twoChains)), placeable, 1L),
+  unplaceable,
+  2L
+)
+recipient <- make(blocks = twoBlocks(2L, 2L), control = twoChains)
+expect_identical(answerOf(recipient$installTrees(chained)), visibly(FALSE))
+expect_null(recipient$installTrees(chained, forceUpdate = TRUE))
+expect_identical(treesOf(stateOf(recipient), 1L), placeable)
+held <- treesOf(stateOf(recipient), 2L)
+expect_identical(held[2L:4L], unplaceable[c(3L, 1L, 4L)])
+expect_identical(held[[1L]]$vars, c(1L, -1L, -1L))
+expect_identical(held[[1L]]$values[3L], 0.5)
+# where chain 2's trees each split on x1 and then on x2, its first block
+# keeps two of them cut back and its second starts as single leaves: the line
+# gives the counts that differ between chains as ranges
+splitTwice <- lapply(1L:4L, function(i) {
+  tree(
+    c(1L, 2L, -1L, -1L, -1L),
+    c(at(1L, 50L), at(2L, 50L), 0.1 * i, -0.1 * i, 0.2 * i)
+  )
+})
+expect_identical(
+  lineOf(
+    make(blocks = twoBlocks(2L, 2L), control = twoChains),
+    withTrees(chained, splitTwice, 2L)
+  ),
+  paste(
+    "warm start: 2 to 4 of 4 donor trees taken; 0 to 2 trees started as",
+    "single leaves; 2 cut back to fit, over 2 chains"
+  )
+)
+
+# a donor whose single leaves come early in its order: placed in the order
+# given the leaf would take the first block's only slot, so the trees that
+# split are placed first, the leaf after them, each block's in the donor's
+# order: TRUE, every tree as stored
+early <- list(
+  stump(0.3),
+  split1(1L, at(1L, 50L), 0.5, -0.5),
+  split1(2L, at(2L, 50L), 0.4, -0.4)
+)
+intoEarly <- make(blocks = twoBlocks(1L, 2L), control = trees(3L))
+expect_identical(
+  answerOf(intoEarly$installTrees(handDonor(early))),
+  visibly(TRUE)
+)
+expect_identical(treesOf(stateOf(intoEarly)), early[c(2L, 1L, 3L)])
 
 # a tree a block keeps is not kept again by a later one: into 2 and 2 the
 # first block keeps tree 1 and the single leaf tree 2, the earliest of those
@@ -498,6 +582,35 @@ padded <- function(kept) {
   c(smallTrees[kept], rep(list(stump(0)), 25L - length(kept)))
 }
 expect_identical(treesOf(stateOf(into25)), c(padded(first), padded(second)))
+
+# 25 and 25 into 24 and 26, the first half holding a single leaf at tree 10:
+# in the donor's order the first block fills with trees 1 to 24 and tree 25
+# fits nowhere, so the first block takes the first half's trees that split
+# and the second the rest, the single leaves among them: TRUE, taken whole
+halfTrees <- treesOf(stateOf(make(
+  sweeps = 100L,
+  blocks = twoBlocks(25L, 25L, halves),
+  control = trees(50L)
+)))
+halfTrees[[10L]] <- stump(0.05)
+leaves <- which(lengths(lapply(halfTrees, `[[`, "vars")) == 1L)
+expect_false(25L %in% leaves)
+into24 <- make(blocks = twoBlocks(24L, 26L, halves), control = trees(50L))
+expect_identical(
+  answerOf(into24$installTrees(handDonor(halfTrees))),
+  visibly(TRUE)
+)
+splitting <- setdiff(1L:25L, leaves)
+first <- sort(c(splitting, head(leaves, 24L - length(splitting))))
+second <- sort(c(setdiff(26L:50L, leaves), setdiff(leaves, first)))
+expect_identical(
+  treesOf(stateOf(into24)),
+  c(
+    halfTrees[first],
+    halfTrees[second],
+    rep(list(stump(0)), 26L - length(second))
+  )
+)
 
 # into three blocks of 60, on x1, on x2 and on x3 and x4, the trees on x3
 # and x4 would be single leaves in the first two and are not kept there, so
