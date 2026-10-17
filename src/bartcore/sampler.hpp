@@ -2649,18 +2649,18 @@ private:
   /// chain's donor sample, every forest filled to at least this sampler's
   /// count, and \p offered and \p varianceOffered the donor's counts. A
   /// forest given more trees than it holds tries every one of them in the
-  /// slots of each of its blocks() rows, a row's count at a time and in the
-  /// donor's order, by \p installAll, the install the donor takes; a row's
-  /// last round holds the trees left over and then single leaves. Without
-  /// blocks, and in the variance forest, all the slots are one row. After
-  /// each round every tree tried is ranked by the variance over the rows of
-  /// its fits as installed in that row (Chain::liveTreeVariation), of the log
-  /// of its factors in the variance forest. Each row in turn then keeps its
-  /// count of the trees that vary most there among those no earlier row
-  /// kept, a tie going to the earlier tree, in the donor's order. Each chain
-  /// chooses among the trees of its own sample, and \p chosen receives them.
-  /// A forest given no more trees than it holds goes through every round as
-  /// given. False where a round's install fails.
+  /// slots of each of its blocks() blocks, a block's count at a time and in
+  /// the donor's order, by \p installAll, the install the donor takes; a
+  /// block's last round holds the trees left over and then single leaves.
+  /// Without blocks, and in the variance forest, all the slots are one block.
+  /// After each round every tree tried is ranked by the variance over the
+  /// rows of its fits as installed in that block (Chain::liveTreeVariation),
+  /// of the log of its factors in the variance forest. Each block in turn
+  /// then keeps its count of the trees that vary most there among those no
+  /// earlier block kept, a tie going to the earlier tree, in the donor's
+  /// order. Each chain chooses among the trees of its own sample, and \p
+  /// chosen receives them. A forest given no more trees than it holds goes
+  /// through every round as given. False where a round's install fails.
   template <typename Install>
   bool chooseDonorTrees(const std::vector<ChainStateData>& install,
                         const std::vector<std::vector<size_t>>& offered,
@@ -2670,10 +2670,10 @@ private:
     size_t numChains = chains_.size(), numForests = chains_[0]->numForests();
     constexpr size_t leaf = Chain<L, ResidT>::singleLeaf;
     // forest f of a chain, the variance forest at f numForests: its slots by
-    // row and each tried tree's variation in each row, by donor index; no
-    // rows for a forest that takes all it is given
+    // block and each tried tree's variation in each block, by donor index;
+    // no blocks for a forest that takes all it is given
     struct Choice {
-      std::vector<std::vector<size_t>> rows;
+      std::vector<std::vector<size_t>> blocks;
       std::vector<std::vector<double>> variation;
       size_t slots = 0;
     };
@@ -2688,36 +2688,37 @@ private:
                                       : chains_[c]->numVarianceTrees();
         if (given <= choice.slots) continue;
         if (f < numForests) {
-          choice.rows = chains_[c]->slotsByBlock(f);
+          choice.blocks = chains_[c]->slotsByBlock(f);
         } else {
-          choice.rows.resize(1);
-          for (size_t t = 0; t < choice.slots; ++t) choice.rows[0].push_back(t);
+          choice.blocks.resize(1);
+          for (size_t t = 0; t < choice.slots; ++t)
+            choice.blocks[0].push_back(t);
         }
-        choice.variation.assign(choice.rows.size(),
+        choice.variation.assign(choice.blocks.size(),
                                 std::vector<double>(given, 0.0));
-        for (const std::vector<size_t>& row : choice.rows)
+        for (const std::vector<size_t>& block : choice.blocks)
           numRounds =
-            std::max(numRounds, (given + row.size() - 1) / row.size());
+            std::max(numRounds, (given + block.size() - 1) / block.size());
       }
     }
     // the trees of round r by slot, or of the choice where r is numRounds; a
-    // row with no round r left tries its first trees again, and is not read
+    // block with no round r left tries its first trees again, and is not read
     auto treesOf = [&](size_t c, size_t r) {
       std::vector<std::vector<size_t>> mean(numForests);
       std::vector<size_t> variance;
       for (size_t f = 0; f <= numForests; ++f) {
         const Choice& choice(choices[c][f]);
-        if (choice.rows.empty()) continue;
+        if (choice.blocks.empty()) continue;
         std::vector<size_t>& trees(f < numForests ? mean[f] : variance);
         trees.assign(choice.slots, leaf);
         size_t given = choice.variation[0].size();
         std::vector<bool> kept(given, false);
-        for (size_t b = 0; b < choice.rows.size(); ++b) {
-          const std::vector<size_t>& row(choice.rows[b]);
+        for (size_t b = 0; b < choice.blocks.size(); ++b) {
+          const std::vector<size_t>& block(choice.blocks[b]);
           std::vector<size_t> picked;
           if (r < numRounds) {
-            size_t first = r * row.size() < given ? r * row.size() : 0;
-            for (size_t i = first; i < given && i < first + row.size(); ++i)
+            size_t first = r * block.size() < given ? r * block.size() : 0;
+            for (size_t i = first; i < given && i < first + block.size(); ++i)
               picked.push_back(i);
           } else {
             const std::vector<double>& ranked(choice.variation[b]);
@@ -2727,11 +2728,12 @@ private:
                              [&](size_t i, size_t j) {
                                return ranked[i] > ranked[j];
                              });
-            picked.resize(row.size());
+            picked.resize(block.size());
             std::sort(picked.begin(), picked.end());
             for (size_t i : picked) kept[i] = true;
           }
-          for (size_t k = 0; k < picked.size(); ++k) trees[row[k]] = picked[k];
+          for (size_t k = 0; k < picked.size(); ++k)
+            trees[block[k]] = picked[k];
         }
       }
       return chains_[c]->donorTreesOf(install[c], mean, variance);
@@ -2744,17 +2746,18 @@ private:
       for (size_t c = 0; c < numChains; ++c) {
         for (size_t f = 0; f <= numForests; ++f) {
           Choice& choice(choices[c][f]);
-          if (choice.rows.empty()) continue;
+          if (choice.blocks.empty()) continue;
           if (f < numForests)
             chains_[c]->liveTreeVariation(f, ranks);
           else
             chains_[c]->liveVarianceTreeVariation(ranks);
-          for (size_t b = 0; b < choice.rows.size(); ++b) {
-            const std::vector<size_t>& row(choice.rows[b]);
+          for (size_t b = 0; b < choice.blocks.size(); ++b) {
+            const std::vector<size_t>& block(choice.blocks[b]);
             std::vector<double>& ranked(choice.variation[b]);
-            size_t first = r * row.size();
-            for (size_t k = 0; first + k < ranked.size() && k < row.size(); ++k)
-              ranked[first + k] = ranks[row[k]];
+            size_t first = r * block.size();
+            for (size_t k = 0; first + k < ranked.size() && k < block.size();
+                 ++k)
+              ranked[first + k] = ranks[block[k]];
           }
         }
       }

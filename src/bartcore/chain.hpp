@@ -4989,8 +4989,9 @@ public:
     return 0;
   }
 
-  /// Forest \p f's slots by blocks() row, in row order, an empty row left
-  /// out; without blocks, one list of every slot.
+  /// Forest \p f's slots by blocks() block, in block order; without blocks,
+  /// one list of every slot. Every block holds at least one tree (the
+  /// bridge refuses a count of 0).
   std::vector<std::vector<size_t>> slotsByBlock(size_t f) const {
     const Forest<L, ResidT>& forest = forests_[f];
     std::vector<std::vector<size_t>> out(forest.blockMasks.empty() ? 1 : 0);
@@ -4999,11 +5000,6 @@ public:
       if (b >= out.size()) out.resize(b + 1);
       out[b].push_back(t);
     }
-    out.erase(std::remove_if(out.begin(), out.end(),
-                             [](const std::vector<size_t>& slots) {
-                               return slots.empty();
-                             }),
-              out.end());
     return out;
   }
 

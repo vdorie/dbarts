@@ -9172,8 +9172,9 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "or does not match its variance forest");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
-               "(number of forests or predictors differ, or only one of the "
-               "two carries a variance forest)");
+               "(number of forests or predictors differ, only one of the two "
+               "carries a variance forest, or the donor's kept draws do not "
+               "match its tree count)");
     case bartcore::WarmStartResult::rebuildFailed:
       Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
                "data (a donor tree no longer routes onto the current "

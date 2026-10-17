@@ -1270,14 +1270,14 @@ round:
 
 - Blocks, the orchestrator's call, which replaces the plan's "a tree near the cut" under Calls made in planning:
   no donor tree is ruled out by the slot it is tried in. Every donor tree is tried in the slots of every
-  `blocks` row, a row's count at a time; each row in turn keeps its count of the trees that vary most as
-  installed there among those no earlier row kept, a tie to the earlier tree, in the donor's order within the
-  row. Without blocks nothing moves: the rounds and the choice are the old ones. The 100 and 100 donor into 25
+  `blocks` block, a block's count at a time; each block in turn keeps its count of the trees that vary most as
+  installed there among those no earlier block kept, a tie to the earlier tree, in the donor's order within the
+  block. Without blocks nothing moves: the rounds and the choice are the old ones. The 100 and 100 donor into 25
   and 25 now keeps the 25 most varying of each half's trees by hand, 25 of them from the band the old rule never
   chose, and into 40 and 10 the 40 and the 10. Cost at 5000 rows and 10 columns, 200 trees into 25 and 25: 23 ms
   against 15 ms for 50 trees with no blocks on the same grid, 31 ms against 20 ms across grids; into 40 and 10,
   20 rounds, 43 ms (scratch/wsc/fix/time-blocks.R).
-- A tree cut back to one leaf varied by about 1e-33, rounding in the variance, so a row that keeps more trees
+- A tree cut back to one leaf varied by about 1e-33, rounding in the variance, so a block that keeps more trees
   than vary there took its leaves in rounding order and not the earlier first. The variance is taken from the
   first row's value, and such trees tie at exactly 0.
 - A live mean forest whose count does not divide the saved buffer, which a hand-built state can hold, is the
@@ -1294,8 +1294,8 @@ round:
   `dbartsSampler-class.Rd` and install-surface.md; NEWS says it after the posterior sentence; "weighted"; the
   `installTrees` docstring; the design note's Status.
 
-Each of the review's mutants K1 to K8 and K11 and the builder's C11, the pre-fix rule under blocks (BK1), a row
-reading another row's slots (BK2), rows sharing a tree (BK3), the stride guard off (G1) and the clause order (V1),
-each alone on an export, fails test-warm-start-kinds.R; K11 by an install error. C6 and C10, whose code the round
+Each of the review's mutants K1 to K8 and K11 and the builder's C11, the pre-fix rule under blocks (BK1), a
+block reading another block's slots (BK2), blocks sharing a tree (BK3), the stride guard off (G1) and the clause
+order (V1), each alone on an export, fails test-warm-start-kinds.R; K11 by an install error. C6 and C10, whose code the round
 moved, fail it again. Size: the engine adds 417 lines against the stop of 400 and the range 1426 against 1350,
 the fix round's tests and the blocks rule (133 added, 68 removed in src) carrying it past.

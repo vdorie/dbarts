@@ -82,7 +82,7 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
 - dec-B323, "Sure, option B.": into fewer trees a warm start takes the donor trees whose fitted values vary
   most over the recipient's rows, in the donor's order, values as they are; into more it takes them all and
   starts the rest as single leaves at 0. Settled here, the ruling not naming them: "vary most" is the
-  variance of a tree's fitted values over the recipient's rows under its working weights, of the tree as it
+  variance of a tree's fitted values over the recipient's rows under its case weights, of the tree as it
   will be installed (moved to the recipient's grid, cut back); each chain chooses among the trees of the
   donor sample it takes; ties go to the earlier tree. Section 3 (e) shows what this does to the sum.
 - dec-B324, "Take the trees; a part only one side has does not transfer.": DART weights go only between two
