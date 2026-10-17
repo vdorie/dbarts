@@ -99,7 +99,7 @@ getK(forest = NULL)
 # S4 method for class 'dbartsSampler'
 setLeafPrior(leaf.prior, forests = NULL, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-installTrees(donor, samples = NULL)
+installTrees(donor, samples = NULL, forceUpdate = FALSE)
 # S4 method for class 'dbartsSampler'
 sampleNodeParametersFromPrior(updateState = NULL)
 # S4 method for class 'dbartsSampler'
@@ -1017,6 +1017,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   it, repairing the trees that do not fit (see ‘Saving’). `"partial"` is
   not taken.
 
+  For `installTrees`, `FALSE` (the default) takes the donor only if
+  every tree it gives can stand in this sampler as the donor holds it,
+  and `TRUE` takes it changing what must be changed (see ‘Warm starts’).
+
 - updateCutPoints:
 
   For `setPredictor`, one of `"none"`, `"position"` or `"value"`, or a
@@ -1125,9 +1129,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   For `installTrees`, the fit whose forests seed this sampler: another
   `dbartsSampler`, or a `bart` object fit with `keepSampler = TRUE`. The
   donor must share this sampler's predictors, tree count, and DART
-  setting; a different cut grid is allowed, its splits remapped onto
-  this sampler's grid, and so is a different centre and scale of a
-  `linear` leaf's covariates (see ‘Warm starts’).
+  setting; a donor on other cut points has its splits moved onto this
+  sampler's under `forceUpdate = TRUE`, and needs no move where every
+  split it holds is one of this sampler's cut points, as on a finer grid
+  that holds the donor's; and a different center and scale of a `linear`
+  leaf's covariates is allowed (see ‘Warm starts’).
 
 - samples:
 
@@ -1734,21 +1740,51 @@ value here is one the covariate is centered at; a donor column that
 formula, as under `setData`. Each chain keeps its own random-number
 stream and redraws everything else, so several chains seeded from one
 donor stay overdispersed. A donor with a different tree count or DART
-setting is refused rather than silently reshaped; a donor fit on a
-different cut grid is instead remapped onto this sampler's grid,
-collapsing any splits the grid starves, the same way a data replacement
-remaps existing splits. A warm start biases the early draws toward the
-donor, so it shortens burn-in rather than removing it; keep drawing a
-non-zero number of burn-in samples before treating the chain as
-converged. Single-forest samplers only: a sampler carrying two or more
-forests (a Bayesian causal forest or any other amplitude model, and a
-multinomial sampler's K category forests) refuses the call by name,
-reporting its forest count, because the install is not tested at more
-than one forest - it reassembles the trees from a saved sample but takes
-the amplitudes from the donor's current state. Use `growFromRoot` to
-initialize such a sampler instead. A variance forest is not one of the
-counted forests, so a heteroscedastic sampler takes a warm start as any
-single-forest one does.
+setting is refused rather than silently reshaped.
+
+`installTrees(donor)` asks first. A donor every tree of which fits this
+sampler as stored is installed and the call returns `TRUE`. One that
+would have to be changed is not installed: the call returns `FALSE` and
+the sampler is as it was, its trees, drawn values, generators, kept
+draws and `state` field. A tree has to be changed when a split's
+threshold is not one of this sampler's cut points, as for a donor fitted
+to other rows; when a leaf holds none of this sampler's rows; when a
+split is on a column, or in an interaction, its forest does not allow;
+when it records a side for missing values on a column that has never
+held one here; or when a monotone forest's leaf values are out of order.
+A donor is also declined when it holds slopes or Gaussian-process fits
+that a sampler of constant leaves does not read, when its
+Gaussian-process fits were recorded on other cut points, and when a
+linear leaf's covariate holds one value in both fits, a different one in
+each. `installTrees(donor, forceUpdate = TRUE)` installs such a donor
+and returns `NULL` invisibly, whether or not anything was changed: a
+split off the cut points moves to the nearest one inside the range the
+splits above it leave or, with none left, becomes one leaf with
+everything beneath it; a split with a side no row reaches, and the first
+split from the root that its forest does not allow, likewise become one
+leaf, at the mean of the leaves it replaces weighted by the rows each
+held; a side is dropped; a monotone tree out of order has every leaf set
+to zero; Gaussian-process fits start at zero; and leaf values the
+sampler does not read are left behind. The sampler's cut points and
+their weights are the same before and after. A side drawn for missing
+values and linear coefficients restated in this sampler's center and
+scale are how a donor is read, not changes to it. On a column this
+sampler holds as an ordered factor a donor recorded on other cut points,
+a numeric column or a factor of another number of levels, is an error in
+both forms. `bart`'s `warm.start` always forces.
+
+A warm start biases the early draws toward the donor, so it shortens
+burn-in rather than removing it; keep drawing a non-zero number of
+burn-in samples before treating the chain as converged. Single-forest
+samplers only: a sampler carrying two or more forests (a Bayesian causal
+forest or any other amplitude model, and a multinomial sampler's K
+category forests) refuses the call by name, reporting its forest count,
+because the install is not tested at more than one forest - it
+reassembles the trees from a saved sample but takes the amplitudes from
+the donor's current state. Use `growFromRoot` to initialize such a
+sampler instead. A variance forest is not one of the counted forests, so
+a heteroscedastic sampler takes a warm start as any single-forest one
+does.
 
 `growFromRoot` instead builds the sampler's initial forest by
 XBART-style root-down stochastic tree construction (He, Yalov and Hahn
@@ -1879,6 +1915,13 @@ instead returns a logical vector of length equal to the number of
 observations, `TRUE` where that observation's new value was installed
 and `FALSE` where it was rolled back to its previous value to keep every
 tree of every forest valid.
+
+For `installTrees`, `TRUE` if the donor was installed and `FALSE` if it
+was not, the sampler then being exactly as it was: it is `FALSE` when a
+tree a chain would take, or a leaf value, would have to be changed (see
+‘Warm starts’). No warning is given. With `forceUpdate = TRUE` the donor
+is installed with the changes and the value is `NULL`, invisibly,
+whether or not anything was changed.
 
 For `setState`, `TRUE` if the state was installed and `FALSE` if it was
 not, the sampler then being exactly as it was. It is `FALSE` when a tree

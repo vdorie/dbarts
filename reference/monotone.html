@@ -146,7 +146,7 @@ The constructor is not exported: it resolves by bare name inside the
   <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>) can leave a tree's leaf values out of
   order. The calls that always complete - <code>setPredictor</code> with
   <code>forceUpdate = TRUE</code> (its default when the whole matrix is replaced),
-  <code>setData</code>, <code>setCutPoints</code>, <code>installTrees</code>, and
+  <code>setData</code>, <code>setCutPoints</code>, and <code>installTrees</code> and
   <code>setState</code> with <code>forceUpdate = TRUE</code> - set every leaf value of
   such a tree to zero, without a message, and the next iteration draws them
   again;

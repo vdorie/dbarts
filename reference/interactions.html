@@ -105,8 +105,9 @@ The constructor is not exported: it resolves by bare name inside the
   new predictor once the path's distinct count reaches the cap, while
   <code>groups</code> and <code>forbid</code> bar a predictor whose forbidden partner sits
   above it. The constraint is hard (an availability ban), applied inside the
-  tree proposals and enforced on any warm start, so a constrained fit never
-  visits a path that violates it; an unconstrained fit is unaffected.</p>
+  tree proposals, and a warm start cuts back a tree that breaks it, so a
+  constrained fit never visits a path that violates it; an unconstrained fit
+  is unaffected.</p>
 <p>Names and indices resolve against the model matrix at fit time, where every
   value is validated: an unrecognized name, an empty group, a <code>max.order</code>
   below 1, and a reference to a column dropped from the design are each an
