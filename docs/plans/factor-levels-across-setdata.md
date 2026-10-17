@@ -1,6 +1,6 @@
 # factor-levels-across-setdata: setData reads a factor by label against the sampler's levels
 
-Status: LANDED 2026-10-17 (92ae2714..6beef48d; dec-B454, dec-A213; [Landing note](#landing-note)); option 5 (C
+Status: LANDED 2026-10-17 (92ae2714..6beef48d; dec-B454, dec-A213; [Landing note](#landing-note); follow-up 3eece920..7318bd9b, dec-A215); option 5 (C
 below) ruled by the maintainer (dec-B454); written to the tree of
 f514c1d8 (origin/bartcore); revised from its blind critique the same day ([Revised from the blind
 critique](#revised-from-the-blind-critique)), which kept the recommendation. Closed TODO `factor-levels-across-setdata`. Rulings it stands on: dec-A115 (declared
