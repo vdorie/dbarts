@@ -1759,15 +1759,15 @@ splits above it leave or, with none left, becomes one leaf with
 everything beneath it; a split with a side no row reaches, and the first
 split from the root that its forest does not allow, likewise become one
 leaf, at the mean of the leaves it replaces weighted by the rows each
-held; a side is dropped; a monotone tree out of order has every leaf set
-to zero; Gaussian-process fits start at zero; and leaf values the
-sampler does not read are left behind. The sampler's cut points and
-their weights are the same before and after. A side drawn for missing
-values and linear coefficients restated in this sampler's center and
-scale are how a donor is read, not changes to it. On a column this
-sampler holds as an ordered factor a donor recorded on other cut points,
-a numeric column or a factor of another number of levels, is an error in
-both forms. `bart`'s `warm.start` always forces.
+held; a side is dropped; a monotone tree whose leaf values are out of
+order is cut back where they are; Gaussian-process fits start at zero;
+and leaf values the sampler does not read are left behind. The sampler's
+cut points and their weights are the same before and after. A side drawn
+for missing values and linear coefficients restated in this sampler's
+center and scale are how a donor is read, not changes to it. On a column
+this sampler holds as an ordered factor a donor recorded on other cut
+points, a numeric column or a factor of another number of levels, is an
+error in both forms. `bart`'s `warm.start` always forces.
 
 A warm start biases the early draws toward the donor, so it shortens
 burn-in rather than removing it; keep drawing a non-zero number of

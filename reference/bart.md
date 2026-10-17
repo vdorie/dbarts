@@ -1054,11 +1054,11 @@ print(x, ...)
   setting. The fit takes all of the earlier fit that this one can hold:
   a split that is not on this fit's cut points is moved to the nearest
   one, a tree this fit cannot hold as it stands is cut back at the split
-  that does not fit, and a tree that breaks a monotone constraint starts
-  with every leaf at zero. With `verbose = TRUE` one line after the
-  setup lines says how many trees were taken and how many were moved,
-  cut back or reset. Only its trees, and its `sigma` and `k` where this
-  fit draws them, carry over: the fit runs under its own prior and fixed
+  that does not fit, and a monotone tree whose leaf values are out of
+  order is cut back where they are. With `verbose = TRUE` one line after
+  the setup lines says how many trees were taken and how many were moved
+  or cut back. Only its trees, and its `sigma` and `k` where this fit
+  draws them, carry over: the fit runs under its own prior and fixed
   values, the donor's leaf values, `k` and `sigma` go in as stored on
   the sampler's internal scale and are not converted to this fit's
   response (a donor fitted to a response on another scale seeds the same
@@ -2120,7 +2120,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001798
+#> total seconds in loop: 0.001809
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2170,7 +2170,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002129
+#> total seconds in loop: 0.002171
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

@@ -146,11 +146,14 @@ The constructor is not exported: it resolves by bare name inside the
   <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>) can leave a tree's leaf values out of
   order. The calls that always complete - <code>setPredictor</code> with
   <code>forceUpdate = TRUE</code> (its default when the whole matrix is replaced),
-  <code>setData</code>, <code>setCutPoints</code>, and <code>installTrees</code> and
-  <code>setState</code> with <code>forceUpdate = TRUE</code> - set every leaf value of
-  such a tree to zero, without a message, and the next iteration draws them
-  again;
-  that suits burn-in and is not a draw from the posterior.</p>
+  <code>setData</code>, <code>setCutPoints</code>, and <code>setState</code> with
+  <code>forceUpdate = TRUE</code> - set every leaf value of such a tree to zero,
+  without a message, and the next iteration draws them again;
+  that suits burn-in and is not a draw from the posterior. A warm start,
+  <code>installTrees</code> with <code>forceUpdate = TRUE</code> or <code>bart</code>'s
+  <code>warm.start</code>, collapses such a tree instead where its leaf values
+  are out of order, each collapsed part one leaf at the mean of the leaves
+  it replaces weighted by their rows, and keeps the rest.</p>
 <p>An unforced update is refused instead, as one that would empty a leaf is.
   One unforced change can leave a tree out of order: the first missing value
   in an unordered factor column that has none. Two leaves that share no
