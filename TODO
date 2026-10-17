@@ -285,6 +285,9 @@ items
     Ruled: a data object carrying a record holds it at setData,
     the sampler's own s$data handed back included, by presence of
     the record alone (dec-B458, VD 2026-10-17).
+    Ruled: copy() of a live sampler copies its engine's current
+    chain; one not live is rebuilt from its stored state on the data
+    object's grid, the stored trees moved onto it (dec-B459).
   code-matrix-category-count: a sampler made from a matrix of codes
     records no level table, so a re-creation infers each factor's count
     from the codes present: copy() is refused after setData of fewer
