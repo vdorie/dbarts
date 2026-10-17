@@ -3950,9 +3950,10 @@ dbartsSampler <- setRefClass(
        values this sampler does not read, more trees than this sampler holds
        - is not installed: the sampler is left as it was and FALSE is
        returned. With forceUpdate = TRUE such a donor is installed with the
-       changes, of more trees those whose fits vary most, and NULL is
-       returned invisibly. A donor of fewer trees gives all of them, the
-       rest starting as single leaves. Single-forest samplers only. See Warm starts in ?dbartsSampler."
+       changes, a donor of more trees giving those whose fits vary most, and
+       NULL is returned invisibly. A donor of fewer trees gives all of them,
+       the rest starting as single leaves. Single-forest samplers only. See
+       Warm starts in ?dbartsSampler."
       if (
         !is.logical(forceUpdate) ||
           length(forceUpdate) != 1L ||
