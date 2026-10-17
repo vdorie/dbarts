@@ -412,10 +412,12 @@ struct Fixtures {
     AmplitudeSpec spec;
     spec.forests.resize(2);
     spec.forests[0].forest.numTrees = 6;
+    spec.forests[0].kind = ForestKind::numeric;
     spec.forests[0].basis = unitBasis.data();
     spec.forests[0].numBasisColumns = 1;
     spec.forests[0].sdMultiple = 1.25;
     spec.forests[1].forest.numTrees = 4;
+    spec.forests[1].kind = ForestKind::levels;
     spec.forests[1].basis = wideBasis.data();
     spec.forests[1].numBasisColumns = 2;
     spec.forests[1].sdMultiple = 0.75;

@@ -299,6 +299,17 @@ struct SamplerOptions {
   bool fp32Residual = false;
 };
 
+/// The prior sd of the one forest's fit in a single-forest chain at its
+/// defaults, on the range-scaled response: its node scale over its k, a
+/// quarter of the range the response is scaled by. A held forest with no
+/// basis of a combining chain takes it as its default under a drawn sigma
+/// (dec-B290), and it is what the one forest gets on a response with no
+/// spread.
+inline double singleForestDefaultSize() {
+  const SamplerOptions defaults;
+  return defaults.nodeScale / defaults.k;
+}
+
 /// Receives chains' formatted progress lines during a run. Worker-thread runs
 /// hand lines to a queue the main thread flushes (workers must never call into
 /// R); inline runs print directly.
@@ -374,6 +385,10 @@ struct ForestCalibration {
   /// fixed k is then priorScale / namedSd and kPriorScale likewise, to the
   /// bit. On a map forest it is the stated sd as written.
   double namedSd = std::numeric_limits<double>::quiet_NaN();
+  /// What the forest multiplies and whether its coefficient is held, as the
+  /// chain was told at construction; none and false off the map.
+  ForestKind kind = ForestKind::none;
+  bool amplitudeHeld = false;
   /// The amplitude prior, the two spellings EXCLUSIVE (ForestAmplitudePrior's
   /// own pair) and never the mixture's LIVE variance auxiliary, which is state.
   double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
@@ -1167,11 +1182,12 @@ public:
       const ForestSpec& forestSpec = forestSpecs[f];
       MapForest& mapped = forestMap_[f];
       mapped.statement = forestSpec;
-      mapped.hasBasis = forestSpec.hasBasis();
+      mapped.kind = forestSpec.kind;
       // each forest is resolved ONCE here, the row norm of its basis among the
       // inputs, and the combiner is handed the result
       mapped.entry = forestMapEntry(
-        mapped.statement, mapped.hasBasis, spec.family, forestSdUnit_,
+        mapped.statement, mapped.kind, spec.family, forestSdUnit_,
+        oneForestSize(),
         basisRowNorm(forestSpec.basis, forestSpec.numBasisColumns,
                      data.numObservations));
       amplitudePriors[f] = mapped.entry.amplitudePrior;
@@ -1393,6 +1409,12 @@ public:
     }
     return true;
   }
+  /// The size a held forest with no basis defaults to under a drawn sigma, as
+  /// a multiple of the map's anchor: the one forest of a single-forest chain's
+  /// (singleForestDefaultSize), on the response scaled as this one is.
+  double oneForestSize() const {
+    return singleForestDefaultSize() / nodeScaleAnchor_;
+  }
   /// Forest f's leaf scale as the map derives it from the retained entry and
   /// anchor: the constructor's expression, in its association and operand
   /// order, so a re-derivation from unchanged inputs is bitwise the
@@ -1550,6 +1572,8 @@ public:
     // every other sampler leaves these at their NaN
     if (f < forestMap_.size()) {
       const MapForest& mapped = forestMap_[f];
+      calibration.kind = mapped.kind;
+      calibration.amplitudeHeld = !mapped.statement.updateAmplitude;
       const ForestAmplitudePrior& prior = mapped.entry.amplitudePrior;
       bool scaleMixture = prior.halfCauchyScale > 0.0;
       double notMapped = std::numeric_limits<double>::quiet_NaN();
@@ -1606,9 +1630,9 @@ public:
 
   /// States map forest f's sd, response units, as a creation stating it does:
   /// the map resolves the statement again (forestMapEntry, which divides by
-  /// the unit), a forest with no basis takes the result as its half-Cauchy
-  /// median, leaving its leaf scale and the live auxiliary, and a forest with
-  /// one re-derives its leaf scale. The forest is a stated one from then on.
+  /// the unit), a drawn forest with no basis takes the result as its
+  /// half-Cauchy median, leaving its leaf scale and the live auxiliary, and a
+  /// held one, or one with a basis, re-derives its leaf scale. The forest is a stated one from then on.
   /// Where \p sd is the sd in force (ForestCalibration::mapSd) no bit of the
   /// prior moves. False, writing nothing, off a map forest, on an sd that is
   /// not positive and finite, and where the unit is not.
@@ -1624,8 +1648,8 @@ public:
     // the sd in force keeps the multiple it has, which a fixture's own
     // multiple is not recovered from by the map
     if (sd != forestCalibration(f).mapSd)
-      entry = forestMapEntry(statement, mapped.hasBasis, family_,
-                             forestSdUnit_, entry.basisRowNorm);
+      entry = forestMapEntry(statement, mapped.kind, family_, forestSdUnit_,
+                             oneForestSize(), entry.basisRowNorm);
     if (entry.amplitudePrior.halfCauchyScale !=
           mapped.entry.amplitudePrior.halfCauchyScale &&
         !combiner_->setAmplitudePriorScale(
@@ -7579,12 +7603,12 @@ private:
   // to the response and the combiner for the sweep's own draws alone
   const std::function<bool()>* refreshCancel_ = nullptr;
 
-  // One map forest: what it states, whether the map reads it as a forest
-  // with a basis, and the entry the map resolved it into, which setForestBasis
-  // restates the row norm of and setForestMapSd resolves again.
+  // One map forest: what it states, what it multiplies, and the entry the
+  // map resolved it into, which setForestBasis restates the row norm of and
+  // setForestMapSd resolves again.
   struct MapForest {
     ForestStatement statement;
-    bool hasBasis = false;
+    ForestKind kind = ForestKind::none;
     ForestMapEntry entry;
   };
   // empty off the K-forest constructor, which is the guard every reader and

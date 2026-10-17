@@ -334,6 +334,10 @@ struct ParsedData {
   // column the engine synthesizes.
   std::vector<const double*> bases;
   std::vector<size_t> basisColumns;
+  // what each forest multiplies, read from the data object as R's
+  // forestBasisKind reads it: none where the basis is null, levels where the
+  // object records levels for it, numbers otherwise
+  std::vector<bartcore::ForestKind> basisKinds;
   double sigmaEstimate = 1.0;
   std::vector<uint32_t> maxNumCuts;
   // the data object's record of the columns its sampler has seen missing, a
@@ -1429,6 +1433,19 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   // single-forest path unchanged
   REPROTECT_SLOT(slotExpr, dataExpr, "bases", slotIndex);
   readForestBases(rc_isS4Null(slotExpr) ? R_NilValue : slotExpr, data);
+  // a forest's kind: levels where the object records a factor's levels for
+  // it, which an object saved before the slot existed records for none
+  data.basisKinds.assign(data.bases.size(), bartcore::ForestKind::none);
+  bool hasLevels = R_has_slot(dataExpr, Rf_install("basis.levels"));
+  if (hasLevels) REPROTECT_SLOT(slotExpr, dataExpr, "basis.levels", slotIndex);
+  for (size_t f = 0; f < data.bases.size(); ++f) {
+    if (data.bases[f] == NULL) continue;
+    bool levels = hasLevels && Rf_isNewList(slotExpr) &&
+                  static_cast<R_xlen_t>(f) < Rf_xlength(slotExpr) &&
+                  !Rf_isNull(VECTOR_ELT(slotExpr, static_cast<R_xlen_t>(f)));
+    data.basisKinds[f] = levels ? bartcore::ForestKind::levels
+                                : bartcore::ForestKind::numeric;
+  }
 
   REPROTECT_SLOT(slotExpr, dataExpr, "sigma", slotIndex);
   data.sigmaEstimate = rc_getDouble(
@@ -2666,8 +2683,9 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
 
 // Transposes the data object's per-forest bases from R's COLUMN-major layout
 // into the engine's ROW-major contract and borrows them onto the spec, which
-// the chains copy at construction. A forest the list does not reach, or whose
-// entry is null, keeps the dense all-ones column the engine synthesizes.
+// the chains copy at construction, with what each forest multiplies. A forest
+// the list does not reach, or whose entry is null, multiplies nothing and
+// keeps the dense all-ones column the engine synthesizes.
 void applyForestBases(const ParsedData& data, bartcore::AmplitudeSpec& spec,
                       AmplitudeSpecStorage& storage) {
   size_t n = data.numObservations;
@@ -2687,6 +2705,7 @@ void applyForestBases(const ParsedData& data, bartcore::AmplitudeSpec& spec,
       }
     spec.forests[f].basis = rowMajor.data();
     spec.forests[f].numBasisColumns = q;
+    spec.forests[f].kind = data.basisKinds[f];
   }
 }
 
@@ -2704,26 +2723,15 @@ const double* forestNumbers(SEXP forestsExpr, const char* name,
 }
 
 // What each forest states of its size, handed to the engine as written: `sd`
-// in the response's units and `variance`, the prior variance of its
-// amplitudes, each NA where none is stated, and `hasBasis`, whether the forest
-// was created with a basis, which a forest given one since keeps reading
-// FALSE. Nothing is derived here: the engine holds the map and its defaults.
+// in the response's units, NA where none is stated. Nothing is derived here:
+// the engine holds the map and its defaults, and a forest's kind comes from
+// the data object (applyForestBases).
 void applyForestStatements(SEXP forestsExpr, bartcore::AmplitudeSpec& spec) {
   size_t numForests = spec.forests.size();
   const double* sds = forestNumbers(forestsExpr, "sd", numForests);
-  const double* variances = forestNumbers(forestsExpr, "variance", numForests);
-  SEXP hasBasisExpr = rc_getListElement(forestsExpr, "hasBasis");
-  if (!Rf_isNull(hasBasisExpr) &&
-      (!Rf_isLogical(hasBasisExpr) ||
-       static_cast<size_t>(Rf_xlength(hasBasisExpr)) != numForests))
-    Rf_error("the forests' 'hasBasis' must hold TRUE or FALSE for each forest");
   for (size_t f = 0; f < numForests; ++f) {
     bartcore::ForestSpec& forest = spec.forests[f];
     if (sds != NULL && !ISNAN(sds[f])) forest.sd = sds[f];
-    if (variances != NULL && !ISNAN(variances[f]))
-      forest.amplitudePriorVariance = variances[f];
-    if (!Rf_isNull(hasBasisExpr))
-      forest.createdWithoutBasis = LOGICAL(hasBasisExpr)[f] == FALSE;
   }
 }
 
@@ -4800,7 +4808,9 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // of the sampler, not of a chain. map.anchor and map.unit are internal: R
 // records both at creation and reports neither. named.sd is the sd the forest
 // states, NaN where it states none, and map.sd a map forest's sd in force,
-// both response units.
+// both response units. multiplier is what a map forest multiplies, 0 for
+// nothing, 1 for levels and 2 for numbers, and amplitude.held 1 where its
+// coefficient is held; both NaN off the map.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -4813,7 +4823,8 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     "k.has.hyperprior", "response.scale", "response.shift",
     "amplitude.prior.variance", "amplitude.prior.scale",
     "leaf.scale.factor", "leaf.scale.divisor", "basis.row.norm",
-    "map.anchor", "k.prior.scale", "named.sd", "map.unit", "map.sd"
+    "map.anchor", "k.prior.scale", "named.sd", "map.unit", "map.sd",
+    "multiplier", "amplitude.held"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -4840,6 +4851,12 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     result[c + 14 * numChains] = calibration.namedSd;
     result[c + 15 * numChains] = calibration.mapUnit;
     result[c + 16 * numChains] = calibration.mapSd;
+    bool mapped = !std::isnan(calibration.basisRowNorm);
+    double notMapped = std::numeric_limits<double>::quiet_NaN();
+    result[c + 17 * numChains] =
+      mapped ? static_cast<double>(calibration.kind) : notMapped;
+    result[c + 18 * numChains] =
+      mapped ? (calibration.amplitudeHeld ? 1.0 : 0.0) : notMapped;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);

@@ -123,9 +123,20 @@ inline std::vector<ForestAmplitudePrior> amplitudePriors(
   std::vector<ForestSpec> forests = expandForestSpecs(spec);
   std::vector<ForestAmplitudePrior> priors(forests.size());
   for (std::size_t f = 0; f < forests.size(); ++f)
-    priors[f] = forestMapEntry(forests[f], forests[f].hasBasis(), spec.family,
-                               std::numeric_limits<double>::quiet_NaN(), 1.0)
+    priors[f] = forestMapEntry(forests[f], forests[f].kind, spec.family,
+                               std::numeric_limits<double>::quiet_NaN(), 0.25,
+                               1.0)
                   .amplitudePrior;
+  return priors;
+}
+
+// The same with the second forest's coefficients under prior variance
+// \p variance, which the map fixes at 1/2: a fixture that pins the
+// combiner's conditional at another variance hands it in.
+inline std::vector<ForestAmplitudePrior> amplitudePriors(
+    const AmplitudeSpec& spec, double variance) {
+  std::vector<ForestAmplitudePrior> priors = amplitudePriors(spec);
+  priors[1].variance = variance;
   return priors;
 }
 

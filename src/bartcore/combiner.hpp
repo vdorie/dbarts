@@ -309,6 +309,12 @@ struct ForestAmplitudePrior {
   bool update = true;  // false holds the whole block at its value
 };
 
+/// What a forest multiplies: nothing, the levels of a factor (one indicator
+/// column a level) or a numeric column. Stated to the engine at construction
+/// and fixed for the sampler's life, since no swap changes it (dec-B452): the
+/// map and the held values read it, never a block's width.
+enum class ForestKind : std::uint8_t { none, levels, numeric };
+
 /// What one forest of a combining chain states of its size, which the
 /// calibration map (forestMapEntry) resolves; a chain keeps it for the life of
 /// the forest.
@@ -321,36 +327,26 @@ struct ForestStatement {
   /// none: the spelling of fixtures and of the two-forest adapter
   /// (expandForestSpecs). Nothing outside the engine and its tests sets it.
   double sdMultiple = std::numeric_limits<double>::quiet_NaN();
-  /// The prior variance of the amplitudes of a forest with a basis; not a
-  /// number where none is stated. Not read on a forest with no basis.
-  double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
-  /// false holds the forest's amplitudes at the values they start at.
+  /// false holds the forest's amplitudes at its kind's values: 1 for a
+  /// forest with no basis, 0 and 1 for the two levels of a factor.
   bool updateAmplitude = true;
 };
 
 /// One forest's entry in the K-length spec a general combining chain is built
 /// from: its tree/structure configuration (ForestStructureSpec), what it states
-/// of its size (ForestStatement) and the basis it enters the combination
-/// through.
+/// of its size (ForestStatement), what it multiplies and the basis it enters
+/// the combination through.
 ///
-/// basis is an optional n x numBasisColumns ROW-major amplitude basis, borrowed
-/// and COPIED at construction; null synthesizes the dense all-ones column whose
-/// contraction is the amplitude itself.
+/// basis is an n x numBasisColumns ROW-major amplitude basis, borrowed and
+/// COPIED at construction, and null exactly where kind is none: the combiner
+/// then synthesizes the dense all-ones column whose contraction is the
+/// amplitude itself. The two-forest adapter's treatment forest is the one
+/// forest of levels handed none, its pair synthesized from the indicator.
 struct ForestSpec : ForestStatement {
   ForestStructureSpec forest;
+  ForestKind kind = ForestKind::none;
   const double* basis = nullptr;
   std::size_t numBasisColumns = 1;
-  /// True where the forest was first created with no basis and has since been
-  /// given one: the map keeps reading it as a forest with none, so a
-  /// re-creation resolves the channel its first creation did.
-  bool createdWithoutBasis = false;
-
-  /// Whether the calibration map reads the forest as one with a basis: it was
-  /// created with one, given here or synthesized by the combiner (a null basis
-  /// of more than one column, the two-forest adapter's treatment forest).
-  bool hasBasis() const {
-    return !createdWithoutBasis && (basis != nullptr || numBasisColumns > 1);
-  }
 };
 
 /// Thrown where a forest states an sd and the chain has no positive finite
@@ -360,19 +356,23 @@ struct ForestSdUnitError : std::domain_error {
 };
 
 /// The sd a forest takes where it states none, as a multiple of the
-/// calibration map's anchor s. A forest with no basis carries it as the
-/// half-Cauchy median of its amplitude: 2 where sigma is drawn and s is the
-/// response's own sd, 1 where the link pins sigma and s is the link's error
-/// sd. A forest with a basis carries it in its node scale: one unit, however
-/// many forests the model has (dec-B291).
-inline double defaultForestSd(bool hasBasis, ResponseFamily family) {
-  if (hasBasis) return 1.0;
+/// calibration map's anchor s. A forest with a basis takes one unit, however
+/// many forests the model has (dec-B291). A drawn forest with no basis
+/// carries its default as the half-Cauchy median of its amplitude: 2 where
+/// sigma is drawn and s is the response's own sd, 1 where the link pins sigma
+/// and s is the link's error sd. A held one, \p held, has the size where
+/// sigma is drawn that the one forest of a single-forest chain has at its
+/// defaults, \p oneForestSize in units of s (dec-B290), and one unit where the
+/// link pins it (dec-B293).
+inline double defaultForestSd(ForestKind kind, bool held, double oneForestSize,
+                              ResponseFamily family) {
+  if (kind != ForestKind::none) return 1.0;
   // every enumerator listed and no default arm: a family added without one
   // must fail the build rather than inherit another's default
   switch (family) {
   case ResponseFamily::gaussian:
   case ResponseFamily::aft:
-    return 2.0;
+    return held ? oneForestSize : 2.0;
   case ResponseFamily::probit:
   case ResponseFamily::ordinal:
   case ResponseFamily::nbinom:
@@ -417,18 +417,23 @@ struct ForestMapEntry {
 };
 
 /// The CALIBRATION MAP, general in K: one forest's statement resolved into the
-/// channel its magnitude is carried in. \p hasBasis is all of the forest's
-/// kind the map reads, \p unit the response units in one s, and
+/// channel its magnitude is carried in. \p kind is what the forest multiplies,
+/// \p unit the response units in one s, \p oneForestSize the size a held
+/// forest with no basis defaults to where sigma is drawn (defaultForestSd), and
 /// \p basisRowNorm the row norm of the basis in force.
 ///
-/// A forest with NO basis has a scalar amplitude under a half-Cauchy scale
-/// mixture: its sd, in units of s, is that mixture's median, and its node
+/// A drawn forest with NO basis has a scalar amplitude under a half-Cauchy
+/// scale mixture: its sd, in units of s, is that mixture's median, and its node
 /// scale stays at s (bcf's prognostic forest, factor and divisor both 1). A
-/// forest WITH one has a fixed-variance amplitude block: its sd multiplies the
-/// node scale, divided through the half-normal median 0.674 so that the
-/// amplitude spread times that scale sits at sd units of s (bcf's treatment
-/// forest). Both expressions are bcf's own, which is what keeps the two-forest
-/// instance bitwise.
+/// drawn forest WITH one has a fixed-variance amplitude block: its sd
+/// multiplies the node scale, divided through the half-normal median 0.674 so
+/// that the amplitude spread times that scale sits at sd units of s (bcf's
+/// treatment forest). Both expressions are bcf's own, which is what keeps the
+/// two-forest instance bitwise. A HELD forest's coefficient is its kind's
+/// value, 1 or the levels' (0, 1), so its sd is its own node scale's, exactly:
+/// the sd multiplies the node scale with no divisor, and no mixture is drawn.
+/// A held numeric column has no value yet and is refused where the combiner
+/// is built.
 ///
 /// A stated sd is in the response's units and is DIVIDED BY THE UNIT HERE, and
 /// nowhere else: once for each construction and once for each restatement. A
@@ -441,9 +446,11 @@ struct ForestMapEntry {
 /// \throws std::invalid_argument on a stated sd that is not positive and
 /// finite, ForestSdUnitError on one stated against a unit that is not.
 inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
-                                     bool hasBasis, ResponseFamily family,
-                                     double unit, double basisRowNorm) {
-  double multiple = defaultForestSd(hasBasis, family);
+                                     ForestKind kind, ResponseFamily family,
+                                     double unit, double oneForestSize,
+                                     double basisRowNorm) {
+  bool held = !statement.updateAmplitude;
+  double multiple = defaultForestSd(kind, held, oneForestSize, family);
   if (!std::isnan(statement.sd)) {
     if (!(statement.sd > 0.0) || !std::isfinite(statement.sd))
       throw std::invalid_argument("a forest's sd must be positive and finite");
@@ -460,13 +467,14 @@ inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
   entry.basisRowNorm = basisRowNorm;
   entry.sdMultiple = multiple;
   entry.amplitudePrior.update = statement.updateAmplitude;
-  if (hasBasis) {
+  if (held) {
+    entry.nodeScaleFactor = multiple;
+    entry.amplitudePrior.variance = kind == ForestKind::none ? 1.0 : 0.5;
+    entry.amplitudePrior.halfCauchyScale = 0.0;
+  } else if (kind != ForestKind::none) {
     entry.nodeScaleFactor = multiple;
     entry.nodeScaleDivisor = 0.674;  // the half-normal median
-    entry.amplitudePrior.variance =
-      std::isnan(statement.amplitudePriorVariance)
-        ? 0.5
-        : statement.amplitudePriorVariance;
+    entry.amplitudePrior.variance = 0.5;
     entry.amplitudePrior.halfCauchyScale = 0.0;
   } else {
     // the variance is the mixture's live auxiliary, which starts at 1
@@ -499,8 +507,7 @@ struct AmplitudeSpec {
   // adapter the "bcf as the K = 2 instance" contract requires to stay a pure
   // re-spelling.
   double aPriorScale = 2.0;
-  double bPriorVariance = 0.5;  // N(0, .) prior variance for b0, b1
-  double sdModerate = 1.0;      // treatment effect scale, in units of s above
+  double sdModerate = 1.0;  // treatment effect scale, in units of s above
   bool updateA = true, updateB = true;  // false fixes the matching glue block
   // The K-length reading. EMPTY leaves the mu/tau pair above authoritative and
   // the treatment forest's basis synthesized from z; non-empty supersedes both,
@@ -520,9 +527,9 @@ struct AmplitudeSpec {
 /// The thin adapter: bcf's two-forest spelling read as the K-length vector
 /// every other layer works in. mu states aPriorScale and tau sdModerate, both
 /// multiples of s, which the map carries as mu's half-Cauchy median and in
-/// tau's node scale; tau's basis is the treatment indicator pair the combiner
-/// synthesizes. A spec that already carries its own forests vector is
-/// returned as it stands.
+/// tau's node scale; mu multiplies nothing and tau the two levels of the
+/// treatment indicator, whose pair the combiner synthesizes. A spec that
+/// already carries its own forests vector is returned as it stands.
 inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
   if (!spec.forests.empty()) return spec.forests;
   std::vector<ForestSpec> forests(2);
@@ -531,8 +538,8 @@ inline std::vector<ForestSpec> expandForestSpecs(const AmplitudeSpec& spec) {
   forests[0].updateAmplitude = spec.updateA;
   forests[1].forest = spec.tau;
   forests[1].sdMultiple = spec.sdModerate;
-  forests[1].amplitudePriorVariance = spec.bPriorVariance;
   forests[1].updateAmplitude = spec.updateB;
+  forests[1].kind = ForestKind::levels;
   forests[1].numBasisColumns = 2;  // synthesized from z by the combiner
   return forests;
 }
@@ -912,20 +919,40 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   ///
   /// Basis SYNTHESIS happens here and nowhere else. Under the K-length spec
   /// each forest takes the basis its entry carries, or the dense all-ones
-  /// column when it carries none; under bcf's two-forest spelling forest 1
-  /// takes the (1 - z, z) indicator pair z implies. There is deliberately no
-  /// mid-life synthesis route: setForestBasis is the only mutator, so the
-  /// question of which of two operations wins does not arise.
+  /// column when it multiplies nothing; under bcf's two-forest spelling
+  /// forest 1 takes the (1 - z, z) indicator pair z implies. There is
+  /// deliberately no mid-life synthesis route: setForestBasis is the only
+  /// mutator, so the question of which of two operations wins does not arise.
+  ///
+  /// A held block is set here to its kind's value, at any position, after the
+  /// layout that keeps every drawn block's start: 1 for a forest with no
+  /// basis, (0, 1) for the two levels of a factor (dec-B354).
+  ///
+  /// \throws std::invalid_argument for a forest whose kind does not fit its
+  /// basis (one with none handed a basis, one of levels or numbers handed
+  /// none) and for a held block with no value: levels of other than two
+  /// columns, and a numeric column.
   AmplitudeForestCombiner(const ColumnStore& data, const AmplitudeSpec& spec,
                     const std::vector<ForestAmplitudePrior>& priors,
                     std::size_t numForests = 2)
       : data_(data), numForests_(numForests < 2 ? 2 : numForests) {
     std::size_t n = data_.numObservations;
     std::vector<ForestSpec> forests = expandForestSpecs(spec);
+    bool synthesized = spec.forests.empty();
     glue_.basis.resize(numForests_);
     glue_.prior.resize(numForests_);
     for (std::size_t f = 0; f < numForests_; ++f) {
-      if (f < forests.size() && forests[f].basis != nullptr) {
+      bool handed = f < forests.size() && forests[f].basis != nullptr;
+      if (f < forests.size()) {
+        bool multiplies = forests[f].kind != ForestKind::none;
+        if (!multiplies && handed)
+          throw std::invalid_argument(
+            "a forest with no basis takes none");
+        if (multiplies && !handed && !(synthesized && f == 1))
+          throw std::invalid_argument(
+            "a forest of levels or of numbers needs its basis");
+      }
+      if (handed) {
         glue_.basis[f].numColumns = forests[f].numBasisColumns;
         glue_.basis[f].values.assign(
           forests[f].basis, forests[f].basis + n * forests[f].numBasisColumns);
@@ -938,8 +965,10 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     // bcf's two-forest spelling names its treatment basis by the indicator it
     // contrasts on rather than by the pair; the pair is that indicator's
     // two-level factor basis, whose amplitudes are exactly (b0, b1)
-    if (spec.forests.empty() && numForests_ > 1) synthesizeIndicatorBasis(1, spec.z);
+    if (synthesized && numForests_ > 1) synthesizeIndicatorBasis(1, spec.z);
     rebuildAmplitudeLayout();
+    for (std::size_t f = 0; f < numForests_ && f < forests.size(); ++f)
+      if (!glue_.prior[f].update) holdAtKindValue(f, forests[f].kind);
   }
 
   /// The SOLE basis-mutation route, at any forest and any width, and therefore
@@ -1378,6 +1407,29 @@ private:
       basis.values[2 * i] = treated ? 0.0 : 1.0;
       basis.values[2 * i + 1] = treated ? 1.0 : 0.0;
     }
+  }
+
+  /// Sets held forest f's block to its kind's value, which no draw then moves.
+  void holdAtKindValue(std::size_t f, ForestKind kind) {
+    double* amplitude = glue_.amplitudesOf(f);
+    std::size_t width = glue_.numAmplitudes(f);
+    switch (kind) {
+    case ForestKind::none:
+      amplitude[0] = 1.0;
+      return;
+    case ForestKind::levels:
+      if (width != 2)
+        throw std::invalid_argument(
+          "a held coefficient block must be a forest's with no basis, a "
+          "two-level block or one numeric column");
+      amplitude[0] = 0.0;
+      amplitude[1] = 1.0;
+      return;
+    case ForestKind::numeric:
+      break;
+    }
+    throw std::invalid_argument(
+      "a held coefficient on a numeric column has no value yet");
   }
 
   /// Re-derives the amplitude layout from the basis widths and carries the

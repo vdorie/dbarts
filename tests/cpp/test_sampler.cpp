@@ -5561,7 +5561,6 @@ static void testBCFCombinerSeam() {
 
     AmplitudeSpec spec;
     spec.z = z.data();
-    spec.bPriorVariance = 1.0;
 
     auto zeroForests = [&](std::vector<Forest<ConstantGaussianLeaf>>& forests) {
       forests.clear();
@@ -5572,7 +5571,7 @@ static void testBCFCombinerSeam() {
 
     {
       AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-        data, spec, amplitudePriors(spec));
+        data, spec, amplitudePriors(spec, 1.0));
       std::vector<Forest<ConstantGaussianLeaf>> forests;
       zeroForests(forests);
       ext_rng* live = makeSeamRng();
@@ -5604,7 +5603,7 @@ static void testBCFCombinerSeam() {
       AmplitudeSpec noA = spec;
       noA.updateA = false;
       AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-        data, noA, amplitudePriors(noA));
+        data, noA, amplitudePriors(noA, 1.0));
       std::vector<Forest<ConstantGaussianLeaf>> forests;
       zeroForests(forests);
       ext_rng* live = makeSeamRng();
@@ -5624,7 +5623,7 @@ static void testBCFCombinerSeam() {
       AmplitudeSpec noB = spec;
       noB.updateB = false;
       AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-        data, noB, amplitudePriors(noB));
+        data, noB, amplitudePriors(noB, 1.0));
       std::vector<Forest<ConstantGaussianLeaf>> forests;
       zeroForests(forests);
       ext_rng* live = makeSeamRng();
@@ -6086,9 +6085,8 @@ static void testGeneralAmplitudeConditional() {
     AmplitudeSpec spec;
     spec.z = z.data();
     spec.updateA = false;  // pin forest 0, so forest 1's block is all that moves
-    spec.bPriorVariance = priorVariance;
     AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-      data, spec, amplitudePriors(spec));
+      data, spec, amplitudePriors(spec, priorVariance));
     combiner.installForestBasis(1, wide.data(), 2);
     TestPeer::setBcfGlue(combiner, aFixed, 0.0, 0.0);
 
@@ -6170,9 +6168,8 @@ static void testGeneralAmplitudeConditional() {
     }
     AmplitudeSpec shipped;
     shipped.z = z.data();
-    shipped.bPriorVariance = priorVariance;
     AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-      data, shipped, amplitudePriors(shipped));
+      data, shipped, amplitudePriors(shipped, priorVariance));
     std::vector<Forest<ConstantGaussianLeaf>> forests(2);
     forests[0].totalFits = muE;
     forests[1].totalFits = tauE;
@@ -6248,6 +6245,7 @@ static void testGeneralAmplitudeConditional() {
     const double declared = 0.5;
     AmplitudeSpec mixed;
     mixed.forests.resize(2);
+    mixed.forests[1].kind = ForestKind::levels;
     mixed.forests[1].basis = indicator.data();
     mixed.forests[1].numBasisColumns = 2;
     std::vector<ForestAmplitudePrior> mixedPriors = {
@@ -6280,9 +6278,8 @@ static void testGeneralAmplitudeConditional() {
   {
     AmplitudeSpec spec;
     spec.z = z.data();
-    spec.bPriorVariance = priorVariance;
     AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
-      data, spec, amplitudePriors(spec), 3);
+      data, spec, amplitudePriors(spec, priorVariance), 3);
     std::vector<Forest<ConstantGaussianLeaf>> forests(3);
     forests[0].totalFits = mu;
     forests[1].totalFits = tau;
@@ -8877,6 +8874,7 @@ static void testForestUnitRowsIn() {
     spec.forests.resize(2);
     spec.forests[0].forest.numTrees = 12;
     spec.forests[1].forest.numTrees = 8;
+    spec.forests[1].kind = ForestKind::levels;
     spec.forests[1].basis = basis.data();
     spec.forests[1].numBasisColumns = 2;
     spec.anchor = anchor;
@@ -9920,6 +9918,7 @@ static void testForestMapWriters() {
     spec.forests[0].sd = sd0;
     spec.forests[1].forest.numTrees = 10;
     spec.forests[1].sd = sd1;
+    spec.forests[1].kind = ForestKind::levels;
     spec.forests[1].basis = basis.data();
     spec.forests[1].numBasisColumns = 2;
     spec.anchor = anchor;
@@ -10092,6 +10091,7 @@ static void testForestMapStatements() {
         spec.forests[f].forest.numTrees = trees[f];
         if (f == 0) continue;
         bool numeric = f == 2;
+        spec.forests[f].kind = numeric ? ForestKind::numeric : ForestKind::levels;
         spec.forests[f].basis = numeric ? dose.data() : block.data();
         spec.forests[f].numBasisColumns = numeric ? 1 : 2;
       }
@@ -10151,6 +10151,251 @@ static void testForestMapStatements() {
     }
   }
   printf("ok: calibration map defaults, K = 2, 3 and 4 under each family\n");
+}
+
+/// A held coefficient goes by what the forest multiplies and never by where
+/// it stands (dec-B354): three forests, one with no basis, a two-level block
+/// and a drawn numeric column, in each of their six orders with the first two
+/// held, hold 1 and (0, 1) before and after a run, and each held forest's sd
+/// is its own leaf scale's, exactly: sd over the unit times the anchor, with
+/// no divisor and no mixture. A held forest with no basis that states none
+/// has the size the one forest of a single-forest chain has (dec-B290) under
+/// gaussian and one unit under probit (dec-B293). The drawn numeric forest
+/// keeps the base build's expression to the bit. A held block with no value,
+/// and a kind that does not fit its basis, throw where the combiner is built;
+/// a swap of a held block to another of its width, a state from a twin that
+/// draws and a write to the forest with no basis each leave the hold.
+static void testHeldCoefficients() {
+  std::uint64_t state = 20261017u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const size_t n = 80, p = 2;
+  std::vector<double> x(n * p), y(n), yBinary(n), block(2 * n), other(2 * n),
+    dose(n), three(3 * n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    double zi = unif() < 0.5 ? 1.0 : 0.0;
+    block[2 * i] = 1.0 - zi;
+    block[2 * i + 1] = zi;
+    double wi = unif() < 0.5 ? 1.0 : 0.0;
+    other[2 * i] = 1.0 - wi;
+    other[2 * i + 1] = wi;
+    size_t level = i % 3;
+    for (size_t j = 0; j < 3; ++j) three[3 * i + j] = j == level ? 1.0 : 0.0;
+    dose[i] = 0.5 + 2.5 * unif();
+    y[i] = 20.0 + 6.0 * x[i] + 3.0 * zi * x[i + n] + 0.4 * dose[i] +
+           2.0 * (unif() - 0.5);
+    yBinary[i] = unif() < 0.45 ? 1.0 : 0.0;
+  }
+  std::vector<double> sortedDose(dose);
+  std::sort(sortedDose.begin(), sortedDose.end());
+  const double doseNorm = 0.5 * (sortedDose[n / 2 - 1] + sortedDose[n / 2]);
+  auto ulps = [](double actual, double expected, double count) {
+    return std::fabs(actual - expected) <=
+           count * std::numeric_limits<double>::epsilon() * std::fabs(expected);
+  };
+  const ForestKind kinds[3] = {ForestKind::none, ForestKind::levels,
+                               ForestKind::numeric};
+  const size_t widths[3] = {1, 2, 1};
+  const size_t trees[3] = {9, 6, 5};
+  // the held sds, in the response's units: unlike each other, the unit and 1
+  const double heldSds[2] = {0.9, 0.45};
+  SamplerOptions options;
+  options.numChains = 1;
+
+  // order[i] is the kind standing at position i; sds[kind] the statement
+  auto build = [&](ResponseFamily family, const size_t* order,
+                   const double* sds, bool holdLevels, unsigned seed) {
+    AmplitudeSpec spec;
+    spec.family = family;
+    spec.forests.resize(3);
+    for (size_t f = 0; f < 3; ++f) {
+      size_t kind = order[f];
+      ForestSpec& forest = spec.forests[f];
+      forest.forest.numTrees = trees[kind];
+      forest.kind = kinds[kind];
+      forest.basis = kind == 0 ? nullptr
+                     : kind == 1 ? block.data()
+                                 : dose.data();
+      forest.numBasisColumns = widths[kind];
+      forest.updateAmplitude = kind == 2 || (kind == 1 && !holdLevels);
+      if (sds != nullptr && kind < 2) forest.sd = sds[kind];
+    }
+    std::vector<ext_rng*> rngs = makeDrawRngs(1, seed);
+    auto sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), family == ResponseFamily::gaussian ? y.data() : yBinary.data(),
+      n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542, options, spec,
+      rngs.data());
+    return std::make_pair(std::move(sampler), rngs);
+  };
+  auto blockOf = [&](ConstantLeafSampler& sampler, const size_t* order,
+                     size_t kind) {
+    std::vector<double> all(sampler.totalAmplitudes());
+    sampler.amplitudes(0, all.data());
+    size_t offset = 0;
+    for (size_t f = 0; order[f] != kind; ++f) offset += widths[order[f]];
+    return std::vector<double>(all.begin() + offset,
+                               all.begin() + offset + widths[kind]);
+  };
+  auto positionOf = [](const size_t* order, size_t kind) {
+    size_t f = 0;
+    while (order[f] != kind) ++f;
+    return f;
+  };
+
+  // (a) the six orders, held by kind at every position, and exact
+  size_t orders[6][3] = {{0, 1, 2}, {0, 2, 1}, {1, 0, 2},
+                         {1, 2, 0}, {2, 0, 1}, {2, 1, 0}};
+  bool byKind = true, kept = true, exact = true, drawnBits = true;
+  for (auto& order : orders) {
+    auto built = build(ResponseFamily::gaussian, order, heldSds, true, 9700);
+    ConstantLeafSampler& sampler = *built.first;
+    bool start = blockOf(sampler, order, 0) == std::vector<double>{1.0} &&
+                 blockOf(sampler, order, 1) == std::vector<double>{0.0, 1.0};
+    Results results;
+    sampler.run(0, 50, results);
+    byKind = byKind && start;
+    kept = kept && blockOf(sampler, order, 0) == std::vector<double>{1.0} &&
+           blockOf(sampler, order, 1) == std::vector<double>{0.0, 1.0};
+    ForestCalibration calibration = sampler.forestCalibration(0, 0);
+    double s = calibration.mapAnchor, unit = calibration.mapUnit;
+    for (size_t kind = 0; kind < 2; ++kind) {
+      size_t f = positionOf(order, kind);
+      exact = exact &&
+              ulps(TestPeer::leafScale(sampler.chain(0), f),
+                   heldSds[kind] / unit * s /
+                     std::sqrt(static_cast<double>(trees[kind])),
+                   4.0) &&
+              sampler.forestCalibration(0, f).amplitudeHeld &&
+              sampler.forestCalibration(0, f).kind == kinds[kind];
+    }
+    size_t g = positionOf(order, 2);
+    drawnBits = drawnBits &&
+                TestPeer::leafScale(sampler.chain(0), g) ==
+                  1.0 * s / (0.674 * doseNorm) /
+                    std::sqrt(static_cast<double>(trees[2])) &&
+                !sampler.forestCalibration(0, g).amplitudeHeld;
+    destroyDrawRngs(built.second);
+  }
+  check(byKind, "held coefficients: 1 with no basis and (0, 1) for two "
+                "levels, wherever the forest stands");
+  check(kept, "held coefficients: and no sweep moves them");
+  check(exact, "held coefficients: a held forest's leaf scale is its sd over "
+               "the unit times the anchor, with no divisor");
+  check(drawnBits, "held coefficients: the drawn numeric forest beside them "
+                   "keeps the base build's leaf scale to the bit");
+
+  // (b) a held forest with no basis that states no sd: bart()'s size under
+  // gaussian, one unit under probit, by the one expression
+  {
+    const size_t order[3] = {0, 1, 2};
+    auto gaussian = build(ResponseFamily::gaussian, order, nullptr, true, 9701);
+    ForestCalibration plain = gaussian.first->forestCalibration(0, 0);
+    double s = plain.mapAnchor;
+    check(TestPeer::leafScale(gaussian.first->chain(0), 0) ==
+              singleForestDefaultSize() / s * s / (1.0 * 1.0) /
+                std::sqrt(static_cast<double>(trees[0])) &&
+            ulps(plain.mapSd,
+                 singleForestDefaultSize() * gaussian.first->fitScale(), 4.0) &&
+            std::isnan(plain.namedSd),
+          "held coefficients: a held forest with no basis defaults to a "
+          "quarter of the response's range under gaussian");
+    ForestCalibration level = gaussian.first->forestCalibration(0, 1);
+    check(level.mapSd == level.mapUnit &&
+            TestPeer::leafScale(gaussian.first->chain(0), 1) ==
+              1.0 * s / (1.0 * 1.0) / std::sqrt(static_cast<double>(trees[1])),
+          "held coefficients: a held factor defaults to one unit, exactly");
+    auto probit = build(ResponseFamily::probit, order, nullptr, true, 9702);
+    check(TestPeer::leafScale(probit.first->chain(0), 0) ==
+              1.0 * 1.0 / (1.0 * 1.0) /
+                std::sqrt(static_cast<double>(trees[0])) &&
+            probit.first->forestCalibration(0, 0).mapSd == 1.0,
+          "held coefficients: and to one unit under probit");
+    destroyDrawRngs(gaussian.second);
+    destroyDrawRngs(probit.second);
+  }
+
+  // (c) the throws: a held block with no value, a kind that does not fit
+  auto throws = [&](auto edit) {
+    const size_t order[3] = {0, 1, 2};
+    AmplitudeSpec spec;
+    spec.forests.resize(3);
+    for (size_t f = 0; f < 3; ++f) {
+      spec.forests[f].forest.numTrees = trees[order[f]];
+      spec.forests[f].kind = kinds[order[f]];
+      spec.forests[f].numBasisColumns = widths[order[f]];
+    }
+    spec.forests[1].basis = block.data();
+    spec.forests[2].basis = dose.data();
+    edit(spec);
+    std::vector<ext_rng*> rngs = makeDrawRngs(1, 9703);
+    bool threw = false;
+    try {
+      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                                  1.0, 3.0, 0.37804942330213542, options, spec,
+                                  rngs.data());
+    } catch (const std::invalid_argument&) {
+      threw = true;
+    }
+    destroyDrawRngs(rngs);
+    return threw;
+  };
+  check(throws([&](AmplitudeSpec& spec) {
+          spec.forests[1].basis = three.data();
+          spec.forests[1].numBasisColumns = 3;
+          spec.forests[1].updateAmplitude = false;
+        }),
+        "held coefficients: a held block of three levels throws");
+  check(throws([&](AmplitudeSpec& spec) {
+          spec.forests[2].updateAmplitude = false;
+        }),
+        "held coefficients: a held numeric column throws, until it has a "
+        "value");
+  check(throws([&](AmplitudeSpec& spec) { spec.forests[0].basis = dose.data(); }),
+        "held coefficients: a forest stated to have no basis handed one "
+        "throws");
+  check(throws([&](AmplitudeSpec& spec) { spec.forests[1].basis = nullptr; }) &&
+          throws([&](AmplitudeSpec& spec) { spec.forests[2].basis = nullptr; }),
+        "held coefficients: a forest of levels or numbers handed none throws");
+  check(!throws([](AmplitudeSpec&) {}),
+        "held coefficients: and the fixture itself builds");
+
+  // (d) a swap, a state from a twin that draws, and a write
+  {
+    const size_t order[3] = {2, 0, 1};
+    auto held = build(ResponseFamily::gaussian, order, heldSds, true, 9704);
+    ConstantLeafSampler& sampler = *held.first;
+    check(sampler.setForestBasis(2, other.data(), 2) &&
+            blockOf(sampler, order, 1) == std::vector<double>{0.0, 1.0},
+          "held coefficients: a swap to another two-level block leaves (0, 1)");
+    auto drawn = build(ResponseFamily::gaussian, order, heldSds, false, 9705);
+    Results results;
+    drawn.first->run(0, 10, results);
+    SamplerStateData twinState;
+    drawn.first->getState(twinState);
+    check(blockOf(*drawn.first, order, 1) != std::vector<double>{0.0, 1.0} &&
+            sampler.setState(twinState, nullptr) &&
+            blockOf(sampler, order, 1) == std::vector<double>{0.0, 1.0} &&
+            blockOf(sampler, order, 0) == std::vector<double>{1.0},
+          "held coefficients: a state from a twin that draws installs and "
+          "leaves the hold");
+    const double written = 1.3;
+    check(sampler.setForestMapSd(1, written),
+          "held coefficients: a held forest with no basis takes a write");
+    double sdsAt[2] = {written, heldSds[1]};
+    auto created = build(ResponseFamily::gaussian, order, sdsAt, true, 9706);
+    check(TestPeer::leafScale(sampler.chain(0), 1) ==
+              TestPeer::leafScale(created.first->chain(0), 1) &&
+            std::isnan(sampler.forestCalibration(0, 1).amplitudePriorScale),
+          "held coefficients: a write gives the leaf scale of one created at "
+          "that sd, and no half-Cauchy median");
+    destroyDrawRngs(held.second);
+    destroyDrawRngs(drawn.second);
+    destroyDrawRngs(created.second);
+  }
+  printf("ok: held coefficients by kind, six orders, exact sds and throws\n");
 }
 
 /// A forest's stated sd is in the response's units, divided by the unit once
@@ -10231,8 +10476,10 @@ static void testForestSdUnit() {
       if (sds != nullptr) spec.forests[f].sd = sds[f];
       if (multiples != nullptr) spec.forests[f].sdMultiple = multiples[f];
     }
+    spec.forests[1].kind = ForestKind::levels;
     spec.forests[1].basis = blockBasis;
     spec.forests[1].numBasisColumns = 2;
+    spec.forests[2].kind = ForestKind::numeric;
     spec.forests[2].basis = doseBasis;
     spec.forests[2].numBasisColumns = 1;
     spec.anchor = anchor;
@@ -10620,12 +10867,29 @@ static void testForestSdUnit() {
   {
     ForestStatement statement;
     statement.sd = forestSdInForce(1.0, 1.7);
-    check(forestMapEntry(statement, true, ResponseFamily::gaussian, 1.7, 1.0)
+    check(forestMapEntry(statement, ForestKind::levels,
+                         ResponseFamily::gaussian, 1.7, 0.25, 1.0)
             .nodeScaleFactor == 1.0,
           "sd unit: a default's own number resolves to the default's multiple");
+    // a held forest with no basis defaults to a multiple a unit and back need
+    // not return, and its own number still resolves to it
+    double held = 0.25 / 1.37, unit = 0.0;
+    for (double candidate = 1.1; candidate < 40.0 && unit == 0.0;
+         candidate += 0.7)
+      if (held * candidate / candidate != held) unit = candidate;
+    check(unit > 0.0, "sd unit: a unit the held default does not survive "
+                      "exists");
+    statement.sd = forestSdInForce(held, unit);
+    statement.updateAmplitude = false;
+    check(forestMapEntry(statement, ForestKind::none,
+                         ResponseFamily::gaussian, unit, held, 1.0)
+            .nodeScaleFactor == held,
+          "sd unit: the held default's own number resolves to its multiple");
+    statement.updateAmplitude = true;
     statement.sd = nan;
     statement.sdMultiple = 1.25;
-    check(forestMapEntry(statement, false, ResponseFamily::gaussian, nan, 1.0)
+    check(forestMapEntry(statement, ForestKind::none,
+                         ResponseFamily::gaussian, nan, 0.25, 1.0)
             .amplitudePrior.halfCauchyScale == 1.25,
           "sd unit: a multiple of the anchor is taken as it is");
   }
@@ -10728,14 +10992,15 @@ static void testBCFCalibrationMap() {
   // the amplitude prior each forest carries, which the reader echoes beside
   // the map's own two factors. EXCLUSIVE per forest: forest 0 takes the
   // half-Cauchy scale mixture and reports a NaN variance, the others the
-  // fixed variance and a NaN scale. All values are distinct from each other
-  // and from those above, so a reader wired to the wrong forest or to the
-  // wrong member of the pair cannot pass.
+  // map's fixed variance 1/2 and a NaN scale, so a reader wired to the wrong
+  // member of the pair cannot pass. Forest 1 multiplies a numeric column and
+  // forests 2 and 3 a two-column block of levels, drawn.
   const double halfCauchyScale = 1.5;
-  const double variances[K] = {0.0, 0.2, 0.35, 0.125};
   const size_t trees[K] = {30, 15, 40, 25};
   const double* bases[K] = {nullptr, b0.data(), b1.data(), b2.data()};
   const size_t widths[K] = {1, 1, 2, 2};
+  const ForestKind kinds[K] = {ForestKind::none, ForestKind::numeric,
+                               ForestKind::levels, ForestKind::levels};
 
   const ResponseFamily families[2] = {ResponseFamily::probit,
                                       ResponseFamily::logistic};
@@ -10753,14 +11018,10 @@ static void testBCFCalibrationMap() {
     spec.forests.resize(K);
     for (size_t f = 0; f < K; ++f) {
       spec.forests[f].forest.numTrees = trees[f];
+      spec.forests[f].kind = kinds[f];
       spec.forests[f].basis = bases[f];
       spec.forests[f].numBasisColumns = widths[f];
-      if (f == 0) {
-        spec.forests[f].sdMultiple = halfCauchyScale;
-      } else {
-        spec.forests[f].sdMultiple = factors[f];
-        spec.forests[f].amplitudePriorVariance = variances[f];
-      }
+      spec.forests[f].sdMultiple = f == 0 ? halfCauchyScale : factors[f];
     }
     std::unique_ptr<SamplerBase> sampler =
       createAmplitudeSampler(x.data(), y.data(), n, p, nullptr, nullptr, 1.0,
@@ -10799,7 +11060,7 @@ static void testBCFCalibrationMap() {
                 "calibration map: a scale-mixture forest reports its "
                 "half-Cauchy median and no variance");
         else
-          check(calibration.amplitudePriorVariance == variances[f] &&
+          check(calibration.amplitudePriorVariance == 0.5 &&
                   std::isnan(calibration.amplitudePriorScale),
                 "calibration map: a fixed-variance forest reports its variance "
                 "and no half-Cauchy median");
@@ -10816,9 +11077,11 @@ static void testBCFCalibrationMap() {
     conventionSpec.forests.resize(2);
     conventionSpec.forests[0].forest.numTrees = 20;
     conventionSpec.forests[0].sdMultiple = 1.25;
+    conventionSpec.forests[0].kind = ForestKind::numeric;
     conventionSpec.forests[0].basis = even.data();
     conventionSpec.forests[1].forest.numTrees = 10;
     conventionSpec.forests[1].sdMultiple = 0.9;
+    conventionSpec.forests[1].kind = ForestKind::numeric;
     conventionSpec.forests[1].basis = zeros.data();
     std::unique_ptr<SamplerBase> convention = createAmplitudeSampler(
       x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0, 0.37804942330213542,
@@ -11338,6 +11601,7 @@ void runSamplerTests(ext_rng* rng) {
   testNamedSd();
   testForestMapWriters();
   testForestMapStatements();
+  testHeldCoefficients();
   testForestSdUnit();
   testBCFCalibrationMap();
 }
