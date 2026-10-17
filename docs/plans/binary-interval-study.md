@@ -1,7 +1,8 @@
 # binary-interval-study: does the collapsed scale move make binary intervals more accurate at equal running time?
 
 Status: PLANNED 2026-10-17, revised from its blind critique (scratch/bisc-crit.md) and the orchestrator's
-calls on it. The bar is ruled (dec-B455): calibration, distance from nominal on either side. Nothing run
+calls on it. The bar is ruled (dec-B455): calibration, distance from nominal on either side; real outcomes
+against a reference are a diagnosis outside the rule (dec-B456). Nothing run
 beyond the planning probes listed at the end. The maintainer placed their multiple-comparisons problem in a
 multiple-treatments scenario; the design A6 answers it ([Multiple comparisons](#multiple-comparisons)). The
 run waits on nothing from the maintainer.
@@ -56,8 +57,8 @@ the trees mix too slowly even with the move, and where (rare outcomes, near 0 or
 units, many covariates).
 
 The rule, fixed before any result: a link's move is kept if, at equal running time, it brings coverage at
-least 2 points closer to nominal on one of four groups (probabilities with known truth, effects with known
-truth, real outcomes against the gold standard, false declarations of effects) and is shown to do no harm
+least 2 points closer to nominal on one of three groups (probabilities with known truth, effects with known
+truth, false declarations of effects) and is shown to do no harm
 on any. It is left out if harm is shown. Anything else is inconclusive: the replications are doubled once,
 and a half still inconclusive stays out by default, the numbers going to you.
 
@@ -272,10 +273,10 @@ A cross-check that costs nothing: the pooled long readings of the seeds (8 to 15
 each, started apart) must agree with the reference by the same test.
 
 A problem whose reference fails stays in, scored against the pooled 16 chains and flagged; R is reported with
-and without the flagged problems, the decision reading the whole. Agreement within one kernel's chains cannot
+and without the flagged problems. Agreement within one kernel's chains cannot
 see stickiness that every chain shares; a failing problem is itself a finding about tree-level mixing.
 
-References run on every B problem (the decision uses them) and, for the diagnosis, on A cells that qualify
+References run on every B problem (the diagnosis R reads them) and, for the diagnosis, on A cells that qualify
 ([Stops](#stops)).
 
 ## Measures
@@ -346,11 +347,10 @@ correction vanishes once the distance is a few standard errors. Pooling a group'
 distance was not chosen: it lets cells over and under nominal cancel. A group's gap is the mean of its cells'
 corrected distances.
 
-Four gain groups, the gap of 90 percent intervals (95 percent for false declarations):
+Three gain groups, the gap of 90 percent intervals (95 percent for false declarations):
 - **F**: held-out probabilities, truth known (A1's 44 cells);
 - **T**: effects, truth known (A2 to A4's 15 non-null cells, A6's non-null contrasts in its three non-null
   cells, and A5's group averages);
-- **R**: real outcomes, reference mass in place of coverage (B1's 23 datasets and B2's 3);
 - **M**: multiple comparisons, three measures, each with its own bar ([Multiple comparisons](#multiple-comparisons)):
   - M1, the coverage of zero wherever the true effect is zero (the 7 null cells, the sparse cell's 85
     percent, A6's null contrasts), its gap from 0.95, bar 0.02;
@@ -363,30 +363,33 @@ Guards, each with a margin:
 
 | guard | margin | planned standard error |
 |---|---|---|
-| F, T, R, M1 worse | 0.010, 0.015, 0.010, 0.015 | 0.0019, 0.0038, 0.0028, 0.0032 |
+| F, T, M1 worse | 0.010, 0.015, 0.015 | 0.0019, 0.0038, 0.0032 |
 | M2 worse, M3 worse | 0.075, 0.010 | 0.018, from the pilot |
 | A6 alone, the maintainer's case: M1, M2 worse | 0.025, 0.11 | 0.0055, 0.029 |
 | simultaneous coverage gap, pooled over the A cells | 0.035 | 0.0097 |
 | average-effect coverage gap | 0.040 | 0.011 |
-| pooled RMSE ratio, pooled interval-score ratio | 1.02 | |
+| pooled RMSE ratio, pooled interval-score ratio, over the A cells | 1.02 | |
 | pairs skipped, the move's arm over the shipped arm | 0.5 percent of pairs | |
 
 Each margin is at least 3.3 planned standard errors (M3's spread is unknown until the pilot); after the pilot each becomes the larger of the planned
 margin and 3.3 times the pilot's standard error, then frozen.
 
 Differences are paired by replication or seed, their bounds from a paired bootstrap of 2,000 resamples over
-replications within cells; for R over seeds and, independently, over the reference's chains within each
-build, since the seeds share one reference and one split. Inference on R is conditional on its 26 datasets.
+replications within cells. R, a diagnosis (dec-B456), is read by the same bootstrap over seeds and,
+independently, over the reference's chains within each build, since the seeds share one reference and one
+split; it is conditional on its 26 datasets.
 
 Three looks, interim, final and doubled, spend one-sided alpha 0.005, 0.02 and 0.025, so every bound below is
 at the look's level.
 
 - **Include the move** for a link when a gain measure improves by at least its bar (0.02, or M2's and M3's
   own), its lower bound above zero, and
-  every guard is shown harmless: the upper bound on its worsening below its margin.
+  every guard is shown harmless: the upper bound on its worsening below its margin. The gain groups are F, T
+  and M (dec-B456).
 - **Leave it out** when harm is shown on any guard: the lower bound on its worsening past its margin.
 - **Otherwise inconclusive.** The undecided groups' and guards' cells are doubled once (budgeted), unless no
-  gain group's upper bound reaches 0.02, in which case doubling cannot change the outcome and is skipped.
+  gain measure's upper bound reaches its bar (0.02 for F, T and M1, 0.05 for M2, 0.01 for M3), in which
+  case doubling cannot change the outcome and is skipped. Only A cells are doubled; B is diagnosis.
   Still inconclusive, the half is left out by default, both halves if both are inconclusive: neither has
   shown the interval gain asked for. The numbers go to the maintainer with that recommendation, the
   k-mixing evidence (csml) and the cost beside them.
@@ -404,12 +407,12 @@ Outcomes:
 
 ### What the counts can resolve
 
-Planned pairs: F 704, T 692, R 317, M1 346, M2 316; A6 alone 120. With a per-replication spread of the paired coverage difference of
-0.05 for F and R (the k study's paired standard errors imply it), 0.10 for T (one replication's units share a
+Planned pairs: F 704, T 692, M1 346, M2 316; A6 alone 120. With a per-replication spread of the paired coverage difference of
+0.05 for F (the k study's paired standard errors imply it), 0.10 for T (one replication's units share a
 surface) and 0.06 for M1, and a discordance of 0.1 between arms for M2's yes-or-no outcome, the standard errors are
 those of the table. M2 can show only a large change: its bar is 0.05, against 0.02 for the rest. Inclusion needs a point estimate of at
 least 0.02, so at a true gain of exactly 0.02 it succeeds about half the time; 95 percent power needs a true
-gain of about 0.023 (F), 0.026 (T), 0.025 (R) and 0.026 (M1). On A6 alone a 2-point gain is under 4
+gain of about 0.023 (F), 0.026 (T) and 0.026 (M1). On A6 alone a 2-point gain is under 4
 standard errors, so its own reading guards and is reported, and gains count pooled into M. Correlation within a replication is handled by
 resampling whole replications. The pilot (10 replications of every cell) rereads the spreads.
 
@@ -419,7 +422,7 @@ resampling whole replications. The pilot (10 replications of every cell) rereads
   bartcore 92ae2714 on seeded fits of both links along the study's own paths (numeric and factor predictors,
   missing predictor values, test rows, 4 and 10 chains, `n.threads = 1`); or the move build does not differ;
   or the prefix property fails on either build. Any of these stops the run.
-- **Halfway**: with half the replications of every cell and every B reference in, the rule is read at the
+- **Halfway**: with half the replications of every A cell in, the rule is read at the
   interim alpha. A decided link stops.
 - **Diagnosis references** run last, one replication per A cell where either build's default reading is more
   than 3 points from nominal, plus four control cells a link chosen now (A1 pima and adult with the BART
@@ -536,6 +539,33 @@ in a multiple treatments scenario."), though not the exact case, which their col
 
 The colleagues' exact case, if reported, can be scored on the stored draws or run as a new cell after the
 study.
+
+## Amendments before results
+
+Made by the orchestrator while the harness was written, 2026-10-17, before any pilot number was read:
+- **R at the pilot.** The 26 B references a link, 8 chains of each build as above, run before the pilot
+  reading. They are inputs, not scored fits. (R's margin, frozen from them in the first form of this
+  amendment, went with dec-B456.)
+- **M2's cells.** The 7 null cells and all four A6 cells, 316 pairs. The sparse cell's family-wise rate
+  is reported beside M2, outside the rule.
+- **T's cells.** 23 non-null cells in A2 to A4 (A2 3, A3 12, A4 8), the count the planned 692 pairs
+  imply; "15" above is a miscount.
+- **The large datasets.** The four of more than 5,000 rows (adult, bank, magic, mushroom), the k study's
+  rule; "the large five" above is a miscount.
+- **Order.** The A1 truths and the pilot's propensities run before the timing pass, so A1's timing cells
+  draw their outcomes from the truths and the effect cells carry their real propensity.
+- **The pilot** is replications 1 to 10 of every cell (B seeds 1 to 10, adult's 8), reused in the
+  main run. Its standard error is the per-replication spread read from it, scaled to the planned pair
+  counts, as the planned column was computed.
+- **R is a diagnosis, outside the rule** (dec-B456): neither a gain group nor a guard, with no margin. Its
+  numbers are reported under diagnosis, as whether a default-length chain reaches its own long run's
+  posterior. The gain groups are F, T and M. The B references still run, before the pilot, as that
+  diagnosis's input. The halfway reading waits on the A cells alone. Doubling is skipped when no gain
+  measure's upper bound reaches its bar. The power statement drops R. The guards' RMSE and interval-score
+  ratios pool the A cells. The equal-time choice pools the cells of F, T and M1.
+- **Effect fits** call bart() with bartCause's default response model (the outcome on the covariates,
+  the treatment and the estimated propensity, 10 chains, every unit predicted under both treatments),
+  not bartc().
 
 ## Calls made in planning
 
