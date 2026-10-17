@@ -781,7 +781,7 @@ items
     after forest-kind-by-class (landed 2026-10-17, dec-A210, dec-A212:
     a forest multiplies one numeric column or two levels, by the
     class of its basis, at every door) and forest-sd-unit (landed).
-    Push 1 is built and not landed: a forest with a basis defaults to
+    Push 1 landed (2026-10-17, dec-A216): a forest with a basis defaults to
     one unit whatever K (dec-B291), a held coefficient is 1 with the
     basis carrying the coding wherever the forest stands and makes sd
     exact, a held forest with no basis defaults to bart()'s size

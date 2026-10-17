@@ -1,6 +1,6 @@
 # What a forest's coefficient is, held or drawn
 
-Status: PUSH 1 BUILT, not landed; pushes 2 and 3 planned. The plan is
+Status: PUSH 1 LANDED 2026-10-17 (5a62933e); pushes 2 and 3 planned. The plan is
 [forest-multiplier.md](../plans/forest-multiplier.md), which carries the steps, the gates and the calls.
 This note states the rule push 1 builds: the held half of it, the default of a forest with a basis, and
 the unit on a response with no spread. Rulings: dec-B290, dec-B291 and dec-B293 for the defaults,

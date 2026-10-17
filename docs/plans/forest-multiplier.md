@@ -1,6 +1,6 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
-Status: PUSH 1 BUILT 2026-10-17, not landed ([Push 1 as built](#push-1-as-built)); pushes 2 and 3 PLANNED,
+Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); pushes 2 and 3 PLANNED,
 rechecked 2026-10-11 against 37b59ea0, the tip of the sd unit slice
 ([Recheck against bartcore](#recheck-against-bartcore)); its two open calls settled and its cites
 brought to forest-kind-by-class as built on 2026-10-17, with push 1 gaining the unit on a constant
@@ -1692,3 +1692,13 @@ BCF baseline's MANIFEST row names its oracle's metrics, a largest elementwise re
 9e-14 and a mean of at most 2.2e-15; bartCause's held default reads the family (0057d2a, with a test), and a test pins its weighted rows (4a70e7d).
 The branch was rebased onto 33f9c299, which moved no draw of the three baselines, and the BCF baseline
 renamed to the rebased commit.
+
+## Landing note
+
+Push 1 landed on 2026-10-17 as f9bc3636..5a62933e, fast-forwarded onto 33f9c299 after a second rebase
+that changed only cites, with bartCause's 30cd6fc, 0057d2a and 4a70e7d fast-forwarded onto dbarts-1.0.
+The calls made planning and building it are dec-A216. The x86-64 leg ran on the code landed: tests/cpp
+402 ok plain and under ASAN, the suite 27617 results with 0 failed, the equivalence compare 55 of 55
+statistically indistinguishable, and the bcf and multinomial compares differing bitwise only where the
+build before does on x86. Push 2 must land before 1.0-0, which removes `amplitude.prior.scale` and with
+it the prefix match of `$amplitude`.
