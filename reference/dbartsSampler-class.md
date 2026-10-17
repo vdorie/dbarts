@@ -260,12 +260,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler has saved (`keepTrees`) stay the functions they were, so
   `predict` returns the same values for them before and after the call.
   To that end a `linear` leaf's coefficients, saved and current, are
-  rewritten into the centre and scale the new data gives its leaf
+  rewritten into the center and scale the new data gives its leaf
   covariates, and every saved draw into the response scale the new data
   gives. A row whose leaf covariate is missing is read at that
-  covariate's centre, so what a linear leaf predicts for it follows the
-  centre to the new data's. A leaf covariate that holds a single value
-  is centred at it and divided by 1, so a leaf reads zero for it on
+  covariate's center, so what a linear leaf predicts for it follows the
+  center to the new data's. A leaf covariate that holds a single value
+  is centered at it and divided by 1, so a leaf reads zero for it on
   every row and its slope adds nothing to the fit. Where a covariate is
   such a column on one side of the call only, the current coefficients
   are still rewritten by the formula, with 1 for that side's scale, so
@@ -276,7 +276,7 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   column on both sides the current coefficients are left as they are. A
   column that `setPredictor` has since given other values is read as
   what it then holds: one moved to another single value no longer sits
-  at its centre and is rewritten as any other column is, by the formula,
+  at its center and is rewritten as any other column is, by the formula,
   which keeps the function of the covariate. The data fixed that
   function at one point only, so new data that spread the covariate
   widely can carry the current fit far from where it was until the
@@ -387,9 +387,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   whose flat shift is added AFTER the categories are blended - the wrong
   side of the nonlinearity - and is the softmax's own null direction
   besides, which is why `setOffset` itself is refused on such a sampler.
-  Only the row-centred part is identified: adding a constant to a whole
+  Only the row-centered part is identified: adding a constant to a whole
   row leaves every reported probability unchanged, and the entrance
-  leaves the matrix as given rather than re-centring it. It shifts the
+  leaves the matrix as given rather than re-centering it. It shifts the
   TRAINING latent only. Mirrored into `data@offset.category`, so a
   re-created sampler carries it. Column names, when present, are matched
   to the sampler's category names (the column names of its counts;
