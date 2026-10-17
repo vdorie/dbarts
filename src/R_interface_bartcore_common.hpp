@@ -354,9 +354,11 @@ const double* adoptVector(std::vector<double>& owned, const double* values,
 /// Parses the R specification objects, builds the per-chain rngs (drawing
 /// through R's stream when unseeded), and creates the sampler; prints the
 /// initial summary under a verbose control. Raises R errors on invalid
-/// specifications after cleaning up.
+/// specifications after cleaning up. \p activeExpr is the active-row mask the
+/// caller installs once the sampler is built, R_NilValue for none, read only
+/// for the rows a numeric column's scale is taken over.
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                             const char* familyName);
+                             const char* familyName, SEXP activeExpr);
 
 /// The complete sampler state as a serializable R object of class
 /// "bartcoreState"; unprotected on return.

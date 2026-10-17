@@ -393,15 +393,16 @@ struct ForestCalibration {
   /// own pair) and never the mixture's LIVE variance auxiliary, which is state.
   double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
   double amplitudePriorScale = std::numeric_limits<double>::quiet_NaN();
-  /// The map's two factors: priorScale is factor * s / (divisor * rowNorm), so
-  /// the anchor s is recoverable from these.
-  double nodeScaleFactor = std::numeric_limits<double>::quiet_NaN();
-  double nodeScaleDivisor = std::numeric_limits<double>::quiet_NaN();
-  /// The median nonzero row norm of the basis IN FORCE, which setForestBasis
-  /// re-derives; unobservable by any other route.
-  double basisRowNorm = std::numeric_limits<double>::quiet_NaN();
-  /// The anchor s itself, the same double on every forest of a chain; a
-  /// caller records it so a re-creation rebuilds on it (AmplitudeSpec::anchor).
+  /// A numeric column's scale as the chain holds it, taken at a first
+  /// creation or handed to a re-creation; NaN on every other forest and on a
+  /// numeric one created stating its sd. No swap moves it.
+  double basisScale = std::numeric_limits<double>::quiet_NaN();
+  /// Whether that scale was read from every row because too few were in the
+  /// likelihood to read it from: the status a host warns on.
+  bool basisScaleFromAllRows = false;
+  /// The anchor s itself, the same double on every forest of a chain and NaN
+  /// off the map; a caller records it so a re-creation rebuilds on it
+  /// (AmplitudeSpec::anchor).
   double mapAnchor = std::numeric_limits<double>::quiet_NaN();
   /// The response units in one s, which a stated sd is divided by; recorded
   /// and handed back as the anchor is (AmplitudeSpec::unit).
@@ -1183,20 +1184,43 @@ public:
     std::vector<ForestSpec> forestSpecs = expandForestSpecs(spec);
     forestMap_.resize(forestSpecs.size());
     std::vector<ForestAmplitudePrior> amplitudePriors(forestSpecs.size());
+    ScaleRows scaleRows;
     for (std::size_t f = 0; f < forestSpecs.size(); ++f) {
       const ForestSpec& forestSpec = forestSpecs[f];
       MapForest& mapped = forestMap_[f];
       mapped.statement = forestSpec;
       mapped.kind = forestSpec.kind;
-      // each forest is resolved ONCE here, the row norm of its basis among the
-      // inputs, and the combiner is handed the result
-      mapped.entry = forestMapEntry(
-        mapped.statement, mapped.kind, spec.family, forestSdUnit_,
-        oneForestSize(),
-        basisRowNorm(forestSpec.basis, forestSpec.numBasisColumns,
-                     data.numObservations));
+      if (mapped.kind == ForestKind::numeric && forestSpec.numBasisColumns != 1)
+        throw std::invalid_argument(
+          "a numeric basis of several columns has no rule");
+      // a numeric column that states no sd takes its default from its scale:
+      // the one handed, or taken here, once, over the rows the response's
+      // scale was read from (dec-B303)
+      if (mapped.kind == ForestKind::numeric && std::isnan(forestSpec.sd) &&
+          std::isnan(forestSpec.sdMultiple) && forestSpec.basis != nullptr) {
+        if (std::isfinite(forestSpec.basisScale)) {
+          mapped.basisScale = forestSpec.basisScale;
+        } else {
+          if (!scaleRows.read) scaleRows = rowsForBasisScale(spec, y);
+          try {
+            mapped.basisScale = basisColumnScale(
+              forestSpec.basis, data.numObservations,
+              scaleRows.rows.empty() ? nullptr : scaleRows.rows.data());
+          } catch (BasisScaleError& error) {
+            error.forest = f;
+            throw;
+          }
+          mapped.basisScaleFromAllRows = scaleRows.fellBack;
+        }
+      }
+      // each forest is resolved ONCE here and the combiner is handed the
+      // result
+      mapped.entry =
+        forestMapEntry(mapped.statement, mapped.kind, spec.family,
+                       forestSdUnit_, oneForestSize(), mapped.basisScale);
       amplitudePriors[f] = mapped.entry.amplitudePrior;
-      buildSpecifiedForest(forestSpec.forest, mapped.entry.nodeScale(s));
+      buildSpecifiedForest(forestSpec.forest);
+      forests_[f].leaf.scale = mapLeafScale(f);
     }
 
     combiner_ = std::make_unique<AmplitudeForestCombiner<L, ResidT>>(
@@ -1391,28 +1415,18 @@ public:
   /// per-forest reparameterization and the amplitude conditional re-read it on
   /// the next sweep.
   ///
-  /// A successful install RE-DERIVES forest f's leaf scale from the new basis:
-  /// the map's row-norm divisor is otherwise a construction-time constant of
-  /// the OLD basis and no other mutation re-derives a K-forest leaf scale
-  /// (setModel touches forest 0's alone), so a swap into different units would
-  /// leave the forest calibrated in the previous ones. The anchor s is the
-  /// RETAINED construction value, not a fresh scaledResponseSd(): the map is
-  /// pinned at creation (an updateScale swap is refused), so recomputing would
-  /// recalibrate this forest onto a scale the others are not on, and reusing
-  /// the stored double is what makes a norm-preserving re-install bitwise.
-  /// Same expression in the same order as the constructor's, for the reason
-  /// stated there.
+  /// A swap moves the basis and nothing else: no scale, no sd in force, no
+  /// coefficient, no tree and never the kind (dec-B452), so a numeric forest
+  /// keeps the prior its column's scale gave it at creation. False, installing
+  /// nothing, on a numeric forest handed other than one column, whose kind
+  /// has no rule there.
   bool setForestBasis(std::size_t f, const double* values,
                       std::size_t numColumns) {
-    if (!combiner_ || !combiner_->setForestBasis(f, values, numColumns))
+    if (!combiner_ ||
+        (f < forestMap_.size() && forestMap_[f].kind == ForestKind::numeric &&
+         numColumns != 1))
       return false;
-    if (f < forestMap_.size()) {
-      // the forest's number in units of s stands; only the row norm moves
-      forestMap_[f].entry.basisRowNorm =
-        basisRowNorm(values, numColumns, data_.numObservations);
-      forests_[f].leaf.scale = mapLeafScale(f);
-    }
-    return true;
+    return combiner_->setForestBasis(f, values, numColumns);
   }
   /// The size a held forest with no basis defaults to under a drawn sigma, as
   /// a multiple of the map's anchor: the one forest of a single-forest chain's
@@ -1421,9 +1435,9 @@ public:
     return singleForestDefaultSize() / nodeScaleAnchor_;
   }
   /// Forest f's leaf scale as the map derives it from the retained entry and
-  /// anchor: the constructor's expression, in its association and operand
-  /// order, so a re-derivation from unchanged inputs is bitwise the
-  /// constructed scale.
+  /// anchor: the one expression the constructor and every restatement call,
+  /// so a re-derivation from unchanged inputs is bitwise the constructed
+  /// scale.
   double mapLeafScale(std::size_t f) const {
     return forestMap_[f].entry.nodeScale(nodeScaleAnchor_) /
            std::sqrt(static_cast<double>(forests_[f].numTrees));
@@ -1586,9 +1600,8 @@ public:
         scaleMixture ? notMapped : prior.variance;
       calibration.amplitudePriorScale =
         scaleMixture ? prior.halfCauchyScale : notMapped;
-      calibration.basisRowNorm = mapped.entry.basisRowNorm;
-      calibration.nodeScaleFactor = mapped.entry.nodeScaleFactor;
-      calibration.nodeScaleDivisor = mapped.entry.nodeScaleDivisor;
+      calibration.basisScale = mapped.basisScale;
+      calibration.basisScaleFromAllRows = mapped.basisScaleFromAllRows;
       calibration.mapAnchor = nodeScaleAnchor_;
       calibration.mapUnit = forestSdUnit_;
       calibration.namedSd = mapped.statement.sd;
@@ -1654,7 +1667,7 @@ public:
     // multiple is not recovered from by the map
     if (sd != forestCalibration(f).mapSd)
       entry = forestMapEntry(statement, mapped.kind, family_, forestSdUnit_,
-                             oneForestSize(), entry.basisRowNorm);
+                             oneForestSize(), mapped.basisScale);
     if (entry.amplitudePrior.halfCauchyScale !=
           mapped.entry.amplitudePrior.halfCauchyScale &&
         !combiner_->setAmplitudePriorScale(
@@ -7315,45 +7328,54 @@ private:
     return anchor * response_->fitScale();
   }
 
-  /// The unit a forest's node scale is stated PER: the median of the NONZERO
-  /// row norms of its n x numColumns ROW-major amplitude basis, 1.0 for a
-  /// forest carrying none (the combiner synthesizes the all-ones column). The
-  /// map divides it out, so a basis in other units - a column of dollars, a
-  /// rescaled moderator - no longer silently multiplies the prior.
-  ///
-  /// A MEDIAN rather than a root-mean-square: the map's own convention is
-  /// already one (the 0.674 divisor is qnorm(0.75)), the median is
-  /// sparsity-invariant where an all-rows RMS would shrink a bare 0/1
-  /// indicator's scale by sqrt(p) for being treatment-only, and it is
-  /// outlier-robust where a max is not. Zero-norm rows are excluded rather
-  /// than counted small: such a row receives no contribution from the forest,
-  /// so it says nothing about the scale the rows that do are stated in.
-  ///
-  /// Every shipped route lands on exactly 1.0 (the all-ones column, the
-  /// (1 - z, z) pair, a one-hot factor expansion) and divisor * 1.0 is divisor
-  /// in IEEE-754, so the K = 2 instance stays bitwise.
-  static double basisRowNorm(const double* basis, std::size_t numColumns,
-                             std::size_t n) {
-    if (basis == nullptr) return 1.0;
-    std::vector<double> norms;
-    norms.reserve(n);
-    for (std::size_t i = 0; i < n; ++i) {
-      double sumSquares = 0.0;
-      for (std::size_t j = 0; j < numColumns; ++j) {
-        double value = basis[i * numColumns + j];
-        sumSquares += value * value;
+  /// The rows a numeric column's scale is read from, as rule 3 of the
+  /// forest prior has them: a nonzero byte per row, empty for every row.
+  struct ScaleRows {
+    std::vector<unsigned char> rows;
+    bool fellBack = false;  // every row read because too few were in
+    bool read = false;
+  };
+  /// Under gaussian the rows the response's range was read from, every row
+  /// where it read them all; that is a fallback where a row is out and the
+  /// rows in hold fewer than two distinct values (dec-B302, dec-B309). Under
+  /// probit and logistic, which read no rows of their own, the rows the
+  /// active-row mask \p spec hands keeps in, every row where it keeps none.
+  /// Nothing reads the weights' sizes.
+  ScaleRows rowsForBasisScale(const AmplitudeSpec& spec, const double* y) const {
+    ScaleRows result;
+    result.read = true;
+    std::size_t n = data_.numObservations;
+    switch (spec.family) {
+    case ResponseFamily::probit:
+    case ResponseFamily::logistic: {
+      if (spec.activeRows == nullptr) return result;
+      result.rows.resize(n);
+      bool anyIn = false;
+      for (std::size_t i = 0; i < n; ++i) {
+        result.rows[i] = spec.activeRows[i] != 0.0;
+        anyIn = anyIn || result.rows[i] != 0;
       }
-      if (sumSquares > 0.0) norms.push_back(std::sqrt(sumSquares));
+      if (!anyIn) {
+        result.rows.clear();
+        result.fellBack = true;
+      }
+      return result;
     }
-    if (norms.empty()) return 1.0;  // an all-zero basis scales nothing
-    std::size_t half = norms.size() / 2;
-    std::nth_element(norms.begin(), norms.begin() + half, norms.end());
-    if (norms.size() % 2 == 1) return norms[half];
-    // the even case averages the two central order statistics, as R's median
-    // does, so a host can reproduce the divisor from its own basis
-    double upper = norms[half];
-    double lower = *std::max_element(norms.begin(), norms.begin() + half);
-    return 0.5 * (lower + upper);
+    // as latentScaleAnchor: every enumerator listed and no default arm
+    case ResponseFamily::gaussian:
+    case ResponseFamily::aft:
+    case ResponseFamily::ordinal:
+    case ResponseFamily::nbinom:
+      break;
+    }
+    const unsigned char* rows = response_->scaleRows();
+    if (rows != nullptr) {
+      result.rows.assign(rows, rows + n);
+    } else {
+      result.fellBack =
+        response_->lacksDistinctRowsIn(IncomingVector::response, y);
+    }
+    return result;
   }
 
   /// Variant A block-additive install: confine each whole tree to one
@@ -7412,9 +7434,9 @@ private:
 
   /// A BCF forest, built self-contained so the single-forest constructor
   /// (covered by the draw-for-draw equivalence benchmark) is untouched:
-  /// constant leaf, fixed k = 1 (the map's convention), no DART. nodeScale is
-  /// the map-derived total.
-  void buildSpecifiedForest(const ForestStructureSpec& spec, double nodeScale) {
+  /// constant leaf, fixed k = 1 (the map's convention), no DART. Its leaf
+  /// scale is the map's (mapLeafScale), which the caller sets.
+  void buildSpecifiedForest(const ForestStructureSpec& spec) {
     std::size_t n = data_.numObservations;
     forests_.emplace_back();
     Forest<L, ResidT>& forest = forests_.back();
@@ -7429,8 +7451,6 @@ private:
     forest.updateK = false;
     forest.useDart = false;
     forest.k = 1.0;
-    forest.leaf.scale =
-      nodeScale / std::sqrt(static_cast<double>(spec.numTrees));
     forest.treePrior.base = spec.base;
     forest.treePrior.power = spec.power;
     forest.indexBuffer.resize(n * spec.numTrees);
@@ -7829,12 +7849,15 @@ private:
   // to the response and the combiner for the sweep's own draws alone
   const std::function<bool()>* refreshCancel_ = nullptr;
 
-  // One map forest: what it states, what it multiplies, and the entry the
-  // map resolved it into, which setForestBasis restates the row norm of and
-  // setForestMapSd resolves again.
+  // One map forest: what it states, what it multiplies, a numeric column's
+  // scale (NaN where none is held) with whether it was read from every row,
+  // and the entry the map resolved it into, which setForestMapSd resolves
+  // again.
   struct MapForest {
     ForestStatement statement;
     ForestKind kind = ForestKind::none;
+    double basisScale = std::numeric_limits<double>::quiet_NaN();
+    bool basisScaleFromAllRows = false;
     ForestMapEntry entry;
   };
   // empty off the K-forest constructor, which is the guard every reader and

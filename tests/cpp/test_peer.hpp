@@ -54,6 +54,12 @@ struct TestPeer {
   static double leafScale(const Chain<L, R>& chain, std::size_t f) {
     return chain.forests_[f].leaf.scale;
   }
+  /// Map forest f's entry, the factor and divisor of its node scale.
+  template <IntegrableLeafModel L, typename R>
+  static const ForestMapEntry& mapEntry(const Chain<L, R>& chain,
+                                        std::size_t f) {
+    return chain.forestMap_[f].entry;
+  }
   /// Tree t of forest f, and the location the chain hands a latent redraw.
   template <IntegrableLeafModel L, typename R>
   static const Tree& forestTree(const Chain<L, R>& chain, std::size_t f,

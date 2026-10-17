@@ -338,6 +338,10 @@ struct ParsedData {
   // forestBasisKind reads it: none where the basis is null, levels where the
   // object records levels for it, numbers otherwise
   std::vector<bartcore::ForestKind> basisKinds;
+  // each forest's entry of the data object's record of a numeric column's
+  // scale, R_NilValue where it records none; borrowed from the object and
+  // checked only where it is handed on (applyForestBases)
+  std::vector<SEXP> basisScales;
   double sigmaEstimate = 1.0;
   std::vector<uint32_t> maxNumCuts;
   // the data object's record of the columns its sampler has seen missing, a
@@ -1445,6 +1449,17 @@ void parseData(ParsedData& data, SEXP dataExpr) {
                   !Rf_isNull(VECTOR_ELT(slotExpr, static_cast<R_xlen_t>(f)));
     data.basisKinds[f] = levels ? bartcore::ForestKind::levels
                                 : bartcore::ForestKind::numeric;
+  }
+  // a numeric column's scale as the sampler first created on the object took
+  // it, which an object saved before the slot existed records for none
+  data.basisScales.assign(data.bases.size(), R_NilValue);
+  if (R_has_slot(dataExpr, Rf_install("basis.scale"))) {
+    REPROTECT_SLOT(slotExpr, dataExpr, "basis.scale", slotIndex);
+    if (Rf_isNewList(slotExpr))
+      for (size_t f = 0; f < data.bases.size() &&
+                         static_cast<R_xlen_t>(f) < Rf_xlength(slotExpr);
+           ++f)
+        data.basisScales[f] = VECTOR_ELT(slotExpr, static_cast<R_xlen_t>(f));
   }
 
   REPROTECT_SLOT(slotExpr, dataExpr, "sigma", slotIndex);
@@ -2685,7 +2700,10 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
 // into the engine's ROW-major contract and borrows them onto the spec, which
 // the chains copy at construction, with what each forest multiplies. A forest
 // the list does not reach, or whose entry is null, multiplies nothing and
-// keeps the dense all-ones column the engine synthesizes.
+// keeps the dense all-ones column the engine synthesizes. A numeric forest
+// that states no sd is handed the scale the data object records for it,
+// checked here and nowhere else; the statements are read first
+// (applyForestStatements).
 void applyForestBases(const ParsedData& data, bartcore::AmplitudeSpec& spec,
                       AmplitudeSpecStorage& storage) {
   size_t n = data.numObservations;
@@ -2706,6 +2724,22 @@ void applyForestBases(const ParsedData& data, bartcore::AmplitudeSpec& spec,
     spec.forests[f].basis = rowMajor.data();
     spec.forests[f].numBasisColumns = q;
     spec.forests[f].kind = data.basisKinds[f];
+    SEXP scaleExpr = f < data.basisScales.size() ? data.basisScales[f]
+                                                  : R_NilValue;
+    if (data.basisKinds[f] != bartcore::ForestKind::numeric ||
+        !std::isnan(spec.forests[f].sd) || Rf_isNull(scaleExpr))
+      continue;
+    R_xlen_t length = Rf_xlength(scaleExpr);
+    bool valid = Rf_isReal(scaleExpr) && static_cast<size_t>(length) == q;
+    for (R_xlen_t j = 0; valid && j < length; ++j)
+      valid = std::isfinite(REAL(scaleExpr)[j]) && REAL(scaleExpr)[j] > 0.0;
+    if (!valid)
+      Rf_error("'basis.scale' entry %lu must hold one positive finite number "
+               "for each column of that forest's basis: it has %ld and the "
+               "basis %lu column%s",
+               static_cast<unsigned long>(f + 1), static_cast<long>(length),
+               static_cast<unsigned long>(q), q == 1 ? "" : "s");
+    spec.forests[f].basisScale = REAL(scaleExpr)[0];
   }
 }
 
@@ -3603,9 +3637,51 @@ const char* const forestSdUnitMessage =
   "spread to state one against (its standard deviation is 0); leave 'sd' "
   "out, or give a response that varies";
 
-// family resolution: see resolveFamily() above.
+// A forest as a message names it, as R's forestName does: by position from
+// 1, with its label from the forests' record where the label is not the
+// position's own.
+std::string forestMessageName(SEXP controlExpr, size_t f) {
+  std::string name = "forest " + std::to_string(f + 1);
+  SEXP forestsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.forests"));
+  SEXP labelsExpr = Rf_isNull(forestsExpr)
+                      ? R_NilValue
+                      : rc_getListElement(forestsExpr, "labels");
+  if (!Rf_isString(labelsExpr) ||
+      Rf_xlength(labelsExpr) <= static_cast<R_xlen_t>(f))
+    return name;
+  SEXP labelExpr = STRING_ELT(labelsExpr, static_cast<R_xlen_t>(f));
+  if (labelExpr == NA_STRING) return name;
+  std::string label = CHAR(labelExpr);
+  if (label.empty() || label == "forest" + std::to_string(f + 1)) return name;
+  return name + " ('" + label + "')";
+}
+
+// The refusal of a numeric column with no scale over the rows its default is
+// read from, on a forest that states no sd: the engine decides which rows are
+// in and what the column holds there, and this words it.
+std::string basisScaleMessage(SEXP controlExpr,
+                              const bartcore::BasisScaleError& error) {
+  char detail[160];
+  if (!std::isnan(error.value))
+    std::snprintf(detail, sizeof detail,
+                  "constant (%.15g on every row in the likelihood)",
+                  error.value);
+  else
+    std::snprintf(detail, sizeof detail,
+                  "constant to rounding (its standard deviation is %.2g of "
+                  "its largest value)",
+                  error.ratio);
+  return forestMessageName(controlExpr, error.forest) +
+         " states no sd and its basis is " + detail +
+         ", so there is no standard deviation to take a default from; state "
+         "one with sd =";
+}
+
+// family resolution: see resolveFamily() above. activeExpr is the active-row
+// mask the caller installs once the sampler is built, R_NilValue for none,
+// read here only for the rows a numeric column's scale is taken over.
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                             const char* familyName) {
+                             const char* familyName, SEXP activeExpr) {
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{},
@@ -3684,6 +3760,14 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       // the chains COPY every basis at construction, so this row-major
       // transposition need only outlive the build
       applyForestBases(data, amplitudeSpec, amplitudeStorage);
+      if (!Rf_isNull(activeExpr)) {
+        if (!Rf_isReal(activeExpr) ||
+            static_cast<size_t>(Rf_xlength(activeExpr)) !=
+              data.numObservations)
+          Rf_error("the active-row mask must hold one number for each "
+                   "observation");
+        amplitudeSpec.activeRows = REAL(activeExpr);
+      }
     }
 
     // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
@@ -3713,6 +3797,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // a forest's sd stated against a response with no spread is the caller's
     // to mend, so it is raised in the caller's terms and not as a failure
     bool sdHasNoUnit = false;
+    std::string noBasisScale;
     using OwnedSampler = std::unique_ptr<bartcore::SamplerBase>;
     OwnedSampler sampler =
       createSamplerOrRaise(rngs, [&]() -> OwnedSampler {
@@ -3731,11 +3816,15 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
         } catch (const bartcore::ForestSdUnitError&) {
           sdHasNoUnit = true;
           return nullptr;
+        } catch (const bartcore::BasisScaleError& error) {
+          noBasisScale = basisScaleMessage(controlExpr, error);
+          return nullptr;
         }
       });
-    if (sdHasNoUnit) {
+    if (sdHasNoUnit || !noBasisScale.empty()) {
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-      Rf_error("%s", forestSdUnitMessage);
+      if (sdHasNoUnit) Rf_error("%s", forestSdUnitMessage);
+      Rf_error("%s", noBasisScale.c_str());
     }
     if (sampler == NULL) {
       // the R surface refuses these first, so only an entrance that skips it
@@ -4103,7 +4192,7 @@ extern "C" {
 // borrows: the data expression at creation, and any replacement vectors the
 // setters install later. family is as createHolder's.
 SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                     SEXP familyExpr) {
+                     SEXP familyExpr, SEXP activeExpr) {
   const char* familyName =
     Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
   // The multinomial (softmax) family is the one whose response is not the data
@@ -4119,7 +4208,7 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     });
   return createExternalHolder(dataExpr, [&]() {
     return bartcore_bridge::createHolder(controlExpr, modelExpr, dataExpr,
-                                         familyName);
+                                         familyName, activeExpr);
   });
 }
 
@@ -4551,7 +4640,9 @@ SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
         if (!R_FINITE(value)) Rf_error("a forest basis value is not finite");
         rowMajor[i * numColumns + j] = value;
       }
-    holder.sampler->setForestBasis(forestIndex, rowMajor.data(), numColumns);
+    if (!holder.sampler->setForestBasis(forestIndex, rowMajor.data(),
+                                        numColumns))
+      Rf_error("the sampler refuses this basis for the forest");
     return R_NilValue;
   });
 }
@@ -4810,7 +4901,9 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // states, NaN where it states none, and map.sd a map forest's sd in force,
 // both response units. multiplier is what a map forest multiplies, 0 for
 // nothing, 1 for levels and 2 for numbers, and amplitude.held 1 where its
-// coefficient is held; both NaN off the map.
+// coefficient is held; both NaN off the map. basis.scale is the scale a
+// numeric forest holds, NaN where it holds none, and basis.scale.all.rows 1
+// where it was read from every row because too few were in the likelihood.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -4821,10 +4914,9 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   const char* const columnNames[] = {
     "prior.scale", "prior.sd", "prior.mean", "k",
     "k.has.hyperprior", "response.scale", "response.shift",
-    "amplitude.prior.variance", "amplitude.prior.scale",
-    "leaf.scale.factor", "leaf.scale.divisor", "basis.row.norm",
+    "amplitude.prior.variance", "amplitude.prior.scale", "basis.scale",
     "map.anchor", "k.prior.scale", "named.sd", "map.unit", "map.sd",
-    "multiplier", "amplitude.held"
+    "multiplier", "amplitude.held", "basis.scale.all.rows"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -4843,20 +4935,20 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     result[c + 6 * numChains] = calibration.responseShift;
     result[c + 7 * numChains] = calibration.amplitudePriorVariance;
     result[c + 8 * numChains] = calibration.amplitudePriorScale;
-    result[c + 9 * numChains] = calibration.nodeScaleFactor;
-    result[c + 10 * numChains] = calibration.nodeScaleDivisor;
-    result[c + 11 * numChains] = calibration.basisRowNorm;
-    result[c + 12 * numChains] = calibration.mapAnchor;
-    result[c + 13 * numChains] = calibration.kPriorScale;
-    result[c + 14 * numChains] = calibration.namedSd;
-    result[c + 15 * numChains] = calibration.mapUnit;
-    result[c + 16 * numChains] = calibration.mapSd;
-    bool mapped = !std::isnan(calibration.basisRowNorm);
+    result[c + 9 * numChains] = calibration.basisScale;
+    result[c + 10 * numChains] = calibration.mapAnchor;
+    result[c + 11 * numChains] = calibration.kPriorScale;
+    result[c + 12 * numChains] = calibration.namedSd;
+    result[c + 13 * numChains] = calibration.mapUnit;
+    result[c + 14 * numChains] = calibration.mapSd;
+    bool mapped = !std::isnan(calibration.mapAnchor);
     double notMapped = std::numeric_limits<double>::quiet_NaN();
-    result[c + 17 * numChains] =
+    result[c + 15 * numChains] =
       mapped ? static_cast<double>(calibration.kind) : notMapped;
-    result[c + 18 * numChains] =
+    result[c + 16 * numChains] =
       mapped ? (calibration.amplitudeHeld ? 1.0 : 0.0) : notMapped;
+    result[c + 17 * numChains] =
+      mapped ? (calibration.basisScaleFromAllRows ? 1.0 : 0.0) : notMapped;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);
@@ -4936,7 +5028,7 @@ SEXP bartcore_setForestSd(SEXP ptrExpr, SEXP forestExpr, SEXP sdExpr) {
   // map both are NaN and the engine's refusal below answers
   bartcore::ForestCalibration calibration =
     holder.sampler->forestCalibration(0, forestIndex);
-  if (!std::isnan(calibration.basisRowNorm) &&
+  if (!std::isnan(calibration.mapAnchor) &&
       (!(calibration.mapUnit > 0.0) || !std::isfinite(calibration.mapUnit)))
     Rf_error("%s", bartcore_bridge::forestSdUnitMessage);
   if (!holder.sampler->setForestMapSd(forestIndex, sd))

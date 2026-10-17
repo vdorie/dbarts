@@ -342,12 +342,80 @@ struct ForestStatement {
 /// then synthesizes the dense all-ones column whose contraction is the
 /// amplitude itself. The two-forest adapter's treatment forest is the one
 /// forest of levels handed none, its pair synthesized from the indicator.
+///
+/// basisScale is a numeric column's scale as a first creation took it
+/// (basisColumnScale), handed back so that a re-creation builds on the same
+/// prior whatever column is then in force; not a number takes it from the
+/// basis. Read only for a numeric forest that states no sd.
 struct ForestSpec : ForestStatement {
   ForestStructureSpec forest;
   ForestKind kind = ForestKind::none;
   const double* basis = nullptr;
   std::size_t numBasisColumns = 1;
+  double basisScale = std::numeric_limits<double>::quiet_NaN();
 };
+
+/// Thrown where a numeric column has no scale over the rows it is read from:
+/// fewer than two rows, every value equal to the first, or a standard
+/// deviation at most 2^-26 of the largest absolute value there. value is the
+/// column's value where it is constant and ratio the standard deviation over
+/// that largest value where it is constant to rounding, the other NaN; forest
+/// is the forest's index where a chain names it.
+struct BasisScaleError : std::domain_error {
+  BasisScaleError(const char* what, double constantValue, double sdRatio)
+    : std::domain_error(what), value(constantValue), ratio(sdRatio) {}
+  double value;
+  double ratio;
+  std::size_t forest = static_cast<std::size_t>(-1);
+};
+
+/// A numeric column's scale: its sample standard deviation over the rows
+/// \p rows marks (a nonzero byte each; null for every row), one less than
+/// their count in the divisor, with the mean taken first and corrected by the
+/// mean of the deviations from it, and the squared deviations from that mean
+/// summed, as R's sd() does. "Constant" is decided by comparing the values,
+/// never by the computed standard deviation being zero.
+///
+/// \throws BasisScaleError for a column with no scale over those rows.
+inline double basisColumnScale(const double* column, std::size_t n,
+                               const unsigned char* rows) {
+  std::size_t count = 0;
+  double first = std::numeric_limits<double>::quiet_NaN(), largest = 0.0,
+         sum = 0.0;
+  bool varies = false;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (rows != nullptr && rows[i] == 0) continue;
+    double value = column[i];
+    if (count == 0) first = value;
+    else if (value != first) varies = true;
+    largest = std::max(largest, std::fabs(value));
+    sum += value;
+    ++count;
+  }
+  if (count < 2 || !varies)
+    throw BasisScaleError("a basis column is constant, so no default sd can "
+                          "be taken from its standard deviation",
+                          first, std::numeric_limits<double>::quiet_NaN());
+  double numRows = static_cast<double>(count);
+  double mean = sum / numRows, correction = 0.0;
+  for (std::size_t i = 0; i < n; ++i)
+    if (rows == nullptr || rows[i] != 0) correction += column[i] - mean;
+  mean += correction / numRows;
+  double sumSquares = 0.0;
+  for (std::size_t i = 0; i < n; ++i) {
+    if (rows != nullptr && rows[i] == 0) continue;
+    double deviation = column[i] - mean;
+    sumSquares += deviation * deviation;
+  }
+  double sd = std::sqrt(sumSquares / (numRows - 1.0));
+  if (!(sd > 0x1p-26 * largest))
+    throw BasisScaleError("a basis column is constant to rounding, so no "
+                          "default sd can be taken from its standard "
+                          "deviation",
+                          std::numeric_limits<double>::quiet_NaN(),
+                          sd / largest);
+  return sd;
+}
 
 /// Thrown where a forest states an sd and the chain has no positive finite
 /// unit to read it in: the response has no spread.
@@ -356,8 +424,10 @@ struct ForestSdUnitError : std::domain_error {
 };
 
 /// The sd a forest takes where it states none, as a multiple of the
-/// calibration map's anchor s. A forest with a basis takes one unit, however
-/// many forests the model has (dec-B291). A drawn forest with no basis
+/// calibration map's anchor s. A factor takes one unit, however many forests
+/// the model has (dec-B291), and a numeric column one unit for one standard
+/// deviation of the column, 1 / \p basisScale per unit of it, held or
+/// drawn. A drawn forest with no basis
 /// carries its default as the half-Cauchy median of its amplitude: 2 where
 /// sigma is drawn and s is the response's own sd, 1 where the link pins sigma
 /// and s is the link's error sd. A held one, \p held, has the size where
@@ -365,8 +435,9 @@ struct ForestSdUnitError : std::domain_error {
 /// defaults, \p oneForestSize in units of s (dec-B290), and one unit where the
 /// link pins it (dec-B293).
 inline double defaultForestSd(ForestKind kind, bool held, double oneForestSize,
-                              ResponseFamily family) {
-  if (kind != ForestKind::none) return 1.0;
+                              ResponseFamily family, double basisScale) {
+  if (kind == ForestKind::numeric) return 1.0 / basisScale;
+  if (kind == ForestKind::levels) return 1.0;
   // every enumerator listed and no default arm: a family added without one
   // must fail the build rather than inherit another's default
   switch (family) {
@@ -391,18 +462,13 @@ inline double forestSdInForce(double multiple, double unit) {
 
 /// What the calibration map resolves one forest's statement into.
 ///
-/// The node scale is nodeScaleFactor * s / (nodeScaleDivisor * basisRowNorm),
-/// with s the map's anchor (the FAMILY'S OWN LATENT SCALE: the sample sd of
-/// the range-scaled response under gaussian, 1 under probit, pi/sqrt(3) under
-/// logistic) and basisRowNorm the median nonzero row norm of the forest's
-/// basis. Every scale is so stated PER UNIT OF BASIS ROW NORM: the induced
-/// prior sd on the combined index at row i is
-/// sqrt( sum_f nodeScale_f^2 variance_f ||B_f(i,.)||^2 ) over the
-/// fixed-variance forests, so a basis in other units would otherwise multiply
-/// the prior a caller asked for.
+/// The node scale is nodeScaleFactor * s / nodeScaleDivisor, with s the map's
+/// anchor (the FAMILY'S OWN LATENT SCALE: the sample sd of the range-scaled
+/// response under gaussian, 1 under probit, pi/sqrt(3) under logistic). A
+/// numeric column multiplies the forest as it is given, never centered and
+/// never divided, so its forest's scale is stated PER UNIT OF THE COLUMN.
 struct ForestMapEntry {
   double nodeScaleFactor = 1.0, nodeScaleDivisor = 1.0;
-  double basisRowNorm = 1.0;
   /// The forest's sd as a multiple of s, in whichever of the two channels
   /// carries it.
   double sdMultiple = 1.0;
@@ -412,7 +478,7 @@ struct ForestMapEntry {
   /// it. Association and operand order are the K = 2 instance's, which is
   /// what keeps it bitwise and a re-derivation from unchanged inputs inert.
   double nodeScale(double s) const {
-    return nodeScaleFactor * s / (nodeScaleDivisor * basisRowNorm);
+    return nodeScaleFactor * s / nodeScaleDivisor;
   }
 };
 
@@ -420,7 +486,8 @@ struct ForestMapEntry {
 /// channel its magnitude is carried in. \p kind is what the forest multiplies,
 /// \p unit the response units in one s, \p oneForestSize the size a held
 /// forest with no basis defaults to where sigma is drawn (defaultForestSd), and
-/// \p basisRowNorm the row norm of the basis in force.
+/// \p basisScale a numeric column's scale, read only where its forest states
+/// no sd.
 ///
 /// A drawn forest with NO basis has a scalar amplitude under a half-Cauchy
 /// scale mixture: its sd, in units of s, is that mixture's median, and its node
@@ -428,12 +495,13 @@ struct ForestMapEntry {
 /// drawn forest WITH one has a fixed-variance amplitude block: its sd
 /// multiplies the node scale, divided through the half-normal median 0.674 so
 /// that the amplitude spread times that scale sits at sd units of s (bcf's
-/// treatment forest). Both expressions are bcf's own, which is what keeps the
-/// two-forest instance bitwise. A HELD forest's coefficient is its kind's
-/// value, 1 or the levels' (0, 1), so its sd is its own node scale's, exactly:
-/// the sd multiplies the node scale with no divisor, and no mixture is drawn.
-/// A held numeric column has no value yet and is refused where the combiner
-/// is built.
+/// treatment forest). A level's coefficient is N(0, 1/2), so the difference of
+/// two is N(0, 1); a numeric column's one coefficient is N(0, 1). Both
+/// expressions are bcf's own, which is what keeps the two-forest instance
+/// bitwise. A HELD forest's coefficient is its kind's value, 1, the levels'
+/// (0, 1) or 1 on a numeric column, so its sd is its own node scale's,
+/// exactly: the sd multiplies the node scale with no divisor, and no mixture
+/// is drawn.
 ///
 /// A stated sd is in the response's units and is DIVIDED BY THE UNIT HERE, and
 /// nowhere else: once for each construction and once for each restatement. A
@@ -444,13 +512,20 @@ struct ForestMapEntry {
 /// resolves alike when it is written and at every later construction.
 ///
 /// \throws std::invalid_argument on a stated sd that is not positive and
-/// finite, ForestSdUnitError on one stated against a unit that is not.
+/// finite, and on a numeric forest that states none with no scale that is,
+/// ForestSdUnitError on a stated sd against a unit that is not.
 inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
                                      ForestKind kind, ResponseFamily family,
                                      double unit, double oneForestSize,
-                                     double basisRowNorm) {
+                                     double basisScale) {
   bool held = !statement.updateAmplitude;
-  double multiple = defaultForestSd(kind, held, oneForestSize, family);
+  bool defaulted = std::isnan(statement.sd) && std::isnan(statement.sdMultiple);
+  if (kind == ForestKind::numeric && defaulted &&
+      (!(basisScale > 0.0) || !std::isfinite(basisScale)))
+    throw std::invalid_argument("a numeric forest that states no sd needs "
+                                "its column's scale");
+  double multiple =
+    defaultForestSd(kind, held, oneForestSize, family, basisScale);
   if (!std::isnan(statement.sd)) {
     if (!(statement.sd > 0.0) || !std::isfinite(statement.sd))
       throw std::invalid_argument("a forest's sd must be positive and finite");
@@ -464,17 +539,17 @@ inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
   }
 
   ForestMapEntry entry;
-  entry.basisRowNorm = basisRowNorm;
   entry.sdMultiple = multiple;
   entry.amplitudePrior.update = statement.updateAmplitude;
+  double variance = kind == ForestKind::levels ? 0.5 : 1.0;
   if (held) {
     entry.nodeScaleFactor = multiple;
-    entry.amplitudePrior.variance = kind == ForestKind::none ? 1.0 : 0.5;
+    entry.amplitudePrior.variance = variance;
     entry.amplitudePrior.halfCauchyScale = 0.0;
   } else if (kind != ForestKind::none) {
     entry.nodeScaleFactor = multiple;
     entry.nodeScaleDivisor = 0.674;  // the half-normal median
-    entry.amplitudePrior.variance = 0.5;
+    entry.amplitudePrior.variance = variance;
     entry.amplitudePrior.halfCauchyScale = 0.0;
   } else {
     // the variance is the mixture's live auxiliary, which starts at 1
@@ -522,6 +597,12 @@ struct AmplitudeSpec {
   // by: a re-creation is handed the unit its first creation derived, as it is
   // handed the anchor. NaN derives it from the data.
   double unit = std::numeric_limits<double>::quiet_NaN();
+  // The 0/1 active-row mask the host installs on the response once the chain
+  // is built, null for none; borrowed for the construction only. A family
+  // whose response reads no rows of its own (probit, logistic) reads the rows
+  // in the likelihood from it for a numeric column's scale, and nothing else
+  // reads it.
+  const double* activeRows = nullptr;
 };
 
 /// The thin adapter: bcf's two-forest spelling read as the K-length vector
@@ -926,12 +1007,14 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   ///
   /// A held block is set here to its kind's value, at any position, after the
   /// layout that keeps every drawn block's start: 1 for a forest with no
-  /// basis, (0, 1) for the two levels of a factor (dec-B354).
+  /// basis, (0, 1) for the two levels of a factor, 1 for a numeric column
+  /// (dec-B354). A drawn numeric coefficient starts at 1 wherever it stands.
   ///
   /// \throws std::invalid_argument for a forest whose kind does not fit its
   /// basis (one with none handed a basis, one of levels or numbers handed
-  /// none) and for a held block with no value: levels of other than two
-  /// columns, and a numeric column.
+  /// none), for a numeric basis of several columns, which has no rule, and
+  /// for a held block of levels of other than two columns, which has no
+  /// value.
   AmplitudeForestCombiner(const ColumnStore& data, const AmplitudeSpec& spec,
                     const std::vector<ForestAmplitudePrior>& priors,
                     std::size_t numForests = 2)
@@ -951,6 +1034,10 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
         if (multiplies && !handed && !(synthesized && f == 1))
           throw std::invalid_argument(
             "a forest of levels or of numbers needs its basis");
+        if (forests[f].kind == ForestKind::numeric &&
+            forests[f].numBasisColumns != 1)
+          throw std::invalid_argument(
+            "a numeric basis of several columns has no rule");
       }
       if (handed) {
         glue_.basis[f].numColumns = forests[f].numBasisColumns;
@@ -967,8 +1054,11 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     // two-level factor basis, whose amplitudes are exactly (b0, b1)
     if (synthesized && numForests_ > 1) synthesizeIndicatorBasis(1, spec.z);
     rebuildAmplitudeLayout();
-    for (std::size_t f = 0; f < numForests_ && f < forests.size(); ++f)
+    for (std::size_t f = 0; f < numForests_ && f < forests.size(); ++f) {
       if (!glue_.prior[f].update) holdAtKindValue(f, forests[f].kind);
+      else if (forests[f].kind == ForestKind::numeric)
+        glue_.amplitudesOf(f)[0] = 1.0;
+    }
   }
 
   /// The SOLE basis-mutation route, at any forest and any width, and therefore
@@ -1435,10 +1525,13 @@ private:
       amplitude[1] = 1.0;
       return;
     case ForestKind::numeric:
-      break;
+      if (width != 1) break;
+      amplitude[0] = 1.0;
+      return;
     }
     throw std::invalid_argument(
-      "a held coefficient on a numeric column has no value yet");
+      "a held coefficient block must be a forest's with no basis, a "
+      "two-level block or one numeric column");
   }
 
   /// Re-derives the amplitude layout from the basis widths and carries the

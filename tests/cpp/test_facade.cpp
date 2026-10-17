@@ -1205,17 +1205,22 @@ const Row rows[] = {
           "facade shape: the family that carries one reports it");
   }},
   {FacadeVirtual::setForestBasis, "setForestBasis", [](Fixtures& f) {
-    double before = f.b.impl().forestCalibration(0, 0).basisRowNorm;
-    double target = f.b.impl().forestCalibration(0, 1).basisRowNorm;
+    double priors[2] = {f.b.impl().forestCalibration(0, 0).priorScale,
+                        f.b.impl().forestCalibration(0, 1).priorScale};
+    const double* combined = TestPeer::combinedFits(f.b.impl().chain(0));
+    std::vector<double> before(combined, combined + Fixtures::n);
     check(!f.b.base().setForestBasis(2, f.wideBasis2.data(), 2) &&
             !f.g.base().setForestBasis(0, f.unitBasis.data(), 1),
           "facade setForestBasis: an absent forest and an amplitude-free "
           "sampler refuse");
     check(f.b.base().setForestBasis(1, f.wideBasis2.data(), 2),
           "facade setForestBasis: the named forest installs");
-    check(f.b.impl().forestCalibration(0, 1).basisRowNorm != target &&
-            f.b.impl().forestCalibration(0, 0).basisRowNorm == before,
-          "facade setForestBasis: forest 1 re-anchors and forest 0 does not");
+    combined = TestPeer::combinedFits(f.b.impl().chain(0));
+    check(std::vector<double>(combined, combined + Fixtures::n) != before &&
+            f.b.impl().forestCalibration(0, 0).priorScale == priors[0] &&
+            f.b.impl().forestCalibration(0, 1).priorScale == priors[1],
+          "facade setForestBasis: the basis moves the combination and no "
+          "forest's prior");
   }},
   {FacadeVirtual::setForestWeights, "setForestWeights", [](Fixtures& f) {
     std::vector<double> zeros(Fixtures::n, 0.0);
@@ -1235,10 +1240,9 @@ const Row rows[] = {
     ForestCalibration viaBase = f.b.base().forestCalibration(1, 1);
     ForestCalibration viaImpl = f.b.impl().forestCalibration(1, 1);
     check(viaBase.priorScale == viaImpl.priorScale &&
-            viaBase.nodeScaleFactor == viaImpl.nodeScaleFactor,
+            viaBase.mapSd == viaImpl.mapSd,
           "facade forestCalibration: the named chain and forest answer");
-    check(viaBase.nodeScaleFactor !=
-            f.b.base().forestCalibration(1, 0).nodeScaleFactor,
+    check(viaBase.mapSd != f.b.base().forestCalibration(1, 0).mapSd,
           "facade forestCalibration: the two forests report their own");
   }},
   {FacadeVirtual::setForestNamedSd, "setForestNamedSd", [](Fixtures& f) {

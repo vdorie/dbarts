@@ -7,7 +7,8 @@
 
 extern "C" {
 
-SEXP bartcore_create(SEXP control, SEXP model, SEXP data, SEXP family);
+SEXP bartcore_create(SEXP control, SEXP model, SEXP data, SEXP family,
+                     SEXP active);
 SEXP bartcore_createDataHandle(SEXP control, SEXP data,
                                SEXP leafCovariateColumns);
 SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,

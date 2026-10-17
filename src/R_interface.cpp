@@ -239,7 +239,7 @@ extern "C" {
 #define DEF_FUNC(_N_, _F_, _A_) {_N_, (DL_FUNC) &(_F_), _A_}
 
 static R_CallMethodDef R_callMethods[] = {
-  DEF_FUNC("dbarts_bartcore_create", bartcore_create, 4),
+  DEF_FUNC("dbarts_bartcore_create", bartcore_create, 5),
   DEF_FUNC("dbarts_bartcore_createDataHandle", bartcore_createDataHandle, 3),
   DEF_FUNC("dbarts_bartcore_createFromHandle", bartcore_createFromHandle, 8),
   DEF_FUNC("dbarts_bartcore_setCounts", bartcore_setCounts, 2),
