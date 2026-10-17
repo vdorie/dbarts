@@ -10182,6 +10182,83 @@ static void testMonotoneReachability() {
   printf("ok: monotone reachability\n");
 }
 
+// A forced warm start into a monotone sampler collapses a donor tree out of
+// order where a state's install resets it: over seeded free donors on the
+// recipient's rows and on other rows (across grids), the unforced call
+// declines exactly when the forced install is altered, which then reports
+// each collapsed tree as cut back; every installed tree is in order and none
+// is set to zero.
+static void testMonotoneWarmStartCollapse() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 60611u;
+  const size_t n = 300, p = 2;
+  std::vector<double> x(n * p), xOther(n * p), y(n);
+  for (size_t i = 0; i < n * p; ++i) {
+    x[i] = runif01();
+    xOther[i] = runif01();
+  }
+  for (size_t i = 0; i < n; ++i)
+    y[i] = std::sin(4.0 * x[i]) + x[i + n] + 0.2 * (runif01() - 0.5);
+  std::vector<std::int8_t> dir = {1, 1};
+  SamplerOptions plain, monotone;
+  plain.numTrees = 10;
+  plain.birthOrDeathProbability = 1.0;
+  plain.swapProbability = plain.changeProbability = 0.0;
+  monotone = plain;
+  monotone.monotoneDirections = dir.data();
+  ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  Results none;
+  size_t collapsed = 0, acrossGrids = 0;
+  bool agree = true, inOrder = true, noneZero = true;
+  for (std::uint32_t seed = 0; seed < 20; ++seed) {
+    ext_rng_setSeed(rng, 500 + seed);
+    ConstantLeafSampler donor(x.data(), y.data(), n, p, nullptr, nullptr,
+                              ResponseFamily::gaussian, 1.0, 3.0,
+                              0.37804942330213542, plain, &rng);
+    donor.run(30, 0, none);
+    SamplerStateData state;
+    donor.getState(state);
+    const std::vector<double>& rows(seed % 2 == 1 ? xOther : x);
+    Sampler<MonotoneConstantGaussianLeaf> recipient(
+      rows.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, monotone, &rng);
+    WarmStartResult result;
+    bool altered = false;
+    WarmStartReport report;
+    agree = agree &&
+      warmVerdictMatchesInstall(recipient, state, liveMap, rows.data(),
+                                result, altered, false, &report) &&
+      result == WarmStartResult::ok;
+    collapsed += altered;
+    acrossGrids += seed % 2 == 1 && report.mean[0].moved > 0;
+    for (size_t t = 0; t < 10; ++t) {
+      std::vector<FlatNode> flat;
+      std::vector<std::uint32_t> counts;
+      recipient.flattenTree(0, t, flat, counts);
+      std::vector<index_t> scratchIdx(n);
+      std::vector<double> params;
+      Tree scratch;
+      scratch.initialize(scratchIdx.data(), n);
+      bool zero = flat.size() > 1;
+      for (const FlatNode& node : flat)
+        if (node.variable == invalidVariable) zero = zero && node.value == 0.0;
+      noneZero = noneZero && !zero;
+      inOrder = inOrder &&
+        scratch.buildFromFlat(recipient.data(), flat.data(), flat.size(),
+                              params) &&
+        monotoneTreeIsFeasible(scratch, recipient.data(), dir.data(),
+                               params.data());
+    }
+  }
+  check(agree && inOrder && noneZero && collapsed >= 10 && acrossGrids >= 5,
+        "monotone warm start: declined exactly when the forced install is "
+        "altered, every tree in order and none set to zero, on the same rows "
+        "and across grids");
+  ext_rng_destroy(rng);
+  rngState = savedRngState;
+}
+
 // The shipped flat-C API (inst/include/dbarts/dbarts.h) resolves a family
 // token to one of these ResponseFamily values; gaussian, probit and nbinom
 // each have a create-path test elsewhere in this suite, but logistic,
@@ -10847,6 +10924,7 @@ void runModelTests(ext_rng* rng) {
   testTruncatedNormalUpperBulk();
   testMonotoneEmptyLeaf();
   testMonotoneReachability();
+  testMonotoneWarmStartCollapse();
   // the heteroscedastic end-to-end fits build full chains; they run last so
   // their heap footprint cannot perturb an earlier allocation-sensitive test
   // under the sanitizer's allocator.

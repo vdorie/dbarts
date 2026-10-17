@@ -2421,6 +2421,278 @@ static void testMonotoneCountInterrupt() {
          "tally\n");
 }
 
+// The cut on var that sends the number of node's rows nearest want left.
+static std::int32_t cutHolding(const TestTree& t, std::int32_t node,
+                               std::int32_t var, size_t want) {
+  const Node& at = t.tree.at(node);
+  std::int32_t best = 0;
+  size_t bestMiss = std::numeric_limits<size_t>::max();
+  std::int32_t numCuts =
+    static_cast<std::int32_t>(t.store->numCuts[static_cast<size_t>(var)]);
+  for (std::int32_t s = 0; s < numCuts; ++s) {
+    Rule rule;
+    rule.variableIndex = var;
+    rule.setSplitIndex(s);
+    size_t left = 0;
+    for (size_t k = at.begin; k < at.end; ++k)
+      left += !t.tree.ruleSendsRight(
+        *t.store, rule,
+        t.store->codeAt(static_cast<size_t>(var), t.tree.indices[k]));
+    size_t miss = left > want ? left - want : want - left;
+    if (miss < bestMiss) {
+      bestMiss = miss;
+      best = s;
+    }
+  }
+  return best;
+}
+
+// The tree's leaves and values, read in pre-order, for "left as it is".
+static std::vector<double> leafValues(const Tree& tree,
+                                      const std::vector<double>& mu) {
+  std::vector<std::int32_t> leaves;
+  tree.fillBottom(0, leaves);
+  std::vector<double> out;
+  for (std::int32_t l : leaves) {
+    out.push_back(static_cast<double>(l));
+    out.push_back(mu[static_cast<size_t>(l)]);
+  }
+  return out;
+}
+
+// The sum over rows of weight times the leaf value a row reaches.
+static double weightedTotal(const Tree& tree, const std::vector<double>& mu,
+                            const double* weights) {
+  std::vector<std::int32_t> leaves;
+  tree.fillBottom(0, leaves);
+  double total = 0.0;
+  for (std::int32_t l : leaves)
+    for (size_t k = tree.at(l).begin; k < tree.at(l).end; ++k)
+      total += (weights == nullptr ? 1.0 : weights[tree.indices[k]]) *
+               mu[static_cast<size_t>(l)];
+  return total;
+}
+
+// The collapse a forced warm start applies to a monotone tree out of order
+// (collapseMonotoneTree) on hand trees, and on random ones against the
+// predicate.
+static void testMonotoneCollapse() {
+  auto collapse = [](TestTree& t, const std::int8_t* dir,
+                     std::vector<double>& mu,
+                     const double* weights = nullptr) {
+    mu.resize(t.tree.nodes.size(), 0.0);
+    return collapseMonotoneTree(t.tree, *t.store, dir, weights, mu);
+  };
+  auto numRows = [](const TestTree& t, std::int32_t node) {
+    return static_cast<double>(t.tree.at(node).numObservations());
+  };
+  {  // the split itself: two leaves out of order across a monotone split, 15
+     // and 116 rows, become one leaf at their mean by rows, unweighted and
+     // under case weights
+    ColumnStore store;
+    std::vector<double> rows(2 * 131);
+    for (size_t i = 0; i < 131; ++i) {
+      rows[i] = static_cast<double>(i);
+      rows[131 + i] = runif01();
+    }
+    built(store.build(rows.data(), 131, 2, 130));
+    const std::int8_t dir[2] = {1, 0};
+    std::vector<double> w(131);
+    for (double& v : w) v = 0.5 + 1.5 * runif01();
+    for (const double* weights : {static_cast<const double*>(nullptr),
+                                  static_cast<const double*>(w.data())}) {
+      TestTree t(store);
+      std::int32_t left = t.split(0, 0, cutHolding(t, 0, 0, 15));
+      std::vector<double> mu(t.tree.nodes.size(), 0.0);
+      mu[left] = -0.0207;
+      mu[left + 1] = -0.0233;
+      double expected = weightedTotal(t.tree, mu, weights) /
+                        weightedTotal(t.tree, std::vector<double>(
+                                                mu.size(), 1.0), weights);
+      bool counts = numRows(t, left) == 15.0 && numRows(t, left + 1) == 116.0;
+      bool merged = collapse(t, dir, mu, weights);
+      check(counts && merged &&
+              t.tree.at(0).isBottom(),
+            "monotone collapse: a split between two leaves out of order "
+            "becomes one leaf");
+      checkNear(mu[0], expected, 1e-15,
+                "monotone collapse: the merged leaf at the mean by rows");
+    }
+    // out of order by less than the predicate's 1e-9 is in order, by more not
+    for (double gap : {5e-10, 2e-9}) {
+      TestTree t(store);
+      std::int32_t left = t.split(0, 0, 20);
+      std::vector<double> mu(t.tree.nodes.size(), 0.0);
+      mu[left] = 0.1 + gap;
+      mu[left + 1] = 0.1;
+      bool merged = collapse(t, dir, mu);
+      check(merged == (gap > 1e-9) && t.tree.at(0).isBottom() == merged,
+            "monotone collapse: the predicate's tolerance");
+    }
+  }
+
+  ColumnStore store;
+  makeStore(store, 3, 299, 300);
+  const std::int8_t rising[3] = {1, 1, 0};
+  {  // tree 7 of the plan: x1 and x2 increasing (columns 0 and 1), x3 free
+    TestTree t(store);
+    std::int32_t left = t.split(0, 1, cutHolding(t, 0, 1, 198));
+    std::int32_t low = t.split(left, 2, cutHolding(t, left, 2, 150));
+    std::int32_t high = t.split(left + 1, 1, cutHolding(t, left + 1, 1, 24));
+    std::vector<double> mu(t.tree.nodes.size(), 0.0);
+    mu[low] = -0.0670;
+    mu[low + 1] = -0.0339;
+    mu[high] = -0.0471;
+    mu[high + 1] = 0.0366;
+    double nLow = numRows(t, low), nLowHigh = numRows(t, low + 1);
+    bool merged = collapse(t, rising, mu);
+    check(merged && !t.tree.at(0).isBottom() && t.tree.at(left).isBottom() &&
+            !t.tree.at(left + 1).isBottom() && mu[high] == -0.0471 &&
+            mu[high + 1] == 0.0366 && nLow == 150.0 && nLowHigh == 48.0,
+          "monotone collapse: tree 7, the left side merged, the root and the "
+          "right side as stored");
+    checkNear(mu[left], (nLow * -0.0670 + nLowHigh * -0.0339) /
+                          (nLow + nLowHigh),
+              1e-15, "monotone collapse: tree 7's merged side");
+  }
+  const std::int8_t first[3] = {1, 0, 0};
+  std::int32_t half = cutHolding(TestTree(store), 0, 1, 150);
+  {  // the smaller side: either side merged restores the order, and the
+     // left, of three nodes against five, is the one merged
+    TestTree t(store);
+    std::int32_t left = t.split(0, 0, cutHolding(t, 0, 0, 150));
+    std::int32_t l = t.split(left, 1, half);
+    std::int32_t r = t.split(left + 1, 1, half);
+    std::int32_t r2 = t.split(r + 1, 2, cutHolding(t, r + 1, 2, 40));
+    std::vector<double> mu(t.tree.nodes.size(), 0.0);
+    mu[l] = 0.0;
+    mu[l + 1] = 0.5;
+    mu[r] = 0.6;
+    mu[r2] = 0.45;
+    mu[r2 + 1] = 0.7;
+    double rightMean = 0.0;
+    t.tree.subtreeMergedParameter(left + 1, nullptr, mu, 1, &rightMean);
+    check(rightMean > 0.5 + 0.02 && collapse(t, first, mu) &&
+            t.tree.at(left).isBottom() && !t.tree.at(r + 1).isBottom() &&
+            mu[r2] == 0.45,
+          "monotone collapse: of two sides that each restore the order the "
+          "smaller is merged");
+  }
+  {  // both sides: neither side alone restores the order and both do; the
+     // split is kept between the two means
+    TestTree t(store);
+    std::int32_t left = t.split(0, 0, cutHolding(t, 0, 0, 150));
+    std::int32_t l = t.split(left, 1, half);
+    std::int32_t r = t.split(left + 1, 1, half);
+    std::vector<double> mu(t.tree.nodes.size(), 0.0);
+    mu[l] = 0.3;
+    mu[l + 1] = 0.0;
+    mu[r] = 0.0;
+    mu[r + 1] = 0.4;
+    double leftMean = 0.0, rightMean = 0.0;
+    t.tree.subtreeMergedParameter(left, nullptr, mu, 1, &leftMean);
+    t.tree.subtreeMergedParameter(left + 1, nullptr, mu, 1, &rightMean);
+    check(rightMean < 0.3 - 0.02 && leftMean < rightMean - 0.02 &&
+            collapse(t, first, mu) && !t.tree.at(0).isBottom() &&
+            t.tree.at(left).isBottom() && t.tree.at(left + 1).isBottom() &&
+            mu[left] == leftMean && mu[left + 1] == rightMean,
+          "monotone collapse: both sides merged, the split kept");
+    // the candidates are judged by the rows' weights: weighing the left
+    // side's high leaf by 5 puts its mean above the right's, and the split
+    // itself merges
+    TestTree heavy(store);
+    heavy.split(heavy.split(0, 0, cutHolding(heavy, 0, 0, 150)), 1, half);
+    heavy.split(left + 1, 1, half);
+    std::vector<double> w(300, 1.0), heavyMu(heavy.tree.nodes.size(), 0.0);
+    for (size_t k = heavy.tree.at(l).begin; k < heavy.tree.at(l).end; ++k)
+      w[heavy.tree.indices[k]] = 5.0;
+    heavyMu[l] = 0.3;
+    heavyMu[r + 1] = 0.4;
+    check(collapse(heavy, first, heavyMu, w.data()) &&
+            heavy.tree.at(0).isBottom(),
+          "monotone collapse: the candidates weigh the rows");
+  }
+  {  // from the leaves up: merging the low half of the left side puts the
+     // root in order, so the root and the left side's split stay
+    TestTree t(store);
+    std::int32_t left = t.split(0, 0, cutHolding(t, 0, 0, 150));
+    std::int32_t low = t.split(left, 1, cutHolding(t, left, 1, 75));
+    std::int32_t ab = t.split(low, 2, cutHolding(t, low, 2, 37));
+    std::vector<double> mu(t.tree.nodes.size(), 0.0);
+    mu[ab] = 0.5;
+    mu[ab + 1] = 0.0;
+    mu[low + 1] = 0.35;
+    mu[left + 1] = 0.45;
+    double abMean = 0.0;
+    t.tree.subtreeMergedParameter(low, nullptr, mu, 1, &abMean);
+    check(abMean < 0.35 - 0.02 && collapse(t, rising, mu) &&
+            !t.tree.at(0).isBottom() && !t.tree.at(left).isBottom() &&
+            t.tree.at(low).isBottom() && mu[low] == abMean,
+          "monotone collapse: a lower merge that puts the root in order "
+          "leaves the root");
+  }
+  {  // unrelated leaves: out of numeric order but sharing no value of the
+     // free split column, and a split on a free column: both untouched
+    TestTree t(store);
+    std::int32_t left = t.split(0, 0, cutHolding(t, 0, 0, 150));
+    std::int32_t l = t.split(left, 1, half);
+    std::int32_t r = t.split(left + 1, 1, half);
+    std::vector<double> mu(t.tree.nodes.size(), 0.0);
+    mu[l] = 0.5;
+    mu[l + 1] = 0.0;
+    mu[r] = 0.6;
+    mu[r + 1] = 0.1;
+    std::vector<double> before = leafValues(t.tree, mu);
+    bool merged = collapse(t, first, mu);
+    TestTree f(store);
+    std::int32_t onFree = f.split(0, 1, half);
+    std::vector<double> freeMu(f.tree.nodes.size(), 0.0);
+    freeMu[onFree] = 0.5;
+    freeMu[onFree + 1] = 0.0;
+    check(!merged && leafValues(t.tree, mu) == before &&
+            !collapse(f, first, freeMu) && !f.tree.at(0).isBottom(),
+          "monotone collapse: unrelated leaves and a free column untouched");
+  }
+  {  // random trees: in order after, each tree's mean over its rows by
+     // weight kept, and a tree in order as given left as it is
+    ColumnStore mixed;
+    makeMixedStore(mixed, 300);
+    ColumnStore numeric;
+    makeStore(numeric, 3, 12, 300);
+    const std::int8_t numericDirs[3][3] = {{1, 0, 0}, {1, -1, 0}, {-1, 1, 1}};
+    const std::int8_t mixedDirs[2][4] = {{1, 0, 0, 0}, {-1, 1, 0, 0}};
+    std::vector<double> w(300);
+    for (double& v : w) v = 0.25 + runif01();
+    size_t outOfOrder = 0, kept = 0;
+    bool ok = true;
+    for (int k = 0; k < 200; ++k) {
+      bool isMixed = k % 2 == 1;
+      TestTree t(isMixed ? mixed : numeric);
+      t.growRandom(2 + k % 7);
+      const std::int8_t* dir =
+        isMixed ? mixedDirs[k / 2 % 2] : numericDirs[k / 2 % 3];
+      const double* weights = k % 4 < 2 ? nullptr : w.data();
+      std::vector<double> mu(t.tree.nodes.size(), 0.0);
+      for (double& v : mu) v = runif01() - 0.5;
+      bool inOrder = monotoneTreeIsFeasible(t.tree, *t.store, dir, mu.data());
+      std::vector<double> before = leafValues(t.tree, mu);
+      double total = weightedTotal(t.tree, mu, weights);
+      bool merged = collapse(t, dir, mu, weights);
+      ok = ok && merged != inOrder &&
+           monotoneTreeIsFeasible(t.tree, *t.store, dir, mu.data()) &&
+           std::fabs(weightedTotal(t.tree, mu, weights) - total) <=
+             1e-12 * (1.0 + std::fabs(total)) &&
+           (!inOrder || leafValues(t.tree, mu) == before);
+      ++(inOrder ? kept : outOfOrder);
+    }
+    check(ok && outOfOrder >= 40 && kept >= 40,
+          "monotone collapse: 200 random trees in order after, their means "
+          "by rows kept, and those in order as given untouched");
+    printf("ok: monotone collapse (%zu random trees out of order, %zu in)\n",
+           outOfOrder, kept);
+  }
+}
+
 void runMonotoneTests() {
   std::uint64_t saved = rngState;
   rngState = 7071u;
@@ -2461,5 +2733,6 @@ void runMonotoneTests() {
     testMonotoneCountRandom(store, dirs, " with factors and missing values");
     testMonotoneRatioRandom(store, dirs, " with factors and missing values");
   }
+  testMonotoneCollapse();
   rngState = saved;
 }

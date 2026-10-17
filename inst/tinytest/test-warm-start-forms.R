@@ -550,11 +550,126 @@ expect_identical(
   answerOf(rising()$installTrees(withTrees(given, stumps(inOrder)))),
   visibly(TRUE)
 )
-# out of order alone, with no leaf to merge, is enough to decline
+# out of order alone, with no leaf to merge, is enough to decline; forced
+# under case weights the merged leaf weighs the rows by them
 expect_identical(
   rising()$installTrees(withTrees(given, stumps(falling))),
   FALSE
 )
+weighted <- expectChanged(
+  function() rising(weights = caseWeights),
+  withTrees(given, stumps(falling)),
+  "monotone, weighted"
+)
+expect_true(
+  abs(
+    treeOf(weighted$state)$values -
+      byRows(c(0.5, -0.5), list(low | mid, !(low | mid)), caseWeights)
+  ) <
+    1e-12
+)
+
+# The critique's fixture, a free donor into x1 and x2 increasing on its rows:
+# forced, 14 trees collapsed to 94 nodes, as its prototype did, none at zero,
+# the rest as stored, each tree's mean over the rows the donor's, the fit in
+# order
+gen <- function(n, seed) {
+  set.seed(seed)
+  x <- matrix(runif(n * 4L), n, 4L, dimnames = list(NULL, columns))
+  y <- 3 * sin(3 * x[, 1L]) + 2 * x[, 2L]^2 + x[, 3L] + rnorm(n, 0, 0.3)
+  data.frame(y = y, x)
+}
+monoControl <- dbarts::dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 30L,
+  n.samples = 50L,
+  n.burn = 0L,
+  updateState = FALSE
+)
+fixture <- gen(300L, 1L)
+freeDonor <- dbarts::dbarts(y ~ ., fixture, control = monoControl, seed = 11L)
+invisible(freeDonor$run(200L, 50L))
+increasing <- function(data = fixture) {
+  dbarts::dbarts(
+    y ~ .,
+    data,
+    control = monoControl,
+    seed = 3L,
+    monotone = c(x1 = "increasing", x2 = "increasing")
+  )
+}
+# a tree's leaves, each row reached by a leaf's count, by tree
+treesOf <- function(sampler) {
+  trees <- sampler$getTrees()
+  rownames(trees) <- NULL
+  lapply(split(trees[c("var", "value", "n")], trees$tree), `rownames<-`, NULL)
+}
+rowMean <- function(nodes) sum((nodes$n * nodes$value)[nodes$var < 0L]) / 300
+allZero <- function(nodes) {
+  nrow(nodes) > 1L && all(nodes$value[nodes$var < 0L] == 0)
+}
+# the largest fall of the fit along x1 or x2 over 21 points, the other
+# columns at each of 27 points
+fitFalls <- function(sampler) {
+  others <- as.matrix(expand.grid(rep(list(c(0.1, 0.5, 0.9)), 3L)))
+  others <- others[rep(seq_len(27L), each = 21L), ]
+  max(vapply(
+    1L:2L,
+    function(j) {
+      rows <- cbind(others[, seq_len(j - 1L)], seq(0, 1, 0.05), others[, j:3L])
+      colnames(rows) <- columns
+      -min(diff(matrix(sampler$predict(rows), 21L)))
+    },
+    0
+  ))
+}
+expect_true(fitFalls(freeDonor) > 0.1)
+onRows <- expectChanged(increasing, freeDonor, "monotone, the fixture")
+given30 <- treesOf(freeDonor)
+got30 <- treesOf(onRows$sampler)
+asStored <- mapply(function(a, b) identical(a[1:2], b[1:2]), given30, got30)
+expect_identical(sum(!asStored), 14L)
+expect_true(all(
+  vapply(got30[!asStored], nrow, 0L) < vapply(given30[!asStored], nrow, 0L)
+))
+expect_identical(sum(vapply(got30, nrow, 0L)), 94L)
+expect_false(any(vapply(got30, allZero, NA)))
+expect_true(
+  max(abs(vapply(got30, rowMean, 0) - vapply(given30, rowMean, 0))) < 1e-12
+)
+expect_true(fitFalls(onRows$sampler) <= 1e-8)
+expect_identical(
+  onRows$line,
+  "warm start: 30 of 30 donor trees taken; 14 cut back to fit"
+)
+# A tree in order on the donor's points that the move onto this sampler's
+# puts out of order: x2 held at one point here, the right side's lower x2
+# split has none left and merges, and the merged leaf falls below the left
+# side's 0.4 beside it. The move's collapse leaves no leaf at zero
+q <- grid[[2L]][c(37L, 75L)]
+movedOut <- tree(
+  c(1L, 2L, -1L, -1L, 2L, 2L, -1L, -1L, -1L),
+  c(fine[50L], q[1L], 0.4, -0.6, q[2L], q[1L], 0.5, -0.3, 0.2)
+)
+onePoint <- function() {
+  sampler <- rising()
+  sampler$setCutPoints(q[2L], 2L)
+  sampler
+}
+pushed <- expectChanged(onePoint, withTrees(given, stumps(movedOut)), "moved")
+got <- treeOf(pushed$state)
+expect_true(all(got$values[got$vars < 0L] != 0))
+expect_identical(
+  pushed$line,
+  "warm start: 4 of 4 donor trees taken; 1 cut back to fit"
+)
+# a forced setState of the same trees still sets each tree out of order to
+# zero
+viaSetState <- increasing()
+freeDonor$storeState()
+expect_null(viaSetState$setState(freeDonor$state, forceUpdate = TRUE))
+expect_identical(sum(vapply(treesOf(viaSetState), allZero, NA)), 14L)
 
 # ---- sides for missing values ------------------------------------------------
 
