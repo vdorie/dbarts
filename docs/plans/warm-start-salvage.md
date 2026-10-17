@@ -326,9 +326,9 @@ note's (f) where it gives them.
   tree loops move into helpers unchanged.
 - [`Tree::mapOldCutPointsOntoNew`](../../src/bartcore/tree.hpp) and
   [`Sampler::setState`](../../src/bartcore/sampler.hpp) are called, not edited.
-  [`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp) gains the restore on a throw in A, and in
-  B, with [`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp), the argument that names the monotone
-  repair, whose default is the reset every other caller keeps.
+  [`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp) already restores on a throw, and A calls
+  it unedited; B gives it, with [`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp), the argument
+  that names the monotone repair, whose default is the reset every other caller keeps.
 - `setState`, `setData`, `setCutPoints` and a forced `setPredictor` keep the monotone reset, bit for bit
   (dec-B278, dec-B355). Only the warm start collapses.
 - No change to a stored state's format, and no flat entry of
