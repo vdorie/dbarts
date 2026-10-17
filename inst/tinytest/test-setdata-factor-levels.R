@@ -260,6 +260,62 @@ reversed$f <- structure(
 sampler$setData(dbarts::dbartsData(y ~ a + f, reversed))
 expect_identical(sampler$data@x$dense[[2L]], frame.na$f)
 
+# two factor columns with other tables, handed in another order: each column
+# by its name and each row by its label, training and test, as a twin handed
+# the rows re-coded by hand, on each kind of factor
+twoOf <- function(levels.f, levels.g, seed, ordered) {
+  frame <- frameOf(levels.f, levels.f, seed, ordered)
+  set.seed(seed + 10L)
+  frame$g <- factor(sample(levels.g, n.fl, TRUE), levels.g, ordered = ordered)
+  frame
+}
+for (ordered in c(FALSE, TRUE)) {
+  start <- twoOf(letters[1:6], c("u", "v", "w"), 1L, ordered)
+  pairs <- lapply(1:2, function(i) {
+    set.seed(4L)
+    sampler <- dbarts::dbarts(y ~ a + f + g, start, control = control.fl)
+    set.seed(5L)
+    invisible(sampler$run(30L, 10L))
+    sampler
+  })
+  handed <- twoOf(letters[c(1L, 3:6)], c("w", "u"), 2L, ordered)
+  test <- twoOf(letters[c(6L, 4L, 3L)], c("w", "u"), 3L, ordered)[1:10, ]
+  hand <- function(frame) {
+    frame <- byLabel(frame)
+    frame$g <- factor(
+      as.character(frame$g),
+      c("u", "v", "w"),
+      ordered = ordered
+    )
+    frame
+  }
+  pairs[[1L]]$setData(dbarts::dbartsData(y ~ g + f + a, handed, test = test))
+  pairs[[2L]]$setData(dbarts::dbartsData(
+    y ~ a + f + g,
+    hand(handed),
+    test = hand(test)
+  ))
+  expect_identical(pairs[[1L]]$data@x, pairs[[2L]]$data@x, info = ordered)
+  expect_identical(
+    pairs[[1L]]$data@x.test,
+    pairs[[2L]]$data@x.test,
+    info = ordered
+  )
+  set.seed(9L)
+  result <- pairs[[1L]]$run(0L, 3L)
+  set.seed(9L)
+  expect_identical(result, pairs[[2L]]$run(0L, 3L), info = ordered)
+}
+
+# a numeric and a factor column handed in another order: taken by name
+sampler <- samplerOf()
+twin <- samplerOf()
+reordered <- frameOf(rev(letters[1:6]), letters[1:6], 3L)
+sampler$setData(dbarts::dbartsData(y ~ f + a, reordered))
+twin$setData(dbarts::dbartsData(y ~ a + f, byLabel(reordered)))
+expect_identical(sampler$data@x, twin$data@x)
+expect_identical(sampler$data@varTypes, twin$data@varTypes)
+
 # a factor column handed over as bare codes with no level table is refused in
 # the words of dec-B360, and the sampler is left as it was
 sampler <- samplerOf()
@@ -281,6 +337,15 @@ expect_identical(
   sampler$data@x[, 2L],
   as.double(6L - as.integer(frame$f))
 )
+# a missing value there stays missing
+missing <- codes
+missing[c(3L, 9L), 2L] <- NA
+sampler$setData(dbarts::dbartsData(missing, frame$y))
+expect_identical(which(is.na(sampler$data@x[, 2L])), c(3L, 9L))
+expect_identical(
+  sampler$data@x[-c(3L, 9L), 2L],
+  as.double(6L - as.integer(frame$f))[-c(3L, 9L)]
+)
 codes[1L, 2L] <- 7
 expect_error(
   sampler$setData(dbarts::dbartsData(codes, frame$y)),
@@ -297,6 +362,17 @@ sparse$f <- dbarts::sparseFactor(factor(
 expect_error(
   sampler$setData(dbarts::dbartsData(sparse, frame$y)),
   pattern = "requires a dense predictor matrix"
+)
+# and so is a sparse test set beside training rows whose levels are re-coded
+dropped <- frameOf(letters[c(1L, 3:6)], letters[c(1L, 3:6)], 2L)
+test <- data.frame(a = a.fl[1:10])
+test$f <- dbarts::sparseFactor(factor(
+  as.character(dropped$f[1:10]),
+  levels = levels(dropped$f)
+))
+expect_error(
+  sampler$setData(dbarts::dbartsData(dropped[c("a", "f")], dropped$y, test)),
+  pattern = "requires a dense test matrix"
 )
 
 # a sampler made from a matrix of codes records no table, and takes codes as

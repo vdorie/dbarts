@@ -567,10 +567,11 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
 }
 
 # $setData's data read as the sampler reads them (dec-B454): columns matched by
-# name where they carry the sampler's, else by position, and a column the sampler has a level table
-# for re-coded by label onto it, training and test rows, a factor column with
-# no table refused (dec-B360). Data with the sampler's names and tables come
-# back untouched; a sparse source is the bridge's.
+# name where they carry the sampler's, else by position, and a column the
+# sampler has a level table for re-coded by label onto it, training and test
+# rows (the test rows coded, as dbartsData codes them, by the training table),
+# a factor column with no table refused (dec-B360). Data with the sampler's
+# names and tables come back untouched; a sparse source is the bridge's.
 alignDataFactorLevels <- function(newData, x.train) {
   x <- newData@x
   x.test <- newData@x.test
@@ -593,11 +594,6 @@ alignDataFactorLevels <- function(newData, x.train) {
   }
   tables <- attr(x.train, "factor.levels")
   given <- attr(x, "factor.levels")
-  givenTest <- if (is.null(attr(x.test, "factor.levels"))) {
-    given
-  } else {
-    attr(x.test, "factor.levels")
-  }
   label <- function(j) if (is.null(names)) j else paste0("'", names[j], "'")
   for (j in which(!vapply(tables, is.null, NA))) {
     table <- tables[[j]]
@@ -610,21 +606,15 @@ alignDataFactorLevels <- function(newData, x.train) {
         call. = FALSE
       )
     }
-    if (
-      identical(given[[j]], table) &&
-        (is.null(x.test) || identical(givenTest[[j]], table))
-    ) {
+    if (identical(given[[j]], table)) {
       next
     }
     train <- recodePredictorColumn(x, j, given[[j]], table)
-    test <- recodePredictorColumn(x.test, j, givenTest[[j]], table)
+    test <- recodePredictorColumn(x.test, j, given[[j]], table)
     refuseNewDataLabels(label(j), c(train$unknown, test$unknown))
     x <- train$x
     x.test <- test$x
     attr(x, "factor.levels")[j] <- list(table)
-    if (!is.null(attr(x.test, "factor.levels"))) {
-      attr(x.test, "factor.levels")[j] <- list(table)
-    }
   }
   newData@x <- x
   newData@x.test <- x.test
