@@ -617,7 +617,11 @@ alignDataFactorLevels <- function(newData, x.train) {
     table <- tables[[j]]
     if (j > length(given) || is.null(given[[j]])) {
       subject <- paste0("factor ", label(j))
-      if (!identical(newNames[j], names[j])) {
+      if (
+        !is.null(newNames) &&
+          nzchar(newNames[j]) &&
+          !identical(newNames[j], names[j])
+      ) {
         subject <- paste0(
           "the data's column '",
           newNames[j],

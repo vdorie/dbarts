@@ -407,6 +407,11 @@ expect_error(
   pattern = "factor 'f' holds numbers with no level table; give dbartsData a"
 )
 expect_identical(untouched(sampler), held)
+# data with no column names name no column of theirs
+expect_error(
+  sampler$setData(dbarts::dbartsData(unname(codes), frame$y)),
+  pattern = "^\\$setData: factor 'f' holds numbers with no level table"
+)
 # a matrix of codes carrying its own table is read by label, and a number that
 # is no code of its table is left to the bridge's refusal
 attr(codes, "factor.levels") <- list(NULL, rev(letters[1:6]))
