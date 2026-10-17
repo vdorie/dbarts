@@ -768,7 +768,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     - Not moved: a model with a numeric column drawn beside a held factor keeps the base build's row norm
       (`k.scale` of the numeric forest to the bit), and dec-B353's refusal stands at creation.
 1.4 The gates.
-    - A new script, benchmarks/R/forest-law-exact.R, which push 2 extends: one binary predictor, sigma
+    - A new script, benchmarks/R/forest-prior-exact.R, which push 2 extends: one binary predictor, sigma
       held, the leaves integrated out in closed form; no quadrature in this push's arms. Arms: a forest
       with no basis held at sds of 0.3 and 2 of the unit and at its default, a quarter of the range
       the oracle takes from the response it drew; a two-level factor held at 0.6, at 0.2 and at
@@ -796,7 +796,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     MANIFEST row names the oracle (rule P17), which is an identity and a gate: the re-recorded draws equal,
     to 1e-10, those the base build gives the same scenario with its treatment forest stating 0.674 of the
     default (pair row 23's identity, run for the scenario itself); and the held-factor arms of
-    forest-law-exact.R and of bcf-latent-exact.R pass, with their gaps.
+    forest-prior-exact.R and of bcf-latent-exact.R pass, with their gaps.
 1.6 Respell. `amplitude.prior.variance` on the test lines that state it (31 lines of 6 files at the tip,
     recounted after the kind-by-class slice's removals): where it states 0.5 the argument is dropped and
     the fit is the same; where it states another value the test pinned the tip's law and goes with it,
@@ -1004,7 +1004,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
       position the entry itself, a numeric forest's with its column's name; a fit with no kept sampler
       the same from what it stored.
 2.8 The gates and the tests that run always.
-    - forest-law-exact.R gains the numeric arms, nine of one column (Context) and the arm of three trees
+    - forest-prior-exact.R gains the numeric arms, nine of one column (Context) and the arm of three trees
       with a numeric column, drawn and held, in the place of its second forest; the oracle written from
       "The rule" with R's `sd()` over the rows of positive weight. Functionals: the posterior mean of
       the term in each cell at each value of the basis; the probability that the multiplied tree
@@ -1023,7 +1023,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     and recorded: a numeric column at its default; a numeric column through a swap, a write and a
     copy; a held numeric column; a held forest with no basis under gaussian. The 15 in force are
     bitwise on the push's build first, counted; the file then holds 19. The MANIFEST row names the
-    oracle of the four: forest-law-exact.R's arms with their gaps, and the units twin. They are there
+    oracle of the four: forest-prior-exact.R's arms with their gaps, and the units twin. They are there
     for what comes after: the slices that move the forests' record and fold `basis.scale` into the
     data's other records are gated bit for bit, and until now no recorded draw would move if one of
     them took a scale twice or dropped a record.
@@ -1092,7 +1092,7 @@ two cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
   alone, 55, 15 and 11, and again at the push's end, 55, 15 and then 19 against the file with the four
   scenarios added.
 - Every gate [exact-gates.yaml](../../.github/workflows/exact-gates.yaml) lists, in `quick`, each on its own
-  exit status; in pushes 1 and 2 the four BCF scripts and forest-law-exact.R also in full.
+  exit status; in pushes 1 and 2 the four BCF scripts and forest-prior-exact.R also in full.
 - `inst/include/dbarts/dbarts.h` has no diff and `tools/check-api-hash.sh` passes.
 - The pair script (below), old side on the base build, new side on the push's.
 - `Rscript -e 'lintr::lint_package()'`, `air format --check .`, `Rscript tools/check-rc-codoc.R .`,
@@ -1146,7 +1146,7 @@ where it is the engine's, run, record the failing count, revert, `touch` the fil
 - push 1, a held value left by position: step 1.1's six orders, and step 1.3's third forest;
 - push 1, a held forest with no basis second held at 0: step 1.3's plain forest written second;
 - push 1, the 0.674 left on a held factor: step 1.1's leaf scale, step 1.3's `k.scale`, and
-  forest-law-exact.R (0.10 and 0.21 at its two stated arms on the draft);
+  forest-prior-exact.R (0.10 and 0.21 at its two stated arms on the draft);
 - push 1, a held forest with no basis left at the response's scale: the same three (0.033);
 - push 1, a held forest with no basis given one unit by default under gaussian: step 1.3's default;
 - push 1, a leaf's sd not divided by the root of the tree count: the gate's arm of three trees (167
@@ -1584,7 +1584,7 @@ Against the steps:
   `multiplier` and `amplitude.held`. One assertion a cell in the door loop (by `shapeOf`, so every door
   agrees with the first) and in the same-sampler-again test.
 - 1.3 as planned, test-forest-held.R with 362 results.
-- 1.4: forest-law-exact.R with the eight arms of the step, 51 functionals, in quick 32 seeds of
+- 1.4: forest-prior-exact.R with the eight arms of the step, 51 functionals, in quick 32 seeds of
   25000 in about 7 s. The four BCF gates and sbc.R restated; bcf-latent-exact.R run first with its
   oracle as it was, six arms failing (worst |z| 10.70, 9.59, 6.90, 5.67, 5.68, 5.34; three forests
   under probit 3.97 and mode 2b 1.72 and 2.66 inside), then restated, worst 2.66.
@@ -1643,7 +1643,7 @@ benchmarks 406 and 33, docs and TODO 223 and 163. Package code 459 lines against
 900, the whole 2887 against about 5000. bartCause 41 and 15.
 
 Mutants, each applied alone to a clean export of the tip, installed with `--preclean`, and run against
-tests/cpp where it is the engine's, the named tinytest files and, where marked, forest-law-exact.R in
+tests/cpp where it is the engine's, the named tinytest files and, where marked, forest-prior-exact.R in
 quick. Every one is killed:
 
 | mutant | killed by |

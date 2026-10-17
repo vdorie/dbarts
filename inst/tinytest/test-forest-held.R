@@ -379,7 +379,7 @@ expect_error(
   fixed = TRUE
 )
 
-# --- not moved: a drawn numeric column beside a held factor keeps its law,
+# --- not moved: a drawn numeric column beside a held factor keeps its prior,
 # and a held numeric column is still refused (dec-B353) ---
 numericOf <- function(holdFactor) {
   dbarts(

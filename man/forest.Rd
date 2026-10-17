@@ -508,7 +508,7 @@ forest(
     and the forest's own tree count.
   }
   \item{amplitude}{
-    The law of this forest's coefficient: the one a forest with no
+    The prior on this forest's coefficient: the one a forest with no
     \code{basis} carries, or one for each level of its \code{basis}. Left out,
     it is drawn each sweep. \code{fixed()} holds it for the sampler's life,
     the choice being made at creation, wherever the forest stands: a held

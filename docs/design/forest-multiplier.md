@@ -61,7 +61,7 @@ R refuses a held numeric column by its kind ([`refuseHeldShape`](../../R/model.R
   where it was sqrt(2 / K) of one. Bit for bit at two forests. Oracle: the base build stating the unit
   on each such forest gives the same draws, to the bit.
 - A held two-level factor: its own sd is s where it was s / 0.674. Oracle: the base build stating 0.674
-  s, equal to 1e-10; and the held arms of benchmarks/R/forest-law-exact.R.
+  s, equal to 1e-10; and the held arms of benchmarks/R/forest-prior-exact.R.
 - A held forest with no basis: its own sd is s where it was the unit whatever s, and under gaussian a
   quarter of the range by default. Under probit and logistic at the default no bit moves. Oracle: the
   exact gate's arms and the equality with `bart()`'s own forest.

@@ -26,7 +26,7 @@
 # Not seen here: a drawn coefficient, a numeric multiplier (both push 2's),
 # probit and logistic, and weights.
 #
-# Usage: Rscript forest-law-exact.R [quick]
+# Usage: Rscript forest-prior-exact.R [quick]
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -291,7 +291,7 @@ constants <- samplerConstants(list(
 ))
 unit <- constants$unit
 cat(sprintf(
-  "forest law exact gate (%s): %d seeds of %d kept sweeps, unit %.4f\n",
+  "forest prior exact gate (%s): %d seeds of %d kept sweeps, unit %.4f\n",
   if (quick) "quick" else "full",
   numSeeds,
   numKept,
