@@ -173,6 +173,31 @@ expect_identical(held[1L:50L], treesOf(given50))
 expect_true(all(vapply(held[51L:200L], identical, NA, stump(0))))
 expect_equal(into200$predict(x), donor50$predict(x), tolerance = 1e-12)
 
+# linear and gp leaves start their single leaves with slopes and fits of 0:
+# six trees into nine are the donor's fit
+leaves <- function(kind, ...) {
+  if (kind == "linear") {
+    make(..., leaf.prior = linear(columns = 2L))
+  } else {
+    make(..., leaf.prior = gp(columns = 2L))
+  }
+}
+for (kind in c("linear", "gp")) {
+  sixLeaves <- leaves(kind, control = trees(6L), sweeps = 30L)
+  nineLeaves <- leaves(kind, control = trees(9L))
+  expect_identical(
+    answerOf(nineLeaves$installTrees(sixLeaves)),
+    visibly(TRUE),
+    info = kind
+  )
+  expect_equal(
+    nineLeaves$predict(x),
+    sixLeaves$predict(x),
+    tolerance = 1e-10,
+    info = kind
+  )
+}
+
 # ---- fewer trees: declined, untouched ----------------------------------------
 
 donor200 <- make(sweeps = 50L, control = trees(200L))
@@ -252,24 +277,72 @@ expect_identical(
   weighed[1L]
 )
 
-# a logistic sampler that has run, whose working weights are its latent
-# draws: the choice is the one unit weights give, on every seed. Two trees
-# close at unit weights, each splitting a fifth of the rows from the rest
+# a row the active-row mask leaves out weighs 0, gaussian and probit: tree 1
+# then varies most, tree 2 with the rows under x3's 20th point in
 yBinary <- as.integer(y > median(y))
-close <- list(
-  split1(1L, at(1L, 20L), 0.300, -0.300),
-  split1(2L, at(2L, 20L), 0.300, -0.300)
+masked <- weighed[c(1L, 3L)]
+mask <- as.numeric(x[, 3L] > at(3L, 20L))
+expect_identical(keptByHand(masked, 1L, weights = mask), 1L)
+expect_identical(keptByHand(masked, 1L), 2L)
+for (family in c("gaussian", "probit")) {
+  activeRows <- make(
+    response = if (family == "gaussian") y else yBinary,
+    family = family,
+    control = trees(1L)
+  )
+  activeRows$setActiveRows(mask)
+  expect_null(activeRows$installTrees(handDonor(masked), forceUpdate = TRUE))
+  expect_identical(treesOf(stateOf(activeRows)), masked[1L], info = family)
+}
+
+# a Student-t sampler weighs rows by its weights and a logistic one by its
+# counts: the rows of weight 0 at a count of 1, tree 1 against tree 2 flips
+expect_identical(
+  suppressWarnings(
+    forcedInto(handDonor(weighed), 1L, family = "student", weights = weights)
+  ),
+  weighed[1L]
 )
-byUnit <- keptByHand(close, 1L)
-for (seed in 1L:6L) {
-  logistic <- make(
+counts <- ifelse(weights == 0, 1, weights)
+counted <- weighed[1L:2L]
+expect_identical(keptByHand(counted, 1L, weights = counts), 1L)
+expect_identical(keptByHand(counted, 1L), 2L)
+expect_identical(
+  forcedInto(
+    handDonor(counted),
+    1L,
     response = yBinary,
+    family = "logistic",
+    weights = counts
+  ),
+  counted[1L]
+)
+
+# a logistic sampler that has run, whose working weights are its latent
+# draws: the choice is the one unit weights give, on every seed. The
+# response is 1 wherever x1 is above its 50th point, so the fit is large
+# there and the draws small, under which tree 2 would vary most; at unit
+# weights tree 1 does
+far <- x[, 1L] > at(1L, 50L)
+set.seed(5L)
+ySure <- ifelse(far, 1L, rbinom(n, 1L, 0.5))
+close <- list(
+  split1(1L, at(1L, 80L), 0.30, -0.30),
+  split1(2L, at(2L, 20L), 0.32, -0.32)
+)
+expect_identical(keptByHand(close, 1L), 1L)
+expect_identical(keptByHand(close, 1L, weights = ifelse(far, 0.5, 1)), 2L)
+for (seed in 1L:2L) {
+  logistic <- make(
+    response = ySure,
     family = "logistic",
     control = list(n.trees = 1L, seed = seed)
   )
-  invisible(logistic$run(10L, 1L))
+  invisible(logistic$run(50L, 1L))
+  draws <- stateOf(logistic)[[1L]]$latents
+  expect_true(mean(draws[far]) < 0.7 * mean(draws[!far]), info = seed)
   expect_null(logistic$installTrees(handDonor(close), forceUpdate = TRUE))
-  expect_identical(treesOf(stateOf(logistic)), close[byUnit], info = seed)
+  expect_identical(treesOf(stateOf(logistic)), close[1L], info = seed)
 }
 
 # ---- ranked as installed --------------------------------------------------------
@@ -293,11 +366,11 @@ expect_identical(
   crossed[2L]
 )
 
-# under blocks a tree is ranked as cut back for the slot it is tried in and
-# installed in the slot its rank gives, cut back for that one: slots 1 and
-# 2 split on x1 alone, 3 and 4 on the others. Trees 3 and 4, tried in
-# slots 3 and 4, and 5 and 6, tried in 1 and 2, are kept and land in the
-# other block's slots, where nothing they split on is allowed
+# under blocks each tree is tried in the slots of every row, and each row
+# in turn keeps its count of the trees that vary most there among those no
+# earlier row kept: slots 1 and 2 split on x1 alone, 3 and 4 on the others.
+# Trees 5 and 6 vary most on x1 and go to the first row, trees 3 and 4 on
+# x2 to the second, each as stored
 blocked <- list(
   split1(1L, at(1L, 50L), 0.01, -0.01),
   split1(1L, at(1L, 50L), 0.01, -0.01),
@@ -306,17 +379,54 @@ blocked <- list(
   split1(1L, at(1L, 50L), 0.4, -0.4),
   split1(1L, at(1L, 50L), 0.4, -0.4)
 )
-held <- forcedInto(
-  handDonor(blocked),
-  4L,
-  blocks = blocks(
-    groups = list("x1", c("x2", "x3", "x4")),
-    trees.per.group = c(2L, 2L)
-  )
+twoRows <- function(first, second, groups = list("x1", c("x2", "x3", "x4"))) {
+  dbartsForests$blocks(groups = groups, trees.per.group = c(first, second))
+}
+expect_identical(
+  forcedInto(handDonor(blocked), 4L, blocks = twoRows(2L, 2L)),
+  blocked[c(5L, 6L, 3L, 4L)]
 )
-splitsOn <- lapply(held, function(t) t$vars[t$vars > 0L])
-expect_true(all(unlist(splitsOn[1L:2L]) == 1L))
-expect_true(all(unlist(splitsOn[3L:4L]) != 1L))
+
+# a row that keeps more trees than vary there takes trees cut back to a
+# leaf, which tie at 0, the earliest first and never one an earlier row
+# kept: into 1 and 3 the first row keeps tree 1, and the second trees 3 and 4
+# and tree 2 as a leaf near 0, where tree 1's would sit near 0.3
+blocked[c(1L, 2L, 5L, 6L)] <- list(
+  split1(1L, at(1L, 50L), 0.6, 0.0),
+  split1(1L, at(1L, 50L), 0.01, -0.01),
+  split1(1L, at(1L, 50L), 0.02, -0.02),
+  split1(1L, at(1L, 50L), 0.02, -0.02)
+)
+held <- forcedInto(handDonor(blocked), 4L, blocks = twoRows(1L, 3L))
+expect_identical(held[c(1L, 3L, 4L)], blocked[c(1L, 3L, 4L)])
+expect_identical(held[[2L]]$vars, -1L)
+expect_true(abs(held[[2L]]$values) < 0.05)
+
+# a donor of 100 and 100 trees on x1 and x2 and on x3 and x4: into 25 and 25,
+# and into 40 and 10, each row keeps the most varying of the donor's trees
+# on its own columns, from both halves of the donor
+halves <- list(c("x1", "x2"), c("x3", "x4"))
+blockDonor <- make(
+  sweeps = 200L,
+  blocks = twoRows(100L, 100L, halves),
+  control = trees(200L)
+)
+blockTrees <- treesOf(stateOf(blockDonor))
+for (counts in list(c(25L, 25L), c(40L, 10L))) {
+  kept <- c(
+    keptByHand(blockTrees[1L:100L], counts[1L]),
+    100L + keptByHand(blockTrees[101L:200L], counts[2L])
+  )
+  expect_identical(
+    forcedInto(
+      blockDonor,
+      sum(counts),
+      blocks = twoRows(counts[1L], counts[2L], halves)
+    ),
+    blockTrees[kept],
+    info = counts
+  )
+}
 
 # across cut points each tree is tried as it is moved: onto other rows the
 # trees kept are the most varying of the donor's trees as a recipient of as
@@ -396,6 +506,51 @@ expect_identical(
 )
 expect_identical(treesOf(stateOf(more))[1L:10L], draws[[2L]])
 
+# a live forest whose count does not divide its kept draws names no draw
+# whole: refused, not a slice across two draws
+uneven <- withTrees(stateOf(keeper), lapply(1L:4L, function(i) stump(0.01 * i)))
+expect_error(
+  make(control = trees(4L))$installTrees(
+    uneven,
+    samples = 2L,
+    forceUpdate = TRUE
+  ),
+  "not shape-compatible",
+  fixed = TRUE
+)
+
+# a pooled factor's masks go with the trees chosen: the masks of the four
+# kept are the donor's for those trees, in their order
+set.seed(3L)
+pooled <- data.frame(
+  x,
+  f = factor(sample(paste0("l", 1L:70L), n, replace = TRUE))
+)
+pooledDonor <- make(
+  data = pooled,
+  response = y + as.integer(pooled$f) %% 3L,
+  sweeps = 60L,
+  control = trees(8L)
+)
+pooledFour <- make(data = pooled, response = y, control = trees(4L))
+expect_null(pooledFour$installTrees(pooledDonor, forceUpdate = TRUE))
+masksOf <- function(sampler) {
+  held <- stateOf(sampler)[[1L]]$forests[[1L]]$tree.masks
+  splits <- vapply(treesOf(stateOf(sampler)), function(t) sum(t$vars == 5L), 0L)
+  words <- length(held) / sum(splits)
+  split(held, rep(seq_along(splits), splits * words))
+}
+donorTrees <- treesOf(stateOf(pooledDonor))
+heldTrees <- treesOf(stateOf(pooledFour))
+which4 <- vapply(heldTrees, function(t) match(list(t), donorTrees), 0L)
+donorMasks <- masksOf(pooledDonor)
+expect_false(anyNA(which4))
+expect_true(sum(vapply(heldTrees, function(t) sum(t$vars == 5L), 0L)) > 0L)
+expect_identical(
+  unname(unlist(masksOf(pooledFour))),
+  unname(unlist(donorMasks[as.character(which4)]))
+)
+
 # ---- the variance forest ------------------------------------------------------
 
 heteroscedastic <- function(meanTrees, varianceTrees, ...) {
@@ -424,6 +579,66 @@ expect_identical(
   treesOf(stateOf(logRecipient), variance = TRUE),
   factors[1L]
 )
+
+# the variance forest needs rounds where the mean forest needs none: three
+# variance trees into one, the third varying most
+varianceOnly <- lapply(c(1.1, 1.2, 3), function(h) {
+  split1(1L, at(1L, 50L), 1, h)
+})
+roundsDonor <- withTrees(
+  stateOf(heteroscedastic(4L, 3L)),
+  varianceOnly,
+  variance = TRUE
+)
+roundsRecipient <- heteroscedastic(4L, 1L)
+expect_null(roundsRecipient$installTrees(roundsDonor, forceUpdate = TRUE))
+expect_identical(
+  treesOf(stateOf(roundsRecipient), variance = TRUE),
+  varianceOnly[3L]
+)
+
+# the variance trees rank by case weights: rows at or below x1's 50th point
+# weigh 10, under which the tree on x2 varies least
+heavy <- ifelse(x[, 1L] <= at(1L, 50L), 10, 1)
+weighedFactors <- list(
+  split1(1L, at(1L, 50L), 1, 2),
+  split1(2L, at(2L, 50L), 1, 1.9)
+)
+expect_identical(keptByHand(weighedFactors, 1L, scale = log), 1L)
+expect_identical(
+  keptByHand(weighedFactors, 1L, weights = heavy, scale = log),
+  2L
+)
+weighedDonor <- withTrees(
+  stateOf(heteroscedastic(4L, 2L, weights = heavy)),
+  weighedFactors,
+  variance = TRUE
+)
+weighedRecipient <- heteroscedastic(4L, 1L, weights = heavy)
+expect_null(weighedRecipient$installTrees(weighedDonor, forceUpdate = TRUE))
+expect_identical(
+  treesOf(stateOf(weighedRecipient), variance = TRUE),
+  weighedFactors[2L]
+)
+
+# nor do the precisions a variance forest serves: one at 100 and 0.01 on the
+# two halves of x1 would choose tree 1, the rows at their case weights choose
+# tree 2
+pair <- list(
+  split1(1L, at(1L, 20L), 0.30, -0.30),
+  split1(2L, at(2L, 20L), 0.31, -0.31)
+)
+precision <- ifelse(x[, 1L] <= at(1L, 50L), 100, 0.01)
+expect_identical(keptByHand(pair, 1L), 2L)
+expect_identical(keptByHand(pair, 1L, weights = precision), 1L)
+pairDonor <- withTrees(
+  withTrees(stateOf(heteroscedastic(2L, 1L)), pair),
+  list(split1(1L, at(1L, 50L), 0.01, 100)),
+  variance = TRUE
+)
+pairRecipient <- heteroscedastic(1L, 1L)
+expect_null(pairRecipient$installTrees(pairDonor, forceUpdate = TRUE))
+expect_identical(treesOf(stateOf(pairRecipient)), pair[2L])
 
 # each forest its own choice: the mean trees 1 and 3, the variance trees 1
 # and 2
@@ -463,6 +678,14 @@ expect_identical(
   lineOf(make(control = trees(200L)), donor50),
   "warm start: 50 of 50 donor trees taken; 150 trees started as single leaves"
 )
+# single leaves are said before the changes, as in the variance clause
+expect_true(grepl(
+  paste0(
+    "^warm start: 50 of 50 donor trees taken; ",
+    "150 trees started as single leaves; [0-9]+ moved"
+  ),
+  lineOf(make(data = xOther, response = yOther, control = trees(200L)), donor50)
+))
 expect_identical(
   lineOf(make(control = trees(50L)), donor200),
   "warm start: 50 of 200 donor trees taken"

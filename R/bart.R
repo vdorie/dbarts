@@ -857,9 +857,10 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
 # report installDonorTrees returns. Trees are counted per chain, every chain
 # taking as many, and changes are summed over the chains, each changed tree
 # under one name. The single leaves that fill a forest of more trees than the
-# donor's are counted per chain too. The variance forest has its own clause
-# where one of its trees changed or was left out or it took single leaves,
-# and each way the leaves are not the donor's has its own.
+# donor's are counted per chain too and said before the changes in both
+# forests' clauses. The variance forest has its own clause where one of its
+# trees changed or was left out or it took single leaves, and each way the
+# leaves are not the donor's has its own.
 warmStartLine <- function(report) {
   changes <- c(
     moved = "moved to this fit's cut points",
@@ -886,8 +887,8 @@ warmStartLine <- function(report) {
   }
   clauses <- c(
     paste(taken(report$trees), "donor trees taken"),
-    changed(report$trees),
-    single(report$trees, "trees")
+    single(report$trees, "trees"),
+    changed(report$trees)
   )
   variance <- report$variance.trees
   if (!is.null(variance)) {
