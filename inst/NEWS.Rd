@@ -559,6 +559,9 @@
             fewer trees than the new one is taken whole, the rest of the
             trees starting as single leaves, and one with more gives the
             trees whose fitted values vary most over the new fit's rows.
+            Under \code{blocks()} each block takes the trees it can hold as
+            they stand, so a fit with the same blocks is taken whole, and
+            where not all go in so, the trees that vary most within it.
       \item Tree moves. \code{proposal.probs} gains two optional moves,
             \code{"perturb"} (shift one split point, by at most
             \code{dbartsControl(n.perturb.cuts = )} cut positions) and

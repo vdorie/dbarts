@@ -387,20 +387,39 @@ expect_identical(
   blocked[c(5L, 6L, 3L, 4L)]
 )
 
-# a block that keeps more trees than vary there takes trees cut back to a
-# leaf, which tie at 0, the earliest first and never one an earlier block
-# kept: into 1 and 3 the first block keeps tree 1, and the second trees 3 and
-# 4 and tree 2 as a leaf near 0, where tree 1's would sit near 0.3
+# a tree a block would hold as a single leaf is not kept there, and a block
+# with too few others starts the rest as single leaves at 0: into 1 and 3 the
+# first block keeps tree 1, and the second trees 3 and 4 and then a leaf at
+# 0, not tree 2 cut back to a leaf
 blocked[c(1L, 2L, 5L, 6L)] <- list(
   split1(1L, at(1L, 50L), 0.6, 0.0),
   split1(1L, at(1L, 50L), 0.01, -0.01),
   split1(1L, at(1L, 50L), 0.02, -0.02),
   split1(1L, at(1L, 50L), 0.02, -0.02)
 )
-held <- forcedInto(handDonor(blocked), 4L, blocks = twoBlocks(1L, 3L))
-expect_identical(held[c(1L, 3L, 4L)], blocked[c(1L, 3L, 4L)])
-expect_identical(held[[2L]]$vars, -1L)
-expect_true(abs(held[[2L]]$values) < 0.05)
+expect_identical(
+  forcedInto(handDonor(blocked), 4L, blocks = twoBlocks(1L, 3L)),
+  c(blocked[c(1L, 3L, 4L)], list(stump(0)))
+)
+
+# trees that fit no block, each splitting on x1 and then on x2: declined,
+# and forced the first block keeps the tree that varies most as cut back
+# there, tree 2 and not tree 3, which varies most as stored, its leaves on
+# x2 meaning 0 over their rows; the second block, where each would be a
+# single leaf, starts as single leaves
+right <- x[, 1L] > at(1L, 50L)
+low <- mean(x[right, 2L] <= at(2L, 50L))
+across <- lapply(list(c(0.1, 1), c(0.4, 1), c(0.2, 4)), function(v) {
+  tree(
+    c(1L, -1L, 2L, -1L, -1L),
+    c(at(1L, 50L), v[1L], at(2L, 50L), v[2L] * (1 - low), -v[2L] * low)
+  )
+})
+expect_identical(keptByHand(across, 1L), 3L)
+held <- forcedInto(handDonor(across), 3L, blocks = twoBlocks(1L, 2L))
+expect_identical(held[[1L]]$vars, c(1L, -1L, -1L))
+expect_identical(held[[1L]]$values[2L], 0.4)
+expect_identical(held[2L:3L], list(stump(0), stump(0)))
 
 # a tree a block keeps is not kept again by a later one: into 2 and 2 the
 # first block keeps tree 1 and the single leaf tree 2, the earliest of those
@@ -443,6 +462,48 @@ for (counts in list(c(25L, 25L), c(40L, 10L))) {
     info = paste(counts, collapse = "/")
   )
 }
+
+# a donor of the blocks and counts it goes into goes in as it stands, each
+# tree in its own slot
+same <- make(blocks = twoBlocks(100L, 100L, halves), control = trees(200L))
+expect_identical(answerOf(same$installTrees(blockDonor)), visibly(TRUE))
+expect_identical(treesOf(stateOf(same)), blockTrees)
+
+# a donor of 20 and 20 into 25 and 25 is taken whole: the first block takes
+# the donor's first 20 trees and then, in its order, single leaves of the
+# second half, up to 5, the second block the rest, each block then single
+# leaves at 0
+small <- make(
+  sweeps = 100L,
+  blocks = twoBlocks(20L, 20L, halves),
+  control = trees(40L)
+)
+smallTrees <- treesOf(stateOf(small))
+into25 <- make(blocks = twoBlocks(25L, 25L, halves), control = trees(50L))
+expect_identical(answerOf(into25$installTrees(small)), visibly(TRUE))
+leaves <- which(lengths(lapply(smallTrees, `[[`, "vars")) == 1L)
+first <- c(1L:20L, head(intersect(leaves, 21L:40L), 5L))
+second <- setdiff(21L:40L, first)
+padded <- function(kept) {
+  c(smallTrees[kept], rep(list(stump(0)), 25L - length(kept)))
+}
+expect_identical(treesOf(stateOf(into25)), c(padded(first), padded(second)))
+
+# into three blocks of 60, on x1, on x2 and on x3 and x4, the trees on x3
+# and x4 would be single leaves in the first two and are not kept there, so
+# the third keeps the 60 of them that vary most
+held <- forcedInto(
+  blockDonor,
+  180L,
+  blocks = dbartsForests$blocks(
+    groups = list("x1", "x2", c("x3", "x4")),
+    trees.per.group = c(60L, 60L, 60L)
+  )
+)
+expect_identical(
+  held[121L:180L],
+  blockTrees[100L + keptByHand(blockTrees[101L:200L], 60L)]
+)
 
 # across cut points each tree is tried as it is moved: onto other rows the
 # trees kept are the most varying of the donor's trees as a recipient of as

@@ -3948,12 +3948,13 @@ dbartsSampler <- setRefClass(
        its forest does not allow, a missing-value side on a column that has
        never held a missing value, monotone leaf values out of order, leaf
        values this sampler does not read, more trees than this sampler holds
-       - is not installed: the sampler is left as it was and FALSE is
-       returned. With forceUpdate = TRUE such a donor is installed with the
-       changes, a donor of more trees giving those whose fits vary most, and
-       NULL is returned invisibly. A donor of fewer trees gives all of them,
-       the rest starting as single leaves. Single-forest samplers only. See
-       Warm starts in ?dbartsSampler."
+       or, under blocks, trees the blocks cannot take as they stand - is not
+       installed: the sampler is left as it was and FALSE is returned. With
+       forceUpdate = TRUE such a donor is installed with the changes, the
+       trees whose fits vary most going in where not all can, and NULL is
+       returned invisibly. A donor of fewer trees gives all of them, the rest
+       starting as single leaves. Single-forest samplers only. See Warm
+       starts in ?dbartsSampler."
       if (
         !is.logical(forceUpdate) ||
           length(forceUpdate) != 1L ||
