@@ -197,14 +197,15 @@ away before the data object records the grid (TODO state-frame-prior) would make
 set grid something other than a copy. A factor column is outside this: no install writes its grid
 ([`ColumnStore::setCutPointsForColumn`](../../src/bartcore/data.hpp)), which stays the one its level table
 gives, so a re-creation does not hold its state to the grid recorded on an ordered factor, as a live install
-does. A live engine keeps its level table through `setData` and a new one reads the levels the data declares,
-so after `setData` to an ordered factor declaring fewer levels a copy and a reload hold the shorter grid, draw
-other draws than the original, and refuse a state the original stored. Their `state` field is then the state
-their engine holds, read once it is made ([`heldAfterAdoption`](../../R/dbarts.R)), so that a sampler's own
-field is never refused for the cut points it records. They are made only where no rule of the stored
-state's trees lies above the declared levels, which one that sends missing values right can; with an
-unordered factor they are made where no rule sends a dropped level right, as of a sampler never run. Both refusals are as before this rule. The level
-table at a re-creation is the data record's (TODO state-frame-prior). `setState(newState)` on a sampler whose engine is gone first rebuilds
+does. A live engine keeps its level table through `setData`, and a new one reads the levels the data record
+declares, which `setData` keeps the sampler's: it re-codes each factor row by label onto the sampler's table
+([`alignDataFactorLevels`](../../R/bartcore.R), dec-B454), so a copy and a reload hold the original's grid
+and take the state it stored. A record declaring other levels than its engine holds is reached only by
+assigning one by hand or by an object saved by an earlier build; a copy and a reload of it hold the grid of
+the declared levels, are made only where no rule of the stored state's trees lies above them or sends a
+dropped level right, and refuse a state the original stored. Their `state` field is then the state their
+engine holds, read once it is made ([`heldAfterAdoption`](../../R/dbarts.R)), so that a sampler's own field
+is never refused for the cut points it records. `setState(newState)` on a sampler whose engine is gone first rebuilds
 the engine from the sampler's own saved state, where it has one that installs, and then applies the rule
 above, so the call gives one grid whether or not the engine was live. Only a sampler with no saved state, or
 one that is refused, takes `newState`'s grid.

@@ -481,7 +481,10 @@ factor cell of a whole-data replacement is a level code of the table its
 pinned count fixes, before it writes a code, and the sampler's checks the
 test matrix against that same table before anything moves - so a test
 matrix it cannot ingest refuses the whole call rather than leaving new
-training values beside a silently dropped test set. The split: the R
+training values beside a silently dropped test set. Before either, the R
+side re-codes each factor column of the replacement by label onto the
+sampler's level table (`alignDataFactorLevels`, dec-B454), so the store
+checks the sampler's codes. The split: the R
 bridge validates CSC structure (rows strictly increasing, unique, in
 range - "malformed sparse predictor matrix") and categorical placement - a fully-sparse dgCMatrix x
 refuses categoricals outright (["sparse predictor matrices must be entirely ordinal"](../../src/R_interface_bartcore.cpp)), while a mixed

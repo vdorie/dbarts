@@ -2920,7 +2920,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setData = function(newData, updateState = NULL) {
-      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. Preserves the n.cuts and sigma slots. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
+      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. Preserves the n.cuts and sigma slots, and the level tables: columns are matched by name where they carry the sampler's names, and a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,

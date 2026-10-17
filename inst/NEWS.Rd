@@ -116,6 +116,15 @@
             is taken only where every predictor column is numeric, and is
             refused by name on a fit with a factor column; \code{predict}
             had read the codes of such a matrix as levels.
+            \code{setData} reads its data the same way, a factor by label
+            against the sampler's levels and the columns by name: fewer
+            levels, another order and declared levels no row has are
+            taken, and a label the sampler never had is refused by name.
+            Before, it read each row by its position in the new data's
+            levels, so the kept draws no longer predicted what they did and
+            a copy or a reload of the sampler could not be made or ran
+            another chain; 0.9-34 refused another count of levels and read
+            reordered, renamed or replaced levels by position.
       \item Split probabilities. \code{split.probs} with a negative or
             non-finite entry, or with no positive entry, is refused, as
             \code{sample(prob = )} refuses such weights; 0.9-34 turned a

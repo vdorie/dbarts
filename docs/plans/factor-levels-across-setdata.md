@@ -1,6 +1,7 @@
 # factor-levels-across-setdata: setData reads a factor by label against the sampler's levels
 
-Status: DECIDED 2026-10-17, option 5 (C below) by the maintainer (dec-B454); written to the tree of
+Status: BUILT 2026-10-17, pending review ([Built](#built)); option 5 (C below) ruled by the maintainer
+(dec-B454); written to the tree of
 f514c1d8 (origin/bartcore); revised from its blind critique the same day ([Revised from the blind
 critique](#revised-from-the-blind-critique)), which kept the recommendation. Closes TODO `factor-levels-across-setdata`. Rulings it stands on: dec-A115 (declared
 levels), dec-A85 and dec-B155 (a level matched by label, an unseen one refused), dec-B279, dec-B286,
@@ -463,6 +464,53 @@ stan4bart's suite moves; at 150 R lines or 1000 in all.
 
 None. The maintainer ruled option 5 on 2026-10-17, "For decision 2, yes, use your recommendation"
 (dec-B454); the plan is written for it (C).
+
+## Built
+
+Built on 92ae2714 (origin/bartcore), after the ruling (dec-B454). R only: `src/` and dbarts.h have no diff.
+
+- Step 1: [`alignDataFactorLevels`](../../R/bartcore.R) with three helpers beside
+  `codeCategoricalColumnUpdate`: `refuseNewDataLabels`, `recodePredictorColumn` and
+  `permutePredictorColumns`. It is called in `bartcoreSamplerSetData` after `checkBasisRecord` and
+  the column count check, before anything is stored, and the record is its result.
+- Step 2: inst/tinytest/test-setdata-factor-levels.R, the block of test-state-grid-install.R
+  rewritten to a record assigned by hand, and the level-11 refusal of test-bartcore.R moved to the
+  by-label text.
+- Step 3: the `setData` docstring, the `newData` item and the Saving paragraph of the sampler Rd,
+  dbartsData.Rd, NEWS, install-surface.md, data-store.md and TODO, as the step lists.
+
+Calls made building, each where the plan was silent or wrong:
+
+- Names that differ are read by position, not refused. The rule said "names that differ ... are
+  refused", but test-sampler-setData.R hands `y ~ x.new` to a `y ~ x` sampler, and
+  `codePredictorFrame`, which the rule cites, matches by name only where the frame carries every one
+  of the sampler's names and reads the rest by position. The refusal would have failed a file
+  outside step 2, a stop. The orchestrator's call, columns matched by name where both sides carry
+  them, stands where the names are the sampler's.
+- The refusal of a label the sampler never had is one function, `refuseNewDataLabels`, called once
+  per column with the training and test labels, with its own tests, so that it can be changed alone
+  if the maintainer rules otherwise on new levels (the orchestrator's instruction). No acceptance of
+  new levels is built.
+- A sparse source, training or test, is left whole to the bridge, which refuses any sparse store;
+  the rule's column-by-column skip gives the same refusal.
+- A number in a tabled matrix that is no code of its own table becomes -1, so the bridge refuses it
+  in its own words; read through the table it would have become a missing value.
+- A test set is read through its own `factor.levels` where it carries one, and otherwise through the
+  training table of the same data, which dbartsData codes it against.
+- Columns put in the sampler's order take the sampler's design attributes (`term.labels`, `terms`,
+  `drop`, `indicator.levels`), so the record carries the sampler's names (rule 4).
+- The no-table refusal is worded for a data object: "the data hold factor 'f' as numbers with no
+  level table; give dbartsData a data frame, whose factor columns are coded by label".
+- The "same table neutral" test pins the record's identity only. Its mutant, re-coding where the
+  tables are identical, is equivalent: the re-coded object is identical to the handed one.
+- The "matrix with the tables" row is test-data-code-channel.R's pin, unedited; the new file adds a
+  tabled matrix in another order, read by label, and a stray code refused by the bridge.
+
+Gates on the tip: the full suite in one process, the three bitwise compares on the reference build (55, 15
+and 11 scenarios identical, against equivalence-32418b6e.rds, the baseline current at 92ae2714), the four
+snapshot files, the 38 commands exact-gates.yaml runs at 92ae2714 (the plan's 42 counted an earlier list),
+the composition matrix, the lint chain and `R CMD check --as-cran`. Of the plan's mutants and the build's
+own, all were killed but the re-coding of identical tables, which is equivalent.
 
 ## Revised from the blind critique
 
