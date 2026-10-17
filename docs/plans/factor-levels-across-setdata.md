@@ -282,7 +282,8 @@ At `$setData(newData)`, before anything is installed:
 
 1. Columns are matched by name where both the sampler's predictors and `newData`'s carry unique names,
    as `codePredictorFrame` and `predict` match them, and put in the sampler's order; names that differ
-   from the sampler's are refused, naming them. Where either side has no names, by position, as today.
+   from the sampler's are refused, naming them (as built: read by position where the names differ, see [Built](#built)). Where either side has no names, by position, as
+   today.
 2. Each column the sampler records a level table `T` for (from `attr(sampler$data@x, "factor.levels")`)
    is judged by the table `newData` records for it, `N`, however the column is stored (a factor in the
    container, or a numeric matrix column carrying `factor.levels`), in the training and the test
@@ -371,7 +372,7 @@ p2.R's data sets, 20 trees, kept draws, every sampler seeded before creation; "d
 | unknown on a row | rows at g and h, and renamed A..F: refused naming the labels; sampler untouched | the refusal dropped (unknown labels become missing values) |
 | unknown on a test row | a test set alone holding g: refused | the unknown-label check run on training rows only |
 | test set | new training table with b dropped, test set declaring c and e only: test fits as by label | x.test not re-coded |
-| columns by name | `y ~ g + f` to a `y ~ f + g` sampler: record in the sampler's order, fits as by name; names that differ refused | columns taken by position |
+| columns by name | `y ~ g + f` to a `y ~ f + g` sampler: record in the sampler's order, fits as by name; names that differ refused (as built: read by position where the names differ, see [Built](#built)) | columns taken by position |
 | back again | after the tail case, `setData` of all six levels with rows at each: taken by the live sampler and by its copy | (pins the closed TODO sequence) |
 | NA level | a sampler made with an NA level, handed the levels reordered: the NA level's rows keep it, a missing value stays missing | match through `as.character` (NA level rows become missing) |
 | missing values | the ordered NA fixture of p2.R, tail case: copy and reload made and draw as the original | (pins the TODO's missing-value reach) |
@@ -443,8 +444,8 @@ stan4bart's suite moves; at 150 R lines or 1000 in all.
   "a refusal can be lifted after the release where an accepted meaning cannot be withdrawn"); its cost
   is a refusal only this route makes.
 - Columns are matched by name where both sides carry names, and names that differ are refused (settled by
-  the orchestrator, 2026-10-17, from the critique), as a whole-frame `setPredictor` and `predict` match
-  them; about 5 lines and a test. The alternative, a TODO line, leaves a correctly read factor in the
+  the orchestrator, 2026-10-17, from the critique; as built: read by position where the names differ, see
+  [Built](#built)), as a whole-frame `setPredictor` and `predict` match them; about 5 lines and a test. The alternative, a TODO line, leaves a correctly read factor in the
   wrong column (0.03 / 2.98 against 3 / 0 in crit/q4.R).
 - A column is judged by the level table it carries, not by how it is stored: a numeric matrix column
   carrying the sampler's own table goes in as today; only a categorical column with no table is refused,
@@ -495,8 +496,9 @@ Calls made building, each where the plan was silent or wrong:
   the rule's column-by-column skip gives the same refusal.
 - A number in a tabled matrix that is no code of its own table becomes -1, so the bridge refuses it
   in its own words; read through the table it would have become a missing value.
-- A test set is read through its own `factor.levels` where it carries one, and otherwise through the
-  training table of the same data, which dbartsData codes it against.
+- A test set is read through the training table of the same data, which dbartsData codes it against;
+  dbartsData leaves no table on a test set, so a branch reading one was dead and was removed in the
+  fix round.
 - Columns put in the sampler's order take the sampler's design attributes (`term.labels`, `terms`,
   `drop`, `indicator.levels`), so the record carries the sampler's names (rule 4).
 - The no-table refusal is worded for a data object: "the data hold factor 'f' as numbers with no
@@ -508,9 +510,13 @@ Calls made building, each where the plan was silent or wrong:
 
 Gates on the tip: the full suite in one process, the three bitwise compares on the reference build (55, 15
 and 11 scenarios identical, against equivalence-32418b6e.rds, the baseline current at 92ae2714), the four
-snapshot files, the 38 commands exact-gates.yaml runs at 92ae2714 (the plan's 42 counted an earlier list),
-the composition matrix, the lint chain and `R CMD check --as-cran`. Of the plan's mutants and the build's
-own, all were killed but the re-coding of identical tables, which is equivalent.
+snapshot files, the 38 commands of exact-gates.yaml's main job loop (its monotone job's other 4 not run:
+they reach only the engine, which has no diff), the composition matrix, the lint chain and `R CMD check
+--as-cran`. Of the plan's mutants and the build's own, all were killed but the re-coding of identical
+tables, which is equivalent. The review's survivors were closed in the fix round with tests of two factor
+columns with other tables swapped by name, a numeric and a factor column swapped by name, a tabled matrix
+holding missing values and a sparse test set; the full suite, the lint chain and `R CMD check` were rerun
+on its tip.
 
 ## Revised from the blind critique
 
@@ -527,7 +533,7 @@ scratch/fls/crit) kept the recommendation. What changed:
    its mutant.
 5. An ordered factor in another order is read by label (the orchestrator's call); the refusal, its test
    and its mutant are gone.
-6. Columns are matched by name, refusing names that differ (the orchestrator's call), with a test.
+6. Columns are matched by name, refusing names that differ (the orchestrator's call), with a test (as built: read by position where the names differ, see [Built](#built)).
 7. Sparse-mapped columns are left to the bridge, pinned.
 8. Tests gain a test set whose training table differs, a test-only unknown label and a character column.
 9. Every sampler in the probes and tests is seeded before creation; every p2.R number was rerun so.

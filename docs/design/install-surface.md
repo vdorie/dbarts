@@ -200,10 +200,12 @@ gives, so a re-creation does not hold its state to the grid recorded on an order
 does. A live engine keeps its level table through `setData`, and a new one reads the levels the data record
 declares, which `setData` keeps the sampler's: it re-codes each factor row by label onto the sampler's table
 ([`alignDataFactorLevels`](../../R/bartcore.R), dec-B454), so a copy and a reload hold the original's grid
-and take the state it stored. A record declaring other levels than its engine holds is reached only by
-assigning one by hand or by an object saved by an earlier build; a copy and a reload of it hold the grid of
-the declared levels, are made only where no rule of the stored state's trees lies above them or sends a
-dropped level right, and refuse a state the original stored. Their `state` field is then the state their
+and take the state it stored. A record declaring other levels than its engine holds is reached by
+assigning one by hand, by an object saved by an earlier build, and by a sampler made from a matrix of
+codes, which records no table and takes the table of a data frame handed to `setData` (TODO
+code-matrix-category-count); a copy and a reload of it hold the grid of the declared levels, are made only
+where no rule of the stored state's trees lies above them or sends a dropped level right, and refuse a
+state the original stored. Their `state` field is then the state their
 engine holds, read once it is made ([`heldAfterAdoption`](../../R/dbarts.R)), so that a sampler's own field
 is never refused for the cut points it records. `setState(newState)` on a sampler whose engine is gone first rebuilds
 the engine from the sampler's own saved state, where it has one that installs, and then applies the rule
