@@ -623,8 +623,8 @@ family(object, ...)
   row has is a column of zeros, and a row at a level the forest does not
   have, or at `NA`, is refused. Numbers are refused for such a forest, a
   factor's indicator columns among them: hand over the factor itself,
-  `fit$bases` holding it. For a forest of numbers, hand over a numeric
-  vector or a matrix with the columns the forest was created with; a
+  `fit$bases` holding it. For a forest of numbers, hand over its one
+  numeric column, a vector or a matrix of one column; several columns, a
   factor, a character vector and a logical vector are refused
   ([`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a logical
   vector is its 0/1 column). Either way it is required to have
@@ -1027,8 +1027,8 @@ returned. In the numeric \\y\\ case, the list has components:
   (`model.matrix(~ 0 + b)` of it is the block of indicator columns the
   amplitudes multiply, and `predict(fit, x, bases = fit$bases)` at the
   training rows is the training fit, to rounding); for a forest of
-  numbers the matrix of its column or columns; `NULL` for a forest with
-  no declared basis, whose amplitude then scales an implicit all-ones
+  numbers the matrix of its one column; `NULL` for a forest with no
+  declared basis, whose amplitude then scales an implicit all-ones
   column. Together, with each factor in `bases` taken as its indicator
   columns, they reconstruct the training fit to rounding: \\\hat y =
   \mathrm{response.shift} + \sum_k (\mathrm{bases}\_k \\
@@ -1332,7 +1332,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.222181
+#> total seconds in loop: 0.224564
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

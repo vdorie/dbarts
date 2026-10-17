@@ -143,13 +143,15 @@ forest(
 
   - A name of a column of `data` is that column: `basis = dose`.
 
-  - `+` separates columns, each with a coefficient of its own:
-    `dose + age`. `I(dose + age)` is one column, their sum.
+  - A basis is one numeric column, or a factor, a character column or a
+    logical column of two levels, with a coefficient for each level. A
+    number is one column, whatever its values: `basis = z` for a `z` of
+    0s and 1s is one coefficient, and `basis = factor(z)` is the two
+    levels.
 
-  - A factor, a character column or a logical column is one column for
-    each of its levels. A number is one column, whatever its values:
-    `basis = z` for a `z` of 0s and 1s is one coefficient, and
-    `basis = factor(z)` is the two levels.
+  - `I(dose + age)` is one column, their sum. Several columns,
+    `dose + age`, and three or more levels are refused: give each
+    column, or each level but the first, a forest of its own.
 
   - Anything that is not a column of `data` is read where `forest()` is
     called, at that moment, with or without a tilde written in place:
@@ -159,17 +161,19 @@ forest(
     `forest(basis = b)`, is read the same way, when `forest()` is
     called, and is left as you made it.
 
-  - [`cbind()`](https://rdrr.io/r/base/cbind.html) is refused: write the
-    columns with `+`.
+  - [`cbind()`](https://rdrr.io/r/base/cbind.html) is refused: write its
+    one column alone, or give each column a forest of its own.
 
   The rest of this item is the detail of each.
 
   **What it does.** With a basis of columns \\B_1, \ldots, B_K\\ the
   forest \\f\\ enters the fit as \\(\sum_k a_k B_k(x_i)) f(x_i)\\, each
-  column with a coefficient \\a_k\\ of its own, called its amplitude. A
-  forest with no basis is multiplied by a single coefficient. A model
-  has one forest with no basis, or none; every other forest states one,
-  and a model whose only forest has a basis is refused.
+  column with a coefficient \\a_k\\ of its own, called its amplitude:
+  \\K = 1\\ for a numeric column, and the two columns of a factor's
+  levels, \\K = 2\\. A forest with no basis is multiplied by a single
+  coefficient. A model has one forest with no basis, or none; every
+  other forest states one, and a model whose only forest has a basis is
+  refused.
 
   **Writing it.** A basis is the right-hand side of a model formula,
   without the tilde, and means what it means in
@@ -177,30 +181,47 @@ forest(
 
   - a name is a column: `basis = dose`;
 
-  - `+` separates columns: `dose + age` is two columns;
+  - `+` separates columns: `dose + age` is two columns, which this
+    version refuses (below);
 
   - arithmetic is written inside
     [`I()`](https://rdrr.io/r/base/AsIs.html): `I(dose + age)` is one
     column, the sum, and `I(dose / 30)` is `dose` rescaled;
 
   - a function of columns is a term, as in `lm`: `log(dose)`,
-    `scale(age)`, and `poly(dose, 2)`, which is two columns;
+    `scale(age)` and `poly(dose, 1)`;
 
-  - a factor, a character column or a logical column gives one column
-    for each of its levels, none left out: `factor(z)` for a `z` of 0
-    and 1 is the two columns whose coefficients are \\(b_0, b_1)\\, in
-    the order of the levels;
+  - a factor, a character column or a logical column of two levels gives
+    one column for each, none left out: `factor(z)` for a `z` of 0 and 1
+    is the two columns whose coefficients are \\(b_0, b_1)\\, in the
+    order of the levels;
 
   - `dose:age` is one column, the product;
 
-  - there is no constant column unless `1` asks for one: `1 + dose` is a
-    column of ones and `dose`, while `0 + dose` and `dose - 1` are
-    `dose`.
+  - there is no constant column unless `1` asks for one, and `1 + dose`,
+    a column of ones beside `dose`, is refused, while `0 + dose` and
+    `dose - 1` are `dose`.
 
   A basis is either one factor (or character or logical column) or
   numeric columns; the two are not mixed in one forest. The forest does
-  not centre or scale a basis, so a multiplier that should be
+  not center or scale a basis, so a multiplier that should be
   standardized is written so: `basis = scale(age)`.
+
+  **One size.** In this version a basis is one numeric column, or a
+  factor, a character or a logical vector of two levels, counted on the
+  rows the fit keeps once a level they leave empty is dropped. Three or
+  more levels are refused, with the form to write, a forest for each
+  level but the first:
+  `forest(x1, basis = arm == "b") + forest(x1, basis = arm == "c")`.
+  Several numeric columns are refused however they are written,
+  `dose + age`, `poly(dose, 2)`, `splines::ns(dose, 3)`, a matrix, or a
+  factor's indicator columns handed over as numbers, with the form to
+  write, a forest for each column:
+  `forest(x1, basis = dose) + forest(x1, basis = age)`; indicator
+  columns are handed over as the factor itself. `1 + dose` is refused
+  for its constant column: write `basis = dose`. Each is refused drawn
+  or held, at every place a basis is given, and a basis handed over as a
+  value is told the form in words.
 
   **Which kind it is.** The class of the basis decides whether the
   forest multiplies levels or numbers, the same way at every place a
@@ -252,24 +273,26 @@ forest(
 
   Some forms a model formula would take are refused, each by name and
   with what to write instead: `*` between terms (write `I(dose * age)`
-  for the product, or `dose + age + I(dose * age)` for all three
-  columns); a term multiplied or divided by a number (write
+  for the product, or give `dose`, `age` and `I(dose * age)` a forest
+  each for all three); a term multiplied or divided by a number (write
   `I(dose / 30)`); `-` between terms, other than `- 1`; `^`, `/`, `%in%`
   and `|` between terms; `.`; an
   [`offset()`](https://rdrr.io/r/stats/offset.html);
-  [`cbind()`](https://rdrr.io/r/base/cbind.html) (write `+`); and a term
-  that calls one of `normal`, `fixed`, `student`, `cauchy`, `linear`,
-  `gp`, `cgm`, `dart`, `chisq`, `chi`, `invchi`, `forest` or
-  `varianceForest`, since a prior is not stated on a term of a basis.
+  [`cbind()`](https://rdrr.io/r/base/cbind.html) (write its one column
+  alone, or give each column a forest of its own); and a term that calls
+  one of `normal`, `fixed`, `student`, `cauchy`, `linear`, `gp`, `cgm`,
+  `dart`, `chisq`, `chi`, `invchi`, `forest` or `varianceForest`, since
+  a prior is not stated on a term of a basis.
 
   **Names of the columns.** They are named as
-  `coef(lm(y ~ 0 + <basis>))` names them: `dose`, `age`;
-  `poly(dose, 2)1`, `poly(dose, 2)2`; `factor(z)0`, `factor(z)1`;
-  `(Intercept)` for the column of ones. They are the column names of
-  `data@bases[[f]]` on the sampler. A forest's label, where its place in
-  a `forests` list has no name, is the text of its basis,
-  `"dose + age"`, or `forest<i>` for a forest with no basis or with one
-  given as a value; see
+  `coef(lm(y ~ 0 + <basis>))` names them: `dose`; `factor(z)0`,
+  `factor(z)1`; and, for a basis of several columns, which is read and
+  named before it is refused and whose refusal quotes the names, `dose`,
+  `age`, `poly(dose, 2)1`, `poly(dose, 2)2` and `(Intercept)` for the
+  column of ones. They are the column names of `data@bases[[f]]` on the
+  sampler. A forest's label, where its place in a `forests` list has no
+  name, is the text of its basis, `"scale(age)"`, or `forest<i>` for a
+  forest with no basis or with one given as a value; see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   Wherever a method or an `extract` or `predict` takes a `forest`, a
   string is a forest's label (failing an exact match, the label that is
@@ -296,7 +319,7 @@ forest(
   kept; and a numeric column that is zero on all of them.
 
   **New rows.** `predict` builds the basis again from the new rows, as
-  `predict` does for `lm`. Taken from the fitted rows are the centre,
+  `predict` does for `lm`. Taken from the fitted rows are the center,
   scale and knots of [`scale()`](https://rdrr.io/r/base/scale.html),
   [`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` and `bs()`, and
   the levels of a factor. Everything else is computed again on the rows
@@ -314,9 +337,9 @@ forest(
   a forest built ahead of the fit, a name of a column of `data` is that
   column. Every other variable of yours that the code uses is copied
   when `forest()` is called. This is so whether or not a tilde is
-  written in place: `forest(basis = ~ dose + age)` is
-  `forest(basis = dose + age)`. A forest built in a loop therefore keeps
-  what each call was given,
+  written in place: `forest(basis = ~ I(dose + age))` is
+  `forest(basis = I(dose + age))`. A forest built in a loop therefore
+  keeps what each call was given,
 
 
           fs <- list(forest())
@@ -387,17 +410,15 @@ forest(
   [`do.call()`](https://rdrr.io/r/base/do.call.html) or in a call built
   by a program, is used as it is: a numeric vector or matrix is its
   columns, and a factor, a character vector or a logical vector is its
-  levels, as written as code. Its columns keep their names when every
-  column has one, and have none when any column lacks one; two columns
-  of one name are refused. Its forest's label is `forest<i>`. It has one
-  row for every row of `data` and is cut to the rows the fit keeps; a
-  value already cut to those rows is refused by name. A level that no
-  row the fit keeps has gives no column, whether `data`, `subset` or the
-  `na.action` is what empties it. A value that the rows kept leave with
-  one level, or one numeric column that is zero on all of them, is
-  refused as the same basis written as code is. A single string or
-  number is refused: `basis = "dose"` names no column, so write
-  `basis = dose`.
+  levels, as written as code. Its column keeps the name it has. Its
+  forest's label is `forest<i>`. It has one row for every row of `data`
+  and is cut to the rows the fit keeps; a value already cut to those
+  rows is refused by name. A level that no row the fit keeps has gives
+  no column, whether `data`, `subset` or the `na.action` is what empties
+  it. A value that the rows kept leave with one level, or one numeric
+  column that is zero on all of them, is refused as the same basis
+  written as code is. A single string or number is refused:
+  `basis = "dose"` names no column, so write `basis = dose`.
 
   A basis is stated here or on the data object, not both:
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) given
@@ -487,11 +508,7 @@ forest(
   `FALSE`. A value stated here overrides the default, in the response's
   units, at every \\K\\.
 
-  It is one number, positive and finite, and a name on it is dropped.
-  For a basis of several columns that one number is the size stated for
-  each of them, so `forest(basis = dose + age, sd = 2)` states 2 for the
-  column `dose` and 2 for the column `age`; to size two columns
-  differently, rescale one of them in the basis, as `I(dose / 30)`. A
+  It is one number, positive and finite, and a name on it is dropped. A
   vector of any other length and anything that is not a number are
   refused. The one forest of a model of one forest takes it as the
   fitting function's `leaf.prior = normal(sd = )`, in the same units,
@@ -566,16 +583,14 @@ forest(
   of the first level and enters at full size for the second, so it is
   the second level's difference from the first. For now a held forest is
   taken in two shapes only: a forest with no `basis` at any place but
-  the second, and a basis of two columns as the second forest, two
-  numeric columns being held as two levels are, the first at 0, so that
-  column is not used. Every other shape is refused when held: a forest
-  with no `basis` put second in a `forests` list or in a data object's
-  `bases`, a basis of two columns at any other place, and a basis of one
-  column or of three or more. `$setForestBasis` refuses a held forest a
-  replacement of another width. `fixed` alone is taken as `fixed()`, and
-  no other value is. Outside the argument that takes it the constructor
-  is `dbartsPriors$fixed()`. It is stated for a forest of a model of
-  several; a model of one forest has no amplitude to hold.
+  the second, and a basis of two levels as the second forest. Every
+  other shape is refused when held: a forest with no `basis` put second
+  in a `forests` list or in a data object's `bases`, a basis of two
+  levels at any other place, and a basis of one numeric column. `fixed`
+  alone is taken as `fixed()`, and no other value is. Outside the
+  argument that takes it the constructor is `dbartsPriors$fixed()`. It
+  is stated for a forest of a model of several; a model of one forest
+  has no amplitude to hold.
 
 ## Details
 
@@ -618,7 +633,7 @@ forest, as `forest(x1 + x2, sd = 2)`, in the response's units as
 forest's share of the combined location's prior, per unit of basis row
 norm, where `normal(sd = )` states a single forest's whole spread. Every
 value here is validated at fit time, and anything today's engine cannot
-honour is refused there by name rather than dropped.
+honor is refused there by name rather than dropped.
 
 In a [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) formula
@@ -696,7 +711,7 @@ written <- dbarts(y ~ forest(x1 + x2 + x3) +
 colnames(written$data@bases[[2L]])
 #> [1] "factor(z)0" "factor(z)1"
 
-# a standardized multiplier: predict centres and scales the new rows by the
+# a standardized multiplier: predict centers and scales the new rows by the
 # training rows' mean and sd of w
 fit <- bart(y ~ forest(x1 + x3) +
               forest(x1 + x3, basis = scale(w), n.trees = 10L),
@@ -729,7 +744,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000684
+#> total seconds in loop: 0.000683
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 
@@ -761,9 +776,15 @@ looped <- dbarts(y ~ x1 + x3, d, forests = forests,
 vapply(looped$data@bases[-1L], function(basis) basis[1L, 1L], 0) * c(25, 100)
 #> [1] 58.93674 58.93674
 
-# two columns, a coefficient each; I() holds arithmetic
-twoColumns <- dbarts(y ~ forest(x1 + x3) + forest(x1, basis = z + I(w / 50)),
-                     d, control = dbartsControl(n.chains = 1L, n.trees = 10L))
-colnames(twoColumns$data@bases[[2L]])
-#> [1] "z"       "I(w/50)"
+# two columns are a forest each, with a coefficient each; I() holds arithmetic
+perColumn <- dbarts(y ~ forest(x1 + x3) + forest(x1, basis = z) +
+                      forest(x1, basis = I(w / 50)),
+                    d, control = dbartsControl(n.chains = 1L, n.trees = 10L))
+lapply(perColumn$data@bases[-1L], colnames)
+#> [[1]]
+#> [1] "z"
+#> 
+#> [[2]]
+#> [1] "I(w/50)"
+#> 
 ```

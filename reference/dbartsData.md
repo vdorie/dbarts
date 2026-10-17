@@ -48,11 +48,15 @@ dbartsData(
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
   `basis` takes as a value, and its class decides what the forest
   multiplies: a factor, a character vector or a logical vector is
-  levels, one amplitude per level, and a number or a numeric matrix is
-  numbers, one amplitude per column, a vector of 0s and 1s being one
-  column and not two levels (write `factor(z)` for those). A matrix of
-  logicals or of characters, a factor that has dimensions, a data frame
-  and a column of all zeros are refused. It has one row per observation,
+  levels, one amplitude per level, and a number or a numeric matrix of
+  one column is numbers, one amplitude, a vector of 0s and 1s being one
+  column and not two levels (write `factor(z)` for those). Each is one
+  numeric column or two levels: three or more levels and several numeric
+  columns, a factor's indicator columns among them, are refused, with
+  the form to write (hand over the factor itself, or give each level but
+  the first, or each column, a forest of its own). A matrix of logicals
+  or of characters, a factor that has dimensions, a data frame and a
+  column of all zeros are refused. It has one row per observation,
   restricted by `subset` exactly as `weights` is: `data` and `subset`
   are each evaluated once, and each basis is given the rows the data
   object keeps, in their order, less those the `na.action` drops. It is
@@ -97,7 +101,7 @@ dbartsData(
   per-category values BEFORE the softmax - which is the only place a
   shift means anything under one, since the blend is invariant to a
   common per-observation shift and a flat shift would be added after it.
-  Only the row-centred part is identified: adding a constant to a whole
+  Only the row-centered part is identified: adding a constant to a whole
   row leaves every reported probability unchanged.
 
 ## Details

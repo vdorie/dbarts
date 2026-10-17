@@ -126,7 +126,7 @@ dbarts(
   rather than a precision, so they install as the sampler's active-row
   mask, where a 0 row leaves the likelihood but keeps its leaf
   occupancy, its latent and its fitted value. For `"nbinom"` the leaf
-  prior's centre, the log of the total count over the total exposure, is
+  prior's center, the log of the total count over the total exposure, is
   taken over the rows of weight 1, as a gaussian or Student-t fit's
   response transform is taken over the rows of positive weight (an
   `"aft"` fit takes no weights, so every row is in when it is created).
@@ -370,21 +370,24 @@ dbarts(
   restriction and `interactions`/`blocks` constraints; a forest given a
   `basis` enters the mean multiplied by the amplitudes on that basis's
   columns. Any number of forests may be declared, each carrying a basis
-  of any width; the two-forest case with a two-level factor basis is the
-  Bayesian causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\: a
-  prognostic forest \\\mu\\ over every predictor and a modulating forest
-  \\\tau\\ over the columns its `vars` allows. At most one forest has no
-  `basis`, at any place in the list, the amplitudes multiplying a basis
-  being what distinguish the others from it. A forest's default tree
-  count and tree prior go by whether it has a `basis`: the forest with
-  none takes the control's `n.trees` and this function's `tree.prior`,
-  and a forest with one takes 50 trees under `cgm(3, 0.25)`, wherever
-  each stands. Where every forest has a `basis`, a control that names
-  `n.trees` and a named `tree.prior`, `leaf.prior`, `interactions` or
-  `blocks` have no forest to belong to and are refused, the default's
-  own value included; state them on a forest. A single declared forest
-  carrying a basis is refused: for varying coefficients declare an
-  intercept forest plus one basis forest per covariate,
+  of one numeric column or of two levels (see
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  `basis` item); the two-forest case with a two-level factor basis is
+  the Bayesian causal forest \\y = a \mu(x) + b_z \tau(x) + \epsilon\\:
+  a prognostic forest \\\mu\\ over every predictor and a modulating
+  forest \\\tau\\ over the columns its `vars` allows. At most one forest
+  has no `basis`, at any place in the list, the amplitudes multiplying a
+  basis being what distinguish the others from it. A forest's default
+  tree count and tree prior go by whether it has a `basis`: the forest
+  with none takes the control's `n.trees` and this function's
+  `tree.prior`, and a forest with one takes 50 trees under
+  `cgm(3, 0.25)`, wherever each stands. Where every forest has a
+  `basis`, a control that names `n.trees` and a named `tree.prior`,
+  `leaf.prior`, `interactions` or `blocks` have no forest to belong to
+  and are refused, the default's own value included; state them on a
+  forest. A single declared forest carrying a basis is refused: for
+  varying coefficients declare an intercept forest plus one basis forest
+  per covariate,
   `forests = list(forest(), forest(basis = z1), forest(basis = z2))`, or
   use one forest with `linear()` leaves. A `basis` is written as the
   right-hand side of a model formula, without the tilde, and read as
@@ -434,7 +437,7 @@ dbarts(
   hyperprior or non-default `k`, Student-t residuals,
   `storage = "single"`, per-column cut counts, and a `test` set - are
   refused at creation rather than ignored, as is any declaration the
-  engine cannot honour. The constructors `forest`, `interactions` and
+  engine cannot honor. The constructors `forest`, `interactions` and
   `blocks` resolve by bare name inside this argument, whatever the
   caller has attached, and a bare name the caller has bound to a value
   is that value; see
@@ -639,7 +642,7 @@ dbarts(
   response is an error. A `Surv`-like object carrying no `type`
   attribute is treated as right-censored; `type`s other than `"right"`
   are rejected. The response may also be a `Surv` left-hand side on
-  `formula` (e.g. `Surv(time, status) ~ .`); both interfaces honour
+  `formula` (e.g. `Surv(time, status) ~ .`); both interfaces honor
   `subset`. Case weights are not supported. See `weights` for how the
   families differ in their support for weights.
 
@@ -737,7 +740,7 @@ dbarts(
   replicate and follow the chosen binary family's policy. A `Surv`
   response requires the family to be requested explicitly (`"auto"`
   selects `"aft"`), on either interface - a `Surv` left-hand side on
-  `formula` works too, and both interfaces honour `subset` (applied
+  `formula` works too, and both interfaces honor `subset` (applied
   before the person-period expansion). Survival curves come from
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
   which requires `keepTrees` unless reading a stored `test` set (below);

@@ -799,55 +799,47 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   the sampler was created with and one amplitude per column. It is a
   value, or a one-sided formula, which is read as the `basis` of a
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) is,
-  `~ a + b` being two columns, its names found where the formula was
-  written. It must be of the class the forest was created with, which
-  decides what the forest multiplies and never changes. A forest of
-  levels, created with a factor, a character vector or a logical vector,
-  takes one of those three, matched to the forest's levels by name and
-  not by position: the replacement may list its levels in another order
-  or leave one out, a level of the forest that no row has is a column of
-  zeros, and a row at a level the forest does not have, or at `NA`, is
-  refused. Coefficient \\j\\ multiplies level \\j\\'s rows after any
-  swap, whatever the replacement declares. Numbers are refused for such
-  a forest, the level indicators the sampler stores among them: to hand
-  a basis back, hand back the factor. A forest of numbers takes a
-  numeric vector or matrix, a column of zeros among them, and refuses a
-  factor, a character vector and a logical vector;
-  [`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a logical
-  vector is its 0/1 column. A forest created with no basis takes none.
-  The sampler keeps the forest's block, one column for each level of a
-  factor with no reference level dropped, in `data@bases[[f]]`, and its
-  levels in `data@basis.levels[[f]]`, `f` the forest's position (neither
-  list has names, so a label does not index them), and not the factor it
-  was handed: a caller that will hand a basis back, to restore a
-  proposal it rejected, keeps the factor it handed over. A forest whose
-  amplitudes are held (`amplitude = fixed()`) keeps the width it was
-  created with, and a replacement of another width is refused; a forest
-  of levels never changes width, and a forest of numbers that is drawn
-  may. Columns are taken by position: the names the basis was created
-  with stay, whatever names the replacement has, and a replacement that
-  has those names in another order is refused, since it would put each
-  column under the other's name. A replacement of another width brings
-  its own names. The forest's label does not change. Unlike creation, a
-  swap may leave a level of the forest with no row, and a numeric basis
-  may hold a column of all zeros, the amplitude moving under its prior
-  alone until a row takes it again, so a swap inside a larger sampler
-  can leave a level or an arm momentarily unobserved; creation drops a
-  level no row has and refuses a column of zeros. `setForestBasis` is
-  the *sole* route by which a basis changes after creation, and it
-  applies only to a sampler whose forests carry amplitudes, built with
-  `forests = ` (see
+  its names found where the formula was written. It must be of the class
+  the forest was created with, which decides what the forest multiplies
+  and never changes. A forest of levels, created with a factor, a
+  character vector or a logical vector, takes one of those three,
+  matched to the forest's levels by name and not by position: the
+  replacement may list its levels in another order or leave one out, a
+  level of the forest that no row has is a column of zeros, and a row at
+  a level the forest does not have, or at `NA`, is refused. Coefficient
+  \\j\\ multiplies level \\j\\'s rows after any swap, whatever the
+  replacement declares. Numbers are refused for such a forest, the level
+  indicators the sampler stores among them: to hand a basis back, hand
+  back the factor. A forest of numbers takes one numeric column, a
+  vector or a matrix of one column, a column of zeros among them, and
+  refuses several columns, a factor, a character vector and a logical
+  vector; [`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a
+  logical vector is its 0/1 column. A forest created with no basis takes
+  none. The sampler keeps the forest's block, one column for each level
+  of a factor with no reference level dropped, in `data@bases[[f]]`, and
+  its levels in `data@basis.levels[[f]]`, `f` the forest's position
+  (neither list has names, so a label does not index them), and not the
+  factor it was handed: a caller that will hand a basis back, to restore
+  a proposal it rejected, keeps the factor it handed over. No forest
+  changes width, held or drawn, so the names its columns were created
+  with stay, whatever names the replacement has. The forest's label does
+  not change. Unlike creation, a swap may leave a level of the forest
+  with no row, and a numeric basis may hold a column of all zeros, the
+  amplitude moving under its prior alone until a row takes it again, so
+  a swap inside a larger sampler can leave a level or an arm momentarily
+  unobserved; creation drops a level no row has and refuses a column of
+  zeros. `setForestBasis` is the *sole* route by which a basis changes
+  after creation, and it applies only to a sampler whose forests carry
+  amplitudes, built with `forests = ` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
-  amplitudes are preserved and remapped: a width-preserving install
-  leaves every one of them bitwise, and a width change carries each
-  forest's block to its new offset and enters the added coordinates at
-  `1`. A basis that is not one of the canonical shapes (a dense all-ones
+  amplitudes are preserved: an install leaves every one of them bitwise.
+  A basis that is not one of the canonical shapes (a dense all-ones
   column, or a complementary 0/1 pair) moves that forest onto the
   general amplitude conditional, which is a model fact and not
   revertible by a later data swap. The matrix is written to both the
   engine and `data@bases`, so `getPointer`'s transparent re-creation
   after save/load carries the current assignment rather than the one the
-  sampler was created with; because the bases ride creation, a widening
+  sampler was created with; because the bases ride creation, a swap
   applied after a state restore preserves the *restored* amplitudes. A
   state carries no levels, so one installed from a sampler whose factor
   has the same levels in another order goes in by position, coefficient
@@ -1306,7 +1298,7 @@ that does not carry the offset.
 Where the boundary runs. These are the methods of the mutable sampler,
 and their audience is a model writer composing BART into a larger
 scheme: they return engine primitives on the engine's own terms. The R
-modelling conventions -
+modeling conventions -
 [`fitted`](https://rdrr.io/r/stats/fitted.values.html),
 [`predict`](https://rdrr.io/r/stats/predict.html),
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md) - apply

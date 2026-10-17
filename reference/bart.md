@@ -293,7 +293,7 @@ print(x, ...)
   the data set and install as the fit's active-row mask, a 0 row leaving
   the likelihood but keeping its leaf occupancy, its latent and its
   fitted value (the same holds for `family = "ordinal"` and `"nbinom"`;
-  for `"nbinom"` the leaf prior's centre, the log of the total count
+  for `"nbinom"` the leaf prior's center, the log of the total count
   over the total exposure, is taken over the rows of weight 1, and a 0
   row takes no part in it); a `family = "logistic"` fit treats them as
   observation counts and requires positive integers no larger than
@@ -686,7 +686,7 @@ print(x, ...)
   no event. A `Surv` response requires the family to be requested
   explicitly (`family = "auto"` selects `"aft"`), on either interface -
   a `Surv` left-hand side on `formula` works too, and both interfaces
-  honour `subset` (applied before the person-period expansion). Both
+  honor `subset` (applied before the person-period expansion). Both
   interfaces accept a `test` set, person-period-expanded on the SAME
   period grid as training (no event time - every subject expands to
   every period);
@@ -1383,7 +1383,7 @@ given together with `forests =` is refused by name):
 
     y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)          # numeric z: one coefficient
     y ~ forest(x1 + x2) + forest(x1, basis = factor(z))       # factor z: one coefficient per level
-    y ~ forest(x1 + x2) + forest(x1 + x2, basis = a + b)      # two columns, a coefficient each, one forest
+    y ~ forest(x1 + x2) + forest(x1, basis = a) + forest(x1, basis = b)   # two columns: a forest each
 
 A forest's multiplier is its `basis` argument. Every argument of a term
 but the first is the same argument of a
@@ -1455,15 +1455,17 @@ item).
 
 A forest's `basis` is what the forest is multiplied by, written as the
 right-hand side of a model formula without the tilde and meaning what it
-means in [`lm`](https://rdrr.io/r/stats/lm.html): `+` separates columns,
-each with a coefficient of its own; arithmetic is written inside
+means in [`lm`](https://rdrr.io/r/stats/lm.html), and is one numeric
+column or two levels: arithmetic is written inside
 [`I()`](https://rdrr.io/r/base/AsIs.html), so `I(a + b)` is one column,
-the sum; `factor(z)`, a character column and a logical column give one
-column for each level; `scale(w)` and `poly(w, 2)` are terms as in `lm`.
-Its names are found in `data` and then where the formula was written. It
-has a value for every row of `data` and is cut by `subset` and the
-`na.action` with the predictors,
-[`scale()`](https://rdrr.io/r/base/scale.html) taking its centre from
+the sum; `factor(z)`, a character column and a logical column of two
+levels give one column for each level; `scale(w)` and `poly(w, 1)` are
+terms as in `lm`. Several columns, `a + b` or `poly(w, 2)`, and three or
+more levels are refused, with the form to write: a forest for each
+column, or for each level but the first. Its names are found in `data`
+and then where the formula was written. It has a value for every row of
+`data` and is cut by `subset` and the `na.action` with the predictors,
+[`scale()`](https://rdrr.io/r/base/scale.html) taking its center from
 every row as in `lm`. The same basis given through
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
 `forests =` is the same columns on the same rows.
@@ -1507,16 +1509,15 @@ and say so. See ‘Value’ below, and
 `predict` builds a basis again at the new rows as `predict` does for
 `lm`: a call to [`scale()`](https://rdrr.io/r/base/scale.html),
 [`poly()`](https://rdrr.io/r/stats/poly.html), `ns()` or `bs()` is
-centred, scaled or spanned by what it computed on the fitted rows, which
-are every row of `data` whatever `subset` keeps. Arithmetic inside
+centered, scaled or spanned by what it computed on the fitted rows,
+which are every row of `data` whatever `subset` keeps. Arithmetic inside
 [`I()`](https://rdrr.io/r/base/AsIs.html), such as `I(w - mean(w))`, is
 evaluated on the rows given to `predict`, as `lm` evaluates it, and is
 not refused; see
 [`SafePrediction`](https://rdrr.io/r/stats/makepredictcall.html). So
 `forest(x1 + x2, basis = scale(w))` standardizes a multiplier by the
-fitted rows' mean and sd, and `basis = scale(w) + scale(v)` is two
-standardized columns. A factor level the fit did not have is refused at
-`predict`.
+fitted rows' mean and sd. A factor level the fit did not have is refused
+at `predict`.
 
 ## Reproducibility
 
@@ -1916,7 +1917,7 @@ the free thresholds \\\gamma_2, \ldots, \gamma\_{K-1}\\ (\\\gamma_1 =
 0\\ is pinned and carries no information; at K = 2 there is none, and
 the plot degrades to one full-device panel) alongside the
 per-observation latent interval, observations ordered by median
-\\\eta\\, coloured by observed level, with dashed reference lines at the
+\\\eta\\, colored by observed level, with dashed reference lines at the
 posterior-median thresholds. `plotTree` and
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 are refused by name. `extract(object, type = "thresholds")` returns the
@@ -2036,7 +2037,7 @@ the route to the trees. `extract(object, type = "sigma")` returns
 `$positive`'s sigma draws, the only sigma the composition carries;
 `extract(object, type = "k")` and `type = "varcount"` each return a
 list, named `zero`/`positive`, of that component's own draws - each list
-holds both components, a component's draws where its `k` is modelled and
+holds both components, a component's draws where its `k` is modeled and
 one number where it is fixed; `type = "leaf.prior.sd"` is the same list
 of each component's own spread (see `bart`'s `k` item).
 `summary(object)` reports both components - `$zero`'s and `$positive`'s
@@ -2119,7 +2120,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001768
+#> total seconds in loop: 0.001785
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2131,14 +2132,15 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> 
 
 ## forest() formula terms: a prognostic forest, and a second forest whose
-## amplitude is modulated by a binary z - the Bayesian causal forest shape,
-## written in the formula rather than through dbarts()'s forests =
+## amplitude is modulated by a treatment of two levels, factor(z) - the
+## Bayesian causal forest shape, written in the formula rather than through
+## dbarts()'s forests =
 set.seed(1)
 n <- 60L
 x1 <- runif(n); x2 <- runif(n)
 z  <- rbinom(n, 1L, 0.5)
 y  <- x1 + z * (1 + x2) + rnorm(n, 0, 0.2)
-fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
+fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
 #> estimating the starting sigma by a dense linear regression on 60 rows and 2 columns; see 'sigest'
@@ -2168,13 +2170,13 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002080
+#> total seconds in loop: 0.002164
 #> 
 #> Tree sizes, last iteration:
-#> [1] 2 2 4 2 3 2 2 2 2 3 
+#> [1] 3 2 2 2 3 1 2 2 3 4 
 #> 
 #> Variable Usage, last iteration (var:count):
-#> (1: 7) (2: 7) 
+#> (1: 5) (2: 9) 
 #> DONE BART
 #> 
 fit.bcf$n.forests

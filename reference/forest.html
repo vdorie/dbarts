@@ -187,48 +187,67 @@ The constructor is not exported: it resolves by bare name inside the
   <dt id="arg-basis">basis<a class="anchor" aria-label="anchor" href="#arg-basis"></a></dt>
 <dd><p>What the forest is multiplied by. In short:</p><ul><li><p>A name of a column of <code>data</code> is that column:
         <code>basis = dose</code>.</p></li>
-<li><p><code>+</code> separates columns, each with a coefficient of its own:
-        <code>dose + age</code>. <code>I(dose + age)</code> is one column, their sum.</p></li>
-<li><p>A factor, a character column or a logical column is one column
-        for each of its levels. A number is one column, whatever its values:
-        <code>basis = z</code> for a <code>z</code> of 0s and 1s is one coefficient, and
+<li><p>A basis is one numeric column, or a factor, a character column or
+        a logical column of two levels, with a coefficient for each level. A
+        number is one column, whatever its values: <code>basis = z</code> for a
+        <code>z</code> of 0s and 1s is one coefficient, and
         <code>basis = factor(z)</code> is the two levels.</p></li>
+<li><p><code>I(dose + age)</code> is one column, their sum. Several columns,
+        <code>dose + age</code>, and three or more levels are refused: give each
+        column, or each level but the first, a forest of its own.</p></li>
 <li><p>Anything that is not a column of <code>data</code> is read where
         <code>forest()</code> is called, at that moment, with or without a tilde
         written in place: <code>forest(basis = w)</code>, <code>forest(basis = ~ w)</code>.</p></li>
 <li><p>A formula held in a variable, <code>b &lt;- ~ w</code> and then
         <code>forest(basis = b)</code>, is read the same way, when <code>forest()</code>
         is called, and is left as you made it.</p></li>
-<li><p><code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind()</a></code> is refused: write the columns with <code>+</code>.</p></li>
+<li><p><code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind()</a></code> is refused: write its one column alone, or give
+        each column a forest of its own.</p></li>
 </ul><p>The rest of this item is the detail of each.</p>
 <p><strong>What it does.</strong> With a basis of columns
     \(B_1, \ldots, B_K\) the forest \(f\) enters the fit
     as \((\sum_k a_k B_k(x_i)) f(x_i)\), each
     column with a coefficient \(a_k\) of its own, called its
-    amplitude. A forest with no basis is multiplied by a single coefficient.
+    amplitude: \(K = 1\) for a numeric column, and the two columns
+    of a factor's levels, \(K = 2\). A forest with no basis is
+    multiplied by a single coefficient.
     A model has one forest with no basis, or none; every other forest states
     one, and a model whose only forest has a basis is refused.</p>
 <p><strong>Writing it.</strong> A basis is the right-hand side of a model formula,
     without the tilde, and means what it means in <code><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></code>:</p><ul><li><p>a name is a column: <code>basis = dose</code>;</p></li>
-<li><p><code>+</code> separates columns: <code>dose + age</code> is two columns;</p></li>
+<li><p><code>+</code> separates columns: <code>dose + age</code> is two columns,
+        which this version refuses (below);</p></li>
 <li><p>arithmetic is written inside <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code>: <code>I(dose + age)</code> is
         one column, the sum, and <code>I(dose / 30)</code> is <code>dose</code>
         rescaled;</p></li>
 <li><p>a function of columns is a term, as in <code>lm</code>:
-        <code>log(dose)</code>, <code>scale(age)</code>, and <code>poly(dose, 2)</code>,
-        which is two columns;</p></li>
-<li><p>a factor, a character column or a logical column gives one column
-        for each of its levels, none left out: <code>factor(z)</code> for a
+        <code>log(dose)</code>, <code>scale(age)</code> and <code>poly(dose, 1)</code>;</p></li>
+<li><p>a factor, a character column or a logical column of two levels
+        gives one column for each, none left out: <code>factor(z)</code> for a
         <code>z</code> of 0 and 1 is the two columns whose coefficients are
         \((b_0, b_1)\), in the order of the levels;</p></li>
 <li><p><code>dose:age</code> is one column, the product;</p></li>
-<li><p>there is no constant column unless <code>1</code> asks for one:
-        <code>1 + dose</code> is a column of ones and <code>dose</code>, while
-        <code>0 + dose</code> and <code>dose - 1</code> are <code>dose</code>.</p></li>
+<li><p>there is no constant column unless <code>1</code> asks for one, and
+        <code>1 + dose</code>, a column of ones beside <code>dose</code>, is refused,
+        while <code>0 + dose</code> and <code>dose - 1</code> are <code>dose</code>.</p></li>
 </ul><p>A basis is either one factor (or character or logical column) or numeric
-    columns; the two are not mixed in one forest. The forest does not centre
+    columns; the two are not mixed in one forest. The forest does not center
     or scale a basis, so a multiplier that should be standardized is written
     so: <code>basis = scale(age)</code>.</p>
+<p><strong>One size.</strong> In this version a basis is one numeric column, or a
+    factor, a character or a logical vector of two levels, counted on the
+    rows the fit keeps once a level they leave empty is dropped. Three or more
+    levels are refused, with the form to write, a forest for each level but
+    the first: <code>forest(x1, basis = arm == "b") + forest(x1, basis = arm
+    == "c")</code>. Several numeric columns are refused however they are written,
+    <code>dose + age</code>, <code>poly(dose, 2)</code>, <code>splines::ns(dose, 3)</code>, a
+    matrix, or a factor's indicator columns handed over as numbers, with the
+    form to write, a forest for each column:
+    <code>forest(x1, basis = dose) + forest(x1, basis = age)</code>; indicator
+    columns are handed over as the factor itself. <code>1 + dose</code> is refused
+    for its constant column: write <code>basis = dose</code>. Each is refused drawn
+    or held, at every place a basis is given, and a basis handed over as a
+    value is told the form in words.</p>
 <p><strong>Which kind it is.</strong> The class of the basis decides whether the
     forest multiplies levels or numbers, the same way at every place a basis
     is given: <code>forest()</code> written as code or with a value,
@@ -272,22 +291,25 @@ The constructor is not exported: it resolves by bare name inside the
     <code>NA</code> level is dropped like any other level no row has.</p>
 <p>Some forms a model formula would take are refused, each by name and with
     what to write instead: <code>*</code> between terms (write <code>I(dose * age)</code>
-    for the product, or <code>dose + age + I(dose * age)</code> for all three
-    columns); a term multiplied or divided by a number (write
+    for the product, or give <code>dose</code>, <code>age</code> and
+    <code>I(dose * age)</code> a forest each for all three); a term multiplied or divided by a number (write
     <code>I(dose / 30)</code>); <code>-</code> between terms, other than <code>- 1</code>;
     <code>^</code>, <code>/</code>, <code>%in%</code> and <code>|</code> between terms; <code>.</code>;
-    an <code><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset()</a></code>; <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind()</a></code> (write <code>+</code>); and a term that
+    an <code><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset()</a></code>; <code><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind()</a></code> (write its one column alone, or give
+    each column a forest of its own); and a term that
     calls one of <code>normal</code>, <code>fixed</code>, <code>student</code>, <code>cauchy</code>,
     <code>linear</code>, <code>gp</code>, <code>cgm</code>, <code>dart</code>, <code>chisq</code>,
     <code>chi</code>, <code>invchi</code>, <code>forest</code> or <code>varianceForest</code>, since
     a prior is not stated on a term of a basis.</p>
 <p><strong>Names of the columns.</strong> They are named as
-    <code>coef(lm(y ~ 0 + &lt;basis&gt;))</code> names them: <code>dose</code>, <code>age</code>;
-    <code>poly(dose, 2)1</code>, <code>poly(dose, 2)2</code>; <code>factor(z)0</code>,
-    <code>factor(z)1</code>; <code>(Intercept)</code> for the column of ones. They are the
-    column names of <code>data@bases[[f]]</code> on the sampler. A forest's label,
+    <code>coef(lm(y ~ 0 + &lt;basis&gt;))</code> names them: <code>dose</code>;
+    <code>factor(z)0</code>, <code>factor(z)1</code>; and, for a basis of several
+    columns, which is read and named before it is refused and whose refusal
+    quotes the names, <code>dose</code>, <code>age</code>, <code>poly(dose, 2)1</code>,
+    <code>poly(dose, 2)2</code> and <code>(Intercept)</code> for the column of ones. They
+    are the column names of <code>data@bases[[f]]</code> on the sampler. A forest's label,
     where its place in a <code>forests</code> list has no name, is the text of its
-    basis, <code>"dose + age"</code>, or <code>forest&lt;i&gt;</code> for a forest with no basis
+    basis, <code>"scale(age)"</code>, or <code>forest&lt;i&gt;</code> for a forest with no basis
     or with one given as a value; see <code><a href="dbarts.html">dbarts</a></code>. Wherever a method
     or an <code>extract</code> or <code>predict</code> takes a <code>forest</code>, a string is
     a forest's label (failing an exact match, the label that is the same code,
@@ -312,7 +334,7 @@ The constructor is not exported: it resolves by bare name inside the
     on all of them.</p>
 <p><strong>New rows.</strong> <code>predict</code> builds the basis again from the new
     rows, as <code>predict</code> does for <code>lm</code>. Taken from the fitted rows
-    are the centre, scale and knots of <code><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale()</a></code>, <code><a href="https://rdrr.io/r/stats/poly.html" class="external-link">poly()</a></code>,
+    are the center, scale and knots of <code><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale()</a></code>, <code><a href="https://rdrr.io/r/stats/poly.html" class="external-link">poly()</a></code>,
     <code>ns()</code> and <code>bs()</code>, and the levels of a factor. Everything else
     is computed again on the rows given: <code>I(age - mean(age))</code> uses the
     mean of the new rows, and <code>factor(dose &gt; median(dose))</code> their
@@ -327,8 +349,8 @@ The constructor is not exported: it resolves by bare name inside the
     or for a forest built ahead of the fit, a name of a column of <code>data</code>
     is that column. Every other variable of yours that the code uses is
     copied when <code>forest()</code> is called. This is so whether or not a tilde
-    is written in place: <code>forest(basis = ~ dose + age)</code> is
-    <code>forest(basis = dose + age)</code>. A forest built in a loop therefore
+    is written in place: <code>forest(basis = ~ I(dose + age))</code> is
+    <code>forest(basis = I(dose + age))</code>. A forest built in a loop therefore
     keeps what each call was given,</p><div class="sourceCode"><pre><code><span></span>
 <span>    <span class="va">fs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="../reference/forest.html">forest</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span>    <span class="kw">for</span> <span class="op">(</span><span class="va">k</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">10</span>, <span class="fl">30</span><span class="op">)</span><span class="op">)</span></span>
@@ -383,9 +405,8 @@ The constructor is not exported: it resolves by bare name inside the
 <p><strong>A value.</strong> What is handed over as an object, through
     <code><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call()</a></code> or in a call built by a program, is used as it is: a
     numeric vector or matrix is its columns, and a factor, a character vector
-    or a logical vector is its levels, as written as code. Its columns keep their names when every
-    column has one, and have none when any column lacks one; two columns of
-    one name are refused. Its forest's label is <code>forest&lt;i&gt;</code>. It has one
+    or a logical vector is its levels, as written as code. Its column keeps
+    the name it has. Its forest's label is <code>forest&lt;i&gt;</code>. It has one
     row for every row of <code>data</code> and is cut to the rows the fit keeps; a
     value already cut to those rows is refused by name. A level that no row
     the fit keeps has gives no column, whether <code>data</code>, <code>subset</code> or
@@ -471,11 +492,7 @@ The constructor is not exported: it resolves by bare name inside the
     reports the number of the response's units it comes to, and
     <code>$getLeafPrior(f)$sd.stated</code> is <code>FALSE</code>. A value stated here
     overrides the default, in the response's units, at every \(K\).</p>
-<p>It is one number, positive and finite, and a name on it is dropped. For a
-    basis of several columns that one number is the size stated for each of
-    them, so <code>forest(basis = dose + age, sd = 2)</code> states 2 for the column
-    <code>dose</code> and 2 for the column <code>age</code>; to size two columns
-    differently, rescale one of them in the basis, as <code>I(dose / 30)</code>. A
+<p>It is one number, positive and finite, and a name on it is dropped. A
     vector of any other length and anything that is not a number are refused.
     The one forest of a model of one forest takes it as the fitting function's
     <code>leaf.prior = normal(sd = )</code>, in the same units, and stating the size
@@ -541,13 +558,11 @@ The constructor is not exported: it resolves by bare name inside the
     the first level and enters at full size for the second, so it is the
     second level's difference from the first. For now a held forest is taken
     in two shapes only: a forest with no <code>basis</code> at any place but the
-    second, and a basis of two columns as the second forest, two numeric
-    columns being held as two levels are, the first at 0, so that column is
-    not used. Every other shape is refused when held: a forest with no
-    <code>basis</code> put second in a <code>forests</code> list or in a data object's
-    <code>bases</code>, a basis of two columns at any other place, and a basis of
-    one column or of three or more. <code>$setForestBasis</code> refuses a held
-    forest a replacement of another width. <code>fixed</code> alone is taken as
+    second, and a basis of two levels as the second forest. Every other shape
+    is refused when held: a forest with no <code>basis</code> put second in a
+    <code>forests</code> list or in a data object's <code>bases</code>, a basis of two
+    levels at any other place, and a basis of one numeric column.
+    <code>fixed</code> alone is taken as
     <code>fixed()</code>, and no other value is. Outside the argument that takes it
     the constructor is <code>dbartsPriors$fixed()</code>. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.</p></dd>
@@ -593,7 +608,7 @@ The constructor is not exported: it resolves by bare name inside the
   states one forest's share of the combined location's prior, per unit of
   basis row norm, where <code>normal(sd = )</code> states a single forest's whole
   spread. Every value here is validated at fit time, and
-  anything today's engine cannot honour is refused there by name rather than
+  anything today's engine cannot honor is refused there by name rather than
   dropped.</p>
 <p>In a <code><a href="bart.html">bart</a></code> or <code><a href="dbarts.html">dbarts</a></code> formula each
   <code>forest()</code> term is one forest of the model, without a separate
@@ -667,7 +682,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">written</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[[</span><span class="fl">2L</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "factor(z)0" "factor(z)1"</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># a standardized multiplier: predict centres and scales the new rows by the</span></span></span>
+<span class="r-in"><span><span class="co"># a standardized multiplier: predict centers and scales the new rows by the</span></span></span>
 <span class="r-in"><span><span class="co"># training rows' mean and sd of w</span></span></span>
 <span class="r-in"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="bart.html">bart</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span><span class="op">)</span> <span class="op">+</span></span></span>
 <span class="r-in"><span>              <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span>, basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/scale.html" class="external-link">scale</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span>,</span></span>
@@ -700,7 +715,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000684</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000683</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 3 2 2 3 3 2 2 </span>
@@ -732,11 +747,17 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">vapply</a></span><span class="op">(</span><span class="va">looped</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[</span><span class="op">-</span><span class="fl">1L</span><span class="op">]</span>, <span class="kw">function</span><span class="op">(</span><span class="va">basis</span><span class="op">)</span> <span class="va">basis</span><span class="op">[</span><span class="fl">1L</span>, <span class="fl">1L</span><span class="op">]</span>, <span class="fl">0</span><span class="op">)</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">25</span>, <span class="fl">100</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 58.93674 58.93674</span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span><span class="co"># two columns, a coefficient each; I() holds arithmetic</span></span></span>
-<span class="r-in"><span><span class="va">twoColumns</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span><span class="op">)</span> <span class="op">+</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span>, basis <span class="op">=</span> <span class="va">z</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I</a></span><span class="op">(</span><span class="va">w</span> <span class="op">/</span> <span class="fl">50</span><span class="op">)</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>                     <span class="va">d</span>, control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span><span class="op">)</span></span></span>
-<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/colnames.html" class="external-link">colnames</a></span><span class="op">(</span><span class="va">twoColumns</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[[</span><span class="fl">2L</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "z"       "I(w/50)"</span>
+<span class="r-in"><span><span class="co"># two columns are a forest each, with a coefficient each; I() holds arithmetic</span></span></span>
+<span class="r-in"><span><span class="va">perColumn</span> <span class="op">&lt;-</span> <span class="fu"><a href="dbarts.html">dbarts</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span> <span class="op">+</span> <span class="va">x3</span><span class="op">)</span> <span class="op">+</span> <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span>, basis <span class="op">=</span> <span class="va">z</span><span class="op">)</span> <span class="op">+</span></span></span>
+<span class="r-in"><span>                      <span class="fu">forest</span><span class="op">(</span><span class="va">x1</span>, basis <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I</a></span><span class="op">(</span><span class="va">w</span> <span class="op">/</span> <span class="fl">50</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>                    <span class="va">d</span>, control <span class="op">=</span> <span class="fu"><a href="dbartsControl.html">dbartsControl</a></span><span class="op">(</span>n.chains <span class="op">=</span> <span class="fl">1L</span>, n.trees <span class="op">=</span> <span class="fl">10L</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">perColumn</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[</span><span class="op">-</span><span class="fl">1L</span><span class="op">]</span>, <span class="va">colnames</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[1]]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "z"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [[2]]</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "I(w/50)"</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
