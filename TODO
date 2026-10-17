@@ -263,16 +263,18 @@ items
     them, and are never installed by a state. Landed: setState's
     return value (docs/plans/restore-status.md), a set cut grid
     that can be put back (docs/plans/cut-points-undo.md) and the leaf
-    conversions (docs/plans/leaf-conversions.md). Not yet planned: the
-    three
-    records on dbartsData; creation and setData using a carried
-    record (setData's updateCutPoints, updateScale and
+    conversions (docs/plans/leaf-conversions.md). Designed and
+    planned, not built (docs/design/state-frame-prior.md,
+    docs/plans/state-frame-prior.md; seven calls open with the
+    maintainer): the records on dbartsData, the forest calibration
+    anchor beside the range (dec-A159); creation and setData using a
+    carried record (setData's updateCutPoints, updateScale and
     updateStandardization; setPredictor's updateStandardization); a
     state install that compares the stored values and converts
     slopes instead of installing them (splits already move by value); the manual's
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
-    draw. The design is not in docs/design yet. The grid half of the
+    draw. Three engine slices, before response-scale-rows slice D. The grid half of the
     state install is landed (docs/plans/state-grid-install.md): a live
     setState writes neither the cut points nor their weights, a change
     from 0.9-34, whose state carried the grid and whose restore
