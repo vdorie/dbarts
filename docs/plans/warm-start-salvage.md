@@ -116,8 +116,9 @@ Code as it stood before slice A:
   recorded grid goes in with re-quantized codes, the install step it is handed builds and partitions the
   trees there, the store's grid is put back, and
   [`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp) moves the splits by value with the rows each
-  leaf held, and resets a monotone tree the move leaves out of order. It does not put the grid back when
-  its install step throws. [`Chain::liveThresholdsAreOnGrid`](../../src/bartcore/chain.hpp) reads whether a
+  leaf held, and resets a monotone tree the move leaves out of order. A throw from its install step, or from
+  the re-quantization before it, leaves with the store's grid, weights and codes back and nothing moved.
+  [`Chain::liveThresholdsAreOnGrid`](../../src/bartcore/chain.hpp) reads whether a
   state's live thresholds are points of a grid with no tree built.
 - [`Chain::stateIsValid`](../../src/bartcore/chain.hpp) holds the verdict's staging in its two tree loops.
   It cannot be called on a warm start's assembled chain, which carries no latents or kept draws.
@@ -1042,10 +1043,11 @@ build parts from the steps above.
   refused by the build that names its forest, with today's two messages, and no separate check is made.
 - "Equals the two calls" holds for the chains on 30 rows and for the next draws only under equal weights:
   cut points derived from 30 rows carry weights, the forced start keeps them and the twin's `setCutPoints`
-  leaves its points unweighted, so the two samplers draw under other tree priors from identical trees. The
-  test sets both samplers' points to the donor's and back first, which leaves them unweighted, holds the pair
-  to one state and one stream, and holds a third sampler with its weights to the same trees and to its
-  weights kept.
+  leaves its points unweighted, so the two samplers draw under other tree priors from identical trees. A
+  forced `setPredictor` of each column as it stands, deriving its grid by value, puts the twin's weights back
+  and moves no tree. The test holds the forced sampler with its weights to that twin, and a pair whose points
+  were set to the donor's and back, which leaves them unweighted, to each other: each pair to one state and
+  one stream.
 - [`testCrossGridWarmStart`](../../tests/cpp/test_state.cpp) pinned the remap arm's 3 live leaves of 11; the
   routine leaves 1, every split on the donor's wider column having a side none of the destination's rows
   reaches. It now holds the trees to a forced state install's and a hand tree to its merge by rows.
@@ -1053,3 +1055,5 @@ build parts from the steps above.
   forest records; the engine takes one flag. The codes of a store are compared before and after in tests/cpp
   only: R has no reader for them.
 - Left to the reviewer's build: the mutant that keeps the remap arm, the routine being deleted.
+- The variance clause also closes its counts with ", over K chains" where there are several chains, as the
+  first clause does: its counts are summed over the chains too.

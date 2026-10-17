@@ -378,7 +378,7 @@
     A named numeric vector containing the quantities \code{nodeHeight}, \code{nodeWidth}, and \code{nodeGap}, all of which control aspects of the resulting plot.
   }
   \item{donor}{
-    For \code{installTrees}, the fit whose forests seed this sampler: another \code{dbartsSampler}, or a \code{bart} object fit with \code{keepSampler = TRUE}. The donor must share this sampler's predictors, tree count, and DART setting; a donor on other cut points is taken under \code{forceUpdate = TRUE}, its splits moved onto this sampler's, and a different centre and scale of a \code{linear} leaf's covariates is allowed (see \sQuote{Warm starts}).
+    For \code{installTrees}, the fit whose forests seed this sampler: another \code{dbartsSampler}, or a \code{bart} object fit with \code{keepSampler = TRUE}. The donor must share this sampler's predictors, tree count, and DART setting; a donor on other cut points has its splits moved onto this sampler's under \code{forceUpdate = TRUE}, and needs no move where every split it holds is one of this sampler's cut points, as on a finer grid that holds the donor's; and a different center and scale of a \code{linear} leaf's covariates is allowed (see \sQuote{Warm starts}).
   }
   \item{samples}{
     For \code{installTrees}, an optional integer vector with one entry per chain, each a 1-based index into the donor's pool of samples (its saved trees when it kept them, else its final trees per chain). \code{NULL} spreads the chains evenly across the pool.
