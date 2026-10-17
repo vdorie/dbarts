@@ -10051,11 +10051,12 @@ static void testForestMapWriters() {
 }
 
 /// The defaults the calibration map holds, for a forest that states nothing:
-/// at K = 2 and 3 under each family, a forest with no basis and one with a
-/// two-level block have the leaf scale, the amplitude variance and the
-/// half-Cauchy median of the expressions written out here with literals, to
-/// the bit. The reader says none is stated and reports each default as its
-/// multiple times the unit.
+/// at K = 2, 3 and 4 under each family, a forest with no basis, one with a
+/// two-level block and one with a numeric column have the leaf scale, the
+/// amplitude variance and the half-Cauchy median of the expressions written
+/// out here with literals, to the bit, a forest with a basis one unit at every
+/// K (dec-B291). The reader says none is stated and reports each default as
+/// its multiple times the unit.
 static void testForestMapStatements() {
   std::uint64_t state = 20261101u;
   auto unif = [&]() {
@@ -10063,29 +10064,36 @@ static void testForestMapStatements() {
     return static_cast<double>(state >> 11) * 0x1.0p-53;
   };
   const size_t n = 90, p = 2;
-  std::vector<double> x(n * p), y(n), yBinary(n), block(2 * n);
+  std::vector<double> x(n * p), y(n), yBinary(n), block(2 * n), dose(n);
   for (double& v : x) v = unif();
   for (size_t i = 0; i < n; ++i) {
     double zi = unif() < 0.5 ? 1.0 : 0.0;
     block[2 * i] = 1.0 - zi;
     block[2 * i + 1] = zi;
+    dose[i] = 0.25 + 3.0 * unif();
     y[i] = 12.0 + 7.0 * x[i] + 3.0 * zi * x[i + n] + unif();
     yBinary[i] = unif() < 0.4 ? 1.0 : 0.0;
   }
-  const size_t trees[3] = {12, 7, 5};
+  // the median of the dose's absolute values, the row norm of its block
+  std::vector<double> sortedDose(dose);
+  std::sort(sortedDose.begin(), sortedDose.end());
+  double doseNorm = 0.5 * (sortedDose[n / 2 - 1] + sortedDose[n / 2]);
+  const size_t trees[4] = {12, 7, 5, 6};
   const ResponseFamily families[3] = {
     ResponseFamily::gaussian, ResponseFamily::probit, ResponseFamily::logistic};
   for (ResponseFamily family : families) {
     bool gaussian = family == ResponseFamily::gaussian;
-    for (size_t K : {2u, 3u}) {
+    for (size_t K : {2u, 3u, 4u}) {
       AmplitudeSpec spec;
       spec.family = family;
       spec.forests.resize(K);
+      // forest 2 multiplies the dose and the others with a basis the block
       for (size_t f = 0; f < K; ++f) {
         spec.forests[f].forest.numTrees = trees[f];
         if (f == 0) continue;
-        spec.forests[f].basis = block.data();
-        spec.forests[f].numBasisColumns = 2;
+        bool numeric = f == 2;
+        spec.forests[f].basis = numeric ? dose.data() : block.data();
+        spec.forests[f].numBasisColumns = numeric ? 1 : 2;
       }
       std::vector<ext_rng*> rngs = makeDrawRngs(1, 9500);
       SamplerOptions options;
@@ -10123,29 +10131,26 @@ static void testForestMapStatements() {
 
         for (size_t f = 1; f < K; ++f) {
           ForestCalibration multiplied = sampler.forestCalibration(0, f);
-          double factor = K == 2 ? 1.0 : 0.816496580927726;  // sqrt(2 / K)
-          check(factor == std::sqrt(2.0 / static_cast<double>(K)),
-                "map statements: the literal is sqrt(2 / K)");
-          check(multiplied.nodeScaleFactor == factor &&
+          double norm = f == 2 ? doseNorm : 1.0;
+          check(multiplied.nodeScaleFactor == 1.0 &&
                   multiplied.nodeScaleDivisor == 0.674 &&
+                  multiplied.basisRowNorm == norm &&
                   multiplied.amplitudePriorVariance == 0.5 &&
                   std::isnan(multiplied.amplitudePriorScale),
-                "map statements: a forest with a block takes sqrt(2 / K) "
-                "over 0.674 and the amplitude variance 0.5");
+                "map statements: a forest with a basis takes one unit over "
+                "0.674 and the amplitude variance 0.5, whatever K");
           check(TestPeer::leafScale(sampler.chain(0), f) ==
-                  factor * s / (0.674 * 1.0) /
+                  1.0 * s / (0.674 * norm) /
                     std::sqrt(static_cast<double>(trees[f])),
                 "map statements: its leaf scale is the expression's bits");
-          check(std::isnan(multiplied.namedSd) &&
-                  multiplied.mapSd == factor * unit,
-                "map statements: its default reads as not stated, the factor "
-                "times the unit");
+          check(std::isnan(multiplied.namedSd) && multiplied.mapSd == unit,
+                "map statements: its default reads as not stated, one unit");
         }
       }
       destroyDrawRngs(rngs);
     }
   }
-  printf("ok: calibration map defaults, K = 2 and 3 under each family\n");
+  printf("ok: calibration map defaults, K = 2, 3 and 4 under each family\n");
 }
 
 /// A forest's stated sd is in the response's units, divided by the unit once
@@ -10265,8 +10270,8 @@ static void testForestSdUnit() {
                                   ? 1.0
                                   : std::numbers::pi / std::sqrt(3.0);
     const double median = gaussian ? 2.0 : 1.0;
-    const double block3 = std::sqrt(2.0 / 3.0);
-    const double defaults[K] = {median, block3, block3};
+    // one unit for a forest with a basis at K = 3 (dec-B291)
+    const double defaults[K] = {median, 1.0, 1.0};
 
     // (a) the derived unit
     Built unstated = build(family, response, nullptr, nullptr, nullptr, nan,
@@ -10398,7 +10403,7 @@ static void testForestSdUnit() {
       check(leafScales(again) == leafScales(unstated) &&
               again.sampler->forestCalibration(0, 0).amplitudePriorScale ==
                 median &&
-              again.sampler->forestCalibration(0, 1).nodeScaleFactor == block3,
+              again.sampler->forestCalibration(0, 1).nodeScaleFactor == 1.0,
             "sd unit: a default's number stated at creation is the default's "
             "multiple, bit for bit");
 
@@ -10610,23 +10615,18 @@ static void testForestSdUnit() {
           "sd unit: with the rows in at one value it is the every-row one");
   }
 
-  // the map itself: a default's number is the default's multiple where the
-  // quotient is not, and a fixture's multiple never meets the unit
+  // the map itself: a default's number is the default's multiple, and a
+  // fixture's multiple never meets the unit
   {
-    double third = std::sqrt(2.0 / 3.0), unit = 0.0;
-    for (double candidate = 1.1; candidate < 40.0 && unit == 0.0;
-         candidate += 0.7)
-      if (third * candidate / candidate != third) unit = candidate;
-    check(unit > 0.0, "sd unit: a unit the default does not survive exists");
     ForestStatement statement;
-    statement.sd = forestSdInForce(third, unit);
-    check(forestMapEntry(statement, true, 3, ResponseFamily::gaussian, unit,
-                         1.0).nodeScaleFactor == third,
+    statement.sd = forestSdInForce(1.0, 1.7);
+    check(forestMapEntry(statement, true, ResponseFamily::gaussian, 1.7, 1.0)
+            .nodeScaleFactor == 1.0,
           "sd unit: a default's own number resolves to the default's multiple");
     statement.sd = nan;
     statement.sdMultiple = 1.25;
-    check(forestMapEntry(statement, false, 3, ResponseFamily::gaussian, nan,
-                         1.0).amplitudePrior.halfCauchyScale == 1.25,
+    check(forestMapEntry(statement, false, ResponseFamily::gaussian, nan, 1.0)
+            .amplitudePrior.halfCauchyScale == 1.25,
           "sd unit: a multiple of the anchor is taken as it is");
   }
 

@@ -456,14 +456,12 @@ forest(
     drawn \eqn{\sigma}{sigma} absorbs the difference, and \code{1} under
     \code{"probit"} and \eqn{\pi/\sqrt{3}}{pi/sqrt(3)}, 1.8138, under
     \code{"logistic"}, where the link's error scale is fixed and nothing does.
-    A forest with a basis takes \eqn{\sqrt{2/K}}{sqrt(2/K)} times that unit in
-    a model of \eqn{K}{K} forests, so that declaring more of them does not
-    widen the prior on the combined location without bound; \eqn{K = 2}{K = 2}
-    is the fixed point, \eqn{\sqrt{2/2} = 1}{sqrt(2/2) = 1}. A default is a
+    A forest with a basis takes that unit, however many forests the model
+    has. A default is a
     multiple of the unit and not a stated number: \code{$getLeafPrior(f)$sd}
     reports the number of the response's units it comes to, and
     \code{$getLeafPrior(f)$sd.stated} is \code{FALSE}. A value stated here
-    overrides the default, in the response's units, at every \eqn{K}{K}.
+    overrides the default, in the response's units.
 
     It is one number, positive and finite, and a name on it is dropped. A
     vector of any other length and anything that is not a number are refused.
@@ -560,17 +558,17 @@ forest(
   and the fitted probabilities. At two forests of the shipped shape - one
   carrying no basis - a probit model's prior puts
   \eqn{P(p < 0.01 \mathrm{~or~} p > 0.99)}{P(p < 0.01 or p > 0.99)} at 0.238,
-  which is the shipped single-forest binary default's own 0.239. The \eqn{\sqrt{2/K}}{sqrt(2/K)} factor
-  is what holds that as \eqn{K}{K} grows, and it holds it in two different
-  senses. When EVERY forest carries a basis the induced prior standard
-  deviation of the index is 1.484 latent units at every \eqn{K}{K} - 0.989 of
-  the classic \eqn{k = 2}{k = 2} binary leaf-scale budget - because the whole
-  location is then a sum of fixed-variance channels. When one forest carries
-  none, its amplitude is Cauchy and has no variance to enter that budget with,
-  so the fixed-variance part is BOUNDED by 1.484 rather than pinned at it,
-  rising from 0.699 of the budget at \eqn{K = 2}{K = 2} toward 0.989 and never
-  reaching it; without the factor it would instead grow past twice the budget
-  by ten forests. Read the values in force off
+  which is the shipped single-forest binary default's own 0.239. A forest's
+  default does not depend on how many forests the model has, so each forest
+  added widens the prior on the combined location. When every forest carries
+  a basis the induced prior standard deviation of the index is
+  \eqn{1.049\sqrt{K}}{1.049 sqrt(K)} latent units, 1.484 at
+  \eqn{K = 2}{K = 2}, which is 0.989 of the classic \eqn{k = 2}{k = 2} binary
+  leaf-scale budget. When one forest carries none, its amplitude is Cauchy and
+  has no variance to enter that budget with, and the others contribute
+  \eqn{1.049\sqrt{K - 1}}{1.049 sqrt(K - 1)}, 0.699 of the budget at
+  \eqn{K = 2}{K = 2}. Where many forests share one index, state their
+  \code{sd}. Read the values in force off
   \code{$getLeafPrior(f)}'s \code{sd} entry, in the response's units, or as
   multiples of the sampler's unit in its \code{leaf.scale.factor} and
   \code{amplitude.prior.scale} entries.

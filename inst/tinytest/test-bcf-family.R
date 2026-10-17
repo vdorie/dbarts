@@ -136,20 +136,17 @@ for (family in names(anchors)) {
   )
 
   # (c) THE INDUCED INDEX: sqrt(sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2) at
-  # the default amplitude prior variance and unit row norms. The map itself
-  # still disperses as 1.04912 sqrt(K) - it carries no per-K renormalization -
-  # but the DEFAULT leaf scale factor is now sqrt(2/K),
-  # whose product with that sqrt(K) is sqrt(2) at every count. So the assertion
-  # is a CONSTANT rather than a function of K, which is strictly stronger and is
-  # the design statement itself: the all-basis index prior is 1.4837 s whether
-  # the caller writes the same model as two forests or as four. Three counts,
-  # because the claim is invariance in K rather than a value at one K, and K = 2
-  # is the fixed point every shipped configuration sits on.
+  # the default amplitude prior variance and unit row norms. Each forest with a
+  # basis defaults to one unit whatever the number of forests (dec-B291), so
+  # the map disperses as 1.04912 sqrt(K): the index prior grows with every
+  # forest the caller adds, which is the ruling's stated cost. Three counts,
+  # because the claim is the growth in K rather than a value at one K, and
+  # K = 2 is the count every shipped configuration sits on.
   for (bases in list(unitBases2, unitBases3, unitBases4)) {
     scales <- priorScales(basisSampler(yBalanced, bases, family))
     expect_equal(
       sqrt(sum(scales^2 * 0.5)),
-      1.04912 * sqrt(2) * s,
+      1.04912 * sqrt(length(bases)) * s,
       tolerance = 1e-4
     )
   }
@@ -374,33 +371,24 @@ expect_equal(
   1
 )
 
-# the fixed-variance channel's leaf scale factor is K-AWARE - 1, 0.816497,
-# 0.707107 at K = 2, 3, 4 - on the RESOLVED forest count and NOT on the count of
-# basis forests: the shipped shape's K - 1 basis forests take sqrt(2/K), so a
-# rule normalized on the basis count would read 1 at K = 3 here rather than
-# 0.816497, and would move the all-basis K = 2 arm the Option L anchor was
-# argued on. The basis-free forest keeps the literal 1 for its factor - the rule
-# touches the forest with a basis only, a Cauchy channel having no finite
-# variance to enter the budget with. The default is a multiple of the
-# response's scale and is reported as that multiple, so it is sqrt(2/K) itself,
-# not a number that went through the unit and back.
+# the fixed-variance channel's leaf scale factor is 1 at K = 2, 3 and 4: a
+# forest with a basis defaults to one unit whatever the number of forests
+# (dec-B291), all-basis or beside a forest with none, and the basis-free
+# forest keeps the literal 1 for its factor. The default is a multiple of the
+# response's scale and is reported as that multiple, so it is 1 itself, not a
+# number that went through the unit and back.
 for (family in c("gaussian", "probit", "logistic")) {
   response <- if (family == "gaussian") yContinuous else yBalanced
   for (bases in list(unitBases2, unitBases3, unitBases4)) {
-    expect_equal(
+    expect_identical(
       readerSlot(mapSampler(response, bases, family), "leaf.scale.factor"),
-      rep(sqrt(2 / length(bases)), length(bases))
+      rep(1, length(bases))
     )
   }
   for (bases in list(freeBases2, freeBases3, freeBases4)) {
-    factors <- readerSlot(
-      mapSampler(response, bases, family),
-      "leaf.scale.factor"
-    )
-    expect_equal(factors[1L], 1)
-    expect_equal(
-      factors[-1L],
-      rep(sqrt(2 / length(bases)), length(bases) - 1L)
+    expect_identical(
+      readerSlot(mapSampler(response, bases, family), "leaf.scale.factor"),
+      rep(1, length(bases))
     )
   }
 }
@@ -583,7 +571,6 @@ rm(
   doorSpec,
   eta,
   everyForestHasBasis,
-  factors,
   family,
   fit,
   freeBases2,

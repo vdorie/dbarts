@@ -151,8 +151,8 @@ expect_identical(numWarnings, 0L)
 expect_equal(unitOf(unstated), rowsIn, tolerance = 1e-12)
 onFactor <- unstated$getLeafPrior(2L)
 expect_false(onFactor$sd.stated)
-expect_equal(onFactor$sd, sqrt(2 / 3) * rowsIn, tolerance = 1e-12)
-expect_identical(onFactor$sd, sqrt(2 / 3) * unitOf(unstated))
+expect_equal(onFactor$sd, rowsIn, tolerance = 1e-12)
+expect_identical(onFactor$sd, unitOf(unstated))
 # the unit is creation's: neither the weights nor a mask moves it
 unstated$setWeights(rep(1, length(unstated$data@y)))
 expect_identical(unstated$getLeafPrior(2L), onFactor)
@@ -202,11 +202,17 @@ for (family in c("probit", "logistic")) {
   )
 }
 
-# --- not stated: the engine's own multiple, which never meets the unit ---
+# --- not stated: the engine's own multiple, which never meets the unit; a
+# forest with a basis takes one unit however many forests there are ---
 for (family in c("gaussian", "probit", "logistic")) {
   response <- if (family == "gaussian") y else d$yb
-  for (numForests in 2:3) {
-    forests <- list(forest(), forest(basis = d$zf), forest(basis = d$dose))
+  for (numForests in 2:4) {
+    forests <- list(
+      forest(),
+      forest(basis = d$zf),
+      forest(basis = d$dose),
+      forest(basis = d$zf)
+    )
     sampler <- twoForests(
       forests[seq_len(numForests)],
       response,
@@ -220,20 +226,31 @@ for (family in c("gaussian", "probit", "logistic")) {
     expect_identical(plain$sd, median * unitOf(sampler), info = info)
     for (f in seq_len(numForests)[-1L]) {
       multiplied <- sampler$getLeafPrior(f)
-      expect_identical(
-        multiplied$leaf.scale.factor,
-        sqrt(2 / numForests),
-        info = info
-      )
+      expect_identical(multiplied$leaf.scale.factor, 1, info = info)
       expect_false(multiplied$sd.stated, info = info)
-      expect_identical(
-        multiplied$sd,
-        sqrt(2 / numForests) * unitOf(sampler),
-        info = info
-      )
+      expect_identical(multiplied$sd, unitOf(sampler), info = info)
     }
     expect_identical(forestInfo(sampler)$sd, rep(NA_real_, numForests))
   }
+  # three forests at their defaults are the twin whose forests with a basis
+  # state the number the reader gives, draw for draw
+  forests <- list(forest(), forest(basis = d$zf), forest(basis = d$dose))
+  defaulted <- twoForests(forests, response, family = family)
+  unit <- unitOf(defaulted)
+  stating <- twoForests(
+    list(
+      forest(),
+      forest(basis = d$zf, sd = unit),
+      forest(basis = d$dose, sd = unit)
+    ),
+    response,
+    family = family
+  )
+  expect_identical(
+    stating$run(0L, 20L),
+    defaulted$run(0L, 20L),
+    info = family
+  )
 }
 # a stated variance reaches the engine as written
 withVariance <- twoForests(
@@ -418,21 +435,12 @@ for (numForests in 2:3) {
   )
   expect_identical(stated$run(0L, 20L), twin$run(0L, 20L))
 }
-# the same where the unit and back do not return sqrt(2 / 3): the response
-# is stretched until its unit is such a one, and the default's number stated
-# is the default's multiple at a write, on a copy made from the record and at
-# a creation that states it
-third <- sqrt(2 / 3)
+# the same at three forests: the default's number stated is the default's
+# multiple at a write, on a copy made from the record and at a creation that
+# states it
+third <- 1
 threeDefaults <- list(forest(), forest(basis = d$zf), forest(basis = d$dose))
-inexact <- NULL
-for (stretch in seq(1, 4, by = 0.125)) {
-  unit <- unitOf(twoForests(threeDefaults, stretch * y))
-  if (third * unit / unit != third) {
-    inexact <- stretch * y
-    break
-  }
-}
-expect_false(is.null(inexact))
+inexact <- y
 twin <- twoForests(threeDefaults, inexact)
 written <- twoForests(threeDefaults, inexact)
 inForce <- lapply(written$getLeafPrior(), function(prior) prior$sd)

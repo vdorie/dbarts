@@ -363,11 +363,10 @@ struct ForestSdUnitError : std::domain_error {
 /// calibration map's anchor s. A forest with no basis carries it as the
 /// half-Cauchy median of its amplitude: 2 where sigma is drawn and s is the
 /// response's own sd, 1 where the link pins sigma and s is the link's error
-/// sd. A forest with a basis carries it in its node scale: sqrt(2 / K) in a
-/// model of K forests, the identity at K = 2.
-inline double defaultForestSd(bool hasBasis, std::size_t numForests,
-                              ResponseFamily family) {
-  if (hasBasis) return std::sqrt(2.0 / static_cast<double>(numForests));
+/// sd. A forest with a basis carries it in its node scale: one unit, however
+/// many forests the model has (dec-B291).
+inline double defaultForestSd(bool hasBasis, ResponseFamily family) {
+  if (hasBasis) return 1.0;
   // every enumerator listed and no default arm: a family added without one
   // must fail the build rather than inherit another's default
   switch (family) {
@@ -419,8 +418,8 @@ struct ForestMapEntry {
 
 /// The CALIBRATION MAP, general in K: one forest's statement resolved into the
 /// channel its magnitude is carried in. \p hasBasis is all of the forest's
-/// kind the map reads, \p numForests is K, \p unit the response units in one
-/// s, and \p basisRowNorm the row norm of the basis in force.
+/// kind the map reads, \p unit the response units in one s, and
+/// \p basisRowNorm the row norm of the basis in force.
 ///
 /// A forest with NO basis has a scalar amplitude under a half-Cauchy scale
 /// mixture: its sd, in units of s, is that mixture's median, and its node
@@ -442,10 +441,9 @@ struct ForestMapEntry {
 /// \throws std::invalid_argument on a stated sd that is not positive and
 /// finite, ForestSdUnitError on one stated against a unit that is not.
 inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
-                                     bool hasBasis, std::size_t numForests,
-                                     ResponseFamily family, double unit,
-                                     double basisRowNorm) {
-  double multiple = defaultForestSd(hasBasis, numForests, family);
+                                     bool hasBasis, ResponseFamily family,
+                                     double unit, double basisRowNorm) {
+  double multiple = defaultForestSd(hasBasis, family);
   if (!std::isnan(statement.sd)) {
     if (!(statement.sd > 0.0) || !std::isfinite(statement.sd))
       throw std::invalid_argument("a forest's sd must be positive and finite");

@@ -1171,8 +1171,7 @@ public:
       // each forest is resolved ONCE here, the row norm of its basis among the
       // inputs, and the combiner is handed the result
       mapped.entry = forestMapEntry(
-        mapped.statement, mapped.hasBasis, forestSpecs.size(), spec.family,
-        forestSdUnit_,
+        mapped.statement, mapped.hasBasis, spec.family, forestSdUnit_,
         basisRowNorm(forestSpec.basis, forestSpec.numBasisColumns,
                      data.numObservations));
       amplitudePriors[f] = mapped.entry.amplitudePrior;
@@ -1625,8 +1624,8 @@ public:
     // the sd in force keeps the multiple it has, which a fixture's own
     // multiple is not recovered from by the map
     if (sd != forestCalibration(f).mapSd)
-      entry = forestMapEntry(statement, mapped.hasBasis, forestMap_.size(),
-                             family_, forestSdUnit_, entry.basisRowNorm);
+      entry = forestMapEntry(statement, mapped.hasBasis, family_,
+                             forestSdUnit_, entry.basisRowNorm);
     if (entry.amplitudePrior.halfCauchyScale !=
           mapped.entry.amplitudePrior.halfCauchyScale &&
         !combiner_->setAmplitudePriorScale(

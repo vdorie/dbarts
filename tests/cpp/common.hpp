@@ -123,8 +123,7 @@ inline std::vector<ForestAmplitudePrior> amplitudePriors(
   std::vector<ForestSpec> forests = expandForestSpecs(spec);
   std::vector<ForestAmplitudePrior> priors(forests.size());
   for (std::size_t f = 0; f < forests.size(); ++f)
-    priors[f] = forestMapEntry(forests[f], forests[f].hasBasis(),
-                               forests.size(), spec.family,
+    priors[f] = forestMapEntry(forests[f], forests[f].hasBasis(), spec.family,
                                std::numeric_limits<double>::quiet_NaN(), 1.0)
                   .amplitudePrior;
   return priors;
