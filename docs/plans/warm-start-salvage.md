@@ -931,7 +931,8 @@ slice landed at 2400 lines against 1035), and the stops follow. Stop and report,
 - Under `blocks`, where a tree's allowed columns depend on its slot, a donor of more trees is ranked as cut
   back for the slot it is tried in and installed in the slot its rank gives. The two can differ for a tree
   near the cut, and the installed forest is valid either way. The alternative refuses another tree count
-  under `blocks`.
+  under `blocks`. Superseded in slice C's fix round: each tree is tried in every block, which chooses its own
+  ([Slice C as built](#slice-c-as-built)).
 - Four slices. The monotone collapse is its own because slice A with it plans about 560 engine lines and
   2200 in all, which at the overrun such slices have run is past 3000, more than one review has held. The
   tree count is cut from the kinds and parts for the same reason: together they are three features and 18
@@ -1217,7 +1218,8 @@ Left: slices C and D; `warm-start-undo-test`; `warm-start-by-position`, `warm-st
 ## Slice C as built
 
 Built 2026-10-17 on ee1d7213 and rebased onto 6fe5237a, the records of slice B's landing and the setData follow-up,
-in four commits: the install, its tests, the help and notes, and a pin of the ranking across cut points.
+in four commits: the install, its tests, the help and notes, and a pin of the ranking across cut points. The
+fix round, in four more, was rebased onto 738b1015, the records of forest-multiplier push 1.
 
 - The donor forest's own count is the stride of a kept draw, and a donor forest of no trees is the shape
   refusal. A forest given fewer trees than it holds is filled on the assembled scratch after the sides are
@@ -1250,12 +1252,50 @@ in four commits: the install, its tests, the help and notes, and a pin of the ra
 - Tests beyond the table: "across cut points", a donor onto other rows into fewer trees, held to the most
   varying of the trees a recipient of as many holds after the move; tests/cpp's verdict against the install
   over 24 seeded pairs of other counts. "Ranked as installed" cuts its tree back to the root, the interaction
-  limit allowing a root split. Under `blocks` the fixture's four trees kept each land in the other block's
-  slots and are cut back to single leaves: the plan's rule, ranked for the trial slot and installed for the
-  final one, at its worst.
+  limit allowing a root split. Under `blocks` the fixture's four trees kept each landed in the other block's
+  slots and were cut back to single leaves: the plan's rule, ranked for the trial slot and installed for the
+  final one, at its worst. The fix round replaced the rule (below).
 - The cross-build script of slice B (scratch/wsc/cross.R) on slice B's tip and this slice's: identical on all 38
   fixtures, none holding another tree count. Every mutant of the table and five of the builder's own, each alone,
   failed a test of test-warm-start-kinds.R or tests/cpp; the working weights (C11) fail on one of the six
-  logistic seeds, so two seeds, as the table has it, could miss them. "Ranked as stored" is built as a ranking of
+  logistic seeds, so two seeds, as the table has it, could miss them (the fix round's kill takes both).
+  "Ranked as stored" is built as a ranking of
   each flat tree routed with no constraint, and "a tree installed as its trial slot cut it" as the final install
   under the trial slot's mask, the containment backstop making the plain reading unreachable.
+
+The review (LAND AFTER FIXES) found the engine right but under `blocks`, where a donor tree tried in a slot of
+another block is cut to a leaf and never chosen: a donor of 100 and 100 trees into 25 and 25 held 25 of its 50
+most varying trees in that band and kept none. It found nine of its eleven mutants surviving, and wording. The fix
+round:
+
+- Blocks, the orchestrator's call, which replaces the plan's "a tree near the cut" under Calls made in planning:
+  no donor tree is ruled out by the slot it is tried in. Every donor tree is tried in the slots of every
+  `blocks` row, a row's count at a time; each row in turn keeps its count of the trees that vary most as
+  installed there among those no earlier row kept, a tie to the earlier tree, in the donor's order within the
+  row. Without blocks nothing moves: the rounds and the choice are the old ones. The 100 and 100 donor into 25
+  and 25 now keeps the 25 most varying of each half's trees by hand, 25 of them from the band the old rule never
+  chose, and into 40 and 10 the 40 and the 10. Cost at 5000 rows and 10 columns, 200 trees into 25 and 25: 23 ms
+  against 15 ms for 50 trees with no blocks on the same grid, 31 ms against 20 ms across grids; into 40 and 10,
+  20 rounds, 43 ms (scratch/wsc/fix/time-blocks.R).
+- A tree cut back to one leaf varied by about 1e-33, rounding in the variance, so a row that keeps more trees
+  than vary there took its leaves in rounding order and not the earlier first. The variance is taken from the
+  first row's value, and such trees tie at exactly 0.
+- A live mean forest whose count does not divide the saved buffer, which a hand-built state can hold, is the
+  shape refusal and no longer a slice across two kept draws, as the variance forest already refused it.
+- The single leaves are said before the changes in the mean clause, as in the variance clause.
+- Kills added to test-warm-start-kinds.R: an active-row mask, gaussian and probit; Student-t weights; logistic
+  counts; a variance forest that needs rounds the mean forest does not; the variance ranking under case weights;
+  linear and gp single leaves at 0; a pooled factor's masks with the trees chosen; the uneven kept draw. The
+  review's deterministic kill for C11, a heteroscedastic recipient, does not kill it: a variance forest's
+  precisions are not the response's working weights, so C11 reads the case weights there. It stays as a pin, and
+  C11's kill is a logistic sampler whose response is 1 above x1's 50th point, its latent draws there a third to
+  two thirds of the others on five seeds, which fails C11 on both seeds it runs.
+- Wording: a smaller donor is taken whole and a larger one gives some trees, in NEWS, `bart.Rd`,
+  `dbartsSampler-class.Rd` and install-surface.md; NEWS says it after the posterior sentence; "weighted"; the
+  `installTrees` docstring; the design note's Status.
+
+Each of the review's mutants K1 to K8 and K11 and the builder's C11, the pre-fix rule under blocks (BK1), a row
+reading another row's slots (BK2), rows sharing a tree (BK3), the stride guard off (G1) and the clause order (V1),
+each alone on an export, fails test-warm-start-kinds.R; K11 by an install error. C6 and C10, whose code the round
+moved, fail it again. Size: the engine adds 417 lines against the stop of 400 and the range 1426 against 1350,
+the fix round's tests and the blocks rule (133 added, 68 removed in src) carrying it past.
