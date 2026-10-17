@@ -474,11 +474,14 @@
             factor of two levels as the basis. In a \code{bart} or
             \code{dbarts} formula, each forest is a term:
             \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z))}
-            declares the same thing. A basis is either levels, when it is
-            a factor, a character vector or a logical vector, with a
-            coefficient for each level, or numbers, with one for each
-            column; its class decides which, whatever its values, so a
-            0/1 number is one column and \code{factor(z)} is two levels.
+            declares the same thing. A basis is one numeric column, with
+            one coefficient, or a factor, a character vector or a logical
+            vector of two levels, with a coefficient for each level; its
+            class decides which, whatever its values, so a 0/1 number is
+            one column and \code{factor(z)} is two levels. A larger basis,
+            three or more levels or several numeric columns, is refused
+            with the form to write: a forest of its own for each level but
+            the first, or for each column.
             The same basis is the same fit however it is handed over, in
             a formula, in \code{forests}, to \code{dbartsData(bases = )},
             to \code{$setForestBasis} or to \code{predict(bases = )}:

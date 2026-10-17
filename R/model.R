@@ -1596,7 +1596,8 @@ refuseHeldOneColumn <- function(index) {
 ## and its others at 1, every other forest's at 1. So a held forest is taken
 ## only where that is the value the help states: a forest with no basis at
 ## any place but the second, and a basis of two columns at the second. `width`
-## is the number of columns of the forest's basis, 0 for a forest with none.
+## is the number of columns of the forest's basis, 0 for a forest with none;
+## a basis of more is refused at creation before a hold is read.
 refuseHeldShape <- function(index, width) {
   if (width == 1L) {
     refuseHeldOneColumn(index)
@@ -1620,36 +1621,7 @@ refuseHeldShape <- function(index, width) {
       call. = FALSE
     )
   }
-  if (width > 2L) {
-    stop(
-      "forest ",
-      index,
-      ": amplitude = fixed() on a basis of ",
-      width,
-      " columns is not supported; it would hold every column",
-      if (index == 2L) " but the first",
-      " at 1. Let the coefficients be drawn",
-      call. = FALSE
-    )
-  }
   invisible(NULL)
-}
-
-## The refusal of a swap that changes the width of a held forest's basis: the
-## value a coefficient is held at goes by the width the forest was created
-## with.
-refuseHeldWidthChange <- function(index, from, to) {
-  stop(
-    "$setForestBasis cannot change the width of forest ",
-    index,
-    "'s basis (",
-    from,
-    " to ",
-    to,
-    "): its coefficients are held (amplitude = fixed()), and the held value ",
-    "is defined for that width only; make a new sampler",
-    call. = FALSE
-  )
 }
 
 ## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which

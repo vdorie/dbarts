@@ -241,52 +241,43 @@ expect_error(
 
 ## --- Block C: a replacement basis -------------------------------------------
 created <- function() {
-  listFit(quote(list(forest(), forest(basis = dose + age))))
+  listFit(quote(list(forest(), forest(basis = dose))))
 }
 replaced <- created()
-expect_identical(colnames(replaced$data@bases[[2L]]), c("dose", "age"))
-# a value: columns are taken by position, and the recorded names stay
-replacement <- cbind(frame$age / 10, frame$dose * 2)
+expect_identical(colnames(replaced$data@bases[[2L]]), "dose")
+# a value: the recorded name stays
+replacement <- frame$age / 10
 replaced$setForestBasis(2L, replacement)
 expect_identical(
   replaced$data@bases[[2L]],
-  matrix(as.double(replacement), n, dimnames = list(NULL, c("dose", "age")))
+  matrix(replacement, n, dimnames = list(NULL, "dose"))
 )
-expect_identical(labelsOf(replaced), c("forest1", "dose + age"))
-# other names are ignored
-replaced$setForestBasis(2L, cbind(first = frame$age, second = frame$dose))
-expect_identical(colnames(replaced$data@bases[[2L]]), c("dose", "age"))
+expect_identical(labelsOf(replaced), c("forest1", "dose"))
+# another name is ignored
+replaced$setForestBasis(2L, cbind(first = frame$age))
+expect_identical(colnames(replaced$data@bases[[2L]]), "dose")
 expect_identical(unname(replaced$data@bases[[2L]][, 1L]), frame$age)
-replaced$setForestBasis(2L, cbind(dose = frame$age, other = frame$dose))
-expect_identical(colnames(replaced$data@bases[[2L]]), c("dose", "age"))
-# the recorded names in another order are refused, nothing being installed
+# a forest of numbers is one column for life: two are refused, nothing being
+# installed
 before <- replaced$data@bases[[2L]]
 expect_error(
-  replaced$setForestBasis(2L, cbind(age = frame$age, dose = frame$dose)),
-  paste0(
-    "'basis' has the columns of forest 2's basis in another order (age, ",
-    "dose; the forest has dose, age): columns are taken by position, so ",
-    "give them in the forest's order"
-  ),
+  replaced$setForestBasis(2L, cbind(dose = frame$dose, age = frame$age)),
+  "forest 2 ('dose') multiplies one numeric column, and 'basis' gives it 2",
   fixed = TRUE
 )
 expect_identical(replaced$data@bases[[2L]], before)
-# in the forest's order they are taken
-replaced$setForestBasis(2L, cbind(dose = frame$dose, age = frame$age))
-expect_identical(
-  replaced$data@bases[[2L]],
-  cbind(dose = frame$dose, age = frame$age)
-)
-# a one-sided formula is read as a basis is: '+' is columns, and its names
-# are found where it was written
+# a one-sided formula is read as a basis is, and its names are found where it
+# was written
 doubled <- frame$dose * 2
 halved <- frame$age / 2
-replaced$setForestBasis(2L, ~ doubled + halved)
-expect_identical(
-  replaced$data@bases[[2L]],
-  cbind(dose = doubled, age = halved)
+replaced$setForestBasis(2L, ~halved)
+expect_identical(replaced$data@bases[[2L]], cbind(dose = halved))
+expect_identical(labelsOf(replaced), c("forest1", "dose"))
+expect_error(
+  replaced$setForestBasis(2L, ~ doubled + halved),
+  "forest 2 ('dose') multiplies one numeric column, and 'basis' gives it 2",
+  fixed = TRUE
 )
-expect_identical(labelsOf(replaced), c("forest1", "dose + age"))
 expect_error(
   replaced$setForestBasis(2L, ~ doubled * halved),
   "'basis' does not take '*' between its terms ('doubled * halved')",
@@ -298,7 +289,7 @@ expect_error(
   fixed = TRUE
 )
 expect_error(
-  replaced$setForestBasis(2L, ~ doubled[1:10] + halved[1:10]),
+  replaced$setForestBasis(2L, ~ halved[1:10]),
   "must have the same length as the data: it has 10 rows and the data 70",
   fixed = TRUE
 )
@@ -311,13 +302,11 @@ drawsAfter <- function(install) {
   list(run$train, run$sigma, sampler$getForestAmplitudes())
 }
 expect_identical(
-  drawsAfter(function(sampler) sampler$setForestBasis(2L, ~ doubled + halved)),
-  drawsAfter(function(sampler) {
-    sampler$setForestBasis(2L, cbind(doubled, halved))
-  })
+  drawsAfter(function(sampler) sampler$setForestBasis(2L, ~halved)),
+  drawsAfter(function(sampler) sampler$setForestBasis(2L, halved))
 )
 expect_false(identical(
-  drawsAfter(function(sampler) sampler$setForestBasis(2L, ~ doubled + halved)),
+  drawsAfter(function(sampler) sampler$setForestBasis(2L, ~halved)),
   drawsAfter(function(sampler) NULL)
 ))
 # a factor basis: the levels' names stay too, and a level may be left empty
@@ -343,8 +332,3 @@ expect_identical(
   c("factor(z)0", "factor(z)1")
 )
 expect_identical(labelsOf(levelled), c("forest1", "factor(z)"))
-# a replacement of another width brings its own names, on a forest of
-# numbers: a forest of levels has the columns of its levels for life
-replaced$setForestBasis(2L, cbind(u = frame$dose, v = frame$age, w = frame$x1))
-expect_identical(colnames(replaced$data@bases[[2L]]), c("u", "v", "w"))
-expect_identical(labelsOf(replaced), c("forest1", "dose + age"))

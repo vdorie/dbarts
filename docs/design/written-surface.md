@@ -35,6 +35,10 @@ Only the first argument may be given without its name, so that any later argumen
 | `b <- ~ dose + age` and then `basis = b` | the same columns, read when `forest()` is called like the rest; `b` is left as it was made |
 | `amplitude = fixed()` | the forest's coefficient is held, not drawn |
 
+From forest-kind-by-class's second push a basis is one numeric column or two levels: `dose + age`, `poly(dose, 2)`,
+`1 + dose` and a factor of three or more levels are read and named as this table says and then refused by name,
+with the form to write ([forest-kind-by-class.md](forest-kind-by-class.md)).
+
 The forests of a formula, a forest's predictors and the two arguments `sd` and `amplitude` are pushes 1 and 2
 and are described in the plan. This note is about the basis, which is push 3.
 
@@ -156,9 +160,11 @@ kept as the caller made it, with its environment as any formula has.
 
 The columns of a basis are named as `coef(lm(y ~ 0 + <basis>))` names them: `dose`, `age`; `poly(dose, 2)1`,
 `poly(dose, 2)2`; `factor(z)0`, `factor(z)1`; `(Intercept)`. A value keeps its names when every column has one
-and no two are alike, and otherwise has none. Two columns alike are refused. `$setForestBasis` takes columns by
-position and the recorded names stay; a replacement with the recorded names in another order is refused
-([`refuseReorderedBasisNames`](../../R/forestBasis.R)).
+and no two are alike, and otherwise has none. Two columns alike are refused. `$setForestBasis` keeps the
+recorded names. From forest-kind-by-class's second push a basis is one numeric column or two levels, so a
+basis of several columns is named by this rule and then refused, and no forest changes width; the refusal of a
+replacement with the recorded names in another order had no case left and went
+([forest-kind-by-class.md](forest-kind-by-class.md)).
 
 Every forest has a label, fixed at creation ([`forestLabels`](../../R/forestBasis.R)): the list name where one
 is written, else the text of the basis, else `forest<i>`. Labels are unique. They are recorded and checked and
@@ -204,7 +210,8 @@ build fits.
 dec-B272 defers how a size for each column is stated, on the condition that adding it changes no call. What
 this slice does for that:
 
-- One sd on a basis of several columns states that size for each column.
+- One sd on a basis of several columns states that size for each column; such a basis is refused in 1.0-0
+  (forest-kind-by-class), so the rule has no case until a later version gives several columns a meaning.
 - A longer or named sd, a term over or times a number, and a prior's name on a term are refused by name.
 - The names of a basis's columns and of the forests follow a complete rule.
 - A star in a basis is refused (dec-B273).

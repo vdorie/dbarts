@@ -129,19 +129,22 @@ forest(
     \itemize{
       \item A name of a column of \code{data} is that column:
         \code{basis = dose}.
-      \item \code{+} separates columns, each with a coefficient of its own:
-        \code{dose + age}. \code{I(dose + age)} is one column, their sum.
-      \item A factor, a character column or a logical column is one column
-        for each of its levels. A number is one column, whatever its values:
-        \code{basis = z} for a \code{z} of 0s and 1s is one coefficient, and
+      \item A basis is one numeric column, or a factor, a character column or
+        a logical column of two levels, with a coefficient for each level. A
+        number is one column, whatever its values: \code{basis = z} for a
+        \code{z} of 0s and 1s is one coefficient, and
         \code{basis = factor(z)} is the two levels.
+      \item \code{I(dose + age)} is one column, their sum. Several columns,
+        \code{dose + age}, and three or more levels are refused: give each
+        column, or each level but the first, a forest of its own.
       \item Anything that is not a column of \code{data} is read where
         \code{forest()} is called, at that moment, with or without a tilde
         written in place: \code{forest(basis = w)}, \code{forest(basis = ~ w)}.
       \item A formula held in a variable, \code{b <- ~ w} and then
         \code{forest(basis = b)}, is read the same way, when \code{forest()}
         is called, and is left as you made it.
-      \item \code{cbind()} is refused: write the columns with \code{+}.
+      \item \code{cbind()} is refused: write its one column alone, or give
+        each column a forest of its own.
     }
     The rest of this item is the detail of each.
 
@@ -149,7 +152,8 @@ forest(
     \eqn{B_1, \ldots, B_K}{B_1, ..., B_K} the forest \eqn{f}{f} enters the fit
     as \eqn{(\sum_k a_k B_k(x_i)) f(x_i)}{(sum_k a_k B_k(x_i)) f(x_i)}, each
     column with a coefficient \eqn{a_k}{a_k} of its own, called its
-    amplitude. A forest with no basis is multiplied by a single coefficient.
+    amplitude: \eqn{K = 1}{K = 1} for a numeric column, and the two columns
+    of a factor's levels, \eqn{K = 2}{K = 2}. A forest with no basis is multiplied by a single coefficient.
     A model has one forest with no basis, or none; every other forest states
     one, and a model whose only forest has a basis is refused.
 
@@ -157,26 +161,41 @@ forest(
     without the tilde, and means what it means in \code{\link{lm}}:
     \itemize{
       \item a name is a column: \code{basis = dose};
-      \item \code{+} separates columns: \code{dose + age} is two columns;
+      \item \code{+} separates columns: \code{dose + age} is two columns,
+        which this version refuses (below);
       \item arithmetic is written inside \code{I()}: \code{I(dose + age)} is
         one column, the sum, and \code{I(dose / 30)} is \code{dose}
         rescaled;
       \item a function of columns is a term, as in \code{lm}:
-        \code{log(dose)}, \code{scale(age)}, and \code{poly(dose, 2)},
-        which is two columns;
-      \item a factor, a character column or a logical column gives one column
-        for each of its levels, none left out: \code{factor(z)} for a
+        \code{log(dose)}, \code{scale(age)} and \code{poly(dose, 1)};
+      \item a factor, a character column or a logical column of two levels
+        gives one column for each, none left out: \code{factor(z)} for a
         \code{z} of 0 and 1 is the two columns whose coefficients are
         \eqn{(b_0, b_1)}{(b0, b1)}, in the order of the levels;
       \item \code{dose:age} is one column, the product;
-      \item there is no constant column unless \code{1} asks for one:
-        \code{1 + dose} is a column of ones and \code{dose}, while
-        \code{0 + dose} and \code{dose - 1} are \code{dose}.
+      \item there is no constant column unless \code{1} asks for one, and
+        \code{1 + dose}, a column of ones beside \code{dose}, is refused,
+        while \code{0 + dose} and \code{dose - 1} are \code{dose}.
     }
     A basis is either one factor (or character or logical column) or numeric
     columns; the two are not mixed in one forest. The forest does not centre
     or scale a basis, so a multiplier that should be standardized is written
     so: \code{basis = scale(age)}.
+
+    \strong{One size.} In this version a basis is one numeric column, or a
+    factor, a character or a logical vector of two levels, counted on the
+    rows the fit keeps once a level they leave empty is dropped. Three or more
+    levels are refused, with the form to write, a forest for each level but
+    the first: \code{forest(x1, basis = arm == "b") + forest(x1, basis = arm
+    == "c")}. Several numeric columns are refused however they are written,
+    \code{dose + age}, \code{poly(dose, 2)}, \code{splines::ns(dose, 3)}, a
+    matrix, or a factor's indicator columns handed over as numbers, with the
+    form to write, a forest for each column:
+    \code{forest(x1, basis = dose) + forest(x1, basis = age)}; indicator
+    columns are handed over as the factor itself. \code{1 + dose} is refused
+    for its constant column: write \code{basis = dose}. Each is refused drawn
+    or held, at every place a basis is given, and a basis handed over as a
+    value is told the form in words.
 
     \strong{Which kind it is.} The class of the basis decides whether the
     forest multiplies levels or numbers, the same way at every place a basis
@@ -225,21 +244,24 @@ forest(
 
     Some forms a model formula would take are refused, each by name and with
     what to write instead: \code{*} between terms (write \code{I(dose * age)}
-    for the product, or \code{dose + age + I(dose * age)} for all three
-    columns); a term multiplied or divided by a number (write
+    for the product, or give \code{dose}, \code{age} and
+    \code{I(dose * age)} a forest each for all three); a term multiplied or divided by a number (write
     \code{I(dose / 30)}); \code{-} between terms, other than \code{- 1};
     \code{^}, \code{/}, \code{\%in\%} and \code{|} between terms; \code{.};
-    an \code{offset()}; \code{cbind()} (write \code{+}); and a term that
+    an \code{offset()}; \code{cbind()} (write its one column alone, or give
+    each column a forest of its own); and a term that
     calls one of \code{normal}, \code{fixed}, \code{student}, \code{cauchy},
     \code{linear}, \code{gp}, \code{cgm}, \code{dart}, \code{chisq},
     \code{chi}, \code{invchi}, \code{forest} or \code{varianceForest}, since
     a prior is not stated on a term of a basis.
 
     \strong{Names of the columns.} They are named as
-    \code{coef(lm(y ~ 0 + <basis>))} names them: \code{dose}, \code{age};
-    \code{poly(dose, 2)1}, \code{poly(dose, 2)2}; \code{factor(z)0},
-    \code{factor(z)1}; \code{(Intercept)} for the column of ones. They are the
-    column names of \code{data@bases[[f]]} on the sampler. A forest's label,
+    \code{coef(lm(y ~ 0 + <basis>))} names them: \code{dose};
+    \code{factor(z)0}, \code{factor(z)1}; and, for a basis of several
+    columns, which is read and named before it is refused and whose refusal
+    quotes the names, \code{dose}, \code{age}, \code{poly(dose, 2)1},
+    \code{poly(dose, 2)2} and \code{(Intercept)} for the column of ones. They
+    are the column names of \code{data@bases[[f]]} on the sampler. A forest's label,
     where its place in a \code{forests} list has no name, is the text of its
     basis, \code{"dose + age"}, or \code{forest<i>} for a forest with no basis
     or with one given as a value; see \code{\link{dbarts}}. Wherever a method
@@ -350,9 +372,8 @@ forest(
     \strong{A value.} What is handed over as an object, through
     \code{do.call()} or in a call built by a program, is used as it is: a
     numeric vector or matrix is its columns, and a factor, a character vector
-    or a logical vector is its levels, as written as code. Its columns keep their names when every
-    column has one, and have none when any column lacks one; two columns of
-    one name are refused. Its forest's label is \code{forest<i>}. It has one
+    or a logical vector is its levels, as written as code. Its column keeps
+    the name it has. Its forest's label is \code{forest<i>}. It has one
     row for every row of \code{data} and is cut to the rows the fit keeps; a
     value already cut to those rows is refused by name. A level that no row
     the fit keeps has gives no column, whether \code{data}, \code{subset} or
@@ -443,11 +464,7 @@ forest(
     \code{$getLeafPrior(f)$sd.stated} is \code{FALSE}. A value stated here
     overrides the default, in the response's units, at every \eqn{K}{K}.
 
-    It is one number, positive and finite, and a name on it is dropped. For a
-    basis of several columns that one number is the size stated for each of
-    them, so \code{forest(basis = dose + age, sd = 2)} states 2 for the column
-    \code{dose} and 2 for the column \code{age}; to size two columns
-    differently, rescale one of them in the basis, as \code{I(dose / 30)}. A
+    It is one number, positive and finite, and a name on it is dropped. A
     vector of any other length and anything that is not a number are refused.
     The one forest of a model of one forest takes it as the fitting function's
     \code{leaf.prior = normal(sd = )}, in the same units, and stating the size
@@ -515,13 +532,11 @@ forest(
     the first level and enters at full size for the second, so it is the
     second level's difference from the first. For now a held forest is taken
     in two shapes only: a forest with no \code{basis} at any place but the
-    second, and a basis of two columns as the second forest, two numeric
-    columns being held as two levels are, the first at 0, so that column is
-    not used. Every other shape is refused when held: a forest with no
-    \code{basis} put second in a \code{forests} list or in a data object's
-    \code{bases}, a basis of two columns at any other place, and a basis of
-    one column or of three or more. \code{$setForestBasis} refuses a held
-    forest a replacement of another width. \code{fixed} alone is taken as
+    second, and a basis of two levels as the second forest. Every other shape
+    is refused when held: a forest with no \code{basis} put second in a
+    \code{forests} list or in a data object's \code{bases}, a basis of two
+    levels at any other place, and a basis of one numeric column.
+    \code{fixed} alone is taken as
     \code{fixed()}, and no other value is. Outside the argument that takes it
     the constructor is \code{dbartsPriors$fixed()}. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.
@@ -657,9 +672,10 @@ looped <- dbarts(y ~ x1 + x3, d, forests = forests,
                  control = dbartsControl(n.chains = 1L, n.trees = 10L))
 vapply(looped$data@bases[-1L], function(basis) basis[1L, 1L], 0) * c(25, 100)
 
-# two columns, a coefficient each; I() holds arithmetic
-twoColumns <- dbarts(y ~ forest(x1 + x3) + forest(x1, basis = z + I(w / 50)),
-                     d, control = dbartsControl(n.chains = 1L, n.trees = 10L))
-colnames(twoColumns$data@bases[[2L]])
+# two columns are a forest each, with a coefficient each; I() holds arithmetic
+perColumn <- dbarts(y ~ forest(x1 + x3) + forest(x1, basis = z) +
+                      forest(x1, basis = I(w / 50)),
+                    d, control = dbartsControl(n.chains = 1L, n.trees = 10L))
+lapply(perColumn$data@bases[-1L], colnames)
 }
 \keyword{models}

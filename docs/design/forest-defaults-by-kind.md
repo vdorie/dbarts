@@ -97,7 +97,10 @@ own for every shape, `amplitude = fixed()` is taken only where that is the value
 | a basis of one column | any | | refused | interim (dec-A171) |
 
 `$setForestBasis` refuses a held forest a replacement of another width, a forest created with no basis
-taking none. Nothing is held anew and no held value changes.
+taking none. Nothing is held anew and no held value changes. Since forest-kind-by-class's second push a basis
+is one numeric column or two levels, refused otherwise at creation before a hold is read, so the rows for two
+numeric columns and for three or more are that refusal's, and no forest changes width, held or drawn
+([forest-kind-by-class.md](forest-kind-by-class.md)).
 
 ## Selecting a forest
 

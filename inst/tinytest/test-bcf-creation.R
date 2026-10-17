@@ -678,19 +678,21 @@ continuousBasis <- dbarts(
 expect_equal(ncol(continuousBasis$data@bases[[2L]]), 1L)
 expect_equal(nrow(continuousBasis$getForestAmplitudes(2L)), 1L)
 
-# a factor wider than two levels expands to one amplitude PER LEVEL
-threeLevel <- dbarts(
-  x,
-  y,
-  forests = list(
-    forest(),
-    forest(basis = factor(rep(c("a", "b", "c"), length.out = n)))
+# a factor wider than two levels is refused, a forest having two levels or
+# one numeric column
+expect_error(
+  dbarts(
+    x,
+    y,
+    forests = list(
+      forest(),
+      forest(basis = factor(rep(c("a", "b", "c"), length.out = n)))
+    ),
+    control = control
   ),
-  control = control
+  "has a basis of 3 levels ('a', 'b', 'c')",
+  fixed = TRUE
 )
-expect_equal(ncol(threeLevel$data@bases[[2L]]), 3L)
-expect_equal(nrow(threeLevel$getForestAmplitudes(2L)), 3L)
-expect_true(all(rowSums(threeLevel$data@bases[[2L]]) == 1))
 # the FIRST forest takes a basis too, and its amplitude block widens with it.
 # No forest of the model is without a basis, so the count and the tree prior
 # are stated on a forest and the control names no count

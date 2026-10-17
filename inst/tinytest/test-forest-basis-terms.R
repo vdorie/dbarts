@@ -7,7 +7,10 @@
 # columns and their names. Block C: the texts whose meaning changed. Block D:
 # rows, at both doors. Block E: new rows. Block F: 'subset' is read once, by
 # the data object, and every basis is cut by the rows it kept. Block G: 'data'
-# is read once. Block H: a value that the kept rows leave with one level.
+# is read once. Block H: a value that the kept rows leave with one level. A
+# fit takes one numeric column or two levels, so a basis of several columns
+# is read here off the builder, which is what a fit reads before it refuses
+# the size.
 
 forest <- dbartsForests$forest
 
@@ -20,9 +23,11 @@ frame <- data.frame(
   dose = runif(n, 0.5, 2),
   age = 50 + 10 * rnorm(n),
   z = rep_len(c(0L, 1L), n),
-  g = sample(c("u", "v", "w"), n, replace = TRUE),
+  g3 = sample(c("u", "v", "w"), n, replace = TRUE),
   stringsAsFactors = FALSE
 )
+# a column of two values, and one of three for the rows that empty a level
+frame$g <- ifelse(frame$g3 == "w", "v", frame$g3)
 frame$zl <- frame$z == 1L
 frame$gf <- factor(frame$g, levels = c("u", "v", "w", "never"))
 frame$W <- cbind(p = frame$dose, q = frame$age)
@@ -37,6 +42,7 @@ newRows <- data.frame(
   g = rep_len(c("v", "u"), 9L),
   stringsAsFactors = FALSE
 )
+newRows$g3 <- newRows$g
 newRows$zl <- newRows$z == 1L
 newRows$gf <- factor(newRows$g, levels = levels(frame$gf))
 newRows$W <- cbind(p = newRows$dose, q = newRows$age)
@@ -146,6 +152,18 @@ lmColumns <- function(basis, data = frame, rows = NULL) {
     dimnames = list(NULL, colnames(design))
   )
 }
+# the columns the builder gives a basis written as code, on every row of
+# `data` or on `rows` of it, with no sampler: how a basis of several columns
+# is read and named, which a fit then refuses for its size
+builtColumns <- function(basis, data = frame, rows = NULL) {
+  code <- dbarts:::basisCode(asCode(basis), parent.frame())
+  read <- dbarts:::readForestBasis(code, data, nrow(data))
+  dbarts:::buildCodeBasis(read, rows)$basis
+}
+# whether a door's refusal is of a basis of several numeric columns
+sizeRefused <- function(said, width) {
+  grepl(paste0(" has a basis of ", width, " numeric columns"), said)
+}
 lmNames <- function(basis, data = frame) {
   formula <- lmFormula(basis)
   formula <- eval(call("~", quote(y), formula[[2L]]))
@@ -160,7 +178,8 @@ refused <- list(
   "dose * age" = paste0(
     "'basis' does not take '*' between its terms ('dose * age'): in a model ",
     "formula it is both columns and their product. Write I(dose * age) for ",
-    "the product alone, or dose + age + I(dose * age) for all three"
+    "the product alone; a basis being one numeric column, give dose, age and ",
+    "I(dose * age) a forest each for all three"
   ),
   "poly(dose, 2) * age" = paste0(
     "'basis' does not take '*' between its terms ('poly(dose, 2) * age')"
@@ -220,15 +239,24 @@ refused <- list(
   ),
   "cbind(dose, age)" = paste0(
     "'basis' term 'cbind(dose, age)': the columns of a basis are separated ",
-    "by '+'; write dose + age"
+    "by '+', and in this version a basis is one numeric column; give each ",
+    "column a forest of its own, as forest(basis = dose) + forest(basis = ",
+    "age), or give a factor whose indicator columns they are"
   ),
   "cbind(1 - z, z)" = paste0(
     "'basis' term 'cbind(1 - z, z)': the columns of a basis are separated ",
-    "by '+'; write I(1 - z) + z"
+    "by '+', and in this version a basis is one numeric column; give each ",
+    "column a forest of its own, as forest(basis = I(1 - z)) + ",
+    "forest(basis = z), or give a factor whose indicator columns they are"
   ),
   "cbind(1, dose)" = paste0(
     "'basis' term 'cbind(1, dose)': the columns of a basis are separated by ",
-    "'+'; write 1 + dose"
+    "'+', and in this version a basis is one numeric column; write the ",
+    "column alone, as basis = dose"
+  ),
+  "cbind(dose)" = paste0(
+    "'basis' term 'cbind(dose)': the columns of a basis are separated by ",
+    "'+'; write dose"
   ),
   "normal(dose, sd = 30)" = paste0(
     "'basis' term 'normal(dose, sd = 30)' calls normal(), which is not a ",
@@ -277,7 +305,7 @@ for (written in list(
   c("cbind(log(dose), age * 2)", "log(dose) + I(age * 2)")
 )) {
   expect_identical(
-    unname(basisOf(listFit(written[2L]))),
+    unname(builtColumns(written[2L])),
     unname(eval(str2lang(written[1L]), frame)),
     info = written[1L]
   )
@@ -338,26 +366,26 @@ named <- frame
 named$normal <- frame$dose
 named$fixed <- frame$age
 named$forest <- frame$dose * 2
+expect_identical(
+  builtColumns("normal + fixed + forest", named),
+  lmColumns("normal + fixed + forest", named)
+)
 for (door in doors) {
-  expect_identical(
-    basisOf(door("normal + fixed + forest", named)),
-    lmColumns("normal + fixed + forest", named)
-  )
+  expect_identical(basisOf(door("normal", named)), lmColumns("normal", named))
 }
 # cbind() called through its package is a matrix term, as in lm()
-for (door in doors) {
-  expect_identical(
-    basisOf(door("base::cbind(dose, age)")),
-    lmColumns("base::cbind(dose, age)")
-  )
-}
 expect_identical(
-  colnames(basisOf(listFit("base::cbind(dose, age)"))),
+  builtColumns("base::cbind(dose, age)"),
+  lmColumns("base::cbind(dose, age)")
+)
+expect_identical(
+  colnames(builtColumns("base::cbind(dose, age)")),
   c("base::cbind(dose, age)dose", "base::cbind(dose, age)age")
 )
 
 # every shape of operator at the top of a basis is either refused or is the
-# columns lm() gives, with one verdict at the two doors
+# columns lm() gives, with one verdict at the two doors; columns of several
+# are the builder's, and refused by a fit for their size
 shapes <- c(
   "dose %% 2" = TRUE,
   "dose %/% 30" = FALSE,
@@ -424,6 +452,11 @@ for (text in names(shapes)) {
     tryCatch(basisOf(door(code)), error = function(e) conditionMessage(e))
   })
   expect_identical(read$term, read$list, info = text)
+  if (!is.matrix(read$list) && shapes[[text]]) {
+    built <- builtColumns(code)
+    expect_true(sizeRefused(read$list, ncol(built)), info = text)
+    read$list <- built
+  }
   expect_identical(is.matrix(read$list), unname(shapes[[text]]), info = text)
   if (is.matrix(read$list)) {
     expect_identical(read$list, lmColumns(code), info = text)
@@ -431,7 +464,8 @@ for (text in names(shapes)) {
 }
 
 ## --- Block B: the columns and their names -----------------------------------
-# as coef(lm(y ~ 0 + <basis>)) names them, and with lm()'s values
+# as coef(lm(y ~ 0 + <basis>)) names them, and with lm()'s values; a basis of
+# several numeric columns is the builder's, and refused at both doors
 fitted <- c(
   "dose",
   "dose + age",
@@ -456,6 +490,16 @@ expect_identical(length(fitted), 18L)
 for (text in fitted) {
   expected <- lmColumns(text)
   expect_identical(colnames(expected), lmNames(text), info = text)
+  if (ncol(expected) > 1L && !(text %in% c("factor(z)", "g", "zl"))) {
+    expect_identical(builtColumns(text), expected, info = text)
+    for (door in names(doors)) {
+      expect_true(
+        sizeRefused(refusal(doors[[door]](text)), ncol(expected)),
+        info = paste(door, text)
+      )
+    }
+    next
+  }
   handedOver <- draws(valueFit(
     if (text %in% c("factor(z)", "g", "zl")) {
       eval(str2lang(text), frame)
@@ -488,7 +532,8 @@ expect_identical(
 expect_identical(lmNames("factor(z)"), c("factor(z)0", "factor(z)1"))
 expect_identical(lmNames("W"), c("Wp", "Wq"))
 # a tilde is taken off and changes nothing
-for (text in c("dose + age", "factor(z)", "scale(age)")) {
+expect_identical(builtColumns("~ dose + age"), lmColumns("dose + age"))
+for (text in c("I(dose + age)", "factor(z)", "scale(age)")) {
   for (door in doors) {
     expect_identical(
       basisOf(door(paste("~", text))),
@@ -498,7 +543,7 @@ for (text in c("dose + age", "factor(z)", "scale(age)")) {
   }
 }
 # a factor's columns are every level's, by no contrast: no level is dropped
-expect_identical(ncol(basisOf(listFit("g"))), 3L)
+expect_identical(ncol(basisOf(listFit("g"))), 2L)
 expect_identical(
   unname(rowSums(basisOf(listFit("g")))),
   rep(1, n)
@@ -507,9 +552,9 @@ expect_identical(
 # logical matrix and two columns of one name
 mixes <- paste0(
   ") mixes a factor with other terms: a basis is one factor, a character ",
-  "or a logical vector, with one coefficient per level, or numeric columns, ",
-  "with one each. Give the other terms a forest() of their own, or write ",
-  "the factor as numbers"
+  "or a logical vector of two levels, with one coefficient per level, or ",
+  "one numeric column. Give the factor and each other term a forest() of ",
+  "its own"
 )
 for (text in c("dose + factor(z)", "g:dose", "1 + factor(z)", "g + zl")) {
   for (door in doors) {
@@ -542,7 +587,7 @@ frame$L <- NULL
 frame$A <- NULL
 
 # a held coefficient on a basis of one numeric column is refused however the
-# column is written, and held on two columns at 0 and 1
+# column is written, and two numeric columns are refused held as drawn
 heldOneColumn <- paste0(
   "forest 2: amplitude = fixed() on a basis of one numeric column is not ",
   "supported yet"
@@ -574,28 +619,32 @@ for (text in c("dose", "I(dose / 30)", "scale(age)", "dose:age", "~ dose")) {
     info = text
   )
 }
-heldTwo <- dbarts(
-  y ~ x1 + x2 + forest(x1, basis = dose + age, amplitude = fixed()),
-  frame,
-  control = basisControl()
-)
-invisible(heldTwo$run(0L, 5L))
-expect_equal(heldTwo$getForestAmplitudes()[2:3, 1L], c(0, 1))
+expect_true(sizeRefused(
+  refusal(dbarts(
+    y ~ x1 + x2 + forest(x1, basis = dose + age, amplitude = fixed()),
+    frame,
+    control = basisControl()
+  )),
+  2L
+))
 
 ## --- Block C: the texts whose meaning changed --------------------------------
-# '+' is columns; the sum is written inside I()
+# '+' is columns, refused in this version with the form that runs; the sum is
+# written inside I()
 expect_identical(
-  draws(listFit("~ dose + age")),
-  draws(valueFit(cbind(frame$dose, frame$age)))
+  refusal(listFit("~ dose + age")),
+  paste0(
+    "forest 2 ('dose + age') has a basis of 2 numeric columns ('dose', ",
+    "'age'); in this version a basis is one numeric column, or a factor, a ",
+    "character or a logical vector of two levels. Give each column a forest ",
+    "of its own, as forest(x1, basis = dose) + forest(x1, basis = age)"
+  )
 )
+expect_true(sizeRefused(refusal(valueFit(cbind(frame$dose, frame$age))), 2L))
 expect_identical(
   draws(listFit("I(dose + age)")),
   draws(valueFit(frame$dose + frame$age))
 )
-expect_false(identical(
-  draws(listFit("dose + age")),
-  draws(listFit("I(dose + age)"))
-))
 # '- 1' removes the constant column a basis does not have; the arithmetic is
 # written inside I()
 expect_identical(basisOf(listFit("~ dose - 1")), lmColumns("dose"))
@@ -604,15 +653,21 @@ expect_identical(
   draws(listFit("I(dose - 1)")),
   draws(valueFit(frame$dose - 1))
 )
-# '1 +' asks for the constant column
+# '1 +' asks for the constant column, which in this version is refused by
+# name; written as a value it is two numeric columns
 expect_identical(
-  colnames(basisOf(listFit("~ 1 + dose"))),
+  colnames(builtColumns("~ 1 + dose")),
   c("(Intercept)", "dose")
 )
 expect_identical(
-  draws(listFit("~ 1 + dose")),
-  draws(valueFit(cbind(1, frame$dose)))
+  refusal(listFit("~ 1 + dose")),
+  paste0(
+    "forest 2 ('1 + dose') has a basis of 2 numeric columns ('(Intercept)', ",
+    "'dose'): '1 +' in a basis adds a constant column, and in this version a ",
+    "basis is one numeric column. Write the column alone, as basis = dose"
+  )
 )
+expect_true(sizeRefused(refusal(valueFit(cbind(1, frame$dose))), 2L))
 expect_identical(
   draws(listFit("I(1 + dose)")),
   draws(valueFit(1 + frame$dose))
@@ -637,10 +692,14 @@ for (door in doors) {
     (frame$age[keep] - centre) / spread
   )
   expect_identical(
-    basisOf(door("poly(dose, 2)", subset = keep)),
-    lmColumns("poly(dose, 2)", rows = keep)
+    basisOf(door("poly(dose, 1)", subset = keep)),
+    lmColumns("poly(dose, 1)", rows = keep)
   )
 }
+expect_identical(
+  builtColumns("poly(dose, 2)", rows = which(keep)),
+  lmColumns("poly(dose, 2)", rows = keep)
+)
 expect_false(isTRUE(all.equal(
   as.vector(basisOf(termFit("scale(age)", subset = keep))),
   as.vector(scale(frame$age[keep]))
@@ -649,12 +708,20 @@ expect_false(isTRUE(all.equal(
 ## --- Block D: rows, at both doors -------------------------------------------
 # one text is one basis and one model at the two doors, under 'subset' and
 # under a response whose missing rows the na.action drops
-noW <- frame$g != "w"
+noW <- frame$g3 != "w"
 missingY <- frame
-missingY$y[frame$g == "w"] <- NA
+missingY$y[frame$g3 == "w"] <- NA
 missingY$y[3:5] <- NA
 keptY <- !is.na(missingY$y)
-for (text in c("factor(g)", "g", "gf", "scale(age)", "dose + age", "zl")) {
+for (text in c(
+  "factor(g)",
+  "g",
+  "gf",
+  "g3",
+  "factor(g3)",
+  "scale(age)",
+  "zl"
+)) {
   underSubset <- lapply(doors, function(door) door(text, subset = noW))
   expect_identical(
     basisOf(underSubset$term),
@@ -690,12 +757,12 @@ for (text in c("factor(g)", "g", "gf", "scale(age)", "dose + age", "zl")) {
 # a level the kept rows leave empty is no column, whatever emptied it: never
 # used, cut by 'subset', or gone with the rows of a missing response
 for (door in doors) {
-  expect_identical(colnames(basisOf(door("gf"))), c("gfu", "gfv", "gfw"))
+  expect_identical(colnames(basisOf(door("gf"))), c("gfu", "gfv"))
   expect_identical(
-    colnames(basisOf(door("gf", subset = noW))),
-    c("gfu", "gfv")
+    colnames(basisOf(door("g3", subset = noW))),
+    c("g3u", "g3v")
   )
-  expect_identical(colnames(basisOf(door("g", missingY))), c("gu", "gv"))
+  expect_identical(colnames(basisOf(door("g3", missingY))), c("g3u", "g3v"))
   # the rows are the kept rows, in their order
   expect_identical(
     unname(basisOf(door("g", subset = noW))[, 1L]),
@@ -789,6 +856,10 @@ expect_identical(
   basisOf(throughDots(subset = noW)),
   basisOf(termFit("g", subset = noW))
 )
+expect_identical(
+  basisOf(termFit("g3", subset = noW)),
+  lmColumns("g3", rows = noW)[, 1:2, drop = FALSE]
+)
 for (door in doors) {
   expect_identical(
     basisOf(door("g", lettered, subset = namedRows)),
@@ -807,7 +878,7 @@ for (door in doors) {
 # with the matrix interface too, where 'subset' is the rows themselves
 xMatrix <- as.matrix(frame[c("x1", "x2")])
 yVector <- frame$y
-gVector <- frame$g
+gVector <- frame$g3
 matrixFit <- dbarts(
   xMatrix,
   yVector,
@@ -865,19 +936,21 @@ hasSplines <- requireNamespace("splines", quietly = TRUE)
 rebuilt <- c(
   "scale(age)",
   "scale(age, scale = FALSE)",
-  "poly(dose, 2)",
-  "poly(dose, 2, raw = TRUE)",
-  "scale(age) + poly(dose, 2)",
+  "poly(dose, 1)",
+  "poly(dose, 1, raw = TRUE)",
   "scale(log(age))",
   "I(age - mean(age))",
-  "1 + dose",
   "dose:age",
   "factor(z)",
   "g",
   "zl"
 )
 if (hasSplines) {
-  rebuilt <- c(rebuilt, "splines::ns(age, 3)", "splines::bs(age, df = 4)")
+  rebuilt <- c(
+    rebuilt,
+    "splines::ns(age, df = 1)",
+    "splines::bs(age, degree = 1L, df = 1L)"
+  )
 }
 plainColumns <- c("x1", "x2", "x3", "dose", "age", "z", "g", "zl")
 stacked <- rbind(frame[1:6, plainColumns], newRows[plainColumns])
@@ -926,10 +999,10 @@ expect_equal(
   as.vector(replayed(scaleFit, newRows)),
   (newRows$age - mean(frame$age)) / stats::sd(frame$age)
 )
-polyFit <- bartFit("poly(dose, 2)")
+polyFit <- bartFit("poly(dose, 1)")
 expect_equal(
   as.vector(replayed(polyFit, newRows)),
-  as.vector(stats::predict(stats::poly(frame$dose, 2), newRows$dose))
+  as.vector(stats::predict(stats::poly(frame$dose, 1), newRows$dose))
 )
 # arithmetic inside I() is evaluated on the rows given, as lm() evaluates it
 centred <- bartFit("I(age - mean(age))")
@@ -954,42 +1027,38 @@ for (i in seq_len(nrow(newRows))) {
 # a level the new rows lack is not an error, and the width is the fit's; a
 # level the fit never saw is refused, as is one the fit's rows did not keep
 levelFit <- bartFit("g")
-expect_identical(ncol(replayed(levelFit, newRows)), 3L)
+expect_identical(ncol(replayed(levelFit, newRows)), 2L)
 unseen <- newRows
 unseen$g[2L] <- "new"
 expect_error(predict(levelFit, unseen), "new")
-droppedFit <- bartFit("g", subset = noW)
+droppedFit <- bartFit("g3", subset = noW)
 expect_identical(levels(droppedFit$bases[[2L]]), c("u", "v"))
-expect_identical(colnames(droppedFit$fit$data@bases[[2L]]), c("gu", "gv"))
+expect_identical(colnames(droppedFit$fit$data@bases[[2L]]), c("g3u", "g3v"))
 expect_identical(
   replayed(droppedFit, newRows),
-  atNewRows("g", newRows)[, 1:2, drop = FALSE]
+  atNewRows("g3", newRows)[, 1:2, drop = FALSE]
 )
 withW <- newRows
-withW$g[1L] <- "w"
+withW$g3[1L] <- "w"
 expect_error(
   predict(droppedFit, withW),
-  "'basis' (g) has the level 'w' at a new row, which no row of the fit had",
+  "'basis' (g3) has the level 'w' at a new row, which no row of the fit had",
   fixed = TRUE
 )
 # the order of a factor's columns at new rows is the fit's, whatever order
 # the new rows' own levels come in
 ordered <- frame
-ordered$h <- factor(frame$g, levels = c("w", "u", "v"))
+ordered$h <- factor(frame$g, levels = c("v", "u"))
 orderFit <- bartFit("h", ordered)
-expect_identical(levels(orderFit$bases[[2L]]), c("w", "u", "v"))
-expect_identical(
-  colnames(orderFit$fit$data@bases[[2L]]),
-  c("hw", "hu", "hv")
-)
+expect_identical(levels(orderFit$bases[[2L]]), c("v", "u"))
+expect_identical(colnames(orderFit$fit$data@bases[[2L]]), c("hv", "hu"))
 reordered <- newRows
-reordered$g <- c("v", "u", "w", "w", "v", "u", "v", "u", "w")
+reordered$g <- c("v", "u", "u", "u", "v", "u", "v", "u", "v")
 inFitOrder <- cbind(
-  hw = as.double(reordered$g == "w"),
-  hu = as.double(reordered$g == "u"),
-  hv = as.double(reordered$g == "v")
+  hv = as.double(reordered$g == "v"),
+  hu = as.double(reordered$g == "u")
 )
-for (levelOrder in list(c("v", "u", "w"), c("u", "v", "w"), c("w", "u", "v"))) {
+for (levelOrder in list(c("u", "v"), c("v", "u"))) {
   reordered$h <- factor(reordered$g, levels = levelOrder)
   expect_identical(replayed(orderFit, reordered), inFitOrder)
 }
@@ -1139,7 +1208,7 @@ expect_equal(as.vector(colMeans(pd2$fd)), byHand)
 # a term that draws random numbers is evaluated once: after the fit R's
 # generator stands where one evaluation of the basis leaves it
 set.seed(11)
-invisible(bartFit("scale(age) + runif(length(age))"))
+invisible(bartFit("I(age + runif(length(age)))"))
 after <- stats::runif(1L)
 set.seed(11)
 invisible(stats::runif(n))
@@ -1166,7 +1235,7 @@ expect_identical(countWarnings, 1L)
 # it kept, so a subset that draws its rows, or does something each time it is
 # read, gives a basis the fit's own rows. An `id` predictor names each row
 # the fit kept, in the fit's order.
-rowed <- frame[c("y", "x1", "x2", "dose", "age", "g")]
+rowed <- frame[c("y", "x1", "x2", "dose", "age", "g", "g3")]
 rowed$id <- seq_len(n)
 row.names(rowed) <- paste0("r", seq_len(n))
 xRowed <- as.matrix(rowed[c("x1", "id")])
@@ -1174,7 +1243,7 @@ yRowed <- rowed$y
 doseRows <- rowed$dose
 ageRows <- rowed$age
 gRows <- rowed$g
-gIndicators <- outer(gRows, c("u", "v", "w"), "==") + 0
+gIndicators <- outer(gRows, c("u", "v"), "==") + 0
 readings <- 0L
 drawRows <- function() {
   readings <<- readings + 1L
@@ -1308,7 +1377,7 @@ subsetDoors <- list(
         y ~ x1 + id,
         .(data),
         subset = .(subset),
-        bases = list(NULL, doseRows[.(rows)], gIndicators[.(rows), ])
+        bases = list(NULL, doseRows[.(rows)], factor(gRows)[.(rows)])
       ),
       control = basisControl()
     ))
@@ -1414,7 +1483,7 @@ matrixComputed <- dbarts(
   forests = list(
     forest(),
     forest(x1, basis = scale(ageRows)),
-    forest(x1, basis = poly(doseRows, 2))
+    forest(x1, basis = poly(doseRows, 1))
   ),
   control = basisControl()
 )
@@ -1424,18 +1493,19 @@ expect_identical(
 )
 expect_identical(
   matrixComputed$data@bases[[3L]],
-  lmColumns("poly(doseRows, 2)", rows = outOfOrder)
+  lmColumns("poly(doseRows, 1)", rows = outOfOrder)
 )
 expect_equal(
   as.vector(matrixComputed$data@bases[[2L]]),
   ((ageRows - mean(ageRows)) / stats::sd(ageRows))[outOfOrder]
 )
 # every forest's basis is built on the kept rows, a third forest's too: a
-# level 'subset' empties is no column of it
-withoutW <- rowed$g != "w"
+# level 'subset' empties is no column of it, and the size is judged after it
+withoutW <- rowed$g3 != "w"
+g3Rows <- rowed$g3
 thirdForest <- list(
   term = dbarts(
-    y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = g),
+    y ~ x1 + id + forest(x1, basis = dose) + forest(x1, basis = g3),
     rowed,
     subset = withoutW,
     control = basisControl()
@@ -1444,7 +1514,7 @@ thirdForest <- list(
     y ~ x1 + id,
     rowed,
     subset = withoutW,
-    forests = list(forest(), forest(x1, basis = dose), forest(x1, basis = g)),
+    forests = list(forest(), forest(x1, basis = dose), forest(x1, basis = g3)),
     control = basisControl()
   ),
   matrix = dbarts(
@@ -1454,7 +1524,7 @@ thirdForest <- list(
     forests = list(
       forest(),
       forest(x1, basis = doseRows),
-      forest(x1, basis = gRows)
+      forest(x1, basis = g3Rows)
     ),
     control = basisControl()
   )
@@ -1462,7 +1532,7 @@ thirdForest <- list(
 for (door in names(thirdForest)) {
   expect_identical(
     unname(thirdForest[[door]]$data@bases[[3L]]),
-    unname(gIndicators[withoutW, 1:2]),
+    unname(outer(g3Rows, c("u", "v"), "==")[withoutW, ] + 0),
     info = door
   )
 }

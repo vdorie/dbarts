@@ -2,9 +2,9 @@
 # and by nothing else, at every door, and is fixed at creation: a factor, a
 # character vector or a logical vector is levels, a number is numbers
 # whatever its values. Every object below is taken through all seven creation
-# doors and held to the FIRST door, so that no door can be right alone.
-# `expected2` in the objects' table is what the next version of the rule
-# makes of an object, one size a forest, and is not asserted yet.
+# doors and held to the FIRST door, so that no door can be right alone. A
+# forest has one size, one numeric column or two levels, and every larger
+# object is refused by its size at every door (test-forest-basis-one-size.R).
 
 forest <- dbartsForests$forest
 fixed <- dbartsPriors$fixed
@@ -252,6 +252,21 @@ objects <- list(
 )
 for (object in objects) {
   info <- object[[1L]]
+  if (object[[5L]] == "refused") {
+    size <- paste(
+      object[[4L]],
+      if (object[[3L]] == "levels") "levels" else "numeric columns"
+    )
+    for (door in sevenDoors) {
+      said <- made(door, object[[2L]])$refused
+      expect_true(
+        startsWith(said, "forest 2") &&
+          grepl(paste0(" has a basis of ", size), said, fixed = TRUE),
+        info = paste(info, "at", door)
+      )
+    }
+    next
+  }
   first <- expectOneReading(object[[2L]], sevenDoors, info)
   expect_null(first$refused, info = info)
   expect_identical(first$kind, object[[3L]], info = info)
@@ -285,7 +300,7 @@ for (door in codeDoors) {
 
 # the content decides nothing: a 0/1 number is one numeric column at every
 # door and is not the factor's fit, and a factor's indicator columns handed
-# over as numbers are two numeric columns
+# over as numbers are two numeric columns, refused as such
 factorDraws <- made("term.dbarts", zf)$draws
 for (door in sevenDoors) {
   for (number in list(as.integer(z), z, I(z), matrix(z))) {
@@ -296,8 +311,18 @@ for (door in sevenDoors) {
   }
   expect_identical(made(door, z == 1)$draws, factorDraws, info = door)
 }
-expect_identical(made("list.value", cbind(1 - z, z))$kind, "numeric")
-expect_identical(made("data", cbind(1 - z, z))$levels, list(NULL, NULL))
+for (door in c("list.value", "data")) {
+  expect_identical(
+    made(door, cbind(1 - z, z))$refused,
+    paste0(
+      "forest 2 has a basis of 2 numeric columns; in this version a basis is ",
+      "one numeric column, or a factor, a character or a logical vector of ",
+      "two levels. If the columns are a factor's indicators, give the factor ",
+      "itself; otherwise give each column a forest of its own"
+    ),
+    info = door
+  )
+}
 
 # --- the objects every door refuses ---
 classText <- function(what, advice = "") {
@@ -608,16 +633,21 @@ renumbered <- dbartsSpec(
 expect_identical(renumbered$data@basis.levels, list(NULL, NULL))
 expect_identical(renumbered$data@bases, numericData@bases)
 
-# a data object saved before the slot existed has none: it creates at every
-# door that takes a data object, runs, and reads as numbers. The class's
-# validity refuses it, in R's words, and no door calls that
+# a data object saved before the slot existed has none: it reads as numbers.
+# Of one column it creates at every door that takes a data object, runs and
+# takes numbers; with a factor's block of two it is two numeric columns,
+# refused at each. The class's validity refuses it, in R's words, and no door
+# calls that
 proto <- dbartsSpec(levelsData, kindControl())
 slotless <- proto$data
 attr(slotless, "basis.levels") <- NULL
 expect_error(validObject(slotless), "basis.levels", fixed = TRUE)
+numericProto <- dbartsSpec(numericData, kindControl())
+numericSlotless <- numericProto$data
+attr(numericSlotless, "basis.levels") <- NULL
 madeFrom <- list(
-  new = function(data) {
-    new("dbartsSampler", proto$control, proto$model, data)
+  new = function(data, from = proto) {
+    new("dbartsSampler", from$control, from$model, data)
   },
   dbarts = function(data) dbarts(data, control = kindControl()),
   dbartsSpec = function(data) {
@@ -626,14 +656,28 @@ madeFrom <- list(
   }
 )
 for (door in names(madeFrom)) {
-  sampler <- valueOf(madeFrom[[door]](slotless))
+  expect_identical(
+    refusalOf(madeFrom[[door]](slotless)),
+    paste0(
+      "forest 2 has a basis of 2 numeric columns; in this version a basis is ",
+      "one numeric column, or a factor, a character or a logical vector of ",
+      "two levels. If the columns are a factor's indicators, give the factor ",
+      "itself; otherwise give each column a forest of its own"
+    ),
+    info = door
+  )
+  sampler <- if (door == "new") {
+    valueOf(madeFrom$new(numericSlotless, numericProto))
+  } else {
+    valueOf(madeFrom[[door]](numericSlotless))
+  }
   if (!expectSampler(sampler, door)) {
     next
   }
   expect_identical(dim(sampler$run(0L, 3L)$train), c(n, 3L), info = door)
   expect_null(dbarts:::dataBasisLevels(sampler$data), info = door)
   # as a forest of numbers it takes numbers
-  swapped <- refusalOf(sampler$setForestBasis(2L, cbind(1 - z, z)))
+  swapped <- refusalOf(sampler$setForestBasis(2L, rev(dose)))
   expect_null(swapped, info = door)
 }
 # recorded levels of another count than the block's columns are refused
@@ -825,7 +869,14 @@ expectedText <- function(kind, value) {
     )
     sub("'basis'", "'%s'", classText(paste("a", value), advice), fixed = TRUE)
   } else if (value %in% c("number", "dose", "zeros", "indicators", "~ dose")) {
-    if (ofLevels) levelsText(quotedLevels[[kind]])
+    if (ofLevels) {
+      levelsText(quotedLevels[[kind]])
+    } else if (value == "indicators") {
+      paste0(
+        "forest 2 multiplies one numeric column, and '%s' gives it 2; in this ",
+        "version a basis is one numeric column. Give the one column"
+      )
+    }
   } else {
     given <- sub("~ ", "", value, fixed = TRUE)
     if (ofLevels && given != kind) {
@@ -876,10 +927,6 @@ for (kind in names(forestKinds)) {
       # the twin takes it too, so that the two stay one sampler
       twin$setForestBasis(2L, swapValues[[value]])
     }
-    # a value's block is named whole or not at all, at a swap as at creation
-    if (value == "indicators" && is.null(refused)) {
-      expect_null(colnames(sampler$data@bases[[2L]]), info = info)
-    }
     # a refused swap has written nothing
     expect_identical(sampler$data, twin$data, info = info)
     expect_identical(
@@ -907,8 +954,8 @@ for (kind in names(forestKinds)) {
     factor = "factor ~ factor",
     character = "character ~ character",
     logical = "logical ~ logical",
-    number = "number dose zeros indicators ~ dose",
-    dose = "number dose zeros indicators ~ dose"
+    number = "number dose zeros ~ dose",
+    dose = "number dose zeros ~ dose"
   )[[kind]]
   expect_identical(paste(taken, collapse = " "), own, info = kind)
 }

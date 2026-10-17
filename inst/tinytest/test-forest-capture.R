@@ -214,30 +214,30 @@ expect_error(
 )
 
 ## --- Block B: what is code and what is a value -------------------------------
-twoColumns <- cbind(dose = frame$dose, age = frame$age)
-twoDraws <- draws(valueFit(twoColumns))
+oneColumn <- cbind("I(dose + age)" = frame$dose + frame$age)
+oneDraws <- draws(valueFit(oneColumn))
 # a formula held in a variable stands for that formula, and a tilde written
 # in place is the same code
-held <- ~ dose + age
+held <- ~ I(dose + age)
 for (fit in list(
   termFit(quote(held)),
   listFit(quote(held)),
-  termFit(quote(~ dose + age)),
-  listFit(quote(~ dose + age)),
-  listFit(quote(dose + age))
+  termFit(quote(~ I(dose + age))),
+  listFit(quote(~ I(dose + age))),
+  listFit(quote(I(dose + age)))
 )) {
-  expect_identical(basisOf(fit), twoColumns)
-  expect_identical(draws(fit), twoDraws)
-  expect_identical(labelsOf(fit), c("forest1", "dose + age"))
+  expect_identical(basisOf(fit), oneColumn)
+  expect_identical(draws(fit), oneDraws)
+  expect_identical(labelsOf(fit), c("forest1", "I(dose + age)"))
 }
 # a formula handed over is that formula too, as is a call or a name
-for (handedOver in list(held, quote(dose + age))) {
+for (handedOver in list(held, quote(I(dose + age)))) {
   fit <- builtFit(
     list(forest(), do.call(forest, list(c("x1", "x3"), basis = handedOver))),
     frame
   )
-  expect_identical(basisOf(fit), twoColumns)
-  expect_identical(draws(fit), twoDraws)
+  expect_identical(basisOf(fit), oneColumn)
+  expect_identical(draws(fit), oneDraws)
 }
 # a column of the data hides a variable of the caller's with its name, a
 # formula it holds included; handed over, the formula is used
@@ -266,15 +266,22 @@ local({
   )
   expect_identical(basisOf(fit), column(frame$age, "forest"))
 })
-# a value handed over has no code: its columns keep the names it has when
-# every column has one and they differ, and otherwise have none
-expect_identical(basisOf(valueFit(twoColumns)), twoColumns)
+# a value handed over has no code: its column keeps the name it has, and has
+# none where it has none
+expect_identical(basisOf(valueFit(oneColumn)), oneColumn)
+expect_null(colnames(basisOf(valueFit(unname(oneColumn)))))
+# the rule for the names of several columns, kept for a version whose basis
+# may have them: kept when every column has one and they differ, and
+# otherwise none; two alike refused
 partlyNamed <- cbind(1 - frame$z, z = frame$z)
 expect_identical(colnames(partlyNamed), c("", "z"))
-expect_null(colnames(basisOf(valueFit(partlyNamed))))
-expect_identical(basisOf(valueFit(partlyNamed)), unname(partlyNamed))
+expect_null(colnames(dbarts:::nameValueBasis(partlyNamed)))
+expect_identical(
+  colnames(dbarts:::nameValueBasis(cbind(dose = frame$dose, age = frame$age))),
+  c("dose", "age")
+)
 expect_error(
-  valueFit(cbind(a = frame$dose, a = frame$age)),
+  dbarts:::nameValueBasis(cbind(a = frame$dose, a = frame$age)),
   "'basis' has two columns named \"a\"; the columns of a basis are told apart by name",
   fixed = TRUE
 )
@@ -283,10 +290,10 @@ expect_error(
 through <- function(...) forest(...)
 expect_identical(
   basisOf(builtFit(
-    list(forest(), through(x1 + x3, basis = dose + age)),
+    list(forest(), through(x1 + x3, basis = I(dose + age))),
     frame
   )),
-  twoColumns
+  oneColumn
 )
 byFormal <- function(multiplier) forest(basis = multiplier)
 expect_identical(
@@ -1054,14 +1061,14 @@ for (form in names(machinery)) {
   )
   expect_identical(draws(fit), draws(valuesHandedOver()), info = form)
 }
-# a value with a name for every column keeps them, as any value does
-namedColumns <- list(cbind(low = w1, high = w2), cbind(up = w2, down = w1))
+# a value with a name for its column keeps it, as any value does
+namedColumns <- list(cbind(low = w1), cbind(up = w2))
 namedFit <- builtFit(
   c(list(forest()), lapply(namedColumns, forest, vars = "x1")),
   loopNamed
 )
-expect_identical(colnames(basisOf(namedFit, 2L)), c("low", "high"))
-expect_identical(colnames(basisOf(namedFit, 3L)), c("up", "down"))
+expect_identical(colnames(basisOf(namedFit, 2L)), "low")
+expect_identical(colnames(basisOf(namedFit, 3L)), "up")
 expect_identical(labelsOf(namedFit), c("forest1", "forest2", "forest3"))
 # the predictors such a function hands on are a value too, whatever the fit's
 # predictors are called

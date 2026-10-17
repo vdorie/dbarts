@@ -771,7 +771,7 @@ tey <- 2 *
   tex[, 2L] +
   tez * (1 + 2 * tex[, 3L]) +
   rnorm(teN, sd = 0.2)
-tezf <- factor(sample(c("lo", "mid", "hi"), teN, replace = TRUE))
+tezf <- factor(sample(c("lo", "hi"), teN, replace = TRUE))
 
 teControl <- dbarts::dbartsControl(
   n.threads = 1L,

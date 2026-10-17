@@ -290,24 +290,30 @@ dataBasisLevels <- function(data) {
 }
 
 ## What a data object's record must hold for as long as a sampler has it: a
-## forest's recorded levels are as many as its block has columns. Nothing
-## here looks at a row, a swap being free to leave a level or a column with
-## none. Returns the fault as text where `refuse` is FALSE, for the class's
-## validity.
+## forest's recorded levels are as many as its block has columns, and its
+## basis is of a size this version takes (basisSizeFault), read from the
+## levels and the block's width. Nothing here looks at a row, a swap being
+## free to leave a level or a column with none. Returns the fault as text
+## where `refuse` is FALSE, for the class's validity.
 checkBasisRecord <- function(data, refuse = TRUE) {
   levels <- dataBasisLevels(data)
-  for (index in seq_along(levels)) {
+  for (index in seq_len(max(length(levels), length(data@bases)))) {
     block <- if (index <= length(data@bases)) data@bases[[index]]
+    recorded <- if (index <= length(levels)) levels[[index]]
     width <- if (is.null(block)) 0L else NCOL(block)
-    if (!is.null(levels[[index]]) && length(levels[[index]]) != width) {
-      fault <- sprintf(
+    fault <- if (!is.null(recorded) && length(recorded) != width) {
+      sprintf(
         "'basis.levels' gives forest %d %d %s and its block in 'bases' has %d %s; dbartsData() and dbarts() write the two together",
         index,
-        length(levels[[index]]),
-        if (length(levels[[index]]) == 1L) "level" else "levels",
+        length(recorded),
+        if (length(recorded) == 1L) "level" else "levels",
         width,
         if (width == 1L) "column" else "columns"
       )
+    } else {
+      basisSizeFault(block, recorded, paste("forest", index))
+    }
+    if (!is.null(fault)) {
       if (refuse) {
         stop(fault, call. = FALSE)
       }

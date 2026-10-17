@@ -61,7 +61,11 @@ expectTwins <- function(a, b, info) {
 }
 
 twoDefault <- list(forest(), forest(basis = ~ factor(z)))
-threeDefault <- list(forest(), forest(basis = ~ factor(z)), forest(basis = ~g))
+threeDefault <- list(
+  forest(),
+  forest(basis = ~ factor(z)),
+  forest(basis = ~ g == "b")
+)
 
 # --- twin identity ---
 a <- multinomialSampler()
@@ -118,7 +122,7 @@ twinCases <- list(
     list(
       forest(sd = 1.7),
       forest(basis = ~ factor(z), sd = 0.6),
-      forest(basis = ~g, sd = 0.45)
+      forest(basis = ~ g == "b", sd = 0.45)
     )
   )
 )

@@ -140,16 +140,17 @@ expect_identical(
   blendAtTraining(chainFit, type = "bart", combineChains = FALSE),
   dbarts:::uncombineChains(blendAtTraining(chainFit, type = "bart"), 2L)
 )
-# a three-column basis, so the ragged margin is (1, 3)
-wideFit <- fitFromPredictBlend(list(
+# a logical basis, whose levels are FALSE then TRUE
+logicalFit <- fitFromPredictBlend(list(
   dbarts::dbartsForests$forest(),
-  dbarts::dbartsForests$forest(basis = ~g3)
+  dbarts::dbartsForests$forest(basis = ~ g3 == "b")
 ))
 # a forest of levels stores the factor, one value for each row
-expect_identical(length(wideFit$bases[[2L]]), n)
-expect_identical(nlevels(wideFit$bases[[2L]]), 3L)
+expect_identical(length(logicalFit$bases[[2L]]), n)
+expect_identical(levels(logicalFit$bases[[2L]]), c("FALSE", "TRUE"))
 expect_true(
-  max(abs(blendAtTraining(wideFit, type = "bart") - wideFit$yhat.train)) < 1e-12
+  max(abs(blendAtTraining(logicalFit, type = "bart") - logicalFit$yhat.train)) <
+    1e-12
 )
 # forest 1 carrying a basis of its own rather than the implicit column
 bothBasesFit <- fitFromPredictBlend(
@@ -336,7 +337,7 @@ expect_error(
 )
 expect_error(
   predict(termFit, newFrame, type = "bart", bases = cbind(newFrame$z, 1)),
-  pattern = "gives forest 2 2 columns; its amplitudes take 1"
+  pattern = "multiplies one numeric column, and 'bases' gives it 2"
 )
 # non-finite, which the predict path refuses on its own rather than carrying
 # into the blend and reporting infinite or NA fits

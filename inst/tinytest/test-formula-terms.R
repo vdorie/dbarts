@@ -149,7 +149,8 @@ expect_silent(dbarts::bart(
 ## --- Block B: a forest() is a top-level term --------------------------------
 # a forest() crossed with another term, either way round and by ':' or '*', is
 # refused with the forest() to write in its place; what it says to write is
-# the model the crossing stood for, a column for each member of a sum
+# the model the crossing stood for, a column for each member of a sum, which
+# where it is of a size this version does not take is refused for that size
 indicators <- function(f) outer(as.integer(f), seq_len(nlevels(f)), "==") * 1
 crossed <- list(
   list(y ~ x1 + x2 + z:forest(x1 + x2), "forest(x1 + x2, basis = z)", z),
@@ -157,7 +158,7 @@ crossed <- list(
   list(
     y ~ x1 + x2 + zf:forest(x1 + x2),
     "forest(x1 + x2, basis = zf)",
-    indicators(zf)
+    "has a basis of 3 levels ('u', 'v', 'w')"
   ),
   list(
     y ~ x1 + x2 + factor(z):forest(x1 + x2),
@@ -167,12 +168,12 @@ crossed <- list(
   list(
     y ~ x1 + x2 + (a + b):forest(x1, sd = 2),
     "forest(x1, sd = 2, basis = a + b)",
-    cbind(a, b)
+    "has a basis of 2 numeric columns ('a', 'b')"
   ),
   list(
     y ~ x1 + x2 + (log(a) + b + x3):forest(x1),
     "forest(x1, basis = log(a) + b + x3)",
-    cbind(log(a), b, x3)
+    "has a basis of 3 numeric columns ('log(a)', 'b', 'x3')"
   ),
   list(y ~ x1 + x2 + z * forest(x1 + x2), "forest(x1 + x2, basis = z)", z),
   list(y ~ x1 + x2 + forest(x1) * z, "forest(x1, basis = z)", z),
@@ -193,7 +194,12 @@ for (case in crossed) {
       case[[2L]]
     )
   )
-  rewritten <- fit(stats::as.formula(paste("y ~ x1 + x2 +", case[[2L]])))
+  written <- stats::as.formula(paste("y ~ x1 + x2 +", case[[2L]]))
+  if (is.character(case[[3L]])) {
+    refuses(written, case[[3L]])
+    next
+  }
+  rewritten <- fit(written)
   expect_equal(
     rewritten$fit$data@bases[[2L]],
     matrix(as.double(case[[3L]]), n),

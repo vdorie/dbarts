@@ -152,13 +152,13 @@ parseBasisGrammar <- function(expr) {
         "'): in a model formula it is both columns and their product. Write ",
         "I(",
         shownCode(e),
-        ") for the product alone, or ",
+        ") for the product alone; a basis being one numeric column, give ",
         shownCode(e[[2L]]),
-        " + ",
+        ", ",
         shownCode(e[[3L]]),
-        " + I(",
+        " and I(",
         shownCode(e),
-        ") for all three",
+        ") a forest each for all three",
         call. = FALSE
       )
     }
@@ -223,9 +223,11 @@ parseBasisGrammar <- function(expr) {
   walk(expr)
 }
 
-## The refusal of cbind() at the top of a basis, with the '+' form to write
-## where there is one that names the same columns: each member as a term,
-## arithmetic inside I(). The form is given only when the grammar takes it.
+## The refusal of cbind() at the top of a basis, with a form to write where
+## its members are terms that name the same columns: each member as a term,
+## arithmetic inside I(). A basis being one numeric column, several members
+## are advised a forest each and a constant column beside one is left out.
+## The form is given only when the grammar takes it.
 refuseBoundColumns <- function(expr) {
   members <- as.list(expr)[-1L]
   asTerm <- function(member) {
@@ -258,13 +260,32 @@ refuseBoundColumns <- function(expr) {
       },
       error = function(e) FALSE
     )
-    if (taken) text
+    if (taken) written[written != "1"]
+  }
+  advice <- if (length(rewrite) == 1L && length(written) == 1L) {
+    paste0("; write ", rewrite)
+  } else if (length(rewrite) == 1L) {
+    paste0(
+      ", and in this version a basis is one numeric column; write the column ",
+      "alone, as basis = ",
+      rewrite
+    )
+  } else if (length(rewrite) > 1L) {
+    paste0(
+      ", and in this version a basis is one numeric column; give each column ",
+      "a forest of its own, as ",
+      paste(
+        vapply(rewrite, forestCallText, "", predictors = NULL),
+        collapse = " + "
+      ),
+      ", or give a factor whose indicator columns they are"
+    )
   }
   stop(
     "'basis' term '",
     shownCode(expr),
     "': the columns of a basis are separated by '+'",
-    if (!is.null(rewrite)) paste0("; write ", rewrite),
+    advice,
     call. = FALSE
   )
 }
@@ -909,13 +930,142 @@ refuseConstantLogical <- function(read, levels, subject) {
   }
 }
 
+## A forest() call as a message writes it: the forest's predictors as the
+## caller wrote them, NULL for none, and its basis as code.
+forestCallText <- function(predictors, basis) {
+  paste0(
+    "forest(",
+    if (!is.null(predictors)) paste0(predictors, ", "),
+    "basis = ",
+    basis,
+    ")"
+  )
+}
+
+## A forest's predictors as its caller wrote them, for a message, or NULL
+## where it names none.
+writtenPredictors <- function(vars) {
+  if (inherits(vars, "dbartsForestTerms")) {
+    return(shownCode(vars$expr))
+  }
+  if (!is.null(vars)) shownCode(vars)
+}
+
+## The refusal of a basis of a size this version does not take, as text, or
+## NULL for one it takes: one numeric column, or a factor, a character or a
+## logical vector of two levels. `block` is the forest's block as built on
+## the rows the fit keeps, so that a level the rows empty is gone first, and
+## `levels` its levels, NULL for numbers; `forest` names the forest
+## (forestName). `code` is, for a basis written as code, its text, R's terms
+## of it and the forest's predictors as written, and the advice is then that
+## code; for a value it is NULL and the advice is in words, the caller having
+## written no code to show. The form '1 +' is told by the terms and never by
+## a column of ones.
+basisSizeFault <- function(block, levels, forest, code = NULL) {
+  if (!is.null(levels)) {
+    if (length(levels) <= 2L) {
+      return(NULL)
+    }
+    advice <- if (is.null(code)) {
+      "its basis a logical vector that is TRUE on that level's rows"
+    } else {
+      # the factor as its one term reads, '0 +' or '- 1' beside it dropped
+      termLabels <- attr(code$terms, "term.labels")
+      factorText <- if (length(termLabels) == 1L) termLabels else code$text
+      each <- vapply(
+        levels[-1L],
+        function(level) {
+          forestCallText(
+            code$predictors,
+            paste(factorText, "==", deparse(level))
+          )
+        },
+        ""
+      )
+      paste("as", paste(each, collapse = " + "))
+    }
+    return(paste0(
+      forest,
+      " has a basis of ",
+      length(levels),
+      " levels (",
+      toString(sQuote(levels, FALSE)),
+      "); in this version a factor, a character or a logical basis has two ",
+      "levels. Give each level but the first a forest of its own, ",
+      advice
+    ))
+  }
+  width <- NCOL(block)
+  if (width <= 1L) {
+    return(NULL)
+  }
+  names <- colnames(block)
+  if (anyNA(names) || !all(nzchar(names))) {
+    names <- NULL
+  }
+  has <- paste0(
+    forest,
+    " has a basis of ",
+    width,
+    " numeric columns",
+    if (!is.null(names)) paste0(" (", toString(sQuote(names, FALSE)), ")")
+  )
+  terms <- if (!is.null(code)) code$terms
+  termLabels <- attr(terms, "term.labels")
+  intercept <- !is.null(terms) && attr(terms, "intercept") == 1L
+  # each term is one column where the columns are as many as the terms
+  oneColumnTerms <- !is.null(terms) &&
+    width == length(termLabels) + intercept
+  if (intercept) {
+    return(paste0(
+      has,
+      ": '1 +' in a basis adds a constant column, and in this version a ",
+      "basis is one numeric column. ",
+      if (oneColumnTerms && length(termLabels) == 1L) {
+        paste0("Write the column alone, as basis = ", termLabels)
+      } else {
+        "Write each other column alone, in a forest of its own"
+      }
+    ))
+  }
+  paste0(
+    has,
+    "; in this version a basis is one numeric column, or a factor, a ",
+    "character or a logical vector of two levels. ",
+    if (oneColumnTerms) {
+      paste0(
+        "Give each column a forest of its own, as ",
+        paste(
+          vapply(termLabels, forestCallText, "", predictors = code$predictors),
+          collapse = " + "
+        )
+      )
+    } else {
+      paste0(
+        "If the columns are a factor's indicators, give the factor itself; ",
+        "otherwise give each column a forest of its own"
+      )
+    }
+  )
+}
+
+## basisSizeFault's refusal, raised.
+refuseBasisSize <- function(block, levels, forest, code = NULL) {
+  fault <- basisSizeFault(block, levels, forest, code)
+  if (!is.null(fault)) {
+    stop(fault, call. = FALSE)
+  }
+  invisible(NULL)
+}
+
 ## Every forest's basis finished on the rows the fit keeps: `bases` holds
 ## each as it was handed over, cut to those rows, and NULL where a forest has
 ## none. This is the one place those rows are judged, at a creation only, so
 ## that what 'subset' or the na.action dropped decides nothing: a missing
 ## value on a kept row is refused, and a kept row at a factor's NA level; a
 ## level no kept row has gives no column, and fewer than two left are
-## refused; a numeric column that is zero on every kept row is refused.
+## refused; a numeric column that is zero on every kept row is refused; and
+## then a value of a size this version does not take (refuseBasisSize).
 ## Returns the blocks the engine takes, `bases`, and the levels of their
 ## columns, `levels`, NULL for numbers. Never called where a sampler is made
 ## again from its own data: a swap may leave a level or a column with no row.
@@ -935,6 +1085,11 @@ finishBasisRows <- function(bases, argument, labels = NULL) {
       levels[index] <- list(kept)
     }
     bases[index] <- list(expandForestBasis(value, argument = argument))
+    refuseBasisSize(
+      bases[[index]],
+      levels[[index]],
+      forestName(index, labels)
+    )
   }
   list(bases = bases, levels = levels)
 }
@@ -987,7 +1142,7 @@ storedBasisBlock <- function(entry) {
 ## forest that no row has is a column of zeros, and a row at a level the
 ## forest lacks, or at an NA level, is refused, so the columns are creation's
 ## in creation's order whatever the value's own. A forest of numbers takes
-## numbers, a column of zeros among them, at whatever width they have.
+## one numeric column, a column of zeros among it, and refuses several.
 conformBasis <- function(value, kind, levels, argument, forest) {
   refuse <- function(...) stop(..., call. = FALSE)
   # a text is worded where its refusal is raised and not before: a swap that
@@ -1049,6 +1204,16 @@ conformBasis <- function(value, kind, levels, argument, forest) {
     block[cbind(seq_along(codes), codes)] <- 1
     return(block)
   }
+  if (kind == "numeric" && NCOL(value) > 1L) {
+    refuse(
+      forest,
+      " multiplies one numeric column, and '",
+      argument,
+      "' gives it ",
+      NCOL(value),
+      "; in this version a basis is one numeric column. Give the one column"
+    )
+  }
   expandForestBasis(value, atPrediction = TRUE, argument = argument)
 }
 
@@ -1085,9 +1250,9 @@ basisColumns <- function(
         "'basis' (",
         label,
         ") mixes a factor with other terms: a basis is one factor, a ",
-        "character or a logical vector, with one coefficient per level, or ",
-        "numeric columns, with one each. Give the other terms a forest() of ",
-        "their own, or write the factor as numbers",
+        "character or a logical vector of two levels, with one coefficient ",
+        "per level, or one numeric column. Give the factor and each other ",
+        "term a forest() of its own",
         call. = FALSE
       )
     }
@@ -1257,35 +1422,6 @@ forestLabels <- function(listNames, basisTexts, numForests) {
   labels
 }
 
-## $setForestBasis takes columns by position, as a matrix is taken in base R,
-## and the names recorded at creation stay. The one case in which names and
-## positions visibly disagree is refused: a replacement whose column names are
-## the recorded ones in another order.
-refuseReorderedBasisNames <- function(value, current, forestIndex) {
-  given <- colnames(value)
-  recorded <- colnames(current)
-  if (
-    !is.null(given) &&
-      !is.null(recorded) &&
-      !anyNA(given) &&
-      length(given) == length(recorded) &&
-      setequal(given, recorded) &&
-      !identical(given, recorded)
-  ) {
-    stop(
-      "'basis' has the columns of forest ",
-      forestIndex,
-      "'s basis in another order (",
-      paste(given, collapse = ", "),
-      "; the forest has ",
-      paste(recorded, collapse = ", "),
-      "): columns are taken by position, so give them in the forest's order",
-      call. = FALSE
-    )
-  }
-  invisible(NULL)
-}
-
 ## A basis that reached forest() through dots whose writer is no frame on the
 ## stack, so that its code cannot be read where it was written. Its value
 ## there, `evaluate()`, is taken once and quietly (takeAtCall) and kept with
@@ -1378,8 +1514,17 @@ basisRowNumbers <- function(numRows) {
 ## value's place holds its block, finished on those rows already
 ## (finishBasisRows), and is named here by the rule for a value handed to
 ## a forest(). `levels` is the levels recorded for the values, and comes back
-## with those of each code basis beside them.
-buildFitBases <- function(reads, bases, numObservations, levels = NULL) {
+## with those of each code basis beside them. A code basis of a size this
+## version does not take is refused here (refuseBasisSize), in its own code:
+## `forests` is the declarations, for each forest's name in the list and its
+## predictors as written.
+buildFitBases <- function(
+  reads,
+  bases,
+  numObservations,
+  levels = NULL,
+  forests = NULL
+) {
   numForests <- length(reads)
   kept <- bases
   if (is.null(bases)) {
@@ -1413,6 +1558,22 @@ buildFitBases <- function(reads, bases, numObservations, levels = NULL) {
         call. = FALSE
       )
     }
+    listName <- names(forests)[index]
+    label <- if (is.null(listName) || is.na(listName) || !nzchar(listName)) {
+      read$label
+    } else {
+      listName
+    }
+    refuseBasisSize(
+      built$basis,
+      built$record$levels,
+      forestName(index, replace(character(index), index, label)),
+      list(
+        text = read$label,
+        terms = built$record$terms,
+        predictors = writtenPredictors(forests[[index]]$vars)
+      )
+    )
     bases[index] <- list(built$basis)
     levels[index] <- list(built$record$levels)
     records[index] <- list(built$record)

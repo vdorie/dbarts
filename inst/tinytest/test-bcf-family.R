@@ -53,19 +53,18 @@ statedOnFirst <- function(forests = NULL) {
 # the shape in which the anchor is load-bearing, since no half-Cauchy
 # amplitude and no drawn sigma stands between the prior and the index
 ones <- matrix(1, n, 1L)
-zBasis <- cbind(1 - z, z)
 zFactor <- factor(z)
-gBasis <- unname(model.matrix(~ g - 1L))
+gLevel <- g == "b"
 hFactor <- factor(x[, 1L] > 0.5)
 unitBases2 <- list(ones, zFactor)
-unitBases3 <- list(ones, zFactor, gBasis)
-unitBases4 <- list(ones, zFactor, gBasis, hFactor)
+unitBases3 <- list(ones, zFactor, gLevel)
+unitBases4 <- list(ones, zFactor, gLevel, hFactor)
 # and one cell whose rows are NOT unit norm, which is what pins the map's
 # per-unit-of-row-norm divisor rather than assuming it. LOAD-BEARING: delete
 # the 4 and the dropped-divisor mutation goes green.
-scaledBases <- list(ones, 4 * zBasis)
+scaledBases <- list(4 * ones, zFactor)
 # the product pin's own fixture, whose every factor discriminates; see (d)
-pinBases <- list(3 * ones, 5 * zBasis)
+pinBases <- list(3 * ones, 5 * ones)
 # stated in the response's units, as multiples 2.5 and 0.4 of the latent
 # family's own scale s: the forest's leaf-scale factors are those multiples
 pinScalesFor <- function(s) {
@@ -92,6 +91,9 @@ priorScales <- function(sampler) {
   ))
 }
 medianRowNorm <- function(basis) {
+  if (!is.numeric(basis)) {
+    basis <- stats::model.matrix(~ 0 + basis)
+  }
   norms <- sqrt(rowSums(basis^2))
   median(norms[norms > 0])
 }
@@ -156,7 +158,7 @@ for (family in names(anchors)) {
   # times the norm, induce the same prior on the index
   scaled <- priorScales(basisSampler(yBalanced, scaledBases, family))
   expect_equal(
-    sqrt(sum(scaled^2 * 0.5 * c(1, 4)^2)),
+    sqrt(sum(scaled^2 * 0.5 * c(4, 1)^2)),
     1.04912 * sqrt(2) * s,
     tolerance = 1e-4
   )
@@ -344,8 +346,8 @@ readerSlot <- function(sampler, name) {
   )
 }
 freeBases2 <- list(NULL, zFactor)
-freeBases3 <- list(NULL, zFactor, gBasis)
-freeBases4 <- list(NULL, zFactor, gBasis, hFactor)
+freeBases3 <- list(NULL, zFactor, gLevel)
+freeBases4 <- list(NULL, zFactor, gLevel, hFactor)
 
 # the basis-free channel's half-Cauchy median is the FAMILY's: 2 where the
 # anchor is the response's own sd and sigma is DRAWN, 1 where the anchor is the
@@ -588,7 +590,7 @@ rm(
   freeBases3,
   freeBases4,
   g,
-  gBasis,
+  gLevel,
   hFactor,
   kForest,
   logistic,
@@ -623,6 +625,5 @@ rm(
   yContinuous,
   yRare,
   z,
-  zBasis,
   zFactor
 )

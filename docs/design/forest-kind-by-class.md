@@ -39,12 +39,12 @@ takes one: a `forest()` term, a `forests` list, `dbartsSpec()`, `dbartsData(base
    |---|---|---|
    | none | nothing | any basis |
    | levels | a factor, a character vector or a logical vector, matched to the forest's levels by name; a level of the forest no row has is a column of zeros | numbers, the sampler's own stored block among them; a row at a level the forest lacks, or at NA |
-   | numbers | a numeric vector or a matrix of one column, a column of zeros among them | a factor, a character vector, a logical vector |
+   | numbers | a numeric vector or a matrix of one column, a column of zeros among them | several columns, a factor, a character vector, a logical vector |
 
    A level the value declares and no row has is passed by, so the factor a forest was created from is taken
    again. A name matches character for character. A levels forest has the same columns for life: coefficient j
    multiplies level j's rows after any swap, and the recorded levels are creation's whatever a swap declares.
-   A numeric forest that is drawn may still take another width until push 2.
+   A numeric forest is one column for life (section 3).
 5. What a fit stores. A fit's `bases` holds, for a forest of levels, the factor, one value for each row the fit
    kept, its levels those recorded at creation ([`storedForestBases`](../../R/forestBasis.R)); for a numeric
    forest the block; `NULL` for none. Each entry is what `predict(bases = )` takes for its forest, so
@@ -78,9 +78,40 @@ Four call sequences fit another model than before and appear in no test, benchma
 A fit that both builds accept, these four apart, is the same to the bit, which the equivalence harnesses and the
 reference-build snapshot files check.
 
-## 3. What it leaves
+## 3. One size a forest
 
-Push 2 refuses, at every door, a factor, character or logical basis of three or more levels and a basis of
-several numeric columns, with the form to write, and respells the tests' blocks of indicator columns as the
-factors they stand for. The multiplier slice gives a factor and a number different priors. The data object's
-column naming at the data door is as it was.
+A basis is one numeric column, or a factor, a character or a logical vector of two levels (dec-B281, dec-B282).
+Three or more levels, and several numeric columns however they are written (`dose + age`, `poly(dose, 2)`, a
+spline, a matrix, a factor's indicator columns handed over as numbers, `1 +` beside a column), are refused by
+name at every door, drawn or held, with the form that works: a forest for each level but the first, or for
+each column. Where the basis is code the form is the caller's own code, its predictors as written; where it is
+a value it is said in words, and indicator columns are told to hand the factor over. `1 +` is told from the
+terms, never from a column of ones.
+
+1. Where it is judged. One function words the refusal ([`basisSizeFault`](../../R/forestBasis.R)), on a block
+   once its rows are final, so that a level the rows empty is dropped first and a column they empty is refused
+   as a column of zeros first. It is called where a value's block is finished
+   ([`finishBasisRows`](../../R/forestBasis.R)), which `dbartsData()` and `dbartsSpec()` call; where a code
+   basis's block is built on the kept rows ([`buildFitBases`](../../R/forestBasis.R)); and in the record's
+   check ([`checkBasisRecord`](../../R/data.R)), from the recorded levels and the block's width, so that the
+   sampler's `initialize`, `dbarts()` and `dbartsSpec()` handed a data object and the class's validity refuse
+   an object edited by hand, in the words for a value. `$setData` runs the same check but cannot reach the
+   size: it takes data only on a sampler of one forest, and refuses data that carry bases first. A copy runs the check; a reload does
+   not. Every refusal of a creation comes before anything is read of a hold.
+2. After creation. A forest of numbers takes one column at `$setForestBasis` and at `predict(bases = )` and
+   refuses more ([`conformBasis`](../../R/forestBasis.R)); a forest of levels has its levels' columns for life.
+   No forest changes width, so a held forest's width and a swap's column order have no refusal of their own.
+3. What is read and named, then refused. A basis of several terms is read through the model frame and named as
+   `lm` names `~ 0 + <basis>` before it is refused, and the refusal quotes those names. The engine keeps a
+   coefficient for each column of any block, and a data object's `basis.levels` and `bases` take levels and
+   columns of any count: only creation refuses a size.
+4. Kept for later. Each later meaning is an addition, every call it would serve being refused by name now: a
+   forest for each level of a factor of three or more (TODO `factor-basis-per-level`), built in R from
+   two-level forests, needs the engine's columns as they are; a meaning for several numeric columns (TODO
+   `several-column-basis-meaning`) needs the names, which are fixed (dec-B272), and the engine's columns.
+
+## 4. What it leaves
+
+The multiplier slice gives a factor and a number different priors. The data object's column naming at the data
+door is as it was. With one numeric column or two levels the two namings differ in one case left: a column
+named `""`, which the data door keeps and a forest door drops.

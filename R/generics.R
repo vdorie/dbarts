@@ -1568,9 +1568,8 @@ refuseMisnamedBases <- function(given, labels, numForests) {
 # re-evaluate and must be given them by name. A bare (non-list) value positions
 # itself when exactly one forest carries a basis - the Bayesian causal forest
 # call, bases = <arm at the new rows> - and is refused as ambiguous otherwise.
-# Widths are checked against the FIT's own bases rather than left to %*% to
-# recycle: amplitude j multiplies column j, so a width that drifts is a wrong
-# answer rather than an error.
+# Each value is held to its forest's kind and width (conformBasis), so its
+# columns are the fit's own.
 resolveForestBases <- function(object, bases, newdata, n.new) {
   storedBases <- object$bases
   numForests <- length(storedBases)
@@ -1657,16 +1656,6 @@ resolveForestBases <- function(object, bases, newdata, n.new) {
         " at the new rows: give them through 'bases =' (a length-",
         numForests,
         " list, or the bare value when only one forest carries a basis)"
-      )
-    } else if (ncol(bases[[k]]) != width) {
-      stop(
-        "'bases' gives forest ",
-        k,
-        " ",
-        ncol(bases[[k]]),
-        if (ncol(bases[[k]]) == 1L) " column" else " columns",
-        "; its amplitudes take ",
-        width
       )
     }
   }

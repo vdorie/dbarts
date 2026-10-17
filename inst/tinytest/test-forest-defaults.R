@@ -835,7 +835,7 @@ expect_identical(treeLine(oneForestFit), "n.trees: 9")
 # the width of the forest's basis and the forest's position.
 three <- unname(stats::model.matrix(~ factor(rep_len(1:3, n)) - 1))
 bases <- list(plain = NULL, one = dose, two = factor(z), three = three)
-atDataDoor <- list(plain = NULL, one = dose, two = zBasis, three = three)
+atDataDoor <- bases
 heldForests <- function(kinds, held, values = bases) {
   lapply(seq_along(kinds), function(index) {
     amplitude <- if (index == held) dbarts::dbartsPriors$fixed()
@@ -873,9 +873,6 @@ heldDoors <- list(
       forests = forests
     ))
   },
-  # two numeric columns reach the data door as a factor's two indicator
-  # columns do, and held second they are taken: the assertion turns around
-  # when a basis of several numeric columns is refused
   data = function(kinds, held) {
     dbarts(
       dbartsData(x, y, bases = unname(atDataDoor[kinds])),
@@ -889,8 +886,8 @@ fixedOn <- function(index, what) {
 }
 twoElsewhere <- "a basis of two columns is not supported yet unless the forest is the second; it would hold both coefficients at 1. Put the forest second, or let the coefficients be drawn"
 plainHeldSecond <- "a forest with no basis is not supported yet where it is the second forest; it would hold the forest at zero. Put the forest with no basis first, or let the coefficient be drawn"
-threeSecond <- "a basis of 3 columns is not supported; it would hold every column but the first at 1. Let the coefficients be drawn"
-threeThird <- "a basis of 3 columns is not supported; it would hold every column at 1. Let the coefficients be drawn"
+# a basis of three columns is refused for its size, held or drawn
+threeColumns <- "has a basis of 3 numeric columns"
 # the forests' kinds in order and which is held, with the values it is held
 # at, or the refusal and whether the model is one to create with no hold
 heldRows <- list(
@@ -911,13 +908,8 @@ heldRows <- list(
     text = fixedOn(3L, twoElsewhere),
     drawn = TRUE
   ),
-  list(c("plain", "three"), 2L, text = fixedOn(2L, threeSecond), drawn = FALSE),
-  list(
-    c("plain", "one", "three"),
-    3L,
-    text = fixedOn(3L, threeThird),
-    drawn = FALSE
-  )
+  list(c("plain", "three"), 2L, text = threeColumns, drawn = FALSE),
+  list(c("plain", "one", "three"), 3L, text = threeColumns, drawn = FALSE)
 )
 for (door in names(heldDoors)) {
   for (row in heldRows) {
@@ -943,6 +935,21 @@ for (door in names(heldDoors)) {
       }
     }
   }
+}
+# a factor's two indicator columns handed over as numbers are two numeric
+# columns, refused at the data door held as drawn; the factor itself is taken
+# there (the table above)
+for (held in c(2L, 0L)) {
+  expect_error(
+    dbarts(
+      dbartsData(x, y, bases = list(NULL, zBasis)),
+      forests = heldForests(c("plain", "two"), held, list()),
+      control = defaultsControl()
+    ),
+    "forest 2 has a basis of 2 numeric columns; in this version a basis is one numeric column, or a factor, a character or a logical vector of two levels. If the columns are a factor's indicators, give the factor itself",
+    fixed = TRUE,
+    info = held
+  )
 }
 # as formula terms, where a formula can write the shape
 termHeld <- function(formula) {

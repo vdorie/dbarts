@@ -55,23 +55,34 @@ expect_false(isTRUE(all.equal(heldRun$train, drawnRun$train)))
 expect_identical(heldParams(held, 2L), 0)
 expect_identical(heldParams(drawn, 2L), 1)
 
-# the shapes a hold is supported on, each with the values it holds: a forest
-# with no basis at 1, a forest on a factor or on the two columns of a
-# complement pair at 0 for the first column and 1 for the other
-for (basis in list(quote(~ factor(z)), quote(I(1 - z) + z), cbind(1 - z, z))) {
-  sampler <- eval(bquote(dbarts(
-    x,
-    y,
-    forests = list(
-      forest(amplitude = fixed()),
-      forest(basis = .(basis), amplitude = fixed())
-    ),
-    control = argumentControl()
-  )))
-  sampler$run(0L, 10L)
-  expect_equal(
-    sampler$getForestAmplitudes()[, 1L],
-    c(1, 0, 1),
+# the shapes a hold is supported on, with the values it holds: a forest with
+# no basis at 1, a forest on a factor of two levels at 0 for the first level
+# and 1 for the other
+sampler <- dbarts(
+  x,
+  y,
+  forests = list(
+    forest(amplitude = fixed()),
+    forest(basis = ~ factor(z), amplitude = fixed())
+  ),
+  control = argumentControl()
+)
+sampler$run(0L, 10L)
+expect_equal(sampler$getForestAmplitudes()[, 1L], c(1, 0, 1))
+# the two columns of a complement pair are two numeric columns, refused held
+# as drawn
+for (basis in list(quote(I(1 - z) + z), cbind(1 - z, z))) {
+  expect_error(
+    eval(bquote(dbarts(
+      x,
+      y,
+      forests = list(
+        forest(amplitude = fixed()),
+        forest(basis = .(basis), amplitude = fixed())
+      ),
+      control = argumentControl()
+    ))),
+    "forest 2.* has a basis of 2 numeric columns",
     info = deparse(basis)
   )
 }
@@ -545,28 +556,28 @@ expect_identical(plainSwap$data@bases, plainTwin$data@bases)
 expect_identical(describedBy(plainSwap), describedBy(plainTwin))
 expect_identical(plainSwap$run(0L, 5L), plainTwin$run(0L, 5L))
 expect_equal(plainSwap$getForestAmplitudes()[, 1L], c(1, 0, 1))
-# a drawn forest of numbers swaps to another width as before; a held one
-# takes its own width and refuses another
-numericSwap <- function(...) {
-  dbarts(
-    x,
-    y,
-    forests = list(forest(), do.call(forest, list(basis = x[, 1:2], ...))),
-    control = argumentControl()
-  )
-}
-drawnSwap <- numericSwap()
-drawnSwap$setForestBasis(2L, x[, 1L])
-expect_equal(ncol(drawnSwap$data@bases[[2L]]), 1L)
-heldNumeric <- numericSwap(amplitude = dbartsPriors$fixed())
-heldNumeric$setForestBasis(2L, cbind(x[, 3L], x[, 2L]))
-expect_identical(unname(heldNumeric$data@bases[[2L]]), unname(x[, 3:2]))
+# a forest of numbers is one column for life: it takes another column and
+# refuses two
+numericSwap <- dbarts(
+  x,
+  y,
+  forests = list(forest(), do.call(forest, list(basis = x[, 1L]))),
+  control = argumentControl()
+)
+numericSwap$setForestBasis(2L, x[, 3L])
+expect_identical(
+  unname(numericSwap$data@bases[[2L]]),
+  unname(x[, 3L, drop = FALSE])
+)
 expect_error(
-  heldNumeric$setForestBasis(2L, x[, 1L]),
-  "$setForestBasis cannot change the width of forest 2's basis (2 to 1): its coefficients are held (amplitude = fixed()), and the held value is defined for that width only; make a new sampler",
+  numericSwap$setForestBasis(2L, x[, 1:2]),
+  "forest 2 multiplies one numeric column, and 'basis' gives it 2; in this version a basis is one numeric column. Give the one column",
   fixed = TRUE
 )
-expect_identical(unname(heldNumeric$data@bases[[2L]]), unname(x[, 3:2]))
+expect_identical(
+  unname(numericSwap$data@bases[[2L]]),
+  unname(x[, 3L, drop = FALSE])
+)
 swapped$setForestBasis(2L, factor(z))
 swapped$setForestBasis(2L, factor(1L - z))
 swapped$setForestBasis(2L, factor(z))

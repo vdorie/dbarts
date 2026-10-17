@@ -1,9 +1,9 @@
 # The K-length forest spec surface. setTreatment has retired as a mutator -
 # basis synthesis is construction-only and $setForestBasis is the SOLE
 # mutation route - so what is pinned here is what that leaves: both
-# orderings of a widen and a swap at the
-# surface (arm 6), the persistence contract across a re-creation with the
-# amplitude VALUES asserted rather than the surviving width (arm 7), the ragged
+# orderings of a swap on each of two forests at the surface (arm 6), the
+# persistence contract across a re-creation with the amplitude VALUES asserted
+# (arm 7), the ragged
 # state block's per-forest widths, the ragged run-result glue slot at K > 2,
 # and the capability probe that succeeds data@treatment.
 #
@@ -44,11 +44,10 @@ twoForests <- function(...) {
   )
 }
 
-# A forest created with no basis takes none, so the forest whose block
-# widens below is created on one numeric column. No forest of that model is
-# without a basis, so the count is stated on a forest and the control names
-# none.
-widening <- function() {
+# A forest created with no basis takes none, so the forest swapped below is
+# created on one numeric column. No forest of that model is without a basis,
+# so the count is stated on a forest and the control names none.
+numericFirst <- function() {
   dbarts(
     x,
     y,
@@ -65,46 +64,49 @@ widening <- function() {
     )
   )
 }
-wide <- cbind(1, x[, 4L])
+other <- x[, 1L]
 
 # --- arm 6, both orderings at the surface. Installing on one forest never
 # disturbs the other, and the two orderings leave the same per-forest fits and
-# the same amplitudes. RED against a route that re-synthesizes on install. ---
-widenThenSwap <- widening()
-widenThenSwap$run(5L, 2L)
-before <- widenThenSwap$getForestAmplitudes()
-widenThenSwap$setForestBasis(1L, wide)
-widened <- widenThenSwap$getForestAmplitudes(1L)
-# the layout moved, so the added coordinate entered at the neutral 1
-expect_equal(nrow(widened), 2L)
-expect_equal(widened[1L, 1L], before[1L, 1L])
-expect_equal(widened[2L, 1L], 1)
-widenThenSwap$setForestBasis(2L, factor(1L - z))
-expect_equal(ncol(widenThenSwap$data@bases[[1L]]), 2L)
-# a width-preserving swap is the bitwise identity on every amplitude
-expect_identical(widenThenSwap$getForestAmplitudes(1L), widened)
+# the same amplitudes. RED against a route that re-synthesizes on install. A
+# forest keeps its width for life, so every install preserves it, and an
+# install that preserves the width is the bitwise identity on every
+# amplitude. ---
+firstThenSecond <- numericFirst()
+firstThenSecond$run(5L, 2L)
+before <- firstThenSecond$getForestAmplitudes()
+firstThenSecond$setForestBasis(1L, other)
+expect_identical(firstThenSecond$getForestAmplitudes(), before)
+firstThenSecond$setForestBasis(2L, factor(1L - z))
+expect_identical(firstThenSecond$getForestAmplitudes(), before)
+# a width the forest was not created with is refused, nothing being installed
+expect_error(
+  firstThenSecond$setForestBasis(1L, cbind(1, x[, 4L])),
+  "forest 1 ('x[, 4L]') multiplies one numeric column, and 'basis' gives it 2",
+  fixed = TRUE
+)
+expect_identical(unname(firstThenSecond$data@bases[[1L]][, 1L]), other)
 
-swapThenWiden <- widening()
-swapThenWiden$run(5L, 2L)
-swapThenWiden$setForestBasis(2L, factor(1L - z))
-swapThenWiden$setForestBasis(1L, wide)
+secondThenFirst <- numericFirst()
+secondThenFirst$run(5L, 2L)
+secondThenFirst$setForestBasis(2L, factor(1L - z))
+secondThenFirst$setForestBasis(1L, other)
 expect_identical(
-  swapThenWiden$getForestAmplitudes(),
-  widenThenSwap$getForestAmplitudes()
+  secondThenFirst$getForestAmplitudes(),
+  firstThenSecond$getForestAmplitudes()
 )
 expect_identical(
-  swapThenWiden$run(0L, 3L)$forestFits,
-  widenThenSwap$run(0L, 3L)$forestFits
+  secondThenFirst$run(0L, 3L)$forestFits,
+  firstThenSecond$run(0L, 3L)$forestFits
 )
 
-# --- arm 7, persistence. The bases ride CREATION (data@bases), so a widening
-# applied after a state restore preserves and remaps the RESTORED amplitudes
-# rather than the constructed ones - the restore-then-widen half of the
-# contract, asserted on the amplitude VALUES and not only on the surviving
-# width. ---
-persisted <- widening()
+# --- arm 7, persistence. The bases ride CREATION (data@bases), so a swap
+# applied after a state restore preserves the RESTORED amplitudes rather than
+# the constructed ones - the restore-then-swap half of the contract, asserted
+# on the amplitude VALUES. ---
+persisted <- numericFirst()
 persisted$run(5L, 2L)
-persisted$setForestBasis(1L, wide)
+persisted$setForestBasis(1L, other)
 persisted$setForestBasis(2L, factor(1L - z))
 restoredAmplitudes <- persisted$getForestAmplitudes()
 persisted$storeState()
@@ -115,45 +117,47 @@ reloaded <- readRDS(persistedFile)
 unlink(persistedFile)
 # forces getPointer()'s transparent re-creation
 reloaded$getPointer()
-expect_equal(ncol(reloaded$data@bases[[1L]]), 2L)
+expect_identical(unname(reloaded$data@bases[[1L]][, 1L]), other)
 expect_identical(reloaded$getForestAmplitudes(), restoredAmplitudes)
-# and a widening applied AFTER that restore keeps the restored values, which is
+# and a swap applied AFTER that restore keeps the restored values, which is
 # the half a reapply running after setState would lose
-reloaded$setForestBasis(1L, cbind(wide, x[, 1L]))
-widerAmplitudes <- reloaded$getForestAmplitudes()
-expect_equal(nrow(widerAmplitudes), 5L)
-expect_identical(
-  widerAmplitudes[c(1:2, 4:5), , drop = FALSE],
-  restoredAmplitudes
-)
-expect_equal(widerAmplitudes[3L, 1L], 1)
+reloaded$setForestBasis(1L, x[, 2L])
+expect_identical(reloaded$getForestAmplitudes(), restoredAmplitudes)
 
 # $copy() carries the mirror too, on the same terms setForestWeights' does
 copied <- persisted$copy()
-expect_equal(ncol(copied$data@bases[[1L]]), 2L)
+expect_identical(unname(copied$data@bases[[1L]][, 1L]), other)
 expect_identical(copied$getForestAmplitudes(), restoredAmplitudes)
 
-# --- the state block carries PER-FOREST WIDTHS, not just a total. q = (1, 3)
-# and q = (2, 2) both serialize four amplitudes, so a reader keyed on the total
-# would accept either into either and silently permute the blocks. ---
-ragged <- dbarts(
-  x,
-  y,
-  forests = list(forest(), forest(basis = ~g)),
-  control = seededControlForestBasisR5()
-)
+# --- the state block carries PER-FOREST WIDTHS, not just a total. q = (1, 2)
+# and q = (2, 1) both serialize three amplitudes, so a reader keyed on the
+# total would accept either into either and silently permute the blocks. ---
+ragged <- twoForests()
 ragged$run(5L, 2L)
 ragged$storeState()
 raggedState <- ragged$state
 
-square <- widening()
-square$run(5L, 2L)
-square$setForestBasis(1L, wide)
-square$storeState()
-squareState <- square$state
-# same total (4), different layout: each refuses the other
-expect_error(square$setState(raggedState), "not consistent")
-expect_error(ragged$setState(squareState), "not consistent")
+reversed <- dbarts(
+  x,
+  y,
+  forests = list(
+    forest(basis = ~ factor(z), n.trees = 25L),
+    forest(basis = x[, 4L])
+  ),
+  control = dbartsControl(
+    n.chains = 1L,
+    n.threads = 1L,
+    n.samples = 6L,
+    updateState = FALSE,
+    seed = 41L
+  )
+)
+reversed$run(5L, 2L)
+reversed$storeState()
+reversedState <- reversed$state
+# same total (3), different layout: each refuses the other
+expect_error(reversed$setState(raggedState), "not consistent")
+expect_error(ragged$setState(reversedState), "not consistent")
 # its own state restores, and the amplitudes come back bitwise
 raggedAmplitudes <- ragged$getForestAmplitudes()
 ragged$run(0L, 1L)
@@ -162,15 +166,19 @@ expect_identical(ragged$getForestAmplitudes(), raggedAmplitudes)
 
 # --- the run-result glue slot is the RAGGED amplitude vector, sum q_f rows,
 # forest-major within a draw; bcf's q = (1, 2) leaves it the 3 rows it shipped
-# with, and the reconstruction identity holds at K = 3. ---
+# with, and the reconstruction identity holds at K = 3, q = (1, 2, 2). ---
 threeForests <- dbarts(
   x,
   y,
-  forests = list(forest(), forest(basis = ~ factor(z)), forest(basis = ~g)),
+  forests = list(
+    forest(),
+    forest(basis = ~ factor(z)),
+    forest(basis = ~ g == "b")
+  ),
   control = seededControlForestBasisR5()
 )
 threeResult <- threeForests$run(5L, 4L)
-expect_equal(dim(threeResult$glue), c(6L, 4L))
+expect_equal(dim(threeResult$glue), c(5L, 4L))
 expect_equal(dim(threeResult$forestFits), c(n, 3L, 4L))
 # the last draw's reported train channel is the combination of the three
 # forests through their own amplitude blocks
@@ -188,7 +196,7 @@ for (sampleNum in seq_len(ncol(threeResult$glue))) {
   recon <- amplitudes[1L] *
     fits[, 1L] +
     as.vector(bases[[2L]] %*% amplitudes[2:3]) * fits[, 2L] +
-    as.vector(bases[[3L]] %*% amplitudes[4:6]) * fits[, 3L]
+    as.vector(bases[[3L]] %*% amplitudes[4:5]) * fits[, 3L]
   reconstructionError <-
     max(reconstructionError, max(abs(recon - internalTrain[, sampleNum])))
 }
@@ -198,7 +206,7 @@ expect_true(reconstructionError < 1e-12)
 # default; the ragged widths are its own bases' ---
 expect_equal(nrow(threeForests$getForestAmplitudes(1L)), 1L)
 expect_equal(nrow(threeForests$getForestAmplitudes(2L)), 2L)
-expect_equal(nrow(threeForests$getForestAmplitudes(3L)), 3L)
+expect_equal(nrow(threeForests$getForestAmplitudes(3L)), 2L)
 expect_identical(
   threeForests$getForestAmplitudes(),
   rbind(
@@ -285,7 +293,7 @@ unevenTrees <- dbarts(
   forests = list(
     forest(n.trees = 13L),
     forest(basis = ~ factor(z), n.trees = 31L),
-    forest(basis = ~g, n.trees = 7L)
+    forest(basis = ~ g == "b", n.trees = 7L)
   ),
   control = seededControlForestBasisR5()
 )
@@ -352,7 +360,7 @@ expect_false(dbarts:::samplerCarriesAmplitudes(plain))
 # a plain sampler has no basis to change at all, so the refusal names that
 # rather than claiming a forest index is out of range
 expect_error(
-  plain$setForestBasis(1L, wide),
+  plain$setForestBasis(1L, other),
   paste0(
     "$setForestBasis is not available on a sampler that carries no forest ",
     "amplitudes: amplitudes are fixed at creation; make a new sampler instead"
@@ -449,11 +457,10 @@ expect_identical(swappedResult$train, twinResult$train)
 # test-bcf-family.R's, which runs the same fixture under logistic too, where a
 # dropped anchor is a 81 percent miss).
 ones <- matrix(1, n, 1L)
-zBasis <- cbind(1 - z, z)
 # No forest of this model is without a basis, so the count and the tree prior
 # are stated on a forest and the control names no count.
 declared <- dbarts(
-  dbartsData(x, yBinary, bases = list(3 * ones, 5 * zBasis)),
+  dbartsData(x, yBinary, bases = list(3 * ones, 5 * ones)),
   forests = list(
     forest(sd = 2.5, n.trees = 25L, base = 0.95, power = 2),
     forest(sd = 0.4)
@@ -469,7 +476,7 @@ declared <- dbarts(
 expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
 expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 5), tolerance = 1e-12)
 declared$run(5L, 1L)
-declared$setForestBasis(2L, 7 * zBasis)
+declared$setForestBasis(2L, 7 * ones)
 # the new row norm enters and the DECLARED factor survives: 0.084781687156
 expect_equal(priorScale(declared, 2L), 0.4 / (0.674 * 7), tolerance = 1e-12)
 expect_equal(priorScale(declared, 1L), 2.5 / (0.674 * 3), tolerance = 1e-12)
@@ -655,6 +662,6 @@ expect_error(
   ),
   "row's norm is not representable"
 )
-edge <- widening()
+edge <- numericFirst()
 expect_error(edge$setForestBasis(1L, rep(1e300, n)), "not representable")
 expect_true(all(is.finite(edge$run(0L, 2L)$train)))

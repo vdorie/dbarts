@@ -1512,7 +1512,8 @@ dbartsSpec <- function(
       declared$reads,
       finished$bases,
       length(data@y),
-      finished$levels
+      finished$levels,
+      forests
     )
     # as in dbarts(): a list in which no forest declares a basis names no
     # multi-forest model, and falls through to resolveForests' refusal

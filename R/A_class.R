@@ -689,13 +689,14 @@ methods::setClass(
     response.levels = "ANY",
     # the per-forest amplitude bases a multi-forest fit combines its forests
     # through, null for an ordinary single-forest fit. Element f is forest
-    # f's n x q_f numeric matrix, or NULL for a forest
+    # f's numeric matrix, n x 1 for numbers and one column for each of a
+    # factor's two levels, or NULL for a forest
     # whose basis is the implicit intercept its single amplitude scales. They
     # ride the data object rather than the control, exactly as `weights` does:
     # they are conditioning data, so the setter that replaces one mirrors into
     # this slot and a re-created sampler carries it without further
-    # discipline - and, because they arrive at CREATION, a widening applied
-    # after a state restore preserves the restored amplitudes rather than the
+    # discipline - and, because they arrive at CREATION, a swap applied after
+    # a state restore preserves the restored amplitudes rather than the
     # constructed ones.
     bases = "listOrNULL",
     # the levels of each forest whose basis is a factor's, a character

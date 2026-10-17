@@ -48,7 +48,7 @@ kForestControl <- dbartsControl(
 zFactor <- factor(testData$z)
 for (bases in list(
   list(NULL, zFactor),
-  list(NULL, zFactor, cbind(1, testData$x / 100))
+  list(NULL, zFactor, testData$x / 100)
 )) {
   kForest <- dbarts(
     dbartsData(kForestX, testData$y, bases = bases),

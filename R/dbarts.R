@@ -1548,7 +1548,13 @@ dbarts <- function(
   basisRecords <- NULL
   if (!is.null(basisReads)) {
     recorded <- dataBasisLevels(data)
-    built <- buildFitBases(basisReads, data@bases, length(data@y), recorded)
+    built <- buildFitBases(
+      basisReads,
+      data@bases,
+      length(data@y),
+      recorded,
+      if (is.null(termIngestion)) forests else termIngestion$forests
+    )
     data@bases <- built$bases
     data@basis.levels <- built$levels
     if (any(basisIsCode)) {
@@ -3205,7 +3211,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setForestBasis = function(forest, basis, updateState = NULL) {
-      "Changes the basis the named forest's amplitudes multiply, a forest whose amplitudes are held keeping the width it was created with. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. It must be of the class the forest was created with, which decides what the forest multiplies and never changes. A forest of levels (created with a factor, a character vector or a logical vector) takes one of those three, matched to the forest's levels by name and not by position: the replacement may list its levels in another order or leave one out, a level of the forest that no row has is a column of zeros (a swap can leave one momentarily unobserved), and a row at a level the forest does not have, or at NA, is refused. Coefficient j multiplies level j's rows after any swap. Numbers are refused for such a forest, the level indicators the sampler stores among them; hand back the factor. A forest of numbers takes a numeric vector or matrix, a column of all zeros among them (creation refuses one), and refuses a factor, a character vector and a logical vector; a forest created with no basis takes none. The sampler keeps the forest's block, in data@bases, and its levels, in data@basis.levels, each read by the forest's position (neither list has names, so a label does not index them), and not the factor it was handed: a caller that will hand a basis back keeps the factor it handed over. A state carries no levels, so one installed from a sampler whose factor has the same levels in another order goes in by position. A forest of levels never changes width. Columns are taken by position: the names the basis was created with stay, whatever names the replacement has, and a replacement that has those names in another order is refused. A replacement of another width brings its own names. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved and remapped: a width-preserving install leaves every one of them bitwise, and a width change carries each forest's block to its new offset and enters the added coordinates at 1. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+      "Changes the basis the named forest's amplitudes multiply. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. It must be of the class the forest was created with, which decides what the forest multiplies and never changes. A forest of levels (created with a factor, a character vector or a logical vector) takes one of those three, matched to the forest's levels by name and not by position: the replacement may list its levels in another order or leave one out, a level of the forest that no row has is a column of zeros (a swap can leave one momentarily unobserved), and a row at a level the forest does not have, or at NA, is refused. Coefficient j multiplies level j's rows after any swap. Numbers are refused for such a forest, the level indicators the sampler stores among them; hand back the factor. A forest of numbers takes one numeric column, a vector or a matrix of one column, a column of all zeros among them (creation refuses one), and refuses several columns, a factor, a character vector and a logical vector; a forest created with no basis takes none. The sampler keeps the forest's block, in data@bases, and its levels, in data@basis.levels, each read by the forest's position (neither list has names, so a label does not index them), and not the factor it was handed: a caller that will hand a basis back keeps the factor it handed over. A state carries no levels, so one installed from a sampler whose factor has the same levels in another order goes in by position. No forest changes width, so the names the basis was created with stay, whatever names the replacement has. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved: an install leaves every one of them bitwise. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -3243,27 +3249,10 @@ dbartsSampler <- setRefClass(
       if (nrow(values) != length(data@y)) {
         stop("'basis' must have the same length as 'y'")
       }
-      if (!inherits(basis, "formula")) {
-        values <- nameValueBasis(values)
-      }
-      # columns are taken by position and the names recorded at creation
-      # stay; a replacement of another width brings its own
-      refuseReorderedBasisNames(values, current, index + 1L)
-      if (!is.null(current) && ncol(values) == ncol(current)) {
-        dimnames(values) <- if (!is.null(colnames(current))) {
-          list(NULL, colnames(current))
-        }
-      }
-
-      # a held coefficient's value goes by the width its forest was created
-      # with, a forest with no basis having none
-      currentWidth <- if (is.null(current)) 0L else ncol(current)
-      if (
-        ncol(values) != currentWidth &&
-          length(forestInfo$params) > index &&
-          identical(forestInfo$params[[index + 1L]][4L], 0)
-      ) {
-        refuseHeldWidthChange(index + 1L, currentWidth, ncol(values))
+      # a forest keeps its width for life, so the names recorded at creation
+      # stay, whatever names the replacement has
+      dimnames(values) <- if (!is.null(colnames(current))) {
+        list(NULL, colnames(current))
       }
 
       ptr <- getPointer()

@@ -197,7 +197,7 @@ handed over as an object, `do.call(forest, list(basis = B))`.
 - After creation. `$setForestBasis` takes any class on any forest: 8 kinds of forest by 17 kinds of value
   were tried, and every pair is accepted except a factor of one level, a logical matrix, and a
   replacement of another width on a held forest
-  ([`refuseHeldWidthChange`](../../R/model.R)). A forest created with no basis takes one, of any kind,
+  (retired: [`refuseHeldWidthChange`](../../R/model.R)). A forest created with no basis takes one, of any kind,
   wherever it stands; a factor forest takes dose, or `cbind(dose, age)`, or a column of zeros
   (dec-B346, built); a numeric forest takes a factor and has two columns afterwards; the width follows
   the value. A one-sided formula is read as code, and `~ dose` on a factor forest is taken. A factor
@@ -515,9 +515,9 @@ NA as a level written as code, "has the level 'NA' at a new row, which no row of
 fourth. Gone with push 1, its case at creation no longer a refusal (dec-B308): "a 'basis' factor level
 with no observations contributes nothing to a forest: ...; drop it with droplevels()". Replaced by
 push 2: [`refuseHeldShape`](../../R/model.R)'s text for a held basis of three or more columns and
-[`refuseHeldWidthChange`](../../R/model.R)'s for a held forest's width at a swap; "'bases' gives forest
+retired: [`refuseHeldWidthChange`](../../R/model.R)'s for a held forest's width at a swap; "'bases' gives forest
 2 2 columns; its amplitudes take 1" where the forest is numeric;
-[`refuseReorderedBasisNames`](../../R/forestBasis.R)'s refusal of a swap whose columns stand in another
+retired: [`refuseReorderedBasisNames`](../../R/forestBasis.R)'s refusal of a swap whose columns stand in another
 order, which has no case left. Kept in the tip's words and extended to the doors that lack them: "a
 'basis' column of all zeros contributes nothing to a forest", "a 'basis' factor must have at least two
 levels" and the text for a logical with one value, each now met at the data door too, with `<arg>`;
@@ -809,7 +809,7 @@ at `predict`: a name written in a call of `forest()` is code.
       where the test is about that, and otherwise the forest is created with the basis. Among them
       the swap of `dose` onto forest 1 in test-forest-sd-unit.R: what it pinned, the prior of a forest
       created with none and given a column, has no case left from R, and the test says so.
-    - The three pins of [`refuseHeldWidthChange`](../../R/model.R)'s text in test-forest-arguments.R
+    - The three pins of retired: [`refuseHeldWidthChange`](../../R/model.R)'s text in test-forest-arguments.R
       are among the swaps the rule refuses, two of them numbers on a held factor forest and one a
       column on a held forest with none: each meets the rule first and takes its text, and the
       function is left the one case of two numeric columns held as the second forest until push 2.
@@ -928,8 +928,8 @@ Second commit, the refusal.
     held basis of three or more columns can no longer be reached and goes.
 2.5 After creation. `conformBasis` refuses a numeric value of several columns for a numeric forest, with
     the last [2] text, at `$setForestBasis` and at `predict`; with it no forest changes width, and
-    [`refuseHeldWidthChange`](../../R/model.R) goes, as does
-    [`refuseReorderedBasisNames`](../../R/forestBasis.R).
+    retired: [`refuseHeldWidthChange`](../../R/model.R) goes, as does
+    retired: [`refuseReorderedBasisNames`](../../R/forestBasis.R).
     [`validateForestSd`](../../R/model.R)'s text for a longer `sd` speaks of one sd and of rescaling a
     column in the basis, and stands as it is.
 2.6 Tests, a new file test-forest-basis-one-size.R.
@@ -1708,3 +1708,26 @@ the multiplier slice. The dropped-rows prediction is not held to the table of a 
 build); the data door takes two columns of one name (the same); hand-edited records beyond the count of the
 levels are unchecked; a reload's re-creation runs no check. The default of one unit of the response's scale for
 a forest with a basis (dec-B291) is the multiplier slice's.
+
+## Calls made building push 2
+
+- `1 +` beside more than one other column, which "Refused forms" gives no advice for, is told "Write each
+  other column alone, in a forest of its own". The alternative is the third [2] text's advice for one column,
+  which would name only one of them. The cost: one more branch of the one function.
+- The older texts of a basis written as code that advised a form push 2 refuses are rewritten to a form this
+  version takes, where "Refused forms" kept them as they were (the coordinator's call at the fix round): a
+  factor beside other terms is told to give the factor and each other term a forest of its own, where it was
+  told to write the factor as numbers; `*` between terms is told to give each of the three columns a forest,
+  where it was told `dose + age + I(dose * age)`; `cbind()` is told to write its one column alone, or to give
+  each column a forest of its own or the factor whose indicators they are, where it was told the `+` form. The
+  alternative kept the tip's words, each advising a basis that is then refused for its size. The cost: four
+  texts and their tests.
+- The example of the levels refusal is built from the factor's one term, so `0 + arm`, `arm - 1`, `arm + 0` and
+  `-1 + arm` advise `forest(x1, basis = arm == "b")`, the forest's label staying the basis as written.
+- The help of `dbarts()` and `forest()` that still said a basis has any width, or showed one of two columns as
+  an example, is corrected in a commit of its own after the refusal, with British spellings in the help files
+  the push touches. The alternative was to fold it into the refusal's commit; it was found after that commit's
+  gates had run.
+- The baseline's `meta.rev` is written by hand as the commit that holds the package code, the recording being
+  made with a later, help-only commit checked out; the code it ran is that commit's, from a `--preclean`
+  reference install of a clean export.
