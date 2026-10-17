@@ -554,8 +554,11 @@
             \code{installTrees(donor)} returns \code{TRUE} for a donor
             taken as stored and \code{FALSE}, the sampler untouched, for
             one that would have to be changed, which
-            \code{forceUpdate = TRUE} installs. Neither changes the
-            posterior, only where the chains start.
+            \code{forceUpdate = TRUE} installs. A previous fit with
+            another number of trees is taken in part: into more trees all
+            of it, into fewer the trees whose fitted values vary most over
+            the new fit's rows. Neither changes the posterior, only where
+            the chains start.
       \item Tree moves. \code{proposal.probs} gains two optional moves,
             \code{"perturb"} (shift one split point, by at most
             \code{dbartsControl(n.perturb.cuts = )} cut positions) and

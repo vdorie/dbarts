@@ -242,8 +242,10 @@ state install: the donor's generators, latents and kept draws are not taken, the
 dropped, and its `state` field is stored again after every install. On a column the sampler holds as an
 ordered factor a donor recorded on other points is an error in both forms, as for a state. A monotone tree
 out of order is collapsed where its order breaks, each merged leaf at the mean of the leaves it replaces by
-rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and not reset to 0. A tree count, DART
+rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and not reset to 0. A donor of another tree
+count is taken in part: into more trees whole, the rest single leaves, and into fewer by the trees whose fits
+vary most over the sampler's rows ([`Sampler::chooseDonorTrees`](../../src/bartcore/sampler.hpp)). A DART
 setting or variance forest on one side only is an error, and
-a leaf kind is read in the sampler's shape (TODO warm-start-salvage, warm-start-tree-count).
+a leaf kind is read in the sampler's shape (TODO warm-start-salvage).
 `bart(warm.start = )` forces and, under `verbose = TRUE`, prints one line saying what was taken and
 changed, from counts read off the installed trees ([`Chain::countDonorTrees`](../../src/bartcore/chain.hpp)).

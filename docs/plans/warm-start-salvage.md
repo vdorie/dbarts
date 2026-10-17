@@ -2,7 +2,8 @@
 
 Status: slices A and B LANDED 2026-10-17 (A a5f3c9bc..d03760e3, calls dec-A211; B f5c16b4a..ee1d7213, calls dec-A214;
 [Slice A as built](#slice-a-as-built), [Landing note](#landing-note), [Slice B as built](#slice-b-as-built),
-[Landing note, slice B](#landing-note-slice-b)); C and D are planned, not built. Planned 2026-10-11, revised from its blind
+[Landing note, slice B](#landing-note-slice-b)); slice C is built ([Slice C as built](#slice-c-as-built)); D is
+planned, not built. Planned 2026-10-11, revised from its blind
 critique, no call open. Four slices, A to D, serial. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
 `forceUpdate = FALSE`, (b) FALSE for a split that has to move or merge, (c) the mean weighted by rows, (d) the
 three errors stay, (e) the mean forest's rule for the variance forest (dec-B448), (f) one line. Where this plan
@@ -708,7 +709,8 @@ that test holds no monotone recipient and "across grids" above stands alone.
 2. Bridge and R (about 60 lines): the report's new counts, the phrases "150 trees started as single leaves"
    and "variance trees: 4 of 6 taken", and the two count messages removed.
 3. Existing tests. The tracer of slice A's step 4 is run again over the files a count refusal is pinned in:
-   ["shape-compatible"](../../inst/tinytest/test-warm-start.R) has 3 hits in 2 files, the variance count 1;
+   retired: ["shape-compatible"](../../inst/tinytest/test-warm-start.R) has 3 hits in 2 files, gone from this
+   one in slice C, the variance count 1;
    in tests/cpp 2 `shapeMismatch` and 1 `varianceMismatch` expectations are read. Each becomes a check of
    what is taken.
 4. New tests (about 400 lines; Tests).
@@ -1211,3 +1213,49 @@ orchestrator's call (dec-A214). The engine stayed inside its own stop.
 
 Left: slices C and D; `warm-start-undo-test`; `warm-start-by-position`, `warm-start-linear-covariates` and
 `warm-start-bart-families`, which stay in TODO with the later slices.
+
+## Slice C as built
+
+Built 2026-10-17 on ee1d7213 and rebased onto 6fe5237a, the records of slice B's landing and the setData follow-up,
+in four commits: the install, its tests, the help and notes, and a pin of the ranking across cut points.
+
+- The donor forest's own count is the stride of a kept draw, and a donor forest of no trees is the shape
+  refusal. A forest given fewer trees than it holds is filled on the assembled scratch after the sides are
+  drawn ([`Chain::appendSingleLeaves`](../../src/bartcore/chain.hpp),
+  [`Chain::appendSingleVarianceLeaves`](../../src/bartcore/chain.hpp)), so the verdict and the install read it
+  as any donor. The scratch builds stage donor tree t in slot t modulo the count, the slot it is tried in
+  ([`Chain::stageLiveTree`](../../src/bartcore/chain.hpp)); `stateIsValid` is unchanged, its t never reaching
+  the count.
+- The rounds are [`Sampler::chooseDonorTrees`](../../src/bartcore/sampler.hpp): one install of every chain a
+  round, on the arm the donor takes, the ranking read after it, after the move across cut points included. A
+  forest with no round left tries its first trees again and is not read. The ranking
+  ([`Chain::liveTreeVariation`](../../src/bartcore/chain.hpp),
+  [`Chain::liveVarianceTreeVariation`](../../src/bartcore/chain.hpp)) reads a new virtual,
+  [`ResponseModel::caseWeight`](../../src/bartcore/model.hpp): the weight a row carries as given, 0 for a row
+  out of the likelihood by weight, mask or membership. The gaussian and Student-t families return their
+  weights under their mask, logistic its counts, the others their mask.
+- The line, a call the plan leaves open: a padded variance forest is said in its clause, "variance trees: 4 of
+  4 taken, 2 started as single leaves", and a variance forest that left trees out prints its clause with no
+  change, "variance trees: 4 of 6 taken". The mean forest's "150 trees started as single leaves" follows the
+  mean forest's counts. A donor of more trees with nothing else changed prints "50 of 200 donor trees taken"
+  alone, its first clause saying why it was declined.
+- Step 3. The tracer, now asking the built verdict on a copy before each call (scratch/wsc/tracer.R), over
+  test-warm-start.R, test-sampler-boundary-refusals.R and test-sampler-errors.R: FALSE only at two `bart`
+  calls of test-warm-start.R, which force; the 5-tree fit is now taken, and the variance count of
+  test-sampler-boundary-refusals.R, 4 trees into 5, is TRUE. Both became checks of what is taken. The tests/cpp
+  expectations step 3 names pin other refusals, a record of missable columns of another length and a saved
+  variance stride, and stand: tests/cpp passed unedited. The "errors stay" row of test-warm-start-forms.R
+  listed "tree count", written in slice A with the error this slice lifts (Constraints); it is dropped, the
+  one edit outside the files step 3 names.
+- Tests beyond the table: "across cut points", a donor onto other rows into fewer trees, held to the most
+  varying of the trees a recipient of as many holds after the move; tests/cpp's verdict against the install
+  over 24 seeded pairs of other counts. "Ranked as installed" cuts its tree back to the root, the interaction
+  limit allowing a root split. Under `blocks` the fixture's four trees kept each land in the other block's
+  slots and are cut back to single leaves: the plan's rule, ranked for the trial slot and installed for the
+  final one, at its worst.
+- The cross-build script of slice B (scratch/wsc/cross.R) on slice B's tip and this slice's: identical on all 38
+  fixtures, none holding another tree count. Every mutant of the table and five of the builder's own, each alone,
+  failed a test of test-warm-start-kinds.R or tests/cpp; the working weights (C11) fail on one of the six
+  logistic seeds, so two seeds, as the table has it, could miss them. "Ranked as stored" is built as a ranking of
+  each flat tree routed with no constraint, and "a tree installed as its trial slot cut it" as the final install
+  under the trial slot's mask, the containment backstop making the plain reading unreachable.
