@@ -1536,21 +1536,23 @@ static void testBlockAdditiveConfinement() {
   target->getState(cutBack);
   bool installs = restoresAltered(*target, donorState);
   target->getState(collapsedState);
-  const auto& collapsedTrees = collapsedState.chains[0].forests[0].trees;
-  check(warmStarts &&
-          sameFlatTrees(cutBack.chains[0].forests[0].trees, collapsedTrees),
+  auto confinedTrees = [&](const std::vector<std::vector<FlatNode>>& trees) {
+    bool confined = true;
+    for (size_t t = 0; t < trees.size(); ++t) {
+      scratch.initialize(idx.data(), n);
+      scratch.setColumnMask(maskGroup[groupOfTree(t)].data());
+      confined &= scratch.buildFromFlat(store, trees[t].data(), trees[t].size(),
+                                        params) &&
+                  scratch.columnMaskSubtreeIsValid(0);
+    }
+    scratch.setColumnMask(nullptr);
+    return confined;
+  };
+  // the warm start, forced, chooses block by block (Sampler::installForests)
+  check(warmStarts && confinedTrees(cutBack.chains[0].forests[0].trees),
         "blocks: a warm start declines an out-of-block donor and, forced, "
-        "cuts each tree back as the forced state install does");
-  bool confined = true;
-  for (size_t t = 0; t < collapsedTrees.size(); ++t) {
-    scratch.initialize(idx.data(), n);
-    scratch.setColumnMask(maskGroup[groupOfTree(t)].data());
-    confined &= scratch.buildFromFlat(store, collapsedTrees[t].data(),
-                                      collapsedTrees[t].size(), params) &&
-                scratch.columnMaskSubtreeIsValid(0);
-  }
-  scratch.setColumnMask(nullptr);
-  check(installs && confined,
+        "takes trees each within its block");
+  check(installs && confinedTrees(collapsedState.chains[0].forests[0].trees),
         "blocks: forced, every tree is collapsed into its own group");
 
   // (c) specificity: a same-blocks donor's trees are feasible and install cleanly

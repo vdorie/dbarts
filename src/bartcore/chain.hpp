@@ -4455,14 +4455,15 @@ public:
   /// One live mean tree of a state as stateIsValid judges it: tree \p t of
   /// \p fs built on \p scratch, which is initialized over \p scratchIndices
   /// (one index per row) and given forest \p forest's interaction constraint
-  /// and the column mask of slot t, or of slot t modulo the forest's count
-  /// for a donor of more trees, tried in the slots in that order (Sampler::
-  /// installForests). False where the flat tree does not build.
+  /// and the column mask of slot \p slot, which a warm start's donor tree
+  /// may be tried in other than its own (Sampler::installForests). False
+  /// where the flat tree does not build.
   /// With \p notClean non-null and down the tree is staged as the install
   /// stages it (Tree::stageFromFlat) and the flag set where it would not be
   /// installed as stored; otherwise it is only built.
   bool stageLiveTree(const Forest<L, ResidT>& forest, const ForestStateData& fs,
-                     size_t t, Tree& scratch, index_t* scratchIndices,
+                     size_t t, size_t slot, Tree& scratch,
+                     index_t* scratchIndices,
                      std::vector<double>& params, bool* notClean) const {
     scratch.initialize(scratchIndices, data_.numObservations);
     // carry this forest's interaction constraint and column mask (both null
@@ -4474,7 +4475,7 @@ public:
     scratch.setColumnMask(
       !forest.blockMasks.empty()
         ? forest.blockMasks.data() +
-            forest.blockOfTree[t % forest.numTrees] * data_.numPredictors
+            forest.blockOfTree[slot] * data_.numPredictors
         : (forest.columnMask.empty() ? nullptr : forest.columnMask.data()));
     const std::uint64_t* masks =
       fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
@@ -4559,8 +4560,8 @@ public:
           (!fs.treeMasks.empty() && fs.treeMasks.size() != fs.trees.size()))
         return false;
       for (size_t t = 0; t < fs.trees.size(); ++t)
-        if (!stageLiveTree(forests_[f], fs, t, scratch, scratchIndices.data(),
-                           params, notClean))
+        if (!stageLiveTree(forests_[f], fs, t, t % forests_[f].numTrees,
+                           scratch, scratchIndices.data(), params, notClean))
           return false;
     }
     if (!varianceForest_) return true;
@@ -4673,7 +4674,7 @@ public:
           return false;
       }
       for (size_t t = 0; t < forest.numTrees; ++t)
-        if (!stageLiveTree(forest, fs, t, scratch, scratchIndices.data(),
+        if (!stageLiveTree(forest, fs, t, t, scratch, scratchIndices.data(),
                            params, notClean))
           return false;
     }
@@ -5006,6 +5007,40 @@ public:
   /// The index donorTreesOf reads as a single leaf.
   static constexpr size_t singleLeaf = static_cast<size_t>(-1);
 
+  bool hasBlocks(size_t f) const { return !forests_[f].blockMasks.empty(); }
+  bool liveTreeIsLeaf(size_t f, size_t t) const {
+    return forests_[f].trees[t].at(0).isBottom();
+  }
+
+  /// A warm start's clean placement under blocks(): each of forest \p f's
+  /// blocks in turn takes, in the donor's order, up to its count of the
+  /// first \p given trees of \p fs that no earlier block took and that its
+  /// slots hold as stored (stageLiveTree). \p slots receives the donor
+  /// index by slot, singleLeaf where none. True where all are placed.
+  bool placeDonorTrees(size_t f, const ForestStateData& fs, size_t given,
+                       std::vector<size_t>& slots) const {
+    Tree scratch;
+    std::vector<index_t> scratchIndices(data_.numObservations);
+    std::vector<double> params;
+    std::vector<bool> taken(given, false);
+    size_t placed = 0;
+    slots.assign(forests_[f].numTrees, singleLeaf);
+    for (const std::vector<size_t>& block : slotsByBlock(f)) {
+      for (size_t t = 0, k = 0; t < given && k < block.size(); ++t) {
+        bool notClean = false;
+        if (taken[t] ||
+            !stageLiveTree(forests_[f], fs, t, block[0], scratch,
+                           scratchIndices.data(), params, &notClean) ||
+            notClean)
+          continue;
+        taken[t] = true;
+        slots[block[k++]] = t;
+        ++placed;
+      }
+    }
+    return placed == given;
+  }
+
   /// The variance forest's twin: single leaves at 1 up to its tree count.
   /// Requires a variance forest.
   void appendSingleVarianceLeaves(ChainStateData& state) const {
@@ -5119,20 +5154,20 @@ public:
   /// scratch the install read, slot for slot. That scratch holds the sides
   /// drawn and the coefficients restated, so neither is counted, and the
   /// single leaves that fill a larger forest, which are not either. \p offered
-  /// holds the donor's tree count for each mean forest and \p
-  /// varianceOffered for the variance forest. \p mean gathers the mean
+  /// and \p taken hold, by mean forest, the donor's count and how many of
+  /// its trees went in, \p varianceOffered the variance forest's count. \p mean gathers the mean
   /// forests and \p variance the variance forest, each adding to what it
   /// holds. Requires the install of \p assembled to have just succeeded.
   void countDonorTrees(const ChainStateData& assembled,
                        const std::vector<size_t>& offered,
+                       const std::vector<size_t>& taken,
                        size_t varianceOffered, WarmStartTreeCounts& mean,
                        WarmStartTreeCounts& variance) {
     using Trees = std::vector<std::vector<FlatNode>>;
     ChainStateData live;
     getState(live, false);
     auto count = [&](const Trees& given, const Trees& got, size_t donorCount,
-                     WarmStartTreeCounts& counts) {
-      size_t taken = std::min(donorCount, got.size());
+                     size_t taken, WarmStartTreeCounts& counts) {
       counts.offered += donorCount;
       counts.taken += taken;
       counts.singleLeaves += got.size() - taken;
@@ -5162,9 +5197,9 @@ public:
     };
     for (size_t f = 0; f < forests_.size(); ++f)
       count(assembled.forests[f].trees, live.forests[f].trees, offered[f],
-            mean);
+            taken[f], mean);
     count(assembled.varianceTrees, live.varianceTrees, varianceOffered,
-          variance);
+          std::min(varianceOffered, live.varianceTrees.size()), variance);
   }
 
   /// Restates the linear coefficients of \p install's live trees - a warm
