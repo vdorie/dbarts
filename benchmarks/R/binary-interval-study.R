@@ -3349,10 +3349,12 @@ runRDiagnosis <- function() {
               mass90 = m90$point,
               mass95 = referenceMass(iv95$lo, iv95$hi, D)$point,
               simMass90 = referenceMass(band$lo, band$hi, D)$joint,
-              widthRatio = mean(
-                (iv90$hi - iv90$lo) / (refQ[2L, ] - refQ[1L, ])
+              # ratios of means: a saturated row has a reference width of 0
+              widthRatio = mean(iv90$hi - iv90$lo) /
+                mean(refQ[2L, ] - refQ[1L, ]),
+              errorSd = mean(
+                abs(st$mean - refMean)[refSd > 0] / refSd[refSd > 0]
               ),
-              errorSd = mean(abs(st$mean - refMean) / refSd),
               floor90 = floorMass,
               accepted = acc$accepted,
               stringsAsFactors = FALSE
