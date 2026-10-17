@@ -4969,19 +4969,46 @@ public:
   /// fits of 0 where the leaf carries them and an empty mask where the
   /// forest has a mask channel, the tree a new fit's forest starts as.
   void appendSingleLeaves(ForestStateData& fs, size_t f) const {
-    size_t numParams = 0;
-    if constexpr (L::hasVectorParams)
-      numParams = forests_[f].leaf.numParams() - 1;
-    else if constexpr (L::hasFunctionParams)
-      numParams = data_.numObservations;
     bool params =
       L::hasVectorParams || L::hasFunctionParams || !fs.treeParams.empty();
     while (fs.trees.size() < forests_[f].numTrees) {
       fs.trees.emplace_back(1);
-      if (params) fs.treeParams.emplace_back(numParams, 0.0);
+      if (params) fs.treeParams.emplace_back(singleLeafParams(f), 0.0);
       if (!fs.treeMasks.empty()) fs.treeMasks.emplace_back();
     }
   }
+
+  /// The slopes or fits a single leaf of forest \p f carries: one per slope
+  /// of a linear leaf, one per row of a function leaf, none otherwise.
+  size_t singleLeafParams(size_t f) const {
+    if constexpr (L::hasVectorParams)
+      return forests_[f].leaf.numParams() - 1;
+    else if constexpr (L::hasFunctionParams)
+      return data_.numObservations;
+    (void) f;
+    return 0;
+  }
+
+  /// Forest \p f's slots by blocks() row, in row order, an empty row left
+  /// out; without blocks, one list of every slot.
+  std::vector<std::vector<size_t>> slotsByBlock(size_t f) const {
+    const Forest<L, ResidT>& forest = forests_[f];
+    std::vector<std::vector<size_t>> out(forest.blockMasks.empty() ? 1 : 0);
+    for (size_t t = 0; t < forest.numTrees; ++t) {
+      size_t b = forest.blockMasks.empty() ? 0 : forest.blockOfTree[t];
+      if (b >= out.size()) out.resize(b + 1);
+      out[b].push_back(t);
+    }
+    out.erase(std::remove_if(out.begin(), out.end(),
+                             [](const std::vector<size_t>& slots) {
+                               return slots.empty();
+                             }),
+              out.end());
+    return out;
+  }
+
+  /// The index donorTreesOf reads as a single leaf.
+  static constexpr size_t singleLeaf = static_cast<size_t>(-1);
 
   /// The variance forest's twin: single leaves at 1 up to its tree count.
   /// Requires a variance forest.
@@ -4997,30 +5024,36 @@ public:
 
   /// \p from, a warm start's assembled donor, with each mean forest holding
   /// the trees \p mean names of it and the variance forest those \p variance
-  /// names, in that order, with their slopes, fits and masks, then single
-  /// leaves to this chain's counts. An empty list takes that forest as it is.
+  /// names, in that order, with their slopes, fits and masks, a single leaf
+  /// where one names singleLeaf, then single leaves to this chain's counts.
+  /// An empty list takes that forest as it is.
   ChainStateData donorTreesOf(const ChainStateData& from,
                               const std::vector<std::vector<size_t>>& mean,
                               const std::vector<size_t>& variance) const {
     ChainStateData out = from;
     auto pick = [](auto& to, const auto& source,
-                   const std::vector<size_t>& indices) {
+                   const std::vector<size_t>& indices, const auto& leaf) {
       if (source.empty()) return;
       to.clear();
-      for (size_t i : indices) to.push_back(source[i]);
+      for (size_t i : indices) to.push_back(i == singleLeaf ? leaf : source[i]);
     };
+    const std::vector<std::uint64_t> noMask;
     for (size_t f = 0; f < forests_.size(); ++f) {
       if (mean[f].empty()) continue;
       const ForestStateData& source = from.forests[f];
       ForestStateData& fs = out.forests[f];
-      pick(fs.trees, source.trees, mean[f]);
-      pick(fs.treeParams, source.treeParams, mean[f]);
-      pick(fs.treeMasks, source.treeMasks, mean[f]);
+      pick(fs.trees, source.trees, mean[f], std::vector<FlatNode>(1));
+      pick(fs.treeParams, source.treeParams, mean[f],
+           std::vector<double>(singleLeafParams(f), 0.0));
+      pick(fs.treeMasks, source.treeMasks, mean[f], noMask);
       appendSingleLeaves(fs, f);
     }
     if (!variance.empty()) {
-      pick(out.varianceTrees, from.varianceTrees, variance);
-      pick(out.varianceTreeMasks, from.varianceTreeMasks, variance);
+      FlatNode one;
+      one.value = 1.0;
+      pick(out.varianceTrees, from.varianceTrees, variance,
+           std::vector<FlatNode>{one});
+      pick(out.varianceTreeMasks, from.varianceTreeMasks, variance, noMask);
       appendSingleVarianceLeaves(out);
     }
     return out;
@@ -5059,24 +5092,27 @@ public:
     }
   }
 
-  /// The variance of \p value over the rows, each weighed by its case
-  /// weight; 0 where no row is in the likelihood.
+  /// The variance of \p value over the rows, each weighted by its case
+  /// weight; 0 where no row is in the likelihood. Values are taken from the
+  /// first row's, so that a tree cut back to one leaf varies by exactly 0 and
+  /// ties with every other.
   template <typename Value>
   double rowVariance(Value&& value) const {
     size_t n = data_.numObservations;
-    double total = 0.0, sum = 0.0;
+    double total = 0.0, sum = 0.0, origin = 0.0;
     for (size_t i = 0; i < n; ++i) {
       double w = response_->caseWeight(i);
       if (!(w > 0.0)) continue;
+      if (!(total > 0.0)) origin = value(i);
       total += w;
-      sum += w * value(i);
+      sum += w * (value(i) - origin);
     }
     if (!(total > 0.0)) return 0.0;
     double mean = sum / total, squares = 0.0;
     for (size_t i = 0; i < n; ++i) {
       double w = response_->caseWeight(i);
       if (!(w > 0.0)) continue;
-      double d = value(i) - mean;
+      double d = value(i) - origin - mean;
       squares += w * d * d;
     }
     return squares / total;
