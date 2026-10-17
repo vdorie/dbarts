@@ -5641,6 +5641,25 @@ static void testBCFCombinerSeam() {
       ext_rng_destroy(reference);
       ext_rng_destroy(live);
     }
+    // a hand-written bcf-shaped state, the four named scalars and no widths,
+    // installs a drawn a and leaves a held b at its (0, 1)
+    {
+      AmplitudeSpec noB = spec;
+      noB.updateB = false;
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
+        data, noB, amplitudePriors(noB, 1.0));
+      ChainStateData handWritten;
+      handWritten.hasAmplitudes = true;
+      handWritten.a = 1.5;
+      handWritten.aVariance = 4.0;
+      handWritten.b0 = -0.5;
+      handWritten.b1 = 0.25;
+      combiner.restoreGlue(handWritten);
+      ChainStateData restored;
+      combiner.serializeGlue(restored);
+      check(restored.a == 1.5 && restored.b0 == 0.0 && restored.b1 == 1.0,
+            "a hand-written bcf state installs a drawn a and not a held b");
+    }
   }
 
   // ---- afterCombine moves nothing: no draw, no amplitude, no leaf, no fit ----

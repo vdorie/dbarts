@@ -236,6 +236,32 @@ for (case in list(
   )
   expect_false(held$getLeafPrior(1L)$sd.stated)
 }
+# the default is taken from the anchor retained at creation, so neither a new
+# response with its scale kept nor a copy made after it moves it
+held <- dbarts(
+  x,
+  y,
+  forests = list(forest(amplitude = fixed()), forest(basis = zf)),
+  control = heldControl()
+)
+created <- held$getLeafPrior(1L)
+held$setResponse(y + 3 * x2^4, updateScale = FALSE)
+expect_identical(held$getLeafPrior(1L)$sd, created$sd)
+copied <- held$copy()
+expect_identical(copied$getLeafPrior(1L)$sd, created$sd)
+expect_identical(copied$getLeafPrior(1L)$k.scale, created$k.scale)
+# a write of an sd to a held factor keeps it held, and the sd is exact
+held <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = zf, amplitude = fixed())),
+  control = heldControl()
+)
+held$setLeafPrior(forests = list(forest(), forest(sd = 0.4)))
+written <- held$getLeafPrior(2L)
+expect_identical(written$sd, 0.4)
+expect_equal(written$k.scale, 0.4, tolerance = 1e-12)
+expect_inherits(written[["amplitude"]], "dbartsFixedPrior")
 # a held factor's default is one unit at two, three and four forests
 for (numForests in 2:4) {
   forests <- c(
