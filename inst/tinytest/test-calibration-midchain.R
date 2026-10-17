@@ -68,11 +68,12 @@ expect_identical(
 )
 expect_identical(calibration$leaf.model, "constant")
 expect_identical(calibration$prior.sd.of, "leaf value")
-# and the five calibration-map entries are absent on a single-forest sampler:
+# and the calibration map's entries are absent on a single-forest sampler:
 # its leaf scale is not map-derived, which the reader says positively rather
 # than by reporting a plausible 1 a caller would multiply by
 mapColumns <- c(
-  "amplitude.prior.variance",
+  "multiplier",
+  "amplitude",
   "amplitude.prior.scale",
   "leaf.scale.factor",
   "leaf.scale.divisor",
@@ -493,29 +494,41 @@ expect_equal(
   bcfCalibration2$leaf.scale.factor * sd(yBCF),
   tolerance = 1e-12
 )
-expect_identical(bcfCalibration$prior.sd.of, "amplitude scale")
-expect_identical(bcfCalibration2$prior.sd.of, "forest total")
+expect_identical(bcfCalibration$prior.sd.of, "forest (prior median)")
+expect_identical(bcfCalibration2$prior.sd.of, "level difference (prior median)")
 expect_true(bcfCalibration$k.scale > 0 && bcfCalibration2$k.scale > 0)
-# here the map entries are the ones IN FORCE, and the two amplitude entries
-# are EXCLUSIVE per forest: forest 1 declares no basis, so it carries the
-# half-Cauchy scale mixture and no variance, and forest 2 the reverse. The
-# control carries no number for either: the engine's defaults, 2 under a
-# gaussian response and 0.5, are what the reader reports
+# here the map entries are the ones IN FORCE: forest 1 declares no basis, so
+# it carries the half-Cauchy scale mixture and its median, and forest 2 none.
+# The control carries no number for either: the engine's default, 2 under a
+# gaussian response, is what the reader reports
 bcfStated <- attr(bcf$control, "bartcore.forests")
 expect_identical(bcfStated$sd, c(NA_real_, NA_real_))
-expect_identical(bcfStated$variance, c(NA_real_, NA_real_))
 expect_identical(
-  names(bcfCalibration)[-(1:9)],
+  names(bcfCalibration),
   c(
+    "leaf.prior",
+    "sd",
+    "sd.stated",
+    "multiplier",
+    "leaf.model",
+    "prior.sd.of",
+    "prior.mean",
+    "k.scale",
+    "response.scale",
+    "response.shift",
     "amplitude.prior.scale",
     "leaf.scale.factor",
     "leaf.scale.divisor",
     "basis.row.norm"
   )
 )
-expect_null(bcfCalibration$amplitude.prior.variance)
+expect_identical(
+  names(bcfCalibration2),
+  setdiff(names(bcfCalibration), "amplitude.prior.scale")
+)
+expect_identical(bcfCalibration$multiplier, "none")
+expect_identical(bcfCalibration2$multiplier, "factor")
 expect_equal(bcfCalibration$amplitude.prior.scale, 2)
-expect_equal(bcfCalibration2$amplitude.prior.variance, 0.5)
 expect_null(bcfCalibration2$amplitude.prior.scale)
 
 # forest = NULL lists every forest's prior; a single-forest sampler's NULL

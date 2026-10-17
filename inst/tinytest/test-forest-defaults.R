@@ -141,7 +141,7 @@ for (index in seq_along(plainSecond)) {
   expect_null(second$data@bases[[2L]])
   expect_identical(dim(second$data@bases[[1L]]), c(n, 1L))
   # the half-Cauchy channel is on the plain forest wherever it stands
-  expect_identical(second$getLeafPrior(2L)$prior.sd.of, "amplitude scale")
+  expect_identical(second$getLeafPrior(2L)$prior.sd.of, "forest (prior median)")
   expect_identical(second$getLeafPrior(1L)$prior.sd.of, "forest total")
   expect_true(all(is.finite(second$run(0L, 5L)$train)), info = info)
 }
@@ -881,33 +881,19 @@ heldDoors <- list(
     )
   }
 )
-fixedOn <- function(index, what) {
-  paste0("forest ", index, ": amplitude = fixed() on ", what)
-}
-twoElsewhere <- "a basis of two columns is not supported yet unless the forest is the second; it would hold both coefficients at 1. Put the forest second, or let the coefficients be drawn"
-plainHeldSecond <- "a forest with no basis is not supported yet where it is the second forest; it would hold the forest at zero. Put the forest with no basis first, or let the coefficient be drawn"
 # a basis of three columns is refused for its size, held or drawn
 threeColumns <- "has a basis of 3 numeric columns"
 # the forests' kinds in order and which is held, with the values it is held
-# at, or the refusal and whether the model is one to create with no hold
+# at, wherever it stands (dec-B354), or the refusal and whether the model is
+# one to create with no hold
 heldRows <- list(
   list(c("plain", "two"), 1L, values = 1),
   list(c("one", "two", "plain"), 3L, values = 1),
   list(c("plain", "two"), 2L, values = c(0, 1)),
   list(c("one", "two"), 2L, values = c(0, 1)),
-  list(
-    c("one", "plain"),
-    2L,
-    text = fixedOn(2L, plainHeldSecond),
-    drawn = TRUE
-  ),
-  list(c("two", "one"), 1L, text = fixedOn(1L, twoElsewhere), drawn = TRUE),
-  list(
-    c("plain", "one", "two"),
-    3L,
-    text = fixedOn(3L, twoElsewhere),
-    drawn = TRUE
-  ),
+  list(c("one", "plain"), 2L, values = 1),
+  list(c("two", "one"), 1L, values = c(0, 1)),
+  list(c("plain", "one", "two"), 3L, values = c(0, 1)),
   list(c("plain", "three"), 2L, text = threeColumns, drawn = FALSE),
   list(c("plain", "one", "three"), 3L, text = threeColumns, drawn = FALSE)
 )
@@ -963,23 +949,22 @@ expect_equal(
   ),
   c(1, 0, 1)
 )
-expect_error(
+# a factor held third and first: (0, 1) wherever it stands
+expect_equal(
   termHeld(
     y ~ x1 +
       x2 +
       forest(x1, basis = dose) +
       forest(x3, basis = factor(z), amplitude = fixed())
-  ),
-  fixedOn(3L, twoElsewhere),
-  fixed = TRUE
+  )[3:4],
+  c(0, 1)
 )
-expect_error(
+expect_equal(
   termHeld(
     y ~ forest(x1, basis = factor(z), amplitude = fixed()) +
       forest(x3, basis = dose)
-  ),
-  fixedOn(1L, twoElsewhere),
-  fixed = TRUE
+  )[1:2],
+  c(0, 1)
 )
 
 # a NULL power or base at bart() is the default, which a model whose every

@@ -225,7 +225,7 @@ for (entry in list(
 }
 expect_error(
   twoForests(amplitude = dbartsPriors$fixed(2)),
-  "'amplitude = fixed(2)': a held coefficient is 1 for a forest with no basis, and 0 for the first level of a factor and 1 for the others; fixed() takes no other value here. Write fixed(), and state the forest's size with 'sd'",
+  "'amplitude = fixed(2)': a held coefficient is 1, and what it multiplies is the basis: nothing, or 0 and 1 for the two levels of a factor; fixed() takes no other value. Write fixed(), and state the forest's size with 'sd'",
   fixed = TRUE
 )
 for (bad in list(c(1, 1), NA_real_, NaN)) {

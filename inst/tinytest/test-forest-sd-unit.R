@@ -252,12 +252,10 @@ for (family in c("gaussian", "probit", "logistic")) {
     info = family
   )
 }
-# a stated variance reaches the engine as written
-withVariance <- twoForests(
-  list(forest(), forest(basis = d$zf, amplitude.prior.variance = 2))
+# no variance is stated for a forest's coefficients
+expect_null(
+  forestInfo(twoForests(list(forest(), forest(basis = d$zf))))$variance
 )
-expect_identical(withVariance$getLeafPrior(2L)$amplitude.prior.variance, 2)
-expect_identical(forestInfo(withVariance)$variance, c(NA, 2))
 
 # --- one path at a time ---
 created <- twoForests()
@@ -390,7 +388,10 @@ expect_error(
   fixed = TRUE
 )
 expect_identical(swappedBasis$getLeafPrior(1L)$sd, 2)
-expect_identical(swappedBasis$getLeafPrior(1L)$prior.sd.of, "amplitude scale")
+expect_identical(
+  swappedBasis$getLeafPrior(1L)$prior.sd.of,
+  "forest (prior median)"
+)
 expect_identical(
   swappedBasis$copy()$getLeafPrior(1L),
   swappedBasis$getLeafPrior(1L)
@@ -435,12 +436,27 @@ for (numForests in 2:3) {
   )
   expect_identical(stated$run(0L, 20L), twin$run(0L, 20L))
 }
-# the same at three forests: the default's number stated is the default's
-# multiple at a write, on a copy made from the record and at a creation that
-# states it
-third <- 1
-threeDefaults <- list(forest(), forest(basis = d$zf), forest(basis = d$dose))
-inexact <- y
+# the same where the unit and back do not return the default's multiple: a
+# held forest with no basis defaults to a quarter of the response's range,
+# a multiple of the anchor that the response is stretched until its unit does
+# not return, and the default's number stated is the default's multiple at a
+# write, on a copy made from the record and at a creation that states it
+threeDefaults <- list(
+  forest(amplitude = dbartsPriors$fixed()),
+  forest(basis = d$zf),
+  forest(basis = d$dose)
+)
+inexact <- NULL
+for (stretch in seq(1, 4, by = 0.125)) {
+  sampler <- twoForests(threeDefaults, stretch * y)
+  held <- sampler$getLeafPrior(1L)$leaf.scale.factor
+  unit <- unitOf(sampler)
+  if (held * unit / unit != held) {
+    inexact <- stretch * y
+    break
+  }
+}
+expect_false(is.null(inexact))
 twin <- twoForests(threeDefaults, inexact)
 written <- twoForests(threeDefaults, inexact)
 inForce <- lapply(written$getLeafPrior(), function(prior) prior$sd)
@@ -460,7 +476,7 @@ statingDefaults <- list(
   copy = written$copy(),
   creation = twoForests(
     list(
-      forest(sd = inForce[[1L]]),
+      forest(sd = inForce[[1L]], amplitude = dbartsPriors$fixed()),
       forest(basis = d$zf, sd = inForce[[2L]]),
       forest(basis = d$dose, sd = inForce[[3L]])
     ),
@@ -477,8 +493,8 @@ for (path in names(statingDefaults)) {
   )
   expect_identical(channelsOf(sampler), twinChannels, info = path)
   expect_identical(
-    sampler$getLeafPrior(2L)$leaf.scale.factor,
-    third,
+    sampler$getLeafPrior(1L)$leaf.scale.factor,
+    twin$getLeafPrior(1L)$leaf.scale.factor,
     info = path
   )
   expect_identical(sampler$run(0L, 20L), twinDraws, info = path)

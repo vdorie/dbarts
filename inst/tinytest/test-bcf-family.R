@@ -213,7 +213,6 @@ for (family in names(anchors)) {
     )
     # every forest here carries a basis, so every one takes the fixed-variance
     # channel and reports no half-Cauchy median
-    expect_equal(reported$amplitude.prior.variance, 0.5)
     expect_null(reported$amplitude.prior.scale)
   }
 }
@@ -245,15 +244,13 @@ for (fit in list(probit, logistic)) {
   # forest 1 declares no basis, so its leaf scale stays at the anchor itself
   expect_equal(priorScales(fit), c(s, s / 0.674), tolerance = 1e-12)
   # and the reader SHOWS that rather than leaving it to be inferred: factor,
-  # divisor and row norm are each 1 on that forest. The two amplitude columns
-  # are EXCLUSIVE - a basis-free forest carries the half-Cauchy scale mixture
-  # and reports its median, a basis forest the fixed variance - and which
-  # spelling a forest gets is the engine's, from whether it has a basis: the
-  # control carries no sd and no variance for either forest, so the numbers
+  # divisor and row norm are each 1 on that forest. A basis-free forest
+  # carries the half-Cauchy scale mixture and reports its median, a basis
+  # forest none, and which a forest gets is the engine's, from what it
+  # multiplies: the control carries no sd for either forest, so the numbers
   # the reader reports are the engine's own defaults.
   transported <- attr(fit$control, "bartcore.forests")
   expect_identical(transported$sd, c(NA_real_, NA_real_))
-  expect_identical(transported$variance, c(NA_real_, NA_real_))
   free <- fit$getLeafPrior(1L)
   carried <- fit$getLeafPrior(2L)
   expect_equal(
@@ -269,8 +266,8 @@ for (fit in list(probit, logistic)) {
   # difference, and at 1 the induced index prior sits on the shipped
   # single-forest binary default's coverage rather than 1.6x outside it
   expect_equal(free$amplitude.prior.scale, 1)
-  expect_null(free$amplitude.prior.variance)
-  expect_equal(carried$amplitude.prior.variance, 0.5)
+  expect_identical(free$multiplier, "none")
+  expect_identical(carried$multiplier, "factor")
   expect_null(carried$amplitude.prior.scale)
   result <- fit$run(4L, 2L)
   expect_true(all(is.finite(result$train)))

@@ -260,8 +260,11 @@ expect_error(
   fixed = TRUE
 )
 expect_identical(a$getLeafPrior(1L)$leaf.prior, forest(sd = 0.35))
-expect_identical(a$getLeafPrior(1L)$prior.sd.of, "amplitude scale")
-expect_identical(a$getLeafPrior(2L)$prior.sd.of, "forest total")
+expect_identical(a$getLeafPrior(1L)$prior.sd.of, "forest (prior median)")
+expect_identical(
+  a$getLeafPrior(2L)$prior.sd.of,
+  "level difference (prior median)"
+)
 
 # --- refusals ---
 m <- multinomialSampler()

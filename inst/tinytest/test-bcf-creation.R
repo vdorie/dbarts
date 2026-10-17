@@ -124,7 +124,7 @@ expect_true(sum(tauCounts[3:4, ]) > 0L)
 
 # --- the whole knob map is honoured, not accepted and dropped. Each knob of
 # the second forest reaches the four doubles the control attribute carries
-# (its `sd` and `amplitude.prior.variance` go beside them, as written), and
+# (its `sd` goes beside them, as written), and
 # the FIRST forest's structural knobs restate the fit's own control and tree
 # prior rather than adding a second set. A knob that went nowhere would leave
 # a default here. ---
@@ -145,7 +145,6 @@ knobs <- dbartsSpec(
       base = 0.4,
       power = 2,
       sd = 1.25,
-      amplitude.prior.variance = 0.75,
       amplitude = fixed()
     )
   )
@@ -153,17 +152,14 @@ knobs <- dbartsSpec(
 # one length-4 vector per forest: tree count, base, power and the hold, 0 where
 # the coefficient is held. Which magnitude channel a forest's `sd` reaches is
 # the engine's to decide from whether it carries a basis, so the stated sds go
-# to the engine as written, in the response's units, one a forest, and the
-# second forest's amplitude.prior.variance beside them, NA where none is stated
+# to the engine as written, in the response's units, one a forest; no forest
+# states a variance for its coefficients
 expect_equal(
   attr(knobs$control, "bartcore.forests")$params,
   list(c(30, 0.7, 1.5, 0), c(15, 0.4, 2, 0))
 )
 expect_identical(attr(knobs$control, "bartcore.forests")$sd, c(2.5, 1.25))
-expect_identical(
-  attr(knobs$control, "bartcore.forests")$variance,
-  c(NA_real_, 0.75)
-)
+expect_null(attr(knobs$control, "bartcore.forests")$variance)
 expect_identical(knobs$control@n.trees, 30L)
 expect_equal(knobs$model@tree.prior@base, 0.7)
 expect_equal(knobs$model@tree.prior@power, 1.5)
@@ -359,10 +355,7 @@ expect_identical(
   attr(offSlot$control, "bartcore.forests")$sd,
   c(NA_real_, NA_real_)
 )
-expect_identical(
-  attr(offSlot$control, "bartcore.forests")$variance,
-  c(NA_real_, NA_real_)
-)
+expect_null(attr(offSlot$control, "bartcore.forests")$variance)
 # the same transport under a LATENT family, which no assertion above has
 # run: each forest's `sd` is carried in its own position as written, and the
 # family reaches the model without disturbing either. The two declared values
@@ -743,53 +736,8 @@ expect_equal(
   2L
 )
 
-# 'amplitude.prior.variance' is legal wherever a basis is, the first forest
-# now included - and refused, restated per forest, where none is
-priorOnFirst <- dbarts(
-  x,
-  y,
-  forests = list(
-    forest(
-      basis = ~ factor(z),
-      amplitude.prior.variance = 1,
-      n.trees = 50L,
-      base = 0.95,
-      power = 2
-    ),
-    forest(basis = ~ factor(z))
-  ),
-  control = uncountedControlBcfCreation()
-)
-expect_identical(
-  attr(priorOnFirst$control, "bartcore.forests")$variance,
-  c(1, NA_real_)
-)
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(
-      forest(amplitude.prior.variance = 1),
-      forest(basis = ~ factor(z))
-    ),
-    control = control
-  ),
-  "forest 1 has no 'basis'"
-)
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(
-      forest(basis = ~ factor(z)),
-      forest(basis = ~ factor(z)),
-      forest(basis = x[, 1L], amplitude.prior.variance = 2),
-      forest(amplitude.prior.variance = 3)
-    ),
-    control = control
-  ),
-  "forest 4 has no 'basis'"
-)
+# 'amplitude.prior.variance' is not an argument of forest(): R's own error,
+# pinned in test-forest-held.R
 # the one forest of a single-forest model takes `sd` as the fitting function's
 # leaf.prior = normal(sd = ) does, in the same units: the same fit, draw for
 # draw
@@ -997,18 +945,6 @@ expect_error(
     control = control
   ),
   "forest 'sd'"
-)
-expect_error(
-  dbarts(
-    x,
-    y,
-    forests = list(
-      forest(),
-      forest(basis = ~ factor(z), amplitude.prior.variance = 0)
-    ),
-    control = control
-  ),
-  "forest 'amplitude.prior.variance'"
 )
 expect_error(
   dbarts(
@@ -1279,49 +1215,17 @@ expect_identical(dbartsData(prebuiltData), prebuiltData)
 # x/y route's own 'bases' handling is untouched
 expect_silent(dbartsData(x, y, bases = list(NULL, zFactor)))
 
-# (v) the amplitude-prior check now honours 'hasBasis', not only a forest's
-# own 'basis' argument: a forest excused by a basis that arrived through
-# dbartsData(bases = ) accepts 'amplitude.prior.variance', and one with no
-# basis anywhere is still refused
+# (v) a forest whose basis arrived through dbartsData(bases = ) is one with a
+# basis: its channel and its tree defaults are a multiplied forest's
 dataBasisOnFirst <- dbartsData(x, y, bases = list(zFactor, zFactor))
-amplitudeExcused <- dbarts(
+bothExcused <- dbarts(
   dataBasisOnFirst,
-  forests = list(
-    forest(amplitude.prior.variance = 2, n.trees = 50L, base = 0.95, power = 2),
-    forest()
-  ),
+  forests = list(forest(n.trees = 50L, base = 0.95, power = 2), forest()),
   control = uncountedControlBcfCreation()
 )
 expect_identical(
-  attr(amplitudeExcused$control, "bartcore.forests")$variance,
-  c(2, NA_real_)
-)
-# forest 2's own default applies too, unaffected by forest 1's excuse
-expect_equal(amplitudeExcused$getLeafPrior(1L)$amplitude.prior.variance, 2)
-expect_equal(amplitudeExcused$getLeafPrior(2L)$amplitude.prior.variance, 0.5)
-dataNoBasisOnFirst <- dbartsData(x, y, bases = list(NULL, zFactor))
-expect_error(
-  dbarts(
-    dataNoBasisOnFirst,
-    forests = list(forest(amplitude.prior.variance = 2), forest()),
-    control = control
-  ),
-  "forest 1 has no 'basis'"
-)
-# the excuse applies per forest, not only to the first: forest 2's own
-# amplitude.prior.variance is honoured too when ITS basis arrived via the
-# data object
-amplitudeExcusedBoth <- dbarts(
-  dataBasisOnFirst,
-  forests = list(
-    forest(n.trees = 50L, base = 0.95, power = 2),
-    forest(amplitude.prior.variance = 3)
-  ),
-  control = uncountedControlBcfCreation()
-)
-expect_identical(
-  attr(amplitudeExcusedBoth$control, "bartcore.forests")$variance,
-  c(NA_real_, 3)
+  unname(vapply(bothExcused$getLeafPrior(), `[[`, "", "prior.sd.of")),
+  rep("level difference (prior median)", 2L)
 )
 # a second forest that has no basis anywhere is the model's forest with no
 # basis, which may stand at any place: it takes the control's count and the
@@ -1329,38 +1233,25 @@ expect_identical(
 dataBasisOnFirstOnly <- dbartsData(x, y, bases = list(zFactor, NULL))
 plainSecond <- dbarts(
   dataBasisOnFirstOnly,
-  forests = list(forest(amplitude.prior.variance = 2), forest()),
+  forests = list(forest(), forest()),
   control = uncountedControlBcfCreation(n.trees = 20L)
 )
 expect_equal(
   attr(plainSecond$control, "bartcore.forests")$params,
   list(c(50, 0.25, 3, 1), c(20, 0.95, 2, 1))
 )
-# each forest's channel follows its kind, not its place: the variance stated
-# on the first reaches its coefficients, and the second carries the median
-expect_identical(
-  attr(plainSecond$control, "bartcore.forests")$variance,
-  c(2, NA_real_)
-)
+# each forest's channel follows its kind, not its place: the first, a
+# factor, carries its sd in its leaf scale and the second the median
 plainSecondPriors <- plainSecond$getLeafPrior()
-expect_identical(plainSecondPriors[[1L]]$amplitude.prior.variance, 2)
 expect_null(plainSecondPriors[[1L]]$amplitude.prior.scale)
-expect_identical(plainSecondPriors[[1L]]$prior.sd.of, "forest total")
+expect_identical(
+  plainSecondPriors[[1L]]$prior.sd.of,
+  "level difference (prior median)"
+)
 expect_identical(plainSecondPriors[[1L]]$leaf.scale.divisor, 0.674)
 expect_identical(plainSecondPriors[[2L]]$amplitude.prior.scale, 2)
-expect_null(plainSecondPriors[[2L]]$amplitude.prior.variance)
-expect_identical(plainSecondPriors[[2L]]$prior.sd.of, "amplitude scale")
+expect_identical(plainSecondPriors[[2L]]$prior.sd.of, "forest (prior median)")
 expect_identical(plainSecondPriors[[2L]]$leaf.scale.divisor, 1)
-# forest 1's excuse does not extend to it: an amplitude.prior.variance
-# declared on THAT forest answers the amplitude refusal
-expect_error(
-  dbarts(
-    dataBasisOnFirstOnly,
-    forests = list(forest(), forest(amplitude.prior.variance = 2)),
-    control = control
-  ),
-  "forest 2 has no 'basis'"
-)
 
 # --- dec-A109: the lone basis forest stays refused, and the refusal points at
 # the p + 1 forest form and linear() leaves ---

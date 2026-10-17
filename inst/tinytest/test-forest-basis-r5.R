@@ -218,13 +218,14 @@ expect_identical(
 expect_error(threeForests$getForestAmplitudes(4L), "out of range")
 expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 
-# --- the amplitude prior's kind is transported per forest. Two halves. First
-# the transported statement itself: each forest's `sd` goes to the engine as
-# written, in the response's units, with whether the forest was created with a
-# basis; a forest carrying a basis has a FIXED-variance amplitude, so it
-# reports no half-Cauchy scale; a forest carrying none has the scale mixture,
-# so its scale is its `sd` (over the response's standard deviation here, with
-# no offset, subset or zero weight). ---
+# --- the amplitude prior's kind follows what each forest multiplies. Two
+# halves. First the transported statement itself: each forest's `sd` goes to
+# the engine as written, in the response's units, and what the forest
+# multiplies is read from the data object; a forest carrying a basis has a
+# FIXED-variance amplitude, so it reports no half-Cauchy scale; a forest
+# carrying none has the scale mixture, so its scale is its `sd` (over the
+# response's standard deviation here, with no offset, subset or zero
+# weight). ---
 priorSpec <- dbartsSpec(
   dbartsData(x, y, bases = list(NULL, factor(z))),
   seededControlForestBasisR5(),
@@ -232,8 +233,8 @@ priorSpec <- dbartsSpec(
 )
 priorStated <- attr(priorSpec$control, "bartcore.forests")
 expect_identical(priorStated$sd, c(2.5, 1.25))
-expect_identical(priorStated$variance, c(NA_real_, NA_real_))
-expect_identical(priorStated$hasBasis, c(FALSE, TRUE))
+expect_null(priorStated$variance)
+expect_null(priorStated$hasBasis)
 priorSampler <- new(
   "dbartsSampler",
   priorSpec$control,
@@ -244,37 +245,21 @@ priorSampler <- new(
 # units, which is 2.5 / sd(y) of the response's standard deviation
 priorFree <- priorSampler$getLeafPrior(1L)
 expect_identical(priorFree$sd, 2.5)
-expect_null(priorFree$amplitude.prior.variance)
+expect_identical(priorFree$multiplier, "none")
 expect_equal(priorFree$amplitude.prior.scale, 2.5 / sd(y), tolerance = 1e-12)
-# forest 2: a basis -> fixed variance 0.5, no half-Cauchy scale
+# forest 2: a basis -> fixed variance, no half-Cauchy scale
 priorBasis <- priorSampler$getLeafPrior(2L)
 expect_identical(priorBasis$sd, 1.25)
-expect_equal(priorBasis$amplitude.prior.variance, 0.5)
+expect_identical(priorBasis$multiplier, "factor")
 expect_null(priorBasis$amplitude.prior.scale)
 
-# and second, the statement is really READ: a forest read as having no basis
-# takes the scale mixture, its prior variance a live auxiliary redrawn after the
-# amplitude every sweep, and one with a basis holds it fixed, so flipping the
-# channel moves every subsequent draw, as does the half-Cauchy median itself. A
-# bridge that ignored the transported statement would leave these fits
-# identical.
+# and second, the statement is really READ: the half-Cauchy median moves every
+# subsequent draw. A bridge that ignored the transported statement would leave
+# these fits identical.
 buildFromSpec <- function(spec) {
   new("dbartsSampler", spec$control, spec$model, spec$data)
 }
 baseline <- buildFromSpec(priorSpec)$run(0L, 4L)$train
-
-# (the channel a forest's `sd` reaches is the record's `hasBasis`: flipping it
-# moves the forest from one channel to the other)
-mixtureOnBasis <- priorSpec
-attr(mixtureOnBasis$control, "bartcore.forests")$hasBasis[2L] <- FALSE
-expect_false(identical(
-  buildFromSpec(mixtureOnBasis)$run(0L, 4L)$train,
-  baseline
-))
-
-# the channel of a forest created with no basis is not flipped the other way by
-# the record (the engine reads a basis from the data), so the first forest's
-# half-Cauchy median is moved instead
 movedMedian <- priorSpec
 attr(movedMedian$control, "bartcore.forests")$sd[1L] <- 5
 expect_false(identical(
@@ -510,12 +495,8 @@ expect_equal(
 # no fixed amplitude variance - both are model - so the recipient's map is
 # still the decomposition in force after $setState, whatever the donor ran
 # under. Four arms. ---
-donorForests <- function(sd, variance, basis = ~ factor(z)) {
-  multiplied <- list(
-    basis = basis,
-    sd = sd,
-    amplitude.prior.variance = variance
-  )
+donorForests <- function(sd, basis = ~ factor(z)) {
+  multiplied <- list(basis = basis, sd = sd)
   dbarts(
     x,
     yBinary,
@@ -523,8 +504,8 @@ donorForests <- function(sd, variance, basis = ~ factor(z)) {
     control = seededControlForestBasisR5()
   )
 }
-donor <- donorForests(2, 0.125)
-recipient <- donorForests(0.5, 0.5)
+donor <- donorForests(2)
+recipient <- donorForests(0.5)
 # the two really do differ in the calibration, which is what makes the install
 # foreign rather than a re-statement
 expect_true(priorScale(donor, 2L) != priorScale(recipient, 2L))
@@ -555,12 +536,9 @@ expect_equal(mapColumn(recipient, 1L, "leaf.scale.factor"), 1)
 expect_equal(mapColumn(recipient, 1L, "leaf.scale.divisor"), 1)
 
 # (d) THE AMPLITUDE PRIOR IS THE RECIPIENT'S, which is what the next draw will
-# use: its own fixed 0.5, not the donor's 0.125. Forest 1 carries the scale
-# mixture, whose serialized variance is a live auxiliary rather than a prior,
-# so its two amplitude entries keep their exclusivity.
-expect_equal(mapColumn(recipient, 2L, "amplitude.prior.variance"), 0.5)
+# use. Forest 1 carries the scale mixture, whose serialized variance is a live
+# auxiliary rather than a prior, and forest 2 none.
 expect_null(mapColumn(recipient, 2L, "amplitude.prior.scale"))
-expect_null(mapColumn(recipient, 1L, "amplitude.prior.variance"))
 # neither sampler declares that forest's sd, so both carry the family's own
 # default median - 1 under this probit fixture, where the anchor is the link's
 # error sd and sigma is pinned, rather than gaussian's 2
@@ -569,10 +547,10 @@ expect_equal(mapColumn(recipient, 1L, "amplitude.prior.scale"), 1)
 # (c) RE-DERIVATION. $setForestBasis re-derives the leaf scale from the stored
 # factor and divisor and the new basis, and the identity holds on it. The
 # recipient here multiplies a number, which is what takes a rescaled column.
-donor <- donorForests(2, 0.125, as.double(z))
+donor <- donorForests(2, as.double(z))
 donor$run(5L, 1L)
 donor$storeState()
-recipient <- donorForests(0.5, 0.5, as.double(z))
+recipient <- donorForests(0.5, as.double(z))
 recipient$setState(donor$state)
 recipient$setForestBasis(2L, 4 * z)
 expect_equal(mapColumn(recipient, 2L, "leaf.scale.factor"), 0.5)
@@ -589,7 +567,7 @@ expect_equal(
 
 # (b) SELF-RESTORE. A store, a run and a restore of a sampler's OWN state
 # leaves every entry and the identity as they were.
-selfRestore <- donorForests(2, 0.125)
+selfRestore <- donorForests(2)
 selfRestore$run(5L, 1L)
 selfRestore$storeState()
 ownState <- selfRestore$state
@@ -599,7 +577,6 @@ selfRestore$setState(ownState)
 expect_equal(priorScale(selfRestore, 2L), ownScale)
 expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.factor"), 2)
 expect_equal(mapColumn(selfRestore, 2L, "leaf.scale.divisor"), 0.674)
-expect_equal(mapColumn(selfRestore, 2L, "amplitude.prior.variance"), 0.125)
 expect_equal(
   mapColumn(selfRestore, 2L, "k.scale") *
     mapColumn(selfRestore, 2L, "leaf.scale.divisor") *

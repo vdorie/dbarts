@@ -205,7 +205,7 @@ twoFixed <- function(...) {
 withBlocks(
   "fixed amplitude variance",
   function() {
-    twoFixed(amplitude.prior.variance = 2)
+    twoFixed()
   },
   function(state) {
     editChains(state, function(chain) {
