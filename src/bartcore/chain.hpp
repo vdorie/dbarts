@@ -5015,30 +5015,45 @@ public:
   /// A warm start's clean placement under blocks(): each of forest \p f's
   /// blocks in turn takes, in the donor's order, up to its count of the
   /// first \p given trees of \p fs that no earlier block took and that its
-  /// slots hold as stored (stageLiveTree). \p slots receives the donor
-  /// index by slot, singleLeaf where none. True where all are placed.
+  /// slots hold as stored (stageLiveTree). Where a tree is left out, the
+  /// trees that split are offered first once more and the single leaves
+  /// after them, each block's then in the donor's order: with disjoint
+  /// blocks only a single leaf fits two. \p slots receives the donor index
+  /// by slot, singleLeaf where none. True where all are placed.
   bool placeDonorTrees(size_t f, const ForestStateData& fs, size_t given,
                        std::vector<size_t>& slots) const {
     Tree scratch;
     std::vector<index_t> scratchIndices(data_.numObservations);
     std::vector<double> params;
-    std::vector<bool> taken(given, false);
-    size_t placed = 0;
-    slots.assign(forests_[f].numTrees, singleLeaf);
-    for (const std::vector<size_t>& block : slotsByBlock(f)) {
-      for (size_t t = 0, k = 0; t < given && k < block.size(); ++t) {
-        bool notClean = false;
-        if (taken[t] ||
-            !stageLiveTree(forests_[f], fs, t, block[0], scratch,
-                           scratchIndices.data(), params, &notClean) ||
-            notClean)
-          continue;
-        taken[t] = true;
-        slots[block[k++]] = t;
-        ++placed;
+    std::vector<size_t> order(given), kept;
+    for (size_t t = 0; t < given; ++t) order[t] = t;
+    for (int pass = 0; pass < 2; ++pass) {
+      std::vector<bool> taken(given, false);
+      size_t placed = 0;
+      slots.assign(forests_[f].numTrees, singleLeaf);
+      for (const std::vector<size_t>& block : slotsByBlock(f)) {
+        kept.clear();
+        for (size_t i = 0; i < given && kept.size() < block.size(); ++i) {
+          size_t t = order[i];
+          bool notClean = false;
+          if (taken[t] ||
+              !stageLiveTree(forests_[f], fs, t, block[0], scratch,
+                             scratchIndices.data(), params, &notClean) ||
+              notClean)
+            continue;
+          taken[t] = true;
+          kept.push_back(t);
+        }
+        std::sort(kept.begin(), kept.end());
+        for (size_t k = 0; k < kept.size(); ++k) slots[block[k]] = kept[k];
+        placed += kept.size();
       }
+      if (placed == given) return true;
+      std::stable_partition(order.begin(), order.end(), [&](size_t t) {
+        return fs.trees[t].size() > 1;
+      });
     }
-    return placed == given;
+    return false;
   }
 
   /// The variance forest's twin: single leaves at 1 up to its tree count.

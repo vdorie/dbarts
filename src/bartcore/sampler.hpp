@@ -2749,6 +2749,7 @@ private:
         size_t given = choice.variation[0].size();
         std::vector<bool> kept(given, false);
         if (r == numRounds && f < numForests) taken[c][f] = 0;
+        bool byBlock = f < numForests && byRank[c][f];
         for (size_t b = 0; b < choice.blocks.size(); ++b) {
           const std::vector<size_t>& block(choice.blocks[b]);
           std::vector<size_t> picked;
@@ -2759,7 +2760,8 @@ private:
           } else {
             const std::vector<double>& ranked(choice.variation[b]);
             for (size_t i = 0; i < given; ++i)
-              if (!kept[i] && ranked[i] >= 0.0) picked.push_back(i);
+              if (!kept[i] && (!byBlock || ranked[i] >= 0.0))
+                picked.push_back(i);
             std::stable_sort(picked.begin(), picked.end(),
                              [&](size_t i, size_t j) {
                                return ranked[i] > ranked[j];
