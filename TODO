@@ -292,6 +292,8 @@ items
     updateStandardization default to NULL, the rule; the grid takes
     "none", "position" or "value", the other two TRUE or FALSE, all
     after updateState (dec-B460).
+    Ruled: a sampler saved by a development build without the
+    records derives afresh, with no migration (dec-B461).
   code-matrix-category-count: a sampler made from a matrix of codes
     records no level table, so a re-creation infers each factor's count
     from the codes present: copy() is refused after setData of fewer
