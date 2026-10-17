@@ -93,11 +93,14 @@ monotone(directions, prior = c("joint", "leaf"))
   \code{\linkS4class{dbartsSampler}}) can leave a tree's leaf values out of
   order. The calls that always complete - \code{setPredictor} with
   \code{forceUpdate = TRUE} (its default when the whole matrix is replaced),
-  \code{setData}, \code{setCutPoints}, and \code{installTrees} and
-  \code{setState} with \code{forceUpdate = TRUE} - set every leaf value of
-  such a tree to zero, without a message, and the next iteration draws them
-  again;
-  that suits burn-in and is not a draw from the posterior.
+  \code{setData}, \code{setCutPoints}, and \code{setState} with
+  \code{forceUpdate = TRUE} - set every leaf value of such a tree to zero,
+  without a message, and the next iteration draws them again;
+  that suits burn-in and is not a draw from the posterior. A warm start,
+  \code{installTrees} with \code{forceUpdate = TRUE} or \code{bart}'s
+  \code{warm.start}, collapses such a tree instead where its leaf values
+  are out of order, each collapsed part one leaf at the mean of the leaves
+  it replaces weighted by their rows, and keeps the rest.
 
   An unforced update is refused instead, as one that would empty a leaf is.
   One unforced change can leave a tree out of order: the first missing value

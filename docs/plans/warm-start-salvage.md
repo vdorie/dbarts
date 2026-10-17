@@ -1,7 +1,8 @@
 # warm-start-salvage: a warm start takes what fits of a donor
 
 Status: slice A LANDED 2026-10-17 (a5f3c9bc..d03760e3; calls dec-A211; [Slice A as built](#slice-a-as-built),
-[Landing note](#landing-note)); B, C and D are planned, not built. Planned 2026-10-11, revised from its blind
+[Landing note](#landing-note)); slice B is built ([Slice B as built](#slice-b-as-built)); C and D are planned,
+not built. Planned 2026-10-11, revised from its blind
 critique, no call open. Four slices, A to D, serial. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
 `forceUpdate = FALSE`, (b) FALSE for a split that has to move or merge, (c) the mean weighted by rows, (d) the
 three errors stay, (e) the mean forest's rule for the variance forest (dec-B448), (f) one line. Where this plan
@@ -1121,3 +1122,30 @@ the plan because the review and its fix round added the pins above, and the engi
 
 Left: slices B, C and D; the undo's test (`warm-start-undo-test`); `warm-start-by-position`,
 `warm-start-linear-covariates` and `warm-start-bart-families`, which stay in TODO with the later slices.
+
+## Slice B as built
+
+Built 2026-10-17 on d03760e3 and rebased onto 92ae2714 in the fix round, in three commits: the collapse, its
+tests, the help and notes.
+
+- The merge is two members of [`Tree`](../../src/bartcore/tree.hpp): `subtreeMergedParameter`, the value a
+  candidate is judged by, and `mergeSubtreeToLeaf`, which `collapseEmptyNodesBelow` calls, the sums in the
+  order they ran. [`collapseMonotoneTree`](../../src/bartcore/model.hpp) tests only the pairs across a split,
+  by `MonotoneLeafGeometry` over the would-be leaves. The reset stays
+  [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp), unedited, behind
+  `Chain::repairInfeasibleMonotoneTree`. `setData` reaches it through `applyNewData`, `setCutPoints` and a
+  forced `setPredictor` through `forceRefreshTrees`'s default, `setState` through `rebuildLiveForest`'s.
+- The hand trees are in tests/cpp's test_monotone.cpp, beside its tree builder; the verdict-against-install
+  check is a test in test_model.cpp, 20 free donors, half on other rows, all with a tree out of order. "The
+  others reset" adds no test: test-monotone.R and test-monotone-unforced.R pin the four calls' reset.
+- "Across grids" is a hand tree the move puts out of order, not the critique's donor onto other rows: there
+  the trees collapsed on the donor's points stay in order through the move, and the mutant leaving the
+  refresh on the reset survived it.
+- The critique's fixture: 14 trees collapsed, 94 of 134 nodes kept. Against the prototype's rule
+  (scratch/wsc/f-monotone-collapse.R, collapseSides) every tree has the same structure and leaves within
+  7e-18, for x1 and x2 increasing, x2 alone, all four, and x1 and x4 decreasing with x2 increasing.
+- The cross-build script (scratch/wsb/cross.R, slice A's with a monotone battery of `setState`,
+  `setPredictor`, `setCutPoints`, `setData` and a copy) is identical on 36 of 38 fixtures; the two monotone
+  warm starts differ.
+- The 800-line stop was passed by the review's tests alone, under the coordinator's ruling; the engine stays
+  inside its own stop.

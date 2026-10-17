@@ -53,7 +53,8 @@ splits above it stay. A merge can leave a monotone tree out of order, and it is 
 last three rows are repaired under dec-B398 ("Repair, as we do elsewhere."). A warm start judges and
 repairs a donor's trees by the same table and the same staging
 ([`Chain::donorTreesStage`](../../src/bartcore/chain.hpp)): `installTrees(donor)` returns FALSE where a
-row applies and `forceUpdate = TRUE` makes the change ([Warm starts](#warm-starts)).
+row applies and `forceUpdate = TRUE` makes the change ([Warm starts](#warm-starts)), but for the last row:
+a warm start collapses a monotone tree out of order where its order breaks.
 
 The verdict and the install stage a tree by one routine,
 [`Tree::stageFromFlat`](../../src/bartcore/tree.hpp), the verdict on a scratch tree
@@ -240,7 +241,9 @@ too and the sampler's cut points, weights and codes are the same before and afte
 state install: the donor's generators, latents and kept draws are not taken, the sampler's kept draws are
 dropped, and its `state` field is stored again after every install. On a column the sampler holds as an
 ordered factor a donor recorded on other points is an error in both forms, as for a state. A monotone tree
-out of order is reset to 0, a tree count, DART setting or variance forest on one side only is an error, and
+out of order is collapsed where its order breaks, each merged leaf at the mean of the leaves it replaces by
+rows ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and not reset to 0. A tree count, DART
+setting or variance forest on one side only is an error, and
 a leaf kind is read in the sampler's shape (TODO warm-start-salvage, warm-start-tree-count).
 `bart(warm.start = )` forces and, under `verbose = TRUE`, prints one line saying what was taken and
 changed, from counts read off the installed trees ([`Chain::countDonorTrees`](../../src/bartcore/chain.hpp)).

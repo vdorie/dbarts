@@ -1,7 +1,7 @@
 # Warm starts that take part of a donor
 
 Status: DECIDED 2026-10-11; slice A of the plan LANDED 2026-10-17 (d03760e3; calls dec-A211), the two forms,
-the report and the line, and slices B to D are planned, not built. The six choices of section 3 are settled as recommended there: (a) A,
+the report and the line; slice B, the monotone collapse, is built; slices C and D are planned, not built. The six choices of section 3 are settled as recommended there: (a) A,
 (b) A, (c) A, (d) the errors stay, (e) A (dec-B448), (f) one line at every warm start. Plan:
 [warm-start-salvage.md](../plans/warm-start-salvage.md), which records what the state grid slice changed
 under sections 1 and 4. TODO: warm-start-salvage, warm-start-tree-count, forced-update-returns-null.
@@ -72,7 +72,10 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
   [`Chain::reseedInfeasibleMonotoneLeaves`](../../src/bartcore/chain.hpp). A forced warm start uses it, so
   the two errors on a column restriction and an interaction limit become a cut-back under force and FALSE
   without. A donor out of the monotone order, and one with a side no row reaches, are FALSE unforced and
-  repaired forced, where today they are repaired with no word (dec-B278 for the first).
+  repaired forced, where today they are repaired with no word (dec-B278 for the first). A forced warm start
+  collapses a monotone tree out of order where its order breaks, each merged leaf at the mean by rows
+  ([`collapseMonotoneTree`](../../src/bartcore/model.hpp)), and does not reset it (dec-B355); the other
+  forced calls keep the reset.
 - dec-B323, "Sure, option B.": into fewer trees a warm start takes the donor trees whose fitted values vary
   most over the recipient's rows, in the donor's order, values as they are; into more it takes them all and
   starts the rest as single leaves at 0. Settled here, the ruling not naming them: "vary most" is the
@@ -138,7 +141,7 @@ Recommended: A. It is what "if it was absent it would accept/reject" says, and w
 
 Background. Unforced, `installTrees` returns TRUE or FALSE, and something must define TRUE. Proposed: TRUE
 means the sampler now starts at the donor's function, every tree it took as the donor holds it and no donor
-tree left out. That gives FALSE for a tree that must be cut back, merged, reset or have a side dropped, for a
+tree left out. That gives FALSE for a tree that must be cut back, merged or have a side dropped, for a
 recipient of fewer trees, and for linear leaves reduced to constants; TRUE for a recipient of more trees (the
 added leaves are 0) and for a constant donor into linear leaves. DART weights or a variance forest that only
 one side has are not judged, as `setState` does not judge DART weights. One case needs a ruling: a donor
@@ -247,7 +250,7 @@ weights started fresh". Open: the words for a cut-back, and whether the line app
 - B. The line only when something was left, changed or started fresh; nothing for a whole donor.
 - C. As A, counting splits: `50 of 50 donor trees taken; 27 of 74 splits removed`.
 
-Further phrases under any option: "150 trees started as single leaves", "3 reset to 0" (monotone), "slopes
+Further phrases under any option: "150 trees started as single leaves", "slopes
 left behind", "slopes started at 0", "DART weights started fresh", "donor's DART weights left behind",
 "donor's variance forest left behind".
 
@@ -258,7 +261,7 @@ Recommended: A. A line that is always there says a warm start happened; its abse
 ## 4. The build
 
 One entry point carries both forms. [`Sampler::installForests`](../../src/bartcore/sampler.hpp) takes a force
-flag and fills a report: per chain, trees taken of trees offered, trees cut back, trees reset, parts left
+flag and fills a report: per chain, trees taken of trees offered, trees cut back, parts left
 behind or started fresh. It assembles each chain's trees as now, adapts the count and the leaf kind, draws the
 missing-value sides, and then judges every tree on scratch as it will be installed, the staging
 [`Chain::stateIsValid`](../../src/bartcore/chain.hpp) runs for a state
