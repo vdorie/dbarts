@@ -1283,3 +1283,19 @@ for (vector in list(factor(zc), zc, z == 1)) {
     info = info
   )
 }
+# and at predict, a row of 'newdata' dropped for a missing value among them
+oneDim <- factor(z2)
+dim(oneDim) <- n
+withMissing <- replace(newRows, "x1", replace(newRows$x1, 4L, NA_real_))
+for (action in c("na.omit", "na.exclude", "na.pass")) {
+  expect_identical(
+    valueOf(predict(fromTerm, withMissing, bases = oneDim, na.action = action)),
+    valueOf(predict(
+      fromTerm,
+      withMissing,
+      bases = factor(z2),
+      na.action = action
+    )),
+    info = action
+  )
+}

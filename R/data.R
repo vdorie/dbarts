@@ -585,7 +585,7 @@ predictChannelIncomplete <- function(value, n, argument) {
   if (NROW(value) != n) {
     stop("'", argument, "' must have the same number of rows as 'newdata'")
   }
-  incomplete <- if (is.null(dim(value))) {
+  incomplete <- if (length(dim(value)) < 2L) {
     is.na(value)
   } else {
     rowSums(is.na(value)) > 0L
@@ -826,7 +826,7 @@ subsetPredictInput <- function(value, rows, argument, stub = NULL) {
       "' must have the same number of rows as 'newdata'"
     )
   }
-  if (is.null(dim(value))) {
+  if (length(dim(value)) < 2L) {
     value[rows$keep]
   } else {
     value[rows$keep, , drop = FALSE]
