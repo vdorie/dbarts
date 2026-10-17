@@ -1,7 +1,7 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
 Status: PUSH 1 BUILT 2026-10-17, not landed ([Push 1 as built](#push-1-as-built)); pushes 2 and 3 PLANNED,
-rechecked 2026-10-11 against 00764fc7, the tip of the sd unit slice
+rechecked 2026-10-11 against 37b59ea0, the tip of the sd unit slice
 ([Recheck against bartcore](#recheck-against-bartcore)); its two open calls settled and its cites
 brought to forest-kind-by-class as built on 2026-10-17, with push 1 gaining the unit on a constant
 response. Rulings: dec-B253 and dec-B246 as revised;
@@ -132,8 +132,8 @@ give a numeric forest's number under its column's name, and it is the number the
 
 Measured at d02fe72c (written-surface pushes 1 and 2 landed; push 3, forest-defaults-by-kind,
 forest-sd-unit and forest-kind-by-class not) on the shipped build, R 4.6.1, unless a line says otherwise.
-Read again on 2026-10-11 at 00764fc7, the sd unit's tip, in the code and by four scripts run on its shipped
-build (scratch/fmr/ in the recheck's worktree): a bullet that begins "At 00764fc7" is that reading, and where it stands beside an older figure
+Read again on 2026-10-11 at 37b59ea0, the sd unit's tip as landed (read at its re-gate tip, the same code), in the code and by four scripts run on its shipped
+build (scratch/fmr/ in the recheck's worktree): a bullet that begins "At 37b59ea0" is that reading, and where it stands beside an older figure
 the older one is history. Every count of tests, files and lines is of the older tip and is retraced
 before the build. The spellings are the tip's but for a tilde on a basis
 written as code, which the landed grammar no longer writes. L is the response's scale as the engine holds it: sd(y - offset) under gaussian, 1 under
@@ -147,7 +147,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
 (dec-B281, dec-B282) and are left out.
 
 - The suite. At the tip 232 files; on push 3's build (4eeaf03d, traced 2026-10-07) 233, of which 230
-  without the three that ask for more than two threads give 17121 results, none failing. At 00764fc7
+  without the three that ask for more than two threads give 17121 results, none failing. At 37b59ea0
   there are 257 files; not run for this recheck.
 - The law today. s is the stated or default number, c the median nonzero absolute value of the column.
 
@@ -163,7 +163,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   The defaults: 2 for a forest with no basis under gaussian and 1 under probit and logistic; sqrt(2 / K) for
   one with a basis, a factor and a number alike. The same figures hold under probit and logistic (nine rows
   measured, each the gaussian row's to Monte Carlo error).
-- At 00764fc7 the table stands, row for row, with s in response units over L. The engine resolves it in
+- At 37b59ea0 the table stands, row for row, with s in response units over L. The engine resolves it in
   one function, [`forestMapEntry`](../../src/bartcore/combiner.hpp), from what each forest states
   ([`ForestStatement`](../../src/bartcore/combiner.hpp)), and
   [`defaultForestSd`](../../src/bartcore/combiner.hpp) still gives sqrt(2 / K): the sd unit slice left
@@ -176,7 +176,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   sd does not move, so the size is sqrt(2 v) times the table's: 1.95 at v = 2 and 0.52 at v = 1/8 on a factor
   (2.04 with `sd = 0.7` beside it), 1.03 / c at v = 1 on a number. Nothing on a held forest. Refused on a
   forest with no basis. Stated on 31 lines of 6 test files, in 5 benchmark scripts and by bartCause.
-  At 00764fc7: an argument of `forest()` still, handed to the engine as written
+  At 37b59ea0: an argument of `forest()` still, handed to the engine as written
   ([`ForestStatement`](../../src/bartcore/combiner.hpp)); on 40 lines of 7 test files, in the same 5
   scripts, in R/model.R and R/dbarts.R, and on two help pages.
 - A held value goes by position. [`AmplitudeState`](../../src/bartcore/combiner.hpp) starts at 1 for the
@@ -188,7 +188,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   values. forest-defaults-by-kind refuses those two held shapes, by width and position, until this
   slice's first push; the suite holds 49 forests on push 3's build, every one a forest with no basis
   first or two columns second.
-- At 00764fc7 a held value still goes by position, in three places of the engine: the starting vector
+- At 37b59ea0 a held value still goes by position, in three places of the engine: the starting vector
   of [`AmplitudeState`](../../src/bartcore/combiner.hpp) (1; 0 and 1),
   [`rebuildAmplitudeLayout`](../../src/bartcore/combiner.hpp), which carries by position and fills
   with 1, and the two-forest reading of [`restoreGlue`](../../src/bartcore/combiner.hpp), which passes
@@ -211,7 +211,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   by 3 (2.493 to 0.831) and leaves the coefficient. `copy()`, a reload and
   `new("dbartsSampler", control, model, data)` take it from the column then in force, so after a swap to
   w / 10 all three have ten times the creation's sd. Nothing of it is recorded.
-- At 00764fc7 the row norm is as above and is taken at the two places the header names
+- At 37b59ea0 the row norm is as above and is taken at the two places the header names
   ([`basisRowNorm`](../../src/bartcore/chain.hpp)), over every row, while the unit of an sd is read
   over the rows in the likelihood ([`GaussianResponse::scaleRows`](../../src/bartcore/model.hpp)). Run:
   with ten rows of weight zero whose dose is 5, the row norm is the median over all 150 rows (0.02092;
@@ -237,7 +237,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   `setPredictor` move no forest's sd. A control taken from a sampler and given to a fit of a response twenty
   times as wide carries no anchor: the new sampler's is its own (67.71 against 3.386). A warm start refuses
   several forests, and a model of several forests refuses test predictors, so no test row can reach a basis.
-  At 00764fc7: `updateScale = TRUE` is refused on a sampler of several forests by `setResponse`,
+  At 37b59ea0: `updateScale = TRUE` is refused on a sampler of several forests by `setResponse`,
   `setOffset`, `setWeights` and `setActiveRows` alike (dec-B362, dec-A207; the first and third run),
   `test =` beside a `forest()` term is refused (run), and `$setForestBasis` has no `updateBasisScale`
   (run: R's unused-argument error).
@@ -245,7 +245,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   fit at the sd the reader reports (three forests over 3000 draws: 0.997, 1.027, 0.987 of `k.scale`) and
   leaves every coefficient where it was. [`samplePriorPredictive`](../../R/dbarts.R) on a sampler of several
   forests stops inside `predict`, on push 3's build too, in a text about test columns. At
-  00764fc7 it still does (run: "this sampler's forest amplitudes have no off-sample basis"); dec-B361
+  37b59ea0 it still does (run: "this sampler's forest amplitudes have no off-sample basis"); dec-B361
   has it draw under the prior the sampler runs under where it draws at all.
 - A state. Its glue block is K, the widths, every coefficient, held ones included, and one variance per
   forest ([`readAmplitudeGlue`](../../src/R_interface_bartcore.cpp)). An install takes a forest's
@@ -257,7 +257,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   dec-B283, landed.) Every install puts the chain's parameters in as stored, never converted
   (dec-B418), so a numeric coefficient from a sampler created on another column arrives as the number
   it was.
-- The engine, as the sd unit slice built it (00764fc7). [`ForestSpec`](../../src/bartcore/combiner.hpp)
+- The engine, as the sd unit slice built it (37b59ea0). [`ForestSpec`](../../src/bartcore/combiner.hpp)
   carries a [`ForestStatement`](../../src/bartcore/combiner.hpp): an sd in response units or none, a
   multiple of the anchor for fixtures, a hold and, where `amplitude.prior.variance` is stated, a
   variance. [`forestMapEntry`](../../src/bartcore/combiner.hpp) resolves the tip's rule from that, from
@@ -275,7 +275,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
 - The shipped header. [`DBARTS_C_API_LIST`](../../inst/include/dbarts/dbarts.h) creates no sampler from a
   forest's statement and reads no forest's spread, scale or hold; a per-draw callback sees the coefficients
   as `glue`. Nothing in this slice changes a signature there.
-- The reader, as the sd unit slice built it (00764fc7, run). `$getLeafPrior(f)` on a forest of several gives `leaf.prior`
+- The reader, as the sd unit slice built it (37b59ea0, run). `$getLeafPrior(f)` on a forest of several gives `leaf.prior`
   (the statement), `sd`, `sd.stated`, `leaf.model`, `prior.sd.of` ("amplitude scale" or "forest total"),
   `prior.mean`, `k.scale`, `response.scale`, `response.shift`,
   and `amplitude.prior.scale` or `amplitude.prior.variance`, `leaf.scale.factor`, `leaf.scale.divisor`,
@@ -1498,8 +1498,8 @@ in a small way that no ruling names, and go to the maintainer with the landing's
 
 ## Recheck against bartcore
 
-On 2026-10-11, against 00764fc7, the tip of the sd unit slice (bartcore at 6f5b9610 with that slice's
-21 commits). Read: the ledger through dec-A207 and dec-B453 for every entry on a forest's
+On 2026-10-11, against 37b59ea0, the tip of the sd unit slice as landed (read at its re-gate tip on
+6f5b9610, the same code with that slice's 21 commits). Read: the ledger through dec-A207 and dec-B453 for every entry on a forest's
 coefficient, a hold, `fixed()`, a multiplier, a forest's sd and its unit, a basis's scale, the number
 of forests, the rows a scale reads and what is printed; [forest-sd-unit.md](forest-sd-unit.md) with
 its code in the engine, the bridge and R; [forest-kind-by-class.md](forest-kind-by-class.md) as
@@ -1560,14 +1560,16 @@ built beside push 2 as it is. Splitting the default out as a push would add a ba
 
 ## Push 1 as built
 
-Built 2026-10-17 on origin/bartcore at 92ae2714 (forest-kind-by-class landed), not landed. Commits, in
-order: the plan's settled calls and cites (1d4db200); the default of dec-B291, the first commit
-(b3ce42c8); the engine and the bridge, steps 1.1 and 1.2 (b1e84f92); R, the help of `forest` and of
+Built 2026-10-17 on origin/bartcore at 92ae2714 (forest-kind-by-class landed) and rebased onto 33f9c299
+after its fix round, not landed. Commits, in
+order: the plan's settled calls and cites (8c04ac4e); the default of dec-B291, the first commit
+(967085ad); the engine and the bridge, steps 1.1 and 1.2 (bc93a28d); R, the help of `forest` and of
 `getLeafPrior`, test-forest-held.R and the kind tests' assertions, steps 1.3, 1.2's tests and part of
-1.7 (ff43a09e); the respelled tests, 1.6 (e31f3e46); the unit on a constant response, 1.9
-(0fdeb37e, the last commit that changes package code); the gates, 1.4 (483fc385); the BCF baseline,
-1.5 (b9593828); the design note and records, 1.7 (f53ef02c and the commits after it). bartCause's
-edit, 1.8, is 30cd6fc on a branch wt/forest-mult-p1 off dbarts-1.0 at 3ecf9fb, not on dbarts-1.0.
+1.7 (d97f0e05); the respelled tests, 1.6 (4f80c85b); the unit on a constant response, 1.9
+(47838362, the last commit that changes package code); the gates, 1.4 (047d7d26); the BCF baseline,
+1.5 (c16a0b83); the design note and records, 1.7 (03808f4a and the commits after it). bartCause's
+edit, 1.8, is 30cd6fc and the fix round's 0057d2a and 4a70e7d on a branch wt/forest-mult-p1 off dbarts-1.0 at 3ecf9fb,
+not on dbarts-1.0.
 
 Against the steps:
 
@@ -1588,11 +1590,11 @@ Against the steps:
   25000 in about 7 s. The four BCF gates and sbc.R restated; bcf-latent-exact.R run first with its
   oracle as it was, six arms failing (worst |z| 10.70, 9.59, 6.90, 5.67, 5.68, 5.34; three forests
   under probit 3.97 and mode 2b 1.72 and 2.66 inside), then restated, worst 2.66.
-- 1.5 as planned; MANIFEST row of bcf-equivalence-0fdeb37e.
+- 1.5 as planned; MANIFEST row of bcf-equivalence-47838362.
 - 1.6 as planned; the stated-variance pins went with their argument, R's unused-argument error in
   test-forest-held.R taking their place, and forest-defaults-by-kind's interim refusals became
   holds.
-- 1.7: the help with the code (ff43a09e), the design note and the other notes after the baseline.
+- 1.7: the help with the code (d97f0e05), the design note and the other notes after the baseline.
 - 1.8 as planned, with the call below on a binary response.
 - 1.9 as the settled step: `Chain::latentScaleAnchor` returns `singleForestDefaultSize` where the sd
   it reads is not positive.
@@ -1614,9 +1616,10 @@ Calls made building, where the plan was silent or wrong:
   of 0, which tests/cpp pins.
 - tests/cpp fixtures that stated a coefficient variance (1, 0.75) hand it to the combiner beside the
   map's priors; the K = 4 calibration fixture's variances are the map's 1/2.
-- bartCause states 2 sd(y) on a held prognostic forest only under a continuous response; under a 0/1
-  response, which bcf fits by probit, dbarts's default of one unit stands (dec-B293). Its test file
-  gains a test of the refusal and of the held default.
+- bartCause states 2 sd(y) on a held prognostic forest only where the family is not probit or
+  logistic, read from the family handed over and otherwise from bcf's rule that a 0/1 response is
+  probit (the fix round; it had read the response's values); under a binary family dbarts's default
+  of one unit stands (dec-B293). Its test file gains a test of the refusal and of the held default.
 - The "Out of scope" entries for TODO and the records of the ledger are left to the landing.
 
 What moved, and why. glue_toggle of the BCF baseline, which holds the treatment forest's
@@ -1673,3 +1676,19 @@ quick. Every one is killed:
 
 Not run: the variant that takes a quarter of every row's range where rows are out (test-forest-held.R's
 equality with `bart()` at ten rows of weight zero far out stands for it, the gate having no weights).
+
+Fix round, from the review (one must-fix, four should-fixes). The held rule's exact gate is renamed
+forest-prior-exact.R, and its usage line, its printf, a test comment and forest's help say prior. Three mutants the review found surviving
+are killed by new tests, each run on a clean export with `--preclean`:
+
+| mutant | killed by |
+|---|---|
+| the held default taken from a fresh anchor, not the retained one | test-forest-held.R 2: a kept-scale `setResponse` then `copy()` |
+| a hand-written bcf-shaped state installing a held b | tests/cpp 1: `restoreGlue` of a state with no widths, b held |
+| a write to a held factor resolved as drawn | test-forest-held.R 2: `setLeafPrior` of an sd on a held factor |
+
+The sd unit note says push 1 made a forest with a basis one unit whatever the number of forests; the
+BCF baseline's MANIFEST row names its oracle's metrics, a largest elementwise relative difference of
+9e-14 and a mean of at most 2.2e-15; bartCause's held default reads the family (0057d2a, with a test), and a test pins its weighted rows (4a70e7d).
+The branch was rebased onto 33f9c299, which moved no draw of the three baselines, and the BCF baseline
+renamed to the rebased commit.
