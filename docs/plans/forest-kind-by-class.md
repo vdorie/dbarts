@@ -35,7 +35,7 @@ defines the classes.
   the rows a missing value is judged on, 4 the factor at the data door. Three refusals have no cell,
   their objects being none of the 37: `$setData` on a sampler of one forest handed a data object that
   carries bases; at the data door a basis with a row whose norm is not representable and a matrix of no
-  columns, which the forest doors refuse already; and a factor that has dimensions, at every door.
+  columns, which the forest doors refuse already; and a factor matrix, at every door.
   POSTERIOR-CHANGING for four sequences, none in a test, a benchmark, a help example or a consumer
   (traced over the test files that name a basis, and searched elsewhere):
   1. a logical vector handed to `dbartsData(bases = )`: one 0/1 numeric column before, two levels after,
@@ -342,7 +342,7 @@ At creation, at every door. The bracket is the push that makes the row so.
 | an integer or double vector, or a matrix of one column, whatever its values; `I()` of one; one numeric term of one column [1] | numbers | one |
 | a factor, a character vector or a logical vector of three or more levels | levels until push 2; then refused by name [2] | |
 | a numeric matrix of several columns; several numeric terms; one term of several columns, a spline or a polynomial among them; `1 +` beside a column | numbers until push 2; then refused by name [2] | |
-| a matrix of logicals or of characters, or a factor that has dimensions, of one column or of several; a data frame; anything else | refused by name [1] | |
+| a matrix of logicals or of characters, or a factor matrix, of one column or of several; a data frame; anything else | refused by name [1] | |
 | a factor with NA as a level and a kept row at it | refused by name [1] | |
 
 - The class is looked at by one function, which every reader of a basis calls. It answers levels,
@@ -1393,12 +1393,16 @@ is settled, and is in "Calls made in planning" with its alternative and its cost
   install where the two samplers' recorded levels differ, which needs the levels in the state. The
   cost: for a caller who moves a state between two such samplers the two levels' coefficients exchange
   with no message; the help says so in one sentence.
-- A factor that has dimensions is refused at every door, at a swap and at predict, of one column or
+- A factor matrix is refused at every door, at a swap and at predict, of one column or
   of several, as a matrix of characters or of logicals is: a vector is levels, a matrix is numbers or
   nothing. Run on the base build: of one column it is levels at the forest doors, as code and as a
   value, at a swap and at predict, and refused at the data door as not numeric. The alternative reads
   it as its vector. The cost: the forest doors, a swap and a prediction turn from taken to refused for
-  it; nothing hands one over (no test, benchmark, help example or consumer).
+  it; nothing hands one over (no test, benchmark, help example or consumer). An array of one dimension
+  (`dim(f) <- n`), a factor or a character or logical one, is its vector at every door, as in a model
+  frame, as on the base build a factor or character one was levels; there a logical one was refused as
+  a logical matrix. The alternative refuses all three with the matrices; the cost of the call is none
+  found.
 - `dbartsSpec()` replaces a data object's blocks and levels whole when a forest of its list declares a
   basis, as the base build replaces the blocks (run on both). The alternative replaces forest by
   forest and keeps what the object carried for a forest the list gives no basis. The cost of the

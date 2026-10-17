@@ -816,7 +816,8 @@ basisClass <- function(value) {
   answer <- function(kind, what, factor = NULL) {
     list(kind = kind, what = what, factor = factor)
   }
-  shape <- if (is.null(dim(value))) "vector" else "matrix"
+  # a one-dimensional array is its vector, as in a model frame
+  shape <- if (length(dim(value)) < 2L) "vector" else "matrix"
   kind <- if (shape == "vector") "levels" else NA_character_
   if (is.factor(value)) {
     if (is.na(kind)) {
@@ -1133,7 +1134,7 @@ basisColumns <- function(
     read <- reads[[index]]
     if (is.na(read$kind)) {
       # a matrix of one column has a vector to write in its place
-      oneColumn <- grepl("matrix$", read$what) && ncol(frame[[index]]) == 1L
+      oneColumn <- grepl("matrix$", read$what) && NCOL(frame[[index]]) == 1L
       stop(
         "'basis' (",
         label,

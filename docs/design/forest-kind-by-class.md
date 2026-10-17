@@ -1,6 +1,6 @@
 # What a forest multiplies is decided by the class of its basis
 
-Status: PUSH 1 BUILT on wt/forest-kind-recheck (e3aac0ea), not landed; push 2 (one size a forest) is planned. The
+Status: PUSH 1 BUILT on wt/forest-kind-recheck, not landed; push 2 (one size a forest) is planned. The
 plan is [forest-kind-by-class.md](../plans/forest-kind-by-class.md), which carries the steps, the gates and the
 calls made in planning; this note is the standing statement of the rule push 1 builds. Rulings: dec-B260 and
 dec-B254 for the kind as structure, dec-B289 and dec-B308 for a factor's levels, dec-B346 for a column of zeros,
@@ -17,7 +17,8 @@ takes one: a `forest()` term, a `forests` list, `dbartsSpec()`, `dbartsData(base
    each: the factor's own order, the sorted values of a character vector, `FALSE` then `TRUE`. An integer or a
    double, a vector or a matrix, is numbers, whatever its values: a 0/1 number is one column and one
    coefficient, and `factor(z)` is how two levels are written. A matrix of logicals or of characters and a
-   factor that has dimensions, of one column or several, a data frame and any other class are refused by name. One function answers
+   factor matrix, of one column or several, a data frame and any other class are refused by name. An array of one dimension is its
+   vector, as in a model frame. One function answers
    ([`basisClass`](../../R/forestBasis.R)); it refuses nothing, and the reader that called it words the refusal.
 2. Rows. A basis is judged on the rows the fit keeps, after `subset` and the na.action, in every spelling:
    a level no kept row has gives no column, with no message; fewer than two left is refused; a missing value on

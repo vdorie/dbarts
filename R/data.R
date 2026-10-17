@@ -200,7 +200,7 @@ restrictBasesToRows <- function(bases, keep) {
 cutBasisRows <- function(basis, rows) {
   if (is.null(basis)) {
     NULL
-  } else if (is.null(dim(basis))) {
+  } else if (length(dim(basis)) < 2L) {
     basis[rows]
   } else {
     basis[rows, , drop = FALSE]

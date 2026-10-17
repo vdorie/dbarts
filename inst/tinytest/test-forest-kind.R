@@ -1259,3 +1259,27 @@ if (expectSampler(copied)) {
 expect_identical(oneForest$run(0L, 5L), untouched$run(0L, 5L))
 # the same data without its bases is taken
 expect_null(refusalOf(oneForest$setData(dbartsData(x, rev(y)))))
+# a one-dimensional array is its vector, at creation and at a swap
+for (vector in list(factor(zc), zc, z == 1)) {
+  oneDim <- vector
+  dim(oneDim) <- n
+  info <- class(vector)
+  expect_identical(
+    swapSampler(oneDim)$run(0L, 5L),
+    swapSampler(vector)$run(0L, 5L),
+    info = info
+  )
+  swapped <- swapSampler(vector)
+  expect_null(refusalOf(swapped$setForestBasis(2L, oneDim)), info = info)
+  expect_identical(
+    swapped$data@bases,
+    swapSampler(vector)$data@bases,
+    info = info
+  )
+  frame <- data.frame(y = y, x1 = x1)
+  frame$b <- oneDim
+  expect_null(
+    refusalOf(dbarts(y ~ forest(x1) + forest(x1, basis = b), frame)),
+    info = info
+  )
+}

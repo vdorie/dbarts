@@ -190,9 +190,10 @@ forest(
     columns. The values are never looked at to decide: a column of 0s and 1s
     is one column with one coefficient, and is two levels only when written
     \code{factor(z)} or as a logical vector. A matrix of characters or of
-    logicals, and a factor that has dimensions, is refused, one of a single
-    column included, since a vector is levels and a matrix is numbers: hand
-    over its column as a vector, \code{cm[, 1]}. A data frame and any other
+    logicals, and a factor matrix, is refused, one of a single column
+    included, since a vector is levels and a matrix is numbers: hand over its
+    column as a vector, \code{cm[, 1]}. An array of one dimension is its
+    vector. A data frame and any other
     class are refused too. Handed over as a value, the refusal names the
     class; written as code, a class a model frame does not take, a data frame
     or a list, is refused in R's own words.
