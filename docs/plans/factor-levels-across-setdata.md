@@ -1,9 +1,9 @@
 # factor-levels-across-setdata: setData reads a factor by label against the sampler's levels
 
-Status: BUILT 2026-10-17, pending review ([Built](#built)); option 5 (C below) ruled by the maintainer
-(dec-B454); written to the tree of
+Status: LANDED 2026-10-17 (92ae2714..6beef48d; dec-B454, dec-A213; [Landing note](#landing-note)); option 5 (C
+below) ruled by the maintainer (dec-B454); written to the tree of
 f514c1d8 (origin/bartcore); revised from its blind critique the same day ([Revised from the blind
-critique](#revised-from-the-blind-critique)), which kept the recommendation. Closes TODO `factor-levels-across-setdata`. Rulings it stands on: dec-A115 (declared
+critique](#revised-from-the-blind-critique)), which kept the recommendation. Closed TODO `factor-levels-across-setdata`. Rulings it stands on: dec-A115 (declared
 levels), dec-A85 and dec-B155 (a level matched by label, an unseen one refused), dec-B279, dec-B286,
 dec-B359 and dec-B360 (every route that takes new predictors codes a factor column by label and refuses
 numbers for it), dec-B231 (setData changes derived data only unambiguously), dec-B195, dec-B418 and
@@ -300,7 +300,8 @@ At `$setData(newData)`, before anything is installed:
      frame.
 3. A column whose source is sparse (a negative entry of the container's map) is left to the bridge,
    whose refusal of a sparse store stays as it is; the rule does not read it.
-4. The data object the sampler stores carries the sampler's tables and names.
+4. The data object the sampler stores carries the sampler's tables and names (as built: true where columns
+   are matched by name; a positional read keeps the new data's names, see [Built](#built)).
 
 A column the sampler records no table for (a sampler made from a matrix of codes) is left as today
 ([Out of scope, and where it goes](#out-of-scope-and-where-it-goes)).
@@ -500,7 +501,8 @@ Calls made building, each where the plan was silent or wrong:
   dbartsData leaves no table on a test set, so a branch reading one was dead and was removed in the
   fix round.
 - Columns put in the sampler's order take the sampler's design attributes (`term.labels`, `terms`,
-  `drop`, `indicator.levels`), so the record carries the sampler's names (rule 4).
+  `drop`, `indicator.levels`), so the record carries the sampler's names (rule 4; as built: true where
+  columns are matched by name; a positional read keeps the new data's names).
 - The no-table refusal is worded for a data object: "the data hold factor 'f' as numbers with no
   level table; give dbartsData a data frame, whose factor columns are coded by label".
 - The "same table neutral" test pins the record's identity only. Its mutant, re-coding where the
@@ -603,3 +605,49 @@ The question is which list governs when new data brings a factor with other leve
 
 Recommended: 5. It is what a user means ("b" is "b"), it is what base R's predict does with a factor's
 levels, and it gives this method the rule the other ways in already have, at no engine cost.
+
+## Landing note
+
+Landed 2026-10-17 as 92ae2714..6beef48d on bartcore: the plan and its revision from the critique (3dc7da24,
+a51abb71), the ruling's ledger entry (78840c0a), the build (20c2ac88), the help, NEWS and notes (46c08f31),
+the fix round's tests and removal (70396cb1), and the fix round's text (6beef48d). One planner, one blind
+critique, one implementer, one Sonnet review whose reviewer also checked the fix round. The tier is the
+header's, "Changes draws", whose review the header names as opus; the review ran on Sonnet.
+
+Built as planned: `alignDataFactorLevels` with `refuseNewDataLabels`, `recodePredictorColumn` and
+`permutePredictorColumns`, called in `bartcoreSamplerSetData` before anything is stored; no change under
+`src/`, in dbarts.h or to a consumer. Departures, the calls of [Built](#built) and of the ledger entry dec-A213:
+names that differ are read by position, not refused, so that the plan's lines that said "refused" are marked as
+built, and the record keeps the sampler's names only where columns are matched by name; a sparse source is left
+to the bridge; a stray number in a tabled matrix becomes -1 for the bridge to refuse. The plan's Verification
+still names equivalence-308c45be.rds and 42 exact-gate commands; the baseline current at 92ae2714 was
+equivalence-32418b6e.rds, and the 42 is the whole file, the main job's loop being 38.
+
+Review: LAND AFTER FIXES. The reviewer found the code correct on every probe (two factor columns with
+different tables, ordered and unordered, with and without NA; fewer, reversed and extra levels; test rows; a
+tabled matrix; a sparse source) and ran 16 mutants: seven killed, five survivors that were gaps in the tests
+(r01, r02, r03b, r06, r07), two dead code (r04, r08) and two equivalent (r09, r16). The fix round added the tests
+that kill the five, removed the dead branch that read a test set's own level table (`dbartsData` never leaves
+one), corrected the sampler's help, install-surface.md, NEWS and the gate count, and marked dec-B454 built.
+The check of the round: LAND. r01, r02 and r07 rerun and killed, a new mutant r18 (test rows read through the
+sampler's table) killed, the builder's m05 rewritten as r17 on the remaining table comparison and killed, and
+the removal safe, only a hand-set slot reaching the old behavior. It asked for the notes on rule 4 and on the
+Built line about the record's names, which are made above.
+
+Gates, on the tip: the full tinytest suite 27145 results, 0 failed; lint clean; `R CMD check --as-cran` one
+NOTE (the Date field); the reference build's bitwise compares at 46c08f31 identical, 55 of 55 against
+equivalence-32418b6e, 15 of 15 against bcf-equivalence-1b7d730c and 11 of 11 against
+multinomial-equivalence-80b1c8d4, the fix round having changed R only in the deleted branch and a comment; the
+exact gates 38 of 38 for the main job's loop. Not run: the monotone job's 4, which reach only the engine; the
+x86-64 leg and the sanitizers, nothing under `src/` having changed; the consumers' suites, stan4bart,
+bartCause and treatSens making no `setData` call. The reviewer did not rerun the suite, the compares, the check
+or the builder's mutants m01 to m21, and ran every probe on one chain, one thread and a Gaussian response.
+
+Size against the plan: planned about 530 lines and stopped at 150 of R or 1000 in all. The range adds 1178
+lines and removes 36 over 14 files; without the plan and the ledger, 568 added: R 125, tinytest 404 (386 in the
+new file), help 3, NEWS 8, design notes 15, TODO 13. Inside both stops.
+
+Left: `code-matrix-category-count` and `na-level-predictor-doors` in TODO. A new level is refused by name in the one
+function `refuseNewDataLabels`; accepting one needs a ruling on the side it takes in each rule and engine work,
+since a categorical rule's direction mask has no bit for it and the rule prior depends on the level count
+(dec-A213). The plan's lines on a state moved between samplers whose levels differ stay as dec-A210 has them.
