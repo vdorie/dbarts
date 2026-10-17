@@ -270,8 +270,9 @@ items
     anchor beside the range (dec-A159); creation and setData using a
     carried record (setData's updateCutPoints, updateScale and
     updateStandardization; setPredictor's updateStandardization); a
-    state install that compares the stored values and converts
-    slopes instead of installing them (splits already move by value); the manual's
+    state install that compares the stored values instead of
+    installing them, whether slopes convert being open (splits
+    already move by value); the manual's
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
     draw. Three engine slices, before response-scale-rows slice D. The grid half of the
