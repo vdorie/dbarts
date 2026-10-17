@@ -278,6 +278,10 @@ items
     from 0.9-34, whose state carried the grid and whose restore
     installed it. What remains of the grid is that a copy and a reload
     still take it from the state, until dbartsData records it.
+    Ruled: every install, warm start included, keeps the sampler's
+    standardization and puts a linear leaf's slopes in as stored
+    (dec-B457, VD 2026-10-17); the warm start's conversion and
+    setState's install of the state's standardization go.
   code-matrix-category-count: a sampler made from a matrix of codes
     records no level table, so a re-creation infers each factor's count
     from the codes present: copy() is refused after setData of fewer
