@@ -1,6 +1,7 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
-Status: PLANNED, rechecked 2026-10-11 against 00764fc7, the tip of the sd unit slice
+Status: PUSH 1 BUILT 2026-10-17, not landed ([Push 1 as built](#push-1-as-built)); pushes 2 and 3 PLANNED,
+rechecked 2026-10-11 against 00764fc7, the tip of the sd unit slice
 ([Recheck against bartcore](#recheck-against-bartcore)); its two open calls settled and its cites
 brought to forest-kind-by-class as built on 2026-10-17, with push 1 gaining the unit on a constant
 response. Rulings: dec-B253 and dec-B246 as revised;
@@ -1556,3 +1557,119 @@ the cut. Push 1 is the larger for two rulings and is ordered so that its first c
 is proved by an identity before the holds are built on it. Folding the printed block into push 2 would
 put an R-only change of the R-surface tier under the engine tier's review and gates, and it can be
 built beside push 2 as it is. Splitting the default out as a push would add a battery for one line.
+
+## Push 1 as built
+
+Built 2026-10-17 on origin/bartcore at 92ae2714 (forest-kind-by-class landed), not landed. Commits, in
+order: the plan's settled calls and cites (1d4db200); the default of dec-B291, the first commit
+(b3ce42c8); the engine and the bridge, steps 1.1 and 1.2 (b1e84f92); R, the help of `forest` and of
+`getLeafPrior`, test-forest-held.R and the kind tests' assertions, steps 1.3, 1.2's tests and part of
+1.7 (ff43a09e); the respelled tests, 1.6 (e31f3e46); the unit on a constant response, 1.9
+(0fdeb37e, the last commit that changes package code); the gates, 1.4 (483fc385); the BCF baseline,
+1.5 (b9593828); the design note and records, 1.7 (f53ef02c and the commits after it). bartCause's
+edit, 1.8, is 30cd6fc on a branch wt/forest-mult-p1 off dbarts-1.0 at 3ecf9fb, not on dbarts-1.0.
+
+Against the steps:
+
+- 1.0 as planned: `defaultForestSd` and `forestMapEntry` lose the count; tests/cpp pins one unit at
+  K = 2, 3 and 4 for a factor and a number and the K = 2 leaf scale to the bit; the sd unit tests pin
+  one unit at 2 to 4 forests and a three-forest default `identical()` to its stated twin under each
+  family; test-bcf-family.R's pins take 1, the index prior now pinned at 1.04912 sqrt(K) s. On a
+  reference build of this commit alone: 55, 15 and 11 identical, the four snapshot files passing.
+- 1.1 as planned, with the calls below. `ForestKind` (none, levels, numeric) replaces
+  `createdWithoutBasis`; the held rows are in `forestMapEntry`; the combiner holds a block by kind in
+  `holdAtKindValue`. `testHeldCoefficients` and the restated fixtures, the drawn numeric forest
+  keeping the base build's expression to the bit.
+- 1.2 as planned: `parseData` reads `basis.levels` behind `R_has_slot`; the reader's raw matrix gains
+  `multiplier` and `amplitude.held`. One assertion a cell in the door loop (by `shapeOf`, so every door
+  agrees with the first) and in the same-sampler-again test.
+- 1.3 as planned, test-forest-held.R with 362 results.
+- 1.4: forest-law-exact.R with the eight arms of the step, 51 functionals, in quick 32 seeds of
+  25000 in about 7 s. The four BCF gates and sbc.R restated; bcf-latent-exact.R run first with its
+  oracle as it was, six arms failing (worst |z| 10.70, 9.59, 6.90, 5.67, 5.68, 5.34; three forests
+  under probit 3.97 and mode 2b 1.72 and 2.66 inside), then restated, worst 2.66.
+- 1.5 as planned; MANIFEST row of bcf-equivalence-0fdeb37e.
+- 1.6 as planned; the stated-variance pins went with their argument, R's unused-argument error in
+  test-forest-held.R taking their place, and forest-defaults-by-kind's interim refusals became
+  holds.
+- 1.7: the help with the code (ff43a09e), the design note and the other notes after the baseline.
+- 1.8 as planned, with the call below on a binary response.
+- 1.9 as the settled step: `Chain::latentScaleAnchor` returns `singleForestDefaultSize` where the sd
+  it reads is not positive.
+
+Calls made building, where the plan was silent or wrong:
+
+- The forests' record drops `hasBasis` with the bridge's reading of it. The plan kept it "where R
+  reads it", and nothing in R does; a field nothing reads would let a test flip it and see nothing.
+- A held forest with no basis carries no half-Cauchy scale: it has no mixture to draw, the reader
+  gives it no `amplitude.prior.scale`, and a state's variance is not installed into it (restoreGlue
+  installs a variance only where a mixture is). No draw depends on it.
+- The held default of a forest with no basis is `singleForestDefaultSize()`, the engine's own
+  `SamplerOptions` node scale over its k, handed to `forestMapEntry` in units of the anchor; the same
+  function gives the anchor on a constant response, so the two cannot drift.
+- Until push 2 removes `amplitude.prior.scale`, `$amplitude` on a drawn forest with no basis matches
+  `amplitude.prior.scale` by prefix; the tests read `[["amplitude"]]`.
+- The engine's refusal of a stated sd with no unit (`ForestSdUnitError` and the bridge's text) is no
+  longer reachable from R, a constant response having a unit; it stays as the guard of a handed unit
+  of 0, which tests/cpp pins.
+- tests/cpp fixtures that stated a coefficient variance (1, 0.75) hand it to the combiner beside the
+  map's priors; the K = 4 calibration fixture's variances are the map's 1/2.
+- bartCause states 2 sd(y) on a held prognostic forest only under a continuous response; under a 0/1
+  response, which bcf fits by probit, dbarts's default of one unit stands (dec-B293). Its test file
+  gains a test of the refusal and of the held default.
+- The "Out of scope" entries for TODO and the records of the ledger are left to the landing.
+
+What moved, and why. glue_toggle of the BCF baseline, which holds the treatment forest's
+coefficients: its forest's sd is now exact where the map divided it by 0.674. Every other recorded
+scenario is bitwise: 55 of 55 against equivalence-32418b6e under `--strict-coverage`, 14 of 15
+against bcf-equivalence-1b7d730c, 11 of 11 against multinomial-equivalence-80b1c8d4, and the four
+snapshot files unchanged, on a `--preclean` reference install of the final code. bartCause's `bcf()`
+keeps its draws at its default and with both sds stated, and moves with `update.a = FALSE` or
+`update.b = FALSE`.
+
+The pair script, 42 rows of the 29 above, old side on 32418b6e's code and new side on push 1's: 0
+unexpected. Rows 23 and 24 are not only equal to 1e-10 but identical; row 30 is a constant response,
+whose copy the base build refuses.
+
+Gates on the tip: tests/cpp 401 lines ok, and under ASAN and UBSAN 401 with 0 diagnostics; the full
+suite through `test_package(at_home = TRUE)` 27454 results, 0 failed; the 43 exact-gate commands of
+exact-gates.yaml in quick, all passing; the composition matrix 269 checks, 0 disagreements; lintr,
+air, rc-codoc, win-drift, doc-freshness and verify-anchors clean; dbarts.h no diff; `R CMD check
+--as-cran --no-manual` on a clean tarball one NOTE (the Date field).
+
+Size: 2016 lines added and 871 removed over 43 files after the recheck's commit, the baseline file
+aside: src 187 and 90, R 80 and 102, tests/cpp 380 and 69, tinytest 660 and 323, man 75 and 87,
+benchmarks 406 and 33, docs and TODO 223 and 163. Package code 459 lines against the stop of about
+900, the whole 2887 against about 5000. bartCause 41 and 15.
+
+Mutants, each applied alone to a clean export of the tip, installed with `--preclean`, and run against
+tests/cpp where it is the engine's, the named tinytest files and, where marked, forest-law-exact.R in
+quick. Every one is killed:
+
+| mutant | killed by |
+|---|---|
+| the kind not carried from the data door (every basis numbers) | test-forest-kind.R and test-forest-held.R stop: a held factor is refused as a held number |
+| the kind lost on a copy (the copy's levels dropped) | test-forest-kind.R, 3 |
+| a held value left by position | tests/cpp 6; test-forest-held.R 46 |
+| a held forest with no basis second held at 0 | tests/cpp 3; test-forest-held.R 8 |
+| the 0.674 left on a held factor | tests/cpp 2; test-forest-held.R 21; the gate, 20 functionals |
+| a held forest with no basis left at the anchor whatever its sd | tests/cpp 3; test-forest-held.R 16; the gate, 20 |
+| a held forest with no basis given one unit by default under gaussian | tests/cpp 2; test-forest-held.R 2; the gate, 12 |
+| a leaf's sd not divided by the root of the tree count | tests/cpp 91; test-forest-held.R 39; the gate, every arm |
+| sqrt(2 / K) left in the default of a forest with a basis | tests/cpp 56; sd unit 35; bcf family 16; the gate, 5 in the arm of three forests |
+| a held forest with no basis at 2 sd(y) by default | tests/cpp 2; test-forest-held.R 2; the gate, 18 |
+| `amplitude.prior.variance` taken and ignored | test-forest-held.R 3 |
+| a write to a held forest with no basis that leaves its leaf scale | tests/cpp 1 |
+| a held block installed from a state | tests/cpp 1; test-state-not-model.R 1 |
+| an interim refusal of a held forest with no basis second left standing | test-forest-held.R and test-forest-defaults.R stop |
+| the anchor of a constant response left at 0 | tests/cpp 3; the sd unit file stops |
+| a held factor at (1, 0) | tests/cpp 6; test-forest-held.R 66 |
+| the bridge reporting every forest drawn | test-forest-held.R 59 |
+| the reader's " (prior median)" dropped | test-calibration-midchain.R 2 |
+| no throw for a forest of levels or numbers handed no basis | tests/cpp 1 |
+| no throw for a forest with no basis handed one | tests/cpp 1 |
+| the held default at the node scale, not over k (half the range) | tests/cpp 2; test-forest-held.R 2; the gate, 18 |
+| a held forest with no basis given a half-Cauchy median | tests/cpp 1 |
+
+Not run: the variant that takes a quarter of every row's range where rows are out (test-forest-held.R's
+equality with `bart()` at ten rows of weight zero far out stands for it, the gate having no weights).
