@@ -593,7 +593,7 @@ expect_error(
 )
 
 # setData accepts categorical predictors (regression: a leftover ordinal-only
-# check refused them) and refuses invalid codes
+# check refused them) and refuses a label the sampler never had, by name
 x.cat2 <- cbind(as.double(rep(c(1, 3, 0, 2), length.out = n)), runif(n))
 frame.cat2 <- data.frame(
   a = factor(x.cat2[, 1L], levels = 0:3),
@@ -604,7 +604,7 @@ expect_true(all(is.finite(sampler.cat$run(0L, 2L)$train)))
 frame.cat2$a <- factor(replace(x.cat2[, 1L], 1L, 11), levels = c(0:3, 11))
 expect_error(
   sampler.cat$setData(dbartsData(frame.cat2, mu.cat + 2 * x.cat2[, 2L])),
-  pattern = "existing category codes"
+  pattern = "has label '11' not among its training levels"
 )
 
 # categories are capped at the code type's limit (65535); codes past 31

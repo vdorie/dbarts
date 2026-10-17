@@ -566,6 +566,139 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
   if (length(column) == 1L) result[, 1L] else result
 }
 
+# $setData's data read as the sampler reads them (dec-B454): columns matched by
+# name where they carry the sampler's, else by position, and a column the sampler has a level table
+# for re-coded by label onto it, training and test rows, a factor column with
+# no table refused (dec-B360). Data with the sampler's names and tables come
+# back untouched; a sparse source is the bridge's.
+alignDataFactorLevels <- function(newData, x.train) {
+  x <- newData@x
+  x.test <- newData@x.test
+  if (predictorSourceIsSparse(x) || predictorSourceIsSparse(x.test)) {
+    return(newData)
+  }
+  names <- colnames(x.train)
+  newNames <- colnames(x)
+  if (
+    !is.null(names) &&
+      !identical(names, newNames) &&
+      all(names %in% newNames) &&
+      !anyDuplicated(names) &&
+      !anyDuplicated(newNames)
+  ) {
+    order <- match(names, newNames)
+    x <- permutePredictorColumns(x, order, x.train)
+    x.test <- permutePredictorColumns(x.test, order, x.train)
+    newData@varTypes <- newData@varTypes[order]
+  }
+  tables <- attr(x.train, "factor.levels")
+  given <- attr(x, "factor.levels")
+  givenTest <- if (is.null(attr(x.test, "factor.levels"))) {
+    given
+  } else {
+    attr(x.test, "factor.levels")
+  }
+  label <- function(j) if (is.null(names)) j else paste0("'", names[j], "'")
+  for (j in which(!vapply(tables, is.null, NA))) {
+    table <- tables[[j]]
+    if (j > length(given) || is.null(given[[j]])) {
+      stop(
+        "$setData: the data hold factor ",
+        label(j),
+        " as numbers with no level table; give dbartsData a data frame, ",
+        "whose factor columns are coded by label",
+        call. = FALSE
+      )
+    }
+    if (
+      identical(given[[j]], table) &&
+        (is.null(x.test) || identical(givenTest[[j]], table))
+    ) {
+      next
+    }
+    train <- recodePredictorColumn(x, j, given[[j]], table)
+    test <- recodePredictorColumn(x.test, j, givenTest[[j]], table)
+    refuseNewDataLabels(label(j), c(train$unknown, test$unknown))
+    x <- train$x
+    x.test <- test$x
+    attr(x, "factor.levels")[j] <- list(table)
+    if (!is.null(attr(x.test, "factor.levels"))) {
+      attr(x.test, "factor.levels")[j] <- list(table)
+    }
+  }
+  newData@x <- x
+  newData@x.test <- x.test
+  newData
+}
+
+# The one refusal of a label the sampler never had, on a training or a test row
+# (dec-B454), as predict refuses one (dec-A85).
+refuseNewDataLabels <- function(column, unknown) {
+  if (length(unknown <- unique(unknown)) > 0L) {
+    stop(
+      "$setData: column ",
+      column,
+      if (length(unknown) > 1L) " has labels " else " has label ",
+      quotedNameList(unknown),
+      " not among its training levels",
+      call. = FALSE
+    )
+  }
+}
+
+# Column j of a dense source re-coded by label from 'given' onto 'table', NA
+# level to NA level, with the labels its rows hold that 'table' lacks; a number
+# that is no code of 'given' becomes -1, which the bridge refuses.
+recodePredictorColumn <- function(x, j, given, table) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+  container <- inherits(x, "dbartsMixedMatrix")
+  column <- if (container) x$dense[[x$map[j]]] else x[, j]
+  if (is.factor(column)) {
+    given <- levels(column)
+    codes <- as.integer(column)
+  } else {
+    codes <- match(column, seq_along(given) - 1)
+  }
+  recoded <- match(given, table)[codes]
+  unknown <- given[codes[!is.na(codes) & is.na(recoded)]]
+  if (is.factor(column)) {
+    recoded <- structure(recoded, levels = table, class = class(column))
+  } else {
+    recoded <- as.double(recoded - 1L)
+    recoded[!is.na(column) & is.na(codes)] <- -1
+  }
+  if (container) {
+    x$dense[[x$map[j]]] <- recoded
+  } else {
+    x[, j] <- recoded
+  }
+  list(x = x, unknown = unknown)
+}
+
+# A dense predictor source's columns in the order 'order', with their builder
+# attributes, and the sampler's design attributes, whose names they now carry.
+permutePredictorColumns <- function(x, order, x.train) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+  if (inherits(x, "dbartsMixedMatrix")) {
+    result <- x
+    result$dense <- x$dense[x$map[order]]
+    result$columnNames <- x$columnNames[order]
+  } else {
+    result <- x[, order, drop = FALSE]
+  }
+  for (name in c("varTypes", "factor.levels")) {
+    if (!is.null(attr(x, name))) attr(result, name) <- attr(x, name)[order]
+  }
+  for (name in c("term.labels", "terms", "drop", "indicator.levels")) {
+    if (!is.null(attr(x, name))) attr(result, name) <- attr(x.train, name)
+  }
+  result
+}
+
 # The joint row-by-row update's values for its one shared column, as the one
 # vector every sampler installs. One vector is one level in every sampler only
 # if they hold the column with the same level table, so samplers that hold it
@@ -1130,6 +1263,7 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }
+  newData <- alignDataFactorLevels(newData, sampler$data@x)
 
   newData@n.cuts <- sampler$data@n.cuts
   newData@sigma <- sampler$data@sigma

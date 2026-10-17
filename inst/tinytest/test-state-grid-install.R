@@ -1028,10 +1028,12 @@ sampler <- kindOf("whole")
 expect_identical(cutPointsOf(sampler)[[1L]], c(0.5, 1.5, 2.5))
 expect_identical(withVisible(sampler$setState(states$ordered)), visibly(TRUE))
 
-# an ordered factor after a whole-data replacement declaring fewer levels.
-# The engine keeps the grid of the levels it was created with, the stored
+# an ordered factor whose record declares fewer levels than its engine holds.
+# setData keeps the sampler's levels in the record (dec-B454), so the record
+# is assigned by hand here, as an object saved by an earlier build has it. The
+# engine keeps the grid of the levels it was created with, the stored
 # state records that grid, and a new engine holds the grid of the levels the
-# data declares now. A copy and a reload are made all the same: the state is
+# record declares. A copy and a reload are made all the same: the state is
 # not held to the record where the engine is new, its trees go in as stored,
 # and the two then draw alike. Their state field is then the state their
 # engine holds, which records the grid it is on and so installs on them; the
@@ -1045,10 +1047,19 @@ sampler <- dbarts::dbarts(
   control = controlWith()
 )
 invisible(sampler$run(20L, 1L))
-sampler$setData(dbarts::dbartsData(
+handed <- dbarts::dbartsData(
   y ~ a + b,
   data.frame(y = y[kept], a = droplevels(levels6[kept]), b = x[kept, 2L])
-))
+)
+sampler$setData(handed)
+expect_identical(
+  attr(sampler$data@x, "factor.levels")[[1L]],
+  levels(levels6)
+)
+handed@n.cuts <- sampler$data@n.cuts
+handed@sigma <- sampler$data@sigma
+handed@missing.seen <- sampler$data@missing.seen
+sampler$data <- handed
 invisible(sampler$run(0L, 2L))
 sampler$storeState()
 own <- sampler$state
