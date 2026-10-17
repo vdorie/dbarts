@@ -5844,7 +5844,7 @@ static void testWarmStartForms() {
     const WarmStartTreeCounts& counts(report.mean[0]);
     check(installs && counts.offered == 4 && counts.taken == 4 &&
             counts.moved == 1 && counts.cutBack == 1 &&
-            counts.sideDropped == 1 && counts.reset == 0 &&
+            counts.sideDropped == 1 &&
             !report.variance[0].changed() && !report.fitsCold &&
             !report.leafBlocksUnread && !report.coefficientsKept &&
             sameFlatTrees({after.chains[0].forests[0].trees[0]}, {trees[0]}) &&

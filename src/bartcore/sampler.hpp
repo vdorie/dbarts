@@ -1549,7 +1549,9 @@ public:
   /// then every split on a column whose grids differ moved to the nearest
   /// point of the store's grid inside the interval the splits above it
   /// leave, a split left no point and a leaf left no row merging at the mean
-  /// of the leaves beneath weighted by the rows each held. A clean donor is
+  /// of the leaves beneath weighted by the rows each held. On either arm a
+  /// monotone tree out of order is collapsed where the order breaks
+  /// (collapseMonotoneTree), where a state's is reset. A clean donor is
   /// installed the same with and without force.
   ///
   /// \p currentPredictors is the call-time predictor matrix the columns
@@ -1844,7 +1846,8 @@ public:
     };
     try {
       if (acrossGrids)
-        installAcrossGrids(donor.cutPoints, currentPredictors, installChains);
+        installAcrossGrids(donor.cutPoints, currentPredictors, installChains,
+                           MonotoneRepair::collapse);
       else
         installChains();
     } catch (...) {
@@ -2625,11 +2628,14 @@ private:
   /// nothing moved. The chains are then as install left them: a chain it
   /// had finished holds trees built on the stored grid over a store that is
   /// back on its own, so after a throw that follows an install the sampler
-  /// must not be read or run until a state is installed.
+  /// must not be read or run until a state is installed. \p repair is what
+  /// a monotone tree the move leaves out of order gets: the reset for a
+  /// state, the collapse for a warm start.
   template <typename Install>
   bool installAcrossGrids(
       const std::vector<std::vector<double>>& storedCutPoints,
-      const double* currentPredictors, Install&& install) {
+      const double* currentPredictors, Install&& install,
+      MonotoneRepair repair = MonotoneRepair::reset) {
     std::vector<std::vector<double>> moved(data_.numPredictors);
     for (size_t j = 0; j < data_.numPredictors; ++j)
       if (data_.splitsByThreshold(j) &&
@@ -2651,7 +2657,7 @@ private:
     own.restore(data_);
     if (!installed) return false;
     for (auto& chain : chains_)
-      chain->forceRefreshTrees(&moved, SplitPlacement::byValue);
+      chain->forceRefreshTrees(&moved, SplitPlacement::byValue, repair);
     return true;
   }
 

@@ -1112,6 +1112,57 @@ public:
     holdsForbiddenSplit_ = false;
   }
 
+  /// The parameter node \p nodeIndex would hold were it and everything
+  /// beneath it one leaf: the mean of its subtree's leaf parameters weighted
+  /// by the rows each holds under \p weights (null for unit weights), per
+  /// coordinate in Merge's space, and the plain mean where the subtree holds
+  /// no weight. Written to \p merged, paramStride doubles; the tree is not
+  /// changed.
+  template <typename Merge = ArithmeticMerge>
+  void subtreeMergedParameter(int32_t nodeIndex, const double* weights,
+                              const std::vector<double>& paramByNode,
+                              size_t paramStride, double* merged) const {
+    std::vector<int32_t> bottoms;
+    fillBottom(nodeIndex, bottoms);
+
+    double weightTotal = 0.0;
+    std::vector<double> paramTotals(paramStride, 0.0);
+    std::vector<double> paramSums(paramStride, 0.0);
+    for (int32_t i : bottoms) {
+      const Node& leaf(at(i));
+      double weight = weights == nullptr
+        ? static_cast<double>(leaf.numObservations())
+        : misc_sumIndexedVectorElements(weights, indices + leaf.begin,
+                                        leaf.numObservations());
+      weightTotal += weight;
+      const double* params =
+        paramByNode.data() + static_cast<size_t>(i) * paramStride;
+      for (size_t j = 0; j < paramStride; ++j) {
+        double param = Merge::toMergeSpace(params[j]);
+        paramTotals[j] += weight * param;
+        paramSums[j] += param;
+      }
+    }
+    for (size_t j = 0; j < paramStride; ++j)
+      merged[j] = Merge::fromMergeSpace(
+        weightTotal > 0.0
+          ? paramTotals[j] / weightTotal
+          : paramSums[j] / static_cast<double>(bottoms.size()));
+  }
+
+  /// Turns node \p nodeIndex and everything beneath it into one leaf at
+  /// subtreeMergedParameter, written to the node's entry of \p paramByNode
+  /// (indexed by arena id). The node keeps its rows.
+  template <typename Merge = ArithmeticMerge>
+  void mergeSubtreeToLeaf(int32_t nodeIndex, const double* weights,
+                          std::vector<double>& paramByNode,
+                          size_t paramStride = 1) {
+    subtreeMergedParameter<Merge>(
+      nodeIndex, weights, paramByNode, paramStride,
+      paramByNode.data() + static_cast<size_t>(nodeIndex) * paramStride);
+    collapseSubtreeToLeaf(nodeIndex);
+  }
+
   /// Whether the last buildFromFlat placed an ordinal split outside the
   /// interval its ancestors leave it; cleared by collapseEmptyNodes, which
   /// merges every such split. Only a flat tree no sampler wrote can set it.
@@ -1697,36 +1748,7 @@ private:
         (holdsSplitOutsideInterval_ &&
          splitIsOutsideInterval(data, nodeIndex)) ||
         (holdsForbiddenSplit_ && splitIsForbidden(nodeIndex))) {
-      std::vector<int32_t> bottoms;
-      fillBottom(nodeIndex, bottoms);
-
-      double weightTotal = 0.0;
-      std::vector<double> paramTotals(paramStride, 0.0);
-      std::vector<double> paramSums(paramStride, 0.0);
-      for (int32_t i : bottoms) {
-        const Node& leaf(at(i));
-        double weight = weights == nullptr
-          ? static_cast<double>(leaf.numObservations())
-          : misc_sumIndexedVectorElements(weights, indices + leaf.begin,
-                                          leaf.numObservations());
-        weightTotal += weight;
-        const double* params =
-          paramByNode.data() + static_cast<size_t>(i) * paramStride;
-        for (size_t j = 0; j < paramStride; ++j) {
-          double param = Merge::toMergeSpace(params[j]);
-          paramTotals[j] += weight * param;
-          paramSums[j] += param;
-        }
-      }
-      double* merged =
-        paramByNode.data() + static_cast<size_t>(nodeIndex) * paramStride;
-      for (size_t j = 0; j < paramStride; ++j)
-        merged[j] = Merge::fromMergeSpace(
-          weightTotal > 0.0
-            ? paramTotals[j] / weightTotal
-            : paramSums[j] / static_cast<double>(bottoms.size()));
-
-      collapseSubtreeToLeaf(nodeIndex);
+      mergeSubtreeToLeaf<Merge>(nodeIndex, weights, paramByNode, paramStride);
     } else {
       collapseEmptyNodesBelow<Merge>(at(nodeIndex).leftChild, data, weights,
                                      paramByNode, paramStride);

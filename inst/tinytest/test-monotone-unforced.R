@@ -2,7 +2,8 @@
 # tree's leaf values out of order. An unforced one is refused and rolled back
 # as one that would empty a leaf is, whichever tree of whichever chain it is
 # and under either direction; the calls that always complete set every leaf
-# of such a tree to zero and say nothing. The only change that can break the
+# of such a tree to zero and say nothing, but for a warm start, which
+# collapses it. The only change that can break the
 # order is an unordered factor's first missing value, which draws the side of
 # each rule on the factor: whether the order then holds is the draw's, so each
 # form of the update is held to both answers, on seeds searched for them. The
@@ -456,8 +457,10 @@ expect_identical(met, c(declined = TRUE, clean = TRUE))
 # the grid.
 # The donor's f could hold none, so each f rule draws its side from the
 # receiving sampler's generator before the trees are judged. Left at both
-# leaves `breaks` out of order and the tree is set to zero; any other sides
-# keep it, and its values. The receiving seed is searched for each, its sides
+# leaves `breaks` out of order, and the warm start collapses the tree where
+# the order breaks rather than set it to zero: each side of the x1 split one
+# leaf, the low below the high. Any other sides keep the tree, and its
+# values. The receiving seed is searched for each, its sides
 # read off a start from a donor that holds `holds`.
 dfShifted <- dfArrived
 dfShifted$x1 <- 0.05 + 0.9 * x1
@@ -488,11 +491,15 @@ for (seed in 7:60) {
   met[[arm]] <- TRUE
   onto <- shifted(seed)
   if (arm == "broken") {
-    completes(
-      function(s) s$installTrees(make(), forceUpdate = TRUE),
-      NULL,
-      onto
+    expect_identical(
+      observe(onto$installTrees(make(), forceUpdate = TRUE)),
+      outcome(NULL, visible = FALSE)
     )
+    held <- leaves(onto)
+    expect_identical(length(held), 2L)
+    expect_true(all(held != 0) && held[1L] <= held[2L])
+    invisible(onto$run(0L, 1L))
+    expect_true(maxDrop(onto, levelGrid) <= 1e-8)
   } else {
     expect_identical(
       observe(onto$installTrees(make(), forceUpdate = TRUE)),

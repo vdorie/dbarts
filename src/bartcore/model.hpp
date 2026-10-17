@@ -990,6 +990,104 @@ inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
   return true;
 }
 
+/// What a monotone tree out of order gets: reset, every leaf 0 (a state,
+/// setData, setCutPoints, a forced setPredictor; dec-B278), or collapse
+/// (collapseMonotoneTree; a warm start, dec-B355).
+enum class MonotoneRepair { reset, collapse };
+
+/// collapseMonotoneTree at and below \p node; whether it merged anything.
+inline bool collapseMonotoneBelow(Tree& tree, std::int32_t node,
+                                  const ColumnStore& data,
+                                  const std::int8_t* directions,
+                                  const double* weights,
+                                  std::vector<double>& mu,
+                                  MonotoneNeighborScratch& s, double tol) {
+  if (tree.at(node).isBottom()) return false;
+  std::int32_t left = tree.at(node).leftChild, right = left + 1;
+  bool merged = collapseMonotoneBelow(tree, left, data, directions, weights,
+                                      mu, s, tol);
+  merged = collapseMonotoneBelow(tree, right, data, directions, weights, mu,
+                                 s, tol) || merged;
+  std::size_t v = static_cast<std::size_t>(tree.at(node).rule.variableIndex);
+  if (directions[v] == 0 || data.splitsBySubset(v)) return merged;
+
+  // whether every related pair across the split is in order, each side as
+  // its leaves or as one leaf at its merged value
+  std::vector<std::int32_t> leftLeaves, rightLeaves;
+  tree.fillBottom(left, leftLeaves);
+  tree.fillBottom(right, rightLeaves);
+  double leftMerged = 0.0, rightMerged = 0.0;
+  std::vector<double> values;
+  auto holds = [&](bool mergeLeft, bool mergeRight) {
+    s.leaves = mergeLeft ? std::vector<std::int32_t>{left} : leftLeaves;
+    std::size_t numLeft = s.leaves.size();
+    values.clear();
+    for (std::int32_t i : s.leaves)
+      values.push_back(mergeLeft ? leftMerged : mu[i]);
+    if (mergeRight)
+      s.leaves.push_back(right);
+    else
+      s.leaves.insert(s.leaves.end(), rightLeaves.begin(), rightLeaves.end());
+    for (std::size_t r = numLeft; r < s.leaves.size(); ++r)
+      values.push_back(mergeRight ? rightMerged : mu[s.leaves[r]]);
+    s.geometry.build(tree, data, s.leaves);
+    for (std::size_t l = 0; l < numLeft; ++l) {
+      for (std::size_t r = numLeft; r < s.leaves.size(); ++r) {
+        int relation = s.geometry.relation(l, r, directions);
+        if (relation == 0) continue;
+        double lower = values[relation > 0 ? l : r];
+        double upper = values[relation > 0 ? r : l];
+        if (upper < lower - tol || lower > upper + tol) return false;
+      }
+    }
+    return true;
+  };
+  if (holds(false, false)) return merged;
+  tree.subtreeMergedParameter(left, weights, mu, 1, &leftMerged);
+  tree.subtreeMergedParameter(right, weights, mu, 1, &rightMerged);
+
+  // one side, the one of fewer nodes first and the left on a tie; then the
+  // other; then both, the split kept; then the split itself. A side that is
+  // one leaf already is no candidate.
+  bool leftIsLeaf = leftLeaves.size() == 1;
+  bool rightIsLeaf = rightLeaves.size() == 1;
+  bool rightFirst = rightLeaves.size() < leftLeaves.size();
+  for (bool mergeRight : {rightFirst, !rightFirst}) {
+    if (mergeRight ? rightIsLeaf : leftIsLeaf) continue;
+    if (holds(!mergeRight, mergeRight)) {
+      tree.mergeSubtreeToLeaf(mergeRight ? right : left, weights, mu);
+      return true;
+    }
+  }
+  if (!leftIsLeaf && !rightIsLeaf && holds(true, true)) {
+    tree.mergeSubtreeToLeaf(left, weights, mu);
+    tree.mergeSubtreeToLeaf(right, weights, mu);
+    return true;
+  }
+  tree.mergeSubtreeToLeaf(node, weights, mu);
+  return true;
+}
+
+/// Puts a tree's leaf values into the monotone order by merging where it
+/// breaks. Two leaves relate only across the lowest split that separates
+/// them, and only where it is on a constrained column, so the walk goes from
+/// the leaves up, a split after both its sides, and at such a split with a
+/// pair across it out of order takes the first of: one side merged, the side
+/// of fewer nodes first and the left on a tie; the other side; both, the
+/// split kept; the split itself. A candidate is judged without changing the
+/// tree, by monotoneTreeIsFeasible's relation and tolerance. Each merge is one
+/// leaf at the mean of the leaves it replaces weighted by the rows each holds
+/// under \p weights (null for unit weights), so the tree's mean over its rows
+/// is kept; the rows must be routed. A tree in order is left as it is.
+/// \p mu is indexed by arena id. Returns whether anything was merged.
+inline bool collapseMonotoneTree(Tree& tree, const ColumnStore& data,
+                                 const std::int8_t* directions,
+                                 const double* weights, std::vector<double>& mu,
+                                 double tol = 1e-9) {
+  MonotoneNeighborScratch s;
+  return collapseMonotoneBelow(tree, 0, data, directions, weights, mu, s, tol);
+}
+
 // ---- Monotone leaf order: linear-extension counts --------------------------
 //
 // Related leaves share one prior sd, so the chance that a tree's iid leaves

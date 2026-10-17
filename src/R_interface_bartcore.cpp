@@ -6911,13 +6911,14 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 // the donor went in other than as it holds its trees and leaf values.
 // 'trees' and 'variance.trees': integer matrices of one row per chain, the
 // trees offered and taken and, of those taken, the ones moved to other cut
-// points, cut back, left without a side for missing values or reset, each
-// tree counted once; 'variance.trees' is NULL for a sampler with no variance
-// forest. 'fits.cold': function fits started at 0. 'blocks.unread': 1 for
-// slopes and 2 for gp fits the donor carries and this sampler's constant
-// leaves do not read, else 0. 'coefficients.kept': linear coefficients kept
-// as built across a covariate of one value on each side. Everything is
-// allocated before the install, which then only writes into it.
+// points, cut back, a monotone tree collapsed into order included, or left
+// without a side for missing values, each tree counted once;
+// 'variance.trees' is NULL for a sampler with no variance forest.
+// 'fits.cold': function fits started at 0. 'blocks.unread': 1 for slopes and
+// 2 for gp fits the donor carries and this sampler's constant leaves do not
+// read, else 0. 'coefficients.kept': linear coefficients kept as built
+// across a covariate of one value on each side. Everything is allocated
+// before the install, which then only writes into it.
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr, SEXP currentPredictorsExpr,
                              SEXP forceExpr) {
@@ -6932,18 +6933,18 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                          "fits.cold", "blocks.unread", "coefficients.kept",
                          ""};
   const char* countNames[] = {"offered", "taken", "moved", "cut.back",
-                              "side.dropped", "reset"};
+                              "side.dropped"};
   int numChains = static_cast<int>(holder.sampler->shape().numChains);
   SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
-  SEXP countNamesExpr = PROTECT(Rf_allocVector(STRSXP, 6));
-  for (int k = 0; k < 6; ++k)
+  SEXP countNamesExpr = PROTECT(Rf_allocVector(STRSXP, 5));
+  for (int k = 0; k < 5; ++k)
     SET_STRING_ELT(countNamesExpr, k, Rf_mkChar(countNames[k]));
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 1, countNamesExpr);
   for (int k = 2; k <= 3; ++k) {
-    SEXP countsExpr = Rf_allocMatrix(INTSXP, numChains, 6);
+    SEXP countsExpr = Rf_allocMatrix(INTSXP, numChains, 5);
     SET_VECTOR_ELT(resultExpr, k, countsExpr);
-    std::memset(INTEGER(countsExpr), 0, sizeof(int) * 6 * numChains);
+    std::memset(INTEGER(countsExpr), 0, sizeof(int) * 5 * numChains);
     Rf_setAttrib(countsExpr, R_DimNamesSymbol, dimNamesExpr);
   }
   // vectors of the report's own: a scalar logical made by R is one shared
@@ -9108,9 +9109,8 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
           for (const bartcore::WarmStartTreeCounts* from :
                  {&report.mean[c], &report.variance[c]}) {
             const size_t values[] = {from->offered, from->taken, from->moved,
-                                     from->cutBack, from->sideDropped,
-                                     from->reset};
-            for (size_t k = 0; k < 6; ++k)
+                                     from->cutBack, from->sideDropped};
+            for (size_t k = 0; k < 5; ++k)
               counts[c + k * numChains] = static_cast<int>(values[k]);
             counts = variance;
           }

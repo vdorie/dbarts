@@ -617,8 +617,8 @@ monoReach$control <- storedControl
 rm(changeControl, storedControl)
 
 # a warm start from an unconstrained donor is declined as it stands; forced,
-# it installs the donor's trees, reseeding every tree outside the cone to
-# all-zero, so the fit is monotone at once
+# it installs the donor's trees, collapsing every tree outside the cone where
+# its order breaks, so the fit is monotone at once
 expect_true(maxDrop(freeReach) > 0.1)
 expect_identical(monoReach$installTrees(freeReach), FALSE)
 expect_null(monoReach$installTrees(freeReach, forceUpdate = TRUE))
@@ -713,7 +713,7 @@ rm(xFlat)
 # warm-started from a monotone donor over [0, 1] into rows that leave x1 in
 # (0.6, 1) empty (the endpoints keep the grids equal) has the leaves no row
 # reaches merged into their parents, and a merged tree outside the cone
-# reseeded. The structure is then frozen (the all-zero mixture, which a
+# collapsed. The structure is then frozen (the all-zero mixture, which a
 # monotone sampler allows), so only leaf draws move the trees. Every tree is
 # checked on its own, read through getTrees and evaluated at the midpoint of
 # every cell its splits cut out, so no other tree's rise can mask a fall and no

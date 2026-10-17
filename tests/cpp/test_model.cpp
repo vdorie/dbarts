@@ -10027,8 +10027,8 @@ static void testMonotoneEmptyLeaf() {
 // - setState without force declines a state outside the cone and leaves the
 //   sampler as it was, takes one inside it, and with force reseeds the tree
 //   outside it to all-zero;
-// - a warm start reseeds an infeasible donor tree to all-zero and keeps a
-//   feasible one;
+// - a warm start collapses an infeasible donor tree into the cone and keeps
+//   a feasible one;
 // - a forced predictor update that empties S1 collapses x0's high side into
 //   one leaf with S2's value, which now bounds J from above; the merged tree
 //   is outside the cone and is reseeded;
@@ -10134,18 +10134,19 @@ static void testMonotoneReachability() {
 
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   auto warm = makeSampler();
-  WarmStartReport reseeded;
+  WarmStartReport collapsed;
   check(warmStartsAltered(*warm, infeasibleState, liveMap, x.data(), false,
-                          &reseeded) &&
-          reseeded.mean[0].reset == 1 && reseeded.mean[0].cutBack == 0,
+                          &collapsed) &&
+          collapsed.mean[0].cutBack == 1,
         "reachability: an infeasible donor is declined and, forced, "
-        "installs with the one tree reported reset");
+        "installs with the one tree reported cut back");
   std::vector<double> values;
   bool feasible = liveFeasible(*warm, &values);
-  bool allZero = !values.empty();
+  bool allZero = true;
   for (double v : values) allZero &= v == 0.0;
-  check(feasible && allZero,
-        "reachability: the infeasible donor tree is reseeded to all-zero");
+  check(feasible && !allZero && values.size() < 4,
+        "reachability: the infeasible donor tree is collapsed into the cone "
+        "and not set to zero");
   auto warmOk = makeSampler();
   check(warmStartsClean(*warmOk, feasibleState, liveMap, x.data()),
         "reachability: a feasible donor installs as it stands");

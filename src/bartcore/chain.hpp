@@ -793,15 +793,14 @@ struct FusedSuffstatCheck {
 /// What a warm start did with the trees it gave one chain, summed over that
 /// chain's mean forests or counted for its variance forest: how many were
 /// offered and taken, and of those taken how many went in changed, each
-/// counted once under the first that holds - reset, a monotone tree whose
-/// leaves are all 0 where the donor's were not; cutBack, a tree that lost a
-/// split; moved, one that kept every split and holds one on another point;
-/// sideDropped, one whose rules stand but for a missing-value side.
+/// counted once under the first that holds - cutBack, a tree that lost a
+/// split, a monotone tree collapsed into order included; moved, one that kept
+/// every split and holds one on another point; sideDropped, one whose rules
+/// stand but for a missing-value side.
 struct WarmStartTreeCounts {
-  std::size_t offered = 0, taken = 0, moved = 0, cutBack = 0, sideDropped = 0,
-              reset = 0;
+  std::size_t offered = 0, taken = 0, moved = 0, cutBack = 0, sideDropped = 0;
   bool changed() const {
-    return moved + cutBack + sideDropped + reset > 0 || taken != offered;
+    return moved + cutBack + sideDropped > 0 || taken != offered;
   }
 };
 
@@ -3705,10 +3704,12 @@ public:
   /// splits move onto the grid the store now holds, empty for every other
   /// column; each tree's splits are moved by placement before it is
   /// re-routed, a split whose interval is empty merging there
-  /// (Tree::mapOldCutPointsOntoNew).
+  /// (Tree::mapOldCutPointsOntoNew). \p repair is what a monotone tree the
+  /// refresh leaves out of order gets.
   void forceRefreshTrees(
       const std::vector<std::vector<double>>* movedCutPoints = nullptr,
-      SplitPlacement placement = SplitPlacement::byPosition) {
+      SplitPlacement placement = SplitPlacement::byPosition,
+      MonotoneRepair repair = MonotoneRepair::reset) {
     size_t n = data_.numObservations;
     // every tree still holds the partition its fits were drawn on, so a
     // merge at the move weighs leaves by their rows, as the collapse does
@@ -3741,7 +3742,7 @@ public:
           forest.trees[t].repartitionSubtree(data_, 0);
           forest.trees[t].collapseEmptyNodes(data_, response_->workingWeights(),
                                              paramByNode);
-          reseedInfeasibleMonotoneLeaves(forest, t, paramByNode);
+          repairInfeasibleMonotoneTree(forest, t, paramByNode, repair);
           setTreeFitsFromParameters(forest, t, paramByNode);
           if constexpr (leafIsConstant) rebuildLeafOf(forest, t);
           addTreeFitsToTotal(forest, t);
@@ -4785,6 +4786,28 @@ public:
     return false;
   }
 
+  /// What \p repair names for tree t when its leaf values, indexed by arena
+  /// id, leave the monotone order: reset is reseedInfeasibleMonotoneLeaves;
+  /// collapse merges where the order breaks (collapseMonotoneTree), each
+  /// merged leaf at the mean of the leaves it replaces weighted by their rows
+  /// under the working weights, and needs the tree's rows routed. Returns
+  /// whether the tree was changed. Compiled out off the monotone leaf.
+  bool repairInfeasibleMonotoneTree(Forest<L, ResidT>& forest, size_t t,
+                                    std::vector<double>& paramByNode,
+                                    MonotoneRepair repair) {
+    if (repair == MonotoneRepair::reset)
+      return reseedInfeasibleMonotoneLeaves(forest, t, paramByNode);
+    if constexpr (TreeDrawLeafModel<L>) {
+      if (paramByNode.size() < forest.trees[t].nodes.size())
+        paramByNode.resize(forest.trees[t].nodes.size(), 0.0);
+      if (!monotoneLeavesInOrder(forest, t, paramByNode.data()))
+        return collapseMonotoneTree(forest.trees[t], data_,
+                                    forest.leaf.directions.data(),
+                                    response_->workingWeights(), paramByNode);
+    }
+    return false;
+  }
+
   /// Rebuilds forest f's live trees, partitions, and fits from a flat state's
   /// live channel against the current cut grid, zeroing and re-accumulating
   /// totalFits. False if a flat tree fails to rebuild. Shared by setState and
@@ -4806,11 +4829,14 @@ public:
   /// altered, when non-null, is set if any tree was installed other than as
   /// its flat form holds it - a bottom, a split outside its interval or a
   /// forbidden split merged, a missing direction dropped, a monotone tree
-  /// reseeded - and is never cleared. It is set for exactly the trees
-  /// stateIsValid's verdict reports, both staging a tree by the one routine.
+  /// reseeded or collapsed - and is never cleared. It is set for exactly the
+  /// trees stateIsValid's verdict reports, both staging a tree by the one
+  /// routine. \p repair is what a monotone tree out of order gets: the reset
+  /// for a state, the collapse for a warm start (installForest).
   bool rebuildLiveForest(size_t f, const ForestStateData& fs,
                          std::vector<double>& params,
-                         bool* altered = nullptr) {
+                         bool* altered = nullptr,
+                         MonotoneRepair repair = MonotoneRepair::reset) {
     Forest<L, ResidT>& forest = forests_[f];
     size_t n = data_.numObservations;
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
@@ -4857,7 +4883,7 @@ public:
       } else {
         // a state or a warm start's donor may hold leaf values outside the
         // cone as stored, and a merge above can leave it
-        if (reseedInfeasibleMonotoneLeaves(forest, t, params) &&
+        if (repairInfeasibleMonotoneTree(forest, t, params, repair) &&
             altered != nullptr)
           *altered = true;
         setTreeFits(forest, t, params);
@@ -4874,7 +4900,8 @@ public:
   /// the donor supplies a starting position, not a continuation, and never a
   /// model value. The trees are built against the store's cut points as they
   /// stand, by the routine a state's install builds them by
-  /// (rebuildLiveForest), whose \p altered this is. Callers guarantee shape
+  /// (rebuildLiveForest), whose \p altered this is, a monotone tree out of
+  /// order collapsed where a state's is reset. Callers guarantee shape
   /// compatibility; false signals only a flat tree that failed to rebuild.
   bool installForest(const ChainStateData& state, bool* altered = nullptr) {
     if (state.forests.size() != forests_.size()) return false;
@@ -4882,7 +4909,8 @@ public:
     for (size_t f = 0; f < forests_.size(); ++f) {
       const ForestStateData& fs = state.forests[f];
       if (fs.trees.size() != forests_[f].numTrees) return false;
-      if (!rebuildLiveForest(f, fs, params, altered)) return false;
+      if (!rebuildLiveForest(f, fs, params, altered, MonotoneRepair::collapse))
+        return false;
       if (forests_[f].updateK && !std::isnan(fs.k)) forests_[f].k = fs.k;
     }
     installDrawnScalars(state);
@@ -4914,22 +4942,14 @@ public:
     using Trees = std::vector<std::vector<FlatNode>>;
     ChainStateData live;
     getState(live, false);
-    auto allZero = [](const std::vector<FlatNode>& tree) {
-      for (const FlatNode& node : tree)
-        if (flatKindOf(node) == FlatKind::leaf && node.value != 0.0)
-          return false;
-      return true;
-    };
-    auto count = [&](const Trees& given, const Trees& got, bool monotone,
+    auto count = [&](const Trees& given, const Trees& got,
                      WarmStartTreeCounts& counts) {
       counts.offered += given.size();
       counts.taken += got.size();
       for (size_t t = 0; t < got.size(); ++t) {
         const std::vector<FlatNode>& before(given[t]);
         const std::vector<FlatNode>& after(got[t]);
-        if (monotone && allZero(after) && !allZero(before)) {
-          ++counts.reset;
-        } else if (after.size() < before.size()) {
+        if (after.size() < before.size()) {
           ++counts.cutBack;
         } else {
           // node for node the tree the donor gave: a split's payload or its
@@ -4951,9 +4971,8 @@ public:
       }
     };
     for (size_t f = 0; f < forests_.size(); ++f)
-      count(assembled.forests[f].trees, live.forests[f].trees,
-            TreeDrawLeafModel<L>, mean);
-    count(assembled.varianceTrees, live.varianceTrees, false, variance);
+      count(assembled.forests[f].trees, live.forests[f].trees, mean);
+    count(assembled.varianceTrees, live.varianceTrees, variance);
   }
 
   /// Restates the linear coefficients of \p install's live trees - a warm

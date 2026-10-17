@@ -862,8 +862,7 @@ warmStartLine <- function(report) {
   changes <- c(
     moved = "moved to this fit's cut points",
     cut.back = "cut back to fit",
-    side.dropped = "with a side for missing values dropped",
-    reset = "reset to 0"
+    side.dropped = "with a side for missing values dropped"
   )
   taken <- function(counts) {
     sprintf("%d of %d", counts[1L, "taken"], counts[1L, "offered"])

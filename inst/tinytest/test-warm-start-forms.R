@@ -5,8 +5,9 @@
 # invisibly: a split off the cut points moved or merged as a forced setState
 # moves it, a leaf no row reaches and a split its forest does not allow
 # merged at the mean of the leaves beneath by the rows each held, a side
-# dropped, a monotone tree out of order set to zero. bart's warm.start forces
-# and, under verbose, says in one line what was taken and what was changed.
+# dropped, a monotone tree out of order collapsed where its order breaks.
+# bart's warm.start forces and, under verbose, says in one line what was
+# taken and what was changed.
 
 visibly <- function(value) list(value = value, visible = TRUE)
 forcedValue <- list(value = NULL, visible = FALSE)
@@ -515,8 +516,9 @@ expect_identical(limitedMean()$setState(onTwo), TRUE)
 # ---- a monotone forest -------------------------------------------------------
 
 # x1 increasing: a tree whose leaves fall along x1 is out of order, and one
-# that also loses a split is still one tree reset. The trees in order are the
-# donor's
+# that also holds a leaf no row reaches is one tree cut back. Each is
+# collapsed where the order breaks, here at the split on x1, into one leaf at
+# the mean of the leaves by rows. The trees in order are the donor's
 rising <- function(...) make(..., monotone = c(x1 = "increasing"))
 falling <- tree(c(1L, -1L, -1L), c(fine[50L], 0.5, -0.5))
 inOrder <- tree(c(1L, -1L, -1L), c(fine[40L], -0.3, 0.3))
@@ -527,14 +529,22 @@ stacked <- tree(
   c(fine[50L], 0.5, fine[30L], 0.2, -0.4)
 )
 outOfOrder <- withTrees(given, list(falling, inOrder, stacked, stump(0.1)))
-reset <- expectChanged(rising, outOfOrder, "monotone")
-expect_identical(treeOf(reset$state, 1L)$values, c(fine[50L], 0, 0))
-expect_identical(treeOf(reset$state, 2L), inOrder[c("vars", "values")])
-expect_identical(treeOf(reset$state, 3L)$values, c(fine[50L], 0, 0))
-expect_identical(treeOf(reset$state, 4L)$values, 0.1)
+collapsed <- expectChanged(rising, outOfOrder, "monotone")
+for (k in c(1L, 3L)) {
+  got <- treeOf(collapsed$state, k)
+  above <- if (k == 1L) -0.5 else -0.4
+  expect_identical(got$vars, -1L, info = paste("tree", k))
+  expect_true(
+    abs(got$values - byRows(c(0.5, above), list(low | mid, !(low | mid)))) <
+      1e-12,
+    info = paste("tree", k)
+  )
+}
+expect_identical(treeOf(collapsed$state, 2L), inOrder[c("vars", "values")])
+expect_identical(treeOf(collapsed$state, 4L)$values, 0.1)
 expect_identical(
-  reset$line,
-  "warm start: 4 of 4 donor trees taken; 2 reset to 0"
+  collapsed$line,
+  "warm start: 4 of 4 donor trees taken; 2 cut back to fit"
 )
 expect_identical(
   answerOf(rising()$installTrees(withTrees(given, stumps(inOrder)))),
