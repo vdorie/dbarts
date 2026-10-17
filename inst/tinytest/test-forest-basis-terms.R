@@ -240,14 +240,14 @@ refused <- list(
   "cbind(dose, age)" = paste0(
     "'basis' term 'cbind(dose, age)': the columns of a basis are separated ",
     "by '+', and in this version a basis is one numeric column; give each ",
-    "column a forest of its own, as forest(basis = dose) + forest(basis = ",
-    "age), or give a factor whose indicator columns they are"
+    "column, dose and age, a forest of its own, or give a factor whose ",
+    "indicator columns they are"
   ),
   "cbind(1 - z, z)" = paste0(
     "'basis' term 'cbind(1 - z, z)': the columns of a basis are separated ",
     "by '+', and in this version a basis is one numeric column; give each ",
-    "column a forest of its own, as forest(basis = I(1 - z)) + ",
-    "forest(basis = z), or give a factor whose indicator columns they are"
+    "column, I(1 - z) and z, a forest of its own, or give a factor whose ",
+    "indicator columns they are"
   ),
   "cbind(1, dose)" = paste0(
     "'basis' term 'cbind(1, dose)': the columns of a basis are separated by ",
@@ -553,10 +553,17 @@ expect_identical(
 mixes <- paste0(
   ") mixes a factor with other terms: a basis is one factor, a character ",
   "or a logical vector of two levels, with one coefficient per level, or ",
-  "one numeric column. Give the factor and each other term a forest() of ",
-  "its own"
+  "one numeric column. Give each other term a forest() of its own, and the ",
+  "factor one too, or one for each level but the first where it has more ",
+  "than two"
 )
-for (text in c("dose + factor(z)", "g:dose", "1 + factor(z)", "g + zl")) {
+for (text in c(
+  "dose + factor(z)",
+  "g:dose",
+  "1 + factor(z)",
+  "g + zl",
+  "g3 + dose"
+)) {
   for (door in doors) {
     expect_identical(
       refusal(door(text)),

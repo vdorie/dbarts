@@ -271,14 +271,18 @@ refuseBoundColumns <- function(expr) {
       rewrite
     )
   } else if (length(rewrite) > 1L) {
+    # in words: the forest's predictors are not at hand where the grammar is
+    # read, and a forest() written without them splits on every predictor
+    columns <- paste(
+      paste(rewrite[-length(rewrite)], collapse = ", "),
+      "and",
+      rewrite[length(rewrite)]
+    )
     paste0(
-      ", and in this version a basis is one numeric column; give each column ",
-      "a forest of its own, as ",
-      paste(
-        vapply(rewrite, forestCallText, "", predictors = NULL),
-        collapse = " + "
-      ),
-      ", or give a factor whose indicator columns they are"
+      ", and in this version a basis is one numeric column; give each column, ",
+      columns,
+      ", a forest of its own, or give a factor whose indicator columns they ",
+      "are"
     )
   }
   stop(
@@ -1251,8 +1255,9 @@ basisColumns <- function(
         label,
         ") mixes a factor with other terms: a basis is one factor, a ",
         "character or a logical vector of two levels, with one coefficient ",
-        "per level, or one numeric column. Give the factor and each other ",
-        "term a forest() of its own",
+        "per level, or one numeric column. Give each other term a forest() ",
+        "of its own, and the factor one too, or one for each level but the ",
+        "first where it has more than two",
         call. = FALSE
       )
     }

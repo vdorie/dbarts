@@ -1715,19 +1715,20 @@ a forest with a basis (dec-B291) is the multiplier slice's.
   other column alone, in a forest of its own". The alternative is the third [2] text's advice for one column,
   which would name only one of them. The cost: one more branch of the one function.
 - The older texts of a basis written as code that advised a form push 2 refuses are rewritten to a form this
-  version takes, where "Refused forms" kept them as they were (the coordinator's call at the fix round): a
-  factor beside other terms is told to give the factor and each other term a forest of its own, where it was
-  told to write the factor as numbers; `*` between terms is told to give each of the three columns a forest,
-  where it was told `dose + age + I(dose * age)`; `cbind()` is told to write its one column alone, or to give
-  each column a forest of its own or the factor whose indicators they are, where it was told the `+` form. The
-  alternative kept the tip's words, each advising a basis that is then refused for its size. The cost: four
-  texts and their tests.
+  version takes, where "Refused forms" kept them as they were (the coordinator's call at the fix round): a factor
+  beside other terms is told to give each other term a forest of its own and the factor one too, or one for each
+  level but the first where it has more than two, where it was told to write the factor as numbers; `*` between
+  terms is told to give each of the three columns a forest, where it was told `dose + age + I(dose * age)`;
+  `cbind()` is told to write its one column alone, or to give each column, named in words, a forest of its own or
+  the factor whose indicators they are, where it was told the `+` form; the words because the forest's predictors
+  are not at hand where the grammar is read. The alternative kept the tip's words, each advising a basis that is
+  then refused for its size. The cost: four texts and their tests.
 - The example of the levels refusal is built from the factor's one term, so `0 + arm`, `arm - 1`, `arm + 0` and
   `-1 + arm` advise `forest(x1, basis = arm == "b")`, the forest's label staying the basis as written.
-- The help of `dbarts()` and `forest()` that still said a basis has any width, or showed one of two columns as
-  an example, is corrected in a commit of its own after the refusal, with British spellings in the help files
-  the push touches. The alternative was to fold it into the refusal's commit; it was found after that commit's
-  gates had run.
+- The help of `dbarts()` and `forest()` that still said a basis has any width, or showed one of two columns as an
+  example, is corrected in a commit of its own after the refusal, with the British spellings in the help files the
+  push touches made American. The alternative was to fold it into the refusal's commit; it was found after that
+  commit's gates had run.
 - The baseline's `meta.rev` is written by hand as the commit that holds the package code, the recording being
   made with a later, help-only commit checked out; the code it ran is that commit's, from a `--preclean`
   reference install of a clean export.
