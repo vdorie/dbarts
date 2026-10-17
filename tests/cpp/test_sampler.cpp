@@ -5529,8 +5529,9 @@ static void testBCFCombinerSeam() {
     // model: at a multiplier inside the zero band the treatment pair is
     // exactly zero on the control rows while the blend still carries the exact
     // b0 tau. A generalization that snaps once, in a shared effective-
-    // multiplier helper both readers call, fails here and nowhere else.
-    glue.b0 = 0x1p-27;
+    // multiplier helper both readers call, fails here and nowhere else. The
+    // band is 2^-26 of the forest's largest multiplier, b1 = 0.25.
+    glue.b0 = 0x1p-29;
     combiner.restoreGlue(glue);
     ForestResponse snapped =
       combiner.formForestResponse(1, forests, y.data(), w.data());
@@ -5539,7 +5540,7 @@ static void testBCFCombinerSeam() {
     for (size_t i = 0; i < n; ++i) {
       if (z[i] != 0.0) continue;
       kept &= snapped.response[i] == 0.0 && snapped.weights[i] == 0.0 &&
-              exactBlend[i] == a * mu[i] + 0x1p-27 * tau[i];
+              exactBlend[i] == a * mu[i] + 0x1p-29 * tau[i];
     }
     check(kept,
           "the blend keeps the exact multiplier the reparameterization snaps");
@@ -10452,6 +10453,137 @@ static void testHeldCoefficients() {
   printf("ok: held coefficients by kind, six orders, exact sds and throws\n");
 }
 
+/// The bound under which a row leaves a forest's update is relative to the
+/// largest absolute multiplier the forest has in the sweep, so a numeric
+/// column in other units is the same forest: w and 2^-40 w give the same
+/// draws, the rows of 2^-40 w being far under any absolute bound.
+static void testRelativeRowBound() {
+  std::uint64_t state = 20261018u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  const size_t n = 90, p = 2;
+  std::vector<double> x(n * p), y(n), dose(n), small(n), block(2 * n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    double zi = unif() < 0.5 ? 1.0 : 0.0;
+    block[2 * i] = 1.0 - zi;
+    block[2 * i + 1] = zi;
+    dose[i] = 0.5 + 2.5 * unif();
+    small[i] = 0x1p-40 * dose[i];
+    y[i] = 10.0 + 4.0 * x[i] + 1.5 * dose[i] * x[i + n] + (unif() - 0.5);
+  }
+  SamplerOptions options;
+  options.numChains = 1;
+
+  // (a) the twin: a drawn numeric forest over dose and over 2^-40 dose
+  auto draws = [&](const double* basis) {
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[0].forest.numTrees = 7;
+    spec.forests[0].kind = ForestKind::numeric;
+    spec.forests[0].basis = basis;
+    spec.forests[1].forest.numTrees = 9;
+    std::vector<ext_rng*> rngs = makeDrawRngs(1, 9800);
+    std::vector<double> out;
+    {
+      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                                  1.0, 3.0, 0.37804942330213542, options,
+                                  spec, rngs.data());
+      const size_t numSamples = 50;
+      out.resize(numSamples * (1 + n));
+      Results results;
+      results.sigma = out.data();
+      results.trainingFits = out.data() + numSamples;
+      sampler.run(0, numSamples, results);
+    }
+    destroyDrawRngs(rngs);
+    return out;
+  };
+  check(draws(dose.data()) == draws(small.data()),
+        "relative row bound: a numeric column and 2^-40 of it give identical "
+        "draws");
+
+  // (b) the combiner itself
+  ColumnStore data;
+  built(data.build(x.data(), n, p, 100));
+  std::vector<double> zeros(n, 0.0), fits(n), weights(n);
+  for (size_t i = 0; i < n; ++i) {
+    fits[i] = 0.25 * static_cast<double>(i % 5) - 0.5;
+    weights[i] = 0.5 + 0.25 * static_cast<double>(i % 3);
+  }
+  auto forestsOf = [&](size_t numForests) {
+    std::vector<Forest<ConstantGaussianLeaf>> forests(numForests);
+    for (auto& forest : forests) forest.totalFits = fits;
+    return forests;
+  };
+  // a column of 2^-40 with one row at 2^-30 of it and one at 2^-20
+  std::vector<double> column(n, 0x1p-40);
+  column[3] = 0x1p-70;
+  column[4] = 0x1p-60;
+  {
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[0].kind = ForestKind::numeric;
+    spec.forests[0].basis = column.data();
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
+      data, spec, amplitudePriors(spec), 2);
+    std::vector<double> start(combiner.totalAmplitudes());
+    combiner.amplitudes(start.data());
+    auto forests = forestsOf(2);
+    ForestResponse fr =
+      combiner.formForestResponse(0, forests, y.data(), weights.data());
+    bool others = true;
+    for (size_t i = 0; i < n; ++i)
+      if (i != 3) others = others && fr.weights[i] > 0.0;
+    check(start[0] == 1.0 && fr.weights[3] == 0.0 && fr.response[3] == 0.0 &&
+            others,
+          "relative row bound: a row at 2^-30 of the forest's largest leaves "
+          "and one at 2^-20 stays, far under 2^-26 in absolute value");
+
+    // a coefficient of exactly zero: every row leaves, every sum finite
+    ChainStateData glued;
+    combiner.serializeGlue(glued);
+    glued.amplitudes[0] = 0.0;
+    combiner.restoreGlue(glued);
+    ForestResponse zero =
+      combiner.formForestResponse(0, forests, y.data(), weights.data());
+    bool none = true;
+    double sumWeights = 0.0, sumResponse = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      none = none && zero.weights[i] == 0.0 && zero.response[i] == 0.0;
+      sumWeights += zero.weights[i];
+      sumResponse += zero.weights[i] * zero.response[i];
+    }
+    check(none && sumWeights == 0.0 && sumResponse == 0.0,
+          "relative row bound: a coefficient of zero gives every row zero "
+          "weight and the sums are finite");
+  }
+  {
+    // a held (0, 1) block: the first level's rows still leave
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::levels;
+    spec.forests[1].basis = block.data();
+    spec.forests[1].numBasisColumns = 2;
+    spec.forests[1].updateAmplitude = false;
+    AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
+      data, spec, amplitudePriors(spec), 2);
+    auto forests = forestsOf(2);
+    ForestResponse fr =
+      combiner.formForestResponse(1, forests, y.data(), weights.data());
+    bool levels = true;
+    for (size_t i = 0; i < n; ++i)
+      levels = levels && (block[2 * i + 1] == 0.0
+                            ? fr.weights[i] == 0.0 && fr.response[i] == 0.0
+                            : fr.weights[i] == weights[i]);
+    check(levels, "relative row bound: a held (0, 1) block gives its first "
+                  "level's rows zero weight");
+  }
+  printf("ok: the row bound is relative to the forest's largest multiplier\n");
+}
+
 /// A forest's stated sd is in the response's units, divided by the unit once
 /// at each construction and each restatement. One fixture of three forests
 /// (none, a two-level block, a column of numbers) per family, over a response
@@ -11656,6 +11788,7 @@ void runSamplerTests(ext_rng* rng) {
   testForestMapWriters();
   testForestMapStatements();
   testHeldCoefficients();
+  testRelativeRowBound();
   testForestSdUnit();
   testBCFCalibrationMap();
 }

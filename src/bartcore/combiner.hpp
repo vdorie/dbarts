@@ -1018,8 +1018,9 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
       out[j] = glue_.amplitudes[j];
   }
 
-  /// Multipliers with |m_f| below this are taken as exactly zero:
-  /// sqrt(DBL_EPSILON) = 2^-26 = 1.4901161193847656e-08, which R's all.equal,
+  /// A multiplier at most this fraction of the largest absolute multiplier its
+  /// forest has over the rows is taken as exactly zero: sqrt(DBL_EPSILON) =
+  /// 2^-26 = 1.4901161193847656e-08, which R's all.equal,
   /// tinytest::expect_equal and testthat all default to when asked whether two
   /// numbers are the same. Written as a hex literal because 2^-26 is exact.
   static constexpr double zeroMultiplierTolerance = 0x1p-26;
@@ -1029,15 +1030,19 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// contributions): response r_i / m_f, weight w_i m_f^2, which reproduce the
   /// leaf's node sums without touching the leaf math.
   ///
-  /// A multiplier indistinguishable from zero at that tolerance says row i
+  /// A multiplier indistinguishable from zero at that tolerance, relative to
+  /// the forest's largest absolute multiplier in this sweep, says row i
   /// carries no information about forest f, so the row leaves with exactly zero
-  /// weight and exactly zero response. The zero RESPONSE is required rather than
+  /// weight and exactly zero response. The bound is RELATIVE so that a basis
+  /// in other units, a numeric column of values near 1e-9, is the same forest:
+  /// scaling every multiplier by a power of two leaves the same rows in. A
+  /// forest whose every multiplier is zero loses every row. The zero RESPONSE is required rather than
   /// cosmetic: the chain reads this buffer arithmetically when it rolls the
   /// running residual and finalizes total fits, and the node sufficient-statistic
   /// kernels accumulate w * y, where a zero weight against an amplified response
   /// would be 0 * inf. The tolerance doubles as a condition-number cap: the
-  /// division amplifies by at most 2^26, whatever the family, the weights and
-  /// K. What the amplification does NOT reach is the arithmetic downstream,
+  /// division amplifies by at most 2^26 relative to the forest's largest
+  /// multiplier, whatever the family, the weights and K. What the amplification does NOT reach is the arithmetic downstream,
   /// which cancels it exactly - the node kernels accumulate sumWeights =
   /// sum_i w_i m_i^2 and sumWeightedResponse = sum_i (w_i m_i^2)(r_i / m_i),
   /// whose exact value is sum_i w_i m_i r_i, and combinedFits and
@@ -1063,9 +1068,13 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     std::size_t n = data_.numObservations;
     glue_.forestResponse.resize(n);
     glue_.forestWeights.resize(n);
+    double largest = 0.0;
+    for (std::size_t i = 0; i < n; ++i)
+      largest = std::max(largest, std::fabs(forestMultiplier(f, i)));
+    double bound = zeroMultiplierTolerance * largest;
     for (std::size_t i = 0; i < n; ++i) {
       double m = forestMultiplier(f, i);
-      if (std::fabs(m) < zeroMultiplierTolerance) {
+      if (std::fabs(m) <= bound) {
         glue_.forestResponse[i] = 0.0;
         glue_.forestWeights[i] = 0.0;
         continue;
