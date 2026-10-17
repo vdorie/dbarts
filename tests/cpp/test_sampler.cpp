@@ -10870,6 +10870,28 @@ static void testNumericMultiplierLaw() {
     }
   }
 
+  // (a') a drawn numeric coefficient starts at 1 wherever it stands, the
+  // second forest's first included
+  {
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::numeric;
+    spec.forests[1].basis = w.data();
+    std::vector<ext_rng*> rngs = makeDrawRngs(1, 9917);
+    {
+      ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
+                                  1.0, 3.0, 0.37804942330213542, options,
+                                  spec, rngs.data());
+      std::vector<double> amplitudes(sampler.totalAmplitudes());
+      sampler.amplitudes(0, amplitudes.data());
+      check(amplitudes.size() == 2 && amplitudes[0] == 1.0 &&
+              amplitudes[1] == 1.0,
+            "numeric rule: a drawn numeric coefficient standing second "
+            "starts at 1");
+    }
+    destroyDrawRngs(rngs);
+  }
+
   // (b) the twin: the column, 1024 of it and 2^-40 of it, at the default
   for (ResponseFamily family :
        {ResponseFamily::gaussian, ResponseFamily::probit}) {
