@@ -123,9 +123,9 @@ doorFamily <- function(door) {
   }
 }
 
-# What a door makes of `B`: the forest's kind, levels and block, the block's
-# column names and ten seeded draws, or the refusal's text as the door words
-# it.
+# What a door makes of `B`: the forest's kind, levels and block, the kind the
+# engine was told (the reader's word for it), the block's column names and
+# ten seeded draws, or the refusal's text as the door words it.
 made <- function(door, B, response = y, ...) {
   more <- list(...)
   tryCatch(
@@ -138,6 +138,7 @@ made <- function(door, B, response = y, ...) {
       list(
         sampler = sampler,
         kind = dbarts:::forestBasisKind(block, levels[[2L]]),
+        engine = sampler$getLeafPrior(2L)$multiplier,
         levels = levels,
         # a value's block keeps what as.matrix() left on it, so the numbers
         block = matrix(as.vector(block), nrow(block)),
@@ -170,8 +171,10 @@ expectSampler <- function(made, info = NA_character_) {
   isSampler
 }
 shapeOf <- function(result) {
-  result[c("kind", "levels", "block", "draws")]
+  result[c("kind", "engine", "levels", "block", "draws")]
 }
+# the reader's word for what forestBasisKind calls a kind
+engineWord <- c(none = "none", levels = "factor", numeric = "numeric")
 # Two doors' results are one creation: neither refused, and one kind, one
 # set of levels, one block and one sum of draws.
 expectSameShape <- function(other, first, info) {
@@ -270,6 +273,7 @@ for (object in objects) {
   first <- expectOneReading(object[[2L]], sevenDoors, info)
   expect_null(first$refused, info = info)
   expect_identical(first$kind, object[[3L]], info = info)
+  expect_identical(first$engine, engineWord[[first$kind]], info = info)
   expect_identical(ncol(first$block), object[[4L]], info = info)
   expect_identical(
     lengths(first$levels),
@@ -1227,6 +1231,7 @@ for (how in c("copy", "reload", "new")) {
     next
   }
   expect_identical(sampler$data@basis.levels, original$data@basis.levels)
+  expect_identical(sampler$getLeafPrior(2L)$multiplier, "factor", info = how)
   flippedRows <- factor(zc2, levels = c("treated", "control"))
   expect_null(refusalOf(sampler$setForestBasis(2L, flippedRows)), info = how)
   expect_identical(sampler$data@bases[[2L]], creationBlock[n:1L, ], info = how)
@@ -1250,6 +1255,14 @@ for (how in c("copy", "reload", "new")) {
       next
     }
     expect_identical(sampler$data@bases, swapped$data@bases, info = how)
+    expect_identical(
+      sampler$getLeafPrior(2L)$multiplier,
+      engineWord[[dbarts:::forestBasisKind(
+        swapped$data@bases[[2L]],
+        swapped$data@basis.levels[[2L]]
+      )]],
+      info = how
+    )
     expect_identical(dim(sampler$run(0L, 5L)$train), c(n, 5L), info = how)
   }
 }

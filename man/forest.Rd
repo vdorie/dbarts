@@ -22,8 +22,7 @@
 forest(
     vars = NULL, basis = NULL, sd = NULL,
     n.trees = NULL, base = NULL, power = NULL, amplitude = NULL,
-    interactions = NULL, blocks = NULL,
-    amplitude.prior.variance = NULL)
+    interactions = NULL, blocks = NULL)
 }
 \arguments{
   \item{vars}{
@@ -391,6 +390,12 @@ forest(
     installs the bases declared here in place of those it carried. After
     creation a basis is replaced by \code{$setForestBasis}, whose formula is
     read at once, where it was made; see \code{\linkS4class{dbartsSampler}}.
+
+    A lone forest carrying a \code{basis} is refused, the coefficients being
+    what distinguish a forest from another. For varying coefficients declare
+    an intercept forest plus one basis forest per covariate,
+    \code{forests = list(forest(), forest(basis = z1), forest(basis = z2))},
+    or use one forest with \code{linear()} leaves.
   }
   \item{n.trees, base, power}{
     This forest's tree count and tree-structure prior. Each one stated here
@@ -438,26 +443,33 @@ forest(
     state a forest's \code{sd} against, and a stated \code{sd} on one is
     refused.
 
-    What \code{sd} is the size of. Where the forest has no \code{basis}, or a
-    factor or logical one, and its coefficient is drawn, it is the prior median
-    of the absolute size of the forest's contribution, to within a few percent.
-    Where the coefficient is held with \code{amplitude = fixed()} or the basis
-    is a numeric column it is not, and the size comes to a different multiple
-    of \code{sd}: a held forest with no basis has the size of the unit whatever
-    its \code{sd} is, a held factor 1.48 times \code{sd}, and a drawn numeric
-    column 0.71 times \code{sd} at a row whose basis has the median non-zero
-    norm.
+    What \code{sd} is the size of. Where the forest has no \code{basis} it is
+    the size of what the forest contributes, \eqn{a\,f(x)}{a f(x)}; where its
+    basis is a factor or a logical vector of two levels it is the size of the
+    difference between the two levels' contributions, the treatment effect
+    where the levels are control and treated. Where the coefficient is held
+    with \code{amplitude = fixed()} it is 1, what it multiplies is the basis,
+    and the size is the prior standard deviation, exactly; where it is drawn
+    the size is itself uncertain and \code{sd} is its prior median, to within
+    a few percent. A drawn numeric column is not yet so sized: its
+    contribution comes to 0.71 times \code{sd} at a row whose basis has the
+    median non-zero norm.
 
-    Which of the two channels carries \code{sd} depends on whether the forest
-    has a \code{basis}: without one it is the median of the half-Cauchy prior
-    on the forest's scalar amplitude, with one it scales the forest's own leaf
-    prior. The two channels default differently. A forest with no basis takes
-    twice the response's standard deviation under a gaussian response, where a
-    drawn \eqn{\sigma}{sigma} absorbs the difference, and \code{1} under
-    \code{"probit"} and \eqn{\pi/\sqrt{3}}{pi/sqrt(3)}, 1.8138, under
-    \code{"logistic"}, where the link's error scale is fixed and nothing does.
-    A forest with a basis takes that unit, however many forests the model
-    has. A default is a
+    Which of the two channels carries \code{sd} depends on the forest: for a
+    forest with no basis whose coefficient is drawn it is the median of the
+    half-Cauchy prior on that coefficient, and otherwise it scales the
+    forest's own leaf prior. Not stated, a forest with no basis whose
+    coefficient is drawn takes twice the response's standard deviation under
+    a gaussian response, where a drawn \eqn{\sigma}{sigma} absorbs the
+    difference, and \code{1} under \code{"probit"} and
+    \eqn{\pi/\sqrt{3}}{pi/sqrt(3)}, 1.8138, under \code{"logistic"}, where
+    the link's error scale is fixed and nothing does: one unit of the link's
+    error. Where its coefficient is held it takes, under a gaussian response,
+    the size \code{\link{bart}} gives the one forest of an ordinary fit on the
+    same response, a quarter of the response's range, and one unit of the
+    link's error under \code{"probit"} and \code{"logistic"}. A forest with a
+    basis takes one unit, \eqn{\mathrm{sd}(y)}{sd(y)} or the link's, held or
+    drawn. None of these depends on how many forests the model has. A default is a
     multiple of the unit and not a stated number: \code{$getLeafPrior(f)$sd}
     reports the number of the response's units it comes to, and
     \code{$getLeafPrior(f)$sd.stated} is \code{FALSE}. A value stated here
@@ -494,48 +506,26 @@ forest(
     the forest may split on, i.e. the \code{vars} subset when one is given,
     and the forest's own tree count.
   }
-  \item{amplitude.prior.variance}{
-    Prior variance of the \eqn{N(0, \cdot)}{N(0, .)} amplitudes on this
-    forest's basis columns, default \code{0.5}. Legal only on a forest given a
-    \code{basis}: a forest without one carries a plain scalar amplitude under
-    the engine's half-Cauchy scale-mixture prior, whose median is \code{sd}
-    rather than a variance. It is a free multiplier on the induced prior: the
-    prior standard deviation of the combined location at row \eqn{i}{i} is
-    \eqn{\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}}{sqrt(sum_f s_f^2 v_f
-    ||B_f(i, .)||^2)} over the forests carrying a basis, with \eqn{s_f}{s_f}
-    read from \code{$getLeafPrior(f)$k.scale} and \eqn{v_f}{v_f}
-    this argument; a basis-free forest's own term is Cauchy and has no
-    standard deviation. The budget that sum sits in is set by \code{sd}, whose
-    default already divides it among the \eqn{K}{K} forests, so raising this
-    argument raises the total rather than redistributing it. Under \code{"probit"} and \code{"logistic"} that
-    location IS the latent index and \eqn{\sigma}{sigma} is pinned, so nothing
-    in the sampler absorbs a mis-scaled basis; under a gaussian response it is
-    in the response's units and a drawn \eqn{\sigma}{sigma} partly does. Every input to that expression is readable off the fitted
-    sampler: \eqn{v_f}{v_f} is the \code{amplitude.prior.variance} entry of
-    \code{$getLeafPrior(f)} and \eqn{B_f}{B_f} is \code{data@bases[[f]]},
-    so the induced prior can be checked against what is in force rather than
-    against what the call asked for. See the example below.
-    A lone forest carrying a \code{basis} is refused, the amplitudes being what
-    distinguish a forest from another. For varying coefficients declare an
-    intercept forest plus one basis forest per covariate,
-    \code{forests = list(forest(), forest(basis = z1), forest(basis = z2))},
-    or use one forest with \code{linear()} leaves.
-  }
   \item{amplitude}{
-    The law of this forest's amplitudes: the one a forest with no
-    \code{basis} carries, or one for each column of its \code{basis}. Left out,
-    they are drawn each sweep. \code{fixed()} holds them for the sampler's life,
-    the choice being made at creation: a forest with no \code{basis} at 1, and
-    a forest on a factor, a character or a logical vector of two levels at 0
-    for the first level and 1 for the second. The forest is then held out of
-    the first level and enters at full size for the second, so it is the
-    second level's difference from the first. For now a held forest is taken
-    in two shapes only: a forest with no \code{basis} at any place but the
-    second, and a basis of two levels as the second forest. Every other shape
-    is refused when held: a forest with no \code{basis} put second in a
-    \code{forests} list or in a data object's \code{bases}, a basis of two
-    levels at any other place, and a basis of one numeric column.
-    \code{fixed} alone is taken as
+    The law of this forest's coefficient: the one a forest with no
+    \code{basis} carries, or one for each level of its \code{basis}. Left out,
+    it is drawn each sweep. \code{fixed()} holds it for the sampler's life,
+    the choice being made at creation, wherever the forest stands: a held
+    coefficient is 1, and what it multiplies is the basis, so a forest with no
+    \code{basis} enters at 1 and a forest on a factor, a character or a
+    logical vector of two levels at 0 for the first level and 1 for the
+    second. The forest is then held out of the first level and enters at full
+    size for the second, so it is the second level's difference from the
+    first. Another coding is another basis, and another size is \code{sd},
+    which a held coefficient makes exact: the forest's contribution then has
+    prior standard deviation \code{sd}. A held forest with no basis that states
+    no \code{sd} has the size \code{\link{bart}} gives the one forest of an
+    ordinary fit under a continuous response, a quarter of the response's
+    range, and one unit of the link's error under \code{"probit"} and
+    \code{"logistic"}. A held coefficient cannot adapt to an \code{sd} that is
+    too small; where the effect may be larger, state \code{sd} or let the
+    coefficient be drawn. For now a basis of one numeric column is refused
+    when held. \code{fixed} alone is taken as
     \code{fixed()}, and no other value is. Outside the argument that takes it
     the constructor is \code{dbartsPriors$fixed()}. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.
@@ -641,9 +631,8 @@ amplitudes <- sampler$getForestAmplitudes()
 # than recomputed from the call: forest 2 is the one carrying a basis
 calibration <- sampler$getLeafPrior(2L)
 basis <- sampler$data@bases[[2L]]
-indexSd <- sqrt(calibration$k.scale^2 *
-                calibration$amplitude.prior.variance *
-                rowSums(basis^2))
+# its coefficients' prior variance is 1/2
+indexSd <- sqrt(calibration$k.scale^2 * 0.5 * rowSums(basis^2))
 
 # the same model written in a formula, the first forest written out; the
 # columns of a basis are named as lm() would name them

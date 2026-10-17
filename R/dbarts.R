@@ -2060,8 +2060,10 @@ priorSdOf <- function(leafModel) {
 ## forest's statement: forest(sd = ) with the number as written where one was
 ## stated, forest() where none was. `sd` is the number in force, in the
 ## response's units, and `sd.stated` whether it was stated; both are the
-## engine's, and nothing is converted here. The map's own entries follow, in
-## units of the map's anchor.
+## engine's, and nothing is converted here. `multiplier` is what the engine
+## was told the forest multiplies, and `amplitude` fixed() where its
+## coefficient is held. The map's own entries follow, in units of the map's
+## anchor.
 reportLeafPrior <- function(sampler, raw) {
   shared <- function(column) raw[[1L, column]]
   model <- sampler$model
@@ -2096,23 +2098,35 @@ reportLeafPrior <- function(sampler, raw) {
   if (!mapped) {
     return(prior)
   }
-  mixture <- is.nan(raw[1L, "amplitude.prior.variance"])
-  amplitude <- if (mixture) {
-    "amplitude.prior.scale"
-  } else {
-    "amplitude.prior.variance"
-  }
+  multiplier <- c("none", "factor", "numeric")[shared("multiplier") + 1]
+  held <- shared("amplitude.held") != 0
   stated <- !is.nan(shared("named.sd"))
-  prior <- c(
-    list(
-      leaf.prior = if (stated) forest(sd = shared("named.sd")) else forest(),
-      sd = shared("map.sd"),
-      sd.stated = stated
-    ),
-    prior[-1L]
+  statement <- list(
+    leaf.prior = if (stated) forest(sd = shared("named.sd")) else forest(),
+    sd = shared("map.sd"),
+    sd.stated = stated,
+    multiplier = multiplier
   )
-  prior$prior.sd.of <- if (mixture) "amplitude scale" else "forest total"
-  for (column in c(amplitude, "leaf.scale.factor", "leaf.scale.divisor")) {
+  if (held) {
+    statement$amplitude <- fixed()
+  }
+  prior <- c(statement, prior[-1L])
+  # the size the sd is of: exact where the coefficient is held, the prior
+  # median where it is drawn
+  prior$prior.sd.of <- switch(
+    multiplier,
+    none = "forest",
+    factor = "level difference",
+    numeric = "forest total"
+  )
+  if (!held && multiplier != "numeric") {
+    prior$prior.sd.of <- paste(prior$prior.sd.of, "(prior median)")
+  }
+  columns <- c("leaf.scale.factor", "leaf.scale.divisor")
+  if (!is.nan(shared("amplitude.prior.scale"))) {
+    columns <- c("amplitude.prior.scale", columns)
+  }
+  for (column in columns) {
     prior[[column]] <- shared(column)
   }
   prior$basis.row.norm <- shared("basis.row.norm")
@@ -3611,7 +3625,7 @@ dbartsSampler <- setRefClass(
       counts
     },
     getLeafPrior = function(forest = NULL) {
-      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() prior) or sd (a number or an invchi() prior), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale, fixed by the family and the response mapping and the same however the prior is written; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1 and leaf.prior is the statement of the forest's size: forest(sd = v), v the number as it was written, where an sd was stated, and forest() where none was, which goes back into setLeafPrior(forests = ) as it is and leaves its forest as it is. The list then begins with leaf.prior, sd, the forest's sd in force, in the response's units - v itself, or the default's multiple of the response's scale times the unit the sampler derived at creation (see forest) - and sd.stated, whether it was stated, and adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor, and one of amplitude.prior.variance or amplitude.prior.scale (prior.sd.of 'amplitude scale' on a forest created without a basis, 'forest total' otherwise); leaf.scale.factor and amplitude.prior.scale are multiples of the unit, the engine's channels for the sd, not numbers of the response's units, and they are absent elsewhere. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns a list of one prior per forest, named by the forests' labels where the forests have them, which a multinomial sampler's category forests do not; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
+      "Returns the leaf prior a forest runs under, alone, as a named list: leaf.prior, the specification in the terms it was named in - normal(), linear() or gp() carrying one of k (a number or a chi() prior) or sd (a number or an invchi() prior), the family default when none was named - which goes back into setLeafPrior or a fitting function's leaf.prior as is; leaf.model; prior.sd.of, what the sd is the sd of ('leaf value', 'coefficient' or 'amplitude'); prior.mean; k.scale, the value k is relative to, so the spread in force on each chain is k.scale / getK() - the data's scale, fixed by the family and the response mapping and the same however the prior is written; response.scale and response.shift. On a forest whose scale a multi-forest calibration map sets, k is pinned at 1 and leaf.prior is the statement of the forest's size: forest(sd = v), v the number as it was written, where an sd was stated, and forest() where none was, which goes back into setLeafPrior(forests = ) as it is and leaves its forest as it is. The list then begins with leaf.prior, sd, the forest's sd in force, in the response's units - v itself, or the default's multiple of the response's scale times the unit the sampler derived at creation (see forest) - sd.stated, whether it was stated, multiplier, what the forest multiplies ('none', 'factor' or 'numeric'), and amplitude, fixed() where the forest's coefficient is held and absent where it is drawn. prior.sd.of says what sd is the size of: 'forest' for a forest with no basis and 'level difference' for a factor, the size exactly where the coefficient is held and its prior median, ' (prior median)', where it is drawn; 'forest total' for a numeric column. The list adds basis.row.norm, leaf.scale.factor and leaf.scale.divisor, and amplitude.prior.scale on a drawn forest with no basis; leaf.scale.factor and amplitude.prior.scale are multiples of the unit, the engine's channels for the sd, not numbers of the response's units, and they are absent elsewhere. Every chain runs under the sampler's one prior and response transform, which no state install moves, so every value is shared by the chains; an NA spread is refused on write. A drawn k is chain state, read by getK. At the default forest = NULL a multi-forest sampler returns a list of one prior per forest, named by the forests' labels where the forests have them, which a multinomial sampler's category forests do not; a single-forest sampler's NULL read is bitwise its forest 1 read. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i)."
       ptr <- getPointer()
       read <- function(index) {
         reportLeafPrior(

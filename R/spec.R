@@ -1228,13 +1228,17 @@ resolveSamplerSpec <- function(
       specs <- c(specs, rep(list(NULL), numForests - length(specs)))
     }
     hasBasis <- !vapply(data@bases, is.null, logical(1L))
-    # a coefficient is held only where the engine holds it at the value the
-    # help states, which goes by the width of the basis and the position
+    # a coefficient is held where its kind has a held value, wherever the
+    # forest stands
+    levels <- dataBasisLevels(data)
     for (index in seq_len(numForests)) {
       if (identical(specs[[index]]$amplitude, "fixed")) {
         refuseHeldShape(
           index,
-          if (hasBasis[index]) NCOL(data@bases[[index]]) else 0L
+          forestBasisKind(
+            data@bases[[index]],
+            if (index <= length(levels)) levels[[index]]
+          )
         )
       }
     }
@@ -1262,13 +1266,9 @@ resolveSamplerSpec <- function(
       # one length-4 numeric per forest; see forestParams()
       params = params,
       # what each forest states of its size, as written, NA where it states
-      # none: the engine holds the calibration map and its defaults
+      # none: the engine holds the calibration map and its defaults, and
+      # reads what each forest multiplies from the data object
       sd = statements$sd,
-      variance = statements$variance,
-      # whether each forest is created with a basis, which fixes the channel
-      # its sd reaches for the life of the sampler: a forest created with
-      # none and given one by $setForestBasis is still read as having none
-      hasBasis = hasBasis,
       # resolved 1-based column indices per forest, or NULL for unrestricted
       vars = forestColumns,
       # one label for each forest; see forestLabels()

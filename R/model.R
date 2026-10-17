@@ -1553,14 +1553,12 @@ validateForestKnobs <- function(spec) {
     }
     spec$n.trees <- numTrees
   }
-  for (name in c("power", "amplitude.prior.variance")) {
-    if (!is.null(spec[[name]])) {
-      value <- suppressWarnings(as.double(spec[[name]]))
-      if (length(value) != 1L || is.na(value) || value <= 0.0) {
-        stop("forest '", name, "' must be a single positive number")
-      }
-      spec[[name]] <- value
+  if (!is.null(spec$power)) {
+    value <- suppressWarnings(as.double(spec$power))
+    if (length(value) != 1L || is.na(value) || value <= 0.0) {
+      stop("forest 'power' must be a single positive number")
     }
+    spec$power <- value
   }
   if (!is.null(spec$sd)) {
     spec$sd <- validateForestSd(spec$sd)
@@ -1579,7 +1577,7 @@ validateForestKnobs <- function(spec) {
 }
 
 ## The refusal of a held coefficient on a basis of one numeric column, which
-## the engine holds at zero, so that the forest would drop out of the model.
+## has no held value until the numeric multiplier is built (dec-B353).
 refuseHeldOneColumn <- function(index) {
   stop(
     "forest ",
@@ -1591,42 +1589,20 @@ refuseHeldOneColumn <- function(index) {
   )
 }
 
-## What a held coefficient may sit on. The engine holds a coefficient where it
-## starts it, by the forest's position: the second forest's first column at 0
-## and its others at 1, every other forest's at 1. So a held forest is taken
-## only where that is the value the help states: a forest with no basis at
-## any place but the second, and a basis of two columns at the second. `width`
-## is the number of columns of the forest's basis, 0 for a forest with none;
-## a basis of more is refused at creation before a hold is read.
-refuseHeldShape <- function(index, width) {
-  if (width == 1L) {
+## What a held coefficient may sit on, by what the forest multiplies
+## (forestBasisKind) and wherever it stands: a forest with no basis is held at
+## 1 and one of two levels at 0 and 1 (dec-B354), and a numeric column is
+## refused until it has a held value.
+refuseHeldShape <- function(index, kind) {
+  if (kind == "numeric") {
     refuseHeldOneColumn(index)
-  }
-  if (width == 0L && index == 2L) {
-    stop(
-      "forest 2: amplitude = fixed() on a forest with no basis is not ",
-      "supported yet where it is the second forest; it would hold the forest ",
-      "at zero. Put the forest with no basis first, or let the coefficient be ",
-      "drawn",
-      call. = FALSE
-    )
-  }
-  if (width == 2L && index != 2L) {
-    stop(
-      "forest ",
-      index,
-      ": amplitude = fixed() on a basis of two columns is not supported yet ",
-      "unless the forest is the second; it would hold both coefficients at 1. ",
-      "Put the forest second, or let the coefficients be drawn",
-      call. = FALSE
-    )
   }
   invisible(NULL)
 }
 
 ## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which
-## holds it at the value its forest's shape gives it. Returns "fixed" for the
-## hold. A bare fixed is fixed(), as a constructor given where a value is.
+## holds it at 1, the basis carrying the coding. Returns "fixed" for the hold.
+## A bare fixed is fixed(), as a constructor given where a value is.
 validateForestAmplitude <- function(amplitude) {
   if (identical(amplitude, fixed)) {
     amplitude <- fixed()
@@ -1642,9 +1618,9 @@ validateForestAmplitude <- function(amplitude) {
     stop(
       "'amplitude = fixed(",
       paste(deparse(value), collapse = ""),
-      ")': a held coefficient is 1 for a forest with no basis, and 0 for the ",
-      "first level of a factor and 1 for the others; fixed() takes no other ",
-      "value here. Write fixed(), and state the forest's size with 'sd'"
+      ")': a held coefficient is 1, and what it multiplies is the basis: ",
+      "nothing, or 0 and 1 for the two levels of a factor; fixed() takes no ",
+      "other value. Write fixed(), and state the forest's size with 'sd'"
     )
   }
   "fixed"
@@ -1882,9 +1858,8 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
 ## specification carries, or NULL for the single-forest path. Returns a LIST of
 ## K validated knob lists, one per forest, so nothing downstream is keyed on
 ## two. Everything the engine cannot honour refuses here, by name, rather than
-## being dropped: an amplitude prior only where a basis is, one forest with no
-## basis at most, and the amplitude knobs only where an amplitude exists at
-## all. `interactions` and `blocks` are the fit's own top-level arguments,
+## being dropped: one forest with no basis at most, and the amplitude knobs
+## only where an amplitude exists at all. `interactions` and `blocks` are the fit's own top-level arguments,
 ## which address the forest with NO BASIS under the same spelling a forest()
 ## uses, so supplying both is ambiguous rather than layered.
 ## `hasBasis` is a per-forest logical recording whether a basis reached that
@@ -1907,20 +1882,14 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   resolved <- lapply(forests, validateForestKnobs)
   numForests <- length(resolved)
 
-  withBasis <- logical(numForests)
-  for (index in seq_len(numForests)) {
-    spec <- resolved[[index]]
-    withBasis[index] <- !is.null(spec$basis) ||
-      (length(hasBasis) >= index && hasBasis[index])
-    if (!withBasis[index] && !is.null(spec$amplitude.prior.variance)) {
-      stop(
-        "'amplitude.prior.variance' is the prior on a basis forest's ",
-        "amplitudes, and forest ",
-        index,
-        " has no 'basis'"
-      )
-    }
-  }
+  withBasis <- vapply(
+    seq_len(numForests),
+    function(index) {
+      !is.null(resolved[[index]]$basis) ||
+        (length(hasBasis) >= index && hasBasis[index])
+    },
+    NA
+  )
   plain <- plainForest(withBasis)
 
   first <- resolved[[1L]]
@@ -1956,9 +1925,9 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 ## bridge reads forest 1's three from the control and the model's tree prior,
 ## which hold the same numbers.
 ##
-## Nothing of a forest's size is here: its `sd` and its
-## `amplitude.prior.variance` go to the engine as written (forestStatements),
-## and the engine holds the calibration map and every default.
+## Nothing of a forest's size is here: its `sd` goes to the engine as written
+## (forestStatements), and the engine holds the calibration map and every
+## default.
 forestParams <- function(specs, hasBasis, plain) {
   declared <- function(value, default) {
     if (is.null(value)) default else value
@@ -1976,17 +1945,16 @@ forestParams <- function(specs, hasBasis, plain) {
 }
 
 ## What each forest states of its size, as the forests' record carries it to
-## the engine: `sd`, in the response's units, and `variance`, the prior
-## variance of its coefficients, each as written and NA where none is stated.
+## the engine: `sd`, in the response's units, as written and NA where none is
+## stated.
 forestStatements <- function(specs) {
-  stated <- function(name) {
-    vapply(
+  list(
+    sd = vapply(
       specs,
-      function(spec) if (is.null(spec[[name]])) NA_real_ else spec[[name]],
+      function(spec) if (is.null(spec$sd)) NA_real_ else spec$sd,
       0
     )
-  }
-  list(sd = stated("sd"), variance = stated("amplitude.prior.variance"))
+  )
 }
 
 ## Resolve an interactions() specification against the fitted model matrix into
@@ -2690,10 +2658,8 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## expanded by R's own model-matrix rule; n.trees, base and power are its
 ## tree-structure prior; sd is its size in the response's units (the latent
 ## index's under probit and logistic), which the engine divides by the unit
-## it derives at creation; amplitude.prior.variance is the
-## N(0, .) variance of the amplitudes on its basis; amplitude = fixed() holds
-## those amplitudes at the value their shape gives them, and left out draws
-## them; interactions and blocks are this forest's own constraints - the
+## it derives at creation; amplitude = fixed() holds its coefficient at 1, the
+## basis carrying the coding, and left out draws it; interactions and blocks are this forest's own constraints - the
 ## arguments of the same names on the fitting function are the FIRST forest's.
 ## Every knob defaults to NULL, "not declared", which is what lets a
 ## declaration that collides with one of those arguments refuse rather than
@@ -2709,8 +2675,7 @@ forest <- function(
   power = NULL,
   amplitude = NULL,
   interactions = NULL,
-  blocks = NULL,
-  amplitude.prior.variance = NULL
+  blocks = NULL
 ) {
   # the arguments as the caller gave them, a forwarded '...' spelled out
   given <- match.call(function(...) NULL, sys.call(), expand.dots = FALSE)$...
@@ -2778,7 +2743,6 @@ forest <- function(
       sd = sd,
       interactions = interactions,
       blocks = blocks,
-      amplitude.prior.variance = amplitude.prior.variance,
       amplitude = amplitude
     ),
     class = "dbartsForest"
