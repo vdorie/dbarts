@@ -65,7 +65,6 @@ tauBase <- 0.25
 tauPower <- 3
 sdControl <- 0.5 # SMALL Cauchy scale: prior precision dominates
 sdModerate <- 1
-bVar <- 0.5 # inert (b fixed), passed through to the sampler
 
 aThresholds <- c(0.25, 0.5, 1.0)
 
@@ -83,7 +82,7 @@ s <- sd(yScaled)
 # s * yRange here)
 sdY <- sd(y)
 scaleMu <- s # mu leaf prior sd (single tree, k = 1)
-scaleTau <- sdModerate * s / 0.674 # tau leaf prior sd (half-normal median)
+scaleTau <- sdModerate * s # tau leaf prior sd: b is held, so its sd exactly
 aPriorScale <- sdControl
 
 initialSigma <- sigEst / yRange
@@ -291,7 +290,6 @@ samplerFit <- function(seed) {
         base = tauBase,
         power = tauPower,
         sd = sdModerate * sdY,
-        amplitude.prior.variance = bVar,
         amplitude = fixed()
       )
     )

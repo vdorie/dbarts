@@ -15,7 +15,10 @@
 #
 # Modes: (1) glue fixed a = 1, b0 = 0, b1 = 1 - match E[mu], E[tau];
 # (2a) a free (Cauchy(0, aPriorScale)), b fixed - match E[a mu], E[tau];
-# (2b) b0/b1 free (N(0, bPriorVariance)), a fixed - match E[mu], E[(b1-b0)tau].
+# (2b) b0/b1 free (N(0, 1/2)), a fixed - match E[mu], E[(b1-b0)tau].
+# A held forest's leaf prior sd is its sd exactly; a drawn treatment forest's
+# is its sd over the half-normal median 0.674, and a drawn prognostic
+# forest's is s, its sd being the median of a's half-Cauchy prior.
 #
 # Usage: Rscript bcf-exact.R [quick]
 
@@ -72,7 +75,7 @@ tauBase <- 0.25
 tauPower <- 3
 sdControl <- 2
 sdModerate <- 1
-bVar <- 0.5
+bVar <- 0.5 # the coefficients' prior variance, which the engine fixes
 
 # uniform cuts separate the cells exactly (dbarts n.cuts = K - 1)
 cuts <- min(x) + seq_len(K - 1L) * (max(x) - min(x)) / K
@@ -87,8 +90,15 @@ s <- sd(yScaled)
 # are multiples of the response's standard deviation (s on the range scale,
 # s * yRange here)
 sdY <- sd(y)
-scaleMu <- s # mu leaf prior sd (single tree, k = 1)
-scaleTau <- sdModerate * s / 0.674 # tau leaf prior sd (half-normal median)
+# the leaf prior sds, by whether each forest's coefficients are held: a held
+# forest's sd is its own, exactly; a drawn mu's sd is a's half-Cauchy median
+# and its own is s; a drawn tau's is its sd over the half-normal median
+leafScales <- function(heldA, heldB) {
+  scaleMu <- if (heldA) sdControl * s else s
+  scaleTau <- if (heldB) sdModerate * s else sdModerate * s / 0.674
+  priorPrecMu <<- 1 / scaleMu^2
+  priorPrecTau <<- 1 / scaleTau^2
+}
 aPriorScale <- sdControl
 
 # chisq sigma prior on the internal scale (ChiSquaredScalePrior): sigma^2 ~
@@ -175,8 +185,6 @@ logSigmaPrior <- (sigDf / 2) *
 # the leaf block integrates in closed form; the sigma dimension is vectorized
 # through the whitened eigendecomposition of the design crossproduct.
 logDet2pi <- n * log(2 * pi)
-priorPrecMu <- 1 / scaleMu^2
-priorPrecTau <- 1 / scaleTau^2
 
 exactBCF <- function(glueGrid) {
   maxLW <- -Inf
@@ -298,7 +306,6 @@ samplerFit <- function(seed, updateA, updateB, ndpost, thin) {
         base = tauBase,
         power = tauPower,
         sd = sdModerate * sdY,
-        amplitude.prior.variance = bVar,
         amplitude = if (updateB) NULL else fixed()
       )
     )
@@ -381,6 +388,7 @@ reportMode <- function(
 anyFailure <- FALSE
 
 # mode 1: glue fixed at (1, 0, 1)
+leafScales(heldA = TRUE, heldB = TRUE)
 ex1 <- exactBCF(matrix(c(1, 0, 1, 0), nrow = 1L))
 fit1 <- samplerAverage(FALSE, FALSE, ndLight, thinLight, nSeeds)
 anyFailure <- reportMode(
@@ -399,6 +407,7 @@ anyFailure <- reportMode(
 # mode 2a: a free ~ Cauchy(0, aPriorScale); b fixed at (0, 1)
 aGrid <- seq(-6, 6, length.out = aN)
 glue2a <- cbind(aGrid, 0, 1, dcauchy(aGrid, 0, aPriorScale, log = TRUE))
+leafScales(heldA = FALSE, heldB = TRUE)
 ex2a <- exactBCF(glue2a)
 fit2a <- samplerAverage(TRUE, FALSE, ndLight, thinLight, nSeeds)
 anyFailure <- reportMode(
@@ -424,6 +433,7 @@ glue2b <- cbind(
   dnorm(bPair$b0, 0, sqrt(bVar), log = TRUE) +
     dnorm(bPair$b1, 0, sqrt(bVar), log = TRUE)
 )
+leafScales(heldA = TRUE, heldB = FALSE)
 ex2b <- exactBCF(glue2b)
 fit2b <- samplerAverage(FALSE, TRUE, nd2b, thin2b, nSeeds2b)
 anyFailure <- reportMode(

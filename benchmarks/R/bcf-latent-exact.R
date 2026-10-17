@@ -25,7 +25,7 @@
 #
 # Modes: (1) glue fixed a = 1, b0 = 0, b1 = 1 - match E[mu], E[tau];
 # (2a) a free (Cauchy(0, sd.control)), b fixed - match E[a mu], E[tau];
-# (2b) b0/b1 free (N(0, bPriorVariance)), a fixed - match E[mu],
+# (2b) b0/b1 free (N(0, 1/2)), a fixed - match E[mu],
 # E[(b1-b0)tau]. Every mode also matches E[F(eta)] at the four (cell, z)
 # groups, the reported probability surface, which is ridge-invariant.
 # Two arms extend the coverage: an AGGREGATED logistic arm (two weighted
@@ -121,8 +121,19 @@ tauBase <- 0.25
 tauPower <- 3
 sdControl <- 1 # the latent families' default, as a multiple of the link's anchor
 sdModerate <- 1
-bVar <- 0.5
+bVar <- 0.5 # the coefficients' prior variance, which the engine fixes
 nodeScaleDivisor <- 0.674 # the half-normal median of b1 - b0 ~ N(0, 1)
+# each forest's leaf prior sd, by whether its coefficients are held: a held
+# forest's sd is its own, exactly; a drawn prognostic forest's own is the
+# anchor, its sd being a's half-Cauchy median; a drawn treatment forest's is
+# its sd over the half-normal median
+scalesFor <- function(arm, heldA, heldB) {
+  anchor <- arm$link$anchor
+  c(
+    if (heldA) sdControl * anchor else anchor,
+    if (heldB) sdModerate * anchor else sdModerate * anchor / nodeScaleDivisor
+  )
+}
 
 # leaf values, one per cell, held small enough that every group probability
 # is well inside the unit interval under both links (which is also what
@@ -620,7 +631,6 @@ samplerFit <- function(seed, arm, updateA, updateB, ndpost, thin) {
       base = tauBase,
       power = tauPower,
       sd = sdModerate * arm$link$anchor,
-      amplitude.prior.variance = bVar,
       amplitude = if (updateB) NULL else dbarts::dbartsPriors$fixed()
     )
   )
@@ -780,7 +790,6 @@ makeArm <- function(link, K, muValue, tauValue, aggregate = FALSE) {
     repObs = vapply(seq_len(K), function(c) which(cell == c)[1L], integer(1L)),
     sCz = sCz,
     nCz = nCz,
-    scales = c(link$anchor, sdModerate * link$anchor / nodeScaleDivisor),
     configurations = makeConfigurations(K, sCz, nCz)
   )
 }
@@ -897,7 +906,7 @@ for (nm in names(arms)) {
     arm$configurations,
     arm$link,
     arm$K,
-    arm$scales
+    scalesFor(arm, heldA = TRUE, heldB = TRUE)
   )
   weights <- sort(exactFixed[[nm]]$weights, decreasing = TRUE)
   cat(sprintf(
@@ -931,13 +940,27 @@ exactFreeA <- list()
 exactFreeB <- list()
 for (nm in c("probit", "logistic")) {
   arm <- arms[[nm]]
-  oracle <- function(grid) {
-    exactLatentBCF(grid, arm$configurations, arm$link, arm$K, arm$scales)
+  oracle <- function(grid, heldA, heldB) {
+    exactLatentBCF(
+      grid,
+      arm$configurations,
+      arm$link,
+      arm$K,
+      scalesFor(arm, heldA, heldB)
+    )
   }
-  exactFreeA[[nm]] <- oracle(aGlueGrid(aN))
-  refineOrQuit(sprintf("a/%s", nm), exactFreeA[[nm]], oracle(aGlueGrid(aNFine)))
-  exactFreeB[[nm]] <- oracle(bGlueGrid(bN))
-  refineOrQuit(sprintf("b/%s", nm), exactFreeB[[nm]], oracle(bGlueGrid(bNFine)))
+  exactFreeA[[nm]] <- oracle(aGlueGrid(aN), FALSE, TRUE)
+  refineOrQuit(
+    sprintf("a/%s", nm),
+    exactFreeA[[nm]],
+    oracle(aGlueGrid(aNFine), FALSE, TRUE)
+  )
+  exactFreeB[[nm]] <- oracle(bGlueGrid(bN), TRUE, FALSE)
+  refineOrQuit(
+    sprintf("b/%s", nm),
+    exactFreeB[[nm]],
+    oracle(bGlueGrid(bNFine), TRUE, FALSE)
+  )
 }
 cat(sprintf(
   "  free-glue oracles and refinement: %.1f s\n",

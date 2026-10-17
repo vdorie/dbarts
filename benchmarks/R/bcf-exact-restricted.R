@@ -75,7 +75,6 @@ tauBase <- 0.25
 tauPower <- 3
 sdControl <- 2
 sdModerate <- 1
-bVar <- 0.5
 
 # the quantile grid places one cut at the midpoint of each pair of adjacent
 # observed values, up to n.cuts per column, so a cap of K1 - 1 = 2 gives x1
@@ -96,8 +95,10 @@ s <- sd(yScaled)
 # are multiples of the response's standard deviation (s on the range scale,
 # s * yRange here)
 sdY <- sd(y)
-scaleMu <- s # mu leaf prior sd (single tree, k = 1)
-scaleTau <- sdModerate * s / 0.674 # tau leaf prior sd (half-normal median)
+# both coefficients are held, so each forest's leaf prior sd is its sd,
+# exactly (single tree, k = 1)
+scaleMu <- sdControl * s
+scaleTau <- sdModerate * s
 
 # chisq sigma prior on the internal scale: sigma^2 ~ InvGamma(df/2, df*lambda/2)
 initialSigma <- sigEst / yRange
@@ -370,7 +371,6 @@ samplerFit <- function(seed) {
         base = tauBase,
         power = tauPower,
         sd = sdModerate * sdY,
-        amplitude.prior.variance = bVar,
         amplitude = fixed()
       )
     )

@@ -143,7 +143,7 @@ jobs:
             bd-balance.R change-balance.R swap-balance.R perturb-balance.R
             rule-gibbs-balance.R
             aft-exact.R aft-hetero-pit.R backfit-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
-            bcf-latent-exact.R
+            bcf-latent-exact.R forest-law-exact.R
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
             hazard-exact.R hurdle-exact.R mask-redraw-exact.R
             multinomial-exact.R negbin-exact.R negbin-mixing.R ordinal-exact.R

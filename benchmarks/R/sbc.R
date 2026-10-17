@@ -364,19 +364,19 @@ sbcAddMissing <- function(config, columns, frac = 0.15) {
 
 # Add BCF glue to a base config: a fixed 0/1 treatment (assigned by a propensity
 # in x1 so mu(x, pihat) has something to condition on) and the glue prior
-# scales. The prognostic scalar prior is Cauchy(0, sd.control).
+# scales. The prognostic scalar prior is Cauchy(0, sd.control); the treatment
+# coefficients' prior variance is the engine's, 1/2, which no forest states.
 sbcAddBCF <- function(
   config,
   sdControl = 2,
-  sdModerate = 1,
-  bPriorVariance = 0.5
+  sdModerate = 1
 ) {
   set.seed(202L)
   pi <- pnorm(0.8 * (config$x[, 1L] - 0.5))
   config$z <- as.double(rbinom(config$n, 1L, pi))
   config$sdControl <- sdControl
   config$sdModerate <- sdModerate
-  config$bPriorVariance <- bPriorVariance
+  config$bPriorVariance <- 0.5
   config
 }
 
@@ -1347,9 +1347,11 @@ sbcBCFFunctionals <- function(
 # Build a BCF sampler on a fixed design and recover the reported <- internal
 # affine map (fitScale, fitShift) by regressing one run's reported combined
 # fits on the internal a*mu + b_z*tau. Returns the sampler, z, and the map.
-# fixedGlue = TRUE holds the glue at its initial values (a=1, b0=0, b1=1) via
-# update.a = update.b = FALSE; the SBC generator then uses those constants,
-# isolating the two-forest backfit from the glue draw for diagnosis.
+# fixedGlue = TRUE holds the glue at its held values (a = 1, b0 = 0, b1 = 1)
+# with amplitude = fixed() on both forests, each forest's own sd then being
+# its sd exactly; the SBC generator uses those constants and draws the forests
+# from the engine's prior, the held scales, isolating the two-forest backfit
+# from the glue draw for diagnosis.
 sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
   ctrl <- dbartsControl(
     n.trees = config$nTrees,
@@ -1383,7 +1385,6 @@ sbcMakeBCF <- function(config, L, thin, fixedGlue = FALSE) {
     dbarts::dbartsForests$forest(
       basis = ~ factor(config$z),
       sd = config$sdModerate * unit,
-      amplitude.prior.variance = config$bPriorVariance,
       amplitude = if (fixedGlue) dbarts::dbartsPriors$fixed()
     )
   )
