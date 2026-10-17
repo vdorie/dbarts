@@ -5967,6 +5967,146 @@ static void testWarmStartForms() {
   rngState = savedRngState;
 }
 
+// A warm start from a donor of another tree count. The sides a donor grown
+// without missing values owes are drawn once, over every tree of the sample a
+// chain takes, before any round: a recipient of fewer trees ends with its
+// generator where a twin holding all of the donor's trees ends, and the trees
+// it keeps carry the twin's sides. A donor of fewer trees is clean, the rest
+// single leaves; one of more is declined and, forced, altered.
+static void testWarmStartTreeCounts() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 161803u;
+  const size_t n = 200, p = 2;
+  std::vector<double> x(n * p), xHoled, y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    y[i] = 2.0 * x[i] + std::sin(4.0 * x[i + n]) + 0.2 * (runif01() - 0.5);
+  }
+  xHoled = x;
+  for (size_t i = 3; i < n; i += 10)
+    xHoled[i + n] = std::numeric_limits<double>::quiet_NaN();
+
+  std::vector<ext_rng*> rngs;
+  auto make = [&](const std::vector<double>& xs, std::uint32_t seed,
+                  size_t numTrees) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return std::make_unique<ConstantLeafSampler>(
+      xs.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &r);
+  };
+  const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  Results none;
+
+  // six trees on column 1, which the donor could hold no missing value in and
+  // the recipient does, at distinct points and values
+  auto source = make(xHoled, 5, 6);
+  SamplerStateData donor;
+  source->getState(donor);
+  donor.missingColumns.assign(p, 0);
+  const std::vector<double>& points(donor.cutPoints[1]);
+  for (size_t t = 0; t < 6; ++t) {
+    FlatNode split, low, high;
+    split.variable = 1;
+    split.value = points[20 + 10 * t];
+    setFlatKind(split, FlatKind::ordinal);
+    low.value = 0.1 * static_cast<double>(t + 1);
+    high.value = -low.value;
+    donor.chains[0].forests[0].trees[t] = {split, low, high};
+  }
+
+  auto recipient = make(xHoled, 41, 3);
+  auto twin = make(xHoled, 42, 6);
+  SamplerStateData before, twinState;
+  recipient->getState(before);
+  twin->getState(twinState);
+  twinState.chains[0].rngState = before.chains[0].rngState;
+  check(twin->setState(twinState, xHoled.data()) &&
+          warmStartsClean(*twin, donor, liveMap, xHoled.data()),
+        "warm start counts: a recipient of as many trees takes the donor as "
+        "it stands");
+  WarmStartReport report;
+  check(warmStartsAltered(*recipient, donor, liveMap, xHoled.data(), false,
+                          &report) &&
+          report.mean[0].offered == 6 && report.mean[0].taken == 3 &&
+          report.mean[0].singleLeaves == 0 && report.mean[0].moved == 0 &&
+          report.mean[0].cutBack == 0 && report.mean[0].sideDropped == 0,
+        "warm start counts: a recipient of fewer trees declines the donor "
+        "and, forced, takes 3 of its 6");
+  SamplerStateData got, all;
+  recipient->getState(got);
+  twin->getState(all);
+  bool sides = got.chains[0].rngState == all.chains[0].rngState;
+  size_t right = 0;
+  for (const std::vector<FlatNode>& kept : got.chains[0].forests[0].trees) {
+    bool found = false;
+    for (const std::vector<FlatNode>& drawn : all.chains[0].forests[0].trees)
+      found = found || sameFlatTrees({kept}, {drawn});
+    sides = sides && found && kept.size() == 3;
+    if ((kept[0].flags & flatMissingGoesRight) != 0) ++right;
+  }
+  check(sides && right > 0 && right < 3,
+        "warm start counts: the sides are drawn once over the donor sample, "
+        "the generator past one pass of coins and the trees kept holding "
+        "that pass's sides");
+
+  // three trees into five: clean, the rest single leaves at 0
+  auto three = make(x, 6, 3);
+  three->run(20, 0, none);
+  SamplerStateData small;
+  three->getState(small);
+  auto five = make(x, 43, 5);
+  WarmStartResult result;
+  bool altered;
+  check(warmVerdictMatchesInstall(*five, small, liveMap, x.data(), result,
+                                  altered, false, &report) &&
+          result == WarmStartResult::ok && !altered &&
+          report.mean[0].offered == 3 && report.mean[0].taken == 3 &&
+          report.mean[0].singleLeaves == 2,
+        "warm start counts: a recipient of more trees takes the donor as it "
+        "stands, the rest single leaves");
+  SamplerStateData padded;
+  five->getState(padded);
+  std::vector<std::vector<FlatNode>> expected(small.chains[0].forests[0].trees);
+  expected.resize(5, std::vector<FlatNode>(1));
+  check(sameFlatTrees(padded.chains[0].forests[0].trees, expected),
+        "warm start counts: the donor's trees in its order, then leaves at 0");
+
+  // the unforced answer is the forced install's over seeded pairs of other
+  // counts, other rows and sides to draw
+  {
+    size_t taken = 0, changed = 0;
+    bool agree = true;
+    for (std::uint32_t seed = 0; seed < 24; ++seed) {
+      bool holes = seed % 3 == 2;
+      auto pairDonor = make(holes ? xHoled : x, 500 + seed, 2 + seed % 5);
+      pairDonor->run(20, 0, none);
+      SamplerStateData state;
+      pairDonor->getState(state);
+      if (holes) state.missingColumns.assign(p, 0);
+      auto pair = make(holes ? xHoled : x, 600 + seed, 2 + (seed / 5) % 5);
+      agree = agree &&
+        warmVerdictMatchesInstall(*pair, state, liveMap,
+                                  (holes ? xHoled : x).data(), result,
+                                  altered) &&
+        result == WarmStartResult::ok &&
+        (2 + seed % 5 <= 2 + (seed / 5) % 5 || altered);
+      ++(altered ? changed : taken);
+    }
+    check(agree && taken >= 4 && changed >= 4,
+          "warm start counts: over 24 seeded pairs of other counts the "
+          "unforced call declines exactly when the forced install is altered");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: warm start from another tree count\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -5988,6 +6128,7 @@ void runStateTests(ext_rng* rng) {
   testSingleForestColumnRestriction();
   testCrossGridWarmStart();
   testWarmStartForms();
+  testWarmStartTreeCounts();
   testWarmStartStandardization();
   testNoSpreadLiveConversion();
   testVarianceWarmStart();
