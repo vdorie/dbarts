@@ -716,9 +716,9 @@ rm(xFlat)
 # frozen (the all-zero mixture, which a monotone sampler allows), so only
 # leaf draws move the trees. Every tree is checked on its own, read through
 # getTrees and evaluated at the midpoint of every cell its splits cut out, so
-# no other tree's rise can mask a fall and no cell is missed. No public route installs a live empty leaf, so the
-# constrained draw on one is reached only from tests/cpp
-# (testMonotoneEmptyLeaf)
+# no other tree's rise can mask a fall and no cell is missed. No public route
+# installs a live empty leaf, so the constrained draw on one is reached only
+# from tests/cpp (testMonotoneEmptyLeaf)
 donorReach <- dbarts::dbarts(
   xReach,
   -yReach,
