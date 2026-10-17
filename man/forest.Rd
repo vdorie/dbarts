@@ -153,7 +153,8 @@ forest(
     as \eqn{(\sum_k a_k B_k(x_i)) f(x_i)}{(sum_k a_k B_k(x_i)) f(x_i)}, each
     column with a coefficient \eqn{a_k}{a_k} of its own, called its
     amplitude: \eqn{K = 1}{K = 1} for a numeric column, and the two columns
-    of a factor's levels, \eqn{K = 2}{K = 2}. A forest with no basis is multiplied by a single coefficient.
+    of a factor's levels, \eqn{K = 2}{K = 2}. A forest with no basis is
+    multiplied by a single coefficient.
     A model has one forest with no basis, or none; every other forest states
     one, and a model whose only forest has a basis is refused.
 
@@ -178,7 +179,7 @@ forest(
         while \code{0 + dose} and \code{dose - 1} are \code{dose}.
     }
     A basis is either one factor (or character or logical column) or numeric
-    columns; the two are not mixed in one forest. The forest does not centre
+    columns; the two are not mixed in one forest. The forest does not center
     or scale a basis, so a multiplier that should be standardized is written
     so: \code{basis = scale(age)}.
 
@@ -263,7 +264,7 @@ forest(
     \code{poly(dose, 2)2} and \code{(Intercept)} for the column of ones. They
     are the column names of \code{data@bases[[f]]} on the sampler. A forest's label,
     where its place in a \code{forests} list has no name, is the text of its
-    basis, \code{"dose + age"}, or \code{forest<i>} for a forest with no basis
+    basis, \code{"scale(age)"}, or \code{forest<i>} for a forest with no basis
     or with one given as a value; see \code{\link{dbarts}}. Wherever a method
     or an \code{extract} or \code{predict} takes a \code{forest}, a string is
     a forest's label (failing an exact match, the label that is the same code,
@@ -290,7 +291,7 @@ forest(
 
     \strong{New rows.} \code{predict} builds the basis again from the new
     rows, as \code{predict} does for \code{lm}. Taken from the fitted rows
-    are the centre, scale and knots of \code{scale()}, \code{poly()},
+    are the center, scale and knots of \code{scale()}, \code{poly()},
     \code{ns()} and \code{bs()}, and the levels of a factor. Everything else
     is computed again on the rows given: \code{I(age - mean(age))} uses the
     mean of the new rows, and \code{factor(dose > median(dose))} their
@@ -307,8 +308,8 @@ forest(
     or for a forest built ahead of the fit, a name of a column of \code{data}
     is that column. Every other variable of yours that the code uses is
     copied when \code{forest()} is called. This is so whether or not a tilde
-    is written in place: \code{forest(basis = ~ dose + age)} is
-    \code{forest(basis = dose + age)}. A forest built in a loop therefore
+    is written in place: \code{forest(basis = ~ I(dose + age))} is
+    \code{forest(basis = I(dose + age))}. A forest built in a loop therefore
     keeps what each call was given,
     \preformatted{
     fs <- list(forest())
@@ -584,7 +585,7 @@ forest(
   states one forest's share of the combined location's prior, per unit of
   basis row norm, where \code{normal(sd = )} states a single forest's whole
   spread. Every value here is validated at fit time, and
-  anything today's engine cannot honour is refused there by name rather than
+  anything today's engine cannot honor is refused there by name rather than
   dropped.
 
   In a \code{\link{bart}} or \code{\link{dbarts}} formula each
@@ -655,7 +656,7 @@ written <- dbarts(y ~ forest(x1 + x2 + x3) +
                   d, control = dbartsControl(n.chains = 1L, n.trees = 25L))
 colnames(written$data@bases[[2L]])
 
-# a standardized multiplier: predict centres and scales the new rows by the
+# a standardized multiplier: predict centers and scales the new rows by the
 # training rows' mean and sd of w
 fit <- bart(y ~ forest(x1 + x3) +
               forest(x1 + x3, basis = scale(w), n.trees = 10L),
