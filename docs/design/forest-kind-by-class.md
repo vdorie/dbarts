@@ -1,8 +1,9 @@
 # What a forest multiplies is decided by the class of its basis
 
-Status: push 1 LANDED 2026-10-17 (1c41b21c); push 2 (one size a forest) is planned. The
+Status: LANDED 2026-10-17, push 1 (1c41b21c) and push 2, one size a forest (32418b6e). The
 plan is [forest-kind-by-class.md](../plans/forest-kind-by-class.md), which carries the steps, the gates and the
-calls made in planning; this note is the standing statement of the rule push 1 builds, whose calls are dec-A210. Rulings: dec-B260 and
+calls made in planning; this note is the standing statement of the rule push 1 builds, whose calls are dec-A210,
+and of push 2's two refusals, whose calls are dec-A212. Rulings: dec-B260 and
 dec-B254 for the kind as structure, dec-B289 and dec-B308 for a factor's levels, dec-B346 for a column of zeros,
 dec-B452 for a swap that never changes the kind, dec-B453 for numbers refused for a factor forest at predict,
 dec-B231 and dec-B418 for a state that carries no data, in docs/decisions.md.

@@ -1,7 +1,8 @@
 # forest-kind-by-class: what a forest multiplies is decided by the class of its basis, at every door, fixed at creation, and is one numeric column or two levels
 
 Status: push 1 LANDED 2026-10-17 (ff651b67..1c41b21c; calls dec-A210; [Landing note](#landing-note)) and
-push 2 planned. Revised from its blind critique on 2026-10-11 with no call open
+push 2 LANDED 2026-10-17 (d6043dfd..32418b6e; calls dec-A212; [Landing note, push 2](#landing-note-push-2)).
+Revised from its blind critique on 2026-10-11 with no call open
 ([Revised from the blind critique](#revised-from-the-blind-critique)); written to the tree of 37b59ea0,
 the final tip of the sd unit slice. Rulings: dec-B260; dec-B254 for the kind as structure; dec-B289 and
 dec-B308 for a factor's levels; dec-B346 for a column of zeros; dec-B281 and dec-B282 for the one size;
@@ -1715,7 +1716,7 @@ a forest with a basis (dec-B291) is the multiplier slice's.
   other column alone, in a forest of its own". The alternative is the third [2] text's advice for one column,
   which would name only one of them. The cost: one more branch of the one function.
 - The older texts of a basis written as code that advised a form push 2 refuses are rewritten to a form this
-  version takes, where "Refused forms" kept them as they were (the coordinator's call at the fix round): a factor
+  version takes, where "Refused forms" kept them as they were (the orchestrator's call at the fix round): a factor
   beside other terms is told to give each other term a forest of its own and the factor one too, or one for each
   level but the first where it has more than two, where it was told to write the factor as numbers; `*` between
   terms is told to give each of the three columns a forest, where it was told `dose + age + I(dose * age)`;
@@ -1729,6 +1730,73 @@ a forest with a basis (dec-B291) is the multiplier slice's.
   example, is corrected in a commit of its own after the refusal, with the British spellings in the help files the
   push touches made American. The alternative was to fold it into the refusal's commit; it was found after that
   commit's gates had run.
+- The forest a code basis's refusal names is its list name, or its basis as written, and not the label the sampler
+  gives it, which `make.unique` has made distinct from an earlier forest's. The alternative is the sampler's final
+  label, which the refusal, raised before the sampler's labels are made, would have to rebuild. The cost: two
+  forests of one basis text can be named alike in the text.
 - The baseline's `meta.rev` is written by hand as the commit that holds the package code, the recording being
   made with a later, help-only commit checked out; the code it ran is that commit's, from a `--preclean`
   reference install of a clean export.
+
+## Landing note, push 2
+
+Push 2 landed 2026-10-17 as d6043dfd..32418b6e, five commits on d6043dfd, which carries warm-start-salvage slice
+A: the respelling of the tests' blocks and the bart2twoforest scenario's factor (d1af9c17), the refusal with its
+tests, help, NEWS, design notes and the fix round (3fd96a55), the help that still said a basis has any width and
+the American spellings (f1b839f7), the re-recorded baseline equivalence-f3b47f21.rds and the gates repinned on it
+(18a85e90), and the answers to the check of the fix round (32418b6e). One build, one opus review that ran its own
+mutants, a fix round by the builder, the reviewer's check of that round, and the orchestrator's last commit.
+
+Built as planned: `refuseBasisSize` at the data door, a list's value and `dbartsSpec()` (one call, in
+`finishBasisRows`), at a code basis in `buildFitBases`, and in the record's check at `initialize`, `dbarts()`,
+`dbartsSpec()`, `$setData` and the class's validity; `conformBasis` refusing several columns for a forest of
+numbers at a swap and at predict, so that no forest changes width; `refuseHeldShape` losing its branch for three
+or more columns, and `refuseHeldWidthChange` and `refuseReorderedBasisNames` gone. Departures, the calls of
+dec-A212: the value's one call site and a validity that refuses in the same words; the forest's name in a code
+basis's text; the advice for `1 +` beside several columns; column names quoted only when every column has one;
+the width check at predict, kept by the build and deleted at the fix round; `$setForestBasis` no longer naming a
+value's columns; the bcf-family arms, the factor of test-forest-basis-terms.R and test-forest-arguments.R
+moved onto shapes that stay; tests of an object with a slot removed; and a data door that stores the names
+`("", "z")` as none.
+
+The review, LAND AFTER FIXES, found two must-fix: the levels refusal's example built from the full text of the
+basis, so that `0 + arm`, `arm - 1`, `arm + 0` and `-1 + arm` advised a basis that warns and gives missing
+values, and the bartCause gate, which the landing note is to carry. Should-fix: tests for five of its ten mutants
+that passed the suite (named value forest, a value on the third forest at `dbartsSpec()`, a code basis on the
+third forest and a named one, a three-dimensional array at a swap); the MANIFEST's conventions for a baseline's
+rows; a NEWS sentence that said "one for each column"; the older code-door texts that advised forms the push
+refuses; two sentences of the design note and a stale comment; the dead check at predict; and the help's
+British spellings. The fix round did each, moved the baseline to equivalence-f3b47f21.rds, and rewrote the older
+texts (the orchestrator's call, "Calls made building push 2"). The check of the round found one text more, a
+factor of more than two levels beside other terms advised one forest, which would itself be refused, and two
+should-fix: the `cbind()` advice wrote `forest()` calls without the forest's predictors, and one sentence of the
+plan on spellings. 32418b6e answers all three: the factor's text advises a forest for each level but the first,
+and the `cbind()` text names the columns in words.
+
+Gates, on the tip rebased onto d6043dfd: the full tinytest suite 27048 results, 0 failed, 256 files; the
+reference build's bitwise compare with strict coverage against equivalence-f3b47f21, 55 of 55, the bcf compare
+15 of 15 and the multinomial 11 of 11; the snapshot files 0 failed; the 42 exact-gate commands at `quick`, all
+pass; the lint chain clean; `R CMD check --as-cran` one NOTE (the Date field). No test needed a respelling
+after the rebase. At the build, before the fix round: the new file test-forest-basis-one-size.R 418 results,
+166 failing on the base build; all 20 mutants of the push's R code killed, and mutation-battery rows m45 to m47
+killed; the pair script's rows 33 to 36 identical, 37 identical but for names, 38 refused; the composition matrix
+269 checks and no disagreement; against equivalence-308c45be 54 of 54 identical, bart2twoforest, whose factor
+now has two levels, the one scenario moved. The reviewer's own reference install reproduced the first new baseline
+55 of 55 and held the other 54 `identical()` to equivalence-308c45be, and traced the respelling through six files
+with no pin weakened. Nothing under `src/` or `inst/include` changed, so there was no tests/cpp, sanitizer or
+x86-64 leg.
+
+The bartCause gate passes. At 3ecf9fb against push 2 the same 5 tests (7 expectations) fail as on the base build
+and nothing new; at 70ad798, before the respelling, every `bcf()` path is refused with the several-column text,
+which is what the plan expected of a consumer not yet edited; 18 seeded fits are `identical()` to those of
+dbarts 1c41b21c. stan4bart and treatSens hand over no basis. The plan's reason in B.1 for `as.integer(z)`,
+that `factor(z, levels = 0:1)` turns a logical into missing values, is untrue: it gives 1 and 0 (checked
+2026-10-17); the conversion does no harm.
+
+Size against the plan: the plan estimated about 2385 lines for push 2 and stopped at about 4750 or 270 of R.
+The range adds 1594 lines and removes 656 over 48 files: R 248 added, tinytest 1153, man 86, NEWS 11, docs 84,
+the rest 12. Inside both stops; the tests came in under their planned 1755.
+
+Left: the multiplier slice, which follows. `factor-basis-per-level` and `several-column-basis-meaning` stay in TODO,
+the two refusals being what they protect. Not run: Windows and the suites of the consumers other than
+bartCause's.
