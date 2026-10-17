@@ -367,13 +367,13 @@ expect_identical(
 )
 
 # without blocks a tree installed as a single leaf is ranked like any
-# other: into a forest increasing in x1, trees 2 and 3, decreasing, collapse
-# to one leaf each and tie at 0, and the earlier, tree 2, is kept at the
-# mean of its fits over the rows
+# other: into a forest increasing in x1, tree 2, decreasing, collapses to one
+# leaf and ties at 0 with tree 3, a single leaf, and the earlier, tree 2, is
+# kept at the mean of its fits over the rows
 falling <- list(
   split1(1L, at(1L, 50L), -0.5, 0.5),
   split1(1L, at(1L, 50L), 0.6, 0.2),
-  split1(1L, at(1L, 50L), 0.3, 0.1)
+  stump(0.2)
 )
 held <- forcedInto(handDonor(falling), 2L, monotone = c(x1 = "increasing"))
 expect_identical(held[[1L]], falling[[1L]])
