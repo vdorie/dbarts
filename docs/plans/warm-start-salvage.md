@@ -1296,6 +1296,52 @@ round:
 
 Each of the review's mutants K1 to K8 and K11 and the builder's C11, the pre-fix rule under blocks (BK1), a
 block reading another block's slots (BK2), blocks sharing a tree (BK3), the stride guard off (G1) and the clause
-order (V1), each alone on an export, fails test-warm-start-kinds.R; K11 by an install error. C6 and C10, whose code the round
-moved, fail it again. Size: the engine adds 417 lines against the stop of 400 and the range 1426 against 1350,
+order (V1), each alone on an export, fails test-warm-start-kinds.R; K11 by an install error. C6 and C10, whose
+code the round moved, fail it again. Size: the engine adds 417 lines against the stop of 400 and the range 1426 against 1350,
 the fix round's tests and the blocks rule (133 added, 68 removed in src) carrying it past.
+
+The fresh review of the fix round (LAND AFTER FIXES) found the blocks rule as called on 13 hand cases and
+nothing moved without blocks. It found the C11 kill's guard failing on 2 of 30 sampler seeds, M8 (a block's
+picks after the first not marked taken) surviving, and two places the rule fell short of the help: a donor of
+no more trees still placed by slot under blocks, 20 and 20 into 25 and 25 cutting trees 21 to 25 to leaves, and
+an earlier block using up a later block's trees as leaves, block 3 of three blocks of 60 keeping 83% of its best
+variation. The second fix round:
+
+- Blocks, the orchestrator's second call. The ranked choice needs trial installs, and an unforced call that
+  declines must write nothing, which a restore from flat trees does not give bit for bit, so the unforced
+  verdict cannot read the rounds. Four ways were weighed: (A) rank on scratch trees for the verdict,
+  duplicating the install's fits for each leaf kind, about 80 to 100 engine lines; (B) run the rounds unforced
+  under a bitwise save of every chain's live state, which does not exist, 80 lines or more; (C) place first;
+  (D) TRUE only where no block has more candidates than its count, which declines a fitted equal donor whose
+  second half holds single leaves. The call is C. Under `blocks`, whatever the count, each block in turn takes
+  in the donor's order, up to its count, the trees not yet taken that its slots hold as stored
+  ([`Chain::placeDonorTrees`](../../src/bartcore/chain.hpp), the staging of the verdict), the rest single
+  leaves; a donor all of whose trees go in so is clean and installs that way, forced or not. Otherwise it is
+  declined, and forced the ranked choice runs for any count, and a tree a block would hold as a single leaf
+  while the donor holds more is not kept there: that slot starts as a fresh single leaf and the tree stays
+  for later blocks. Across grids every forest under blocks goes by rank. The report counts the donor trees
+  each forest holds.
+- What it gives: 20 and 20 into 25 and 25 is TRUE, taken whole; into three blocks of 60 the third keeps the 60
+  most varying of the donor's trees on its columns; trees that fit no block are declined and forced fill the
+  first block by rank as cut back, the second with fresh leaves. An equal donor of the same layout is placed
+  tree for tree, the slots being contiguous: on 8 such fixtures (100 and 100, 20 and 20, 10, 10 and 20, 1 and
+  49, one and two chains) the answer, the state and the next draws are those of the build before the round
+  (scratch/wsc2/same-layout.R). Without blocks nothing moves: the cross-build script against slice B's
+  fixtures, 38 of 38 identical, and the review's 18 fixtures without blocks identical to the fix round's build.
+- A departure from the plan's draw classes: a forced warm start of the same tree count under blocks whose donor
+  does not place, such as an unblocked donor, was tree t in slot t cut back and is now the ranked choice, so its
+  draws differ (SHIFTING); the tests/cpp check of that case now holds each tree within its slot's block.
+- Cost at 5000 rows and 10 columns: 200 trees into 50 forced, 0.010 s without blocks, 0.019 s for 25 and 25,
+  0.075 s for ten blocks of 5, and 0.38 s for 49 and 1, the one-tree block's 200 rounds (the review measured
+  0.43 s); the placement on an equal donor of ten blocks of 20 costs 9 ms against 6 ms.
+- The C11 kill's sampler runs 200 sweeps: over 30 sampler seeds its guard's ratio runs 0.19 to 0.59, and C11
+  keeps the wrong tree on all 30. M8's kill uses single leaves, which every block holds as stored, so it holds
+  under either rule. The 100 and 100 loop prints a failing count pair as one string. "Block", not "row", for a
+  blocks group; the design note's ranking is under case weights; the shape refusal names an uneven kept draw.
+  `slotsByBlock` drops its erase of an empty block, which the bridge refuses.
+
+Each of the review's M1 to M8 and C11, and eight mutants of the round, each alone on an export, fails a check:
+the placement never placing (N1), placing cut trees (N2), no single-leaf exclusion (N3), the exclusion on the
+donor's own single leaves (N4), a tree placed twice (N5), a short block padded with tree 1 (N6), the taken count
+not kept (N7) and the placement from the donor's last tree back (N8). Size: the engine adds 498 lines
+against the stop of 400, accepted to 500 by the orchestrator, and the range 1711 against 1350.
