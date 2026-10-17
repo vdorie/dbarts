@@ -316,6 +316,84 @@ twin$setData(dbarts::dbartsData(y ~ a + f, byLabel(reordered)))
 expect_identical(sampler$data@x, twin$data@x)
 expect_identical(sampler$data@varTypes, twin$data@varTypes)
 
+# read by position, where the data do not carry every name of the sampler's,
+# one of its names in another place is refused: (a, g, h) would read g as f
+sampler <- pairs[[1L]]
+sampler$storeState()
+held <- untouched(sampler)
+moved <- data.frame(y = start$y, a = start$a, g = start$f, h = start$g)
+expect_error(
+  sampler$setData(dbarts::dbartsData(y ~ a + g + h, moved)),
+  pattern = "the data's column 'g' is in the place of the sampler's 'f'"
+)
+expect_identical(untouched(sampler), held)
+# and a number in a factor's place names the data's column and the place
+sampler <- samplerOf()
+frame <- frameOf(letters[1:6], letters[1:6], 2L)
+expect_error(
+  sampler$setData(dbarts::dbartsData(
+    y ~ a + b,
+    data.frame(y = frame$y, a = frame$a, b = runif(n.fl))
+  )),
+  pattern = paste0(
+    "the data's column 'b', in the place of factor 'f', holds numbers; ",
+    "give it as a factor of the sampler's labels"
+  )
+)
+
+# a term whose basis the data fix, poly() or ns(), handed in another order: the
+# record's terms carry the new data's basis, so new rows are coded on it, at
+# predict, getTrees(newdata = ) and setTestPredictor, as an in-order twin's
+ns <- splines::ns
+for (term in c("poly(a, 2)", "ns(a, df = 3)")) {
+  spread <- function(seed, n, width) {
+    set.seed(seed)
+    frame <- data.frame(
+      a = runif(n, 0, width),
+      f = factor(sample(letters[1:3], n, TRUE))
+    )
+    frame$y <- sin(frame$a) + (frame$f == "b") + rnorm(n, 0, 0.2)
+    frame
+  }
+  inOrder <- stats::as.formula(paste("y ~", term, "+ f"))
+  pairs <- lapply(1:2, function(i) {
+    set.seed(4L)
+    sampler <- dbarts::dbarts(
+      inOrder,
+      spread(1L, n.fl, 1),
+      control = control.fl
+    )
+    set.seed(5L)
+    invisible(sampler$run(10L, 5L))
+    sampler
+  })
+  handed <- spread(2L, 150L, 3)
+  rows <- spread(3L, 40L, 2)
+  pairs[[1L]]$setData(dbarts::dbartsData(
+    stats::as.formula(paste("y ~ f +", term)),
+    handed
+  ))
+  pairs[[2L]]$setData(dbarts::dbartsData(inOrder, handed))
+  expect_identical(pairs[[1L]]$data@x, pairs[[2L]]$data@x, info = term)
+  expect_identical(
+    pairs[[1L]]$predict(rows),
+    pairs[[2L]]$predict(rows),
+    info = term
+  )
+  expect_identical(
+    pairs[[1L]]$getTrees(newdata = rows),
+    pairs[[2L]]$getTrees(newdata = rows),
+    info = term
+  )
+  for (sampler in pairs) {
+    sampler$setTestPredictor(rows[c("a", "f")])
+  }
+  set.seed(9L)
+  result <- pairs[[1L]]$run(0L, 2L)
+  set.seed(9L)
+  expect_identical(result, pairs[[2L]]$run(0L, 2L), info = term)
+}
+
 # a factor column handed over as bare codes with no level table is refused in
 # the words of dec-B360, and the sampler is left as it was
 sampler <- samplerOf()
@@ -326,7 +404,7 @@ codes <- cbind(a = frame$a, f = as.double(as.integer(frame$f)) - 1)
 attr(codes, "varTypes") <- c(0L, 1L)
 expect_error(
   sampler$setData(dbarts::dbartsData(codes, frame$y)),
-  pattern = "the data hold factor 'f' as numbers with no level table"
+  pattern = "factor 'f' holds numbers with no level table; give dbartsData a"
 )
 expect_identical(untouched(sampler), held)
 # a matrix of codes carrying its own table is read by label, and a number that
@@ -384,3 +462,77 @@ sampler <- dbarts::dbarts(codes, frame$y, control = control.fl)
 codes[, 2L] <- rep_len(c(2, 0, 1), n.fl)
 sampler$setData(dbarts::dbartsData(codes, frame$y))
 expect_identical(sampler$data@x[, 2L], codes[, 2L])
+
+# on samplers of several chains and threads under case weights, and of the
+# probit family under a 0/1 mask: kept draws predict as before the swap, and
+# the record and a seeded run are a twin's
+eff.fam <- c(a = 0, b = 2, c = 4, d = 0, e = 2, f = 4)
+familyFrame <- function(levels, used, seed, family) {
+  set.seed(seed)
+  labels <- sample(used, n.fl, TRUE)
+  mu <- a.fl + eff.fam[labels]
+  y <- if (family == "gaussian") {
+    mu + rnorm(n.fl, 0, 0.3)
+  } else {
+    as.double(mu + rnorm(n.fl) > 2.5)
+  }
+  data.frame(y = y, a = a.fl, f = factor(labels, levels = levels))
+}
+at <- data.frame(a = 0.5, f = factor(letters[1:6], letters[1:6]))
+cases <- list(
+  list(family = "gaussian", chains = 3L, threads = 2L, w = runif(n.fl, 0.5, 2)),
+  list(
+    family = "probit",
+    chains = 1L,
+    threads = 1L,
+    w = rep_len(c(1, 1, 0), n.fl)
+  )
+)
+for (case in cases) {
+  control <- dbarts::dbartsControl(
+    n.chains = case$chains,
+    n.threads = case$threads,
+    n.trees = 15L,
+    n.samples = 6L,
+    n.burn = 0L,
+    keepTrees = TRUE,
+    updateState = TRUE,
+    verbose = FALSE
+  )
+  pairs <- lapply(1:2, function(i) {
+    set.seed(4L)
+    sampler <- dbarts::dbarts(
+      y ~ a + f,
+      familyFrame(letters[1:6], letters[1:6], 1L, case$family),
+      weights = case$w,
+      family = case$family,
+      control = control
+    )
+    set.seed(5L)
+    invisible(sampler$run(20L, 6L))
+    sampler
+  })
+  before <- pairs[[1L]]$predict(at)
+  handed <- familyFrame(
+    rev(letters[c(1L, 3:6)]),
+    letters[c(1L, 3:6)],
+    2L,
+    case$family
+  )
+  pairs[[1L]]$setData(dbarts::dbartsData(
+    y ~ a + f,
+    handed,
+    weights = rev(case$w)
+  ))
+  pairs[[2L]]$setData(dbarts::dbartsData(
+    y ~ a + f,
+    byLabel(handed),
+    weights = rev(case$w)
+  ))
+  expect_equal(pairs[[1L]]$predict(at), before, info = case$family)
+  expect_identical(pairs[[1L]]$data@x, pairs[[2L]]$data@x, info = case$family)
+  set.seed(9L)
+  result <- pairs[[1L]]$run(0L, 2L)
+  set.seed(9L)
+  expect_identical(result, pairs[[2L]]$run(0L, 2L), info = case$family)
+}

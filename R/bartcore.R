@@ -591,6 +591,24 @@ alignDataFactorLevels <- function(newData, x.train) {
     x <- permutePredictorColumns(x, order, x.train)
     x.test <- permutePredictorColumns(x.test, order, x.train)
     newData@varTypes <- newData@varTypes[order]
+    newNames <- names
+  } else if (!is.null(names) && !is.null(newNames)) {
+    # read by position, a name of the sampler's in another place is a column
+    # read as another
+    moved <- which(names %in% newNames & names != newNames)
+    if (length(moved) > 0L) {
+      k <- match(names[moved[1L]], newNames)
+      stop(
+        "$setData: the data's column '",
+        newNames[k],
+        "' is in the place of the sampler's '",
+        names[k],
+        "'; columns are matched by name only where the data carry every ",
+        "one of the sampler's names and otherwise by position, so name ",
+        "them as the sampler does",
+        call. = FALSE
+      )
+    }
   }
   tables <- attr(x.train, "factor.levels")
   given <- attr(x, "factor.levels")
@@ -598,11 +616,27 @@ alignDataFactorLevels <- function(newData, x.train) {
   for (j in which(!vapply(tables, is.null, NA))) {
     table <- tables[[j]]
     if (j > length(given) || is.null(given[[j]])) {
+      subject <- paste0("factor ", label(j))
+      if (!identical(newNames[j], names[j])) {
+        subject <- paste0(
+          "the data's column '",
+          newNames[j],
+          "', in the place of ",
+          subject,
+          ","
+        )
+      }
       stop(
-        "$setData: the data hold factor ",
-        label(j),
-        " as numbers with no level table; give dbartsData a data frame, ",
-        "whose factor columns are coded by label",
+        "$setData: ",
+        subject,
+        if (inherits(x, "dbartsMixedMatrix")) {
+          " holds numbers; give it as a factor of the sampler's labels"
+        } else {
+          paste0(
+            " holds numbers with no level table; give dbartsData a data ",
+            "frame, whose factor columns are coded by label"
+          )
+        },
         call. = FALSE
       )
     }
@@ -669,6 +703,8 @@ recodePredictorColumn <- function(x, j, given, table) {
 
 # A dense predictor source's columns in the order 'order', with their builder
 # attributes, and the sampler's design attributes, whose names they now carry.
+# The sampler's terms take the data's predvars, matched by variable, since the
+# columns hold the data's basis of a term such as poly() or ns().
 permutePredictorColumns <- function(x, order, x.train) {
   if (is.null(x)) {
     return(NULL)
@@ -685,6 +721,17 @@ permutePredictorColumns <- function(x, order, x.train) {
   }
   for (name in c("term.labels", "terms", "drop", "indicator.levels")) {
     if (!is.null(attr(x, name))) attr(result, name) <- attr(x.train, name)
+  }
+  newTerms <- attr(x, "terms")
+  if (!is.null(newTerms) && !is.null(attr(result, "terms"))) {
+    variables <- function(terms) {
+      vapply(as.list(attr(terms, "variables"))[-1L], deparse1, "")
+    }
+    index <- match(variables(attr(result, "terms")), variables(newTerms))
+    attr(attr(result, "terms"), "predvars") <- as.call(c(
+      quote(list),
+      as.list(attr(newTerms, "predvars"))[-1L][index]
+    ))
   }
   result
 }
