@@ -552,8 +552,8 @@ the amplitudes for every draw. Full detail
 and anchors: docs/design/bcf.md, "Public creation surface".
 
 **One knob per forest.** `forest()` carries `basis`, `vars`, `n.trees`,
-`base`, `power`, `sd`, `interactions`, `blocks`,
-`amplitude.prior.variance` and `amplitude`, every one defaulting to
+`base`, `power`, `sd`, `interactions`, `blocks` and `amplitude`, every one
+defaulting to
 NULL - "not declared" - so an omitted knob takes the engine's default and a
 declaration colliding with a top-level argument of the same name refuses
 instead of silently winning. The fit's own `control@n.trees`, `tree.prior`,

@@ -24,9 +24,9 @@ The units are those of y under a gaussian response and those of the latent index
 4. Who holds the map. The engine, in one function
    ([`forestMapEntry`](../../src/bartcore/combiner.hpp)), with the defaults in another
    ([`defaultForestSd`](../../src/bartcore/combiner.hpp)). A forest's statement
-   ([`ForestStatement`](../../src/bartcore/combiner.hpp)) is an sd or none, the hold, and a coefficient
-   variance where `amplitude.prior.variance` states one; whether the forest has a basis is the one thing of
-   its kind the map reads. R derives none of it and divides nothing.
+   ([`ForestStatement`](../../src/bartcore/combiner.hpp)) is an sd or none and the hold; whether the forest
+   has a basis was the one thing of its kind the map read, until forest-multiplier's push 1 stated the kind
+   and dropped `amplitude.prior.variance` ([forest-multiplier.md](forest-multiplier.md)). R derives none of it and divides nothing.
 5. Read. `$getLeafPrior(f)` returns `leaf.prior`, the statement (`forest(sd = v)`, v the number as written,
    where one was stated, and `forest()` where none was); `sd`, the number in force in the response's units,
    which is v bit for bit or the default's multiple times the unit; and `sd.stated`. With no forest it returns

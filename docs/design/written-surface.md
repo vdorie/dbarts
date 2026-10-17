@@ -16,9 +16,11 @@ predict. A held coefficient was a flag, `update.amplitude`.
 ## The grammar
 
     forest(vars = NULL, basis = NULL, sd = NULL, n.trees = NULL, base = NULL, power = NULL,
-           amplitude = NULL, interactions = NULL, blocks = NULL, amplitude.prior.variance = NULL)
+           amplitude = NULL, interactions = NULL, blocks = NULL)
 
 Only the first argument may be given without its name, so that any later argument is an addition.
+`amplitude.prior.variance`, a last argument here when this slice landed, went with forest-multiplier's
+push 1 ([forest-multiplier.md](forest-multiplier.md)).
 
 | written | means |
 |---|---|
