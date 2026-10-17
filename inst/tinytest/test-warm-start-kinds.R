@@ -420,6 +420,16 @@ held <- forcedInto(handDonor(across), 3L, blocks = twoBlocks(1L, 2L))
 expect_identical(held[[1L]]$vars, c(1L, -1L, -1L))
 expect_identical(held[[1L]]$values[2L], 0.4)
 expect_identical(held[2L:3L], list(stump(0), stump(0)))
+expect_identical(
+  lineOf(
+    make(blocks = twoBlocks(1L, 2L), control = trees(3L)),
+    handDonor(across)
+  ),
+  paste(
+    "warm start: 1 of 3 donor trees taken; 2 trees started as single leaves;",
+    "1 cut back to fit"
+  )
+)
 
 # a tree a block keeps is not kept again by a later one: into 2 and 2 the
 # first block keeps tree 1 and the single leaf tree 2, the earliest of those
