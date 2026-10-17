@@ -110,15 +110,22 @@ forest f the pair its own constant-leaf node sums need: response
 `r_i / m_{f,i}` and weight `w_i m_{f,i}^2`, where `r_i` is the residual net of
 every OTHER forest's scaled contribution.
 
-A multiplier indistinguishable from zero at `0x1p-26`
+A multiplier at most `0x1p-26` of the largest absolute multiplier the forest
+has over the rows in the sweep
 ([`zeroMultiplierTolerance`](../../src/bartcore/combiner.hpp), applied inside
 [`AmplitudeForestCombiner::formForestResponse`](../../src/bartcore/combiner.hpp)) leaves the row with exactly
-zero weight AND exactly zero response. The zero response is required rather
+zero weight AND exactly zero response, and a forest whose every multiplier is
+zero loses every row. The bound is RELATIVE so that a numeric basis in other
+units is the same forest: scaling every multiplier by a power of two leaves the
+same rows in, where an absolute bound left a column of values near 1e-9 with no
+row at all (forest-multiplier, push 2's first commit, bitwise on every recorded
+scenario). The zero response is required rather
 than cosmetic: the chain reads this buffer arithmetically when it rolls the
 running residual and finalizes total fits, and the node sufficient-statistic
 kernels accumulate `w * y`, where a zero weight against an amplified response
 would be `0 * inf`. The tolerance doubles as a condition-number cap - the
-division amplifies by at most 2^26, whatever the family, the weights and K,
+division amplifies by at most 2^26 relative to the forest's largest
+multiplier, whatever the family, the weights and K,
 and the arithmetic downstream cancels that amplification EXACTLY rather than
 merely bounding it: the node kernels accumulate `sumWeights = sum_i w_i
 m_i^2` and `sumWeightedResponse = sum_i (w_i m_i^2)(r_i / m_i)`, whose exact
@@ -463,10 +470,10 @@ Stated on `ForestSpec` (as a [`ForestStatement`](../../src/bartcore/combiner.hpp
 an sd in the response's units or none, a hold, a coefficient variance or none)
 and resolved in one function, [`forestMapEntry`](../../src/bartcore/combiner.hpp),
 which [`Chain`](../../src/bartcore/chain.hpp) calls once for each forest at each
-construction. The node scale is
-`nodeScaleFactor * s / (nodeScaleDivisor * c)`, s the family's own LATENT
-SCALE and c the median nonzero row norm of the forest's basis - exactly `1.0`
-on every shipped route, so c is inert there:
+construction. The node scale is `nodeScaleFactor * s / nodeScaleDivisor`, s
+the family's own LATENT SCALE; a basis multiplies the forest as it is given and
+enters no node scale (the median row norm it was once divided by went with
+forest-multiplier's push 2):
 
 | family | s |
 |---|---|
@@ -481,7 +488,12 @@ scale at s - bcf's prognostic forest, factor and divisor both 1, giving
 FIXED-VARIANCE amplitude carries it in the node scale, divided through the
 half-normal median 0.674 - bcf's treatment forest, giving
 `tau ~ N(0, (sdModerate s / 0.674)^2)`, so `(b1 - b0) tau` sits at
-`sdModerate` units of s. Under gaussian s IS `sd(y)`; under probit and
+`sdModerate` units of s, each level's coefficient N(0, 1/2); a numeric
+column's one coefficient is N(0, 1) under the same divisor, so `a f` has median
+size the forest's sd per unit of the column, and with no sd stated the forest
+takes one unit for one standard deviation of the column, taken once over the
+rows in the likelihood and recorded with the data
+([forest-multiplier.md](forest-multiplier.md)). Under gaussian s IS `sd(y)`; under probit and
 logistic s is the link's own fixed latent scale, sigma is PINNED, and there is
 no response sd for either quantity to be stated against.
 
@@ -509,7 +521,7 @@ at any place, and the map gives a forest with a basis a zero half-Cauchy scale
 ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) - forests 2..K are
 ALWAYS fixed-variance unless held. There is NO per-K renormalization anywhere
 in the MAP: it disperses as `sqrt(K)` by construction (exponent exactly 1/2),
-`1.04912 sqrt(K) s` at unit row norms. `binary-kforest-prior-default` S2 once
+`1.04912 sqrt(K) s` over K factors. `binary-kforest-prior-default` S2 once
 gave the DEFAULT `nodeScaleFactor` ([`defaultForestSd`](../../src/bartcore/combiner.hpp))
 `sqrt(2/K)` to cancel that growth; under dec-B291 a forest with a basis defaults
 to the literal 1 whatever K, each forest being a named effect with its own prior,
@@ -522,15 +534,14 @@ sum, most felt under probit and logistic, until forests can share one total
 coefficient is a constant and its own sd is its `sd`, exactly
 ([forest-multiplier.md](forest-multiplier.md)).
 
-**The contract, in the form the row-norm fix makes true, identical under
-gaussian and under a latent family.** (1) `sd` is stated PER UNIT OF BASIS ROW
-NORM: a forest whose basis rows have median
-nonzero norm c contributes the scale named, and the map divides c out.
-(2) The induced prior sd on the index at row i is
-`sqrt( sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2 )` over the fixed-variance
-forests, `prior.sd_f` read from `$getLeafPrior(f)$k.scale` (k is pinned at 1) and
-`v_f` the variance of the forest's drawn coefficients, 1/2; a basis-free
-forest's own contribution is Cauchy with no sd. (3) Under probit and logistic
+**The contract, identical under gaussian and under a latent family.** (1) A
+numeric forest's `sd` is stated PER UNIT OF ITS COLUMN, as given, and a factor's
+is the size of the difference between its levels. (2) The induced prior sd on
+the index at row i is `sqrt( sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2 )` over the
+fixed-variance forests, `prior.sd_f` read from `$getLeafPrior(f)$k.scale` (k is
+pinned at 1) and `v_f` the variance of the forest's drawn coefficients, 1/2 a
+level and 1 a numeric column; a basis-free forest's own contribution is Cauchy
+with no sd. (3) Under probit and logistic
 that index is in LATENT sd units and sigma is PINNED, so nothing absorbs a
 mis-scaled basis; under gaussian it is in `sd(y)` units and a drawn sigma
 partly does. (4) The MAP disperses the index as `sqrt(K)`, per the two facts
@@ -559,22 +570,16 @@ general channel ([`Chain::amplitudes`](../../src/bartcore/chain.hpp), [`forestTo
 
 ## Surfaces
 
-The map is READABLE, at all three layers, and is the only route to any of its
-five quantities:
-`$getLeafPrior(f)` reports `amplitude.prior.scale` on a drawn forest with no
-basis, the scale-mixture spelling of `ForestAmplitudePrior` (the fixed variance
-of a forest with a basis being 1/2 and no longer reported), and `multiplier`
-and `amplitude`, beside `leaf.scale.factor`,
-`leaf.scale.divisor` and `basis.row.norm`, absent on any forest with no map entry;
-`bartcore_getLeafPrior` carries the five columns and
-`dbarts_forest_calibration` the five appended fields. The anchor s rides one
-more `bartcore_getLeafPrior` column, `map.anchor`, which the R reader does not
-report; s is recovered as `prior.sd * divisor * rowNorm / factor` whenever
-`leaf.scale.factor` is not NaN, which is exactly when the calibration in force
-is the map's: a `setState` or `installTrees` that brings a foreign leaf scale
-clears both `leaf.scale` columns (the amplitude prior follows the state, the
-row norm is unaffected - bases are not state) and `setForestBasis` re-imposes
-the map and restores them.
+The map is READABLE as the prior it states and not as its channels:
+`$getLeafPrior(f)` reports a forest's `sd` in force, `sd.stated`, `multiplier`,
+`amplitude`, `prior.sd.of` and, on a numeric forest whose data records one,
+`basis.scale`; the engine's
+[`ForestCalibration`](../../src/bartcore/chain.hpp) carries the sd in force,
+the stated sd, the kind, the hold, the scale held and whether it was read from
+every row, and no longer a factor, a divisor or a row norm. The anchor s and
+the unit ride `bartcore_getLeafPrior` columns, `map.anchor` and `map.unit`,
+which R records at creation and the reader does not report. No swap and no
+install moves a forest's prior: a basis is installed and nothing is derived.
 
 R creation: `forests = list(forest(basis = ...))` plus the per-forest knob map
 (`resolveForests`, R/model.R), and `dbartsData(bases = )` for a numeric basis

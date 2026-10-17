@@ -162,7 +162,7 @@ The spellings below are the tip's, with a tilde on a basis; push 3 drops it.
   are (0, 1, 1); `cbind(1 - z, z)` handed through `dbartsData(bases = )` and held second is (0, 1). A
   forest with no basis held as the second forest is held at 0 and leaves the model: R cannot write that
   at the tip and can once step 1.1 lands. One numeric column is refused already
-  ([`refuseHeldOneColumn`](../../R/model.R), dec-A171). `$setForestBasis` on a held two-level forest takes
+  (retired: [`refuseHeldOneColumn`](../../R/model.R), dec-A171). `$setForestBasis` on a held two-level forest takes
   a three-level factor and holds it at (0, 1, 1).
 - What holds a coefficient, traced on push 3's build: the suite creates 49 held forests, 17 with no basis
   as forest 1 of 2 and 32 with two columns as forest 2 of 2 (one of the 32 two numeric columns, in
@@ -450,7 +450,7 @@ z, and "the table" is each forest's count from the engine and its base and power
     test-bcf-creation.R expect forest 1's own count and prior in the first three. Run the suite first and
     repair what it shows.
 1.10 The held shapes the tip gets wrong, interim. Where [`resolveSamplerSpec`](../../R/spec.R) refuses
-    a held single column today ([`refuseHeldOneColumn`](../../R/model.R)), one function
+    a held single column today (retired: [`refuseHeldOneColumn`](../../R/model.R)), one function
     (`refuseHeldShape`) applies the table of "A held coefficient, until the multiplier slice" to every
     held forest, by `NCOL()` of its final basis and its position; and where
     [`setForestBasis`](../../R/dbarts.R) refuses one column on a held forest it refuses any width but

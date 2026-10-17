@@ -515,7 +515,7 @@ at `predict`, the text for a forest given a basis it has none of, by the fifth; 
 NA as a level written as code, "has the level 'NA' at a new row, which no row of the fit had", by the
 fourth. Gone with push 1, its case at creation no longer a refusal (dec-B308): "a 'basis' factor level
 with no observations contributes nothing to a forest: ...; drop it with droplevels()". Replaced by
-push 2: [`refuseHeldShape`](../../R/model.R)'s text for a held basis of three or more columns and
+push 2: retired: [`refuseHeldShape`](../../R/model.R)'s text for a held basis of three or more columns and
 retired: [`refuseHeldWidthChange`](../../R/model.R)'s for a held forest's width at a swap; "'bases' gives forest
 2 2 columns; its amplitudes take 1" where the forest is numeric;
 retired: [`refuseReorderedBasisNames`](../../R/forestBasis.R)'s refusal of a swap whose columns stand in another
@@ -525,7 +525,7 @@ levels" and the text for a logical with one value, each now met at the data door
 so are "a 'basis' row's norm is not representable" and "a 'basis' must have at least one column", which
 take `<arg>` with them.
 Kept as they are: the texts about a basis's length, the at-least-two-forests text,
-[`refuseHeldOneColumn`](../../R/model.R)'s refusal of a held single numeric column (dec-B353),
+retired: [`refuseHeldOneColumn`](../../R/model.R)'s refusal of a held single numeric column (dec-B353),
 forest-defaults-by-kind's two interim texts by position, at `predict` the refusal of `bases` with no
 new rows, and every other text of a basis written as code (a logical matrix of several columns as a
 term, a factor beside other terms, a level at a new row that the fit did not have, an operator the
@@ -925,7 +925,7 @@ Second commit, the refusal.
     `dbartsSpec()` handed a data object, and the class's validity, refuse an object edited by hand,
     in the words for a value. Every sampler this version makes passes it for life, no forest changing
     width from this commit on, so a `copy()` passes it; a reload's re-creation is not checked. It is
-    called before anything is read of a hold, so [`refuseHeldShape`](../../R/model.R)'s refusal of a
+    called before anything is read of a hold, so retired: [`refuseHeldShape`](../../R/model.R)'s refusal of a
     held basis of three or more columns can no longer be reached and goes.
 2.5 After creation. `conformBasis` refuses a numeric value of several columns for a numeric forest, with
     the last [2] text, at `$setForestBasis` and at `predict`; with it no forest changes width, and

@@ -131,7 +131,7 @@ the coefficient is held.
   [`ForestSpec`](../../src/bartcore/combiner.hpp) carries the last five as `nodeScaleFactor`,
   `nodeScaleDivisor`, `amplitudePriorVariance`, `amplitudePriorScale` and the hold flag. The K-forest
   constructor of [`Chain`](../../src/bartcore/chain.hpp) then divides by
-  [`basisRowNorm`](../../src/bartcore/chain.hpp) ([`mapLeafScale`](../../src/bartcore/chain.hpp)). The
+  retired: [`basisRowNorm`](../../src/bartcore/chain.hpp) ([`mapLeafScale`](../../src/bartcore/chain.hpp)). The
   defaults live in R (retired: [`defaultAmplitudePriorScale`](../../R/model.R), an R function this slice removes, and `sqrt(2 / K)` written in
   `forestParams`). Of a forest's kind the rule reads one thing, whether it has a basis. The forests'
   record on the control holds `params` (the eight numbers), `vars`, `labels`, `heldAmplitude`,
@@ -697,7 +697,7 @@ No new item: `forest()` and its `sd` are new in 1.0-0 and nothing released chang
   forest as the first three of the four numbers; the third text stands beside the refusal of a leaf
   prior where no forest is without a basis, which comes first; selection by label, which step 4's
   `extract` by label uses; the interim refusal of held shapes
-  ([`refuseHeldShape`](../../R/model.R)), which this slice does not touch; the forests' labels, which
+  (retired: [`refuseHeldShape`](../../R/model.R)), which this slice does not touch; the forests' labels, which
   name the reader's and `extract`'s lists.
 - On the creation slice of response-scale-rows, which lands first: the rows the anchor is read from and
   the response model's answer to which rows it read. Its tests pin the anchor's rows; this slice's pin the

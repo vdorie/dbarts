@@ -50,8 +50,6 @@ Mid-chain, over every chain:
     cal <- sampler$getCalibration(forest = 1L)
     # numeric matrix, one ROW per chain, columns prior.scale prior.sd
     # prior.mean k k.has.hyperprior response.scale response.shift
-    # amplitude.prior.variance amplitude.prior.scale node.scale.factor
-    # node.scale.divisor basis.row.norm,
     # plus attr(, "leaf.model") in {constant, monotone, linear, gp}
 
     sampler$setCalibration(prior.scale = 3.0, forest = 1L, updateState = NA)
@@ -81,34 +79,20 @@ branch.
 
 On every BCF row, `prior.scale` is the prior sd of forest f's own `f_f`, NOT of
 its contribution `m_f f_f` to the combined index - `$getForestAmplitudes()`
-reports the multiplier, the other half of the pair. It is stated PER UNIT OF
-BASIS ROW NORM; under the two latent rows the index itself is in latent sd
-units with sigma PINNED, where the gaussian row's is `sd(y)` and a drawn sigma
-partly absorbs a mis-scaled basis. The induced index prior, the map's `sqrt(K)`
-dispersion and the `sqrt(2/K)` node scale factor default that cancels it are
-docs/design/multiplier-combiner.md's map section. Two of the five columns are
-therefore where a defaulting caller READS the shipped prior: after
-`binary-kforest-prior-default` S2, `node.scale.factor` prints `sqrt(2/K)` and
-`amplitude.prior.scale` prints the family's own half-Cauchy median, 2 under
-gaussian and 1 under the latent families.
+reports the multiplier, the other half of the pair. A numeric basis multiplies
+the forest as it is given, so a numeric forest's is stated per unit of its
+column; under the two latent rows the index itself is in latent sd units with
+sigma PINNED, where the gaussian row's is `sd(y)`. The induced index prior and
+the map's `sqrt(K)` dispersion are docs/design/multiplier-combiner.md's map
+section.
 
-The five map columns are the same rows read one level down
-(`binary-kforest-prior-default` S1). On a mapped forest they carry the
-DECOMPOSITION of `prior.scale`, `factor * s / (divisor * rowNorm)`, so the
-anchor s - the one map quantity with no column, and data-dependent under
-gaussian - is recovered as `prior.scale * divisor * rowNorm / factor`; every
-other row above reports NaN in all five, which is a positive "not map-derived"
-signal rather than a neutral 1.0. Two of them are the amplitude PRIOR, in
-whichever of `ForestAmplitudePrior`'s two exclusive spellings the forest
-carries, and never the scale mixture's live variance auxiliary, which is state
-and rides `$state`'s `aVariance`. The engine reads its own retained spec, not
-the combiner, so no virtual joined `ForestCombiner` and no draw moved.
-
-| channel | the five map columns |
-|---|---|
-| `setForestBasis` | `basis.row.norm` re-derived from the new basis, the other four unchanged, and the two `node.scale` columns RESTORED if an install had cleared them |
-| `setState` / `installTrees` with a foreign leaf scale | `node.scale.factor` and `node.scale.divisor` go NaN (the stored pair no longer decomposes what is in force); `amplitude.prior.variance` FOLLOWS the state; `basis.row.norm` unchanged |
-| `setState` restoring a sampler's OWN state | unchanged, since the installed scale is bitwise the one in force |
+The five map columns this section once listed (`amplitude.prior.variance`,
+`amplitude.prior.scale`, the node scale's factor and divisor, and the basis row
+norm) are gone from the reader with forest-multiplier's push 2: the row norm
+went with the rule that divided by it, and the reader reports the prior alone,
+the forest's `sd` in force, whether it was stated, what it multiplies, a held
+coefficient and a numeric column's recorded scale
+([forest-multiplier.md](forest-multiplier.md)).
 
 ## 3. What prior.sd means, per leaf model
 

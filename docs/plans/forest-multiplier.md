@@ -193,7 +193,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   [`rebuildAmplitudeLayout`](../../src/bartcore/combiner.hpp), which carries by position and fills
   with 1, and the two-forest reading of [`restoreGlue`](../../src/bartcore/combiner.hpp), which passes
   by a held block. R keeps the wrong shapes out by width and position:
-  [`refuseHeldShape`](../../R/model.R) at creation (one numeric column, dec-B353; a forest with no
+  retired: [`refuseHeldShape`](../../R/model.R) at creation (one numeric column, dec-B353; a forest with no
   basis written second in a `forests` list; two columns that are not second; three or more) and, at
   a swap, retired: [`refuseHeldWidthChange`](../../R/model.R), which forest-kind-by-class's second
   push removed with the last swap that could change a width. Run: of three forests, a forest with no basis,
@@ -212,7 +212,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   `new("dbartsSampler", control, model, data)` take it from the column then in force, so after a swap to
   w / 10 all three have ten times the creation's sd. Nothing of it is recorded.
 - At 37b59ea0 the row norm is as above and is taken at the two places the header names
-  ([`basisRowNorm`](../../src/bartcore/chain.hpp)), over every row, while the unit of an sd is read
+  (retired: [`basisRowNorm`](../../src/bartcore/chain.hpp)), over every row, while the unit of an sd is read
   over the rows in the likelihood ([`GaussianResponse::scaleRows`](../../src/bartcore/model.hpp)). Run:
   with ten rows of weight zero whose dose is 5, the row norm is the median over all 150 rows (0.02092;
   over the rows in it would be 0.01957) and the unit is the sd of the 140 (1.2496; 1.2334 over all);
@@ -267,7 +267,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), gone with push 1, with `hasBasis` in the
   forests' record, keeps it for a forest created with no basis and given one since, a case dec-B452
   closes. The K-forest constructor of [`Chain`](../../src/bartcore/chain.hpp) still
-  divides by [`basisRowNorm`](../../src/bartcore/chain.hpp)
+  divides by retired: [`basisRowNorm`](../../src/bartcore/chain.hpp)
   ([`mapLeafScale`](../../src/bartcore/chain.hpp)). [`ForestAmplitudePrior`](../../src/bartcore/combiner.hpp)
   holds one variance for a forest's whole block, which is all one numeric column or two levels need.
   The bridge's swap still drops the engine's answer
@@ -735,7 +735,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
 1.3 R. [`forest`](../../R/model.R) loses `amplitude.prior.variance`, and
     [`validateForestKnobs`](../../R/model.R), [`resolveForests`](../../R/model.R) and the multi-forest
     block of [`resolveSamplerSpec`](../../R/spec.R) their lines for it.
-    [`refuseHeldShape`](../../R/model.R), which forest-kind-by-class left with three rows (one numeric
+    retired: [`refuseHeldShape`](../../R/model.R), which forest-kind-by-class left with three rows (one numeric
     column; a forest with no basis second; two columns not second), keeps one,
     dec-B353's, read from the forest's kind and no longer from a width, and loses the two by position:
     a forest with no basis and a two-level factor are held wherever they stand.
@@ -897,7 +897,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     starting at 1, and s where it is held at 1. A numeric block of several columns throws, and a
     fixture of tests/cpp that builds one is restated on one column, or as a levels block where that is
     what it stood for.
-    [`basisRowNorm`](../../src/bartcore/chain.hpp) goes with everything that read it. One function of
+    retired: [`basisRowNorm`](../../src/bartcore/chain.hpp) goes with everything that read it. One function of
     the chain sets a forest's leaf scale from the sd in force,
     [`mapLeafScale`](../../src/bartcore/chain.hpp) as the sd unit slice has it for a write and a swap,
     and the constructor calls it too, where today it writes the expression out.
@@ -969,8 +969,8 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     reports, so that which rows are in is decided in one place. With an sd stated the column is
     created (dec-B307). [`samplePriorPredictive`](../../R/dbarts.R) refuses several
     forests at its door. dec-B353's refusal goes, and
-    [`refuseHeldOneColumn`](../../R/model.R) and what is left of
-    [`refuseHeldShape`](../../R/model.R) with it: a numeric column is held at 1.
+    retired: [`refuseHeldOneColumn`](../../R/model.R) and what is left of
+    retired: [`refuseHeldShape`](../../R/model.R) with it: a numeric column is held at 1.
     Tests: `rep(1, n)`, 0.1, 61.7 and 1e8 + 0.1 on every row, and a column constant on the rows `subset`
     keeps, each refused at four doors, in the [2] text with the forest's label, and created with
     `sd = 2`; the same five through
@@ -1028,7 +1028,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     data's other records are gated bit for bit, and until now no recorded draw would move if one of
     them took a scale twice or dropped a record.
 2.10 Respell and repair. Run the suite first. Expected: the assertions that pin the row norm and a
-    numeric coefficient's variance (["medianRowNorm"](../../inst/tinytest/test-bcf-family.R), 13 at the
+    numeric coefficient's variance (retired: ["medianRowNorm"](../../inst/tinytest/test-bcf-family.R), 13 at the
     tip, fewer after the kind-by-class slice's removals) are rewritten as pins of "The rule" or go with
     it; the 45 creations of test-bcf-family.R on a constant column that state no sd state one; the pins
     of the reader's old entries and labels
@@ -1249,7 +1249,7 @@ Each requirement with what holds it; "test" is the step above that fails if it i
   second push, after which every forest is one numeric column or two levels and none changes width, so
   that what moves in push 2 here is a number that was meant as one, the tests' blocks of indicator
   columns are the factors they stand for, a column of zeros is refused at creation at every door, and
-  [`refuseHeldShape`](../../R/model.R) has lost its row for three or more columns and
+  retired: [`refuseHeldShape`](../../R/model.R) has lost its row for three or more columns and
   retired: [`refuseHeldWidthChange`](../../R/model.R) is gone; bartCause's factor line. If that slice's build
   moves a name cited here, the names are read again before push 1 is built.
 - To recheck once each has landed: the stand-in is of no further use for counts, most of what it failed
@@ -1545,7 +1545,7 @@ swap, a copy and for a constant column; `samplePriorPredictive`; the refusals of
 
 Shared with forest-kind-by-class. It builds the record and the function this plan reads a kind
 from, the loop step 1.2 extends, the slot pattern `basis.scale` follows, and it removes
-retired: [`refuseHeldWidthChange`](../../R/model.R), now gone, and one row of [`refuseHeldShape`](../../R/model.R); it
+retired: [`refuseHeldWidthChange`](../../R/model.R), now gone, and one row of retired: [`refuseHeldShape`](../../R/model.R); it
 leaves this plan the two rows by position, dec-B353's row, the engine's bit, the creations on a 0/1
 number and on a constant column, and the reader's and the block's words for a kind. No step is
 planned twice. What this plan needs of it: one size a forest, a kind no swap changes, and every block

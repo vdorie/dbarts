@@ -85,7 +85,8 @@ first against second, -0.25 and 1.07. One order under other seeds gives -0.84 an
 The engine holds a coefficient where it starts it, by the forest's position: the second forest's first
 column at 0 and its others at 1, every other forest's at 1. Until a held coefficient has a value of its
 own for every shape, `amplitude = fixed()` is taken only where that is the value the help states
-([`refuseHeldShape`](../../R/model.R)).
+(retired: [`refuseHeldShape`](../../R/model.R), gone with forest-multiplier's push 2, when every
+shape held has its value).
 
 | held forest | position | held at | taken | lasts |
 |---|---|---|---|---|

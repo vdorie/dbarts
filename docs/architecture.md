@@ -64,7 +64,10 @@ basis, written as the right-hand side of a model formula, is read by
 rows the data object keeps. The class of a basis decides what its forest
 multiplies, levels or numbers, at every door and for the life of the sampler,
 and a factor's levels ride the data object beside its block of indicator
-columns, in `data@basis.levels` (docs/design/forest-kind-by-class.md); a fit's
+columns, in `data@basis.levels` (docs/design/forest-kind-by-class.md), and a
+numeric column's scale, which the engine takes at a first creation for a
+forest that states no sd, rides it in `data@basis.scale` and is handed to every
+later creation (docs/design/forest-multiplier.md); a fit's
 `bases` holds the factor for a forest of levels. The record that rebuilds a basis at new rows, R's
 own `terms`, rides the forests' configuration on the control
 (docs/design/written-surface.md). A forest's default tree count and tree
