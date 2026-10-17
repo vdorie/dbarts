@@ -330,6 +330,33 @@ expect_identical(
   movedTrees[keptByHand(movedTrees, 20L, data = xOther)]
 )
 
+# and a tree that varies most as stored, its narrow band at 3 and -3 merging
+# where the move leaves its split no point, varies least as moved
+finePoints <- coarse <- grid
+finePoints[[1L]] <- c(0.25, 0.5, 0.6, 0.65, 0.7, 0.75)
+coarse[[1L]] <- c(0.25, 0.5, 0.75)
+band <- list(
+  tree(c(1L, -1L, 1L, 1L, -1L, -1L, -1L), c(0.6, 0, 0.7, 0.65, 3, -3, 0)),
+  split1(1L, 0.5, 0.5, -0.5)
+)
+expect_identical(keptByHand(band, 1L), 1L)
+bandSource <- make(control = trees(2L))
+bandSource$setCutPoints(finePoints)
+bandDonor <- withTrees(stateOf(bandSource), band)
+onCoarse <- function(count) {
+  sampler <- make(control = trees(count))
+  sampler$setCutPoints(coarse)
+  sampler
+}
+bandMoved <- onCoarse(2L)
+expect_null(bandMoved$installTrees(bandDonor, forceUpdate = TRUE))
+movedBand <- treesOf(stateOf(bandMoved))
+expect_true(length(movedBand[[1L]]$vars) < length(band[[1L]]$vars))
+expect_identical(keptByHand(movedBand, 1L), 2L)
+bandOne <- onCoarse(1L)
+expect_null(bandOne$installTrees(bandDonor, forceUpdate = TRUE))
+expect_identical(treesOf(stateOf(bandOne)), movedBand[2L])
+
 # ---- the donor sample each chain takes -----------------------------------------
 
 keeper <- make(
