@@ -1743,8 +1743,10 @@ a forest with a basis (dec-B291) is the multiplier slice's.
 Push 2 landed 2026-10-17 as d6043dfd..32418b6e, five commits on d6043dfd, which carries warm-start-salvage slice
 A: the respelling of the tests' blocks and the bart2twoforest scenario's factor (d1af9c17), the refusal with its
 tests, help, NEWS, design notes and the fix round (3fd96a55), the help that still said a basis has any width and
-the American spellings (f1b839f7), the re-recorded baseline equivalence-f3b47f21.rds and the gates repinned on it
-(18a85e90), and the answers to the check of the fix round (32418b6e). One build, one opus review that ran its own
+the American spellings (f1b839f7), the re-recorded baseline and the gates repinned on it
+(18a85e90), and the answers to the check of the fix round (32418b6e). The baseline was first named after the
+refusal commit's hash before the rebase onto d6043dfd, which rewrote it; the commit after the records renames it
+equivalence-32418b6e.rds, meta.rev with it, the landed commit that holds the final package code. One build, one opus review that ran its own
 mutants, a fix round by the builder, the reviewer's check of that round, and the orchestrator's last commit.
 
 Built as planned: `refuseBasisSize` at the data door, a list's value and `dbartsSpec()` (one call, in
@@ -1766,7 +1768,7 @@ that passed the suite (named value forest, a value on the third forest at `dbart
 third forest and a named one, a three-dimensional array at a swap); the MANIFEST's conventions for a baseline's
 rows; a NEWS sentence that said "one for each column"; the older code-door texts that advised forms the push
 refuses; two sentences of the design note and a stale comment; the dead check at predict; and the help's
-British spellings. The fix round did each, moved the baseline to equivalence-f3b47f21.rds, and rewrote the older
+British spellings. The fix round did each, moved the baseline, and rewrote the older
 texts (the orchestrator's call, "Calls made building push 2"). The check of the round found one text more, a
 factor of more than two levels beside other terms advised one forest, which would itself be refused, and two
 should-fix: the `cbind()` advice wrote `forest()` calls without the forest's predictors, and one sentence of the
@@ -1774,7 +1776,7 @@ plan on spellings. 32418b6e answers all three: the factor's text advises a fores
 and the `cbind()` text names the columns in words.
 
 Gates, on the tip rebased onto d6043dfd: the full tinytest suite 27048 results, 0 failed, 256 files; the
-reference build's bitwise compare with strict coverage against equivalence-f3b47f21, 55 of 55, the bcf compare
+reference build's bitwise compare with strict coverage against the new baseline, 55 of 55, the bcf compare
 15 of 15 and the multinomial 11 of 11; the snapshot files 0 failed; the 42 exact-gate commands at `quick`, all
 pass; the lint chain clean; `R CMD check --as-cran` one NOTE (the Date field). No test needed a respelling
 after the rebase. At the build, before the fix round: the new file test-forest-basis-one-size.R 418 results,
