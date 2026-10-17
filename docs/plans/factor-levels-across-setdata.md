@@ -1,14 +1,14 @@
 # factor-levels-across-setdata: setData reads a factor by label against the sampler's levels
 
-Status: PLANNED 2026-10-17, written to the tree of f514c1d8 (origin/bartcore); revised from its blind
-critique the same day ([Revised from the blind critique](#revised-from-the-blind-critique)), which kept
-the recommendation. Closes TODO `factor-levels-across-setdata`. Rulings it stands on: dec-A115 (declared
+Status: DECIDED 2026-10-17, option 5 (C below) by the maintainer (dec-B454); written to the tree of
+f514c1d8 (origin/bartcore); revised from its blind critique the same day ([Revised from the blind
+critique](#revised-from-the-blind-critique)), which kept the recommendation. Closes TODO `factor-levels-across-setdata`. Rulings it stands on: dec-A115 (declared
 levels), dec-A85 and dec-B155 (a level matched by label, an unseen one refused), dec-B279, dec-B286,
 dec-B359 and dec-B360 (every route that takes new predictors codes a factor column by label and refuses
 numbers for it), dec-B231 (setData changes derived data only unambiguously), dec-B195, dec-B418 and
 dec-A210 (a state carries no data), dec-B449 and dec-B450 (a state installs no grid), dec-B230; dec-B346
-by analogy only. It settles what dec-A209 scoped out. One call is open for the maintainer
-([For the maintainer](#for-the-maintainer)).
+by analogy only. It settles what dec-A209 scoped out. The maintainer's call
+([For the maintainer](#for-the-maintainer)) is ruled: option 5, dec-B454.
 
 agent: tier "Changes draws" ([Process by risk](README.md#process-by-risk)): the diff is R only, but four
 call sequences fit another model after it. The blind critique ran (scratch/flsc-crit.md). One opus
@@ -461,8 +461,8 @@ stan4bart's suite moves; at 150 R lines or 1000 in all.
 
 ## Open calls
 
-One, for the maintainer: which option ([For the maintainer](#for-the-maintainer)). The plan is written
-for C.
+None. The maintainer ruled option 5 on 2026-10-17, "For decision 2, yes, use your recommendation"
+(dec-B454); the plan is written for it (C).
 
 ## Revised from the blind critique
 
@@ -496,6 +496,8 @@ scratch/fls/crit) kept the recommendation. What changed:
     lasting harm is to kept draws and copies.
 
 ## For the maintainer
+
+Ruled 2026-10-17: option 5 (dec-B454). The text as shown:
 
 A sampler can be handed new data in the middle of a run, which a larger model does every sweep, for
 example when it imputes a predictor. When a predictor is a factor, the new data's factor carries its own
