@@ -171,17 +171,26 @@ saveAtomic <- function(object, path) {
 }
 
 # Effect draws are kept as single precision, a flat little-endian file
-# beside a small rds holding the dimensions.
+# beside a small rds holding the dimensions; a path ending in .gz is
+# compressed.
+openDraws <- function(path, mode) {
+  if (grepl("[.]gz$", path)) {
+    gzfile(path, mode, compression = 6L)
+  } else {
+    file(path, mode)
+  }
+}
+
 writeSingle <- function(x, path) {
   ensureDir(dirname(path))
-  con <- file(path, "wb")
+  con <- openDraws(path, "wb")
   on.exit(close(con))
   writeBin(as.numeric(x), con, size = 4L, endian = "little")
   invisible(dim(x))
 }
 
 readSingle <- function(path, dims) {
-  con <- file(path, "rb")
+  con <- openDraws(path, "rb")
   on.exit(close(con))
   x <- readBin(con, "numeric", n = prod(dims), size = 4L, endian = "little")
   array(x, dims)
@@ -2025,7 +2034,22 @@ runFit <- function(link, cellId, rep) {
     c("default", "eqDraws", "eqBurn", "long")
   }
   indices <- readingIndices(cell, r, keepNames)
-  storeKinds <- c("default", "eqDraws", "eqBurn")
+  # Before the pilot is frozen every default and equal-time reading is kept;
+  # after it, only the two readings the rule compares (the move's default, the
+  # shipped arm's frozen equal-time reading), compressed.
+  frozenChoice <- if (file.exists(frozenFile())) {
+    readRDS(frozenFile())$equalTime
+  } else {
+    NULL
+  }
+  storeKinds <- if (is.null(frozenChoice)) {
+    c("default", "eqDraws", "eqBurn")
+  } else if (which == "move") {
+    "default"
+  } else {
+    frozenChoice
+  }
+  drawsSuffix <- if (is.null(frozenChoice)) ".f32" else ".f32.gz"
   scoring <- system.time({
     readings <- lapply(names(indices), function(name) {
       idx <- indices[[name]]
@@ -2040,7 +2064,7 @@ runFit <- function(link, cellId, rep) {
           "draws",
           link,
           cellFile(cellId),
-          sprintf("r%03d-%s-%s.f32", rep, which, name)
+          sprintf("r%03d-%s-%s%s", rep, which, name, drawsSuffix)
         )
       } else {
         NULL
