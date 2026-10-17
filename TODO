@@ -730,7 +730,8 @@ items
     (dec-B273); defaults go by a forest's kind (dec-B274); extract
     returns a list by forest of vectors named by column (dec-B275).
     Landed: written-surface, forest-defaults-by-kind,
-    forest-sd-unit, forest-kind-by-class. Planned: forest-multiplier.
+    forest-sd-unit, forest-kind-by-class. Push 1 of forest-multiplier
+    built; its pushes 2 and 3 planned.
     Not yet planned: tree.prior on forest() and the variance forest, the
     reader's normal() objects.
   written-surface-leftovers: what the basis left, none planned. A
@@ -779,10 +780,14 @@ items
     dec-B269, dec-B271, dec-B272, dec-B275, dec-B354; dec-A171),
     after forest-kind-by-class (landed 2026-10-17, dec-A210, dec-A212:
     a forest multiplies one numeric column or two levels, by the
-    class of its basis, at every door) and forest-sd-unit (landed, whose reader
-    reports sqrt(2 / K) times the unit for a forest with a basis at
-    three forests or more; this slice builds the default dec-B291
-    rules, one unit whatever K). Each kind of forest gets one rule. A
+    class of its basis, at every door) and forest-sd-unit (landed).
+    Push 1 is built and not landed: a forest with a basis defaults to
+    one unit whatever K (dec-B291), a held coefficient is 1 with the
+    basis carrying the coding wherever the forest stands and makes sd
+    exact, a held forest with no basis defaults to bart()'s size
+    (dec-B290, dec-B293), amplitude.prior.variance is gone, and a
+    constant response has the unit one forest gets; pushes 2 and 3
+    are not built. Each kind of forest gets one rule. A
     held coefficient is 1 and the multiplier is what the basis says,
     wherever the forest stands (1 with no basis, the column as given
     for one numeric column, 0 for a two-level factor's reference

@@ -1284,7 +1284,8 @@ Read in each package's source at the tips Context names; no consumer suite was r
   numeric column stand. Which shapes may be held, and at what value, is the multiplier slice's
   (dec-B354).
 - The sd unit's record of a forest created without a basis (`hasBasis`, and
-  [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp) in the engine) says nothing the
+  retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp) in the engine, which
+  forest-multiplier's push 1 removed) says nothing the
   data object does not once push 1 lands, no forest gaining or losing a basis afterwards. It stays,
   this slice changing nothing the bridge reads; the multiplier slice drops it or keeps it.
 - A sampler saved before this slice has no record and reads as numbers wherever it has a basis. No

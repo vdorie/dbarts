@@ -87,8 +87,10 @@ changes it.
   entries as they were. `hasBasis` stays: the four numbers do not record which channel the forest's sd
   reached, which the map reads from the forest's first kind for the life of the sampler, and
   `$setForestBasis` refuses a basis for a forest created with none
-  ([`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp)). The record can mark a forest as
-  created without a basis; it cannot give a forest with no basis in the data one.
+  (retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), gone with
+  forest-multiplier's push 1, which states each forest's kind from the data object and drops
+  `hasBasis` from the record). The record can mark a forest as created without a basis; it cannot
+  give a forest with no basis in the data one.
 - The flat C header, the stored state and every state block are untouched.
 
 ## 4. The changed sequence and its oracle

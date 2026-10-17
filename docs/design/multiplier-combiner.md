@@ -507,48 +507,36 @@ is capped at one forest, for any K: `resolveForests`
 ([`resolveForests`](../../R/model.R), [`plainForest`](../../R/model.R)) takes one forest with no basis at most,
 at any place, and the map gives a forest with a basis a zero half-Cauchy scale
 ([`forestMapEntry`](../../src/bartcore/combiner.hpp)) - forests 2..K are
-ALWAYS fixed-variance. There is also NO per-K renormalization anywhere in the
-MAP, and `binary-kforest-prior-default` S2 added none: the map still disperses
-as `sqrt(K)` by construction (exponent exactly 1/2), `1.04912 sqrt(K) s` at
-unit row norms. What that slice moved is the DEFAULT `nodeScaleFactor`
-([`defaultForestSd`](../../src/bartcore/combiner.hpp)), from the literal 1 to `sqrt(2/K)`, whose product
-with the map's own `sqrt(K)` is `sqrt(2)` at every count. So the shipped
-all-basis index prior is `1.4837 s` at every K rather than `1.4837 s` at K = 2
-growing to `2.9674 s` at K = 8, and the argument is compositionality rather
-than magnitude: without it the prior on the combined location depends on how
-the caller DECOMPOSED the mean rather than on what they said about it, the same
-model written as two forests or as four differing by `sqrt(2)`.
-
-**On the SHIPPED shape the law caps rather than pins, and no sentence anywhere
-may state the stronger form.** With one basis-free forest and K - 1 basis
-forests the fixed-variance channel under the default is
-`1.049120 sqrt(K-1) sqrt(2/K) s` = `sqrt((K-1)/K) s / 0.674`: 1.0491199,
-1.2114193, 1.2849042, 1.3878551 at K = 2, 3, 4, 8, which is 0.699, 0.808,
-0.857, 0.925 of the `k = 2` binary index budget `1.5 s`, rising monotonically
-toward the limit 0.989 and never reaching it. The reason is structural - a
-Cauchy channel has no finite variance to enter a root-sum-square budget with,
-so a shape carrying one cannot have its total pinned by any per-forest law -
-and it is the same fact that killed index normalization. Against today's
-unbounded `1.049120 sqrt(K-1) s`, which is 1.850x the budget at K = 8 and
-passes 2x at K = 10.
+ALWAYS fixed-variance unless held. There is NO per-K renormalization anywhere
+in the MAP: it disperses as `sqrt(K)` by construction (exponent exactly 1/2),
+`1.04912 sqrt(K) s` at unit row norms. `binary-kforest-prior-default` S2 once
+gave the DEFAULT `nodeScaleFactor` ([`defaultForestSd`](../../src/bartcore/combiner.hpp))
+`sqrt(2/K)` to cancel that growth; under dec-B291 a forest with a basis defaults
+to the literal 1 whatever K, each forest being a named effect with its own prior,
+so the all-basis index prior is `1.4837 s` at K = 2 and grows as `sqrt(K)`, and
+with one basis-free forest the fixed-variance channel is `1.049120 sqrt(K-1) s`,
+0.699 of the `k = 2` binary budget `1.5 s` at K = 2 and past it from K = 4.
+The cost is the ruling's: a caller who adds forests widens the prior on their
+sum, most felt under probit and logistic, until forests can share one total
+(TODO forests-shared-total). A held forest has no variance channel: its
+coefficient is a constant and its own sd is its `sd`, exactly
+([forest-multiplier.md](forest-multiplier.md)).
 
 **The contract, in the form the row-norm fix makes true, identical under
-gaussian and under a latent family.** (1) `sd` and `amplitude.prior.variance`
-are stated PER UNIT OF BASIS ROW NORM: a forest whose basis rows have median
+gaussian and under a latent family.** (1) `sd` is stated PER UNIT OF BASIS ROW
+NORM: a forest whose basis rows have median
 nonzero norm c contributes the scale named, and the map divides c out.
 (2) The induced prior sd on the index at row i is
 `sqrt( sum_f prior.sd_f^2 v_f ||B_f(i,.)||^2 )` over the fixed-variance
 forests, `prior.sd_f` read from `$getLeafPrior(f)$k.scale` (k is pinned at 1) and
-`v_f` the forest's `amplitude.prior.variance` (default 0.5); a basis-free
+`v_f` the variance of the forest's drawn coefficients, 1/2; a basis-free
 forest's own contribution is Cauchy with no sd. (3) Under probit and logistic
 that index is in LATENT sd units and sigma is PINNED, so nothing absorbs a
 mis-scaled basis; under gaussian it is in `sd(y)` units and a drawn sigma
 partly does. (4) The MAP disperses the index as `sqrt(K)`, per the two facts
-above, and the shipped DEFAULT `sd` cancels that: the all-basis index prior is
-`1.4837 s` at every K, `0.989` of the `k = 2` binary budget, and on the
-one-basis-free shape the fixed-variance channel is BOUNDED by it, rising from
-`0.699` of that budget rather than pinned. A declared `sd` opts out and keeps
-its per-forest reading at every K. (5) At the shipped defaults a K = 2 binary
+above, and the default `sd` does not cancel it (dec-B291): the all-basis index
+prior is `1.4837 s` at K = 2, `0.989` of the `k = 2` binary budget, and grows
+with each forest added. (5) At the shipped defaults a K = 2 binary
 K-forest prior puts `P(p < 0.01 or p > 0.99)` at 0.2468 under probit, against
 0.2387 for the shipped single-forest binary default (`chi(1.5, 2)`), where
 before `binary-kforest-prior-default` S2 it was 0.3764.
@@ -573,9 +561,10 @@ general channel ([`Chain::amplitudes`](../../src/bartcore/chain.hpp), [`forestTo
 
 The map is READABLE, at all three layers, and is the only route to any of its
 five quantities:
-`$getLeafPrior(f)` reports `amplitude.prior.variance` and
-`amplitude.prior.scale` - exclusive per forest, the fixed-variance and
-scale-mixture spellings of `ForestAmplitudePrior` - beside `leaf.scale.factor`,
+`$getLeafPrior(f)` reports `amplitude.prior.scale` on a drawn forest with no
+basis, the scale-mixture spelling of `ForestAmplitudePrior` (the fixed variance
+of a forest with a basis being 1/2 and no longer reported), and `multiplier`
+and `amplitude`, beside `leaf.scale.factor`,
 `leaf.scale.divisor` and `basis.row.norm`, absent on any forest with no map entry;
 `bartcore_getLeafPrior` carries the five columns and
 `dbarts_forest_calibration` the five appended fields. The anchor s rides one

@@ -263,7 +263,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   whether the forest has a basis, from K, the family, the unit and the row norm, once for each
   construction and again at a write ([`Chain::setForestMapSd`](../../src/bartcore/chain.hpp)); the
   forests' record holds four numbers a forest. All the engine knows of a kind is that one bit, and
-  [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), with `hasBasis` in the
+  retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), gone with push 1, with `hasBasis` in the
   forests' record, keeps it for a forest created with no basis and given one since, a case dec-B452
   closes. The K-forest constructor of [`Chain`](../../src/bartcore/chain.hpp) still
   divides by [`basisRowNorm`](../../src/bartcore/chain.hpp)
@@ -687,7 +687,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
 1.1 The engine. [`ForestSpec`](../../src/bartcore/combiner.hpp) states a kind (nothing, levels,
     numbers) beside the [`ForestStatement`](../../src/bartcore/combiner.hpp) the sd unit slice has it
     carry, in place of the one bit it has today:
-    [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp) and the forests' record's
+    retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), now gone, and the forests' record's
     `hasBasis` go from what the bridge reads, no forest gaining a basis after creation (dec-B452).
     [`expandForestSpecs`](../../src/bartcore/combiner.hpp) states BCF's two forests as nothing and
     levels. [`forestMapEntry`](../../src/bartcore/combiner.hpp), which holds the rule already, takes
@@ -1462,7 +1462,7 @@ in a small way that no ruling names, and go to the maintainer with the landing's
 - dec-B291 is built as push 1's first commit and not as a push: it is one line of the engine, push 1
   changes a default already, and a battery of its own would repeat push 1's. It is gated by an
   identity the base build can state, which the rest of the push has for two of its sequences only.
-- The kind stated to the engine replaces [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp)
+- The kind stated to the engine replaces retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), removed by push 1,
   and the bridge's reading of `hasBasis`, in push 1: forest-kind-by-class left the choice here, and
   after dec-B452 the bit records a case that cannot arise. The forests' record keeps `hasBasis` where
   R reads it.

@@ -360,7 +360,11 @@ s the sd(y) magnitude in internal units.
   tau ~ N(0, (sd.moderate s / 0.674)^2). With b0, b1 ~ N(0, 1/2) the
   contrast b1 - b0 ~ N(0, 1) has half-normal median 0.674, so the
   effect (b1 - b0) tau sits at a median sd.moderate sd(y) - bcf's
-  use_tauscale correction.
+  use_tauscale correction. Where b is held at (0, 1) there is no median to
+  correct for: the node scale is sd.moderate s and tau's prior sd is the
+  effect's, exactly; and a held a is 1 with mu's node scale sd.control s,
+  or under gaussian a quarter of the response's range where no sd.control
+  is stated (dec-B290, [forest-multiplier.md](forest-multiplier.md)).
 - Both forests fix k = 1; the map overrides the host model's node prior
   and k for mu, since the adaptive magnitude lives entirely in the glue.
 
@@ -370,8 +374,8 @@ response's units (sd.control * sd(y) and sd.moderate * sd(y) under gaussian, and
 the same multiples of 1 and pi / sqrt(3) under probit and logistic), the engine
 dividing it by the unit it derives at creation ([forest-sd-unit.md](forest-sd-unit.md)).
 A NULL sd.control takes the family default above, and sd.moderate's 1 is the
-K-aware default's own K = 2 value, sqrt(2/2), so this two-forest spelling states
-it as the literal it has always been. benchmarks/R/bcf-exact.R
+default of a forest with a basis, one unit whatever the number of forests
+(dec-B291). benchmarks/R/bcf-exact.R
 reproduces the map and the range/sigma calibration to validate the
 implementation end to end.
 
