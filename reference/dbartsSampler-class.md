@@ -253,7 +253,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   A sampler created with one forest and none refuses data that carry
   `bases`, having no forest to multiply them; make a new sampler from
   such data with
-  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). A
+  [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
+  Columns are matched by name where the new data carry the sampler's
+  names, and by position otherwise. A factor column is read by label
+  against the levels the sampler was created with, which it keeps: fewer
+  levels, the levels in another order and declared levels no row has are
+  taken, each row at its own label; a row, training or test, at a label
+  the sampler never had is refused by name, as `predict` refuses one,
+  and so is a factor column given as numbers with no level table. A
   column that could hold missing values before the call still can, and
   one the new data first give a missing value becomes able to, as
   ‘Missing values in predictors’ in ‘Details’ describes. Draws the
@@ -1506,17 +1513,14 @@ sampler holds as an ordered factor, whose cut points its number of
 levels fixes, a state recording other cut points is refused by
 `setState`. A `copy` and a reload do not hold their stored state to that
 and take no cut points for a factor: theirs are those of the levels the
-data declares. After `setData` has replaced an ordered factor with one
-declaring fewer levels, a `copy` and a reload are made, with the cut
-points of the declared levels, where no rule of the stored state's trees
-lies above the declared levels; otherwise neither can be made. The
-sampler itself keeps the cut points of the levels it was created with,
-and a state it stored is refused by the `setState` of its copy or its
-reload, except as a reload's first call, where it is that reload's own
-field. A linear or Gaussian-process leaf's covariate standardization
-comes with the state as it is. A leaf covariate that held a single value
-when its standardization was derived has no scale: the state records
-`NA` for it, and the covariate is divided by 1.
+data's record declares. On a sampler made from a data frame, `setData`
+reads the new data's factors by label and records the sampler's own
+levels, so a `copy` and a reload hold the levels the sampler was created
+with and take the state it stored. A linear or Gaussian-process leaf's
+covariate standardization comes with the state as it is. A leaf
+covariate that held a single value when its standardization was derived
+has no scale: the state records `NA` for it, and the covariate is
+divided by 1.
 
 The case weights are not in the state, so a restore is reconciled
 against the DESTINATION's own rather than governed by the source's:

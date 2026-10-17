@@ -169,18 +169,20 @@ unordered - is the *declared* level table rather than the levels the
 training rows happen to take. A level declared but unobserved in
 training therefore keeps its own bin, and test or replacement data
 carrying it are accepted at every entrance (creation,
-`setTestPredictor`, `predict`, `setPredictor`); conversely a value that
-is not an existing integer level code is refused at those same
-entrances, naming the kind, for ordered and unordered factors alike. An
-unordered factor is limited to 65535 levels and an ordered one to
-65534 - one lower, since an ordered factor spends a code on the upper
-bin of its \\K - 1\\ cut grid - and a wider one is an error naming the
-column. This holds equally for dense factors, `sparseFactor` columns,
-and dense factors inside a mixed dense/sparse frame. Drop unused levels
-before fitting ([`droplevels`](https://rdrr.io/r/base/droplevels.html))
-if you would rather they not be modeled. `test` accepts the same column
-types as `x.train`, including `sparseFactor` and sparse ordinal columns.
-A `sparseFactor` or sparse ordinal test column recodes over the training
+`setTestPredictor`, `predict`, `setPredictor`, `setData`, which reads a
+factor of the new data by label against the sampler's table whatever
+levels it declares); conversely a value that is not an existing integer
+level code is refused at those same entrances, naming the kind, for
+ordered and unordered factors alike. An unordered factor is limited to
+65535 levels and an ordered one to 65534 - one lower, since an ordered
+factor spends a code on the upper bin of its \\K - 1\\ cut grid - and a
+wider one is an error naming the column. This holds equally for dense
+factors, `sparseFactor` columns, and dense factors inside a mixed
+dense/sparse frame. Drop unused levels before fitting
+([`droplevels`](https://rdrr.io/r/base/droplevels.html)) if you would
+rather they not be modeled. `test` accepts the same column types as
+`x.train`, including `sparseFactor` and sparse ordinal columns. A
+`sparseFactor` or sparse ordinal test column recodes over the training
 level table and stays resident - through creation and
 `setTestPredictor` - rather than densifying at ingestion, the same
 storage tier rule as training. `predict` and `getTrees(newdata = )` code
