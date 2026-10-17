@@ -44,12 +44,24 @@ dbartsData(
   Optional list of the per-forest amplitude bases a multi-forest model
   combines its forests through, one element per forest and `NULL` where
   a forest carries the implicit intercept its single amplitude scales.
-  Each non-null element is a numeric matrix with one row per observation
-  and one amplitude per column, restricted by `subset` exactly as
-  `weights` is: `data` and `subset` are each evaluated once, and each
-  basis is given the rows the data object keeps, in their order, less
-  those the `na.action` drops. This is the data half of a multi-forest
-  specification, and is normally written by
+  Each non-null element is what
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
+  `basis` takes as a value, and its class decides what the forest
+  multiplies: a factor, a character vector or a logical vector is
+  levels, one amplitude per level, and a number or a numeric matrix is
+  numbers, one amplitude per column, a vector of 0s and 1s being one
+  column and not two levels (write `factor(z)` for those). A matrix of
+  logicals or of characters, a factor that has dimensions, a data frame
+  and a column of all zeros are refused. It has one row per observation,
+  restricted by `subset` exactly as `weights` is: `data` and `subset`
+  are each evaluated once, and each basis is given the rows the data
+  object keeps, in their order, less those the `na.action` drops. It is
+  judged on those rows alone, as a basis written as code is: a level
+  that none of them has gives no column, a missing value on one is
+  refused, and a missing value on a row that is dropped is not looked
+  at. A factor with `NA` as a level is refused when a kept row is at it.
+  This is the data half of a multi-forest specification, and is normally
+  written by
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `forests = ` argument rather than here; supplying it directly selects
   the multi-forest model with the engine's default per-forest
@@ -185,10 +197,15 @@ of the kept training and test rows, as `list(train, test)`, or `NULL`
 when neither is named; a fit carries them on its outputs as the row
 names paragraph of
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)'s ‘Value’
-section describes. Its `missing.seen` slot is `NULL` as created; on the
-data object a sampler holds it records, once a predictor has been
-changed, the columns that sampler can hold missing values in, as a
-logical per predictor column (see ‘Missing values in predictors’ in
+section describes. Its `bases` slot holds each forest's block as the
+sampler uses it, a factor's level indicators among them, and its
+`basis.levels` slot records, for each forest of levels, the levels in
+the order of the block's columns, and `NULL` for a forest of numbers or
+with no basis; the slot is `NULL` when there are no `bases`. Its
+`missing.seen` slot is `NULL` as created; on the data object a sampler
+holds it records, once a predictor has been changed, the columns that
+sampler can hold missing values in, as a logical per predictor column
+(see ‘Missing values in predictors’ in
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
 and a sampler created from such an object takes them.
 
@@ -350,6 +367,9 @@ data
 #> NULL
 #> 
 #> Slot "bases":
+#> NULL
+#> 
+#> Slot "basis.levels":
 #> NULL
 #> 
 #> Slot "counts":

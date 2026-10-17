@@ -112,11 +112,14 @@ row incomplete exactly as an unroutable predictor does, and every
 refuse it by name, `na.pass` returns `NA` for it, and
 `na.omit`/`na.exclude` drop it (`na.exclude` padding it back). A missing
 value in a single (length-one) `offset` or `weights` is always an error,
-whatever `na.action` is, since there is then no row for it to mark; the
-same goes for any missing value in `bases`. The sampler's own `predict`,
-`predictForests` and `getTrees` methods take no `na.action`, keep the
-default, and check no per-row `offset.test` for a missing value at all:
-an `NA` there reaches the engine unrouted.
+whatever `na.action` is, since there is then no row for it to mark. A
+missing value in `bases` never marks its row: on a row that is
+incomplete for its predictors, its `offset` or its `weights`, which the
+`na.action` drops or returns `NA` for, it is passed by, and on any other
+row it is an error, whatever `na.action` is. The sampler's own
+`predict`, `predictForests` and `getTrees` methods take no `na.action`,
+keep the default, and check no per-row `offset.test` for a missing value
+at all: an `NA` there reaches the engine unrouted.
 
 ## Value
 

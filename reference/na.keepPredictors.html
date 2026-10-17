@@ -130,8 +130,11 @@
   returns <code>NA</code> for it, and <code>na.omit</code>/<code>na.exclude</code> drop it
   (<code>na.exclude</code> padding it back). A missing value in a single
   (length-one) <code>offset</code> or <code>weights</code> is always an error, whatever
-  <code>na.action</code> is, since there is then no row for it to mark; the same
-  goes for any missing value in <code>bases</code>. The sampler's own
+  <code>na.action</code> is, since there is then no row for it to mark. A missing
+  value in <code>bases</code> never marks its row: on a row that is incomplete
+  for its predictors, its <code>offset</code> or its <code>weights</code>, which the
+  <code>na.action</code> drops or returns <code>NA</code> for, it is passed by, and on
+  any other row it is an error, whatever <code>na.action</code> is. The sampler's own
   <code>predict</code>, <code>predictForests</code> and <code>getTrees</code> methods take no
   <code>na.action</code>, keep the default, and check no per-row
   <code>offset.test</code> for a missing value at all: an <code>NA</code> there reaches

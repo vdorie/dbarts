@@ -190,7 +190,9 @@ The constructor is not exported: it resolves by bare name inside the
 <li><p><code>+</code> separates columns, each with a coefficient of its own:
         <code>dose + age</code>. <code>I(dose + age)</code> is one column, their sum.</p></li>
 <li><p>A factor, a character column or a logical column is one column
-        for each of its levels.</p></li>
+        for each of its levels. A number is one column, whatever its values:
+        <code>basis = z</code> for a <code>z</code> of 0s and 1s is one coefficient, and
+        <code>basis = factor(z)</code> is the two levels.</p></li>
 <li><p>Anything that is not a column of <code>data</code> is read where
         <code>forest()</code> is called, at that moment, with or without a tilde
         written in place: <code>forest(basis = w)</code>, <code>forest(basis = ~ w)</code>.</p></li>
@@ -227,6 +229,47 @@ The constructor is not exported: it resolves by bare name inside the
     columns; the two are not mixed in one forest. The forest does not centre
     or scale a basis, so a multiplier that should be standardized is written
     so: <code>basis = scale(age)</code>.</p>
+<p><strong>Which kind it is.</strong> The class of the basis decides whether the
+    forest multiplies levels or numbers, the same way at every place a basis
+    is given: <code>forest()</code> written as code or with a value,
+    <code><a href="dbartsData.html">dbartsData</a></code>'s <code>bases</code>, <code>$setForestBasis</code> and
+    <code>predict</code>'s <code>bases</code>. A factor, ordered or not, a character
+    vector and a logical vector are levels, with a coefficient for each: in
+    the order of a factor's levels, in sorted order for a character vector,
+    <code>FALSE</code> then <code>TRUE</code> for a logical vector. An integer or a
+    double is numbers, whatever its values, and a numeric matrix is its
+    columns. The values are never looked at to decide: a column of 0s and 1s
+    is one column with one coefficient, and is two levels only when written
+    <code>factor(z)</code> or as a logical vector. A matrix of characters or of
+    logicals, and a factor matrix, is refused, one of a single column
+    included, since a vector is levels and a matrix is numbers: hand over its
+    column as a vector, <code>cm[, 1]</code>. An array of one dimension is its
+    vector. A data frame and any other
+    class are refused too. Handed over as a value, the refusal names the
+    class; written as code, a class a model frame does not take, a data frame
+    or a list, is refused in R's own words.</p>
+<p>The kind is fixed when the forest is created. A forest created with no
+    basis cannot be given one, and a forest of levels keeps the same levels,
+    in the same order, for as long as the sampler lives, so that coefficient
+    \(j\) multiplies level \(j\)'s rows after any replacement. See
+    <code>$setForestBasis</code> in <code><a href="dbartsSampler-class.html">dbartsSampler</a></code> and the
+    <code>bases</code> argument of <code>predict</code> in <code><a href="bartBT.html">bartBT</a></code> for what
+    a replacement takes.</p>
+<p>A level that no row the fit keeps has gives no column and no message,
+    written as code or handed over as a value: <code>factor(z, levels = 0:2)</code>
+    of a <code>z</code> with no 2, or a factor of three levels under a
+    <code>subset</code> that leaves two of them, is the two columns of the levels
+    that remain. The count is made after the rows are cut, and fewer than two
+    levels left is refused. A row of weight zero is a row the fit keeps.</p>
+<p>A missing value is looked for on the rows the fit keeps, after
+    <code>subset</code> and the <code>na.action</code>, as <code>lm</code> looks for one in its
+    variables. On a kept row it is refused. On a row the fit drops it is not
+    looked at, so a basis fits the same way written as code or handed over as
+    a value. <code>NA</code> is not a level: a factor made with <code><a href="https://rdrr.io/r/base/factor.html" class="external-link">addNA()</a></code> or
+    <code>exclude = NULL</code> that has a kept row at <code>NA</code> is refused, and
+    the remedy is to give that level a name, as in
+    <code>levels(f)[is.na(levels(f))] &lt;- "none"</code>. With no kept row at it the
+    <code>NA</code> level is dropped like any other level no row has.</p>
 <p>Some forms a model formula would take are refused, each by name and with
     what to write instead: <code>*</code> between terms (write <code>I(dose * age)</code>
     for the product, or <code>dose + age + I(dose * age)</code> for all three
@@ -340,14 +383,13 @@ The constructor is not exported: it resolves by bare name inside the
 <p><strong>A value.</strong> What is handed over as an object, through
     <code><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call()</a></code> or in a call built by a program, is used as it is: a
     numeric vector or matrix is its columns, and a factor, a character vector
-    or a logical vector is its levels. Its columns keep their names when every
+    or a logical vector is its levels, as written as code. Its columns keep their names when every
     column has one, and have none when any column lacks one; two columns of
     one name are refused. Its forest's label is <code>forest&lt;i&gt;</code>. It has one
     row for every row of <code>data</code> and is cut to the rows the fit keeps; a
     value already cut to those rows is refused by name. A level that no row
-    of <code>data</code> has is refused, while one that only <code>subset</code> empties
-    keeps a column of zeros, a value not being built again on the rows kept.
-    A value that the rows kept leave with one level, or one numeric column
+    the fit keeps has gives no column, whether <code>data</code>, <code>subset</code> or
+    the <code>na.action</code> is what empties it. A value that the rows kept leave with one level, or one numeric column
     that is zero on all of them, is refused as the same basis written as code
     is.
     A single string or number is refused: <code>basis = "dose"</code> names no
@@ -444,12 +486,11 @@ The constructor is not exported: it resolves by bare name inside the
     is the number in force. <code>$getLeafPrior(f)$leaf.prior</code> returns the
     statement, <code>forest(sd = )</code> where one was stated and <code>forest()</code>
     where none was, and <code>forest()</code> written back leaves its forest as it is
-    (see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>). The channel is fixed at creation: a
-    forest created without a basis keeps its half-Cauchy median after
-    <code>$setForestBasis</code> gives it one, so its <code>forest(sd = )</code>
-    round-trips through <code>$setLeafPrior</code>, while a fresh <code><a href="dbarts.html">dbarts()</a></code>
-    given the same bases would state it on a forest with a basis and build a
-    different prior.</p></dd>
+    (see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>). The channel is fixed at creation, with
+    the forest's kind: <code>$setForestBasis</code> refuses to give a basis to a
+    forest created without one, so a forest's channel always agrees with
+    what it multiplies and its <code>forest(sd = )</code> round-trips through
+    <code>$setLeafPrior</code>.</p></dd>
 
   <dt id="arg-interactions-blocks">interactions, blocks<a class="anchor" aria-label="anchor" href="#arg-interactions-blocks"></a></dt>
 <dd><p>Optional <code><a href="interactions.html">interactions</a></code> and <code><a href="blocks.html">blocks</a></code> constraints on
@@ -659,7 +700,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000724</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000512</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 3 2 2 3 3 2 2 </span>

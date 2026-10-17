@@ -147,7 +147,9 @@ forest(
     `dose + age`. `I(dose + age)` is one column, their sum.
 
   - A factor, a character column or a logical column is one column for
-    each of its levels.
+    each of its levels. A number is one column, whatever its values:
+    `basis = z` for a `z` of 0s and 1s is one coefficient, and
+    `basis = factor(z)` is the two levels.
 
   - Anything that is not a column of `data` is read where `forest()` is
     called, at that moment, with or without a tilde written in place:
@@ -199,6 +201,54 @@ forest(
   numeric columns; the two are not mixed in one forest. The forest does
   not centre or scale a basis, so a multiplier that should be
   standardized is written so: `basis = scale(age)`.
+
+  **Which kind it is.** The class of the basis decides whether the
+  forest multiplies levels or numbers, the same way at every place a
+  basis is given: `forest()` written as code or with a value,
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)'s
+  `bases`, `$setForestBasis` and `predict`'s `bases`. A factor, ordered
+  or not, a character vector and a logical vector are levels, with a
+  coefficient for each: in the order of a factor's levels, in sorted
+  order for a character vector, `FALSE` then `TRUE` for a logical
+  vector. An integer or a double is numbers, whatever its values, and a
+  numeric matrix is its columns. The values are never looked at to
+  decide: a column of 0s and 1s is one column with one coefficient, and
+  is two levels only when written `factor(z)` or as a logical vector. A
+  matrix of characters or of logicals, and a factor matrix, is refused,
+  one of a single column included, since a vector is levels and a matrix
+  is numbers: hand over its column as a vector, `cm[, 1]`. An array of
+  one dimension is its vector. A data frame and any other class are
+  refused too. Handed over as a value, the refusal names the class;
+  written as code, a class a model frame does not take, a data frame or
+  a list, is refused in R's own words.
+
+  The kind is fixed when the forest is created. A forest created with no
+  basis cannot be given one, and a forest of levels keeps the same
+  levels, in the same order, for as long as the sampler lives, so that
+  coefficient \\j\\ multiplies level \\j\\'s rows after any replacement.
+  See `$setForestBasis` in
+  [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
+  and the `bases` argument of `predict` in
+  [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) for
+  what a replacement takes.
+
+  A level that no row the fit keeps has gives no column and no message,
+  written as code or handed over as a value: `factor(z, levels = 0:2)`
+  of a `z` with no 2, or a factor of three levels under a `subset` that
+  leaves two of them, is the two columns of the levels that remain. The
+  count is made after the rows are cut, and fewer than two levels left
+  is refused. A row of weight zero is a row the fit keeps.
+
+  A missing value is looked for on the rows the fit keeps, after
+  `subset` and the `na.action`, as `lm` looks for one in its variables.
+  On a kept row it is refused. On a row the fit drops it is not looked
+  at, so a basis fits the same way written as code or handed over as a
+  value. `NA` is not a level: a factor made with
+  [`addNA()`](https://rdrr.io/r/base/factor.html) or `exclude = NULL`
+  that has a kept row at `NA` is refused, and the remedy is to give that
+  level a name, as in `levels(f)[is.na(levels(f))] <- "none"`. With no
+  kept row at it the `NA` level is dropped like any other level no row
+  has.
 
   Some forms a model formula would take are refused, each by name and
   with what to write instead: `*` between terms (write `I(dose * age)`
@@ -337,17 +387,17 @@ forest(
   [`do.call()`](https://rdrr.io/r/base/do.call.html) or in a call built
   by a program, is used as it is: a numeric vector or matrix is its
   columns, and a factor, a character vector or a logical vector is its
-  levels. Its columns keep their names when every column has one, and
-  have none when any column lacks one; two columns of one name are
-  refused. Its forest's label is `forest<i>`. It has one row for every
-  row of `data` and is cut to the rows the fit keeps; a value already
-  cut to those rows is refused by name. A level that no row of `data`
-  has is refused, while one that only `subset` empties keeps a column of
-  zeros, a value not being built again on the rows kept. A value that
-  the rows kept leave with one level, or one numeric column that is zero
-  on all of them, is refused as the same basis written as code is. A
-  single string or number is refused: `basis = "dose"` names no column,
-  so write `basis = dose`.
+  levels, as written as code. Its columns keep their names when every
+  column has one, and have none when any column lacks one; two columns
+  of one name are refused. Its forest's label is `forest<i>`. It has one
+  row for every row of `data` and is cut to the rows the fit keeps; a
+  value already cut to those rows is refused by name. A level that no
+  row the fit keeps has gives no column, whether `data`, `subset` or the
+  `na.action` is what empties it. A value that the rows kept leave with
+  one level, or one numeric column that is zero on all of them, is
+  refused as the same basis written as code is. A single string or
+  number is refused: `basis = "dose"` names no column, so write
+  `basis = dose`.
 
   A basis is stated here or on the data object, not both:
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md) given
@@ -455,12 +505,10 @@ forest(
   where none was, and `forest()` written back leaves its forest as it is
   (see
   [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
-  The channel is fixed at creation: a forest created without a basis
-  keeps its half-Cauchy median after `$setForestBasis` gives it one, so
-  its `forest(sd = )` round-trips through `$setLeafPrior`, while a fresh
-  [`dbarts()`](https://vdorie.github.io/dbarts/reference/dbarts.md)
-  given the same bases would state it on a forest with a basis and build
-  a different prior.
+  The channel is fixed at creation, with the forest's kind:
+  `$setForestBasis` refuses to give a basis to a forest created without
+  one, so a forest's channel always agrees with what it multiplies and
+  its `forest(sd = )` round-trips through `$setLeafPrior`.
 
 - interactions, blocks:
 
@@ -681,7 +729,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.000724
+#> total seconds in loop: 0.000512
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 3 2 2 3 3 2 2 

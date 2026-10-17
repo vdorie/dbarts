@@ -612,19 +612,36 @@ family(object, ...)
   forest's amplitudes multiply AT the predicted rows, which off the
   training rows only the caller knows. A length-K list, in the forests'
   order, entry k either `NULL` (for a forest that declared no basis,
-  whose amplitude multiplies an implicit all-ones column) or anything
+  whose amplitude multiplies an implicit all-ones column) or a value of
+  the class the forest was created with, which decides what it
+  multiplies (see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)'s
-  `basis` accepts as a value - a numeric vector or matrix, a factor, a
-  character or a logical vector - expanded by the same rule and required
-  to have `nrow(newdata)` rows and the width that forest's amplitudes
-  take. A name on an entry is refused unless it is that forest's label
-  or `forest<i>`, since the list is read by position. When exactly one
+  `basis` item) and cannot change. For a forest of levels, created with
+  a factor, a character vector or a logical vector, hand over a factor,
+  a character vector or a logical vector: its levels are matched to the
+  forest's by name and not by position, a level of the forest that no
+  row has is a column of zeros, and a row at a level the forest does not
+  have, or at `NA`, is refused. Numbers are refused for such a forest, a
+  factor's indicator columns among them: hand over the factor itself,
+  `fit$bases` holding it. For a forest of numbers, hand over a numeric
+  vector or a matrix with the columns the forest was created with; a
+  factor, a character vector and a logical vector are refused
+  ([`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a logical
+  vector is its 0/1 column). Either way it is required to have
+  `nrow(newdata)` rows. A missing value is refused on a row the
+  prediction keeps and passed by on a row the `na.action` drops (see
+  [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
+  A name on an entry is refused unless it is that forest's label or
+  `forest<i>`, since the list is read by position. When exactly one
   forest carries a basis the bare value may be given on its own, without
-  the list: for a Bayesian causal forest,
-  `bases = cbind(1 - zstar, zstar)` is the counterfactual arm being
-  predicted under. Unlike at fit time, a column of all zeros and a
-  single-level factor are accepted, since a constant arm is the point of
-  a counterfactual. `NULL` (the default) builds each basis again from
+  the list: for a Bayesian causal forest fit with its arm as
+  `factor(z)`, `bases = factor(zstar, levels = levels(factor(z)))` is
+  the counterfactual arm being predicted under, and `bases = fit$bases`
+  at the training rows is the training fit, to rounding. Unlike at fit
+  time, a column of all zeros on a forest of numbers and, on a forest of
+  levels, a factor or a character vector with every row at one of the
+  forest's levels are accepted, since a constant arm is the point of a
+  counterfactual. `NULL` (the default) builds each basis again from
   `newdata` when the fit's forest wrote it as code, in a
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) or
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)
@@ -1003,10 +1020,17 @@ returned. In the numeric \\y\\ case, the list has components:
   uncombined) `n.samples` \\\times\\ sum(q_k) matrix of amplitudes
   multiplying each forest's basis columns, forest-major (the layout
   `$getForestAmplitudes` documents); its `"forest"` attribute names each
-  column's forest. `bases` is a length-K list of each forest's expanded
-  basis matrix (no draw axis; `NULL` for a forest with no declared
-  basis, whose amplitude then scales an implicit all-ones column).
-  Together they reconstruct the training fit exactly: \\\hat y =
+  column's forest. `bases` is a length-K list of each forest's basis (no
+  draw axis), one value for each training row the fit kept: for a forest
+  of levels the factor, its levels those recorded when the fit was
+  created, in the order of the forest's coefficients
+  (`model.matrix(~ 0 + b)` of it is the block of indicator columns the
+  amplitudes multiply, and `predict(fit, x, bases = fit$bases)` at the
+  training rows is the training fit, to rounding); for a forest of
+  numbers the matrix of its column or columns; `NULL` for a forest with
+  no declared basis, whose amplitude then scales an implicit all-ones
+  column. Together, with each factor in `bases` taken as its indicator
+  columns, they reconstruct the training fit to rounding: \\\hat y =
   \mathrm{response.shift} + \sum_k (\mathrm{bases}\_k \\
   \mathrm{glue}\_k) \times \mathrm{forestFits}\_k\\, with
   `response.scale`/`response.shift` read from the sampler's
@@ -1022,13 +1046,12 @@ returned. In the numeric \\y\\ case, the list has components:
   The identity itself is what `predict(object, newdata, type = "ev")`
   (or `"ppd"`, or `"bart"`) performs at those rows in one call, taking
   each `bases` entry's replacement - the basis that forest's amplitudes
-  multiply at the new rows, for a Bayesian causal forest the \\(1 -
-  z^\*, z^\*)\\ indicator pair of whichever assignment is being
-  predicted under - through its own `bases` argument, or built again
-  from `newdata` for a basis that was written as code. Written out by
-  hand it remains the fallback for a caller holding only these
-  components and no sampler. A fit one of whose bases was written as
-  code, in a
+  multiply at the new rows, for a Bayesian causal forest the factor of
+  whichever assignment is being predicted under - through its own
+  `bases` argument, or built again from `newdata` for a basis that was
+  written as code. Written out by hand it remains the fallback for a
+  caller holding only these components and no sampler. A fit one of
+  whose bases was written as code, in a
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
   of a formula or in a `forests` list, additionally carries
   `basis.terms`, a length-K list holding for each such basis what builds
@@ -1309,7 +1332,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.221507
+#> total seconds in loop: 0.170308
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
