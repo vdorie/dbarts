@@ -7027,7 +7027,9 @@ private:
   /// unit of the scale the combined index actually lives on.
   ///
   ///   gaussian - the sample sd of the range-scaled working response, over
-  ///              the rows the response model read its range from
+  ///              the rows the response model read its range from, and a
+  ///              quarter of the window of width one a response with no
+  ///              spread there is scaled by
   ///   probit   - 1, the standard normal link's error sd
   ///   logistic - pi/sqrt(3), the logistic law's standard deviation
   ///
@@ -7064,7 +7066,12 @@ private:
     // the O(n) scan must not run on a family that does not use it, where a
     // later reader would mistake it for the anchor
     const unsigned char* rows = response_->scaleRows();
-    return rows != nullptr ? scaledResponseSdOver(rows) : scaledResponseSd();
+    double sd = rows != nullptr ? scaledResponseSdOver(rows) : scaledResponseSd();
+    // a response with one value over the rows read has no spread, and the
+    // response model scales it by a window of width one: the anchor is then
+    // what the one forest of a single-forest chain gets on that window, a
+    // quarter of it
+    return sd > 0.0 ? sd : singleForestDefaultSize();
   }
 
   /// The response units in one \p anchor, where \p anchor is

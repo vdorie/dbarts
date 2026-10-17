@@ -8958,6 +8958,41 @@ static void testForestUnitRowsIn() {
             carried.sampler->forestCalibration(1, 1).mapAnchor == 0.125,
           "a carried anchor replaces the unit, rows out or not");
   }
+
+  // a response with one value over the rows read, every row here: the
+  // response model scales it by a window of width one, and the anchor is a
+  // quarter of that window, what the one forest of a single-forest chain gets
+  // there, so the unit is a quarter of the window too, a stated sd is taken,
+  // and the map's leaf scales are those of that unit
+  {
+    fill(n);
+    for (double& v : y) v = 3.0;
+    Built flat = build(n, nullptr, nan);
+    ForestCalibration plain = flat.sampler->forestCalibration(0, 0);
+    ForestCalibration level = flat.sampler->forestCalibration(1, 1);
+    check(flat.sampler->fitScale() == 1.0 && plain.mapAnchor == 0.25 &&
+            plain.mapUnit == 0.25 && level.mapAnchor == 0.25,
+          "a constant response has anchor and unit a quarter of its window");
+    check(plain.mapSd == 2.0 * 0.25 && level.mapSd == 0.25 &&
+            TestPeer::leafScale(flat.sampler->chain(0), 1) ==
+              1.0 * 0.25 / (0.674 * 1.0) / std::sqrt(8.0),
+          "and the forests' defaults are those of that unit");
+    check(flat.sampler->setForestMapSd(1, 0.4) &&
+            flat.sampler->forestCalibration(0, 1).mapSd == 0.4,
+          "a stated sd is taken on a constant response");
+    // one value over the rows in, spread over the rest: the rows in hold
+    // fewer than two values, so the response's range and the anchor are read
+    // over every row, which has spread
+    fill(n);
+    std::vector<double> onlyOne(n, 0.0);
+    onlyOne[5] = 1.0;
+    Built one = build(n, onlyOne.data(), nan);
+    double everyRow =
+      everyRowSd(TestPeer::workingResponse(one.sampler->chain(0)), n);
+    check(one.sampler->forestCalibration(0, 0).mapAnchor == everyRow &&
+            everyRow > 0.0,
+          "a response with spread keeps its anchor, read over every row");
+  }
   printf("ok: forest unit over the rows in the likelihood\n");
 }
 
@@ -10894,27 +10929,27 @@ static void testForestSdUnit() {
           "sd unit: a multiple of the anchor is taken as it is");
   }
 
-  // (f) the two throws: an sd with no unit to read it in, and an sd that is
-  // not positive and finite
+  // (f) the two throws: an sd with no unit to read it in, which only a
+  // handed unit of 0 reaches now that a response with no spread has one, and
+  // an sd that is not positive and finite
   {
-    std::vector<double> constant(n, 3.5);
     const double stated[K] = {0.9, nan, nan};
     bool noUnit = false, created = false;
     try {
-      build(ResponseFamily::gaussian, constant.data(), nullptr, stated,
-            nullptr, nan, nan);
+      build(ResponseFamily::gaussian, y.data(), nullptr, stated, nullptr, nan,
+            0.0);
     } catch (const ForestSdUnitError&) {
       noUnit = true;
     }
     try {
-      Built none = build(ResponseFamily::gaussian, constant.data(), nullptr,
-                         nullptr, nullptr, nan, nan);
+      Built none = build(ResponseFamily::gaussian, y.data(), nullptr, nullptr,
+                         nullptr, nan, 0.0);
       created = none.sampler->forestCalibration(0, 0).mapUnit == 0.0 &&
                 !none.sampler->setForestMapSd(0, 0.9);
     } catch (const std::exception&) {
     }
     check(noUnit && created,
-          "sd unit: an sd stated on a response with no spread throws, and the "
+          "sd unit: an sd stated against a unit of 0 throws, and the "
           "same response stating none is created and refuses the write");
     for (double bad : {0.0, -2.0, std::numeric_limits<double>::infinity()}) {
       const double invalid[K] = {nan, bad, nan};

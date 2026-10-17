@@ -775,15 +775,6 @@ items
     1.8e-15 and 3.6e-15 on 0.9-34 with one chain and with two), so
     it is not a regression. Unproven reading: the copy rebuilds a
     running total the original carries. Not before the merge.
-  constant-response-copy-refused: copy() of a sampler made on a
-    response with one value is refused, "the forests' calibration
-    anchor must be a positive finite number": the response has no
-    spread, so the anchor and the forests' unit are 0. The base build refuses the same copy.
-    Reproduce: set.seed(1); n <- 60; x <- matrix(runif(2 * n), n, 2);
-    z <- rbinom(n, 1, 0.5); s <- dbarts(x, rep(3, n), forests =
-    list(forest(), forest(basis = ~ factor(z))), control =
-    dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L));
-    s$copy(). Before 1.0-0.
   forest-multiplier: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
     dec-B269, dec-B271, dec-B272, dec-B275, dec-B354; dec-A171),
     after forest-kind-by-class (landed 2026-10-17, dec-A210, dec-A212:

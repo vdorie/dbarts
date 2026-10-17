@@ -658,30 +658,72 @@ expect_error(
   fixed = TRUE
 )
 
-# --- a response with no spread has no unit to state an sd in ---
-noSpread <- paste0(
-  "a forest's 'sd' is in the response's units, and this response has no ",
-  "spread to state one against (its standard deviation is 0); leave 'sd' ",
-  "out, or give a response that varies"
+# --- a response with no spread: the unit is a quarter of the window of width
+# one the response is scaled by, the size the one forest of an ordinary fit
+# has there (TODO constant-response-copy-refused). The model of several
+# forests is created with the defaults of that unit, takes a stated sd, and
+# is copied, reloaded and made again from its own three ---
+set.seed(1)
+nFlat <- 60L
+xFlat <- matrix(runif(2L * nFlat), nFlat, 2L)
+zFlat <- rbinom(nFlat, 1L, 0.5)
+flatControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 5L,
+  n.burn = 0L,
+  updateState = FALSE,
+  seed = 7L
 )
-constant <- rep(3, n)
-onConstant <- suppressWarnings(
-  twoForests(list(forest(), forest(basis = d$zf)), constant)
+flat <- function(forests) {
+  suppressWarnings(dbarts(
+    xFlat,
+    rep(3, nFlat),
+    forests = forests,
+    control = flatControl
+  ))
+}
+onConstant <- flat(list(forest(), forest(basis = factor(zFlat))))
+expect_identical(unitOf(onConstant), 0.25)
+expect_identical(
+  lapply(onConstant$getLeafPrior(), `[[`, "sd"),
+  list(forest1 = 0.5, `factor(zFlat)` = 0.25)
 )
-expect_identical(unitOf(onConstant), 0)
-expect_error(
-  suppressWarnings(twoForests(
-    list(forest(), forest(basis = d$zf, sd = 0.7)),
-    constant
-  )),
-  noSpread,
-  fixed = TRUE
+single <- suppressWarnings(dbarts(xFlat, rep(3, nFlat), control = flatControl))
+expect_identical(single$getLeafPrior()$k.scale, 0.5)
+expect_identical(
+  flat(list(forest(), forest(basis = factor(zFlat), sd = 0.7)))$getLeafPrior(
+    2L
+  )$sd,
+  0.7
 )
-expect_error(
-  onConstant$setLeafPrior(forests = list(forest(sd = 0.7))),
-  noSpread,
-  fixed = TRUE
+onConstant$storeState()
+flatFile <- tempfile(fileext = ".rds")
+saveRDS(onConstant, flatFile)
+reloaded <- readRDS(flatFile)
+unlink(flatFile)
+again <- list(
+  copy = onConstant$copy(),
+  reload = reloaded,
+  new = new(
+    "dbartsSampler",
+    onConstant$control,
+    onConstant$model,
+    onConstant$data
+  )
 )
+for (how in names(again)) {
+  expect_identical(
+    lapply(again[[how]]$getLeafPrior(), `[`, c("sd", "k.scale")),
+    lapply(onConstant$getLeafPrior(), `[`, c("sd", "k.scale")),
+    info = how
+  )
+}
+copied <- onConstant$copy()
+expect_identical(copied$run(0L, 5L), onConstant$run(0L, 5L))
+onConstant$setLeafPrior(forests = list(forest(sd = 0.7)))
+expect_identical(onConstant$getLeafPrior(1L)$sd, 0.7)
 # the fitting function's normal(sd = ) beside several forests says where the
 # size is written
 expect_error(

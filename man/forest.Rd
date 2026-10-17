@@ -439,9 +439,10 @@ forest(
     reloaded sampler and a sampler made again from its own control, model and
     data keep it. A control or a \code{forests} list taken to other data states
     the same numbers in that data's units, and the sampler made from it
-    derives its own. A response that does not vary has no standard deviation to
-    state a forest's \code{sd} against, and a stated \code{sd} on one is
-    refused.
+    derives its own. On a gaussian response that does not vary over those
+    rows the number is a quarter of the window of width one the response is
+    then scaled by, which is what the one forest of an ordinary fit gets
+    there.
 
     What \code{sd} is the size of. Where the forest has no \code{basis} it is
     the size of what the forest contributes, \eqn{a\,f(x)}{a f(x)}; where its
