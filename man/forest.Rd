@@ -180,7 +180,9 @@ forest(
     A basis is either one factor (or character or logical column) or numeric
     columns; the two are not mixed in one forest. The forest does not center
     or scale a basis, so a multiplier that should be standardized is written
-    so: \code{basis = scale(age)}.
+    so: \code{basis = scale(age)}. A numeric column constant over the
+    observations in the likelihood has no standard deviation to take the
+    default \code{sd} from, and is refused unless \code{sd} is stated.
 
     \strong{One size.} In this version a basis is one numeric column, or a
     factor, a character or a logical vector of two levels, counted on the
@@ -416,83 +418,108 @@ forest(
     \code{model@tree.prior} hold its first forest's.
   }
   \item{sd}{
-    This forest's prior scale, in the response's units: units of \eqn{y}{y}
-    for a gaussian response and of the latent index for \code{"probit"} and
-    \code{"logistic"}. The total \eqn{a\,f(x)}{a f(x)} or
-    \eqn{(b_1 - b_0)f(x)}{(b1 - b0) f(x)} is placed at \code{sd} of them,
-    per unit of basis row norm: a forest whose \code{basis} rows have median
-    non-zero norm \eqn{c}{c} contributes the scale named here, the calibration
-    map dividing \eqn{c}{c} out, so rescaling a basis column does not silently
-    rescale the prior. The number is kept as written, and
-    \code{$getLeafPrior(f)$sd} returns it as it was written.
+    The size of what this forest contributes, in the response's units: the
+    units of \eqn{y}{y} for a continuous response, and of the latent index
+    under \code{"probit"} and \code{"logistic"}, where the link's own error
+    has standard deviation 1 and \eqn{\pi/\sqrt{3}}{pi/sqrt(3)}. One number;
+    a name on it is ignored. What it is the size of depends on what
+    multiplies the forest.
 
-    The sampler divides it by one number of its own, derived once, when the
-    sampler is first created: \eqn{\mathrm{sd}(y)}{sd(y)} of the response net
-    of its offset for a gaussian response, \code{1} for \code{"probit"} and
-    \eqn{\pi/\sqrt{3}}{pi/sqrt(3)} for \code{"logistic"}, the standard
-    deviation of the link's own error distribution, a latent model having no
-    response standard deviation to name. The rows it is read from are the rows
-    in the likelihood: those \code{subset} and the missing-value handling keep,
-    less those of weight zero, with a warning and every row where those rows
-    hold fewer than two distinct values. A later change of the response, the
-    weights or the active rows does not move it, and a copy, a saved and
-    reloaded sampler and a sampler made again from its own control, model and
-    data keep it. A control or a \code{forests} list taken to other data states
+    \strong{No basis.} The forest enters as \eqn{a\,f(x)}{a f(x)}, and
+    \code{sd} is the size of \eqn{a\,f(x)}{a f(x)}.
+
+    \strong{A factor} (a factor, a character vector or a logical vector, of
+    two levels). The forest enters with one coefficient for each level, and
+    \code{sd} is the size of the difference between the two: the treatment
+    effect where the levels are control and treated.
+
+    \strong{A number} \eqn{w}{w}. A column that is an ordinary covariate
+    should be centered: \code{basis = scale(w)}, or
+    \code{basis = I(w - c)} for a reference value \eqn{c}{c}. The other
+    forests describe the response where \eqn{w}{w} is 0, and a column that
+    never comes near 0, an age or a year, makes them an extrapolation and the
+    fit poor, with nothing in the chain to show it. A dose or an exposure,
+    where 0 means none, is left as it is. The forest enters as
+    \eqn{w\,(a\,f(x))}{w (a f(x))}, and \code{sd} is the size of
+    \eqn{a\,f(x)}{a f(x)}, the change in the response for one unit of
+    \eqn{w}{w}; the term at an observation has size \eqn{|w|}{|w|}
+    \code{sd}. The column is used as given: it is never centered and never
+    divided, so a stated \code{sd} is per unit of \eqn{w}{w}, and the same
+    \code{sd} with \eqn{w}{w} in grams and in milligrams states two priors a
+    thousand times apart.
+
+    Where the coefficient is held (\code{amplitude = fixed()}) it is 1, what
+    it multiplies is the basis, and "size" is the prior standard deviation,
+    exactly. Where it is drawn the size is itself uncertain, and \code{sd} is
+    its prior median.
+
+    Not stated, \code{sd} for a forest with no basis is twice
+    \eqn{\mathrm{sd}(y)}{sd(y)} under a continuous response where its
+    coefficient is drawn, the size \code{\link{bart}} gives its forest (a
+    quarter of the response's range) where it is held, and one unit of the
+    link's error under \code{"probit"} and \code{"logistic"} either way;
+    \eqn{\mathrm{sd}(y)}{sd(y)}, or that unit, for a factor; and for a number
+    that same size for one standard deviation of the column,
+    \eqn{\mathrm{sd}(y) / \mathrm{sd}(w)}{sd(y) / sd(w)} per unit, held or
+    drawn. None of these depends on how many forests the model has. A default
+    fit is then the same fit whatever units \eqn{w}{w} is in.
+    \eqn{\mathrm{sd}(y)}{sd(y)} and \eqn{\mathrm{sd}(w)}{sd(w)} are taken
+    once, over the observations in the likelihood when the sampler is created
+    (those \code{subset} and the missing-value handling keep, with a positive
+    weight, and not masked out), and kept: replacing the column, the weights
+    or the mask later does not move the prior, and a copy, a saved and
+    reloaded sampler and a sampler made again from its own control, model
+    and data keep it. Where those observations hold fewer than two distinct
+    values of the response, or under \code{"probit"} and \code{"logistic"}
+    where none is in, both are taken over every observation, under one
+    warning. \eqn{\mathrm{sd}(y)}{sd(y)} is of the response net of its
+    offset; on a gaussian response that does not vary over those observations
+    it is a quarter of the window of width one the response is then scaled
+    by. \eqn{\mathrm{sd}(w)}{sd(w)} is kept with the data, in its
+    \code{basis.scale} slot (see \code{\link{dbartsData}}), and
+    \code{$getLeafPrior(f)$basis.scale} reports it. A caller who replaces a
+    column and wants the default of the new one states it,
+    \preformatted{p <- sampler$getLeafPrior(2)
+sampler$setLeafPrior(forests = list(forest(),
+  forest(sd = p$sd * p$basis.scale / sd(w.new))))}
+    A column that is constant over those observations has no standard
+    deviation and needs \code{sd} stated.
+
+    A treatment belongs in a factor or a logical vector, where \code{sd} is
+    the treatment effect. Written as a 0/1 number it is scaled as any number:
+    \eqn{\mathrm{sd}(z)}{sd(z)} is 0.5, 0.4 and 0.22 at 50, 20 and 5 percent
+    treated, so the default effect is 2, 2.5 and 4.6 times the one
+    \code{factor(z)} gets; \code{sd = sd(y)} on the number states the
+    factor's. The same holds for a coding written as a number and held,
+    \code{basis = z - 0.5} with \code{amplitude = fixed()}.
+
+    A held coefficient cannot adapt to an \code{sd} that is too small. At the
+    default it is sized for a slope of about one \eqn{\mathrm{sd}(y)}{sd(y)}
+    per \eqn{\mathrm{sd}(w)}{sd(w)}; where the effect may be larger, under
+    \code{"probit"} and \code{"logistic"} above all, state \code{sd} or let
+    the coefficient be drawn.
+
+    A default is not a stated number: \code{$getLeafPrior(f)$sd} reports the
+    number of the response's units it comes to, a numeric forest's named by
+    its column, and \code{$getLeafPrior(f)$sd.stated} is \code{FALSE}. A
+    stated number is kept as written and divided by the unit once, at each
+    creation. A control or a \code{forests} list taken to other data states
     the same numbers in that data's units, and the sampler made from it
-    derives its own. On a gaussian response that does not vary over those
-    rows the number is a quarter of the window of width one the response is
-    then scaled by, which is what the one forest of an ordinary fit gets
-    there.
-
-    What \code{sd} is the size of. Where the forest has no \code{basis} it is
-    the size of what the forest contributes, \eqn{a\,f(x)}{a f(x)}; where its
-    basis is a factor or a logical vector of two levels it is the size of the
-    difference between the two levels' contributions, the treatment effect
-    where the levels are control and treated. Where the coefficient is held
-    with \code{amplitude = fixed()} it is 1, what it multiplies is the basis,
-    and the size is the prior standard deviation, exactly; where it is drawn
-    the size is itself uncertain and \code{sd} is its prior median, to within
-    a few percent. A drawn numeric column is not yet so sized: its
-    contribution comes to 0.71 times \code{sd} at a row whose basis has the
-    median non-zero norm.
-
-    Which of the two channels carries \code{sd} depends on the forest: for a
-    forest with no basis whose coefficient is drawn it is the median of the
-    half-Cauchy prior on that coefficient, and otherwise it scales the
-    forest's own leaf prior. Not stated, a forest with no basis whose
-    coefficient is drawn takes twice the response's standard deviation under
-    a gaussian response, where a drawn \eqn{\sigma}{sigma} absorbs the
-    difference, and \code{1} under \code{"probit"} and
-    \eqn{\pi/\sqrt{3}}{pi/sqrt(3)}, 1.8138, under \code{"logistic"}, where
-    the link's error scale is fixed and nothing does: one unit of the link's
-    error. Where its coefficient is held it takes, under a gaussian response,
-    the size \code{\link{bart}} gives the one forest of an ordinary fit on the
-    same response, a quarter of the response's range, and one unit of the
-    link's error under \code{"probit"} and \code{"logistic"}. A forest with a
-    basis takes one unit, \eqn{\mathrm{sd}(y)}{sd(y)} or the link's, held or
-    drawn. None of these depends on how many forests the model has. A default is a
-    multiple of the unit and not a stated number: \code{$getLeafPrior(f)$sd}
-    reports the number of the response's units it comes to, and
-    \code{$getLeafPrior(f)$sd.stated} is \code{FALSE}. A value stated here
-    overrides the default, in the response's units.
-
-    It is one number, positive and finite, and a name on it is dropped. A
-    vector of any other length and anything that is not a number are refused.
-    The one forest of a model of one forest takes it as the fitting function's
+    derives its own. It is one number, positive and finite. A vector of any
+    other length and anything that is not a number are refused. The one
+    forest of a model of one forest takes it as the fitting function's
     \code{leaf.prior = normal(sd = )}, in the same units, and stating the size
     at both places is refused.
 
     It is the one argument a live sampler restates:
-    \code{$setLeafPrior(forests = list(forest(sd = ), ...))} writes it in the
-    channel creation gave the forest and states it from then on, also where it
-    is the number in force. \code{$getLeafPrior(f)$leaf.prior} returns the
-    statement, \code{forest(sd = )} where one was stated and \code{forest()}
-    where none was, and \code{forest()} written back leaves its forest as it is
-    (see \code{\link{dbartsSampler}}). The channel is fixed at creation, with
-    the forest's kind: \code{$setForestBasis} refuses to give a basis to a
-    forest created without one, so a forest's channel always agrees with
-    what it multiplies and its \code{forest(sd = )} round-trips through
-    \code{$setLeafPrior}.
+    \code{$setLeafPrior(forests = list(forest(sd = ), ...))} states it from
+    then on, also where it is the number in force, and leaves the recorded
+    \eqn{\mathrm{sd}(w)}{sd(w)}. \code{$getLeafPrior(f)$leaf.prior} returns
+    the statement, \code{forest(sd = )} where one was stated and
+    \code{forest()} where none was, and \code{forest()} written back leaves
+    its forest as it is (see \code{\link{dbartsSampler}}). A forest's kind is
+    fixed at creation: \code{$setForestBasis} refuses to give a basis to a
+    forest created without one, and moves no forest's prior.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on
@@ -513,9 +540,9 @@ forest(
     it is drawn each sweep. \code{fixed()} holds it for the sampler's life,
     the choice being made at creation, wherever the forest stands: a held
     coefficient is 1, and what it multiplies is the basis, so a forest with no
-    \code{basis} enters at 1 and a forest on a factor, a character or a
-    logical vector of two levels at 0 for the first level and 1 for the
-    second. The forest is then held out of the first level and enters at full
+    \code{basis} enters at 1, a forest on a numeric column at the column as
+    given, and a forest on a factor, a character or a logical vector of two
+    levels at 0 for the first level and 1 for the second. The forest is then held out of the first level and enters at full
     size for the second, so it is the second level's difference from the
     first. Another coding is another basis, and another size is \code{sd},
     which a held coefficient makes exact: the forest's contribution then has
@@ -523,10 +550,11 @@ forest(
     no \code{sd} has the size \code{\link{bart}} gives the one forest of an
     ordinary fit under a continuous response, a quarter of the response's
     range, and one unit of the link's error under \code{"probit"} and
-    \code{"logistic"}. A held coefficient cannot adapt to an \code{sd} that is
-    too small; where the effect may be larger, state \code{sd} or let the
-    coefficient be drawn. For now a basis of one numeric column is refused
-    when held. \code{fixed} alone is taken as
+    \code{"logistic"}. A numeric column held enters as given, its forest at
+    full size wherever the column is 1: \code{basis = z - 0.5} held is the
+    forest times -0.5 and 0.5. A held coefficient cannot adapt to an
+    \code{sd} that is too small; where the effect may be larger, state
+    \code{sd} or let the coefficient be drawn. \code{fixed} alone is taken as
     \code{fixed()}, and no other value is. Outside the argument that takes it
     the constructor is \code{dbartsPriors$fixed()}. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.
@@ -552,17 +580,17 @@ forest(
   which is the shipped single-forest binary default's own 0.239. A forest's
   default does not depend on how many forests the model has, so each forest
   added widens the prior on the combined location. When every forest carries
-  a basis the induced prior standard deviation of the index is
+  a factor the induced prior standard deviation of the index is
   \eqn{1.049\sqrt{K}}{1.049 sqrt(K)} latent units, 1.484 at
   \eqn{K = 2}{K = 2}, which is 0.989 of the classic \eqn{k = 2}{k = 2} binary
-  leaf-scale budget. When one forest carries none, its amplitude is Cauchy and
-  has no variance to enter that budget with, and the others contribute
+  leaf-scale budget; a numeric column at its default contributes 1.484 for
+  each standard deviation of the column the row is from 0. When one forest
+  carries none, its amplitude is Cauchy and has no variance to enter that
+  budget with, and the others contribute
   \eqn{1.049\sqrt{K - 1}}{1.049 sqrt(K - 1)}, 0.699 of the budget at
   \eqn{K = 2}{K = 2}. Where many forests share one index, state their
   \code{sd}. Read the values in force off
-  \code{$getLeafPrior(f)}'s \code{sd} entry, in the response's units, or as
-  multiples of the sampler's unit in its \code{leaf.scale.factor} and
-  \code{amplitude.prior.scale} entries.
+  \code{$getLeafPrior(f)}'s \code{sd} entry, in the response's units.
 
   Both forests' leaf scales come from the model's own calibration map rather
   than from the leaf prior, which is why a \code{k} hyperprior, a non-default
@@ -571,8 +599,8 @@ forest(
   forest with no basis being written on the forest, as
   \code{forest(x1 + x2, sd = 2)}, in the response's units as
   \code{normal(sd = )} is. In a model of several forests this \code{sd}
-  states one forest's share of the combined location's prior, per unit of
-  basis row norm, where \code{normal(sd = )} states a single forest's whole
+  states one forest's share of the combined location's prior, per unit of a
+  numeric basis, where \code{normal(sd = )} states a single forest's whole
   spread. Every value here is validated at fit time, and
   anything today's engine cannot honor is refused there by name rather than
   dropped.
