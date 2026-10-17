@@ -717,7 +717,8 @@ items
     dec-B246 as revised; tree.prior as dec-B246, dec-B252). Meant: a
     multiplier is a factor by its class alone (dec-B260); a numeric
     multiplier is never centred or divided, its default sd is
-    sqrt(2 / K) per standard deviation of the column, derived once at
+    one unit of the response's scale per standard deviation of the
+    column whatever the number of forests (dec-B291), derived once at
     creation and kept with the data, a stated sd is literal per unit,
     and the coefficient is normal (dec-B261, dec-B263, dec-B264; the
     sd is the forest's own, dec-B253); a replaced column keeps the
@@ -791,36 +792,32 @@ items
     dbartsControl(n.chains = 1L, n.threads = 1L, n.trees = 5L));
     s$copy(). Before 1.0-0.
   forest-kind-by-class: before 1.0-0 (dec-B260), after forest-sd-unit
-    and before the multiplier slice. What a forest multiplies is
-    decided by the class of its basis and nothing else, at every
-    door: dbartsData(bases = ) takes a factor and reads a logical
-    vector as levels, as forest(basis = ) does. A factor's levels
-    are recorded with the data; setForestBasis and predict(bases = )
-    take the class the forest was created with, a factor is matched
-    to its levels by name, a forest created without a basis takes
-    none, and a held forest keeps its width. A value's empty level
-    is dropped silently (dec-B308) and a column of zeros is refused
-    once, after subset. A swap never changes the kind (dec-B452),
-    and predict refuses numbers for a factor forest (dec-B453). R only, two
-    pushes. Moves no draw but for a logical vector through the data
-    door and a factor swapped or predicted with its levels in
-    another order. The second push respells the 91 blocks of
-    indicator columns in the tests as the factors they stand for,
-    bit for bit, and then refuses, at every door, swap and predict, a
-    factor of three or more levels and a basis of several numeric
-    columns (dec-B281, dec-B282); the gaussian baseline's
-    three-level scenario is rewritten and re-recorded. bartCause's
-    bcf passes factor(z) between the two pushes.
-    Push 1 is built on branch wt/forest-kind-recheck (code, tests,
-    help, NEWS and design note; its gates pass) and waits on review
-    and landing. Left: the review, the landing, bartCause's
-    factor(z) edit and push 2.
+    and before the multiplier slice. Push 1 is landed (calls dec-A210):
+    what a forest multiplies is decided by the class of its basis and
+    nothing else, at every door: dbartsData(bases = ) takes a factor
+    and reads a logical vector as levels, as forest(basis = ) does. A
+    factor's levels are recorded with the data; setForestBasis and
+    predict(bases = ) take the class the forest was created with, a
+    factor is matched to its levels by name, a forest created without
+    a basis takes none, and a held forest keeps its width. A value's
+    empty level is dropped silently (dec-B308) and a column of zeros
+    is refused once, after subset. A swap never changes the kind
+    (dec-B452), and predict refuses numbers for a factor forest
+    (dec-B453). Left: push 2 and the edit before it. Push 2, R only,
+    respells the 91 blocks of indicator columns in the tests as the
+    factors they stand for, bit for bit, and then refuses, at every
+    door, swap and predict, a factor of three or more levels and a
+    basis of several numeric columns (dec-B281, dec-B282); the
+    gaussian baseline's three-level scenario is rewritten and
+    re-recorded. bartCause's bcf passes factor(z) between the two
+    pushes, and that edit is not made yet.
     Plan: docs/plans/forest-kind-by-class.md.
   forest-multiplier: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
     dec-B269, dec-B271, dec-B272, dec-B275, dec-B354; dec-A171),
-    after forest-kind-by-class (and forest-sd-unit, landed, which leaves a
-    forest with a basis the default sqrt(2 / K) of the unit; this
-    slice drops K, dec-B291). Each kind of forest gets one rule. A
+    after forest-kind-by-class (and forest-sd-unit, landed, whose reader
+    reports sqrt(2 / K) times the unit for a forest with a basis at
+    three forests or more; this slice builds the default dec-B291
+    rules, one unit whatever K). Each kind of forest gets one rule. A
     held coefficient is 1 and the multiplier is what the basis says,
     wherever the forest stands (1 with no basis, the column as given
     for one numeric column, 0 for a two-level factor's reference
@@ -907,10 +904,11 @@ items
     (dec-B274), a stated sd on one of them, and probit and logistic.
     Until then a constant basis column with sd stated is created, the
     one way to write such forests (dec-B307); decide with this item
-    whether it stays a second spelling. Also decided with it, before
-    1.0-0: what k and k.scale report for a forest in a model of
-    several forests (today k = 1 for each forest and k.scale the
-    forest's own prior sd).
+    whether it stays a second spelling. Also with it, before 1.0-0:
+    k and k.scale on several forests stay as built (k = 1 for each
+    forest, k.scale the forest's own prior sd) until that item
+    decides what they report for a forest in a model of several
+    forests.
   several-column-basis-meaning: what a basis of several numeric
     columns means, shorthand for a forest each or one shared shape
     times a weighted sum (the curve-times-modifier model of a spline

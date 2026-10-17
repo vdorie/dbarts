@@ -1,6 +1,7 @@
 # forest-kind-by-class: what a forest multiplies is decided by the class of its basis, at every door, fixed at creation, and is one numeric column or two levels
 
-Status: PLANNED, revised from its blind critique on 2026-10-11 with no call open
+Status: push 1 LANDED 2026-10-17 (ff651b67..1c41b21c; calls dec-A210; [Landing note](#landing-note)) and
+push 2 planned. Revised from its blind critique on 2026-10-11 with no call open
 ([Revised from the blind critique](#revised-from-the-blind-critique)); written to the tree of 37b59ea0,
 the final tip of the sd unit slice. Rulings: dec-B260; dec-B254 for the kind as structure; dec-B289 and
 dec-B308 for a factor's levels; dec-B346 for a column of zeros; dec-B281 and dec-B282 for the one size;
@@ -1636,3 +1637,74 @@ was run for one block and no further; the 21 lines that read a fit's `bases` wer
 not by the trace, so a read through a variable is not among them; the budget's figures are estimates
 and its multipliers are the earlier slices'; no suite, reference build, compare, exact gate, consumer
 suite or pair script was run.
+
+## Landing note
+
+Push 1 landed 2026-10-17 as ff651b67..1c41b21c, 19 commits on ff651b67: the plan's recheck and revision
+(efd5cf84), the R code (58469b22), the new tests (493b78f5), the respelled tests and the bcf equivalence
+scenario's swap (84e513da, 2b1e824f), the help, method docstrings and NEWS (1b70dd9b), the design note
+(4813cc44), a fix round (51647df8, 3c189592, 9026d8f3, a7cdf7b8, 9d513304, f327c234) and two commits that
+answer a check of that round (ae130c34, 1c41b21c). One planner, a blind critique, one opus implementer, one opus
+review that ran its own mutants, one opus fix round, a sonnet check of the fix round, and a further check of the
+answer to it. Push 2 is not built.
+
+Built as planned: the class of a basis read by one function at every door, a value judged on the rows the fit
+keeps, a factor's levels on the data object, a swap and a prediction held to the kind and levels of creation
+and matched to them by name, the factor stored in a fit for a forest of levels, and `$setData` on a sampler of
+one forest refusing bases. The four changed sequences are as planned, each with its oracle row in the pair
+script (40 rows, none unexpected). Departures, the calls of dec-A210: `finishBasisRows` takes the whole list;
+the record check is one call in `resolveSamplerSpec` and another in the sampler's `initialize`, so `copy()`
+runs it and a reload does not; the data door runs the forest doors' two extra refusals; `dbartsSpec()`
+replaces blocks and levels whole; a factor with dimensions is refused and an array of one dimension is its
+vector; the refusal texts are worded by door.
+
+The review found no must-fix in the code or the tests and two untrue sentences in the help. Should-fix: `$setData`
+ran no record check (a data object with its block taken off by hand and its levels kept was taken, and
+`copy()` then failed); eight of the reviewer's 31 mutants passed the whole suite (12 passed the 17 files of the
+slice); a factor swap cost 1.4 to 1.6 times the base on the R side; and the plan's lists left the data door's
+refusals unnamed. The help's untrue sentences: the remedy for NA as a level (`ifelse()` on a factor returns its
+codes), and the columns a forest of numbers takes at predict. The fix round ran the record check at `$setData`
+before anything is stored, pinned the 12 mutants and two more, carried a factor's codes to the forest's levels
+(a factor swap back to the base's cost, 0.98 to 1.05), refused the factor that has dimensions, worded the
+texts by door, counted one level in the singular, and corrected the help and the plan. The check of the round
+found everything resolved and two things more: the design note's Status named a hash the rebase had renamed
+(it fails doc-freshness in a clean clone), and a factor of one dimension written as code failed in R's own
+words, `ncol()` of such an array being NA. ae130c34 reads an array of one dimension as its vector at every
+door and drops the hash; a further check found the path at predict that drops a row of `newdata` for a
+missing value reading it as a matrix, which 1c41b21c answers.
+
+Gates, on the fix round's tree before its last rebase, onto ff651b67, which adds that landing's records only:
+the full tinytest suite 26381 results, 0 failed, 254 files; test-forest-kind.R 1764; the
+reference build's three bitwise compares 55 of 55, 15 of 15 and 11 of 11 and the four snapshot files 7, 3, 14
+and 3 results, 0 failed; the pair script's 40 rows, 0 unexpected; the 42 exact-gate commands at `quick`, all
+pass; the composition matrix 269 checks and no disagreement; lintr, air, rc-codoc, win-drift, doc-freshness
+and verify-anchors clean; NEWS parses (225 entries), checkRd 0 notes on the five changed pages and the
+examples run; `R CMD check --as-cran --no-manual` one NOTE (the Date field). Mutants: the implementer's 52
+killed by the new file, and the reviewer's 12 survivors and the checker's six of its own, killed on the fix
+round's tip; one reviewer mutant (30) is equivalent. Neutrality: 200 seeded scenarios, 152 fit on both builds
+with identical draws, sigma, amplitudes, stored blocks, predictions and `extract`, and 48 refused in the same
+words. After ae130c34 and 1c41b21c, test-forest-kind.R ran 1779 results, 0 failed; the lint chain and
+doc-freshness run on the records commit. Nothing under `src/` or `inst/include` changed, so no sanitizer or
+tests/cpp run was owed.
+
+Not run locally, left to CI: the full suite, `R CMD check` and the sanitizers on the landed tip. Not repeated
+on ae130c34 and 1c41b21c, which change five R lines that read `dim()`, a sentence of the help and a test file:
+the full suite, the reference compares, the exact gates, the composition matrix and `R CMD check`. Not run at
+all: the x86-64 leg, Windows, `pkgdown::check_pkgdown`, the vignette rebuild, any consumer's suite (bartCause's
+and stan4bart's use of a basis was found by search and by a by-hand fit of eight `bcf()` settings, equal in sums
+to 8 decimals; "nothing hands over a factor with dimensions" rests on that search), a hazard family with a
+basis (no spelling creates one on either build), and whether the fourth sequence moves the posterior or only
+the draws.
+
+Size against the plan: the plan estimated about 1965 lines for push 1 and stopped at about 3900 or 615 of R.
+The range adds 3596 lines and removes 948 over 44 files: R 525 added (9 files), tinytest 1514 (18 files,
+`inst/common` among them), man 69, NEWS 15, docs 1463, the rest 10. Without the docs it is 2133 added, inside
+the stop; R is over its planned 410 and inside its stop, and the tests ran past the plan because the review and
+the check added the cases above.
+
+Left: push 2, which refuses a basis of three or more levels and of several numeric columns at every door and
+respells the tests' blocks of indicator columns; bartCause's `factor(z)` edit, which lands between the pushes;
+the multiplier slice. The dropped-rows prediction is not held to the table of a swap (the same on the base
+build); the data door takes two columns of one name (the same); hand-edited records beyond the count of the
+levels are unchecked; a reload's re-creation runs no check. The default of one unit of the response's scale for
+a forest with a basis (dec-B291) is the multiplier slice's.
