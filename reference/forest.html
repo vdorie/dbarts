@@ -86,8 +86,7 @@ The constructor is not exported: it resolves by bare name inside the
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">forest</span><span class="op">(</span></span>
 <span>    vars <span class="op">=</span> <span class="cn">NULL</span>, basis <span class="op">=</span> <span class="cn">NULL</span>, sd <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>    n.trees <span class="op">=</span> <span class="cn">NULL</span>, base <span class="op">=</span> <span class="cn">NULL</span>, power <span class="op">=</span> <span class="cn">NULL</span>, amplitude <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    interactions <span class="op">=</span> <span class="cn">NULL</span>, blocks <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    amplitude.prior.variance <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
+<span>    interactions <span class="op">=</span> <span class="cn">NULL</span>, blocks <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -421,7 +420,12 @@ The constructor is not exported: it resolves by bare name inside the
     stated then, while <code><a href="dbartsSpec.html">dbartsSpec</a></code> takes a data object and
     installs the bases declared here in place of those it carried. After
     creation a basis is replaced by <code>$setForestBasis</code>, whose formula is
-    read at once, where it was made; see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>.</p></dd>
+    read at once, where it was made; see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>.</p>
+<p>A lone forest carrying a <code>basis</code> is refused, the coefficients being
+    what distinguish a forest from another. For varying coefficients declare
+    an intercept forest plus one basis forest per covariate,
+    <code>forests = list(forest(), forest(basis = z1), forest(basis = z2))</code>,
+    or use one forest with <code>linear()</code> leaves.</p></dd>
 
   <dt id="arg-n-trees-base-power">n.trees, base, power<a class="anchor" aria-label="anchor" href="#arg-n-trees-base-power"></a></dt>
 <dd><p>This forest's tree count and tree-structure prior. Each one stated here
@@ -464,34 +468,40 @@ The constructor is not exported: it resolves by bare name inside the
     reloaded sampler and a sampler made again from its own control, model and
     data keep it. A control or a <code>forests</code> list taken to other data states
     the same numbers in that data's units, and the sampler made from it
-    derives its own. A response that does not vary has no standard deviation to
-    state a forest's <code>sd</code> against, and a stated <code>sd</code> on one is
-    refused.</p>
-<p>What <code>sd</code> is the size of. Where the forest has no <code>basis</code>, or a
-    factor or logical one, and its coefficient is drawn, it is the prior median
-    of the absolute size of the forest's contribution, to within a few percent.
-    Where the coefficient is held with <code>amplitude = fixed()</code> or the basis
-    is a numeric column it is not, and the size comes to a different multiple
-    of <code>sd</code>: a held forest with no basis has the size of the unit whatever
-    its <code>sd</code> is, a held factor 1.48 times <code>sd</code>, and a drawn numeric
-    column 0.71 times <code>sd</code> at a row whose basis has the median non-zero
-    norm.</p>
-<p>Which of the two channels carries <code>sd</code> depends on whether the forest
-    has a <code>basis</code>: without one it is the median of the half-Cauchy prior
-    on the forest's scalar amplitude, with one it scales the forest's own leaf
-    prior. The two channels default differently. A forest with no basis takes
-    twice the response's standard deviation under a gaussian response, where a
-    drawn \(\sigma\) absorbs the difference, and <code>1</code> under
-    <code>"probit"</code> and \(\pi/\sqrt{3}\), 1.8138, under
-    <code>"logistic"</code>, where the link's error scale is fixed and nothing does.
-    A forest with a basis takes \(\sqrt{2/K}\) times that unit in
-    a model of \(K\) forests, so that declaring more of them does not
-    widen the prior on the combined location without bound; \(K = 2\)
-    is the fixed point, \(\sqrt{2/2} = 1\). A default is a
+    derives its own. On a gaussian response that does not vary over those
+    rows the number is a quarter of the window of width one the response is
+    then scaled by, which is what the one forest of an ordinary fit gets
+    there.</p>
+<p>What <code>sd</code> is the size of. Where the forest has no <code>basis</code> it is
+    the size of what the forest contributes, \(a\,f(x)\); where its
+    basis is a factor or a logical vector of two levels it is the size of the
+    difference between the two levels' contributions, the treatment effect
+    where the levels are control and treated. Where the coefficient is held
+    with <code>amplitude = fixed()</code> it is 1, what it multiplies is the basis,
+    and the size is the prior standard deviation, exactly; where it is drawn
+    the size is itself uncertain and <code>sd</code> is its prior median, to within
+    a few percent. A drawn numeric column is not yet so sized: its
+    contribution comes to 0.71 times <code>sd</code> at a row whose basis has the
+    median non-zero norm.</p>
+<p>Which of the two channels carries <code>sd</code> depends on the forest: for a
+    forest with no basis whose coefficient is drawn it is the median of the
+    half-Cauchy prior on that coefficient, and otherwise it scales the
+    forest's own leaf prior. Not stated, a forest with no basis whose
+    coefficient is drawn takes twice the response's standard deviation under
+    a gaussian response, where a drawn \(\sigma\) absorbs the
+    difference, and <code>1</code> under <code>"probit"</code> and
+    \(\pi/\sqrt{3}\), 1.8138, under <code>"logistic"</code>, where
+    the link's error scale is fixed and nothing does: one unit of the link's
+    error. Where its coefficient is held it takes, under a gaussian response,
+    the size <code><a href="bart.html">bart</a></code> gives the one forest of an ordinary fit on the
+    same response, a quarter of the response's range, and one unit of the
+    link's error under <code>"probit"</code> and <code>"logistic"</code>. A forest with a
+    basis takes one unit, \(\mathrm{sd}(y)\) or the link's, held or
+    drawn. None of these depends on how many forests the model has. A default is a
     multiple of the unit and not a stated number: <code>$getLeafPrior(f)$sd</code>
     reports the number of the response's units it comes to, and
     <code>$getLeafPrior(f)$sd.stated</code> is <code>FALSE</code>. A value stated here
-    overrides the default, in the response's units, at every \(K\).</p>
+    overrides the default, in the response's units.</p>
 <p>It is one number, positive and finite, and a name on it is dropped. A
     vector of any other length and anything that is not a number are refused.
     The one forest of a model of one forest takes it as the fitting function's
@@ -522,47 +532,26 @@ The constructor is not exported: it resolves by bare name inside the
     the forest may split on, i.e. the <code>vars</code> subset when one is given,
     and the forest's own tree count.</p></dd>
 
-  <dt id="arg-amplitude-prior-variance">amplitude.prior.variance<a class="anchor" aria-label="anchor" href="#arg-amplitude-prior-variance"></a></dt>
-<dd><p>Prior variance of the \(N(0, \cdot)\) amplitudes on this
-    forest's basis columns, default <code>0.5</code>. Legal only on a forest given a
-    <code>basis</code>: a forest without one carries a plain scalar amplitude under
-    the engine's half-Cauchy scale-mixture prior, whose median is <code>sd</code>
-    rather than a variance. It is a free multiplier on the induced prior: the
-    prior standard deviation of the combined location at row \(i\) is
-    \(\sqrt{\sum_f s_f^2 v_f \|B_f(i,\cdot)\|^2}\) over the forests carrying a basis, with \(s_f\)
-    read from <code>$getLeafPrior(f)$k.scale</code> and \(v_f\)
-    this argument; a basis-free forest's own term is Cauchy and has no
-    standard deviation. The budget that sum sits in is set by <code>sd</code>, whose
-    default already divides it among the \(K\) forests, so raising this
-    argument raises the total rather than redistributing it. Under <code>"probit"</code> and <code>"logistic"</code> that
-    location IS the latent index and \(\sigma\) is pinned, so nothing
-    in the sampler absorbs a mis-scaled basis; under a gaussian response it is
-    in the response's units and a drawn \(\sigma\) partly does. Every input to that expression is readable off the fitted
-    sampler: \(v_f\) is the <code>amplitude.prior.variance</code> entry of
-    <code>$getLeafPrior(f)</code> and \(B_f\) is <code>data@bases[[f]]</code>,
-    so the induced prior can be checked against what is in force rather than
-    against what the call asked for. See the example below.
-    A lone forest carrying a <code>basis</code> is refused, the amplitudes being what
-    distinguish a forest from another. For varying coefficients declare an
-    intercept forest plus one basis forest per covariate,
-    <code>forests = list(forest(), forest(basis = z1), forest(basis = z2))</code>,
-    or use one forest with <code>linear()</code> leaves.</p></dd>
-
   <dt id="arg-amplitude">amplitude<a class="anchor" aria-label="anchor" href="#arg-amplitude"></a></dt>
-<dd><p>The law of this forest's amplitudes: the one a forest with no
-    <code>basis</code> carries, or one for each column of its <code>basis</code>. Left out,
-    they are drawn each sweep. <code>fixed()</code> holds them for the sampler's life,
-    the choice being made at creation: a forest with no <code>basis</code> at 1, and
-    a forest on a factor, a character or a logical vector of two levels at 0
-    for the first level and 1 for the second. The forest is then held out of
-    the first level and enters at full size for the second, so it is the
-    second level's difference from the first. For now a held forest is taken
-    in two shapes only: a forest with no <code>basis</code> at any place but the
-    second, and a basis of two levels as the second forest. Every other shape
-    is refused when held: a forest with no <code>basis</code> put second in a
-    <code>forests</code> list or in a data object's <code>bases</code>, a basis of two
-    levels at any other place, and a basis of one numeric column.
-    <code>fixed</code> alone is taken as
+<dd><p>The prior on this forest's coefficient: the one a forest with no
+    <code>basis</code> carries, or one for each level of its <code>basis</code>. Left out,
+    it is drawn each sweep. <code>fixed()</code> holds it for the sampler's life,
+    the choice being made at creation, wherever the forest stands: a held
+    coefficient is 1, and what it multiplies is the basis, so a forest with no
+    <code>basis</code> enters at 1 and a forest on a factor, a character or a
+    logical vector of two levels at 0 for the first level and 1 for the
+    second. The forest is then held out of the first level and enters at full
+    size for the second, so it is the second level's difference from the
+    first. Another coding is another basis, and another size is <code>sd</code>,
+    which a held coefficient makes exact: the forest's contribution then has
+    prior standard deviation <code>sd</code>. A held forest with no basis that states
+    no <code>sd</code> has the size <code><a href="bart.html">bart</a></code> gives the one forest of an
+    ordinary fit under a continuous response, a quarter of the response's
+    range, and one unit of the link's error under <code>"probit"</code> and
+    <code>"logistic"</code>. A held coefficient cannot adapt to an <code>sd</code> that is
+    too small; where the effect may be larger, state <code>sd</code> or let the
+    coefficient be drawn. For now a basis of one numeric column is refused
+    when held. <code>fixed</code> alone is taken as
     <code>fixed()</code>, and no other value is. Outside the argument that takes it
     the constructor is <code>dbartsPriors$fixed()</code>. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.</p></dd>
@@ -584,17 +573,17 @@ The constructor is not exported: it resolves by bare name inside the
   and the fitted probabilities. At two forests of the shipped shape - one
   carrying no basis - a probit model's prior puts
   \(P(p &lt; 0.01 \mathrm{~or~} p &gt; 0.99)\) at 0.238,
-  which is the shipped single-forest binary default's own 0.239. The \(\sqrt{2/K}\) factor
-  is what holds that as \(K\) grows, and it holds it in two different
-  senses. When EVERY forest carries a basis the induced prior standard
-  deviation of the index is 1.484 latent units at every \(K\) - 0.989 of
-  the classic \(k = 2\) binary leaf-scale budget - because the whole
-  location is then a sum of fixed-variance channels. When one forest carries
-  none, its amplitude is Cauchy and has no variance to enter that budget with,
-  so the fixed-variance part is BOUNDED by 1.484 rather than pinned at it,
-  rising from 0.699 of the budget at \(K = 2\) toward 0.989 and never
-  reaching it; without the factor it would instead grow past twice the budget
-  by ten forests. Read the values in force off
+  which is the shipped single-forest binary default's own 0.239. A forest's
+  default does not depend on how many forests the model has, so each forest
+  added widens the prior on the combined location. When every forest carries
+  a basis the induced prior standard deviation of the index is
+  \(1.049\sqrt{K}\) latent units, 1.484 at
+  \(K = 2\), which is 0.989 of the classic \(k = 2\) binary
+  leaf-scale budget. When one forest carries none, its amplitude is Cauchy and
+  has no variance to enter that budget with, and the others contribute
+  \(1.049\sqrt{K - 1}\), 0.699 of the budget at
+  \(K = 2\). Where many forests share one index, state their
+  <code>sd</code>. Read the values in force off
   <code>$getLeafPrior(f)</code>'s <code>sd</code> entry, in the response's units, or as
   multiples of the sampler's unit in its <code>leaf.scale.factor</code> and
   <code>amplitude.prior.scale</code> entries.</p>
@@ -668,9 +657,8 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-in"><span><span class="co"># than recomputed from the call: forest 2 is the one carrying a basis</span></span></span>
 <span class="r-in"><span><span class="va">calibration</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="fu">getLeafPrior</span><span class="op">(</span><span class="fl">2L</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="va">basis</span> <span class="op">&lt;-</span> <span class="va">sampler</span><span class="op">$</span><span class="va">data</span><span class="op">@</span><span class="va">bases</span><span class="op">[[</span><span class="fl">2L</span><span class="op">]</span><span class="op">]</span></span></span>
-<span class="r-in"><span><span class="va">indexSd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">calibration</span><span class="op">$</span><span class="va">k.scale</span><span class="op">^</span><span class="fl">2</span> <span class="op">*</span></span></span>
-<span class="r-in"><span>                <span class="va">calibration</span><span class="op">$</span><span class="va">amplitude.prior.variance</span> <span class="op">*</span></span></span>
-<span class="r-in"><span>                <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">basis</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># its coefficients' prior variance is 1/2</span></span></span>
+<span class="r-in"><span><span class="va">indexSd</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/MathFun.html" class="external-link">sqrt</a></span><span class="op">(</span><span class="va">calibration</span><span class="op">$</span><span class="va">k.scale</span><span class="op">^</span><span class="fl">2</span> <span class="op">*</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/colSums.html" class="external-link">rowSums</a></span><span class="op">(</span><span class="va">basis</span><span class="op">^</span><span class="fl">2</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co"># the same model written in a formula, the first forest written out; the</span></span></span>
 <span class="r-in"><span><span class="co"># columns of a basis are named as lm() would name them</span></span></span>
@@ -715,7 +703,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000477</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000691</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 3 2 2 3 2 2 3 3 2 2 </span>

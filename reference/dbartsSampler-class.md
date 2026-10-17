@@ -2213,27 +2213,30 @@ none was. It goes back into `setLeafPrior(forests = )` as it is, and
 written back leaves its forest as it is. The list then begins with
 `leaf.prior`, `sd`, the forest's `sd` in force in the response's units -
 `v` itself, bit for bit, or the default's multiple of the response's
-scale times the unit the sampler derived at creation - and `sd.stated`,
-`TRUE` or `FALSE`. It adds `basis.row.norm`, `leaf.scale.factor`,
-`leaf.scale.divisor` and one of `amplitude.prior.variance` or
-`amplitude.prior.scale`: the half-Cauchy median, with `prior.sd.of`
-`"amplitude scale"`, on a forest created without a basis, and the
-leaf-scale factor, with `prior.sd.of` `"forest total"`, on one created
-with one. `leaf.scale.factor` and `amplitude.prior.scale` are multiples
-of the unit, the engine's channels for the `sd`, and not numbers of the
+scale times the unit the sampler derived at creation - `sd.stated`,
+`TRUE` or `FALSE`, `multiplier`, what the forest multiplies, `"none"`,
+`"factor"` or `"numeric"`, and `amplitude`, `fixed()` where the forest's
+coefficient is held and absent where it is drawn. `prior.sd.of` says
+what `sd` is the size of: `"forest"` for a forest with no basis and
+`"level difference"` for a factor, the size exactly where the
+coefficient is held, with `" (prior median)"` where it is drawn;
+`"forest total"` for a numeric column. It adds `basis.row.norm`,
+`leaf.scale.factor`, `leaf.scale.divisor` and, on a drawn forest with no
+basis, `amplitude.prior.scale`, the half-Cauchy median.
+`leaf.scale.factor` and `amplitude.prior.scale` are multiples of the
+unit, the engine's channels for the `sd`, and not numbers of the
 response's units; `k.scale` is in the response's units.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `k` is
-pinned at 1, `k.scale` is the map's leaf scale, and the list adds four
+pinned at 1, `k.scale` is the map's leaf scale, and the list adds these
 entries, absent (so `NULL`) on every other forest, a multinomial one
-included. One of `amplitude.prior.variance` or `amplitude.prior.scale`:
-a forest whose amplitudes carry a fixed prior variance reports that
-variance, and one whose amplitude carries the half-Cauchy scale mixture
-(a forest declaring no basis) reports its median. Each is a prior the
-caller may set; neither moves with the scale mixture's own variance
-auxiliary, which is drawn. `leaf.scale.factor` and `leaf.scale.divisor`
+included. `amplitude.prior.scale`, on a forest whose coefficient carries
+the half-Cauchy scale mixture (a drawn forest with no basis), is its
+median, which does not move with the mixture's own variance auxiliary,
+which is drawn; the coefficients of a forest with a basis are drawn
+under prior variance 1/2. `leaf.scale.factor` and `leaf.scale.divisor`
 are the map's two factors and `basis.row.norm` the median nonzero row
 norm of the forest's basis IN FORCE, which `setForestBasis` re-derives.
 
@@ -2242,8 +2245,8 @@ Together they decompose the map's leaf scale as
 exactly, so the family's own latent scale \\s\\ - data-dependent under a
 gaussian response - is recovered as
 `k.scale * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`. No
-state install changes any of the four: a state carries neither a leaf
-scale nor a fixed amplitude prior, and the bases are not state.
+state install changes any of them: a state carries neither a leaf scale
+nor a fixed amplitude prior, and the bases are not state.
 
 The spread (`k.scale / k`) describes the LEAF-PARAMETER scale of the
 forest total. It equals the prior standard deviation of \\f(x)\\ at
