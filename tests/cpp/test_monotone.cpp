@@ -2518,6 +2518,18 @@ static void testMonotoneCollapse() {
       checkNear(mu[0], expected, 1e-15,
                 "monotone collapse: the merged leaf at the mean by rows");
     }
+    // rows that all weigh 0 give the plain mean of the leaves
+    {
+      TestTree t(store);
+      std::int32_t left = t.split(0, 0, cutHolding(t, 0, 0, 15));
+      std::vector<double> mu(t.tree.nodes.size(), 0.0), zero(131, 0.0);
+      mu[left] = -0.0207;
+      mu[left + 1] = -0.0233;
+      check(collapse(t, dir, mu, zero.data()) && t.tree.at(0).isBottom(),
+            "monotone collapse: rows of no weight merge");
+      checkNear(mu[0], (-0.0207 + -0.0233) / 2.0, 1e-15,
+                "monotone collapse: rows of no weight give the plain mean");
+    }
     // out of order by less than the predicate's 1e-9 is in order, by more not
     for (double gap : {5e-10, 2e-9}) {
       TestTree t(store);
@@ -2554,6 +2566,31 @@ static void testMonotoneCollapse() {
     checkNear(mu[left], (nLow * -0.0670 + nLowHigh * -0.0339) /
                           (nLow + nLowHigh),
               1e-15, "monotone collapse: tree 7's merged side");
+  }
+  {  // the empty-leaf merge at a stride of two, as linear leaves hold an
+     // intercept and a slope: the leaf no row reaches gives way, and each
+     // coordinate of the merged leaf is its mean over the rows
+    TestTree t(store);
+    std::int32_t left = t.split(0, 0, 150);
+    std::int32_t low = t.split(left, 0, 75);
+    std::int32_t empty = t.split(low + 1, 0, 75);  // its left holds no row
+    std::vector<double> params(2 * t.tree.nodes.size(), 0.0);
+    const double values[3][2] = {{0.1, -1.0}, {0.7, 3.0}, {0.3, 2.0}};
+    const std::int32_t leaves[3] = {low, empty, empty + 1};
+    for (int k = 0; k < 3; ++k)
+      for (int j = 0; j < 2; ++j)
+        params[2 * static_cast<size_t>(leaves[k]) + j] = values[k][j];
+    double rows[3];
+    for (int k = 0; k < 3; ++k) rows[k] = numRows(t, leaves[k]);
+    bool emptyLeaf = rows[1] == 0.0 && rows[0] > 0.0 && rows[2] > 0.0;
+    t.tree.collapseEmptyNodes(store, nullptr, params, 2);
+    bool held = emptyLeaf && t.tree.at(low + 1).isBottom() &&
+                !t.tree.at(left).isBottom();
+    for (int j = 0; j < 2; ++j)
+      held = held && std::fabs(params[2 * static_cast<size_t>(low + 1) + j] -
+                               values[2][j]) <= 1e-15 &&
+             params[2 * static_cast<size_t>(low) + j] == values[0][j];
+    check(held, "monotone collapse: the empty-leaf merge keeps its stride");
   }
   const std::int8_t first[3] = {1, 0, 0};
   std::int32_t half = cutHolding(TestTree(store), 0, 1, 150);

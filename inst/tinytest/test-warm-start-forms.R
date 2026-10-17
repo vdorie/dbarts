@@ -646,23 +646,49 @@ expect_identical(
 # A tree in order on the donor's points that the move onto this sampler's
 # puts out of order: x2 held at one point here, the right side's lower x2
 # split has none left and merges, and the merged leaf falls below the left
-# side's 0.4 beside it. The move's collapse leaves no leaf at zero
+# side's 0.4 beside it. The move's collapse merges the left side, by the rows
+# each leaf holds under the case weights, and leaves the fit in order along x1
 q <- grid[[2L]][c(37L, 75L)]
 movedOut <- tree(
   c(1L, 2L, -1L, -1L, 2L, 2L, -1L, -1L, -1L),
   c(fine[50L], q[1L], 0.4, -0.6, q[2L], q[1L], 0.5, -0.3, 0.2)
 )
-onePoint <- function() {
-  sampler <- rising()
-  sampler$setCutPoints(q[2L], 2L)
-  sampler
+leftSide <- x[, 1L] <= fine[50L]
+lowX2 <- x[, 2L] <= q[2L]
+along <- as.matrix(expand.grid(
+  x1 = seq(0, 1, 0.02),
+  x2 = c(0.1, q, 0.9),
+  x3 = 0.5,
+  x4 = 0.5
+))
+for (weights in list(NULL, caseWeights)) {
+  onePoint <- function() {
+    sampler <- rising(weights = weights)
+    sampler$setCutPoints(q[2L], 2L)
+    sampler
+  }
+  pushed <- expectChanged(onePoint, withTrees(given, stumps(movedOut)), "moved")
+  got <- treeOf(pushed$state)
+  merged <- byRows(
+    c(0.4, -0.6),
+    list(leftSide & lowX2, leftSide & !lowX2),
+    if (is.null(weights)) rep(1, n) else weights
+  )
+  expect_identical(got$vars, c(1L, -1L, 2L, -1L, -1L))
+  expect_true(abs(got$values[2L] - merged) < 1e-12)
+  expect_true(-min(diff(matrix(pushed$sampler$predict(along), 51L))) <= 1e-8)
+  expect_identical(
+    pushed$line,
+    "warm start: 4 of 4 donor trees taken; 1 cut back to fit"
+  )
 }
-pushed <- expectChanged(onePoint, withTrees(given, stumps(movedOut)), "moved")
-got <- treeOf(pushed$state)
-expect_true(all(got$values[got$vars < 0L] != 0))
-expect_identical(
-  pushed$line,
-  "warm start: 4 of 4 donor trees taken; 1 cut back to fit"
+# the weights tell
+expect_true(
+  abs(
+    byRows(c(0.4, -0.6), list(leftSide & lowX2, leftSide & !lowX2)) -
+      merged
+  ) >
+    1e-3
 )
 # a forced setState of the same trees still sets each tree out of order to
 # zero

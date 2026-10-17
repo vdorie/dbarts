@@ -1147,5 +1147,8 @@ tests, the help and notes.
 - The cross-build script (scratch/wsb/cross.R, slice A's with a monotone battery of `setState`,
   `setPredictor`, `setCutPoints`, `setData` and a copy) is identical on 36 of 38 fixtures; the two monotone
   warm starts differ.
-- The 800-line stop was passed by the review's tests alone, under the coordinator's ruling; the engine stays
-  inside its own stop.
+- The review (LAND AFTER FIXES) found the engine correct and four of its mutants surviving. The fix round
+  holds the across-grids start to its order along x1 and, under case weights, to its merged leaf by hand;
+  pins in tests/cpp the empty-leaf merge at a stride of two and the plain mean of rows that weigh 0; and pins
+  that test-monotone.R's gap warm start is taken as stored. The 800-line stop was passed by those tests
+  alone, under the coordinator's ruling; the engine stays inside its own stop.

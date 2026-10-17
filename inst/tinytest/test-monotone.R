@@ -709,15 +709,14 @@ invisible(monoReach$run(20L, 1L))
 expect_true(maxDrop(monoReach) <= 1e-8)
 rm(xFlat)
 
-# a warm start leaves no empty leaf and stays in the cone: a 20-tree fit
-# warm-started from a monotone donor over [0, 1] into rows that leave x1 in
-# (0.6, 1) empty (the endpoints keep the grids equal) has the leaves no row
-# reaches merged into their parents, and a merged tree outside the cone
-# collapsed. The structure is then frozen (the all-zero mixture, which a
-# monotone sampler allows), so only leaf draws move the trees. Every tree is
-# checked on its own, read through getTrees and evaluated at the midpoint of
-# every cell its splits cut out, so no other tree's rise can mask a fall and no
-# cell is missed. No public route installs a live empty leaf, so the
+# a warm start stays in the cone: a 20-tree fit warm-started from a monotone
+# donor over [0, 1] into rows that leave x1 in (0.6, 1) empty (the endpoints
+# keep the grids equal) is taken as stored, every donor leaf still holding a
+# row and every tree in order, so nothing is merged. The structure is then
+# frozen (the all-zero mixture, which a monotone sampler allows), so only
+# leaf draws move the trees. Every tree is checked on its own, read through
+# getTrees and evaluated at the midpoint of every cell its splits cut out, so
+# no other tree's rise can mask a fall and no cell is missed. No public route installs a live empty leaf, so the
 # constrained draw on one is reached only from tests/cpp
 # (testMonotoneEmptyLeaf)
 donorReach <- dbarts::dbarts(
@@ -735,7 +734,7 @@ gapReach <- dbarts::dbarts(
   monotone = c(x1 = "increasing"),
   control = controlReach()
 )
-gapReach$installTrees(donorReach)
+expect_true(gapReach$installTrees(donorReach))
 gapReach$setControl(controlReach(
   proposal.probs = c(birth_death = 0, change = 0)
 ))
