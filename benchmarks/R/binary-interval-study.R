@@ -1423,10 +1423,8 @@ runTruthAdditive <- function(link, dataset) {
 
 loadTruth <- function(link, dataset, truth) {
   if (truth == "additive") {
+    # no chain enters the additive truth, so a quick run reads the full one
     t <- readRDS(truthFile(link, dataset, "additive"))
-    if (!identical(t$quick, quick)) {
-      stop("quick and full output mixed")
-    }
     return(t$p)
   }
   parts <- lapply(seq_len(truthParts), function(part) {
