@@ -584,6 +584,99 @@ runScenarios <- function() {
     recordChannels(bc, res)
   })
 
+  # (p)-(s) the numeric multiplier and a held forest with no basis
+  # (docs/plans/forest-multiplier.md, push 2): a forest whose basis is a dose
+  # takes its default from the dose's standard deviation, taken once at
+  # creation and recorded with the data. These are the recorded draws a slice
+  # that moves the forests' record or folds basis.scale into the data's other
+  # records is gated bit for bit against: a scale taken twice, or a record
+  # dropped, moves them. Seeds are literals kept out of the guarded `seeds`
+  # vector, as (f)-(o)'s are, and each runs after the scenarios above.
+  numericForests <- function(dose, held = FALSE) {
+    list(
+      dbarts::dbartsForests$forest(),
+      dbarts::dbartsForests$forest(
+        basis = dose,
+        n.trees = n.trees.tau,
+        amplitude = if (held) dbarts::dbartsPriors$fixed()
+      )
+    )
+  }
+  makeNumericData <- function(seed) {
+    d <- makeData(n, p, seed)
+    d$dose <- runif(n, 0, 0.1)
+    d$y <- d$y + 20 * d$dose * (1 + 2 * d$x[, 3L])
+    d
+  }
+
+  # (p) a numeric column at its default
+  result$numeric_default <- local({
+    d <- makeNumericData(8016L)
+    set.seed(9016L)
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = numericForests(d$dose),
+      control = makeControl()
+    )
+    res <- bc$run(n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
+  # (q) the same through a swap to ten times the column, a write of twice
+  # the default and a copy: the copy is handed the recorded scale and runs on
+  result$numeric_swap_write_copy <- local({
+    d <- makeNumericData(8017L)
+    set.seed(9017L)
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = numericForests(d$dose),
+      control = makeControl()
+    )
+    bc$run(n.burn, n.samples)
+    bc$setForestBasis(2L, 10 * d$dose)
+    doubled <- 2 * unname(bc$getLeafPrior(2L)$sd)
+    bc$setLeafPrior(
+      forests = list(
+        dbarts::dbartsForests$forest(),
+        dbarts::dbartsForests$forest(sd = doubled)
+      )
+    )
+    copied <- bc$copy()
+    res <- copied$run(n.burn, n.samples)
+    recordChannels(copied, res)
+  })
+
+  # (r) a held numeric column, its coefficient 1
+  result$numeric_held <- local({
+    d <- makeNumericData(8018L)
+    set.seed(9018L)
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = numericForests(d$dose, held = TRUE),
+      control = makeControl()
+    )
+    res <- bc$run(n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
+  # (s) a held forest with no basis under gaussian, at its default of a
+  # quarter of the response's range, beside a drawn factor
+  result$held_plain <- local({
+    d <- makeData(n, p, 8019L)
+    set.seed(9019L)
+    bc <- dbarts(
+      d$x,
+      d$y,
+      forests = bcfForests(d$z, n.trees.tau, update.a = FALSE),
+      control = makeControl()
+    )
+    res <- bc$run(n.burn, n.samples)
+    recordChannels(bc, res)
+  })
+
   result
 }
 
