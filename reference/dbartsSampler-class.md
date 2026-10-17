@@ -255,12 +255,16 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   such data with
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
   Columns are matched by name where the new data carry the sampler's
-  names, and by position otherwise. A factor column is read by label
-  against the levels the sampler was created with, which it keeps: fewer
-  levels, the levels in another order and declared levels no row has are
-  taken, each row at its own label; a row, training or test, at a label
-  the sampler never had is refused by name, as `predict` refuses one,
-  and so is a factor column given as numbers with no level table. A
+  names, and by position otherwise; read by position, a name of the
+  sampler's in another place is refused, and the record takes the new
+  data's names, which `predict` then needs. A factor column is read by
+  label against the levels the sampler was created with, which it keeps:
+  fewer levels, the levels in another order and declared levels no row
+  has are taken, each row at its own label; a row, training or test, at
+  a label the sampler never had is refused by name, as `predict` refuses
+  one, and so is a factor column given as numbers with no level table. A
+  factor whose labels were changed on purpose is relabeled to the
+  sampler's labels first, with `levels<-`, or given to a new sampler. A
   column that could hold missing values before the call still can, and
   one the new data first give a missing value becomes able to, as
   ‘Missing values in predictors’ in ‘Details’ describes. Draws the
