@@ -2911,7 +2911,7 @@ resampleIndices <- function(cellResults, B = 2000L) {
 # scaled to the planned pairs: the pilot's reading of the planned standard
 # error column.
 plannedSeFromPilot <- function(cmp, spec) {
-  if (is.null(cmp)) {
+  if (is.null(cmp) || spec$type == "ratio") {
     return(NA_real_)
   }
   if (spec$type == "share") {
