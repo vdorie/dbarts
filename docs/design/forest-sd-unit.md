@@ -20,7 +20,8 @@ The units are those of y under a gaussian response and those of the latent index
    quotient is what the calibration map did with a number in units of the response's scale.
 3. Not stated. The engine is told so and takes the default itself, a multiple of the unit that never passes
    through the unit on the way in: 2 under gaussian and 1 under a latent family for a forest with no basis,
-   sqrt(2 / K) for a forest with a basis in a model of K forests.
+   sqrt(2 / K) for a forest with a basis in a model of K forests, until forest-multiplier's push 1 made the
+   latter one unit whatever the number of forests (dec-B291; [forest-multiplier.md](forest-multiplier.md)).
 4. Who holds the map. The engine, in one function
    ([`forestMapEntry`](../../src/bartcore/combiner.hpp)), with the defaults in another
    ([`defaultForestSd`](../../src/bartcore/combiner.hpp)). A forest's statement
@@ -84,7 +85,7 @@ changes it.
   response is created when no sd is stated.
 - The forests' record on the control holds four numbers a forest (tree count, base, power, the hold), `sd`
   and `variance` (one number or NA a forest), `hasBasis`, the anchor and the unit, with the record's other
-  entries as they were. `hasBasis` stays: the four numbers do not record which channel the forest's sd
+  entries as they were. `hasBasis` stayed: the four numbers do not record which channel the forest's sd
   reached, which the map reads from the forest's first kind for the life of the sampler, and
   `$setForestBasis` refuses a basis for a forest created with none
   (retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), gone with
