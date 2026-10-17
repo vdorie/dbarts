@@ -267,11 +267,11 @@ expect_identical(liveOf(stateOf(onFiner)), liveOf(given))
 # setCutPoints(splits = "value") back to the sampler's: the whole state and
 # the next draws of a twin made that way, on 30 rows, where a leaf with no
 # row merges before any split moves, with constant and with linear leaves.
-# Cut points derived from 30 rows carry weights, which the twin's last call
-# leaves behind and the forced start keeps, and the next draws read them: so
-# the pair starts with its points set to the donor's and back, which leaves
-# them unweighted, and a third sampler with its weights is held to the same
-# trees and to its weights kept
+# Cut points derived from 30 rows carry weights, which the twin's
+# setCutPoints leaves behind and the forced start keeps: a forced
+# setPredictor of each column as it stands, deriving its grid by value, puts
+# them back and moves no tree. Held so with the weights, and on points set
+# to the donor's and back, which leaves them unweighted
 x30 <- xOther[1L:30L, ]
 y30 <- yOther[1L:30L]
 linear2 <- function(...) make(..., leaf.prior = linear(columns = 2L))
@@ -299,21 +299,33 @@ for (case in list(
   expect_false(is.null(attr(own, "cutMass")), info = case$info)
   forced <- on30()
   expect_null(attr(stateOf(forced), "cutMass"), info = case$info)
-  hand <- on30()
   for (sampler in list(weighted, forced)) {
     expect_null(sampler$installTrees(case$donor, forceUpdate = TRUE))
   }
-  hand$setCutPoints(cutPointsOf(case$donor))
-  expect_null(hand$installTrees(case$donor, forceUpdate = TRUE))
-  hand$setCutPoints(ownPoints, splits = "value")
-  expect_identical(stateOf(forced), stateOf(hand), info = case$info)
   expect_identical(cutPointsOf(forced), ownPoints, info = case$info)
-  moved <- stateOf(weighted)
-  expect_identical(leavesOf(moved), leavesOf(stateOf(forced)), info = case$info)
   for (record in c("cutPoints", "cutMass")) {
-    expect_identical(attr(moved, record), attr(own, record), info = case$info)
+    expect_identical(
+      attr(stateOf(weighted), record),
+      attr(own, record),
+      info = case$info
+    )
   }
-  expect_identical(forced$run(0L, 5L), hand$run(0L, 5L), info = case$info)
+  for (unweighted in c(FALSE, TRUE)) {
+    hand <- on30(unweighted)
+    hand$setCutPoints(cutPointsOf(case$donor))
+    expect_null(hand$installTrees(case$donor, forceUpdate = TRUE))
+    hand$setCutPoints(ownPoints, splits = "value")
+    if (!unweighted) {
+      trees <- liveOf(stateOf(hand))
+      for (j in seq_len(ncol(x30))) {
+        hand$setPredictor(x30[, j], j, TRUE, updateCutPoints = "value")
+      }
+      expect_identical(liveOf(stateOf(hand)), trees, info = case$info)
+    }
+    sampler <- if (unweighted) forced else weighted
+    expect_identical(stateOf(sampler), stateOf(hand), info = case$info)
+    expect_identical(sampler$run(0L, 5L), hand$run(0L, 5L), info = case$info)
+  }
 }
 # and the trees of a forced setState
 viaState <- make(data = x30, response = y30, control = big)
@@ -474,6 +486,31 @@ expect_identical(
     "variance trees: 3 of 3 taken, 1 cut back to fit"
   )
 )
+# a clean donor's line says nothing of its variance trees
+expect_identical(
+  lineOf(heteroscedastic(), heteroscedastic(sweeps = 20L)),
+  "warm start: 4 of 4 donor trees taken"
+)
+# the mean trees' interaction limit does not bind the variance forest: a
+# variance tree on two columns is clean, to a warm start and to setState
+limitedMean <- function() {
+  heteroscedastic(interactions = interactions(max.order = 1))
+}
+ownState <- stateOf(limitedMean())
+onTwo <- withTrees(
+  ownState,
+  c(
+    list(tree(c(1L, -1L, 2L, -1L, -1L), c(fine[50L], 1.2, x2Point, 0.9, 1.1))),
+    rep(list(stump(1)), length(ownState[[1L]]$variance.sizes) - 1L)
+  ),
+  variance = TRUE
+)
+onTwo <- withTrees(
+  onTwo,
+  stumps(tree(c(1L, -1L, -1L), c(fine[50L], 0.1, -0.1)))
+)
+expect_identical(limitedMean()$installTrees(onTwo), TRUE)
+expect_identical(limitedMean()$setState(onTwo), TRUE)
 
 # ---- a monotone forest -------------------------------------------------------
 
@@ -660,13 +697,18 @@ withX2 <- function(value) {
   frame
 }
 spread <- runif(n, 0, 10)
-slopedOn <- function(value) {
-  sampler <- linear2(data = withX2(value))
+slopedOn <- function(
+  value,
+  slopes = c(0.3, -0.4, 0, 0, 0),
+  build = linear2,
+  data = withX2(value)
+) {
+  sampler <- build(data = data)
   state <- withTrees(
     stateOf(sampler),
     stumps(tree(c(1L, -1L, -1L), c(fine[50L], 0.1, -0.2)))
   )
-  state[[1L]]$forests[[1L]]$tree.params <- c(0.3, -0.4, 0, 0, 0)
+  state[[1L]]$forests[[1L]]$tree.params <- slopes
   expect_true(sampler$setState(state))
   sampler
 }
@@ -700,6 +742,26 @@ expect_identical(
     "slopes kept across a covariate of one value"
   )
 )
+# a slope of 0 is the same function at any value, so every slope 0 is clean;
+# one that is not 0 in a leaf past the first is not
+for (case in list(
+  list(slopes = rep(0, 5L), clean = TRUE),
+  list(slopes = c(0, -0.4, 0, 0, 0), clean = FALSE)
+)) {
+  expect_identical(
+    linear2(data = withX2(3))$installTrees(slopedOn(0, case$slopes)),
+    case$clean
+  )
+}
+# two covariates, one at the same single value on both sides and the other
+# spread under another center and scale: restated, and clean
+linear23 <- function(...) make(..., leaf.prior = linear(columns = 2L:3L))
+here <- withX2(0)
+here[, 3L] <- 2 * x[, 3L] + 1
+sloped <- slopedOn(0, rep(c(0.3, 0.2), 5L), linear23)
+recipient <- linear23(data = here)
+expect_identical(recipient$installTrees(sloped), TRUE)
+expect_true(max(abs(fitOf(recipient, here) - fitOf(sloped, here))) < 1e-12)
 
 # ---- an ordered factor ---------------------------------------------------------
 
@@ -897,6 +959,21 @@ expect_identical(
 )
 expect_identical(liveOf(summed$state)[[2L]]$tree.sizes, rep(3L, 4L))
 expect_identical(liveOf(summed$state)[[1L]]$tree.sizes, rep(3L, 4L))
+# whether the trees go across grids is read off every chain: the first
+# chain's draw on this grid and the second's off it is declined, and forced
+# the second chain's split moves onto the grid
+offInTwo <- withTrees(
+  stateOf(two()),
+  stumps(tree(c(1L, -1L, -1L), c(fine[50L], 0.1, -0.1)))
+)
+offInTwo <- withTrees(
+  offInTwo,
+  stumps(tree(c(2L, -1L, -1L), c(between, 0.1, -0.1))),
+  chain = 2L
+)
+attr(offInTwo, "cutPoints")[[2L]] <- sort(c(grid[[2L]], between))
+acrossSecond <- expectChanged(two, offInTwo, "across grids, second chain")
+expect_true(treeOf(acrossSecond$state, chain = 2L)$values[1L] %in% grid[[2L]])
 
 # ---- sparse and mixed stores -------------------------------------------------------
 
