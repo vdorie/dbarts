@@ -520,6 +520,29 @@ columns with other tables swapped by name, a numeric and a factor column swapped
 holding missing values and a sparse test set; the full suite, the lint chain and `R CMD check` were rerun
 on its tip.
 
+### Follow-up after landing
+
+A review after landing found that columns put in the sampler's order took the sampler's `terms`, whose
+predvars were fixed from the creation data, while the columns held the new data's basis: with
+`y ~ poly(a, 2) + f` handed as `y ~ f + poly(a, 2)`, `predict` was up to 0.71 from an in-order twin, and
+`getTrees(newdata = )` and a frame `setTestPredictor` were off too (`ns()` the same). The sampler's terms
+now take the new data's predvars, matched by variable (`permutePredictorColumns`); the record, `predict`,
+`getTrees(newdata = )`, a frame `setTestPredictor` and a seeded run are then a twin's, with new data of
+another row count. `pdbart` over the factor agreed before and after; over a `poly()` variable it refuses
+the column on any fit.
+
+- Read by position, a name of the sampler's that sits in the data at another place is refused, naming
+  the data's column and the sampler's name in its place (settled by the orchestrator, 2026-10-17, as more
+  faithful to dec-B454's "each column by its name"): a sampler of (a, f, g) handed (a, g, h) read g as f
+  with no message. Data whose names share none of the sampler's in another place, `y ~ x.new` for
+  `y ~ x`, are still read by position.
+- A number read in a factor's place names the data's column and the place, and tells a caller who
+  handed a data frame to give a factor, keeping the data-frame advice for a matrix.
+- The help says how to hand over a factor relabeled on purpose (`levels<-` to the sampler's labels, or a
+  new sampler) and that a positional read gives the record the new names, which `predict` then needs.
+- Tests: the `poly()` and `ns()` swap, the two refusals, and a swap on a sampler of three chains and two
+  threads under case weights and on a probit sampler under a 0/1 mask.
+
 ## Revised from the blind critique
 
 The critique (scratch/flsc-crit.md, probes in scratch/flsc/, rerun on this worktree's build in

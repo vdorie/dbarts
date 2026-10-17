@@ -120,7 +120,8 @@
             against the sampler's levels and the columns by name where
             they carry the sampler's names: fewer levels, another order
             and declared levels no row has are taken, and a label the
-            sampler never had is refused by name.
+            sampler never had is refused by name, as is, where the columns
+            are read by position, a name of the sampler's in another place.
             0.9-34 refused another count of levels with rows and read
             reordered, renamed or replaced levels by position, so that the
             kept draws no longer predicted what they did.
