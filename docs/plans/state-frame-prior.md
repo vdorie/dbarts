@@ -10,8 +10,8 @@ dec-B305, dec-B310, dec-B329, dec-B330, dec-B418, dec-B449, dec-B450, dec-B457 t
 agent: per slice, one opus implementer and one opus reviewer who runs that slice's mutants. Tier "Changes
 draws" ([Process by risk](README.md#process-by-risk)) for all three: each edits the engine's creation,
 `setData` or install path.
-rng, per slice, against equivalence-32418b6e, bcf-equivalence-1b7d730c and multinomial-equivalence-80b1c8d4
-(bcf-equivalence-0fdeb37e now that forest-multiplier push 1 has landed). No recorded scenario reaches a changed
+rng, per slice, against equivalence-32418b6e, bcf-equivalence-47838362 (current since forest-multiplier
+push 1 landed; bcf-equivalence-1b7d730c before it) and multinomial-equivalence-80b1c8d4. No recorded scenario reaches a changed
 sequence: the `setdata` and `hetsetdata` scenarios hand a fresh `dbartsData()`, the `setPredictor` scenarios
 name no new argument, none copies, reloads, calls `setState` or `samplePriorPredictive`, or hands one
 sampler's control or data to another, and none makes a warm start. Expected 55, 15 and 11 identical in every slice, no re-record; a moved
