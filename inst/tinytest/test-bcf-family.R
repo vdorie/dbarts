@@ -54,11 +54,12 @@ statedOnFirst <- function(forests = NULL) {
 # amplitude and no drawn sigma stands between the prior and the index
 ones <- matrix(1, n, 1L)
 zBasis <- cbind(1 - z, z)
+zFactor <- factor(z)
 gBasis <- unname(model.matrix(~ g - 1L))
-hBasis <- unname(model.matrix(~ factor(x[, 1L] > 0.5) - 1L))
-unitBases2 <- list(ones, zBasis)
-unitBases3 <- list(ones, zBasis, gBasis)
-unitBases4 <- list(ones, zBasis, gBasis, hBasis)
+hFactor <- factor(x[, 1L] > 0.5)
+unitBases2 <- list(ones, zFactor)
+unitBases3 <- list(ones, zFactor, gBasis)
+unitBases4 <- list(ones, zFactor, gBasis, hFactor)
 # and one cell whose rows are NOT unit norm, which is what pins the map's
 # per-unit-of-row-norm divisor rather than assuming it. LOAD-BEARING: delete
 # the 4 and the dropped-divisor mutation goes green.
@@ -342,9 +343,9 @@ readerSlot <- function(sampler, name) {
     numeric(1L)
   )
 }
-freeBases2 <- list(NULL, zBasis)
-freeBases3 <- list(NULL, zBasis, gBasis)
-freeBases4 <- list(NULL, zBasis, gBasis, hBasis)
+freeBases2 <- list(NULL, zFactor)
+freeBases3 <- list(NULL, zFactor, gBasis)
+freeBases4 <- list(NULL, zFactor, gBasis, hFactor)
 
 # the basis-free channel's half-Cauchy median is the FAMILY's: 2 where the
 # anchor is the response's own sd and sigma is DRAWN, 1 where the anchor is the
@@ -588,7 +589,7 @@ rm(
   freeBases4,
   g,
   gBasis,
-  hBasis,
+  hFactor,
   kForest,
   logistic,
   mapSampler,
@@ -622,5 +623,6 @@ rm(
   yContinuous,
   yRare,
   z,
-  zBasis
+  zBasis,
+  zFactor
 )

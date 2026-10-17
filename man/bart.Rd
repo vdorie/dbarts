@@ -580,14 +580,15 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
                    n.trees = 20L, n.threads = 1L)
 
 ## forest() formula terms: a prognostic forest, and a second forest whose
-## amplitude is modulated by a binary z - the Bayesian causal forest shape,
-## written in the formula rather than through dbarts()'s forests =
+## amplitude is modulated by a treatment of two levels, factor(z) - the
+## Bayesian causal forest shape, written in the formula rather than through
+## dbarts()'s forests =
 set.seed(1)
 n <- 60L
 x1 <- runif(n); x2 <- runif(n)
 z  <- rbinom(n, 1L, 0.5)
 y  <- x1 + z * (1 + x2) + rnorm(n, 0, 0.2)
-fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = z),
+fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
                  n.samples = 20L, n.burn = 20L, n.chains = 1L,
                  n.trees = 10L, n.threads = 1L)
 fit.bcf$n.forests

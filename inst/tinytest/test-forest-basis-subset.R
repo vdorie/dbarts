@@ -21,6 +21,7 @@ z <- rbinom(n, 1L, 0.5)
 y <- a + z * (1 + a) + rnorm(n, sd = 0.2)
 d <- data.frame(y = y, a = a, z = z)
 zBasis <- unname(cbind(1 - z, z))
+zFactor <- factor(z)
 idx <- 1:20
 
 seededControlForestBasisSubset <- function(...) {
@@ -64,7 +65,7 @@ valueForests <- function(value) {
 noSubset <- dbarts(
   y ~ a,
   d,
-  forests = list(forest(), forest(basis = zBasis)),
+  forests = list(forest(), forest(basis = zFactor)),
   control = seededControlForestBasisSubset()
 )
 expect_equal(dim(noSubset$data@bases[[2L]]), c(n, 2L))
@@ -75,19 +76,19 @@ subsetFull <- dbarts(
   y ~ a,
   d,
   subset = idx,
-  forests = list(forest(), forest(basis = zBasis)),
+  forests = list(forest(), forest(basis = zFactor)),
   control = seededControlForestBasisSubset()
 )
 expect_identical(
   subsetFull$data@bases[[2L]],
-  named(zBasis[idx, ], c("zBasis1", "zBasis2"))
+  named(zBasis[idx, ], c("zFactor0", "zFactor1"))
 )
 # the same basis handed over as a value is cut the same way
 subsetValue <- dbarts(
   y ~ a,
   d,
   subset = idx,
-  forests = valueForests(zBasis),
+  forests = valueForests(zFactor),
   control = seededControlForestBasisSubset()
 )
 expect_identical(subsetValue$data@bases[[2L]], zBasis[idx, ])
@@ -97,14 +98,14 @@ expect_identical(
     y ~ a,
     d,
     subset = idx,
-    forests = list(forest(), forest(basis = zBasis)),
+    forests = list(forest(), forest(basis = zFactor)),
     control = seededControlForestBasisSubset()
   )$run(0L, 4L)$train
 )
 manual <- dbarts(
   y ~ a,
   d[idx, ],
-  forests = list(forest(), forest(basis = zBasis[idx, ])),
+  forests = list(forest(), forest(basis = zFactor[idx])),
   control = seededControlForestBasisSubset()
 )
 expect_identical(subsetFull$run(0L, 4L)$train, manual$run(0L, 4L)$train)
@@ -118,10 +119,10 @@ expect_error(
     y ~ a,
     d,
     subset = idx,
-    forests = list(forest(), forest(basis = zBasis[idx, ])),
+    forests = list(forest(), forest(basis = zFactor[idx])),
     control = seededControlForestBasisSubset()
   ),
-  shortCode("zBasis[idx, ]", 20L),
+  shortCode("zFactor[idx]", 20L),
   fixed = TRUE
 )
 expect_error(
@@ -129,7 +130,7 @@ expect_error(
     y ~ a,
     d,
     subset = idx,
-    forests = valueForests(zBasis[idx, ]),
+    forests = valueForests(zFactor[idx]),
     control = seededControlForestBasisSubset()
   ),
   ambiguousPattern
@@ -196,12 +197,12 @@ expect_identical(
 )
 expect_error(
   dbarts(
-    y ~ a + forest(a, basis = zBasis[idx, ]),
+    y ~ a + forest(a, basis = zFactor[idx]),
     d,
     subset = idx,
     control = seededControlForestBasisSubset()
   ),
-  shortCode("zBasis[idx, ]", 20L),
+  shortCode("zFactor[idx]", 20L),
   fixed = TRUE
 )
 
@@ -211,22 +212,22 @@ xyFull <- dbarts(
   cbind(a),
   y,
   subset = idx,
-  forests = list(forest(), forest(basis = zBasis)),
+  forests = list(forest(), forest(basis = zFactor)),
   control = seededControlForestBasisSubset()
 )
 expect_identical(
   xyFull$data@bases[[2L]],
-  named(zBasis[idx, ], c("zBasis1", "zBasis2"))
+  named(zBasis[idx, ], c("zFactor0", "zFactor1"))
 )
 expect_error(
   dbarts(
     cbind(a),
     y,
     subset = idx,
-    forests = list(forest(), forest(basis = zBasis[idx, ])),
+    forests = list(forest(), forest(basis = zFactor[idx])),
     control = seededControlForestBasisSubset()
   ),
-  shortCode("zBasis[idx, ]", 20L),
+  shortCode("zFactor[idx]", 20L),
   fixed = TRUE
 )
 expect_error(
@@ -234,7 +235,7 @@ expect_error(
     cbind(a),
     y,
     subset = idx,
-    forests = valueForests(zBasis[idx, ]),
+    forests = valueForests(zFactor[idx]),
     control = seededControlForestBasisSubset()
   ),
   "'basis' must have the same length"
@@ -243,7 +244,7 @@ expect_error(
 ## --- dbartsData(bases = ) called directly now applies the SAME rule as
 ## dbarts(forests = ): a basis at the FULL data's row count is accepted and
 ## aligned to 'subset' ---------------------------------------------------
-directFull <- dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zBasis))
+directFull <- dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zFactor))
 expect_identical(directFull@bases[[2L]], zBasis[idx, ])
 
 ## a basis at the SUBSET's row count instead is refused by name, naming the
@@ -253,7 +254,7 @@ expect_identical(directFull@bases[[2L]], zBasis[idx, ])
 ## to a bare count check makes exactly this expect_error stop seeing a
 ## condition. ---------------------------------------------------------------
 expect_error(
-  dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zBasis[idx, ])),
+  dbartsData(y ~ a, d, subset = idx, bases = list(NULL, zFactor[idx])),
   ambiguousPattern
 )
 
@@ -266,19 +267,19 @@ equalCountDirect <- dbartsData(
   y ~ a,
   d,
   subset = recycled,
-  bases = list(NULL, zBasis)
+  bases = list(NULL, zFactor)
 )
 equalCountForests <- dbarts(
   y ~ a,
   d,
   subset = recycled,
-  forests = list(forest(), forest(basis = zBasis)),
+  forests = list(forest(), forest(basis = zFactor)),
   control = seededControlForestBasisSubset()
 )
 expect_identical(equalCountDirect@bases[[2L]], zBasis[recycled, ])
 expect_identical(
   equalCountForests$data@bases[[2L]],
-  named(zBasis[recycled, ], c("zBasis1", "zBasis2"))
+  named(zBasis[recycled, ], c("zFactor0", "zFactor1"))
 )
 
 ## --- a basis already shortened by the na.action, with no 'subset': the
@@ -289,17 +290,17 @@ expect_error(
   dbarts(
     y ~ a,
     dMissing,
-    forests = list(forest(), forest(basis = zBasis[-3L, ])),
+    forests = list(forest(), forest(basis = zFactor[-3L])),
     control = seededControlForestBasisSubset()
   ),
-  shortCode("zBasis[-3L, ]", 39L),
+  shortCode("zFactor[-3L]", 39L),
   fixed = TRUE
 )
 expect_error(
   dbarts(
     y ~ a,
     dMissing,
-    forests = valueForests(zBasis[-3L, ]),
+    forests = valueForests(zFactor[-3L]),
     control = seededControlForestBasisSubset()
   ),
   paste0(

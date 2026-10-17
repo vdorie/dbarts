@@ -218,7 +218,7 @@ expect_error(threeForests$getForestAmplitudes(0L), "single positive integer")
 # so its scale is its `sd` (over the response's standard deviation here, with
 # no offset, subset or zero weight). ---
 priorSpec <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, cbind(1 - z, z))),
+  dbartsData(x, y, bases = list(NULL, factor(z))),
   seededControlForestBasisR5(),
   forests = list(forest(sd = 2.5), forest(sd = 1.25))
 )

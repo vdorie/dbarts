@@ -251,7 +251,7 @@ expect_identical(
 # draws-first, predictor names on the lead margin, engine-vocabulary forest
 # names on the trailing one. n.forests records the count the packaged rank
 # alone cannot recover ---
-bcfData <- dbartsData(x, y, bases = list(NULL, model.matrix(~ factor(z) - 1)))
+bcfData <- dbartsData(x, y, bases = list(NULL, factor(z)))
 bcfFitArgs <- list(
   formula = bcfData,
   n.samples = numSamples,

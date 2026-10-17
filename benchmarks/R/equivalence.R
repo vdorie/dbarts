@@ -893,7 +893,7 @@ makeScenarios <- function() {
   # an amplitude-coupled two-forest bart2 fit through the S12 term route
   # (bart2-argument-consolidation.md section 5): the term
   # `forest(x1 + x2, basis = ~ zf)` declares a second forest, modulated by a
-  # 3-level factor's own indicator basis, alongside the main x1 + x2 forest -
+  # 2-level factor's own indicator basis, alongside the main x1 + x2 forest -
   # the surface's only path to a K > 1 amplitude-coupled fit from bart2's
   # formula interface, and the B2 landing's own per-forest reporting channels
   # (forestFits, glue) have no equivalence anchor at all. Sizes are this
@@ -902,7 +902,7 @@ makeScenarios <- function() {
   n.tf <- 100L
   x1.tf <- runif(n.tf)
   x2.tf <- runif(n.tf)
-  zf.tf <- factor(sample(c("a", "b", "c"), n.tf, replace = TRUE))
+  zf.tf <- factor(sample(c("a", "b"), n.tf, replace = TRUE))
   d.tf <- data.frame(x1 = x1.tf, x2 = x2.tf, zf = zf.tf)
   d.tf$y <- 10 *
     sin(pi * x1.tf * x2.tf) +

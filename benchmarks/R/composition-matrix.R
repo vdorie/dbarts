@@ -516,7 +516,10 @@ doBart <- function(family, seed, ...) {
     df <- data.frame(x1 = d$x[, 1L], x2 = d$x[, 2L], z = d$z, y = d$y)
     return(do.call(
       bart,
-      c(list(y ~ x1 + x2 + forest(x1 + x2, basis = ~z), df), doorArgs(...))
+      c(
+        list(y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z)), df),
+        doorArgs(...)
+      )
     ))
   }
   do.call(bart, c(bartArgs(family, d), doorArgs(...)))

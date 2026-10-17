@@ -24,7 +24,6 @@ x <- matrix(runif(n * p), n, p)
 colnames(x) <- paste0("x", seq_len(p))
 z <- rbinom(n, 1L, 0.5)
 y <- 2 * sin(pi * x[, 1L]) + z * (1 + x[, 2L]) + rnorm(n, sd = 0.2)
-zBasis <- cbind(1 - as.double(z), as.double(z))
 
 controlWarmStartRefusal <- function(...) {
   dbartsControl(
@@ -87,7 +86,7 @@ expect_error(
 # --- the modelling surface: a data object carrying forest bases reaches bart
 # as an ordinary fit, so the donor argument refuses there by the name the
 # caller wrote ---
-basesData <- dbartsData(x, y, bases = list(NULL, zBasis))
+basesData <- dbartsData(x, y, bases = list(NULL, factor(z)))
 expect_error(
   bart(
     basesData,

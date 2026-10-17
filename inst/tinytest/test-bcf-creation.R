@@ -284,15 +284,17 @@ expect_identical(specSampler$run(0L, 10L)$train, publicResult$train)
 # 'subset' exactly as the weights beside them are; that argument is the
 # treatment slot's successor, and it still selects the multi-forest model with
 # no declaration at all
+zFactor <- factor(z)
+# the block the factor is stored as, its indicator columns
 zBasis <- cbind(1 - as.double(z), as.double(z))
-subsetData <- dbartsData(x, y, subset = 1:100, bases = list(NULL, zBasis))
+subsetData <- dbartsData(x, y, subset = 1:100, bases = list(NULL, zFactor))
 expect_equal(subsetData@bases[[2L]], zBasis[1:100, ])
 expect_error(
   dbartsData(x, y, bases = list(NULL, cbind(NA_real_, 1))),
   "must have the same length as 'y'"
 )
 expect_error(
-  dbartsData(x, y, bases = list(NULL, zBasis[1:10, ])),
+  dbartsData(x, y, bases = list(NULL, zFactor[1:10])),
   "'bases' must have the same length"
 )
 # a non-finite value is refused rather than reaching the multiplier
@@ -343,7 +345,7 @@ expect_error(
   fixed = TRUE
 )
 offSlot <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, zBasis)),
+  dbartsData(x, y, bases = list(NULL, zFactor)),
   seededControlBcfCreation()
 )
 # the transport is RAGGED - one length-4 vector per forest, not one length-4
@@ -367,7 +369,7 @@ expect_identical(
 # DIFFER, and neither is 1, so a confusion between a forest's own entry and its
 # neighbour's is visible.
 latentSlots <- dbartsSpec(
-  dbartsData(x, as.double(y > median(y)), bases = list(NULL, zBasis)),
+  dbartsData(x, as.double(y > median(y)), bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
   forests = list(forest(sd = 3.5), forest(sd = 1.25)),
   family = "logistic"
@@ -400,14 +402,14 @@ expect_equal(
 # forest just as a declared basis would, and those knobs really reach the
 # resolved spec ---
 sdViaHasBasis <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, zBasis)),
+  dbartsData(x, y, bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
   forests = list(forest(sd = 3.5))
 )
 expect_identical(attr(sdViaHasBasis$control, "bartcore.forests")$sd[1L], 3.5)
 
 noUpdateViaHasBasis <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, zBasis)),
+  dbartsData(x, y, bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
   forests = list(forest(amplitude = fixed()))
 )
@@ -419,7 +421,7 @@ expect_equal(
 # a second forest with no basis of its own still takes its own knobs when the
 # basis reaches the data another way
 noBasisSecondForest <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, zBasis)),
+  dbartsData(x, y, bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
   forests = list(forest(), forest(n.trees = 25L))
 )
@@ -432,7 +434,7 @@ expect_equal(
 # per-forest constraint the control attribute carries, not only the top-level
 # ambiguity refusal and expect_silent tested below ---
 muInteractionsSpec <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, zBasis)),
+  dbartsData(x, y, bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
   forests = list(forest(interactions = interactions(max.order = 1L)))
 )
@@ -441,7 +443,7 @@ muInteractionAttr <-
 expect_equal(muInteractionAttr$max.order, 1L)
 
 tauInteractionsSpec <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, zBasis)),
+  dbartsData(x, y, bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
   forests = list(
     forest(),
@@ -453,7 +455,7 @@ tauInteractionAttr <-
 expect_equal(tauInteractionAttr$max.order, 2L)
 
 tauBlocksSpec <- dbartsSpec(
-  dbartsData(x, y, bases = list(NULL, zBasis)),
+  dbartsData(x, y, bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
   forests = list(
     forest(),
@@ -623,7 +625,7 @@ expect_error(
 )
 # per-column cut counts survive only through dbartsSpec(), which keeps a data
 # object's own resolved n.cuts
-unevenCuts <- dbartsData(x, y, bases = list(NULL, zBasis))
+unevenCuts <- dbartsData(x, y, bases = list(NULL, zFactor))
 unevenCuts@n.cuts <- c(50L, 100L, 100L, 100L)
 expect_error(
   dbartsSpec(unevenCuts, seededControlBcfCreation()),
@@ -818,7 +820,7 @@ expect_error(
   "needs at least two forests"
 )
 expect_error(
-  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  dbarts(dbartsData(x, y, bases = list(zFactor)), control = control),
   "needs at least two forests"
 )
 expect_error(
@@ -834,14 +836,14 @@ expect_error(
 # caller they wrote one basis would be false
 expect_error(
   dbartsSpec(
-    dbartsData(x, y, bases = list(NULL, zBasis)),
+    dbartsData(x, y, bases = list(NULL, zFactor)),
     control,
     forests = list(forest(basis = ~ factor(z)))
   ),
   "'basis' declarations resolve to 1"
 )
 expect_error(
-  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  dbarts(dbartsData(x, y, bases = list(zFactor)), control = control),
   "data object carries 1"
 )
 # a length-1 forests carrying BOTH a basis and an amplitude knob now answers the
@@ -1228,7 +1230,7 @@ expect_error(
 # (iii) the supported composition - bases already on the data object, a
 # knob-only 'forests' - is unaffected: forestBasisDeclarations() returns NULL
 # entries for a forest declaring no basis of its own
-supportedData <- dbartsData(x, y, bases = list(NULL, zBasis))
+supportedData <- dbartsData(x, y, bases = list(NULL, zFactor))
 supportedResult <- dbarts(
   supportedData,
   forests = list(forest(), forest()),
@@ -1261,25 +1263,25 @@ expect_equal(
 
 # (iv) dbartsData()'s own ignored-argument warning now names 'bases' too
 warnings.bases <- captureWarnings(
-  dbartsData(prebuiltData, bases = list(NULL, zBasis))
+  dbartsData(prebuiltData, bases = list(NULL, zFactor))
 )
 expect_equal(length(warnings.bases), 1L)
 expect_match(conditionMessage(warnings.bases[[1L]]), "ignored")
 expect_identical(
-  suppressWarnings(dbartsData(prebuiltData, bases = list(NULL, zBasis))),
+  suppressWarnings(dbartsData(prebuiltData, bases = list(NULL, zFactor))),
   prebuiltData
 )
 expect_silent(dbartsData(prebuiltData))
 expect_identical(dbartsData(prebuiltData), prebuiltData)
 # the warning is specific to the dbartsData-inherits branch; the ordinary
 # x/y route's own 'bases' handling is untouched
-expect_silent(dbartsData(x, y, bases = list(NULL, zBasis)))
+expect_silent(dbartsData(x, y, bases = list(NULL, zFactor)))
 
 # (v) the amplitude-prior check now honours 'hasBasis', not only a forest's
 # own 'basis' argument: a forest excused by a basis that arrived through
 # dbartsData(bases = ) accepts 'amplitude.prior.variance', and one with no
 # basis anywhere is still refused
-dataBasisOnFirst <- dbartsData(x, y, bases = list(zBasis, zBasis))
+dataBasisOnFirst <- dbartsData(x, y, bases = list(zFactor, zFactor))
 amplitudeExcused <- dbarts(
   dataBasisOnFirst,
   forests = list(
@@ -1295,7 +1297,7 @@ expect_identical(
 # forest 2's own default applies too, unaffected by forest 1's excuse
 expect_equal(amplitudeExcused$getLeafPrior(1L)$amplitude.prior.variance, 2)
 expect_equal(amplitudeExcused$getLeafPrior(2L)$amplitude.prior.variance, 0.5)
-dataNoBasisOnFirst <- dbartsData(x, y, bases = list(NULL, zBasis))
+dataNoBasisOnFirst <- dbartsData(x, y, bases = list(NULL, zFactor))
 expect_error(
   dbarts(
     dataNoBasisOnFirst,
@@ -1322,7 +1324,7 @@ expect_identical(
 # a second forest that has no basis anywhere is the model's forest with no
 # basis, which may stand at any place: it takes the control's count and the
 # fitting function's tree prior, and the first forest the multiplied forest's
-dataBasisOnFirstOnly <- dbartsData(x, y, bases = list(zBasis, NULL))
+dataBasisOnFirstOnly <- dbartsData(x, y, bases = list(zFactor, NULL))
 plainSecond <- dbarts(
   dataBasisOnFirstOnly,
   forests = list(forest(amplitude.prior.variance = 2), forest()),
@@ -1361,12 +1363,12 @@ expect_error(
 # --- dec-A109: the lone basis forest stays refused, and the refusal points at
 # the p + 1 forest form and linear() leaves ---
 expect_error(
-  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  dbarts(dbartsData(x, y, bases = list(zFactor)), control = control),
   "forest(basis = z1)",
   fixed = TRUE
 )
 expect_error(
-  dbarts(dbartsData(x, y, bases = list(zBasis)), control = control),
+  dbarts(dbartsData(x, y, bases = list(zFactor)), control = control),
   "linear() leaves",
   fixed = TRUE
 )
@@ -1378,13 +1380,13 @@ expect_error(
   "forests 1 and 2 have no 'basis'"
 )
 expect_error(
-  dbartsSpec(dbartsData(x, y, bases = list(NULL, NULL, zBasis)), control),
+  dbartsSpec(dbartsData(x, y, bases = list(NULL, NULL, zFactor)), control),
   "forests 1 and 2 have no 'basis'"
 )
 
 # --- xbart and rbart_vi fit one forest: a data object carrying bases is
 # refused by name at any forest count ---
-for (basesArg in list(list(NULL, zBasis), list(zBasis))) {
+for (basesArg in list(list(NULL, zFactor), list(zFactor))) {
   basesData <- dbartsData(x, y, bases = basesArg)
   expect_error(
     xbart(basesData, n.samples = 5L, n.test = 2L, n.reps = 2L, n.threads = 1L),
@@ -1410,7 +1412,7 @@ for (basesArg in list(list(NULL, zBasis), list(zBasis))) {
 # and a NULL element past the first is the forest with no basis: the control's
 # slot holds the first forest's count and the control's own goes to the second
 plainSecondSpec <- dbartsSpec(
-  dbartsData(x, y, bases = list(zBasis, NULL)),
+  dbartsData(x, y, bases = list(zFactor, NULL)),
   uncountedControlBcfCreation(n.trees = 20L)
 )
 expect_identical(plainSecondSpec$control@n.trees, 50L)
@@ -1443,7 +1445,7 @@ expect_error(
 # the source named is the data object
 expect_error(
   dbarts(
-    dbartsData(x, y, bases = list(zBasis)),
+    dbartsData(x, y, bases = list(zFactor)),
     forests = list(forest(n.trees = 30L)),
     control = control
   ),
@@ -1451,7 +1453,7 @@ expect_error(
 )
 expect_error(
   dbartsSpec(
-    dbartsData(x, y, bases = list(zBasis)),
+    dbartsData(x, y, bases = list(zFactor)),
     control,
     forests = list(forest(n.trees = 30L))
   ),

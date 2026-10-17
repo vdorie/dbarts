@@ -471,9 +471,9 @@
             priors and predictors, and fits the mean as their sum, a forest
             given a \code{basis} entering multiplied by it. The Bayesian
             causal forest is the two-forest case with a treatment
-            indicator as the basis. In a \code{bart} or \code{dbarts}
-            formula, each forest is a term:
-            \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = z)}
+            factor of two levels as the basis. In a \code{bart} or
+            \code{dbarts} formula, each forest is a term:
+            \code{y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z))}
             declares the same thing. A basis is either levels, when it is
             a factor, a character vector or a logical vector, with a
             coefficient for each level, or numbers, with one for each

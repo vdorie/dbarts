@@ -195,6 +195,7 @@ droppedRow <- 7L
 yBasis[droppedRow] <- NA_real_
 dBasis <- data.frame(y = yBasis, a = aBasis, z = zBasis)
 basisMatrix <- unname(cbind(1 - zBasis, zBasis))
+basisFactor <- factor(zBasis)
 keptBasis <- nBasis - 1L
 
 basisControl <- dbartsControl(
@@ -221,11 +222,11 @@ expect_equal(
   zBasis[-droppedRow]
 )
 
-# formula path, a supplied basis matrix at the caller's own row count
+# formula path, a factor basis at the caller's own row count
 formulaBasisMatrix <- dbarts::dbarts(
   y ~ a,
   dBasis,
-  forests = list(forest(), forest(basis = basisMatrix)),
+  forests = list(forest(), forest(basis = basisFactor)),
   control = basisControl
 )
 expect_equal(nrow(formulaBasisMatrix$data@bases[[2L]]), keptBasis)
@@ -235,14 +236,14 @@ expect_equal(
 )
 expect_identical(
   colnames(formulaBasisMatrix$data@bases[[2L]]),
-  colnames(stats::model.matrix(~ 0 + basisMatrix))
+  colnames(stats::model.matrix(~ 0 + basisFactor))
 )
 
 # matrix path, through dbartsData's own bases argument
 matrixBasis <- dbarts::dbartsData(
   cbind(a = aBasis),
   yBasis,
-  bases = list(NULL, basisMatrix)
+  bases = list(NULL, basisFactor)
 )
 expect_equal(length(matrixBasis@y), keptBasis)
 expect_equal(nrow(matrixBasis@x), keptBasis)
@@ -257,7 +258,7 @@ aWithNA[13L] <- NA_real_
 matrixBasisOmit <- dbarts::dbartsData(
   cbind(a = aWithNA),
   yBasis,
-  bases = list(NULL, basisMatrix),
+  bases = list(NULL, basisFactor),
   na.action = na.omit
 )
 expect_equal(length(matrixBasisOmit@y), nBasis - 2L)

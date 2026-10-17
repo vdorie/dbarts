@@ -66,7 +66,7 @@ n <- 120L
 p <- 3L
 x <- matrix(runif(n * p), n, p)
 z <- rbinom(n, 1L, 0.5)
-bcfBases <- list(NULL, unname(model.matrix(~ factor(z) - 1L)))
+bcfBases <- list(NULL, factor(z))
 mu <- 2 * sin(pi * x[, 1L]) + x[, 2L]
 tau <- 1 + 2 * x[, 3L]
 y <- mu + z * tau + rnorm(n, sd = 0.3)

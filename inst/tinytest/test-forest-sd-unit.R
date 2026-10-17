@@ -93,7 +93,7 @@ doors <- list(
   },
   dataObject = function() {
     dbarts(
-      dbartsData(x, y, bases = list(NULL, cbind(1 - d$z, d$z))),
+      dbartsData(x, y, bases = list(NULL, d$zf)),
       forests = list(forest(sd = 2), forest(sd = 0.5)),
       control = unitControl()
     )
