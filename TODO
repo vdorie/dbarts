@@ -206,17 +206,17 @@ items
     cancelling the run and an error keeping its message. The entry has
     no caller in R/ today.
   warm-start-salvage: bart(warm.start = ) takes all it can from a
-    donor (dec-B295, VD 2026-10-07). Built, slice A of
-    docs/plans/warm-start-salvage.md: installTrees's two forms, the
-    cut-back at a split a forest does not allow, the move across cut
-    points and bart's verbose line. Left, slices B and D, before
-    1.0-0: a monotone tree out of order is collapsed where the order
-    breaks and not set to 0 (dec-B355); a part only one side has,
-    DART's weights or a variance forest, does not transfer and the
-    trees do (dec-B324); a constant donor seeds linear leaves exactly,
-    a linear donor on another number of covariates gives its
-    intercepts, and a gp leaf against another kind is an error by name
-    (dec-B325).
+    donor (dec-B295, VD 2026-10-07). Slice A of
+    docs/plans/warm-start-salvage.md landed 2026-10-17 (d03760e3,
+    dec-A211): installTrees's two forms, the cut-back at a split a
+    forest does not allow, the move across cut points and bart's
+    verbose line. Left, slices B and D, before 1.0-0: a monotone tree
+    out of order is collapsed where the order breaks and not set to 0
+    (dec-B355); a part only one side has, DART's weights or a variance
+    forest, does not transfer and the trees do (dec-B324); a constant
+    donor seeds linear leaves exactly, a linear donor on another
+    number of covariates gives its intercepts, and a gp leaf against
+    another kind is an error by name (dec-B325).
   warm-start-by-position: a warm start matches the donor's columns and
     a factor's levels to the recipient's by position, not by name: a
     donor fitted with a factor's levels reversed installs with no

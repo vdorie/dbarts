@@ -1,7 +1,8 @@
 # warm-start-salvage: a warm start takes what fits of a donor
 
-Status: PLANNED 2026-10-11, revised from its blind critique, no call open. Four slices, A to D, serial. Slice A
-is built ([Slice A as built](#slice-a-as-built)); B to D are not. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
+Status: slice A LANDED 2026-10-17 (a5f3c9bc..d03760e3; calls dec-A211; [Slice A as built](#slice-a-as-built),
+[Landing note](#landing-note)); B, C and D are planned, not built. Planned 2026-10-11, revised from its blind
+critique, no call open. Four slices, A to D, serial. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
 `forceUpdate = FALSE`, (b) FALSE for a split that has to move or merge, (c) the mean weighted by rows, (d) the
 three errors stay, (e) the mean forest's rule for the variance forest (dec-B448), (f) one line. Where this plan
 and the design note part, on the monotone tree and the number of slices, the plan is the later record
@@ -1057,3 +1058,66 @@ build parts from the steps above.
 - Left to the reviewer's build: the mutant that keeps the remap arm, the routine being deleted.
 - The variance clause also closes its counts with ", over K chains" where there are several chains, as the
   first clause does: its counts are summed over the chains too.
+
+## Landing note
+
+Slice A landed 2026-10-17 as a5f3c9bc..d03760e3 on f514c1d8, 11 commits: the plan and its revision from the blind
+critique (8a8f84ee, 3b3b24d7, a546599e), the two forms (b9103182), the report and the line (7ab9d1a5), the tests
+(94c551d8), the help, NEWS and notes (aeed60ce), two pins (7251c20e), and a fix round (175508a6, 1e728842,
+d03760e3). The slice was built on 480d7d69 on 2026-10-11 and rebased onto f514c1d8, the records of the
+forest-kind landing, in the fix round. One planner, a blind critique, one opus implementer, one opus review that
+ran 23 mutants, and one fix round, which changed tests, the help and the plan and no engine line. Slices B, C
+and D are not built.
+
+Built as planned: `installTrees` unforced installs a donor every tree of which stands as stored and returns
+TRUE, or returns FALSE with the sampler untouched, and forced installs it with the changes and returns NULL
+invisibly; FALSE is exactly the forced install's `altered`; the across-grids routine of the state grid slice
+replaces the remap arm and its four scratch passes; the install reports per chain what it moved, cut back,
+left without a side for missing values or reset, and the leaf values that are not the donor's; `bart` forces
+and prints one line. Departures, the calls of dec-A211: the by-hand twin of "equals the two calls" is the
+weighted twin of [Slice A as built](#slice-a-as-built), and the variance clause closes with ", over K chains".
+
+The review found no must-fix and no defect in the install. Eight of its 23 mutants survived the suite: six
+are should-fix test gaps, and two (W18, W19) remove the undo after a failed install, which only an injected
+throw reaches. The gaps: a linear leaf with a covariate at one value on both sides beside one
+restated (W06); a donor of two chains with only the second off the grid (W14); a variance tree that splits
+on more columns than the mean trees' interaction limit allows, which `setState` shares (W17); a clean
+heteroscedastic donor's line (W13); slopes of 0 and a slope past the first leaf at one value on each side
+(W04, W05). The fix round pinned the six in test-warm-start-forms.R, each
+failing under its own mutant, held the forced sampler to the weighted twin, wrote "center" in the help, said in the help that a
+donor whose splits are all the sampler's cut points needs no move, corrected line 119 of this plan (the grid
+is put back after a throw), and recorded the variance clause's chain count. The undo is not pinned (TODO
+`warm-start-undo-test`), and the restore of a chain no re-quantization touched is left as it is.
+
+The same reviewer re-checked the fix round on the rebased tip 1e728842. It reran seven mutants (W04, W05, W06,
+W13, W14, W17 and D1a), and each was killed by its pin. It confirmed that the rebase kept every one of the
+slice's 47 files patch for patch and that bartcore's intervening changes are intact, and it upheld leaving the
+undo unpinned. It found one untrue line of this plan, in Constraints, that `installAcrossGrids` "gains the
+restore on a throw in A", which d03760e3 corrected. Verdict: land.
+
+Gates, on the fix round's tip 1e728842 (d03760e3 adds a sentence of this plan): arm64, tests/cpp 400 ok plain
+and under ASAN and UBSAN with no diagnostics; the full tinytest suite 26715 results, 0 failed; the reference
+build's three bitwise compares 55 of 55, 15 of 15 and 11 of 11 and the four snapshot files 7, 3, 14 and 3
+results, 0 failed; the 42 exact-gate commands at `quick`, all pass; the composition matrix no disagreement;
+lintr, air, rc-codoc, win-drift and doc-freshness clean; `R CMD check --as-cran --no-manual` one NOTE (the Date
+field). The reviewer's 23 mutants ran on 959de5c9 and were not rerun after the rebase, the engine being
+unchanged. The x86-64 leg on 1e728842: tests/cpp 400 ok, plain and under ASAN with no diagnostics; the tinytest
+suite 26748 results, 0 failed; the equivalence compare 55 of 55 statistically indistinguishable. The bcf and
+multinomial bitwise compares differed in latent_logistic_weighted and k3countsswap, the two scenarios the
+control build differs in as well: they compare bitwise against baselines recorded on arm64 for the shipped
+build, so an x86 run is not expected to match.
+
+Not run: Windows, the Linux leak sanitizer beyond the x86 leg's ASAN, the R-loaded sanitizer build on the fix
+round's tip (the review ran six test files and its count probe under it), any consumer's suite (stan4bart's
+only call, `setState(forceUpdate = TRUE)`, was read against the moved loops of `stateIsValid` and is unchanged;
+bartCause and treatSens have no warm start), a gaussian-to-binary and the other family pairs beyond the two,
+and the cost of an across-grids install over many chains.
+
+Size against the plan: the plan estimated about 1730 lines for slice A and stopped at 2700. The range adds
+3505 lines and removes 771 over 47 files: the engine 442 added and 479 removed (plan: about 430 and 290),
+the bridge and R 220 (about 170), the tinytest files 1150 and tests/cpp 530 (about 950 in all), man and NEWS
+27, docs 1123 (this plan among them). Without the docs it adds 2382, inside the stop; the tests ran past
+the plan because the review and its fix round added the pins above, and the engine's deletions past it.
+
+Left: slices B, C and D; the undo's test (`warm-start-undo-test`); `warm-start-by-position`,
+`warm-start-linear-covariates` and `warm-start-bart-families`, which stay in TODO with the later slices.
