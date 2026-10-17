@@ -811,9 +811,14 @@ struct FusedSuffstatCheck {
 /// counted once under the first that holds - cutBack, a tree that lost a
 /// split, a monotone tree collapsed into order included; moved, one that kept
 /// every split and holds one on another point; sideDropped, one whose rules
-/// stand but for a missing-value side.
+/// stand but for a missing-value side. offered is the donor's tree count and
+/// taken the number of its trees installed, every one where this sampler
+/// holds as many or more and as many as it holds otherwise; singleLeaves
+/// counts the single leaves that fill a forest of more trees, which are no
+/// change.
 struct WarmStartTreeCounts {
-  std::size_t offered = 0, taken = 0, moved = 0, cutBack = 0, sideDropped = 0;
+  std::size_t offered = 0, taken = 0, moved = 0, cutBack = 0, sideDropped = 0,
+              singleLeaves = 0;
   bool changed() const {
     return moved + cutBack + sideDropped > 0 || taken != offered;
   }
@@ -4450,7 +4455,9 @@ public:
   /// One live mean tree of a state as stateIsValid judges it: tree \p t of
   /// \p fs built on \p scratch, which is initialized over \p scratchIndices
   /// (one index per row) and given forest \p forest's interaction constraint
-  /// and the tree's column mask. False where the flat tree does not build.
+  /// and the column mask of slot t, or of slot t modulo the forest's count
+  /// for a donor of more trees, tried in the slots in that order (Sampler::
+  /// installForests). False where the flat tree does not build.
   /// With \p notClean non-null and down the tree is staged as the install
   /// stages it (Tree::stageFromFlat) and the flag set where it would not be
   /// installed as stored; otherwise it is only built.
@@ -4466,7 +4473,8 @@ public:
     // base mask at install) when blocks() is active, else the shared columnMask
     scratch.setColumnMask(
       !forest.blockMasks.empty()
-        ? forest.blockMasks.data() + forest.blockOfTree[t] * data_.numPredictors
+        ? forest.blockMasks.data() +
+            forest.blockOfTree[t % forest.numTrees] * data_.numPredictors
         : (forest.columnMask.empty() ? nullptr : forest.columnMask.data()));
     const std::uint64_t* masks =
       fs.treeMasks.empty() ? nullptr : fs.treeMasks[t].data();
@@ -4534,7 +4542,10 @@ public:
   /// stateIsValid's: non-null, the trees are staged over the store's rows and
   /// the flag is set, never cleared, where the install would change one;
   /// null, they are only built, as they must be over a swapped grid, which
-  /// the rows' codes do not belong to. Nothing of the chain is touched.
+  /// the rows' codes do not belong to. A forest may give more trees than
+  /// this chain's, each staged in the slot it is tried in (stageLiveTree),
+  /// and none fewer: a smaller donor forest is filled with single leaves
+  /// first (appendSingleLeaves). Nothing of the chain is touched.
   bool donorTreesStage(const ChainStateData& state, bool* notClean,
                        bool& varianceFailed) const {
     varianceFailed = false;
@@ -4544,7 +4555,7 @@ public:
     std::vector<double> params;
     for (size_t f = 0; f < forests_.size(); ++f) {
       const ForestStateData& fs = state.forests[f];
-      if (fs.trees.size() != forests_[f].numTrees ||
+      if (fs.trees.size() < forests_[f].numTrees ||
           (!fs.treeMasks.empty() && fs.treeMasks.size() != fs.trees.size()))
         return false;
       for (size_t t = 0; t < fs.trees.size(); ++t)
@@ -4554,7 +4565,7 @@ public:
     }
     if (!varianceForest_) return true;
     varianceFailed = true;
-    if (state.varianceTrees.size() != varianceForest_->numTrees ||
+    if (state.varianceTrees.size() < varianceForest_->numTrees ||
         (!state.varianceTreeMasks.empty() &&
          state.varianceTreeMasks.size() != state.varianceTrees.size()))
       return false;
@@ -4953,22 +4964,146 @@ public:
     return rebuildVarianceForest(trees, masks, altered);
   }
 
+  /// Fills \p fs, forest \p f of a warm start's assembled donor, with single
+  /// leaves up to this forest's tree count: each a leaf at 0, with slopes or
+  /// fits of 0 where the leaf carries them and an empty mask where the
+  /// forest has a mask channel, the tree a new fit's forest starts as.
+  void appendSingleLeaves(ForestStateData& fs, size_t f) const {
+    size_t numParams = 0;
+    if constexpr (L::hasVectorParams)
+      numParams = forests_[f].leaf.numParams() - 1;
+    else if constexpr (L::hasFunctionParams)
+      numParams = data_.numObservations;
+    bool params =
+      L::hasVectorParams || L::hasFunctionParams || !fs.treeParams.empty();
+    while (fs.trees.size() < forests_[f].numTrees) {
+      fs.trees.emplace_back(1);
+      if (params) fs.treeParams.emplace_back(numParams, 0.0);
+      if (!fs.treeMasks.empty()) fs.treeMasks.emplace_back();
+    }
+  }
+
+  /// The variance forest's twin: single leaves at 1 up to its tree count.
+  /// Requires a variance forest.
+  void appendSingleVarianceLeaves(ChainStateData& state) const {
+    FlatNode one;
+    one.value = 1.0;
+    while (state.varianceTrees.size() < varianceForest_->numTrees) {
+      state.varianceTrees.push_back({one});
+      if (!state.varianceTreeMasks.empty())
+        state.varianceTreeMasks.emplace_back();
+    }
+  }
+
+  /// \p from, a warm start's assembled donor, with each mean forest holding
+  /// the trees \p mean names of it and the variance forest those \p variance
+  /// names, in that order, with their slopes, fits and masks, then single
+  /// leaves to this chain's counts. An empty list takes that forest as it is.
+  ChainStateData donorTreesOf(const ChainStateData& from,
+                              const std::vector<std::vector<size_t>>& mean,
+                              const std::vector<size_t>& variance) const {
+    ChainStateData out = from;
+    auto pick = [](auto& to, const auto& source,
+                   const std::vector<size_t>& indices) {
+      if (source.empty()) return;
+      to.clear();
+      for (size_t i : indices) to.push_back(source[i]);
+    };
+    for (size_t f = 0; f < forests_.size(); ++f) {
+      if (mean[f].empty()) continue;
+      const ForestStateData& source = from.forests[f];
+      ForestStateData& fs = out.forests[f];
+      pick(fs.trees, source.trees, mean[f]);
+      pick(fs.treeParams, source.treeParams, mean[f]);
+      pick(fs.treeMasks, source.treeMasks, mean[f]);
+      appendSingleLeaves(fs, f);
+    }
+    if (!variance.empty()) {
+      pick(out.varianceTrees, from.varianceTrees, variance);
+      pick(out.varianceTreeMasks, from.varianceTreeMasks, variance);
+      appendSingleVarianceLeaves(out);
+    }
+    return out;
+  }
+
+  /// The variance over the rows of each live tree's fits as installed, in
+  /// forest \p f's slot order: what a warm start into fewer trees ranks the
+  /// donor's trees by. A row weighs by its case weight and a row out of the
+  /// likelihood not at all (ResponseModel::caseWeight), the working weights
+  /// not being read, so no latent draw moves the ranking.
+  void liveTreeVariation(size_t f, std::vector<double>& out) const {
+    const Forest<L, ResidT>& forest = forests_[f];
+    size_t n = data_.numObservations;
+    out.resize(forest.numTrees);
+    for (size_t t = 0; t < forest.numTrees; ++t) {
+      if constexpr (leafIsConstant) {
+        const double* mu = forest.muByTree[t].data();
+        const std::uint32_t* leaf = forest.leafOf.data() + t * n;
+        out[t] = rowVariance([&](size_t i) { return mu[leaf[i]]; });
+      } else {
+        const double* fits = forest.treeFits.data() + t * n;
+        out[t] = rowVariance([&](size_t i) { return fits[i]; });
+      }
+    }
+  }
+
+  /// The variance forest's twin, of the log of each tree's factors. Requires
+  /// a variance forest.
+  void liveVarianceTreeVariation(std::vector<double>& out) const {
+    const VarianceForest& vf = *varianceForest_;
+    size_t n = data_.numObservations;
+    out.resize(vf.numTrees);
+    for (size_t j = 0; j < vf.numTrees; ++j) {
+      const double* factor = vf.factorByTree.data() + j * n;
+      out[j] = rowVariance([&](size_t i) { return std::log(factor[i]); });
+    }
+  }
+
+  /// The variance of \p value over the rows, each weighed by its case
+  /// weight; 0 where no row is in the likelihood.
+  template <typename Value>
+  double rowVariance(Value&& value) const {
+    size_t n = data_.numObservations;
+    double total = 0.0, sum = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double w = response_->caseWeight(i);
+      if (!(w > 0.0)) continue;
+      total += w;
+      sum += w * value(i);
+    }
+    if (!(total > 0.0)) return 0.0;
+    double mean = sum / total, squares = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+      double w = response_->caseWeight(i);
+      if (!(w > 0.0)) continue;
+      double d = value(i) - mean;
+      squares += w * d * d;
+    }
+    return squares / total;
+  }
+
   /// Counts what the warm start just installed changed in the trees it was
   /// given: this chain's live trees, flattened, against \p assembled, the
-  /// scratch the install read. That scratch holds the sides drawn and the
-  /// coefficients restated, so neither is counted. \p mean gathers the mean
+  /// scratch the install read, slot for slot. That scratch holds the sides
+  /// drawn and the coefficients restated, so neither is counted, and the
+  /// single leaves that fill a larger forest, which are not either. \p offered
+  /// holds the donor's tree count for each mean forest and \p
+  /// varianceOffered for the variance forest. \p mean gathers the mean
   /// forests and \p variance the variance forest, each adding to what it
   /// holds. Requires the install of \p assembled to have just succeeded.
   void countDonorTrees(const ChainStateData& assembled,
-                       WarmStartTreeCounts& mean,
+                       const std::vector<size_t>& offered,
+                       size_t varianceOffered, WarmStartTreeCounts& mean,
                        WarmStartTreeCounts& variance) {
     using Trees = std::vector<std::vector<FlatNode>>;
     ChainStateData live;
     getState(live, false);
-    auto count = [&](const Trees& given, const Trees& got,
+    auto count = [&](const Trees& given, const Trees& got, size_t donorCount,
                      WarmStartTreeCounts& counts) {
-      counts.offered += given.size();
-      counts.taken += got.size();
+      size_t taken = std::min(donorCount, got.size());
+      counts.offered += donorCount;
+      counts.taken += taken;
+      counts.singleLeaves += got.size() - taken;
       for (size_t t = 0; t < got.size(); ++t) {
         const std::vector<FlatNode>& before(given[t]);
         const std::vector<FlatNode>& after(got[t]);
@@ -4994,8 +5129,10 @@ public:
       }
     };
     for (size_t f = 0; f < forests_.size(); ++f)
-      count(assembled.forests[f].trees, live.forests[f].trees, mean);
-    count(assembled.varianceTrees, live.varianceTrees, variance);
+      count(assembled.forests[f].trees, live.forests[f].trees, offered[f],
+            mean);
+    count(assembled.varianceTrees, live.varianceTrees, varianceOffered,
+          variance);
   }
 
   /// Restates the linear coefficients of \p install's live trees - a warm

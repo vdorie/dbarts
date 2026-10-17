@@ -314,8 +314,9 @@ expect_identical(recipient$getTrees(), treesBefore)
 # continuation is the untouched twin's, bitwise
 expect_identical(recipient$run(5L, 5L), twin$run(5L, 5L))
 
-# --- a heteroscedastic donor whose variance forest holds another tree count
-# is refused before any mean forest is replaced, and says so
+# --- a heteroscedastic donor whose variance forest holds fewer trees is
+# taken whole, the rest of the forest single leaves at 1: each chain's
+# variance is its donor sample's
 set.seed(0)
 nh <- 80L
 xh <- cbind(x1 = runif(nh), x2 = runif(nh))
@@ -339,15 +340,13 @@ hetero <- function(keepTrees, seed, numVarianceTrees, numChains) {
 heteroDonor <- hetero(TRUE, 1L, 4L, 1L)
 invisible(heteroDonor$run(50L, 3L))
 heteroRecipient <- hetero(FALSE, 2L, 5L, 2L)
-heteroTwin <- hetero(FALSE, 2L, 5L, 2L)
 invisible(heteroRecipient$run(30L, 1L))
-invisible(heteroTwin$run(30L, 1L))
-fitsBefore <- heteroRecipient$getForestFits()
-varianceBefore <- heteroRecipient$getVariance()
-expect_error(
-  heteroRecipient$installTrees(heteroDonor),
-  "variance forest has a different number of trees"
+expect_true(heteroRecipient$installTrees(heteroDonor))
+expect_equal(
+  heteroRecipient$getVariance(),
+  heteroDonor$predict(xh)$variance[, 1L:2L]
 )
-expect_identical(heteroRecipient$getForestFits(), fitsBefore)
-expect_identical(heteroRecipient$getVariance(), varianceBefore)
-expect_identical(heteroRecipient$run(5L, 5L), heteroTwin$run(5L, 5L))
+expect_identical(
+  unclass(heteroRecipient$state)[[1L]]$variance.sizes[5L],
+  1L
+)

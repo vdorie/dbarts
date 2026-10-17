@@ -6927,10 +6927,11 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 // unforced call declined, and the rest then says nothing. 'altered': whether
 // the donor went in other than as it holds its trees and leaf values.
 // 'trees' and 'variance.trees': integer matrices of one row per chain, the
-// trees offered and taken and, of those taken, the ones moved to other cut
-// points, cut back, a monotone tree collapsed into order included, or left
-// without a side for missing values, each tree counted once;
-// 'variance.trees' is NULL for a sampler with no variance forest.
+// donor's trees offered and those taken and, of those taken, the ones moved
+// to other cut points, cut back, a monotone tree collapsed into order
+// included, or left without a side for missing values, each tree counted
+// once, and the single leaves that fill a forest of more trees than the
+// donor's; 'variance.trees' is NULL for a sampler with no variance forest.
 // 'fits.cold': function fits started at 0. 'blocks.unread': 1 for slopes and
 // 2 for gp fits the donor carries and this sampler's constant leaves do not
 // read, else 0. 'coefficients.kept': linear coefficients kept as built
@@ -6950,18 +6951,18 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                          "fits.cold", "blocks.unread", "coefficients.kept",
                          ""};
   const char* countNames[] = {"offered", "taken", "moved", "cut.back",
-                              "side.dropped"};
+                              "side.dropped", "single.leaves"};
   int numChains = static_cast<int>(holder.sampler->shape().numChains);
   SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
-  SEXP countNamesExpr = PROTECT(Rf_allocVector(STRSXP, 5));
-  for (int k = 0; k < 5; ++k)
+  SEXP countNamesExpr = PROTECT(Rf_allocVector(STRSXP, 6));
+  for (int k = 0; k < 6; ++k)
     SET_STRING_ELT(countNamesExpr, k, Rf_mkChar(countNames[k]));
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 1, countNamesExpr);
   for (int k = 2; k <= 3; ++k) {
-    SEXP countsExpr = Rf_allocMatrix(INTSXP, numChains, 5);
+    SEXP countsExpr = Rf_allocMatrix(INTSXP, numChains, 6);
     SET_VECTOR_ELT(resultExpr, k, countsExpr);
-    std::memset(INTEGER(countsExpr), 0, sizeof(int) * 5 * numChains);
+    std::memset(INTEGER(countsExpr), 0, sizeof(int) * 6 * numChains);
     Rf_setAttrib(countsExpr, R_DimNamesSymbol, dimNamesExpr);
   }
   // vectors of the report's own: a scalar logical made by R is one shared
@@ -9126,8 +9127,9 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
           for (const bartcore::WarmStartTreeCounts* from :
                  {&report.mean[c], &report.variance[c]}) {
             const size_t values[] = {from->offered, from->taken, from->moved,
-                                     from->cutBack, from->sideDropped};
-            for (size_t k = 0; k < 5; ++k)
+                                     from->cutBack, from->sideDropped,
+                                     from->singleLeaves};
+            for (size_t k = 0; k < 6; ++k)
               counts[c + k * numChains] = static_cast<int>(values[k]);
             counts = variance;
           }
@@ -9170,11 +9172,8 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "or does not match its variance forest");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
-               "(number of trees, forests, or predictors differ, or only one "
-               "of the two carries a variance forest)");
-    case bartcore::WarmStartResult::varianceShapeMismatch:
-      Rf_error("warm-start donor's variance forest has a different number of "
-               "trees than this sampler's");
+               "(number of forests or predictors differ, or only one of the "
+               "two carries a variance forest)");
     case bartcore::WarmStartResult::rebuildFailed:
       Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
                "data (a donor tree no longer routes onto the current "

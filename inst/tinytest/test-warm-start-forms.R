@@ -957,7 +957,6 @@ refusals <- list(
     structure,
     "an unordered factor"
   ),
-  list(make(), make(control = list(n.trees = 6L)), shape, "tree count"),
   list(make(), make(tree.prior = dart()), "DART", "DART in the donor"),
   list(make(tree.prior = dart()), make(), "DART", "DART here"),
   list(make(), heteroscedastic(), shape, "variance in the donor"),

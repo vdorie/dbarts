@@ -4545,6 +4545,12 @@ public:
   /// working response.
   virtual const double* workingWeights() const = 0;
 
+  /// The weight row i carries in the likelihood as the caller gave it, and 0
+  /// for a row out of it: a weight of 0, or a row the active mask or the
+  /// owner's membership leaves out. Never a latent precision, which a draw
+  /// moves. Default: every row in at 1.
+  virtual double caseWeight(std::size_t /* i */) const { return 1.0; }
+
   /// Whether workingWeights() changes across iterations (the latent
   /// Polya-Gamma refresh). Cross-sweep sufficient-statistic caches drop on
   /// each refresh when true; false families weight by fixed user values.
@@ -4839,6 +4845,10 @@ public:
 
   double* workingResponse() override { return yRescaled_.data(); }
   const double* workingWeights() const override { return weights_; }
+  double caseWeight(std::size_t i) const override {
+    if (!isRowIn(i)) return 0.0;
+    return userWeights_ != nullptr ? userWeights_[i] : 1.0;
+  }
   const double* offset() const override { return offset_; }
   void refreshLatents(ext_rng*, const double*, double) override {}
 
@@ -5259,6 +5269,9 @@ public:
   const double* workingWeights() const override {
     return activeRows_.empty() ? nullptr : activeRows_.data();
   }
+  double caseWeight(std::size_t i) const override {
+    return activeRows_.empty() ? 1.0 : activeRows_[i];
+  }
   const double* offset() const override { return offset_; }
 
   /// An inactive row's truncated-normal draw is SKIPPED, not drawn and
@@ -5417,6 +5430,9 @@ public:
   /// installed.
   const double* workingWeights() const override {
     return activeRows_.empty() ? nullptr : activeRows_.data();
+  }
+  double caseWeight(std::size_t i) const override {
+    return activeRows_.empty() ? 1.0 : activeRows_[i];
   }
   const double* offset() const override { return offset_; }
 
@@ -5729,6 +5745,10 @@ public:
   const double* workingWeights() const override {
     return activeRows_.empty() ? omega_.data() : composite_.data();
   }
+  double caseWeight(std::size_t i) const override {
+    if (!isActive(i)) return 0.0;
+    return weights_ != nullptr ? weights_[i] : 1.0;
+  }
   bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return offset_; }
 
@@ -6038,6 +6058,9 @@ public:
   double* workingResponse() override { return gaussian_->workingResponse(); }
   const double* workingWeights() const override {
     return gaussian_->workingWeights();
+  }
+  double caseWeight(std::size_t i) const override {
+    return isActive(i) ? 1.0 : 0.0;
   }
   const double* offset() const override { return gaussian_->offset(); }
 
@@ -6440,6 +6463,10 @@ public:
   double* workingResponse() override { return gaussian_->workingResponse(); }
   const double* workingWeights() const override {
     return gaussian_->workingWeights();
+  }
+  double caseWeight(std::size_t i) const override {
+    if (!activeRows_.empty() && activeRows_[i] == 0.0) return 0.0;
+    return userWeights_ != nullptr ? userWeights_[i] : 1.0;
   }
   bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return gaussian_->offset(); }
@@ -6850,6 +6877,9 @@ public:
   /// mask is installed; as for logistic, the zero never enters omega_ itself.
   const double* workingWeights() const override {
     return activeRows_.empty() ? omega_.data() : composite_.data();
+  }
+  double caseWeight(std::size_t i) const override {
+    return isActive(i) ? 1.0 : 0.0;
   }
   bool workingWeightsVaryPerSweep() const override { return true; }
   const double* offset() const override { return offset_; }

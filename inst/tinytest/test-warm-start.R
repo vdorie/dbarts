@@ -41,20 +41,44 @@ expect_equal(destTrees$value, donorTrees$value)
 expect_equal(destTrees$n, donorTrees$n)
 expect_equal(as.vector(dest$predict(x)), donor$yhat.train[3L, ])
 
-## incompatible donors refuse, touching nothing
-expect_error(
-  dbarts::bart(
-    x,
-    y,
+## a donor of more trees is taken in part: not as it stands, and forced the
+## five of its eight trees whose fits vary most, in its order and as stored
+fewer <- dbarts::dbarts(
+  x,
+  y,
+  control = dbarts::dbartsControl(
     n.trees = 5L,
-    n.samples = 4L,
-    n.burn = 0L,
     n.chains = 1L,
-    verbose = FALSE,
-    warm.start = donor
-  ),
-  "shape-compatible"
+    updateState = FALSE,
+    keepTrees = FALSE
+  )
 )
+expect_false(fewer$installTrees(donor, samples = 3L))
+expect_null(fewer$installTrees(donor, samples = 3L, forceUpdate = TRUE))
+treeText <- function(trees) {
+  vapply(
+    split(trees, trees$tree),
+    function(tree) paste(tree$var, tree$value, tree$n, collapse = " "),
+    ""
+  )
+}
+kept <- match(
+  treeText(fewer$getTrees(current = TRUE)),
+  treeText(donorTrees)
+)
+expect_false(anyNA(kept))
+expect_true(length(kept) == 5L && !is.unsorted(kept, strictly = TRUE))
+fit <- dbarts::bart(
+  x,
+  y,
+  n.trees = 5L,
+  n.samples = 4L,
+  n.burn = 0L,
+  n.chains = 1L,
+  verbose = FALSE,
+  warm.start = donor
+)
+expect_true(all(is.finite(fit$yhat.train)))
 # a donor on a different cut grid is no longer refused: its splits remap onto
 # the destination grid (collapsing any the coarser grid starves) and the fit
 # runs to a well-formed, finite result

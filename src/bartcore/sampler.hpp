@@ -129,13 +129,12 @@ struct SamplerStateData {
 /// gridMismatch: another number of columns, a column that splits by subset on
 /// one side only, a donor grid that repeats a point, or, on a column the
 /// store holds as an ordered factor, a donor grid other than the store's.
-/// varianceShapeMismatch: the donor's variance forest holds another tree
-/// count. rebuildFailed: a donor tree does not build, on the grid the donor
-/// records or on the store's; found on scratch before anything is written,
-/// and undone where an install fails all the same.
+/// rebuildFailed: a donor tree does not build, on the grid the donor records
+/// or on the store's; found on scratch before anything is written, and
+/// undone where an install fails all the same.
 enum class WarmStartResult {
   ok, declined, shapeMismatch, gridMismatch, dartMismatch, varianceMismatch,
-  varianceSlotMismatch, varianceShapeMismatch, rebuildFailed
+  varianceSlotMismatch, rebuildFailed
 };
 
 /// What a warm start installed, filled by installForests for a donor that
@@ -1506,8 +1505,20 @@ public:
   /// amplitudes this sampler draws transfer - rng and auxiliary state stay
   /// fresh, so each chain evolves independently from its own stream. The cut
   /// grid, its weights and the codes are the store's, the same before and
-  /// after, byte for byte. The donor must share this sampler's per-forest
-  /// tree counts, variance tree count and DART mode.
+  /// after, byte for byte. The donor must share this sampler's forest count,
+  /// DART mode and presence of a variance forest; its own tree counts set the
+  /// stride of a saved slot.
+  ///
+  /// Another tree count. A forest of this sampler holding more trees than
+  /// the donor's takes all of them, in the donor's order, and then single
+  /// leaves at 0, with slopes and fits of 0, or at 1 in the variance forest,
+  /// as a new fit starts them; that is no change. One holding fewer is not
+  /// clean: forced, it takes the donor's trees whose fits vary most over this
+  /// sampler's rows, chosen by trial installs (chooseDonorTrees), in the
+  /// donor's order and as installed. Each chain chooses among the trees of
+  /// the donor sample it takes, and the mean and the variance forest choose
+  /// apart. The directions below are drawn once, over every tree of the
+  /// sample, and every round reads them.
   ///
   /// How a donor is read, none of it a change to it. A donor that records
   /// the columns that could hold a missing value where its trees were grown
@@ -1538,7 +1549,8 @@ public:
   ///   blocks this sampler's leaves do not read;
   /// - a linear leaf's covariate holds one value in the donor's data and
   ///   another single value here under a slope that is not 0, the
-  ///   coefficients being kept as built (Chain::convertDonorStandardization).
+  ///   coefficients being kept as built (Chain::convertDonorStandardization);
+  /// - a forest, mean or variance, holds fewer trees than the donor's.
   /// Without \p force such a donor is not installed: declined is returned
   /// with nothing written and the generators back where they were. With it
   /// the donor goes in with the changes. Where every live threshold is a
@@ -1646,10 +1658,9 @@ public:
       for (size_t f = 0; f < src.forests.size(); ++f) {
         const ForestStateData& sfs = src.forests[f];
         ForestStateData& dfs = dst.forests[f];
-        size_t nt = chains_[c]->numTreesInForest(f);
-        // the donor's tree count sets the saved slot's stride, so it must
-        // match this forest's before either path proceeds
-        if (sfs.trees.size() != nt) return WarmStartResult::shapeMismatch;
+        // the donor forest's own tree count sets the saved slot's stride
+        size_t nt = sfs.trees.size();
+        if (nt == 0) return WarmStartResult::shapeMismatch;
         if (slot < 0) {
           dfs.trees = sfs.trees;
           dfs.treeParams = sfs.treeParams;
@@ -1718,13 +1729,6 @@ public:
         if (!scaleLeavesArePositive(dst.varianceTrees))
           return WarmStartResult::varianceMismatch;
       }
-      // the variance forest's count, like each mean forest's, is a shape the
-      // donor must share; caught here, ahead of any install, and after the
-      // slot arm's stride check so a donor contradicting its own stride is
-      // named as that
-      if (chains_[c]->hasVarianceForest() &&
-          dst.varianceTrees.size() != chains_[c]->numVarianceTrees())
-        return WarmStartResult::varianceShapeMismatch;
       // the donor's linear coefficients in this sampler's standardization;
       // a record that does not fit the leaf is the donor's shape
       if (!chains_[c]->convertDonorStandardization(dst, src,
@@ -1778,6 +1782,26 @@ public:
       }
     }
 
+    // the donor's own tree counts, which the report gives as offered. A
+    // forest of this sampler holding as many or more takes the donor's trees
+    // in its order and single leaves after them; one holding fewer is not
+    // clean, and chooses among them below
+    std::vector<std::vector<size_t>> offered(chains_.size());
+    std::vector<size_t> varianceOffered(chains_.size(), 0);
+    bool fewer = false;
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      for (size_t f = 0; f < install[c].forests.size(); ++f) {
+        offered[c].push_back(install[c].forests[f].trees.size());
+        fewer = fewer || offered[c][f] > chains_[c]->numTreesInForest(f);
+        chains_[c]->appendSingleLeaves(install[c].forests[f], f);
+      }
+      if (chains_[c]->hasVarianceForest()) {
+        varianceOffered[c] = install[c].varianceTrees.size();
+        fewer = fewer || varianceOffered[c] > chains_[c]->numVarianceTrees();
+        chains_[c]->appendSingleVarianceLeaves(install[c]);
+      }
+    }
+
     // every chain's trees are built before any answer is given, with and
     // without force, so a donor that does not build is refused and never
     // declined: on the points it records where those are not the store's,
@@ -1802,7 +1826,7 @@ public:
       return varianceFailed ? WarmStartResult::varianceMismatch
                             : WarmStartResult::rebuildFailed;
     bool notClean = acrossGrids || needsRepair || fitsCold ||
-                    leafBlocksUnread || coefficientsKept;
+                    leafBlocksUnread || coefficientsKept || fewer;
     if (notClean && !force) return WarmStartResult::declined;
 
     // Every check above ran before this point, so the installs below are not
@@ -1824,32 +1848,44 @@ public:
       for (size_t c = 0; c < touched; ++c) chains_[c]->setState(snapshot[c]);
     };
 
+    // one install of every chain's \p states on the arm the donor takes,
+    // false after a failure, which \p failure names
     bool installAltered = false;
     WarmStartResult failure = WarmStartResult::ok;
-    auto installChains = [&]() {
-      for (size_t c = 0; c < chains_.size() && failure ==
-             WarmStartResult::ok; ++c) {
-        touched = std::max(touched, c + 1);
-        if (!chains_[c]->installForest(install[c], &installAltered))
-          failure = WarmStartResult::rebuildFailed;
-      }
-      // the variance half, separately so a refusal names the variance forest
-      for (size_t c = 0; c < chains_.size() && failure ==
-             WarmStartResult::ok; ++c) {
-        if (chains_[c]->hasVarianceForest() &&
-            !chains_[c]->installVarianceForest(install[c].varianceTrees,
-                                               install[c].varianceTreeMasks,
-                                               &installAltered))
-          failure = WarmStartResult::varianceMismatch;
-      }
-      return failure == WarmStartResult::ok;
-    };
-    try {
+    auto installAll = [&](const std::vector<ChainStateData>& states) {
+      auto installChains = [&]() {
+        for (size_t c = 0; c < chains_.size() && failure ==
+               WarmStartResult::ok; ++c) {
+          touched = std::max(touched, c + 1);
+          if (!chains_[c]->installForest(states[c], &installAltered))
+            failure = WarmStartResult::rebuildFailed;
+        }
+        // the variance half, separately so a refusal names the variance
+        // forest
+        for (size_t c = 0; c < chains_.size() && failure ==
+               WarmStartResult::ok; ++c) {
+          if (chains_[c]->hasVarianceForest() &&
+              !chains_[c]->installVarianceForest(states[c].varianceTrees,
+                                                 states[c].varianceTreeMasks,
+                                                 &installAltered))
+            failure = WarmStartResult::varianceMismatch;
+        }
+        return failure == WarmStartResult::ok;
+      };
       if (acrossGrids)
         installAcrossGrids(donor.cutPoints, currentPredictors, installChains,
                            MonotoneRepair::collapse);
       else
         installChains();
+      return failure == WarmStartResult::ok;
+    };
+    std::vector<ChainStateData> chosen;
+    try {
+      if (!fewer)
+        installAll(install);
+      else if (chooseDonorTrees(install, offered, varianceOffered, installAll,
+                                chosen))
+        installAll(chosen);
     } catch (...) {
       restoreTouched();
       throw;
@@ -1858,6 +1894,7 @@ public:
       restoreTouched();
       return failure;
     }
+    const std::vector<ChainStateData>& installed = fewer ? chosen : install;
     // the store itself is left alone, so the draws it holds belong to the
     // donor's fit, not this one's: drop them rather than let a read replay
     // another sampler's posterior
@@ -1869,7 +1906,8 @@ public:
       report->mean.assign(chains_.size(), WarmStartTreeCounts());
       report->variance.assign(chains_.size(), WarmStartTreeCounts());
       for (size_t c = 0; c < chains_.size(); ++c)
-        chains_[c]->countDonorTrees(install[c], report->mean[c],
+        chains_[c]->countDonorTrees(installed[c], offered[c],
+                                    varianceOffered[c], report->mean[c],
                                     report->variance[c]);
       report->fitsCold = fitsCold;
       report->leafBlocksUnread = leafBlocksUnread;
@@ -2605,6 +2643,97 @@ private:
       data.test.sparseColumns = std::move(testSparseColumns);
     }
   };
+
+  /// A warm start into fewer trees (installForests): \p install holds each
+  /// chain's donor sample, every forest filled to at least this sampler's
+  /// count, and \p offered and \p varianceOffered the donor's counts. A
+  /// forest given more trees than it holds tries them in its live slots, its
+  /// count at a time and in the donor's order, by \p installAll, the install
+  /// the donor takes, the last round holding the trees left over and then
+  /// single leaves. After each round every tree tried is ranked by the
+  /// variance over the rows of its fits as installed
+  /// (Chain::liveTreeVariation), of the log of its factors in the variance
+  /// forest. For each forest each chain keeps the trees of its own sample
+  /// that vary most, a tie going to the earlier tree, in the donor's order,
+  /// and \p chosen receives them. A forest given no more trees than it holds
+  /// goes through every round as given. False where a round's install fails.
+  template <typename Install>
+  bool chooseDonorTrees(const std::vector<ChainStateData>& install,
+                        const std::vector<std::vector<size_t>>& offered,
+                        const std::vector<size_t>& varianceOffered,
+                        Install&& installAll,
+                        std::vector<ChainStateData>& chosen) {
+    size_t numChains = chains_.size(), numForests = chains_[0]->numForests();
+    // forest f's slots and donor trees, the variance forest at f numForests
+    auto slotsOf = [&](size_t c, size_t f) {
+      return f < numForests ? chains_[c]->numTreesInForest(f)
+                            : chains_[c]->numVarianceTrees();
+    };
+    auto givenOf = [&](size_t c, size_t f) {
+      return f < numForests ? offered[c][f] : varianceOffered[c];
+    };
+    // each tried tree's variation, by donor index; empty for a forest that
+    // takes all it is given
+    std::vector<std::vector<std::vector<double>>> variation(numChains);
+    size_t numRounds = 1;
+    for (size_t c = 0; c < numChains; ++c) {
+      variation[c].resize(numForests + 1);
+      for (size_t f = 0; f <= numForests; ++f) {
+        size_t slots = slotsOf(c, f), given = givenOf(c, f);
+        if (given <= slots) continue;
+        variation[c][f].resize(given);
+        numRounds = std::max(numRounds, (given + slots - 1) / slots);
+      }
+    }
+    // the trees of round r, or of the choice where r is numRounds; a forest
+    // with no round r left tries its first trees again, and is not read
+    auto treesOf = [&](size_t c, size_t r) {
+      std::vector<std::vector<size_t>> mean(numForests);
+      std::vector<size_t> variance;
+      for (size_t f = 0; f <= numForests; ++f) {
+        const std::vector<double>& ranked(variation[c][f]);
+        if (ranked.empty()) continue;
+        std::vector<size_t>& trees(f < numForests ? mean[f] : variance);
+        size_t slots = slotsOf(c, f), given = ranked.size();
+        if (r < numRounds) {
+          size_t first = r * slots < given ? r * slots : 0;
+          for (size_t i = first; i < given && i < first + slots; ++i)
+            trees.push_back(i);
+          continue;
+        }
+        for (size_t i = 0; i < given; ++i) trees.push_back(i);
+        std::stable_sort(trees.begin(), trees.end(), [&](size_t a, size_t b) {
+          return ranked[a] > ranked[b];
+        });
+        trees.resize(slots);
+        std::sort(trees.begin(), trees.end());
+      }
+      return chains_[c]->donorTreesOf(install[c], mean, variance);
+    };
+    std::vector<ChainStateData> round(numChains);
+    std::vector<double> ranks;
+    for (size_t r = 0; r < numRounds; ++r) {
+      for (size_t c = 0; c < numChains; ++c) round[c] = treesOf(c, r);
+      if (!installAll(round)) return false;
+      for (size_t c = 0; c < numChains; ++c) {
+        for (size_t f = 0; f <= numForests; ++f) {
+          std::vector<double>& ranked(variation[c][f]);
+          size_t first = r * slotsOf(c, f);
+          if (first >= ranked.size()) continue;
+          if (f < numForests)
+            chains_[c]->liveTreeVariation(f, ranks);
+          else
+            chains_[c]->liveVarianceTreeVariation(ranks);
+          for (size_t t = 0; first + t < ranked.size() && t < ranks.size();
+               ++t)
+            ranked[first + t] = ranks[t];
+        }
+      }
+    }
+    chosen.resize(numChains);
+    for (size_t c = 0; c < numChains; ++c) chosen[c] = treesOf(c, numRounds);
+    return true;
+  }
 
   /// Installs trees stored on \p storedCutPoints, a grid other than the
   /// store's, and moves them onto the store's, which with its weights and

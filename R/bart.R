@@ -856,8 +856,10 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
 # The line bart prints for a warm start under verbose = TRUE, from the
 # report installDonorTrees returns. Trees are counted per chain, every chain
 # taking as many, and changes are summed over the chains, each changed tree
-# under one name. The variance forest has its own clause where one of its
-# trees changed, and each way the leaves are not the donor's has its own.
+# under one name. The single leaves that fill a forest of more trees than the
+# donor's are counted per chain too. The variance forest has its own clause
+# where one of its trees changed or was left out or it took single leaves,
+# and each way the leaves are not the donor's has its own.
 warmStartLine <- function(report) {
   changes <- c(
     moved = "moved to this fit's cut points",
@@ -866,6 +868,13 @@ warmStartLine <- function(report) {
   )
   taken <- function(counts) {
     sprintf("%d of %d", counts[1L, "taken"], counts[1L, "offered"])
+  }
+  single <- function(counts, noun = NULL) {
+    count <- counts[1L, "single.leaves"]
+    if (count == 0L) {
+      return("")
+    }
+    paste(c(count, noun, "started as single leaves"), collapse = " ")
   }
   changed <- function(counts) {
     totals <- colSums(counts[, names(changes), drop = FALSE])
@@ -877,18 +886,19 @@ warmStartLine <- function(report) {
   }
   clauses <- c(
     paste(taken(report$trees), "donor trees taken"),
-    changed(report$trees)
+    changed(report$trees),
+    single(report$trees, "trees")
   )
-  if (!is.null(report$variance.trees)) {
-    said <- changed(report$variance.trees)
-    if (nzchar(said)) {
+  variance <- report$variance.trees
+  if (!is.null(variance)) {
+    said <- c(single(variance), changed(variance))
+    said <- said[nzchar(said)]
+    if (length(said) > 0L || variance[1L, "taken"] < variance[1L, "offered"]) {
       clauses <- c(
         clauses,
-        paste0(
-          "variance trees: ",
-          taken(report$variance.trees),
-          " taken, ",
-          said
+        paste(
+          c(paste0("variance trees: ", taken(variance), " taken"), said),
+          collapse = ", "
         )
       )
     }
