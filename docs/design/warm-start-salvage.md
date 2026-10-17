@@ -1,7 +1,7 @@
 # Warm starts that take part of a donor
 
 Status: DECIDED 2026-10-11; slice A of the plan LANDED 2026-10-17 (d03760e3; calls dec-A211), the two forms,
-the report and the line; slice B, the monotone collapse, is built; slices C and D are planned, not built. The six choices of section 3 are settled as recommended there: (a) A,
+the report and the line, and slice B, the monotone collapse, LANDED 2026-10-17 (ee1d7213; calls dec-A214); slices C and D are planned, not built. The six choices of section 3 are settled as recommended there: (a) A,
 (b) A, (c) A, (d) the errors stay, (e) A (dec-B448), (f) one line at every warm start. Plan:
 [warm-start-salvage.md](../plans/warm-start-salvage.md), which records what the state grid slice changed
 under sections 1 and 4. TODO: warm-start-salvage, warm-start-tree-count, forced-update-returns-null.

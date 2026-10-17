@@ -1,8 +1,8 @@
 # warm-start-salvage: a warm start takes what fits of a donor
 
-Status: slice A LANDED 2026-10-17 (a5f3c9bc..d03760e3; calls dec-A211; [Slice A as built](#slice-a-as-built),
-[Landing note](#landing-note)); slice B is built ([Slice B as built](#slice-b-as-built)); C and D are planned,
-not built. Planned 2026-10-11, revised from its blind
+Status: slices A and B LANDED 2026-10-17 (A a5f3c9bc..d03760e3, calls dec-A211; B f5c16b4a..ee1d7213, calls dec-A214;
+[Slice A as built](#slice-a-as-built), [Landing note](#landing-note), [Slice B as built](#slice-b-as-built),
+[Landing note, slice B](#landing-note-slice-b)); C and D are planned, not built. Planned 2026-10-11, revised from its blind
 critique, no call open. Four slices, A to D, serial. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
 `forceUpdate = FALSE`, (b) FALSE for a split that has to move or merge, (c) the mean weighted by rows, (d) the
 three errors stay, (e) the mean forest's rule for the variance forest (dec-B448), (f) one line. Where this plan
@@ -1152,3 +1152,62 @@ tests, the help and notes.
   hand; pins in tests/cpp the empty-leaf merge at a stride of two and the plain mean of rows that weigh 0; and pins
   that test-monotone.R's gap warm start is taken as stored. The 800-line stop was passed by those tests alone,
   under the coordinator's ruling; the engine stays inside its own stop.
+
+## Landing note, slice B
+
+Slice B landed 2026-10-17 as f5c16b4a..ee1d7213 on f5c16b4a, 5 commits: the collapse and the report (8bdb9504), its
+tests (cee8031b), the help and notes with "Slice B as built" (750b2152), a fix round (7148b9f7) and three nits
+(ee1d7213). The slice was built on d03760e3 and rebased onto 92ae2714 in the fix round and onto f5c16b4a, the records of
+the setData landing, at the landing. One opus implementer, one opus review that ran ten mutants, and one fix round,
+which changed tests, text and the plan and no engine line. Slices C and D are not built.
+
+Built as planned: a forced `installTrees` collapses a monotone tree out of order where the order breaks, from the
+leaves up and by the rows each leaf holds, on the same-grid arm and across grids; `setState`, `setData`,
+`setCutPoints` and a forced `setPredictor` keep the reset; the report loses `reset` and such a tree counts as cut
+back; the unforced answer is FALSE exactly when the forced install alters the donor. The engine matches the
+critique's prototype tree for tree on four direction sets (7e-18). Departures, the calls of dec-A214: the hand
+trees are in test_monotone.cpp and not test_state.cpp; "declined equals altered" is a test in test_model.cpp over
+20 free donors, all with a tree out of order; "across grids" is a hand tree the move puts out of order; "the others
+reset" adds no test, the four calls' reset being pinned by test-monotone.R and test-monotone-unforced.R.
+
+The review found the engine correct. It proved the collapse always leaves the tree in order, and a stress probe on
+36,000 random trees found 0 failures against the predicate, a point oracle and its own reimplementation. It found the
+reset callers unchanged (the cross-build script identical on 36 of 38 fixtures; mutants R2 and R3 killed), the report's
+readers updated, and consumers reading no counts. R-loaded ASAN over the three test files ran 738 tests with 0
+diagnostics. Of its ten mutants R1, R4, R5 and R7 survived the suite, R9 survived as equivalent, and the rest were
+killed. One must-fix: the across-grids test in test-warm-start-forms.R never checked the order (R1). Should-fix:
+the gap warm start of test-monotone.R was described as merging though the unforced answer is TRUE and nothing merges
+(pin it as taken as stored); this plan's account of `applyNewData` (`setData` only, `setCutPoints` and a forced
+`setPredictor` going through `forceRefreshTrees`'s default); a weighted across-grids check (R7); the linear leaf's
+merged block at a stride of two (R4, which predates the slice) and the plain mean of rows that weigh 0 (R5), both in
+tests/cpp; and a line of the design note that still named reset as a repair of a warm start. Verdict: land after
+fixes.
+
+The fix round holds the across-grids start to its order along x1 and, under case weights, to its merged leaf by hand,
+pins the empty-leaf merge at a stride of two and the plain mean of rows that weigh 0, pins that the gap warm start is
+taken as stored, and corrects the text; each new test fails under its mutant. The same reviewer re-checked the round:
+R1, R5 and R7 rerun and killed, the rebase lost nothing. Verdict: land. It left three nits, fixed in ee1d7213: a
+comment of the monotone tests and a line of TODO the rebase left short, and a sentence of this plan saying that the
+fifth surviving mutant was equivalent.
+
+Gates, on the fix round's tip: arm64, tests/cpp 401 ok plain and under ASAN and UBSAN with no diagnostics; the suite
+27084 results, 0 failed; the reference build's bitwise compares 55 of 55 against equivalence-32418b6e, 15 of 15
+(bcf) and 11 of 11 (multinomial), the snapshot files 0 failed; the 42 exact-gate commands at `quick`, all pass;
+`R CMD check` one NOTE (the Date field). On the tip rebased onto f5c16b4a: the suite 27154 results, 0 failed, and the
+lint chain clean. The cross-build against slice A's tip: 36 of 38 fixtures identical, the two monotone warm starts
+moving as planned. The x86-64 leg on the fix round's tip, whose engine is the landed one: tests/cpp 401 ok, plain and
+under ASAN with no diagnostics; the tinytest suite 27117 results, 0 failed; the equivalence compare 55 of 55
+statistically indistinguishable. The bcf and multinomial compares differed bitwise in latent_logistic_weighted and
+k3countsswap, as the build before does on x86: they compare bitwise against baselines recorded on arm64.
+
+Not run: Windows, and any consumer's suite (the review read the report's readers and found none that reads the
+counts).
+
+Size against the plan: the plan estimated about 455 lines and stopped at 800. The range adds 876 and removes 146 over
+19 files (871 added at 7148b9f7, before the nits): the engine in src/bartcore 209 added, against about 130 and a stop
+of 220, the bridge 15; tinytest 190 and tests/cpp 399 (plan: about 260 in all); man, R and docs 62. The builder stood
+at 795 before the review; the fix round's tests carried the range past the stop, and landing went ahead on the
+orchestrator's call (dec-A214). The engine stayed inside its own stop.
+
+Left: slices C and D; `warm-start-undo-test`; `warm-start-by-position`, `warm-start-linear-covariates` and
+`warm-start-bart-families`, which stay in TODO with the later slices.

@@ -206,12 +206,12 @@ items
     cancelling the run and an error keeping its message. The entry has
     no caller in R/ today.
   warm-start-salvage: bart(warm.start = ) takes all it can from a
-    donor (dec-B295, VD 2026-10-07). Slice A of
-    docs/plans/warm-start-salvage.md landed 2026-10-17 (d03760e3,
+    donor (dec-B295, VD 2026-10-07). Slices A and B of
+    docs/plans/warm-start-salvage.md landed 2026-10-17. A (d03760e3,
     dec-A211): installTrees's two forms, the cut-back at a split a
     forest does not allow, the move across cut points and bart's
-    verbose line. Built, slice B: a monotone tree out of order is
-    collapsed where the order breaks and not set to 0 (dec-B355).
+    verbose line. B (ee1d7213, dec-A214): a monotone tree out of order
+    is collapsed where the order breaks and not set to 0 (dec-B355).
     Left, slice D, before 1.0-0: a part only one side has, DART's
     weights or a variance forest, does not transfer and the trees do
     (dec-B324); a constant donor seeds linear leaves exactly, a linear
