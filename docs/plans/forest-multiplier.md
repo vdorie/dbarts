@@ -1,6 +1,6 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
-Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); pushes 2 and 3 PLANNED,
+Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); PUSH 2 BUILT 2026-10-17, not landed ([Push 2 as built](#push-2-as-built)), its bench compare of step 2.1 pending; push 3 PLANNED,
 rechecked 2026-10-11 against 37b59ea0, the tip of the sd unit slice
 ([Recheck against bartcore](#recheck-against-bartcore)); its two open calls settled and its cites
 brought to forest-kind-by-class as built on 2026-10-17, with push 1 gaining the unit on a constant
@@ -1702,3 +1702,128 @@ The calls made planning and building it are dec-A216. The x86-64 leg ran on the 
 statistically indistinguishable, and the bcf and multinomial compares differing bitwise only where the
 build before does on x86. Push 2 must land before 1.0-0, which removes `amplitude.prior.scale` and with
 it the prefix match of `$amplitude`.
+
+## Push 2 as built
+
+Built 2026-10-17 on bartcore at 738b1015 (push 1 landed), not landed. Commits, in order: the relative
+bound, step 2.1, the first commit (3b12fca0); the engine and the bridge, steps 2.2 to 2.4 with their
+tests/cpp (afd9e6aa); R, steps 2.5 to 2.7 and 2.10, with test-forest-scale-record.R,
+test-forest-leaf-prior-reader.R and the units twin (b51776c4); forest-prior-exact.R's numeric arms, 2.8
+(1debaef8); the help, 2.11 (470046ae, the last commit that changes package code); the four BCF scenarios,
+2.9 (7d6a2132); the design note and records, 2.11 (90c00b74); a pin of a numeric coefficient's start
+standing second (4d5e77d9); the BCF baseline (a8e1b53a). No consumer is edited: bartCause reads no entry
+this push removes, and stan4bart, treatSens and bairrtt declare one forest.
+
+Against the steps:
+
+- 2.1 as planned, the comparison `<=` so that a forest whose multipliers are all zero loses every row.
+  tests/cpp `testRelativeRowBound`; the tinytest twin is test-forest-units-twin.R's first arm. The
+  seam fixture's band edge moved from 2^-27 to 2^-29, its b1 being 0.25. Gated alone: tests/cpp 403 ok;
+  the suite 27538 results, 0 failed; on a reference build the four snapshot files passing and 55, 15 and
+  11 scenarios identical. The bench-sampler.R compare of this commit against its parent is the
+  maintainer's, on a quiet machine, and is PENDING.
+- 2.2 as planned: [`basisColumnScale`](../../src/bartcore/combiner.hpp) and
+  [`BasisScaleError`](../../src/bartcore/combiner.hpp); the chain's rows in `rowsForBasisScale`, the
+  status in `ForestCalibration::basisScaleFromAllRows`. tests/cpp `testBasisColumnScale`.
+- 2.3 as planned: `ForestSpec::basisScale`, the numeric row of `forestMapEntry` (variance 1, start 1,
+  held at 1), `basisRowNorm` gone, the constructor calling `mapLeafScale`, a swap deriving nothing.
+  `ForestCalibration` no longer carries a factor, a divisor or a row norm; tests/cpp reads the entry
+  through `TestPeer::mapEntry`. tests/cpp `testNumericMultiplierLaw`.
+- 2.4 as planned, and `bartcore_create` takes a fifth argument, the mask (below).
+- 2.5 as planned: the slot, `dataBasisScale`, `recordBasisScales` in the sampler's `initialize`, the
+  entry dropped in `resolveSamplerSpec` where a declaration replaces a basis.
+- 2.6 as planned; the refusal is worded by the bridge, which reads the forest's label from the forests'
+  record.
+- 2.7 as planned; `prior.sd.of` for a numeric forest is "forest, per unit of basis", with " (prior
+  median)" where drawn.
+- 2.8: nine arms of one column (a 0/1 column drawn and held at its default and drawn at 0.6 of the unit;
+  a column of four values, sd about 0.11, drawn and held at the default and at 3 of the unit; a fifth of
+  the rows at weight zero, their column at 2, drawn and held) and two arms of three trees, the number
+  drawn and held. The coefficient's quadrature is a grid on [-8, 8] at 0.005 under its prior.
+- 2.9 as planned: numeric_default, numeric_swap_write_copy, numeric_held and held_plain, with literal
+  seeds.
+- 2.10: the respell touched 15 test files. A creation on a column constant over the rows in states an
+  sd (test-bcf-family.R's first forest of ones, through its `statedOnFirst`, and
+  test-response-scale-rows.R's z, which is 1 on every row in), or is turned into a refusal
+  (test-forest-kind.R's constant column, at the seven doors).
+- 2.11 as planned.
+
+Calls made building, where the plan was silent or wrong:
+
+- Under probit and logistic the 0/1 weights' mask was installed after the sampler was created, where
+  the engine could not read it. The mask is handed to creation, `new("dbartsSampler", control, model,
+  data, active = )`, which installs it as `dbarts()` did and passes it to the bridge, where
+  `AmplitudeSpec::activeRows` gives the rows of a column's scale and nothing else reads it. A mask
+  installed after creation moves no prior, as rule 3 has it; dbartsSpec's help says how to build the
+  sampler `dbarts()` builds. Rejected: taking the scale again at the first mask install, a scale taken
+  twice; and every row under the latent families, against settled call 1.
+- One warning names the response and the column: `dbarts()` holds the spec's response warning and
+  raises it only where the engine reports no column read from every row, in which case the sampler's
+  `initialize` raises the joint one. Rejected: two warnings; R deciding the column's fallback.
+- The bridge keeps its raw `amplitude.prior.variance` and `amplitude.prior.scale` columns, which the
+  reader does not report, so a test can read a drawn forest with no basis's half-Cauchy median.
+- The engine refuses a swap handing a numeric forest other than one column, and the bridge raises it.
+- `summary()`'s line takes each forest's number unnamed, so a numeric forest's column name does not
+  make its label `dose.dose`.
+- The BCF baseline is named after 470046ae, the last commit that changes package code, and its
+  meta.rev set to it.
+- A by-hand probit sampler of the plan's 2.5 "which rows" is built with the mask at creation.
+
+What moved, and why. Every model with a numeric multiplier, as the `rng:` line says; no recorded
+scenario has one. On a `--preclean` reference install of the final package code: 55 of 55 against
+equivalence-32418b6e under `--strict-coverage`, 15 of 15 against bcf-equivalence-47838362, 11 of 11
+against multinomial-equivalence-80b1c8d4, the four snapshot files unchanged; then 19 of 19 against
+bcf-equivalence-470046ae as recorded.
+
+The pair script, 45 rows, old side on 738b1015 and new side on push 2: 0 unexpected. Rows with a
+numeric column differ (03, 15, 17, 19, 26a, 29 with a number, 32); rows of factors and forests with no
+basis, held or drawn, are identical (29 with factors only included); a held numeric column is created
+(27); a constant column at its default is refused (31); dose and 2^-27 dose draw the same on the new
+side and not on the old (28).
+
+Gates on the tip: tests/cpp 405 lines ok, and under ASAN and UBSAN 405 with 0 diagnostics; the full
+suite through `test_package(at_home = TRUE)` 28001 results in 261 files, 0 failed; the 43 exact-gate
+commands of exact-gates.yaml in quick, all passing, forest-prior-exact.R's largest |z| 3.17; lintr,
+air, rc-codoc, win-drift, doc-freshness and verify-anchors clean; dbarts.h no diff; `R CMD check
+--as-cran --no-manual` on a clean tarball one NOTE (the Date field); the R-loaded address sanitizer
+over the eight test files the change reaches, 0 diagnostics. bartCause's suite on dbarts-1.0 at
+4a70e7d, unedited, against private installs of both packages: 1367 expectations, 7 failing in the 5
+tests that fail the same way against the base build (three regression comparisons with old results, a
+grouped predict and a stan4bart predict). stan4bart, treatSens and bairrtt read nothing this push changes
+(searched, not run).
+
+Size: 3526 lines added and 1110 removed over 57 files, the baseline file aside: src 377 and 157, R 232
+and 99, tests/cpp 752 and 174, tinytest 1353 and 432, man 123 and 97, benchmarks 430 and 8, docs, TODO
+and workflows 259 and 143. Package code 865 lines against the stop of about 1100, the whole 4636 against
+about 6400.
+
+Mutants, each applied alone to a clean export of the tip, installed with `--preclean`, and run against
+tests/cpp where it is the engine's, the named tinytest files and, where marked, forest-prior-exact.R in
+quick. Every one is killed:
+
+| mutant | killed by |
+|---|---|
+| the bound left absolute | tests/cpp 6; the units twin 4 |
+| the bound relative to the largest multiplier of every forest | tests/cpp 5 |
+| a zero multiplier kept in the update | tests/cpp aborts on the cache check |
+| the default per unit (the scale read as 1) | tests/cpp 37; the record 3; the reader 2; the gate 80 |
+| a scale 3 percent off | tests/cpp 23; the record 17; the gate 5 |
+| n for n - 1 | tests/cpp 22; the record 17 (the gate does not see it) |
+| the scale over the nonzero rows | tests/cpp aborts on a 0/1 column |
+| the scale over every row where rows are out | tests/cpp 1; the record 12; the gate 16 |
+| one pass for the mean | tests/cpp 8; the record 1 |
+| constant decided by the computed sd | tests/cpp 8; the record 20 |
+| the near-constant bound dropped | tests/cpp 1; the record 1 |
+| a numeric coefficient's variance left at 1/2 | tests/cpp 15; the gate 45 |
+| a stated sd divided by the scale | tests/cpp 11; the reader 4 |
+| the scale taken again at a re-creation | tests/cpp 1; the record 3 |
+| the record kept where a declaration replaces the basis | the record 1 |
+| an unread record checked | the record stops |
+| a read record not checked | the record 2 |
+| a numeric coefficient started at 0 as the second forest | tests/cpp 1 |
+| a held numeric column at 0 | tests/cpp 3; test-forest-held.R 63; test-forest-arguments.R 4; the gate 47 |
+| a swap that takes the scale again | tests/cpp 2; the record 1; test-forest-basis-r5.R 1 |
+| a numeric forest's entry left unnamed | the reader 9; the record 2 |
+| the prior-predictive refusal dropped | the record 1 |
+| the mask not handed to creation under probit | the record 6 |
+| the fallback to every row dropped under probit | tests/cpp 1; the record stops |
