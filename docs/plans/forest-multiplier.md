@@ -1772,7 +1772,7 @@ Calls made building, where the plan was silent or wrong:
 - `summary()`'s line takes each forest's number unnamed, so a numeric forest's column name does not
   make its label `dose.dose`.
 - The BCF baseline is named after the last commit that changes package code, and its meta.rev set to
-  it: 470046ae as built, 85bc9ffb after the fix round.
+  it: 470046ae as built, 85bc9ffb after the fix round, 1ef44d1e after the second.
 - A by-hand probit sampler of the plan's 2.5 "which rows" is built with the mask at creation.
 
 What moved, and why. Every model with a numeric multiplier, as the `rng:` line says; no recorded
@@ -1875,3 +1875,32 @@ verify-anchors clean; on a `--preclean` reference install 55 of 55 against equiv
 bcf-equivalence-47838362 and 19 of 19 against bcf-equivalence-85bc9ffb, and the four snapshot files
 passing (14, 3, 7 and 3); `R CMD check --as-cran --no-manual` on a clean tarball one NOTE (the Date
 field). Size of the round: 65 lines added and 27 removed over 16 files, the baseline files aside.
+
+Second fix round, on the reviewer's E7, ruled by the orchestrator: a row out of the likelihood must not
+move the model. `formForestResponse` took the forest's largest multiplier over every row, so a value
+of 1e9 on rows of weight zero put every row of positive weight under 2^-26 of it, and the forest fit
+from its prior alone. The largest is now taken over the rows of positive weight, every row where none
+has one, and a forest whose largest is zero loses every row (1ef44d1e). A row of weight zero is
+treated as before in the second loop.
+
+- tests/cpp `testRelativeRowBound`: a row of weight zero at 1e9 moves no row of positive weight out; a
+  column of zeros on every row of positive weight loses every row; with every weight zero the rows
+  leave as with no weights.
+- test-forest-scale-record.R: the column with 1e9 on its ten rows of weight zero draws what the same
+  column with 5 there draws, in sigma, the variable counts, the coefficients and the fits at the rows
+  in. A fit at a row out is read back through a residual its multiplier's size rounds, so it differs
+  there in the seventh digit.
+- The mutant, the largest over every row: tests/cpp 2; the record 1, its sigma, counts, fits and
+  coefficients all moved.
+- No recorded draw moved: 55 of 55, 11 of 11, and 15 of 15 against 47838362 and 19 of 19 against the
+  85bc9ffb file, so the BCF baseline is renamed bcf-equivalence-1ef44d1e with its meta.rev set, not
+  re-recorded (cd38cc48).
+- The step 2.1 compare covered the bound before this change; the orchestrator reruns `bench-sampler.R`
+  for the touched hot path on the bench box.
+
+Gates on the tip: tests/cpp 405 lines ok, and under ASAN and UBSAN 405 with 0 diagnostics; the full
+suite through `test_package(at_home = TRUE)` 28005 results in 261 files, 0 failed; the 43 exact-gate
+commands in quick, all passing; lintr (0 lints), air, rc-codoc, win-drift, doc-freshness and
+verify-anchors clean; on a `--preclean` reference install the four snapshot files passing (14, 3, 7
+and 3) and 55, 11, 15 and 19 scenarios identical, the last against bcf-equivalence-1ef44d1e as
+renamed. Size of the round: 84 lines added and 8 removed over 8 files, this record aside.
