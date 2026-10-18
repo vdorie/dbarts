@@ -366,3 +366,131 @@ other two as the orchestrator reads them. What changed here:
 - dec-B232 read: no family tag, slice 1's test "family as is". dec-B237 read: step 3.2's refusal of a carried
   record other than a gp sampler's own.
 
+
+
+## Slice 1 as built
+
+Built on bartcore 46e1a644, with warm-start-salvage slice C landed; the plan's steps held against that tip,
+warm-start-salvage slice D and forest-multiplier push 2 not yet landed. Commits 2206a84f (the slice),
+72c9ef00 (setData hands no carried record on; below), 4616bada (cites of the retired helpers), 3a2a8a9b (the
+forest-prior exact gate reads the unit from the data object) and this record.
+
+What it does. Three slots on `dbartsData`, `cutPoints` (the weights as each entry's `mass` attribute),
+`response.range` and `forest.calibration`, read through accessors in R/data.R that answer `NULL` for an object
+saved before them. One engine reader, [`Sampler::derivedRecords`](../../src/bartcore/sampler.hpp) behind a facade
+virtual, returns the grids, weights, range (absent where the family carries no units) and a calibration map's
+anchor and unit; [`recordDerived`](../../R/data.R) writes the three slots from it after creation, `setCutPoints`,
+`setPredictor` with a grid update, `setData` and every `updateScale = TRUE`. Every engine is made by
+[`createEngine`](../../R/dbarts.R): the grids go in at construction
+([`SuppliedCutGrid`](../../src/bartcore/data.hpp), before the columns are quantized, through the
+single-forest, combining and multinomial constructors), the range by the anchor move after construction, the
+anchor and unit through the data object in place of the control's attribute, which no longer carries them.
+The model no longer carries `response.range`; a model saved with it has it stripped at creation.
+[`checkDerivedRecord`](../../R/data.R) holds a record to the data at creation and at `setData`.
+`copy()` of a live sampler installs its engine's current chain and keeps it as its field (dec-B459); a reload, a
+copy of a sampler whose engine is gone and a dead-pointer `setState` rebuild on the record and move the stored
+splits onto it by value. `adoptGrid` is gone from `Sampler::setState`, the facade, the bridge entry (one argument
+fewer) and R, and `heldAfterAdoption` with it (dec-B461); the field after a re-creation that moved a state is
+the engine's (status 2), which replaces it.
+
+Departures from the steps and the test table:
+
+- parseData reads `cutPoints` and `forest.calibration`, and not `response.range`: the range goes in by the
+  anchor move after construction (Constraints), which R makes from the slot, so the bridge never needs it.
+- The plan's base-build literals are a two-library compare in scratch, not literals in tinytest: an install
+  is not a continuation of its source's stream (a twin handed a sampler's live state draws other numbers than
+  the sampler continuing, on the tip as here), and draws recorded on arm64 do not hold on the other CI
+  platforms. scratch/sfp1/compare.R records, per fixture, the state, anchor and leaf prior at creation, the
+  next 20 draws, a copy's and a reload's state and next 20 draws after `storeState()`, a twin's draws after
+  `setState` and `samplePriorPredictive`, on 46e1a644 and on this slice. tinytest pins the doors against each
+  other instead: a copy, a reload and a twin handed the stored state hold one state and draw alike.
+- "copy is the live sampler" pins the copy's state, generator included, to the source's current one, and its
+  draws to a second copy's, not to the source's next draws, for the reason above.
+- An ordered factor's carried grid is held to its levels' by reading the engine's grid after creation
+  ([`refuseCarriedOrderedGrid`](../../R/data.R)): the level count the grid follows is the engine's.
+- Two mutants of the table cannot be written: "the caller's object written" (R's value semantics give the
+  sampler its own data object; there is nothing to mutate), and "the range supplied at construction" and
+  "the supplied path taken with derived values" (no such path exists; the neutrality they guard is the
+  two-library compare's). "migration" has no code to mutate (dec-B461).
+
+Calls made in building, each with its alternative:
+
+- A record the engine refuses to hold for an ordered factor whose data object declares other levels than
+  the engine was made with (assigned by hand, or saved by an earlier build) now makes `copy()` and a reload
+  refuse, the state's grid on that column being another column's ("kinds" in
+  test-state-grid-install.R). The tip adopted the state and kept the field current through
+  `heldAfterAdoption`; with adoption gone (dec-B461) and the live install refusing another grid on an ordered
+  factor, there is nothing left to install it with. Alternative: move an ordered factor's splits by value as a
+  numeric column's are (engine work and a ruling); not taken, the case being reachable only by hand.
+- The copy of a sampler whose engine is gone and that has no stored state is made fresh, as on the tip,
+  not refused: dec-B459's "refused, as today" read as the reload's refusal, which stands. Alternative: refuse
+  the copy too.
+- A NULL entry in `cutPoints` for a numeric column is refused at the R surface (a kind mismatch) and derives
+  that column at the bridge, which is only the backstop. Alternative: let it derive at both.
+- The record is written after `setPredictor` only where it updated a grid, so a predictor loop pays no read.
+  Alternative: after every call.
+- A carried range is checked in R (two finite numbers, the second not below the first) and the count
+  family's strict order by the anchor entry, whose message now names the data's record.
+- `copy()` of a live sampler whose install moved its chain (status 2) keeps the engine's state as its field;
+  never reached from a live chain, which is on the record's grid.
+
+- `setData` derives every value in this slice, so it hands the call no carried record: the column alignment
+  (dec-A215) can leave a carried grid in another column order than the bridge reads it in, which refused a
+  `setData` of a sampler's data object with a factor in another place (found while building, pinned in
+  test-derived-records.R). Slice 3 aligns the records with the columns (its step 3.3).
+
+Tests. tinytest test-derived-records.R (177 expectations): the records at every door equal the reader and
+the handed object carries none; no range under probit, logistic, ordinal and multinomial; copy, reload and a
+twin agree on six fixtures; the live copy; the reload's moved splits; a current field; a dead pointer with no
+saved state; the record carried by `new()`, `dbarts()`, `bart()` and `dbartsSpec()`, and
+`samplePriorPredictive` on the sampler's grid; `xbart` deriving; the control's anchor not read, and the
+record holding the anchor and unit across a response swap; a range carried to nbinom and not read by probit;
+weights through a copy and a reload; misfits refused at creation and at `setData`, a grid sorted, an ordered
+factor's other grid and an unordered factor's grid refused; a record-less object deriving; a constant response
+of several forests copied. tests/cpp `testSuppliedCutGrid` (the three constructors) and a facade row for the
+reader.
+
+Existing tests changed beyond step 1.4. Each expected the adoption dec-B461 removes or the stored state that
+dec-B459 has a live copy no longer take, none a value derived where the record now holds it:
+test-copy-nsamples-edit.R (the copy's field is the live chain), test-cut-grid-distinct.R (a live copy of a
+sampler holding a refused field is made; a reload of a sampler whose field records no weights keeps the
+record's), test-data-mixed-mutation.R and test-mutate-sparse-valued.R (a reload after `setCutPoints` is on the
+recorded points, equal to a live forced install), test-setstate-force-update.R (the repairs pinned on a reload
+and on a copy of a dead sampler), test-state-empty-leaf-merge.R (the cold restore is a reload),
+test-state-family.R (a live copy takes the chain), test-multiforest-leaf-prior-writer.R (the anchor read from
+the data object), test-data-handle.R and test-sampler-boundary-refusals.R (the setState entry's argument
+fewer), test-update-scale-rows.R (the internal writer's name). tests/cpp: the adoption pins of
+`testWeightedGridState`, `testRestoreStatus` and `testLiveGridInstall` and the facade's setState row
+rewritten to the install that keeps the store's grid, the ordered-factor adoption pin dropped.
+
+Mutants, each alone on an export (scratch/sfp1/mut-src), test-derived-records.R unless named: the record of
+a family that reads no range written c(0, 0), 13 failures; the range record not applied at creation, 7; a live
+copy installing the stored state, 3; a reload adopting the state's grid, 3; a dead-pointer setState with no
+saved state adopting the handed state's grid, 1; the copy's field the source's, 1; the creation check skipped,
+the file stops at the bridge's backstop; the control's anchor written and read again, 3; the setData check
+skipped, 1; the anchor recorded as 0, the copy refused; the weights dropped by the bridge, 7; the data handle
+handed the record, 1 (xbart); the build ignoring a supplied grid, 18, and tests/cpp `testSuppliedCutGrid` 2 of
+its checks; and the setData record handed on, the file stops (run on the build before 72c9ef00). Survived:
+`Sampler::setAnchor` without its family guard, an equivalent mutant, a family without units having no
+transform for the move to change. Not written: the caller's object written, the range supplied at
+construction, the supplied path taken with derived values, and migration (above).
+
+Size, against 46e1a644 before this record: engine 106 added and 86 removed (stop 320), bridge 163 and 48, R
+319 and 178, tests and the gate harness 887 and 215, help, NEWS and notes 64 and 50; 1539 added and 577
+removed in all (stop 2800), against about 1860 planned.
+
+Gates, on the slice's libraries: tests/cpp plain and under ASAN and UBSAN, all passed, no diagnostic; the full
+tinytest suite in one process, 27855 expectations, none failed; lint, air, rc-codoc, win-drift and
+doc-freshness clean; on the reference build the four snapshot files unedited (27 expectations) and the three
+`--bitwise` compares, 55 (`--strict-coverage`, 55 compared, 0 skipped), 15 and 11 identical, no "max |z|"
+line; the two-library compare (scratch/sfp1/compare.R), 18 fixtures and 162 parts, every one identical but
+`samplePriorPredictive` after `setCutPoints`, which this slice moves onto the sampler's grid; the exact gates
+of exact-gates.yaml at `quick` on the shipped build, every gate and arm passing, forest-prior-exact.R once its
+oracle read the unit from the data object (it read the control's, which no longer carries one); the R-loaded
+ASAN run over the new and the twelve most changed test files, no diagnostic; `R CMD check --as-cran
+--no-manual` from a clean tarball, the Date field's NOTE alone; stan4bart's suite (its bartcore branch at
+ac80108, built against this slice), 1545 expectations, none failed. Not run: the x86-64 leg.
+
+Left open. The plan's "fresh object neutral" and "copy and reload bitwise" literals, held instead by the
+scratch compare above, which the reviewer reruns against 46e1a644. The ordered-factor refusal of a copy and a
+reload of a hand-edited record (first call above) is for the reviewer's and the maintainer's mark.
