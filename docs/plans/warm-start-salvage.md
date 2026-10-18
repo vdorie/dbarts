@@ -1403,3 +1403,64 @@ orchestrator's call (dec-A218).
 
 Left: slice D; `warm-start-undo-test`, `warm-start-by-position`, `warm-start-linear-covariates` and
 `warm-start-bart-families`, which stay in TODO with slice D.
+
+## Slice D as built
+
+Built 2026-10-17 on 46e1a644, the records of slice C's landing, in four commits: the parts one side has with
+their rewritten pins, the leaf kinds and the texts of (d) with step 3, the tests, and the help and notes.
+
+- Parts. The DART refusal and the variance presence refusal go. A part the donor alone has is neither assembled
+  nor checked: a donor's variance trees, live or saved, go unread into a sampler without a variance forest, a
+  non-positive scale leaf among them included. A part this sampler alone has starts as a new fit's after the
+  install has gone in, so never on a decline or an error ([`Chain::startDartFresh`](../../src/bartcore/chain.hpp),
+  [`Chain::startVarianceForestFresh`](../../src/bartcore/chain.hpp)). DART's weights are equal over the forest's
+  columns and its concentration the options' value, written in place, and the counter is `updateDelay`. The
+  variance forest's starting variance is the retained residual prior's estimate on the transform in force,
+  `varianceSigmaEstimate_ / sigmaScale()`, which is creation's value bit for bit where the transform has not
+  moved (pinned against a new sampler's trees and `getVariance`) and the re-anchored one where it has: the item of
+  [Not verified](#not-verified) on that is answered by reading, a re-anchoring having no test here.
+- The donor's leaves. [`readWarmStartState`](../../src/R_interface_bartcore.cpp) gives the donor's shape as a
+  [`DonorLeafShape`](../../src/bartcore/sampler.hpp), handed to `installForests` by pointer in place of slice A's
+  flag; null is this sampler's own shape, so no tests/cpp call that gives none changes. The engine holds each
+  tree's block to the shape (`leafBlockMismatch`, "malformed leaf parameters in warm-start donor") and returns
+  `leafKindMismatch` and `leafRowsMismatch` for the gp pairs, whose texts the bridge writes from the two shapes.
+  The bridge keeps one check of its own, that a block divides by the tree or leaf count it is split by, which is
+  the parse. Every forest of a donor must give the same shape.
+- The texts of (d). Predictors are counted by the bridge. The column errors name the column by position: the
+  bridge holds no column names. A state records no cut points for a numeric column of one value, as for an
+  unordered factor, so a donor column without them is "an unordered factor or held one value", and the bridge
+  refuses exactly the pairs the engine's grid check refused before it: a numeric donor column where this
+  sampler's splits by subset, and a donor column without cut points where this sampler's numeric column has
+  some. No install is newly refused or newly taken; the engine's grid check stays behind them with its text.
+- The line. A linear donor on another number of covariates says "slopes left behind", as one into constant
+  leaves does, and not "slopes started at 0" beside it; that phrase is the constant donor's. The report's
+  `blocks.unread` is now `slopes`, and `dart` and `variance` say a part started fresh or left behind.
+- Step 3. The tracer (scratch/wsd/tracer.R, the built verdict on a copy before each call) over the four named
+  files and the two warm-start files of slices A and C: no call in the named files returns FALSE, and the three
+  pins of refusals there became checks of what is taken (the DART fit of test-warm-start.R, the variance pair of
+  test-sampler-errors.R, the constant donor of test-composition-sequences.R; test-sampler-boundary-refusals.R
+  pins none). A departure, as slice C's: test-warm-start-forms.R, outside the named files, pinned slice A's
+  "errors stay" list with the six errors Constraints says this slice lifts (DART and the variance forest each
+  way, constant into linear, linear on another number of covariates), which went, and gp into constant as
+  declined with "gp fits left behind", which is now the error by name; the three texts that list held
+  ("malformed cut points", the predictor structure for the factor columns, "malformed leaf parameters" for gp on
+  other rows) are the new ones. The cases taken are pinned in test-warm-start-kinds.R; tests/cpp needed no
+  rewritten expectation beyond its calls' new argument and the flag's own test, now a linear donor's slopes.
+- Tests beyond the table: every row's variance is read in R by `getVariance`, not in tests/cpp; a DART donor into
+  a plain fit is held to a twin given the same donor without its DART block, state and next draws; the reverse
+  factor case, a numeric donor where this sampler holds an unordered factor. tests/cpp's `testWarmStartLeafKinds`
+  holds the block sizes, the gp errors in both forms, the constant donor and the linear one on two covariates to
+  the verdict against the install.
+- The cross-build script (scratch/wsd/cross.R, 19 fixtures: same rows, 40 rows, other rows, monotone,
+  heteroscedastic, linear under another standardization, linear into constant, missing values each way, a kept
+  draw, two chains, both DART, fewer and more trees, interactions, and a `setState` battery) on 46e1a644 and this
+  slice: identical on all 19, answers, stored states and the next five draws.
+- Mutants, each alone on an export, each failing test-warm-start-kinds.R, test-warm-start-forms.R or tests/cpp:
+  the DART refusal kept; the counter at 0; the donor's weights read into a plain fit; m20 for DART and for the
+  variance forest; the variance forest left as it was; m21; m19; the parts judged; slopes not 0; the covariates
+  refusal kept; m22 as the restatement run first, and as a constant leaf's intercept restated (caught by
+  test-warm-start-forms.R's leaf values of slice A); gp taken under force; slice A's decline of gp kept; the block
+  sizes unchecked (tests/cpp alone); the gp error raised after the install; a phrase on the wrong case; and the
+  builder's own: the concentration left as run, DART's weights over every column, the factor-column check gone,
+  and the slopes-at-0 flag unset. 22 in all.
+- Size: the engine adds 157 lines and removes 36 against a stop of 350; the range adds 785 and removes 218 against 1550, the tests 411 of them.

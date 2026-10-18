@@ -562,6 +562,9 @@
             Under \code{blocks()} each block takes the trees it can hold as
             they stand, so a fit with the same blocks is taken whole, and
             where not all go in so, the trees that vary most within it.
+            A previous fit with constant where the new fit has linear
+            leaves or the reverse, or with DART or a variance forest on one
+            side only, is taken in part.
       \item Tree moves. \code{proposal.probs} gains two optional moves,
             \code{"perturb"} (shift one split point, by at most
             \code{dbartsControl(n.perturb.cuts = )} cut positions) and

@@ -249,7 +249,12 @@ count, each block first takes in the donor's order the trees it holds as stored,
 tree out, once more with the donor's single leaves offered last
 ([`Chain::placeDonorTrees`](../../src/bartcore/chain.hpp)); a donor all of whose trees go in so is clean.
 Otherwise each block keeps the trees that vary most there, none it would hold as a single leaf when the
-donor holds it as more. A DART setting or variance forest on one side only is an error, and
-a leaf kind is read in the sampler's shape (TODO warm-start-salvage).
+donor holds it as more. DART or a variance forest on one side only is not judged: the donor's
+is left behind, and the sampler's own starts as a new fit's once the donor goes in
+([`Chain::startDartFresh`](../../src/bartcore/chain.hpp),
+[`Chain::startVarianceForestFresh`](../../src/bartcore/chain.hpp)). The donor's leaves are read in its own
+shape ([`DonorLeafShape`](../../src/bartcore/sampler.hpp)): a constant donor gives linear leaves slopes of 0
+and is clean, a linear one into constant leaves or linear ones on another number of covariates leaves its
+slopes behind and is not, and gp leaves go only to gp leaves on as many rows.
 `bart(warm.start = )` forces and, under `verbose = TRUE`, prints one line saying what was taken and
 changed, from counts read off the installed trees ([`Chain::countDonorTrees`](../../src/bartcore/chain.hpp)).

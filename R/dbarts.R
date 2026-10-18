@@ -4083,15 +4083,18 @@ dbartsSampler <- setRefClass(
        installed and TRUE is returned. One that would have to be changed - a
        split off this sampler's cut points, a leaf no row reaches, a split
        its forest does not allow, a missing-value side on a column that has
-       never held a missing value, monotone leaf values out of order, leaf
-       values this sampler does not read, more trees than this sampler holds
+       never held a missing value, monotone leaf values out of order, linear
+       slopes this sampler does not take, more trees than this sampler holds
        or, under blocks, trees the blocks cannot take as they stand - is not
        installed: the sampler is left as it was and FALSE is returned. With
        forceUpdate = TRUE such a donor is installed with the changes, the
        trees whose fits vary most going in where not all can, and NULL is
        returned invisibly. A donor of fewer trees gives all of them, the rest
-       starting as single leaves. Single-forest samplers only. See Warm
-       starts in ?dbartsSampler."
+       starting as single leaves. DART weights and a variance forest one side
+       alone has are not judged: the donor's is left behind and this
+       sampler's starts as a new fit's. Gaussian-process leaves go only to
+       Gaussian-process leaves on as many rows. Single-forest samplers only.
+       See Warm starts in ?dbartsSampler."
       if (
         !is.logical(forceUpdate) ||
           length(forceUpdate) != 1L ||
