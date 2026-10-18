@@ -106,7 +106,7 @@ Code as it stands:
   in another order by label. `setData` is the one route that does neither.
 - The `setData` docstring promises "Saved draws are rewritten so that they predict what they did"; the
   positional reading breaks that promise.
-- [`heldAfterAdoption`](../../R/dbarts.R) refreshes a re-created sampler's `state` field where its
+- retired: [`heldAfterAdoption`](../../R/dbarts.R) (gone since state-frame-prior slice 1) refreshes a re-created sampler's `state` field where its
   ordered column's grid differs from the recorded one; the `setData` sequence below is its only
   documented reach.
 - No consumer calls `setData` (rechecked by the critique): stan4bart (branch bartcore) re-creates its

@@ -114,7 +114,8 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   its stored state by the live rule, forced as these always are (dec-B305), the stored trees moved onto the
   data object's grid by value, and is refused without one, as today (dec-B459). A dead-pointer `setState`
   with no saved state takes the record's grid too, where today it adopts the handed state's. The field
-  refresh after an install onto another grid ([`heldAfterAdoption`](../../R/dbarts.R)) stays.
+  refresh after an install onto another grid (retired: [`heldAfterAdoption`](../../R/dbarts.R), gone with
+  adoption; the field is then the engine's state) stays.
 - A warm start. The recipient keeps its own values, and a linear donor's slopes go in as stored (dec-B457),
   where today they are converted from the standardization the donor's state records
   ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), which goes). The seeded fit then

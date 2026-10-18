@@ -33,8 +33,8 @@ sharing is enforced in three places only:
   chain.
 - The sampler's one transform record (`anchorMin_`, `anchorMax_`) is read from chain 0 at creation and
   at every re-anchor ([`Sampler::recordAnchor`](../../src/bartcore/sampler.hpp)). An install is checked
-  against it, and the R object records it as the model attribute `response.range`
-  ([`recordAnchor`](../../R/dbarts.R), [`applyAnchor`](../../R/dbarts.R)).
+  against it, and the R object records it as the data object's `response.range`
+  ([`recordDerived`](../../R/data.R), [`applyAnchor`](../../R/dbarts.R)).
 - The bridge owns one copy of each vector, `ownedResponse` and `ownedOffset` on the holder
   ([`dbarts_sampler_t`](../../src/R_interface_bartcore_common.hpp)), which every chain borrows.
   [`dbarts_sampler_setResponse`](../../inst/include/dbarts/dbarts.h) and

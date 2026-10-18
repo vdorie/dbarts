@@ -84,9 +84,10 @@ changes it.
   and at a write, with a text that names nothing of the engine. A model of several forests on a constant
   response is created when no sd is stated.
 - The forests' record on the control holds four numbers a forest (tree count, base, power, the hold), `sd`
-  and `variance` (one number or NA a forest), `hasBasis`, the anchor and the unit, with the record's other
-  entries as they were. `hasBasis` stayed: the four numbers do not record which channel the forest's sd
-  reached, which the map reads from the forest's first kind for the life of the sampler, and
+  and `variance` (one number or NA a forest) and `hasBasis`, with the record's other entries as they were;
+  the anchor and the unit are the data object's `forest.calibration`
+  ([state-frame-prior.md](state-frame-prior.md)). `hasBasis` stayed: the four numbers do not record which
+  channel the forest's sd reached, which the map reads from the forest's first kind for the life of the sampler, and
   `$setForestBasis` refuses a basis for a forest created with none
   (retired: [`ForestSpec::createdWithoutBasis`](../../src/bartcore/combiner.hpp), gone with
   forest-multiplier's push 1, which states each forest's kind from the data object and drops

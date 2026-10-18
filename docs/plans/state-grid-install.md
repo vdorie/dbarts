@@ -526,7 +526,7 @@ the calls in it:
 - A sampler's own `state` field is never refused for the cut points it records (settled by the
   orchestrator, 2026-10-11, from the second review). Where a re-creation leaves the engine on other points
   than the adopted state records, which only an ordered factor's column can, the field takes the engine's
-  state ([`heldAfterAdoption`](../../R/dbarts.R)), as after a live install onto another grid. So
+  state (retired: [`heldAfterAdoption`](../../R/dbarts.R), gone since state-frame-prior slice 1), as after a live install onto another grid. So
   `copy$setState(copy$state)` and a reload's `setState` of its own field, as a first call too, return what
   the base build returned, and no draw moves. The alternative, the field as given, had a copy refuse its
   own field until its next `storeState()`. A reload's field is refreshed at its first use: the state the

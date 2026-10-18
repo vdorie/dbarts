@@ -503,7 +503,7 @@ expressions are written exactly as bcf's were, which is what keeps the K = 2
 instance bitwise.
 
 s is computed once, at a sampler's first creation. R records it on the
-forests' control attribute, and every re-creation passes it back as
+data object, `data@forest.calibration`, and every re-creation passes it back as
 [`AmplitudeSpec`](../../src/bartcore/combiner.hpp)'s `anchor`, so a copy, a
 save and load, or a re-creation after a response swap at `updateScale = FALSE`
 builds on the live s rather than on the swapped response's.

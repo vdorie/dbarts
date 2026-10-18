@@ -60,10 +60,10 @@ forests coupled through amplitudes, which had no mean term to carry a converted 
 does. A constant response's transform is the window of width 1 centered on its value, c - 0.5 to c + 0.5
 (dec-B386; it was c to c + 1 until 2026-10-08), recorded as (c, c).
 
-A numeric forest's scale is data derived once and then held, as the transform is, but it rides the data
-object (`data@basis.scale`) and not the model, and a state holds none: an install moves no forest's prior,
-and a state from a sampler created on another column installs under the recipient's own record
-([forest-multiplier.md](forest-multiplier.md)).
+A numeric forest's scale is data too, recorded on the data object (`data@basis.scale`) beside the transform,
+and a state holds none; unlike the transform it is taken once, at the first creation, and no later call moves
+it: an install moves no forest's prior, and a state from a sampler created on another column installs under
+the recipient's own record ([forest-multiplier.md](forest-multiplier.md)).
 
 A re-anchor and an install differ on the draws the sampler has kept. A re-anchor rewrites them into the new
 transform, so they stay the functions they were ([leaf-conversions.md](leaf-conversions.md)); an install
@@ -150,7 +150,7 @@ The writer and the install rule: [`Chain::getState`](../../src/bartcore/chain.hp
 [`AmplitudeForestCombiner::restoreGlue`](../../src/bartcore/combiner.hpp). The transform:
 [`Sampler::setAnchor`](../../src/bartcore/sampler.hpp) and [`moveScale`](../../src/bartcore/chain.hpp); a
 re-anchor's rewrite of the kept draws, [`restateSavedDraws`](../../src/bartcore/chain.hpp). The record:
-[`recordAnchor`](../../R/dbarts.R), [`applyAnchor`](../../R/dbarts.R) and
-[`recreatePointer`](../../R/dbarts.R). The floor on precisions:
+[`recordDerived`](../../R/data.R), [`applyAnchor`](../../R/dbarts.R) and
+[`createEngine`](../../R/dbarts.R). The floor on precisions:
 [`ResponseModel::canHoldLatents`](../../src/bartcore/model.hpp), asked by
 [`Chain::stateIsValid`](../../src/bartcore/chain.hpp).

@@ -63,7 +63,7 @@ each value back. Closes TODO `state-frame-prior` and unblocks response-scale-row
   state ([`Chain::setState`](../../src/bartcore/chain.hpp), `restoreCalibration` on
   [`LinearGaussianLeaf`](../../src/bartcore/model.hpp) and [`GPGaussianLeaf`](../../src/bartcore/model.hpp))
   and derived at `setData` ([`Chain::applyNewData`](../../src/bartcore/chain.hpp)); the range on the model
-  ([`recordAnchor`](../../R/dbarts.R), [`applyAnchor`](../../R/dbarts.R), copied by `setModel`); the anchor
+  (retired: [`recordAnchor`](../../R/dbarts.R), gone in slice 1, and [`applyAnchor`](../../R/dbarts.R), copied by `setModel`); the anchor
   and unit on the control (the sampler's `initialize` in [R/dbarts.R](../../R/dbarts.R), read by
   [`applyForestAttributes`](../../src/R_interface_bartcore.cpp)); [`samplePriorPredictive`](../../R/dbarts.R)
   creates from `sampler$data` and applies the model's range.
@@ -132,7 +132,7 @@ are agent-made and the steps follow them.
     [R/data.R](../../R/data.R), `checkDerivedRecord` at the creation doors and `setData` (a grid out of order
     sorted, a repeated point refused, a misfit refused naming the slot). The sampler writes them after
     creation and after `setCutPoints`, `setPredictor`, `setData` and each `updateScale = TRUE`;
-    [`recordAnchor`](../../R/dbarts.R) writes `data@response.range` (`NULL` under probit, logistic, ordinal and
+    retired: [`recordAnchor`](../../R/dbarts.R) (gone, as built) writes `data@response.range` (`NULL` under probit, logistic, ordinal and
     multinomial) and `setModel` no longer carries the attribute; the anchor and unit leave the control and
     its `initialize` block. `copy`, [`getPointer`](../../R/dbarts.R), [`recreatePointer`](../../R/dbarts.R),
     the dead-pointer `setState` and [`samplePriorPredictive`](../../R/dbarts.R) re-create from the record.

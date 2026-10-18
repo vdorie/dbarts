@@ -96,7 +96,7 @@ What a re-derivation is today, by `setOffset(<offset in force>, updateScale = TR
   named sd of 0.7 has its k restated (24.20 to 2.64) and a drawn k stays (3.40 and 2.56 on two chains,
   unchanged; dec-B417). It draws nothing ([`Chain::setOffset`](../../src/bartcore/chain.hpp) hands the
   response model no generator).
-- (ran) The record. The R method writes the range into the model ([`recordAnchor`](../../R/dbarts.R)),
+- (ran) The record. The R method writes the range into the model (retired: [`recordAnchor`](../../R/dbarts.R), gone since state-frame-prior slice 1),
   so a copy and a reload hold it; `setState` with a state stored before the call returns TRUE and leaves
   the re-derived range in force (on the second fixture 33.886 before, 3.702 after the call and after the
   install).
@@ -266,7 +266,7 @@ None. The one this plan raised, a multinomial sampler given the argument, is set
    TRUE they raise [`refuseAmplitudeMutation`](../../R/bartcore.R) and, on `setActiveRows`,
    [`refuseCountsMutation`](../../R/bartcore.R) named `$setActiveRows(updateScale = TRUE)`, before
    anything is installed; they pass it to the bridge, write the record when it is TRUE
-   ([`recordAnchor`](../../R/dbarts.R)), store by `updateState`, and raise
+   (retired: [`recordAnchor`](../../R/dbarts.R), gone since state-frame-prior slice 1), store by `updateState`, and raise
    [`warnScaleKept`](../../R/bartcore.R) last. `setWeights` forwards it with a 0/1 vector on a mask
    family and keeps its rollback of `data@weights` on a refused call. `reapplyActiveRows` passes FALSE:
    a re-creation restates the record and derives nothing. One helper in [bartcore.R](../../R/bartcore.R)

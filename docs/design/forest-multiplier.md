@@ -58,7 +58,7 @@ refusal giving the constant or the ratio, and with an sd stated it is created (d
 The engine takes it, once, for a numeric forest that states no sd, in
 [`basisColumnScale`](../../src/bartcore/combiner.hpp), handed the rows by the K-forest constructor of
 [`Chain`](../../src/bartcore/chain.hpp). R records it on the data object, `data@basis.scale`, in the
-sampler's `initialize` where the anchor is recorded, for a forest whose entry the object lacks
+sampler's `initialize` beside the anchor and the unit, for a forest whose entry the object lacks
 ([`recordBasisScales`](../../R/dbarts.R)), and the bridge hands it back to every later creation
 ([`applyForestBases`](../../src/R_interface_bartcore.cpp)), checked there and only there: one positive
 finite number for the forest's one column. On every path:
@@ -119,7 +119,7 @@ of several forests by name, their coefficients not being drawn from their prior 
 
 A state holds the coefficients and one variance a forest, no sd, no scale, no kind; every install puts
 them in as stored (dec-B418), and a held block in the state is passed by. A saved sampler holds the
-scale on its data object and the anchor and the unit on its control, so a reload builds the creation's
+scale, the anchor and the unit on its data object, so a reload builds the creation's
 prior. Neither the stored state's format nor the shipped header changes. The header has no create
 entry and cannot describe a sampler of several forests, so every such sampler is created from R, which
 keeps the record.
