@@ -4250,6 +4250,7 @@ fitSynopsis <- function(x) {
   if (!is.null(x[["monotone.prior"]])) {
     cat("monotone prior: ", x[["monotone.prior"]], "\n", sep = "")
   }
+  writeLines(fitForestLines(x))
   invisible(NULL)
 }
 

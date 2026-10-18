@@ -2640,6 +2640,10 @@ dbartsSampler <- setRefClass(
       if (!is.null(active)) {
         installWeightsMask(.self, active)
       }
+      # once, at a creation: a copy is not one
+      if (.self$control@verbose && !isTRUE(forestPrintState[["held"]])) {
+        writeLines(samplerForestLines(.self))
+      }
 
       callSuper(...)
     },
@@ -2743,8 +2747,9 @@ dbartsSampler <- setRefClass(
     },
     copy = function(shallow = FALSE) {
       "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and installing its stored state as stored, converting nothing, on the cut points and weights that state records for its numeric columns, and otherwise as setState does with forceUpdate = TRUE: a tree that no longer fits the sampler is repaired, silently; see setState."
-      # a copy introduces no rows, so it does not raise the creation warning
-      dupe <- withoutZeroTrialsWarning(
+      # a copy introduces no rows, so it does not raise the creation warning,
+      # and it is not a creation, so it does not print the forests' block
+      dupe <- withoutZeroTrialsWarning(withoutForestBlock(
         if (shallow) {
           dbartsSampler$new(control, model, data)
         } else {
@@ -2757,7 +2762,7 @@ dbartsSampler <- setRefClass(
           }
           dbartsSampler$new(control, model, newData)
         }
-      )
+      ))
 
       # a copy is a re-creation: it keeps this sampler's model, the record of
       # its transform included, and the move below puts the chains in it
@@ -2812,11 +2817,12 @@ dbartsSampler <- setRefClass(
       dupe
     },
     show = function() {
-      "Pretty prints the object."
+      "Pretty prints the object: its call and, for a sampler of several forests, the block of what each forest resolved to."
 
       cat("dbarts sampler\n")
       cat("  call: ")
       writeLines(deparse(control@call))
+      writeLines(samplerForestLines(.self))
       cat("\n")
 
       invisible(NULL)

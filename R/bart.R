@@ -589,6 +589,8 @@ packageBartResults <- function(
     result$basis.terms <- forestInfo$basisTerms
     # one label for each forest, always
     attr(result, "forest.labels") <- forestInfo$labels
+    # the number the forests' sds are stated in, which the printed block names
+    attr(result, "forest.unit") <- forestInfo$unit
   }
 
   if (keepSampler) {
