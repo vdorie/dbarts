@@ -175,3 +175,18 @@ Each later addition is an addition and not a change of a 1.0 model:
   forests; today a forest with no basis or a factor starts by position and a number at 1.
 - `setData` on a sampler of several forests, refused: when it opens, a new object's record is used and
   what it lacks is taken.
+
+## 8. The printed block
+
+`print` of a fit, `show` of a sampler and the creation of a sampler with `verbose = TRUE` print a block
+of one line for each forest of a model of several, built by [`forestPriorLines`](../../R/forestPrint.R)
+from the reader's entries and, for a numeric forest, the mean, standard deviation and range of its
+column as the object holds it: a sampler's data object, a fit's stored `bases`, over the rows in the
+likelihood when the block is printed (a fit's stored weights and mask, a sampler's own). Nothing of the
+column is stored: the mean and sd are those of the column in force, so after a swap or a change of
+weights they are the new ones, and a default's line ends with the sd of the column it was taken from
+where that differs. The one number a fit stores for the block is the unit the sds are stated in, the
+engine's own, `attr(fit, "forest.unit")`, which a sampler already holds on its control; R takes no
+second unit from the response. A copy is not a creation and prints nothing. A fit of one forest prints
+as before. The format is a constraint on nothing: the help names the two things to read in it, a
+column's mean and range and the sd per sd of the column.

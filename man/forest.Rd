@@ -522,6 +522,20 @@ sampler$setLeafPrior(forests = list(forest(),
     its forest as it is (see \code{\link{dbartsSampler}}). A forest's kind is
     fixed at creation: \code{$setForestBasis} refuses to give a basis to a
     forest created without one, and moves no forest's prior.
+
+    \code{print} of a fit, \code{show} of a sampler and the creation of a
+    sampler with \code{verbose = TRUE} show what each forest resolved to, in a
+    block of one line for each forest of a model of several: what it
+    multiplies, the mean, sd and range of a numeric column as they stand over
+    the observations in the likelihood, the sd per unit and per sd of the
+    column, and whether the sd was stated or is the default; a default taken
+    from a column that has since been replaced says so. Two things to look
+    for in it. The mean and range of a numeric column: a mean far from 0 is a
+    column that should be centered, and one wild value shows in the range.
+    And the sd per sd of the column: for a default it is the same on every
+    numeric line, and for a stated \code{sd} it shows the size of one sd of
+    the column, where a number in the wrong units shows. Nothing in the
+    fit warns of either.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on

@@ -354,7 +354,7 @@ extract(object, \dots)
 
   For continuous response fits, the \code{plot} method sets \code{mfrow} to \code{c(1, 2)} and makes two plots, unless \code{sigma} was held fixed, when it draws only the second. The first plot is the sequence of kept draws of \eqn{\sigma} including the burn-in draws. Initially these draws will decline as BART finds a good fit and then level off when the MCMC has burnt in. The second plot has \eqn{y} on the horizontal axis and posterior intervals for the corresponding \eqn{f(x)} on the vertical axis. For binary response fits, only this second kind of plot is drawn, with the posterior median of \eqn{P(Y = 1 \mid x)} on the horizontal axis and its posterior interval on the vertical axis.
 
-  For \code{print.bart}, the fit itself (\code{x}), returned invisibly; the call and a short synopsis (family, chain/tree/burn counts, kept-draw count) print to the console as the side effect.
+  For \code{print.bart}, the fit itself (\code{x}), returned invisibly; the call and a short synopsis (family, chain/tree/burn counts, kept-draw count) print to the console as the side effect. A fit of several forests adds a block of one line for each, what the forest multiplies and the sd it resolved to (see the \code{sd} argument of \code{\link{forest}}).
 }
 \references{
 Chipman, H., George, E., and McCulloch, R. (2010)
