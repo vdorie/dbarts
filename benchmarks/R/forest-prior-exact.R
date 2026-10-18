@@ -209,7 +209,7 @@ samplerConstants <- function(arm) {
     control = dbartsControl(n.chains = 1L, n.threads = 1L, n.cuts = 1L)
   )
   list(
-    unit = attr(sampler$control, "bartcore.forests", exact = TRUE)$unit,
+    unit = sampler$data@forest.calibration[["unit"]],
     shift = sampler$getLeafPrior(1L)$response.shift
   )
 }
@@ -516,7 +516,7 @@ numericOracle <- function(arm) {
     arm,
     dbartsControl(n.chains = 1L, n.threads = 1L, n.cuts = 1L)
   )
-  unit <- attr(sampler$control, "bartcore.forests", exact = TRUE)$unit
+  unit <- sampler$data@forest.calibration[["unit"]]
   shift <- sampler$getLeafPrior(1L)$response.shift
   rows <- if (is.null(arm$weights)) seq_len(n) else which(arm$weights > 0)
   forests <- lapply(arm$forests, function(spec) {
