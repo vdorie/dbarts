@@ -7027,8 +7027,10 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 // 'fits.cold': function fits started at 0. 'blocks.unread': 1 for slopes and
 // 2 for gp fits the donor carries and this sampler's constant leaves do not
 // read, else 0. 'coefficients.kept': linear coefficients kept as built
-// across a covariate of one value on each side. Everything is allocated
-// before the install, which then only writes into it.
+// across a covariate of one value on each side. 'dart' and 'variance': 1 for
+// this sampler's own part started as a new fit's, 2 for the donor's left
+// behind, else 0. Everything is allocated before the install, which then
+// only writes into it.
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr, SEXP currentPredictorsExpr,
                              SEXP forceExpr) {
@@ -7041,7 +7043,7 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
   const char* names[] = {"installed", "altered", "trees", "variance.trees",
                          "fits.cold", "blocks.unread", "coefficients.kept",
-                         ""};
+                         "dart", "variance", ""};
   const char* countNames[] = {"offered", "taken", "moved", "cut.back",
                               "side.dropped", "single.leaves"};
   int numChains = static_cast<int>(holder.sampler->shape().numChains);
@@ -7059,8 +7061,8 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
   }
   // vectors of the report's own: a scalar logical made by R is one shared
   // object per value and is not to be written
-  for (int k : {0, 1, 4, 5, 6}) {
-    SEXP flagExpr = Rf_allocVector(k == 5 ? INTSXP : LGLSXP, 1);
+  for (int k : {0, 1, 4, 5, 6, 7, 8}) {
+    SEXP flagExpr = Rf_allocVector(k == 5 || k >= 7 ? INTSXP : LGLSXP, 1);
     SET_VECTOR_ELT(resultExpr, k, flagExpr);
     INTEGER(flagExpr)[0] = 0;
   }
@@ -9231,6 +9233,10 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
         LOGICAL(VECTOR_ELT(reportExpr, 4))[0] = report.fitsCold;
         INTEGER(VECTOR_ELT(reportExpr, 5))[0] = blocksUnread;
         LOGICAL(VECTOR_ELT(reportExpr, 6))[0] = report.coefficientsKept;
+        INTEGER(VECTOR_ELT(reportExpr, 7))[0] =
+          report.dartStartedFresh ? 1 : report.dartLeftBehind ? 2 : 0;
+        INTEGER(VECTOR_ELT(reportExpr, 8))[0] =
+          report.varianceStartedFresh ? 1 : report.varianceLeftBehind ? 2 : 0;
       }
     }
   }
@@ -9249,9 +9255,6 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "predictor structure (a categorical/continuous column "
                "mismatch, or a malformed donor cut grid); its trees cannot "
                "be remapped onto this cut grid");
-    case bartcore::WarmStartResult::dartMismatch:
-      Rf_error("DART state transfers only between two DART fits; the donor and "
-               "destination disagree on dart");
     case bartcore::WarmStartResult::varianceMismatch:
       Rf_error("warm-start donor's variance trees cannot be installed on this "
                "sampler's data (a scale leaf is not positive, or a flat tree "
@@ -9264,9 +9267,8 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "or does not match its variance forest");
     case bartcore::WarmStartResult::shapeMismatch:
       Rf_error("warm-start donor is not shape-compatible with this sampler "
-               "(number of forests or predictors differ, only one of the two "
-               "carries a variance forest, or the donor's kept draws do not "
-               "match its tree count)");
+               "(number of forests or predictors differ, or the donor's kept "
+               "draws do not match its tree count)");
     case bartcore::WarmStartResult::rebuildFailed:
       Rf_error("warm-start donor's trees cannot be rebuilt on this sampler's "
                "data (a donor tree no longer routes onto the current "

@@ -95,20 +95,20 @@ crossGrid <- dbarts::bart(
   warm.start = donor
 )
 expect_true(all(is.finite(as.vector(crossGrid$yhat.train))))
-expect_error(
-  dbarts::bart(
-    x,
-    y,
-    n.trees = 8L,
-    tree.prior = dart(),
-    n.samples = 4L,
-    n.burn = 0L,
-    n.chains = 1L,
-    verbose = FALSE,
-    warm.start = donor
-  ),
-  "DART"
+# a plain donor into a DART fit takes the trees, the DART weights starting
+# as a new fit's
+dartFromPlain <- dbarts::bart(
+  x,
+  y,
+  n.trees = 8L,
+  tree.prior = dart(),
+  n.samples = 4L,
+  n.burn = 0L,
+  n.chains = 1L,
+  verbose = FALSE,
+  warm.start = donor
 )
+expect_true(all(is.finite(as.vector(dartFromPlain$yhat.train))))
 expect_error(dest$installTrees(list(1, 2, 3)), "must be a dbarts sampler")
 expect_error(dest$installTrees(donor, samples = c(1L, 2L)), "one per chain")
 # a fractional samples index is refused, naming the argument, rather than

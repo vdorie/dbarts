@@ -947,7 +947,6 @@ expect_identical(treeOf(merged$state)$vars, -1L)
 
 # ---- errors stay errors in both forms ------------------------------------------
 
-shape <- "not shape-compatible"
 blocksOf <- "malformed leaf parameters"
 refusals <- list(
   list(make(), make(data = x[, 1L:3L]), "malformed cut points", "columns"),
@@ -957,10 +956,6 @@ refusals <- list(
     structure,
     "an unordered factor"
   ),
-  list(make(), make(tree.prior = dart()), "DART", "DART in the donor"),
-  list(make(tree.prior = dart()), make(), "DART", "DART here"),
-  list(make(), heteroscedastic(), shape, "variance in the donor"),
-  list(heteroscedastic(), make(), shape, "variance here"),
   list(linear2(), make(), blocksOf, "constant into linear"),
   list(
     processes(),

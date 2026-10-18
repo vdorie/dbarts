@@ -860,7 +860,7 @@ runWithBurnIn <- function(sampler, control, keepTrees, callback = NULL) {
 # forest are counted per chain too, as a range, and said before the changes
 # in both forests' clauses. The variance forest has its own clause where one of its
 # trees changed or was left out or it took single leaves, and each way the
-# leaves are not the donor's has its own.
+# leaves are not the donor's has its own, as has a part one side alone has.
 warmStartLine <- function(report) {
   changes <- c(
     moved = "moved to this fit's cut points",
@@ -915,7 +915,13 @@ warmStartLine <- function(report) {
     clauses,
     if (report$fits.cold) "gp fits started at 0",
     c("slopes left behind", "gp fits left behind")[report$blocks.unread],
-    if (report$coefficients.kept) "slopes kept across a covariate of one value"
+    if (report$coefficients.kept) "slopes kept across a covariate of one value",
+    c("DART weights started fresh", "donor's DART weights left behind")[
+      report$dart
+    ],
+    c("variance forest started fresh", "donor's variance forest left behind")[
+      report$variance
+    ]
   )
   paste0("warm start: ", paste(clauses[nzchar(clauses)], collapse = "; "))
 }

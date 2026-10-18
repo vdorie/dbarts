@@ -5341,6 +5341,45 @@ public:
     }
   }
 
+  /// Starts DART as a new fit does, for a warm start whose donor has none:
+  /// the split weights equal over the columns the forest may use and the
+  /// concentration at the options' value, as DartPrior::initialize leaves
+  /// them, but the delay counter at its end, so that the next sweep's update
+  /// draws the weights from the trees installed. Requires DART.
+  void startDartFresh() {
+    Forest<L, ResidT>& forest = forests_[0];
+    std::vector<double>& probabilities = forest.dart.probabilities;
+    double allowed = 0.0;
+    for (size_t j = 0; j < probabilities.size(); ++j)
+      allowed += forest.columnMask.empty() || forest.columnMask[j] != 0
+                   ? 1.0 : 0.0;
+    // in place: the tree prior points at this storage
+    for (size_t j = 0; j < probabilities.size(); ++j)
+      probabilities[j] = forest.columnMask.empty() || forest.columnMask[j] != 0
+                           ? 1.0 / allowed : 0.0;
+    forest.dart.alpha = options_.dart.alpha;
+    forest.dart.setNumUpdatesSkipped(forest.dart.updateDelay);
+  }
+
+  /// Starts the variance forest as a new fit does, for a warm start whose
+  /// donor has none: every tree a root at the m-th root of the starting
+  /// variance and every row's variance the starting variance, as
+  /// VarianceForest::initialize leaves them, the starting variance being the
+  /// retained residual prior's estimate on the transform in force. The trees
+  /// keep the forest's column restriction. Requires a variance forest.
+  void startVarianceForestFresh() {
+    VarianceForest& vf = *varianceForest_;
+    size_t n = data_.numObservations;
+    double sigma = varianceSigmaEstimate_ / response_->sigmaScale();
+    double initialVariance = sigma * sigma;
+    for (size_t j = 0; j < vf.numTrees; ++j)
+      vf.trees[j].initialize(vf.indexBuffer.data() + j * n, n);
+    std::fill(vf.factorByTree.begin(), vf.factorByTree.end(),
+              std::pow(initialVariance, 1.0 / static_cast<double>(vf.numTrees)));
+    std::fill(vf.combinedVariance.begin(), vf.combinedVariance.end(),
+              initialVariance);
+  }
+
   /// Installs a state stateIsValid accepted; false only on the invariant
   /// violation of a validated tree failing to rebuild. The model is this
   /// chain's and stays: the response transform, the leaf scale, a supplied

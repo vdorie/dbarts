@@ -279,8 +279,9 @@ expect_true(
   any(sampler.homoscedastic$run(0L, 5L)$sigma != homoscedasticSigma)
 )
 
-# a warm start carries the donor's variance trees, so a donor and destination
-# that disagree on the variance forest are refused in both directions
+# a warm start carries the donor's variance trees where both have a variance
+# forest; where one side alone has it, the trees go in, the donor's variance
+# trees left behind or the destination's started as a new fit's
 donor.variance <- dbarts::dbarts(
   y ~ x + z,
   train,
@@ -290,14 +291,8 @@ donor.variance <- dbarts::dbarts(
 invisible(donor.variance$run(0L, 1L))
 donor.homoscedastic <- dbarts::dbarts(y ~ x + z, train, control = control)
 invisible(donor.homoscedastic$run(0L, 1L))
-expect_error(
-  sampler.homoscedastic$installTrees(donor.variance),
-  "shape-compatible"
-)
-expect_error(
-  sampler.variance$installTrees(donor.homoscedastic),
-  "shape-compatible"
-)
+expect_true(sampler.homoscedastic$installTrees(donor.variance))
+expect_true(sampler.variance$installTrees(donor.homoscedastic))
 # two heteroscedastic samplers agree on the shape, and the donor's variance
 # trees now ride the install; the state-level gate is in tests/cpp
 expect_silent(sampler.variance$installTrees(donor.variance))

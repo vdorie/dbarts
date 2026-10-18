@@ -133,7 +133,7 @@ struct SamplerStateData {
 /// or on the store's; found on scratch before anything is written, and
 /// undone where an install fails all the same.
 enum class WarmStartResult {
-  ok, declined, shapeMismatch, gridMismatch, dartMismatch, varianceMismatch,
+  ok, declined, shapeMismatch, gridMismatch, varianceMismatch,
   varianceSlotMismatch, rebuildFailed
 };
 
@@ -143,10 +143,15 @@ enum class WarmStartResult {
 /// function fits started at 0 for a donor recorded on other cut points, leaf
 /// blocks the sampler's leaves do not read, and linear coefficients kept as
 /// built across a covariate of one value on each side. An install is altered
-/// exactly when a count names a change or a flag is up.
+/// exactly when a count names a change or one of those is up. The rest say
+/// what the donor is read as and change nothing of it: DART or a variance
+/// forest on one side only, the sampler's own started as a new fit's or the
+/// donor's left behind.
 struct WarmStartReport {
   std::vector<WarmStartTreeCounts> mean, variance;
   bool fitsCold = false, leafBlocksUnread = false, coefficientsKept = false;
+  bool dartStartedFresh = false, dartLeftBehind = false,
+       varianceStartedFresh = false, varianceLeftBehind = false;
   bool changed() const {
     bool any = fitsCold || leafBlocksUnread || coefficientsKept;
     for (const WarmStartTreeCounts& counts : mean) any = any || counts.changed();
@@ -1505,9 +1510,14 @@ public:
   /// amplitudes this sampler draws transfer - rng and auxiliary state stay
   /// fresh, so each chain evolves independently from its own stream. The cut
   /// grid, its weights and the codes are the store's, the same before and
-  /// after, byte for byte. The donor must share this sampler's forest count,
-  /// DART mode and presence of a variance forest; its own tree counts set the
-  /// stride of a saved slot.
+  /// after, byte for byte. The donor must share this sampler's forest count;
+  /// its own tree counts set the stride of a saved slot.
+  ///
+  /// Parts. DART weights go only between two DART fits and a variance forest
+  /// only where both have one: a part the donor alone has is not read, and
+  /// one this sampler alone has starts as a new fit's once the donor is in
+  /// (Chain::startDartFresh, Chain::startVarianceForestFresh), neither
+  /// judged.
   ///
   /// Another tree count. A forest of this sampler holding more trees than
   /// the donor's takes all of them, in the donor's order, and then single
@@ -1642,6 +1652,10 @@ public:
 
     std::vector<ChainStateData> install(chains_.size());
     bool coefficientsKept = false;
+    // by chain, a part this sampler has and the donor sample does not, which
+    // starts as a new fit's once the donor is in: 1 DART, 2 a variance forest
+    std::vector<int> fresh(chains_.size(), 0);
+    bool dartLeft = false, varianceLeft = false;
     for (size_t c = 0; c < chains_.size(); ++c) {
       size_t dc = sampleMap[c].first;
       int slot = sampleMap[c].second;
@@ -1649,13 +1663,13 @@ public:
       const ChainStateData& src = donor.chains[dc];
       if (src.forests.size() != chains_[c]->numForests())
         return WarmStartResult::shapeMismatch;
-      if (chains_[c]->usesDart() != !src.dartProbabilities.empty())
-        return WarmStartResult::dartMismatch;
-      // a donor and destination that disagree here would drop a scale surface
-      // or leave one cold-started under a mean forest fitted with it; the
-      // trees themselves ride the reassembled state below
-      if (src.varianceTrees.empty() == chains_[c]->hasVarianceForest())
-        return WarmStartResult::shapeMismatch;
+      bool donorDart = !src.dartProbabilities.empty();
+      bool donorVariance = !src.varianceTrees.empty();
+      bool ownVariance = chains_[c]->hasVarianceForest();
+      fresh[c] = (chains_[c]->usesDart() && !donorDart ? 1 : 0) |
+                 (ownVariance && !donorVariance ? 2 : 0);
+      dartLeft = dartLeft || (!chains_[c]->usesDart() && donorDart);
+      varianceLeft = varianceLeft || (!ownVariance && donorVariance);
 
       ChainStateData& dst = install[c];
       dst.forests.resize(src.forests.size());
@@ -1691,9 +1705,11 @@ public:
       dst.sigma = src.sigma;
       dst.fitMin = src.fitMin;
       dst.fitMax = src.fitMax;
-      dst.dartProbabilities = src.dartProbabilities;
-      dst.dartAlpha = src.dartAlpha;
-      dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;
+      if (chains_[c]->usesDart()) {
+        dst.dartProbabilities = src.dartProbabilities;
+        dst.dartAlpha = src.dartAlpha;
+        dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;
+      }
       dst.hasAmplitudes = src.hasAmplitudes;
       dst.amplitudeWidths = src.amplitudeWidths;
       dst.amplitudes = src.amplitudes;
@@ -1703,12 +1719,12 @@ public:
       // buffer, index-aligned with the mean slice above because one slot base
       // drives both buffers and both index by the sample number. A live-sourced
       // install takes the donor's live pair.
-      if (slot < 0) {
+      if (ownVariance && slot < 0) {
         dst.varianceTrees = src.varianceTrees;
         dst.varianceTreeMasks = src.varianceTreeMasks;
         if (!scaleLeavesArePositive(dst.varianceTrees))
           return WarmStartResult::varianceMismatch;
-      } else if (!src.varianceTrees.empty()) {
+      } else if (ownVariance && donorVariance) {
         // The saved buffer's STRIDE is the donor's own variance tree count, so
         // a size-only bound would let a state whose live block is shorter than
         // the stride slice ACROSS slot boundaries and install a mixture of two
@@ -1925,6 +1941,10 @@ public:
     }
     const std::vector<ChainStateData>& installed =
       fewer || unplaced ? chosen : install;
+    for (size_t c = 0; c < chains_.size(); ++c) {
+      if ((fresh[c] & 1) != 0) chains_[c]->startDartFresh();
+      if ((fresh[c] & 2) != 0) chains_[c]->startVarianceForestFresh();
+    }
     // the store itself is left alone, so the draws it holds belong to the
     // donor's fit, not this one's: drop them rather than let a read replay
     // another sampler's posterior
@@ -1942,6 +1962,14 @@ public:
       report->fitsCold = fitsCold;
       report->leafBlocksUnread = leafBlocksUnread;
       report->coefficientsKept = coefficientsKept;
+      report->dartStartedFresh = report->varianceStartedFresh = false;
+      for (int parts : fresh) {
+        report->dartStartedFresh = report->dartStartedFresh || (parts & 1);
+        report->varianceStartedFresh =
+          report->varianceStartedFresh || (parts & 2);
+      }
+      report->dartLeftBehind = dartLeft;
+      report->varianceLeftBehind = varianceLeft;
     }
     return WarmStartResult::ok;
   }
