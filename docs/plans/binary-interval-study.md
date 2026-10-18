@@ -1,11 +1,12 @@
 # binary-interval-study: does the collapsed scale move make binary intervals more accurate at equal running time?
 
-Status: PLANNED 2026-10-17, revised from its blind critique (scratch/bisc-crit.md) and the orchestrator's
-calls on it. The bar is ruled (dec-B455): calibration, distance from nominal on either side; real outcomes
-against a reference are a diagnosis outside the rule (dec-B456). Nothing run
-beyond the planning probes listed at the end. The maintainer placed their multiple-comparisons problem in a
-multiple-treatments scenario; the design A6 answers it ([Multiple comparisons](#multiple-comparisons)). The
-run waits on nothing from the maintainer.
+Status: STOPPED after the pilot, 2026-10-17 (dec-B462). The pilot ran (replications 1 to 10 of every cell, no
+pair skipped); the main run never started. The maintainer stopped the study there, disclosed as an unplanned
+stop for futility, and a new study replaces the main run
+([binary-k-mixing-need.md](binary-k-mixing-need.md)). The pilot is written up, with the frozen and amended
+probability readings side by side, in [binary-interval-pilot.md](../design/binary-interval-pilot.md). What
+follows is the plan as it stood, with its amendments (made before and after the pilot was read) kept below.
+The bar was ruled in dec-B455; real outcomes were a diagnosis outside the rule (dec-B456).
 
 agent: one opus implementer writes the harness, runs it on the bench box and writes the finding.
 rng: NEUTRAL. No package code changes; a benchmark harness and two private builds of the move's branch.
