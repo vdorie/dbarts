@@ -1312,6 +1312,12 @@ bartcoreSamplerSetData <- function(sampler, newData) {
     stop("$setData: requires the same predictors")
   }
   newData <- alignDataFactorLevels(newData, sampler$data@x)
+  # the call derives every value again, so a carried record, which the
+  # alignment may have left in another column order, is not handed on; the
+  # sampler's own is written after it
+  newData@cutPoints <- NULL
+  newData@response.range <- NULL
+  newData@forest.calibration <- NULL
 
   newData@n.cuts <- sampler$data@n.cuts
   newData@sigma <- sampler$data@sigma

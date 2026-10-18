@@ -498,6 +498,15 @@ expect_error(
   "'response.range' record"
 )
 expect_identical(stateOf(sampler), before)
+# a record carried in another column order, which setData puts in the
+# sampler's, does not reach the call, which derives
+factorFrame <- data.frame(a = x[, 1L], f = factor(rep_len(c("p", "q"), n)))
+inOrder <- dbarts::dbarts(factorFrame, y, control = controlWith())
+reordered <- dbarts::dbarts(factorFrame[2:1], y, control = controlWith())
+expect_null(reordered$data@cutPoints[[1L]])
+inOrder$setData(reordered$data)
+expectRecordIsReader(inOrder, "setData of a reordered record")
+expect_null(inOrder$data@cutPoints[[2L]])
 
 # ---- record-less object ----------------------------------------------------
 
