@@ -1,4 +1,5 @@
-# A warm start from a donor of another tree count. Into a forest of more
+# A warm start from a donor of another tree count, kind of leaf or set of
+# parts. Into a forest of more
 # trees the donor's go in all, in its order, and the rest start as single
 # leaves at 0, or at 1 in a variance forest: the donor as it stands, TRUE.
 # Into a forest of fewer the donor is declined, FALSE, and forced takes the
@@ -6,7 +7,8 @@
 # weighing by its case weight, in the donor's order and as installed; the
 # mean and the variance forest choose apart, the variance forest by the log
 # of its factors, and each chain among the trees of the donor sample it
-# takes.
+# takes. DART or a variance forest on one side only, and constant against
+# linear leaves, are taken as the last sections say.
 
 visibly <- function(value) list(value = value, visible = TRUE)
 answerOf <- function(expr) tryCatch(withVisible(expr), error = conditionMessage)
@@ -901,4 +903,204 @@ expect_identical(
     "warm start: 4 of 4 donor trees taken; variance trees: 4 of 4 taken, ",
     "2 started as single leaves"
   )
+)
+
+# ---- parts one side has ----------------------------------------------------------
+
+# DART's weights go only between two DART fits and a variance forest only
+# where both have one, neither judged: a part the donor alone has is left
+# behind, and one this sampler alone has starts as a new fit's once the
+# donor goes in, never on a decline. DART starts with its delay spent, so
+# that the next sweep draws its weights from the trees taken
+forest <- dbarts::dbartsForests$forest
+dartOf <- function(state) {
+  unname(state[[1L]][c(
+    "dart.probabilities",
+    "dart.alpha",
+    "dart.updates.skipped"
+  )])
+}
+onThree <- function(...) {
+  make(
+    ...,
+    tree.prior = dart(update.delay = 5L),
+    forests = list(forest(vars = 1L:3L))
+  )
+}
+created <- dartOf(stateOf(onThree()))
+expect_identical(created[[1L]], c(1, 1, 1, 0) / 3)
+plainDonor <- make(sweeps = 50L)
+ran <- onThree(sweeps = 30L)
+expect_false(identical(dartOf(stateOf(ran))[1L:2L], created[1L:2L]))
+expect_null(ran$installTrees(plainDonor, forceUpdate = TRUE))
+expect_identical(dartOf(stateOf(ran)), c(created[1L:2L], list(5L)))
+invisible(ran$run(0L, 1L))
+weights <- dartOf(stateOf(ran))[[1L]]
+expect_true(weights[4L] == 0 && length(unique(weights[1L:3L])) == 3L)
+# not judged: a clean plain donor into a DART fit is taken as it stands
+expect_identical(
+  answerOf(make(tree.prior = dart())$installTrees(plainDonor)),
+  visibly(TRUE)
+)
+
+# a DART donor into a plain fit: taken, and nothing of its DART read, so the
+# sampler is one that took the donor without it
+dartDonor <- make(tree.prior = dart(update.delay = 0L), sweeps = 50L)
+noDart <- stateOf(dartDonor)
+noDart[[1L]][c("dart.probabilities", "dart.alpha", "dart.updates.skipped")] <-
+  list(NULL)
+intoPlain <- make()
+twin <- make()
+expect_identical(answerOf(intoPlain$installTrees(dartDonor)), visibly(TRUE))
+expect_true(twin$installTrees(noDart))
+expect_identical(stateOf(intoPlain), stateOf(twin))
+expect_null(stateOf(intoPlain)[[1L]]$dart.probabilities)
+expect_identical(intoPlain$run(0L, 3L), twin$run(0L, 3L))
+# both DART: the donor's weights, concentration and counter
+bothDart <- make(tree.prior = dart(update.delay = 5L), sweeps = 10L)
+expect_identical(answerOf(bothDart$installTrees(dartDonor)), visibly(TRUE))
+expect_identical(dartOf(stateOf(bothDart)), dartOf(stateOf(dartDonor)))
+
+# a variance forest this sampler alone has: every tree a root at the
+# starting variance and every row's variance the starting variance, as a new
+# fit's, after a run that moved both
+fresh <- heteroscedastic(4L, 4L)
+startTrees <- treesOf(stateOf(fresh), variance = TRUE)
+ranVariance <- heteroscedastic(4L, 4L, sweeps = 30L)
+expect_false(identical(ranVariance$getVariance(), fresh$getVariance()))
+expect_identical(
+  answerOf(ranVariance$installTrees(plainDonor)),
+  visibly(TRUE)
+)
+expect_identical(treesOf(stateOf(ranVariance), variance = TRUE), startTrees)
+expect_identical(ranVariance$getVariance(), fresh$getVariance())
+expect_identical(treesOf(stateOf(ranVariance)), treesOf(stateOf(plainDonor)))
+# one the donor alone has: the mean trees taken, the variance trees nowhere
+intoHomoscedastic <- make()
+expect_identical(
+  answerOf(intoHomoscedastic$installTrees(fourDonor)),
+  visibly(TRUE)
+)
+expect_identical(
+  treesOf(stateOf(intoHomoscedastic)),
+  treesOf(stateOf(fourDonor))
+)
+expect_null(stateOf(intoHomoscedastic)[[1L]]$variance.vars)
+
+# a decline leaves a sampler's own parts as they were
+bothParts <- make(
+  tree.prior = dart(update.delay = 5L),
+  variance = varianceForest(n.trees = 4L),
+  sweeps = 30L
+)
+offRows <- make(data = xOther, response = yOther, sweeps = 50L)
+before <- stateOf(bothParts)
+expect_identical(answerOf(bothParts$installTrees(offRows)), visibly(FALSE))
+expect_identical(stateOf(bothParts), before)
+
+# ---- kinds of leaf -----------------------------------------------------------------
+
+linearOn <- function(columns, ...) {
+  make(..., leaf.prior = linear(columns = columns))
+}
+# a constant donor seeds linear leaves exactly: its trees, slopes of 0
+intoLinear <- linearOn(2L)
+expect_identical(
+  answerOf(intoLinear$installTrees(plainDonor)),
+  visibly(TRUE)
+)
+expect_identical(treesOf(stateOf(intoLinear)), treesOf(stateOf(plainDonor)))
+expect_true(all(stateOf(intoLinear)[[1L]]$forests[[1L]]$tree.params == 0))
+# a linear donor on another number of covariates, standardized on other
+# columns: declined; forced, each leaf the intercept it stores, slopes of 0
+oneCovariate <- linearOn(3L, sweeps = 40L)
+expect_true(any(stateOf(oneCovariate)[[1L]]$forests[[1L]]$tree.params != 0))
+twoCovariates <- linearOn(2L:3L)
+expect_identical(
+  answerOf(twoCovariates$installTrees(oneCovariate)),
+  visibly(FALSE)
+)
+expect_null(twoCovariates$installTrees(oneCovariate, forceUpdate = TRUE))
+expect_identical(
+  treesOf(stateOf(twoCovariates)),
+  treesOf(stateOf(oneCovariate))
+)
+expect_true(all(stateOf(twoCovariates)[[1L]]$forests[[1L]]$tree.params == 0))
+
+# gp leaves go only to gp leaves: an error in both forms, by name, the
+# sampler untouched
+onRows <- seq_len(60L)
+small <- function(...) make(..., data = x[onRows, ], response = y[onRows])
+refusedBoth <- function(sampler, donor, message) {
+  before <- stateOf(sampler)
+  for (force in c(FALSE, TRUE)) {
+    expect_identical(
+      answerOf(sampler$installTrees(donor, forceUpdate = force)),
+      message
+    )
+  }
+  expect_identical(stateOf(sampler), before)
+}
+gpSmall <- function(...) small(..., leaf.prior = gp(columns = 2L))
+gpDonor <- gpSmall(sweeps = 10L)
+linearDonor <- small(leaf.prior = linear(columns = 2L), sweeps = 10L)
+refusedBoth(
+  small(),
+  gpDonor,
+  "warm-start donor has gp leaves and this sampler constant ones"
+)
+refusedBoth(
+  small(leaf.prior = linear(columns = 2L)),
+  gpDonor,
+  "warm-start donor has gp leaves and this sampler linear ones"
+)
+refusedBoth(
+  gpSmall(),
+  small(sweeps = 10L),
+  "warm-start donor has constant leaves and this sampler gp ones"
+)
+refusedBoth(
+  gpSmall(),
+  linearDonor,
+  "warm-start donor has linear leaves and this sampler gp ones"
+)
+refusedBoth(
+  make(data = x[1L:50L, ], response = y[1L:50L], leaf.prior = gp(columns = 2L)),
+  gpDonor,
+  "warm-start donor's gp leaves were fit to 60 rows and this sampler holds 50"
+)
+# a numeric donor column where this sampler holds an unordered factor
+withFactor <- data.frame(x[, 1L:3L], x4 = factor(cut(x[, 4L], 3L)))
+refusedBoth(
+  make(data = withFactor),
+  plainDonor,
+  "warm-start donor's column 4 is numeric and this sampler's an unordered factor"
+)
+
+# ---- what bart says of parts and kinds ------------------------------------------
+
+taken <- "warm start: 4 of 4 donor trees taken; "
+expect_identical(
+  lineOf(make(tree.prior = dart()), plainDonor),
+  paste0(taken, "DART weights started fresh")
+)
+expect_identical(
+  lineOf(make(), dartDonor),
+  paste0(taken, "donor's DART weights left behind")
+)
+expect_identical(
+  lineOf(heteroscedastic(4L, 4L), plainDonor),
+  paste0(taken, "variance forest started fresh")
+)
+expect_identical(
+  lineOf(make(), fourDonor),
+  paste0(taken, "donor's variance forest left behind")
+)
+expect_identical(
+  lineOf(linearOn(2L), plainDonor),
+  paste0(taken, "slopes started at 0")
+)
+expect_identical(
+  lineOf(linearOn(2L:3L), oneCovariate),
+  paste0(taken, "slopes left behind")
 )

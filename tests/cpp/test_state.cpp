@@ -5983,6 +5983,137 @@ static void testWarmStartForms() {
 // generator where a twin holding all of the donor's trees ends, and the trees
 // it keeps carry the twin's sides. A donor of fewer trees is clean, the rest
 // single leaves; one of more is declined and, forced, altered.
+// A warm start across kinds of leaf (Sampler::installForests): each tree's
+// block is held to the donor's own leaves, gp leaves go only to gp leaves on
+// as many rows, a constant donor gives linear leaves slopes of 0 and is
+// clean, and a linear donor on another number of covariates leaves its
+// slopes behind, each leaf at the intercept it stores.
+static void testWarmStartLeafKinds() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 271828u;
+  const size_t n = 80, p = 2;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    y[i] = 2.0 * x[i] + x[i + n] * x[i] + 0.2 * (runif01() - 0.5);
+  }
+  std::vector<ext_rng*> rngs;
+  const size_t one[] = {1}, two[] = {0, 1};
+  auto make = [&](const size_t* covariates, size_t numCovariates, bool gp,
+                  std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.numChains = 1;
+    options.maxNumCuts = 12;
+    options.leafCovariateColumns = covariates;
+    options.numLeafCovariates = numCovariates;
+    options.gpLeaves = gp;
+    rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+    ext_rng_setSeed(rngs.back(), seed);
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rngs.back());
+    Results none;
+    sampler->run(40, 0, none);
+    return sampler;
+  };
+  const std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
+  using Kind = DonorLeafShape::Kind;
+  auto shapeOf = [](Kind kind, size_t covariates, size_t rows) {
+    DonorLeafShape shape;
+    shape.kind = kind;
+    shape.numCovariates = covariates;
+    shape.numObservations = rows;
+    return shape;
+  };
+  // an error in both forms, the sampler as it was
+  auto refused = [&](SamplerBase& sampler, const SamplerStateData& donor,
+                     const DonorLeafShape& shape, WarmStartResult expected) {
+    WarmStartResult result;
+    bool altered;
+    return warmVerdictMatchesInstall(sampler, donor, liveMap, x.data(),
+                                     result, altered, &shape) &&
+           result == expected;
+  };
+
+  std::unique_ptr<SamplerBase> linear = make(one, 1, false, 11);
+  std::unique_ptr<SamplerBase> gp = make(one, 1, true, 12);
+  SamplerStateData linearState, gpState;
+  linear->getState(linearState);
+  gp->getState(gpState);
+  SamplerStateData longSlopes = linearState, shortFits = gpState;
+  longSlopes.chains[0].forests[0].treeParams[2].push_back(0.0);
+  shortFits.chains[0].forests[0].treeParams[1].pop_back();
+  check(refused(*linear, longSlopes, shapeOf(Kind::linear, 1, 0),
+                WarmStartResult::leafBlockMismatch) &&
+          refused(*gp, shortFits, shapeOf(Kind::gp, 0, n),
+                  WarmStartResult::leafBlockMismatch),
+        "warm start kinds: a slope or fit block of another size than the "
+        "donor's leaves give is the malformed-donor error");
+  check(refused(*linear, gpState, shapeOf(Kind::gp, 0, n),
+                WarmStartResult::leafKindMismatch) &&
+          refused(*gp, linearState, shapeOf(Kind::linear, 1, 0),
+                  WarmStartResult::leafKindMismatch) &&
+          refused(*gp, gpState, shapeOf(Kind::gp, 0, n + 1),
+                  WarmStartResult::leafRowsMismatch),
+        "warm start kinds: gp leaves on one side, or on other rows, are an "
+        "error in both forms");
+
+  // a constant donor: slopes of 0, the trees as they stand, clean
+  SamplerStateData constantState = linearState;
+  for (ForestStateData& forest : constantState.chains[0].forests) {
+    forest.treeParams.clear();
+    forest.leafCovariateCenters.clear();
+    forest.leafCovariateScales.clear();
+  }
+  DonorLeafShape constant = shapeOf(Kind::constant, 0, 0);
+  WarmStartResult result;
+  bool altered;
+  WarmStartReport report;
+  std::unique_ptr<SamplerBase> intoLinear = make(one, 1, false, 13);
+  bool clean = warmVerdictMatchesInstall(*intoLinear, constantState, liveMap,
+                                         x.data(), result, altered, &constant,
+                                         &report) &&
+               result == WarmStartResult::ok && !altered;
+  SamplerStateData after;
+  intoLinear->getState(after);
+  bool zeros = true;
+  for (const std::vector<double>& slopes : after.chains[0].forests[0].treeParams)
+    for (double slope : slopes) zeros = zeros && slope == 0.0;
+  check(clean && zeros && report.slopesStartedAtZero &&
+          !report.slopesLeftBehind &&
+          sameFlatTrees(after.chains[0].forests[0].trees,
+                        linearState.chains[0].forests[0].trees),
+        "warm start kinds: a constant donor gives linear leaves slopes of 0, "
+        "taken as it stands");
+
+  // a linear donor on two covariates into one: each leaf its stored
+  // intercept, slopes of 0, declined and forced
+  std::unique_ptr<SamplerBase> wide = make(two, 2, false, 14);
+  SamplerStateData wideState;
+  wide->getState(wideState);
+  std::unique_ptr<SamplerBase> narrow = make(one, 1, false, 15);
+  DonorLeafShape twoSlopes = shapeOf(Kind::linear, 2, 0);
+  check(warmStartsAltered(*narrow, wideState, liveMap, x.data(), &twoSlopes,
+                          &report) &&
+          report.slopesLeftBehind && !report.mean[0].changed(),
+        "warm start kinds: a linear donor on another number of covariates "
+        "is declined and, forced, leaves its slopes behind alone");
+  narrow->getState(after);
+  zeros = true;
+  for (const std::vector<double>& slopes : after.chains[0].forests[0].treeParams)
+    for (double slope : slopes) zeros = zeros && slope == 0.0;
+  check(zeros && sameFlatTrees(after.chains[0].forests[0].trees,
+                               wideState.chains[0].forests[0].trees),
+        "warm start kinds: and each leaf is the donor's stored intercept, "
+        "not restated");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: warm start across kinds of leaf\n");
+}
+
 static void testWarmStartTreeCounts() {
   std::uint64_t savedRngState = rngState;
   rngState = 161803u;
@@ -6139,6 +6270,7 @@ void runStateTests(ext_rng* rng) {
   testCrossGridWarmStart();
   testWarmStartForms();
   testWarmStartTreeCounts();
+  testWarmStartLeafKinds();
   testWarmStartStandardization();
   testNoSpreadLiveConversion();
   testVarianceWarmStart();
