@@ -120,7 +120,9 @@ of several forests by name, their coefficients not being drawn from their prior 
 A state holds the coefficients and one variance a forest, no sd, no scale, no kind; every install puts
 them in as stored (dec-B418), and a held block in the state is passed by. A saved sampler holds the
 scale on its data object and the anchor and the unit on its control, so a reload builds the creation's
-prior. Neither the stored state's format nor the shipped header changes.
+prior. Neither the stored state's format nor the shipped header changes. The header has no create
+entry and cannot describe a sampler of several forests, so every such sampler is created from R, which
+keeps the record.
 
 ## 6. What moved
 
@@ -171,7 +173,5 @@ Each later addition is an addition and not a change of a 1.0 model:
 - `samplePriorPredictive` on several forests, which needs the coefficients drawn from their prior.
 - A drawn coefficient's start by kind for every kind, which would move the draws of every model of three
   forests; today a forest with no basis or a factor starts by position and a number at 1.
-- A consumer that creates a sampler of several forests through the shipped header gets a scale taken at
-  each creation, there being no R object to record it on; none does.
 - `setData` on a sampler of several forests, refused: when it opens, a new object's record is used and
   what it lacks is taken.

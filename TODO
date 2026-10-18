@@ -886,10 +886,6 @@ items
     sampler of several forests by name; drawing there needs the
     coefficients drawn from their prior, which dec-B361's rule would
     then cover. Not planned.
-  header-consumer-basis-scale: a consumer that creates a sampler of
-    several forests through the shipped header gets a numeric column's
-    scale taken at each creation, there being no R object to record it
-    on (forest-multiplier, push 2). None does today. Not planned.
   several-column-basis-meaning: what a basis of several numeric
     columns means, shorthand for a forest each or one shared shape
     times a weighted sum (the curve-times-modifier model of a spline
