@@ -317,7 +317,7 @@ Expected after each push, on a `--preclean` reference install, counted per scena
   lie in [0.5, 2]; the xbart scenarios fit constant leaves. No scenario derives under a row out, folds a
   leaf covariate or passes the new argument.
 - bcf-equivalence-47838362, 15 of 15 identical; if forest-multiplier push 2 has landed first, its
-  re-record (on the branch bcf-equivalence-85bc9ffb, 19 scenarios), 19 of 19. Several forests refuse leaf
+  re-record (bcf-equivalence-20eed7ed, 19 scenarios), 19 of 19. Several forests refuse leaf
   covariates.
 - multinomial-equivalence-80b1c8d4, 11 of 11 identical. A multinomial sampler refuses them (ran).
 - The four `test-reproducibility-*.R` files unchanged; none fits a linear or gp leaf.

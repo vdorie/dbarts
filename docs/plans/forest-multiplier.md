@@ -1105,7 +1105,7 @@ two cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
   push 1, failing only where `amplitude.prior.variance` is passed), stan4bart on bartcore (582), treatSens
   on dbarts-1.0 (306), bairrtt on main (207), the last three unedited.
 - A hot path is touched once, by push 2's first commit, which was compared against its parent:
-  `bench-sampler.R record` on 738b1015 then `compare` on 3b12fca0, run by the orchestrator on the idle x86
+  `bench-sampler.R record` on 738b1015 then `compare` on a51ac7fe, run by the orchestrator on the idle x86
   bench box (4 cores, load about 1), one machine: no metric regressed more than 5%. The ratios: embedded
   offset gibbs step 1.000, binary run 0.988, run t200 1.000, run t75 1.000, run n10000 0.994,
   setPredictor accept 1.035, setPredictor reject 1.000.
@@ -1709,12 +1709,12 @@ it the prefix match of `$amplitude`.
 ## Push 2 as built
 
 Built 2026-10-17 on bartcore at 738b1015 (push 1 landed), not landed. Commits, in order: the relative
-bound, step 2.1, the first commit (3b12fca0); the engine and the bridge, steps 2.2 to 2.4 with their
-tests/cpp (afd9e6aa); R, steps 2.5 to 2.7 and 2.10, with test-forest-scale-record.R,
-test-forest-leaf-prior-reader.R and the units twin (b51776c4); forest-prior-exact.R's numeric arms, 2.8
-(1debaef8); the help, 2.11 (470046ae, the last commit that changes package code); the four BCF scenarios,
-2.9 (7d6a2132); the design note and records, 2.11 (90c00b74); a pin of a numeric coefficient's start
-standing second (4d5e77d9); the BCF baseline (a8e1b53a). No consumer is edited: bartCause reads no entry
+bound, step 2.1, the first commit (a51ac7fe); the engine and the bridge, steps 2.2 to 2.4 with their
+tests/cpp (f2ccd656); R, steps 2.5 to 2.7 and 2.10, with test-forest-scale-record.R,
+test-forest-leaf-prior-reader.R and the units twin (c0b58aaa); forest-prior-exact.R's numeric arms, 2.8
+(fcbba19b); the help, 2.11 (1dfa5989, the last commit that changes package code); the four BCF scenarios,
+2.9 (8b48cccf); the design note and records, 2.11 (f1fd0de7); a pin of a numeric coefficient's start
+standing second (3e241cfc); the BCF baseline (0f942fad). No consumer is edited: bartCause reads no entry
 this push removes, and stan4bart, treatSens and bairrtt declare one forest.
 
 Against the steps:
@@ -1724,7 +1724,7 @@ Against the steps:
   seam fixture's band edge moved from 2^-27 to 2^-29, its b1 being 0.25. Gated alone: tests/cpp 403 ok;
   the suite 27538 results, 0 failed; on a reference build the four snapshot files passing and 55, 15 and
   11 scenarios identical. Against its parent,
-  `bench-sampler.R record` on 738b1015 then `compare` on 3b12fca0, run by the orchestrator on the idle x86
+  `bench-sampler.R record` on 738b1015 then `compare` on a51ac7fe, run by the orchestrator on the idle x86
   bench box (4 cores, load about 1), one machine: no metric regressed more than 5%. The ratios: embedded
   offset gibbs step 1.000, binary run 0.988, run t200 1.000, run t75 1.000, run n10000 0.994,
   setPredictor accept 1.035, setPredictor reject 1.000.
@@ -1772,14 +1772,14 @@ Calls made building, where the plan was silent or wrong:
 - `summary()`'s line takes each forest's number unnamed, so a numeric forest's column name does not
   make its label `dose.dose`.
 - The BCF baseline is named after the last commit that changes package code, and its meta.rev set to
-  it: 470046ae as built, 85bc9ffb after the fix round, 1ef44d1e after the second.
+  it: 1dfa5989 as built, 84c08a20 after the fix round, 20eed7ed after the second.
 - A by-hand probit sampler of the plan's 2.5 "which rows" is built with the mask at creation.
 
 What moved, and why. Every model with a numeric multiplier, as the `rng:` line says; no recorded
 scenario has one. On a `--preclean` reference install of the final package code: 55 of 55 against
 equivalence-32418b6e under `--strict-coverage`, 15 of 15 against bcf-equivalence-47838362, 11 of 11
 against multinomial-equivalence-80b1c8d4, the four snapshot files unchanged; then 19 of 19 against
-bcf-equivalence-470046ae as recorded.
+bcf-equivalence-1dfa5989 as recorded.
 
 The pair script, 45 rows, old side on 738b1015 and new side on push 2: 0 unexpected. Rows with a
 numeric column differ (03, 15, 17, 19, 26a, 29 with a number, 32); rows of factors and forests with no
@@ -1835,17 +1835,17 @@ quick. Every one is killed:
 | the fallback to every row dropped under probit | tests/cpp 1; the record stops |
 
 Fix round, from the review (no must-fix, three should-fixes, seven nits taken). Commits: the tests
-(1dea7006), the help (85bc9ffb, now the last commit that changes package code), the design note and
-TODO (02fdf395), the BCF scenario (410f7993) and its baseline (d52dbda0).
+(536b9d60), the help (84c08a20, now the last commit that changes package code), the design note and
+TODO (9e1f9bb3), the BCF scenario (7df99a10) and its baseline (5e90c526).
 
 - numeric_swap_write_copy wrote the sd before it copied, so the copy was a stated forest and never read
   the record it was handed: clearing `data@basis.scale` before `copy()` left its draws identical. The
   copy is now made after the swap and run at its default before the write. The same probe now moves
   the draws (the doubled sd 90.1 against 9.0), and the harness, with the record cleared in that
-  scenario, fails it bitwise and at a largest |z| of 11.9. Re-recorded as bcf-equivalence-85bc9ffb:
-  against 470046ae's file only numeric_swap_write_copy moves; the 15 earlier scenarios are 15 of 15
+  scenario, fails it bitwise and at a largest |z| of 11.9. Re-recorded as bcf-equivalence-84c08a20:
+  against 1dfa5989's file only numeric_swap_write_copy moves; the 15 earlier scenarios are 15 of 15
   identical against 47838362, restricted's varcount.tau differing in its dimnames attribute alone.
-  470046ae's file is dropped from the branch.
+  1dfa5989's file is dropped from the branch.
 - The units twin gains a column of size about 3 with one row at 0.9 times 2^-26 of its largest, the
   column against 2^-20 times it, so the bound is tested above 1 as well as below.
 - test-forest-scale-record.R gains a column holding 1e9 on its rows of weight zero, whose scale is
@@ -1872,7 +1872,7 @@ suite through `test_package(at_home = TRUE)` 28004 results in 261 files, 0 faile
 commands in quick, all passing; lintr (0 lints), air, rc-codoc, win-drift, doc-freshness and
 verify-anchors clean; on a `--preclean` reference install 55 of 55 against equivalence-32418b6e under
 `--strict-coverage`, 11 of 11 against multinomial-equivalence-80b1c8d4, 15 of 15 against
-bcf-equivalence-47838362 and 19 of 19 against bcf-equivalence-85bc9ffb, and the four snapshot files
+bcf-equivalence-47838362 and 19 of 19 against bcf-equivalence-84c08a20, and the four snapshot files
 passing (14, 3, 7 and 3); `R CMD check --as-cran --no-manual` on a clean tarball one NOTE (the Date
 field). Size of the round: 65 lines added and 27 removed over 16 files, the baseline files aside.
 
@@ -1880,7 +1880,7 @@ Second fix round, on the reviewer's E7, ruled by the orchestrator: a row out of 
 move the model. `formForestResponse` took the forest's largest multiplier over every row, so a value
 of 1e9 on rows of weight zero put every row of positive weight under 2^-26 of it, and the forest fit
 from its prior alone. The largest is now taken over the rows of positive weight, every row where none
-has one, and a forest whose largest is zero loses every row (1ef44d1e). A row of weight zero is
+has one, and a forest whose largest is zero loses every row (20eed7ed). A row of weight zero is
 treated as before in the second loop.
 
 - tests/cpp `testRelativeRowBound`: a row of weight zero at 1e9 moves no row of positive weight out; a
@@ -1893,8 +1893,8 @@ treated as before in the second loop.
 - The mutant, the largest over every row: tests/cpp 2; the record 1, its sigma, counts, fits and
   coefficients all moved.
 - No recorded draw moved: 55 of 55, 11 of 11, and 15 of 15 against 47838362 and 19 of 19 against the
-  85bc9ffb file, so the BCF baseline is renamed bcf-equivalence-1ef44d1e with its meta.rev set, not
-  re-recorded (cd38cc48).
+  84c08a20 file, so the BCF baseline is renamed bcf-equivalence-20eed7ed with its meta.rev set, not
+  re-recorded (8e7a33fd).
 - The step 2.1 compare covered the bound before this change; the orchestrator reruns `bench-sampler.R`
   for the touched hot path on the bench box.
 
@@ -1902,5 +1902,5 @@ Gates on the tip: tests/cpp 405 lines ok, and under ASAN and UBSAN 405 with 0 di
 suite through `test_package(at_home = TRUE)` 28005 results in 261 files, 0 failed; the 43 exact-gate
 commands in quick, all passing; lintr (0 lints), air, rc-codoc, win-drift, doc-freshness and
 verify-anchors clean; on a `--preclean` reference install the four snapshot files passing (14, 3, 7
-and 3) and 55, 11, 15 and 19 scenarios identical, the last against bcf-equivalence-1ef44d1e as
+and 3) and 55, 11, 15 and 19 scenarios identical, the last against bcf-equivalence-20eed7ed as
 renamed. Size of the round: 84 lines added and 8 removed over 8 files, this record aside.
