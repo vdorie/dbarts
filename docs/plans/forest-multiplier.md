@@ -1925,3 +1925,68 @@ of 19 and 11 of 11; and against a BCF baseline recorded on the box from 46e1a644
 Not run: Windows; bartCause's suite after the rebase (run on the build, 7 failing as on the base build).
 
 Left: push 3, the printed block.
+
+## Push 3 as built
+
+Built 2026-10-17 on bartcore at 5a1e9dca (push 2 landed), rebased onto a000d239 (its records), R only, not landed. Commits: the block, step
+3.1, with test-forest-print.R, step 3.2 (5625cd90); the help and the design note, step 3.3 (2510b0fa).
+Nothing under src/ and no draw moves; `dbarts.h` has no diff.
+
+Against the steps:
+
+- 3.1 as planned: [`forestPriorLines`](../../R/forestPrint.R) builds the block from the reader's entries
+  and, for a numeric forest, the column as the object holds it. [`fitSynopsis`](../../R/generics.R)
+  prints it last, after the monotone prior where there is one, so the tree counts, which a fit with no
+  kept sampler lacks, are where they were; `show` prints it after the call; a sampler created with
+  `verbose = TRUE` prints it once, after the engine's summary.
+- The plan said nothing more is stored on a fit. The header's number is not among the reader's entries
+  and is not the response's sd where the response is constant or rows are out, and R recomputing the unit
+  would be the copy the sd unit slice forbids. The fit therefore keeps one number: the unit the engine
+  recorded on the sampler's control, `attr(fit, "forest.unit")`, beside `forest.labels` and, like it,
+  not an element of the list. A fit without it (made before) prints the block with a header that names
+  no number. Rejected: reading the unit off a kept sampler only (a default fit keeps none); sd(y) of the
+  stored response (wrong on a constant response and on rows out).
+- The rows in the likelihood of a fit are its stored `weights` and `active`; of a sampler, its weights
+  and `activeRows`.
+- 3.2: test-forest-print.R, 36 results. The block by exact string for the model of four forests at
+  `show`, creation and `print` of a fit with and without a kept sampler; a stated forest, a held one, a
+  held forest with no basis; probit and logistic headers; a swap to dose / 10; rows of weight zero
+  holding 1000, at creation, on a fit and after `setWeights`; `scale()` printing mean 0; one value a
+  thousand times the rest in the range; a constant column with a stated sd printing no "per sd"; every
+  number of the numeric lines read back from the text against the reader and R's `mean`, `sd` and
+  `range` to four digits; a copy printing nothing; one forest printing nothing; no warning in the file.
+- 3.3 is in man/forest.Rd's `sd` item, with the two things to read, and man/bartBT.Rd, where `print.bart`
+  is described (the plan named man/bart.Rd, which does not describe it).
+
+Calls made building:
+
+- Numbers print to four significant digits, `format(x, digits = 4)`: the plan's figures (`0.0827`) are
+  hand-rounded and not a rule. Rejected: three digits; `signif` then `as.character`.
+- A column is constant in the block where its sd is under 1e-11 of its largest value, the engine's
+  bound, not where it is exactly 0.
+- A "default" line ends with the recorded sd where the column's sd in force differs from it by more than
+  1e-8 relative; a stated line never does.
+- A copy does not print: `copy()` holds the block off, so a verbose sampler prints once per creation.
+- Not in the engine's own summary, as the plan has it.
+
+Mutants, each applied alone to a copy of the tree, installed, and run against test-forest-print.R. Every
+one is killed:
+
+| mutant | killed by |
+|---|---|
+| a column's printed sd read from the record | 2 |
+| the per-sd figure from the recorded sd | 2 |
+| the range left out | 18 |
+| a label by position | 17 |
+| a mean not passed through `zapsmall` | 2 |
+| every row read, not the rows in the likelihood | 1 |
+| "per sd" printed for a constant column | 1 |
+| a copy printing the block | 1 |
+
+Gates on the tip, after the rebase onto 5a1e9dca and a `--preclean` install: the full suite through
+`test_package("dbarts")` 28100 results in 262 files, 0 failed; lintr (0 lints), air, rc-codoc, win-drift
+and doc-freshness clean; the 43 exact-gate commands of exact-gates.yaml in quick, all passing, run
+because a fit now carries the unit. The bitwise compares, the reference build and the sanitizers are not
+run: no file under src/ changes and no draw moves, which the R-surface tier does not ask them for.
+Size: 635 lines added and 5 removed over 8 files before this record: R 214 (of which the block 201),
+tinytest 391, help 15, design note 15. Package code 214 lines against the plan's 520 in all.
