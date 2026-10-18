@@ -623,8 +623,9 @@ runScenarios <- function() {
     recordChannels(bc, res)
   })
 
-  # (q) the same through a swap to ten times the column, a write of twice
-  # the default and a copy: the copy is handed the recorded scale and runs on
+  # (q) the same through a swap to ten times the column, a copy and a write
+  # of twice the default: the copy is handed the recorded scale and runs on
+  # it at the default before the write, so the draws read the record
   result$numeric_swap_write_copy <- local({
     d <- makeNumericData(8017L)
     set.seed(9017L)
@@ -636,14 +637,15 @@ runScenarios <- function() {
     )
     bc$run(n.burn, n.samples)
     bc$setForestBasis(2L, 10 * d$dose)
-    doubled <- 2 * unname(bc$getLeafPrior(2L)$sd)
-    bc$setLeafPrior(
+    copied <- bc$copy()
+    copied$run(n.burn, n.samples)
+    doubled <- 2 * unname(copied$getLeafPrior(2L)$sd)
+    copied$setLeafPrior(
       forests = list(
         dbarts::dbartsForests$forest(),
         dbarts::dbartsForests$forest(sd = doubled)
       )
     )
-    copied <- bc$copy()
     res <- copied$run(n.burn, n.samples)
     recordChannels(copied, res)
   })
