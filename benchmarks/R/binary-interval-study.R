@@ -39,10 +39,13 @@
 #   Rscript binary-interval-study.R reference accept <link> <cell> [rep]
 #   Rscript binary-interval-study.R check <outfile>
 #   Rscript binary-interval-study.R check compare <a.rds> <b.rds>
-#   Rscript binary-interval-study.R pilot | interim | summary [doubled]
+#   Rscript binary-interval-study.R pilot | pilot-reading | interim
+#   Rscript binary-interval-study.R summary [doubled]
+#   Rscript binary-interval-study.R r-diagnosis [outfile]
 #   Rscript binary-interval-study.R fetch | export-causal
 # BIS_QUICK=1 shortens every chain for a smoke run; quick output is marked
-# and the readers refuse to mix it with full output.
+# and the readers refuse to mix it with full output. BIS_RULE_EXCLUDE_NEAR_DET=1
+# reads the rule with the protocol switch on (see the settings).
 
 suppressPackageStartupMessages(library(dbarts))
 
@@ -91,6 +94,17 @@ truthParts <- 4L
 pilotReps <- as.integer(Sys.getenv("BIS_PILOT_REPS", "10"))
 probClamp <- 1e-4 # the additive truth's range
 levelsPointwise <- c(0.5, 0.8, 0.9, 0.95)
+interiorRange <- c(0.01, 0.99) # a probability inside it is interior
+
+# An A1 cell is near-deterministic (the plan's type) when its truth is interior
+# on fewer than half the rows, judged from the truth alone, per link.
+nearDeterministicBelow <- 0.5
+
+# PROTOCOL SWITCH, default off as frozen: whether group F and the A1 cells of
+# the simultaneous guard leave out the near-deterministic A1 cells. The
+# maintainer rules on it; set BIS_RULE_EXCLUDE_NEAR_DET=1 to read the rule with
+# them left out. Those cells are reported apart either way.
+ruleExcludesNearDeterministic <- nzchar(Sys.getenv("BIS_RULE_EXCLUDE_NEAR_DET"))
 
 linkFunction <- function(link) {
   switch(link, probit = pnorm, logistic = plogis, stop("no link ", link))
@@ -788,6 +802,13 @@ getCell <- function(id) {
 
 drawsPerChain <- function(cell) {
   if (cell$chains == 10L) mcmc$draws10 else mcmc$draws4
+}
+
+# The share of an A1 cell's truth inside the interior range (or [cut, 1 -
+# cut]), over every row of its base data.
+truthInteriorShare <- function(link, cell, cut = interiorRange[1L]) {
+  p <- loadTruth(link, cell$par$dataset, cell$par$truth)
+  mean(p >= cut & p <= 1 - cut)
 }
 
 ## ----------------------------------------------------------- generators
@@ -1791,6 +1812,9 @@ storeDraws <- function(draws, path) {
 }
 
 # Scores one reading of one fit. `arr` is the fit's latent test draws.
+# `storeLatent` keeps the stored draws on the latent scale (every test column),
+# so that a probability near 0 or 1 survives single precision; the effect
+# designs' default and equal-time draws stay effects, for re-scoring.
 scoreReading <- function(
   cell,
   rep,
@@ -1799,7 +1823,8 @@ scoreReading <- function(
   idx,
   thinIdx,
   replicate,
-  storePath
+  storePath,
+  storeLatent = FALSE
 ) {
   invLink <- linkFunction(link)
   kind <- replicate$kind
@@ -1815,7 +1840,15 @@ scoreReading <- function(
     if (is.null(replicate$truth)) {
       stored <- storedSummary(s, sb)
       if (!is.null(storePath)) {
-        stored$draws <- storeDraws(invLink(poolDraws(arr, idx)), storePath)
+        stored$draws <- storeDraws(
+          if (storeLatent) {
+            poolDraws(arr, idx)
+          } else {
+            invLink(poolDraws(arr, idx))
+          },
+          storePath
+        )
+        stored$drawsScale <- if (storeLatent) "latent" else "probability"
       }
     } else {
       p <- replicate$truth
@@ -1907,7 +1940,7 @@ scoreReading <- function(
     summarizeDraws(E, bandLevels = numeric())
   }
   if (!is.null(storePath)) {
-    stored <- storeDraws(E, storePath)
+    stored <- storeDraws(if (storeLatent) poolDraws(arr, idx) else E, storePath)
   }
   if (kind == "twins") {
     # the sample's own effects: the counterfactual twin drawn from its
@@ -1950,7 +1983,13 @@ scoreReading <- function(
   if (is.null(replicate$p1)) {
     return(list(
       measures = list(),
-      stored = c(list(draws = stored), storedSummary(s, sb))
+      stored = c(
+        list(
+          draws = stored,
+          drawsScale = if (storeLatent) "latent" else "effect"
+        ),
+        storedSummary(s, sb)
+      )
     ))
   }
   tau <- replicate$p1 - replicate$p0
@@ -2055,7 +2094,8 @@ runFit <- function(link, cellId, rep) {
       idx <- indices[[name]]
       thin <- if (name == "eqDraws") thinTo(idx, mcmc$defaultDraws) else idx
       # effect draws at the default and equal-time readings; a truth-unknown
-      # fit also keeps its long reading's, for the references' cross-check
+      # fit also keeps its long reading's, on the latent scale, for the
+      # references' cross-check
       diagnosis <- cell$problem %in% c("B1", "B2") && name == "long"
       storePath <- if (
         (cell$kind != "prob" && name %in% storeKinds) || diagnosis
@@ -2077,7 +2117,8 @@ runFit <- function(link, cellId, rep) {
         idx,
         thin,
         replicate,
-        storePath
+        storePath,
+        storeLatent = diagnosis
       )
       kSeries <- t(k[, idx, drop = FALSE])
       pSeries <- t(apply(invLink(arr[, idx, , drop = FALSE]), c(1L, 2L), mean))
@@ -2212,25 +2253,74 @@ referenceDir <- function(link, cellId, rep) {
   runDir("ref", link, sprintf("%s-r%03d", cellFile(cellId), as.integer(rep)))
 }
 
-# The scored quantity's draws at a fit's test rows: the probability, or each
-# unit's effect.
-scoredDraws <- function(arr, replicate, invLink, idx = seq_len(dim(arr)[2L])) {
-  if (replicate$kind == "prob") {
-    return(invLink(poolDraws(arr, idx)))
+# Whether each column's 90 percent interval (5th to 95th percentile) lies
+# inside the interior range: a probability that single precision or the
+# posterior itself does not pin at 0 or 1.
+interiorColumns <- function(P) {
+  q <- apply(P, 2L, stats::quantile, probs = c(0.05, 0.95), names = FALSE)
+  q[1L, ] >= interiorRange[1L] & q[2L, ] <= interiorRange[2L]
+}
+
+# The scored quantities from pooled latent draws (draws by test columns): the
+# probability at each row; each unit's effect, treated minus control; or A6's
+# six contrasts at each unit, unit-major in contrastPairs' order, as the fits
+# score them. With `interior`, also which quantities are interior: a
+# probability by its own interval, an effect or a contrast when both of its
+# arms' probabilities are.
+scoredFromLatent <- function(L, kind, n, invLink, interior = FALSE) {
+  if (kind == "prob") {
+    P <- invLink(L)
+    return(list(draws = P, interior = if (interior) interiorColumns(P)))
   }
-  n <- replicate$n
-  invLink(poolDraws(arr, idx, seq_len(n))) -
-    invLink(poolDraws(arr, idx, n + seq_len(n)))
+  if (kind == "multi") {
+    probs <- lapply(0:3, function(a) {
+      invLink(L[, a * n + seq_len(n), drop = FALSE])
+    })
+    armInterior <- if (interior) lapply(probs, interiorColumns) else NULL
+    E <- matrix(0, nrow(L), 6L * n)
+    inside <- logical(6L * n)
+    for (j in seq_len(nrow(contrastPairs))) {
+      cols <- (seq_len(n) - 1L) * 6L + j
+      a <- contrastPairs[j, 1L] + 1L
+      b <- contrastPairs[j, 2L] + 1L
+      E[, cols] <- probs[[a]] - probs[[b]]
+      if (interior) {
+        inside[cols] <- armInterior[[a]] & armInterior[[b]]
+      }
+    }
+    return(list(draws = E, interior = if (interior) inside))
+  }
+  P1 <- invLink(L[, seq_len(n), drop = FALSE])
+  P0 <- invLink(L[, n + seq_len(n), drop = FALSE])
+  list(
+    draws = P1 - P0,
+    interior = if (interior) interiorColumns(P1) & interiorColumns(P0)
+  )
+}
+
+# The scored quantity's draws at a fit's test rows.
+scoredDraws <- function(arr, replicate, invLink, idx = seq_len(dim(arr)[2L])) {
+  scoredFromLatent(
+    poolDraws(arr, idx),
+    replicate$kind,
+    replicate$n,
+    invLink
+  )$draws
 }
 
 # One part of a reference: chains of one build at reference length (5,000
 # burn-in, 15,000 iterations kept every 15th). A reference is 8 chains of each
-# build, in refParts parts a build.
+# build, in refParts parts a build. Its draws are kept on the latent scale, every
+# test column, so that a probability near 0 or 1 survives single precision;
+# the scored quantities are formed in double precision when it is read.
 runReference <- function(link, cellId, part, rep = 1L) {
   cell <- getCell(cellId)
   which <- build()
   if (!which %in% c("shipped", "move")) {
     stop("a reference is made by the two arms' builds")
+  }
+  if (cell$kind == "twins") {
+    stop("A5 has no unit truth for a reference to score")
   }
   replicate <- replication(cell, as.integer(rep), link)
   chains <- refChainsPerBuild %/% refParts
@@ -2257,16 +2347,18 @@ runReference <- function(link, cellId, part, rep = 1L) {
   if (any(!is.finite(arr))) {
     stop("non-finite reference draws")
   }
-  draws <- scoredDraws(arr, replicate, invLink)
   dir <- referenceDir(link, cellId, rep)
   dims <- writeSingle(
-    draws,
+    poolDraws(arr, seq_len(dim(arr)[2L])),
     file.path(dir, sprintf("%s-part%d.f32", which, part))
   )
   saveAtomic(
     list(
       dims = dims,
       chains = chains,
+      scale = "latent",
+      kind = replicate$kind,
+      n = replicate$n,
       k = fit$k,
       meanP = apply(invLink(arr), c(1L, 2L), mean),
       seconds = elapsed,
@@ -2285,46 +2377,65 @@ runReference <- function(link, cellId, part, rep = 1L) {
   ))
 }
 
-# A reference's draws as an array: draws a chain x chains x quantities, the
-# shipped build's chains first.
+# A reference's draws of the scored quantities as an array: draws a chain x
+# chains x quantities, the shipped build's chains first; `interior` marks the
+# quantities whose reference interval lies inside the interior range. A
+# reference made before the latent scale was kept (the pilot's B references)
+# holds the scored quantities in single precision: its probabilities are
+# judged by their own interval, and an effect, whose arms it cannot see, is
+# taken as interior when its interval has positive width (both arms pinned at
+# 0 or 1 round it to exactly zero).
 loadReference <- function(link, cellId, rep = 1L) {
   dir <- referenceDir(link, cellId, rep)
-  pieces <- list()
+  metas <- list()
+  mats <- list()
   for (which in c("shipped", "move")) {
     for (part in seq_len(refParts)) {
       meta <- readRDS(file.path(dir, sprintf("%s-part%d.rds", which, part)))
       if (!identical(meta$quick, quick)) {
         stop("quick and full output mixed")
       }
-      d <- readSingle(
+      mats[[length(mats) + 1L]] <- readSingle(
         file.path(dir, sprintf("%s-part%d.f32", which, part)),
         meta$dims
       )
-      perChain <- nrow(d) / meta$chains
-      pieces[[length(pieces) + 1L]] <- list(
-        draws = array(d, c(perChain, meta$chains, ncol(d))),
-        k = t(meta$k),
-        meanP = t(meta$meanP),
-        build = which
-      )
+      metas[[length(metas) + 1L]] <- meta
     }
   }
-  perChain <- dim(pieces[[1L]]$draws)[1L]
-  m <- dim(pieces[[1L]]$draws)[3L]
-  draws <- array(0, c(perChain, 2L * refChainsPerBuild, m))
-  k <- meanP <- matrix(0, perChain, 2L * refChainsPerBuild)
-  at <- 0L
-  for (p in pieces) {
-    cols <- at + seq_len(dim(p$draws)[2L])
-    draws[, cols, ] <- p$draws
-    k[, cols] <- p$k
-    meanP[, cols] <- p$meanP
-    at <- max(cols)
+  perChain <- nrow(mats[[1L]]) / metas[[1L]]$chains
+  X <- do.call(rbind, mats)
+  rm(mats)
+  scale <- if (is.null(metas[[1L]]$scale)) "scored" else metas[[1L]]$scale
+  if (scale == "latent") {
+    s <- scoredFromLatent(
+      X,
+      metas[[1L]]$kind,
+      metas[[1L]]$n,
+      linkFunction(link),
+      interior = TRUE
+    )
+    rm(X)
+    D <- s$draws
+    interior <- s$interior
+  } else {
+    D <- X
+    rm(X)
+    interior <- if (getCell(cellId)$kind == "prob") {
+      interiorColumns(D)
+    } else {
+      q <- apply(D, 2L, stats::quantile, probs = c(0.05, 0.95), names = FALSE)
+      q[2L, ] > q[1L, ]
+    }
   }
+  nChains <- sum(vapply(metas, function(m) m$chains, numeric(1L)))
+  m <- ncol(D)
+  dim(D) <- c(perChain, nChains, m)
   list(
-    draws = draws,
-    k = k,
-    meanP = meanP,
+    draws = D,
+    interior = interior,
+    scale = scale,
+    k = do.call(cbind, lapply(metas, function(m) t(m$k))),
+    meanP = do.call(cbind, lapply(metas, function(m) t(m$meanP))),
     build = rep(c("shipped", "move"), each = refChainsPerBuild)
   )
 }
@@ -2381,6 +2492,7 @@ acceptReference <- function(link, cellId, rep = 1L) {
     pRhat = pRhat,
     rhat99 = unname(stats::quantile(rhat, 0.99, na.rm = TRUE)),
     minEssTail = min(c(essTail, tails), na.rm = TRUE),
+    interiorShare = mean(ref$interior),
     quick = quick
   )
   saveAtomic(out, file.path(referenceDir(link, cellId, rep), "acceptance.rds"))
@@ -2393,7 +2505,8 @@ acceptReference <- function(link, cellId, rep = 1L) {
     "kRhat",
     "pRhat",
     "rhat99",
-    "minEssTail"
+    "minEssTail",
+    "interiorShare"
   )])
   invisible(out)
 }
@@ -2642,6 +2755,8 @@ readCell <- function(link, cell, reps) {
   list(cell = cell, reps = kept, values = values, skipped = skipped)
 }
 
+# Every A cell of a link, each A1 cell with its truth's interior share and
+# whether that makes it near-deterministic.
 readAll <- function(link, repsFor) {
   ids <- names(cells)[vapply(
     cells,
@@ -2649,7 +2764,14 @@ readAll <- function(link, repsFor) {
     logical(1L)
   )]
   out <- lapply(ids, function(id) {
-    readCell(link, cells[[id]], repsFor(cells[[id]]))
+    cr <- readCell(link, cells[[id]], repsFor(cells[[id]]))
+    cr$interiorShare <- if (cr$cell$problem == "A1") {
+      truthInteriorShare(link, cr$cell)
+    } else {
+      NA_real_
+    }
+    cr$nearDet <- isTRUE(cr$interiorShare < nearDeterministicBelow)
+    cr
   })
   names(out) <- ids
   out
@@ -2867,13 +2989,22 @@ groupStatistic <- function(spec, level, cellValues, which, indices = NULL) {
 # The comparison of one measure: the gap of each arm, the gain (shipped gap
 # minus the move's, positive when the move is closer to nominal) or, for a
 # ratio, the move's over the shipped arm's, and their bootstrap distribution.
-compareMeasure <- function(spec, level, cellResults, arms, indices) {
+# `exclude` names cells left out of this measure.
+compareMeasure <- function(
+  spec,
+  level,
+  cellResults,
+  arms,
+  indices,
+  exclude = character()
+) {
   inGroup <- vapply(
     cellResults,
     function(cr) {
-      spec$inGroup %in%
-        cr$cell$groups ||
-        (spec$inGroup == "A6M" && cr$cell$problem == "A6")
+      !cr$cell$id %in% exclude &&
+        (spec$inGroup %in%
+          cr$cell$groups ||
+          (spec$inGroup == "A6M" && cr$cell$problem == "A6"))
     },
     logical(1L)
   )
@@ -2971,23 +3102,49 @@ skippedTally <- function(cellResults) {
 
 frozenFile <- function() runDir("frozen.rds")
 
+# The measures the protocol switch acts on: group F and the simultaneous
+# guard, whose A1 cells are the ones it can leave out.
+nearDetMeasures <- c("F", "sim")
+
+# The cells the protocol switch leaves out when on.
+nearDetIds <- function(cellResults) {
+  names(cellResults)[vapply(
+    cellResults,
+    function(cr) isTRUE(cr$nearDet),
+    logical(1L)
+  )]
+}
+
 # The rule at one look: every gain measure and guard, its estimate and its
-# one-sided bound at the look's alpha, and the verdict.
-readRule <- function(link, cellResults, alpha, frozen) {
+# one-sided bound at the look's alpha, and the verdict. `exclude`, the cells
+# the protocol switch leaves out of F and the simultaneous guard: by default
+# the near-deterministic A1 cells when the switch is on, none when off.
+readRule <- function(
+  link,
+  cellResults,
+  alpha,
+  frozen,
+  exclude = if (ruleExcludesNearDeterministic) {
+    nearDetIds(cellResults)
+  } else {
+    character()
+  }
+) {
   arms <- c(paste0("shipped.", frozen$equalTime), "move.default")
   indices <- resampleIndices(cellResults)
   rows <- list()
   for (name in names(ruleMeasures)) {
     spec <- ruleMeasures[[name]]
     margin <- frozen$margins[[name]]
-    cmp <- compareMeasure(spec, 1L, cellResults, arms, indices)
+    out <- if (name %in% nearDetMeasures) exclude else character()
+    cmp <- compareMeasure(spec, 1L, cellResults, arms, indices, out)
     if (is.null(cmp)) {
       next
     }
     alt <- if (spec$type == "ratio") {
       NULL
     } else {
-      compareMeasure(spec, 2L, cellResults, arms, indices)
+      compareMeasure(spec, 2L, cellResults, arms, indices, out)
     }
     if (spec$type == "ratio") {
       worsen <- cmp$estimate
@@ -3063,6 +3220,7 @@ readRule <- function(link, cellResults, alpha, frozen) {
     link = link,
     alpha = alpha,
     arms = arms,
+    excluded = exclude,
     table = table,
     verdict = verdict,
     skipped = tally,
@@ -3072,11 +3230,12 @@ readRule <- function(link, cellResults, alpha, frozen) {
 
 printRule <- function(reading) {
   cat(sprintf(
-    "\n== %s at one-sided alpha %.3f: %s against %s\n",
+    "\n== %s at one-sided alpha %.3f: %s against %s; %d near-deterministic A1 cells left out of F and sim\n",
     reading$link,
     reading$alpha,
     reading$arms[2L],
-    reading$arms[1L]
+    reading$arms[1L],
+    length(reading$excluded)
   ))
   t <- reading$table
   num <- vapply(t, is.numeric, logical(1L))
@@ -3235,6 +3394,107 @@ runPilot <- function() {
   invisible(frozen)
 }
 
+# The near-deterministic A1 cells, reported apart as a diagnosis at every
+# reading whatever the protocol switch says: each cell's truth interior share
+# and, for the shipped build's default and equal-time readings and the move's
+# default, the mean coverage, interior-row coverage, interval score and RMSE.
+nearDeterministicReport <- function(link, crs, equalTime) {
+  arms <- c("shipped.default", paste0("shipped.", equalTime), "move.default")
+  rows <- list()
+  for (cr in crs) {
+    if (!isTRUE(cr$nearDet)) {
+      next
+    }
+    for (ar in arms) {
+      v <- cr$values[[ar]]
+      if (is.null(v)) {
+        next
+      }
+      col <- function(name) {
+        if (name %in% names(v)) mean(v[[name]], na.rm = TRUE) else NA_real_
+      }
+      rows[[length(rows) + 1L]] <- data.frame(
+        link = link,
+        cell = cr$cell$id,
+        truthInterior = cr$interiorShare,
+        arm = ar,
+        reps = nrow(v),
+        f90Cov = col("f90Cov"),
+        f95Cov = col("f95Cov"),
+        fMid90Cov = col("fMid90Cov"),
+        fIs90 = col("fIs90"),
+        fRmse = col("fRmse"),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  if (length(rows) == 0L) NULL else do.call(rbind, rows)
+}
+
+# The near-deterministic classification's sensitivity: for each row cutoff (a
+# truth interior inside [cut, 1 - cut]) and cell threshold (a cell
+# near-deterministic when its truth is interior on fewer than that share of
+# its rows), the cells that leave, and F and the simultaneous guard read with
+# them left out, beside the reading with none left out.
+nearDetSensitivity <- function(
+  link,
+  crs,
+  alpha,
+  frozen,
+  cuts = c(0.005, 0.01, 0.02),
+  below = c(0.25, 0.5, 0.75)
+) {
+  a1 <- Filter(function(cr) cr$cell$problem == "A1", crs)
+  shares <- vapply(
+    cuts,
+    function(cut) {
+      vapply(a1, function(cr) truthInteriorShare(link, cr$cell, cut), 0)
+    },
+    numeric(length(a1))
+  )
+  settings <- rbind(
+    data.frame(cut = NA_real_, below = NA_real_),
+    expand.grid(cut = cuts, below = below)
+  )
+  rows <- list()
+  for (i in seq_len(nrow(settings))) {
+    exclude <- if (is.na(settings$cut[i])) {
+      character()
+    } else {
+      names(a1)[shares[, match(settings$cut[i], cuts)] < settings$below[i]]
+    }
+    reading <- readRule(link, crs, alpha, frozen, exclude)
+    t <- reading$table
+    for (m in nearDetMeasures) {
+      r <- t[t$measure == m, ]
+      rows[[length(rows) + 1L]] <- data.frame(
+        link = link,
+        cut = settings$cut[i],
+        below = settings$below[i],
+        left = length(exclude),
+        measure = m,
+        cells = r$cells,
+        gain = r$gain,
+        gainLower = r$gainLower,
+        gainUpper = r$gainUpper,
+        worsenUpper = r$worsenUpper,
+        margin = r$margin,
+        harm = r$harm,
+        harmless = r$harmless,
+        verdict = reading$verdict,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  do.call(rbind, rows)
+}
+
+# A look at the rule: `interim` (the halfway: half the replications of every A
+# cell), `summary` (all), `doubled`, or `pilot` (the pilot's replications read
+# at the interim alpha, for the record: the pilot spends no alpha; it adds the
+# near-deterministic classification's sensitivity). Every look reports the
+# near-deterministic A1 cells apart; its output names the protocol switch's
+# state.
 runLook <- function(kind) {
   frozen <- readRDS(frozenFile())
   if (!identical(frozen$quick, quick)) {
@@ -3245,8 +3505,14 @@ runLook <- function(kind) {
     interim = list(alpha = 0.005, reps = function(cell) {
       seq_len(ceiling(cell$reps / 2))
     }),
+    pilot = list(alpha = 0.005, reps = function(cell) {
+      seq_len(min(pilotReps, cell$reps))
+    }),
     summary = list(alpha = 0.02, reps = function(cell) seq_len(cell$reps)),
-    doubled = list(alpha = 0.025, reps = function(cell) seq_len(2L * cell$reps))
+    doubled = list(alpha = 0.025, reps = function(cell) {
+      seq_len(2L * cell$reps)
+    }),
+    stop("no look ", kind)
   )
   out <- list()
   for (link in links) {
@@ -3266,12 +3532,11 @@ runLook <- function(kind) {
         "\n"
       )
     }
-    out[[link]] <- readRule(
-      link,
-      crs,
-      setup$alpha,
-      list(equalTime = frozen$equalTime, margins = frozen$margins[[link]])
+    linkFrozen <- list(
+      equalTime = frozen$equalTime,
+      margins = frozen$margins[[link]]
     )
+    out[[link]] <- readRule(link, crs, setup$alpha, linkFrozen)
     printRule(out[[link]])
     cat(sprintf(
       "skipped pairs: %.4f of pairs%s\n",
@@ -3282,8 +3547,41 @@ runLook <- function(kind) {
         ""
       }
     ))
+    nd <- nearDeterministicReport(link, crs, frozen$equalTime)
+    out[[link]]$nearDeterministic <- nd
+    cat(
+      "\nNear-deterministic A1 cells (diagnosis; truth interior on fewer than",
+      "half the rows):\n"
+    )
+    if (is.null(nd)) {
+      cat("none\n")
+    } else {
+      num <- vapply(nd, is.numeric, logical(1L))
+      nd[num] <- lapply(nd[num], function(x) signif(x, 4))
+      print(nd, row.names = FALSE)
+    }
+    if (kind == "pilot") {
+      sens <- nearDetSensitivity(link, crs, setup$alpha, linkFrozen)
+      out[[link]]$sensitivity <- sens
+      cat(
+        "\nSensitivity of leaving the near-deterministic cells out of F and sim:\n"
+      )
+      num <- vapply(sens, is.numeric, logical(1L))
+      sens[num] <- lapply(sens[num], function(x) signif(x, 3))
+      print(sens, row.names = FALSE)
+    }
   }
-  saveAtomic(out, runDir(paste0(kind, ".rds")))
+  saveAtomic(
+    out,
+    runDir(
+      "looks",
+      sprintf(
+        "%s-%s.rds",
+        kind,
+        if (ruleExcludesNearDeterministic) "near-det-out" else "frozen"
+      )
+    )
+  )
   invisible(out)
 }
 
@@ -3298,7 +3596,37 @@ referenceMass <- function(lo, hi, D) {
   list(point = mean(colMeans(inside)), joint = mean(rowSums(!inside) == 0))
 }
 
-runRDiagnosis <- function() {
+# A reference's draws as a matrix, draws (chain-major) by quantities.
+referenceMatrix <- function(ref) {
+  d <- dim(ref$draws)
+  D <- ref$draws
+  dim(D) <- c(d[1L] * d[2L], d[3L])
+  D
+}
+
+# Means by link and arm, each column over the rows where it is defined, so that
+# a column undefined in one row does not drop that row from the others.
+meansByArm <- function(d, columns) {
+  keys <- unique(d[, c("link", "arm")])
+  for (col in columns) {
+    keys[[col]] <- vapply(
+      seq_len(nrow(keys)),
+      function(i) {
+        v <- d[[col]][d$link == keys$link[i] & d$arm == keys$arm[i]]
+        v <- v[is.finite(v)]
+        if (length(v) == 0L) NA_real_ else mean(v)
+      },
+      numeric(1L)
+    )
+  }
+  keys[order(keys$link, keys$arm), ]
+}
+
+# R is read on the interior rows, those whose reference interval lies inside
+# the interior range (on the saturated rows single precision and the clamp of
+# a probability at 0 or 1 decide what is inside); the saturated rows' mass is
+# reported apart.
+runRDiagnosis <- function(outFile = runDir("r-diagnosis.rds")) {
   rows <- list()
   for (link in links) {
     for (cell in Filter(function(c) c$problem %in% c("B1", "B2"), cells)) {
@@ -3308,20 +3636,33 @@ runRDiagnosis <- function() {
       }
       acc <- readRDS(accFile)
       ref <- loadReference(link, cell$id, 1L)
-      D <- matrix(ref$draws, prod(dim(ref$draws)[1:2]), dim(ref$draws)[3L])
+      D <- referenceMatrix(ref)
+      inner <- ref$interior
       chainOf <- rep(seq_len(dim(ref$draws)[2L]), each = dim(ref$draws)[1L])
       half <- chainOf %% 2L == 0L
-      qa <- apply(
-        D[half, , drop = FALSE],
-        2L,
-        stats::quantile,
-        probs = c(0.05, 0.95)
-      )
-      floorMass <- referenceMass(
-        qa[1L, ],
-        qa[2L, ],
-        D[!half, , drop = FALSE]
-      )$point
+      massOn <- function(lo, hi, cols, rows = TRUE) {
+        if (!any(cols)) {
+          return(list(point = NA_real_, joint = NA_real_))
+        }
+        referenceMass(lo[cols], hi[cols], D[rows, cols, drop = FALSE])
+      }
+      floorOn <- function(cols) {
+        if (!any(cols)) {
+          return(NA_real_)
+        }
+        qa <- apply(
+          D[half, cols, drop = FALSE],
+          2L,
+          stats::quantile,
+          probs = c(0.05, 0.95)
+        )
+        lo <- hi <- numeric(ncol(D))
+        lo[cols] <- qa[1L, ]
+        hi[cols] <- qa[2L, ]
+        massOn(lo, hi, cols, !half)$point
+      }
+      floorInner <- floorOn(inner)
+      floorSaturated <- floorOn(!inner)
       refQ <- apply(D, 2L, stats::quantile, probs = c(0.05, 0.95))
       refMean <- colMeans(D)
       refSd <- apply(D, 2L, stats::sd)
@@ -3338,24 +3679,32 @@ runRDiagnosis <- function() {
           for (reading in names(res$readings)) {
             st <- res$readings[[reading]]$stored
             iv90 <- interval(st, 0.9)
-            m90 <- referenceMass(iv90$lo, iv90$hi, D)
             iv95 <- interval(st, 0.95)
             band <- st$bands[["0.9"]]
+            scaled <- inner & refSd > 0
             rows[[length(rows) + 1L]] <- data.frame(
               link = link,
               cell = cell$id,
               rep = rep,
               arm = paste(which, reading, sep = "."),
-              mass90 = m90$point,
-              mass95 = referenceMass(iv95$lo, iv95$hi, D)$point,
-              simMass90 = referenceMass(band$lo, band$hi, D)$joint,
-              # ratios of means: a saturated row has a reference width of 0
-              widthRatio = mean(iv90$hi - iv90$lo) /
-                mean(refQ[2L, ] - refQ[1L, ]),
-              errorSd = mean(
-                abs(st$mean - refMean)[refSd > 0] / refSd[refSd > 0]
-              ),
-              floor90 = floorMass,
+              mass90 = massOn(iv90$lo, iv90$hi, inner)$point,
+              mass95 = massOn(iv95$lo, iv95$hi, inner)$point,
+              simMass90 = massOn(band$lo, band$hi, inner)$joint,
+              widthRatio = if (any(inner)) {
+                mean((iv90$hi - iv90$lo)[inner]) /
+                  mean((refQ[2L, ] - refQ[1L, ])[inner])
+              } else {
+                NA_real_
+              },
+              errorSd = if (any(scaled)) {
+                mean(abs(st$mean - refMean)[scaled] / refSd[scaled])
+              } else {
+                NA_real_
+              },
+              floor90 = floorInner,
+              interiorShare = mean(inner),
+              mass90Saturated = massOn(iv90$lo, iv90$hi, !inner)$point,
+              floor90Saturated = floorSaturated,
               accepted = acc$accepted,
               stringsAsFactors = FALSE
             )
@@ -3368,14 +3717,26 @@ runRDiagnosis <- function() {
     stop("no reference and fit to read")
   }
   d <- do.call(rbind, rows)
-  saveAtomic(d, runDir("r-diagnosis.rds"))
-  agg <- stats::aggregate(
-    cbind(mass90, mass95, simMass90, widthRatio, errorSd, floor90) ~
-      link + arm,
-    data = d,
-    FUN = mean
+  saveAtomic(d, outFile)
+  columns <- c(
+    "mass90",
+    "mass95",
+    "simMass90",
+    "widthRatio",
+    "errorSd",
+    "floor90",
+    "interiorShare",
+    "mass90Saturated",
+    "floor90Saturated"
   )
-  print(agg, row.names = FALSE, digits = 4)
+  cat("R on interior rows, every problem; saturated rows apart:\n")
+  print(meansByArm(d, columns), row.names = FALSE, digits = 4)
+  cat("\nThe same, accepted references only:\n")
+  print(
+    meansByArm(d[d$accepted, , drop = FALSE], columns),
+    row.names = FALSE,
+    digits = 4
+  )
   invisible(d)
 }
 
@@ -3612,11 +3973,16 @@ main <- function(args) {
       runCheck(a[1L])
     },
     pilot = runPilot(),
+    "pilot-reading" = runLook("pilot"),
     interim = runLook("interim"),
     summary = runLook(
       if (length(a) >= 1L && a[1L] == "doubled") "doubled" else "summary"
     ),
-    "r-diagnosis" = runRDiagnosis(),
+    "r-diagnosis" = if (length(a) >= 1L) {
+      runRDiagnosis(a[1L])
+    } else {
+      runRDiagnosis()
+    },
     fetch = fetchAll(),
     "export-causal" = exportCausal(),
     stop("unknown action ", action)

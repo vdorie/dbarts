@@ -567,6 +567,29 @@ Made by the orchestrator while the harness was written, 2026-10-17, before any p
   the treatment and the estimated propensity, 10 chains, every unit predicted under both treatments),
   not bartc().
 
+Made after the pilot was read, 2026-10-17, on the pilot's review (scratch/bis-pilot-rev-report.md). The
+halfway look's F, A1's cells 1 to 8, is pilot data, so every change below was made with that F in view:
+- **R on interior rows (fix).** The references and the stored draws were single-precision probabilities,
+  which round a probability near 0 or 1 to exactly 0 or 1, and the mean over rows dropped every row where
+  one column was undefined. R is now read on the rows or units whose reference interval (5th to 95th
+  percentile) lies in [0.01, 0.99], an effect when both of its arms' probabilities do; the saturated rows'
+  reference mass, and their share, are reported apart; each column is averaged over the rows where it is
+  defined; R is reported with and without the flagged problems. References made from now on (stage 4) and
+  the B fits' stored long draws keep the latent scale, every test column, and form the scored quantity in
+  double precision when read, A6's as its six contrasts. The pilot's B references hold the scored quantity:
+  there a probability is judged by its own interval, and an effect, whose arms it cannot see, is interior
+  when its reference interval has positive width.
+- **Near-deterministic cells apart (protocol, the maintainer rules).** Each A1 cell and link is classified
+  from its truth alone, over every row of its base data: near-deterministic, the plan's own type, when the
+  truth lies in [0.01, 0.99] on fewer than half the rows. Every reading reports these cells apart as a
+  diagnosis, with the coverage, interior-row coverage, interval score and RMSE of both builds. Whether F
+  and the A1 cells of the simultaneous guard leave them out is one switch in the rule's reading, off by
+  default, as frozen; the pilot is read both ways, with the classification's sensitivity to the row cutoff
+  (0.005, 0.01, 0.02) and the cell threshold (25, 50 and 75 percent interior). Nothing else in the rule
+  changes.
+- **The pilot's reading (fix).** The pilot's replications can be read as the halfway look would read them,
+  for the record; the pilot spends no alpha.
+
 ## Calls made in planning
 
 The orchestrator's, on the critique's open items, 2026-10-17:
