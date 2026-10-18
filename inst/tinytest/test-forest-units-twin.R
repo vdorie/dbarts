@@ -62,6 +62,12 @@ for (family in c("gaussian", "probit")) {
   }
 }
 
+# a row under 2^-26 of the largest leaves the forest whether the largest is
+# above 1 or below it, so the bound is relative on both sides of 1
+column <- 1 + 2 * x2
+column[7L] <- 0.9 * 2^-26 * max(column)
+expect_identical(twinDraws(2^-20 * column), twinDraws(column))
+
 # --- the size, from the engine's prior draws: a forest's own fit at a row,
 # times the median absolute coefficient where it is drawn, is the sd per unit
 # of its column, and one unit per standard deviation of it at the default ---

@@ -133,6 +133,28 @@ none <- counted(dbarts(
 ))
 expect_identical(numWarnings, 1L)
 expect_equal(recordOf(none), sd(dose), tolerance = 1e-12)
+expect_warning(
+  dbarts(
+    y ~ x1 + x2,
+    d,
+    weights = rep(0, n),
+    forests = list(forest(), forest(basis = ~dose)),
+    control = recordControl()
+  ),
+  "fewer than two distinct values of the response are in the likelihood (0 of 150 observations are in it), so the response's scale, the prior's center and the scale of forest 2 ('dose')'s basis are taken from all 150",
+  fixed = TRUE
+)
+# a value far from the rest on rows of weight zero is no part of the scale,
+# nor of the largest value a near-constant column is judged against
+d$wild <- ifelse(w > 0, dose, 1e9)
+wild <- dbarts(
+  y ~ x1 + x2,
+  d,
+  weights = w,
+  forests = list(forest(), forest(basis = ~wild)),
+  control = recordControl()
+)
+expect_equal(recordOf(wild), sd(dose[w > 0]), tolerance = 1e-12)
 # a dose constant over the rows of positive weight, varying over the others:
 # refused with no sd stated, created with one
 d$flat <- ifelse(w > 0, 0.25, dose)

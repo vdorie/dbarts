@@ -10982,6 +10982,8 @@ static void testNumericMultiplierLaw() {
                       9914);
     double scale = first.first->forestCalibration(0, 2).basisScale;
     double leaf = TestPeer::leafScale(first.first->chain(0), 2);
+    check(!first.first->setForestBasis(2, block.data(), 2),
+          "numeric rule: a numeric forest refuses a swap of two columns");
     check(first.first->setForestBasis(2, tenfold.data(), 1) &&
             TestPeer::leafScale(first.first->chain(0), 2) == leaf &&
             first.first->forestCalibration(0, 2).basisScale == scale,
