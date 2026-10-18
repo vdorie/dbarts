@@ -2,7 +2,7 @@
 
 Status: DECIDED 2026-10-11; slice A of the plan LANDED 2026-10-17 (d03760e3; calls dec-A211), the two forms,
 the report and the line, and slice B, the monotone collapse, LANDED 2026-10-17 (ee1d7213; calls dec-A214);
-slice C, another tree count, is built; slice D is planned, not built. The six choices of section 3 are
+slice C, another tree count, LANDED 2026-10-17 (9b46b40d; calls dec-A218); slice D is planned, not built. The six choices of section 3 are
 settled as recommended there: (a) A,
 (b) A, (c) A, (d) the errors stay, (e) A (dec-B448), (f) one line at every warm start. Plan:
 [warm-start-salvage.md](../plans/warm-start-salvage.md), which records what the state grid slice changed

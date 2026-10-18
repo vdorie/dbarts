@@ -206,15 +206,16 @@ items
     cancelling the run and an error keeping its message. The entry has
     no caller in R/ today.
   warm-start-salvage: bart(warm.start = ) takes all it can from a
-    donor (dec-B295, VD 2026-10-07). Slices A and B of
+    donor (dec-B295, VD 2026-10-07). Slices A, B and C of
     docs/plans/warm-start-salvage.md landed 2026-10-17. A (d03760e3,
     dec-A211): installTrees's two forms, the cut-back at a split a
     forest does not allow, the move across cut points and bart's
     verbose line. B (ee1d7213, dec-A214): a monotone tree out of order
     is collapsed where the order breaks and not set to 0 (dec-B355).
-    Built, slice C: a donor of another tree count is taken in part,
-    into more trees whole and into fewer by the trees whose fits vary
-    most (dec-B323, dec-B448). Left, slice D, before 1.0-0: a part
+    C (9b46b40d, dec-A218): a donor of another tree count is taken in
+    part, into more trees whole and into fewer by the trees whose fits
+    vary most, block by block under blocks (dec-B323, dec-B448). Left,
+    slice D, before 1.0-0: a part
     only one side has, DART's weights or a variance forest, does not
     transfer and the trees do (dec-B324); a constant donor seeds
     linear leaves exactly, a linear donor on another number of
@@ -298,9 +299,12 @@ items
     missing value would read as that level. setData matches it by
     level (dec-B454); bring the other doors to it, beside dec-A210's
     refusal of an NA level for a basis.
-  k-mixing-pg-families: before 1.0-0 (dec-B404, dec-B420, VD
-    2026-10-09). Binary fits keep a drawn k under chi(1.5, 2), so the
-    logistic collapsed scale move is built before 1.0-0; plan
+  k-mixing-pg-families: after the merge, before 1.0-0 (dec-B404,
+    dec-B420, VD 2026-10-09; timing VD 2026-10-17). Binary fits keep a
+    drawn k under chi(1.5, 2). Whether k must mix fast for intervals of
+    f and effects is measured first, by the study on
+    wt/binary-interval-study (docs/plans/binary-k-mixing-need.md),
+    which lands its records with it; then the move is priced. Plan
     docs/plans/collapsed-scale-move.md on wt/collapsed-move-plan, its
     probit half, a switch and negative binomial still open calls.
     Negative binomial's k (docs/design/k-mixing-pg-families.md) is
@@ -887,11 +891,24 @@ items
     on setWeights and setActiveRows, have landed:
     docs/design/response-scale-rows.md): a linear or gp leaf's
     covariate center and scale, and the default lengthscale, over the
-    rows in (dec-B304), a multiplier's scale doing so in the multiplier
-    plan (dec-B303); waits on the state-frame slices that give derived
-    data its record. Cut points still span every row. Before 1.0-0,
-    and before the merge if it can be. Stated at the end of
-    docs/plans/response-scale-rows-c.md and not planned.
+    rows in (dec-B304, dec-B464), refused where the rows in hold one
+    value of a covariate and kept at a re-derivation, and
+    updateStandardization on setWeights and setActiveRows for burn-in
+    (dec-B465). Planned in two pushes, after state-frame-prior slice 3
+    (docs/plans/response-scale-rows-d.md). Cut points still span every
+    row. Before 1.0-0, and before the merge if it can be.
+  mask-on-own-data-object: under a mask family (probit, ordinal, nbinom,
+    hazard.probit) the 0/1 weights become the sampler's active-row mask
+    and the data object it hands out, s$data, carries no weights, so
+    s$setData(s$data) and setData of an edited s$data drop the mask, and
+    a derivation there (the response's range or center, a leaf's
+    standardization under response-scale-rows slice D) reads every row.
+    Found by slice D's critique (run on 9e79f4a3). Decide whether the
+    mask rides the data object, as the weights do under gaussian, so
+    that a sampler's own data handed back keeps its rows; it would move
+    setData for every masked sampler. Until then the help says to hand
+    back the 0/1 weights on the data object or to call setActiveRows
+    after.
   rederive-same-range-ulp: a re-derivation that finds the range in
     force again is not a no-op in bits. GaussianResponse::setOffset
     and setResponse at updateScale = TRUE take sigma and its prior

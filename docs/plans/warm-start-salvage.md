@@ -1,9 +1,9 @@
 # warm-start-salvage: a warm start takes what fits of a donor
 
-Status: slices A and B LANDED 2026-10-17 (A a5f3c9bc..d03760e3, calls dec-A211; B f5c16b4a..ee1d7213, calls dec-A214;
-[Slice A as built](#slice-a-as-built), [Landing note](#landing-note), [Slice B as built](#slice-b-as-built),
-[Landing note, slice B](#landing-note-slice-b)); slice C is built ([Slice C as built](#slice-c-as-built)); D is
-planned, not built. Planned 2026-10-11, revised from its blind
+Status: slices A, B and C LANDED 2026-10-17 (A a5f3c9bc..d03760e3, calls dec-A211; B f5c16b4a..ee1d7213, calls
+dec-A214; C 8386e03c..9b46b40d, calls dec-A218; [Slice A as built](#slice-a-as-built), [Landing note](#landing-note),
+[Slice B as built](#slice-b-as-built), [Landing note, slice B](#landing-note-slice-b), [Slice C as
+built](#slice-c-as-built), [Landing note, slice C](#landing-note-slice-c)); D is planned, not built. Planned 2026-10-11, revised from its blind
 critique, no call open. Four slices, A to D, serial. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
 `forceUpdate = FALSE`, (b) FALSE for a split that has to move or merge, (c) the mean weighted by rows, (d) the
 three errors stay, (e) the mean forest's rule for the variance forest (dec-B448), (f) one line. Where this plan
@@ -1380,3 +1380,26 @@ the second pass skipped (R1), its blocks left in the order offered (R2) and the 
 tree off the store's grid, which the staging does not hold as stored, so that chain goes to rank anyway, and a
 chain whose trees all place goes in as the ranked choice would put it unless a tree that splits varies by
 exactly 0; it is kept as a guard. Size: the engine adds 515 lines, accepted to about 540, and the range 1896.
+
+## Landing note, slice C
+
+Slice C landed 2026-10-17 as 8386e03c..9b46b40d on 9e79f4a3, 17 commits: the install, its tests, the help and
+notes, a pin across cut points, and three fix rounds after three opus reviews, each LAND AFTER FIXES. The calls
+the build made, the blocks rule and its placement among them, are dec-A218. Slice D is not built.
+
+Gates, on 9b46b40d: arm64, tests/cpp 403 ok plain and under ASAN and UBSAN; the suite 27738 results, 0 failed; the
+lint chain and anchors clean; the reference build's bitwise compares 55 of 55 against equivalence-32418b6e, 15 of
+15 (bcf) and 11 of 11 (multinomial); the snapshot files; the exact gates at `quick`, 43 of 43; R-loaded ASAN over
+the warm-start and blocks files, 567 results, 0 diagnostics; `R CMD check` one NOTE (the Date field). The x86-64
+leg: tests/cpp 403 ok, plain and under ASAN with the leak sanitizer; the suite 27771 results, 0 failed; the
+equivalence compare 55 of 55 statistically indistinguishable; the bcf and multinomial compares differ bitwise in
+latent_logistic_weighted and k3countsswap, as the build before does on x86.
+
+Not run: Windows, and any consumer's suite (no consumer passes a donor of another tree count).
+
+Size against the plan: the engine adds 515 lines against a stop of 400, accepted to about 540; the range 1896
+against 1350, the excess being the pins the three reviews asked for. Landing went ahead past both stops on the
+orchestrator's call (dec-A218).
+
+Left: slice D; `warm-start-undo-test`, `warm-start-by-position`, `warm-start-linear-covariates` and
+`warm-start-bart-families`, which stay in TODO with slice D.
