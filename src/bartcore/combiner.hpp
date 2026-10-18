@@ -1125,8 +1125,10 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// carries no information about forest f, so the row leaves with exactly zero
   /// weight and exactly zero response. The bound is RELATIVE so that a basis
   /// in other units, a numeric column of values near 1e-9, is the same forest:
-  /// scaling every multiplier by a power of two leaves the same rows in. A
-  /// forest whose every multiplier is zero loses every row. The zero RESPONSE is required rather than
+  /// scaling every multiplier by a power of two leaves the same rows in. The
+  /// largest is taken over the rows of positive weight \p w, every row when
+  /// \p w is null or none is positive, so a row out of the likelihood moves no
+  /// other row in or out. A forest whose largest is zero loses every row. The zero RESPONSE is required rather than
   /// cosmetic: the chain reads this buffer arithmetically when it rolls the
   /// running residual and finalizes total fits, and the node sufficient-statistic
   /// kernels accumulate w * y, where a zero weight against an amplified response
@@ -1159,9 +1161,17 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
     glue_.forestResponse.resize(n);
     glue_.forestWeights.resize(n);
     double largest = 0.0;
-    for (std::size_t i = 0; i < n; ++i)
+    bool anyIn = false;
+    for (std::size_t i = 0; i < n; ++i) {
+      if (w != nullptr && !(w[i] > 0.0)) continue;
+      anyIn = true;
       largest = std::max(largest, std::fabs(forestMultiplier(f, i)));
-    double bound = zeroMultiplierTolerance * largest;
+    }
+    if (!anyIn)
+      for (std::size_t i = 0; i < n; ++i)
+        largest = std::max(largest, std::fabs(forestMultiplier(f, i)));
+    double bound = largest > 0.0 ? zeroMultiplierTolerance * largest
+                                 : std::numeric_limits<double>::infinity();
     for (std::size_t i = 0; i < n; ++i) {
       double m = forestMultiplier(f, i);
       if (std::fabs(m) <= bound) {

@@ -10592,6 +10592,51 @@ static void testRelativeRowBound() {
     check(levels, "relative row bound: a held (0, 1) block gives its first "
                   "level's rows zero weight");
   }
+  {
+    // the largest is over the rows of positive weight, every row where none
+    // has one: a row of weight zero at 1e9 moves no weighted row out, a column
+    // of zeros on every weighted row loses every row, and every weight zero
+    // reads the rows as no weights do
+    std::vector<double> out(weights), sentinel(n), absent(n), zeroWeights(n);
+    for (size_t i = 0; i < n; ++i) {
+      bool zeroed = i % 9 == 0;
+      if (zeroed) out[i] = 0.0;
+      sentinel[i] = zeroed ? 1e9 : dose[i];
+      absent[i] = zeroed ? dose[i] : 0.0;
+    }
+    auto formed = [&](const std::vector<double>& basis, const double* w) {
+      AmplitudeSpec spec;
+      spec.forests.resize(2);
+      spec.forests[0].kind = ForestKind::numeric;
+      spec.forests[0].basis = basis.data();
+      spec.forests[0].basisScale = 1.0;
+      AmplitudeForestCombiner<ConstantGaussianLeaf> combiner(
+        data, spec, amplitudePriors(spec), 2);
+      auto forests = forestsOf(2);
+      ForestResponse fr = combiner.formForestResponse(0, forests, y.data(), w);
+      return std::make_pair(
+        std::vector<double>(fr.response, fr.response + n),
+        std::vector<double>(fr.weights, fr.weights + n));
+    };
+    auto withSentinel = formed(sentinel, out.data());
+    auto withAbsent = formed(absent, out.data());
+    auto allZero = formed(column, zeroWeights.data());
+    auto unweighted = formed(column, nullptr);
+    bool kept = true, lost = true, zeroWeight = true;
+    for (size_t i = 0; i < n; ++i) {
+      kept = kept && (out[i] == 0.0 || withSentinel.second[i] > 0.0);
+      lost = lost && withAbsent.first[i] == 0.0 && withAbsent.second[i] == 0.0;
+      zeroWeight = zeroWeight && allZero.second[i] == 0.0;
+    }
+    check(kept, "relative row bound: a row of weight zero at 1e9 moves no "
+                "row of positive weight out");
+    check(lost, "relative row bound: a column of zeros on every row of "
+                "positive weight loses every row");
+    check(zeroWeight && allZero.first == unweighted.first &&
+            unweighted.first[3] == 0.0 && unweighted.first[4] != 0.0,
+          "relative row bound: with every weight zero the rows leave as "
+          "with no weights");
+  }
   printf("ok: the row bound is relative to the forest's largest multiplier\n");
 }
 

@@ -155,6 +155,27 @@ wild <- dbarts(
   control = recordControl()
 )
 expect_equal(recordOf(wild), sd(dose[w > 0]), tolerance = 1e-12)
+# nor does it move the forest: the rows of positive weight stay in, and the
+# draws are those of the same column with an ordinary value on the rows out.
+# A fit at a row out is read back through a residual the size of its
+# multiplier rounds, so the fits are compared at the rows in
+sentinelDraws <- function(column) {
+  sampler <- dbarts(
+    y ~ x1 + x2,
+    d,
+    weights = w,
+    forests = list(forest(), forest(basis = column)),
+    control = recordControl()
+  )
+  samples <- sampler$run()
+  list(
+    sigma = samples$sigma,
+    varcount = samples$varcount,
+    fits = sampler$getForestFits()[w > 0, , , drop = FALSE],
+    amplitudes = sampler$getForestAmplitudes()
+  )
+}
+expect_identical(sentinelDraws(d$wild), sentinelDraws(d$dose))
 # a dose constant over the rows of positive weight, varying over the others:
 # refused with no sd stated, created with one
 d$flat <- ifelse(w > 0, 0.25, dose)
