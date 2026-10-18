@@ -1347,3 +1347,36 @@ the placement never placing (N1), placing cut trees (N2), no single-leaf exclusi
 donor's own single leaves (N4), a tree placed twice (N5), a short block padded with tree 1 (N6), the taken count
 not kept (N7) and the placement from the donor's last tree back (N8). Size: the engine adds 498 lines
 against the stop of 400, accepted to 500 by the orchestrator, and the range 1711 against 1350.
+
+A third review, of option C (LAND AFTER FIXES), found no draw bug. It found the verbose line reading chain 1
+alone where chains can now differ, the plan's draw classes still calling C NEUTRAL, the placement in the
+donor's order declining a donor whose trees all stand as stored (a single leaf early taking a slot a later
+tree needs), and two of its mutants surviving. The third fix round:
+
+- The placement, the orchestrator's third call: the pass in the donor's order stays first, so an equal donor of
+  the same layout is placed as before, bit for bit. Only where it leaves a tree out is it tried once more with
+  the trees that split offered first, in the donor's order, and the single leaves after them, each block's trees
+  then in the donor's order. With disjoint groups only a single leaf fits two blocks, so the second pass places
+  every donor that can be placed. A single leaf, a tree on x1 and one on x2 into 1 and 2 is now TRUE, every tree
+  as stored; 25 and 25 with a single leaf in the first half into 24 and 26 is TRUE, taken whole.
+- The line gives the trees taken and offered and the single leaves as a range where the chains differ, "2 to 4
+  of 4 donor trees taken; 0 to 2 trees started as single leaves", and is as before where they agree.
+- The filter of the single-leaf exclusion runs only under blocks, so without blocks the choice is the fix
+  round's, bit for bit, a rank that is not a number included.
+- Pins: without blocks a tree a monotone recipient collapses to one leaf ties at 0 with a donor's single leaf
+  and the earlier is kept; a second chain that does not place goes by rank while the first goes in as placed.
+- The draw classes in the header state the departure: a forced warm start of the recipient's tree counts under
+  `blocks` with a tree its slot does not hold as stored goes by rank, SHIFTING. That covers an equal-layout
+  donor whose trees need a merge or a collapse on new rows. The blocks tests' comments say the forced choice;
+  the help and design notes say the second pass and that a donor's own single leaves are kept.
+- Cost at 5000 rows and 10 columns, 200 trees into 50 forced: 0.010 s without blocks, 0.019 s for 25 and 25,
+  0.081 s for ten blocks of 5 and 0.37 s for 49 and 1, the one-tree block's 200 rounds; an equal donor of ten
+  blocks of 20 places in 8 ms.
+
+Mutants, each alone on an export: the review's X3 (the exclusion without blocks) fails the new pin without
+blocks and X13 (the decline read from chain 1) the second-chain pin; N1 to N8 fail again on the new code, and
+the second pass skipped (R1), its blocks left in the order offered (R2) and the single leaves offered first
+(R3) each fail. The review's X4, across grids not sent to rank, passes every test: an across-grids chain holds a
+tree off the store's grid, which the staging does not hold as stored, so that chain goes to rank anyway, and a
+chain whose trees all place goes in as the ranked choice would put it unless a tree that splits varies by
+exactly 0; it is kept as a guard. Size: the engine adds 515 lines, accepted to about 540, and the range 1896.
