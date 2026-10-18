@@ -1,6 +1,6 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
-Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); PUSH 2 BUILT 2026-10-17, not landed ([Push 2 as built](#push-2-as-built)); push 3 PLANNED,
+Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); PUSH 2 LANDED 2026-10-17 (a51ac7fe..5a1e9dca, dec-A219; [Push 2 as built](#push-2-as-built), [Landing note, push 2](#landing-note-push-2)); push 3 PLANNED,
 rechecked 2026-10-11 against 37b59ea0, the tip of the sd unit slice
 ([Recheck against bartcore](#recheck-against-bartcore)); its two open calls settled and its cites
 brought to forest-kind-by-class as built on 2026-10-17, with push 1 gaining the unit on a constant
@@ -1904,3 +1904,24 @@ commands in quick, all passing; lintr (0 lints), air, rc-codoc, win-drift, doc-f
 verify-anchors clean; on a `--preclean` reference install the four snapshot files passing (14, 3, 7
 and 3) and 55, 11, 15 and 19 scenarios identical, the last against bcf-equivalence-20eed7ed as
 renamed. Size of the round: 84 lines added and 8 removed over 8 files, this record aside.
+
+## Landing note, push 2
+
+Push 2 landed 2026-10-17 as a51ac7fe..5a1e9dca on 46e1a644, 20 commits: the build (a51ac7fe to 0f942fad), its
+record (96fcde77), the fix round (536b9d60 to 486a7893), the second fix round on E7 (20eed7ed to 0763eed8),
+and at the landing the BCF baseline renamed to bcf-equivalence-20eed7ed, the last commit that changes package
+code once rebased, with the hashes this plan cites (5a1e9dca). It was built on 738b1015 and rebased onto
+46e1a644, the records of warm-start slice C, without conflict. The calls are dec-A219.
+
+Gates on the rebased tip: the suite through `test_package(at_home = TRUE)` 28159 results, 0 failed; lintr (0
+lints), air, rc-codoc, win-drift, doc-freshness and verify-anchors clean; the BCF compare 19 of 19 bit for bit
+against bcf-equivalence-20eed7ed. The bench compare of the second fix round on the x86 bench box, 1ef44d1e's
+parent against it before the rebase: no metric more than 5% slower (run t75 1.016, setPredictor reject
+1.012, the rest within 1%). The x86-64 leg on the second fix round's tip: tests/cpp 405 ok, plain and under
+ASAN with the leak sanitizer; the suite 28038 results, 0 failed; the equivalence compare 55 of 55
+statistically indistinguishable; the BCF and multinomial compares within the cross-host tier 1 bound, 19
+of 19 and 11 of 11; and against a BCF baseline recorded on the box from 46e1a644, 15 of 15 bit for bit.
+
+Not run: Windows; bartCause's suite after the rebase (run on the build, 7 failing as on the base build).
+
+Left: push 3, the printed block.

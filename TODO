@@ -737,8 +737,8 @@ items
     (dec-B273); defaults go by a forest's kind (dec-B274); extract
     returns a list by forest of vectors named by column (dec-B275).
     Landed: written-surface, forest-defaults-by-kind,
-    forest-sd-unit, forest-kind-by-class, push 1 of forest-multiplier.
-    Its push 2 built; push 3 planned.
+    forest-sd-unit, forest-kind-by-class, pushes 1 and 2 of
+    forest-multiplier. Its push 3 planned.
     Not yet planned: tree.prior on forest() and the variance forest, the
     reader's normal() objects.
   written-surface-leftovers: what the basis left, none planned. A
@@ -793,8 +793,8 @@ items
     basis carrying the coding wherever the forest stands and makes sd
     exact, a held forest with no basis defaults to bart()'s size
     (dec-B290, dec-B293), amplitude.prior.variance is gone, and a
-    constant response has the unit one forest gets. Push 2 built, not
-    landed: the relative row bound, the numeric rule, its scale over
+    constant response has the unit one forest gets. Push 2 landed
+    (2026-10-17, dec-A219): the relative row bound, the numeric rule, its scale over
     the rows in the likelihood recorded in data@basis.scale, a held
     numeric column, the reader's numeric entries and four BCF baseline
     scenarios; push 3 is not built. Each kind of forest gets one rule. A

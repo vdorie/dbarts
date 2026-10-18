@@ -1,6 +1,6 @@
 # What a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
-Status: PUSH 1 LANDED 2026-10-17 (5a62933e); push 2 built, not landed; push 3 planned. The plan is
+Status: PUSHES 1 AND 2 LANDED 2026-10-17 (5a62933e, 5a1e9dca); push 3 planned. The plan is
 [forest-multiplier.md](../plans/forest-multiplier.md), which carries the steps, the gates and the calls.
 This note states the rule the first two pushes build: what a forest's coefficient is, held or drawn,
 the default of each kind of forest, a numeric column's scale and its record, the bound under which a row
