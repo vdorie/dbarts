@@ -1,8 +1,12 @@
-# A copy installs the stored state as a reload does: a state whose saved-tree
-# store has another capacity than the control now names (n.samples edited
-# after the state was stored) is taken with its own capacity, not refused. A
-# sampler with no stored state (updateState = FALSE) has its current state
-# read for the copy, so every copy continues its source.
+# A copy of a sampler whose engine exists installs its current chain as a
+# reload installs a stored state: a chain whose saved-tree store has another
+# capacity than the control now names (n.samples edited after it was stored)
+# is taken with its own capacity, not refused. The copy's field is that
+# chain, whatever the source's field holds, so every copy continues its
+# source.
+liveOf <- function(sampler) {
+  .Call(dbarts:::C_dbarts_bartcore_storeState, sampler$getPointer())
+}
 
 set.seed(0)
 n <- 80L
@@ -44,16 +48,17 @@ newControl <- sampler$control
 newControl@n.samples <- 8L
 sampler$setControl(newControl)
 dupe <- sampler$copy()
-expect_identical(dupe$state, sampler$state)
+expect_identical(dupe$state, liveOf(sampler))
 expect_equal(dupe$run(0L, 3L)$train, sampler$run(0L, 3L)$train)
 
-# the copy caches the very state it installed, also when the install had to
-# convert it (here, into the units of a response re-anchored after the store)
+# the copy caches the very chain it installed, also one moved after the
+# store (here, into the units of a response re-anchored after it)
 sampler <- make()
 sampler$run(1L, 3L)
 sampler$setResponse(y * 3 + 1, updateScale = TRUE, updateState = FALSE)
 dupe <- sampler$copy()
-expect_identical(dupe$state, sampler$state)
+expect_identical(dupe$state, liveOf(sampler))
+expect_false(identical(dupe$state, sampler$state))
 
 # a named leaf sd stays what it was named after the response is replaced,
 # also in the copy
@@ -117,7 +122,7 @@ for (seed in list(3L, NULL)) {
     expect_null(sampler$state)
     dupe <- sampler$copy()
     expect_null(sampler$state)
-    expect_null(dupe$state)
+    expect_identical(dupe$state, liveOf(sampler))
     d <- dupe$run(2L, 5L)
     s <- sampler$run(2L, 5L)
     expect_equal(d$train, s$train)

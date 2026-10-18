@@ -272,11 +272,12 @@ public:
                                              numObservations, numPredictors),
                      options.maxNumCutsPerVariable, options.maxNumCuts,
                      options.useQuantiles, options.leafCovariateColumns,
-                     options.numLeafCovariates)) {
+                     options.numLeafCovariates, options.suppliedCutGrid)) {
       ingestionRefused_ = true;
       return;
     }
     options_.maxNumCutsPerVariable = nullptr;  // borrowed; consumed by build
+    options_.suppliedCutGrid = {};
     // borrowed; consumed by build, which retains what the store needs (a
     // mapped build's CSC slices, its own copy of the dense block)
     options_.predictors = {};
@@ -304,6 +305,7 @@ public:
     options_.predictors = {};
     options_.useQuantiles = data_.useQuantiles;
     options_.missingSeen = nullptr;
+    options_.suppliedCutGrid = {};
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);
@@ -326,11 +328,13 @@ public:
                                                  numObservations,
                                                  numPredictors),
                      options.maxNumCutsPerVariable, options.maxNumCuts,
-                     options.useQuantiles)) {
+                     options.useQuantiles, nullptr, 0,
+                     options.suppliedCutGrid)) {
       ingestionRefused_ = true;
       return;
     }
     options_.maxNumCutsPerVariable = nullptr;
+    options_.suppliedCutGrid = {};
     options_.predictors = {};
     adoptMissingSeen();
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0,
@@ -364,11 +368,13 @@ public:
                                                  numObservations,
                                                  numPredictors),
                      options.maxNumCutsPerVariable, options.maxNumCuts,
-                     options.useQuantiles)) {
+                     options.useQuantiles, nullptr, 0,
+                     options.suppliedCutGrid)) {
       ingestionRefused_ = true;
       return;
     }
     options_.maxNumCutsPerVariable = nullptr;
+    options_.suppliedCutGrid = {};
     options_.predictors = {};
     adoptMissingSeen();
     // single-forest queries (numTrees, savedTree, printTrees) address forest 0
@@ -1179,18 +1185,9 @@ public:
     state.missingColumns = data_.hasMissing;
   }
 
-  /// Installs \p state's chains. The cut grid and its weights are the
-  /// store's, and \p adoptGrid says which grid the state goes onto.
-  ///
-  /// With adoptGrid the store first takes the points and weights the state
-  /// records on every column that is not a factor, those columns
-  /// re-quantized against them, and the state is judged and installed there:
-  /// the call of a sampler just created, which holds no grid of its own to
-  /// keep. A factor column keeps the grid of its level table, which no
-  /// install writes, whatever the state records on it. A state that is
-  /// refused or declined puts the store's grid, weights and codes back.
-  ///
-  /// Without it no point and no weight of the store is written. A state
+  /// Installs \p state's chains onto the store's cut grid and weights, a
+  /// sampler just created included: no point and no weight of the store is
+  /// written. A state
   /// whose recorded points are the store's is judged and installed as it is,
   /// whatever weights it records. So is one recorded on other points every
   /// live threshold of which, mean and variance, is a point of the store's
@@ -1209,9 +1206,8 @@ public:
   /// copied as stored either way and never moved.
   ///
   /// currentPredictors is the call-time predictor matrix a column whose grid
-  /// is replaced re-quantizes from (data@x, or the retained creation spec's
-  /// @x); null for CSC/mixed stores. Only an adopted grid other than the
-  /// store's and an install across grids read it.
+  /// is swapped re-quantizes from (data@x, or the retained creation spec's
+  /// @x); null for CSC/mixed stores. Only an install across grids reads it.
   ///
   /// A refusal - false with notClean down - is the same with and without
   /// force and leaves the sampler exactly as it was: a state of another
@@ -1219,15 +1215,8 @@ public:
   /// the family cannot hold, saved-tree blocks that name different draw
   /// counts, a record of missable columns of another length, a live
   /// threshold that is no point of the grid the state itself records, and,
-  /// without adoptGrid, on a column the store holds as an ordered factor,
-  /// whose grid its level count fixes, a recorded grid other than the
-  /// store's. With adoptGrid that record is not held against the state: no
-  /// install writes a factor column's grid
-  /// (ColumnStore::setCutPointsForColumn), so the store of a sampler just
-  /// created keeps the grid of the levels its data declares, which a
-  /// whole-data replacement can leave other than the one the sampler held
-  /// when it stored the state, and the state is judged on the store's.
-  /// lengthscaleRefused names a state whose saved gp draws were made
+  /// on a column the store holds as an ordered factor, whose grid its level
+  /// count fixes, a recorded grid other than the store's. lengthscaleRefused names a state whose saved gp draws were made
   /// under other lengthscales than the ones this sampler was given
   /// (Chain::lengthscaleStateFeasible), asked only where a saved draw would
   /// be kept. Everything is judged before any chain is touched, against the
@@ -1265,8 +1254,7 @@ public:
   /// the root are merged into one leaf at the weighted mean of the leaves
   /// beneath (Chain::rebuildLiveForest, Chain::rebuildVarianceForest), the
   /// direction is dropped, the monotone tree is reseeded at 0. Without force
-  /// the state is not installed: an adopted grid is put back, notClean, when
-  /// non-null, is set, and false is returned with the chains, the store, the
+  /// the state is not installed: notClean, when non-null, is set, and false is returned with the chains, the store, the
   /// generators and the latents untouched. Only LIVE trees are held to any of
   /// this, a saved slot being a replay target routed over new rows rather
   /// than over this partition.
@@ -1286,8 +1274,8 @@ public:
   /// adoptCapacity, when not keepStoreCapacity, resizes the store to that
   /// many samples before the kept draws go in, only once the state is
   /// accepted: a refused or declined state leaves the store and its draws as
-  /// they were. An allocation failure in the resize throws with the cut grid
-  /// restored and nothing else changed.
+  /// they were. An allocation failure in the resize throws with nothing
+  /// changed.
   ///
   /// altered, when non-null, reports whether a state was installed other
   /// than as stored: true exactly when a live tree was repaired as above or
@@ -1300,12 +1288,10 @@ public:
   /// in place, a pooled categorical rule keeping a missing bit its column no
   /// longer routes, and the saved draws, which are copied.
   ///
-  /// gridDiffers, when non-null, reports whether an install that does not
-  /// adopt them put the state on cut points or weights other than the ones
-  /// it records: the trees, or the tree prior they run under, are then not
-  /// the stored chain's. An adopting install leaves it false, also where an
-  /// ordered factor's column kept other points than the state records, and
-  /// so does a state not installed.
+  /// gridDiffers, when non-null, reports whether the state went onto cut
+  /// points or weights other than the ones it records: the trees, or the tree
+  /// prior they run under, are then not the stored chain's. A state not
+  /// installed leaves it false.
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors,
                 bool* lengthscaleRefused = nullptr,
@@ -1313,7 +1299,6 @@ public:
                 size_t adoptCapacity = keepStoreCapacity,
                 bool force = true,
                 bool* notClean = nullptr,
-                bool adoptGrid = true,
                 bool* gridDiffers = nullptr) {
     if (lengthscaleRefused != nullptr) *lengthscaleRefused = false;
     if (altered != nullptr) *altered = false;
@@ -1338,7 +1323,7 @@ public:
                   !cutMassIsValid(state.cutMass[j],
                                   state.cutPoints[j].size()))) {
         return false;
-      } else if (!adoptGrid && data_.types[j] == ColumnKind::orderedFactor &&
+      } else if (data_.types[j] == ColumnKind::orderedFactor &&
                  state.cutPoints[j] != data_.cutPoints[j]) {
         // the level count fixes the grid the store keeps, so another is
         // another column's
@@ -1416,7 +1401,7 @@ public:
     // lacks is the refusal, and one the store's grid lacks takes the install
     // across the grids
     bool acrossGrids = false;
-    if (!adoptGrid && pointsDiffer) {
+    if (pointsDiffer) {
       for (size_t c = 0; c < chains_.size(); ++c) {
         if (!chains_[c]->liveThresholdsAreOnGrid(chainStates[c],
                                                  state.cutPoints))
@@ -1426,32 +1411,6 @@ public:
                                                data_.cutPoints);
       }
     }
-    // adopting: install the state's cuts, snapshotting for rollback, tree
-    // validity being defined against them
-    std::optional<GridSnapshot> adopted;
-    if (adoptGrid) {
-      adopted.emplace(data_);
-      for (size_t j = 0; j < data_.numPredictors; ++j) {
-        if (data_.splitsBySubset(j)) continue;
-        const double* mass = stateWeighted && !state.cutMass[j].empty()
-          ? state.cutMass[j].data() : nullptr;
-        // a restored grid equal to the live one leaves the codes already
-        // correct (the continuation contract), so skip its re-quantization
-        // and its raw; its weights are the state's either way
-        if (state.cutPoints[j] == data_.cutPoints[j]) {
-          if (mass != nullptr)
-            data_.cutMass[j] = state.cutMass[j];
-          else
-            data_.cutMass[j].clear();
-          continue;
-        }
-        data_.setCutPointsForColumn(j, state.cutPoints[j].data(),
-                                    static_cast<std::uint32_t>(
-                                      state.cutPoints[j].size()),
-                                    currentPredictors, mass);
-      }
-    }
-
     // validity for every chain, then the verdict where the call is not
     // forced: both judge the state against the grid it is installed on, and a
     // state refused for one chain is refused whatever another's trees need.
@@ -1470,17 +1429,11 @@ public:
     }
 
     if (!allValid || (needsRepair && !force)) {
-      if (adopted) adopted->restore(data_);
       if (notClean != nullptr) *notClean = allValid;
       return false;
     }
     if (resize) {
-      try {
-        resizeSavedTrees(adoptCapacity);
-      } catch (...) {
-        if (adopted) adopted->restore(data_);
-        throw;
-      }
+      resizeSavedTrees(adoptCapacity);
       options_.keepTrees = adoptCapacity > 0;
       options_.numSamplesToStore = adoptCapacity;
     }
@@ -1511,8 +1464,7 @@ public:
                    : 0;
     recordedDraws_ = keptDraws;
     if (altered != nullptr) *altered = installAltered;
-    if (gridDiffers != nullptr)
-      *gridDiffers = !adoptGrid && (pointsDiffer || massDiffers);
+    if (gridDiffers != nullptr) *gridDiffers = pointsDiffer || massDiffers;
     return true;
   }
 
@@ -2106,6 +2058,19 @@ public:
   void getAnchor(double& min, double& max) const {
     min = anchorMin_;
     max = anchorMax_;
+  }
+
+  /// The values the sampler derived from its data and holds while the data
+  /// move, which a host records to re-create it on them (DerivedRecords).
+  void derivedRecords(DerivedRecords& records) const {
+    records.cutPoints = data_.cutPoints;
+    records.cutMass = data_.cutMass;
+    records.hasRange = chains_[0]->carriesUnits(anchorMin_, anchorMax_);
+    records.rangeMin = anchorMin_;
+    records.rangeMax = anchorMax_;
+    ForestCalibration calibration = chains_[0]->forestCalibration(0);
+    records.forestAnchor = calibration.mapAnchor;
+    records.forestUnit = calibration.mapUnit;
   }
   /// Case weights: a pointer swap entering the next iteration's node
   /// statistics and sigma draw with nothing rescaled, plus, for logistic -

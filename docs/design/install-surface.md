@@ -191,27 +191,16 @@ leaves become one at -0.0027. The plain mean is -0.05, and weighing by the rows 
   field holds what `storeState()` gives, so a copy and a reload reach the sampler's grid, weights and trees.
   After an install onto the recorded grid and weights it holds the state as given.
 
-A copy and a reload create a new engine, whose grid is the one a creation derives from the predictors as they
-now are. The stored state is the only record of a grid set with `setCutPoints` or held while a column moved,
-so a re-creation still takes the grid and weights its state records and then installs the state; taking that
-away before the data object records the grid (TODO state-frame-prior) would make a copy of a sampler with a
-set grid something other than a copy. A factor column is outside this: no install writes its grid
-([`ColumnStore::setCutPointsForColumn`](../../src/bartcore/data.hpp)), which stays the one its level table
-gives, so a re-creation does not hold its state to the grid recorded on an ordered factor, as a live install
-does. A live engine keeps its level table through `setData`, and a new one reads the levels the data record
-declares, which `setData` keeps the sampler's: it re-codes each factor row by label onto the sampler's table
-([`alignDataFactorLevels`](../../R/bartcore.R), dec-B454), so a copy and a reload hold the original's grid
-and take the state it stored. A record declaring other levels than its engine holds is reached by
-assigning one by hand, by an object saved by an earlier build, and by a sampler made from a matrix of
-codes, which records no table and takes the table of a data frame handed to `setData` (TODO
-code-matrix-category-count); a copy and a reload of it hold the grid of the declared levels, are made only
-where no rule of the stored state's trees lies above them or sends a dropped level right, and refuse a
-state the original stored. Their `state` field is then the state their
-engine holds, read once it is made ([`heldAfterAdoption`](../../R/dbarts.R)), so that a sampler's own field
-is never refused for the cut points it records. `setState(newState)` on a sampler whose engine is gone first rebuilds
-the engine from the sampler's own saved state, where it has one that installs, and then applies the rule
-above, so the call gives one grid whether or not the engine was live. Only a sampler with no saved state, or
-one that is refused, takes `newState`'s grid.
+A copy and a reload create a new engine on the grid and weights the data object records, and the state goes
+onto that grid by the rule above, forced, never adopting the state's
+([state-frame-prior.md](state-frame-prior.md), dec-B459 and dec-B461); a copy of a live sampler installs its
+engine's current chain, which is on that grid already. A factor column's grid is the one its level table gives,
+and a state recording another on an ordered factor is refused by every install, a re-creation included; a
+record declaring other levels than its engine holds, reached by assigning one by hand, by an object saved by
+an earlier build, or by a sampler made from a matrix of codes (TODO code-matrix-category-count), is then
+neither copied nor reloaded. `setState(newState)` on a sampler whose engine is gone first rebuilds the engine
+on the record from the sampler's own saved state, where it has one that installs, and then applies the rule
+above, so the call gives one grid whether or not the engine was live.
 
 Putting a grid back is the caller's, before `setState`, with the state held in a variable:
 `setCutPoints(attr(st, "cutPoints"))`, the whole set in one call, and then `setState(st)`. Where no changed

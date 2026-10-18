@@ -191,7 +191,7 @@ from and whether the coefficient is held. Nothing of the column is stored: the m
 column in force, so after a swap or a change of weights they are the new ones, and a default's full line ends
 with the sd of the column it was taken from where that differs. The one number a fit stores for the block is
 the unit the sds are stated in, the engine's own, `attr(fit, "forest.unit")`, which a sampler already holds on
-its control; R takes no second unit from the response. The header names it as the help does: sd(y) as the `sd`
+its data object; R takes no second unit from the response. The header names it as the help does: sd(y) as the `sd`
 item takes it, or the link's error sd. A fit made with `keepFits = FALSE` keeps no bases, labels or unit and
 prints no block, and its summary keeps each forest's sd on the line under the table. The line under the table
 of a fit that does print the block leaves its sds out. A copy is not a creation and prints nothing. A fit of

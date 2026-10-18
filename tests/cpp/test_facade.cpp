@@ -40,7 +40,8 @@ enum class FacadeVirtual {
   updatePredictor, setCutPoints, updatePredictorPerObservation,
   beginPredictorUpdate, currentSampleNum, savedSlotForDraw, savedTree,
   savedTreeSlopes, savedTreeMasks, flattenTree, predict, predictPerForest,
-  predictVariance, getState, setState, setAnchor, getAnchor, installForests,
+  predictVariance, getState, setState, setAnchor, getAnchor, derivedRecords,
+  installForests,
   sampleTreesFromPrior,
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
@@ -182,10 +183,11 @@ public:
   SPY_VOID(getState, (SamplerStateData& s), (s))
   SPY_RET(bool, setState,
           (const SamplerStateData& s, const double* cp, bool* l, bool* e,
-           std::size_t a, bool f, bool* n, bool g, bool* d),
-          (s, cp, l, e, a, f, n, g, d))
+           std::size_t a, bool f, bool* n, bool* d),
+          (s, cp, l, e, a, f, n, d))
   SPY_VOID(setAnchor, (double lo, double hi), (lo, hi))
   SPY_VOID(getAnchor, (double& lo, double& hi) const, (lo, hi))
+  SPY_VOID(derivedRecords, (DerivedRecords& r) const, (r))
   SPY_RET(WarmStartResult, installForests,
           (const SamplerStateData& d,
            const std::vector<std::pair<std::size_t, int>>& m, const double* cp,
@@ -989,26 +991,25 @@ const Row rows[] = {
     check(installsClean(f.gt.base(), donor) &&
             declinesUntouched(f.gt.base(), flagged),
           "facade setState: force and the verdict cross the boundary");
-    // a state recording a grid with one more point: kept off it, the twin's
-    // grid stays and the difference is reported; adopted, the grid is taken
+    // a state recording a grid with one more point: the twin's grid stays
+    // and the difference is reported
     SamplerStateData finer(donor);
     finer.cutPoints[0].insert(
       finer.cutPoints[0].begin() + 1,
       0.5 * (finer.cutPoints[0][0] + finer.cutPoints[0][1]));
     bool gridDiffers = false;
     check(f.gt.base().setState(finer, f.x.data(), nullptr, nullptr,
-                               keepStoreCapacity, false, nullptr, false,
+                               keepStoreCapacity, false, nullptr,
                                &gridDiffers) &&
             gridDiffers && f.gt.impl().data().cutPoints == donor.cutPoints,
           "facade setState: an install that keeps the grid crosses the "
           "boundary and reports the difference");
     gridDiffers = true;
-    check(f.gt.base().setState(finer, f.x.data(), nullptr, nullptr,
-                               keepStoreCapacity, false, nullptr, true,
+    check(f.gt.base().setState(donor, f.x.data(), nullptr, nullptr,
+                               keepStoreCapacity, false, nullptr,
                                &gridDiffers) &&
-            !gridDiffers && f.gt.impl().data().cutPoints == finer.cutPoints &&
-            restoresExactly(f.gt.base(), donor, f.x.data()),
-          "facade setState: an adopting install takes the grid and reports "
+            !gridDiffers && f.gt.impl().data().cutPoints == donor.cutPoints,
+          "facade setState: an install on the state's own grid reports "
           "none");
   }},
   {FacadeVirtual::setAnchor, "setAnchor", [](Fixtures& f) {
@@ -1032,6 +1033,33 @@ const Row rows[] = {
     check(hi > lo && lo == state.chains[0].fitMin &&
             hi == state.chains[0].fitMax,
           "facade getAnchor: the boundary reports the transform in force");
+  }},
+  {FacadeVirtual::derivedRecords, "derivedRecords", [](Fixtures& f) {
+    // a gaussian sampler's grid, weights and transform, no map; a
+    // multinomial one's grid, and neither a transform nor a map; a
+    // combining one's map anchor and unit
+    DerivedRecords records;
+    f.g.base().derivedRecords(records);
+    double lo, hi;
+    f.g.impl().getAnchor(lo, hi);
+    bool gaussian = records.cutPoints == f.g.impl().data().cutPoints &&
+      records.cutMass == f.g.impl().data().cutMass && records.hasRange &&
+      records.rangeMin == lo && records.rangeMax == hi &&
+      std::isnan(records.forestAnchor) && std::isnan(records.forestUnit);
+    DerivedRecords softmax;
+    f.m.base().derivedRecords(softmax);
+    bool multinomial = softmax.cutPoints == f.m.impl().data().cutPoints &&
+      !softmax.hasRange && std::isnan(softmax.forestAnchor);
+    DerivedRecords combined;
+    f.b.base().derivedRecords(combined);
+    ForestCalibration calibration = f.b.impl().forestCalibration(0, 0);
+    bool mapped = combined.hasRange &&
+      combined.forestAnchor == calibration.mapAnchor &&
+      combined.forestUnit == calibration.mapUnit &&
+      std::isfinite(combined.forestAnchor);
+    check(gaussian && multinomial && mapped,
+          "facade derivedRecords: the boundary reports the grids, the "
+          "transform and the map's anchor and unit in force");
   }},
   {FacadeVirtual::installForests, "installForests", [](Fixtures& f) {
     Results results;

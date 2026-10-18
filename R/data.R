@@ -344,6 +344,184 @@ recordMissingSeen <- function(sampler, ptr) {
   invisible(NULL)
 }
 
+## The derived values a data object records for its sampler: NULL where it
+## records none, as one saved before the slots existed does.
+dataCutPoints <- function(data) {
+  if (!methods::.hasSlot(data, "cutPoints")) {
+    return(NULL)
+  }
+  data@cutPoints
+}
+dataResponseRange <- function(data) {
+  if (!methods::.hasSlot(data, "response.range")) {
+    return(NULL)
+  }
+  data@response.range
+}
+dataForestCalibration <- function(data) {
+  if (!methods::.hasSlot(data, "forest.calibration")) {
+    return(NULL)
+  }
+  data@forest.calibration
+}
+
+## Holds the derived values a data object records to the data before a
+## sampler is created from it, and returns it with each grid in order. Only
+## the record's form and the columns' kinds are read, never a row: a record
+## is the values to use, whatever data they came from. Each refusal names the
+## slot and says that NULL derives the value instead.
+checkDerivedRecord <- function(data) {
+  refuse <- function(slot, ...) {
+    stop(
+      "the data's '",
+      slot,
+      "' record ",
+      ...,
+      "; set it to NULL to derive it from the data",
+      call. = FALSE
+    )
+  }
+  grids <- dataCutPoints(data)
+  if (!is.null(grids)) {
+    varTypes <- data@varTypes
+    if (!is.list(grids) || length(grids) != length(varTypes)) {
+      refuse(
+        "cutPoints",
+        "must be a list with one entry per predictor column, ",
+        length(varTypes),
+        " here"
+      )
+    }
+    for (j in seq_along(grids)) {
+      grid <- grids[[j]]
+      if (varTypes[[j]] == CATEGORICAL_VARIABLE) {
+        if (!is.null(grid)) {
+          refuse(
+            "cutPoints",
+            "gives predictor ",
+            j,
+            ", an unordered factor, cut points; its entry must be NULL"
+          )
+        }
+        next
+      }
+      if (!is.numeric(grid) || length(grid) == 0L || !all(is.finite(grid))) {
+        refuse(
+          "cutPoints",
+          "for predictor ",
+          j,
+          " must be one or more finite numbers"
+        )
+      }
+      mass <- attr(grid, "mass", exact = TRUE)
+      grid <- as.double(grid)
+      # a grid is a set of thresholds, so one out of order is sorted, as
+      # setCutPoints sorts one
+      if (is.unsorted(grid)) {
+        grid <- sort(grid)
+      }
+      if (anyDuplicated(grid) > 0L) {
+        refuse(
+          "cutPoints",
+          "for predictor ",
+          j,
+          " repeats a point (",
+          grid[[anyDuplicated(grid)]],
+          "): a cut grid holds each point once"
+        )
+      }
+      if (!is.null(mass)) {
+        if (
+          !is.numeric(mass) ||
+            length(mass) != length(grid) + 1L ||
+            !all(is.finite(mass)) ||
+            any(diff(mass) <= 0)
+        ) {
+          refuse(
+            "cutPoints",
+            "for predictor ",
+            j,
+            " carries weights, its 'mass' attribute, that are not ",
+            length(grid) + 1L,
+            " finite numbers strictly increasing"
+          )
+        }
+        attr(grid, "mass") <- as.double(mass)
+      }
+      grids[[j]] <- grid
+    }
+    data@cutPoints <- grids
+  }
+  range <- dataResponseRange(data)
+  if (
+    !is.null(range) &&
+      (!is.numeric(range) ||
+        length(range) != 2L ||
+        !all(is.finite(range)) ||
+        range[[2L]] < range[[1L]])
+  ) {
+    refuse(
+      "response.range",
+      "must be two finite numbers, the second not below the first"
+    )
+  }
+  calibration <- dataForestCalibration(data)
+  if (
+    !is.null(calibration) &&
+      (!is.numeric(calibration) ||
+        length(calibration) != 2L ||
+        !all(is.finite(calibration)) ||
+        any(calibration <= 0) ||
+        !(is.null(names(calibration)) ||
+          identical(names(calibration), c("anchor", "unit"))))
+  ) {
+    refuse(
+      "forest.calibration",
+      "must be two positive finite numbers, c(anchor = , unit = )"
+    )
+  }
+  data
+}
+
+## Refuses an engine just created from data whose record gives an ordered
+## factor other cut points than the ones the engine holds for it, those of its
+## levels, which the record cannot move; records is the engine's own
+## (C_dbarts_bartcore_derivedRecords).
+refuseCarriedOrderedGrid <- function(data, records) {
+  grids <- dataCutPoints(data)
+  for (j in which(data@varTypes == ORDERED_FACTOR_VARIABLE)) {
+    if (j > length(grids) || is.null(grids[[j]])) {
+      next
+    }
+    if (!identical(grids[[j]], records$cutPoints[[j]])) {
+      stop(
+        "the data's 'cutPoints' record gives predictor ",
+        j,
+        ", an ordered factor, other cut points than those of its levels; ",
+        "set it to NULL to derive it from the data",
+        call. = FALSE
+      )
+    }
+  }
+  invisible(NULL)
+}
+
+## Brings a sampler's record of what it derived from its data up to its
+## engine; called after creation and after every call that can change one.
+## The object a caller handed in is never written, the record being on the
+## sampler's own copy.
+recordDerived <- function(sampler, ptr, records = NULL) {
+  if (is.null(records)) {
+    records <- .Call(C_dbarts_bartcore_derivedRecords, ptr)
+  }
+  data <- sampler$data
+  data@cutPoints <- records$cutPoints
+  data@response.range <- records$response.range
+  data@forest.calibration <- records$forest.calibration
+  sampler$data <- data
+  invisible(NULL)
+}
+
 ## Stores one channel's names on a data object, keeping the slot NULL when
 ## neither channel is named.
 setDataRowNames <- function(data, channel, names) {

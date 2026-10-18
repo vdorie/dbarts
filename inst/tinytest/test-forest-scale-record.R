@@ -45,7 +45,7 @@ recordControl <- function(...) {
   )
 }
 unitOf <- function(sampler) {
-  attr(sampler$control, "bartcore.forests", exact = TRUE)$unit
+  sampler$data@forest.calibration[["unit"]]
 }
 recordOf <- function(sampler, f = 2L) dbarts:::dataBasisScale(sampler$data)[[f]]
 # what each path is held to: the record, the reader's sd and the forest's own

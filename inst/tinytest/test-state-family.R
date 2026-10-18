@@ -217,11 +217,15 @@ for (value in c(0, -1)) {
   )
 }
 
-# --- copy and a reload install the field by the same rule ---
+# --- a reload installs the field by the same rule; a copy of the live
+# sampler takes its engine's chain and not the field ---
 original <- make("student")
 twin <- make("student")
 original$state <- states$probit
-expect_error(original$copy(), plain, fixed = TRUE)
+expect_identical(
+  original$copy()$state,
+  .Call(dbarts:::C_dbarts_bartcore_storeState, original$pointer)
+)
 reloaded <- unserialize(serialize(original, NULL))
 expect_error(reloaded$run(0L, 1L), plain, fixed = TRUE)
 expect_error(reloaded$run(0L, 1L), plain, fixed = TRUE)

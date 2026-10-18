@@ -349,6 +349,15 @@ struct ParsedData {
   // byte per predictor; empty where it carries none. Read at creation only: a
   // setData takes the sampler's flags, not its argument's.
   std::vector<std::uint8_t> missingSeen;
+  // the cut grids and weights the data object records for its sampler, one
+  // entry per predictor, empty where the column derives its own; both empty
+  // where it records none. Read at creation only, never by a data handle.
+  std::vector<std::vector<double>> suppliedCutPoints;
+  std::vector<std::vector<double>> suppliedCutMass;
+  // the calibration map's anchor and unit the data object records, NaN where
+  // it records none
+  double forestAnchor = std::numeric_limits<double>::quiet_NaN();
+  double forestUnit = std::numeric_limits<double>::quiet_NaN();
 };
 
 struct ParsedModel {
@@ -1163,6 +1172,47 @@ void readForestBases(SEXP basesExpr, ParsedData& data) {
   }
 }
 
+/// Reads a data object's cutPoints record into \p data: one entry per
+/// predictor, NULL on an unordered factor, and otherwise a strictly
+/// increasing grid of finite points, with its weights, when it has any, as
+/// the entry's "mass" attribute (bartcore::cutMassIsValid). A NULL entry on a
+/// column that splits by threshold leaves that column to derive its grid.
+void readCutPointsRecord(ParsedData& data, SEXP recordExpr) {
+  if (TYPEOF(recordExpr) != VECSXP ||
+      static_cast<size_t>(Rf_xlength(recordExpr)) != data.numPredictors)
+    Rf_error("the data's 'cutPoints' record must be NULL or a list with one "
+             "entry per predictor");
+  data.suppliedCutPoints.assign(data.numPredictors, std::vector<double>());
+  data.suppliedCutMass.assign(data.numPredictors, std::vector<double>());
+  SEXP massSymbol = Rf_install("mass");
+  for (size_t j = 0; j < data.numPredictors; ++j) {
+    SEXP entryExpr = VECTOR_ELT(recordExpr, static_cast<R_xlen_t>(j));
+    if (Rf_isNull(entryExpr)) continue;
+    std::vector<double>& points = data.suppliedCutPoints[j];
+    if (Rf_isReal(entryExpr))
+      points.assign(REAL(entryExpr), REAL(entryExpr) + Rf_xlength(entryExpr));
+    bool valid = data.columnTypes[j] != bartcore::ColumnKind::categorical &&
+      Rf_isReal(entryExpr) &&
+      bartcore::cutGridIsValid(points.data(), points.size()) &&
+      std::isfinite(points.front()) && std::isfinite(points.back());
+    if (!valid)
+      Rf_error("the data's 'cutPoints' record for predictor %d must be NULL "
+               "on an unordered factor and otherwise strictly increasing "
+               "finite points",
+               static_cast<int>(j + 1));
+    SEXP massExpr = Rf_getAttrib(entryExpr, massSymbol);
+    if (Rf_isNull(massExpr)) continue;
+    std::vector<double>& mass = data.suppliedCutMass[j];
+    if (Rf_isReal(massExpr))
+      mass.assign(REAL(massExpr), REAL(massExpr) + Rf_xlength(massExpr));
+    if (!Rf_isReal(massExpr) || mass.empty() ||
+        !bartcore::cutMassIsValid(mass, points.size()))
+      Rf_error("the data's 'cutPoints' record for predictor %d carries "
+               "weights that are not %d finite values strictly increasing",
+               static_cast<int>(j + 1), static_cast<int>(points.size() + 1));
+  }
+}
+
 void parseData(ParsedData& data, SEXP dataExpr) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -1506,6 +1556,28 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       data.missingSeen.resize(data.numPredictors);
       for (size_t j = 0; j < data.numPredictors; ++j)
         data.missingSeen[j] = LOGICAL(slotExpr)[j] != 0 ? 1 : 0;
+    }
+  }
+
+  // the derived values the object records for its sampler; an object saved
+  // before the slots existed records none and derives them. The R surface
+  // holds a record to the data before any creation (checkDerivedRecord), so
+  // these refusals are the backstop for a caller that skips it
+  if (R_has_slot(dataExpr, Rf_install("cutPoints"))) {
+    REPROTECT_SLOT(slotExpr, dataExpr, "cutPoints", slotIndex);
+    if (!rc_isS4Null(slotExpr) && !Rf_isNull(slotExpr))
+      readCutPointsRecord(data, slotExpr);
+  }
+  if (R_has_slot(dataExpr, Rf_install("forest.calibration"))) {
+    REPROTECT_SLOT(slotExpr, dataExpr, "forest.calibration", slotIndex);
+    if (!rc_isS4Null(slotExpr) && !Rf_isNull(slotExpr)) {
+      if (!Rf_isReal(slotExpr) || Rf_xlength(slotExpr) != 2 ||
+          !std::isfinite(REAL(slotExpr)[0]) || REAL(slotExpr)[0] <= 0.0 ||
+          !std::isfinite(REAL(slotExpr)[1]) || REAL(slotExpr)[1] <= 0.0)
+        Rf_error("the data's 'forest.calibration' record must be NULL or two "
+                 "positive finite numbers, the anchor and the unit");
+      data.forestAnchor = REAL(slotExpr)[0];
+      data.forestUnit = REAL(slotExpr)[1];
     }
   }
 
@@ -2285,6 +2357,12 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.predictors = data.predictors;
   options.missingSeen = data.missingSeen.empty()
     ? NULL : data.missingSeen.data();  // consumed at construction
+  // consumed by a creation build; a sampler over a data handle's store
+  // builds none, so its folds derive their own (xbart)
+  if (!data.suppliedCutPoints.empty()) {
+    options.suppliedCutGrid.points = &data.suppliedCutPoints;
+    options.suppliedCutGrid.mass = &data.suppliedCutMass;
+  }
   options.splitProbabilities = model.splitProbabilities; // copied by ctor
   options.monotoneDirections = model.monotoneDirections.empty()
     ? NULL : model.monotoneDirections.data();  // consumed at construction
@@ -2779,7 +2857,7 @@ void applyForestStatements(SEXP forestsExpr, bartcore::AmplitudeSpec& spec) {
 // on. The bases themselves ride the data object; createHolder cross-checks the
 // two halves.
 bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
-                           size_t numTrees, size_t numPredictors,
+                           const ParsedData& data, size_t numTrees,
                            bartcore::AmplitudeSpec& spec,
                            AmplitudeSpecStorage& storage) {
   SEXP forestsExpr = Rf_getAttrib(controlExpr, Rf_install("bartcore.forests"));
@@ -2788,24 +2866,13 @@ bool applyForestAttributes(SEXP controlExpr, const ParsedModel& model,
                      rc_getListElement(forestsExpr, "vars"),
                      rc_getListElement(forestsExpr, "interactions"),
                      rc_getListElement(forestsExpr, "blocks"), model, numTrees,
-                     numPredictors, spec, storage);
-  // the anchor s a first creation computed, recorded R-side so a re-creation
-  // over a swapped response rebuilds on it; absent computes it afresh
-  SEXP anchorExpr = rc_getListElement(forestsExpr, "anchor");
-  if (!Rf_isNull(anchorExpr)) {
-    if (!Rf_isReal(anchorExpr) || Rf_xlength(anchorExpr) != 1 ||
-        !std::isfinite(REAL(anchorExpr)[0]) || REAL(anchorExpr)[0] <= 0.0)
-      Rf_error("the forests' calibration anchor must be a positive finite "
-               "number");
-    spec.anchor = REAL(anchorExpr)[0];
-  }
-  // the response units in one s, recorded and handed back as the anchor is
-  SEXP unitExpr = rc_getListElement(forestsExpr, "unit");
-  if (!Rf_isNull(unitExpr)) {
-    if (!Rf_isReal(unitExpr) || Rf_xlength(unitExpr) != 1 ||
-        !std::isfinite(REAL(unitExpr)[0]) || REAL(unitExpr)[0] <= 0.0)
-      Rf_error("the forests' unit must be a positive finite number");
-    spec.unit = REAL(unitExpr)[0];
+                     data.numPredictors, spec, storage);
+  // the anchor s and the response units in one s that the data object
+  // records, so a re-creation over a swapped response rebuilds on them; a
+  // data object without the record computes both afresh
+  if (!std::isnan(data.forestAnchor)) {
+    spec.anchor = data.forestAnchor;
+    spec.unit = data.forestUnit;
   }
   applyForestStatements(forestsExpr, spec);
   return true;
@@ -3741,9 +3808,8 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // the spec's forests vector owns its storage, so it rides the closure
     // beside the buffers it borrows: the refusals below jump past every local
     bool carriesAmplitudes =
-      applyForestAttributes(controlExpr, model, options.numTrees,
-                            data.numPredictors, amplitudeSpec,
-                            amplitudeStorage);
+      applyForestAttributes(controlExpr, model, data, options.numTrees,
+                            amplitudeSpec, amplitudeStorage);
     if (carriesAmplitudes && data.bases.empty())
       Rf_error("a basis forest was configured but the data carry no forest "
                "bases");
@@ -6958,32 +7024,26 @@ SEXP bartcore_storeState(SEXP ptrExpr) {
 }
 
 // Returns 0 for a state declined, 1 for one installed and 2 for one
-// installed onto cut points or weights other than the ones it records, which
-// only a call that does not adopt the state's grid gives.
+// installed onto cut points or weights other than the ones it records.
 SEXP bartcore_setState(SEXP ptrExpr, SEXP stateExpr,
                        SEXP currentPredictorsExpr,
-                       SEXP adoptStoreCapacityExpr, SEXP forceExpr,
-                       SEXP adoptGridExpr) {
+                       SEXP adoptStoreCapacityExpr, SEXP forceExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
-  // an install that adopts the state's grid, and a forced one that moves a
-  // state's splits onto the sampler's, re-quantize from raw values, which
-  // views lack; no other install reads them, and the refusal is one rule for
-  // every call
+  // a forced install that moves a state's splits onto the sampler's grid
+  // re-quantizes from raw values, which views lack; no other install reads
+  // them, and the refusal is one rule for every call
   refuseMutationOnView(*holder.sampler, "$setState");
-  // those two re-quantize dense columns from the supplied data@x, column by
-  // column where the grids differ, so a null source is harmless elsewhere
+  // it re-quantizes dense columns from the supplied data@x, column by column
+  // where the grids differ, so a null source is harmless elsewhere
   const double* currentPredictors =
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
-  // both TRUE only from a re-creation: its control may not record a store
-  // the flat API sized, and its engine holds the grid a creation derives,
-  // not the one the sampler held. A live $setState keeps the sampler's own
-  // capacity and its own grid
+  // TRUE only from a re-creation: its control may not record a store the
+  // flat API sized. A live $setState keeps the sampler's own capacity
   bool gridDiffers = false;
   bool installed =
     bartcore_bridge::setState(*holder.sampler, stateExpr, currentPredictors,
                               Rf_asLogical(adoptStoreCapacityExpr) == TRUE,
                               Rf_asLogical(forceExpr) == TRUE,
-                              Rf_asLogical(adoptGridExpr) == TRUE,
                               &gridDiffers);
   return Rf_ScalarInteger(!installed ? 0 : gridDiffers ? 2 : 1);
 }
@@ -7005,13 +7065,68 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
     if (record == nullptr || !std::isfinite(record[0]) ||
         !std::isfinite(record[1]) || record[1] < record[0] ||
         (count && record[1] == record[0]))
-      Rf_error("the model's response.range record must be two finite "
+      Rf_error("the data's response.range record must be two finite "
                "numbers, the second %s the first",
                count ? "above" : "not below");
     holder.sampler->setAnchor(record[0], record[1]);
   }
   SEXP resultExpr = PROTECT(Rf_allocVector(REALSXP, 2));
   holder.sampler->getAnchor(REAL(resultExpr)[0], REAL(resultExpr)[1]);
+  UNPROTECT(1);
+  return resultExpr;
+}
+
+// The values the sampler derived from its data, as the data object records
+// them: list(cutPoints, response.range, forest.calibration). cutPoints has one
+// entry per predictor, NULL on an unordered factor, a weighted grid carrying
+// its weights as the entry's "mass" attribute; response.range is (min, max),
+// NULL on a family that reads none; forest.calibration is c(anchor, unit),
+// NULL off a calibration map.
+SEXP bartcore_derivedRecords(SEXP ptrExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::DerivedRecords records;
+  holder.sampler->derivedRecords(records);
+  const char* names[] = {"cutPoints", "response.range", "forest.calibration",
+                         ""};
+  SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
+  size_t numPredictors = records.cutPoints.size();
+  SEXP gridsExpr =
+    PROTECT(Rf_allocVector(VECSXP, static_cast<R_xlen_t>(numPredictors)));
+  SET_VECTOR_ELT(resultExpr, 0, gridsExpr);
+  UNPROTECT(1);
+  SEXP massSymbol = Rf_install("mass");
+  for (size_t j = 0; j < numPredictors; ++j) {
+    const std::vector<double>& points = records.cutPoints[j];
+    if (points.empty()) continue;
+    SEXP pointsExpr = Rf_allocVector(REALSXP, static_cast<R_xlen_t>(points.size()));
+    SET_VECTOR_ELT(gridsExpr, static_cast<R_xlen_t>(j), pointsExpr);
+    std::memcpy(REAL(pointsExpr), points.data(), points.size() * sizeof(double));
+    const std::vector<double>& mass = records.cutMass[j];
+    if (mass.empty()) continue;
+    SEXP massExpr = PROTECT(
+      Rf_allocVector(REALSXP, static_cast<R_xlen_t>(mass.size())));
+    std::memcpy(REAL(massExpr), mass.data(), mass.size() * sizeof(double));
+    Rf_setAttrib(pointsExpr, massSymbol, massExpr);
+    UNPROTECT(1);
+  }
+  if (records.hasRange) {
+    SEXP rangeExpr = Rf_allocVector(REALSXP, 2);
+    SET_VECTOR_ELT(resultExpr, 1, rangeExpr);
+    REAL(rangeExpr)[0] = records.rangeMin;
+    REAL(rangeExpr)[1] = records.rangeMax;
+  }
+  if (!std::isnan(records.forestAnchor)) {
+    const char* calibrationNames[] = {"anchor", "unit"};
+    SEXP calibrationExpr = Rf_allocVector(REALSXP, 2);
+    SET_VECTOR_ELT(resultExpr, 2, calibrationExpr);
+    REAL(calibrationExpr)[0] = records.forestAnchor;
+    REAL(calibrationExpr)[1] = records.forestUnit;
+    SEXP calibrationNamesExpr = PROTECT(Rf_allocVector(STRSXP, 2));
+    for (int k = 0; k < 2; ++k)
+      SET_STRING_ELT(calibrationNamesExpr, k, Rf_mkChar(calibrationNames[k]));
+    Rf_setAttrib(calibrationExpr, R_NamesSymbol, calibrationNamesExpr);
+    UNPROTECT(1);
+  }
   UNPROTECT(1);
   return resultExpr;
 }
@@ -8362,7 +8477,7 @@ static bool readMissingColumns(SEXP stateExpr,
 
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity,
-              bool force, bool adoptGrid, bool* gridDiffers) {
+              bool force, bool* gridDiffers) {
   *gridDiffers = false;
   bartcore::SamplerShape shape = sampler.shape();
   if (!Rf_inherits(stateExpr, "bartcoreState"))
@@ -8832,7 +8947,7 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
     captureExceptions(restoreError, [&]() {
       restored = sampler.setState(state, currentPredictors,
                                   &lengthscaleRefused, nullptr, adoptCapacity,
-                                  force, &notClean, adoptGrid, gridDiffers);
+                                  force, &notClean, gridDiffers);
     });
     if (restoreError.failed)
       errorMessage = "state's saved trees cannot be stored by this sampler";

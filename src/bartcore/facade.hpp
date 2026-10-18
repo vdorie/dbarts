@@ -363,12 +363,9 @@ public:
   /// force installs a state whose live trees need repair, repairing them;
   /// without it such a state is left uninstalled, false returned and
   /// notClean, when non-null, set, which a refusal leaves down.
-  /// adoptGrid makes the cut points and weights the state records the
-  /// store's, on every column that is not a factor, before the state is
-  /// judged, the call of a sampler just created; without it the store's grid
-  /// and weights are not written and the state's trees go onto them, moved
-  /// where a forced call finds a threshold the grid lacks. gridDiffers, when
-  /// non-null, reports an install without adoptGrid onto points or weights
+  /// The store's grid and weights are never written: the state's trees go
+  /// onto them, moved where a forced call finds a threshold the grid lacks.
+  /// gridDiffers, when non-null, reports an install onto points or weights
   /// other than the state records.
   virtual bool setState(const SamplerStateData& state,
                         const double* currentPredictors,
@@ -377,12 +374,14 @@ public:
                         std::size_t adoptCapacity = keepStoreCapacity,
                         bool force = true,
                         bool* notClean = nullptr,
-                        bool adoptGrid = true,
                         bool* gridDiffers = nullptr) = 0;
   /// The sampler's response transform, Sampler::setAnchor's: written by a
   /// host re-creating a sampler from its record, read back to keep one.
   virtual void setAnchor(double min, double max) = 0;
   virtual void getAnchor(double& min, double& max) const = 0;
+  /// Sampler::derivedRecords: the grids, weights, range, anchor and unit a
+  /// host records so a re-creation takes them.
+  virtual void derivedRecords(DerivedRecords& records) const = 0;
   /// Sampler::installForests: force installs a donor that is not clean with
   /// the changes it needs, where an unforced call declines it; altered, when
   /// non-null, reports an install of such a donor, and report what it
@@ -709,9 +708,9 @@ public:
   bool setState(const SamplerStateData& state,
                 const double* currentPredictors, bool* lengthscaleRefused,
                 bool* altered, std::size_t adoptCapacity, bool force,
-                bool* notClean, bool adoptGrid, bool* gridDiffers) override {
+                bool* notClean, bool* gridDiffers) override {
     return impl_.setState(state, currentPredictors, lengthscaleRefused,
-                          altered, adoptCapacity, force, notClean, adoptGrid,
+                          altered, adoptCapacity, force, notClean,
                           gridDiffers);
   }
   void setAnchor(double min, double max) override {
@@ -719,6 +718,9 @@ public:
   }
   void getAnchor(double& min, double& max) const override {
     impl_.getAnchor(min, max);
+  }
+  void derivedRecords(DerivedRecords& records) const override {
+    impl_.derivedRecords(records);
   }
   WarmStartResult installForests(
       const SamplerStateData& donor,

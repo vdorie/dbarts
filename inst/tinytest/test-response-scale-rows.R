@@ -40,7 +40,7 @@ verboseControl <- dbartsControl(
   seed = 7L
 )
 readers <- function(s) s$getLeafPrior()
-recordedRange <- function(s) attr(s$model, "response.range")
+recordedRange <- function(s) s$data@response.range
 
 # Every warning and every message-free condition of a call, by class.
 caught <- function(expr) {

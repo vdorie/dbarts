@@ -38,7 +38,7 @@ unitControl <- function(...) {
 forestInfo <- function(sampler) {
   attr(sampler$control, "bartcore.forests", exact = TRUE)
 }
-unitOf <- function(sampler) forestInfo(sampler)$unit
+unitOf <- function(sampler) sampler$data@forest.calibration[["unit"]]
 numWarnings <- 0L
 counted <- function(expr, class = "warning") {
   withCallingHandlers(expr, warning = function(w) {
@@ -470,7 +470,7 @@ for (stretch in seq(1, 4, by = 0.125)) {
   unit <- unitOf(sampler)
   # the held default's multiple of the anchor, a quarter of the window over
   # the anchor the engine recorded
-  held <- 0.25 / forestInfo(sampler)$anchor
+  held <- 0.25 / sampler$data@forest.calibration[["anchor"]]
   if (held * unit / unit != held) {
     inexact <- stretch * y
     break

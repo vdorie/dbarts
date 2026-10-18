@@ -1946,7 +1946,7 @@ static void testCrossGridWarmStart() {
                            0.37804942330213542, destOptions, &twinRng);
   bool twinMoved = false;
   check(twin.setState(donorState, xDest.data(), nullptr, &twinMoved,
-                      keepStoreCapacity, true, nullptr, false) && twinMoved,
+                      keepStoreCapacity, true) && twinMoved,
         "cross-grid: the twin takes the donor's state across the grids");
 
   // declined as it stands, installed by force, the store's grid untouched
@@ -4044,14 +4044,17 @@ static void testWeightedGridState() {
           own.cutMass == weights,
         "a state carries the grid's weights");
 
-  // a state without weights installs the grids unweighted; its own puts
-  // them back
+  // a state without weights goes onto the store's weights, which stay, as
+  // its own goes onto them
   SamplerStateData bare(own);
   bare.cutMass.clear();
-  check(restoresExactly(sampler, bare) && !sampler.data().cutsWeighted(0),
-        "a state carrying no weights installs unweighted grids");
+  bool gridDiffers = false;
+  check(sampler.setState(bare, nullptr, nullptr, nullptr, keepStoreCapacity,
+                         true, nullptr, &gridDiffers) &&
+          gridDiffers && sampler.data().cutMass == weights,
+        "a state carrying no weights goes onto the store's, which stay");
   check(restoresExactly(sampler, own) && sampler.data().cutMass == weights,
-        "a state carrying weights installs them");
+        "a state carrying the store's weights installs as stored");
 
   // refusals leave the weights: an invalid weight, a state refused after its
   // grid went in, a refused refresh, and a cross-grid donor's scoped grid
@@ -4343,8 +4346,8 @@ static void testRestoreStatus() {
 
   // declined across cut grids: a state on a coarser grid, drawn over the rows
   // before the update, holds bottoms the collapsed rows do not reach. The
-  // grid it was judged on and the codes quantized to it are put back with
-  // everything else; forced, the grid stays the state's
+  // grid, the codes and the chains are left; forced, the state's splits are
+  // moved onto the store's grid, which stays
   {
     std::vector<ext_rng*> coarseRngs(numChains);
     for (size_t c = 0; c < numChains; ++c) {
@@ -4369,10 +4372,10 @@ static void testRestoreStatus() {
           "restore status: a state declined on another grid leaves the grid, "
           "the codes and the chains");
     check(restoresAltered(sampler, crossGrid, xNew.data()) &&
-            sampler.data().cutPoints == crossGrid.cutPoints &&
-            storageDigest(sampler.data()) != codes &&
+            sampler.data().cutPoints == forced.cutPoints &&
+            storageDigest(sampler.data()) == codes &&
             liveTreesAreOccupied(sampler),
-          "restore status: forced, the state goes in on its own grid");
+          "restore status: forced, the state goes onto the store's grid");
     for (ext_rng* r : coarseRngs) ext_rng_destroy(r);
   }
 
@@ -5427,7 +5430,7 @@ struct LiveInstall {
               bool force)
     : notClean(!force), altered(!force), gridDiffers(false) {
     installed = sampler.setState(state, x, nullptr, &altered,
-                                 keepStoreCapacity, force, &notClean, false,
+                                 keepStoreCapacity, force, &notClean,
                                  &gridDiffers);
   }
   bool clean() const { return installed && !notClean && !altered; }
@@ -5450,15 +5453,14 @@ static bool refusesLiveUntouched(S& sampler, const SamplerStateData& state,
     storageDigest(sampler.data()) == codes;
 }
 
-/// Sampler::setState without adoptGrid: the store's grid, weights and codes
-/// are never written. A state on the store's own grid installs as an adopting
-/// call installs it; one whose thresholds the grid holds installs as stored
+/// Sampler::setState onto the store's grid: its grid, weights and codes are
+/// never written. A state on the store's own grid installs as stored, as into
+/// a twin; one whose thresholds the grid holds installs as stored
 /// whatever grid or weights it records; one with a threshold the grid lacks,
 /// in a mean or a variance tree of any chain, is declined without force and
 /// with it leaves what installing it on its own grid and then calling
 /// setCutPoints by value leaves, kept draws untouched. A threshold on neither
-/// grid and another grid on an ordered factor are refused; an adopting
-/// install takes a state recording another grid on an ordered factor.
+/// grid and another grid on an ordered factor are refused.
 static void testLiveGridInstall() {
   std::uint64_t savedRngState = rngState;
   rngState = 271828u;
@@ -5509,7 +5511,7 @@ static void testLiveGridInstall() {
     return true;
   };
 
-  // its own grid: what the adopting call does, and no difference reported
+  // its own grid: what the twin's install does, and no difference reported
   Results none;
   sampler.run(5, 0, none);
   twin->run(5, 0, none);
@@ -5519,7 +5521,7 @@ static void testLiveGridInstall() {
           restoresExactly(*twin, own),
         "live grid: a state on the store's grid installs as stored");
   check(sigmaDraws(sampler) == sigmaDraws(*twin),
-        "live grid: and continues as an adopting install continues");
+        "live grid: and continues as the twin continues");
   check(LiveInstall(sampler, own, nullptr, false).clean() &&
           restoresExactly(*twin, own),
         "live grid: both go back to the stored state");
@@ -5721,7 +5723,19 @@ static void testLiveGridInstall() {
             samplerStatesAgree(withWeights, after),
           "live grid: a state recording no weights leaves a weighted grid "
           "its weights");
-    // the twin made unweighted by an adopting install of the bare state
+    // the twin made unweighted by another grid and then its own, which
+    // leaves the points and not their weights
+    {
+      std::vector<double> held(weighted[1]->data().cutPoints[0]);
+      std::vector<double> moved(held);
+      moved.back() += 1.0;
+      const size_t column = 0;
+      const double* movedGrid[] = {moved.data()};
+      const double* heldGrid[] = {held.data()};
+      std::uint32_t counts[] = {static_cast<std::uint32_t>(held.size())};
+      weighted[1]->setCutPoints(movedGrid, counts, &column, 1, xw.data());
+      weighted[1]->setCutPoints(heldGrid, counts, &column, 1, xw.data());
+    }
     check(restoresExactly(*weighted[1], bare) &&
             !weighted[1]->data().cutsWeighted(0),
           "live grid: the twin's grid is unweighted");
@@ -5772,17 +5786,6 @@ static void testLiveGridInstall() {
     check(refusesLiveUntouched(ordered, fiveLevels, xo.data()),
           "live grid: another grid recorded on an ordered factor is refused "
           "by an install that keeps the store's");
-    // an adopting install does not hold the record against the state, and
-    // writes no grid on a factor column: the state goes in as stored on the
-    // grid of the store's level count
-    SamplerStateData adopted;
-    bool taken = restoresExactly(ordered, fiveLevels, xo.data());
-    ordered.getState(adopted);
-    check(taken && adopted.cutPoints[0] == levels.cutPoints[0] &&
-            samplerStatesAgree(levels, adopted),
-          "live grid: an adopting install takes a state recording another "
-          "grid on an ordered factor, the column's grid still its level "
-          "count's");
     ext_rng_destroy(orderedRng);
   }
 
@@ -6275,6 +6278,152 @@ static void testWarmStartTreeCounts() {
   printf("ok: warm start from another tree count\n");
 }
 
+/// A creation build handed cut grids (SamplerOptions::suppliedCutGrid) holds
+/// them in place of its derivations: a numeric column's points and weights as
+/// given, a column given none derived, and an ordered factor's grid its
+/// levels' whatever its entry. The grids a build derives, handed to another,
+/// give that build's codes and draws through the single-forest, combining and
+/// multinomial constructors; another grid gives the codes setCutPoints to it
+/// gives; derivedRecords reads back what the build holds.
+static void testSuppliedCutGrid() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 1414213u;
+  const size_t n = 150, p = 3, K = 3;
+  std::vector<double> x(n * p), y(n), z(n);
+  std::vector<int> counts(n * K, 0), trials(n, 1);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = static_cast<double>((i % 6) * (i % 6));  // a weighted grid
+    x[i + 2 * n] = static_cast<double>(i % 4);           // an ordered factor
+    z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+    y[i] = std::sin(4.0 * x[i]) + 0.1 * x[i + n] + z[i] +
+           0.2 * (runif01() - 0.5);
+    counts[(i % K) * n + i] = 1;
+  }
+  ColumnKind kinds[] = {ColumnKind::numeric, ColumnKind::numeric,
+                        ColumnKind::orderedFactor};
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint_least32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return r;
+  };
+  auto optionsWith = [&](const SuppliedCutGrid& supplied) {
+    SamplerOptions options;
+    options.numTrees = 10;
+    options.predictors.columnTypes = kinds;
+    options.suppliedCutGrid = supplied;
+    return options;
+  };
+  using Built = std::unique_ptr<Sampler<ConstantGaussianLeaf>>;
+  auto single = [&](const SuppliedCutGrid& supplied) {
+    ext_rng* r = newRng(2718u);
+    return Built(new Sampler<ConstantGaussianLeaf>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, optionsWith(supplied), &r));
+  };
+  auto combining = [&](const SuppliedCutGrid& supplied) {
+    AmplitudeSpec spec;
+    spec.mu.numTrees = 8;
+    spec.tau.numTrees = 4;
+    spec.z = z.data();
+    ext_rng* r = newRng(3141u);
+    return Built(new Sampler<ConstantGaussianLeaf>(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, optionsWith(supplied), spec, &r));
+  };
+  auto multinomial = [&](const SuppliedCutGrid& supplied) {
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = counts.data();
+    spec.trials = trials.data();
+    spec.forest.numTrees = 5;
+    ext_rng* r = newRng(1618u);
+    return Built(new Sampler<ConstantGaussianLeaf>(
+      x.data(), n, p, optionsWith(supplied), spec, &r));
+  };
+  auto draws = [](Sampler<ConstantGaussianLeaf>& sampler) {
+    std::vector<double> train(n * 5 * K);
+    Results results;
+    results.trainingFits = train.data();
+    sampler.run(5, 5, results);
+    return train;
+  };
+
+  Built derived = single({});
+  DerivedRecords records;
+  derived->derivedRecords(records);
+  check(records.cutPoints == derived->data().cutPoints &&
+          records.cutMass == derived->data().cutMass &&
+          derived->data().cutsWeighted(1) && !derived->data().cutsWeighted(0) &&
+          records.cutPoints[2] == std::vector<double>({0.5, 1.5, 2.5}),
+        "supplied grid: the reader gives the grids and weights a build holds");
+
+  // the derived grids handed back: the same store and the same draws
+  SuppliedCutGrid same{&records.cutPoints, &records.cutMass};
+  bool sameAll = true;
+  for (int kind = 0; kind < 3; ++kind) {
+    Built plain = kind == 0 ? single({}) : kind == 1 ? combining({})
+                                                     : multinomial({});
+    Built given = kind == 0 ? single(same) : kind == 1 ? combining(same)
+                                                       : multinomial(same);
+    sameAll = sameAll && given->data().cutPoints == plain->data().cutPoints &&
+              given->data().cutMass == plain->data().cutMass &&
+              storageDigest(given->data()) == storageDigest(plain->data()) &&
+              draws(*given) == draws(*plain);
+  }
+  check(sameAll,
+        "supplied grid: a build's own grids give its codes and draws through "
+        "all three constructors");
+
+  // another grid on the first column, none on the second, a foreign one on
+  // the ordered factor
+  std::vector<std::vector<double>> points(records.cutPoints);
+  std::vector<std::vector<double>> mass(records.cutMass);
+  points[0] = {0.25, 0.5, 0.75};
+  mass[0].clear();
+  points[1].clear();
+  mass[1].clear();
+  points[2] = {9.0};
+  SuppliedCutGrid other{&points, &mass};
+  bool otherAll = true;
+  for (int kind = 0; kind < 3; ++kind) {
+    Built given = kind == 0 ? single(other) : kind == 1 ? combining(other)
+                                                        : multinomial(other);
+    Built twin = kind == 0 ? single({}) : kind == 1 ? combining({})
+                                                    : multinomial({});
+    const double* grids[] = {points[0].data()};
+    std::uint32_t numCuts[] = {3u};
+    const size_t column = 0;
+    twin->setCutPoints(grids, numCuts, &column, 1, x.data());
+    otherAll = otherAll && given->data().cutPoints[0] == points[0] &&
+               !given->data().cutsWeighted(0) &&
+               given->data().cutPoints[1] == records.cutPoints[1] &&
+               given->data().cutMass[1] == records.cutMass[1] &&
+               given->data().cutPoints[2] == records.cutPoints[2] &&
+               storageDigest(given->data()) == storageDigest(twin->data());
+  }
+  check(otherAll,
+        "supplied grid: a numeric column takes the grid given, one given "
+        "none derives, and an ordered factor keeps its levels'");
+
+  // weights given with a grid are the store's
+  std::vector<std::vector<double>> weighted(records.cutPoints);
+  std::vector<std::vector<double>> weights(records.cutMass);
+  weights[0].resize(weighted[0].size() + 1);
+  for (size_t k = 0; k < weights[0].size(); ++k)
+    weights[0][k] = static_cast<double>(k * k);
+  Built heavy = single(SuppliedCutGrid{&weighted, &weights});
+  check(heavy->data().cutMass[0] == weights[0] &&
+          heavy->data().cutPoints[0] == records.cutPoints[0],
+        "supplied grid: weights given with a grid weigh its points");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a creation build takes the grids it is handed\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -6311,6 +6460,7 @@ void runStateTests(ext_rng* rng) {
   testWeightedGridState();
   testLiveThresholdsOnGrid();
   testLiveGridInstall();
+  testSuppliedCutGrid();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

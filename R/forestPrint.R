@@ -234,7 +234,7 @@ samplerForestLines <- function(sampler, full = FALSE) {
     sampler$data@weights,
     sampler$activeRows,
     sampler$model@family,
-    info$unit,
+    dataForestCalibration(sampler$data)[["unit"]],
     full,
     "$getLeafPrior()"
   )

@@ -434,15 +434,13 @@ expect_equal(
 # a record that is not a transform is refused when a re-creation reads it: a
 # non-finite or decreasing pair anywhere, and an equal one on the count family
 withRecord <- function(sampler, record) {
-  model <- sampler$model
-  attr(model, "response.range") <- record
-  sampler$model <- model
+  sampler$data@response.range <- record
   sampler
 }
 for (record in list(c(NaN, NaN), c(2, 1))) {
   expect_error(
     withRecord(make(), record)$copy(),
-    "response.range record must be two finite numbers"
+    "'response.range' record must be two finite numbers"
   )
 }
 expect_error(

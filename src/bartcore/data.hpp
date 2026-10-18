@@ -127,6 +127,23 @@ inline bool cutMassIsValid(const std::vector<double>& mass, size_t numCuts) {
   return true;
 }
 
+/// Cut grids a host hands a build in place of deriving them, as a sampler
+/// re-created from its host's record takes the grid the record holds. Both
+/// are borrowed for the build alone. points, when non-null, has one entry per
+/// column: a numeric column's grid, which must pass cutGridIsValid, or empty
+/// to derive it; a factor column's entry is not read, its grid being its level
+/// table's. mass, when non-null, is parallel to points: a column's weights,
+/// which must pass cutMassIsValid against its points, or empty for points
+/// equally likely. The host checks both; the build trusts them.
+struct SuppliedCutGrid {
+  const std::vector<std::vector<double>>* points = nullptr;
+  const std::vector<std::vector<double>>* mass = nullptr;
+
+  bool suppliesColumn(size_t j) const {
+    return points != nullptr && !(*points)[j].empty();
+  }
+};
+
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
 /// int32 level codes. Exactly one channel is present, so isCoded discriminates
 /// and at() serves either - a code widens, and naDenseCode becomes the NaN
@@ -1846,11 +1863,16 @@ struct ColumnStore {
   /// discards it - a creation build has nothing to preserve - and the refusal
   /// travels out as a status rather than an exception, since the hosts that
   /// raise on it cross a C boundary.
+  ///
+  /// supplied names the numeric columns whose grids and weights the host
+  /// gives (SuppliedCutGrid): each is installed in place of its derivation,
+  /// before the column is quantized, whatever requestedNumCuts says.
   [[nodiscard]] bool build(const PredictorSource& source,
                            const std::uint32_t* maxNumCutsPerColumn,
                            std::uint32_t maxNumCutsScalar, bool useQuantiles_,
                            const size_t* gatherColumns = nullptr,
-                           size_t numGatherColumns = 0) {
+                           size_t numGatherColumns = 0,
+                           const SuppliedCutGrid& supplied = {}) {
     size_t n = source.numRows, p = source.numColumns;
     bool mapped = source.isMapped();
     isView = false;
@@ -2002,7 +2024,15 @@ struct ColumnStore {
         for (size_t i = 0; i < n; ++i) widened[i] = column.at(i);
         column = DenseColumnValues(widened.data());
       }
-      if (!buildCutsForColumn(j, column)) return false;
+      if (types[j] == ColumnKind::numeric && supplied.suppliesColumn(j)) {
+        const std::vector<double>& points = (*supplied.points)[j];
+        cutPoints[j] = points;
+        numCuts[j] = static_cast<std::uint32_t>(points.size());
+        if (supplied.mass != nullptr)
+          cutMass[j] = (*supplied.mass)[j];
+      } else if (!buildCutsForColumn(j, column)) {
+        return false;
+      }
       quantizeColumn(j, column);
     }
     refreshCategoricalTiers();

@@ -7,9 +7,10 @@
 # what is beneath it into one leaf at the mean of the stored leaves weighted
 # by the rows each held. That is what installing the state on its own points
 # and then calling setCutPoints(splits = "value") gives. A copy and a reload,
-# which create a new engine, still take the points and weights their stored
-# state records. To restore a state's cut points too the caller sets them
-# first: setCutPoints(attr(st, "cutPoints")) and then setState(st).
+# which create a new engine, take the points and weights their data object
+# records, and the state goes onto them the same way. To restore a state's
+# cut points too the caller sets them first: setCutPoints(attr(st,
+# "cutPoints")) and then setState(st).
 
 visibly <- function(value) list(value = value, visible = TRUE)
 forcedValue <- list(value = NULL, visible = FALSE)
@@ -554,17 +555,28 @@ expect_identical(dim(first$predict(x)), c(n, 4L))
 expect_identical(first$predict(x), later$predict(x))
 
 # with no saved state of its own, or one that is refused, the new engine
-# holds no grid of the sampler's and takes the handed state's
+# still holds the grid its data object records, and the handed state goes
+# onto it as onto a live sampler's: declined as it stands, and forced moved
+# by value
+recorded <- list(three, grid[[2L]])
+sampler <- make()
+sampler$setCutPoints(three, 1L)
+sampler$storeState()
+twin <- make()
+twin$setCutPoints(three, 1L)
+expect_null(twin$setState(stored, forceUpdate = TRUE))
 stateless <- reloadOf(sampler)
 stateless$state <- NULL
-expect_identical(withVisible(stateless$setState(stored)), visibly(TRUE))
-expect_identical(cutPointsOf(stateless), grid)
-expect_identical(stateless$state, stored)
+expect_identical(withVisible(stateless$setState(stored)), visibly(FALSE))
+expect_null(stateless$setState(stored, forceUpdate = TRUE))
+expect_identical(cutPointsOf(stateless), recorded)
+expect_identical(liveOf(stateOf(stateless)), liveOf(stateOf(twin)))
+expect_identical(stateless$state, stateOf(stateless))
 refusing <- reloadOf(sampler)
 refusing$state <- stateOf(make(n.trees = 7L))
-expect_identical(withVisible(refusing$setState(stored)), visibly(TRUE))
-expect_identical(cutPointsOf(refusing), grid)
-expect_identical(liveOf(stateOf(refusing)), liveOf(stored))
+expect_null(refusing$setState(stored, forceUpdate = TRUE))
+expect_identical(cutPointsOf(refusing), recorded)
+expect_identical(liveOf(stateOf(refusing)), liveOf(stateOf(twin)))
 
 # ---- weights -------------------------------------------------------------
 
@@ -667,10 +679,10 @@ expect_identical(sampler$state, stored)
 expect_true(twin$setState(stored))
 expect_identical(sampler$run(0L, 5L), twin$run(0L, 5L))
 
-# ---- re-creation adopts ---------------------------------------------------
+# ---- re-creation reads the record -----------------------------------------
 
 # stored after three points: a copy and a reload hold the three points and
-# the weights of the other column
+# the weights of the other column, as the data object records them
 sampler <- weighted()
 sampler$setCutPoints(c(1, 3, 6), 1L)
 sampler$storeState()
@@ -1030,15 +1042,12 @@ expect_identical(withVisible(sampler$setState(states$ordered)), visibly(TRUE))
 
 # an ordered factor whose record declares fewer levels than its engine holds.
 # setData keeps the sampler's levels in the record (dec-B454), so the record
-# is assigned by hand here, as an object saved by an earlier build has it. The
-# engine keeps the grid of the levels it was created with, the stored
-# state records that grid, and a new engine holds the grid of the levels the
-# record declares. A copy and a reload are made all the same: the state is
-# not held to the record where the engine is new, its trees go in as stored,
-# and the two then draw alike. Their state field is then the state their
-# engine holds, which records the grid it is on and so installs on them; the
-# state the original stored records another grid than theirs and is refused.
-# The sampler takes its own state back
+# is assigned by hand here, as an object saved by an earlier build has it. A
+# new engine holds the grid of the levels the record declares, and a state
+# recording another grid on an ordered factor is another column's, so a copy,
+# which takes the live chain, and a reload, which takes the stored state, are
+# both refused, the sampler left as it was. The sampler takes its own state
+# back
 levels6 <- ordered(rep_len(c(1L, 3L, 2L, 6L, 4L, 5L, 2L), n))
 kept <- as.integer(levels6) <= 4L
 sampler <- dbarts::dbarts(
@@ -1065,91 +1074,16 @@ sampler$storeState()
 own <- sampler$state
 expect_identical(attr(own, "cutPoints")[[1L]], c(0.5, 1.5, 2.5, 3.5, 4.5))
 expect_true(length(thresholdsOn(own, 1L)) > 0L)
-doors <- list(
-  copy = tryCatch(sampler$copy(), error = conditionMessage),
-  reload = tryCatch(
-    {
-      reloaded <- reloadOf(sampler)
-      invisible(reloaded$getPointer())
-      reloaded
-    },
-    error = conditionMessage
-  )
-)
-made <- vapply(doors, inherits, NA, what = "dbartsSampler")
-expect_identical(
-  made,
-  c(copy = TRUE, reload = TRUE),
-  info = unlist(doors[!made])
-)
-if (all(made)) {
-  for (door in doors) {
-    remade <- stateOf(door)
-    expect_identical(attr(remade, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
-    expect_identical(liveOf(remade), liveOf(own))
-    expect_identical(door$state, remade)
-    expect_identical(answerOf(door$setState(door$state)), visibly(TRUE))
-    expectError(door$setState(own), "the original's state")
-    expectError(
-      door$setState(own, forceUpdate = TRUE),
-      "the original's state"
-    )
-    expect_identical(stateOf(door), remade)
-  }
-  expect_identical(doors$copy$run(0L, 5L), doors$reload$run(0L, 5L))
-  # a reloaded sampler handed its field as its first call takes it too, and
-  # then draws as a copy that made no call
-  first <- reloadOf(sampler)
-  expect_identical(first$state, own)
-  expect_identical(answerOf(first$setState(first$state)), visibly(TRUE))
-  expect_identical(first$state, stateOf(first))
-  expect_identical(attr(first$state, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
-  expect_identical(first$run(0L, 5L), sampler$copy()$run(0L, 5L))
-  # so does the state the original stored, the same as that field, but only
-  # as the first call: after any other use the field is the engine's and the
-  # original's state is another
-  first <- reloadOf(sampler)
-  expect_identical(answerOf(first$setState(own)), visibly(TRUE))
-  later <- reloadOf(sampler)
-  invisible(later$getTrees())
-  expectError(later$setState(own), "the original's state, later")
-  # only the field stands in for itself: another state that installs goes
-  # in as handed, as a first call too
-  ahead <- sampler$copy()
-  invisible(ahead$run(0L, 3L))
-  other <- stateOf(ahead)
-  expect_false(identical(liveOf(other), liveOf(own)))
-  first <- reloadOf(sampler)
-  expect_identical(answerOf(first$setState(other)), visibly(TRUE))
-  expect_identical(liveOf(stateOf(first)), liveOf(other))
-  expect_identical(first$state, other)
-  # a state on the original's grid that is not the field is refused as a
-  # first call, and the field is by then the rebuilt engine's and installs
-  changed <- own
-  forest <- changed[[1L]]$forests[[1L]]
-  values <- readBin(forest$tree.values, "double", length(forest$tree.vars))
-  leaf <- which(forest$tree.vars < 0L)[1L]
-  values[leaf] <- values[leaf] + 0.01
-  forest$tree.values <- writeBin(values, raw())
-  changed[[1L]]$forests[[1L]] <- forest
-  first <- reloadOf(sampler)
-  expectError(first$setState(changed), "the original's grid, not the field")
-  expect_identical(attr(first$state, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
-  expect_identical(answerOf(first$setState(first$state)), visibly(TRUE))
-  # with no field of its own a reload takes the original's state, and its
-  # field is then its engine's, which installs
-  bare <- reloadOf(sampler)
-  bare$state <- NULL
-  expect_identical(answerOf(bare$setState(own)), visibly(TRUE))
-  expect_identical(attr(bare$state, "cutPoints")[[1L]], c(0.5, 1.5, 2.5))
-  expect_identical(answerOf(bare$setState(bare$state)), visibly(TRUE))
-}
+expectError(sampler$copy(), "a copy of an engine on more levels")
+reloaded <- reloadOf(sampler)
+expectError(reloaded$getPointer(), "a reload on fewer levels")
+expect_identical(reloaded$state, own)
 expect_identical(withVisible(sampler$setState(own)), visibly(TRUE))
 expect_identical(stateOf(sampler), own)
 # where the levels are unchanged the engine holds the points the state
-# records and the field stays the state as given: one holding a split
-# outside its interval is repaired in a copy's and a reload's engine, not in
-# their field, which they decline unforced as the sampler does
+# records and a reload's field stays the state as given: one holding a split
+# outside its interval is repaired in the reload's engine, not in its field,
+# which it declines unforced as the sampler does
 sampler <- kindOf("ordered")
 field <- stateOf(sampler)
 points <- attr(field, "cutPoints")[[2L]]
@@ -1162,10 +1096,12 @@ sampler$state <- field
 copied <- sampler$copy()
 reloaded <- reloadOf(sampler)
 invisible(reloaded$getTrees())
-expect_identical(copied$state, field)
+# a copy of the live sampler is its engine's chain, whatever the field holds
+expect_identical(copied$state, stateOf(sampler))
+expect_identical(stateOf(copied), stateOf(sampler))
 expect_identical(reloaded$state, field)
-expect_identical(firstTree(stateOf(copied))$vars, c(2L, -1L, -1L))
-expect_identical(answerOf(copied$setState(copied$state)), visibly(FALSE))
+expect_identical(firstTree(stateOf(reloaded))$vars, c(2L, -1L, -1L))
+expect_identical(answerOf(reloaded$setState(reloaded$state)), visibly(FALSE))
 
 # a subset rule beside a moved column is as stored: the root splits the
 # factor, its left child a threshold the grid lacks with a point left for it

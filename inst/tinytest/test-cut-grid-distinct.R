@@ -388,9 +388,10 @@ doubled <- good
 attr(doubled, "cutPoints")[[2L]] <- c(0.25, 0.5, 0.5, 0.75)
 
 expect_error(sampler$setState(doubled), pattern = stateRefusal, fixed = TRUE)
-# a copy and a reload install the state the field holds, and refuse it
+# a reload installs the state the field holds, and refuses it; a copy of
+# the live sampler takes its engine's chain, not the field
 sampler$state <- doubled
-expect_error(sampler$copy(), pattern = stateRefusal, fixed = TRUE)
+expect_identical(sampler$copy()$state, good)
 path <- tempfile(fileext = ".rds")
 saveRDS(sampler, path)
 reloaded <- readRDS(path)
@@ -848,15 +849,18 @@ expect_identical(copied$run(0L, 3L)$train, reloaded$run(0L, 3L)$train)
 expect_true(sampler$setState(stored))
 
 # the weights are the sampler's: a state without them installs and leaves
-# them, where a sampler re-created from it is unweighted, and a malformed one
-# is refused by column
+# them, as does a sampler re-created from it, which takes the data object's,
+# and a malformed one is refused by column
 bare <- stored
 attr(bare, "cutMass") <- NULL
 expect_true(sampler$setState(bare))
 expect_identical(massOf(sampler), mass)
 unweighted <- sampler$copy()
 unweighted$state <- bare
-expect_null(massOf(unweighted$copy()))
+path <- tempfile(fileext = ".rds")
+saveRDS(unweighted, path)
+expect_identical(massOf(readRDS(path)), mass)
+unlink(path)
 expect_true(sampler$setState(stored))
 expect_identical(massOf(sampler), mass)
 malformed <- stored

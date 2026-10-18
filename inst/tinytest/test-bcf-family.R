@@ -351,7 +351,7 @@ for (family in c("gaussian", "probit", "logistic")) {
   response <- if (family == "gaussian") yContinuous else yBalanced
   for (bases in list(unitBases2, unitBases3, unitBases4)) {
     sampler <- mapSampler(response, bases, family)
-    unit <- attr(sampler$control, "bartcore.forests")$unit
+    unit <- sampler$data@forest.calibration[["unit"]]
     expect_identical(
       readerSlot(sampler, "sd")[-1L],
       rep(unit, length(bases) - 1L)
@@ -359,7 +359,7 @@ for (family in c("gaussian", "probit", "logistic")) {
   }
   for (bases in list(freeBases2, freeBases3, freeBases4)) {
     sampler <- mapSampler(response, bases, family)
-    unit <- attr(sampler$control, "bartcore.forests")$unit
+    unit <- sampler$data@forest.calibration[["unit"]]
     expect_identical(
       readerSlot(sampler, "sd")[-1L],
       rep(unit, length(bases) - 1L)

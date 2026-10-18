@@ -321,9 +321,10 @@ expect_error(
 )
 
 # --- the re-quantize surface after a sparse-valued mutation: the store keeps
-# its retained slices, so setCutPoints and a reload's install of the stored
-# cut points still run. A live setState leaves the sampler's cut points
-# alone; set by hand first, the stored points go back and the state with them
+# its retained slices, so setCutPoints, a reload built on the recorded cut
+# points and the move of the stored splits onto them still run. A live
+# setState leaves the sampler's cut points alone; set by hand first, the
+# stored points go back and the state with them
 set.seed(91L)
 sampler.after <- dbarts(x.a, y.a, control = control, sigest = sd(y.a))
 invisible(sampler.after$run(30L, 5L))
@@ -337,12 +338,6 @@ path.after <- tempfile(fileext = ".rds")
 saveRDS(sampler.after, path.after)
 reloaded.after <- readRDS(path.after)
 unlink(path.after)
-expect_equal(reloaded.after$getSumsOfSquaredResiduals(), ssr.after)
-reloaded.after$storeState()
-expect_identical(
-  attr(reloaded.after$state, "cutPoints"),
-  attr(stored.state, "cutPoints")
-)
 # forced onto the three points, the state's splits are moved and the points
 # stay, the sparse column requantized on the stored points and back
 expect_null(sampler.after$setState(stored.state, forceUpdate = TRUE))
@@ -351,6 +346,12 @@ expect_identical(
   attr(sampler.after$state, "cutPoints")[[1L]],
   c(0.1, 0.5, 0.9)
 )
+expect_equal(
+  reloaded.after$getSumsOfSquaredResiduals(),
+  sampler.after$getSumsOfSquaredResiduals()
+)
+reloaded.after$storeState()
+expect_identical(reloaded.after$state, sampler.after$state)
 sampler.after$setCutPoints(attr(stored.state, "cutPoints"))
 expect_true(sampler.after$setState(stored.state))
 expect_equal(sampler.after$getSumsOfSquaredResiduals(), ssr.after)

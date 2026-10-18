@@ -370,16 +370,14 @@ SEXP storeState(bartcore::SamplerBase& sampler);
 /// from (data@x, or the retained creation spec's @x); null for CSC/mixed
 /// stores and for an install that replaces no grid. adoptStoreCapacity
 /// lets the state's saved-tree capacity replace the sampler's once the state
-/// is accepted, the re-creation path's need. force, adoptGrid and
-/// gridDiffers are Sampler::setState's: adoptGrid makes the cut points and
-/// weights the state records the sampler's, again a re-creation's need, and
-/// gridDiffers, which must not be null, reports an install onto points or
-/// weights other than the state records.
+/// is accepted, the re-creation path's need. force and gridDiffers are
+/// Sampler::setState's: gridDiffers, which must not be null, reports an
+/// install onto points or weights other than the state records.
 /// Returns whether the state was installed: false only without force, for a
 /// state a tree of which would have to be changed, the sampler untouched.
 bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
               const double* currentPredictors, bool adoptStoreCapacity,
-              bool force, bool adoptGrid, bool* gridDiffers);
+              bool force, bool* gridDiffers);
 
 /// A data.frame of tree structure over 0-based index arrays; unprotected on
 /// return. Reads saved trees unless useLiveTrees (sample indices are then

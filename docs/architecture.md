@@ -82,7 +82,10 @@ response's units, by the unit, and holds the calibration map and every default,
 so R derives none of it (docs/design/forest-sd-unit.md).
 
 The sampler lives in C++ and the R object holds an external pointer to it, a
-`bartcore::SamplerBase`. `src/bartcore/` is header-only: it compiles into
+`bartcore::SamplerBase`. What the engine derived from the data and holds -
+the cut grids, the response range, a calibration map's anchor - is recorded
+on the R object's data object, which a copy or a reload re-creates the engine
+from (docs/design/state-frame-prior.md). `src/bartcore/` is header-only: it compiles into
 whichever translation unit includes it - the R bridge, the C API, `tests/cpp`
 - and is not itself a library. `misc.a` is a library because its SIMD kernels
 are compiled once per instruction set in separate translation units that

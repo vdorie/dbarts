@@ -1113,6 +1113,11 @@ bartcoreSamplerSetPredictor <- function(
     }
   }
   recordMissingSeen(sampler, ptr)
+  # a grid derived again for the new values is the sampler's record, written
+  # where a call could have derived one
+  if (updateCutPoints != cutPointRuleCodes[["none"]]) {
+    recordDerived(sampler, ptr)
+  }
 
   # a forced update always installs, and what it returns says nothing of
   # validity (dec-B310): NULL, invisibly, as 0.9-34's did
@@ -1299,8 +1304,10 @@ bartcoreSamplerSetData <- function(sampler, newData) {
     )
   }
   # nor for levels: a record that names some for a block the data lack is
-  # refused before anything is stored, as it is where a sampler is made
+  # refused before anything is stored, as it is where a sampler is made, and
+  # so are derived values recorded in a form that fits no data
   checkBasisRecord(newData)
+  newData <- checkDerivedRecord(newData)
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }
@@ -1347,8 +1354,9 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   if (inherits(tryResult, "error")) {
     stop(tryResult)
   }
-  # the record is the sampler's, whatever the object handed in carried
+  # the records are the sampler's, whatever the object handed in carried
   sampler$data@missing.seen <- .Call(C_dbarts_bartcore_getMissingSeen, ptr)
+  recordDerived(sampler, ptr)
   # the swap cleared whatever mask was in force, so the mirror that would
   # otherwise re-apply one at re-creation goes with it; setActiveRows records
   # the replacement's own below
@@ -1387,7 +1395,7 @@ bartcoreSamplerSetActiveRows <- function(sampler, active, updateScale) {
     active
   }
   if (updateScale) {
-    sampler$model <- recordAnchor(sampler$model, ptr)
+    recordDerived(sampler, ptr)
   }
   invisible(scaleKept)
 }
@@ -1448,14 +1456,16 @@ bartcoreSamplerSetCutPoints <- function(sampler, cuts, column, splits) {
   }
 
   # the engine re-quantizes the transient borrow of the current predictors
+  ptr <- sampler$getPointer()
   .Call(
     C_dbarts_bartcore_setCutPoints,
-    sampler$getPointer(),
+    ptr,
     cuts,
     column,
     rawPredictorMatrix(sampler$data@x),
     cutPointRuleCodes[[splits]]
   )
+  recordDerived(sampler, ptr)
   invisible(NULL)
 }
 

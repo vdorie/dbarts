@@ -673,6 +673,20 @@ methods::setClass(
     # missing value where their source can. A data object saved before the
     # slot existed lacks it, so every read goes through dataMissingSeen.
     missing.seen = "ANY",
+    # What the sampler holding this object derived from its data and holds
+    # while the data move, written from the engine after creation and after
+    # each call that can change one, and read when a sampler is created from
+    # the object, so a copy and a reload take them and none from a state.
+    # NULL derives the value. cutPoints: one entry per predictor, NULL on an
+    # unordered factor, else the grid, its weights as the entry's "mass"
+    # attribute where they are not equal. response.range: the response's
+    # (min, max), NULL on a family that reads none. forest.calibration:
+    # c(anchor = , unit = ) of a calibration map of several forests. A data
+    # object saved before the slots existed lacks them, so every read goes
+    # through the accessors in data.R.
+    cutPoints = "ANY",
+    response.range = "ANY",
+    forest.calibration = "ANY",
     # the original response's type before it was coded to the doubles the
     # engine reads: "numeric", "factor", "ordered factor", "logical", or
     # "character". The fitters key family = "auto" and the categorical-response
@@ -748,6 +762,9 @@ methods::setClass(
     na.action = NULL,
     rowNames = NULL,
     missing.seen = NULL,
+    cutPoints = NULL,
+    response.range = NULL,
+    forest.calibration = NULL,
     response.type = "numeric",
     response.n.levels = NA_integer_,
     response.levels = NULL,

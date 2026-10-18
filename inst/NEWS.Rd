@@ -275,8 +275,25 @@
             variable and set them first:
             \code{sampler$setCutPoints(attr(state, "cutPoints"))}, then
             \code{sampler$setState(state)}. A copy and a reloaded sampler
-            keep the cut points their stored state records for numeric
-            columns.
+            keep the cut points the sampler's data object records, below.
+      \item What a sampler derives from its data - its cut points and their
+            weights, the response range its leaf prior is scaled by and,
+            with several forests, their calibration - is recorded on the
+            data object it holds, \code{sampler$data}, in the new slots
+            \code{cutPoints}, \code{response.range} and
+            \code{forest.calibration} (see \code{\link{dbartsData}}). A
+            sampler created from a data object uses what it records and
+            derives the rest, so \code{dbarts(sampler$data)},
+            \code{bart(sampler$data)}, \code{new("dbartsSampler", ...,
+            sampler$data)} and \code{samplePriorPredictive(sampler)} are made
+            on the sampler's cut points and response range, where 0.9-34
+            derived them again from the data. A data object made afresh
+            derives them, as before. A copy and a reloaded sampler are made
+            on the record: a copy of a sampler takes its current chain, where
+            0.9-34 installed the last stored state, and a sampler saved after
+            \code{$setCutPoints} with no \code{$storeState()} since reloads
+            on the new cut points, the stored splits moved onto them by
+            value, where 0.9-34 brought back the stored cut points.
       \item A state whose saved draws (\code{keepTrees}) number more or
             fewer than the sampler keeps is installed with the newest that
             fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a

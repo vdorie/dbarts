@@ -158,7 +158,7 @@ for (shape in shapes) {
 
 # --- exact: a held forest's own sd is its sd ---
 unitOf <- function(sampler) {
-  attr(sampler$control, "bartcore.forests", exact = TRUE)$unit
+  sampler$data@forest.calibration[["unit"]]
 }
 families <- list(
   gaussian = list(response = y, family = "gaussian", unit = NA),
@@ -448,7 +448,7 @@ for (sd in c(0.3, NA)) {
       }
       f <- length(shape)
       prior <- sampler$getLeafPrior(f)
-      unit <- attr(sampler$control, "bartcore.forests", exact = TRUE)$unit
+      unit <- sampler$data@forest.calibration[["unit"]]
       expect_equal(
         unname(prior$sd),
         if (is.na(sd)) unit / sd(dose) else sd,

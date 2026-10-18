@@ -522,15 +522,23 @@ for (case in cases) {
   expect_true(forced$setState(forced$state), info = case$info)
   expect_true(all(is.finite(forced$run(0L, 5L)$train)), info = case$info)
 
-  # a copy and a reload of a sampler holding such a state repair it, silently
+  # a reload of a sampler holding such a state, and a copy made of it before
+  # its engine is rebuilt, repair it, silently; a copy of the live sampler
+  # takes its engine's chain
   holder <- case$make()
   holder$state <- state
   expect_silent(duplicate <- holder$copy())
+  expect_identical(
+    duplicate$state,
+    .Call(dbarts:::C_dbarts_bartcore_storeState, holder$pointer),
+    info = case$info
+  )
   path <- tempfile(fileext = ".rds")
   saveRDS(holder, path)
   reloaded <- readRDS(path)
+  expect_silent(deadCopy <- readRDS(path)$copy())
   unlink(path)
-  for (route in list(duplicate, reloaded)) {
+  for (route in list(deadCopy, reloaded)) {
     expect_silent(route$storeState())
     expectTree(treeIn(route$state, case$forest), case$expected, case$info)
   }

@@ -1,7 +1,7 @@
 # A state stored before a forced setPredictor can route no row of the new
 # predictors to some of its leaves. setState declines it and leaves the
-# sampler alone; with forceUpdate = TRUE it installs it, as copy(), a reload
-# and a same-grid warm start do, merging those leaves into their parents
+# sampler alone; with forceUpdate = TRUE it installs it, as a reload and a
+# same-grid warm start do, merging those leaves into their parents
 # exactly as the forced update merged them, as 0.9-34's restore did.
 source(
   system.file("common", "stateContinuation.R", package = "dbarts"),
@@ -44,7 +44,8 @@ checkStaleRestore <- function(make, info) {
   stale <- sampler$state
   sampler$setPredictor(xNew, forceUpdate = TRUE)
 
-  # copy() and a reload re-create over the new predictors from the stale state
+  # a reload re-creates over the new predictors from the stale state, and a
+  # copy of the live sampler takes its chain, which the forced update merged
   duplicate <- sampler$copy()
   path <- tempfile(fileext = ".rds")
   saveRDS(sampler, path)
@@ -133,7 +134,7 @@ expect_true(all(is.finite(exactCopy$run(0L, 1L)$train)))
 
 # a merge weighs a subtree's leaves under the state's own latents, not the
 # destination's: a sampler whose latents moved after the forced update and a
-# copy() starting cold restore the same stale state to the same trees, leaf
+# reload starting cold restore the same stale state to the same trees, leaf
 # values and next draws. Whether a merged subtree's leaf weights differ is
 # draw-dependent, so each family runs over several seeds
 yCount <- rpois(n, exp(x[, 1L] + x[, 2L]))
@@ -167,7 +168,10 @@ for (name in c("logistic", "nbinom", "student")) {
     stale <- moved$state
     moved$setPredictor(xNew, forceUpdate = TRUE)
     invisible(moved$run(0L, 5L))
-    cold <- moved$copy()
+    path <- tempfile(fileext = ".rds")
+    saveRDS(moved, path)
+    cold <- readRDS(path)
+    unlink(path)
     expect_identical(moved$setState(stale), FALSE, info = info)
     expect_null(moved$setState(stale, forceUpdate = TRUE), info = info)
     moved$storeState()

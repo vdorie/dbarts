@@ -130,7 +130,7 @@ expect_true(is(heldPrior$amplitude, "dbartsFixedPrior"))
 # half-normal median where its coefficient is drawn, and a drawn forest with
 # no basis carries its sd as its half-Cauchy median times the unit ---
 expectEngine <- function(sampler, info) {
-  unit <- attr(sampler$control, "bartcore.forests", exact = TRUE)$unit
+  unit <- sampler$data@forest.calibration[["unit"]]
   for (f in seq_along(sampler$data@bases)) {
     prior <- sampler$getLeafPrior(f)
     where <- paste(info, f)

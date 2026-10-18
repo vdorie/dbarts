@@ -56,7 +56,11 @@ forestInfo <- function(sampler) {
 expectTwins <- function(a, b, info) {
   expect_identical(a$getLeafPrior(), b$getLeafPrior(), info = info)
   expect_identical(forestInfo(a)$params, forestInfo(b)$params, info = info)
-  expect_identical(forestInfo(a)$anchor, forestInfo(b)$anchor, info = info)
+  expect_identical(
+    a$data@forest.calibration,
+    b$data@forest.calibration,
+    info = info
+  )
   expect_identical(counted(a$run(3L, 4L)), counted(b$run(3L, 4L)), info = info)
 }
 
@@ -85,7 +89,7 @@ expectTwins(
 # reassociation of the map's leaf-scale expression, found against this data's
 # own anchor s, so the twin's bitwise anchor sees a reassociation
 reference <- amplitudeSampler(twoDefault)
-s <- forestInfo(reference)$anchor
+s <- reference$data@forest.calibration[["anchor"]]
 unit <- reference$getLeafPrior(2L)$response.scale * sqrt(50)
 reassociationMoves <- function(sd) {
   !identical(

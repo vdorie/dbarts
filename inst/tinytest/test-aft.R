@@ -878,7 +878,7 @@ for (case in names(rangeOffsets)) {
   sampler$setOffset(offset, updateScale = TRUE)
   bounds <- expectObservedTransform(sampler, offset, case)
   expect_identical(
-    as.vector(attr(sampler$model, "response.range")),
+    sampler$data@response.range,
     bounds,
     info = case
   )
@@ -898,8 +898,8 @@ for (case in names(rangeOffsets)) {
     info = case
   )
   expect_identical(
-    attr(duplicate$model, "response.range"),
-    attr(sampler$model, "response.range"),
+    duplicate$data@response.range,
+    sampler$data@response.range,
     info = case
   )
   expect_true(all(is.finite(sampler$run(0L, 5L)$train)), info = case)

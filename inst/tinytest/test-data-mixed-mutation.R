@@ -99,11 +99,11 @@ sampler.roll$setCutPoints(
 )
 expect_equal(sampler.roll$getSumsOfSquaredResiduals(), ssr.forced)
 
-# STORED STATE: a sampler re-created from a stored state takes the state's
-# cut points, which requantize the mutated column back to the codes the
-# state was stored under. A live setState leaves the sampler's cut points
-# alone, so the replay is a reload's; set by hand first, the stored points
-# requantize the same column and the state goes in as stored
+# STORED STATE: a sampler re-created from a stored state is built on the cut
+# points its data object records, the mutated column quantized on them, and
+# the state's splits are moved onto them as a live forced setState moves
+# them. Set by hand first, the stored points requantize the same column and
+# the state goes in as stored
 set.seed(77)
 sampler.state <- dbarts(x.frame, y, control = control, sigest = 1)
 invisible(sampler.state$run(100L, 10L))
@@ -117,17 +117,17 @@ path <- tempfile(fileext = ".rds")
 saveRDS(sampler.state, path)
 reloaded <- readRDS(path)
 unlink(path)
-expect_equal(reloaded$getSumsOfSquaredResiduals(), ssr.stored)
-reloaded$storeState()
-expect_identical(
-  attr(reloaded$state, "cutPoints"),
-  attr(stored, "cutPoints")
-)
 # forced onto the three points, the state's splits are moved and the points
 # stay: the mutated column is requantized on the stored points and back
 expect_null(sampler.state$setState(stored, forceUpdate = TRUE))
 sampler.state$storeState()
 expect_identical(attr(sampler.state$state, "cutPoints")[[1L]], c(-1, 0, 1))
+expect_equal(
+  reloaded$getSumsOfSquaredResiduals(),
+  sampler.state$getSumsOfSquaredResiduals()
+)
+reloaded$storeState()
+expect_identical(reloaded$state, sampler.state$state)
 sampler.state$setCutPoints(attr(stored, "cutPoints"))
 expect_true(sampler.state$setState(stored))
 expect_equal(sampler.state$getSumsOfSquaredResiduals(), ssr.stored)

@@ -161,6 +161,12 @@ struct SamplerOptions {
   // flags as the store arrives.
   const std::uint8_t* missingSeen = nullptr;
 
+  // the cut grids and weights a host supplies for the numeric columns, as a
+  // sampler re-created from its host's record takes them; an absent column
+  // derives its grid (SuppliedCutGrid). Borrowed; consumed by the creation
+  // build. A sampler over a pre-built store takes the store's grid.
+  SuppliedCutGrid suppliedCutGrid;
+
   // linear leaves: the ordinal predictor columns entering every leaf's
   // regression (borrowed; consumed during construction). Empty designates
   // the constant leaf; the factory validates count, range, and type.
@@ -410,6 +416,23 @@ struct ForestCalibration {
   /// The forest's sd in force, response units: namedSd itself where one is
   /// stated, else the default's multiple of s times mapUnit.
   double mapSd = std::numeric_limits<double>::quiet_NaN();
+};
+
+/// What a sampler derived from its data at creation and holds while the data
+/// move, read together so a host can re-create the sampler on them: per
+/// column the cut grid and its weights (ColumnStore::cutPoints and cutMass,
+/// empty on an unordered factor and for equally likely points), the response
+/// transform (Sampler::getAnchor), absent on a family that carries no units,
+/// and a calibration map's anchor and unit (AmplitudeSpec::anchor and unit),
+/// NaN on a sampler without the map.
+struct DerivedRecords {
+  std::vector<std::vector<double>> cutPoints;
+  std::vector<std::vector<double>> cutMass;
+  bool hasRange = false;
+  double rangeMin = 0.0;
+  double rangeMax = 0.0;
+  double forestAnchor = std::numeric_limits<double>::quiet_NaN();
+  double forestUnit = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.

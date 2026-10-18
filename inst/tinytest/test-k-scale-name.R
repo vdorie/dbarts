@@ -25,7 +25,7 @@ single <- dbarts(x, y, control = control)
 hasName(single$getLeafPrior())
 expect_true(is.numeric(single$getLeafPrior()$k.scale))
 expect_true(is.null(attr(single$model, "response.anchor", exact = TRUE)))
-expect_equal(length(attr(single$model, "response.range", exact = TRUE)), 2L)
+expect_equal(length(single$data@response.range), 2L)
 
 multi <- dbarts(x, labels, family = "multinomial", control = control)
 for (prior in multi$getLeafPrior()) {

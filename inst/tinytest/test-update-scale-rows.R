@@ -101,7 +101,7 @@ mkS <- function(
 }
 studentFamily <- dbarts:::student(df = 4)
 readers <- function(s) s$getLeafPrior()
-recordedRange <- function(s) attr(s$model, "response.range")
+recordedRange <- function(s) s$data@response.range
 noValuesPattern <- "fewer than two distinct values of the response are in the likelihood"
 keepText <- paste0(
   noValuesPattern,
@@ -272,10 +272,7 @@ viaBridge$setWeights(w01)
   viaBridge$data@offset,
   TRUE
 )
-viaBridge$model <- dbarts:::recordAnchor(
-  viaBridge$model,
-  viaBridge$getPointer()
-)
+dbarts:::recordDerived(viaBridge, viaBridge$getPointer())
 viaMethod$setWeights(w01)
 viaMethod$setOffset(viaMethod$data@offset, updateScale = TRUE)
 expect_equal(viaCall$data@offset.test, rep(0.7, length(testRows)))
