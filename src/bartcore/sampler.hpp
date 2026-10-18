@@ -131,29 +131,42 @@ struct SamplerStateData {
 /// store holds as an ordered factor, a donor grid other than the store's.
 /// rebuildFailed: a donor tree does not build, on the grid the donor records
 /// or on the store's; found on scratch before anything is written, and
-/// undone where an install fails all the same.
+/// undone where an install fails all the same. leafKindMismatch: gp leaves
+/// on one side only; leafRowsMismatch: gp leaves fit to another number of
+/// rows; leafBlockMismatch: a tree's leaf block not of the size the donor's
+/// own leaves give.
 enum class WarmStartResult {
   ok, declined, shapeMismatch, gridMismatch, varianceMismatch,
-  varianceSlotMismatch, rebuildFailed
+  varianceSlotMismatch, rebuildFailed, leafKindMismatch, leafRowsMismatch,
+  leafBlockMismatch
+};
+
+/// A warm-start donor's leaves as its own blocks give them: constant with
+/// none, linear with numCovariates slopes a leaf, gp with numObservations
+/// fits a tree.
+struct DonorLeafShape {
+  enum class Kind { constant, linear, gp } kind = Kind::constant;
+  std::size_t numCovariates = 0, numObservations = 0;
 };
 
 /// What a warm start installed, filled by installForests for a donor that
 /// went in: a chain's counts for its mean forests and for its variance
 /// forest, and the three ways the leaves it holds are not the donor's -
-/// function fits started at 0 for a donor recorded on other cut points, leaf
-/// blocks the sampler's leaves do not read, and linear coefficients kept as
-/// built across a covariate of one value on each side. An install is altered
+/// function fits started at 0 for a donor recorded on other cut points, a
+/// linear donor's slopes left behind, and linear coefficients kept as built
+/// across a covariate of one value on each side. An install is altered
 /// exactly when a count names a change or one of those is up. The rest say
-/// what the donor is read as and change nothing of it: DART or a variance
-/// forest on one side only, the sampler's own started as a new fit's or the
-/// donor's left behind.
+/// what the donor is read as and change nothing of it: slopes of 0 under a
+/// constant donor, and DART or a variance forest on one side only, the
+/// sampler's own started as a new fit's or the donor's left behind.
 struct WarmStartReport {
   std::vector<WarmStartTreeCounts> mean, variance;
-  bool fitsCold = false, leafBlocksUnread = false, coefficientsKept = false;
-  bool dartStartedFresh = false, dartLeftBehind = false,
-       varianceStartedFresh = false, varianceLeftBehind = false;
+  bool fitsCold = false, slopesLeftBehind = false, coefficientsKept = false;
+  bool slopesStartedAtZero = false, dartStartedFresh = false,
+       dartLeftBehind = false, varianceStartedFresh = false,
+       varianceLeftBehind = false;
   bool changed() const {
-    bool any = fitsCold || leafBlocksUnread || coefficientsKept;
+    bool any = fitsCold || slopesLeftBehind || coefficientsKept;
     for (const WarmStartTreeCounts& counts : mean) any = any || counts.changed();
     for (const WarmStartTreeCounts& counts : variance)
       any = any || counts.changed();
@@ -1513,11 +1526,17 @@ public:
   /// after, byte for byte. The donor must share this sampler's forest count;
   /// its own tree counts set the stride of a saved slot.
   ///
-  /// Parts. DART weights go only between two DART fits and a variance forest
-  /// only where both have one: a part the donor alone has is not read, and
-  /// one this sampler alone has starts as a new fit's once the donor is in
-  /// (Chain::startDartFresh, Chain::startVarianceForestFresh), neither
-  /// judged.
+  /// Parts and leaves. DART weights go only between two DART fits and a
+  /// variance forest only where both have one: a part the donor alone has
+  /// is not read, and one this sampler alone has starts as a new fit's once
+  /// the donor is in (Chain::startDartFresh, Chain::startVarianceForestFresh),
+  /// neither judged. \p donorLeaves is the donor's leaf kind as its own blocks
+  /// give it, null for this sampler's own, and each tree's block is held to
+  /// it. gp leaves go only to gp leaves on as many rows. A constant donor
+  /// into linear leaves takes slopes of 0, which is clean; a linear one into
+  /// constant leaves, or into linear leaves on another number of covariates,
+  /// leaves its slopes behind, each leaf at the intercept it stores and not
+  /// restated, the donor's standardization being of other columns.
   ///
   /// Another tree count. A forest of this sampler holding more trees than
   /// the donor's takes all of them, in the donor's order, and then single
@@ -1558,8 +1577,7 @@ public:
   /// - the leaves are function leaves and the donor's recorded points are
   ///   not the store's, equal points being the one sign that the fits, values
   ///   by row, are of these rows: the fits then start at 0;
-  /// - \p leafBlocksUnread: the caller's word that the donor carries leaf
-  ///   blocks this sampler's leaves do not read;
+  /// - a linear donor's slopes are left behind;
   /// - a linear leaf's covariate holds one value in the donor's data and
   ///   another single value here under a slope that is not 0, the
   ///   coefficients being kept as built (Chain::convertDonorStandardization);
@@ -1607,10 +1625,28 @@ public:
       const std::vector<std::pair<size_t, int>>& sampleMap,
       const double* currentPredictors, bool force = true,
       bool* altered = nullptr, WarmStartReport* report = nullptr,
-      bool leafBlocksUnread = false) {
+      const DonorLeafShape* donorLeaves = nullptr) {
     if (altered != nullptr) *altered = false;
     if (sampleMap.size() != chains_.size())
       return WarmStartResult::shapeMismatch;
+    using Kind = DonorLeafShape::Kind;
+    DonorLeafShape own;
+    if constexpr (L::hasFunctionParams) {
+      own.kind = Kind::gp;
+      own.numObservations = data_.numObservations;
+    } else if constexpr (L::hasVectorParams) {
+      own.kind = Kind::linear;
+      own.numCovariates = chains_[0]->singleLeafParams(0);
+    }
+    const DonorLeafShape& given = donorLeaves != nullptr ? *donorLeaves : own;
+    if ((given.kind == Kind::gp) != (own.kind == Kind::gp))
+      return WarmStartResult::leafKindMismatch;
+    if (own.kind == Kind::gp && given.numObservations != own.numObservations)
+      return WarmStartResult::leafRowsMismatch;
+    bool slopesLeft = given.kind == Kind::linear &&
+                      (own.kind != Kind::linear ||
+                       given.numCovariates != own.numCovariates);
+    bool slopesZero = given.kind == Kind::constant && own.kind == Kind::linear;
     if (!donor.missingColumns.empty() &&
         donor.missingColumns.size() != data_.numPredictors)
       return WarmStartResult::shapeMismatch;
@@ -1700,7 +1736,23 @@ public:
         dfs.k = sfs.k;
         // the leaf-covariate calibration is not copied: this sampler keeps
         // its own, and the donor's linear coefficients are restated in it
-        // below
+        // below. Each tree's block is held to the donor's own leaves; slopes
+        // left behind, or never given, are 0 here
+        for (size_t t = 0; t < nt && given.kind != Kind::constant; ++t) {
+          size_t size = given.kind == Kind::gp
+            ? given.numObservations
+            : ((dfs.trees[t].size() + 1) / 2) * given.numCovariates;
+          if (dfs.treeParams.size() != nt || dfs.treeParams[t].size() != size)
+            return WarmStartResult::leafBlockMismatch;
+        }
+        if (own.kind == Kind::constant) {
+          dfs.treeParams.clear();
+        } else if (slopesLeft || slopesZero) {
+          dfs.treeParams.resize(nt);
+          for (size_t t = 0; t < nt; ++t)
+            dfs.treeParams[t].assign(
+              ((dfs.trees[t].size() + 1) / 2) * own.numCovariates, 0.0);
+        }
       }
       dst.sigma = src.sigma;
       dst.fitMin = src.fitMin;
@@ -1752,7 +1804,8 @@ public:
       }
       // the donor's linear coefficients in this sampler's standardization;
       // a record that does not fit the leaf is the donor's shape
-      if (!chains_[c]->convertDonorStandardization(dst, src,
+      if (!slopesLeft && !slopesZero &&
+          !chains_[c]->convertDonorStandardization(dst, src,
                                                    coefficientsKept))
         return WarmStartResult::shapeMismatch;
     }
@@ -1870,8 +1923,8 @@ public:
     if (!builds)
       return varianceFailed ? WarmStartResult::varianceMismatch
                             : WarmStartResult::rebuildFailed;
-    bool notClean = acrossGrids || needsRepair || fitsCold ||
-                    leafBlocksUnread || coefficientsKept || fewer || unplaced;
+    bool notClean = acrossGrids || needsRepair || fitsCold || slopesLeft ||
+                    coefficientsKept || fewer || unplaced;
     if (notClean && !force) return WarmStartResult::declined;
 
     // Every check above ran before this point, so the installs below are not
@@ -1960,8 +2013,9 @@ public:
                                     varianceOffered[c], report->mean[c],
                                     report->variance[c]);
       report->fitsCold = fitsCold;
-      report->leafBlocksUnread = leafBlocksUnread;
+      report->slopesLeftBehind = slopesLeft;
       report->coefficientsKept = coefficientsKept;
+      report->slopesStartedAtZero = slopesZero;
       report->dartStartedFresh = report->varianceStartedFresh = false;
       for (int parts : fresh) {
         report->dartStartedFresh = report->dartStartedFresh || (parts & 1);

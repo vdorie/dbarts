@@ -189,7 +189,7 @@ public:
   SPY_RET(WarmStartResult, installForests,
           (const SamplerStateData& d,
            const std::vector<std::pair<std::size_t, int>>& m, const double* cp,
-           bool f, bool* a, WarmStartReport* r, bool u),
+           bool f, bool* a, WarmStartReport* r, const DonorLeafShape* u),
           (d, m, cp, f, a, r, u))
   SPY_VOID(sampleTreesFromPrior, (), ())
   SPY_VOID(sampleNodeParametersFromPrior, (), ())

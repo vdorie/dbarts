@@ -193,7 +193,7 @@ expect_identical(
 )
 
 # linear leaves: the donor's leaf parameters are vectors, and a constant-leaf
-# donor is refused rather than silently reinterpreted
+# donor seeds them with slopes of 0
 linDonor <- warmDonor(X, leaf.prior = linearLeaf)
 warmLinear <- dbarts(X, y, leaf.prior = linearLeaf, control = ctl())
 warmLinear$installTrees(linDonor, samples = 2L)
@@ -202,9 +202,10 @@ expect_identical(
   donorSample(linDonor, 2L)
 )
 expect_true(all(is.finite(warmLinear$run(0L, 3L)$train)))
-expect_error(
-  warmLinear$installTrees(donor, samples = 2L),
-  pattern = "malformed leaf parameters"
+expect_true(warmLinear$installTrees(donor, samples = 2L))
+expect_identical(
+  warmLinear$getTrees(current = TRUE)$var,
+  donorSample(donor, 2L)
 )
 
 # missing predictors: the donor's splits remap onto the NA-carrying grid

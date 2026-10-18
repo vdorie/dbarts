@@ -817,24 +817,15 @@ expect_identical(
   "warm start: 4 of 4 donor trees taken; gp fits started at 0"
 )
 
-# leaf blocks a sampler of constant leaves does not read: each leaf goes in
-# at the value the donor stores for it
+# slopes a sampler of constant leaves does not read: each leaf goes in at the
+# value the donor stores for it
 linearDonor <- linear2(sweeps = 40L)
-for (case in list(
-  list(donor = linearDonor, build = make, said = "slopes left behind"),
-  list(
-    donor = gpDonor,
-    build = function() make(data = x[rows, ], response = y[rows]),
-    said = "gp fits left behind"
-  )
-)) {
-  unread <- expectChanged(case$build, case$donor, case$said)
-  expect_identical(liveOf(unread$state), liveOf(stateOf(case$donor)))
-  expect_identical(
-    unread$line,
-    paste0("warm start: 4 of 4 donor trees taken; ", case$said)
-  )
-}
+unread <- expectChanged(make, linearDonor, "slopes left behind")
+expect_identical(liveOf(unread$state), liveOf(stateOf(linearDonor)))
+expect_identical(
+  unread$line,
+  "warm start: 4 of 4 donor trees taken; slopes left behind"
+)
 
 # A linear leaf's covariate that holds one value. On one side only the
 # coefficients are restated and the start is the donor's function at the
@@ -927,7 +918,7 @@ framed <- function(x4, ...) {
 }
 levels4 <- ordered(cut(x[, 4L], 4L, labels = FALSE))
 levels6 <- ordered(cut(x[, 4L], 6L, labels = FALSE))
-structure <- "does not support the warm-start donor's predictor structure"
+structure <- "warm-start donor's column 4 is not on the cut points of this sampler's ordered factor"
 expectRefused(framed(levels4), framed(x[, 4L]), structure, "numeric")
 expectRefused(framed(levels4), framed(levels6), structure, "six levels")
 factorDonor <- framed(levels4)
@@ -947,39 +938,22 @@ expect_identical(treeOf(merged$state)$vars, -1L)
 
 # ---- errors stay errors in both forms ------------------------------------------
 
-blocksOf <- "malformed leaf parameters"
+# the leaf kinds by name are test-warm-start-kinds.R's
 refusals <- list(
-  list(make(), make(data = x[, 1L:3L]), "malformed cut points", "columns"),
+  list(
+    make(),
+    make(data = x[, 1L:3L]),
+    "warm-start donor was fit to 3 predictors and this sampler holds 4",
+    "columns"
+  ),
   list(
     make(),
     framed(factor(as.integer(levels4))),
-    structure,
+    paste(
+      "warm-start donor's column 4 is an unordered factor or held one value",
+      "and this sampler's numeric"
+    ),
     "an unordered factor"
-  ),
-  list(linear2(), make(), blocksOf, "constant into linear"),
-  list(
-    processes(),
-    make(data = x[rows, ], response = y[rows]),
-    blocksOf,
-    "constant into gp"
-  ),
-  list(
-    processes(),
-    linear2(data = x[rows, ], response = y[rows]),
-    blocksOf,
-    "linear into gp"
-  ),
-  list(
-    linear2(data = x[rows, ], response = y[rows]),
-    processes(),
-    blocksOf,
-    "gp into linear"
-  ),
-  list(
-    make(leaf.prior = linear(columns = 2L:3L)),
-    linear2(),
-    blocksOf,
-    "covariates"
   ),
   list(
     make(
@@ -988,7 +962,7 @@ refusals <- list(
       leaf.prior = gp(columns = 2L)
     ),
     gpDonor,
-    blocksOf,
+    "warm-start donor's gp leaves were fit to 60 rows and this sampler holds 40",
     "gp on other rows"
   ),
   list(make(), list(1, 2, 3), "must be a dbarts sampler", "not a donor")

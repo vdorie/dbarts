@@ -277,21 +277,22 @@ static bool warmVerdictMatchesInstall(
     S& sampler, const SamplerStateData& donor,
     const std::vector<std::pair<std::size_t, int>>& map,
     const double* currentPredictors, WarmStartResult& result, bool& altered,
-    bool leafBlocksUnread = false, WarmStartReport* report = nullptr) {
+    const DonorLeafShape* donorLeaves = nullptr,
+    WarmStartReport* report = nullptr) {
   SamplerStateData before, unforced, forced;
   sampler.getState(before);
   bool unforcedAltered = true;
   WarmStartReport first, second;
   WarmStartResult answer = sampler.installForests(
     donor, map, currentPredictors, false, &unforcedAltered, &first,
-    leafBlocksUnread);
+    donorLeaves);
   sampler.getState(unforced);
   bool took = answer == WarmStartResult::ok;
   bool untouched = took || samplerStatesAgree(before, unforced);
   if (took && !sampler.setState(before, currentPredictors)) return false;
   altered = answer != WarmStartResult::declined;
   result = sampler.installForests(donor, map, currentPredictors, true,
-                                  &altered, &second, leafBlocksUnread);
+                                  &altered, &second, donorLeaves);
   sampler.getState(forced);
   if (report != nullptr) *report = second;
   if (result != WarmStartResult::ok)
@@ -323,13 +324,13 @@ template <typename S>
 static bool warmStartsAltered(
     S& sampler, const SamplerStateData& donor,
     const std::vector<std::pair<std::size_t, int>>& map,
-    const double* currentPredictors, bool leafBlocksUnread = false,
+    const double* currentPredictors,
+    const DonorLeafShape* donorLeaves = nullptr,
     WarmStartReport* report = nullptr) {
   WarmStartResult result;
   bool altered;
   return warmVerdictMatchesInstall(sampler, donor, map, currentPredictors,
-                                   result, altered, leafBlocksUnread,
-                                   report) &&
+                                   result, altered, donorLeaves, report) &&
          result == WarmStartResult::ok && altered;
 }
 // Flags the first ordinal rule among flat trees as sending missing values

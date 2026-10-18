@@ -386,13 +386,13 @@ public:
   /// Sampler::installForests: force installs a donor that is not clean with
   /// the changes it needs, where an unforced call declines it; altered, when
   /// non-null, reports an install of such a donor, and report what it
-  /// changed.
+  /// changed; donorLeaves is the donor's leaf kind, null for this sampler's.
   virtual WarmStartResult installForests(
       const SamplerStateData& donor,
       const std::vector<std::pair<std::size_t, int>>& sampleMap,
       const double* currentPredictors, bool force = true,
       bool* altered = nullptr, WarmStartReport* report = nullptr,
-      bool leafBlocksUnread = false) = 0;
+      const DonorLeafShape* donorLeaves = nullptr) = 0;
   virtual void sampleTreesFromPrior() = 0;
   virtual void sampleNodeParametersFromPrior() = 0;
   virtual void sampleVarianceForestFromPrior() = 0;
@@ -725,9 +725,9 @@ public:
       const std::vector<std::pair<std::size_t, int>>& sampleMap,
       const double* currentPredictors, bool force = true,
       bool* altered = nullptr, WarmStartReport* report = nullptr,
-      bool leafBlocksUnread = false) override {
+      const DonorLeafShape* donorLeaves = nullptr) override {
     return impl_.installForests(donor, sampleMap, currentPredictors, force,
-                                altered, report, leafBlocksUnread);
+                                altered, report, donorLeaves);
   }
   void sampleTreesFromPrior() override { impl_.sampleTreesFromPrior(); }
   void sampleNodeParametersFromPrior() override {

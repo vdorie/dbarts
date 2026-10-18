@@ -2339,7 +2339,7 @@ static void testWarmStartStandardization() {
     refineGrid(*other, gpDonorState.cutPoints);
     other->getState(before);
     WarmStartReport coldStart;
-    check(warmStartsAltered(*other, gpDonorState, liveMap, x.data(), false,
+    check(warmStartsAltered(*other, gpDonorState, liveMap, x.data(), nullptr,
                             &coldStart) &&
             coldStart.fitsCold && !coldStart.mean[0].changed() &&
             !coldStart.mean[1].changed(),
@@ -2584,7 +2584,7 @@ static void testNoSpreadLiveConversion() {
     std::unique_ptr<SamplerBase> recipient = make(xDonee, 20);
     WarmStartReport kept;
     check(warmStartsAltered(*recipient, donorState, liveMap, xDonee.data(),
-                            false, &kept) &&
+                            nullptr, &kept) &&
             kept.coefficientsKept && !kept.mean[0].changed(),
           "no-spread conversion: a donor at another constant is declined "
           "and, forced, installs with its coefficients reported kept");
@@ -2910,7 +2910,7 @@ static void testVarianceWarmStart() {
     tree[1].value = 1.2;
     tree[2].value = 0.8;
     WarmStartReport report;
-    check(warmStartsAltered(*own, offGrid, liveMap, x.data(), false,
+    check(warmStartsAltered(*own, offGrid, liveMap, x.data(), nullptr,
                             &report) &&
             !report.mean[0].changed() && report.variance[0].moved == 1 &&
             report.variance[0].cutBack == 0 &&
@@ -5841,7 +5841,7 @@ static void testWarmStartForms() {
   {
     WarmStartReport report;
     bool installs =
-      warmStartsAltered(*recipient, hand, liveMap, x.data(), false, &report);
+      warmStartsAltered(*recipient, hand, liveMap, x.data(), nullptr, &report);
     SamplerStateData after;
     recipient->getState(after);
     const WarmStartTreeCounts& counts(report.mean[0]);
@@ -5849,24 +5849,31 @@ static void testWarmStartForms() {
             counts.moved == 1 && counts.cutBack == 1 &&
             counts.sideDropped == 1 &&
             !report.variance[0].changed() && !report.fitsCold &&
-            !report.leafBlocksUnread && !report.coefficientsKept &&
+            !report.slopesLeftBehind && !report.coefficientsKept &&
             sameFlatTrees({after.chains[0].forests[0].trees[0]}, {trees[0]}) &&
             after.chains[0].forests[0].trees[2].size() == 3,
           "warm start forms: the report counts each changed tree once, moved "
           "ahead of a side dropped and cut back ahead of moved");
   }
-  // the caller's word that the donor's leaf blocks go unread is a change of
-  // its own, with no tree counted
+  // a donor of linear leaves into constant ones leaves its slopes behind, a
+  // change of its own with no tree counted
   {
     SamplerStateData clean;
     recipient->getState(clean);
+    SamplerStateData sloped = clean;
+    for (ForestStateData& forest : sloped.chains[0].forests)
+      for (const std::vector<FlatNode>& tree : forest.trees)
+        forest.treeParams.emplace_back((tree.size() + 1) / 2, 0.25);
+    DonorLeafShape linearLeaves;
+    linearLeaves.kind = DonorLeafShape::Kind::linear;
+    linearLeaves.numCovariates = 1;
     WarmStartReport report;
     check(warmStartsClean(*recipient, clean, liveMap, x.data()) &&
-            warmStartsAltered(*recipient, clean, liveMap, x.data(), true,
-                              &report) &&
-            report.leafBlocksUnread && !report.mean[0].changed(),
-          "warm start forms: a clean donor whose leaf blocks go unread is "
-          "declined and, forced, reports that alone");
+            warmStartsAltered(*recipient, sloped, liveMap, x.data(),
+                              &linearLeaves, &report) &&
+            report.slopesLeftBehind && !report.mean[0].changed(),
+          "warm start forms: a clean linear donor into constant leaves is "
+          "declined and, forced, reports its slopes left behind alone");
   }
 
   // --- a donor that does not build is refused in both forms, never
@@ -6033,7 +6040,7 @@ static void testWarmStartTreeCounts() {
         "warm start counts: a recipient of as many trees takes the donor as "
         "it stands");
   WarmStartReport report;
-  check(warmStartsAltered(*recipient, donor, liveMap, xHoled.data(), false,
+  check(warmStartsAltered(*recipient, donor, liveMap, xHoled.data(), nullptr,
                           &report) &&
           report.mean[0].offered == 6 && report.mean[0].taken == 3 &&
           report.mean[0].singleLeaves == 0 && report.mean[0].moved == 0 &&
@@ -6066,7 +6073,7 @@ static void testWarmStartTreeCounts() {
   WarmStartResult result;
   bool altered;
   check(warmVerdictMatchesInstall(*five, small, liveMap, x.data(), result,
-                                  altered, false, &report) &&
+                                  altered, nullptr, &report) &&
           result == WarmStartResult::ok && !altered &&
           report.mean[0].offered == 3 && report.mean[0].taken == 3 &&
           report.mean[0].singleLeaves == 2,

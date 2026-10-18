@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "R_interface_bartcore.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -7024,13 +7025,13 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 // included, or left without a side for missing values, each tree counted
 // once, and the single leaves that fill a forest of more trees than the
 // donor's; 'variance.trees' is NULL for a sampler with no variance forest.
-// 'fits.cold': function fits started at 0. 'blocks.unread': 1 for slopes and
-// 2 for gp fits the donor carries and this sampler's constant leaves do not
-// read, else 0. 'coefficients.kept': linear coefficients kept as built
-// across a covariate of one value on each side. 'dart' and 'variance': 1 for
-// this sampler's own part started as a new fit's, 2 for the donor's left
-// behind, else 0. Everything is allocated before the install, which then
-// only writes into it.
+// 'fits.cold': function fits started at 0. 'slopes': 1 for a linear donor's
+// slopes left behind, 2 for slopes started at 0 under a constant donor, else
+// 0. 'coefficients.kept': linear coefficients kept as built across a
+// covariate of one value on each side. 'dart' and 'variance': 1 for this
+// sampler's own part started as a new fit's, 2 for the donor's left behind,
+// else 0. Everything is allocated before the install, which then only writes
+// into it.
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr, SEXP currentPredictorsExpr,
                              SEXP forceExpr) {
@@ -7042,8 +7043,8 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
   const double* currentPredictors =
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
   const char* names[] = {"installed", "altered", "trees", "variance.trees",
-                         "fits.cold", "blocks.unread", "coefficients.kept",
-                         "dart", "variance", ""};
+                         "fits.cold", "slopes", "coefficients.kept", "dart",
+                         "variance", ""};
   const char* countNames[] = {"offered", "taken", "moved", "cut.back",
                               "side.dropped", "single.leaves"};
   int numChains = static_cast<int>(holder.sampler->shape().numChains);
@@ -8881,30 +8882,64 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 // destination to redraw.
 // Function-leaf donors seed from their live trees, so their saved channel is
 // skipped. The donor's own chain count is honored (a short donor may seed
-// many chains). blocksUnread is set where a donor forest carries a
-// tree.params block and this sampler's leaves are constants, which read
-// none: the trees then go in at each leaf's stored value, a linear leaf's
-// intercept, and are not the donor's function. It is 2 where the block is a
-// gp leaf's fits, which come with lengthscales, and 1 for slopes. Returns an
-// error string, or NULL, rather than longjmping so the caller can free state
-// first.
+// many chains). Each forest's leaf blocks are read in the donor's own shape,
+// which leaves receives: no tree.params is constant leaves, lengthscales
+// beside it gp fits, its length a tree's rows times the tree count, and
+// otherwise slopes, its length the covariates times the leaf count; every
+// forest gives the same. The engine holds the trees' blocks to that shape
+// and judges it against this sampler's leaves. Returns an error string, or
+// NULL, rather than longjmping so the caller can free state first; a string
+// naming counts or a column is written to a static buffer.
 static const char* readWarmStartState(SEXP stateExpr,
                                       bartcore::SamplerBase& sampler,
                                       bartcore::SamplerStateData& state,
-                                      int& blocksUnread) {
+                                      bartcore::DonorLeafShape& leaves) {
+  static char message[200];
   bartcore::SamplerShape shape = sampler.shape();
+  const bartcore::ColumnStore& store = sampler.data();
   size_t numChains = static_cast<size_t>(Rf_xlength(stateExpr));
   if (numChains == 0) return "warm-start donor holds no chains";
 
   SEXP cutPointsExpr = Rf_getAttrib(stateExpr, Rf_install("cutPoints"));
-  if (Rf_isNull(cutPointsExpr) ||
-      static_cast<size_t>(Rf_xlength(cutPointsExpr)) != shape.numPredictors)
+  if (Rf_isNull(cutPointsExpr) || TYPEOF(cutPointsExpr) != VECSXP)
     return "malformed cut points in warm-start donor";
+  if (static_cast<size_t>(Rf_xlength(cutPointsExpr)) != shape.numPredictors) {
+    std::snprintf(message, sizeof message,
+                  "warm-start donor was fit to %d predictors and this sampler "
+                  "holds %d", static_cast<int>(Rf_xlength(cutPointsExpr)),
+                  static_cast<int>(shape.numPredictors));
+    return message;
+  }
   state.cutPoints.resize(shape.numPredictors);
   for (size_t j = 0; j < shape.numPredictors; ++j) {
     SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(j));
+    // columns are matched by position: a subset split on one side only is
+    // another column, and so is an ordered factor here on other points. A
+    // state records no cut points for a column of one value either, so a
+    // donor's column without them is told apart only from a numeric one here
+    // that has some
+    if (store.splitsBySubset(j) ? !Rf_isNull(cutsExpr)
+                                : Rf_isNull(cutsExpr) &&
+                                    !store.cutPoints[j].empty()) {
+      std::snprintf(message, sizeof message,
+                    "warm-start donor's column %d is %s and this sampler's %s",
+                    static_cast<int>(j + 1),
+                    Rf_isNull(cutsExpr) ? "an unordered factor or held one value"
+                                        : "numeric",
+                    Rf_isNull(cutsExpr) ? "numeric" : "an unordered factor");
+      return message;
+    }
     if (Rf_isNull(cutsExpr)) continue;
     if (!Rf_isReal(cutsExpr)) return "malformed cut points in warm-start donor";
+    const std::vector<double>& own = store.cutPoints[j];
+    if (store.types[j] == bartcore::ColumnKind::orderedFactor &&
+        (static_cast<size_t>(Rf_xlength(cutsExpr)) != own.size() ||
+         !std::equal(own.begin(), own.end(), REAL(cutsExpr)))) {
+      std::snprintf(message, sizeof message,
+                    "warm-start donor's column %d is not on the cut points of "
+                    "this sampler's ordered factor", static_cast<int>(j + 1));
+      return message;
+    }
     const char* repeated = repeatedCutRefusal(
       REAL(cutsExpr), Rf_xlength(cutsExpr), j, "warm-start donor");
     if (repeated != NULL) return repeated;
@@ -8931,8 +8966,7 @@ static const char* readWarmStartState(SEXP stateExpr,
 
   const char* errorMessage = NULL;
   state.chains.resize(numChains);
-  size_t numLeafCovariates = shape.numLeafCovariates;
-  bool functionLeaves = shape.usesFunctionLeaves;
+  bool shapeRead = false;
   for (size_t c = 0; c < numChains && errorMessage == NULL; ++c) {
     SEXP chainExpr = VECTOR_ELT(stateExpr, static_cast<R_xlen_t>(c));
     bartcore::ChainStateData& chainState(state.chains[c]);
@@ -8960,8 +8994,37 @@ static const char* readWarmStartState(SEXP stateExpr,
                          rc_getListElement(forestExpr, "tree.flags"),
                          sampler.data(), fs.trees, &errorMessage))
         break;
+      // the leaves this forest's blocks give
+      using Kind = bartcore::DonorLeafShape::Kind;
+      SEXP paramsExpr = rc_getListElement(forestExpr, "tree.params");
+      size_t numParams = Rf_isReal(paramsExpr)
+        ? static_cast<size_t>(Rf_xlength(paramsExpr)) : 0;
+      size_t numLeaves = 0;
+      for (const std::vector<bartcore::FlatNode>& tree : fs.trees)
+        numLeaves += (tree.size() + 1) / 2;
+      bartcore::DonorLeafShape read;
+      if (Rf_isNull(paramsExpr)) {
+        read.kind = Kind::constant;
+      } else if (!Rf_isNull(rc_getListElement(forestExpr, "leaf.lengthscales"))) {
+        read.kind = Kind::gp;
+        read.numObservations = fs.trees.empty() ? 0 : numParams / fs.trees.size();
+      } else {
+        read.kind = Kind::linear;
+        read.numCovariates = numLeaves == 0 ? 0 : numParams / numLeaves;
+      }
+      if ((read.kind != Kind::constant &&
+           read.numObservations + read.numCovariates == 0) ||
+          (shapeRead && (read.kind != leaves.kind ||
+                         read.numCovariates != leaves.numCovariates ||
+                         read.numObservations != leaves.numObservations))) {
+        errorMessage = "malformed leaf parameters in warm-start donor";
+        break;
+      }
+      leaves = read;
+      shapeRead = true;
+
       SEXP savedSizesExpr = rc_getListElement(forestExpr, "saved.sizes");
-      if (!functionLeaves && !Rf_isNull(savedSizesExpr) &&
+      if (read.kind != Kind::gp && !Rf_isNull(savedSizesExpr) &&
           !readFlatTrees(rc_getListElement(forestExpr, "saved.vars"),
                          rc_getListElement(forestExpr, "saved.values"),
                          savedSizesExpr, rc_getListElement(forestExpr,
@@ -8969,25 +9032,20 @@ static const char* readWarmStartState(SEXP stateExpr,
                          &errorMessage))
         break;
 
-      if (functionLeaves) {
-        if (!readFunctionTreeParams(
-              rc_getListElement(forestExpr, "tree.params"), fs.trees.size(),
-              shape.numObservations, fs.treeParams, &errorMessage))
+      if (read.kind == Kind::gp) {
+        if (!readFunctionTreeParams(paramsExpr, fs.trees.size(),
+                                    read.numObservations, fs.treeParams,
+                                    &errorMessage))
           break;
-      } else if (numLeafCovariates > 0) {
-        if (!readTreeParams(rc_getListElement(forestExpr, "tree.params"),
-                            fs.trees, numLeafCovariates, fs.treeParams,
-                            &errorMessage))
+      } else if (read.kind == Kind::linear) {
+        if (!readTreeParams(paramsExpr, fs.trees, read.numCovariates,
+                            fs.treeParams, &errorMessage))
           break;
         if (!fs.savedTrees.empty() &&
             !readTreeParams(rc_getListElement(forestExpr, "saved.params"),
-                            fs.savedTrees, numLeafCovariates,
+                            fs.savedTrees, read.numCovariates,
                             fs.savedTreeParams, &errorMessage))
           break;
-      } else if (!Rf_isNull(rc_getListElement(forestExpr, "tree.params"))) {
-        blocksUnread =
-          Rf_isNull(rc_getListElement(forestExpr, "leaf.lengthscales")) ? 1
-                                                                        : 2;
       }
 
       if (sampler.data().hasPooledCategorical) {
@@ -9006,7 +9064,8 @@ static const char* readWarmStartState(SEXP stateExpr,
       // and never installed: the engine restates the donor's coefficients
       // from it into this sampler's own. A scale of NA is a column that had
       // no spread. A gp donor's is not read, its fits holding no kernel.
-      if (numLeafCovariates > 0 && !functionLeaves) {
+      size_t numLeafCovariates = read.numCovariates;
+      if (read.kind == Kind::linear) {
         SEXP centersExpr =
           rc_getListElement(forestExpr, "leaf.covariate.center");
         SEXP scalesExpr = rc_getListElement(forestExpr, "leaf.covariate.scale");
@@ -9144,9 +9203,9 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
              formatVersion, minReadableStateFormatVersion);
 
   bartcore::SamplerStateData donor;
-  int blocksUnread = 0;
+  bartcore::DonorLeafShape leaves;
   const char* errorMessage =
-    readWarmStartState(donorStateExpr, sampler, donor, blocksUnread);
+    readWarmStartState(donorStateExpr, sampler, donor, leaves);
 
   // The mapping vectors live in a scope that closes before any Rf_error, so
   // the longjmp cannot leak them.
@@ -9207,7 +9266,7 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
       captureExceptions(installError, [&]() {
         result = sampler.installForests(donor, sampleMap, currentPredictors,
                                         force, &altered, &report,
-                                        blocksUnread != 0);
+                                        &leaves);
       });
       if (installError.failed)
         errorMessage = "warm-start install failed: out of memory";
@@ -9231,7 +9290,8 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
         }
         if (!anyVariance) SET_VECTOR_ELT(reportExpr, 3, R_NilValue);
         LOGICAL(VECTOR_ELT(reportExpr, 4))[0] = report.fitsCold;
-        INTEGER(VECTOR_ELT(reportExpr, 5))[0] = blocksUnread;
+        INTEGER(VECTOR_ELT(reportExpr, 5))[0] =
+          report.slopesLeftBehind ? 1 : report.slopesStartedAtZero ? 2 : 0;
         LOGICAL(VECTOR_ELT(reportExpr, 6))[0] = report.coefficientsKept;
         INTEGER(VECTOR_ELT(reportExpr, 7))[0] =
           report.dartStartedFresh ? 1 : report.dartLeftBehind ? 2 : 0;
@@ -9255,6 +9315,20 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
                "predictor structure (a categorical/continuous column "
                "mismatch, or a malformed donor cut grid); its trees cannot "
                "be remapped onto this cut grid");
+    case bartcore::WarmStartResult::leafKindMismatch: {
+      const char* kinds[] = {"constant", "linear", "gp"};
+      bartcore::SamplerShape shape = sampler.shape();
+      Rf_error("warm-start donor has %s leaves and this sampler %s ones",
+               kinds[static_cast<int>(leaves.kind)],
+               shape.usesFunctionLeaves ? "gp"
+                 : shape.numLeafCovariates > 0 ? "linear" : "constant");
+    }
+    case bartcore::WarmStartResult::leafRowsMismatch:
+      Rf_error("warm-start donor's gp leaves were fit to %d rows and this "
+               "sampler holds %d", static_cast<int>(leaves.numObservations),
+               static_cast<int>(sampler.shape().numObservations));
+    case bartcore::WarmStartResult::leafBlockMismatch:
+      Rf_error("malformed leaf parameters in warm-start donor");
     case bartcore::WarmStartResult::varianceMismatch:
       Rf_error("warm-start donor's variance trees cannot be installed on this "
                "sampler's data (a scale leaf is not positive, or a flat tree "

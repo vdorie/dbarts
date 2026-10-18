@@ -10135,7 +10135,7 @@ static void testMonotoneReachability() {
   std::vector<std::pair<size_t, int>> liveMap = {{0, -1}};
   auto warm = makeSampler();
   WarmStartReport collapsed;
-  check(warmStartsAltered(*warm, infeasibleState, liveMap, x.data(), false,
+  check(warmStartsAltered(*warm, infeasibleState, liveMap, x.data(), nullptr,
                           &collapsed) &&
           collapsed.mean[0].cutBack == 1,
         "reachability: an infeasible donor is declined and, forced, "
@@ -10228,7 +10228,7 @@ static void testMonotoneWarmStartCollapse() {
     WarmStartReport report;
     agree = agree &&
       warmVerdictMatchesInstall(recipient, state, liveMap, rows.data(),
-                                result, altered, false, &report) &&
+                                result, altered, nullptr, &report) &&
       result == WarmStartResult::ok;
     collapsed += altered;
     acrossGrids += seed % 2 == 1 && report.mean[0].moved > 0;
