@@ -802,8 +802,9 @@ forests it is each forest's `sd` as the sampler's `$getLeafPrior()`
 reported it when the run ended (see
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
 in the response's units: the number the forest stated, or its default,
-before its amplitude multiplies the forest. It comes back as a list
-named by the forests' labels, or as the one number that `forest`
+before its amplitude multiplies the forest, and for a forest on a
+numeric column per unit of that column, named by it. It comes back as a
+list named by the forests' labels, or as the entry itself that `forest`
 selects; `k` is pinned at 1 on each. A hurdle fit returns a list of its
 zero and positive parts, each in its own units.
 
@@ -1332,7 +1333,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.220809
+#> total seconds in loop: 0.220964
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

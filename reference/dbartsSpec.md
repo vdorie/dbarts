@@ -199,9 +199,18 @@ A list with components
   call is silent on it and warns once on `dbarts`'s sampler. For a
   probit or ordinal list `sampler$setActiveRows(spec$active)` with no
   argument makes it `dbarts`'s, there being nothing to re-derive, and a
-  list that carries several forests is refused the argument. A Gaussian
-  or Student-t list has no mask, its weights riding the data object into
-  creation, and needs no call.
+  list that carries several forests is refused the argument. A list of
+  several forests, one of them on a numeric column that states no `sd`,
+  takes the mask at creation,
+  `new("dbartsSampler", spec$control, spec$model, spec$data, active = spec$active)`,
+  which installs it as `dbarts` does and reads the column's scale over
+  the rows it keeps; a mask installed after creation moves no forest's
+  prior. A Gaussian or Student-t list has no mask, its weights riding
+  the data object into creation, and needs no call. Where the rows its
+  weights keep hold fewer than two distinct values of the response and a
+  forest on a numeric column states no `sd`, that route warns twice,
+  here for the response's scale and center and at creation for those and
+  the column's scale, where `dbarts` warns once.
 
 ## See also
 

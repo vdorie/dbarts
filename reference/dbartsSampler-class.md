@@ -844,7 +844,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   amplitudes, built with `forests = ` (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)). The
   amplitudes are preserved: an install leaves every one of them bitwise.
-  A basis that is not one of the canonical shapes (a dense all-ones
+  A swap moves the basis and nothing else: no forest's prior moves, so a
+  numeric forest keeps the `sd` per unit its creation gave it, a default
+  one the scale of the column it was created on (`data@basis.scale`); a
+  caller who wants the default of the new column states it (see `sd` in
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)). A
+  basis that is not one of the canonical shapes (a dense all-ones
   column, or a complementary 0/1 pair) moves that forest onto the
   general amplitude conditional, which is a model fact and not
   revertible by a later data swap. The matrix is written to both the
@@ -924,13 +929,14 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   argument, `amplitude` included, is fixed at creation (a basis changes
   through `setForestBasis`). Each `sd` lands in the channel creation
-  gave it - the half-Cauchy median of a forest created without a basis,
-  the leaf-scale factor of one created with one - divided by the
-  sampler's unit as creation divides it, states the forest from then on,
-  also where it is the number `getLeafPrior` reports in force, which
-  moves nothing, and is recorded on the `control` attribute creation
-  reads, so every re-creation builds with it. Give exactly one of
-  `leaf.prior` and `forests`.
+  gave it - the half-Cauchy median of a drawn forest created without a
+  basis, the forest's own leaf scale otherwise - divided by the
+  sampler's unit as creation divides it, leaves the scale a numeric
+  forest's default was taken from, states the forest from then on, also
+  where it is the number `getLeafPrior` reports in force, which moves
+  nothing, and is recorded on the `control` attribute creation reads, so
+  every re-creation builds with it. Give exactly one of `leaf.prior` and
+  `forests`.
 
 - cuts:
 
@@ -1257,6 +1263,20 @@ pertaining to fitting a Bayesian additive regression tree model. The
 sampler is first created and then, in a separate instruction, run or
 modified. In this way, MCMC samplers can be constructed with BART
 components filling arbitrary roles.
+
+Besides [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+a sampler is created by
+`new("dbartsSampler", control, model, data, active = NULL)` from the
+list
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+returns. `active` is the 0/1 mask that list's `active` element holds,
+installed once the sampler is built, as `setActiveRows(active)` installs
+it. Under `"probit"` and `"logistic"` creation also reads it: a forest
+on a numeric column that states no `sd` takes the column's scale over
+the rows the mask keeps, every row where it keeps none. Under every
+other family creation reads nothing from it, the scale being taken over
+the rows the data object's weights keep, and the mask is installed
+afterwards.
 
 ### Reading the fit
 
@@ -2238,36 +2258,29 @@ scale times the unit the sampler derived at creation - `sd.stated`,
 `TRUE` or `FALSE`, `multiplier`, what the forest multiplies, `"none"`,
 `"factor"` or `"numeric"`, and `amplitude`, `fixed()` where the forest's
 coefficient is held and absent where it is drawn. `prior.sd.of` says
-what `sd` is the size of: `"forest"` for a forest with no basis and
-`"level difference"` for a factor, the size exactly where the
-coefficient is held, with `" (prior median)"` where it is drawn;
-`"forest total"` for a numeric column. It adds `basis.row.norm`,
-`leaf.scale.factor`, `leaf.scale.divisor` and, on a drawn forest with no
-basis, `amplitude.prior.scale`, the half-Cauchy median.
-`leaf.scale.factor` and `amplitude.prior.scale` are multiples of the
-unit, the engine's channels for the `sd`, and not numbers of the
-response's units; `k.scale` is in the response's units.
+what `sd` is the size of: `"forest"` for a forest with no basis,
+`"level difference"` for a factor and `"forest, per unit of basis"` for
+a numeric column, the size exactly where the coefficient is held, with
+`" (prior median)"` where it is drawn. A numeric forest's `sd` is per
+unit of its column and carries the column's name where the basis has
+one, and the list adds `basis.scale`, where the data object records one,
+the standard deviation of the column the default was taken from at
+creation, named as `sd` is. `k.scale` is the forest's own prior sd
+before its coefficient, in the response's units: `sd` itself where the
+coefficient is held, `sd` over 0.674 where it is drawn and the forest
+has a basis, and the unit where a drawn forest with no basis carries its
+`sd` as the median of its coefficient's half-Cauchy prior.
 
 On a forest whose scale the multi-forest CALIBRATION MAP sets, on a
 sampler built with `forests =` or `dbartsData(bases = )` (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `k` is
-pinned at 1, `k.scale` is the map's leaf scale, and the list adds these
-entries, absent (so `NULL`) on every other forest, a multinomial one
-included. `amplitude.prior.scale`, on a forest whose coefficient carries
-the half-Cauchy scale mixture (a drawn forest with no basis), is its
-median, which does not move with the mixture's own variance auxiliary,
-which is drawn; the coefficients of a forest with a basis are drawn
-under prior variance 1/2. `leaf.scale.factor` and `leaf.scale.divisor`
-are the map's two factors and `basis.row.norm` the median nonzero row
-norm of the forest's basis IN FORCE, which `setForestBasis` re-derives.
-
-Together they decompose the map's leaf scale as
-`k.scale = leaf.scale.factor * s / (leaf.scale.divisor * basis.row.norm)`,
-exactly, so the family's own latent scale \\s\\ - data-dependent under a
-gaussian response - is recovered as
-`k.scale * leaf.scale.divisor * basis.row.norm / leaf.scale.factor`. No
-state install changes any of them: a state carries neither a leaf scale
-nor a fixed amplitude prior, and the bases are not state.
+pinned at 1, `k.scale` is the map's leaf scale, and the entries above
+that the map adds are absent (so `NULL`) on every other forest, a
+multinomial one included. A drawn forest with no basis carries its `sd`
+as the median of its coefficient's half-Cauchy prior, which does not
+move with the mixture's own variance auxiliary, which is drawn; a
+level's coefficient is drawn under prior variance 1/2 and a numeric
+column's under 1.
 
 The spread (`k.scale / k`) describes the LEAF-PARAMETER scale of the
 forest total. It equals the prior standard deviation of \\f(x)\\ at

@@ -208,10 +208,21 @@ sampler uses it, a factor's level indicators among them, and its
 `basis.levels` slot records, for each forest of levels, the levels in
 the order of the block's columns, and `NULL` for a forest of numbers or
 with no basis; the slot is `NULL` when there are no `bases`. Its
-`missing.seen` slot is `NULL` as created; on the data object a sampler
-holds it records, once a predictor has been changed, the columns that
-sampler can hold missing values in, as a logical per predictor column
-(see ‘Missing values in predictors’ in
+`basis.scale` slot is `NULL` as created; on the data object a sampler
+holds it records, for each forest of numbers that states no `sd`, the
+standard deviation of its column over the rows in the likelihood when
+the sampler was first created, which that forest's default `sd` was
+taken from (see `sd` in
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), and a
+sampler created from such an object is handed it, so a copy, a reload
+and a sampler made again from its own control, model and data have the
+creation's prior whatever column is then in force. A declaration that
+replaces a forest's basis on the object drops its entry, and clearing an
+entry by hand has the next creation take the scale of the column in
+force. Its `missing.seen` slot is `NULL` as created; on the data object
+a sampler holds it records, once a predictor has been changed, the
+columns that sampler can hold missing values in, as a logical per
+predictor column (see ‘Missing values in predictors’ in
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
 and a sampler created from such an object takes them.
 
@@ -376,6 +387,9 @@ data
 #> NULL
 #> 
 #> Slot "basis.levels":
+#> NULL
+#> 
+#> Slot "basis.scale":
 #> NULL
 #> 
 #> Slot "counts":
