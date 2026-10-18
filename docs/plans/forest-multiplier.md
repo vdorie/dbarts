@@ -1,6 +1,6 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
-Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); PUSH 2 BUILT 2026-10-17, not landed ([Push 2 as built](#push-2-as-built)), its bench compare of step 2.1 pending; push 3 PLANNED,
+Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); PUSH 2 BUILT 2026-10-17, not landed ([Push 2 as built](#push-2-as-built)); push 3 PLANNED,
 rechecked 2026-10-11 against 37b59ea0, the tip of the sd unit slice
 ([Recheck against bartcore](#recheck-against-bartcore)); its two open calls settled and its cites
 brought to forest-kind-by-class as built on 2026-10-17, with push 1 gaining the unit on a constant
@@ -1104,8 +1104,11 @@ two cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
   dbarts-1.0 (1412 expectations at its last run; with step 1.8's edit from push 1, and once without it on
   push 1, failing only where `amplitude.prior.variance` is passed), stan4bart on bartcore (582), treatSens
   on dbarts-1.0 (306), bairrtt on main (207), the last three unedited.
-- A hot path is touched once, by push 2's first commit: `bench-sampler.R compare` on a quiet machine is
-  the maintainer's to run, on that commit against its parent.
+- A hot path is touched once, by push 2's first commit, which was compared against its parent:
+  `bench-sampler.R record` on 738b1015 then `compare` on 3b12fca0, run by the orchestrator on the idle x86
+  bench box (4 cores, load about 1), one machine: no metric regressed more than 5%. The ratios: embedded
+  offset gibbs step 1.000, binary run 0.988, run t200 1.000, run t75 1.000, run n10000 0.994,
+  setPredictor accept 1.035, setPredictor reject 1.000.
 
 The pair script. Each row is one seeded model on both builds: sampler fits compare the train draws, sigma
 and the coefficients, `bart` fits `yhat.train` and sigma. Rows 01 to 18 and 22 were run for the first
@@ -1720,8 +1723,11 @@ Against the steps:
   tests/cpp `testRelativeRowBound`; the tinytest twin is test-forest-units-twin.R's first arm. The
   seam fixture's band edge moved from 2^-27 to 2^-29, its b1 being 0.25. Gated alone: tests/cpp 403 ok;
   the suite 27538 results, 0 failed; on a reference build the four snapshot files passing and 55, 15 and
-  11 scenarios identical. The bench-sampler.R compare of this commit against its parent is the
-  maintainer's, on a quiet machine, and is PENDING.
+  11 scenarios identical. Against its parent,
+  `bench-sampler.R record` on 738b1015 then `compare` on 3b12fca0, run by the orchestrator on the idle x86
+  bench box (4 cores, load about 1), one machine: no metric regressed more than 5%. The ratios: embedded
+  offset gibbs step 1.000, binary run 0.988, run t200 1.000, run t75 1.000, run n10000 0.994,
+  setPredictor accept 1.035, setPredictor reject 1.000.
 - 2.2 as planned: [`basisColumnScale`](../../src/bartcore/combiner.hpp) and
   [`BasisScaleError`](../../src/bartcore/combiner.hpp); the chain's rows in `rowsForBasisScale`, the
   status in `ForestCalibration::basisScaleFromAllRows`. tests/cpp `testBasisColumnScale`.
@@ -1765,8 +1771,8 @@ Calls made building, where the plan was silent or wrong:
 - The engine refuses a swap handing a numeric forest other than one column, and the bridge raises it.
 - `summary()`'s line takes each forest's number unnamed, so a numeric forest's column name does not
   make its label `dose.dose`.
-- The BCF baseline is named after 470046ae, the last commit that changes package code, and its
-  meta.rev set to it.
+- The BCF baseline is named after the last commit that changes package code, and its meta.rev set to
+  it: 470046ae as built, 85bc9ffb after the fix round.
 - A by-hand probit sampler of the plan's 2.5 "which rows" is built with the mask at creation.
 
 What moved, and why. Every model with a numeric multiplier, as the `rng:` line says; no recorded
@@ -1827,3 +1833,45 @@ quick. Every one is killed:
 | the prior-predictive refusal dropped | the record 1 |
 | the mask not handed to creation under probit | the record 6 |
 | the fallback to every row dropped under probit | tests/cpp 1; the record stops |
+
+Fix round, from the review (no must-fix, three should-fixes, seven nits taken). Commits: the tests
+(1dea7006), the help (85bc9ffb, now the last commit that changes package code), the design note and
+TODO (02fdf395), the BCF scenario (410f7993) and its baseline (d52dbda0).
+
+- numeric_swap_write_copy wrote the sd before it copied, so the copy was a stated forest and never read
+  the record it was handed: clearing `data@basis.scale` before `copy()` left its draws identical. The
+  copy is now made after the swap and run at its default before the write. The same probe now moves
+  the draws (the doubled sd 90.1 against 9.0), and the harness, with the record cleared in that
+  scenario, fails it bitwise and at a largest |z| of 11.9. Re-recorded as bcf-equivalence-85bc9ffb:
+  against 470046ae's file only numeric_swap_write_copy moves; the 15 earlier scenarios are 15 of 15
+  identical against 47838362, restricted's varcount.tau differing in its dimnames attribute alone.
+  470046ae's file is dropped from the branch.
+- The units twin gains a column of size about 3 with one row at 0.9 times 2^-26 of its largest, the
+  column against 2^-20 times it, so the bound is tested above 1 as well as below.
+- test-forest-scale-record.R gains a column holding 1e9 on its rows of weight zero, whose scale is
+  that over the rows in, and the gaussian joint warning's text in full.
+- tests/cpp: a numeric forest refuses a swap of two columns in the engine.
+- The help: `new("dbartsSampler", ..., active = )` on the class page, read at creation under probit
+  and logistic and installed afterwards under every family; the two warnings of the by-hand route under
+  gaussian, in dbartsSpec's `active`; and in forest's `sd`, probit and logistic reading no sd(y).
+- The design note's consumer case is gone, along with its TODO entry: the shipped header has no create
+  entry and cannot describe a sampler of several forests, so the case cannot arise. The TODO entry the
+  plan lists for it is not added.
+
+The review's four surviving mutants, each run on a clean export with `--preclean`:
+
+| mutant | killed by |
+|---|---|
+| the bound `tol * min(largest, 1)` | the units twin 1 |
+| the near-constant check's largest read over every row | the record stops (refused as constant to rounding) |
+| the engine's numeric swap width check dropped | tests/cpp 1 |
+| the gaussian joint warning dropping the column | the record 1 |
+
+Gates on the tip: tests/cpp 405 lines ok, and under ASAN and UBSAN 405 with 0 diagnostics; the full
+suite through `test_package(at_home = TRUE)` 28004 results in 261 files, 0 failed; the 43 exact-gate
+commands in quick, all passing; lintr (0 lints), air, rc-codoc, win-drift, doc-freshness and
+verify-anchors clean; on a `--preclean` reference install 55 of 55 against equivalence-32418b6e under
+`--strict-coverage`, 11 of 11 against multinomial-equivalence-80b1c8d4, 15 of 15 against
+bcf-equivalence-47838362 and 19 of 19 against bcf-equivalence-85bc9ffb, and the four snapshot files
+passing (14, 3, 7 and 3); `R CMD check --as-cran --no-manual` on a clean tarball one NOTE (the Date
+field). Size of the round: 65 lines added and 27 removed over 16 files, the baseline files aside.
