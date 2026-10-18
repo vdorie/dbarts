@@ -470,9 +470,11 @@ forest(
     or the mask later does not move the prior, and a copy, a saved and
     reloaded sampler and a sampler made again from its own control, model
     and data keep it. Where those observations hold fewer than two distinct
-    values of the response, or under \code{"probit"} and \code{"logistic"}
-    where none is in, both are taken over every observation, under one
-    warning. \eqn{\mathrm{sd}(y)}{sd(y)} is of the response net of its
+    values of the response, both are taken over every observation, under one
+    warning (two by the route of \code{\link{dbartsSpec}} and \code{new()},
+    see its \code{active}). \code{"probit"} and \code{"logistic"} read no
+    \eqn{\mathrm{sd}(y)}{sd(y)}, and where no observation is in,
+    \eqn{\mathrm{sd}(w)}{sd(w)} is taken over every one, under one warning. \eqn{\mathrm{sd}(y)}{sd(y)} is of the response net of its
     offset; on a gaussian response that does not vary over those observations
     it is a quarter of the window of width one the response is then scaled
     by. \eqn{\mathrm{sd}(w)}{sd(w)} is kept with the data, in its

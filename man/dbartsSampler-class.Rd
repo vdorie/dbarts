@@ -425,6 +425,8 @@
 \details{
   A \code{dbartsSampler} is a mutable object which contains information pertaining to fitting a Bayesian additive regression tree model. The sampler is first created and then, in a separate instruction, run or modified. In this way, MCMC samplers can be constructed with BART components filling arbitrary roles.
 
+  Besides \code{\link{dbarts}}, a sampler is created by \code{new("dbartsSampler", control, model, data, active = NULL)} from the list \code{\link{dbartsSpec}} returns. \code{active} is the 0/1 mask that list's \code{active} element holds, installed once the sampler is built, as \code{setActiveRows(active)} installs it. Under \code{"probit"} and \code{"logistic"} creation also reads it: a forest on a numeric column that states no \code{sd} takes the column's scale over the rows the mask keeps, every row where it keeps none. Under every other family creation reads nothing from it, the scale being taken over the rows the data object's weights keep, and the mask is installed afterwards.
+
   \subsection{Reading the fit}{
     Six methods report a fitted quantity and no two report the same one. They differ along three axes - the SCALE the values live on, whether the installed OFFSET is in them, and whether they answer from the CURRENT state or from stored draws:
 
