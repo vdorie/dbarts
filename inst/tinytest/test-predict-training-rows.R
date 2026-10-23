@@ -346,6 +346,41 @@ for (given in bad.weights) {
 expect_error(predict(fit.nb, weights = 1), "takes no per-observation weight")
 expect_error(predict(fit.ord, weights = 1), "takes no per-observation weight")
 
+# an offset, weights or bases replace the fit's own on the stored training
+# draws, so a fit kept without them is refused by name, the same for all three
+fit.nofits <- quick(x, df$y, keepFits = FALSE)
+fit.notrain <- quick(x, df$y, keepTrainingFits = FALSE)
+for (dropped in list(fit.nofits, fit.notrain)) {
+  for (request in list(
+    list(offset = 1),
+    list(offset = new.off),
+    list(offset = 1:3),
+    list(weights = 1, type = "ppd"),
+    list(weights = w.new, type = "ppd")
+  )) {
+    expect_error(
+      do.call(predict, c(list(dropped), request)),
+      "cannot extract train sample predictions; bart must be called with 'keepTrainingFits' == TRUE and 'keepFits' == TRUE",
+      fixed = TRUE,
+      info = paste(names(request), collapse = ", ")
+    )
+  }
+}
+fit.bt <- suppressWarnings(bartBT(
+  x,
+  df$y,
+  ntree = 10L,
+  nskip = 10L,
+  ndpost = 10L,
+  keeptrainfits = FALSE,
+  verbose = FALSE
+))
+expect_error(
+  predict(fit.bt, offset = 1),
+  "'keeptrainfits' == TRUE",
+  fixed = TRUE
+)
+
 # a row at weight 0 has NA posterior predictive draws by every route, with no
 # warning: a weight of 0 holds the row out of the fit and gives it no noise
 # scale (sd sigma / sqrt(w)); every other row's draw is what it was

@@ -679,7 +679,6 @@ withTrainingOffset <- function(object, offset) {
 ## so a basis equal to the fit's own moves nothing, and neither the trees nor
 ## the response shift is read.
 withTrainingBases <- function(object, bases) {
-  refuseWithoutTrainingDraws(object)
   yhat <- object$yhat.train
   nObs <- numTrainingRows(object)
   n.chains <- fitNChains(object)
@@ -740,7 +739,9 @@ withTestOffset <- function(object, offset) {
 }
 
 ## the training-row draws of a family: the extract method's own reading of the
-## (shifted) stored draws, then ci.level's band
+## (shifted) stored draws, then ci.level's band. An offset, weights or bases
+## replace the fit's own on the stored draws, so a fit kept without them is
+## refused here, once, for all three.
 trainingRowDraws <- function(
   object,
   extractMethod,
@@ -752,6 +753,9 @@ trainingRowDraws <- function(
   weights = NULL,
   bases = NULL
 ) {
+  if (!is.null(offset) || !is.null(weights) || !is.null(bases)) {
+    refuseWithoutTrainingDraws(object)
+  }
   source <- if (is.null(bases)) object else withTrainingBases(object, bases)
   if (!is.null(offset)) {
     source <- withTrainingOffset(source, offset)
