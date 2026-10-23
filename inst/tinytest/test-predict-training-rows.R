@@ -59,7 +59,6 @@ expect_equal(
 )
 expect_error(predict(fit.bare, offset = 1:3), "one per training row")
 expect_error(predict(fit.bare, offset = c(NA, rep(1, n - 1L))), "none missing")
-expect_error(predict(fit.bare, weights = 1), "rows of 'newdata'")
 
 # an offset given at fit time is replaced, not added to
 fit.off <- quick(y ~ a + b + c + offset(off), df)
@@ -176,6 +175,108 @@ expect_error(
   "one per training row"
 )
 
+# weights given with no newdata replace the fit's own for the training rows'
+# predictive draws, one value or one per training row, as they act at newdata
+# for each family and type, worked from the stored draws with no trees
+# (predict.lm with no newdata)
+w.new <- runif(n, 0.5, 4)
+for (given in list(w.new, 2.5)) {
+  set.seed(31)
+  a <- predict(fit, weights = given, type = "ppd")
+  set.seed(31)
+  b <- predict(fit, df, weights = given, type = "ppd")
+  expect_equal(a, b, tolerance = 1e-8)
+  # a fit kept without trees draws from its stored draws alone
+  set.seed(31)
+  a <- predict(fit.bare, weights = given, type = "ppd", combineChains = FALSE)
+  set.seed(31)
+  b <- dbarts:::sampleFromPPD(
+    extract(fit.bare, "ev", combineChains = FALSE),
+    fit.bare,
+    rep_len(given, n),
+    2L
+  )
+  expect_identical(a, b)
+}
+# the band over the replaced draws
+set.seed(32)
+a <- predict(fit, weights = w.new, type = "ppd", ci.level = 0.9)
+set.seed(32)
+b <- predict(fit, df, weights = w.new, type = "ppd", ci.level = 0.9)
+expect_equal(a, b, tolerance = 1e-8)
+# the weights only reach a posterior predictive draw, as at newdata
+for (type in c("ev", "bart")) {
+  expect_identical(
+    predict(fit, weights = w.new, type = type),
+    predict(fit, type = type)
+  )
+}
+# they set the noise: a larger weight is a smaller spread
+set.seed(33)
+spread <- function(weights) {
+  sd(predict(fit, weights = weights, type = "ppd") - predict(fit, type = "ev"))
+}
+expect_true(spread(100) < 0.5 * spread(1))
+# the fit's own weights given back change nothing, and the replacement does not
+# touch the fit
+w.own <- rep(c(1, 4), length.out = n)
+fit.own <- quick(x, df$y, weights = w.own)
+set.seed(34)
+a <- predict(fit.own, type = "ppd")
+set.seed(34)
+expect_identical(predict(fit.own, weights = w.own, type = "ppd"), a)
+expect_identical(fit.own$weights, w.own)
+# a student-t fit pairs each draw's own degrees of freedom, an aft fit draws
+# on the log-time scale, a heteroscedastic fit at its own scale
+fit.stu <- quick(x, df$y, family = "student")
+fit.het <- quick(x, df$y, variance = varianceForest(n.trees = 5L))
+for (family.fit in list(fit.stu, fit.het, fit.aft)) {
+  set.seed(35)
+  a <- predict(family.fit, weights = w.new, type = "ppd")
+  set.seed(35)
+  b <- predict(family.fit, x, weights = w.new, type = "ppd")
+  expect_equal(a, b, tolerance = 1e-8, check.attributes = FALSE)
+}
+# trial counts on a binary fit
+n.trials <- rep(c(1, 3, 5), length.out = n)
+fit.lg <- quick(z ~ a + b + c, df, family = "logistic")
+for (binary.fit in list(fit.p, fit.lg)) {
+  set.seed(36)
+  a <- predict(binary.fit, weights = n.trials, type = "ppd")
+  set.seed(36)
+  b <- predict(binary.fit, df, weights = n.trials, type = "ppd")
+  expect_equal(a, b)
+  expect_true(all(a >= 0 & a <= rep(n.trials, each = nrow(a))))
+  expect_error(
+    predict(binary.fit, weights = 0, type = "ppd"),
+    "trial counts and must be positive integers"
+  )
+  expect_error(
+    predict(binary.fit, weights = 1.5, type = "ppd"),
+    "trial counts and must be positive integers"
+  )
+}
+# checked as the offset is, against the training rows, and as at newdata
+expect_error(predict(fit, weights = 1:3), "one per training row \\(50\\)")
+expect_error(predict(fit.bare, weights = c(NA, rep(1, n - 1L))), "none missing")
+expect_error(predict(fit, weights = "a", type = "ev"), "none missing")
+expect_error(
+  predict(fit, weights = matrix(1, n, 1L), type = "ppd"),
+  "one per training row"
+)
+expect_error(
+  predict(fit, weights = c(-1, rep(1, n - 1L)), type = "ppd"),
+  "finite and non-negative"
+)
+expect_error(
+  predict(fit, weights = c(Inf, rep(1, n - 1L)), type = "ppd"),
+  "finite and non-negative"
+)
+expect_error(predict(fit, weights = 1, type = "sigma"), "type = \"sigma\"")
+# the other families take no weight in a posterior predictive draw, as at newdata
+expect_error(predict(fit.nb, weights = 1), "takes no per-observation weight")
+expect_error(predict(fit.ord, weights = 1), "takes no per-observation weight")
+
 # a row at weight 0 has NA posterior predictive draws by every route, with no
 # warning: a weight of 0 holds the row out of the fit and gives it no noise
 # scale (sd sigma / sqrt(w)); every other row's draw is what it was
@@ -263,6 +364,25 @@ expect_identical(
   c(1L, 4L)
 )
 expect_false(anyNA(predict(fit.w, x[held, ], type = "ppd", weights = 1)))
+# and with no newdata: the fit's own weights give NA at the held rows, weights
+# stated for them draw them as new observations, and weights of 0 given give NA
+expect_identical(
+  which(colSums(is.na(predict(fit.w, type = "ppd"))) > 0L),
+  held
+)
+expect_false(anyNA(predict(fit.w, weights = 1, type = "ppd")))
+expect_identical(
+  which(
+    colSums(is.na(predict(
+      fit.w,
+      weights = ifelse(w == 0, 1, 0),
+      type = "ppd"
+    ))) >
+      0L
+  ),
+  kept
+)
+expect_true(all(is.na(predict(fit.w, weights = 0, type = "ppd"))))
 # only a weight of 0 is held out: the rest of the check is as it was
 expect_error(
   predict(fit.w, x[1:5, ], type = "ppd", weights = c(-1, 1, 1, 1, 1)),

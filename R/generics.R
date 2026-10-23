@@ -536,15 +536,8 @@ predictsTrainingRows <- function(newdata) {
   missing(newdata) || is.null(newdata)
 }
 
-## the weights and bases arguments describe the rows of 'newdata'
-refuseNewdataOnlyArguments <- function(weights = NULL, bases = NULL) {
-  if (!is.null(weights)) {
-    stop(
-      "'weights' is for the rows of 'newdata'; the training rows use the ",
-      "fit's own weights",
-      call. = FALSE
-    )
-  }
+## the bases argument describes the rows of 'newdata'
+refuseNewdataOnlyBases <- function(bases) {
   if (!is.null(bases)) {
     stop(
       "'bases' is for the rows of 'newdata'; the training rows use the ",
@@ -553,6 +546,44 @@ refuseNewdataOnlyArguments <- function(weights = NULL, bases = NULL) {
     )
   }
   invisible(NULL)
+}
+
+## the number of training rows the fit's stored draws hold
+numTrainingRows <- function(object) {
+  draws <- object[["yhat.train"]]
+  if (!is.null(draws)) {
+    return(dim(draws)[length(dim(draws))])
+  }
+  fits <- object[["forestFits"]]
+  if (!is.null(fits)) {
+    return(dim(fits)[length(dim(fits)) - 1L])
+  }
+  length(object[["y"]])
+}
+
+## the replacement weights as one number per training row: the check the
+## offset has, and, for a posterior predictive draw, the one weights have at
+## newdata
+trainingRowWeights <- function(object, weights, type) {
+  nObs <- numTrainingRows(object)
+  if (
+    !is.numeric(weights) ||
+      !is.null(dim(weights)) ||
+      !(length(weights) %in% c(1L, nObs)) ||
+      anyNA(weights)
+  ) {
+    stop(
+      "'weights' must be one number or one per training row (",
+      nObs,
+      "), none missing",
+      call. = FALSE
+    )
+  }
+  weights <- rep_len(as.double(weights), nObs)
+  if (type == "ppd") {
+    refuseUnfitPredictiveWeights(object, weights)
+  }
+  weights
 }
 
 ## the replacement offset as one number per training row, less the fit's own
@@ -650,9 +681,13 @@ trainingRowDraws <- function(
   offset,
   combineChains,
   ci.level,
-  trailing = 1L
+  trailing = 1L,
+  weights = NULL
 ) {
   source <- if (is.null(offset)) object else withTrainingOffset(object, offset)
+  if (!is.null(weights)) {
+    source[["weights"]] <- weights
+  }
   result <- extractMethod(
     source,
     type = type,
@@ -673,6 +708,38 @@ trainingRowClass <- function(object, extractMethod, offset, ordered = FALSE) {
     object$levels,
     ordered = ordered
   )
+}
+
+## The weights of a posterior predictive draw at rows the fit never saw (newdata,
+## or the training rows under new weights). A binary draw's weights are its
+## trial counts, Binomial(w, p), under either link, as a logistic fit's own
+## weights are. On every family with a residual distribution, aft's log-time
+## one included, they are precision multipliers, sd_i = scale_i / sqrt(w_i): an
+## infinite one silently draws the expected value and a negative one draws
+## NaN; a weight of 0 gives the row NA draws. A missing one is the row's
+## na.action's to answer.
+refuseUnfitPredictiveWeights <- function(object, weights) {
+  if (fitIsBinary(object)) {
+    refuseNonCountWeights(
+      weights,
+      what = paste0(
+        "the posterior predictive 'weights' of a ",
+        fitEngineFamily(object),
+        " fit are trial counts"
+      )
+    )
+  } else if (fitHasResidual(object)) {
+    observed <- weights[!is.na(weights)]
+    if (any(observed < 0) || !all(is.finite(observed))) {
+      stop(
+        "the posterior predictive 'weights' of a ",
+        fitFamily(object),
+        " fit are precision multipliers and must be finite and non-negative",
+        call. = FALSE
+      )
+    }
+  }
+  invisible(NULL)
 }
 
 predict.bart <- function(
@@ -796,9 +863,13 @@ predict.bart <- function(
     )
   }
 
-  # no newdata: the training rows, read off the stored draws (dec-B341)
+  # no newdata: the training rows, read off the stored draws (dec-B341). An
+  # offset, weights and bases given there replace the fit's own at those rows
   if (trainingRows) {
-    refuseNewdataOnlyArguments(weights, bases)
+    refuseNewdataOnlyBases(bases)
+    if (!is.null(weights)) {
+      weights <- trainingRowWeights(object, weights, type)
+    }
     if (type == "forest") {
       if (!is.null(offset)) {
         stop(
@@ -821,7 +892,8 @@ predict.bart <- function(
       type,
       offset,
       combineChains,
-      ci.level
+      ci.level,
+      weights = weights
     ))
   }
 
@@ -847,31 +919,8 @@ predict.bart <- function(
   }
   offset <- subsetPredictInput(offset, rows, "offset")
   weights <- subsetPredictInput(weights, rows, "weights")
-  # a binary draw's weights at new rows are its trial counts, Binomial(w, p),
-  # under either link, as a logistic fit's own weights are
-  if (type == "ppd" && !is.null(weights) && fitIsBinary(object)) {
-    refuseNonCountWeights(
-      weights,
-      what = paste0(
-        "the posterior predictive 'weights' of a ",
-        fitEngineFamily(object),
-        " fit are trial counts"
-      )
-    )
-  } else if (type == "ppd" && !is.null(weights) && fitHasResidual(object)) {
-    # a precision multiplier, sd_i = scale_i / sqrt(w_i), on every family with
-    # a residual distribution, aft's log-time one included: an infinite one
-    # silently draws the expected value and a negative one draws NaN. A
-    # missing one is the row's na.action's to answer
-    observed <- weights[!is.na(weights)]
-    if (any(observed < 0) || !all(is.finite(observed))) {
-      stop(
-        "the posterior predictive 'weights' of a ",
-        fitFamily(object),
-        " fit are precision multipliers and must be finite and non-negative",
-        call. = FALSE
-      )
-    }
+  if (type == "ppd" && !is.null(weights)) {
+    refuseUnfitPredictiveWeights(object, weights)
   }
 
   if (type == "forest") {
