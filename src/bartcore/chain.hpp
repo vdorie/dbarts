@@ -2542,7 +2542,9 @@ public:
         if (!fs.leafLengthscales.empty() &&
             fs.leafLengthscales != leaf.lengthscales())
           return false;
-        if (!standardizationIsHeld(fs.leafCovariateCenters,
+        // a state without the blocks is read under the sampler's own
+        if (!fs.leafCovariateCenters.empty() &&
+            !standardizationIsHeld(fs.leafCovariateCenters,
                                    fs.leafCovariateScales,
                                    leaf.covariateMeans(), leaf.covariateSds()))
           return false;
