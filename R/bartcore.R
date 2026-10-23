@@ -1839,7 +1839,7 @@ forestNameTaken <- function(name, position, labels, argument) {
 # position, as `[[` reads one, and is returned untouched for the caller's own
 # checks. A string is never a position: it is the forest with that label;
 # failing that, the forest whose label is the same code; and "forest<i>" is
-# forest i, the name position i has on every per-forest margin. A string that
+# forest i, whatever label the forest carries. A string that
 # is one forest's label and another position's name, or is the same code as
 # two labels, is refused naming both. NA, an empty string, a factor, a
 # logical and a list are refused by name. With `several` a vector of strings

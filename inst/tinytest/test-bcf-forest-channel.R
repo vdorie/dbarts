@@ -46,9 +46,14 @@ twoForests <- list(
 # --- shapes and dimnames, combineChains = TRUE ---
 fit <- packageFrom(twoForests)
 expect_equal(dim(fit$forestFits), c(6L, n, 2L))
-expect_identical(dimnames(fit$forestFits)[[3L]], c("forest1", "forest2"))
+# a forest is named by its label on every margin, a forest with none by
+# forest<i>
+expect_identical(dimnames(fit$forestFits)[[3L]], c("forest1", "factor(z)"))
 expect_equal(dim(fit$glue), c(6L, 3L))
-expect_identical(attr(fit$glue, "forest"), c("forest1", "forest2", "forest2"))
+expect_identical(
+  attr(fit$glue, "forest"),
+  c("forest1", "factor(z)", "factor(z)")
+)
 expect_equal(fit$n.forests, 2L)
 expect_null(fit$bases[[1L]])
 # a forest of levels stores the factor, one value for each row
@@ -69,17 +74,19 @@ expect_equal(dim(fitUncombined$forestFits), c(2L, 6L, n, 2L))
 expect_equal(dim(fitUncombined$glue), c(2L, 6L, 3L))
 expect_identical(
   attr(fitUncombined$glue, "forest"),
-  c("forest1", "forest2", "forest2")
+  c("forest1", "factor(z)", "factor(z)")
 )
 
 # --- extract(type = "forest"): default slice, by index/name, contribution ---
 expect_identical(extract(fit, type = "forest"), fit$forestFits)
 
 byIndex <- extract(fit, type = "forest", forest = 2L)
-byName <- extract(fit, type = "forest", forest = "forest2")
+byName <- extract(fit, type = "forest", forest = "factor(z)")
 expect_identical(byIndex, byName)
+# forest<i> still selects position i
+expect_identical(byIndex, extract(fit, type = "forest", forest = "forest2"))
 expect_equal(dim(byIndex), c(6L, n, 1L))
-expect_identical(dimnames(byIndex)[[3L]], "forest2")
+expect_identical(dimnames(byIndex)[[3L]], "factor(z)")
 # a fractional numeric forest selector is refused, naming the argument,
 # rather than silently truncated (coerceOrError's integer branch); a
 # character selector is unaffected (resolveForestSelection branches on
@@ -99,7 +106,7 @@ glueForest <- attr(fit$glue, "forest")
 expected1 <- fit$glue[1L, glueForest == "forest1"] * fit$forestFits[1L, , 1L]
 expected2 <- as.vector(
   dbarts:::storedBasisBlock(fit$bases[[2L]]) %*%
-    fit$glue[1L, glueForest == "forest2"]
+    fit$glue[1L, glueForest == "factor(z)"]
 ) *
   fit$forestFits[1L, , 2L]
 expect_equal(contrib[1L, , 1L], expected1)

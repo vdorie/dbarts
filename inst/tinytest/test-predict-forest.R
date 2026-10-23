@@ -59,7 +59,7 @@ fit <- fitFromPredictForest(twoForests)
 # --- shape and naming: the in-sample channel's layout at the new rows ---
 predicted <- predict(fit, xNew, type = "forest")
 expect_equal(dim(predicted), c(n.samples, nNew, 2L))
-expect_identical(dimnames(predicted)[[3L]], c("forest1", "forest2"))
+expect_identical(dimnames(predicted)[[3L]], c("forest1", "factor(z)"))
 expect_true(all(is.finite(predicted)))
 
 # --- the identity: replayed at the TRAINING rows, the per-forest channel is
@@ -205,7 +205,7 @@ fit3 <- fitFromPredictForest(twoForests, n.chains = 2L, combineChains = FALSE)
 expect_equal(length(dim(fit3$forestFits)), 4L)
 predicted3 <- predict(fit3, xNew, type = "forest")
 expect_equal(dim(predicted3), c(2L * n.samples, nNew, 2L))
-expect_identical(dimnames(predicted3)[[3L]], c("forest1", "forest2"))
+expect_identical(dimnames(predicted3)[[3L]], c("forest1", "factor(z)"))
 
 byIndex3 <- predict(fit3, xNew, type = "forest", forest = 2L)
 byName3 <- predict(fit3, xNew, type = "forest", forest = "forest2")

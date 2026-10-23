@@ -271,7 +271,8 @@ forest(
     a forest's label (failing an exact match, the label that is the same code,
     so \code{"I(dose / 30)"} finds \code{I(dose/30)}), a number is its
     position as base R reads a list element by number, and \code{forest<i>} names position
-    \emph{i}, as it does on every per-forest margin. A string is never a
+    \emph{i}, though a per-forest margin of a fit is named by the forests'
+    labels. A string is never a
     position: \code{"2"} is a forest labeled \code{"2"} or none. A string
     that is one forest's label and another position's name, or the same code
     as two labels, is refused.

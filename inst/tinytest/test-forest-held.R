@@ -309,13 +309,13 @@ expect_identical(
       forest(x1, basis = dose) +
       forest(x1, basis = zf, amplitude = fixed())
   )$fixed$amplitude,
-  c(forest3 = 1)
+  c(zf = 1)
 )
 expect_identical(
   fitOf(
     y ~ forest(x1, basis = zf, amplitude = fixed()) + forest(x2, basis = dose)
   )$fixed$amplitude,
-  c(forest1 = 1)
+  c(zf = 1)
 )
 expect_null(
   fitOf(y ~ forest(x1 + x2) + forest(x1, basis = zf))$fixed$amplitude
@@ -490,7 +490,7 @@ heldDose <- bart(
   verbose = FALSE
 )
 expect_identical(unname(heldDose$fixed$amplitude), 1)
-expect_identical(names(heldDose$fixed$amplitude), "forest2")
+expect_identical(names(heldDose$fixed$amplitude), "dose")
 
 # --- another coding is another basis: z - 0.5 held at 1 is the forest's fit
 # times -0.5 and 0.5 ---

@@ -186,6 +186,18 @@ leafPriorIsDrawn <- function(prior) {
   isS4(spec@k) || isS4(spec@prior.sd)
 }
 
+# The name of each forest on a per-forest margin of a fit (its k and held
+# coefficient, its leaf priors, its channels of draws): the forest's label, a
+# forest with none of its own being forest<i>, so one forest has one name
+# everywhere. The labels are the record the sampler was created with.
+forestMarginNames <- function(control, numForests) {
+  labels <- attr(control, "bartcore.forests", exact = TRUE)$labels
+  if (is.character(labels) && length(labels) == numForests) {
+    return(labels)
+  }
+  paste0("forest", seq_len(numForests))
+}
+
 # The two descriptors a fit carries about the sampler that made it, both read
 # from the sampler's readers rather than the model: leaf.prior, the reader's
 # list as the run ended (one list on a single forest, one per forest on
@@ -204,7 +216,9 @@ fitDescriptors <- function(sampler, samples = NULL) {
     priors <- priors[[1L]]
     several <- FALSE
   }
-  forestNames <- if (several) paste0("forest", seq_along(priors))
+  forestNames <- if (several) {
+    forestMarginNames(sampler$control, length(priors))
+  }
   if (several) {
     names(priors) <- forestNames
   }
@@ -255,7 +269,7 @@ fitDescriptors <- function(sampler, samples = NULL) {
   if (any(held)) {
     fixed$amplitude <- setNames(
       rep(1, sum(held)),
-      paste0("forest", which(held))
+      forestMarginNames(sampler$control, length(held))[held]
     )
   }
   df <- attr(model, "resid.df")
@@ -337,7 +351,7 @@ packageBartResults <- function(
   # the same probe samplerCarriesAmplitudes uses.
   numForests <- if (!is.null(fit$data@bases)) length(fit$data@bases) else 1L
   forestNames <- if (numForests > 1L) {
-    paste0("forest", seq_len(numForests))
+    forestMarginNames(fit$control, numForests)
   } else {
     NULL
   }

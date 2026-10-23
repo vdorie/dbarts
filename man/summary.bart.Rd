@@ -79,8 +79,8 @@
   \code{NULL} if none of \code{vars} are present on the fit), \code{vars},
   and \code{fixed}, a named list of the requested parameters the fit held
   fixed and their values (on a fit with several forests a vector with one
-  entry for each forest, \code{k} named \code{forest1}, \code{forest2},
-  \dots and \code{leaf.prior.sd} by the forests' labels), and, on a fit of
+  entry for each forest, \code{k} and \code{leaf.prior.sd} named by the
+  forests' labels), and, on a fit of
   several forests that kept its fits, \code{forests}, the lines of the full block
   that the print method gives after the table. \code{stats} has columns \code{variable}, \code{mean}, \code{median},
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},

@@ -195,7 +195,7 @@ expect_identical(atOne, recombine(predicted, oneBasis, nNew))
 # the arms differ by exactly forest 2's own total moved from its first
 # amplitude to its second - the whole point of a basis, and what an
 # implementation that ignored the basis would collapse to zero
-amplitudes <- fit$glue[, glueForest == "forest2", drop = FALSE]
+amplitudes <- fit$glue[, glueForest == "factor(z)", drop = FALSE]
 expect_true(max(abs(atOne - atZero)) > 1e-6)
 expect_true(
   max(abs(
@@ -610,7 +610,7 @@ expect_identical(
 )
 armsApart <- predict(noTrees, bases = arm1, type = "bart") -
   predict(noTrees, bases = arm0, type = "bart")
-noTreesAmplitudes <- noTrees$glue[, attr(noTrees$glue, "forest") == "forest2"]
+noTreesAmplitudes <- noTrees$glue[, attr(noTrees$glue, "forest") == "factor(z)"]
 expect_equal(
   armsApart,
   (noTreesAmplitudes[, 2L] - noTreesAmplitudes[, 1L]) *

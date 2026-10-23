@@ -1188,9 +1188,9 @@ addTreesChainColumn <- function(trees) {
 # so it is a fixed number or draws exactly as k is. A held sd a single
 # forest's recorded prior names is that sd itself: the held k is k.scale over
 # it, and dividing back need not return its bits. A fit with several forests
-# has one k per forest, named forest<i>, and its leaf.prior.sd is the reader's
-# `sd` for each forest, the forest's sd in the response's units as recorded: a
-# list named by the forests' labels, or the entry of the one 'forest'
+# has one k per forest and its leaf.prior.sd is the reader's `sd` for each
+# forest, the forest's sd in the response's units as recorded: a list, as k is
+# a vector, named by the forests' labels, or the entry of the one 'forest'
 # selects. A fit saved before fits stored these descriptors answers from its
 # channels where they suffice and refuses by name where they do not.
 extractParameter <- function(
@@ -1493,8 +1493,9 @@ extract.bart <- function(
 # Selects one or more forests from a per-forest channel's trailing margin, by
 # 1-based position or by label (selectForest reads a string); NULL selects
 # every forest, in margin order. `labels` are the fit's forest.labels, NULL
-# for a fit that records none. A label is mapped to its position and never
-# matched against the margin's own names, which stay forest1..forestK.
+# for a fit that records none. A string is mapped to its position and never
+# matched against the margin's own names, which are the labels (forest<i> where
+# a forest has none): forest<i> selects position i all the same.
 resolveForestSelection <- function(forest, forestNames, labels = NULL) {
   if (is.null(forest)) {
     return(seq_along(forestNames))
@@ -1642,8 +1643,8 @@ predictForest <- function(
 }
 
 # A list given forest by forest is read by position, so a name on an entry
-# must be that position's label or forest<i>, its name on every per-forest
-# margin; any other would read as a selection the list does not make.
+# must be that position's label or forest<i>, the name that selects it; any
+# other would read as a selection the list does not make.
 refuseMisnamedBases <- function(given, labels, numForests) {
   if (is.null(given)) {
     return(invisible(NULL))

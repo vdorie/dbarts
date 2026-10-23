@@ -197,11 +197,102 @@ labelled <- bart(
   verbose = FALSE
 )
 expect_identical(attr(labelled, "forest.labels"), c("forest1", "dose"))
-# the per-forest margins keep forest1, forest2, and a label selects by position
+# the per-forest margins are named by the labels, and forest<i> and a label
+# both select by position
 expect_identical(
   dimnames(labelled$forestFits)[[length(dim(labelled$forestFits))]],
-  c("forest1", "forest2")
+  c("forest1", "dose")
 )
+# one forest has one name everywhere: its label, and forest<i> for a forest
+# with none of its own, on the fit, in extract, fitted and predict
+heldFit <- bart(
+  y ~ forest(x1 + x2) + forest(x1 + x2, basis = dose, amplitude = fixed()),
+  frame,
+  n.chains = 2L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 3L,
+  n.burn = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_identical(attr(heldFit, "forest.labels"), c("forest1", "dose"))
+expect_identical(heldFit$fixed$amplitude, c(dose = 1))
+expect_identical(names(heldFit$fixed$k), c("forest1", "dose"))
+expect_identical(names(heldFit$leaf.prior), c("forest1", "dose"))
+expect_identical(names(extract(heldFit, "k")), c("forest1", "dose"))
+expect_identical(names(extract(heldFit, "leaf.prior.sd")), c("forest1", "dose"))
+expect_identical(
+  names(summary(heldFit, vars = "k")$fixed$k),
+  c("forest1", "dose")
+)
+expect_identical(
+  names(summary(heldFit)$fixed$leaf.prior.sd),
+  c("forest1", "dose")
+)
+lastMargin <- function(x) dimnames(x)[[length(dim(x))]]
+expect_identical(lastMargin(heldFit$forestFits), c("forest1", "dose"))
+expect_identical(unique(attr(heldFit$glue, "forest")), c("forest1", "dose"))
+expect_identical(lastMargin(heldFit$varcount), c("forest1", "dose"))
+expect_identical(lastMargin(extract(heldFit, "forest")), c("forest1", "dose"))
+expect_identical(
+  lastMargin(extract(heldFit, "forest", contribution = TRUE)),
+  c("forest1", "dose")
+)
+expect_identical(
+  lastMargin(extract(heldFit, "forest", combineChains = FALSE)),
+  c("forest1", "dose")
+)
+expect_identical(
+  colnames(fitted(heldFit, type = "forest")),
+  c("forest1", "dose")
+)
+expect_identical(
+  lastMargin(predict(heldFit, frame, type = "forest")),
+  c("forest1", "dose")
+)
+# forest<i> still selects position i wherever a forest is taken, as a label does
+expect_identical(
+  extract(heldFit, "forest", forest = "forest2"),
+  extract(heldFit, "forest", forest = "dose")
+)
+expect_identical(
+  lastMargin(extract(heldFit, "forest", forest = "forest2")),
+  "dose"
+)
+expect_identical(
+  predict(heldFit, frame, type = "forest", forest = "forest2"),
+  predict(heldFit, frame, type = "forest", forest = 2L)
+)
+expect_identical(
+  extract(heldFit, "k", forest = "forest2"),
+  extract(heldFit, "k", forest = "dose")
+)
+expect_identical(
+  extract(heldFit, "leaf.prior.sd", forest = "forest2"),
+  extract(heldFit, "leaf.prior.sd", forest = 2L)
+)
+# a forest whose basis was handed over as a value has no label of its own and
+# keeps forest<i>
+valueSampler <- listFit(bquote(list(
+  forest(),
+  forest(basis = .(frame$dose), amplitude = fixed())
+)))
+valueBurn <- dbarts:::runWithBurnIn(valueSampler, valueSampler$control, TRUE)
+valueFit <- dbarts:::packageBartResults(
+  valueSampler,
+  valueBurn$samples,
+  valueBurn$burnInSigma,
+  valueBurn$burnInK,
+  TRUE,
+  TRUE
+)
+expect_identical(attr(valueFit, "forest.labels"), c("forest1", "forest2"))
+expect_identical(valueFit$fixed$amplitude, c(forest2 = 1))
+expect_identical(names(valueFit$fixed$k), c("forest1", "forest2"))
+expect_identical(names(valueFit$leaf.prior), c("forest1", "forest2"))
+expect_identical(lastMargin(valueFit$forestFits), c("forest1", "forest2"))
+expect_identical(unique(attr(valueFit$glue, "forest")), c("forest1", "forest2"))
 sampler <- listFit(quote(list(forest(), forest(basis = dose))))
 expect_identical(sampler$getLeafPrior("dose"), sampler$getLeafPrior(2L))
 expect_error(

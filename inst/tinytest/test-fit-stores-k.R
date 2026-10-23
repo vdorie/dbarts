@@ -360,18 +360,18 @@ forests <- bart(
   verbose = FALSE
 )
 expect_identical(forests$n.forests, 2L)
-expect_identical(names(forests$leaf.prior), c("forest1", "forest2"))
+expect_identical(names(forests$leaf.prior), c("forest1", "z"))
 expect_null(forests[["k"]])
 perForest <- forests$fit$getLeafPrior()
 # a forest's sd, in the response's units, is what the reader returns for it:
 # `extract` hands back those numbers as a list named by the forests' labels, the
-# second forest's being its basis term (the fit's own leaf.prior keeps forest<i>)
+# second forest's being its basis term, as in the fit's own leaf.prior
 sds <- lapply(perForest, function(prior) prior$sd)
 expect_identical(names(perForest), c("forest1", "z"))
 expect_identical(extract(forests, "leaf.prior.sd"), sds)
 expect_equal(
   extract(forests, "k"),
-  c(forest1 = 1, forest2 = 1)
+  c(forest1 = 1, z = 1)
 )
 expect_equal(
   extract(forests, "k", combineChains = FALSE),
@@ -385,7 +385,7 @@ expect_equal(
   extract(forests, "leaf.prior.sd", forest = "forest1"),
   sds[[1L]]
 )
-expect_equal(forests$fixed$k, c(forest1 = 1, forest2 = 1))
+expect_equal(forests$fixed$k, c(forest1 = 1, z = 1))
 # summary keeps each forest's sd, in the response's units, by the forest's
 # label: the numbers extract returns. It prints them in the block after its
 # table, and the line under the table does not name them

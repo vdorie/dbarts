@@ -475,14 +475,14 @@ fitted <- bart(
 )
 fitLabels <- attr(fitted, "forest.labels")
 expect_identical(fitLabels, c("dose", "age", "scale(age)"))
-# the margins keep their names
+# the margins are named by the labels
 expect_identical(
   dimnames(fitted$forestFits)[[3L]],
-  c("forest1", "forest2", "forest3")
+  c("dose", "age", "scale(age)")
 )
 expect_identical(
   names(extract(fitted, "k", forest = NULL)),
-  c("forest1", "forest2", "forest3")
+  c("dose", "age", "scale(age)")
 )
 newRows <- frame[1:7, ]
 for (index in 1:3) {
@@ -537,7 +537,7 @@ expect_false(
 byLabel <- extract(fitted, "forest", forest = c("scale(age)", "dose"))
 byPosition <- extract(fitted, "forest", forest = c(3L, 1L))
 expect_identical(byLabel, byPosition)
-expect_identical(dimnames(byLabel)[[3L]], c("forest3", "forest1"))
+expect_identical(dimnames(byLabel)[[3L]], c("scale(age)", "dose"))
 expect_identical(
   extract(fitted, "k", forest = c("scale(age)", "dose")),
   extract(fitted, "k", forest = c(3L, 1L))
