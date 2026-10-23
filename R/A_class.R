@@ -347,6 +347,39 @@ naThreadsControlMessage <- paste0(
   "a control's 'n.threads' slot must be a positive integer, not NA"
 )
 
+## The most cuts a predictor's grid holds, the engine's own limit
+## (bartcore::maxNumCutsRepresentable). The perturb window is clipped to a
+## node's range, so any window at or above a column's cut count is its whole
+## range, and 'Inf' is the explicit spelling of that.
+maxCutsRepresentable <- 65533L
+
+## Why a perturb window cannot be taken, NULL when it can: a whole number from
+## one to the cap, or Inf. A finite value above the cap is refused rather than
+## clamped, naming both ways to ask for the widest window; a value under the
+## cap that exceeds a column's cut count stays taken, being a maximum.
+perturbCutsRefusal <- function(width) {
+  if (
+    length(width) != 1L ||
+      is.na(width) ||
+      width < 1 ||
+      (is.finite(width) && width != trunc(width))
+  ) {
+    return("'n.perturb.cuts' must be a single positive whole number or Inf")
+  }
+  if (is.finite(width) && width > maxCutsRepresentable) {
+    return(paste0(
+      "'n.perturb.cuts' of ",
+      format(width, scientific = FALSE),
+      " is over the cap of ",
+      maxCutsRepresentable,
+      ", the most cuts a predictor's grid can carry; give ",
+      maxCutsRepresentable,
+      " or Inf for a window over the node's whole range"
+    ))
+  }
+  NULL
+}
+
 methods::setValidity("dbartsControl", function(object) {
   if (length(object@verbose) != 1L) {
     return("'verbose' must be of length 1")
@@ -523,14 +556,9 @@ methods::setValidity("dbartsControl", function(object) {
   if (is.na(birth) || birth <= 0.0 || birth >= 1.0) {
     return("birth probability for birth/death step must be in (0, 1)")
   }
-  width <- object@n.perturb.cuts
-  if (
-    length(width) != 1L ||
-      is.na(width) ||
-      width < 1 ||
-      (is.finite(width) && width != trunc(width))
-  ) {
-    return("'n.perturb.cuts' must be a single positive whole number or Inf")
+  refusal <- perturbCutsRefusal(object@n.perturb.cuts)
+  if (!is.null(refusal)) {
+    return(refusal)
   }
 
   if (is.na(object@updateState)) {

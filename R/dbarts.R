@@ -2844,6 +2844,11 @@ dbartsSampler <- setRefClass(
       if (!inherits(newControl, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
+      # a slot written after the constructor is not checked by it
+      refusal <- perturbCutsRefusal(newControl@n.perturb.cuts)
+      if (!is.null(refusal)) {
+        stop(refusal, call. = FALSE)
+      }
 
       selfEnv <- parent.env(environment())
 

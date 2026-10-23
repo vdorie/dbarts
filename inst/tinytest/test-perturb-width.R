@@ -1,6 +1,7 @@
 # n.perturb.cuts, the most cut positions a perturb proposal moves a split
-# either way. The default, 1, is the window the engine always had; any value
-# at or above the cut cap is the cap.
+# either way. The default, 1, is the window the engine always had; a whole
+# number up to the cut cap is taken, Inf is the window over the node's whole
+# range, and a finite value above the cap is refused, naming both.
 
 set.seed(31L)
 n <- 80L
@@ -49,17 +50,86 @@ integerWidth <- widthControl()
 integerWidth@n.perturb.cuts <- 3L
 expect_silent(validObject(integerWidth))
 
-# ---- at or above the cut cap is the cap --------------------------------------
+# ---- the cut cap and Inf are taken, a finite value above the cap is refused -
 
 atCap <- drawsAt(widthControl(n.perturb.cuts = 65533))
 expect_false(identical(atCap, atDefault))
-for (wide in list(Inf, .Machine$integer.max + 1, 1e12)) {
-  expect_identical(
-    drawsAt(widthControl(n.perturb.cuts = wide)),
-    atCap,
+# Inf is the explicit window over the node's whole range, the cap's
+expect_identical(drawsAt(widthControl(n.perturb.cuts = Inf)), atCap)
+expect_identical(
+  dbarts::dbartsControl(n.perturb.cuts = Inf)@n.perturb.cuts,
+  Inf
+)
+expect_identical(
+  dbarts::dbartsControl(n.perturb.cuts = 65533L)@n.perturb.cuts,
+  65533
+)
+# a value over the cap is refused where it is written, the message naming the
+# cap and both ways to ask for the widest window
+overCap <- paste0(
+  "is over the cap of 65533, the most cuts a predictor's grid can carry; ",
+  "give 65533 or Inf for a window over the node's whole range"
+)
+for (wide in list(65534, 65534L, 70000, .Machine$integer.max + 1, 1e12)) {
+  expect_error(
+    dbarts::dbartsControl(n.perturb.cuts = wide),
+    paste0(
+      "'n.perturb.cuts' of ",
+      format(wide, scientific = FALSE),
+      " ",
+      overCap
+    ),
+    fixed = TRUE,
     info = format(wide)
   )
 }
+# by a slot written past the constructor, at validation, at creation, and at
+# setControl, whose sampler is left as it was
+written <- widthControl()
+written@n.perturb.cuts <- 70000
+expect_error(validObject(written), overCap, fixed = TRUE)
+expect_error(dbarts::dbarts(x, y, control = written), overCap, fixed = TRUE)
+live <- dbarts::dbarts(x, y, control = widthControl(n.perturb.cuts = 3L))
+expect_error(live$setControl(written), overCap, fixed = TRUE)
+expect_identical(live$control@n.perturb.cuts, 3)
+for (taken in list(65533, Inf)) {
+  taking <- live$control
+  taking@n.perturb.cuts <- taken
+  live$setControl(taking)
+  expect_identical(live$control@n.perturb.cuts, taken)
+}
+rm(written, live, taking, taken)
+# the other refusals are as they were, a value over the cap among them only
+# when finite and whole
+expect_error(
+  dbarts::dbartsControl(n.perturb.cuts = 70000.5),
+  "'n.perturb.cuts' must be a single positive whole number or Inf",
+  fixed = TRUE
+)
+# a value under the cap that exceeds a column's own cut count is taken, the
+# setting being a maximum: the window stops at the node's range, so it is the
+# whole range, as the cap is
+smallGrid <- function(width) {
+  set.seed(7L)
+  dbarts::dbarts(
+    x,
+    y,
+    control = widthControl(n.cuts = 5L, n.perturb.cuts = width)
+  )$run(20L, 20L)$train
+}
+expect_identical(smallGrid(60000), smallGrid(5L))
+expect_identical(smallGrid(5L), smallGrid(65533))
+expect_identical(smallGrid(5L), smallGrid(Inf))
+# the bridge still clamps a slot that reaches it unchecked, as a backstop
+copiedAt <- function(width) {
+  written <- dbarts::dbarts(x, y, control = widthControl())
+  written$control@n.perturb.cuts <- width
+  set.seed(7L)
+  written$copy()$run(20L, 20L)$train
+}
+expect_identical(copiedAt(70000), copiedAt(65533))
+expect_identical(copiedAt(Inf), copiedAt(65533))
+expect_false(identical(copiedAt(70000), copiedAt(1)))
 
 # ---- width 3 reaches every sampler kind --------------------------------------
 
