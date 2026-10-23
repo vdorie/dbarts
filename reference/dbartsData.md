@@ -226,6 +226,39 @@ predictor column (see ‘Missing values in predictors’ in
 [`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
 and a sampler created from such an object takes them.
 
+Three more slots record what a sampler derives from its data; where
+`basis.scale` keeps the value of the sampler's first creation, they
+follow what the sampler holds while the data move. Each is `NULL` as
+created: `cutPoints`, a list with one entry per predictor column, `NULL`
+for an unordered factor and otherwise the column's cut points, strictly
+increasing, with their weights, where they are not equally likely, as
+the entry's `"mass"` attribute (an increasing sequence whose successive
+differences are the weights, as a state's `cutMass` holds them);
+`response.range`, the `c(min, max)` of the response the leaf prior's
+scale is taken from, `NULL` under a family that reads none (probit,
+logistic, ordinal and multinomial); and `forest.calibration`,
+`c(anchor = , unit = )` of a model of several forests (see
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `NULL`
+elsewhere. The data object a sampler holds, `sampler$data`, records them
+from creation on, and the sampler rewrites them after every call that
+changes one. A sampler created from a data object - by
+[`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
+[`bart`](https://vdorie.github.io/dbarts/reference/bart.md),
+[`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
+or `new("dbartsSampler", control, model, data)`, and the copy and reload
+of a sampler, which are created from its own - uses each value the
+object records and derives the others, so `dbarts(sampler$data)` is made
+on the sampler's cut points and response range, while a data object made
+afresh from the same rows derives its own.
+[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) derives
+them in each fold, from the fold's training rows, whatever the object
+records. A record that fits no data - another number of columns, cut
+points for an unordered factor, on an ordered factor other than those of
+its levels, repeated or not finite, a range that is not two finite
+numbers - is refused, naming the slot; setting it to `NULL` derives the
+value instead. Cut points out of order are sorted. The slots can be set
+by hand, and are not checked against the rows.
+
 ## See also
 
 [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md),
@@ -372,6 +405,15 @@ data
 #> 
 #> 
 #> Slot "missing.seen":
+#> NULL
+#> 
+#> Slot "cutPoints":
+#> NULL
+#> 
+#> Slot "response.range":
+#> NULL
+#> 
+#> Slot "forest.calibration":
 #> NULL
 #> 
 #> Slot "response.type":

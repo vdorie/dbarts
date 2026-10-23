@@ -1611,14 +1611,13 @@ sampler kept with `keepSampler` or `samplerOnly`.
   bitwise, since restoring rebuilds the fitted values by re-summing the
   trees.
 
-- `copy()`, deep or shallow, installs the original's stored state, so
-  the copy continues the same streams as the original rather than
-  starting an independent chain - again typically to the last few
-  digits, not bitwise; create a new sampler with a different `seed` for
-  an independent one. `copy()` uses whatever `storeState()` last
-  captured (`run()` does this automatically unless
-  `updateState = FALSE`); a copy made with no stored state instead
-  starts over, drawing fresh trees from the prior.
+- `copy()`, deep or shallow, installs the original's current chain, or,
+  where its engine is gone, as after a reload, the state `storeState()`
+  last captured, so the copy continues the same streams as the original
+  rather than starting an independent chain - again typically to the
+  last few digits, not bitwise; create a new sampler with a different
+  `seed` for an independent one. A copy of a sampler whose engine is
+  gone and that has no stored state is refused, as its other calls are.
 
 - An unseeded sampler draws fresh chain seeds from R's stream every time
   its underlying engine is (re-)created - at `copy()`, and at the first
@@ -2137,7 +2136,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001187
+#> total seconds in loop: 0.001796
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2190,7 +2189,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   1 forest1: no basis; sd 1.798 (default)
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.001271
+#> total seconds in loop: 0.002249
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

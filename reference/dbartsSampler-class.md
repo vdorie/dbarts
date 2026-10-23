@@ -208,21 +208,26 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   A logical determining if the copy should retain the underlying data of
   the sampler (`TRUE`) or have its own copies (`FALSE`). Either way, the
-  copy keeps the original's model, the response transform its leaf prior
-  is anchored to included, and installs the original's stored state (or,
-  with none, its current one) as stored, converting nothing (see
-  ‘Saving’), so it continues the same generator streams as the
+  copy keeps the original's model and its data object, on whose record
+  of the cut points, their weights and the response range it is built
+  (see
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)).
+  A copy of a sampler whose engine exists in this R session takes that
+  engine's current chain, as stored, converting nothing, whatever the
+  original's `state` field holds, and the copy's `state` field is that
+  chain; the original's own field and draws are untouched. A copy of one
+  whose engine is gone, as after a
+  [`load`](https://rdrr.io/r/base/load.html), installs its stored state
+  as a reload does, and without one is refused, as a reload is (see
+  ‘Saving’). Either way it continues the same generator streams as the
   original - not an independent chain - typically matching an
   uninterrupted run to the last few digits, not bitwise; see the
   Reproducibility section of
   [bart](https://vdorie.github.io/dbarts/reference/bart.md). When
-  `n.samples` was changed after the state was stored, the copy's
-  saved-tree store takes the stored state's capacity, as a reload does,
-  and keeps the saved trees the state holds rather than truncating or
-  resetting them. With no state stored (`updateState = FALSE`), the copy
-  first reads the original's current state, so it continues the original
-  whatever `updateState` is; the original's own state field and draws
-  are untouched.
+  `n.samples` was changed after the chain was stored, the copy's
+  saved-tree store takes the chain's capacity, as a reload does, and
+  keeps the saved trees it holds rather than truncating or resetting
+  them.
 
 - newControl:
 
@@ -1170,9 +1175,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   first to refresh it if a later mutation may have gone unstored
   (`storeState` itself returns `NULL` invisibly, so its return value
   cannot be passed here). A sampler's own `state` field is never refused
-  for the cut points it records: where a `copy` or a reload is made on
-  other cut points than its stored state records, as on an ordered
-  factor after `setData` (see ‘Saving’), the field holds the state of
+  for the cut points it records: where a reload is made on other cut
+  points than its stored state records, as after a `setCutPoints` with
+  no `storeState()` since (see ‘Saving’), the field holds the state of
   its engine in place of the stored one. A reload's field is brought to
   its engine's at first use, and a state read from it before that is the
   stored one. Must inherit from `bartcoreState`.
@@ -1370,22 +1375,23 @@ check what it returns, as in
 `setState` validates that `newState` inherits from `bartcoreState` and
 re-creates the underlying engine if needed: a sampler whose engine is
 gone, as after a [`load`](https://rdrr.io/r/base/load.html), is first
-rebuilt from its own saved state, as any other call rebuilds it, so that
-`setState` gives what it gives a sampler that was never saved; only one
+rebuilt on the cut points, weights and response range its data object
+records and from its own saved state, as any other call rebuilds it, so
+that `setState` gives what it gives a sampler that was never saved; one
 with no saved state, or one whose saved state is refused, is created
-anew and takes the cut points `newState` records. Then, where every tree
-of the state fits the sampler as it stands, it installs the state,
-caches it on the `state` field and returns `TRUE`; where one does not,
-it installs nothing, leaves the sampler, its engine and its `state`
-field exactly as they were, and returns `FALSE`. `TRUE` does not mean
-bit for bit. It means the trees and leaf values are the stored ones, and
-the quantities the sampler draws are the stored ones where the state
-holds them. Of the kept draws (`keepTrees`) the newest that fit the
-sampler's own store are taken, whatever number the state holds. The
-latent variables may be redrawn (see the case weights, below), and the
-chain continues the state's own generator streams from where they left
-off, typically to the last few digits, not bitwise (see the
-Reproducibility section of
+anew on the same record, and `newState` goes onto its cut points as onto
+a live sampler's. Then, where every tree of the state fits the sampler
+as it stands, it installs the state, caches it on the `state` field and
+returns `TRUE`; where one does not, it installs nothing, leaves the
+sampler, its engine and its `state` field exactly as they were, and
+returns `FALSE`. `TRUE` does not mean bit for bit. It means the trees
+and leaf values are the stored ones, and the quantities the sampler
+draws are the stored ones where the state holds them. Of the kept draws
+(`keepTrees`) the newest that fit the sampler's own store are taken,
+whatever number the state holds. The latent variables may be redrawn
+(see the case weights, below), and the chain continues the state's own
+generator streams from where they left off, typically to the last few
+digits, not bitwise (see the Reproducibility section of
 [bart](https://vdorie.github.io/dbarts/reference/bart.md)).
 
 A tree does not fit, and `setState` returns `FALSE`, when it would have
@@ -1460,12 +1466,15 @@ sampler's `k.scale`.
 Assigning the field directly (`sampler$state <- newState`) does *not*
 restore the sampler - it only overwrites the R-side cache, leaving the
 engine untouched, so the next run continues from the engine's own state
-rather than the assigned one. `copy` and a reload install the field as
-`setState` does with `forceUpdate = TRUE`, having no other state to fall
-back on: a tree that no longer fits is repaired, and nothing is
-reported. An object whose field holds a state that is refused cannot be
-copied, and after a reload raises that refusal at each use until a state
-of its own is assigned. Always route a restore through `setState`.
+rather than the assigned one. A reload, and a `copy` of a sampler whose
+engine is gone, install the field as `setState` does with
+`forceUpdate = TRUE`, having no other state to fall back on: a tree that
+no longer fits is repaired, and nothing is reported. Such an object
+whose field holds a state that is refused cannot be copied, and after a
+reload raises that refusal at each use until a state of its own is
+assigned; one whose field holds no state is refused the same ways. A
+`copy` of a sampler whose engine exists takes its current chain and not
+the field. Always route a restore through `setState`.
 
 A state carries no data, a forest's basis and the levels of its factor
 among them, so a state installed in a sampler whose factor has the same
@@ -1480,31 +1489,33 @@ Gaussian-process lengthscale are the sampler's own, before and after; a
 value the sampler draws is installed where the state holds one and kept
 where it does not, so a state written before these blocks were dropped
 still installs. The response transform a `k`-named prior is anchored to,
-and which every leaf value is stored relative to, is model too: set when
-the sampler is created and when `setResponse` or `setOffset` at
-`updateScale = TRUE`, `setWeights` or `setActiveRows` at
-`updateScale = TRUE`, or `setData`, re-anchors it, and recorded on the
-`model` field so a `copy` or a reload is re-created in it. A state goes
-in as stored: its trees, leaf values, `k`, `sigma` and kept draws are
-numbers on the sampler's internal scale, and an install - `setState`,
-`copy`, a reload - reads them against this sampler's response mapping
-and never converts them. A state stored under the mapping in force, as a
-sampler's own, a `copy`'s or a reload's is unless a re-anchor came
-between, puts the chain back where it was stored, value for value. A
-state stored before a re-anchor, or by a sampler on another response, is
-legal and has no special meaning: the same internal numbers read on this
-sampler's scale are a position the chain could hold, and the next draws
-move the parameters where the data say. A response that was only
-rescaled is then no change at all on the internal scale, the fit, the
-leaf prior's spread and `sigma` all rescaling with it; one whose center
-moved as well is fitted wrongly until the draws catch up. A kept draw
-restored across mappings predicts on the new scale, where a re-anchor
-converts the kept draws so that they predict what they did. No leaf
-model refuses such a state; one whose saved Gaussian-process draws were
-made under other lengthscales than the ones this sampler was given is
-refused. The state records the mapping it was read under, which no
-install reads. Because a re-anchor is a model change, restoring a state
-stored before one does not undo it; to roll a re-anchoring
+and which every leaf value is stored relative to, is not in the state
+either: it is derived from the data when the sampler is created and when
+`setResponse` or `setOffset` at `updateScale = TRUE`, `setWeights` or
+`setActiveRows` at `updateScale = TRUE`, or `setData`, re-anchors it,
+and recorded as the `response.range` of the sampler's data object (see
+[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
+so a `copy` or a reload is re-created in it. A state goes in as stored:
+its trees, leaf values, `k`, `sigma` and kept draws are numbers on the
+sampler's internal scale, and an install - `setState`, `copy`, a
+reload - reads them against this sampler's response mapping and never
+converts them. A state stored under the mapping in force, as a sampler's
+own, a `copy`'s or a reload's is unless a re-anchor came between, puts
+the chain back where it was stored, value for value. A state stored
+before a re-anchor, or by a sampler on another response, is legal and
+has no special meaning: the same internal numbers read on this sampler's
+scale are a position the chain could hold, and the next draws move the
+parameters where the data say. A response that was only rescaled is then
+no change at all on the internal scale, the fit, the leaf prior's spread
+and `sigma` all rescaling with it; one whose center moved as well is
+fitted wrongly until the draws catch up. A kept draw restored across
+mappings predicts on the new scale, where a re-anchor converts the kept
+draws so that they predict what they did. No leaf model refuses such a
+state; one whose saved Gaussian-process draws were made under other
+lengthscales than the ones this sampler was given is refused. The state
+records the mapping it was read under, which no install reads. Because a
+re-anchor is not in the state, restoring a state stored before one does
+not undo it; to roll a re-anchoring
 `setResponse(y2, updateScale = TRUE)` back, re-anchor to the old
 response with `setResponse(y, updateScale = TRUE)` and then `setState`
 the saved state, so that the response is restored with the state. The
@@ -1530,21 +1541,26 @@ runs with that column's cut points equally likely.
 `setPredictor(x[, j], j, updateCutPoints = "value")` gives back both
 while the column holds the values its cut points were derived from. A
 `copy` and a reload, which create a new engine, take the cut points and
-weights their stored state records for every numeric column, so a
-sampler copied or saved after a change of cut points with no
-`storeState()` since is re-created on the earlier ones. On a column the
+weights the sampler's data object records, which are the ones in force
+(see
+[`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
+and none from a state. A reload of a sampler saved after a change of cut
+points with no `storeState()` since has the stored state's splits moved
+onto the recorded cut points by value, as a forced `setState` moves
+them, and its `state` field then holds what its engine holds; call
+`storeState()` before saving after a change of cut points to have it
+reload as it stands. A `copy` of a sampler whose engine exists takes its
+current chain, which is on those cut points already. On a column the
 sampler holds as an ordered factor, whose cut points its number of
-levels fixes, a state recording other cut points is refused by
-`setState`. A `copy` and a reload do not hold their stored state to that
-and take no cut points for a factor: theirs are those of the levels the
-data's record declares. On a sampler made from a data frame, `setData`
-reads the new data's factors by label and records the sampler's own
-levels, so a `copy` and a reload hold the levels the sampler was created
-with and take the state it stored. A linear or Gaussian-process leaf's
-covariate standardization comes with the state as it is. A leaf
-covariate that held a single value when its standardization was derived
-has no scale: the state records `NA` for it, and the covariate is
-divided by 1.
+levels fixes, a state recording other cut points is refused, by
+`setState`, a `copy` and a reload alike. On a sampler made from a data
+frame, `setData` reads the new data's factors by label and records the
+sampler's own levels, so a `copy` and a reload hold the levels the
+sampler was created with and take the state it stored. A linear or
+Gaussian-process leaf's covariate standardization comes with the state
+as it is. A leaf covariate that held a single value when its
+standardization was derived has no scale: the state records `NA` for it,
+and the covariate is divided by 1.
 
 The case weights are not in the state, so a restore is reconciled
 against the DESTINATION's own rather than governed by the source's:
@@ -1574,15 +1590,16 @@ the stored chain's. A `logistic` sampler has its latents redrawn by both
 calls, so in that order it is never the stored chain bit for bit. Where
 `setWeights` installs the mask instead (see `weights`), the rows the old
 vector switches back in have their latents redrawn in that order, as
-`setActiveRows` redraws them. A sampler saved or copied after its
-weights changed without a store is re-created from the last stored
-state, installed under the weights it then holds by the rule for a
-restore under other weights (see `weights`). It is a continuation of the
-stored chain and not a copy of the live sampler: it carries no sweep
-made since the store, and after an undo with `setState` first, when the
-weights are the stored ones again, it is the stored chain exactly,
-without the scales that undo redrew. Call `storeState()` after the
-change to have it reload or copy as it stands.
+`setActiveRows` redraws them. A sampler saved after its weights changed
+without a store is re-created from the last stored state, installed
+under the weights it then holds by the rule for a restore under other
+weights (see `weights`). It is a continuation of the stored chain and
+not of the live sampler: it carries no sweep made since the store, and
+after an undo with `setState` first, when the weights are the stored
+ones again, it is the stored chain exactly, without the scales that undo
+redrew. Call `storeState()` after the change to have it reload as it
+stands; a `copy` of a sampler whose engine exists takes its current
+chain.
 
 ### Missing values in predictors
 
