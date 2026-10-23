@@ -908,3 +908,49 @@ alone; scratch/sfp2/compare.R against 030b39f0, 6 fixtures and 91 parts, every o
 slice moves, `setState` and a warm start across a standardization on the two linear fixtures; stan4bart's
 suite (its bartcore branch at ac80108, built against this tip), 1545 expectations, none failed. Not run: the
 x86-64 leg.
+
+### Slice 2 second fix round
+
+On the reviewer's check of the round above (opus, 2026-10-23, FIX FIRST: one package defect), with the
+orchestrator's fix. Commits: 937a3c4f (the keys and their pins) and this record.
+
+- C1, matching by place in the leaf list: a record on columns without names, or a named one on columns
+  stripped of their names, went to the leaves by position in the list where the counts agreed, so
+  `dbarts(s$data, leaf.prior = linear(columns = c(1L, 3L)))` of a sampler on `linear(columns = 1:2)` gave
+  column 3 column 2's center and scale, and `linear(columns = 2:1)` swapped them. A sampler now keys its record
+  by the leaf covariates' names where the data's columns are named, and otherwise by their positions: a
+  `columns` element beside `center` and `scale`, the 1-based positions as `linear(columns = )` resolves them,
+  which no column name can collide with and which R matches to the leaf columns' indices. Matching is by key
+  alone, names to named columns and positions to columns without names; a key of the other kind matches
+  nothing and derives. A record with neither, as only a hand writes, keeps the position fallback at the leaves'
+  count. This replaces the round above's "by position where the record or the columns carry no names". Pinned:
+  the review's two inputs (leaves on columns 1 and 3, and a named record on columns stripped of names and
+  reordered), the leaves in another order, a positional record on named columns, each deriving what it does
+  not match, and a copy and a reload of a sampler on columns without names holding its record where the
+  values' own differ. `?dbartsData`, the slot's comment and the design note's table and smaller call say so.
+- Non-blocking 1, the gp half of deriving an unmatched covariate: a gp leaf on a and b made from the data of
+  one on a takes a finite lengthscale for b, equal to a fresh sampler's, and its fits are finite.
+- Non-blocking 5 of the first review: as built, the slot is `NULL` as a whole where no forest's leaves take a
+  covariate, not a list of one `NULL` entry per forest; a list has an entry per forest only where one forest's
+  leaves take covariates. The design's table, `?dbartsData` and the slot's comment now say so.
+
+Mutants, each alone on an export of 937a3c4f, test-standardization-record.R (217 expectations): the review's
+F1, a supplied NA lengthscale taken as given, 3 failures (the gp lengthscale, its equality to a fresh sampler,
+the finite fits), where only tests/cpp killed it before; F2, rewritten for the keyed match, the place in the
+list tried before any key, 5 (the model taking another covariate, an entry for another column, the leaves on
+columns 1 and 3 and in another order, the named record on stripped columns); own C1, a positional record
+matched by its place in the list, 2 (the leaves on columns 1 and 3 and in another order).
+
+Size, against 691233340: package code 48 added and 28 removed (R 47 and 27, the bridge's comment 1 and 1),
+tests 87 and 3, help and notes 5 and 4; 140 added and 35 removed, beside this record.
+
+Gates on 937a3c4f, on its own libraries: tests/cpp 409 ok, plain and under ASAN and UBSAN, no failure and no
+diagnostic; the full suite in one process, 28667 expectations, none failed; lint (0 lints), air, rc-codoc,
+win-drift, doc-freshness and verify-anchors clean, each on its own exit status; on a `--preclean` reference
+install the four snapshot files (14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55
+identical against equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against
+bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line;
+scratch/sfp2/compare.R against 030b39f0, 6 fixtures and 91 parts, every one identical but the four the slice
+moves. The review's probes 8, 10 and 11 give each covariate its own center and scale and a finite gp
+lengthscale. Not run this round: the exact gates, the R-loaded sanitizers, `R CMD check` and stan4bart's
+suite, which the round above ran on code this round changes in R alone; the x86-64 leg.
