@@ -1037,13 +1037,15 @@ Left: slice 3, built on slice 2 before its fix rounds and moved onto this landin
 
 ## Slice 3 as built
 
-Built on 84122988: bartcore a563d753 with slice 1 (as rebased onto a000d239) and slice 2 on top; the full suite
-on that base, in one process, 28441 expectations, none failed. The steps held against that tip:
+Built on slice 2 before its fix rounds (bartcore a563d753 with slice 1, as rebased onto a000d239, and slice 2 on
+top), and moved onto slice 2's landing, 97a37a1c, before its fix round
+([Slice 3 fix round](#slice-3-fix-round)); the full suite on the first base, in one process, 28441 expectations,
+none failed. The steps held against that tip:
 [`Sampler::setData`](../../src/bartcore/sampler.hpp) derived every value, `bartcore_setData` refused a gp sampler
 holding kept draws outright, `setData` handed the call no carried record (slice 1's last call), `setPredictor`
 took no `updateStandardization`, and the five response-scale-rows sequences, the boundary-refusals donor and the
-gp pins of test-leaf-conversions.R stood as step 3.4 names them. Commits: f1ba4ea4 (the slice), 0fd6f90f (the
-notes, the design note's Status and TODO) and this record.
+gp pins of test-leaf-conversions.R stood as step 3.4 names them. Commits, as moved: 4d15a88d (the slice),
+90af5380 (the notes, the design note's Status and TODO) and this record.
 
 What it does. `setData(newData, updateState = NULL, updateCutPoints = NULL, updateScale = NULL,
 updateStandardization = NULL)`: an argument given is followed, `"position"`, `"value"` or `TRUE` deriving and
@@ -1162,13 +1164,14 @@ stops at the refusal. Survived: sigma and the residual prior converted at a held
 (O1), in tinytest and in tests/cpp's 50 replacements, the round trip giving back the same bits in every case
 tried; the guard keeps it exact by construction rather than by luck.
 
-Size, against 84122988 before this record: engine 306 added and 73 removed (stop 380), bridge 162 and 18, R 157
+Size, against the first base before this record: engine 306 added and 73 removed (stop 380), bridge 162 and 18, R 157
 and 45, tests 932 and 32, help, NEWS and notes 99 and 66; 1656 added and 234 removed in all (stop 2500), against
 about 1650 planned.
 
-Gates, on the slice's libraries, from a `--preclean` install of 0fd6f90f (this record touches the plan alone):
-tests/cpp plain and under ASAN and UBSAN, 410 ok, no failure and no diagnostic; the full suite in one process,
-28599 expectations, none failed (28441 on 84122988); lint (0 lints), air, rc-codoc (48 methods), win-drift,
+Gates, on the slice's libraries, from a `--preclean` install of the notes commit on the first base (this record
+touches the plan alone): tests/cpp plain and under ASAN and UBSAN, 410 ok, no failure and no diagnostic; the
+full suite in one process, 28599 expectations, none failed (28441 on the first base); lint (0 lints), air,
+rc-codoc (48 methods), win-drift,
 doc-freshness (after the donor cite above) and verify-anchors clean; on a `--preclean` reference install the
 four snapshot files (14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55 identical against
 equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped, in one run), 19 of 19 against
@@ -1177,7 +1180,7 @@ gates of exact-gates.yaml at `quick`, the 43 gate commands on the shipped build 
 on the reference, all passing; the R-loaded run over 13 touched and nearby test files with the package built
 under ASAN and UBSAN through `CXX20FLAGS` (the bridge's compile line carrying `-fsanitize=address,undefined`),
 2036 expectations, none failed, no diagnostic; `R CMD check --as-cran --no-manual` from a clean tarball, the Date
-field's NOTE alone; scratch/sfp3/compare.R against 84122988, 15 fixtures (slice 1's that take `setData`, and a
+field's NOTE alone; scratch/sfp3/compare.R against the first base, 15 fixtures (slice 1's that take `setData`, and a
 count sampler handed a mask) and 87 parts, `setData` of a fresh object and `setPredictor` without the flag,
 unforced and forced, with the state, readers and next 20 draws after each, every one identical; stan4bart's
 suite (its bartcore branch at ac80108, built against this slice), 1545 expectations, none failed. Not run: the
@@ -1188,3 +1191,95 @@ Left open. The plan's rng block names bcf-equivalence-47838362 and 15 scenarios;
 blind rule `setResponse` and `setOffset` keep at `updateScale = TRUE`; for the maintainer's mark. Under a mask
 family `s$setData(s$data)` now holds the count center but still drops the mask, the data object carrying no
 weights (TODO `mask-on-own-data-object`, which stands).
+
+### Slice 3 fix round
+
+On the slice's review (opus, 2026-10-23, FIX FIRST: three draw-changing lines whose tests could not fail, one of
+them a pin the plan names, and a hand-edited ordered-factor grid dropped at `setData`), with the orchestrator's
+calls on the rest. A first fixer was stopped mid-round; a second audited what it left and finished it. Commits:
+9740f9c2 (the narrowing, the refusals and most pins), bae68200 (two pins and two corrections to the text),
+a7189447 (the install's compare) and this record.
+
+- The move onto 97a37a1c, read against the review's conflict list: [`checkDerivedRecord`](../../R/data.R) runs
+  after the alignment with the sampler's names ([`leafCovariateNames`](../../R/data.R)); the choices are read off
+  the checked record ([`setDataChoices`](../../R/bartcore.R)), so a standardization that matches nothing is `NULL`
+  and derives; the records reader takes its second argument in the new file, and the bridge reads no grid for the
+  held records; the gp refusal's compare and the install's share
+  [`standardizationIsHeld`](../../src/bartcore/model.hpp). The sharing changed one case. The install's loop over
+  a state's centers passed a state without the leaf blocks, which the shared test, holding the counts equal,
+  refused, so a gp sampler holding saved draws refused `setState` of
+  ["a state from before the blocks existed"](../../inst/tinytest/test-mutate-then-serialize.R), which slice 2's
+  landing installs; no full suite had run on the moved slice.
+  [`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp) again reads such a state under the sampler's
+  own (a7189447).
+- Blocking 1, the placement pin: a carried grid of the column's own count with every point moved
+  (`0.9 * own + 0.05`) moves each split to the point nearest its threshold, which by position it would not.
+- Blocking 2: a Student-t sampler handed its edited data object holds the range, by reader and slot, and its kept
+  draws.
+- Blocking 3: a gp leaf kept over 40 rows more keeps its kept draws, and its next draws are those of a twin
+  handed its own record.
+- Blocking 4: `setData` refuses, naming the slot, a record giving an ordered factor other cut points than the
+  sampler's, as creation refuses it ([`refuseCarriedOrderedGrid`](../../R/data.R)), whatever `updateCutPoints`
+  says, as for every malformed record, the sampler untouched. Pinned at `setData`, at `"none"` and at creation.
+- The narrowing, the orchestrator's decision: `setPredictor(updateStandardization = TRUE)` derives the
+  standardization of the covariates among the replaced columns alone, over every row, the others held, as
+  `updateCutPoints` derives their grids. The bridge marks the replaced columns, and
+  [`Chain::rederiveStandardization`](../../src/bartcore/chain.hpp) hands the leaf the constants in force with a
+  center, and a gp lengthscale, that is not a number at a marked covariate, which slice 2's supply derives
+  ([`Chain::heldStandardization`](../../src/bartcore/chain.hpp)); the matrix form replaces every column. Rows stay
+  with response-scale-rows slice D. Pinned on two covariates, linear and gp: b, replaced earlier and held, keeps
+  its center, scale and lengthscale when a is replaced and derived; in tests/cpp a mark on a column the leaf does
+  not take derives nothing. The help, the method's description, NEWS and the design note say so.
+- The review's small gaps: the stored state unmoved by `setData(s$data)` over 20 seeds (O1, not equivalent); a
+  gp sampler holding no draws handed values other than those in force by `setPredictor(updateStandardization =
+  TRUE)` deriving over them (C4; the stopped round's pin handed back the values `setData` had just installed,
+  which a derivation that moves nothing also passed); a covariate without spread's own data object served on gp
+  leaves (P5); a standardization held over values it was not derived from surviving an unforced update rolled
+  back at `updateStandardization = TRUE` (C3).
+- The AFT override is kept and tested in tests/cpp, which a host without R reaches though the bridge refuses an
+  aft `setData`: a keep holds the transform and the kept draws.
+- An nbinom range record: an equal pair is refused in R with the slot's message and remedy, at creation and at
+  `setData`. A pair of another width is read by its first number, the center, at `setData` as at creation, where
+  slice 1's "family as is" uses a range carried across families as it is (dec-B232), the draws those of
+  `c(center, center + 1)`; it is kept. Alternative: refuse it, which at `setData` alone would have the two doors
+  disagree on one record, and at both would reverse slice 1's landed pin. Creation records such a pair as handed
+  and `setData` as `c(center, center + 1)`; the help no longer says it is recorded again in that form.
+- The leaf-conversion and gp notes read `setData`'s range refusal per family. Agent call, recorded: a probit,
+  logistic or ordinal gp sampler holding saved draws takes `setData(updateScale = TRUE)`, which derives nothing
+  there, where `setResponse` and `setOffset` refuse `updateScale = TRUE` outright (dec-B330 as the coordinator
+  reads it). Alternative: refuse an explicit `TRUE` blind to the family as they do, refusing a call that moves
+  no kept draw and parting `TRUE` from `NULL`, which read the same there. Pinned served.
+
+Mutants, each alone (scratch/sfp3fix2/mutants.py), test-setdata-records.R unless named; on the round's code
+before a7189447, the file at 185 expectations: the review's G4, 1 failure (the shifted grid); R6, 3; N1, 1; O1,
+1; C3, 2; C4, 3; P5, 1; own I4, a carried ordered grid taken unchecked, 2; I5a, the bridge deriving every
+covariate, 3; I5b, the engine deriving no marked covariate, 7; I5c, the engine deriving every covariate on a
+mark, 3, and tests/cpp 1; I9, the count check blind to the family, 2; A8, aft taking `setData` for a held range,
+tests/cpp 1. On the final code, the file at 186: P1, the gp range refusal blind to the family, 2 (the probit
+sampler's own data object and `updateScale = TRUE`); S1, a state without the blocks compared by count,
+test-mutate-then-serialize.R stops at the refused install.
+
+Size, against a20187d9: engine 67 added and 34 removed, bridge 6 and 2, R 17 and 7, tests 208 and 11, help,
+NEWS and notes 18 and 12; 316 added and 66 removed, beside this record. The slice's engine adds 363, 330 at
+the move, the shared compare among them (stop 380); the slice with the round, beside the plan, 1945 added and
+258 removed (stop 2500).
+
+Gates on a7189447, on the round's own libraries, each install `--preclean`: tests/cpp 410 ok, plain and under ASAN
+and UBSAN, no failure and no diagnostic; the full suite in one process, 28900 expectations, none failed (build mode
+shipped); lint (0 lints), air, rc-codoc (48 methods), win-drift, doc-freshness and verify-anchors clean, each on
+its own exit status; on a reference install the four snapshot files (14, 3, 7 and 3 expectations) and the three
+`--bitwise` compares, 55 of 55 identical against equivalence-32418b6e (`--strict-coverage`, 55 compared, 0
+skipped), 19 of 19 against bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no
+"max |z|" line; the 43 commands of exact-gates.yaml at `quick` on the shipped build and its two cross-host compares on
+the reference, all passing; the R-loaded run over 15 touched and nearby test files, test-mutate-then-serialize.R
+among them, with the package built under ASAN and UBSAN through `CXX20FLAGS` (the bridge's compile line carrying
+`-fsanitize=address,undefined`), 3008 expectations, none failed, no diagnostic; `R CMD check --as-cran --no-manual`
+from a clean tarball, the Date field's NOTE alone; scratch/sfp3fix2/compare.R against 97a37a1c, 19 fixtures and 98
+parts: slice 1's 15 fixtures as at the build, 87 parts, identical; a gp sampler holding saved draws given a state
+without the blocks, installed and drawing as on the base; and the sampler's own data object, edited and handed
+back, on constant, linear and count fixtures, differing in 6 parts, the grid and range held where the base derives
+them (dec-B458) and the state, leaf prior and draws that follow; stan4bart's suite (its bartcore branch at ac80108,
+built against this tip), 1545 expectations, none failed. Not run: the x86-64 leg.
+
+Left open: the count pair's recorded form, which differs between creation and `setData` and moves no draw; the
+agent call above and the build's reading of the family at the gp refusal, for the maintainer's mark.
