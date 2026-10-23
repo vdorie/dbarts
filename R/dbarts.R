@@ -924,6 +924,8 @@ dbarts <- function(
   monotone <- forestArguments$monotone
   variance <- forestArguments$variance
 
+  # the formula as written, kept for the call a sampler records
+  writtenFormula <- NULL
   # a forest() formula term declares an additional amplitude-coupled forest
   # (R/formulaTerms.R); checked against the requested family HERE, before any
   # family-specific remap or dispatch below can make the token unrecoverable
@@ -952,6 +954,7 @@ dbarts <- function(
         "fit a single-forest model"
       )
     }
+    writtenFormula <- matchedCall$formula
     formula <- termIngestion$formula
     matchedCall$formula <- formula
   }
@@ -1224,7 +1227,13 @@ dbarts <- function(
   eval(validateCall, evalEnv, getNamespace("dbarts"))
 
   if (length(control@call) == 1L && control@call == call("NA")) {
-    control@call <- expandForwardedCall(matchedCall, evalEnv)
+    recordedCall <- matchedCall
+    # the formula as written, forest() terms in it, not the one they were
+    # taken out of
+    if (!is.null(writtenFormula)) {
+      recordedCall$formula <- writtenFormula
+    }
+    control@call <- expandForwardedCall(recordedCall, evalEnv)
   }
   control@verbose <- verbose
   # a convenience mirror of dbartsControl(seed = ), as the wrappers expose;
@@ -2640,9 +2649,9 @@ dbartsSampler <- setRefClass(
       if (!is.null(active)) {
         installWeightsMask(.self, active)
       }
-      # once, at a creation: a copy is not one
+      # once, at a creation: a copy is not one; verbose asks for the detail
       if (.self$control@verbose && !isTRUE(forestPrintState[["held"]])) {
-        writeLines(samplerForestLines(.self))
+        writeLines(samplerForestLines(.self, full = TRUE))
       }
 
       callSuper(...)
@@ -2817,7 +2826,7 @@ dbartsSampler <- setRefClass(
       dupe
     },
     show = function() {
-      "Pretty prints the object: its call and, for a sampler of several forests, the block of what each forest resolved to."
+      "Pretty prints the object: its call and, for a sampler of several forests, a short block of what each forest resolved to."
 
       cat("dbarts sampler\n")
       cat("  call: ")

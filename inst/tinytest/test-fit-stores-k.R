@@ -386,24 +386,30 @@ expect_equal(
   sds[[1L]]
 )
 expect_equal(forests$fixed$k, c(forest1 = 1, forest2 = 1))
-# summary's line under the table names each forest's sd, in the response's
-# units, by the forest's label: the numbers extract returns
+# summary keeps each forest's sd, in the response's units, by the forest's
+# label: the numbers extract returns. It prints them in the block after its
+# table, and the line under the table does not name them
 multiSummary <- summary(forests)
 expect_identical(
   multiSummary$fixed$leaf.prior.sd,
   unlist(lapply(sds, unname))
 )
-shownSds <- format(unname(unlist(sds)), digits = 4L)
-expect_stdout(
-  print(multiSummary),
-  paste0(
-    "leaf.prior.sd[forest1] = ",
-    shownSds[1L],
-    ", leaf.prior.sd[z] = ",
-    shownSds[2L]
-  ),
+shownSds <- vapply(unlist(sds), function(v) format(unname(v), digits = 4L), "")
+printedSummary <- capture.output(print(multiSummary))
+expect_true(any(startsWith(
+  printedSummary,
+  "forests, sd in the response's units (sd(y) "
+)))
+expect_true(any(startsWith(
+  printedSummary,
+  paste0("  1 forest1: no basis; sd ", shownSds[1L])
+)))
+expect_true(any(grepl(
+  paste0("; sd ", shownSds[2L], " per unit, "),
+  printedSummary,
   fixed = TRUE
-)
+)))
+expect_false(any(grepl("leaf.prior.sd[", printedSummary, fixed = TRUE)))
 expect_error(extract(forests, "sigma", forest = 1L), "model parameter")
 expect_error(
   extract(fitOf(yGaussian, TRUE), "k", forest = 1L),
@@ -506,10 +512,10 @@ expect_null(nbinomFixed$stats)
 expect_equal(nbinomFixed$fixed, list(shape = 3, k = 2))
 nbinomDrawn <- summary(fitOf(yCount, TRUE, family = "nbinom"))
 expect_true("shape" %in% nbinomDrawn$stats$variable)
-# one value per forest on a fit with several
+# one value for each forest on a fit with several, in the block after the table
 expect_stdout(
   print(summary(forests)),
-  "leaf.prior.sd[forest1] = ",
+  "  1 forest1: no basis; sd ",
   fixed = TRUE
 )
 

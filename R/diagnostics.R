@@ -506,6 +506,11 @@ summary.bart <- function(
   )
   # the monotone prior, absent on a fit without a constraint
   result$monotone.prior <- object[["monotone.prior"]]
+  # the full block of a fit of several forests, absent on any other
+  forests <- fitForestLines(object, full = TRUE)
+  if (length(forests) > 0L) {
+    result$forests <- forests
+  }
   # where the starting sigma was the sd of the response, absent otherwise
   if (isTRUE(object[["sigest.fallback"]])) {
     result$sigest.fallback <- TRUE
@@ -718,7 +723,16 @@ print.summary.bart <- function(x, ...) {
   if (!is.null(x$monotone.prior)) {
     cat("Monotone prior: ", x$monotone.prior, "\n\n", sep = "")
   }
-  printSummaryBartBody(x, ...)
+  # the block gives each forest's sd, so the line under the table does not
+  shown <- x
+  if (!is.null(x$forests)) {
+    shown$fixed <- x$fixed[setdiff(names(x$fixed), "leaf.prior.sd")]
+  }
+  printSummaryBartBody(shown, ...)
+  if (!is.null(x$forests)) {
+    cat("\n")
+    writeLines(x$forests)
+  }
   invisible(x)
 }
 

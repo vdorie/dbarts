@@ -1,7 +1,10 @@
-## The block a fit's print, a sampler's show and a verbose creation give a
-## model of several forests: one line a forest, saying what it multiplies,
-## what its columns look like now and the sd it resolved to, in the units the
-## reader reports it in.
+## The block of a model of several forests: one line a forest, saying what it
+## multiplies, what its column looks like now and the sd it resolved to, in the
+## units the reader reports it in. The short block is what a fit's print and a
+## sampler's show give: the label, the kind, a numeric column's mean and sd and
+## the sd. The full block, which a fit's summary and a verbose creation give,
+## adds the column's range, the sd per sd of the column, where the sd came
+## from and whether the coefficient is held, under a header that names the unit.
 
 forestPrintState <- new.env(parent = emptyenv())
 
@@ -14,7 +17,8 @@ withoutForestBlock <- function(expr) {
   expr
 }
 
-## A number as the block prints it: four significant digits.
+## A number as the block prints it: format(x, digits = 4), so at least four
+## significant digits, and every digit of an integer part.
 printedNumber <- function(value) {
   format(unname(value), digits = 4L)
 }
@@ -43,29 +47,45 @@ printedColumn <- function(column, rowsIn) {
 }
 
 ## One forest's line, after its label. `entry` is the reader's entry for it,
-## `basis` the forest's stored basis (NULL, a factor or a column) and `rowsIn`
-## the rows in the likelihood.
-printedForest <- function(entry, basis, rowsIn) {
+## `basis` the forest's stored basis (NULL, a factor or a column), `rowsIn`
+## the rows in the likelihood and `full` whether the line is the full block's.
+printedForest <- function(entry, basis, rowsIn, full) {
   how <- if (isTRUE(entry$sd.stated)) "stated" else "default"
   size <- printedNumber(entry$sd)
-  held <- if (!is.null(entry[["amplitude"]])) "; coefficient held" else ""
+  held <- if (full && !is.null(entry[["amplitude"]])) {
+    "; coefficient held"
+  } else {
+    ""
+  }
+  source <- function(origin = "") {
+    if (full) paste0(" (", how, origin, ")") else ""
+  }
   switch(
     entry$multiplier,
-    none = paste0("no basis; sd ", size, " (", how, ")", held),
+    none = paste0("no basis; sd ", size, source(), held),
     factor = paste0(
       "factor basis, ",
       nlevels(basis),
       " levels; sd ",
       size,
-      " between the two levels (",
-      how,
-      ")",
+      " between the two levels",
+      source(),
       held
     ),
     numeric = {
       column <- printedColumn(basis, rowsIn)
       recorded <- entry[["basis.scale"]]
-      perSd <- if (column$constant) {
+      range <- if (full) {
+        paste0(
+          ", range ",
+          printedNumber(column$range[1L]),
+          " to ",
+          printedNumber(column$range[2L])
+        )
+      } else {
+        ""
+      }
+      perSd <- if (!full || column$constant) {
         ""
       } else {
         paste0(", ", printedNumber(entry$sd * column$sd), " per sd")
@@ -84,18 +104,12 @@ printedForest <- function(entry, basis, rowsIn) {
         printedNumber(column$mean),
         ", sd ",
         printedNumber(column$sd),
-        ", range ",
-        printedNumber(column$range[1L]),
-        " to ",
-        printedNumber(column$range[2L]),
+        range,
         "; sd ",
         size,
         " per unit",
         perSd,
-        " (",
-        how,
-        origin,
-        ")",
+        source(origin),
         held
       )
     }
@@ -103,9 +117,11 @@ printedForest <- function(entry, basis, rowsIn) {
 }
 
 ## The block, as lines, from the reader's entries of a model of several
-## forests and the data they stand on; character(0) for anything else. `unit`
-## is the number the sds are stated in, the response's sd or the link's error
-## sd, and is left out of the header where it is not known.
+## forests and the data they stand on; character(0) for anything else. The
+## short block's header is plain and its last line points to `pointer`, where
+## the full block is to be had; the full block's header names `unit`, the
+## number the sds are stated in, the engine's: sd(y) as the help's `sd` item
+## takes it for a continuous response, the link's error sd for a latent one.
 forestPriorLines <- function(
   priors,
   labels,
@@ -113,7 +129,9 @@ forestPriorLines <- function(
   weights = NULL,
   active = NULL,
   family = "gaussian",
-  unit = NULL
+  unit,
+  full = FALSE,
+  pointer = NULL
 ) {
   if (
     !is.list(priors) ||
@@ -134,19 +152,18 @@ forestPriorLines <- function(
     labels <- names(priors)
   }
   latent <- family %in% c("probit", "logistic")
-  header <- paste0(
-    "forests, sd ",
-    if (latent) "on the latent scale" else "in the response's units",
-    if (!is.null(unit)) {
-      paste0(
-        " (",
-        if (latent) "error sd " else "its sd ",
-        printedNumber(unit),
-        ")"
-      )
-    },
-    ":"
-  )
+  header <- if (full) {
+    paste0(
+      "forests, sd ",
+      if (latent) "on the latent scale" else "in the response's units",
+      " (",
+      if (latent) "error sd " else "sd(y) ",
+      printedNumber(unit),
+      "):"
+    )
+  } else {
+    "forests:"
+  }
   lines <- vapply(
     seq_along(priors),
     function(index) {
@@ -156,16 +173,20 @@ forestPriorLines <- function(
         " ",
         labels[index],
         ": ",
-        printedForest(priors[[index]], bases[[index]], rows)
+        printedForest(priors[[index]], bases[[index]], rows, full)
       )
     },
     ""
   )
-  c(header, lines)
+  footer <- if (!full && !is.null(pointer)) {
+    paste0("(each forest's prior in full: ", pointer, ")")
+  }
+  c(header, lines, footer)
 }
 
-## The block of a fit's synopsis, from what the fit stores.
-fitForestLines <- function(fit) {
+## The block of a fit, from what the fit stores: the short one of its synopsis,
+## the full one of its summary.
+fitForestLines <- function(fit, full = FALSE) {
   forestPriorLines(
     fit[["leaf.prior"]],
     attr(fit, "forest.labels", exact = TRUE),
@@ -173,14 +194,17 @@ fitForestLines <- function(fit) {
     fit[["weights"]],
     fit[["active"]],
     fit[["family"]],
-    attr(fit, "forest.unit", exact = TRUE)
+    attr(fit, "forest.unit", exact = TRUE),
+    full,
+    "summary()"
   )
 }
 
-## The block of a sampler, from its data as it stands; character(0) where it
-## has one forest, or its pointer has not survived a reload, which show does
-## not re-create.
-samplerForestLines <- function(sampler) {
+## The block of a sampler, from its data as it stands: the short one of its
+## show, the full one of a verbose creation; character(0) where it has one
+## forest, or its pointer has not survived a reload, which show does not
+## re-create.
+samplerForestLines <- function(sampler, full = FALSE) {
   info <- attr(sampler$control, "bartcore.forests", exact = TRUE)
   if (
     is.null(info) ||
@@ -196,6 +220,8 @@ samplerForestLines <- function(sampler) {
     sampler$data@weights,
     sampler$activeRows,
     sampler$model@family,
-    info$unit
+    info$unit,
+    full,
+    "$getLeafPrior()"
   )
 }
