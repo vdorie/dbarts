@@ -256,12 +256,14 @@ for (binary.fit in list(fit.p, fit.lg)) {
     "trial counts and must be positive integers"
   )
 }
-# checked as the offset is, against the training rows, and as at newdata
+# checked as at newdata: one value or one per training row, none missing (the
+# offset's rule, na.action having no say among the fit's own rows), and a
+# posterior predictive draw alone looking at the values
 expect_error(predict(fit, weights = 1:3), "one per training row \\(50\\)")
 expect_error(predict(fit.bare, weights = c(NA, rep(1, n - 1L))), "none missing")
-expect_error(predict(fit, weights = "a", type = "ev"), "none missing")
+expect_error(predict(fit, weights = NA_real_), "none missing")
 expect_error(
-  predict(fit, weights = matrix(1, n, 1L), type = "ppd"),
+  predict(fit, weights = matrix(1, n, 2L), type = "ppd"),
   "one per training row"
 )
 expect_error(
@@ -591,3 +593,27 @@ expect_error(
   predict(fit.mask, x[1:3, ], type = "ppd", weights = c(0, 1, 1)),
   "trial counts and must be positive integers"
 )
+
+# a logistic fit's test-frame weight of 0 is a count of no trials, whose draw
+# is 0 successes and finite, where a precision weight of 0 has NA draws
+count.train <- data.frame(x, z = df$z, count = rep(c(1, 2, 3), length.out = n))
+count.test <- count.train[1:6, ]
+count.test$count <- c(0, 1, 1, 0, 2, 1)
+fit.count <- suppressWarnings(bart(
+  z ~ a + b + c,
+  count.train,
+  test = count.test,
+  weights = count,
+  family = "logistic",
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 2L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+expect_identical(fit.count$weights.test, count.test$count)
+ppd.count <- extract(fit.count, "ppd", sample = "test")
+expect_false(anyNA(ppd.count))
+expect_true(all(ppd.count[, c(1L, 4L)] == 0))

@@ -78,12 +78,13 @@ responseHasSingleClass <- function(y) {
 }
 
 ## A single-class response that a binary family fits with its one warning: an
-## explicit binary or hazard family, or "auto" on a categorical encoding,
-## which resolves to one.
+## explicit binary family, or "auto" on a categorical encoding, which resolves
+## to one. A hazard family is not asked: withBinaryResponsePrecision answers
+## it first, its response here being the log time.
 fitsSingleClass <- function(data, family) {
   responseHasSingleClass(data@y) &&
     (family %in%
-      c("probit", "logistic", hazardFamilyTokens) ||
+      c("probit", "logistic") ||
       (identical(family, "auto") && data@response.type != "numeric"))
 }
 

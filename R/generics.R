@@ -715,7 +715,6 @@ withTrainingBases <- function(object, bases) {
   } else {
     combined
   }
-  dimnames(shifted$yhat.train) <- dimnames(yhat)
   shifted
 }
 
