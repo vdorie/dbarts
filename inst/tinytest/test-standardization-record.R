@@ -83,9 +83,10 @@ inForce <- function(sampler, chain = 1L) {
   }
   held
 }
-# the sampler's record without the covariates' names
+# the sampler's record without the covariates' keys
 recordOf <- function(sampler) {
-  lapply(sampler$data@standardization[[1L]], unname)
+  entry <- sampler$data@standardization[[1L]]
+  lapply(entry[setdiff(names(entry), "columns")], unname)
 }
 liveOf <- function(state) {
   lapply(state, function(chain) {
@@ -145,7 +146,7 @@ expect_identical(
   )
 )
 # two covariates in the leaf's order, a column without spread NA, columns
-# without names an unnamed record
+# without names a record keyed by their positions
 flat <- x
 flat[, 2L] <- 3
 twoFit <- make(data = flat, leaf.prior = linear(columns = c("b", "a")))
@@ -155,6 +156,7 @@ expect_identical(twoFit$data@standardization[[1L]]$center[["b"]], 3)
 expect_identical(recordOf(twoFit), inForce(twoFit))
 unnamedFit <- make(data = unname(x), leaf.prior = linear(columns = 1L))
 expect_null(names(unnamedFit$data@standardization[[1L]]$center))
+expect_identical(unnamedFit$data@standardization[[1L]]$columns, 1L)
 expect_identical(recordOf(unnamedFit), recordOf(linearFit))
 # leaves that take no covariate record none
 expect_null(make(leaf.prior = normal())$data@standardization)
@@ -670,6 +672,88 @@ for (leaf in c("linear", "gp")) {
     expect_identical(recordOf(swapped), readerOf(swapped)[[1L]], info = info)
   }
 }
+
+# ---- keyed by position -----------------------------------------------------
+
+# Columns without names key the record by their positions, and a key matches
+# only a column of its own kind: another column at a leaf's place in the list
+# derives, a named record on columns without names derives, and so does a
+# record keyed by position on named columns
+unnamed <- unname(cbind(x, -50 + 100 * rev(x[, 2L])))
+freshOn <- function(data, columns) {
+  inForce(make(data = data, leaf.prior = linear(columns = columns)))
+}
+byPosition <- make(data = unnamed, leaf.prior = linear(columns = 1:2))
+expect_identical(byPosition$data@standardization[[1L]]$columns, 1:2)
+for (columns in list(c(1L, 3L), 2:1)) {
+  other <- dbarts::dbarts(
+    byPosition$data,
+    leaf.prior = linear(columns = columns),
+    control = controlWith()
+  )
+  info <- paste(columns, collapse = " ")
+  expect_identical(inForce(other), freshOn(unnamed, columns), info = info)
+  expect_identical(
+    other$data@standardization[[1L]]$columns,
+    columns,
+    info = info
+  )
+}
+byName <- make(leaf.prior = linear(columns = c("a", "b")))
+stripped <- byName$data
+stripped@x <- unname(stripped@x[, c("b", "a")])
+# the grids are the columns' in their old order; only the standardization
+# is under test
+stripped@cutPoints <- NULL
+expect_identical(
+  inForce(dbarts::dbarts(
+    stripped,
+    leaf.prior = linear(columns = 1:2),
+    control = controlWith()
+  )),
+  freshOn(unname(x[, c("b", "a")]), 1:2)
+)
+named <- byPosition$data
+named@x <- named@x[, c(2L, 1L, 3L)]
+colnames(named@x) <- c("b", "a", "c")
+named@cutPoints <- NULL
+expect_identical(
+  inForce(dbarts::dbarts(
+    named,
+    leaf.prior = linear(columns = c("a", "b")),
+    control = controlWith()
+  )),
+  freshOn(named@x, c("a", "b"))
+)
+# a copy and a reload of a sampler on columns without names hold its record,
+# here not the values' own
+unnamedHolder <- make(data = unname(x), leaf.prior = linear(columns = 1L))
+unnamedHolder$setData(dbarts::dbartsData(unname(stretched), y))
+unnamedHolder$setPredictor(x[, 1L], 1L, forceUpdate = TRUE)
+invisible(unnamedHolder$run(20L, 4L))
+unnamedHolder$storeState()
+expect_false(identical(
+  recordOf(unnamedHolder),
+  freshOn(unname(x), 1L)
+))
+for (door in list(unnamedHolder$copy(), reloadOf(unnamedHolder))) {
+  expect_identical(
+    door$data@standardization,
+    unnamedHolder$data@standardization
+  )
+  expect_identical(inForce(door), recordOf(unnamedHolder))
+}
+
+# a gp leaf taking a covariate the record lacks derives its lengthscale too
+gpCarried <- make(leaf.prior = gp(columns = "a"))
+gpBoth <- dbarts::dbarts(
+  gpCarried$data,
+  leaf.prior = gp(columns = c("a", "b")),
+  control = controlWith()
+)
+expect_true(all(is.finite(inForce(gpBoth)$lengthscale)))
+expect_identical(inForce(gpBoth), fresh(quote(gp(columns = c("a", "b")))))
+expect_true(all(is.finite(gpBoth$run(5L, 4L)$train)))
 
 # ---- malformed -------------------------------------------------------------
 

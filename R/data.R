@@ -372,7 +372,8 @@ dataStandardization <- function(data) {
 }
 
 ## The names of the columns a model's linear or gp leaves take, or NULL where
-## they take none or the data's columns have no names; the record's keys.
+## they take none or the data's columns have no names; the record's keys,
+## which are the columns' positions where the columns have no names.
 leafCovariateNames <- function(model, data) {
   prior <- model@leaf.prior
   if (is(prior, "dbartsLinearPrior") || is(prior, "dbartsGPPrior")) {
@@ -522,14 +523,17 @@ checkDerivedRecord <- function(
 ## The standardization record's part of checkDerivedRecord: a list of one
 ## entry per forest, each NULL or list(center = , scale = ) with, for gp
 ## leaves, lengthscale beside them, as many of each: a finite center, a
-## positive or NA scale, a logical NA read as one, and a positive lengthscale.
-## Any other form is refused. Which covariates the leaves take is the
-## model's, so the rest is matched and never refused: only the first forest's
-## leaves can take any, and its entry goes to them by name where it and
-## covariates both carry names, else by position where the counts agree. An
-## entry for a covariate the leaves do not take is ignored, and a covariate
-## no entry matches gets an NA center, which derives it. Returns the matched
-## record, NULL where nothing matches.
+## positive or NA scale, a logical NA read as one, and a positive lengthscale,
+## keyed by the names of center or, for columns without names, by columns,
+## their positions. Any other form is refused. Which covariates the leaves
+## take is the model's, so the rest is matched and never refused: only the
+## first forest's leaves can take any, and its entry goes to them by key,
+## names to named columns, as covariates gives them, and positions to columns
+## without names, NULL covariates; an entry with neither, as only a hand can
+## write, goes by position where the counts agree. An entry for a covariate
+## the leaves do not take is ignored, and a covariate no entry matches gets an
+## NA center, which derives it. Returns the matched record, NULL where nothing
+## matches.
 checkStandardizationRecord <- function(record, model, covariates, refuse) {
   if (is.null(record)) {
     return(NULL)
@@ -557,6 +561,7 @@ checkStandardizationRecord <- function(record, model, covariates, refuse) {
     center <- entry$center
     scale <- numbersOf(entry$scale)
     lengthscale <- entry$lengthscale
+    positions <- entry$columns
     q <- length(center)
     if (
       !is.numeric(center) ||
@@ -568,12 +573,18 @@ checkStandardizationRecord <- function(record, model, covariates, refuse) {
         !(is.null(lengthscale) ||
           (is.numeric(lengthscale) &&
             length(lengthscale) == q &&
-            all(is.finite(lengthscale) & lengthscale > 0)))
+            all(is.finite(lengthscale) & lengthscale > 0))) ||
+        !(is.null(positions) ||
+          (is.numeric(positions) &&
+            length(positions) == q &&
+            all(is.finite(positions) & positions >= 1) &&
+            all(positions == round(positions))))
     ) {
       refuse(
         "standardization",
         "must give a finite 'center', a positive or NA 'scale' and, for gp ",
-        "leaves, a positive 'lengthscale', one value each per leaf covariate"
+        "leaves, a positive 'lengthscale', one value each per leaf covariate, ",
+        "and 'columns', where given, their positions"
       )
     }
   }
@@ -587,12 +598,15 @@ checkStandardizationRecord <- function(record, model, covariates, refuse) {
   }
   q <- length(prior@columns)
   keys <- names(entry$center)
-  matched <- if (!is.null(keys) && !is.null(covariates)) {
-    match(covariates, keys)
+  none <- rep(NA_integer_, q)
+  matched <- if (!is.null(keys)) {
+    if (!is.null(covariates)) match(covariates, keys) else none
+  } else if (!is.null(entry$columns)) {
+    if (is.null(covariates)) match(prior@columns, entry$columns) else none
   } else if (length(entry$center) == q) {
     seq_len(q)
   } else {
-    rep(NA_integer_, q)
+    none
   }
   if (all(is.na(matched))) {
     return(NULL)
@@ -643,14 +657,19 @@ recordDerived <- function(sampler, ptr, records = NULL) {
   data@cutPoints <- records$cutPoints
   data@response.range <- records$response.range
   data@forest.calibration <- records$forest.calibration
+  # keyed by the leaf covariates' names, or by their positions where the
+  # columns have none
   standardization <- records$standardization
-  covariates <- leafCovariateNames(sampler$model, data)
-  if (!is.null(standardization) && !is.null(covariates)) {
-    standardization[[1L]] <- lapply(
-      standardization[[1L]],
-      `names<-`,
-      covariates
-    )
+  if (!is.null(standardization)) {
+    covariates <- leafCovariateNames(sampler$model, data)
+    standardization[[1L]] <- if (!is.null(covariates)) {
+      lapply(standardization[[1L]], `names<-`, covariates)
+    } else {
+      c(
+        standardization[[1L]],
+        list(columns = as.integer(sampler$model@leaf.prior@columns))
+      )
+    }
   }
   data@standardization <- standardization
   sampler$data <- data

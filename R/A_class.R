@@ -682,12 +682,13 @@ methods::setClass(
     # attribute where they are not equal. response.range: the response's
     # (min, max), NULL on a family that reads none. forest.calibration:
     # c(anchor = , unit = ) of a calibration map of several forests.
-    # standardization: one entry per forest, NULL where its leaves take no
-    # covariate, else list(center = , scale = ) named by the leaf covariates,
-    # a scale NA for a column without spread, with lengthscale beside them
-    # for gp leaves whose model supplies none; NULL where no forest's leaves
-    # take one. A data object saved before the slots existed lacks them, so
-    # every read goes through the accessors in data.R.
+    # standardization: NULL as a whole where no forest's leaves take a
+    # covariate, else one entry per forest, NULL where its leaves take none
+    # and otherwise list(center = , scale = ) named by the leaf covariates or,
+    # for columns without names, with columns, their positions, beside them;
+    # a scale NA for a column without spread, and lengthscale for gp leaves
+    # whose model supplies none. A data object saved before the slots existed
+    # lacks them, so every read goes through the accessors in data.R.
     cutPoints = "ANY",
     response.range = "ANY",
     forest.calibration = "ANY",

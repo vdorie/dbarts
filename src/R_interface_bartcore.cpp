@@ -7163,7 +7163,7 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 // standardization is list(list(center, scale)) for a forest of linear leaves,
 // with lengthscale beside them for gp leaves whose model supplies none, a
 // scale NA for a column without spread, and NULL where no leaf takes a
-// covariate. R names the covariates. withGridsExpr FALSE leaves cutPoints
+// covariate. R keys the covariates. withGridsExpr FALSE leaves cutPoints
 // NULL and reads no grid, for a call that moves none.
 SEXP bartcore_derivedRecords(SEXP ptrExpr, SEXP withGridsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));

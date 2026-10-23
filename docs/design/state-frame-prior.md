@@ -47,7 +47,7 @@ the class's validity. Names: the first three are dec-B233's.
 | slot | holds |
 |---|---|
 | `cutPoints` | a list, one entry per predictor column in the object's column order: the strictly increasing points; `NULL` for an unordered factor. A column whose points carry weights has them as the entry's `mass` attribute, the increasing sequence a state's `cutMass` holds for it |
-| `standardization` | a list, one entry per forest, `NULL` where the forest's leaves take no covariate: `center` and `scale` (`NA` for a column without spread), each named by the leaf covariates, and `lengthscale` only on a gp leaf whose lengthscale the model does not supply |
+| `standardization` | `NULL` as a whole where no forest's leaves take a covariate, else a list, one entry per forest, `NULL` where the forest's leaves take none: `center` and `scale` (`NA` for a column without spread), each named by the leaf covariates (by their positions in `columns` where the columns have no names), and `lengthscale` only on a gp leaf whose lengthscale the model does not supply |
 | `response.range` | `c(min, max)`, what [`bartcore_anchor`](../../src/R_interface_bartcore.cpp) reports today, under a family that reads one from the response: gaussian, Student-t, aft, and nbinom, whose window of width 1 about its count center is that center's record. `NULL` under probit, logistic, ordinal and multinomial, which today report `c(0, 0)` and read none. A constant response is `c(c, c)`. It carries no family: one carried to a sampler of another family is used as it is ([Smaller calls](#smaller-calls)) |
 | `forest.calibration` | `c(anchor = , unit = )` on a model of several forests with a calibration map, what the control's attribute holds today; `NULL` elsewhere, a multinomial sampler's K forests included |
 
@@ -257,8 +257,9 @@ alternative, for the maintainer's later mark.
   reload of the copy rebuilds what the copy was. Alternative: the source's field, as today, which can be older
   than the copy's chain.
 - The weights are the entry's `mass` attribute. Alternative: a fifth slot parallel to `cutPoints`.
-- The standardization is keyed by forest and by covariate name. Alternative: by column index, which a
-  reordered `setData` would have to remap.
+- The standardization is keyed by forest and by covariate name, and by column position, in a `columns`
+  element, where the columns have no names, so the two kinds of key never meet. Alternative: by column index
+  throughout, which a reordered `setData` would have to remap.
 - The anchor and unit's slot is `forest.calibration`. Alternative: inside `response.range`.
 - A record that does not fit the data (another column count or kind, an ordered factor's grid other than its
   levels') is refused, naming the slot. Alternative: dropped and derived, which hides a mistake.
