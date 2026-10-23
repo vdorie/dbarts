@@ -1,11 +1,12 @@
 # The block of a model of several forests. print of a fit and show of a
 # sampler give the short one: a line for each forest, its label, its kind, a
 # numeric column's mean and sd as they stand over the rows in the likelihood,
-# and the sd it resolved to. summary of a fit and a verbose creation give the
-# full one: under a header that names the unit, the column's range, the sd per
-# sd of the column, where the sd came from and whether the coefficient is
-# held. Every figure is computed here from the fixture and printed as
-# format(x, digits = 4) gives it.
+# and the sd it resolved to, a numeric forest's per sd of its column as it
+# stands (per unit where the column is constant). summary of a fit and a
+# verbose creation give the full one: under a header that names the unit, a
+# numeric forest's sd per unit and per sd, the column's range, where the sd
+# came from and whether the coefficient is held. Every figure is computed here
+# from the fixture and printed as format(x, digits = 4) gives it.
 
 forest <- dbartsForests$forest
 fixed <- dbartsPriors$fixed
@@ -52,8 +53,15 @@ numericStem <- function(i, label, column) {
     g(sd(column))
   )
 }
+# the short line: the forest's sd per sd of the column as it stands
 numericShort <- function(i, label, column, perUnit) {
-  paste0(numericStem(i, label, column), "; sd ", g(perUnit), " per unit")
+  paste0(
+    numericStem(i, label, column),
+    "; sd ",
+    g(perUnit * sd(column)),
+    " per sd of ",
+    label
+  )
 }
 numericLine <- function(i, label, column, perUnit, how, held = "", from = "") {
   paste0(
@@ -118,6 +126,15 @@ shortForests <- c(
   )
 )
 expectedFit <- c(shortHeader, shortForests, fitFooter)
+# a default's figure on the short line is sd(y), whatever the column's units
+expect_identical(
+  shortForests[2L],
+  paste0(numericStem(2, "dose", dose), "; sd ", g(U), " per sd of dose")
+)
+expect_identical(
+  shortForests[3L],
+  paste0(numericStem(3, "age", age), "; sd ", g(U), " per sd of age")
+)
 expectedSampler <- c(shortHeader, shortForests, samplerFooter)
 # a block out of a printed object: from its header on, NULL where it has none
 blockFrom <- function(lines, prefix) {
@@ -333,11 +350,14 @@ for (i in 2:3) {
     unname(reader[[i]]$sd) * sd(column)
   )
   expect_equal(read, signif(truth, 4L), tolerance = 1e-12)
-  # the short line: index, mean, sd, sd per unit
+  # the short line: index, mean, sd, sd per sd of the column
   readShort <- numbersOf(shortOf(shown)[i + 1L])
   expect_equal(
     readShort,
-    signif(c(i, mean(column), sd(column), unname(reader[[i]]$sd)), 4L),
+    signif(
+      c(i, mean(column), sd(column), unname(reader[[i]]$sd) * sd(column)),
+      4L
+    ),
     tolerance = 1e-12
   )
 }
@@ -452,6 +472,22 @@ expect_identical(
   swappedShort[3L],
   numericShort(2, "dose", dose / 10, U / sd(dose))
 )
+# the short figure is the full line's per sd, the column as it now stands, and
+# not the sd per unit or the recorded column's: a tenth of sd(y)
+expect_identical(
+  swappedShort[3L],
+  paste0(
+    numericStem(2, "dose", dose / 10),
+    "; sd ",
+    g(U / 10),
+    " per sd of dose"
+  )
+)
+expect_true(grepl(
+  paste0(", ", g(U / 10), " per sd (default"),
+  swappedFull[3L],
+  fixed = TRUE
+))
 expect_identical(swappedShort[-3L], expectedSampler[-3L])
 # the reader's number is the record's, so the sd per unit does not move
 expect_equal(
@@ -518,6 +554,7 @@ expect_identical(
     from = paste0(", taken from a column of sd ", g(sd(dose[rowsIn])))
   )
 )
+expect_true(g(perUnitIn * sd(heavy$dose)) != g(unitIn))
 expect_identical(
   shortOf(showLines(weighted))[3L],
   numericShort(2, "dose", heavy$dose, perUnitIn)
@@ -541,6 +578,10 @@ expect_true(starts(
   centeredShort,
   "  2 scale(age): numeric basis, mean 0, sd 1; sd "
 ))
+expect_identical(
+  centeredShort,
+  numericShort(2, "scale(age)", as.vector(scale(age)), U)
+)
 expect_false(grepl("e-", centeredShort, fixed = TRUE))
 wild <- d$dose
 wild[7L] <- 1000 * max(dose)

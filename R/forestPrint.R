@@ -2,9 +2,11 @@
 ## multiplies, what its column looks like now and the sd it resolved to, in the
 ## units the reader reports it in. The short block is what a fit's print and a
 ## sampler's show give: the label, the kind, a numeric column's mean and sd and
-## the sd. The full block, which a fit's summary and a verbose creation give,
-## adds the column's range, the sd per sd of the column, where the sd came
-## from and whether the coefficient is held, under a header that names the unit.
+## the forest's sd, a numeric forest's per sd of its column as it stands (per
+## unit where the column is constant). The full block, which a fit's summary
+## and a verbose creation give, has a numeric forest's sd per unit and per sd
+## and adds the column's range, where the sd came from and whether the
+## coefficient is held, under a header that names the unit.
 
 forestPrintState <- new.env(parent = emptyenv())
 
@@ -48,8 +50,9 @@ printedColumn <- function(column, rowsIn) {
 
 ## One forest's line, after its label. `entry` is the reader's entry for it,
 ## `basis` the forest's stored basis (NULL, a factor or a column), `rowsIn`
-## the rows in the likelihood and `full` whether the line is the full block's.
-printedForest <- function(entry, basis, rowsIn, full) {
+## the rows in the likelihood, `full` whether the line is the full block's and
+## `label` the forest's, which names the column in a short line.
+printedForest <- function(entry, basis, rowsIn, full, label) {
   how <- if (isTRUE(entry$sd.stated)) "stated" else "default"
   size <- printedNumber(entry$sd)
   held <- if (full && !is.null(entry[["amplitude"]])) {
@@ -85,11 +88,7 @@ printedForest <- function(entry, basis, rowsIn, full) {
       } else {
         ""
       }
-      perSd <- if (!full || column$constant) {
-        ""
-      } else {
-        paste0(", ", printedNumber(entry$sd * column$sd), " per sd")
-      }
+      perSd <- printedNumber(entry$sd * column$sd)
       origin <- if (
         how == "default" &&
           !is.null(recorded) &&
@@ -99,17 +98,26 @@ printedForest <- function(entry, basis, rowsIn, full) {
       } else {
         ""
       }
+      sizes <- if (full) {
+        paste0(
+          "; sd ",
+          size,
+          " per unit",
+          if (!column$constant) paste0(", ", perSd, " per sd"),
+          source(origin)
+        )
+      } else if (column$constant) {
+        paste0("; sd ", size, " per unit")
+      } else {
+        paste0("; sd ", perSd, " per sd of ", label)
+      }
       paste0(
         "numeric basis, mean ",
         printedNumber(column$mean),
         ", sd ",
         printedNumber(column$sd),
         range,
-        "; sd ",
-        size,
-        " per unit",
-        perSd,
-        source(origin),
+        sizes,
         held
       )
     }
@@ -173,7 +181,13 @@ forestPriorLines <- function(
         " ",
         labels[index],
         ": ",
-        printedForest(priors[[index]], bases[[index]], rows, full)
+        printedForest(
+          priors[[index]],
+          bases[[index]],
+          rows,
+          full,
+          labels[index]
+        )
       )
     },
     ""
