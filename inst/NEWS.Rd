@@ -103,13 +103,19 @@
             a \code{weights} vector of the wrong length is an error rather
             than recycled, and negative or non-finite weights are refused
             everywhere.
-      \item Posterior predictive draws follow the case weights on gaussian,
-            Student-t and \code{aft} fits (a row's noise sd is sigma over
-            the square root of its weight; 0.9-34 used sigma at every row).
-            A row at weight 0 has \code{NA} draws, in \code{extract},
-            \code{fitted} and \code{predict} alike: a weight of 0 holds a
-            row out of the fit and gives it no noise scale. To draw such a
-            row as a new observation, state its weight, as in
+      \item Posterior predictive draws follow the case weights on gaussian
+            and Student-t fits, and on an \code{aft} fit given
+            \code{predict(weights =)}, which takes no case weights at fit
+            time: a row's noise sd is sigma over the square root of its
+            weight. 0.9-34 applied the weights to a test sample and to
+            \code{predict(weights =)}, and used sigma at every training
+            row. A row at weight 0 has \code{NA} draws, in \code{extract},
+            \code{fitted} and \code{predict} alike, with no warning
+            (0.9-34 gave \code{NA} with the warning "NAs produced" for a
+            test-sample row and for \code{predict(weights = 0)}, and drew
+            a training row at sigma): a weight of 0 holds a row out of the
+            fit and gives it no noise scale. To draw such a row as a new
+            observation, state its weight, as in
             \code{predict(fit, type = "ppd", weights = 1)}.
       \item New predictors for a fit with a factor column come as a data
             frame, coded by label: \code{setPredictor(x)} with no
