@@ -1,9 +1,10 @@
 # warm-start-salvage: a warm start takes what fits of a donor
 
-Status: slices A, B and C LANDED 2026-10-17 (A a5f3c9bc..d03760e3, calls dec-A211; B f5c16b4a..ee1d7213, calls
-dec-A214; C 8386e03c..9b46b40d, calls dec-A218; [Slice A as built](#slice-a-as-built), [Landing note](#landing-note),
+Status: LANDED: slices A, B and C 2026-10-17 (A a5f3c9bc..d03760e3, calls dec-A211; B f5c16b4a..ee1d7213, calls
+dec-A214; C 8386e03c..9b46b40d, calls dec-A218), D 2026-10-22 (f0504a2b..51a1e198, calls dec-A220; [Slice A as built](#slice-a-as-built), [Landing note](#landing-note),
 [Slice B as built](#slice-b-as-built), [Landing note, slice B](#landing-note-slice-b), [Slice C as
-built](#slice-c-as-built), [Landing note, slice C](#landing-note-slice-c)); D is planned, not built. Planned 2026-10-11, revised from its blind
+built](#slice-c-as-built), [Landing note, slice C](#landing-note-slice-c), [Slice D as built](#slice-d-as-built), [Landing note, slice
+D](#landing-note-slice-d)). Planned 2026-10-11, revised from its blind
 critique, no call open. Four slices, A to D, serial. Design: [warm-start-salvage.md](../design/warm-start-salvage.md), whose six choices are settled: (a)
 `forceUpdate = FALSE`, (b) FALSE for a split that has to move or merge, (c) the mean weighted by rows, (d) the
 three errors stay, (e) the mean forest's rule for the variance forest (dec-B448), (f) one line. Where this plan
@@ -1509,3 +1510,27 @@ pins and the pins of the review's two surviving mutants, the texts and comments,
   the seven warm-start files 787 results, 0 failed, and the review's DART probe refused at every length, no report;
   `R CMD check --as-cran` 1 NOTE, the Date field.
 - Size: the code and tests add 144 lines and remove 26.
+
+## Landing note, slice D
+
+Slice D landed 2026-10-22 as f0504a2b..51a1e198 on a000d239, 8 commits: the parts one side has (f0504a2b), the
+leaf kinds and the texts of (d) (7043ed77), the tests (3bc10305), the help and notes with this record
+(8ac28b5d), and after one opus review, LAND, the fix round (3e6f47fe to e51a685d) and the DART weights named in
+the shape error (51a1e198). It was built on 46e1a644 and rebased onto a000d239, forest-multiplier push 2's
+records, without conflict. The calls are dec-A220; the reviewer checked the fix round, which adds two refusals
+of malformed input and moves no draw.
+
+Gates on e51a685d are in the fix round above; on 51a1e198, which changes an error text and a comment,
+test-warm-start-kinds.R 234 results, 0 failed, lintr and air clean. The x86-64 leg, on 8ac28b5d and again on
+e51a685d: tests/cpp 407 ok, plain and under ASAN with the leak sanitizer; the suite 28216 and 28244 results, 0
+failed; the equivalence compare 55 of 55 statistically indistinguishable; the BCF and multinomial compares
+within the cross-host tier 1 bound.
+
+Not run: Windows, and any consumer's suite (no consumer calls a warm start; stan4bart's setState holds no
+variance forest).
+
+Size against the plan: the engine adds 157 lines against a stop of 350, the range 1003 against 1550; the fix
+round 233 against 250.
+
+Left: `warm-start-undo-test`, `warm-start-by-position`, `warm-start-linear-covariates`,
+`warm-start-bart-families` and `warm-start-across-models`, in TODO.
