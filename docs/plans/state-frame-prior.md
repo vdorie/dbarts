@@ -11,11 +11,11 @@ dec-B305, dec-B310, dec-B329, dec-B330, dec-B418, dec-B449, dec-B450, dec-B457 t
 agent: per slice, one opus implementer and one opus reviewer who runs that slice's mutants. Tier "Changes
 draws" ([Process by risk](README.md#process-by-risk)) for all three: each edits the engine's creation,
 `setData` or install path.
-rng, per slice, against equivalence-32418b6e, bcf-equivalence-47838362 (current since forest-multiplier
-push 1 landed; bcf-equivalence-1b7d730c before it) and multinomial-equivalence-80b1c8d4. No recorded scenario reaches a changed
+rng, per slice, against equivalence-32418b6e, bcf-equivalence-20eed7ed (current since forest-multiplier
+push 2 landed; bcf-equivalence-47838362 before it) and multinomial-equivalence-80b1c8d4. No recorded scenario reaches a changed
 sequence: the `setdata` and `hetsetdata` scenarios hand a fresh `dbartsData()`, the `setPredictor` scenarios
 name no new argument, none copies, reloads, calls `setState` or `samplePriorPredictive`, or hands one
-sampler's control or data to another, and none makes a warm start. Expected 55, 15 and 11 identical in every slice, no re-record; a moved
+sampler's control or data to another, and none makes a warm start. Expected 55, 19 and 11 identical in every slice, no re-record; a moved
 stream is a stop.
 - 1, grid, range and anchor. NEUTRAL, bit for bit, for every creation from a data object that carries no
   record, every live call, `xbart` (its handle ignores records), and every copy, reload and dead-pointer
@@ -269,7 +269,7 @@ Per slice, against the slice's own library ([Landing](README.md#landing)):
 - `cd tests/cpp && make && ./test_bartcore`, plain and under ASAN and UBSAN; `R CMD INSTALL --preclean`; the
   full tinytest suite; the R-loaded sanitizer run over the new and changed test files.
 - Reference build: the four `test-reproducibility-*.R` files unedited, and the three `--bitwise` compares
-  (`--strict-coverage` for the main harness), 55, 15 and 11 "identical draws" lines and no "max |z|" line.
+  (`--strict-coverage` for the main harness), 55, 19 and 11 "identical draws" lines and no "max |z|" line.
 - The exact-gate commands of exact-gates.yaml at `quick`; expected unchanged.
 - The base-build literals: recorded once per fixture on the slice's base, written into the test, and the
   two-library compare run in scratch and recorded in the landing note.
@@ -685,12 +685,13 @@ Left: slices 2 and 3, built on slice 1's commits before its fix round and moved 
 
 ## Slice 2 as built
 
-Built on 3a3fab8a: bartcore a563d753, warm-start-salvage slice D landed, with slice 1 as rebased onto a000d239
-on top. The steps held against that tip: `restoreCalibration` was called from
+Built on bartcore a563d753, warm-start-salvage slice D landed, with slice 1 as rebased onto a000d239 on top,
+before slice 1's fix round (its base, below), and rebased onto 030b39f0, slice 1's landing, in the fix round
+(below). The steps held against that tip: `restoreCalibration` was called from
 [`Chain::setState`](../../src/bartcore/chain.hpp), the warm start converted through the function this slice
 removes, and slice D's pins ("linear, other covariates", "linear into constant") expected no restatement and
-stand unedited. Commits: 0958cbe8 (the slice), 46fa002e (the notes and the retired cites), f3e08d73 (center
-spelled the American way in the lines the slice added) and this record.
+stand unedited. Commits, as rebased onto 030b39f0: ac9f7acf (the slice), 7aea8b52 (the notes and the retired
+cites), da32e7cd (center spelled the American way in the lines the slice added) and 1294c756 (this record).
 
 What it does. A fourth slot on `dbartsData`, `standardization`: one entry per forest, `list(center = ,
 scale = )` named by the leaf covariates, a scale `NA` for a covariate without spread, and `lengthscale` beside
@@ -752,7 +753,7 @@ Calls made in building, each with its alternative:
   is what tests/cpp pins, the first keeps a record whose count fits no fold's leaves from the bridge's backstop
   refusal. Alternative: the engine alone.
 - The new file compares a gp copy's and reload's state by their fits: a gp tree's flat leaf values move in
-  the last place when a tree is rebuilt, on 3a3fab8a as here (2.8e-17).
+  the last place when a tree is rebuilt, on its base as here (2.8e-17).
 
 Tests. tinytest test-standardization-record.R (150 expectations): the record at creation, named, equal to the
 reader and to the state's blocks, `NA` without spread, no lengthscale under a supplied one, `NULL` without
@@ -789,12 +790,12 @@ survives, the bridge's drop covering it); both drops removed, 1 (xbart); a scale
 test-leaf-conversions.R 10; the names check skipped, 2; the reader giving a model's lengthscale, 2; the gp
 refusal without its center and scale, 3, and without its lengthscale, 2.
 
-Size, against 3a3fab8a before this record: engine 136 added and 184 removed (stop 220), bridge and R 251 and
+Size, against its base before this record: engine 136 added and 184 removed (stop 220), bridge and R 251 and
 71, tests 1036 and 173, help, NEWS and notes 57 and 40; 1480 added and 468 removed in all (stop 1700), against
 about 1100 planned.
 
 Gates, on the slice's libraries: tests/cpp plain and under ASAN and UBSAN, 409 ok, no failure and no
-diagnostic; the full suite in one process, 28441 expectations, none failed (28280 on 3a3fab8a); lint (0 lints),
+diagnostic; the full suite in one process, 28441 expectations, none failed (28280 on its base); lint (0 lints),
 air, rc-codoc, win-drift, doc-freshness and verify-anchors clean; on a `--preclean` reference install the four
 snapshot files (14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55 identical against
 equivalence-32418b6e (`--strict-coverage`, in five scenario batches, 0 skipped), 19 of 19 against
@@ -803,7 +804,7 @@ gates of exact-gates.yaml at `quick`, the 42 gate commands on the shipped build 
 on the reference, all passing; the R-loaded run over ten touched and nearby test files with the package built
 under ASAN and UBSAN through `CXX20FLAGS` (the bridge's compile line carrying `-fsanitize=address`), 1668
 expectations, none failed, no diagnostic; `R CMD check --as-cran --no-manual` from a clean tarball, the Date
-field's NOTE alone; scratch/sfp2/compare.R against 3a3fab8a, 6 fixtures (linear, gp, two covariates, a
+field's NOTE alone; scratch/sfp2/compare.R against its base, 6 fixtures (linear, gp, two covariates, a
 covariate without spread, probit, constant) and 91 parts from creation through copy, reload, a twin, a
 same-frame warm start and a copy after `setPredictor`, every one identical but the four the slice moves,
 `setState` and a warm start across a standardization on the two linear fixtures; stan4bart's suite (its
@@ -813,3 +814,97 @@ Left open. The plan's rng block names bcf-equivalence-47838362 and 15 scenarios;
 20eed7ed with 19, was used. A sampler saved by an earlier build with kept gp draws, whose leaf covariate
 `setPredictor` changed after creation, derives afresh at its first use (dec-B461) and is then refused, the
 kept draws being under another standardization; for the maintainer's mark.
+
+### Slice 2 fix round
+
+On the slice's review (opus, 2026-10-23, FIX FIRST: one package defect and one unpinned refusal), with the
+orchestrator's calls on its non-blocking findings. Commits: 3f555674 (the new file's helper after the rebase),
+ce2047e8 (the fixes and their pins) and this record.
+
+- The rebase onto 030b39f0 stopped twice. In the slice's commit, on the bridge's
+  [`bartcore_derivedRecords`](../../src/R_interface_bartcore.cpp): slice 1's fix round gave it a second
+  argument, FALSE leaving the grids unread, and the slice a fourth element, the standardization; both are
+  kept, the standardization read either way, a few values per leaf covariate. In this record, after which
+  slice 1's fix round and landing note had been appended: both kept, this section after them. Merged without a
+  stop and read: `checkDerivedRecord` sorting a weighted grid with its weights beside the slice's model
+  argument; [`recordResponseRange`](../../R/data.R) writing the range alone after a response, offset, weights
+  or active-row change at `updateScale = TRUE`, none of which moves the standardization; `DerivedRecords`
+  carrying `withGrids` and the leaf vectors; `copy()` of a dead sampler without a stored state refused; push
+  3's block reading the unit from `data@forest.calibration`. The new file's reader helper called the entry with
+  one argument, which the entry no longer takes; it is handed TRUE (3f555674). No other test was edited.
+- B1, a valid `setData` refused: the record's names were held to the new data's columns before
+  [`alignDataFactorLevels`](../../R/bartcore.R) put them in the sampler's order. `setData` now matches a
+  carried record to the sampler's leaf covariates by the sampler's names, the aligned columns being the
+  sampler's by name or else by position, and still hands the call no record; under the call below no name
+  refuses anything. Pinned: a sampler's data object reordered, stripped of its names and renamed (the review's
+  probe3, probe4 and probe7), linear and gp, each served, the record then the reader's under the names the data
+  carry.
+- B2, the gp refusal's scale: pinned by a record whose scale alone is doubled, and by data, a covariate at
+  multiples of 1/64 centered exactly at 0 and then doubled, its center and heuristic lengthscale identical and
+  its scale twice: the kept draws refused, the sampler untouched.
+- Non-blocking 1, the handle's drop: `xbart` of a data object carrying a linear sampler's record, with constant
+  leaves, equals `xbart` of a fresh object of the same values.
+- Non-blocking 4, the orchestrator's call. A standardization describes the covariates a leaf model takes, a
+  model choice and not the data's, so a record that another leaf model makes irrelevant is not a mistake to
+  refuse. [`checkStandardizationRecord`](../../R/data.R) matches the first entry to the leaves' covariates by
+  name, or by position where the record or the columns carry no names and the counts agree: an entry for a
+  covariate the leaves do not take is ignored, a forest whose leaves take none ignores its entry, and a
+  covariate the leaves take without an entry is derived, handed as an NA center; the engine derives a column
+  whose supplied center or gp lengthscale is not a number ([`suppliedMoments`](../../src/bartcore/model.hpp),
+  `GPGaussianLeaf::reinitialize`), two lines, so the other covariates keep the record's. Only a malformed record
+  is refused, naming the slot: not a list, without an entry, an entry neither NULL nor a list, lengths that
+  differ, a center not numeric or not finite, a scale neither positive nor NA, a lengthscale not positive. The
+  grid, range and calibration records keep slice 1's refusals, being the data's. Alternative: the slice's
+  refusal, dec-A217's "a record that does not fit the data is refused naming the slot", whose reason, hiding a
+  mistake, does not apply to a change of leaf model. This replaces the call above that held the record's count
+  and names to the leaves. Pinned as served: `dbarts(s$data)` and `bart(s$data)` with constant leaves, the
+  record then `NULL`; `setData` of a linear sampler's data object into a constant-leaf sampler; a model taking
+  another covariate, derived as a fresh sampler's; one taking another beside the recorded one, the record's
+  kept for it; an entry for another column, an unnamed record of another count and a second forest's entry.
+  Pinned as refused, at creation under linear and under constant leaves and at `setData`: each malformed form
+  above. The help of `dbartsData` and the design note's smaller calls say so.
+- Non-blocking 3: an entry that is not a list is refused with the slot's message, and a logical `NA` scale
+  reads as `NA_real_`, pinned against a record of `NA_real_`.
+- Non-blocking 2, two doors the draw class did not name, both POSTERIOR-CHANGING by the rule: a creation
+  handed `s$data` whose leaf covariate's values no longer give the sampler's standardization, as after a
+  `setPredictor` on it, is made on the record's where the base derived one from the values; and so is
+  `samplePriorPredictive` (the review's checksum -1517.57 against the base's 323.16, identical to the base's
+  without the `setPredictor`). Its comment names the standardization.
+- Non-blocking 6: the rng block names bcf-equivalence-20eed7ed and 19 scenarios. `lengthscaleStateFeasible`
+  and `lengthscaleRefused` are not renamed: the first is cited by link in two design notes and in this plan's
+  context and steps, and the second is a parameter of the facade's `setState` and of its tests/cpp row; their
+  doc comments, written in the slice, already name the center, scale and lengthscale.
+- The rng block's baseline left open above is done; the sampler saved by an earlier build stays for the
+  maintainer's mark.
+
+Mutants, each alone on an export of ce2047e8 (scratch/sfp2fix/mutants.py), test-standardization-record.R (201
+expectations) unless named. The review's: M3, the gp refusal without its scale check, 3 failures (the
+doubled-scale record and the doubled data), tests/cpp still passing; M7, the bridge's handle drop removed, the
+file stops at the constant-leaf `xbart` ("gives 1 leaf covariates and the leaves take 0"). Own: I1, the
+slice's names refusal put back at `setData` alone, the file stops at the first `setData` the fix serves, at
+the reordered variant with the earlier ones removed, and probe3, probe4 and probe7 report the refusal; I4a,
+leaves taking no covariate refusing a record, stops at `dbarts(s$data)` with constant leaves; I4b, an entry
+for a covariate the leaves do not take refused, stops at the model taking another covariate; I4c, a covariate
+without an entry dropping the whole record, 1 (the recorded covariate beside another); I4d, the engine taking
+a center not a number as given, 1, and tests/cpp's new check 2; I4e, an unnamed record of another count
+matched by position, 1; I5a, an entry that is not a list reaching the value checks, 3 (R's "$ operator is
+invalid" in place of the slot's message); I5b, a logical `NA` scale not read as a number, stops at that
+served case.
+
+Size, against 1294c756: package code 123 added and 87 removed (engine 12 and 9, bridge 12 and 8, R 99 and 70),
+tests 246 and 46, help and notes 6 and 3; 375 added and 136 removed, beside this record.
+
+Gates on ce2047e8, on its own libraries: tests/cpp 409 ok, plain and under ASAN and UBSAN, no failure and no
+diagnostic; the full suite in one process, 28651 expectations, none failed; lint (0 lints), air, rc-codoc,
+win-drift, doc-freshness and verify-anchors clean, each on its own exit status; on a `--preclean` reference
+install the four snapshot files (14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55
+identical against equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against
+bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line; the 43
+commands of exact-gates.yaml at `quick` on the shipped build and its two cross-host compares on the reference,
+all passing; the R-loaded run over the review's twelve files with the package built under ASAN and UBSAN
+through `CXX20FLAGS` (the bridge's compile line carrying `-fsanitize=address`), 1760 expectations, none
+failed, no diagnostic; `R CMD check --as-cran` from a clean tarball, with the manual, the Date field's NOTE
+alone; scratch/sfp2/compare.R against 030b39f0, 6 fixtures and 91 parts, every one identical but the four the
+slice moves, `setState` and a warm start across a standardization on the two linear fixtures; stan4bart's
+suite (its bartcore branch at ac80108, built against this tip), 1545 expectations, none failed. Not run: the
+x86-64 leg.
