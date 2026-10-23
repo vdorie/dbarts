@@ -22,7 +22,10 @@
   chains-by-samples matrix. The table holds the parameters the fit
   sampled; one line under it names each requested parameter the fit held
   fixed, with its value, in the manner of \code{summary.glm}'s dispersion
-  line.
+  line. The summary of a fit of several forests adds the full block of what
+  each forest resolved to, after the table (see the \code{sd} argument of
+  \code{\link{forest}}), and the line under the table then leaves out each
+  forest's \code{leaf.prior.sd}, which the block gives.
 }
 \usage{
 \method{summary}{bart}(object, vars = c("sigma", "k", "leaf.prior.sd", "resid.df"), \dots)
@@ -39,8 +42,7 @@
     field follows how the leaf prior was named: \code{k} for a fit that
     named it by \code{k}, \code{leaf.prior.sd} (the \code{k.scale} over \code{k};
     see \code{\link{bartBT}}, where on a fit with several forests it is each
-    forest's \code{sd} in the response's units, printed under the table as
-    \code{leaf.prior.sd[<label>]}) for one that named it by \code{sd}, and
+    forest's \code{sd} in the response's units, printed in the block after the table) for one that named it by \code{sd}, and
     either can be requested by name, as can \code{first.k}, the burn-in
     draws. A requested parameter the fit held fixed (\code{sigma} under
     \code{fixed()}, a fixed \code{k} or \code{leaf.prior.sd}, a fixed
@@ -78,7 +80,9 @@
   and \code{fixed}, a named list of the requested parameters the fit held
   fixed and their values (on a fit with several forests a vector with one
   entry for each forest, \code{k} named \code{forest1}, \code{forest2},
-  \dots and \code{leaf.prior.sd} by the forests' labels). \code{stats} has columns \code{variable}, \code{mean}, \code{median},
+  \dots and \code{leaf.prior.sd} by the forests' labels), and, on a fit of
+  several forests that kept its fits, \code{forests}, the lines of the full block
+  that the print method gives after the table. \code{stats} has columns \code{variable}, \code{mean}, \code{median},
   \code{sd}, \code{mad}, \code{q5}, \code{q95}, \code{rhat},
   \code{ess_bulk}, and \code{ess_tail} - the same columns
   \code{posterior::summarise_draws} reports for a plain array, computed

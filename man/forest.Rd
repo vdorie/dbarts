@@ -523,19 +523,31 @@ sampler$setLeafPrior(forests = list(forest(),
     fixed at creation: \code{$setForestBasis} refuses to give a basis to a
     forest created without one, and moves no forest's prior.
 
-    \code{print} of a fit, \code{show} of a sampler and the creation of a
-    sampler with \code{verbose = TRUE} show what each forest resolved to, in a
-    block of one line for each forest of a model of several: what it
-    multiplies, the mean, sd and range of a numeric column as they stand over
-    the observations in the likelihood, the sd per unit and per sd of the
-    column, and whether the sd was stated or is the default; a default taken
-    from a column that has since been replaced says so. Two things to look
-    for in it. The mean and range of a numeric column: a mean far from 0 is a
-    column that should be centered, and one wild value shows in the range.
-    And the sd per sd of the column: for a default it is the same on every
-    numeric line, and for a stated \code{sd} it shows the size of one sd of
-    the column, where a number in the wrong units shows. Nothing in the
-    fit warns of either.
+    \code{print} of a fit and \code{show} of a sampler give a short block of
+    one line for each forest of a model of several: its label, what it
+    multiplies, for a numeric column the mean and sd it has over the
+    observations in the likelihood as they stand, and the sd the forest
+    resolved to (per unit of a numeric column, between the two levels of a
+    factor). Its last line says where the full block is to be had:
+    \code{summary()} for a fit, \code{$getLeafPrior()} for a sampler. The
+    \code{summary} of a fit and the creation of a sampler with
+    \code{verbose = TRUE} give the full block. Its header gives the unit the
+    sds are in: \eqn{\mathrm{sd}(y)}{sd(y)}, as taken above, or the link's
+    error sd. Each line adds a numeric column's range, the sd per sd of the
+    column, whether the sd was stated or is the default, and whether the
+    coefficient is held. A default whose column has another sd over the
+    observations now in the likelihood than the one it was taken from (the
+    column replaced, the weights or the active rows changed, or every
+    observation read because none was in the likelihood) says so. A fit made
+    with \code{keepFits = FALSE} keeps no bases or labels and gives no block.
+    Two things to look for in the full block. The mean and range of a numeric
+    column: a mean far from 0 is a column that never comes near 0, an age or
+    a year, and should be centered, unless 0 means none, as for a dose; and
+    one wild value shows in the range. And the figure per sd of the column,
+    the size of the forest's term over one sd of the column (\code{sd} times
+    the column's sd): for a default it is the same on every numeric line, and
+    for a stated \code{sd} it is where a number in the wrong units shows.
+    Nothing in the fit warns of either.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on
