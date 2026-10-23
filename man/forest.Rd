@@ -527,30 +527,39 @@ sampler$setLeafPrior(forests = list(forest(),
     one line for each forest of a model of several: its label, what it
     multiplies, for a numeric column the mean and sd it has over the
     observations in the likelihood as they stand, and the sd the forest
-    resolved to (per unit of a numeric column, between the two levels of a
-    factor). Its last line says where each forest's prior is to be had in
-    full: \code{summary()} of a fit, which prints the full block, or
-    \code{$getLeafPrior()} of a sampler, which returns it. The
+    resolved to. For a numeric column that is its sd per sd of the column as
+    it now stands, the size of the forest's term over one sd of the column in
+    the response's units: for a default it is \eqn{\mathrm{sd}(y)}{sd(y)}
+    (the link's error sd under \code{"probit"} and \code{"logistic"}) until
+    the column changes, and for a stated \code{sd} it is that \code{sd} times
+    the column's sd. Where the column is constant it is the \code{sd} per
+    unit. For a factor it is the sd between the two levels. The sd per unit
+    of a numeric column, which is what \code{forest(sd = )} states, is in the
+    full block and in the reader. The last line of the short block says where
+    each forest's prior is to be had in full: \code{summary()} of a fit,
+    which prints the full block, or \code{$getLeafPrior()} of a sampler,
+    which returns it. The
     \code{summary} of a fit and the creation of a sampler with
     \code{verbose = TRUE} give the full block. Its header gives the unit the
     sds are in: \eqn{\mathrm{sd}(y)}{sd(y)}, as taken above, or the link's
-    error sd. Each line adds a numeric column's range, the sd per sd of the
-    column, whether the sd was stated or is the default, and whether the
-    coefficient is held. A default whose column has another sd over the
-    observations now in the likelihood than the one it was taken from (the
-    column replaced, the weights or the active rows changed, or, under
-    \code{"gaussian"}, every observation read because those in the
-    likelihood held fewer than two values of the response) says so. A fit made
-    with \code{keepFits = FALSE} keeps no bases or labels and gives no block.
-    Two things to look for in the full block. The mean and range of a numeric
-    column: a mean far from 0 is a column that never comes near 0, an age or
-    a year, and should be centered, unless 0 means none, as for a dose; and
-    one wild value shows in the range. And the figure per sd of the column,
-    the size of the forest's term over one sd of the column (\code{sd} times
-    the column's sd): for a default it is the same on every numeric line not
-    marked as taken from another column, and
-    for a stated \code{sd} it is where a number in the wrong units shows.
-    Nothing in the fit warns of either.
+    error sd. A numeric line gives the sd per unit and per sd of the column
+    and adds the column's range; every line adds whether the sd was stated or
+    is the default, and whether the coefficient is held. A default whose
+    column has another sd over the observations now in the likelihood than
+    the one it was taken from (the column replaced, the weights or the active
+    rows changed, or, under \code{"gaussian"}, every observation read because
+    those in the likelihood held fewer than two values of the response) says
+    so. A fit made with \code{keepFits = FALSE} keeps no bases or labels and
+    gives no block.
+    Two things to look for. The mean of a numeric column, in either block, and
+    its range, in the full one: a mean far from 0 is a column that never comes
+    near 0, an age or a year, and should be centered, unless 0 means none, as
+    for a dose; and one wild value shows in the range, and moves the mean and
+    sd. And the figure per sd of the column, in either block, the size of the
+    forest's term over one sd of the column (\code{sd} times the column's
+    sd): for a default it is the same on every numeric line not marked as
+    taken from another column, and for a stated \code{sd} it is where a
+    number in the wrong units shows. Nothing in the fit warns of either.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on
