@@ -429,7 +429,9 @@ Calls made in building, each with its alternative:
   gives predictor 2, an ordered factor, other cut points than those of its levels; set it to NULL to derive it
   from the data", and with the record set to NULL as that says both refuse "state is not consistent with this
   sampler"; a000d239 made the copy and ran the reload (TODO code-matrix-category-count). The move above does
-  not reach that case; a carried level grid setting the level count at creation would. For the maintainer.
+  not reach that case; a carried level grid setting the level count at creation would. Told to the maintainer
+  2026-10-22 as needing no ruling: the documented route, a data frame whose ordered factor declares fewer
+  levels handed by setData, keeps the engine's grid and copies and reloads.
 - The copy of a sampler whose engine is gone and that has no stored state is made fresh, as on the tip,
   not refused (refused since the fix round, below): dec-B459's "refused, as today" read as the reload's
   refusal, which stands. Alternative: refuse the copy too.

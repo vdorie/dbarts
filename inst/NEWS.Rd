@@ -293,9 +293,9 @@
             0.9-34 installed the last stored state, and a sampler saved after
             \code{$setCutPoints} with no \code{$storeState()} since reloads
             on the new cut points, the stored splits moved onto them by
-            value, where 0.9-34 brought back the stored cut points. A copy
-            of a sampler saved with no stored state is refused, as its other
-            calls are, where 0.9-34 made one afresh.
+            value, where 0.9-34 brought back the stored cut points. A sampler
+            saved with no stored state refuses to be copied or run, where
+            0.9-34 made the copy afresh and ran from a fresh start.
       \item A state whose saved draws (\code{keepTrees}) number more or
             fewer than the sampler keeps is installed with the newest that
             fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a

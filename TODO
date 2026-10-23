@@ -150,9 +150,9 @@ items
     message as docs/design/state-frame-prior.md says; its copy() and
     predict() fail on a missing slot (bases, counts). Of a 0.9-34 bart
     or bart2 fit, fitted, extract and residuals work and predict fails
-    on the missing counts slot. Compatibility with 0.9-34 objects is
-    not owed (dec-B461); a message naming the version and saying to
-    refit is the item. Found by the state-frame-prior slice 1 review,
+    on the missing counts slot. Compatibility is owed to shipped
+    versions and 1.0-0 may break it with 0.9-34 (dec-B461); a message
+    naming the version and saying to refit is the item. Found by the state-frame-prior slice 1 review,
     the same before the slice.
   pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
     are refused, replace pdbart's and pd2bart's ... with bart's usable
