@@ -183,10 +183,10 @@ A model of several forests prints a block of one line for each forest, built by
 standard deviation of its column as the object holds it: a sampler's data object, a fit's stored `bases`,
 over the rows in the likelihood when the block is printed (a fit's stored weights and mask, a sampler's
 own). `print` of a fit and `show` of a sampler give the short block, a line's label, its kind, a numeric
-column's mean and sd and the forest's sd, under a plain header and over a last line that points to the full
-block. `summary` of a fit, after its table, and a sampler created with `verbose = TRUE` give the full block:
-under a header that names the unit, each numeric column's range, the sd per sd of the column, where the sd
-came from and whether the coefficient is held. Nothing of the column is stored: the mean and sd are those of
+column's mean and sd and the forest's sd, a numeric forest's per sd of its column as it stands (per unit
+where the column is constant), under a plain header and over a last line that points to the full block. `summary` of a fit, after its table, and a sampler created with `verbose = TRUE` give the full block:
+under a header that names the unit, a numeric forest's sd per unit and per sd of its column, the column's
+range, where the sd came from and whether the coefficient is held. Nothing of the column is stored: the mean and sd are those of
 the column in force, so after a swap or a change of weights they are the new ones, and a default's full line
 ends with the sd of the column it was taken from where that differs. The one number a fit stores for the
 block is the unit the sds are stated in, the engine's own, `attr(fit, "forest.unit")`, which a sampler

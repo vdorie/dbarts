@@ -493,14 +493,16 @@ is computed in the test from its fixture.
   printed the same entries by label, as the sd unit slice built it, a numeric forest's number per unit
   of its column; after push 3 it does so only where no block prints, a fit made with `keepFits = FALSE`.
 - The printed block (push 3, trimmed in its fix round: the package owner's ruling of 2026-10-22). `print`
-  of a fit and `show` of a sampler give the short block, one line for each forest, with no range, no "per
-  sd", no source and no mark of a held coefficient, under a plain header and over a last line that says
-  where the full block is:
+  of a fit and `show` of a sampler give the short block, one line for each forest, with no range, no
+  source and no mark of a held coefficient, under a plain header and over a last line that says where the
+  full block is. A numeric forest's sd on its line is per sd of its column as it now stands (dec-B468:
+  [Push 3 second fix round](#push-3-second-fix-round)), the full block's "per sd", and per unit only where
+  the column is constant:
 
       forests:
         1 forest1: no basis; sd 2.904
-        2 dose: numeric basis, mean 0.01994, sd 0.0204; sd 71.18 per unit
-        3 age: numeric basis, mean 50.88, sd 17.55; sd 0.0827 per unit
+        2 dose: numeric basis, mean 0.01994, sd 0.0204; sd 1.452 per sd of dose
+        3 age: numeric basis, mean 50.88, sd 17.55; sd 1.452 per sd of age
         4 factor(z): factor basis, 2 levels; sd 1.452 between the two levels
       (each forest's prior in full: summary())
 
@@ -1942,7 +1944,7 @@ Left: push 3, the printed block.
 ## Push 3 as built
 
 Built 2026-10-17 on bartcore at 5a1e9dca (push 2 landed), rebased onto a000d239 (its records), R only, not landed. Commits: the block, step
-3.1, with test-forest-print.R, step 3.2 (5625cd90); the help and the design note, step 3.3 (2510b0fa).
+3.1, with test-forest-print.R, step 3.2 (386d0c06); the help and the design note, step 3.3 (bba1fba8).
 Nothing under src/ and no draw moves; `dbarts.h` has no diff. The block described below is the full one;
 [Push 3 fix round](#push-3-fix-round) trims what `print` and `show` give to a short block.
 
@@ -2008,9 +2010,9 @@ tinytest 391, help 15, design note 15. Package code 214 lines against the plan's
 
 ### Push 3 fix round
 
-Built 2026-10-22 on 3a9559db, R only, from one opus review (ae70169a) and the package owner's ruling of the
+Built 2026-10-22 on bc5ccca3, R only, from one opus review and the package owner's ruling of the
 same day on the printed block. Nothing under src/ and no draw moves; `dbarts.h` has no diff. Commits: the
-code and tests (2ef87643); the help (86f7a908); this record.
+code and tests (a02316c1); the help (3cc9e27c); this record.
 
 What changed, by the review's findings:
 
@@ -2110,14 +2112,104 @@ Added for this round's changes:
 | a verbose creation short, a show or a print full | 33, 28 and 10 tests |
 | the summary's block short | 12 tests |
 
-Gates on the code tip (86f7a908, on a000d239) after a `--preclean` install, mode "shipped", the install newer
+Gates on the round's code tip, on a000d239, after a `--preclean` install, mode "shipped", the install newer
 than the sources: test-forest-print.R 132 results and test-fit-stores-k.R 500, 0 failed; the full suite
 through `test_package("dbarts")` in one process 28199 results in 262 files, 0 failed (28100 before: 96 more
 in test-forest-print.R, 3 in test-fit-stores-k.R); the 43 exact-gate commands of exact-gates.yaml in quick,
 39 of the main loop and 4 of the monotone job, all passing, run because a fit now carries the unit and a
 summary a new element (the two cross-host compares not run: no draw moves); lintr (0 lints), air, rc-codoc
 (48 methods), win-drift and doc-freshness clean, each on its own exit status; `R CMD check --as-cran` on
-a tarball built from a clean `git archive` of 86f7a908 staged outside the tree, 1 NOTE ("Date field over a
+a tarball built from a clean `git archive` of that tip staged outside the tree, 1 NOTE ("Date field over a
 month old"), its tests OK; on a reference install (`mode` "reference") the four snapshot files, binary 7,
 multithreaded 3, single-threaded 14 and xbart 3 assertions, 0 failed. This record is the only change after
-that tip. Size over 3a9559db: R 157 lines changed over three files, tinytest 688, help 56.
+that tip. Size over bc5ccca3: R 157 lines changed over three files, tinytest 688, help 56.
+
+### Push 3 second fix round
+
+Built 2026-10-23 on the first fix round's tip and the help fixes made after its review (1afff8f3), R only;
+nothing under src/, no draw moves, `dbarts.h` has no diff. The package owner's ruling dec-B468 of 2026-10-22
+(his option A). Then rebased onto bartcore a563d753, warm-start slice D landed, with no conflict. Every cite
+of a push 3 commit in these records is the rebased one: the block 386d0c06, its help bba1fba8, the as-built
+record bc5ccca3, the first fix round's code a02316c1 and help 3cc9e27c, its record 50b3f403, the help fixes
+1afff8f3. Commits of this round: the code and tests (9162fb80); the help (a802f355); this record. The result
+numbers in the first fix round's tables are those of the file as it was then, 132 results; it has 138 now.
+
+The ruling, dec-B468. On the short line, at `print` of a fit and `show` of a sampler, a numeric forest gives
+its sd per sd of its column as it now stands, in place of per unit: `2 dose: numeric basis, mean 0.03635, sd
+0.02042; sd 0.8085 per sd of dose`. The figure is the forest's sd times the column's sd over the rows in the
+likelihood as they stand, the number the full block prints as "per sd". After `setForestBasis(2L, dose / 10)`
+the line reads `mean 0.003635, sd 0.002042; sd 0.08085 per sd of dose`. A constant column, which has a stated
+sd and no per-sd figure, keeps `sd 30 per unit`. The short line has no "taken from" note. The full block,
+at `summary` and a verbose creation, is unchanged.
+
+What changed:
+
+- [`printedForest`](../../R/forestPrint.R) takes the forest's label, which names the column as the full
+  block's line names it, and a short numeric line reads `sd <sd times the column's sd> per sd of <label>`,
+  or `sd <sd> per unit` where the column is constant. R: 46 lines changed in one file.
+- man/forest.Rd's description of the short block says the figure is the size of the forest's term over one
+  sd of the column as it now stands, in the response's units, which for a default is sd(y) (the link's error
+  sd under probit and logistic) until the column changes, and for a stated `sd` is that `sd` times the
+  column's sd; and that the sd per unit, which is what `forest(sd = )` states, is in the full block and the
+  reader. man/bartBT.Rd names the figure in its `print.bart` sentence.
+- test-forest-print.R, 138 results (132 before): every short line at print and show re-pinned; a default's
+  figure on dose and on age is sd(y), written out; after the swap to dose / 10 the figure is a tenth of
+  sd(y) and the same number as the full line's "per sd", while the sd per unit stays what the creation
+  took it to be; a stated sd of 30 gives 30 times the column's sd; a constant column keeps per unit; in the weighted
+  case the figure after `setWeights(rep(1, n))` is the sd per unit times the column's sd over all the rows,
+  which is not the creation's; a centered column is named `scale(age)`.
+
+Calls made:
+
+- The column is named by the forest's label, as the full block's line is. "One figure per column, named each"
+  for a basis of several columns has no case to print: a numeric basis of several columns is refused at
+  creation, so a numeric forest has one column and one figure. The line is built for the one.
+- The figure follows the column in force, so a swap shows in the short line's own mean, sd and figure; the
+  "taken from" mark stays in the full block, as ruled. Rejected: the mark on the short line.
+
+Mutants, each applied alone to a copy of the rebased tree, installed, and run against test-forest-print.R
+(138 results), the tests that fail named by result number. Every one is killed. The review's, rerun:
+
+| mutant | killed by |
+|---|---|
+| A: a fit's family passed as "gaussian" | 51, 55 (the latent header at summary of a probit and a logistic fit), 120, 126 |
+| B: a fit's mask left out | 119, 120 |
+| C: a stated line takes the mark | 65 |
+| D: constant only where the sd is exactly 0 | 86, 87 |
+| E: no `forest.unit` on a fit | 15, 16, 20, 51, 55, 70, 105, 109, 120, 126 |
+| F: the header's unit from sd of a fit's response | 51, 55, 70, 105, 109, 120, 126 |
+| G: a sampler's mask left out | 115, 116 |
+| J: the hold not released | 37, 38 and 26 others |
+| K: the index not padded | 95 to 97 and 99 to 101 |
+| L: no fallback to every row | 123 to 126 |
+| M: a warning in a fit's block, a sampler's or a summary's | 138, all three |
+
+The first fix round's, rerun: the call recorded with the stripped formula, 6, 7, 9; the header read "its sd",
+13 tests; the header's unit from sd of a sampler's response now, 9 tests; `formatC(.., "g")` trimmed, 88 to
+92; a fit's weights left out, 69, 70; the short block with the range, the source or the held mark, 31, 17
+and 6 tests; the short header or footer wrong, the fit's pointer or the sampler's changed, 38, 18, 8 and 9
+tests; the summary without its block, or with the sds still on the line, 10 tests and 18, 19, 24, 25; a
+verbose creation short, a show or a print full, 33, 30 and 10 tests; the summary's block short, 12 tests.
+The mutant that put the per-sd figure on the short line is gone with the ruling, the figure being there.
+Added for this round:
+
+| mutant | killed by |
+|---|---|
+| the short line per unit | 26 tests, among them 3, 13, 22, 47 |
+| the short line per unit and per sd | 26 tests, the same |
+| the short figure from the recorded column sd | 47, 60, 61, 73 (stated, swapped, weighted) |
+| the same, in the figure the full line shares | 45, 47, 58, 60, 61, 62, 65, 71, 73 |
+| the short line without the column's name | 24 tests |
+| a constant column given a per-sd figure | 84, 87 |
+| the "taken from" mark on the short line | 60, 61, 73 |
+
+Gates on the rebased tip (code a802f355; this record is the only later change, docs only), after a
+`--preclean` install into the private library, mode "shipped", the install newer than the sources:
+test-forest-print.R 138 results and test-fit-stores-k.R 500, 0 failed; the full suite through
+`test_package("dbarts")` in one process 28257 results in 262 files, 0 failed (28199 before the rebase: 6
+more in test-forest-print.R, the rest slice D's); the 43 exact-gate commands of exact-gates.yaml in quick,
+39 of the main loop and 4 of the monotone job, all passing; lintr (0 lints), air, rc-codoc (48 methods),
+win-drift and doc-freshness clean, each on its own exit status; `R CMD check --as-cran` on a tarball built
+from a clean `git archive` of a802f355 staged outside the tree, 1 NOTE ("Date field over a month old"), its
+tests OK. The reference snapshots are not rerun: nothing under src/ changes on this branch and no draw
+moves. Size: R 46 lines changed, tinytest 57, help 53.
