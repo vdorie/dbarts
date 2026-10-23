@@ -579,6 +579,9 @@ probit <- dbarts::dbarts(
 )
 invisible(probit$run(5L, 4L))
 expect_silent(probit$setData(probit$data))
+# and so is updateScale = TRUE, which derives nothing there, though
+# setResponse and setOffset refuse it outright (dec-B330)
+expect_silent(probit$setData(probit$data, updateScale = TRUE))
 # with nothing kept, a derivation is served
 unkept <- dbarts::dbarts(
   x,
@@ -588,16 +591,17 @@ unkept <- dbarts::dbarts(
 )
 invisible(unkept$run(5L, 2L))
 expect_silent(unkept$setData(dbarts::dbartsData(x.other, y.other)))
+# and setPredictor derives over the values it installs, b back at x[, 2]
 expect_silent(unkept$setPredictor(
-  stretched,
+  x[, 2L],
   "b",
   TRUE,
   updateStandardization = TRUE
 ))
 expectRecordIsReader(unkept, "gp unkept")
 record <- unkept$data@standardization[[1L]]
-expect_equal(record$center[["b"]], mean(stretched), tolerance = 1e-14)
-expect_equal(record$scale[["b"]], sd(stretched), tolerance = 1e-14)
+expect_equal(record$center[["b"]], mean(x[, 2L]), tolerance = 1e-14)
+expect_equal(record$scale[["b"]], sd(x[, 2L]), tolerance = 1e-14)
 # and for the replaced columns alone, a covariate not replaced keeping its
 # center, scale and lengthscale
 unkept <- make(gp(columns = c("a", "b")), keepTrees = FALSE)

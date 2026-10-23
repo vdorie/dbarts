@@ -95,8 +95,9 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   defaults to `NULL`, the rule; `updateCutPoints` takes "none", "position" or "value", the other two `TRUE`
   (derive) or `FALSE` (keep the sampler's own, never the carried one), all after `updateState` (dec-B460).
 - `setPredictor(x, column, forceUpdate, updateCutPoints = "none", updateState = NULL, updateStandardization =
-  FALSE)`. `TRUE` derives the center, scale and heuristic lengthscale of the leaf covariates over the new
-  values and converts linear slopes, live and kept; a gp sampler holding kept draws refuses `TRUE` (dec-B237).
+  FALSE)`. `TRUE` derives the center, scale and heuristic lengthscale of the leaf covariates among the columns
+  it replaces over their new values, as `updateCutPoints` derives their grids, keeps the other covariates', and
+  converts linear slopes, live and kept; a gp sampler holding kept draws refuses `TRUE` (dec-B237).
   dec-B233 has it default to keeping them.
 - `setCutPoints`, `setModel`, and `updateScale = TRUE` on `setResponse`, `setOffset`, `setWeights` and
   `setActiveRows`: unchanged, except that the record they write or carry over is the data object's.
