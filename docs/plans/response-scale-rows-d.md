@@ -8,7 +8,8 @@ Implements dec-B304 as dec-B464 confirms it and dec-B465 extends it. Rests on de
 dec-B237, dec-B296, dec-B302, dec-B303, dec-B309, dec-B329, dec-B330, dec-B364, dec-B457 to dec-B461 and
 dec-A217. Builds on state-frame-prior slices 1 to 3 ([state-frame-prior.md](state-frame-prior.md)); the
 standing statement is the design note [response-scale-rows.md](../design/response-scale-rows.md), which
-this slice extends; rechecked 2026-10-23 against 030b39f0.
+this slice extends; rechecked 2026-10-23 against 030b39f0, and against slice 3's fix round at 9740f9c2
+([Recheck against state-frame-prior slice 3's fix round](#recheck-against-state-frame-prior-slice-3s-fix-round)).
 
 agent: two pushes, serial. Per push an opus implementer for the engine, the facade, the bridge, tests/cpp
 and (push 1) the exact arm; sonnet for the R lines, the tinytest files, the help and the records; one opus
@@ -35,9 +36,9 @@ engine slice in the leaves' derivation, [`Chain::applyNewData`](../../src/bartco
 setData, predictor, weight and mask paths of [`Sampler`](../../src/bartcore/sampler.hpp) or
 `ColumnStore::buildFromParent`. Before 1.0-0, and before the merge to main if it can be (TODO
 `response-scale-rows`).
-budget: lines added, as rechecked 2026-10-23: raw itemization ~2610 (push 1 ~2110, push 2 ~500); forecast
-~4500 at landing, a fix round included (~3650 and ~840), package code ~725 (~590 and ~135); stops at 1.5
-times the forecast ([Budget and stops](#budget-and-stops)). No ABI event.
+budget: lines added, as rechecked 2026-10-23 against 9740f9c2: raw itemization ~2575 (push 1 ~2075, push 2
+~500); forecast ~4430 at landing, a fix round included (~3590 and ~840), package code ~720 (~585 and ~135);
+stops at 1.5 times the forecast ([Budget and stops](#budget-and-stops)). No ABI event.
 
 ## Goal
 
@@ -238,9 +239,10 @@ without a cite until they land. The builder checks them again on the landed slic
   accepted update of [`bartcore_setPredictor`](../../src/R_interface_bartcore.cpp) or
   [`bartcore_updatePredictor`](../../src/R_interface_bartcore.cpp); it re-derives every leaf covariate over
   every row and converts live and kept linear slopes (`Chain::rederiveStandardization`), and a gp sampler
-  holding kept draws is refused before anything moves (`standardizationUpdateFromExpression`). This slice
-  narrows it to the replaced columns, hands it the rows and gives it the keep; push 2 calls the same virtual
-  for every leaf covariate. Slice 1's data handle ignores every record, and slice 2 drops a standardization
+  holding kept draws is refused before anything moves (`standardizationUpdateFromExpression`). Slice 3's
+  fix round narrowed it to the replaced columns, through `Chain::heldStandardization`'s supply of the
+  numbers in force with not-a-number at the covariates to derive; this slice hands it the rows and gives it
+  the keep; push 2 calls the same virtual with null columns, for every leaf covariate. Slice 1's data handle ignores every record, and slice 2 drops a standardization
   for it twice, in the bridge and in the over-store constructor of [`Sampler`](../../src/bartcore/sampler.hpp);
   this slice changes what a fold then derives, its own rows, and refuses there.
 - The tests: slice 2's "copy holds it" (test-standardization-record.R); slice 3's "fresh object neutral",
@@ -285,7 +287,7 @@ With every row in and no constant covariate, today's numbers, bit for bit.
 | `setData(d, updateStandardization = FALSE)` | the sampler's own (dec-B460) | nothing |
 | `setData(s$data, ...)` under a mask family: the sampler's own data object, or an edit of it | `s$data` carries no weights, so the call drops the mask, as today, and a derivation reads every row; the help says to hand back the 0/1 weights on the data object or to call `setActiveRows` after | nothing new for the mask |
 | `setPredictor(x, column, ..., updateStandardization = FALSE)`, a matrix or columns; the per-observation sessions (`forceUpdate = "partial"`, [`updatePredictorPerObservationJointly`](../../R/updatePredictorPerObservationJointly.R)), which refuse `TRUE` (slice 3) | held, regathered under the numbers in force | nothing |
-| `setPredictor(..., updateStandardization = TRUE)` | the replaced leaf covariates only, re-derived over their new values at the rows in at that call (the weights and the mask in force); every other leaf covariate held; too little keeps, warned once per sampler; gp with kept draws refused | posterior where a row is out; a leaf covariate not replaced is no longer re-derived, as slice 3 re-derives every one |
+| `setPredictor(..., updateStandardization = TRUE)` | the replaced leaf covariates only, re-derived over their new values at the rows in at that call (the weights and the mask in force); every other leaf covariate held (slice 3's fix round); too little keeps, warned once per sampler; gp with kept draws refused | posterior where a row is out; a replaced covariate with too little kept, where slice 3 makes the placeholder |
 | `setWeights(weights, updateState = NULL, updateScale = FALSE, updateStandardization = FALSE)` (push 2) | FALSE: held. TRUE: after the install, every leaf covariate re-derived over the rows then in (the new weights, the mask in force); too little keeps, warned once per sampler; gp with kept draws refused before the install; a mask family forwards both arguments to `setActiveRows` | nothing at FALSE; new at TRUE |
 | `setActiveRows(active, updateState = NULL, updateScale = FALSE, updateStandardization = FALSE)` (push 2) | the same, over the weights in force and the new mask | nothing at FALSE; new at TRUE |
 | `setResponse`, `setOffset`, `setCutPoints`, `setModel` | held | nothing |
@@ -408,19 +410,22 @@ Engine.
     accepted the mask, normalized as the chains normalize it (null and all ones are no mask), and cleared
     by a call that clears it. A re-creation starts with no copy and gains the mirrored mask when R puts it
     back through the bridge's mask entry. The weights in force are chain 0's, read through a new accessor.
-- Slice 3's `Sampler::rederiveStandardization`, today void and every covariate over every row, takes the
-  replaced columns (null for every one) and the row set, keeps a covariate with too little and returns
-  which it kept, `Chain::rederiveStandardization` with it; the linear slopes, live and kept, convert as
-  they do there (dec-B329). Push 2 calls it with null and adds no engine method.
-  `Sampler::setWeights` and `Sampler::setActiveRows` are not edited.
+- Slice 3's `Sampler::rederiveStandardization`, void and over every row, takes the replaced columns since
+  its fix round (null for every one). Push 1 has it form the row set from chain 0's weights and the
+  sampler's copy of the mask, hand it to `Chain::rederiveStandardization`, which leaves a replaced
+  covariate with too little out of `Chain::heldStandardization`'s not-a-number marks so that it is held,
+  and return which covariates it kept; the linear slopes, live and kept, convert as they do there
+  (dec-B329). Push 2 calls it with null and adds no engine method. `Sampler::setWeights` is not edited;
+  `Sampler::setActiveRows` keeps the copy of the mask (below).
 - [`ColumnStore::buildFromParent`](../../src/bartcore/data.hpp) stops gathering the parent's constants
   into a view, so a fold's leaf derives over the fold's rows by the creation rule. Slice 2 serves a carried
   record through `SamplerOptions`, so [`ColumnStore::suppliedStandardization`](../../src/bartcore/data.hpp)
   then serves nothing and goes, with `gatheredMeans` and `gatheredSds`; `isView` stays, read by
   `hasRequantizeSource`.
 - Facade: push 1 adds the mask to `DataReplacement` (no signature changes, the struct's layout does) and
-  changes the `rederiveStandardization` virtual's signature; `SamplerOptions` and `DerivedRecords` gain a
-  field each. Push 2 changes no facade. `--preclean` on both.
+  changes the `rederiveStandardization` virtual's return, to the covariates kept, its argument being slice
+  3's; `SamplerOptions` and `DerivedRecords` gain a field each. Push 2 changes no facade. `--preclean` on
+  both.
 
 Bridge.
 - `createHolder` in [R_interface_bartcore.cpp](../../src/R_interface_bartcore.cpp) checks the creation
@@ -429,14 +434,18 @@ Bridge.
   error around the single-forest factory as it catches
   [`BasisScaleError`](../../src/R_interface_bartcore.cpp) around the amplitude factory.
 - [`bartcore_setData`](../../src/R_interface_bartcore.cpp), five arguments since slice 3, takes the mask as
-  a sixth, set on the `DataReplacement` it builds; its registration goes to 6.
+  a sixth, set on the `DataReplacement` it builds; its registration goes to 6. It copies the new response,
+  weights, offset and test offset into buffers of its own and moves them into the holder only once the
+  engine has taken the replacement: today it resizes and overwrites the holder's buffers, which the
+  sampler borrows, before the engine call, so a refusal raised after that would leave the sampler reading
+  the new values or freed memory. It catches the engine's typed error and raises the refusal after.
 - The refusal: the engine's error, worded with the column's name and the counts, raised as an R error; the
   fold's build in [`bartcore_createFromHandle`](../../src/R_interface_bartcore.cpp) raises the fold text.
 - The leaf's fallback flags reach R through [`bartcore_derivedRecords`](../../src/R_interface_bartcore.cpp).
   The predictor entries ([`bartcore_setPredictor`](../../src/R_interface_bartcore.cpp), the matrix, and
   [`bartcore_updatePredictor`](../../src/R_interface_bartcore.cpp), the columns), which since slice 3 call
-  `rederiveStandardization` after an accepted update behind slice 3's gp refusal, pass their replaced
-  columns, and carry beside the accepted logical they return (as an attribute R reads and strips, so the
+  `rederiveStandardization` after an accepted update behind slice 3's gp refusal, the columns entry passing
+  its replaced columns since slice 3's fix round, carry beside the accepted logical they return (as an attribute R reads and strips, so the
   value a caller gets is unchanged) "warn now" on a sampler's first keep and which covariates were kept,
   from the holder's one `scaleKeptWarned` flag, which the four response and row setters already share
   (response-scale-rows-c rule 5), through [`firstScaleKept`](../../src/R_interface_bartcore.cpp)
@@ -525,22 +534,23 @@ gives the forecast.
     sampler's copy, tests a derived standardization before `ColumnStore::setData` replaces the store and
     hands the row set to [`Chain::applyNewData`](../../src/bartcore/chain.hpp)'s derive arm; the sampler's
     copy of the mask by its lifecycle above, and chain 0's weights through an accessor; slice 3's
-    `rederiveStandardization` (sampler, chain and facade virtual) takes the replaced columns and the row
-    set, keeps and reports; the view's parent constants go with `ColumnStore::suppliedStandardization`,
+    `rederiveStandardization` (sampler, chain and facade virtual), which takes the replaced columns since
+    its fix round, reads the row set, keeps and reports; the view's parent constants go with `ColumnStore::suppliedStandardization`,
     `gatheredMeans` and `gatheredSds` (~30 removed); the fold's build raises the refusal. `--preclean`.
-1.3 Bridge (~75). In `createHolder` the creation mask checked once and handed to `SamplerOptions`, and the
+1.3 Bridge (~85). In `createHolder` the creation mask checked once and handed to `SamplerOptions`, and the
     typed error caught around the single-forest factory; `bartcore_setData`'s sixth argument and its
-    registration; the refusal's wording at creation, `setData` (with its FALSE clause) and the fold; the
-    no-row flags in `bartcore_derivedRecords`'s list; the predictor entries pass their columns to
-    `rederiveStandardization` and carry "warn now" and the kept covariates as an attribute;
+    registration, its copies moved into the holder only after the engine accepts, and the typed error
+    caught; the refusal's wording at creation, `setData` (with its FALSE clause) and the fold; the no-row
+    flags in `bartcore_derivedRecords`'s list; the predictor entries carry "warn now" and the kept
+    covariates as an attribute (their columns reach `rederiveStandardization` since slice 3's fix round);
     `firstScaleKept` generalized.
 1.4 R (~110). `bartcoreSamplerSetData` passes the mask; the creation warning for no row in raised by
     `initialize`, joint through `dbarts()`'s held warning, and `setData`'s where it derived, under every
     family, folded into forest-multiplier's text; `setPredictor`'s keep warning in the leaf's words, the
     attribute stripped; the docstrings of `setData` (the mask `s$data` does not carry; the refusal and
-    FALSE as its remedy) and of `setPredictor`, where slice 3's "derives ... over the values the update
-    leaves" becomes the replaced columns only, with the keep.
-1.5 tests/cpp (~330). `testLeafStandardizationRows` beside the leaf tests: the moments over a row set
+    FALSE as its remedy) and of `setPredictor`, which since slice 3's fix round derives for the replaced
+    columns over their new values, gaining the rows in and the keep.
+1.5 tests/cpp (~315). `testLeafStandardizationRows` beside the leaf tests: the moments over a row set
     equal literals; null and all-ones row sets equal today's bits; one row in, a column constant over the
     rows in, a column constant over every row and NA-only rows in each answer too little; no row in reads
     every row and sets the flag; a derivation with too little throws naming the column, a stated-lengthscale
@@ -551,18 +561,23 @@ gives the forecast.
     `setData` with a mask, and with a mask after `setActiveRows` at another row count: the numbers over
     the rows the new mask keeps; a refused `setData`: the sampler bit for bit an untouched twin. A predictor
     update after `setActiveRows`: the mask in force, not the creation one. `rederiveStandardization` given
-    column j alone after a `setData` that kept k's numbers: j re-derived, k bit for bit as kept (slice 3
-    re-derives both). The view pins of test_data.cpp ("subset view gathers a leaf covariate through the
+    column j alone with a row out: j over the rows in, k bit for bit as held (slice 3's fix round pins the
+    hold with every row in). The view pins of test_data.cpp ("subset view gathers a leaf covariate through the
     column map", and `gatheredRawAgrees`'s "the constants are the parent's full-data ones") and
     `testSuppliedStandardization`'s view case, whose comment says a view takes the parent's constants, turn
     into: a view supplies no constants and a fold's leaf derives over its own rows.
-1.6 tinytest (~800 new, ~270 edited). A new file test-leaf-standardization-rows.R ([Tests](#tests)). Edits
+1.6 tinytest (~780 new, ~280 edited). A new file test-leaf-standardization-rows.R ([Tests](#tests)). Edits
     where a pin creates a sampler on a constant leaf covariate, now refused: test-boundary-inputs.R's
     constant designated column, refused under linear and gp and created under gp with a stated
     lengthscale; sections 1 and 6 of test-leaf-conversions.R; in test-standardization-record.R (slice 2)
     `twoFit` on `flat` and the warm start of `flatDonor` into `flatRecipient`; test-warm-start-forms.R's
     single-value block (`withX2`, `slopedOn`, `linear23`); test-calibration-prior-draws.R's linear sampler on
-    the constant `x4`. Each reaches a covariate without spread through a carried record whose scale is NA,
+    the constant `x4`; test-setdata-records.R's `flat` gp sampler on a constant `b` (slice 3's fix round,
+    "an NA scale compared as the leaf divides"). These six files are every file in which the suite derives
+    a standardization on a column constant over every row at 9740f9c2, by a run of the suite on a build
+    that logs each such derivation (scratch/rsrd1/probe-src; creations, `setData` derivations and the
+    view's gather, none from `setPredictor`), and no creation in it leaves a leaf covariate at one value
+    over its rows of positive weight (a mask's rows were not logged). Each reaches a covariate without spread through a carried record whose scale is NA,
     or a stated-lengthscale gp, instead, keeping what it pins. Edits where a pin reads a number this slice
     moves: the `checkDataHandleViews` callers of [leafPriorChecks.R](../../inst/common/leafPriorChecks.R)
     and the xbart arms of test-linear-leaves.R and test-gp-leaves.R where they pin one. test-setdata-records.R's
@@ -664,8 +679,8 @@ text, then the readers and 3 sweeps against an untouched twin.
 - `setPredictor(x[, j], j, updateStandardization = TRUE)`:
   - after `setWeights(w2)`: the literals over the rows `w2` keeps for j, live and kept linear predictions
     unchanged to 1e-12 (dec-B329, slice 3's "linear converts");
-  - a second leaf covariate k held, `identical()`, also after `setData(d, updateStandardization = FALSE)`
-    kept k's numbers over other values, where slice 3 as built re-derives k;
+  - a second leaf covariate k held, `identical()`, while j re-derives over the rows in (slice 3's fix round
+    pins the hold with every row in);
   - after `setActiveRows(a)` under gaussian and under probit: the rows `a` keeps;
   - after `setActiveRows(a)` then `setData` to a data object of another row count: the new data's rows in,
     and no read past them;
@@ -716,7 +731,8 @@ Push 1:
 | no fallback where no row is in | tests/cpp's flag or the no-row literal |
 | the leaf's no-row fallback not warned under probit | the no-row arm under probit and ordinal |
 | two warnings where response and leaf both fall back | the joint-text count |
-| setPredictor re-deriving every leaf covariate (slice 3 as built) | the second covariate k held, after a kept `setData`; tests/cpp's column-j pin |
+| a replaced covariate with too little re-derived (the placeholder) instead of held | its keep arm; tests/cpp's keep report |
+| `bartcore_setData` adopting its copies before the engine call, as today | the refused-setData twin under ASAN, the sampler's response read after the refusal |
 | setPredictor's keep re-deriving over every row, or warned on every keep | its keep arm; the second-keep count |
 | the keep's flag not shared with the response setters | the `setOffset` then `setPredictor` count |
 | a leaf keep raising the response's text | the keep arm's text |
@@ -774,17 +790,18 @@ Lines added, removals reported beside them, the baseline files aside; as recheck
 
 | part | push 1 raw | push 1 forecast | push 2 raw | push 2 forecast |
 |---|---|---|---|---|
-| engine and facade | ~185 | ~295 | ~5 | ~10 |
-| bridge | ~75 | ~120 | ~35 | ~55 |
+| engine and facade | ~170 | ~270 | ~5 | ~10 |
+| bridge | ~85 | ~135 | ~35 | ~55 |
 | R | ~110 | ~175 | ~45 | ~70 |
-| tests/cpp | ~330 | ~660 | ~25 | ~50 |
-| tinytest | ~1070 | ~1925 | ~290 | ~520 |
+| tests/cpp | ~315 | ~630 | ~25 | ~50 |
+| tinytest | ~1060 | ~1905 | ~290 | ~520 |
 | exact arm | ~80 | ~130 | - | - |
-| help and NEWS | ~110 | ~145 | ~50 | ~65 |
+| help and NEWS | ~105 | ~140 | ~50 | ~65 |
 | records | ~150 | ~195 | ~50 | ~65 |
-| total | ~2110 | ~3650 | ~500 | ~840 |
+| total | ~2075 | ~3590 | ~500 | ~840 |
 
-Package code: push 1 ~370 raw, ~590 forecast; push 2 ~85 raw, ~135 forecast. dec-B465 estimated the
+Package code: push 1 ~365 raw, ~585 forecast; push 2 ~85 raw, ~135 forecast (rechecked against 9740f9c2;
+the figures before it were ~2110, ~3650, ~370 and ~590). dec-B465 estimated the
 arguments at 50 to 100 lines beside slice D; push 2's package code is inside that and its tests beyond it,
 the identity and the loop being where its defects would show.
 
@@ -809,7 +826,8 @@ covariates, the narrowing pins, the larger removal in the view) and takes about 
 the virtual being slice 3's.
 
 Stop and report, building nothing further, when:
-- push 1's diff passes ~5450 lines added or its package code ~890; push 2's passes ~1250 or ~200;
+- push 1's diff passes ~5390 lines added or its package code ~880 (~5450 and ~890 before the recheck
+  against 9740f9c2); push 2's passes ~1250 or ~200;
 - a bitwise compare prints "max |z|", a snapshot moves, or an exact gate other than the new arm moves;
 - a fixture with every row in and every covariate spread moves a bit outside `xbart`, or a pin of
   state-frame-prior's tests moves other than one named in 1.6 or one with a linear or gp leaf and a row
@@ -890,7 +908,8 @@ still to come:
 
 1. Slice 3's path for `updateStandardization = TRUE` on `setPredictor`: as built, the predictor entries
    call `Sampler::rederiveStandardization` after an accepted update, and it re-derives every leaf
-   covariate. Step 1.2 narrows it to the replaced columns. Slice 3's tests as built pin `setPredictor`'s
+   covariate. Step 1.2 narrows it to the replaced columns. (At 9740f9c2 slice 3's fix round has narrowed
+   it and pins the narrowing; step 1.2 adds the rows and the keep.) Slice 3's tests as built pin `setPredictor`'s
    argument on one leaf covariate only, so none pins every one; any that does after its fix round is
    listed, not edited, and stops the build for the coordinator. Push 2's identity is written against the
    narrowed path.
@@ -1112,7 +1131,62 @@ reading 1.5 to 2.
 ### Open questions
 
 None: nothing the recheck found changes what a user sees outside what dec-B464, dec-B465 and the plan's
-calls settle. Two consequences of standing calls, for the reviewer: under the one warned-once flag (the
-call read from dec-B465's "once per sampler"), a sampler that has warned of one kind of keep says nothing
-of a later keep of the other kind; and narrowing `setPredictor` changes slice 3's every-covariate
-re-derivation, which no release carries.
+calls settle. A consequence of a standing call, for the reviewer: under the one warned-once flag (the call
+read from dec-B465's "once per sampler"), a sampler that has warned of one kind of keep says nothing of a
+later keep of the other kind. (The second consequence named here at the recheck, narrowing slice 3's
+every-covariate re-derivation, is slice 3's own since its fix round.)
+
+## Recheck against state-frame-prior slice 3's fix round
+
+Read 2026-10-23 at 9740f9c2 (wt/sfp-3, slice 3's fix round, not yet landed), before building push 1, with a
+run of the suite on a build of 9740f9c2 that logs every derivation on a column constant over every row
+and every creation whose rows of positive weight hold one value of a leaf covariate (scratch/rsrd1/probe-src,
+scratch/rsrd1/probe-logs). The sections above are amended in place; this records what moved.
+
+- The narrowing is slice 3's. Its fix round has `setPredictor(updateStandardization = TRUE)` derive the
+  covariates among the replaced columns alone, over every row, the others held:
+  [`bartcore_updatePredictor`](../../src/R_interface_bartcore.cpp) marks its columns and calls
+  `rederiveStandardization` with them, [`bartcore_setPredictor`](../../src/R_interface_bartcore.cpp)
+  replaces every column and passes null, and `Chain::rederiveStandardization` hands each forest's leaf the
+  numbers in force with not-a-number at the marked covariates (`Chain::heldStandardization`). The facade
+  virtual already takes the marks, so push 1 changes its return only, to the covariates kept, and the row
+  set is the sampler's own read, not an argument. The keep is that same supply with a too-little covariate
+  left unmarked. Slice 3's tests pin the narrowing on linear and gp leaves (test-setdata-records.R, "TRUE
+  derives the replaced columns' alone") and tests/cpp pins a mark on another column deriving nothing, so
+  push 1's arm for a second covariate held runs with a row out, its tests/cpp pin likewise, and the mutant
+  of every covariate re-derived is replaced by one of a too-little covariate re-derived. The help and the
+  docstring of `setPredictor` already say "the covariates among the columns the update replaces"; push 1
+  adds the rows and the keep. Assumption 1 holds in its narrowed form: no test pins every covariate.
+- `bartcore_setData`'s copies. The bridge resizes and overwrites the holder's response, weights, offset and
+  test-offset buffers, which the sampler borrows, before it calls `Sampler::setData`, so the plan's refusal
+  before the store is replaced would come after the sampler's borrowed buffers had moved. Push 1 has the
+  bridge copy into buffers of its own and move them into the holder once the engine accepts (a move keeps
+  each buffer, as `createHolder` relies on), and catch the typed error there; bridge ~75 to ~85, one
+  mutant added.
+- The suite's creations on constant leaf covariates: by the logging run, six files derive a
+  standardization on a column constant over every row, the five step 1.6 names and test-setdata-records.R's
+  `flat` gp sampler (slice 3's fix round, which pins an NA scale compared as the leaf divides); it reaches
+  its covariate without spread through a stated lengthscale instead. No creation in the suite has its rows
+  of positive weight at one value of a leaf covariate (the run logged weights, not masks). Assumption 8 is
+  answered by that run; the stop on a seventh file stands. The run also shows test-mutate-then-serialize.R
+  failing at 9740f9c2 itself: its last section's `setState` of a state without the leaf blocks is refused
+  as holding gp draws under another standardization. It is the base's, not this slice's; push 1's suite
+  gate reports it beside its own count. test-setdata-records.R's unforced `setPredictor(rep(0.5, n), "b", ...,
+  updateStandardization = TRUE)` is pinned there as rolled back (FALSE), so it derives nothing and keeps
+  nothing, and stands unedited.
+- Assumptions 2 to 7 and 9 hold as the recheck of 030b39f0 read them: the record is `dataStandardization`
+  and `checkStandardizationRecord` inside [`checkDerivedRecord`](../../R/data.R), its keys since slice 2's
+  third fix round a name only where it names exactly one column; a carried standardization enters through
+  `SamplerOptions`; `Sampler::setData` takes `DataReplacement` with no mask, its level-code refusals before
+  the store and the gp refusal in the bridge; [`ColumnStore::buildFromParent`](../../src/bartcore/data.hpp)
+  still gathers the parent's constants; the MANIFEST's current files are the three named; the read without
+  the grids returns the standardization.
+- Slice 3's fix round adds `setData`'s refusal of an ordered factor's other cut points and the count
+  family's equal range refusal; neither touches a leaf covariate or a door of this slice.
+- Budget: push 1 raw ~2110 to ~2075 (engine ~185 to ~170, the narrowing done; bridge ~75 to ~85, the
+  copies; tests/cpp ~330 to ~315 and tinytest ~1070 to ~1060, the narrowing's pins slice 3's, one more
+  constant-covariate edit; help ~110 to ~105), forecast ~3650 to ~3590, package code ~590 to ~585 forecast;
+  the stops at 1.5 times, ~5390 lines and ~880 of package code. Push 2 unchanged.
+
+No question changes what a user sees outside dec-B464, dec-B465 and the plan's calls; nothing stops the
+build.
