@@ -490,8 +490,8 @@ is computed in the test from its fixture.
 - `extract(fit, type = "leaf.prior.sd")` on that fit of four forests:
   `list(forest1 = 2.904, dose = c(dose = 71.18), age = c(age = 0.0827), "factor(z)" = 1.452)`; with
   `forest = "dose"` it is `c(dose = 71.18)`, the entry itself. `summary()`'s line under its table
-  prints the same entries by label, as the sd unit slice built it, a numeric forest's number per unit
-  of its column.
+  printed the same entries by label, as the sd unit slice built it, a numeric forest's number per unit
+  of its column; after push 3 it does so only where no block prints, a fit made with `keepFits = FALSE`.
 - The printed block (push 3, trimmed in its fix round: the package owner's ruling of 2026-10-22). `print`
   of a fit and `show` of a sampler give the short block, one line for each forest, with no range, no "per
   sd", no source and no mark of a held coefficient, under a plain header and over a last line that says
