@@ -1,6 +1,7 @@
 # state-frame-prior: the derived data's records on dbartsData, and every door reading them
 
-Status: PLANNED 2026-10-17; revised from its blind critique (scratch/sfdc-crit.md, sound after revisions;
+Status: SLICE 1 LANDED 2026-10-23 (48e4428f..954235cb, dec-A222; [Slice 1 as built](#slice-1-as-built),
+[Landing note, slice 1](#landing-note-slice-1)); slices 2 and 3 built, not landed. PLANNED 2026-10-17; revised from its blind critique (scratch/sfdc-crit.md, sound after revisions;
 [Revision from critique](#revision-from-critique)) and then to the maintainer's rulings dec-B457 to dec-B461
 ([Revision to the rulings](#revision-to-the-rulings)). No call open. Design:
 [state-frame-prior.md](../design/state-frame-prior.md). Rests on dec-B231 to dec-B233, dec-B237, dec-B304,
@@ -660,3 +661,24 @@ scratch/sfp1/compare.R, 18 fixtures and 162 parts, every one identical but `samp
 `CXX20FLAGS`; `R CMD check --as-cran` from a clean tarball, with the manual, the Date field's NOTE alone;
 stan4bart's suite (its bartcore branch at ac80108, built against this tip), 1545 expectations, none failed. Not
 run: the x86-64 leg.
+
+## Landing note, slice 1
+
+Slice 1 landed 2026-10-23 as 48e4428f..954235cb on c1d1473f, 10 commits: the slice with the fold onto
+forest-multiplier push 2 and push 3 (48e4428f), the setData fix (7b5dd467), the cites (feb54aa3), the exact
+gate's read (37d9e8cb), the record and its rebase note (552d274d, 10a73bae), and after one opus review, FIX
+FIRST, the fix round (ae835866 to 369a3fed) and two wording notes from its check (954235cb). It was built on
+46e1a644 and rebased onto a000d239, then a563d753 (warm-start-salvage slice D) and c1d1473f (forest-multiplier
+push 3). The calls are dec-A222.
+
+Gates on 369a3fed are in the fix round above. The x86-64 leg, on the slice as rebased onto a000d239 before the fix round and
+on 369a3fed: tests/cpp 407 and 408 ok, plain and under ASAN with the leak sanitizer; the suite 28356 and 28567
+results, 0 failed; the equivalence compare 55 of 55 statistically indistinguishable; the BCF and multinomial
+compares within the cross-host tier 1 bound.
+
+Not run: Windows; bartCause's and treatSens's suites (stan4bart's passes, 1545 results).
+
+Size against the plan: the engine adds 111 lines against a stop of 320; the slice with its fixes adds about
+1860 against 2800.
+
+Left: slices 2 and 3, built on slice 1's commits before its fix round and moved onto this landing next.

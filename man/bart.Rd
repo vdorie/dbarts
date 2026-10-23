@@ -303,7 +303,7 @@ bart(
      A non-negative integer; when positive, the initial forest is built by \code{n.grow.sweeps} sweeps of XBART-style grow-from-root (He, Yalov and Hahn 2019) instead of a draw from the prior, an init-then-refine workflow that reaches a good fit in far fewer sweeps before the exact sampler takes over. The default \code{0L} draws trees from the prior, exactly as before. Like \code{warm.start}, a grow-from-root start biases the early draws toward the grown fit, so it shortens burn-in rather than removing it; keep a non-zero (if smaller) \code{n.burn}. The posterior the sampler targets is unchanged - only the starting point moves. Constant-leaf models only, and mutually exclusive with \code{warm.start} (both request an initialization). Unlike \code{warm.start} it is available on a multi-forest fit, each forest grown against its own residual inside the sweep. See \code{\link{dbartsSampler-class}}'s \code{growFromRoot} method.
    }
    \item{samplerOnly}{
-     Builds the sampler from its arguments and returns it without running it. Useful to use the \code{bart} interface in more complicated models.
+     Builds the sampler from its arguments and returns it without running it. Useful to use the \code{bart} interface in more complicated models. A fit draws its starting trees from the prior before it runs; to run the returned sampler as \code{bart} would at the same seed, call \code{$sampleTreesFromPrior()} before \code{$run()}.
    }
 
    \strong{Output.}

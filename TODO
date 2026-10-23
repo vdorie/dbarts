@@ -258,7 +258,10 @@ items
     installing them (splits already move by value); the manual's
     table of what puts each value back before setState; the gp
     setData refusal narrowed to the cases that would change a kept
-    draw. Three engine slices, before response-scale-rows slice D. The grid half of the
+    draw. Three engine slices, before response-scale-rows slice D;
+    slice 1 landed (2026-10-23, dec-A222): the grid, range and
+    calibration records on dbartsData, every engine created from them,
+    a live copy taking the current chain. The grid half of the
     state install is landed (docs/plans/state-grid-install.md): a live
     setState writes neither the cut points nor their weights, a change
     from 0.9-34, whose state carried the grid and whose restore
