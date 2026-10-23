@@ -29,6 +29,7 @@ survivalProbabilities(object, ...)
   offset = NULL,
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
+  sample = c("train", "test"),
   ...
 )
 
@@ -46,10 +47,11 @@ survivalProbabilities(object, ...)
     model (its \code{family} element equals \code{"aft"}) or a discrete-time
     hazard model (it carries a \code{$periods} grid; its \code{family} records
     the binary link). A hazard fit must have been made with
-    \code{keepTrees = TRUE}, unless \code{newdata} is \code{NULL} and a
-    \code{test} set rode the fit call (the matrix interface's own hazard
-    \code{test} acceptance, person-period-expanded on the training grid) -
-    then the stored test draws are read directly and no trees are needed.
+    \code{keepTrees = TRUE}, except to read the test subjects a
+    \code{test} set that rode the fit call gave it (the matrix interface's
+    own hazard \code{test} acceptance, person-period-expanded on the
+    training grid): \code{sample = "test"} reads their stored draws and no
+    trees are needed.
   }
   \item{times}{
     A numeric vector of times (on the original, non-logarithmic scale) at
@@ -59,10 +61,11 @@ survivalProbabilities(object, ...)
   }
   \item{newdata}{
     Optional predictors at which to evaluate. When \code{NULL} the training
-    observations are used, EXCEPT for a hazard fit that also carries a
-    \code{test} set (below), whose stored draws are read instead, and for an AFT
-    fit, which reads its stored draws; otherwise a hazard \code{object} must
-    have been fit with \code{keepTrees = TRUE}.
+    observations are used, always: a \code{test} set that rode the fit call
+    never changes what the call with no \code{newdata} returns, and
+    \code{sample = "test"} is how to get its subjects. An AFT fit reads the
+    training subjects from its stored draws; a hazard \code{object} must have
+    been fit with \code{keepTrees = TRUE} to give them.
   }
   \item{offset}{
     The offset at the subjects of \code{newdata}, as \code{\link[=predict.bart]{predict}}
@@ -70,14 +73,14 @@ survivalProbabilities(object, ...)
     fit's \code{offset()} terms and \code{offset} argument evaluated on
     \code{newdata} (see \code{offset} in \code{\link{bart}}). For a hazard fit
     a subject's offset applies at every period. Without \code{newdata} an
-    offset replaces the fit's own at the training rows (one value or one per
-    training row, or per subject on a hazard fit: the test subjects where it
-    carries a test set, else the training subjects), read off the stored draws
-    with no trees replayed. On a hazard fit that carries a \code{test} set,
-    the subjects are the test subjects whose draws it stored, and the offset
-    replaces theirs on the latent scale before the link; with no test set a
-    hazard fit replays its trees at the training subjects, as it does for any
-    training subjects, and needs \code{keepTrees = TRUE}.
+    offset replaces the fit's own at the subjects asked for, the training
+    subjects' under \code{sample = "train"} and the test subjects' (the
+    \code{offset.test} the fit stored) under \code{"test"}, one value or one
+    per subject of that set. An AFT fit's is read off the stored draws with
+    no trees replayed; so is a hazard fit's at its test subjects, on the
+    latent scale before the link, while a hazard fit replays its trees at the
+    training subjects, as it does for any of them, and needs
+    \code{keepTrees = TRUE}.
   }
   \item{combineChains}{
     A logical determining whether the chain dimension is collapsed into the
@@ -89,9 +92,20 @@ survivalProbabilities(object, ...)
     expansion; unused when \code{newdata} is \code{NULL}. See
     \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
   }
+  \item{sample}{
+    Either \code{"train"} (the default) or \code{"test"}, as
+    \code{\link[=extract.bart]{extract}}'s and \code{fitted}'s \code{sample}
+    are. With no \code{newdata}, \code{"train"} gives the training subjects
+    and \code{"test"} the subjects of the \code{test} set that rode the fit
+    call, read from the draws the fit stored, with no trees: a hazard fit's
+    stored test grid, an AFT fit's stored test fit and, on a heteroscedastic
+    fit, its stored test scale. Refused, by name, together with
+    \code{newdata}, which gives other subjects, and on a fit that carries no
+    test set or whose test draws \code{keepFits = FALSE} dropped.
+  }
   \item{...}{
     Not a formal on the method: a name belonging to a sibling generic
-    (\code{type}, \code{sample}, \code{ci.level},
+    (\code{type}, \code{ci.level},
     \code{weights}, \code{n.threads}, \code{forest}, \code{contribution},
     \code{bases}) is refused by name rather than silently ignored, since this
     method returns the draws of \eqn{S(t \mid x)} at \code{times} alone.
@@ -125,8 +139,9 @@ survivalProbabilities(object, ...)
   rode the fit call (the matrix interface's own hazard \code{test}
   acceptance) was already person-period-expanded on the SAME training grid
   at fit time, so its hazards are stored on the fit already -
-  \code{newdata = NULL} on such a fit reads them directly with no
-  re-expansion and no trees needed, in preference to the training data.
+  \code{sample = "test"} on such a fit reads them directly with no
+  re-expansion and no trees needed. The call with no \code{newdata} is the
+  training subjects whether or not the fit carries a test set.
 }
 \value{
   An array of survival probabilities. With \code{combineChains = TRUE} the
@@ -135,7 +150,8 @@ survivalProbabilities(object, ...)
   \eqn{\times} draws \eqn{\times} times \eqn{\times} observations), length
   1 on a one-chain fit rather than dropped, as \code{extract} and
   \code{predict} keep theirs. Observations are those of \code{newdata}, or
-  the training data when \code{newdata} is \code{NULL}.
+  the training data when \code{newdata} is \code{NULL}, or with
+  \code{sample = "test"} the test set.
 }
 \seealso{
   \code{\link{bart}},

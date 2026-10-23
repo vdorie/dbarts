@@ -180,6 +180,58 @@ expect_error(
 )
 rm(fit.no.scale)
 
+# ---- sample = "test" reads the stored test draws and the stored test scale,
+# ---- with no trees; no newdata is always the training subjects ----
+sp.test <- survivalProbabilities(fit, times, sample = "test")
+expect_equal(dim(sp.test), c(n.draws, length(times), 20L))
+expect_equal(
+  sp.test,
+  survivalProbabilities(fit, times, newdata = x.test),
+  tolerance = 1e-12
+)
+loc.test <- extract(fit, "bart", sample = "test")
+expect_equal(
+  sp.test[, 2L, ],
+  pnorm(
+    (log(times[2L]) - loc.test) / extract(fit, "sigma", sample = "test"),
+    lower.tail = FALSE
+  ),
+  tolerance = 1e-12,
+  check.attributes = FALSE
+)
+# a test set leaves the call with no newdata at the training subjects
+expect_equal(
+  dim(survivalProbabilities(fit, times)),
+  c(n.draws, length(times), n)
+)
+fit.test.bare <- fit
+fit.test.bare$fit <- NULL
+expect_identical(
+  survivalProbabilities(fit.test.bare, times, sample = "test"),
+  sp.test
+)
+# a fit whose s.test keepFits dropped has no scale at its test subjects, and
+# the refusal names the argument bart() drops it by
+fit.no.test.scale <- fit
+fit.no.test.scale$s.test <- NULL
+expect_error(
+  survivalProbabilities(fit.no.test.scale, times, sample = "test"),
+  paste0(
+    "survival probabilities need this heteroscedastic fit's 's.test' ",
+    "draws, which 'keepFits = FALSE' dropped (automatically, when a ",
+    "'callback' was supplied, unless overridden); refit with ",
+    "'keepFits = TRUE'"
+  ),
+  fixed = TRUE
+)
+# the fit with no test set at all
+expect_error(
+  survivalProbabilities(fit.no.trees, times, sample = "test"),
+  "no test set rode the fit call",
+  fixed = TRUE
+)
+rm(fit.no.test.scale, fit.test.bare, loc.test, sp.test)
+
 # ---- the composed fit carries both families' refusals ----
 control <- dbartsControl(
   n.chains = 1L,

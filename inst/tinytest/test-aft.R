@@ -632,6 +632,162 @@ expect_error(
 )
 rm(o.aft, status.aft, fit.aftOff, sp.aftOff)
 
+# ---- sample = "test": the test subjects' stored draws, with no trees; no
+# ---- newdata is always the training subjects ----
+set.seed(44L)
+n.test.aft <- 15L
+x.test.aft <- matrix(runif(n.test.aft * p), n.test.aft, p)
+o.train.aft <- rep(c(-0.5, 0.5), length.out = n)
+o.test.aft <- runif(n.test.aft, -0.5, 0.5)
+fit.aftT <- bart(
+  x,
+  cbind(time.s, status.s),
+  test = x.test.aft,
+  family = "aft",
+  offset = o.train.aft,
+  offset.test = o.test.aft,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 20L,
+  n.chains = 2L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+fit.aftT.bare <- fit.aftT
+fit.aftT.bare$fit <- NULL
+times.aft <- c(0.5, 1, 2)
+sp.aftT <- survivalProbabilities(fit.aftT, times.aft, sample = "test")
+expect_equal(dim(sp.aftT), c(40L, 3L, n.test.aft))
+# the call at newdata = the test rows, where the offset is the one given
+expect_equal(
+  sp.aftT,
+  survivalProbabilities(fit.aftT, times.aft, x.test.aft, offset = o.test.aft),
+  tolerance = 1e-12
+)
+# with no trees at all, the chains split too
+expect_identical(
+  survivalProbabilities(fit.aftT.bare, times.aft, sample = "test"),
+  sp.aftT
+)
+expect_equal(
+  dim(survivalProbabilities(
+    fit.aftT.bare,
+    times.aft,
+    sample = "test",
+    combineChains = FALSE
+  )),
+  c(2L, 20L, 3L, n.test.aft)
+)
+# a test set leaves the call with no newdata at the training subjects (at
+# newdata the fit's offset argument, a vector of the training rows, is
+# evaluated again and added to the one given)
+sp.aftT.train <- survivalProbabilities(fit.aftT, times.aft)
+expect_equal(dim(sp.aftT.train), c(40L, 3L, n))
+expect_equal(
+  sp.aftT.train,
+  survivalProbabilities(fit.aftT, times.aft, x),
+  tolerance = 1e-12
+)
+expect_identical(
+  survivalProbabilities(fit.aftT.bare, times.aft, sample = "train"),
+  sp.aftT.train
+)
+# an offset replaces the offset of the subjects asked for, one value or one
+# per subject of that set
+o.new.test <- runif(n.test.aft, -1, 1)
+o.new.train <- runif(n, -1, 1)
+for (given in list(o.new.test, 0.7)) {
+  expect_equal(
+    survivalProbabilities(fit.aftT, times.aft, offset = given, sample = "test"),
+    survivalProbabilities(fit.aftT, times.aft, x.test.aft, offset = given),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    survivalProbabilities(
+      fit.aftT.bare,
+      times.aft,
+      offset = given,
+      sample = "test"
+    ),
+    survivalProbabilities(fit.aftT, times.aft, x.test.aft, offset = given),
+    tolerance = 1e-12
+  )
+}
+for (given in list(o.new.train, -0.2)) {
+  expect_equal(
+    survivalProbabilities(fit.aftT, times.aft, offset = given),
+    survivalProbabilities(fit.aftT, times.aft, x, offset = given - o.train.aft),
+    tolerance = 1e-12
+  )
+}
+# the offset of each set is its own: the test subjects' is not the training
+# subjects', and the fit's own given back changes nothing
+expect_equal(
+  survivalProbabilities(
+    fit.aftT,
+    times.aft,
+    offset = o.test.aft,
+    sample = "test"
+  ),
+  sp.aftT,
+  tolerance = 1e-12
+)
+expect_equal(
+  survivalProbabilities(fit.aftT, times.aft, offset = o.train.aft),
+  sp.aftT.train,
+  tolerance = 1e-12
+)
+expect_error(
+  survivalProbabilities(fit.aftT, times.aft, offset = 1:3, sample = "test"),
+  "one per test row (15), none missing",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit.aftT, times.aft, offset = 1:3),
+  "one per training row (200), none missing",
+  fixed = TRUE
+)
+# the test subjects and newdata are two sets of subjects
+expect_error(
+  survivalProbabilities(fit.aftT, times.aft, x.test.aft, sample = "test"),
+  "sample = \"test\" reads the fit's stored test subjects, and 'newdata' gives other subjects",
+  fixed = TRUE
+)
+# a fit with no test set, or whose test draws keepFits dropped, has none to read
+expect_error(
+  survivalProbabilities(fit.2col, times.aft, sample = "test"),
+  "no test set rode the fit call",
+  fixed = TRUE
+)
+fit.aftT.dropped <- fit.aftT
+fit.aftT.dropped$yhat.test <- NULL
+expect_error(
+  survivalProbabilities(fit.aftT.dropped, times.aft, sample = "test"),
+  "'keepFits' == FALSE",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit.aftT, times.aft, sample = "validation"),
+  "sample must be in 'train', 'test'",
+  fixed = TRUE
+)
+rm(
+  fit.aftT,
+  fit.aftT.bare,
+  fit.aftT.dropped,
+  sp.aftT,
+  sp.aftT.train,
+  x.test.aft,
+  o.train.aft,
+  o.test.aft,
+  o.new.test,
+  o.new.train,
+  times.aft,
+  n.test.aft,
+  given
+)
+
 # ---- a missing time or status is a missing response, as in survreg: the
 # na.action drops the row (the fit equals one on the complete rows) or fails
 set.seed(43L)

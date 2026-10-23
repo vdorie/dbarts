@@ -458,7 +458,8 @@ if (requireNamespace("survival", quietly = TRUE)) {
 
 # ---- the matrix interface's own 'test': person-period expanded on the SAME
 # ---- training grid, bitwise-identical to re-expansion via
-# ---- survivalProbabilities() on a keepTrees = TRUE twin, no keepTrees needed
+# ---- survivalProbabilities() on a keepTrees = TRUE twin, no keepTrees needed,
+# ---- asked for by sample = "test"; no newdata is always the training subjects
 fit.htest <- do.call(
   bart,
   c(
@@ -467,9 +468,82 @@ fit.htest <- do.call(
   )
 )
 expect_true(!is.null(fit.htest[["yhat.test"]]))
-sp.stored <- survivalProbabilities(fit.htest)
+sp.stored <- survivalProbabilities(fit.htest, sample = "test")
 sp.reexpand <- survivalProbabilities(fit.probit, newdata = xn)
 expect_identical(sp.stored, sp.reexpand)
+# a test set never changes what the call with no newdata returns: the
+# training subjects, which on a fit kept without trees need them, the refusal
+# naming the way to the test subjects the fit stored
+expect_error(
+  survivalProbabilities(fit.htest),
+  paste0(
+    "requires the trees; refit with keepTrees = TRUE, or, for the test ",
+    "subjects the fit stored, which need none, give sample = \"test\""
+  ),
+  fixed = TRUE
+)
+# a fit with no test set names no such way
+fit.hbare <- fit.probit
+fit.hbare$fit <- NULL
+expect_error(
+  survivalProbabilities(fit.hbare),
+  "requires the trees; refit with keepTrees = TRUE",
+  fixed = TRUE
+)
+expect_false(grepl(
+  "sample",
+  tryCatch(survivalProbabilities(fit.hbare), error = conditionMessage),
+  fixed = TRUE
+))
+# and on a fit kept with trees and a test set it is the training subjects
+fit.htest.k <- do.call(
+  bart,
+  c(
+    list(x, cbind(d$time, d$status), family = "hazard", test = xn),
+    fitArgs
+  )
+)
+sp.train <- survivalProbabilities(fit.htest.k)
+expect_identical(dim(sp.train)[3L], n)
+expect_identical(dim(sp.stored)[3L], nrow(xn))
+expect_equal(
+  unname(sp.train),
+  unname(survivalProbabilities(fit.htest.k, newdata = x)),
+  tolerance = 1e-12
+)
+expect_equal(
+  survivalProbabilities(fit.htest.k, sample = "test"),
+  survivalProbabilities(fit.htest.k, newdata = xn),
+  tolerance = 1e-12
+)
+expect_identical(
+  survivalProbabilities(fit.htest.k, sample = "train"),
+  sp.train
+)
+# the two subject sets are not mixed, and a test set must exist to be read
+expect_error(
+  survivalProbabilities(fit.htest.k, newdata = xn, sample = "test"),
+  "sample = \"test\" reads the fit's stored test subjects, and 'newdata' gives other subjects",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit.probit, sample = "test"),
+  "no test set rode the fit call",
+  fixed = TRUE
+)
+expect_error(
+  survivalProbabilities(fit.htest.k, sample = "validation"),
+  "sample must be in 'train', 'test'",
+  fixed = TRUE
+)
+fit.hdropped <- fit.htest.k
+fit.hdropped$yhat.test <- NULL
+expect_error(
+  survivalProbabilities(fit.hdropped, sample = "test"),
+  "'keepFits' == FALSE",
+  fixed = TRUE
+)
+rm(fit.hbare, fit.hdropped)
 
 # an offset with no newdata, off the stored test grid and with no trees
 # (dec-B340): the subject's own comes off the latent draws, the new one goes
@@ -492,30 +566,74 @@ fit.hoff <- do.call(
 )
 fit.hoff.bare <- fit.hoff
 fit.hoff.bare$fit <- NULL
-sp.off.stored <- survivalProbabilities(fit.hoff.bare, offset = offsets.new)
+sp.off.stored <- survivalProbabilities(
+  fit.hoff.bare,
+  offset = offsets.new,
+  sample = "test"
+)
 expect_equal(
   sp.off.stored,
   survivalProbabilities(fit.hoff, newdata = xn, offset = offsets.new - 0.3),
   tolerance = 1e-12
 )
 expect_equal(
-  survivalProbabilities(fit.hoff.bare, offset = 2),
+  survivalProbabilities(fit.hoff.bare, offset = 2, sample = "test"),
   survivalProbabilities(fit.hoff, newdata = xn, offset = 2 - 0.3),
   tolerance = 1e-12
 )
 # the offset changes the curves, and the fit's own offset given back does not
-expect_false(isTRUE(all.equal(sp.off.stored, survivalProbabilities(fit.hoff))))
+expect_false(isTRUE(all.equal(
+  sp.off.stored,
+  survivalProbabilities(fit.hoff, sample = "test")
+)))
 expect_equal(
-  survivalProbabilities(fit.hoff.bare, offset = c(0.1, -0.2, 0.3, 0.4)),
+  survivalProbabilities(
+    fit.hoff.bare,
+    offset = c(0.1, -0.2, 0.3, 0.4),
+    sample = "test"
+  ),
+  survivalProbabilities(fit.hoff, sample = "test"),
+  tolerance = 1e-12
+)
+expect_error(
+  survivalProbabilities(fit.hoff.bare, offset = 1:3, sample = "test"),
+  "one per test subject",
+  fixed = TRUE
+)
+# under "train" an offset replaces the training subjects' own (0.3 here), one
+# value or one per subject, by replaying the trees; the test subjects' offset
+# is not theirs
+offsets.train <- runif(n, -1, 1)
+expect_equal(
+  unname(survivalProbabilities(fit.hoff, offset = offsets.train)),
+  unname(survivalProbabilities(
+    fit.hoff,
+    newdata = x,
+    offset = offsets.train - 0.3
+  )),
+  tolerance = 1e-12
+)
+expect_equal(
+  unname(survivalProbabilities(fit.hoff, offset = 2)),
+  unname(survivalProbabilities(fit.hoff, newdata = x, offset = 2 - 0.3)),
+  tolerance = 1e-12
+)
+expect_equal(
+  survivalProbabilities(fit.hoff, offset = 0.3),
   survivalProbabilities(fit.hoff),
   tolerance = 1e-12
 )
 expect_error(
-  survivalProbabilities(fit.hoff.bare, offset = 1:3),
-  "one per test subject",
+  survivalProbabilities(fit.hoff, offset = 1:3),
+  "one per training subject",
   fixed = TRUE
 )
-rm(fit.hoff, fit.hoff.bare, sp.off.stored, offsets.new)
+expect_error(
+  survivalProbabilities(fit.hoff.bare, offset = 1),
+  "requires the trees; refit with keepTrees = TRUE, or, for the test",
+  fixed = TRUE
+)
+rm(fit.hoff, fit.hoff.bare, sp.off.stored, offsets.new, offsets.train)
 # a non-hazard, non-aft fit is refused by survivalProbabilities
 fit.gauss <- bart(
   x,

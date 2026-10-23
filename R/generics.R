@@ -574,8 +574,15 @@ trainingRowWeights <- function(object, weights, type) {
   weights
 }
 
-## the replacement offset as one number per training row, less the fit's own
-trainingOffsetShift <- function(object, offset, nObs) {
+## the replacement offset as one number per row of the set 'rows' names, less
+## the fit's own there ('old')
+trainingOffsetShift <- function(
+  object,
+  offset,
+  nObs,
+  old = object[["offset"]],
+  rows = "training row"
+) {
   if (is.data.frame(offset)) {
     offset <- as.matrix(offset)
   }
@@ -583,7 +590,9 @@ trainingOffsetShift <- function(object, offset, nObs) {
     !is.numeric(offset) || !(length(offset) %in% c(1L, nObs)) || anyNA(offset)
   ) {
     stop(
-      "'offset' must be one number or one per training row (",
+      "'offset' must be one number or one per ",
+      rows,
+      " (",
       nObs,
       "), none missing",
       call. = FALSE
@@ -592,7 +601,6 @@ trainingOffsetShift <- function(object, offset, nObs) {
   if (!all(is.finite(offset))) {
     stop("'offset' must be finite", call. = FALSE)
   }
-  old <- object[["offset"]]
   rep_len(as.double(offset), nObs) - if (is.null(old)) 0 else old
 }
 
@@ -705,6 +713,25 @@ withTrainingBases <- function(object, bases) {
     combined
   }
   dimnames(shifted$yhat.train) <- dimnames(yhat)
+  shifted
+}
+
+## the fit with its test draws moved onto the replacement offset of the test
+## rows, which a fit stores as offset.test
+withTestOffset <- function(object, offset) {
+  shifted <- object
+  yhat <- object$yhat.test
+  nObs <- dim(yhat)[length(dim(yhat))]
+  shifted$yhat.test <- shiftObservations(
+    yhat,
+    trainingOffsetShift(
+      object,
+      offset,
+      nObs,
+      old = object[["offset.test"]],
+      rows = "test row"
+    )
+  )
   shifted
 }
 
@@ -3516,10 +3543,9 @@ residualsForeignReasons <- list(
 )
 
 survivalProbabilitiesDrawsReason <- "survivalProbabilities returns the draws of S(t | x) at 'times'"
-survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times', 'newdata' and 'offset' alone"
+survivalProbabilitiesOwnArgsReason <- "survivalProbabilities takes 'times', 'newdata', 'offset' and 'sample' alone"
 survivalProbabilitiesForeignReasons <- list(
   type = survivalProbabilitiesDrawsReason,
-  sample = survivalProbabilitiesDrawsReason,
   ci.level = survivalProbabilitiesDrawsReason,
   weights = survivalProbabilitiesOwnArgsReason,
   n.threads = survivalProbabilitiesOwnArgsReason,

@@ -374,7 +374,12 @@ if (requireNamespace("survival", quietly = TRUE)) {
     c("t1", "t2", "t1.1", "t2.1", "t1.2", "t2.2")
   )
   expect_identical(lastNames(fitZ$yhat.train), fitZ$row.names.train)
-  expect_identical(lastNames(survivalProbabilities(fitZ)), c("t1", "t2"))
+  expect_identical(
+    lastNames(survivalProbabilities(fitZ, sample = "test")),
+    c("t1", "t2")
+  )
+  # no newdata is the training subjects, a test set or no
+  expect_identical(lastNames(survivalProbabilities(fitZ)), subjectNames)
   expect_identical(
     lastNames(survivalProbabilities(fitZ, newdata = x.test[2:3, ])),
     c("t2", "t3")

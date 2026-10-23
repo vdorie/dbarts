@@ -3396,6 +3396,23 @@ bart2Hurdle <- function(
   result
 }
 
+# sample = "test" reads the test subjects' draws a fit stored; a fit that
+# carries none, because no test set rode the call or because keepFits = FALSE
+# dropped the channel, is refused naming both
+refuseWithoutTestSubjects <- function(object) {
+  if (!is.null(object[["yhat.test"]])) {
+    return(invisible(NULL))
+  }
+  stop(
+    "survivalProbabilities(sample = \"test\") reads the test subjects' stored ",
+    "draws, and this fit has none: either no test set rode the fit call (give ",
+    "the subjects as 'newdata' instead), or the fit was run with 'keepFits' ",
+    "== FALSE (set automatically when 'callback' is supplied, unless ",
+    "overridden), which drops the channel even when a test set exists",
+    call. = FALSE
+  )
+}
+
 # S(t | x) draws from an AFT linear predictor and its residual scale, in the
 # uncombined convention (chains x samples x observations) where the scale
 # draws align with the fit draws unambiguously - the loglik channel's
@@ -3465,8 +3482,9 @@ survivalProbabilitiesFromDraws <- function(
 # S(t | x) = prod_{k : periods[k] <= t} (1 - h(k | x)). A subject that rode
 # 'test' at fit time (dbarts()'s own hazard test acceptance, person-period-
 # expanded on the SAME training grid) has its hazards already stored, read
-# straight off the packaged fit - no trees, no re-expansion. Every OTHER
-# 'newdata' still ALWAYS re-expands and predicts - the training design is
+# straight off the packaged fit, no trees and no re-expansion, when asked for
+# by sample = "test". The training subjects and every OTHER 'newdata' still
+# ALWAYS re-expand and predict - the training design is
 # ragged (subject i has only its at-risk rows), so a stored per-subject fit
 # cannot supply hazards past its own event/censoring period - and therefore
 # requires keepTrees, where aft's training path never does. Requested `times`
@@ -3480,7 +3498,8 @@ hazardSurvivalProbabilities <- function(
   newdata,
   offset,
   combineChains,
-  na.action = na.keepPredictors
+  na.action = na.keepPredictors,
+  sample = "train"
 ) {
   periods <- object$periods
   K <- length(periods)
@@ -3494,8 +3513,9 @@ hazardSurvivalProbabilities <- function(
   }
 
   rows <- NULL
-  usesStoredTest <- is.null(newdata) && !is.null(object[["yhat.test"]])
+  usesStoredTest <- identical(sample, "test")
   if (usesStoredTest) {
+    refuseWithoutTestSubjects(object)
     # extract() on the packaged fit, not object$fit (the dbartsSampler):
     # extract.dbartsSampler accepts only type = "predictors", while
     # extract.bart's sample = "test" arm reads object$yhat.test directly and
@@ -3532,7 +3552,13 @@ hazardSurvivalProbabilities <- function(
     if (is.null(object[["fit"]])) {
       stop(
         "survivalProbabilities on a discrete-time hazard fit requires the ",
-        "trees; refit with keepTrees = TRUE"
+        "trees; refit with keepTrees = TRUE",
+        if (!is.null(object[["yhat.test"]])) {
+          paste0(
+            ", or, for the test subjects the fit stored, which need none, ",
+            "give sample = \"test\""
+          )
+        }
       )
     }
     periodCol <- ncol(object$fit$data@x)
@@ -3754,6 +3780,7 @@ survivalProbabilities.bart <- function(
   offset = NULL,
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
+  sample = c("train", "test"),
   ...
 ) {
   refuseUnusedGenericArgs(
@@ -3766,8 +3793,21 @@ survivalProbabilities.bart <- function(
     )
   )
   refuseNonNumericOffset(offset)
-  # with no newdata an offset replaces the fit's own at the training rows,
-  # read off the stored draws (dec-B340)
+  sample <- validateSample(
+    sample,
+    eval(formals(survivalProbabilities.bart)$sample)
+  )
+  # no newdata is always the training subjects; the test subjects a fit
+  # stored are asked for by sample = "test", which is no newdata's to name
+  if (sample == "test" && !is.null(newdata)) {
+    stop(
+      "sample = \"test\" reads the fit's stored test subjects, and 'newdata' ",
+      "gives other subjects; give one or the other",
+      call. = FALSE
+    )
+  }
+  # with no newdata an offset replaces the fit's own at the subjects asked
+  # for, read off the stored draws (dec-B340)
   if (fitIsHazard(object)) {
     return(hazardSurvivalProbabilities(
       object,
@@ -3775,7 +3815,8 @@ survivalProbabilities.bart <- function(
       newdata,
       offset,
       combineChains,
-      na.action
+      na.action,
+      sample
     ))
   }
   if (!identical(fitEngineFamily(object), "aft")) {
@@ -3792,7 +3833,15 @@ survivalProbabilities.bart <- function(
     object$n.chains
   }
 
-  linearPredictor <- if (is.null(newdata)) {
+  linearPredictor <- if (sample == "test") {
+    refuseWithoutTestSubjects(object)
+    extract(
+      if (is.null(offset)) object else withTestOffset(object, offset),
+      type = "bart",
+      sample = "test",
+      combineChains = FALSE
+    )
+  } else if (is.null(newdata)) {
     extract(
       if (is.null(offset)) object else withTrainingOffset(object, offset),
       type = "bart",
@@ -3834,15 +3883,17 @@ survivalProbabilities.bart <- function(
       object[["sigma"]]
     }
   } else if (is.null(newdata)) {
-    if (is.null(object[["s.train"]])) {
+    stored <- if (sample == "test") "s.test" else "s.train"
+    if (is.null(object[[stored]])) {
       stop(
-        "survival probabilities need this heteroscedastic fit's 's.train' ",
-        "draws, which 'keepFits = FALSE' dropped (automatically, when a ",
+        "survival probabilities need this heteroscedastic fit's '",
+        stored,
+        "' draws, which 'keepFits = FALSE' dropped (automatically, when a ",
         "'callback' was supplied, unless overridden); refit with ",
         "'keepFits = TRUE'"
       )
     }
-    heteroscedasticScale(object[["s.train"]], n.chains)
+    heteroscedasticScale(object[[stored]], n.chains)
   } else {
     replayed <- attr(linearPredictor, "s")
     if (is.null(replayed)) {

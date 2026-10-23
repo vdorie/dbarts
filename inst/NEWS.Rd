@@ -493,7 +493,9 @@
             \code{"hazard.logistic"} (discrete-time survival), and
             \code{"hurdle.lognormal"} (a non-negative response with exact
             zeros, \code{bart} only). \code{\link{survivalProbabilities}}
-            gives survival-curve draws from a survival fit. Each new fit
+            gives survival-curve draws from a survival fit, at the training
+            subjects, at \code{newdata} or, with \code{sample = "test"}, at
+            the test subjects the fit stored. Each new fit
             class has \code{fitted}, \code{predict}, \code{extract},
             \code{residuals}, \code{summary} and \code{plot} methods, and
             \code{family()} returns the family of any fit. See
