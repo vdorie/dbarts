@@ -492,9 +492,22 @@ is computed in the test from its fixture.
   `forest = "dose"` it is `c(dose = 71.18)`, the entry itself. `summary()`'s line under its table
   prints the same entries by label, as the sd unit slice built it, a numeric forest's number per unit
   of its column.
-- The printed block, in `print` of a fit, `show` of a sampler and the verbose summary (push 3):
+- The printed block (push 3, trimmed in its fix round: the package owner's ruling of 2026-10-22). `print`
+  of a fit and `show` of a sampler give the short block, one line for each forest, with no range, no "per
+  sd", no source and no mark of a held coefficient, under a plain header and over a last line that says
+  where the full block is:
 
-      forests, sd in the response's units (its sd 1.452):
+      forests:
+        1 forest1: no basis; sd 2.904
+        2 dose: numeric basis, mean 0.01994, sd 0.0204; sd 71.18 per unit
+        3 age: numeric basis, mean 50.88, sd 17.55; sd 0.0827 per unit
+        4 factor(z): factor basis, 2 levels; sd 1.452 between the two levels
+      (each forest's prior in full: summary())
+
+  A sampler's last line points to `$getLeafPrior()`, a sampler having no `summary`. `summary()` of a fit,
+  after its table, and a sampler created with `verbose = TRUE` give the full block:
+
+      forests, sd in the response's units (sd(y) 1.452):
         1 forest1: no basis; sd 2.904 (default)
         2 dose: numeric basis, mean 0.01994, sd 0.0204, range 0 to 0.0698; sd 71.18 per unit, 1.452 per sd (default)
         3 age: numeric basis, mean 50.88, sd 17.55, range 19 to 88.4; sd 0.0827 per unit, 1.452 per sd (default)
@@ -503,15 +516,15 @@ is computed in the test from its fixture.
   A stated sd reads `sd 30 per unit, 0.612 per sd (stated)`. Under probit the header is `forests, sd on the
   latent scale (error sd 1):` and under logistic `(error sd 1.814)`. A column's mean, sd and range are
   those of the column in force over the rows in the likelihood when the block is printed; where a
-  default was taken from another column, or from other rows, the line ends `(default,
+  default was taken from another column, or from other rows, the full line ends `(default,
   taken from a column of sd 0.0204)`. A constant column, which has a stated sd, prints no "per sd".
   A mean is printed through `zapsmall` against the sd. This is the
   one sign a 0/1 number (dec-B263: at 20 percent treated beside one other forest, `mean 0.1967, sd
   0.3981, range 0 to 1; sd 3.647 per unit` where the factor's line says 1.452, at any number of
   forests), a column far from zero
-  (dec-B264: `mean 50.88, sd 17.55`), one wild value (the range) and a stated sd in the wrong units get:
-  nothing warns. For a default, "per sd" is the same number on every numeric line of a model; it is
-  there for the stated case.
+  (dec-B264: `mean 50.88, sd 17.55`), one wild value (the range of the full block, the mean and sd of
+  the short) and a stated sd in the wrong units get: nothing warns. For a default, "per sd" is the same
+  number on every numeric line of a model; it is there for the stated case.
 
 ## Refused forms, with their texts
 
@@ -1930,7 +1943,8 @@ Left: push 3, the printed block.
 
 Built 2026-10-17 on bartcore at 5a1e9dca (push 2 landed), rebased onto a000d239 (its records), R only, not landed. Commits: the block, step
 3.1, with test-forest-print.R, step 3.2 (5625cd90); the help and the design note, step 3.3 (2510b0fa).
-Nothing under src/ and no draw moves; `dbarts.h` has no diff.
+Nothing under src/ and no draw moves; `dbarts.h` has no diff. The block described below is the full one;
+[Push 3 fix round](#push-3-fix-round) trims what `print` and `show` give to a short block.
 
 Against the steps:
 
@@ -1943,9 +1957,8 @@ Against the steps:
   and is not the response's sd where the response is constant or rows are out, and R recomputing the unit
   would be the copy the sd unit slice forbids. The fit therefore keeps one number: the unit the engine
   recorded on the sampler's control, `attr(fit, "forest.unit")`, beside `forest.labels` and, like it,
-  not an element of the list. A fit without it (made before) prints the block with a header that names
-  no number. Rejected: reading the unit off a kept sampler only (a default fit keeps none); sd(y) of the
-  stored response (wrong on a constant response and on rows out).
+  not an element of the list. Rejected: reading the unit off a kept sampler only (a default fit keeps
+  none); sd(y) of the stored response (wrong on a constant response and on rows out).
 - The rows in the likelihood of a fit are its stored `weights` and `active`; of a sampler, its weights
   and `activeRows`.
 - 3.2: test-forest-print.R, 36 results. The block by exact string for the model of four forests at
@@ -1960,14 +1973,16 @@ Against the steps:
 
 Calls made building:
 
-- Numbers print to four significant digits, `format(x, digits = 4)`: the plan's figures (`0.0827`) are
-  hand-rounded and not a rule. Rejected: three digits; `signif` then `as.character`.
+- Numbers print as `format(x, digits = 4)` gives them: at least four significant digits and every digit
+  of an integer part, so 58203 and not 5.82e+04. The plan's figures (`0.0827`) are hand-rounded and not
+  a rule. Rejected: three digits; `signif` then `as.character`.
 - A column is constant in the block where its sd is under 1e-11 of its largest value, the engine's
   bound, not where it is exactly 0.
 - A "default" line ends with the recorded sd where the column's sd in force differs from it by more than
   1e-8 relative; a stated line never does.
 - A copy does not print: `copy()` holds the block off, so a verbose sampler prints once per creation.
-- Not in the engine's own summary, as the plan has it.
+- The verbose creation prints the block from R, after the engine's own summary, which is not edited:
+  the plan puts nothing under src/.
 
 Mutants, each applied alone to a copy of the tree, installed, and run against test-forest-print.R. Every
 one is killed:
@@ -1983,10 +1998,126 @@ one is killed:
 | "per sd" printed for a constant column | 1 |
 | a copy printing the block | 1 |
 
-Gates on the tip, after the rebase onto 5a1e9dca and a `--preclean` install: the full suite through
+Gates on the tip, which is on a000d239, after a `--preclean` install: the full suite through
 `test_package("dbarts")` 28100 results in 262 files, 0 failed; lintr (0 lints), air, rc-codoc, win-drift
 and doc-freshness clean; the 43 exact-gate commands of exact-gates.yaml in quick, all passing, run
 because a fit now carries the unit. The bitwise compares, the reference build and the sanitizers are not
 run: no file under src/ changes and no draw moves, which the R-surface tier does not ask them for.
 Size: 635 lines added and 5 removed over 8 files before this record: R 214 (of which the block 201),
 tinytest 391, help 15, design note 15. Package code 214 lines against the plan's 520 in all.
+
+### Push 3 fix round
+
+Built 2026-10-22 on 3a9559db, R only, from one opus review (ae70169a) and the package owner's ruling of the
+same day on the printed block. Nothing under src/ and no draw moves; `dbarts.h` has no diff. Commits: the
+code and tests (2ef87643); the help (86f7a908); this record.
+
+What changed, by the review's findings:
+
+- The gaussian header reads `forests, sd in the response's units (sd(y) 1.452):`, the help's own symbol,
+  whose `sd` item covers rows out of the likelihood, the offset, the fallback to every row and a constant
+  response. The label built, "its sd", was false on an offset fit (the number is sd(y - offset)), on a
+  constant response (a quarter of the window of width one) and after `setResponse` (the creation's number,
+  against the response in force). Latent families keep `(error sd 1)` and `(error sd 1.814)`. Pinned on an
+  offset sampler and fit, a constant response (the creation's one warning, none at show, print or summary)
+  and a response replaced by `setResponse(10 * y)`, which leaves the number and the defaults the creation's.
+- A fit made with `keepFits = FALSE` keeps no bases, labels or unit and gives no block; the help says so in
+  `forest` and `bartBT`, and a test pins the absent elements, the absent block and, in its summary, the sds
+  kept on the line under the table. Rejected: a block without the column figures, which is a second format
+  for a fit holding no column.
+- The per-sd figure is the size of the forest's term over one sd of the column (`sd` times the column's sd),
+  not the size of one sd of the column; the help said the second.
+- The reading of a fit with no unit is gone: `forestPriorLines` takes `unit` with no default, the `bare`
+  test and the record's "a fit without it (made before)" go. Only shipped versions are owed compatibility.
+- `attr(fit, "forest.unit")` is documented beside `forest.labels` in the Value sections of bart.Rd and
+  bartBT.Rd. Whether a fit carries it at all went to the package owner, who ruled it stays.
+- Help wording: "a mean far from 0 is a column that should be centered" now holds for a dose too (a column
+  that never comes near 0 should be; a dose, where 0 means none, is left); "a default taken from a column
+  that has since been replaced says so" names the weights, the active rows and the fallback to every row.
+- Numbers print as `format(x, digits = 4)` gives them, which the help and the record now say; the test
+  helper `g()` is that call, where `formatC(.., "g")` differed from 1e4 up (5.82e+04 against 58203).
+- `show`'s call line printed `dbarts(formula = y ~ x1 + x2, ...)` for a model written with `forest()`
+  terms, since `dbarts()` replaced the formula by the one its terms were taken out of before it recorded the
+  call. The sampler now records the formula as written (8 lines in [`dbarts`](../../R/dbarts.R)), pinned for
+  a formula written out and one passed by name.
+- Tests: test-forest-print.R 36 results to 132, and test-fit-stores-k.R's summary line, which named each
+  forest's sd, now reads the block. The `zero` and `single` verbose creations are captured, the output and
+  the messages, so the run prints nothing. Counted warnings wrap every show, print and summary of a fit as
+  well as every creation. New pins: probit and logistic on a fit; under probit 0/1 weights are the mask, a
+  value of 1000 on a row of weight zero stays out, on a fit and on a sampler; a stated line never takes the
+  "taken from" mark after a swap then `setLeafPrior(forest(sd = 30))`; a column of 61.7 + 1e-13 sin(i)
+  reads as constant; the hold released after a copy; the index padded at ten forests; the fallback to every
+  row under probit with every weight 0, with its warning; numbers from 1e4 up.
+
+The owner's ruling of 2026-10-22, the trim. `print` of a fit and `show` of a sampler give a short block: one
+line for each forest, its label, its basis, for a numeric basis the column's mean and sd over the rows in
+the likelihood, and the sd it resolved to (per unit, or between the two levels of a factor), with no range,
+no per-sd figure, no source or "taken from" mark and no mark of a held coefficient. Its header is plain,
+`forests:`, and its last line points to the full block. `summary()` of a fit gives the full block as built,
+header and all, after its table; a verbose creation gives it too; a copy prints nothing; a fit of one forest
+prints and summarizes as before. The line under summary's table leaves out the `leaf.prior.sd` entries where
+the block gives them and keeps any others.
+
+Calls made building it, with the alternatives:
+
+- Header `forests:` with the last line `(each forest's prior in full: summary())`, the owner's example.
+  Rejected: a header that says "short"; "see summary() for more".
+- A sampler has no `summary`, so its last line reads `(each forest's prior in full: $getLeafPrior())`, which
+  returns each forest's entry. Rejected: a `summary` method on the sampler, which is a new public surface;
+  one footer naming `summary()` for both, which would point a sampler's reader at nothing.
+- In summary the block follows the table and its notes (the line under it, the starting-sigma line, the
+  R-hat note) after a blank line. Rejected: between the line under the table and the R-hat note, which
+  separates the note from its table; before the table.
+- The summary object carries the block as `forests`, absent where there is none; its `fixed` still holds
+  `leaf.prior.sd` and extract is untouched, and only the printed line drops it. Rejected: dropping it from
+  the object, which would move data to move text. A fit with no block (`keepFits = FALSE`) keeps the entries
+  on the line, as there is nothing else that gives them.
+- Not done, and the owner's to rule: after the trim nothing prints the full block of a live sampler after
+  its creation, so the "taken from a column of sd" mark can only show at a creation from a data object whose
+  column was replaced. The tests reach the full block of a changed sampler through
+  [`samplerForestLines`](../../R/forestPrint.R). Alternatives: show the mark in the short line where it
+  applies; drop the mark and its code.
+
+Mutants, each applied alone to a copy of the tree, installed, and run against test-forest-print.R, the
+tests that fail named by result number (the file now has 132). Every one is killed. The review's:
+
+| mutant | killed by |
+|---|---|
+| A: a fit's family passed as "gaussian" | 49, 53 (the latent header at summary of a probit and a logistic fit), 114, 120 |
+| B: a fit's mask left out | 113, 114 (the 1000 on rows of weight zero, at print and summary of a probit fit) |
+| C: a stated line takes the mark | 61 (a swap, then `setLeafPrior(forest(sd = 30))`) |
+| D: constant only where the sd is exactly 0 | 80 (the column 61.7 + 1e-13 sin(i)) |
+| E: no `forest.unit` on a fit | 13, 14, 18 (the attribute, the full block at summary) and 49, 53, 66, 99, 103, 114, 120 |
+| F: the header's unit from sd of a fit's response | 49, 53, 66, 99, 103, 114, 120 |
+| G: a sampler's mask left out | 109, 110 (a probit sampler, at creation and show) |
+| J: the hold not released | 35, 36 (the creation after a copy) and 26 others |
+| K: the index not padded | 89 to 91 and 93 to 95 (ten forests, full and short) |
+| L: no fallback to every row | 117 to 120 |
+| M: a warning in a fit's block, or a sampler's, or a summary's | 132 (the count at the end), all three |
+
+Added for this round's changes:
+
+| mutant | killed by |
+|---|---|
+| the call recorded with the stripped formula | 4, 5, 7 |
+| the header read "its sd" | 13 tests, among them 8, 14, 63, 98, 102 and 105 |
+| the header's unit from sd of a sampler's response now | 9 tests: 46, 50, 63, 98 (offset), 102 (constant), 106 (the replaced response) and 66, 109, 117 |
+| `formatC(.., "g")` trimmed, as the old helper was | 82 to 86 (the column of 1000 ages) |
+| a fit's weights left out | 65, 66 |
+| the short block with the range, the per-sd figure, the source or the held mark | 29, 24, 25 and 6 tests |
+| the short header or footer wrong, the fit's pointer or the sampler's changed | 36, 18, 8 and 9 tests |
+| the summary without its block, or with the sds still on the line | 10 tests; 16, 17, 22, 23 |
+| a verbose creation short, a show or a print full | 33, 28 and 10 tests |
+| the summary's block short | 12 tests |
+
+Gates on the code tip (86f7a908, on a000d239) after a `--preclean` install, mode "shipped", the install newer
+than the sources: test-forest-print.R 132 results and test-fit-stores-k.R 500, 0 failed; the full suite
+through `test_package("dbarts")` in one process 28199 results in 262 files, 0 failed (28100 before: 96 more
+in test-forest-print.R, 3 in test-fit-stores-k.R); the 43 exact-gate commands of exact-gates.yaml in quick,
+39 of the main loop and 4 of the monotone job, all passing, run because a fit now carries the unit and a
+summary a new element (the two cross-host compares not run: no draw moves); lintr (0 lints), air, rc-codoc
+(48 methods), win-drift and doc-freshness clean, each on its own exit status; `R CMD check --as-cran` on
+a tarball built from a clean `git archive` of 86f7a908 staged outside the tree, 1 NOTE ("Date field over a
+month old"), its tests OK; on a reference install (`mode` "reference") the four snapshot files, binary 7,
+multithreaded 3, single-threaded 14 and xbart 3 assertions, 0 failed. This record is the only change after
+that tip. Size over 3a9559db: R 157 lines changed over three files, tinytest 688, help 56.
