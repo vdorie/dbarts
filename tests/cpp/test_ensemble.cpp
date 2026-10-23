@@ -837,10 +837,10 @@ void runEnsembleTests() {
                 poisonWorstSum, worstSum);
   check(poisonWorstSum > 1.0e6 * levelSumTolerance, what);
 
-  // Poison (ii), the prior-mean term dropped: u centred at zero and projected.
-  // The distribution keeps its covariance and loses its mean, which is the
-  // poison that separates a correct conditional from a correctly-shaped one -
-  // so the covariance score must still PASS while the mean score fails.
+  // Poison (ii), the prior-mean term dropped: u centered at zero and
+  // projected. The distribution keeps its covariance and loses its mean, which
+  // is the poison that separates a correct conditional from a correctly-shaped
+  // one - so the covariance score must still PASS while the mean score fails.
   LevelMoments poisoned(levelTrees);
   double sumVariance = 0.0;
   for (size_t t = 0; t < levelTrees; ++t) sumVariance += law.variance[t];

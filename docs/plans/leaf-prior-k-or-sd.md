@@ -173,10 +173,10 @@ a k grid is relative per fold and an absolute sd grid is a different sweep.
   gives the binary k-grid equivalent and, for gaussian, one `xbart` call per sd with a shared seed.
   Cost: the one-call absolute sweep with warm starts across sd values, which only the branch ever had.
 - c2, accept a list of leaf priors as the grid axis (~+60 R over c1, ~+40 test): `leaf.prior =
-  list(normal(sd = 0.5), normal(sd = 1))` sweeps them, labelled by each prior's sd form, and is refused
+  list(normal(sd = 0.5), normal(sd = 1))` sweeps them, labeled by each prior's sd form, and is refused
   beside a `k` grid. Cost: a second grid-axis vocabulary on `xbart`.
 
-RULED c3 (maintainer, 2026-09-29: "(c) seems right."): xbart gains an `sd` grid argument beside `k`, exclusive with it, sweeping absolute spreads held fixed across folds with the same warm starts and unit parallelism the k grid has; a named sd in leaf.prior beside a k or sd grid is refused, naming the grid argument; the result's grid dimension is labelled sd. Step 3 implements c3 (about the cost of c2).
+RULED c3 (maintainer, 2026-09-29: "(c) seems right."): xbart gains an `sd` grid argument beside `k`, exclusive with it, sweeping absolute spreads held fixed across folds with the same warm starts and unit parallelism the k grid has; a named sd in leaf.prior beside a k or sd grid is refused, naming the grid argument; the result's grid dimension is labeled sd. Step 3 implements c3 (about the cost of c2).
 
 ### (d) The sd hyperprior's name
 

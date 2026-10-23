@@ -33,7 +33,7 @@ lock at the CRAN push), B80 (sigest), B81 (two family vocabularies),
 B82 (hurdle tokens), B83 (the legacy door is strict), B98 and B101
 (family objects, consolidation, residual distribution), B108
 (na.action), B109 (saved 0.9-x fit). dec-B78 (factor default) is already
-the shipped behaviour and only gains its manual paragraph here.
+the shipped behavior and only gains its manual paragraph here.
 
 ## Goal
 
@@ -47,7 +47,7 @@ tombstones that name their successor and expire together. Family
 settings ride family objects; the residual distribution is a family; the
 front door has a standard `na.action` whose default drops
 missing-response rows only. `xbart` cross-validates with k fixed or
-modelled, distributes work over folds, and reproduces a seed at any
+modeled, distributes work over folds, and reproduces a seed at any
 thread count. A saved 0.9-x fit is refused by name.
 
 ## Context
@@ -151,14 +151,14 @@ the choice; none remains open.
    recommendation", over a `gaussian(errors = student(df))` setting).
 5. The `na.action` default's name: `na.keepPredictors` (VD
    2026-09-08, chosen for saying what differs from `na.omit`; rpart's
-   `na.rpart` is the behavioural precedent and the help page says so).
+   `na.rpart` is the behavioral precedent and the help page says so).
    `missing` is retired outright, no tombstone (VD 2026-09-08): missing
-   predictors are always modelled for the rows `na.action` keeps;
+   predictors are always modeled for the rows `na.action` keeps;
    `na.fail` covers the old `missing = "error"`.
 6. xbart's "leave k modelled" spelling (VD 2026-09-08): `k` accepts a
    numeric vector as today or a list whose entries are numbers or
    hyperprior objects, so `k = list(1, 2, chi())` sweeps two fixed
-   values and the modelled default; the modelled cell is labelled by
+   values and the modeled default; the modeled cell is labeled by
    its constructor call. An absent `k` runs one cell at the front
    door's default for the response type (fixed 2 continuous,
    `chi(1.5, 2)` binary), so a default `xbart` call scores the model a
@@ -280,7 +280,7 @@ S2, family objects, consolidation, na.action:
     default `na.keepPredictors`; the `missing` formal leaves `bart`,
     `dbarts`, `dbartsData` and `xbart` with no tombstone, and the
     incorporate path is always on for kept rows (`bartBT` keeps
-    0.9-34's `na.omit` behaviour). Ingestion passes the
+    0.9-34's `na.omit` behavior). Ingestion passes the
     function to `model.frame` at the main site in `dbartsData` and
     applies it to the (y, x) pair on the matrix path; the other four
     `na.pass` sites (the test frame in R/data.R, the multinomial frame
@@ -497,7 +497,7 @@ across two files; dropping the levelGibbs copy in R/spec.R fails 5 in
 
 Review findings fixed before landing: amplitude bases not aligned to
 rows `na.action` dropped absent a `subset`, on both paths; the
-tree-prior `levelGibbs` spelling had no behavioural test;
+tree-prior `levelGibbs` spelling had no behavioral test;
 `control@call` stamped a resolved family object, not the caller's
 expression; one truncated tombstone message; stale prose naming retired
 spellings in R/dbarts.R and man/bart.Rd; the vocabulary-shadowing rule
@@ -532,8 +532,8 @@ the caller's `RNGkind`, and results are identical at n.threads 1, 2, 3,
 [`withPreservedSeed`](../../R/validateComposition.R) (`withFixedSeed`
 now wraps it), so a seeded call leaves `.Random.seed` as it found it and
 an unseeded call's end state is thread-count independent. `k` takes a
-numeric vector or a list of numbers and hyperprior objects, a modelled
-cell labelled by its constructor call ([`kGridLabel`](../../R/xbart.R))
+numeric vector or a list of numbers and hyperprior objects, a modeled
+cell labeled by its constructor call ([`kGridLabel`](../../R/xbart.R))
 and swept last; an absent `k` runs one cell at the front-door default
 for the response type (fixed 2 continuous, `chi(1.5, 2)` binary,
 superseding dec-B12), and a supplied `node.prior` k still wins.
@@ -580,7 +580,7 @@ Review findings fixed before landing: a seeded xbart clobbered the
 caller's random stream (now [`withPreservedSeed`](../../R/validateComposition.R),
 Rd promise restored and pinned); live plan pins to the demoted baseline;
 a stale MANIFEST poison figure; [`kGridLabel`](../../R/xbart.R) silently
-labelled any non-fixed hyperprior as chi (now stops by class name); a
+labeled any non-fixed hyperprior as chi (now stops by class name); a
 tombstone message nit.
 
 Remaining: S4 (manual, NEWS - owes lines for the control tombstone, the

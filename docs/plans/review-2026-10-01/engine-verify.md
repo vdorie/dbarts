@@ -1,6 +1,6 @@
 # Review 3 - engine lens - independent verification
 
-Tree 01dee4b4 (pinned worktree, read only). Library r3-lib for the shipped behaviour; an instrumented
+Tree 01dee4b4 (pinned worktree, read only). Library r3-lib for the shipped behavior; an instrumented
 copy of the same tree (git archive, scratch only) in r3-verify-engine-lib with a cone census and a
 runtime switch R3_FIX that replaces the cone score with a log-space reference. All probes are mine,
 written from scratch; scratch dirs r3-verify-engine-{cone,onecut,census,tn,src}.
@@ -28,7 +28,7 @@ sR/sL < 1 stays within ~0.05 nats until the underflow. The ~38 sd underflow is e
 (peak height e^(-gap^2 / 2)), not only the +-38 clamp.
 
 NEW second mechanism (not in engine.md): when the lower leaf has a finite lower bound aL from a frozen
-neighbour, coneProbability forms the inner mass as gaussianCdf((min(bL, x) - mL) / sL) - lowerL in
+neighbor, coneProbability forms the inner mass as gaussianCdf((min(bL, x) - mL) / sL) - lowerL in
 lower-tail arithmetic. Once (aL - mL) / sL exceeds ~8.3 both CDFs round to 1 and the integrand is 0
 everywhere, so the integral is exactly 0 and twoLeafCoupledLogMarginal returns the -HUGE_VAL
 "infeasible" sentinel for a feasible move with a log mass near -42, not -745. Captured from a real
@@ -118,7 +118,7 @@ Tests that would have caught it:
   at x = 0, 1 row at x = 1 sitting 4.2 below, sigma 0.5 fixed (gap 8.3, sU/sL 13.5; exact P(split)
   leaf 0.167, joint 0.091; shipped engine 0.545 / 0.365, ~4 s per prior at 20000 draws, fits quick
   mode); one at sU/sL near 1 and gap 12 (the r < 1 control); and a two-cut design where a frozen
-  neighbour bounds the lower child ~9 sd above its posterior (the false-zero path). Its reference
+  neighbor bounds the lower child ~9 sd above its posterior (the false-zero path). Its reference
   orderProbability must move to log space (closed form for one cut, log-space propagation
   otherwise) or it returns -Inf in the same regime and cannot see the defect.
 - SBC cannot see it (data drawn from the monotone prior); a misspecified-truth SBC-style arm is

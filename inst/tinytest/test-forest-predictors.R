@@ -1060,7 +1060,7 @@ expect_identical(
   attr(onClash(quote(list(forest(g + x1))))$model, "forest.columns"),
   1:4
 )
-# on a matrix a column is its own term, whatever its neighbours are called
+# on a matrix a column is its own term, whatever its neighbors are called
 neighbours <- cbind(g = x[, 1L], g.total = x[, 2L], g2 = x[, 3L])
 expect_identical(
   forestColumns(onDesign(

@@ -132,7 +132,7 @@ Drives the shipped sampler through the R API only. Per replication:
    engine's reported-scale residual prior.
 2. y0 simulated through the assumed likelihood (gaussian: f0 + sigma0*N;
    probit: Bernoulli(pnorm(f0))).
-3. MCMC re-initialised from a FRESH independent prior draw (not theta0), then
+3. MCMC re-initialized from a FRESH independent prior draw (not theta0), then
    `setResponse(y0)` (updateScale = FALSE keeps the build scale), then
    `run(burn, L)` with `n.thin` thinning.
 4. rank = #{posterior_l < theta0} in {0..L} for sigma, f(x*) at 5 fixed points,
@@ -181,7 +181,7 @@ the driver runs this diagnostic automatically so each new config re-checks it
 Rank means all near L/2, histograms flat (no slope/U/inverted-U). The harness
 is correct: a known-good sampler yields uniform ranks for every functional.
 
-### Probit (same settings, R=200) -- generalises cleanly
+### Probit (same settings, R=200) -- generalizes cleanly
 
     avg.f  0.444 / f.star2 0.684 / f.star3 0.828 / f.star5 0.549 : PASS
     f.star1 chisqP 0.008 but ecdf-diff 0.045 << band 0.092, KS 0.74 : PASS
@@ -383,7 +383,7 @@ Thinning justified from a 4000-draw unthinned chain: |a| ACF 0.37/0.26/0.15/
 0.11/0.08 at lags 30/50/80/100/120 (first <0.1 at lag 103); |b1-b0| 0.01 at
 lag 120. thin=120 makes the slowest channel near-independent. Burn = 150 outer
 draws x thin 120 = 18000 sweeps (a thin=30 burn sweep 50->250->600 outer had
-shown sigma's rank centre still drifting: ecdf 0.196 -> 0.122 -> 0.104,
+shown sigma's rank center still drifting: ecdf 0.196 -> 0.122 -> 0.104,
 mean 61 -> 67 -> 71 of 75). Run as 4 x 50-rep chunks (~2 min each), ~2.5 s/rep.
 
     functional   chisqP   ecdfDiff  band(.0924)  verdict
@@ -422,7 +422,7 @@ long ridge the chain must traverse by alternating conjugate a-draws and
 per-tree leaf draws, whose relaxation time can far exceed the |a| ACF measured
 on one dataset -- or a subtle exactness gap in the glue-scaled forest updates
 (formForestResponse's r/m response with w*m^2 weights, |m| floored at 1e-9).
-A4e below resolves this in favour of the mixing explanation.
+A4e below resolves this in favor of the mixing explanation.
 
 A4d. bcf-weak: prior-dominant small-n BCF (n=40, R=200, L=150, thin=120,
 burn=18000 sweeps) -- HEADLINE PASS: the a-glue prior precision calibrates
@@ -430,9 +430,10 @@ burn=18000 sweeps) -- HEADLINE PASS: the a-glue prior precision calibrates
 The poison-sweep's one true gate survivor was the a-glue prior precision
 (1/aVariance); a prior-weak fit is where dropping it would show. It does not:
 
-    sigma        chisqP 0.087  ecdf 0.0596  PASS  (rank mean 75.8/75, centred)
-    abs.a        chisqP 0.371  ecdf 0.0426  PASS  <- THE headline channel
-    abs.diff     chisqP 0.359  ecdf 0.1007  marginal (ksP 0.023; 1 of 15
+    sigma        chisqP 0.087  ecdf 0.0596  PASS  (rank mean 75.8/75,
+    centered) abs.a        chisqP 0.371  ecdf 0.0426  PASS  <- THE headline
+    channel abs.diff     chisqP 0.359  ecdf 0.1007  marginal (ksP 0.023; 1 of
+    15
                  functionals just over the band = multiple-comparison noise)
     prog1..5     ecdf 0.031-0.070  all PASS
     eff1..5      ecdf 0.031-0.066  all PASS
@@ -440,7 +441,7 @@ The poison-sweep's one true gate survivor was the a-glue prior precision
 
 Glue prior moment check as A4 (same prior code path, n-independent). NOTE the
 n-pattern: sigma calibrates at n=40 but flagged at n=200 -- an exactness bug in
-the glue draw would show MORE when the prior dominates, so this pattern favours
+the glue draw would show MORE when the prior dominates, so this pattern favors
 the scale-ridge mixing explanation (likelihood tighter along the ridge at large
 n) over an algebraic error; A4e below tests this directly. ~2.4 min/100 reps.
 
@@ -504,7 +505,7 @@ so theta0's f0 is exactly the f the likelihood uses, INCLUDING the NA routing
 (rules carry the missing direction) and the imputation-at-standardized-mean
 leaf path ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp)).
 
-HARNESS NOTE (real API behaviour worth knowing): the matrix (xy) interface
+HARNESS NOTE (real API behavior worth knowing): the matrix (xy) interface
 DROPS NA rows even under missing = "incorporate" (dbartsData warns "row(s)
 dropped"); only the formula interface (na.action = na.pass) keeps them. The
 harness builds NA designs through a formula.
@@ -556,7 +557,7 @@ paths (routing vs leaf imputation) are both clean.
 #### B4. linear leaf + non-unit weights (w ~ Gamma(2,2)) -- ALL PASS (R=200)
 
     functional  chisqP   ksP   ecdfDiff  band(.0924)
-    sigma       0.839   0.831   0.0425    PASS  (rank mean 75.1/75, centred)
+    sigma       0.839   0.831   0.0425    PASS  (rank mean 75.1/75, centered)
     avg.f       0.470   0.916   0.0381    PASS
     f.star1-5   --      --      0.043-0.090 all PASS
 
@@ -596,7 +597,7 @@ Setup notes (all measured, none assumed):
 #### C1. GP leaf baseline -- ALL PASS
 
     functional  chisqP   ksP   ecdfDiff  band(.0924)
-    sigma       0.337   0.602   0.0534    PASS  (rank mean 75.2/75, centred)
+    sigma       0.337   0.602   0.0534    PASS  (rank mean 75.2/75, centered)
     avg.f       0.040   0.486   0.0544    PASS
     f.star1-5   --      --      0.048-0.079 all PASS (chisqP 0.024-0.671;
                 the lowish chisq values pair with clean ecdf/KS = binning
@@ -625,7 +626,7 @@ review-3 number-one uncovered combination for both leaf families.
 #### C3. GP leaf + non-unit weights (w ~ Gamma(2,2)) -- ALL PASS
 
     functional  chisqP   ksP   ecdfDiff  band(.0924)
-    sigma       0.630   0.652   0.0494    PASS  (rank mean 75.3/75, centred)
+    sigma       0.630   0.652   0.0494    PASS  (rank mean 75.3/75, centered)
     avg.f       0.045   0.161   0.0753    PASS
     f.star1-5   --      --      0.039-0.080 all PASS
 
@@ -646,7 +647,7 @@ Setup notes (all measured, none assumed):
   choice and puts the truncated fraction closest to half: 48.6% of leaves
   exceed the cap (they hold 80.5% of the observations), 79.1% of trees hold
   BOTH a GP leaf and a constant-fallback leaf, 1.4% are all-GP and 19.5%
-  all-fallback. Neighbouring caps for the record (leaves over cap / mixed
+  all-fallback. Neighboring caps for the record (leaves over cap / mixed
   trees): 20 -> 60.4% / 66.8%; 40 -> 37.5% / 85.2%; 50 -> 27.3% / 60.5%. No
   cap makes a tree purely GP often -- 2.42 leaves over n = 80 means one child
   is usually large -- so the mixed tree, not the all-GP tree, is what a cap
@@ -758,7 +759,7 @@ chisq/KS secondary.
                                        to the glue-on path; backfit exact)
     A    BCF prior-weak (n=40)         HEADLINE PASS - the a-glue prior
                                        precision (abs.a) calibrates; sigma
-                                       centred (defect shrank with n,
+                                       centered (defect shrank with n,
                                        consistent with scale-ridge mixing)
     B    linear leaf baseline          ALL PASS (7/7)
     B    linear + NA leaf covariate    PASS - imputation path ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp))

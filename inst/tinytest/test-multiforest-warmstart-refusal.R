@@ -3,7 +3,7 @@
 # LIVE state, so at more than one forest it would pair one draw's forests with
 # another's glue and answer with a legal-looking, miscalibrated fit; nothing
 # covers that result, so every entrance refuses. One assertion per entrance -
-# the modelling argument, the R5 method, the bridge entry - plus the shapes the
+# the modeling argument, the R5 method, the bridge entry - plus the shapes the
 # guard must NOT catch. The refusal is keyed on the forest COUNT, so the
 # K-forest softmax is pinned beside the two-forest amplitude model.
 #
@@ -83,7 +83,7 @@ expect_error(
   "\\$installTrees: a multi-forest sampler \\(2 forests\\) has no tested warm start from a donor"
 )
 
-# --- the modelling surface: a data object carrying forest bases reaches bart
+# --- the modeling surface: a data object carrying forest bases reaches bart
 # as an ordinary fit, so the donor argument refuses there by the name the
 # caller wrote ---
 basesData <- dbartsData(x, y, bases = list(NULL, factor(z)))

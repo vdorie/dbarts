@@ -298,7 +298,7 @@ K -> F (carries Fork 1) -> H, I, J (docs). New messages follow the
 - L error-message sweep: VD-signed rule (0a draft -> Fork 5) applied
   repo-wide (~120 strings), updating every message-pinned test once.
   K6 (cross-language guard reconciliation: who owns each
-  boundary-duplicated message, which predicates are defence-in-depth
+  boundary-duplicated message, which predicates are defense-in-depth
   for the directly-reachable .Call) lands immediately after, written
   against the rule. Ordering rationale: wave-3 passes pin messages;
   pinning before the sweep would pin twice.
@@ -767,7 +767,7 @@ ledger entry: the order-count cache waits with the hybrid (dec-A134);
 offsets and stored formulas at new rows (dec-A135) and the R surface's
 other calls (dec-A136); ordinal predict gains an offset channel (dec-A137);
 three bridge calls (dec-A138); the C API version pair stays at 1/0
-(dec-A139); the nbinom slice's gate rule, prior centre, SBC k and baseline
+(dec-A139); the nbinom slice's gate rule, prior center, SBC k and baseline
 (dec-A140); the ingestion and auxiliary calls (dec-A141); the
 oversize-allocation tests run only at home and outside AddressSanitizer
 (dec-A142); the families slice's survival and multinomial outputs
@@ -787,7 +787,7 @@ basis may leave a level empty on setForestBasis (dec-C14).
   cache that waits with it (dec-A134), under TODO monotone-barker-hybrid.
 - treatSens calls setResponse with the response scale re-anchored on every
   sweep. 0.9-x did the same, so it is not a regression; whether to stop
-  after burn-in is a modelling question for after the release.
+  after burn-in is a modeling question for after the release.
 - test-data-categorical.R prints a stray warning, the starting-sigma
   fallback for sparse predictor columns. It predates the review and fails
   nothing.
@@ -1070,7 +1070,7 @@ form, acceptance one. Two declines are load-bearing: a tree with a stale
 obs-to-leaf map sits the sweep out, since its cached fits read as an
 all-root zero that would leave a constant in the residual for the run;
 under an order constraint a tree carrying an empty leaf sits out too, that
-leaf being a hard bound on its occupied neighbours. Scope is every
+leaf being a hard bound on its occupied neighbors. Scope is every
 constant-leaf forest - the gaussian leaf, the monotone leaf through a new
 ConstrainedLeafModel seam, and every latent family; the linear leaf, the GP
 leaf and the heteroscedastic variance forest are inert rather than
@@ -1222,7 +1222,7 @@ script only, no engine change.
 
 ### Generator-only move-census probes for the round's falsifiers (8bf40fc8, 2026-09-07)
 
-The nog-node rule neighbourhood, informed death's weight vector, perturb's
+The nog-node rule neighborhood, informed death's weight vector, perturb's
 signed displacement, and every tree's settled leaf count - the two
 brainstorm rounds' one-day falsifiers - now compute, log and restore under
 -DBARTCORE_MOVE_CENSUS; the default build compiles none of it and the
@@ -1807,14 +1807,14 @@ columns: a test set drops about 160 MB, a mixed container beside a
 sparse column drops about 240 MB, and an all-dense container is
 unchanged - the all-dense path has been unmapped since before S4a, so
 the retained 8 bytes a cell this slice removes was always the mixed
-flavour's alone. New fields: sizeof(ColumnStore) 680 -> 704 bytes for
+flavor's alone. New fields: sizeof(ColumnStore) 680 -> 704 bytes for
 gatheredRawTestColumns's own vector header, present on every store and
 fold view whether or not it gathers, plus 8 bytes per gathered test
 column; nothing else widens.
 
 The state format does not move: version 3 reads and writes exactly as
 before, no raw is ever serialized, and a state written at either build
-is byte-identical. The one behavioural change is that restore no longer
+is byte-identical. The one behavioral change is that restore no longer
 re-installs a factor column's grid from the state, which is not a change
 over the same design - the level count is pinned by the data object the
 store is rebuilt from - and is refused over a different one; cross-build
@@ -1904,7 +1904,7 @@ that had passed the guard while stale are corrected here -
 refusePinnedSigmaChange, the two bartcore_setForestWeights cites, and
 setData's clauses, whose grouped and aft halves had named lines that
 were neither refusal. No NEWS entry: no message, token or documented
-behaviour changed.
+behavior changed.
 
 Gates (implementer-run; independent battery pending): tests/cpp 277 ok,
 all tests passed, 69 ok (sampler); tinytest 7662 / 0 fail;
@@ -2491,7 +2491,7 @@ place. The independent fidelity read sampled ~180 sites (every src/bartcore and 
 hunk in full) and found zero load-bearing statements lost; not one comment needed a rule
 inlined from a design doc - each citation sat beside a self-contained statement. Also
 cut: the bridge's state-format history narrative (the registry rule and the attributes
-clause stay and agree with stateFormatVersion = 3); the 14 review-labelled test sections
+clause stay and agree with stateFormatVersion = 3); the 14 review-labeled test sections
 renamed to what they pin; 13 bare design-doc filename mentions swept under the same
 ruling; a WG14 standards URL that merely contains "docs/" restored. feature-matrix.md's
 251 affected anchors re-derived by content (deltas 0..-7, non-uniform; a 15-anchor audit
@@ -2576,9 +2576,9 @@ Reported, not fixed (mirrors run()): a throw from std::thread construction itsel
 leave earlier workers unjoined; Rf_error after the join skips the frame's destructors; a
 fractional n.threads truncates silently. 0.9-31's NEWS entry is corrected in place.
 
-### Second whole-branch review: fix wave 3 - the judgement-gated slices (42b12ac7..7ad0bbea, 2026-08-25)
+### Second whole-branch review: fix wave 3 - the judgment-gated slices (42b12ac7..7ad0bbea, 2026-08-25)
 
-Scope: every slice the review left gated on a maintainer judgement (the nine groups
+Scope: every slice the review left gated on a maintainer judgment (the nine groups
 decided 2026-08-24/25) plus the three questions the report still owed the maintainer,
 answered this session: the three engine divergences are FIXED (all three, no
 re-record); shipped code cites NO docs/ path of any kind (docs/design included: the
@@ -2640,7 +2640,7 @@ clean staged copy) before its push, CI six-green on every push (one cure below):
   Reviewer fixes folded: dbarts(family = "twopart") echoed the resolved token; two
   offset messages named the removed arguments; a NEWS claim about "0" was false.
 - fdcbabe5 (two commits): the own-class generics. bartMultinomial/bartOrdinal/
-  bartNegbin/bartHurdle honour combineChains and ci.level and refuse forest /
+  bartNegbin/bartHurdle honor combineChains and ci.level and refuse forest /
   contribution / sample-on-fitted / type-on-residuals / vars-on-summary BY NAME (the
   reviewer closed 13 further swallows on fitted/residuals/predict); plotTree and
   survivalProbabilities refuse by name instead of "no applicable method";
@@ -2717,7 +2717,7 @@ threaded-predict arc); dbartsData(counts =) with a formula reaches its own later
 refusal; the `# ---- fix NN` section labels in tests (14 sites) and the 162
 pre-existing docs/design paths in shipped files are the strip pass's scope;
 setForestBasis(k, ~var) evaluating the formula in environment(basis) and plotTree's
-dead padding branch stay out (no judgement names them).
+dead padding branch stay out (no judgment names them).
 
 Lessons: tinytest 1.4.3 has no `!` method on its result object - count failures with
 sum(sapply(out, function(x) !isTRUE(x))); a leakage-style statistical pin needs a
@@ -2767,7 +2767,7 @@ leaf-scale-pin-memo.md found that fix is already-shipped surface.
 consolidated-report.md re-ran every claim against its own build, replanted 63 more
 mutations: CONFIRMED 8 BLOCKERS/44 MAJORS/35 MINORS; REFUTED 5; QUALIFIED 6; NARROWED
 6; 1 fixed pre-review. Bins: 44 agent-fix entries plus 15 minor one-liners, 9
-VD-judgement groups (the other 8 MAJORS, ~260 grid cells, 8 deletion/seam items), 11
+VD-judgment groups (the other 8 MAJORS, ~260 grid cells, 8 deletion/seam items), 11
 defers.
 
 Five most consequential defects, plainly: (1) extract(fit, type="trees", sample=1)
@@ -2812,7 +2812,7 @@ the build - and NO evidence about calibration at ensemble scale or behavior on a
 other machine, since equivalence/SBC/rchk/valgrind/revdep-smoke have zero CI runs and
 every baseline descends from bartcore's own output.
 
-Pending. Nine VD-judgement groups, one per message: VD-A family-spelling parity; VD-B
+Pending. Nine VD-judgment groups, one per message: VD-A family-spelling parity; VD-B
 the unknown-argument diagnostic; VD-C dbartsData's offset.category/survival spellings;
 VD-D own-class generics' argument vocabulary; VD-E which generics an own-class fit
 carries; VD-F undocumented option vocabularies; VD-G the four ResponseFamily default:
@@ -2961,7 +2961,7 @@ M1/M2/M3 (11/3/2 fails) discriminate; gates tinytest 6814/0, trio
 43/12/11 bitwise no re-record, tests/cpp + ASAN clean, --as-cran 1
 expected NOTE.
 
-Doors left: the fit-time test-basis channel (VD-held modelling
+Doors left: the fit-time test-basis channel (VD-held modeling
 decision); weights never ride saved state (logistic); per-forest
 off-sample replay on multinomial and OP_GROW outside the multi-forest
 fuzz mask (fuzz-arm doors); docs/plans/bartcore-review-tour.md is
@@ -3372,7 +3372,7 @@ The first full-suite local memcheck (native arm64 ubuntu:24.04
 container, stock R 4.3.3, VALGRIND_OPTS matching valgrind.yaml - the
 r-hub amd64 image crashes under Rosetta emulation on this host)
 against db5f88ae found exactly two defects: zero invalid reads/writes,
-zero uninitialised uses.
+zero uninitialized uses.
 
 Defect 1, caught by memcheck directly: a definite leak, 2464 bytes in
 7 blocks, at applyBCFSpec's forests.assign - bartcore::BCFSpec, a
@@ -3426,7 +3426,7 @@ signal here by construction.
 Final full-suite memcheck against 7be7a126: COMPLETE - "All ok, 6419
 results (1h 47m)" (platform-skips account for the count vs 6438 on the
 dev host), ERROR SUMMARY 0 errors, all lost bytes 0, zero invalid or
-uninitialised accesses, applyBCFSpec absent.
+uninitialized accesses, applyBCFSpec absent.
 rc-gate (e) is discharged in full (rchk clean at the merged tip per
 the prior note; valgrind clean full-suite at the tip), and with it the
 whole rc-gate slate (a)-(e). RC declaration remains VD-held.
@@ -3474,7 +3474,7 @@ the absence of "Killed".
 The valgrind half of (e) also ran (native arm64 ubuntu:24.04 container
 fallback, stock R 4.3.3, the r-hub amd64 image crashes under
 emulation; VALGRIND_OPTS matching the workflow): zero invalid
-reads/writes, zero uninitialised uses, but ONE definite leak (2464
+reads/writes, zero uninitialized uses, but ONE definite leak (2464
 bytes in 7 blocks) allocated at applyBCFSpec
 ([src/R_interface_bartcore.cpp:2173](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/R_interface_bartcore.cpp#L2173), spec.forests.assign) via
 createHolder's unwindProtect lambda on the BCF creation path - fix
@@ -4454,7 +4454,7 @@ distribution arms 19/19 and 3/3 with their non-vacuity contrasts,
 air/lintr clean, NEWS parses at 273, R CMD check --as-cran Status: OK.
 CI at the sha: five green (sanitizers included - the engine-landing
 watch); pkgdown stalled at 68 minutes in the known mirror-stall class,
-cancelled and rerun live (attempt 2), concluding under the standing
+canceled and rerun live (attempt 2), concluding under the standing
 timeout guards. The setForestWeights residue and the critique's four
 findings are all DISCHARGED; the empty-leaf-veto design doc carries
 the composed-law and bare-root-guard paragraphs.
@@ -4783,7 +4783,7 @@ text and wrapping only): install --preclean; tests/cpp clean;
 tinytest 5852/0; trio bitwise 37/37 12/12 10/10; air clean; lintr
 clean; R CMD check --as-cran Status OK; 20-message style
 spot-audit all conforming. Prior CI: FX1-channel and both oracle
-pushes fully green (P1b's cancelled lint covered by FX1's
+pushes fully green (P1b's canceled lint covered by FX1's
 containment).
 
 ### Prior-initializer fix PREPARED, NOT LANDED (ccf4b687 on wt/prior-init-fix, 2026-08-18)
@@ -4949,7 +4949,7 @@ clean; NEWS 268 parses; R CMD check Status OK; discrimination -
 base has no $resid.df and refuses loglik by name, slice matches an
 independently written dt() computation exactly, ppd refuses on
 both. Patch-id-verified rebase over the P1b landing. Prior-slice
-CI: H six-green, which also covers J's concurrency-cancelled
+CI: H six-green, which also covers J's concurrency-canceled
 exact-gates/sanitizers by containment (recorded here as promised);
 P1b's benchmarks push went exact-gates green.
 
@@ -5154,7 +5154,7 @@ CI: ci-hang-guards six-green, pkgdown inside its normal window.
 
 ### CI hang guards - job timeouts everywhere (6000efb7, 2026-08-17)
 
-VD-directed after two same-day hangs. Diagnosis from the cancelled
+VD-directed after two same-day hangs. Diagnosis from the canceled
 attempts' logs: pkgdown run 32086436327 (2h20m) and lint run
 32096324117 (~40m) both stalled inside r-lib/actions/setup-r's
 "Updating system package data" step - apt-get update announced
@@ -5201,7 +5201,7 @@ with base-vs-slice probes): tinytest 5825/0; trio bitwise 37/37
 parses at 268 entries; R CMD check OK from a clean-staged tarball;
 base runs length-3 n.burn identically, slice lacks the deleted
 helper. Prior-slice CI: K5 six-green - its lint job hung at
-setup-r past 40 minutes and was cancelled and re-run to green, the
+setup-r past 40 minutes and was canceled and re-run to green, the
 second same-day r-lib-action hang after K4's pkgdown; the
 timeout-minutes guard slice was queued in response.
 
@@ -5224,7 +5224,7 @@ install fresh by Built stamp; tests/cpp from make clean; tinytest
 5825/0; trio bitwise 37/37 12/12 10/10; air clean; lintr clean on
 all six touched files; R CMD check OK from a clean-staged tarball.
 Prior-slice CI: K4 six-green - its pkgdown job hung past 2h and was
-cancelled and re-run to green (run 32086436327); K2's cancelled
+canceled and re-run to green (run 32086436327); K2's canceled
 R-CMD-check is covered by containment (K4's green check builds the
 superset tree).
 

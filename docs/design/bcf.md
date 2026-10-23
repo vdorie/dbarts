@@ -167,7 +167,7 @@ it and dividing: both the reparameterized response and the weight are written
 as exact 0.0, so a row that carries no information about forest f (the common
 case is `b0 = 0` at control rows under the fixed glue `(1, 0, 1)`) contributes
 nothing to that forest's sufficient statistics instead of an
-amplified-and-cancelled near-zero contribution. The snap is local to the
+amplified-and-canceled near-zero contribution. The snap is local to the
 reparameterization: `combinedFits` and `drawGlue` keep the exact `b0`, and no
 snapped value is written back into the glue
 ([`formForestResponse`](../../src/bartcore/combiner.hpp)).

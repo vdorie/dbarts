@@ -240,7 +240,7 @@ partialDependence sites - partial dependence is predict-in-a-loop and the natura
 **`run`: NOT NOW.** Its R5 formal ([R/dbarts.R:958](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L958)) is equally discarded - `bartcoreSamplerRun(.self,
 numBurnIn, numSamples)` takes no thread count - and the Rd reserves the override for both. But run's
 budget is not a pure per-call knob: it also sizes `routeTestRows` ([src/bartcore/chain.hpp:4040](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L4040)), and a run mutates
-state, so an override moves progress reporting and interrupt behaviour mid-object even though the draws
+state, so an override moves progress reporting and interrupt behavior mid-object even though the draws
 are per-chain-generator and thread-count-independent ([inst/NEWS.Rd:11-12](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/NEWS.Rd#L11-L12)). Separate, smaller slice.
 
 Rd: [man/dbartsSampler-class.Rd:152-157](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/man/dbartsSampler-class.Rd#L152-L157) loses the no-effect paragraph for the per-call semantics and default;

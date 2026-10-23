@@ -97,7 +97,7 @@ loaded 48 cells, 7680 rows
    chi_5     0.00476       0.0289      friedman|100|20|0.5
  chi_Inf     0.00535       0.0379 linear_sparse|100|20|0.5
 
-=== SAMPLED-k BEHAVIOUR (hyper arms) ===
+=== SAMPLED-k BEHAVIOR (hyper arms) ===
      arm k_median   k_q90   k_max k_frac_cap cells_with_runaway
    chi_1     1.75    2.22    3.01   0.00e+00                  0
    chi_2     2.10    2.77    3.98   0.00e+00                  0

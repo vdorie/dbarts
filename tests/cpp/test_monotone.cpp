@@ -391,7 +391,7 @@ static void testMonotoneGeometryPoints() {
           "monotone geometry: a pooled factor's missing value relates leaves");
   }
   // a factor without missing values: the order does not depend on which side
-  // of a level split is called right (one partition, labelled two ways)
+  // of a level split is called right (one partition, labeled two ways)
   {
     ColumnStore plain;
     std::vector<double> x(2 * 400);
@@ -854,7 +854,7 @@ const ColumnKind arrivalTypes[2] = {ColumnKind::categorical,
                                     ColumnKind::numeric};
 
 // The hand tree: x1, constrained, cut once, and each half cut on f with the
-// partition {a, b} | {c, d} labelled the other way on the other half. Leaves
+// partition {a, b} | {c, d} labeled the other way on the other half. Leaves
 // in pre-order: (low; a, b), (low; c, d), (high; c, d), (high; a, b). Under
 // an increasing constraint and without missing values the order is two
 // pairs, each (low; S) below (high; S). Once f has a missing value each f
@@ -1581,7 +1581,7 @@ double orderedPairMass(double a, double m1, double s1, double m2, double s2) {
 }  // namespace
 
 // The move's acceptance, RNG-free in value: a death whose split the data
-// strongly favours, so its ratio is far below 1 and the free bound cannot
+// strongly favors, so its ratio is far below 1 and the free bound cannot
 // decide it, against the closed form of the corrected statement. T* is
 // A < B1 < B2 (x1 cut twice; constrained) or A < {B1, B2} (B cut on the free
 // x2), mu_A frozen, the touched leaves integrated. The "leaf" prior adds

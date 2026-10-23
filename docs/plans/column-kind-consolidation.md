@@ -83,7 +83,7 @@ missing marker costs is four concrete things:
     `n.cuts`. The distortion is mild for small K (K=4 at `n.cuts=100` gives
     slot counts 33/34/33, about 3 percent) and becomes severe as K approaches
     `n.cuts`: at `K-1 = 51` and `n.cuts = 100` adjacent thresholds carry
-    multiplicities 2 and 1, a factor-of-two prior tilt between neighbouring
+    multiplicities 2 and 1, a factor-of-two prior tilt between neighboring
     level boundaries. On top of the prior effect, the scan is O(members) +
     O(numCuts) per (node, variable), so the wasted scoring is invisible at the
     root and dominant in deep, small nodes - which is where grow-from-root
@@ -239,7 +239,7 @@ predictor source ([src/bartcore/facade.hpp:832-836](https://github.com/vdorie/db
 right and already ruled: [docs/design/monotone.md:117-121](https://github.com/vdorie/dbarts/blob/3c81d6df3535092fc54e6d1c907297652c7f166e/docs/design/monotone.md#L117-L121) says in as many
 words that "ORDERED factors and numeric columns ... DO accept the constraint -
 their codes are ordered, so `splitInterval` and the neighbor test are
-meaningful." For **leaf covariates** it is a modelling choice rather than a
+meaningful." For **leaf covariates** it is a modeling choice rather than a
 settled ruling: an ordered factor designated as a linear- or GP-leaf covariate
 enters as its integer level codes standardized by
 `standardizationMomentsForColumn` ([src/bartcore/data.hpp:100-121](https://github.com/vdorie/dbarts/blob/3c81d6df3535092fc54e6d1c907297652c7f166e/src/bartcore/data.hpp#L100-L121)), i.e. treated as
@@ -386,10 +386,10 @@ rather than a fix.
 **One sub-decision inside that: observed levels or declared levels?**
 `finishQuantileGrid` builds its grid from `sortedUnique`, the **observed**
 values only ([src/bartcore/data.hpp:992](https://github.com/vdorie/dbarts/blob/3c81d6df3535092fc54e6d1c907297652c7f166e/src/bartcore/data.hpp#L992)). So a level that appears in the training data
-zero times contributes no cut, its neighbours merge, and the column's codes
+zero times contributes no cut, its neighbors merge, and the column's codes
 become ranks among observed levels rather than level indices. Two consequences:
 a level absent from training but present in test data cannot be separated from
-its neighbour, and the code-to-level correspondence is not stable under
+its neighbor, and the code-to-level correspondence is not stable under
 subsetting. The alternative is to place K-1 cuts from the **declared** level
 count, which the factor's own level table already carries - `factor.levels`
 ([R/utility.R:567](https://github.com/vdorie/dbarts/blob/3c81d6df3535092fc54e6d1c907297652c7f166e/R/utility.R#L567), filled for ordered factors too). That table does not reach
@@ -1376,7 +1376,7 @@ that reasoning, they do not replace it.
    linear- or GP-leaf covariate enters as standardized integer level codes,
    i.e. treated as equally-spaced interval data, which is the same reading that
    makes threshold splits right for the kind. Monotonicity was already settled
-   in favour ([docs/design/monotone.md:117-121](https://github.com/vdorie/dbarts/blob/3c81d6df3535092fc54e6d1c907297652c7f166e/docs/design/monotone.md#L117-L121)). Consequence for section 2:
+   in favor ([docs/design/monotone.md:117-121](https://github.com/vdorie/dbarts/blob/3c81d6df3535092fc54e6d1c907297652c7f166e/docs/design/monotone.md#L117-L121)). Consequence for section 2:
    an `orderedFactor` is the one factor kind that can need a double for a
    non-splitting reason, and it is served the way every other leaf covariate is
    - gathered into `gatheredRawValues` ([src/bartcore/data.hpp:832](https://github.com/vdorie/dbarts/blob/3c81d6df3535092fc54e6d1c907297652c7f166e/src/bartcore/data.hpp#L832)) by designation - not
@@ -1599,7 +1599,7 @@ its contract states - but it is asymmetric with this slice's own thesis,
 and S4a, which lands one checked narrow per cell anyway, is where the
 asymmetry closes. Second, Sampler::setData reports no status, so a test
 matrix it refuses leaves NO test set rather than an error; that is
-defined behaviour rather than a mis-coded store, and unreachable from R
+defined behavior rather than a mis-coded store, and unreachable from R
 (the bridge validates both sides first), but a status return would be
 better and belongs with the same S4a pass.
 
@@ -1886,7 +1886,7 @@ second pair (1457.8 / 1217.5), against the 240.0 MB that 12 bytes predicts
 (8 retained plus 4 of the host's assembly, which now crosses as codes).
 Section 2's byte table charged the mapped path 8n per factor column for the
 "mixed / all-dense container" both; the all-dense container has been
-unmapped since before S4a, so the retained 8n is the MIXED flavour's alone
+unmapped since before S4a, so the retained 8n is the MIXED flavor's alone
 and the all-dense one banked its saving as S4a's transient.
 
 Decision 2's ordered-factor leaf covariate needed machinery the proposal

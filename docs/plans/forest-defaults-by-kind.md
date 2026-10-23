@@ -260,7 +260,7 @@ position's.
    i has on every per-forest margin, so `forest = "forest2"` selects what it selects today.
 4. A string that is the label of one forest and the name of another's position, or that is the same code
    as two labels, is refused, naming both.
-5. `"2"` is the forest labelled `"2"`, or no forest; the refusal says a position is given as a number.
+5. `"2"` is the forest labeled `"2"`, or no forest; the refusal says a position is given as a number.
    With a list named `"2"`, `"1"`, the string `"2"` is forest 1 and the number 2 is forest 2, as base R
    reads a list by name and by position.
 6. `NA`, `""`, a factor, a logical and a list are refused by name.
@@ -489,7 +489,7 @@ z, and "the table" is each forest's count from the engine and its base and power
     attribute. Tests, a new file test-forest-selection.R, on the function alone over five label sets:
     every case of the rule and every text marked [2].
 2.2 The sampler. The nine methods take a label. Fixture: four forests in a list, the plain forest second,
-    one named in the list, one labelled by its basis text, one on a value, with a different `n.trees` and
+    one named in the list, one labeled by its basis text, one on a value, with a different `n.trees` and
     `sd` each, so that every reader's answer differs by forest. Tests: for each method and each forest,
     the label, `forest<i>` and the position give identical results, and the two writers change the forest
     named and no other (`data@bases` and the forest weights before and after); `getTrees` with a vector of
@@ -670,7 +670,7 @@ takes the fitting function's count.
   all four are refused. None is in a test, a help page or a consumer (searched).
 - `forest<i>` stays a name for position i in every method, beside the label. The design had a string be a
   label only; five test lines and man/bartBT.Rd select `"forest2"`, which under push 3 is the position of
-  a forest labelled by its basis. A string that is one forest's label and another position's name is
+  a forest labeled by its basis. A string that is one forest's label and another position's name is
   refused.
 - A label matches exactly, then as code. The alternative, exact only, refuses `"I(dose / 30)"` as the
   caller wrote it.
@@ -731,7 +731,7 @@ takes the fitting function's count.
     `resolveForestIndex`, as `plotTree` takes its one forest; those are the only callers besides the
     nine methods, and a vector of labels needs a branch in `getTrees`.
   - `$setLeafPrior(forests = )` accepts a name only equal to its position's label, so `forest1` on a
-    forest labelled `dose` is refused today; the rule of "Lists given by position" accepts `forest<i>`
+    forest labeled `dose` is refused today; the rule of "Lists given by position" accepts `forest<i>`
     at position i, which is built, a loosening of that one call. `predict(bases = )` reads a named list
     by position and ignores the names, as the plan says.
   - Two existing pins change their text: test-forest-labels.R ("must be coercible to type: integer", a

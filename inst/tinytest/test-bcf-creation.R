@@ -3,7 +3,7 @@
 # dbartsSampler holding the model it names. Two forests, the second carrying a
 # two-level factor basis, is the Bayesian causal forest. Every option
 # the two-forest chain does not read, and every declaration today's engine
-# cannot honour, must refuse at creation rather than be dropped in silence.
+# cannot honor, must refuse at creation rather than be dropped in silence.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -122,7 +122,7 @@ tauCounts <- restricted$getForestVariableCounts(2L)
 expect_true(all(tauCounts[1:2, ] == 0L))
 expect_true(sum(tauCounts[3:4, ]) > 0L)
 
-# --- the whole knob map is honoured, not accepted and dropped. Each knob of
+# --- the whole knob map is honored, not accepted and dropped. Each knob of
 # the second forest reaches the four doubles the control attribute carries
 # (its `sd` goes beside them, as written), and
 # the FIRST forest's structural knobs restate the fit's own control and tree
@@ -360,7 +360,7 @@ expect_null(attr(offSlot$control, "bartcore.forests")$variance)
 # run: each forest's `sd` is carried in its own position as written, and the
 # family reaches the model without disturbing either. The two declared values
 # DIFFER, and neither is 1, so a confusion between a forest's own entry and its
-# neighbour's is visible.
+# neighbor's is visible.
 latentSlots <- dbartsSpec(
   dbartsData(x, as.double(y > median(y)), bases = list(NULL, zFactor)),
   seededControlBcfCreation(),
@@ -639,7 +639,7 @@ expect_error(
 )
 
 # --- the creation-refusal contract, new half: every declaration today's
-# engine cannot honour refuses at creation, one assertion each, on the same
+# engine cannot honor refuses at creation, one assertion each, on the same
 # refuse-rather-than-drop discipline the inherited set above enforces ---
 # --- six of the new half's refusals have since become POSITIVE routes.
 # Each is asserted by what it now BUILDS - the forest count, the basis

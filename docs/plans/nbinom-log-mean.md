@@ -37,7 +37,7 @@ posterior-mean total log-likelihood -3557.5 against -3463.1 at r = 3. extract(ty
 and anything built on them report the cold start. The mean channel is roughly fine.
 
 Mechanism. At fixed psi, r -> r' multiplies every mean by r'/r. The NB2 information on a common log-mean shift is
-sum_i r mu_i / (mu_i + r) (about 5000 at the probe's n = 1000 and r = 8), so the grid neighbour 8 -> 10 (a shift
+sum_i r mu_i / (mu_i + r) (about 5000 at the probe's n = 1000 and r = 8), so the grid neighbor 8 -> 10 (a shift
 of log 1.25) costs of order 10^2 nats. The forest could follow r only by a coordinated level shift of every tree, which
 tree-local moves never propose. negbin-exact.R (one tree, n = 50) checks the stationary distribution, not mixing; the
 SBC

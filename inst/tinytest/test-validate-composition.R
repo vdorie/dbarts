@@ -276,6 +276,6 @@ expect_error(
   numericVector
 )
 
-# an unnamed functional is labelled positionally rather than refused
+# an unnamed functional is labeled positionally rather than refused
 unnamedFit <- validate(stepExact, function(state) state$theta, 2L, 2L)
 expect_equal(colnames(unnamedFit$ranks), "f1")

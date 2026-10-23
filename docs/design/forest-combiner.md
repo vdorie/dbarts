@@ -89,7 +89,7 @@ the BCF constructor. The landed virtual surface:
   false return is the "no glue" answer a future non-BCF combiner gives for
   free, the same answer Chain already gives when combiner_ is null.
   (BOTH RETIRED SINCE, at M4.3: `setTreatment` is gone from all four layers in
-  favour of `setForestBasis(f, values, numColumns)`, and `bcfGlue` gave way to
+  favor of `setForestBasis(f, values, numColumns)`, and `bcfGlue` gave way to
   the ragged `totalAmplitudes`/`numForestAmplitudes`/`amplitudes` trio, of
   which bcf's three scalars are a named non-virtual reading. See
   docs/design/multiplier-combiner.md, "One mutation route".)
@@ -215,7 +215,7 @@ multiplier family the fourth - leaving hurdle's the only one standing:
 - `ChainStateData`'s glue fields were BCF-shaped (a/aVariance/b0/b1). RESOLVED
   by the multiplier family (M4.3): they are now `hasAmplitudes`,
   `amplitudeWidths`, `amplitudes` and `amplitudeVariances` - RAGGED, with the
-  widths travelling because a TOTAL IS NOT A LAYOUT, `q = (1, 3)` and `q = (2,
+  widths traveling because a TOTAL IS NOT A LAYOUT, `q = (1, 3)` and `q = (2,
   2)` both carrying four amplitudes ([`ChainStateData::amplitudeWidths`](../../src/bartcore/combiner.hpp), [`ChainStateData::amplitudes`](../../src/bartcore/combiner.hpp)) - and the four named
   scalars survive only as a hand-written K = 2 reading, non-authoritative
   ([`ChainStateData::a`](../../src/bartcore/combiner.hpp), [`ChainStateData::aVariance`](../../src/bartcore/combiner.hpp), [`ChainStateData::b0`](../../src/bartcore/combiner.hpp), [`ChainStateData::b1`](../../src/bartcore/combiner.hpp)). The bullet's CONCLUSION is what the arc vindicated and it stands:

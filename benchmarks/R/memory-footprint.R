@@ -388,7 +388,7 @@ runGrid <- function(quick) {
   ingestFor <- function(n, p) {
     cached(paste("ingest", n, p), function() {
       peak <- measure(list(what = "ingest", n = n, p = p), worker.file)
-      # the probe's own caller-side matrix and response are modelled rows
+      # the probe's own caller-side matrix and response are modeled rows
       max(0, peak - baseline - 8 * n * p - 8 * n)
     })
   }

@@ -199,7 +199,7 @@ principle clause 3's "named, measured and testable" difference.
   in-repo caller: `xbart` re-uses a sampler across cells that share `n.trees`
   and calls `bartcoreSetModel(sampler, cellModel(cell), ...)`
   ([R/xbart.R:619](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L619), `cellModel` at [R/xbart.R:572](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/xbart.R#L572)), so carrying `prior.scale` on that
-  model makes every cell - created or re-modelled - run the same named
+  model makes every cell - created or re-modeled - run the same named
   calibration and the CV loss surface stops depending on cell ordering.
   Alternatives rejected: writing the resolved `node.scale` back into the model
   SEXP (it freezes a transform-dependent number into a slot that means
@@ -257,7 +257,7 @@ principle clause 3's "named, measured and testable" difference.
 | `storeState` / `setState` | adopted from the state | adopted ([src/bartcore/chain.hpp:3055-3060](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L3055-L3060)) | fixes the stale-`model@node.scale` reader, since the getter reads the engine |
 | warm start (`installTrees`) | ADOPTED from the donor | adopted (`installForest`, [src/bartcore/chain.hpp:2951](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L2951)) | documented semantic, not a defect: a donor's trees were drawn under the donor's scale. Recipe: re-issue `$setCalibration` after `installTrees` to keep your own |
 | xbart, k grid (`k` numeric) | held across cells, including the `setModel` branch | - | the grid sweeps `prior.sd = prior.scale / k` about a fixed anchor |
-| xbart, k hyperprior (`k = chi(...)`) | held across cells | - | k is DRAWN every sweep in every cell, so the loss is computed under a moving shrinkage; the help says so, and a `prior.sd`-flavoured argument meets the sampled-k refusal here as everywhere |
+| xbart, k hyperprior (`k = chi(...)`) | held across cells | - | k is DRAWN every sweep in every cell, so the loss is computed under a moving shrinkage; the help says so, and a `prior.sd`-flavored argument meets the sampled-k refusal here as everywhere |
 
 ## 6. The R surface
 
@@ -566,7 +566,7 @@ site anyway: `refuseBCFMutation` fires before argument validation, so a BCF
 rng: NEUTRAL (header and `C_interface` only). Gates: reshape S1's list as it
 actually reads - `tests/cpp` plain AND ASAN from clean (that plan's S0 states
 `ASAN_OPTIONS=detect_container_overflow=0`); `test-capi.R` as the load-bearing
-gate; full tinytest; the trio bitwise, LABELLED A FORMALITY; `air format
+gate; full tinytest; the trio bitwise, LABELED A FORMALITY; `air format
 --check .`; `dbarts.h` ASCII-clean, C99-clean and CXX17-clean. ABORT: a
 re-signed X-list leaving `DBARTS_C_API_HASH` unchanged from the literal
 recorded at slice start; any movement in `DBARTS_C_API_MAJOR` or
@@ -675,7 +675,7 @@ Every option below was ADOPTED AT ORCHESTRATOR DISCRETION under VD's
    nine family and decoration paths at 2000 draws (all within ~2 se); DART
    accepting a `leaf.scale` write through `setState` and running 40 clean
    sweeps; the `1e-12` tolerance out to 2000 sweeps (6.239e-14). Each closes a
-   caveat in the design's own favour, so re-run each at implementation time -
+   caveat in the design's own favor, so re-run each at implementation time -
    they are cheap, and O3/O5 re-derive two of the three as shipped tests.
 
 ## Records at landing

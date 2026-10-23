@@ -272,7 +272,7 @@ forest(
     so \code{"I(dose / 30)"} finds \code{I(dose/30)}), a number is its
     position as base R reads a list element by number, and \code{forest<i>} names position
     \emph{i}, as it does on every per-forest margin. A string is never a
-    position: \code{"2"} is a forest labelled \code{"2"} or none. A string
+    position: \code{"2"} is a forest labeled \code{"2"} or none. A string
     that is one forest's label and another position's name, or the same code
     as two labels, is refused.
 

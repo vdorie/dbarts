@@ -57,7 +57,7 @@ are.
 - Creation seeding: [`createChainRngs`](../../src/R_interface_bartcore.cpp)
   draws one R uniform per chain at every unseeded creation, so removing
   a second creation moves the chain seeds.
-- Public routes already bitwise (critique-confirmed): retired: [`bartcoreBCFSampler`](../../R/bartcore.R) (deleted in S5) equalled
+- Public routes already bitwise (critique-confirmed): retired: [`bartcoreBCFSampler`](../../R/bartcore.R) (deleted in S5) equaled
   `dbarts(forests = list(forest(), forest(basis = ~ factor(z), ...)))`.
   Every creator argument has a `forest()` field. The multinomial
   creators equal `dbarts(x, factor(labels), family = "multinomial")` and
@@ -107,7 +107,7 @@ recorded channel.
   is identical by construction once the handle's family is lost
   (scafcrit-aft.R).
 
-S1. BCF-centred files (R only; neutral). No deletion.
+S1. BCF-centered files (R only; neutral). No deletion.
   The tinytest files are test-bcf.R, test-bcf-creation.R,
   test-bcf-family.R, test-bcf-mutation-pins.R,
   test-bcf-zero-multiplier.R, test-blocks.R, test-interactions.R,
@@ -128,7 +128,7 @@ S1. BCF-centred files (R only; neutral). No deletion.
   reference build (count the identical-draws lines: all scenarios, no
   |z|); exact-gates quick for the four bcf gates.
 
-S2. Multinomial-centred files (R only; neutral). No deletion.
+S2. Multinomial-centered files (R only; neutral). No deletion.
   The tinytest files are test-multinomial-surface.R,
   test-multinomial-category-offset.R and
   test-multinomial-test-offset.R (both also use the BCF creator and a
@@ -188,7 +188,7 @@ S4. Production folds (R; shifting for unseeded ordinal and nbinom fits).
     `object$fit$predict(newdata, offset, n.threads)`. For negbin this
     changes scalar-offset handling: `$predict` recycles a length-1
     offset, and treats a lone `NA` as no offset, where
-    `bartcorePredict` did neither. Pin both behaviours in
+    `bartcorePredict` did neither. Pin both behaviors in
     test-negbin*.R and state them in `predict.bart`'s Rd, where the
     offset is documented. No NEWS entry: never on main.
   - Delete `bartcoreSampler`, `bartcorePredict`, the `bartcorePredict`
@@ -257,7 +257,7 @@ S6. Engine: the two response-base virtuals, plus small deletions
     `chain(c).varianceTree(j)`.
   - `TResponse::estimatesResidualDfForTesting` and
     `NBResponse::estimatesDispersionForTesting`: their tests check
-    behaviour instead (nu or r fixed across sweeps under a fixed spec,
+    behavior instead (nu or r fixed across sweeps under a fixed spec,
     moving under a grid).
   - `Chain::setLevelGibbsForTesting`: the orchestrator's note said "no
     callers", but it has one, test_sampler.cpp's
@@ -412,7 +412,7 @@ follow the orchestrator's adjudication (S6): only a virtual moves.
 | varianceSurfaceForTesting, sigmaDegreesOfFreedomForTesting (ResponseModel, virtual; GaussianResponse, AFTResponse overrides) | KEEP-ADDITIVE (installed-surface pointer identity; the nu_0 + #{w > 0} df), off the vtable | S6: plain members of the two `final` classes; Chain's forwarders `dynamic_cast` |
 | Chain::installedVarianceSurfaceForTesting, Chain::sigmaDegreesOfFreedomForTesting | KEEP (forwarders) | S6: body becomes the cast |
 | Sampler::varianceTreeForTesting | DELETE | S6: public chain(c).varianceTree(j) |
-| TResponse::estimatesResidualDfForTesting, NBResponse::estimatesDispersionForTesting | DELETE | S6: behavioural checks |
+| TResponse::estimatesResidualDfForTesting, NBResponse::estimatesDispersionForTesting | DELETE | S6: behavioral checks |
 | Chain::setLevelGibbsForTesting | DELETE (one caller, testLevelGibbsAutomatic) | S6: SamplerOptions::levelGibbs at construction |
 | Chain::totalFits, totalFitsInForest (unsuffixed, "consistency read for tests") | FOLD where a sampler is held | S6: SamplerBase::forestTotalFits; stays for bare-chain sites |
 | Chain: leafOf, leafOfStale, residual, workingResponse, varianceFactors, varianceLeaf, accountStrandedLeafKStats, drawLevelShift, muByTree, fusedSuffstatRuns, checkFusedSuffstatAgainstStock (+ FusedSuffstatCheck), treeFits, forestTreeFits | KEEP-ADDITIVE, in place (non-virtual): internal caches, per-tree fits, and the states the distributional tests build | - |
@@ -453,7 +453,7 @@ calibration and coding, then a pass.
 
 ## Landing
 
-Slice S1 LANDED 2026-09-27 (a762ac9c): all ten BCF-centred tinytest files
+Slice S1 LANDED 2026-09-27 (a762ac9c): all ten BCF-centered tinytest files
 (test-bcf.R, test-bcf-creation.R, test-bcf-family.R,
 test-bcf-mutation-pins.R, test-bcf-zero-multiplier.R, test-blocks.R,
 test-interactions.R, test-forest-weights.R, test-multi-forest-seam.R,

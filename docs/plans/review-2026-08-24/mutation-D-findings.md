@@ -16,7 +16,7 @@ BUDGET STOP the machine was shared with leg C's battery and three SBC arms for t
 half of the run, and throughput fell from ~25 s/mutation to ~5 min/mutation. The leg stopped
 at the 5-hour mark with a queue of 30 prioritized mutations partly run; the files that queue
 was aimed at and did not reach are named under "Not reached". The three full-suite replants
-of zero-killer mutations were cancelled for the same reason - severities below are therefore
+of zero-killer mutations were canceled for the same reason - severities below are therefore
 scoped to the 51 files plus, where stated, direct inspection of tests/cpp.
 
 STATIC every expect_ site classified by reach (classify.py, leg A's classes folded into leg
@@ -111,7 +111,7 @@ plus tests/cpp replant, which this leg could not afford, so nothing is filed as 
    the C++ gate does own the invariant - the R file's claim to be the regression does not
    hold.  SHOULD EXIST  either scale the fixture (smaller sigma / deeper trees) until the
    assertion at [tests/cpp/test_moves.cpp:43-48](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/tests/cpp/test_moves.cpp#L43-L48) actually separates, or drop the regression claim from the header and
-   point it at tests/cpp.  VD-judgement
+   point it at tests/cpp.  VD-judgment
 
 2. MAJOR  [R/xbart.R:367-371](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/xbart.R#L367-L371), [inst/tinytest/test-xbart-method.R:114-132](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/inst/tinytest/test-xbart-method.R#L114-L132)  the k-fold remainder distribution
    (`rep.int(c(1L, 0L), c(n %% k, k - n %% k))`) can be deleted - every fold takes
@@ -158,7 +158,7 @@ plus tests/cpp replant, which this leg could not afford, so nothing is filed as 
    independent by design ([inst/tinytest/test-rng.R:133-135](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/inst/tinytest/test-rng.R#L133-L135) says so). Nothing in the half can observe a lost
    thread, and this file cannot fail for any reason short of an error.
    SHOULD EXIST  fold it into test-rbart-options.R, or pin the reachability directly:
-   `expect_equal(fit$fit[[1L]]$control@n.threads, 2L)`.  VD-judgement
+   `expect_equal(fit$fit[[1L]]$control@n.threads, 2L)`.  VD-judgment
 
 7. MINOR  [R/model.R:1614-1627](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/model.R#L1614-L1627)  `student()`'s own `df <= 0.0` refusal is dead: deleting it
    leaves all 51 green because `newValidated` runs dbartsStudentDist validity
@@ -169,7 +169,7 @@ plus tests/cpp replant, which this leg could not afford, so nothing is filed as 
 8. MINOR  [R/bartcore.R:441](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bartcore.R#L441) (setData), test-sampler-setData.R  quantizing the replacement data
    onto a single cut per column leaves the file's ONE assertion green: it compares
    `sd(rowMeans(samples1$train) - y)` against `sd(rowMeans(samples2$train) - y)` at tol 1e-2,
-   and both fits degrade together, so the comparison is self-cancelling. The file's stated
+   and both fits degrade together, so the comparison is self-canceling. The file's stated
    subject - "setData yields a valid model when redefining cut points" - has no pin.
    SHOULD EXIST  test-sampler-setData.R, an absolute band on the post-setData fit
    (`expect_true(sd(rowMeans(samples2$train) - y) < 0.3)`) alongside the paired comparison.
@@ -217,5 +217,5 @@ serves), sampler-prior (pr1), sampler-residuals (sr1),
 sampler-setPredictorPerObservation (po1, po2), simd (sm1), sum-to-one-tolerance (st1, st2),
 weighted-logistic (wl1, wl2). Warm-start's ws1/ws2/wsr and the joint file's jt1/jt2 were
 still running at the stop; their results, if any, are in run-results.txt.
-Also cancelled: the full-suite (167-file) replants of the 12 zero-killer mutations, which
+Also canceled: the full-suite (167-file) replants of the 12 zero-killer mutations, which
 would have settled whether findings 1, 4, 5 and 8 are BLOCKERs rather than MAJORs.

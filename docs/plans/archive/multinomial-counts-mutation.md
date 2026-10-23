@@ -87,10 +87,10 @@ proceed without them.
 5. **`subset` stays refused** (Door 2 of `docs/design/model-space-survey.md`),
    as do `samplerOnly`, `warm.start` and `n.grow.sweeps`
    (`checkFamilyUnsupportedArgs`, R/bart.R).
-6. **No row-centring at the entrance.** Only the row-centred part of the offset
-   is identified, but `o'_ik = o_ik + a_i` gives `C'_ik = a_i + C_ik`, hence
-   identical `psi`, identical working response and identical reported softmax in
-   exact arithmetic. Silently rewriting a user's input buys nothing.
+6. **No row-centering at the entrance.** Only the row-centered part of the
+   offset is identified, but `o'_ik = o_ik + a_i` gives `C'_ik = a_i + C_ik`,
+   hence identical `psi`, identical working response and identical reported
+   softmax in exact arithmetic. Silently rewriting a user's input buys nothing.
 7. **No `dbarts.h` symbol now.** Multinomial has no flat creation path
    (`dbarts_sampler_create` routes to `createHolder` -> `createSampler` only),
    so `dbarts_sampler_setCounts` would be dead on arrival and would freeze a
@@ -172,7 +172,7 @@ proceed without them.
   current `y`.
 - **No comparator gates this channel.** Counts are not in `ChainStateData`, so
   `statesAgree` (tests/cpp/common.cpp) has nothing to widen; the gate must be
-  behavioural. The one qualification: `trials_` drives the PG draw count, so a
+  behavioral. The one qualification: `trials_` drives the PG draw count, so a
   botched trials recompute desynchronizes `rngState` and would surface in a
   post-run state comparison - but no such test exists today.
 - No R path reaches warm start, grow-from-root or prior-predictive for a

@@ -13,8 +13,8 @@
 # augmentation omega integrates out:
 #   sum lgamma(y + r) - n lgamma(r) - sum lgamma(y + 1) + sum y (m + o)
 #     + n r log r - sum (y + r) log(r + exp(m + o)),
-# so the reference is omega-FREE. It integrates over m on a grid centred on c
-# and, in the estimated arm, sums over the r GRID. Agreement therefore
+# so the reference is omega-FREE. It integrates over m on a grid centered on
+# c and, in the estimated arm, sums over the r GRID. Agreement therefore
 # validates the PG mean augmentation, the grid r update given the means, AND
 # their composition into the sweep (an invalid scan shifts the stationary
 # distribution, which this gate can see).

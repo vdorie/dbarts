@@ -6,7 +6,7 @@ exact list is mutation-C-evidence/scope-files.txt). Leg D takes 52..102, beginni
 test-predict-sparse.R. Priority order inside the half followed the brief: the six
 generics/plot files first (no xbart file falls in this half; all seven are leg D's).
 
-METHOD leg A's driver, catalogue format and severity scale, with one change that bought the
+METHOD leg A's driver, catalog format and severity scale, with one change that bought the
 coverage: each mutation is scored against ITS TARGET FILE ONLY (install 9-25s, run 5-20s,
 ~15s a cycle against ~75s for the 51-file sweep), and a survivor whose finding depends on
 "nothing else sees it" is re-run WIDE against all 51. Leg A's mtime fix is carried over
@@ -106,7 +106,7 @@ killer elsewhere, or an equivalent mutant worth a decision.
    `sampler$setNumThreads()` around the call) and then pin it in
    test-generics-multithreaded.R with a timing- or state-free discriminator, OR drop the
    argument from both signatures and delete the file. Do not leave a documented argument that
-   the engine cannot see.  VD-judgement (the fix is a public-signature decision, and
+   the engine cannot see.  VD-judgment (the fix is a public-signature decision, and
    inst/include/dbarts/dbarts.h consumers may reach the same entry)
 2. MAJOR  [R/plot.R:219](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/plot.R#L219)  plot.pdbart's `for (i in xind)` can be narrowed to `xind[1L]` -
    rendering only the first requested predictor - with all 51 files green (wide).
@@ -173,7 +173,7 @@ killer elsewhere, or an equivalent mutant worth a decision.
    (dropping the declared-count lookup) is incidental: `max(x[, j])` returns NA on the
    NA-carrying wide fixture and the file dies with "missing value where TRUE/FALSE needed",
    not on the claim.
-   VD-judgement (delete the padding loop and the factorLevels lookup with it, or find the
+   VD-judgment (delete the padding loop and the factorLevels lookup with it, or find the
    path that still needs it and give that path a test).
 9. MINOR  [R/model.R:1554](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/model.R#L1554) (resolvePriorScale's `node.prior@prior.sd * node.hyperprior@k`)
    is unreached by this half: dropping the `* k` conversion leaves all of

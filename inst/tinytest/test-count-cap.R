@@ -1,7 +1,7 @@
 # The count cap. A logistic count weight and a fixed negative-binomial shape
 # cost one Polya-Gamma draw per unit per row per sweep, so both are refused
 # above 1e6, the bound a negative-binomial response already carries, on every
-# surface that takes them, as is a multinomial count row totalling more
+# surface that takes them, as is a multinomial count row totaling more
 # trials; the bound itself is in. The interrupt inside a sweep's draws cannot
 # be simulated here without racing the run's 100 ms poll throttle, so
 # tests/cpp drives it with an injected cancel.

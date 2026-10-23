@@ -295,7 +295,7 @@ static_assert(sizeof(dbarts_results) == EXPECTED); // bump deliberately on appen
 ```
 The per-field-offset and final-sizeof asserts are the layout lock: any
 reorder or mid-struct insertion fails the build, and appending forces the
-author to update EXPECTED (an explicit acknowledgement that the ABI grew).
+author to update EXPECTED (an explicit acknowledgment that the ABI grew).
 
 JUDGMENT CALL (named): pin exact literal offsets vs only-monotonic asserts.
 Recommendation: monotonic-order asserts + one exact `sizeof` assert - exact
@@ -651,7 +651,7 @@ forestCalibration` reading past the last forest) shipped alongside, at
   saved-tree replay - `Chain::predictFromSavedSample`/
   `predictFromCurrentTrees` both open `forests_[0]` unconditionally, so
   shipping the symbol without that replay behind it would return mu(x)
-  labelled as whichever forest the caller asked for. Named consumers:
+  labeled as whichever forest the caller asked for. Named consumers:
   `predict.bartBCF` on new rows, bairrtt's MH filter.
 - **`dbarts_sampler_setCounts(dbarts_sampler*, const int* counts, size_t
   numCategories)` and `dbarts_sampler_setOffsetMatrix(dbarts_sampler*, const

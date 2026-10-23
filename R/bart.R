@@ -1878,7 +1878,7 @@ bart <- function(
     )
   }
   # a data object carrying forest bases reaches here as an ordinary fit, so
-  # this is where the multi-forest donor refusal is owed on the modelling
+  # this is where the multi-forest donor refusal is owed on the modeling
   # surface: named for the argument the caller wrote, ahead of the R5 method's
   # own wording and the bridge backstop under it. 'n.grow.sweeps' is not held
   # to it - grow-from-root composes through the combiner and is covered at two
@@ -4099,7 +4099,7 @@ bartBT <- function(
     na.action = stats::na.omit
   )
   # 0.9-34's row rule, unchanged: a row with a missing value anywhere is
-  # dropped rather than modelled. The modern door's na.action default keeps
+  # dropped rather than modeled. The modern door's na.action default keeps
   # missing predictors; this door adds no capability.
   # dbarts() warns about a thread budget above the chain count in the modern
   # door's n.threads/n.chains; this door's caller typed nthread/nchain, so the

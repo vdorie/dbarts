@@ -126,7 +126,7 @@ presentDrawsVars <- function(object, vars) {
 }
 
 # bart(family = "ordinal")'s per-draw thresholds, the K - 1 gamma_1 < ... <
-# gamma_{K-1}, in the (iteration, chain, variable) convention, labelled
+# gamma_{K-1}, in the (iteration, chain, variable) convention, labeled
 # threshold[j]. They are stored like any per-column field, (n.samples [*
 # n.chains]) x (K - 1) combined or chains x n.samples x (K - 1) not. The
 # first is pinned at zero; sampledOnly leaves it out, as the table of
@@ -184,7 +184,7 @@ bartDrawsArray <- function(object, vars) {
   )
 }
 
-# The union of both components' present scalar fields, each labelled with
+# The union of both components' present scalar fields, each labeled with
 # a "zero."/"positive." prefix (a dot, not a bracket) - the same two
 # blocks print.summary.bartHurdle prints under. Both components are driven
 # by one n.chains/n.samples schedule and indexed draw for draw, so their
@@ -649,7 +649,7 @@ summary.bartMultinomial <- function(object, ...) {
 }
 
 # one line under the table naming each parameter held fixed and its value, in
-# summary.glm's manner; a value per forest is labelled by forest
+# summary.glm's manner; a value per forest is labeled by forest
 printFixedLine <- function(fixed) {
   if (length(fixed) == 0L) {
     return(invisible(NULL))

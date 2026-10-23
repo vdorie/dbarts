@@ -82,7 +82,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   in the shared ingest and rbart_vi is one of four callers. `dbarts(x, sv,
   family="aft")` succeeds because it extracts log-time+status BEFORE calling
   `dbartsData()`. Fix: **agent-fix** for the message (it asserts something false);
-  **VD-judgement** (G-B) for whether the ingest should name a survival/matrix
+  **VD-judgment** (G-B) for whether the ingest should name a survival/matrix
   response - [man/rbart.Rd:95](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/rbart.Rd#L95) already says survival "enter[s] only through the
   formula interface", the shape of refusal the Rd implies.
 - **E5. [man/bart.Rd:153](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L153) states the `combinechains = TRUE` result shape
@@ -120,7 +120,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   [man/dbarts.Rd:103](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbarts.Rd#L103) says "the per-category shift is `offset.category`" without
   saying it is not a `dbarts()` argument; the `offset=<n x K>` attempt gets a length
   message rather than a pointer at the channel that serves the caller.
-  Fix: **VD-judgement** (G-B).
+  Fix: **VD-judgment** (G-B).
 - **E9. Entries disagree on whether family or response is validated first.** With a
   bad family AND a `Surv` response, `dbarts`/`bart2`/`bart`/`rbart_vi` all report
   `'arg' should be one of ...` (family first); `xbart(x, <Surv>, family="zzz")`
@@ -133,7 +133,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   `dbartsControl`/`dbarts` accept; `bart2`/`xbart` -> `'n.samples' must be a positive
   integer`; `rbart_vi` -> `no posterior draws will be taken after thinning`.
   [man/dbartsControl.Rd:33](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbartsControl.Rd#L33) (a per-`run()` return count) and [man/bart2.Rd:152](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L152) (a sweep
-  budget) are both silent on zero. Fix: **VD-judgement** (G-E).
+  budget) are both silent on zero. Fix: **VD-judgment** (G-E).
 - **E12. `monotone` accepts three undocumented spellings and is case-folded.**
   [R/model.R:548-570](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/model.R#L548-L570) (`parseMonotoneSign`) switches on `tolower(value)` and accepts
   `"inc"`, `"dec"`, `"0"`; its own refusal at [R/model.R:559-562](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/model.R#L559-L562) enumerates only the
@@ -141,7 +141,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   `"inc"`, `"dec"`, `"0"`, `"INC"`, `"Increasing"`, and refused for `"up"` with
   `'direction' must be one of '+'/'-', 'increasing'/'decreasing', or +1/-1`.
   [man/dbarts.Rd:72](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/dbarts.Rd#L72) and [man/bart2.Rd:203](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L203) document only `"+"`/`"increasing"`/1 and
-  `"-"`/`"decreasing"`/-1. CONFIRMS the options-audit item. Fix: **VD-judgement** (G-F).
+  `"-"`/`"decreasing"`/-1. CONFIRMS the options-audit item. Fix: **VD-judgment** (G-F).
 - **E13. `dbartsDrawLatents()` refuses its own formal default when written out.**
   [R/augmentation.R:65](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/augmentation.R#L65) declares `sigma = 1`; [R/augmentation.R:79-81](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/augmentation.R#L79-L81) guards with
   `if (!missing(sigma))`, so `dbartsDrawLatents("probit", fit=f, y=y, sigma=1)` ->
@@ -155,25 +155,25 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   `makeModelMatrixFromDataFrame(x, TRUE)` unconditionally; both values give
   byte-identical output. PARTIAL REFUTATION of the options-audit framing:
   [man/makeind.Rd:26](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/makeind.Rd#L26) DOES document it, as "Not currently implemented" - inert but
-  documented. Fix: **VD-judgement** (implement vs delete from \usage; narrow).
+  documented. Fix: **VD-judgment** (implement vs delete from \usage; narrow).
 - **E15. F4's raw-`unused argument` wall extends to two more entries.** F4 named
   `bart()` and `xbart()`; `dbarts()` has no `...` either, nor does `dbartsSpec()`.
   New-grid raw counts: dbartsSpec 42, xbart 32, dbarts 22, bart 12. e.g.
   `dbarts(..., samplerOnly=TRUE)` -> `unused argument (samplerOnly = TRUE)` on all
   11 accepted families; `bart(..., offset=o)` -> `unused argument` (bart spells it
   `binaryOffset`). Contrast `bart2`/`rbart_vi`: `unknown argument 'X'`. Fix:
-  **VD-judgement** (G-C).
+  **VD-judgment** (G-C).
 - **E16. A refusal never echoes the token typed when an alias folded.**
   `dbarts(family="twopart")` -> `family "hurdle.lognormal" fits two component
-  samplers ...`; likewise every bart2 `"twopart"` refusal. Fix: **VD-judgement** (G-D).
+  samplers ...`; likewise every bart2 `"twopart"` refusal. Fix: **VD-judgment** (G-D).
 - **E17. A refusal names the RESOLVED family, not the requested one.**
   `dbarts(family="hazard", resid.dist=student())` -> `... family "probit" has its
   own fixed error scale`; `bart2(family="hurdle.lognormal", resid.dist=student())`
   -> the same, naming only the occupancy component. Separately,
   `dbarts(family="multinomial", variance=~x1)` gives the generic gaussian-only
-  message where `bart2` gives a multinomial-specific one. Fix: **VD-judgement** (G-D).
+  message where `bart2` gives a multinomial-specific one. Fix: **VD-judgment** (G-D).
 - **E18. `bart(keepevery=-1)` -> `'n.thin' must be a positive integer`** names an
-  argument `bart()` does not have. Fix: **VD-judgement** (G-D).
+  argument `bart()` does not have. Fix: **VD-judgment** (G-D).
 - **E19. Two sibling R helpers 42 lines apart disagree on unknown-family policy.**
   [R/model.R:400-414](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/model.R#L400-L414) `defaultNodeScale` has NO default arm, so
   `dbarts:::defaultNodeScale("hazard")` and `("student")` return **NULL** silently,
@@ -193,7 +193,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   and the factory ([src/bartcore/facade.hpp:809-826](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/facade.hpp#L809-L826)). The grid confirms by execution:
   `dbarts(forests=list(forest(), forest(basis=~z)), family=)` is accepted for
   gaussian/probit/logistic and refused BY NAME for aft, ordinal, nbinom,
-  multinomial. No R call reaches any of the four. Fix: **VD-judgement** (G-G).
+  multinomial. No R call reaches any of the four. Fix: **VD-judgment** (G-G).
 - **E21. `resolveFamily` vs `augmentationFamily` DO have disjoint vocabularies, but
   the gap is unreachable from R.** [src/R_interface_bartcore.cpp:1582](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L1582) takes
   `""`/gaussian/probit/logistic/ordinal/nbinom/aft; [src/R_interface_bartcore.cpp:6151](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6151) takes
@@ -282,7 +282,7 @@ private lib (`R CMD INSTALL --preclean`); every call below ran against that lib.
   hurdle (12), `variance` off gaussian (18), `resid.dist` off gaussian (24),
   `forests` off gaussian/probit/logistic (4).
 
-## 5. VD-judgement groups
+## 5. VD-judgment groups
 
 - **G-A. May every fitting entry SPELL every family its siblings spell?** 30 cells
   (bart 6 unnamed tokens, rbart_vi 10, xbart 9, dbartsSpec 5). Decides whether E2's

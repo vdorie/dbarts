@@ -326,7 +326,7 @@ Commit grouping:
    - Rewrite the 71 outside sites. For `doFitInteractions` and `doFitBlocks`, the alternative is
      to forward `...` into `bart`.
    - Drop the 25 `dbarts::` prefixes.
-   - New inst/tinytest/test-constructor-vocabulary.R, modelled on test-family-objects.R, covering:
+   - New inst/tinytest/test-constructor-vocabulary.R, modeled on test-family-objects.R, covering:
      - the list's shape;
      - none of the four in `getNamespaceExports("dbarts")`;
      - bare equals list spelling at each door;

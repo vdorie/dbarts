@@ -283,7 +283,7 @@ if (requireNamespace("survival", quietly = TRUE)) {
     fit.2col$yhat.train
   )
 
-  # 'subset' via the formula honours the same rows a hand-subsetted matrix
+  # 'subset' via the formula honors the same rows a hand-subsetted matrix
   # fit would use, bitwise
   sub <- seq.int(1L, n, by = 2L)
   fit.formula.sub <- fitFormula(

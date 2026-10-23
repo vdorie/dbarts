@@ -338,7 +338,7 @@ expect_error(
 )
 
 # ---- the formula interface takes a Surv left-hand side too (dec-B97):
-# ---- formula vs matrix bitwise-identical, subset honoured, auto -> aft ----
+# ---- formula vs matrix bitwise-identical, subset honored, auto -> aft ----
 if (requireNamespace("survival", quietly = TRUE)) {
   hazard.df <- data.frame(x1 = x[, 1L], x2 = x[, 2L], x3 = x[, 3L])
   hazard.df$surv <- survival::Surv(d$time, d$status)
@@ -351,7 +351,7 @@ if (requireNamespace("survival", quietly = TRUE)) {
   expect_identical(fit.formula[["periods"]], fit.probit[["periods"]])
   expect_identical(unname(fit.formula$yhat.train), fit.probit$yhat.train)
 
-  # 'subset' via the formula honours the same rows a hand-subsetted matrix
+  # 'subset' via the formula honors the same rows a hand-subsetted matrix
   # fit would use, bitwise (dec-B97: applied BEFORE person-period expansion,
   # unlike aft's, since the expanded row indices no longer mean anything)
   sub <- seq.int(1L, n, by = 2L)

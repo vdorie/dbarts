@@ -26,7 +26,7 @@ sequencing: runs after the `multiforest-veto-rate-falsifier` measurement.
 
 Answer, with the first number anyone has taken: **does absorbing a smooth
 share of the signal into a parametric block improve the forest's own
-sampling behaviour, and how big is the cross-block ridge?**
+sampling behavior, and how big is the cross-block ridge?**
 
 `docs/design/tree-mixing-proposals.md` sec 4.1 ranks parametric absorption
 by composition first among all candidates, on the claim that
@@ -209,7 +209,7 @@ comparator.
 constant. Verified necessary: a prototype with a leading ones column
 produced a lag-0 cross-block correlation of -0.95 that was pure
 intercept-versus-forest-mean aliasing, exactly the trap CSP-BART names.
-Every ridge statistic is computed on mean-centred projections.
+Every ridge statistic is computed on mean-centered projections.
 
 ## Arms
 
@@ -502,9 +502,9 @@ no guidance following a GREEN may prefer linear leaves to `setOffset` or
 the reverse on this evidence.
 
 **Operational definition.** Let `U` be an orthonormal basis of the
-mean-centred span of `[x4, x5]`, restricted to a fixed random subsample of
-`n_r = 1000` rows (registered once per replicate, shared by every arm and
-every sweep). Defining `U` from the **span**, not from the scaled mean
+mean-centered span of `[x4, x5]`, restricted to a fixed random subsample
+of `n_r = 1000` rows (registered once per replicate, shared by every arm
+and every sweep). Defining `U` from the **span**, not from the scaled mean
 vector `c_A * (10 x4 + 5 x5)`, is required: the latter is 0/0 at `s = 0`.
 For each basis direction `u_k`:
 
@@ -1092,7 +1092,7 @@ must not.
 7. **Structural mode collapse at m = 75.** House rule 1. T3 at m = 75 is
    reported, never gated; the m = 1 cells are reported for the four reasons
    listed under Scenarios.
-8. **Structural acceptance behaviour.** Not exposed by any shipped surface;
+8. **Structural acceptance behavior.** Not exposed by any shipped surface;
    the record's primary readout is deleted with that reason.
 9. **Generalization past this DGP family.** One interaction plus one smooth
    univariate plus two exactly linear terms, at one `(n, p, m, sigma)`.
@@ -1138,7 +1138,7 @@ arithmetic above.
    model classes.** Both defensible the other way at higher cost.
 9. **UNVERIFIED - V4 has still never been run.** "No stan4bart rebuild
    needed" rests on `dbarts.h` being byte-stable since `876a339` plus one
-   smoke fit. `9929ede` changed engine behaviour without changing the ABI.
+   smoke fit. `9929ede` changed engine behavior without changing the ABI.
    V4 after a `--preclean` install is the real check.
 10. **UNVERIFIED - the second-order part of A3's rescale.** The first-order
     dial-invariance argument is arithmetic; the warmup-time realized anchor

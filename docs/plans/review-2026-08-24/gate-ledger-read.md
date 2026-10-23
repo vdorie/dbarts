@@ -48,7 +48,7 @@ OVERSTATED:
   "the r-hub amd64 image crashes under Rosetta emulation on this host" (rc-review:1072), while valgrind.yaml runs the
   r-hub amd64 container. So valgrind has never run in its declared configuration anywhere. "All ok, 6419 results" vs
   6438 on the dev host = 19 skips.
-- exact-gates is 193 success / 2 failure / 5 cancelled. linear-leaf-xcheck.R: `grep -rl` returns NOTHING - absent even
+- exact-gates is 193 success / 2 failure / 5 canceled. linear-leaf-xcheck.R: `grep -rl` returns NOTHING - absent even
   from its own file. bench-sampler is documented in 50 docs/plans files, not 9 (understated).
 
 ## 2. Missed
@@ -114,7 +114,7 @@ OVERSTATED:
    trusting any rchk result.
 2. agent-fix, Sonnet, 1 line. Add [main, master] to sanitizers.yaml's push branches, so the per-push memory-safety
    gate and the ONLY suite-count floor survive the merge to main. Miss C/D.
-3. VD-judgement then agent-fix, Sonnet, ~5 lines + 5 dispatches. Land the five schedule-bound workflows on main
+3. VD-judgment then agent-fix, Sonnet, ~5 lines + 5 dispatches. Land the five schedule-bound workflows on main
    (main-side action is VD's alone) or dispatch each once now and record it: five declared gates become evidence. Item
    1 first. Findings #1/#9; equivalence-ci.md's own landing note already defers "the workflow's first live run", so
    this is a recorded open item, not an oversight.
@@ -127,7 +127,7 @@ OVERSTATED:
    PR intent with VD first.
 7. agent-fix, Sonnet, 3-4 deletions. Delete change-fix-instrumentation.R, change-fix-stage2.R, parallel-falsifiers.R
    (cannot execute); delete or document linear-leaf-xcheck.R.
-8. VD-judgement, sizeable. Move the private-directory artifacts that TRACKED files cite - the p10 baseline-provenance audit
+8. VD-judgment, sizeable. Move the private-directory artifacts that TRACKED files cite - the p10 baseline-provenance audit
    MANIFEST names, the rchk .bcheck logs, the valgrind final log - into a tracked tree, or rewrite those citations to
    stand alone, so provenance survives a clone. Miss E.
 9. agent-fix, Opus, ~1 day. Add an ensemble-scale arm (75 trees, real cut points) to the gaussian and probit gates:
@@ -135,7 +135,7 @@ OVERSTATED:
    Finding #5, re-scoped.
 10. agent-fix, Sonnet, quiet machine. Re-record bench-sampler at tip; closes a 327-src-commit gap. Miss G. Needs the
     quiet-machine grant, so it schedules around VD.
-11. VD-judgement. Whether to keep the 59 historical rows and whether to re-record against an external anchor - defer
+11. VD-judgment. Whether to keep the 59 historical rows and whether to re-record against an external anchor - defer
     to anchor-main.md, weighing miss K: the classic engine carried a confirmed change-move defect, so it is cutover
     evidence only.
 12. agent-fix, Sonnet, ~40 lines. Wire backfit-exact.R, geweke-mc.R, composition-matrix.R, mutation-battery.R and

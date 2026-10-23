@@ -123,7 +123,7 @@ two-way interaction, f = 2 x5 x10 + 2 x15 x20, on predictors with covariance
 it.
 
 - Primary statistic: between-chain standard deviation of time-averaged
-  inclusion on {x5, x10, x15, x20} and on their immediate neighbours, read
+  inclusion on {x5, x10, x15, x20} and on their immediate neighbors, read
   against a mixing null computed from the same draws.
 - Published reference: none for dbarts. The oracle is the exact inclusion
   truth and its near-decoys.

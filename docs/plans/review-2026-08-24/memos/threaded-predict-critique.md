@@ -42,7 +42,7 @@ partitionFlatIndices ([src/bartcore/chain.hpp:1723-1900](https://github.com/vdor
   numParams/numCovariates) and fitScale/fitShift/sigmaScale ([src/bartcore/model.hpp:2718-2719](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L2718-L2719) + overrides) - are plain returns of stored
   members. No lazy init.
 - `mutable` audit over src/bartcore: [src/bartcore/model.hpp:521](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L521), [src/bartcore/model.hpp:1302-1303](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L1302-L1303), [src/bartcore/model.hpp:2093-2107](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L2093-L2107), [src/bartcore/model.hpp:2121-2127](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/model.hpp#L2121-L2127) and [src/bartcore/tree.hpp:1604-1626](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/bartcore/tree.hpp#L1604-L1626) are all
-  sampling-path scratch (monotone neighbours, suffstat/GP kernel caches, pooled-mask and availability scratch); none
+  sampling-path scratch (monotone neighbors, suffstat/GP kernel caches, pooled-mask and availability scratch); none
   is reachable from addFlatPredictions*, checked by reading the call graph, not by grep alone.
 - SIMD dispatch ([src/misc/simd.c:193-350](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/misc/simd.c#L193-L350)): `misc_setVectorToConstant` / `misc_addVectorsInPlace` are file-scope function
   POINTERS assigned once by `misc_simd_init`, read-only after. No race.
@@ -95,7 +95,7 @@ unaffected and must NOT be relaxed - translateSource still runs R_alloc.
 in `worker.join()` cannot longjmp out: R's unix SIGINT handler only sets R_interrupts_pending, and the jump happens in
 R_CheckUserInterrupt, which predict never calls (the bridge's poll, `bartcore_checkInterrupt`,
 [src/R_interface_bartcore.cpp:4224-4231](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L4224-L4231), is R_ToplevelExec-wrapped and used only by run). So deferring interrupt polling
-(decision 7) is SAFE, not merely unchanged, and the SIGINT mask mirror is defence-in-depth rather than necessity. Say
+(decision 7) is SAFE, not merely unchanged, and the SIGINT mask mirror is defense-in-depth rather than necessity. Say
 so.
 
 ## C. Fan-out and thread count
@@ -199,10 +199,10 @@ never touches: the flat-offset add over EVERY slab ([src/R_interface_bartcore.cp
 output, 76 MB at the memo's nTest = 10000); `Rf_duplicate(resultExpr)` on the heteroscedastic path ([src/R_interface_bartcore.cpp:5745](https://github.com/vdorie/dbarts/blob/f04e86864eaa3fdd18bf4842e5f1be9da6ec55b5/src/R_interface_bartcore.cpp#L5745), a full copy
 of that array) before a SECOND fan-out for predictVariance; the result allocation; translateSource; R-side
 validateXTest/as.matrix. The measured configuration had no offset, no variance forest and a dense test set - the most
-favourable case - and its ceiling is reported as general. Report the worst configuration too, or say plainly that
+favorable case - and its ceiling is reported as general. Report the worst configuration too, or say plainly that
 99.5% is the best case.
 
-**24. MINOR - the bandwidth worry is overstated, in the memo's favour.** Per slab the engine touches only slab-sized
+**24. MINOR - the bandwidth worry is overstated, in the memo's favor.** Per slab the engine touches only slab-sized
 output (16-80 KB, L1/L2 resident) and re-touches it numTrees times; the streamed state is the saved-tree store, a few
 tens of MB per FULL pass - single-digit MB/s at the measured runtime, nowhere near saturation. The shape is
 latency/branch bound (per-tree `std::vector<FlatNode>` pointer chasing, a data-dependent partition in

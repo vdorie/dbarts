@@ -3,7 +3,7 @@
 Status: LANDED 2026-10-06 (bcae657e, f76a3163, 30675123, 6c890d2d).
 
 agent: sonnet implementer, one; opus reviewer.
-rng: NEUTRAL. No draw changes; only what is raised after a cancelled run.
+rng: NEUTRAL. No draw changes; only what is raised after a canceled run.
 window: pre-release (dec-B256).
 budget: ~250 lines (bridge ~60, R ~20, tinytest ~90, manual and header comments ~50, NEWS none). Plans have
 run 1.5-2x low.
@@ -50,7 +50,7 @@ chain, the interrupted call returning nothing.
 
 ## Steps
 
-1. Inventory: every place the package turns a cancelled run into an error, and every long-running entry
+1. Inventory: every place the package turns a canceled run into an error, and every long-running entry
    (`bart`, `bartBT`, `dbarts` and `$run`, `$sampleTreesFromPrior`, `xbart`, `rbart_vi`, `predict` with a
    latent refresh, `pdbart`, the flat run) with whether an interrupt reaches it.
 2. One bridge function that raises the interrupt, called in place of each "sampler run interrupted" error.

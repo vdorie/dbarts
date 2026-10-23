@@ -18,7 +18,7 @@ section 1 is new.
 
 P1 Formula `*` / `:` terms die with R's own "undefined columns selected". [R/data.R:1241](https://github.com/vdorie/dbarts/blob/1583140b4d0a48a76cf2eb03e487a295818629cd/R/data.R#L1241)
    `makeModelMatrix(modelFrame[termLabels])`: termLabels carries "x1:x2", the model frame does not; poly(), ns(), log(), ".",
-   offset() all work. ENABLES honouring product terms, or refusing by name - the unnamed internal error is the class NEWS
+   offset() all work. ENABLES honoring product terms, or refusing by name - the unnamed internal error is the class NEWS
    1.0-0's BUG FIXES swept everywhere else. SURFACE yes (the formula input contract of dbarts/bart2/dbartsData). ~30 R +
    tests, Sonnet. NOT RECORDED. TAKE.
 P2 predict() refuses on a default fit: keepTrees = FALSE ([R/bart.R:679](https://github.com/vdorie/dbarts/blob/1583140b4d0a48a76cf2eb03e487a295818629cd/R/bart.R#L679), [R/bart.R:2685](https://github.com/vdorie/dbarts/blob/1583140b4d0a48a76cf2eb03e487a295818629cd/R/bart.R#L2685)), refusal [R/generics.R:271](https://github.com/vdorie/dbarts/blob/1583140b4d0a48a76cf2eb03e487a295818629cd/R/generics.R#L271). ENABLES the first
@@ -27,7 +27,7 @@ P2 predict() refuses on a default fit: keepTrees = FALSE ([R/bart.R:679](https:/
    is. ~10 R either way. NOT RECORDED. Put (a)/(b) to VD now; after 1.0 only (b) stays reachable.
 P3 Arguments on public generics that silently do nothing: predict(bases=), predict(sample=), fitted(combineChains=) on the
    own-class fits; as_draws_array.bartMultinomial(vars=) ignores a non-meanProb value ([docs/plans/release-candidate-review.md:846-850](https://github.com/vdorie/dbarts/blob/1583140b4d0a48a76cf2eb03e487a295818629cd/docs/plans/release-candidate-review.md#L846-L850),
-   explicitly outside the judgement table). ENABLES a caller who passes them stops getting a silently wrong answer. SURFACE
+   explicitly outside the judgment table). ENABLES a caller who passes them stops getting a silently wrong answer. SURFACE
    yes - refusing later breaks whoever passes them today. ~40 R + tests, Sonnet. TAKE.
 P4 Fractional n.threads truncates silently on the six predict generics. [R/generics.R:234-247](https://github.com/vdorie/dbarts/blob/1583140b4d0a48a76cf2eb03e487a295818629cd/R/generics.R#L234-L247) refuses non-numeric / length!=1 /
    NA / <1 by name, then as.integer() takes 2.7 as 2 while the message says "a single positive integer". The formal is NEW IN

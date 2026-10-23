@@ -884,7 +884,7 @@ void dbarts_sampler_setDrawCallback(dbarts_sampler* sampler,
 /// is an error, as it is at creation; gaussian and aft (log survival times)
 /// constrain nothing beyond finiteness. updateScale re-derives the internal
 /// response transform from the new response, as dbarts_sampler_setOffset's
-/// argument does (gaussian and nbinom); pass false once burnt in so fits stay
+/// argument does (gaussian and nbinom); pass false once burned in so fits stay
 /// comparable. true is refused on any multi-forest sampler, at any forest count, whose per-forest leaf
 /// calibrations are stated against the transform it was built with; on a
 /// heteroscedastic sampler it restates the variance forest on the new transform
@@ -912,7 +912,7 @@ int dbarts_sampler_setResponse(dbarts_sampler* sampler, const double* y,
 /// offset has numObservations finite values or is null to remove; a non-finite
 /// value is an error, as it is at setResponse. updateScale re-derives the
 /// internal response transform from the offset-adjusted response (gaussian and
-/// nbinom); pass false once burnt in so fits stay comparable. A
+/// nbinom); pass false once burned in so fits stay comparable. A
 /// multi-forest sampler, at any forest count, refuses true (see setResponse),
 /// as does a sampler with gp leaves that holds saved draws, whatever the
 /// offset. COPIED, on the copy-on-set rule above: the caller's offset is free on

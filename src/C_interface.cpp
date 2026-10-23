@@ -755,7 +755,7 @@ int dbarts_sampler_predict(dbarts_sampler* sampler,
                            double* out) {
   bartcore::SamplerBase& engine(samplerOf(sampler));
   // predictColumns opens forests_[0] alone, so a caller would receive the
-  // first forest's fit labelled as the whole; see
+  // first forest's fit labeled as the whole; see
   // dbarts_sampler_setTestPredictors
   if (testFitsAreUndefined(engine)) return 0;
   // A multi-location (multinomial) surface reads its offset as numRows x F,

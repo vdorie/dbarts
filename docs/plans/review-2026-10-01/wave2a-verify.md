@@ -20,7 +20,7 @@ Summary
   ingest-04  CONFIRMED  MAJOR    0.9-34 errored             yes (new refusal)          no
   ingest-06  CONFIRMED  MINOR    same                       yes, small                 only fits with Inf
   ingest-08  QUALIFIED  MINOR    partly same                no                         no
-  ingest-09  CONFIRMED  MINOR    behaviour same; doc new    yes, small                 no
+  ingest-09  CONFIRMED  MINOR    behavior same; doc new    yes, small                 no
   aux-01     CONFIRMED  MAJOR    regression                 no (restores 0.9-34)       no
   aux-02     CONFIRMED  MAJOR    new (categorical new)      yes (levs content)         no
   aux-03     CONFIRMED  MAJOR    same silent; loud new      no                         no
@@ -46,7 +46,7 @@ ingest-01  CONFIRMED  BLOCKER (loud, but a saved fit is unusable)  regression
            dbarts(cbind(a, b = 0)); run; storeState: $copy() and $setState($state) refused;
            with updateState = TRUE (the default) $copy() after any run is refused
     0.9-34 every case reloads and predicts 40x3.
-  Options. A: the validator accepts a non-decreasing grid (equal neighbours allowed), which is
+  Options. A: the validator accepts a non-decreasing grid (equal neighbors allowed), which is
   exactly what the store builds; no draws move, no surface. B: build a degenerate uniform column
   as one cut, as the quantile path does; moves draws for every fit with a constant column (the
   cut-index draw changes), and does not cover the ulp case, which needs a dedupe as well.
@@ -159,7 +159,7 @@ aux-02  CONFIRMED  MAJOR  new (categorical route is the 1.0 default)
   levs = list(c("A", "B")) errors "test matrix must be numeric". Ordered factors are affected too.
   Decision. A: for a factor column default to every level, report levs as level names, accept names
   in levs, and plot per level (points, no line); pd2bart's grid likewise. B: refuse factor columns,
-  pointing to predict(). C: all codes, labelled by names only. A matches how partial-dependence tools
+  pointing to predict(). C: all codes, labeled by names only. A matches how partial-dependence tools
   treat factors; B loses a working feature for the default fit. Recommendation A.
   Fix: pdbart.defaultLevs reads the column type and level table from sampler$data; map names to
   codes before x.test[, j] <- code; carry names to buildResult and plot.pdbart/plot.pd2bart.

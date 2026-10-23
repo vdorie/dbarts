@@ -189,7 +189,7 @@ read-only probes run against a private library at this tip.
 - **A BCF is creatable through `bart2` today and reports nothing** (MEASURED: no
   `forestFits`, no `glue` in the fit; `packageBartResults`, [R/bart.R:158-320](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L158-L320)).
 - **`amplitude.prior.variance` is refused on the supported route** (MEASURED);
-  [R/model.R:875-882](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L875-L882) tests `spec$basis` where its sibling at [R/model.R:883-891](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L883-L891) honours
+  [R/model.R:875-882](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L875-L882) tests `spec$basis` where its sibling at [R/model.R:883-891](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L883-L891) honors
   `excused`, contradicting the doc at [R/model.R:855-856](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L855-L856). D2 item 3.
 - **bartCause's flat-sigma reshape has the wrong `byrow`** (MEASURED three ways,
   including a first-principles autocorrelation test), and **the suite MIRRORS
@@ -266,7 +266,7 @@ R-only, no src/, no `dbarts.h`, RNG-neutral by construction.
 2. **Warn on the silently-ignored `bases` argument.** [R/data.R:743-750](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L743-L750)'s
    ignored-argument warning tests data/test/offset/offset.test only; add
    `bases`. (`dbartsSpec()` does not route through it.)
-3. **Honour `hasBasis` in the amplitude-prior check.** [R/model.R:875-882](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L875-L882) tests
+3. **Honor `hasBasis` in the amplitude-prior check.** [R/model.R:875-882](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L875-L882) tests
    `spec$basis` where its sibling at [R/model.R:883-891](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L883-L891) tests `excused`. MOVE line 883
    above 875 - do not duplicate the expression. Forest 1's own refusal survives
    (its `bases[[1]]` is NULL, so `excused` is FALSE there), verified.
@@ -1272,12 +1272,12 @@ DENSE-EQUIVALENT (one assertion per line).
   landing note at the end of this file.
 - **A test treatment vector / test basis**, which would retire
   `refuseUndefinedTestFits` ([docs/plans/bcf-public-surface.md:666](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/docs/plans/bcf-public-surface.md#L666)) and is the only thing that would restore
-  missing-response handling to bcf(). A modelling decision first. The
+  missing-response handling to bcf(). A modeling decision first. The
   PREDICT-TIME half - the combined blend at new rows for an already-fit
   amplitude coupling - LANDED 2026-08-24 at dbarts 139a1976 (`bases =`, or
   the bart2 `forest()` term auto-route); see the landing note at the end of
   this file. What is still doored is the FIT-TIME channel: a resident test
-  basis, `yhat.test`, NA-y rows - the modelling decision above.
+  basis, `yhat.test`, NA-y rows - the modeling decision above.
 - **First-forest `blocks` against its own column mask.** `forestColumns` is
   computed at [R/spec.R:555-558](https://github.com/vdorie/dbarts/blob/139a1976afa5e57cfeecd895e0954e5d584d60cb/R/spec.R#L555-L558) inside the `data@bases` branch while
   `blockSpec` is resolved at [R/spec.R:341](https://github.com/vdorie/dbarts/blob/139a1976afa5e57cfeecd895e0954e5d584d60cb/R/spec.R#L341) outside it; the door is hoisting the forest-1
@@ -1687,5 +1687,5 @@ sampler-level write cursor carries across recorded `run()` calls while
 rotated draws, fixed at 124259d0 (see release-candidate-review.md's burn-down
 note). Still open, unchanged: the FIT-TIME test-basis channel (a
 `dbartsData` slot, a `forest()` formal, `$setTestBasis`, `yhat.test`, NA-y rows,
-flat C entries) is the maintainer-held modelling decision; the sampler-level
+flat C entries) is the maintainer-held modeling decision; the sampler-level
 `refuseUndefinedTestFits` stands.

@@ -16,7 +16,7 @@ rng: three classes, by call.
   recipient keeps the one it had, which shapes its slope prior or kernel. And on one kind of fit: a linear or
   gp leaf covariate that holds a single value whose mean, taken through the sum, misses it by rounding (0.1
   over 150 rows; not 1000, 0 or 0.5). Today such a column gets that rounding as its scale (2.5e-16) and reads
-  about 1 on every row; afterwards it is centred at its value, divided by 1 and reads zero, like any other
+  about 1 on every row; afterwards it is centered at its value, divided by 1 and reads zero, like any other
   constant column.
 - Not a generator matter but a changed result: `predict` and every other replay of kept draws after a
   re-anchor or a `setData`, and five new refusals on a gp sampler that holds kept draws.
@@ -42,7 +42,7 @@ cannot be rewritten, refuses by name the calls that would silently change them.
 ## Context
 
 Run on the tip's build; "kept draw" is what the messages and the manual call a saved draw. A linear leaf's
-fit is an intercept plus slopes on covariates standardized by a centre and scale held by the leaf
+fit is an intercept plus slopes on covariates standardized by a center and scale held by the leaf
 ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp)); a gp leaf holds the same pair and a lengthscale
 ([`GPGaussianLeaf`](../../src/bartcore/model.hpp)). Every replay of a kept draw reads the leaf's current
 values ([`Chain::addFlatPredictions`](../../src/bartcore/chain.hpp),
@@ -54,7 +54,7 @@ Defects, measured (response sd about 2 throughout):
   The same raw points, replayed before and after a `setData` whose covariate is 3 x + 5: constant leaf, no
   change; linear leaf, off by up to 7.9 (8.1 with two chains); gp leaf, off by up to 7.9 (8.0).
 - The live linear chain after `setData`. With 40 rows appended inside every column's range (cut grid
-  identical; centre 0.04 to 0.50, scale 0.99 to 1.23) the live fit on the old rows moves by up to 1.10;
+  identical; center 0.04 to 0.50, scale 0.99 to 1.23) the live fit on the old rows moves by up to 1.10;
   a constant leaf's moves by 4e-15. The gp leaf's fits restart at zero by design and are not part of this.
 - Kept draws after a re-anchor. After `setResponse(3 y + 10, updateScale = TRUE)` kept draws come back as
   3 f + 10 (off by up to 20.7, equal to 3 f + 10 to 4e-15), on constant, linear and gp leaves alike, and
@@ -62,7 +62,7 @@ Defects, measured (response sd about 2 throughout):
   and monotone samplers as gaussian; aft by the log-time shift (0.5 for 0.5); nbinom by the log-mean shift
   (log 3 for tripled counts); probit not at all (it has no range). Under a variance forest the kept
   variance draws come back times 9 exactly. With `updateScale = FALSE` nothing moves.
-- A warm start on the same grid reads the donor's slopes under the recipient's standardization. Donor centre
+- A warm start on the same grid reads the donor's slopes under the recipient's standardization. Donor center
   and scale -0.019, 0.973, recipient 4.94, 2.92: the seeded fit differs from the donor's on the same rows
   by up to 6.30 (donor fit sd 2.07), from each of four kept draws by 6.2 to 6.4, and by 7e-15 when the
   standardizations are equal ([`Sampler::installForests`](../../src/bartcore/sampler.hpp) does not copy the
@@ -81,7 +81,7 @@ What already works, and is kept:
   3 f + 10 too. That is what re-anchoring a live chain means and it does not change.
 - A gp warm start on the same grid copies the donor's per-row fits whatever the standardizations (5e-15).
 - A covariate with no spread is standardized with a placeholder scale of 1: a constant column at 1000 gives
-  centre 1000, scale 1, and slopes of sd 0.08 that no observation informs.
+  center 1000, scale 1, and slopes of sd 0.08 that no observation informs.
 - Who reaches these paths: linear and gp leaves are taken by gaussian, aft, probit and nbinom samplers; all
   accept `setResponse(updateScale = TRUE)`; `setData` is refused on aft. A variance forest refuses a leaf
   model. A sampler with several forests refuses `updateScale = TRUE`, `setData` and a warm start, so every
@@ -96,27 +96,27 @@ What already works, and is kept:
 
 ## The rules
 
-- Conversion of one leaf's coefficients from centre m, scale s to m', s', per covariate j:
+- Conversion of one leaf's coefficients from center m, scale s to m', s', per covariate j:
   slope' = slope * s' / s, and the intercept gains slope * (m' - m) / s. The function is unchanged wherever
-  the covariate is observed. A row missing covariate j is read at the centre in force, so it moves by that
+  the covariate is observed. A row missing covariate j is read at the center in force, so it moves by that
   intercept term; this is stated in the manual, not hidden.
-- No spread. A column that holds a single value is centred at that value exactly and divided by 1, so the
+- No spread. A column that holds a single value is centered at that value exactly and divided by 1, so the
   leaf reads zero for it on every training row: its slope adds nothing to the fit and no observation
   informs it. Whether a column is one is read from what the leaf holds when asked (the scale is 1 and every
   gathered row is zero), never remembered, so a column given other values by `setPredictor`, or a state
   installed over other rows, is what it then is. Its scale is written to the state as `NA` beside a finite
-  centre, and the engine still divides by 1. When a LIVE coefficient block is converted:
+  center, and the engine still divides by 1. When a LIVE coefficient block is converted:
   - spread on neither side: the fit is the intercept before and after, so neither the intercept nor the
     slope moves;
   - spread on the new side only: the intercept stays (it is the fit) and the slope is set to zero: a slope no
     observation informed is not multiplied onto a real scale (0.13 drawn against the constant column above
     would become 40 on the scale of 307 that varying data gave it);
-  - spread on the old side only: the intercept takes the function's value at the new centre, the one value
+  - spread on the old side only: the intercept takes the function's value at the new center, the one value
     the column now holds, and the slope is set to zero.
   KEPT blocks are converted by the formula with 1 for `NA` in every case: they are only replayed. A state
   written before this carries 1 and reads as 1.
 - Equal standardizations, or a donor with no block: no arithmetic at all, so such installs stay bitwise.
-- gp (dec-B237). A kept gp draw replays only under the centre, scale and lengthscale it was drawn with and
+- gp (dec-B237). A kept gp draw replays only under the center, scale and lengthscale it was drawn with and
   has no mean term. While a gp sampler holds kept draws, `setData` is refused, and `setResponse` and
   `setOffset` with `updateScale = TRUE` are refused outright, whatever the new response or offset is and
   whatever the family, on the R methods and on both flat C entries. With `updateScale = FALSE` (the
@@ -137,7 +137,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   start, draws exactly what it draws now, but for the fit named under `rng:` whose leaf covariate is constant
   at a value its mean misses. On constant leaves the one thing that changes is what a replay of kept draws
   returns after a re-anchor.
-- The recipient of a warm start keeps its centre, scale and lengthscale on either grid (dec-B231: derived
+- The recipient of a warm start keeps its center, scale and lengthscale on either grid (dec-B231: derived
   data changes only by a call that names it). gp fits at a warm start stay as today: copied on the same
   grid, zero on another.
 - `setState` is not changed: it still installs a state's standardization. Its move to comparing and
@@ -161,15 +161,15 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
 
 ## Steps
 
-1. The conversion and the no-spread mark; no behaviour changes but one stored value.
-   [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) centres a constant column at its value;
+1. The conversion and the no-spread mark; no behavior changes but one stored value.
+   [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) centers a constant column at its value;
    both leaf models report the mark from their gathered covariates
    ([`standardizedColumnHasSpread`](../../src/bartcore/model.hpp)), and
    retired: [`LinearGaussianLeaf::restoreCalibration`](../../src/bartcore/model.hpp) (and the gp twin, both gone since
    state-frame-prior slice 2) reads `NA` as 1.
    One routine converts a coefficient block between two standardizations, with a switch for the live guard.
    [`Chain::getState`](../../src/bartcore/chain.hpp) writes a marked scale as NaN,
-   [`Chain::leafCalibrationIsValid`](../../src/bartcore/chain.hpp) accepts it beside a finite centre, and the
+   [`Chain::leafCalibrationIsValid`](../../src/bartcore/chain.hpp) accepts it beside a finite center, and the
    bridge writes and reads it as `NA`. tests/cpp, beside
    [`testLinearLeafFormats`](../../tests/cpp/test_model.cpp): there and back returns the block to rounding;
    function equality on rows with every covariate observed, two covariates; a row missing covariate j moves
@@ -214,7 +214,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
    that reads a kept draw after a re-anchor (the four tinytest files that both keep trees and re-anchor read
    none afterwards); the suite decides, and one that does is rewritten and reported.
 4. A warm start converts and stops re-deriving.
-   [`readWarmStartState`](../../src/R_interface_bartcore.cpp) reads the donor's centre and scale blocks
+   [`readWarmStartState`](../../src/R_interface_bartcore.cpp) reads the donor's center and scale blocks
    into [`ForestStateData`](../../src/bartcore/combiner.hpp);
    [`Sampler::installForests`](../../src/bartcore/sampler.hpp) converts the donor's coefficients, live or
    from a kept slot, into the recipient's standardization where the two differ (guard on);
@@ -223,7 +223,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
    [`testCrossGridWarmStart`](../../tests/cpp/test_state.cpp): same grid, other standardization: the
    recipient's live fit equals the donor's function on the recipient's rows to 1e-12 (off by about 6
    today); a recipient grid that holds every donor split point and more: the same equality, and the
-   recipient's centre, scale and lengthscale are bit for bit what they were (replaced today); equal
+   recipient's center, scale and lengthscale are bit for bit what they were (replaced today); equal
    standardizations: the installed slopes are identical to the donor's; gp: fits copied on the same grid,
    zero on another, kernel constants unchanged on both. tinytest: the three linear cases through
    `installTrees`, one through `bart(warm.start = )`, a donor's kept draw as the seed;
@@ -253,7 +253,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
 6. Mutations (Verification): apply, install with `--preclean`, run, report the failing counts, revert, `touch`.
 7. Records. [`dbartsSampler$setData`](../../man/dbartsSampler-class.Rd) and the `updateScale`,
    `installTrees` and Saving text: kept draws are rewritten across `setData` and a re-anchor; a row missing
-   a leaf covariate is read at the new centre; a warm start converts and the sampler keeps its
+   a leaf covariate is read at the new center; a warm start converts and the sampler keeps its
    standardization; under `newData`, that a gp sampler holding saved draws refuses it; under `updateScale`:
    "`TRUE` is refused by a sampler with Gaussian-process leaves that holds saved draws, whatever the new
    response or offset: make a new sampler, or leave `updateScale` at `FALSE`." The two entries' comments in
@@ -286,7 +286,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   on each grid; a linear and a gp warm start between equal standardizations; a copy and a reload of each
   leaf model. Equal.
 - Mutations, each expected to fail the named test:
-  - the intercept's centre term is dropped (slopes scaled only): tests/cpp "function equality" of step 1,
+  - the intercept's center term is dropped (slopes scaled only): tests/cpp "function equality" of step 1,
     tinytest "kept draws across a `setData`";
   - kept blocks are not converted at `setData` (live only): tinytest "kept draws across a `setData`"; and
     the reverse, live blocks not converted: tests/cpp "the live fit on the old rows";
@@ -329,7 +329,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   docs/plans/leaf-conversions.md. The kernel record lifts the standardization half of the `setData`
   refusal; the range half and the `updateScale = TRUE` refusals stand until a kept gp draw also records
   the response range it was drawn under."
-- Not planned anywhere: converting the live chain at a re-anchor. The design keeps today's behaviour there.
+- Not planned anywhere: converting the live chain at a re-anchor. The design keeps today's behavior there.
 
 ## Calls made in planning
 
@@ -382,25 +382,25 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   into stays the empty slot it was, which keeps "with nothing kept the call does what it does now" true of
   a sampler that keeps trees and has not run, down to the state it stores. The state conversion still
   walks every slot of a state, as before.
-- The conversion is written as slope times (s' / s), and a column whose centre, scale and mark agree is
+- The conversion is written as slope times (s' / s), and a column whose center, scale and mark agree is
   skipped. At equal standardizations the arithmetic would therefore be exact anyway, apart from the sign
   of a zero intercept, so the mutation "the equal-standardization shortcut is removed" is caught only
   through a negative zero the engine tests plant (the conversion's own test and step 4's "identical to
   the donor's" in tests/cpp); the tinytest twin of that check cannot see it. The whole-forest comparison
   in the warm start is an early exit on top of the per-column one, and removing it alone changes nothing.
-- Neither side with spread, at different centres (a constant leaf covariate replaced by another constant,
+- Neither side with spread, at different centers (a constant leaf covariate replaced by another constant,
   through `setData` or a warm start): a live block does not move (the coordinator's ruling, 2026-10-07). The
   formula would add slope (m' - m) to an intercept that is the whole fit on both sides: with the constant
   going from 1000 to 2000 a live fit in (-6.1, 0.8) became (-1979, 8519). Kept draws keep the formula.
-- The mark is read, not remembered. A flag set when the centre and scale were derived went stale when
+- The mark is read, not remembered. A flag set when the center and scale were derived went stale when
   `setPredictor` gave a placeholder column of zeros its values: the guard then zeroed slopes the data had
   informed (the live fit on the old rows moved by 6.25 at `setData`, and a warm start from that sampler
   seeded a fit 6.25 off its own). The leaf now answers from its gathered covariates each time it is asked,
   which costs one pass over the rows per column still at the scale 1 and is not on a sweep's path. A column
   counts as without spread only where the scale is 1 as well as every row zero, so that a column held at its
-  centre under a real scale keeps that scale in the state (an `NA` would restore as 1 and change what its
-  kept draws predict off the centre) and converts by the formula.
-- A constant column is centred at its value exactly. The mean taken through the sum misses 0.1 by rounding
+  center under a real scale keeps that scale in the state (an `NA` would restore as 1 and change what its
+  kept draws predict off the center) and converts by the formula.
+- A constant column is centered at its value exactly. The mean taken through the sum misses 0.1 by rounding
   over 150 rows, which left such a column a scale of 2.5e-16 and a reading of about 1 on every row: on the
   base build its test rows at 0.11 are predicted at 1.8e14, and with the conversion built here the live fit
   after a `setData` that spreads the column ran to 2e16. This changes what such a fit draws without any of
@@ -409,7 +409,7 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
   whose draws start elsewhere, but a state whose write position is not its draw count installs one, the
   replay reads it from that slot on, and the rewrite must find the same slots;
   [`testNoSpreadLiveConversion`](../../tests/cpp/test_state.cpp) holds it.
-- A donor's standardization record that does not fit the leaf (a length, a centre that is not finite, a
+- A donor's standardization record that does not fit the leaf (a length, a center that is not finite, a
   scale that is neither positive and finite nor `NA`) is refused by the bridge with the existing
   "malformed parameters in warm-start donor"; the engine, reached without the bridge, answers with its
   shape refusal. A gp recipient does not read the record at all, so a gp warm start is exactly as before.
@@ -455,20 +455,20 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
 Push 1, steps 1 to 4, landed 2026-10-07 as a8a72c6b to f668cc86; step 5 follows as its own push. Two
 independent reviews, each told to refute. The first found two regressions in the guard for a leaf
 covariate without spread: with spread on neither side the live fit jumped by the slope times the
-difference of the two centres (8523 against a fit sd of 1.46), and the mark that a column has no spread
+difference of the two centers (8523 against a fit sd of 1.46), and the mark that a column has no spread
 went stale after `setPredictor`, so slopes the data had informed were dropped. The fix round leaves a live
 leaf alone where neither side has spread, and no longer keeps the mark at all: whether a column has spread
-is read off the covariates the leaf holds when it is asked. It also centres a constant column at its
+is read off the covariates the leaf holds when it is asked. It also centers a constant column at its
 value exactly, a defect on the base build the plan had not listed: a constant 0.1 over 150 rows got its
 rounding error, 2.5e-16, as its scale, and predicted about 1e14 a little off the constant. That changes
 what such a fit draws and is in the header's posterior-changing class. The second review found both
 regressions closed, ten of ten mutations caught, and one case left: a column that `setPredictor` moved to
-another single value does not sit at its centre, counts as having spread, and has its slope converted by
+another single value does not sit at its center, counts as having spread, and has its slope converted by
 the formula, so `setData` onto a widely spread column carries the live fit far (from about 5 either way to
 about 1500) until the sampler has run. The function of the covariate is kept exactly there; the help now
 names the case, and the code change, reading such a side as without spread, is left to the slice that
-moves the centre and scale to the rows in the likelihood (root TODO, leaf-covariate-single-value-off-
-centre; dec-A177). Gates on a clean copy of the rebased head: install, tests/cpp 357 lines passing, the
+moves the center and scale to the rows in the likelihood (root TODO, leaf-covariate-single-value-off-
+center; dec-A177). Gates on a clean copy of the rebased head: install, tests/cpp 357 lines passing, the
 suite 18025 results and none failed over 231 files, lint, format, the three document checks, the mutation
 anchors, build, and check with the one standing NOTE. On the slice's own builds before the rebase: the
 four snapshot files on a reference build, the three bitwise compares identical (55, 15, 11), the exact

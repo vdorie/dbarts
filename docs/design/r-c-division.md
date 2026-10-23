@@ -62,7 +62,7 @@ multinomial-counts-mutation plan.
 that are NOT additive on a quantity a channel can carry (the
 multinomial softmax margin needs a log-sum-exp over the other K-1
 forests); moves that write engine state (the multinomial level shift);
-likelihoods that do not factorise over observations given the forest
+likelihoods that do not factorize over observations given the forest
 (AR-1/spatial/copula errors - leaf statistics stop being within-leaf
 sums); and the CALIBRATION (below). Mixing loss from separate blocking
 is a price, not a wall. CORRECTED (critique, 2026-08-11): the arc's
@@ -143,7 +143,7 @@ the calibration must be nameable from R); contract surface vs demand
 specs refuse at creation; performance vs prototyping -> speed is
 almost never the reason to cross (measured R-loop overhead 1.11-1.43x;
 the honest reasons are joint moves, calibration, concurrency,
-non-factorising likelihoods); expertise vs failure modes -> ship a
+non-factorizing likelihoods); expertise vs failure modes -> ship a
 VALIDATOR, not a warning; introspection vs contract -> read/write
 symmetry as a rule (readers carry no legality matrix); release latency
 vs correctness -> the R shadow is mandatory and allowed to be worse,
@@ -156,7 +156,7 @@ including an independent re-check of Sun and Song)
 
 - 24 of 24 BART-family artifacts that ship a tree sampler wrote or
   copied their own; zero reused an engine as a library; in every case
-  the new thing was an integrand change or a non-factorising
+  the new thing was an integrand change or a non-factorizing
   likelihood. One author under experimental control: nbbart reuses
   dbarts while the change is data; clbart abandons every engine the
   moment the leaf stops being conjugate. CRITIQUE: NEAR-TAUTOLOGICAL

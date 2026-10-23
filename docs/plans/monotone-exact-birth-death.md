@@ -42,11 +42,11 @@ guards the fix.
 
 - The defect. [`MonotoneConstantGaussianLeaf::oneLeafLogMarginal`](../../src/bartcore/model.hpp) and
   [`MonotoneConstantGaussianLeaf::twoLeafCoupledLogMarginal`](../../src/bartcore/model.hpp) divide the touched
-  leaves' constrained marginal by d, their prior cone mass given the frozen neighbours. d agrees with the
-  whole-tree normalizer only when no touched leaf has a frozen constrained neighbour. That covers every move of
+  leaves' constrained marginal by d, their prior cone mass given the frozen neighbors. d agrees with the
+  whole-tree normalizer only when no touched leaf has a frozen constrained neighbor. That covers every move of
   part (a) of the existing gate ([9. Gates](../design/monotone.md#9-gates)), which is why it passed.
 - Derivation. pi(T, M) is proportional to p(T) prod_k phi_k(mu_k) 1{M in C(T)} lik / Z_T, with
-  phi_k = N(0, s_k^2) and s_k = c scale / k for a leaf with a constrained neighbour
+  phi_k = N(0, s_k^2) and s_k = c scale / k for a leaf with a constrained neighbor
   ([`MonotoneConstantGaussianLeaf::priorSd`](../../src/bartcore/model.hpp)). Integrating the touched leaves
   given the rest ("same") gives pi(T, same) = p(T) / Z_T * prod_same phi lik * I_T(same), where I_T is today's
   score numerator with the division removed.
@@ -55,7 +55,7 @@ guards the fix.
     + log Z_T0 - log Z_T*. Death is the reverse.
   - Against today's value this adds + log d* - log d0 + log Z_T0 - log Z_T*.
   - The frozen phi_k cancel because a birth or death never changes whether a frozen leaf has a constrained
-    neighbour: 0 of 101 births in a 3x2 enumeration.
+    neighbor: 0 of 101 births in a 3x2 enumeration.
   - The proposal terms in [`birthOrDeathMove`](../../src/bartcore/moves.hpp) are unchanged.
   - An empty merged cone keeps its -HUGE_VAL sentinel, which is correct: there pi(T*, same) = 0.
 - Constrained pairs. [`monotoneNeighborBounds`](../../src/bartcore/model.hpp) relates j < k when, along a
@@ -82,7 +82,7 @@ guards the fix.
   gives up after 100 tries and keeps mu[upper]. That slot is stale: freed node slots are recycled, and the
   resize zero-fills only new ones. It then draws the lower leaf on [aL, min(bL, stale)], which may be empty,
   and the clamp in [`MonotoneConstantGaussianLeaf::drawTruncatedNormal`](../../src/bartcore/model.hpp) then
-  runs with lo > hi (undefined behaviour), leaving an infeasible state. The critique measured the fallback on
+  runs with lo > hi (undefined behavior), leaving an infeasible state. The critique measured the fallback on
   about 0.5% of accepted births on flat data, 41% under a mildly decreasing partial residual, and 97% on a
   steeper one.
 - Empty leaves. [`dbartsSampler$installTrees`](../../man/dbartsSampler-class.Rd) strands a member-empty
@@ -94,7 +94,7 @@ guards the fix.
     forceUpdate, [`dbartsSampler$setData`](../../man/dbartsSampler-class.Rd) and
     [`dbartsSampler$setCutPoints`](../../man/dbartsSampler-class.Rd) do not strand one: they collapse emptied
     subtrees, and setData also remaps splits onto a new grid (an unforced update that would empty a leaf
-    rolls back). A collapse merges leaves at their weighted mean, and the merged leaf can border neighbours
+    rolls back). A collapse merges leaves at their weighted mean, and the merged leaf can border neighbors
     it did not border before (a split on a free axis whose one side empties), so a tree can leave the cone
     with no empty leaf in it; a remap can relate leaves the same way. Step 7's reseed covers these paths.
 - Other paths. At creation R forces birth/death ([`resolveSamplerSpec`](../../R/spec.R)).
@@ -161,7 +161,7 @@ the state metric the table uses. Sweep time is per kept sweep.
   of eight chains 17 s and 424 MB keeping two layers. Keeping every layer, as step 6's draw and the position
   distributions do, took 23 s and 1.09 GB peak on a 1.68e7-down-set star plus a singleton.
 - The current engine targets the d-normalized distribution, so the corrected one may grow different trees: on
-  monotone data its 1/Z_T factor favours more constrained orders. That moves how much a budget truncates, and
+  monotone data its 1/Z_T factor favors more constrained orders. That moves how much a budget truncates, and
   under option 5 only the cost.
 
 1. Whole-tree down-set budget, B = 2^22 (the first recommendation). Closed: a death maps the new tree's
@@ -296,12 +296,12 @@ gate in benchmarks/R.
   - held-out log predictive score on fresh data;
   - time per sweep; for "leaf" the largest count time per fit and whether the slow-count warning fired.
 - Sensitivity to n.trees is read across 200, 50 and 5 in every measure above.
-- What favours "leaf" as default: RMSE, coverage and held-out score at least as good as "joint" at either
+- What favors "leaf" as default: RMSE, coverage and held-out score at least as good as "joint" at either
   tree prior on the steep-step and interaction truths; varcount shares close to an unconstrained fit's, where
   "joint" under-reports the constrained predictor; prior draws along the constrained axis that look like
   unconstrained BART's with sorted leaves; sweep time within 10% of "joint" at 50 and 200 trees, and no
   slow-count warning there.
-- What favours "joint": "leaf" over-splitting the constrained axis (prior draws with many small steps, wider or
+- What favors "joint": "leaf" over-splitting the constrained axis (prior draws with many small steps, wider or
   under-covering intervals, worse held-out score) or its counts turning slow at 50 trees or more; "joint"
   matching "leaf" on fit quality. If only the mBART-tuned "joint" matches, a "joint" default also needs a
   different tree-prior default under monotone, which users would meet as a surprise; the study reports that
@@ -529,7 +529,7 @@ verdict; the maintainer rules on the results.
   and 500 kept sweeps. Measures as in the feel study's fits: RMSE of the posterior mean against the truth and
   95% interval coverage on 2000 held-out points from the design's distribution, held-out log predictive score,
   interval width, varcount shares, time per sweep.
-- Rule (advisory): mBART's values are favoured as the tree prior under every monotone fit if (a) at 200 trees, in every design, n
+- Rule (advisory): mBART's values are favored as the tree prior under every monotone fit if (a) at 200 trees, in every design, n
   and noise cell, their RMSE and score are no worse than cgm()'s defaults beyond two paired standard errors,
   and (b) their 95% coverage is at least 0.90 in every cell at 200 and 50 trees. Otherwise cgm()'s defaults
   are.
@@ -551,7 +551,7 @@ a third of the truth's sd, "high" equal to it.
 - The constrained predictors' varcount share at 200 trees: defaults 0.15-0.17, mBART 0.29-0.38, free
   0.31-0.34. Splits per tree 1.2-1.3 against 0.3-0.66. mBART costs 4-21% more CPU per sweep. No monotone draw
   fell along any line.
-- The advisory rule: clause (a) passes in every cell, clause (b) fails in 12 of 24, so it favours cgm()'s
+- The advisory rule: clause (a) passes in every cell, clause (b) fails in 12 of 24, so it favors cgm()'s
   defaults. The maintainer ruled the same (dec-B152).
 
 ## Counting: algorithm
@@ -760,7 +760,7 @@ Calls:
   sets already hold it; predict refuses a missing test value in a column that had none. Treating it as a
   value everywhere was tried and rejected in review: where no rule was drawn for it, a missing value goes
   left at every split, and which side of a level split is called left is an arbitrary label, so the order
-  (and log Z) of one partition would depend on its labelling, and ordinary factor fits would carry
+  (and log Z) of one partition would depend on its labeling, and ordinary factor fits would carry
   constraints at points no one can predict at.
 - A setPredictor, a row-by-row update or setData that brings a column its first missing values gives its
   axis that value, which can relate leaves the order did not. The accepted update paths reseed any tree
@@ -871,7 +871,7 @@ constrained value waits for step 12.
    - Mixing a capped exact rejection with an exact fallback is exact. Never read mu[upper] before writing it,
      and never call the clamp with lo > hi.
 5. Empty leaves are leaves with no data. `drawOneLeaf`, both redraws and the prior draw give an empty leaf its
-   prior truncated to its neighbour bounds instead of pinning it at 0, and
+   prior truncated to its neighbor bounds instead of pinning it at 0, and
    [`monotoneTreeIsFeasible`](../../src/bartcore/model.hpp) checks empty leaves too.
    - The cone and Z_T = e / L! then hold in every state. Trees with an empty leaf still carry zero posterior
      mass through the veto, and the veto ranks move the chain out.
@@ -912,7 +912,7 @@ constrained value waits for step 12.
    - Commit 1, found in implementation (orchestrator call). The same reseed runs after a forced predictor
      update, setCutPoints and setData ([`Chain::forceRefreshTrees`](../../src/bartcore/chain.hpp),
      [`Chain::applyNewData`](../../src/bartcore/chain.hpp)): a collapse or a remap can relate merged leaves
-     to new neighbours, not only strand empty ones. Any feasible state is a valid continuation point, and the
+     to new neighbors, not only strand empty ones. Any feasible state is a valid continuation point, and the
      tree is reseeded to all-zero with no RNG draw.
    - Commit 1. setState, copy and reload are refused up front: Sampler::setState checks a new
      monotoneStateFeasible predicate on every chain's live trees before any chain is touched, beside
@@ -989,7 +989,7 @@ constrained value waits for step 12.
       constrained and x2 free, 3x2; cN, x1 constrained and x2 free, 2x3, where the two halves change level at
       different cuts, giving 26% N mass in the tested x1-rooted group; cF (stage 3b), c3's cells with x2 a
       free two-level factor with no missing values, x1 rising at one level and falling at the other. A
-      two-level factor's one partition is the enumeration's one cut, and with no missing value its labelling
+      two-level factor's one partition is the enumeration's one cut, and with no missing value its labeling
       does not change the order, so the gate reads the engine's subset rule without enumerating level sets;
       wider factors and missing values rest on tests/cpp's point oracle and the tinytest.
     - The script replaces the planned part (c) of monotone-reference.R. It joins exact-gates.yaml's list in the
@@ -1032,7 +1032,7 @@ constrained value waits for step 12.
       missing (stage 3b) and corrects its fixed-k claim (k is 2 unless another number, or a fixed sd, is
       given), as do dbarts.Rd and bart.Rd, which now name the default. The default flip pins test-monotone.R's
       recovery fit to "leaf", so both priors keep a recovery check; every other shorthand use in the tests
-      checks behaviour both priors share and follows the default. The TODO item stays until the
+      checks behavior both priors share and follows the default. The TODO item stays until the
       Verification's quiet-machine speed check is recorded.
 13. The prior switch, end to end. R resolves monotone(prior = ) (step 14); the bridge passes it with the
     directions to the engine as a flag on the monotone leaf. The flag rides the model's monotone attribute with
@@ -1099,7 +1099,7 @@ constrained value waits for step 12.
     - Mechanics. A cancel inside the count throws bartcore::CountCancelled (a new std::exception type); an
       allocation failure throws std::bad_alloc. birthOrDeathMove catches both, undoes the birth (the rollback
       its reject path already takes) or restores the dying node (the count reads T*'s order, built before
-      `orphanChildren`, but runs after it; step 2), and rethrows. Chain::run catches both, rebuilds (below), and returns cancelled for CountCancelled or
+      `orphanChildren`, but runs after it; step 2), and rethrows. Chain::run catches both, rebuilds (below), and returns canceled for CountCancelled or
       rethrows bad_alloc. In Sampler::run each worker's try/catch sits inside its per-chain body, around
       chains_[c]->run, so numChainsRunning is still decremented and the join cannot deadlock; it stores the first
       exception_ptr and sets the cancel flag, and run() rethrows it after the join on the caller's thread, as
@@ -1182,7 +1182,7 @@ constrained value waits for step 12.
   pairs of points
   one code apart along a constrained predictor, and the bounds and the feasibility check must read them.
   The count and ratio brute-force checks also run on that store. A hand-built tree relates two leaves
-  through the pooled factor's missing value alone, and one level partition labelled two ways must give one
+  through the pooled factor's missing value alone, and one level partition labeled two ways must give one
   order. Restoring the cut-interval reading of a subset axis, ignoring where missing values go, or moving
   the pooled missing position off bit K fails them. An unforced and a row-by-row predictor update that
   bring a factor its first missing value must reseed a tree the new value takes out of the cone. test-monotone.R checks that one-tree
@@ -1255,7 +1255,7 @@ note, e3d11f53, d9d338db). A factor split and a free predictor's missing values 
 constraint requires: the fitted surface is monotone at every factor level and at the missing value,
 where the stage-3 engine decreased in up to every draw. An axis has a missing position only when its
 training column has missing values, as tree routing does; the first design gave every factor axis one,
-which made the order depend on how a level split was labelled. A tree that an update's new missing
+which made the order depend on how a level split was labeled. A tree that an update's new missing
 values make infeasible is reseeded, on the unforced update paths too. Reviewed twice by an independent
 reader: the point oracle, which routes points through the tree's own rules, agrees with the relation on
 800 random trees (229 pairs through missing values); numeric fits, and fits whose only missing values are

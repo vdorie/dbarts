@@ -43,7 +43,7 @@ lying between sorted distinct values i and i + 1, and c cuts to place,
 
     cut k = midpoint floor((2k + 1) M / (2c)),   k = 0, ..., c - 1
 
-in integer arithmetic. That is the centre of the k-th of c equal shares of the midpoints. c is the smaller of m and
+in integer arithmetic. That is the center of the k-th of c equal shares of the midpoints. c is the smaller of m and
 M at creation, as before ([`ColumnStore::finishQuantileGrid`](../../src/bartcore/data.hpp)), and the held count
 at a refresh ([`ColumnStore::refreshCutsForColumn`](../../src/bartcore/data.hpp)).
 

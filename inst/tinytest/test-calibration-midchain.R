@@ -436,7 +436,7 @@ expect_error(
 
 # prior.mean is read-only: the lever is the offset channel, and the reported
 # quantity is the transform's shift, so an offset issued at the default
-# updateScale = FALSE shifts the modelled quantity while leaving the reported
+# updateScale = FALSE shifts the modeled quantity while leaving the reported
 # mean pinned
 recipe <- namedSampler()
 recipeMean <- recipe$getLeafPrior()$prior.mean

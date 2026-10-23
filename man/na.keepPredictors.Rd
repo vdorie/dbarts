@@ -25,7 +25,7 @@ na.keepPredictors(object, \dots)
   row is data rather than a hole and dropping it discards information the
   model can use. A missing response, on the other hand, is nothing to fit.
   This function is that distinction: \code{\link{na.omit}} would drop both.
-  \pkg{rpart}'s \code{na.rpart} is the behavioural precedent.
+  \pkg{rpart}'s \code{na.rpart} is the behavioral precedent.
 
   The dropped rows are recorded exactly as \code{\link{na.exclude}} records
   them - a named integer vector of class \code{"exclude"} - so the training

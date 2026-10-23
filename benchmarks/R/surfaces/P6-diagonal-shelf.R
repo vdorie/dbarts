@@ -103,7 +103,7 @@ movesetCall <- function(call, probs) {
 }
 
 # The Figure-4-calibrated prognostic surface. A gentle ramp in x1 - x2 plus
-# a near-step of width 0.08 centred just inside the positive side of the
+# a near-step of width 0.08 centered just inside the positive side of the
 # diagonal, which is where the paper's text puts the threshold ("positive
 # levels of x1 - x2 being a critical threshold").
 figureMu <- function(x1, x2) {

@@ -2,7 +2,7 @@
 
 # Stage 0 of the tree-mixing falsifier: the move census
 # (docs/design/tree-mixing-proposals.md section 6.1). Pure measurement - no
-# kill criterion, no engine behaviour change - answering the three questions
+# kill criterion, no engine behavior change - answering the three questions
 # the veto-scaffold counts left open: the distribution of the log-likelihood
 # difference among REJECTED structural proposals, change-move proposals and
 # acceptances by target node depth, and the cut displacement that puts a
@@ -45,7 +45,7 @@
 #             kappa = 1, the primary benefit cell of the surface battery
 #
 # Beyond the per-proposal records the census has always taken, the build logs
-# five generator-only probes: the closed rule neighbourhood at a nog node
+# five generator-only probes: the closed rule neighborhood at a nog node
 # (weight entropy, the incumbent's share and rank, both jointly over the
 # available variables and restricted to the incumbent's), the informed-death
 # weights over the nog nodes against the realized uniform pick, the perturb
@@ -337,7 +337,7 @@ gibbsNames <- c(
 shapeNames <- c("kind", "sweep", "forest", "tree", "leaves", "interior", "nog")
 
 # an absent record kind is an empty frame with the right columns, not an
-# error: perturb records nothing at the shipped mixture, and the neighbourhood
+# error: perturb records nothing at the shipped mixture, and the neighborhood
 # probe writes nothing for a leaf model the cut scan cannot score
 readRecords <- function(lines, names) {
   if (length(lines) == 0L) {
@@ -490,8 +490,8 @@ cutTable <- function(d) {
   )
 }
 
-# Section 15.3 rows 1 to 3: the closed rule neighbourhood at a nog node, priced at
-# every change proposal. A collapsed Gibbs draw there is worth making only if
+# Section 15.3 rows 1 to 3: the closed rule neighborhood at a nog node, priced
+# at every change proposal. A collapsed Gibbs draw there is worth making only if
 # the conditional is not already sitting on the incumbent, so the readout is
 # the entropy in nats, P(incumbent) and how often the incumbent is the mode.
 # "joint" ranges over the available variables and their cuts, "cut" over the
@@ -531,7 +531,7 @@ nogTable <- function(g) {
   )
 }
 
-# The two shares the neighbourhood table is conditional on: how often a change
+# The two shares the neighborhood table is conditional on: how often a change
 # proposal lands on a nog node at all, and how much of the tree is nog.
 nogShareTable <- function(g) {
   if (nrow(g) == 0L) {

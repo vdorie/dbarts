@@ -306,7 +306,7 @@ whether moving to it changes the posterior being targeted.
 The additive decomposition ports exactly. What does not port by itself is
 prior shape. The two routes agree only if the caller
 
-1. centres $y$ at its midrange, or absorbs the response transform's shift with
+1. centers $y$ at its midrange, or absorbs the response transform's shift with
    `setOffset`: each single-forest sampler's reported fit carries that shift,
    so the composition attributes it once per forest where the sampler
    attributes it once;

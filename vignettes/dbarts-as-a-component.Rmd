@@ -41,7 +41,7 @@ recipeControl <- function(seed) {
 
 A binary response is fit by drawing a per-observation latent and regressing on it. `dbarts` will do this internally with `family = "probit"`, but a host that needs the latent for its own blocks -- a selection equation, a shared factor -- can run the Albert-Chib step itself with `dbartsDrawLatents` and `dbartsWorkingResponse` over an ordinary gaussian sampler.
 
-Two details make it correct rather than merely runnable. The sampler's residual standard deviation is pinned at 1 with `family = gaussian(sigma = fixed(1))`, because the augmented model has no free residual scale. And the leaf prior is stated with `setLeafPrior`, because a gaussian sampler built on a cold-start vector would otherwise inherit its prior scale from that vector's range -- an accident of the starting values, not a modelling choice.
+Two details make it correct rather than merely runnable. The sampler's residual standard deviation is pinned at 1 with `family = gaussian(sigma = fixed(1))`, because the augmented model has no free residual scale. And the leaf prior is stated with `setLeafPrior`, because a gaussian sampler built on a cold-start vector would otherwise inherit its prior scale from that vector's range -- an accident of the starting values, not a modeling choice.
 
 ```{r recipe1}
 set.seed(101L)

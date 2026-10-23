@@ -163,7 +163,7 @@ stay green at each commit.
    `test-rbart-loop-callback.R`, and `.lintr`'s two `rbart_vi` rationale
    comments.
 5b. **Cites, as its own pass - the gate in step 5 fails without it.**
-   `tools/check-doc-freshness.R` resolves a cite's PATH before it honours a
+   `tools/check-doc-freshness.R` resolves a cite's PATH before it honors a
    `retired:` marker, so `retired:` cannot rescue a cite into a deleted file.
    Two conversions, applied across every document under `docs/`, plus
    `README.md`, `man/*.Rd` and `vignettes/*.Rmd`:

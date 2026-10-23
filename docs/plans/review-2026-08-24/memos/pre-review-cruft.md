@@ -216,7 +216,7 @@ the corrected number kills the finding.
 `refuse*` (27), `validate*` (14), `check*` (2), `require*` (1), `enforce*` (1).
 Each slice's agent picked a verb. `refuse*` (raise, possibly conditionally) vs
 `validate*` (check and return a coerced value) is a coherent split the code
-mostly already honours; `checkMissingPolicy`, `checkFamilyUnsupportedArgs`,
+mostly already honors; `checkMissingPolicy`, `checkFamilyUnsupportedArgs`,
 `requireCountsCapability`, `enforceWeightPolicy` are the four that should join
 one of the two. **Delta: 0 lines, -3 names.** Risk: tinytest only. Low value,
 cheap.
@@ -252,7 +252,7 @@ if (is.null(object[["<family channel>.raw"]])) refuseWithoutTrees("predict")
 and the epilogue (`if (length(dim(raw)) == 2L) dim(raw) <- c(dim(raw), 1L)`,
 the chains collapse, `if (!is.null(ci.level)) return(posteriorInterval(...))`).
 
-**Honest judgement: the middles are genuinely per-family and must stay parallel.
+**Honest judgment: the middles are genuinely per-family and must stay parallel.
 Only the prologue/epilogue should be factored** into a `predictPrologue(object,
 type, dots, ...)` / `predictEpilogue(x, n.chains, combineChains, ci.level)` pair.
 **Delta: -60 to -80 across the four families.** Risk: tinytest only, but it
@@ -270,7 +270,7 @@ and the normalized-duplicate pass finds the same 8-line
 window at [R/dbarts.R:990](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/R/dbarts.R#L990), 1004, 1032, 1269, 1359, 1362, 1448, 1451, 1492, 1495,
 1621, 1654. **Fix: one `withSamplerCall(ptr, updateState, expr)` wrapper.
 Delta: -50.** Risk: this is the mutable-method surface `stan4bart`/`bairrtt`
-drive; behavioural equivalence must hold exactly. tinytest plus the R5 surface
+drive; behavioral equivalence must hold exactly. tinytest plus the R5 surface
 tests suffice - no C recompile involved.
 
 ## B8. Duplicate-window pass: 200 normalized 8-line duplicate windows in `R/`
@@ -279,7 +279,7 @@ Most are argument-forwarding lists ([R/bart.R:1189](https://github.com/vdorie/db
 same 8-arg `buildHostSamplerCall` preamble five times) and family vocabulary
 vectors ([R/bart.R:692](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/R/bart.R#L692), [R/dbarts.R:375](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/R/dbarts.R#L375), [R/spec.R:799](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/R/spec.R#L799) all spell the same
 9-element `family = c("auto", "gaussian", ...)` default). The family vector is
-worth centralising - three copies of a controlled vocabulary will drift.
+worth centralizing - three copies of a controlled vocabulary will drift.
 **Fix: one `bartFamilies` constant. Delta: -20.** The argument-forwarding
 duplication is inherent to R's calling convention; leave it.
 
@@ -425,7 +425,7 @@ This is worth stating plainly, because it bounds the whole review:
   provenance and should go. **Delta: -2.**
 - **No slice codenames in shipped source.**
 
-So the failures found in this review are all *judgement-level* - what a comment
+So the failures found in this review are all *judgment-level* - what a comment
 chooses to say, how much record gets written - never mechanical
 non-compliance. That is a meaningfully better starting position than the
 premise assumed.
@@ -471,7 +471,7 @@ comments*:
 - [src/bartcore/combiner.hpp:1908](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/src/bartcore/combiner.hpp#L1908) "Uniform absorption is also the better mixing device
   than..." - same.
 
-**Judgement: the engine's comment load is not where to cut.** It is derivation,
+**Judgment: the engine's comment load is not where to cut.** It is derivation,
 not narration, and it is the opposite of R's problem. Trim the four sentences
 above and their kin; leave the mathematics alone. Cutting here has a real
 downside (losing a documented draw discipline) that cutting in `R/` does not.
@@ -721,7 +721,7 @@ evidence and now cover every question that was asked, naming included.)*
 **This is the only actual defect in the review and it should be fixed before
 anything else here is touched.** I verified it independently and it is
 unambiguous, because the codebase states the violated contract in its own words
-and honours it everywhere else.
+and honors it everywhere else.
 
 **The contract**, [src/R_interface_bartcore_common.hpp:182-183](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/src/R_interface_bartcore_common.hpp#L182-L183), verbatim:
 ```
@@ -729,7 +729,7 @@ and honours it everywhere else.
 ```
 So `enforceBinaryWeightPolicy` checks probit (refuse) and logistic (positive
 integers) and **deliberately delegates the gaussian non-negativity check to each
-caller.** There are four callers. Three honour it. One does not:
+caller.** There are four callers. Three honor it. One does not:
 
 | caller | non-negativity check? |
 |---|---|
@@ -745,7 +745,7 @@ The flat entrance runs the family policy and then installs directly:
   samplerOf(sampler).setWeights(weights);      // C_interface.cpp:704
 ```
 
-**Why this is a bug and not a judgement call:** the flat C API has no R layer in
+**Why this is a bug and not a judgment call:** the flat C API has no R layer in
 front of it - that is the whole point of it, and the file says so at
 [src/R_interface_bartcore.cpp:4730-4732](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/src/R_interface_bartcore.cpp#L4730-L4732) ("the R surface checks it first, so this is
 a no-op there and the real gate for the flat C API"). And the *same file* gets
@@ -778,7 +778,7 @@ exists for (stan4bart, bairrtt), which reach it without R validation.
 ```
 **Delta: +4. Gate: `tests/cpp` plus a new `test-capi.R` case; no equivalence
 run needed (it only adds a refusal on input that was previously undefined
-behaviour).** Nothing about the two-channel design changes - this is a missing
+behavior).** Nothing about the two-channel design changes - this is a missing
 caller-side check, not a design question.
 
 **One item I could not fully close:** the flat *creation* path's weight
@@ -861,7 +861,7 @@ the big files is wrong here.
 
 Across all 5432 assertions: **zero** `expect_true(TRUE)`, **zero**
 `expect_equal(<literal>, <same literal>)`, **zero** assertions on R-language
-guarantees dressed as package behaviour. Total genuinely dead assertions found:
+guarantees dressed as package behavior. Total genuinely dead assertions found:
 **five**, worth ~8 lines.
 
 1. [inst/tinytest/test-generics-multithreaded.R:270-273](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/inst/tinytest/test-generics-multithreaded.R#L270-L273) - the one true
@@ -1049,7 +1049,7 @@ Every shared helper is a **statistic over draws**, not oracle logic:
   non-finite cell counts.
 - `makeControl` ([benchmarks/R/bcf-equivalence.R:95](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/benchmarks/R/bcf-equivalence.R#L95) = [benchmarks/R/bcf-equivalence.R:113](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/benchmarks/R/bcf-equivalence.R#L113), 8 lines): a `dbartsControl(...)` builder.
 
-**None of these reimplements sampler behaviour, so none can launder a bug into
+**None of these reimplements sampler behavior, so none can launder a bug into
 the verdict.** They are applied *symmetrically to both arms*: a bug in
 `lag1Acf` degrades the test's power identically on both sides whether the
 function is shared or copied. A *copied* bug is strictly worse, because it has
@@ -1231,7 +1231,7 @@ forest..." as a continuation of #5 promoted to a standalone `\item`, unreadable
 out of order. Flagged only (per the settled call): **43 of the 118 BUG FIXES
 entries (368 lines) have as their subject a capability that ships new in 1.0-0**
 (multinomial, heteroscedastic, BCF/`forests`, ordinal, nbinom, hazard, hurdle) -
-no 0.9-34 user saw those behaviours, so they are not fixes.
+no 0.9-34 user saw those behaviors, so they are not fixes.
 
 ## H7. Scaffolding: two dead files, and `tools/` ships to CRAN unnecessarily
 
@@ -1416,7 +1416,7 @@ Two claims I re-checked myself because they drive slate items, both confirmed:
 `NA` and `Inf` gaussian case weights without a check**, violating a contract the
 codebase states in its own header ([src/R_interface_bartcore_common.hpp:182](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/src/R_interface_bartcore_common.hpp#L182):
 "gaussian passes through, validated for non-negativity by its callers") and
-honours at its other three callers, including the sibling
+honors at its other three callers, including the sibling
 `dbarts_sampler_setForestWeights` 400 lines below in the same file. A negative
 case weight is a negative precision contribution and can produce a silently
 wrong fit. Exposed consumers are the `LinkingTo` packages the flat API exists
@@ -1465,7 +1465,7 @@ bartcore]` in 6 workflows (12 edits, no such branch exists); add `-MMD -MP
 "delete the binaries by hand" footgun); add `survival`+`posterior` to
 [.github/workflows/valgrind.yaml:41](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/.github/workflows/valgrind.yaml#L41) (37 tinytest files silently skip under valgrind today and
 still report green); mark the MANIFEST's 7 missing baselines
-`(recording not retained)`; standardise the four stray guard verbs
+`(recording not retained)`; standardize the four stray guard verbs
 (`check*`/`require*`/`enforce*`) onto `refuse*`/`validate*`; factor the
 `predict.bart*` prologue/epilogue across the four own-class families (-60 to
 -80); one `withSamplerCall()` wrapper for `R/dbarts.R`'s repeated
@@ -1478,7 +1478,7 @@ of baseline hashes).
 
 ---
 
-# J. Judgement: how much accumulation does this branch carry?
+# J. Judgment: how much accumulation does this branch carry?
 
 **Less than the premise assumes in the code, and far more than it assumes in the
 records.** Of the eight failure modes I was asked to hunt, four are simply
@@ -1505,7 +1505,7 @@ seven test files; 483 section banners in three competing styles. That is real,
 it is worth roughly 1,500 lines, and none of it is dangerous. The genuine
 accumulation is elsewhere and is not code at all: **108,720 lines of `docs/` -
 more than `R/`, the engine, the tests and `man/` combined - of which 118 plan
-documents totalling 32,992 lines have no present-facing reader; 408 of 1319
+documents totaling 32,992 lines have no present-facing reader; 408 of 1319
 commits that produced no shipped line; 18 whole-branch review documents, this
 being the third or later; seven concurrent slice-codename alphabets and 20
 spellings of "Landing note".** And the one place that sprawl has actually cost
@@ -1518,7 +1518,7 @@ both its readers and its own guard rails. One last thing worth saying plainly:
 this review was commissioned to hunt cruft, and the single most valuable thing
 it turned up is not cruft at all but a **bug** - `dbarts_sampler_setWeights`
 installing negative gaussian case weights against a contract the codebase writes
-down and honours everywhere else. It survived because it sits on the one path
+down and honors everywhere else. It survived because it sits on the one path
 with no R layer in front of it, which is precisely the path a cruft review is
 not looking at. Two of my own confident clearances also turned out to be wrong
 (a dead accessor I cleared against a same-named local variable; a test-only

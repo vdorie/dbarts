@@ -1,4 +1,4 @@
-# Missing predictors are modelled through the raw matrix (x.train, y.train)
+# Missing predictors are modeled through the raw matrix (x.train, y.train)
 # interface exactly as through the formula one: the na.action applies to the
 # (y, x) pair, so the two interfaces keep the same rows and route the same
 # NAs.

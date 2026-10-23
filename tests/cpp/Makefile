@@ -14,7 +14,7 @@ CPPFLAGS += $(EXTRA_CPPFLAGS)
 # -Werror=switch is a gate, not a style: the engine's switches over
 # ResponseFamily carry no default arm, so a new family that is not
 # classified at every one of them must break this build rather than
-# inherit gaussian's behaviour. The package build only warns (CRAN
+# inherit gaussian's behavior. The package build only warns (CRAN
 # forbids -Werror there), which is why the hard failure lives here.
 CXXFLAGS += -std=gnu++20 -Wall -Wextra -Werror=switch \
             -Werror=return-type -MMD -MP

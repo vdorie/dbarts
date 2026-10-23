@@ -55,7 +55,7 @@ jobs:
       # workers (parallel's mclapply) report from R's own and glibc's
       # allocations - thread-local storage, gettext, setenv. Every leak record
       # is still printed, and memory errors (invalid reads and writes,
-      # uninitialised use, mismatched frees) count as before. A possible leak
+      # uninitialized use, mismatched frees) count as before. A possible leak
       # this package allocated is caught by the guard below instead: a
       # possibly-lost record fails when its allocation site is package code.
       # The allocation site is the first frame below the allocator that is

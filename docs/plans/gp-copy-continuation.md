@@ -228,7 +228,7 @@ C API change.
 
 ## Open calls
 
-- Waive bench-sampler.R compare for this slice in favour of the gp A/B (no bench arm reaches the change)?
+- Waive bench-sampler.R compare for this slice in favor of the gp A/B (no bench arm reaches the change)?
 - SBC gp arms as the P17 oracle (about 50 min on two cores), or name the permutation identity alone?
 
 ## Estimate

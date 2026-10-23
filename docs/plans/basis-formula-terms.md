@@ -10,7 +10,7 @@ budget: ~400 lines (R ~60, tinytest ~200, manual ~80, records ~60). Plans have r
 ## Goal
 
 A basis written with a data-dependent transformation, `forest(basis = ~ scale(w))`, `poly(w, 2)`, `ns(w, 3)`,
-`bs(w, df = 4)`, is rebuilt at new rows from the training rows' centre, scale and knots, as `lm` rebuilds such
+`bs(w, df = 4)`, is rebuilt at new rows from the training rows' center, scale and knots, as `lm` rebuilds such
 a term. Today the formula is evaluated again on the new rows.
 
 ## Context
@@ -18,12 +18,12 @@ a term. Today the formula is evaluated again on the new rows.
 - The predictors of a fit keep their training terms and predict through them. A forest's basis does not: the
   model stores the basis formula and [`replayForestBasis`](../../R/model.R) evaluates it on the new rows.
 - Measured on the branch, `basis = ~ scale(w)`, three new rows whose true fits are 0.95, 1.75, -2.95:
-  `predict` returns 0.16, 0.83, -1.76, the rows centred on their own mean; the same rows predicted together
-  with the training rows give 0.93, 1.75, -2.82; one new row alone is an error. `~ poly(w, 2)` is further
-  off. `~ I(w - 50)`, whose value at a row does not depend on the other rows, is right.
+  `predict` returns 0.16, 0.83, -1.76, the rows centered on their own mean; the same rows predicted
+  together with the training rows give 0.93, 1.75, -2.82; one new row alone is an error. `~ poly(w, 2)` is
+  further off. `~ I(w - 50)`, whose value at a row does not depend on the other rows, is right.
 - `stats::makepredictcall` is what `model.frame` uses to turn `scale(w)` into a call that carries the training
-  centre and scale; base R and the splines package supply its methods.
-- The package does not centre or scale a multiplier (dec-B257), so a caller who wants a standardized column
+  center and scale; base R and the splines package supply its methods.
+- The package does not center or scale a multiplier (dec-B257), so a caller who wants a standardized column
   writes it, and this is the spelling the help will show.
 
 ## Constraints
@@ -36,7 +36,7 @@ a term. Today the formula is evaluated again on the new rows.
   other expression, `I()`, indexing and other functions included, is evaluated on the new rows, as `lm`
   evaluates `I(w - mean(w))`. No refusal is added for expressions that depend on the other rows: it cannot be
   decided reliably from the data.
-- With `subset`, the training centre and scale are those of the rows the fit used.
+- With `subset`, the training center and scale are those of the rows the fit used.
 - A fit object stored before this change, which carries no rebuilt call, predicts as it does now.
 - A level of a factor basis that the fit never saw is refused at predict, as `lm` refuses it; a level seen in
   training and absent from the new rows is not an error.
@@ -56,8 +56,8 @@ a term. Today the formula is evaluated again on the new rows.
    gives for the same term and rows, for several rows, for one row, and for rows predicted together with the
    training rows; predictions at new rows do not depend on which other rows are predicted with them; a factor
    basis with a level absent from the new rows predicts, and an unseen level is refused; with `subset` the
-   centre is the kept rows'; a fit stored without the rebuilt call predicts as before; `I(w - mean(w))` is
-   evaluated on the new rows, pinned as the documented behaviour.
+   center is the kept rows'; a fit stored without the rebuilt call predicts as before; `I(w - mean(w))` is
+   evaluated on the new rows, pinned as the documented behavior.
 3. On every path that rebuilds a basis: `predict`, `fitted` and `extract` at new rows, `pdbart` and `pd2bart`
    where a basis forest is served, a sampler re-created after a reload, and `xbart` if it takes a basis.
    Each is either covered by a test or listed as not reaching the code.

@@ -307,7 +307,7 @@ Fix: refuse NA indices by name before the range comparison.
   DBARTS_PREDICTOR_SOURCE_INIT list every field; the stubs build clean under DBARTS_REQUIRE_EXACT_ABI.
   Every entry stan4bart bartcore calls exists with the signature it uses.
 - setTimeLimit at 1 and 2 threads stops a run with "sampler run interrupted" (as documented). The
-  sampler runs and predicts afterwards, and the cancelled run does not advance the recorded-draw
+  sampler runs and predicts afterwards, and the canceled run does not advance the recorded-draw
   count.
 - Flat run on gaussian, BCF, ordinal and heteroscedastic handles writes nothing past the
   documented sizes (bridge-02's canary).

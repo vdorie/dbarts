@@ -79,7 +79,7 @@ is sign-flip invariant) and is reported to show it. The latent arms change five 
    [`sbcBurnSweeps`](../../benchmarks/R/sbc.R)'s `config$family` key would collide with a plain probit arm. `R = 200`,
    `L = 150`.
 5. One arm per link, not one arm with counts: the links are separate sampling code with different working-weight
-   behaviour, and probit refuses weights outright. The trial-count channel - logistic weights are frequency weights,
+   behavior, and probit refuses weights outright. The trial-count channel - logistic weights are frequency weights,
    `omega ~ PG(w, psi)` ([The two interpretations](../design/weighted-logistic.md#the-two-interpretations)) - is better
    gated deterministically by the exact gate's aggregated arm than by a third expensive statistical arm.
 
@@ -204,7 +204,7 @@ a Monte-Carlo importance oracle over the same space; (C) a reduction to a covere
 leaf scales, the treatment forest enters through a basis rather than a split, and a model is refused below two
 forests. (B) is dominated as a gate, and adopted as a check. At block dimension 3 the prior-importance ESS fraction
 is about 2e-3, so 1e7 draws give a posterior-MEAN error near 8e-4 - eighty times the bar below, and the order of the
-sampler's own MC error. A Laplace-centred proposal fixes that and then carries (A)'s machinery plus noise; it is the
+sampler's own MC error. A Laplace-centered proposal fixes that and then carries (A)'s machinery plus noise; it is the
 right cross-check on two configurations (Decision 3).
 
 Recommendation: (A), on one ordinal predictor with `K = 2` cells, `n.cuts = 1`, 200 rows per cell and `z` balanced

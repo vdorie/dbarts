@@ -523,7 +523,7 @@ pre-release is when alias policy is cheapest to revisit.
 
 ---
 
-## Overall judgement
+## Overall judgment
 
 Relative to a typical 1.0, this branch carries **less** speculative generality
 where one expects it and **more** in one place nobody looked. The engine is

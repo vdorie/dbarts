@@ -10,7 +10,7 @@ air formatting), tests ~1000, man ~200, NEWS and docs ~150; ~120 removed (stubs,
 ## Goal
 
 `rbart_vi` and its `predict`, `extract`, `fitted`, `residuals`, `plot` and `print` methods run again in 1.0-0,
-as 0.9-34's pure-R Gibbs loop over the plain sampler, warn once per session that they are deprecated in favour
+as 0.9-34's pure-R Gibbs loop over the plain sampler, warn once per session that they are deprecated in favor
 of `stan4bart::stan4bart`, and are removed in 1.1-0 with the rest of the tombstone registry (dec-B130).
 
 ## Context

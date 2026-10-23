@@ -22,7 +22,7 @@ paired chain-fastest like sigma. dims = dim(ev). as_draws vars = c("dispersion",
 
 bartOrdinal. plot mfrow(1,2): P1 one trace per FREE cutpoint (gamma_2..gamma_{K-1}); at
 K = 2 skip P1, P2 becomes the single panel. P2 latent.train median + plquants bars, obs
-ordered by median eta, coloured by observed level, dashed hlines at posterior-median
+ordered by median eta, colored by observed level, dashed hlines at posterior-median
 cutpoints. loglik: log(yhat.train[s,i,k]), k = as.integer(y_i) (stored form). dims = ev
 without the K margin (= ppd shape). as_draws vars = c("cutpoints","sigma","k","tau"),
 cutpoint[1] kept (pinned at 0, documented).

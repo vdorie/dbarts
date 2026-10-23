@@ -1219,7 +1219,7 @@ public:
 
   /// After a column's cut grid is replaced, remap every rule's splitIndex
   /// onto the new grid: by value, the new cut nearest the old cut's value,
-  /// or by position, the new position under the centre of the old one's
+  /// or by position, the new position under the center of the old one's
   /// share of its grid (rescaledSplitIndex). Either is restricted to the
   /// ancestor-constrained interval; a subtree whose interval empties
   /// collapses to a leaf with the plain mean of its leaf parameters. A column
@@ -1274,7 +1274,7 @@ public:
   }
 
   /// Where position \p oldIndex of a grid of \p oldCount points goes on one
-  /// of \p newCount: the point under the centre of its share of the old grid.
+  /// of \p newCount: the point under the center of its share of the old grid.
   /// The identity when the counts are equal, and never decreasing in
   /// oldIndex. 64 bits hold the product: both counts are at most
   /// maxNumCutsRepresentable.

@@ -35,7 +35,7 @@ the load-bearing facts rather than pointing at them.)
 ## Goal
 
 A sampler accepts a per-observation 0/1 mask that says "row i is not in the data
-set for this sampler this sweep", and honours it for the LATENT families zero
+set for this sampler this sweep", and honors it for the LATENT families zero
 weights cannot reach. The row keeps its leaf occupancy and keeps receiving a
 fit; it leaves every sufficient statistic, every family-level parameter update,
 and its own latent draw. The channel is absolute and independent of

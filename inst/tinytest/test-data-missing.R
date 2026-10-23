@@ -1,4 +1,4 @@
-# NAs in the predictors are modelled, every split rule learning a direction
+# NAs in the predictors are modeled, every split rule learning a direction
 # for missing values, for whatever rows the fit's na.action kept; na.fail
 # rejects them, and a data object whose own missing policy is "error"
 # refuses NA updates on a live sampler

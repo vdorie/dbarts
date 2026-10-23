@@ -25,7 +25,7 @@ failure time, discrete-time hazard and hurdle responses; a variance forest
 for heteroscedastic residuals; a multi-forest family of which Bayesian
 causal forests are the two-forest case; monotone and interaction
 constraints; linear and Gaussian-process leaves; the DART prior; sparse
-predictors; missing predictors modelled rather than dropped; and per-draw
+predictors; missing predictors modeled rather than dropped; and per-draw
 callbacks. The BCF fitting function itself, `bcf()`, lives in bartCause;
 dbarts carries the engine it runs on.
 
@@ -116,7 +116,7 @@ most likely first.
    `bartBT` refuse, naming the `bart` family to use. On the matrix
    interface 0.9-34 fit a continuous model to the integer level codes.
 8. **Some misplaced arguments are refused.** Arguments that belong to a
-   neighbouring method - `sample` passed to `predict`; `newdata`, `offset`,
+   neighboring method - `sample` passed to `predict`; `newdata`, `offset`,
    `weights` or `n.threads` passed to `extract`, `fitted` or `residuals` -
    are refused by name, where 0.9-34 dropped them silently. Other unknown
    names still pass silently, except on `predict`, which warns. A fractional
@@ -228,7 +228,7 @@ scheduled in section 6.
 |---|---|---|
 | `check-standard` | every push | `R CMD check` clean on macOS, Windows and Linux (R devel, release, previous release); on Windows arm64 the NEON kernels agree bitwise with scalar; once a 1.x release tag exists, an ABI change without a minor bump fails |
 | `cpp-tests` | every push | the C++ component tests pass on macOS arm64, and the build fails if code that handles response families leaves one out. Then, on the reference build - a configure option that runs every sum in a fixed order - the four seeded snapshot test files and the three equivalence baselines (53 main-corpus, 15 BCF and 11 multinomial scenarios) reproduce bitwise |
-| `sanitizers` | every push | the whole test suite, at least 5200 results, passes under clang and gcc address and undefined-behaviour sanitizers with no finding |
+| `sanitizers` | every push | the whole test suite, at least 5200 results, passes under clang and gcc address and undefined-behavior sanitizers with no finding |
 | `exact-gates` | every push | 25 scripts in quick mode: 5 detailed-balance checks (birth/death, change, swap, perturb, rule_gibbs); 16 checks against an exact posterior computed by closed form or enumeration on a small design, the logistic one also compared with the independent BART package; a check that each tree's leaf draw is exact given the rest of a full-size forest; a recovery and calibration check for aft with a variance forest; and 2 draw-for-draw reductions (hazard to binary, hurdle to its parts). Then the BCF and multinomial baselines are compared across hosts |
 | `lint`, `doc-freshness`, `pkgdown` | every push | style, citations in the docs resolve, the site builds; nothing about results |
 | `equivalence` | weekly, from main | the 53 main-corpus scenarios agree statistically on Linux with the shipped build |
@@ -263,7 +263,7 @@ schedules only from the default branch, so on bartcore each has run only
 when started by hand. `equivalence`, `sbc` and `revdep-smoke` last ran
 green. `rchk` and `valgrind` have no green workflow run; the checks
 themselves are clean when run by hand: rchk over all compiled code except
-the bridge's state-restore entry, too large for it to analyse (as it will
+the bridge's state-restore entry, too large for it to analyze (as it will
 be for CRAN's run), and valgrind over the whole suite on x86
 (`docs/plans/valgrind-xbart.md`).
 

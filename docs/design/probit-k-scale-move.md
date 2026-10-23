@@ -73,7 +73,7 @@ would cost 9 to 14 percent of a sweep (below).
 
 ## Alternatives measured on the prototype
 
-- (a) Interweaving on k (Yu and Meng 2011): a non-centred draw of k given
+- (a) Interweaving on k (Yu and Meng 2011): a non-centered draw of k given
   eta = k mu / c and z. Its conditional's precision in the fit's scale is
   sum f^2, so it moves freely only where the fit is small, where today's
   sampler already mixes; median tau of k 84 sweeps but a 99th percentile of

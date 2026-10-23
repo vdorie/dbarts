@@ -35,7 +35,7 @@ or all gates.
 ## Sub-item 1 design (poison 13, BCF a-glue prior precision)
 
 UNBLOCKED 2026-07-09: the bcf-weak SBC found the prior-dominant BCF
-configuration (n = 40) well-behaved (sigma dead-centre; |a| channel
+configuration (n = 40) well-behaved (sigma dead-center; |a| channel
 ecdf 0.043), so the prior-dominated design is implemented as
 benchmarks/R/bcf-exact-weak.R (standalone companion to bcf-exact.R,
 which stays untouched):

@@ -642,7 +642,7 @@ parseMonotoneSign <- function(value) {
 ## `termLabels`' order, read from the design's own layout: its columns stand
 ## in its terms' order, each term's as one run, named for the term itself or,
 ## where it gave several (a factor's indicators, a matrix's columns), for the
-## term and a suffix. A run is told from its neighbour by position, never by
+## term and a suffix. A run is told from its neighbor by position, never by
 ## a name's prefix alone: where the NEXT term's label looks like a column of
 ## this one ('g' beside 'g.total', or beside a numeric predictor 'g.u'), the
 ## run ends where that term's own columns begin. NULL when the names are not
@@ -1401,7 +1401,7 @@ expandForestBasis <- function(
 
 ## One forest's basis at new rows, from the record its fit kept of a basis
 ## written as code (buildCodeBasis): R's terms rebuild every term from what
-## the fitted rows gave it, a centre, a scale or knots, through model.frame(),
+## the fitted rows gave it, a center, a scale or knots, through model.frame(),
 ## the fit-time levels of every factor are imposed, so that a level set in
 ## another order cannot move a coefficient to another level, and the columns
 ## are built as at the fit (basisColumns). model.frame() finds a variable the
@@ -1835,7 +1835,7 @@ refuseStatedWithNoPlainForest <- function(stated, interactions, blocks) {
 ## Resolve a `forests` declaration into the per-forest knobs a sampler
 ## specification carries, or NULL for the single-forest path. Returns a LIST of
 ## K validated knob lists, one per forest, so nothing downstream is keyed on
-## two. Everything the engine cannot honour refuses here, by name, rather than
+## two. Everything the engine cannot honor refuses here, by name, rather than
 ## being dropped: one forest with no basis at most, and the amplitude knobs
 ## only where an amplitude exists at all. `interactions` and `blocks` are the fit's own top-level arguments,
 ## which address the forest with NO BASIS under the same spelling a forest()

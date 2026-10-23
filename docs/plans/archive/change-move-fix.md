@@ -190,7 +190,7 @@ treeLogProbability(leftChild+1), plus the branch likelihood.
   Since findGoodOrdinalRules and splitInterval both ignore the node's own
   rule, the reverse count re-enumerates the OLD variable on the changed
   tree and always contains the old rule (>= 1, never zero); same-variable
-  and equal-cut changes give correction 1 (the defect's cancelling case).
+  and equal-cut changes give correction 1 (the defect's canceling case).
   Categoricals in hybrid use mechanism (a) - counting descendant-valid
   gauge patterns is exponential for wide masks.
 

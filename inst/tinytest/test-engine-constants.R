@@ -1,6 +1,6 @@
 # The engine's fixed limits and the control settings that move them: that each
 # cap refuses (or routes) where it says it does, that a setting reaches the
-# engine as observable behaviour rather than as a stored value, and that every
+# engine as observable behavior rather than as a stored value, and that every
 # default leaves today's draws alone.
 
 set.seed(0)

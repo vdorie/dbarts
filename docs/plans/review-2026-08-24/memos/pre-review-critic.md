@@ -95,7 +95,7 @@ and still overshot. Cure: drop "catch-all" for the plotTree half.
 under `options_.verbose`. `printEvery == 0` is integer modulo by zero: SIGFPE on
 x86-64, a silently-true condition on arm64 (prints every iteration). "0 = never
 print" is the obvious consumer reading, and [inst/include/dbarts/dbarts.h:1082-1083](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/inst/include/dbarts/dbarts.h#L1082-L1083) is the one
-entry on that page carrying **no** doc comment at all while its neighbours carry
+entry on that page carrying **no** doc comment at all while its neighbors carry
 paragraphs. Recorded at [docs/plans/capi-shape.md:613](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/docs/plans/capi-shape.md#L613) as "still does not guard
 0", without noting that it is a crash. (`setNumThin(0)` is benign - checked:
 `totalIterations` goes to 0 and the loop never runs.) Cure: clamp in
@@ -130,7 +130,7 @@ class `fitted()` was reordered to remove today.
 
 Recorded as residue at [docs/plans/predict-surface.md:186](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/docs/plans/predict-surface.md#L186). What makes it a
 pre-review item is [inst/NEWS.Rd:76-79](https://github.com/vdorie/dbarts/blob/3080a9c58fcd8ce947313bab591b58d9f47defe8/inst/NEWS.Rd#L76-L79), which opens "Every `predict` method's
-argument order is now uniform" - a reader takes that as licence to pass
+argument order is now uniform" - a reader takes that as license to pass
 positionally. Cheapest honest cure is two clauses (NEWS + the bart2 Value
 paragraph) saying the order is uniform in *relative* order only and that absolute
 slots shift where a class lacks a channel; the thorough cure is an `offset = NULL`
@@ -182,7 +182,7 @@ count.
 
 [inst/tinytest/test-plot-generics.R:372](https://github.com/vdorie/dbarts/blob/de67cf07747b7efc61f478aa1410b49b480cd43b/inst/tinytest/test-plot-generics.R#L372):
 `expect_silent(plot(fit.multinomial, c(0.1, 0.9)))`. Verified: `plot(fm, cols =
-c(0.1, 0.9))` is **also** silent (numeric colours coerce), so the assertion
+c(0.1, 0.9))` is **also** silent (numeric colors coerce), so the assertion
 passes under both the old and the new argument order and cannot detect the change
 it exists to pin. Cure: `expect_error(plot(fm, c("blue", "black")))` - verified to
 raise `'probs' outside [0,1]` under the new order and to be silent under the old.

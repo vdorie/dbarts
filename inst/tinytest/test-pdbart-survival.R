@@ -613,7 +613,7 @@ expect_silent(plot(
   ylab = "S"
 ))
 dev.off()
-# the dependence view draws the plquants interval in the caller's colours
+# the dependence view draws the plquants interval in the caller's colors
 drawing <- function(...) {
   psFile <- tempfile(fileext = ".ps")
   on.exit(unlink(psFile))

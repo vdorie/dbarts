@@ -39,11 +39,11 @@ expect_identical(
 )
 expect_identical(select(c("forest1", "forest3"), NULL, 3L, TRUE), c(1L, 3L))
 
-# two forests, the second labelled by its basis
+# two forests, the second labeled by its basis
 labels <- c("forest1", "dose")
 expect_identical(select("dose", labels, 2L), 2L)
 expect_identical(select("forest1", labels, 2L), 1L)
-# forest<i> is position i whatever that position is labelled
+# forest<i> is position i whatever that position is labeled
 expect_identical(select("forest2", labels, 2L), 2L)
 expect_identical(
   refusal(select("age", labels, 2L)),
@@ -60,7 +60,7 @@ expect_identical(
   )
 )
 
-# three forests, labelled by code
+# three forests, labeled by code
 labels <- c("forest1", "scale(age)", "I(dose/30)")
 expect_identical(select("I(dose/30)", labels, 3L), 3L)
 # a label matches exactly, then as code
@@ -118,7 +118,7 @@ expect_identical(
 # exactly beats code
 expect_identical(select("a+b", labels, 4L), 3L)
 expect_identical(select("a + b", labels, 4L), 4L)
-# the name of a position nobody else is labelled is that position
+# the name of a position nobody else is labeled is that position
 expect_identical(select("forest1", labels, 4L), 1L)
 expect_identical(select("forest4", labels, 4L), 4L)
 
@@ -649,7 +649,7 @@ expect_error(
 )
 
 # a name that is another forest's label is not read as this position's
-# forest<i>: forests labelled forest2, dose, forest1
+# forest<i>: forests labeled forest2, dose, forest1
 taken <- frame
 taken$forest1 <- frame$age
 taken$forest2 <- frame$dose

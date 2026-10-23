@@ -2776,7 +2776,7 @@ static void testPerturbMove() {
 // ---------------------------------------------------------------------------
 // The rule-Gibbs move: an exact draw of the split rule at a nog node.
 //
-// Four claims. FIRST, the neighbourhood identity: the kernel's own log weights
+// Four claims. FIRST, the neighborhood identity: the kernel's own log weights
 // must agree, candidate for candidate, with a reference assembly that installs
 // each rule, refreshes the subtree and reads CGMTreePrior and
 // logLikelihoodForBranch directly - the same score the acceptance would have
@@ -2872,7 +2872,7 @@ static void testRuleGibbsMove() {
     return out;
   };
 
-  // ---- the neighbourhood identity ----
+  // ---- the neighborhood identity ----
   check(enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma),
         "the enumeration finds candidates");
 #ifdef BARTCORE_RULE_GIBBS_CUT_ONLY

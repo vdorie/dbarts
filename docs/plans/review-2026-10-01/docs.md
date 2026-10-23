@@ -56,7 +56,7 @@ Probe:
   x <- matrix(rnorm(200), 100, dimnames = list(NULL, c("a","b"))); xt <- x[1:5, ]; colnames(xt) <- c("p","q")
   dbarts(x, rnorm(100), test = xt)
   #  Error: column names of 'test' do not match those of 'x': 'a, b' present in 'x' but not in 'test' (whose columns are 'p, q')
-Why gates missed: prose only; the behaviour itself is tested.
+Why gates missed: prose only; the behavior itself is tested.
 Fix: "if both are named, test's names must cover data's (an error otherwise); if only one is named, columns are matched by position with a warning".
 
 docs-05  MINOR
@@ -69,7 +69,7 @@ Probe (same script on both builds):
   # 1.0-0: Warning: 'test' is unnamed but 'x' had named predictors, matched to 'x' by position
   #        (column 1 = 'x.1', column 2 = 'x.2'); supply 'test' with column names to match by name instead
   # (every call, not once; also fires in vignette working_with_saved_trees, extract(..., newdata = x[1:5, ]))
-Why gates missed: NEWS has no coverage gate against behaviour diffs.
+Why gates missed: NEWS has no coverage gate against behavior diffs.
 Fix: add a NEWS line under "New data given to predict"; in the message, say "the fit's predictors are named" (and consider not warning when the names were generated from a matrix term).
 
 docs-06  MINOR

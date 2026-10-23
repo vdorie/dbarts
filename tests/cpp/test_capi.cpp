@@ -2,7 +2,7 @@
 // engine's DrawInfo, and the registration semantics dbarts_sampler_setDrawCallback
 // has. The entry point itself speaks SEXP and is linked only by the package
 // build, so what runs here is the state and the adapter it delegates to - one
-// line apiece there, and all of the behaviour.
+// line apiece there, and all of the behavior.
 
 #include "common.hpp"
 

@@ -196,7 +196,7 @@ state the exception in both Value entries.
   gap is documented.
 - Constraints hold through run, growFromRoot (BCF per forest included), installTrees refusals,
   setState refusals, vars plus blocks by name and index, trees.per.group per forest; ordinal,
-  nbinom and hurdle honour interactions/blocks.
+  nbinom and hurdle honor interactions/blocks.
 - bart() forest() term fits: extract/predict type = "forest", contribution, combineChains both
   ways, names forest1/forest2, glue "forest" attribute, the reconstruction identity
   yhat = shift + sum (B glue) forestFits, predict(newdata) = yhat.train.

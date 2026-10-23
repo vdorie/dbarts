@@ -17,7 +17,7 @@ agent: S0 opus (engine printer widening + bridge helper promotion, no dbarts.h
 rng: NEUTRAL, every slice. Nothing here touches a proposal, a suffstat, a cut
   builder or an RNG consumer. S0 widens two diagnostic printers and moves three
   refusal helpers between namespaces; S1 is dbarts.h + C_interface.cpp only.
-  The trio is a FORMALITY and must be LABELLED one in the landing note: no
+  The trio is a FORMALITY and must be LABELED one in the landing note: no
   equivalence harness drives a single dbarts.h entry point (measured -
   `benchmarks/` has zero `dbarts_sampler_` hits). `inst/tinytest/test-capi.R` +
   `inst/tinytest/capi/consumer.c` are the load-bearing neutrality gate (F1).
@@ -228,7 +228,7 @@ AMENDMENTS, seven blocking findings). Every finding was re-verified here against
   `dbarts_apiVersion` is FALSE for the fifth consumer.** True for stan4bart and
   treatSens (0 hits each, reproduced twice). False for
   [inst/tinytest/capi/consumer.c:16-27](https://github.com/vdorie/dbarts/blob/8d80ab01eba883400005093084754536b5c56f6a/inst/tinytest/capi/consumer.c#L16-L27), which resolves it BY HAND through
-  `R_GetCCallable` with a written-out cast, labelled "Deliberate canary ... the
+  `R_GetCCallable` with a written-out cast, labeled "Deliberate canary ... the
   un-stubbed per-symbol path a consumer that declines DBARTS_USE_STUBS (or a
   diagnostic tool) still relies on. Everything else goes through the stubs, so
   this one raw path guards that plain R_RegisterCCallable registration keeps
@@ -574,7 +574,7 @@ a private library with `R_LIBS` set (a facade virtual
 moves - a stale object bus-errors; never the user library); delete the
 `benchmarks/kernels` binaries (no header dependency tracking); `tests/cpp` from
 clean, plain AND ASAN (`ASAN_OPTIONS=detect_container_overflow=0`); full
-tinytest with NO snapshot regenerated; the trio bitwise, LABELLED a formality;
+tinytest with NO snapshot regenerated; the trio bitwise, LABELED a formality;
 `air format --check .`.
 ABORT: any trio divergence; any change to forest-0 printed output on either
 branch.
@@ -1039,7 +1039,7 @@ might fail.
 
 rng: NEUTRAL. Gates: preclean install into the private library; `tests/cpp`
 plain and ASAN from clean; `test-capi.R` (the load-bearing gate); full tinytest;
-the trio bitwise, LABELLED a formality; `air format --check .`; dbarts.h
+the trio bitwise, LABELED a formality; `air format --check .`; dbarts.h
 ASCII-clean and C99-clean (`consumer.c` compiles as C - the existing self-gating
 check), and clean at CXX17 as well as CXX20 for the `static inline` constructor.
 ABORT: a re-signed X-list that leaves `DBARTS_C_API_HASH` unchanged from
@@ -1291,7 +1291,7 @@ all with zero consumer calls - STAY.
    is met exactly as well by a new name.
 
    **RE-LICENSED 2026-08-13, pre-S1. The decline STANDS; two of its stated
-   warrants have expired and are struck.** The original licence was a
+   warrants have expired and are struck.** The original license was a
    three-part test - a plan may decline another plan's reservation when (a) the
    substitute meets the reservation's own goal, (b) the departure is recorded
    where the reserving author will see it, and (c) the reservation is not yet
@@ -1355,7 +1355,7 @@ recorded principles and measured evidence, and the fourth (versioning) by VD's
   takes the same source POD when it arrives.
 - **Flat multinomial / counts creation, `setCounts`, `setOffsetMatrix`** -
   reserved names (resolved question 3).
-- **A tagged response/offset source** - DECLINED in favour of new names; the
+- **A tagged response/offset source** - DECLINED in favor of new names; the
   reservation stays recorded so it is not re-proposed as fresh.
 - **Per-column u8 code widths** (public-surface.md sec 7) - the reason the ABI
   must not spell `xint_t` or `ColumnType`.
@@ -1564,7 +1564,7 @@ prior version exists to have changed from (binding decision 8).
    sequencing call, and 1 by VD's ruling above. The "Open decisions (VD)"
    section is deliberately empty.
 8. **A5 is adopted as an observation, not a gate.** The 34.5x / 9.96x figure is
-   an R-surface measurement and stays labelled one; the C-side reading is
+   an R-surface measurement and stays labeled one; the C-side reading is
    order-of-magnitude, recorded in the landing note, and is never a benchmark.
 9. **The memo's anchor drift is drift, not error.** It read at 2ca0453; the tip
    advanced to 2e50cf1 with TODO and docs edits only, `src/` and `inst/include/`
@@ -1646,7 +1646,7 @@ private-lib installs; `tests/cpp` from clean 232/232 plain AND ASAN/UBSAN,
 zero sanitizer diagnostics; full tinytest 4424/0, provenance-checked, no
 snapshot regenerated; the trio IDENTICAL - equivalence-8b047f8b 37/37 strict,
 bcf-equivalence-8b047f8b 12/12, multinomial-equivalence-1027be5 10/10, no
-max |z| line anywhere - LABELLED a formality, per this plan's rng line, since
+max |z| line anywhere - LABELED a formality, per this plan's rng line, since
 no flat entry drives it yet). x86 leg (dbarts-bench) green: install clean,
 tests/cpp plain + ASAN both all-pass, tinytest 4412/0, equivalence.R
 statistical 37/37, max |z| = 0.00, exit 0. CI six-green on the push.
@@ -1776,7 +1776,7 @@ plain AND ASAN all-pass, tinytest 4563/0 with `test-capi.R` 179/0 driving
 `consumer.c` on x86-64 Linux, statistical equivalence 37/37 max |z| = 0.00;
 a shortened re-run at ab3aa2fa against identical engine binaries - install,
 `tests/cpp` plain, tinytest 4570/0, `test-capi.R` 186/0. The trio IDENTICAL
-on all three harnesses, a labelled formality for this arc (no equivalence
+on all three harnesses, a labeled formality for this arc (no equivalence
 scenario drives a single `dbarts_sampler_` entry point). CI six-green on the
 push.
 

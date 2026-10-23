@@ -101,7 +101,7 @@ Ruled, and not restated here:
   row, then average: dec-B210. The offset included: dec-B211. Arguments
   pdbart sets itself, and `...` until 1.1-0: dec-B212. The once-per-session
   message: dec-B213. Averaging weights: dec-B214. The scale recorded and
-  labelled: dec-B215. The grid from `newdata`: dec-B216. Offsets on
+  labeled: dec-B215. The grid from `newdata`: dec-B216. Offsets on
   `newdata`: dec-B217. `n.average.rows`: dec-B218. A formula fit's rows from
   its stored call: dec-B219. The hazard size check and `n.max.predictions`:
   dec-B220. The default time: dec-B221. The survival result's shape:
@@ -146,7 +146,7 @@ ruled; they are cited by their rulings below.
    on the variable's own scale, and an offset expression built from the
    varied variable is rebuilt with it.
 5. (*) A `dbartsSampler` passed in takes only `type = "bart"`; it carries no
-   fit object to transform through. A hazard sampler, recognised by
+   fit object to transform through. A hazard sampler, recognized by
    `attr(sampler$control, "bartcore.hazard.periods")` (its model's family
    reads `"probit"`), stays refused after slice 3, since its rows are
    person-period rows. An aft sampler is served only with an explicit `type
@@ -258,7 +258,7 @@ Slice 1 - fit through `bart`.
    `tree.prior` refused, `proposalprobs` merged into a given `control`;
    warnings counted with `withCallingHandlers`; a call with a local `chi`
    stub and `k = chi(1.25, Inf)` whose fit's leaf prior records that
-   hyperprior; `n.trees` and `family` honoured; a misspelled name refused;
+   hyperprior; `n.trees` and `family` honored; a misspelled name refused;
    every family refusal before any fit (an explicit family, a three-level
    factor, an ordered factor, a count matrix, a `Surv` response under
    `"auto"`, and a fit and a sampler of each refused family passed in);
@@ -417,7 +417,7 @@ release.
   offsets, transform-then-average, thinning is `n.thin`, what each slice
   still refuses); examples in `bart`'s names with `n.chains` and `n.threads`
   small and the survival example inside `\donttest`. `man/dbarts-deprecated.Rd`:
-  the behaviour rows.
+  the behavior rows.
 - `inst/NEWS.Rd`, against 0.9-34 only, pruned:
   - UPGRADING: pdbart and pd2bart fit through `bart`, with its names and
     defaults (75 trees, four chains merged, so `fd` has 2000 rows by

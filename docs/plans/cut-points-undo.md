@@ -60,7 +60,7 @@ All numbers below were run on the tip's build; a column is numeric unless said o
 - What already works. On a design with neither case, store, `setCutPoints(G1)`, `setCutPoints(G0)`,
   `setState(stored)` returns `TRUE`, the grid is back bit for bit, and the continuation differs from an
   untouched twin's by 6.7e-16, the size a plain store and restore already leaves.
-- The engine already runs on a grid with equal neighbours: a state whose column grid repeats every point
+- The engine already runs on a grid with equal neighbors: a state whose column grid repeats every point
   (200 points, 100 distinct) installs, 200 sweeps are finite, splits fall on grid values, and a copy is made.
   The door that refuses such a grid is `setCutPoints` alone.
 - The grid in force is read in tests as the `cutPoints` attribute of the stored state, as
@@ -147,7 +147,7 @@ All numbers below were run on the tip's build; a column is numeric unless said o
      numeric entry of a whole list is refused; naming the factor column is refused with each of the two
      messages; a list shorter or longer than the design is refused with no warning. The first two fail
      today. On a design of factor columns alone the whole list returns and the stored state is unchanged.
-   - Any grid with equal neighbours that is not the one the column holds is refused, on a column whose own
+   - Any grid with equal neighbors that is not the one the column holds is refused, on a column whose own
      grid repeats a point too, as a `NaN` and an `NA` are, with the new message, by
      column and as an entry of the whole list, and the grid is left as it was; over a column of zeros the
      held zeros are accepted and as many negative zeros refused; a grid of distinct points is accepted, and
@@ -219,7 +219,7 @@ never installs it; the manual's table of what puts each derived value back befor
 
 ## Calls made in planning
 
-- A caller's grid holds each point once, and the one grid taken with equal neighbours is the grid the
+- A caller's grid holds each point once, and the one grid taken with equal neighbors is the grid the
   column holds, bit for bit (decided after the first review). The alternative, this plan's first call,
   took any non-decreasing grid. A stored split names its cut by value and a restore puts it on the first
   index holding that value, so on a grid with every point tripled a store and restore moved the next 30
@@ -259,7 +259,7 @@ correction was made and none rejected.
 What the reviews changed. The first plan took any non-decreasing grid from a caller. A stored split names
 its cut by value and a restore puts it on the first index holding that value, so a grid that repeats a
 value does not survive a store and restore; the rule became the narrow one (dec-A170): a caller's grid is
-strictly increasing, and the one grid taken with equal neighbours is the grid the column holds, bit for
+strictly increasing, and the one grid taken with equal neighbors is the grid the column holds, bit for
 bit. The cap on the cut count is no longer stored: a derivation counts from the count asked for at build
 and a refresh from the count the column holds, so nothing a set grid or a refused state install touched
 can go stale. R drops a whole list's factor entries unread. After the second review `setCutPoints` takes

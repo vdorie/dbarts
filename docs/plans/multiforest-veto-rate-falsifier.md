@@ -42,7 +42,7 @@ Three forks, in the order they bind. Only the first is decided here.
   `refuseVarianceForestPredictorMutation`
   retired: [`refuseVarianceForestPredictorMutation`](../../src/R_interface_bartcore.cpp)
   - both gone; multiforest-predictor-mutation.md later retired the whole
-  transactional setPredictor/updatePredictor refusal these guarded, in favour
+  transactional setPredictor/updatePredictor refusal these guarded, in favor
   of accepting the mutation with rollback. Both fired only
   when `!forcedUpdate`; the FORCE paths stayed open and refreshed
   every forest.
@@ -61,7 +61,7 @@ Three forks, in the order they bind. Only the first is decided here.
   `samplers[0]->rng()` there too.
 - The unit of study is **not** `numForests`. A heteroscedastic sampler
   keeps `numForests == 1`; the variance forest lives outside `forests_`
-  and is signalled by `SamplerShape::hasVarianceForest`. Use
+  and is signaled by `SamplerShape::hasVarianceForest`. Use
   `E = numForests + (hasVarianceForest ? 1 : 0)` - the number of ensembles
   routed off the shared column store. This confirms
   [2. What the engine serves today](../design/model-space-survey.md#2-what-the-engine-serves-today) and
@@ -587,7 +587,7 @@ per cell class; `sd_seed` from 16 config-(a) seeds and 8 config-(b) seeds.
 - **`sd_seed` <= 0.0164 pp**, three orders of magnitude under the 2.83 pp
   design condition. The registered seed count therefore STANDS: 8 seeds
   (6 at n = 5000). No margin leaves the gate under floor-above-ceiling.
-- **Stage-0 noise bands, for the pre-registered NEAR-LINE labelling.** Per
+- **Stage-0 noise bands, for the pre-registered NEAR-LINE labeling.** Per
   cell class the band is `2 x sd_seed / sqrt(8)`: 0.0022 pp (continuous 500),
   0.0013 pp (continuous 1000), 0.0001 pp (continuous 5000), 0.0116 pp
   (binary 500), 0.0051 pp (binary 1000), 0.0011 pp (binary 5000). Every P1

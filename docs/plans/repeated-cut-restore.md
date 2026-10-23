@@ -113,7 +113,7 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
   by the state reader (["malformed cut points in bartcore state"](../../src/R_interface_bartcore.cpp))
   and by [`readWarmStartState`](../../src/R_interface_bartcore.cpp); in R
   [`bartcoreSamplerSetCutPoints`](../../R/bartcore.R). Both state checks use
-  [`cutGridIsValid`](../../src/bartcore/data.hpp) in its form that allows equal neighbours. Edited:
+  [`cutGridIsValid`](../../src/bartcore/data.hpp) in its form that allows equal neighbors. Edited:
   the two fill routines, the two refreshes and their prechecks, the validity check and its three
   callers, and the two bridge readers; the rest hold the rule because what feeds them does.
 - Gates (run on the prototype with the report on, `quick`): of the gates
@@ -155,7 +155,7 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
 1. dec-B297, the maintainer on keeping repeats: "I don't see the motivation for A. I doubt it matches
    a user's intent." The entry's rule: "a grid is a set of distinct thresholds, and every grid the
    sampler builds or accepts holds each value once." Testable: after any call, no column's grid has
-   two equal neighbours.
+   two equal neighbors.
 
    ```r
    ctl <- dbartsControl(n.cuts = 100L, n.chains = 1L)
@@ -237,7 +237,7 @@ derivation and one that reports every repeating grid; benchmarks/ has not change
    - `setCutPoints`, asked of the maintainer the same day against always by value and always by
      position: "The same choice as the refresh, same words." It gains `splits`, after `updateState`
      so positional calls keep their meaning: `"position"` (the default; with the count unchanged
-     today's behaviour bit for bit, with it changed the position rescaled, where today and in
+     today's behavior bit for bit, with it changed the position rescaled, where today and in
      0.9-34 the index is kept and a split past the end merged) or `"value"`. Shown that the release
      keeps the index there, against the rescale as built, the maintainer on 2026-10-07: "Rescale, as
      built." (dec-B311). It stays forced: what cannot stand is merged, and there is no unforced form.
@@ -286,7 +286,7 @@ planning that shapes the build is how a rule's points are counted (call 2).
    [`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp) and
    [`Chain::rebuildVarianceForest`](../../src/bartcore/chain.hpp) run that pass for a marked tree as
    for an empty bottom and set their altered flag. The checks on scratch trees set no verdict.
-2. One point per value where a grid is derived. A routine drops equal neighbours and sets the count;
+2. One point per value where a grid is derived. A routine drops equal neighbors and sets the count;
    [`fillCutsOverRange`](../../src/bartcore/data.hpp) and
    [`fillCutsFromQuantileGrid`](../../src/bartcore/data.hpp) end with it. The comments on
    [`ColumnStore`](../../src/bartcore/data.hpp) and [`requestedNumCuts`](../../src/bartcore/data.hpp)
@@ -331,7 +331,7 @@ planning that shapes the build is how a rule's points are counted (call 2).
    [`PredictorUpdateResult`](../../src/bartcore/sampler.hpp)'s refusal, which only a factor value
    off its level table can now raise, says that.
 4. What is accepted. [`cutGridIsValid`](../../src/bartcore/data.hpp) loses its form that allows
-   equal neighbours; [`Sampler::setState`](../../src/bartcore/sampler.hpp) and
+   equal neighbors; [`Sampler::setState`](../../src/bartcore/sampler.hpp) and
    [`Sampler::installForests`](../../src/bartcore/sampler.hpp) call the strict one. The two bridge
    readers check each numeric column's grid where they read it and stop with
    `cut points of column <j> in bartcore state repeat a value (<v>): a cut grid holds each point once`
@@ -416,7 +416,7 @@ planning that shapes the build is how a rule's points are counted (call 2).
      and its three words; a refresh derives the grid a new sampler would have for the values, up to
      `n.cuts`, fewer where they supply fewer; where the splits go under each word; a logical and its
      removal in 1.1-0. `cuts`: the exception for the held grid and its sentence on equal
-     neighbours go. `setState`: a state whose grid repeats a point is refused; `FALSE` also where a
+     neighbors go. `setState`: a state whose grid repeats a point is refused; `FALSE` also where a
      split outside its interval was merged. [`dbartsControl`](../../man/dbartsControl.Rd) and
      [`bartBT`](../../man/bartBT.Rd): a column whose range cannot hold `n.cuts` distinct points gets
      fewer; a constant column one. The method string of
@@ -527,7 +527,7 @@ Each is the planner's, reversible, and open for the maintainer's mark.
 
 1. The file keeps its name; the alternative was a new name with the register's four record lines and
    the TODO repointed.
-2. "The distinct points the values supply" is read as today's derivation with equal neighbours
+2. "The distinct points the values supply" is read as today's derivation with equal neighbors
    dropped: the uniform rule's `n.cuts` evenly spaced points, the quantile rule's chosen midpoints.
    So a column of few values far apart keeps its grid and its bits. The alternative, one point per
    gap between distinct values under the uniform rule too, changes every fit with a discrete column.
@@ -586,7 +586,7 @@ The implementer's unless marked, reversible, and open for the maintainer's mark.
 1. Steps 2 and 3 land as one commit: with the drop alone a refresh would shorten a grid whose count
    no rollback puts back.
 2. The rescaling under `"position"`: position i of n, counted from 0, goes to
-   floor((2 i + 1) m / (2 n)) on a grid of m, the point under the centre of the split's share of the
+   floor((2 i + 1) m / (2 n)) on a grid of m, the point under the center of the split's share of the
    old grid. It is the identity at m = n, keeps order, and is the index the quantile rule uses to
    spread a count over midpoints. Two splits that land on one point are then placed as the move by
    value places them: inside the interval their ancestors leave, an empty interval merged.

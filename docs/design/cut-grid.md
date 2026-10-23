@@ -21,7 +21,7 @@ position holding its value, so the restored chain did not continue as stored.
 
 - Every grid a sampler derives, at creation, at `setData` and at a refresh, holds each point once
   ([`ColumnStore::dropRepeatedCuts`](../../src/bartcore/data.hpp)). The points are the ones the rule placed,
-  with equal neighbours dropped: the uniform rule's evenly spaced points, the quantile rule's midpoints
+  with equal neighbors dropped: the uniform rule's evenly spaced points, the quantile rule's midpoints
   ([`ColumnStore::fillCutsOverRange`](../../src/bartcore/data.hpp),
   [`ColumnStore::fillCutsFromQuantileGrid`](../../src/bartcore/data.hpp)). A constant column, or one with one
   finite value beside missing ones, holds one point; a column with no finite value one point at 0.
@@ -65,7 +65,7 @@ to `setCutPoints`. The caller chooses ([`SplitPlacement`](../../src/bartcore/dat
 
 - by position, `updateCutPoints = "position"` and the default of `setCutPoints(splits = )`: a split keeps its
   position. With the number of points unchanged nothing is touched, which is what 0.9-34 did. With it changed
-  position i of n, from 0, goes to floor((2 i + 1) m / (2 n)) of m, the point under the centre of its share of
+  position i of n, from 0, goes to floor((2 i + 1) m / (2 n)) of m, the point under the center of its share of
   the old grid ([`Tree::rescaledSplitIndex`](../../src/bartcore/tree.hpp)).
   At `setCutPoints` 0.9-34 kept the index on a grid of another length and merged a split past its end, so
   that call draws differently from the release (dec-B311).

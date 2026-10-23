@@ -367,10 +367,10 @@ Options: (a) REFUSE on all six; (b) plumb it into the three that drop it, making
 
 RECOMMEND (a), and the reason is what the object IS rather than what it costs. `y - band` is not a residual
 band: subtracting an increasing triple from a constant reverses it, so the returned `ci.lower` column holds
-the UPPER end of the residual's interval and vice versa - a labelled object whose labels are wrong on two of
+the UPPER end of the residual's interval and vice versa - a labeled object whose labels are wrong on two of
 three columns. Making that live on three more classes propagates a mislabelling; refusing it costs a caller
 one line (`y - fitted(object, ci.level = )`, where the same reversal is at least visible at the call site).
-Direction decides the rest: refusing leaves (b) additive, and a later (b) would want the columns re-labelled,
+Direction decides the rest: refusing leaves (b) additive, and a later (b) would want the columns re-labeled,
 which shipping (a) does not prevent and shipping the status quo does.
 
 Reason clause (composed into the standard main clause): `"residuals are the observed response minus the

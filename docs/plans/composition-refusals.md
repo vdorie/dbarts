@@ -152,7 +152,7 @@ docs/design/heteroscedastic.md, and section 15 is CORRECTED in the same commit: 
 alongside `variance` was already unreachable" is true of the rbart_vi spelling only and false of the four other
 entrances, and its parenthetical reason ("its `...` is rejection-only") is wrong twice over - `rbart_vi` has no `...` at
 all ([R/rbart.R:9-52](https://github.com/vdorie/dbarts/blob/7a8c7286b6b86ce0c6d12c492dde77b8b0ad25b4/R/rbart.R#L9-L52)), which is why R's own unused-argument wall is what raises. feature-matrix [f30] has recorded the
-live behaviour correctly all along. docs/design/grouped-random-effects.md gets one cross-reference by section title, not
+live behavior correctly all along. docs/design/grouped-random-effects.md gets one cross-reference by section title, not
 a restatement (docs/plans/README.md "Cross-references").
 
 Drafted text:

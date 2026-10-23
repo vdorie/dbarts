@@ -324,11 +324,11 @@ the decision on whether the R default stays as ruled. S1 is correct at any cutof
 
 - **D1** `run`'s per-call override. Its formal ([R/dbarts.R:958](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/R/dbarts.R#L958)) is equally inert. Deferred: run's
   count also sizes `routeTestRows` ([src/bartcore/chain.hpp:4048](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/src/bartcore/chain.hpp#L4048)) and a run mutates state, so the override moves
-  progress reporting and interrupt behaviour, not just worker count.
+  progress reporting and interrupt behavior, not just worker count.
 - **D2** A predict-shaped thread default (a `dbartsControl` slot or an option) if S2's curve
   justifies it.
 - **D3** Interrupt polling during a long predict. Deferred, and SAFE to defer: R's unix SIGINT
   handler only sets `R_interrupts_pending`, and the jump happens in `R_CheckUserInterrupt`, which
   predict never calls - the bridge's poll (`bartcore_checkInterrupt`, [src/R_interface_bartcore.cpp:4238](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/src/R_interface_bartcore.cpp#L4238)
   -4244) is `R_ToplevelExec`-wrapped and reached only by run. A Ctrl-C during `worker.join()`
-  cannot longjmp out. The SIGINT mask mirror is defence in depth, not necessity.
+  cannot longjmp out. The SIGINT mask mirror is defense in depth, not necessity.

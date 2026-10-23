@@ -293,7 +293,7 @@ expect_identical(dimnames(sdGrid)$sd, c("0.5", "1", "0.25"))
 sweptOrder <- do.call(xbart, c(xbartArgs, list(sd = c(0.25, 0.5, 1))))
 expect_identical(unname(sdGrid[, c(3L, 1L, 2L)]), unname(sweptOrder))
 # on a binary family, whose anchor is a constant (3 on probit), a grid of
-# fixed cells is the same sweep in either spelling; a modelled cell is not,
+# fixed cells is the same sweep in either spelling; a modeled cell is not,
 # since the two start their chains at different spreads
 probitArgs <- xbartArgs
 probitArgs$data <- yb

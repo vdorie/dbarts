@@ -384,7 +384,7 @@ fit.viaFormula <- do.call(bart, c(list(y ~ ., data = d.formula), fitArgs))
 fit.viaXY <- do.call(bart, c(list(x.forXY, y.f), fitArgs))
 expect_identical(fit.viaFormula$yhat.train, fit.viaXY$yhat.train)
 
-# under 'subset', the formula's subset honours the same rows a
+# under 'subset', the formula's subset honors the same rows a
 # hand-subsetted x/y call would
 sub.f <- seq.int(1L, n.f, by = 2L)
 fit.formula.sub <- do.call(

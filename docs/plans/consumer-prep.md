@@ -83,9 +83,9 @@ Needs no edit at all, checked by reading the routing against each stage of the m
   ahead of it on `R_LIBS`; nothing goes into the user library.
 - Draws do not move: each package's seeded results are identical before and after, compared by the
   reviewer on two private installs, not taken from the implementer.
-- No new user-visible behaviour but two: stan4bart's messages for a bad `n.cuts` are its own (same values
+- No new user-visible behavior but two: stan4bart's messages for a bad `n.cuts` are its own (same values
   refused: zero, negative, fractional, NA, non-numeric); `mvbart` refuses `bart_args$n.trees` by name where
-  today it is ignored in favour of `mvbart`'s own `n.trees` (run: 99 there beside 7 gives the 7-tree fit).
+  today it is ignored in favor of `mvbart`'s own `n.trees` (run: 99 there beside 7 gives the 7-tree fit).
 - Each repository's own conventions: no attribution, no markdown in commit messages. bairrtt is committed
   and pushed on main; the others on their compat branches, pushed after review.
 - Out of scope: the per-forest prior arguments of dec-B246, which rework `bcf`'s `forest()` calls in their
@@ -154,7 +154,7 @@ One implementer per package, each step verifiable alone. The four are independen
   used or refused, never dropped.
 - Found on the way, not planned here: treatSens's hand-built probit model stores a residual prior the
   family cannot use (it disappears with step 3); stan4bart's test of `n.cuts` asserts the default value, so
-  it passes whether or not the argument is honoured (fixed in step 2a).
+  it passes whether or not the argument is honored (fixed in step 2a).
 
 ## Landing note
 

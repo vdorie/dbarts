@@ -327,8 +327,8 @@ C(T). Integrating the touched leaves given the rest leaves Z_T in the target, so
 the exact birth ratio is the tree-prior and proposal terms times
 I_T*(same) / I_T0(same) times Z_T0 / Z_T*, where I_T is B's integral with d
 removed; death is the reverse. The ratio d* / d0 of the touched leaves' cone
-masses given their frozen neighbours equals Z_T* / Z_T0 only when no touched
-leaf has a frozen constrained neighbour: root births, and every move of the one-cut gate (section
+masses given their frozen neighbors equals Z_T* / Z_T0 only when no touched
+leaf has a frozen constrained neighbor: root births, and every move of the one-cut gate (section
 9), which is why that gate passed. Elsewhere B' as first built targeted neither
 prior below. The shipped move offers two, chosen by `monotone(prior = )`:
 
@@ -351,7 +351,7 @@ prior below. The shipped move offers two, chosen by `monotone(prior = )`:
   At 10 or more trees counts are negligible.
 - Both: [`MonotoneConstantGaussianLeaf::redrawAfterBirth`](../../src/bartcore/model.hpp)
   redraws the touched pair exactly from its truncated posterior, an empty leaf
-  draws from its prior truncated to its neighbours' bounds rather than sitting
+  draws from its prior truncated to its neighbors' bounds rather than sitting
   at 0, and
   [`monotoneDrawPriorLeaves`](../../src/bartcore/model.hpp) draws a tree's prior
   leaves exactly, as a uniform linear extension with sorted normal draws.
@@ -594,7 +594,7 @@ the prior they encode, named explicitly. Three checks cover both priors:
   It fails the old move decisively, and runs quick in CI once per prior.
 - [monotone-successive-conditional.R](../../benchmarks/R/monotone-successive-conditional.R)
   draws a state from the prior, simulates a response, runs K sweeps from that
-  state, and checks that each functional's paired change is centred (Geweke
+  state, and checks that each functional's paired change is centered (Geweke
   2004), on one-tree
   designs too deep to enumerate, under both priors and the unconstrained twin.
 - The monotone SBC arms, one per prior at 20 trees (sbc-family-tiers.md), and
@@ -679,7 +679,7 @@ the posterior-changing baseline for this arc.
   move, the successive-conditional check passes on deep one-tree designs, and
   both 20-tree SBC arms pass. The first version's confidence rested on the
   paper's eq. 4.11 cancellation, which holds only for moves whose touched leaves
-  have no frozen constrained neighbour, and its one-cut gate could not see the
+  have no frozen constrained neighbor, and its one-cut gate could not see the
   rest (section 4's correction). Residual risks: the neighbor geometry, factor
   levels and missing values included, covered by a point oracle in the
   component tests; and mixing, since a one-tree birth/death chain can stay

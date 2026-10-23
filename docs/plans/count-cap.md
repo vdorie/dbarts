@@ -12,7 +12,7 @@ budget: ~450 lines (R ~40, C++ ~120, tinytest ~150, tests/cpp ~80, manual ~20, r
 
 ## Goal
 
-A logistic count weight, a fixed negative-binomial shape or a multinomial count row totalling more than one
+A logistic count weight, a fixed negative-binomial shape or a multinomial count row totaling more than one
 million trials is refused by name on every surface that takes it, as a negative-binomial response above one
 million already is. A user interrupt during
 a sweep's Polya-Gamma draws stops the run within about a tenth of a second and leaves the sampler valid.
@@ -21,7 +21,7 @@ a sweep's Polya-Gamma draws stops the run within about a tenth of a second and l
 
 - The exact Polya-Gamma draw costs one draw per trial: about 160 ns per trial on the reference machine, so 100
   rows at a million trials take 16 seconds a sweep and a row of a billion 160 seconds, during which no
-  interrupt is honoured (dec-B202 records the timings and the ruling).
+  interrupt is honored (dec-B202 records the timings and the ruling).
 - The response's cap is [`maximumCount`](../../src/bartcore/model.hpp), applied at creation in R and in
   the bridge at every mutation. The weight checks are [`refuseNonCountWeights`](../../R/spec.R) and the
   bridge's [`enforceBinaryWeightPolicy`](../../src/R_interface_bartcore.cpp); the shape enters through the

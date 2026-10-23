@@ -1983,7 +1983,7 @@ fitViaAft <- function(scenario) {
 
 # runs the aft path through the formula interface's own Surv left-hand
 # side ingestion (dbartsData()'s Surv short-circuit, R/data.R) with
-# 'subset' honoured (interfaces-and-dependencies.md S2) - otherwise the
+# 'subset' honored (interfaces-and-dependencies.md S2) - otherwise the
 # same recipe as fitViaAft, on the new code path.
 fitViaAftFormula <- function(scenario) {
   # model.frame() evaluates 'subset =' in the FORMULA's own environment

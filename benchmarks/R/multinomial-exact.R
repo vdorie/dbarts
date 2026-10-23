@@ -342,7 +342,7 @@ arm3 <- function() {
 
   # test rows duplicating the two cells: the test channel is the same softmax
   # blend on held-out rows, so a cell's test-set probabilities must match its
-  # train/quadrature target - the direct gate on combinedTestFits equalling the
+  # train/quadrature target - the direct gate on combinedTestFits equaling the
   # (already-gated) combinedFits train blend
   xTest <- data.frame(cell = factor(c(0, 1), levels = levels(x$cell)))
 

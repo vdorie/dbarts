@@ -117,7 +117,7 @@ and `"trees"`, and `predict(type = "forest")`. One function reads the argument,
   the same code, so `"I(dose / 30)"` finds `I(dose/30)`; and `forest<i>` is forest i, the name position i
   has on every per-forest margin, so `"forest2"` selects what it did.
 - A string that is one forest's label and another position's name, or the same code as two labels, is
-  refused naming both. `"2"` is the forest labelled `"2"` or no forest, and the refusal says a position is
+  refused naming both. `"2"` is the forest labeled `"2"` or no forest, and the refusal says a position is
   given as a number.
 - `NA`, an empty string, a factor, a logical and a list are refused by name. `TRUE`, a factor and a list
   were read as numbers before.

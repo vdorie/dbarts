@@ -1,4 +1,4 @@
-# single-forest-vars: one declared forest honours its column restriction
+# single-forest-vars: one declared forest honors its column restriction
 
 Status: LANDED 2026-10-06 (9e691f35).
 
@@ -38,7 +38,7 @@ those columns alone. A model whose restriction differs from the sampler's is ref
   never splits on the third (300 sweeps); `varianceForest(vars = )` and `variance = ~ a + b` confine the
   variance trees (0 splits on the third column in 300 sweeps against 5466 unrestricted). The variance
   forest has no defect and is not touched.
-- Everything else one `forest()` can state for a single forest is honoured or refused by name already:
+- Everything else one `forest()` can state for a single forest is honored or refused by name already:
   `n.trees`, `base`, `power`, `interactions`, `blocks` reach the sampler; `sd`, `update.amplitude` and
   `amplitude.prior.variance` are refused ([`resolveForests`](../../R/model.R)). `vars` is the one dropped.
 - `bart`, `xbart` and `rbart_vi` have no `forests` argument. A formula's `forest()` term always declares
@@ -214,7 +214,7 @@ does. `vars` with a missing value is refused by name. The run-out test is built 
 (one cut each): there the column list gives no split on the excluded column and zero split probabilities
 give about 45000 in 2000 sweeps of 20 trees, so the test fails when the restriction is written as zeros.
 On the default grid of cut points the zeros leak rarely, not never (3514 splits in one seeded fit of six).
-Two behaviours gained a test, each proved by a mutation: DART zeroing an excluded column on every update,
+Two behaviors gained a test, each proved by a mutation: DART zeroing an excluded column on every update,
 and the column-subset view refusing a model that carries a restriction.
 
 Calls made building it, beyond the plan's. The restriction rides the model as the attribute

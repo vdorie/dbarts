@@ -95,7 +95,7 @@ The fit's `sd` and `first.sd` are gone.
    and k unconditionally, and `inst/NEWS.Rd` with final spellings only.
 5. Tests: one new file over every fit class, drawn and fixed, chains combined and separate, with and without
    the kept sampler, each extract answer checked against the sampler's readers; the descriptor presence rows in
-   inst/tinytest/test-fit-descriptors.R. Rewrite the blocks that pin today's behaviour:
+   inst/tinytest/test-fit-descriptors.R. Rewrite the blocks that pin today's behavior:
    retired: ["a fit reports the leaf prior in the terms"](../../inst/tinytest/test-leaf-prior-k-or-sd.R),
    retired: ["leaf-prior sd was not sampled"](../../inst/tinytest/test-nbinom.R),
    retired: ["k was fixed, not sampled"](../../inst/tinytest/test-convergence-diagnostics.R) and the fixed-df summary
@@ -143,7 +143,7 @@ changed lines against the 950 budgeted.
   answers sigma, shape and a drawn k from its channels and refuses the rest by name; a hurdle fit with a fixed
   positive-part sigma plots three panels in a row.
 - The review, an independent reader with its own builds, found the per-chain case returning NA, plot tests
-  that passed with the behaviour removed, stale sentences in three manual pages and the two summary gaps
+  that passed with the behavior removed, stale sentences in three manual pages and the two summary gaps
   above; all were fixed and re-checked. It compared 55 seeded fits and 7 pdbart and rbart objects between the
   base and the slice: every shared component identical.
 - Verification: tinytest 12189 tests, 0 failures, the warning table identical to the base commit's, with three

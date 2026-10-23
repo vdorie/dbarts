@@ -254,7 +254,7 @@ the prior it resolved onto the family object it already forwards
 Second, disagreement is an error: a retired flat spelling beside a
 family whose call named `sigma` is refused where the two disagree,
 naming both and saying which to delete
-([`reconcileResidPrior`](../../R/tombstones.R), modelled on
+([`reconcileResidPrior`](../../R/tombstones.R), modeled on
 `refuseCollidingMixture`; the family's settings record being sparse is
 what makes "the caller named sigma" knowable), and accepted where they
 say the same prior. `sigest` stays a flat argument beside a `chisq`

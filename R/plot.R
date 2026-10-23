@@ -248,7 +248,7 @@ plot.bartMultinomial <- function(
 # information); at K = 2 there is none, so the plot degrades to the single
 # full-device latent panel plot.bart's binary branch draws. P2: the
 # per-observation latent posterior interval, observations ordered by median
-# eta, coloured by observed level, with dashed reference lines at the
+# eta, colored by observed level, with dashed reference lines at the
 # posterior-median thresholds - this shows whether the latent separates the
 # observed levels at the fitted thresholds, which a per-category probability
 # panel (the multinomial shape) would not, since it drops the order.
@@ -503,7 +503,7 @@ pdResponseName <- function(call) {
 }
 
 # The scale a pdbart or pd2bart result is on, by its type and family; a
-# result that records no type is labelled as it always was.
+# result that records no type is labeled as it always was.
 pdScaleLabel <- function(x) {
   type <- x$type
   family <- if (is.null(x$family)) "" else x$family
@@ -747,7 +747,7 @@ plot.pd2bart <- function(
       if (isFactor[2]) {
         axis(2, at = at[[2]], labels = x$levs[[2]])
       }
-      # contours interpolate between neighbours, which factor levels are not
+      # contours interpolate between neighbors, which factor levels are not
       if (!any(isFactor)) {
         contour(
           x = at[[1]],

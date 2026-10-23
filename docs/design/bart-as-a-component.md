@@ -15,7 +15,7 @@ tree-extraction or augmentation entries - each is a method on the R sampler obje
 handle is now read from. The `retired:` cites below name constructs that are gone; what
 this record says about the R and engine sides still holds.
 
-The division of labour it serves is `r-c-division.md`'s principle: R addresses
+The division of labor it serves is `r-c-division.md`'s principle: R addresses
 the conditionals, C++ addresses the integrand. The family this document's
 multi-forest clauses describe is `multiplier-combiner.md`'s; its "Surfaces"
 and "What this family does not do" sections are the authority on what that
@@ -274,7 +274,7 @@ sampler with both amplitudes pinned - glue exactly (a, b0, b1) = (1, 0, 1),
 so the model is `y = mu + z tau` - against the same model composed from two
 single-forest samplers in R, n = 400, p = 4, sigma fixed, 8 chains of 500
 burn-in and 1000 draws each, tree counts and tree prior stated identically on
-both routes. With the remedies (y centred at its midrange, k fixed and each
+both routes. With the remedies (y centered at its midrange, k fixed and each
 forest's leaf prior set from the engine's own calibration) the posterior mean
 CATE agrees to 0.022 rms and 0.067 pointwise on a CATE of 1.96 - 3.4%
 pointwise, against a chain-to-chain Monte Carlo standard error of 0.015, so

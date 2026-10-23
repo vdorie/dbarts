@@ -367,7 +367,7 @@ expect_false(identical(
   predEv
 ))
 
-# ---- extract's combineChains formal must be honoured, not ignored (which
+# ---- extract's combineChains formal must be honored, not ignored (which
 # would silently return the fit's own stored layout) ----
 
 fitMC <- bart(

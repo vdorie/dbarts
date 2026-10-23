@@ -2,7 +2,7 @@
 
 Source: consolidated-report.md sections (b)(c)(d)(e)(g), the
 per-cell evidence in matrix-results.md / matrix-review-entries.md / matrix-review-generics.md,
-and VD's judgements J1-J8. Waves 1-2 are b102e17c..07ad73e4 (landing note at
+and VD's judgments J1-J8. Waves 1-2 are b102e17c..07ad73e4 (landing note at
 [docs/plans/release-candidate-review.md:543](https://github.com/vdorie/dbarts/blob/07ad73e403d77630c801a6705cf3afdd63f9bdd1/docs/plans/release-candidate-review.md#L543)). J7 (engine default: arms, in a
 private worktree) and J9 (predict n.threads) are OUT of this wave.
 
@@ -47,7 +47,7 @@ REMAINING (this wave)
   vocabulary + n.samples = 0 message + makeind note -> r-surface.
 - J2 plot/loglik on the four own-class families, extract(type="trees") keepSampler
   fallback, pdbart/pd2bart/xbart Rd sentences -> generics.
-- J4 own-class generics honour combineChains/ci.level and refuse the rest by name ->
+- J4 own-class generics honor combineChains/ci.level and refuse the rest by name ->
   generics.
 - J6 handle-API move, dead engine members, adoptPointer/reapplyForestWeights docs,
   core-generalization.md amendment -> handle-api. dataSlotOrNULL deletion moves to
@@ -343,10 +343,10 @@ G4. J4 - the own-class argument vocabulary. Current formals are
   extract(combineChains=), extract(forest=), fitted(sample=), fitted(ci.level=),
   predict(ci.level=), residuals(type=), summary(vars=).
   Required:
-  a. HONOUR combineChains on extract for the three classes: add the formal, reshape
+  a. HONOR combineChains on extract for the three classes: add the formal, reshape
      through combineOrUncombineChains(x, fitNChains(object), combineChains)
      ([R/generics.R:196-205](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L196-L205)), the helper predict on the same fits already uses.
-  b. HONOUR ci.level on fitted and predict for the three classes, through
+  b. HONOR ci.level on fitted and predict for the three classes, through
      posteriorInterval ([R/generics.R:170-195](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/generics.R#L170-L195)), returning est/ci.lower/ci.upper exactly
      as bart/rbart/bartHurdle do ([man/bart.Rd:215-216](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/man/bart.Rd#L215-L216)).
   c. REFUSE by name, one helper (refuseUnusedGenericArgs(dots, generic, class)) reading
@@ -421,7 +421,7 @@ Test pins:
   be one of" pins are family/factors/missing/storage/type pins, listed in E).
 
 Dense-line budget: code ~230 lines (plot methods ~60 pending the survey, loglik arms
-~70 pending the survey, J4 honour/refuse ~70, refusing method stubs ~30), Rd ~25,
+~70 pending the survey, J4 honor/refuse ~70, refusing method stubs ~30), Rd ~25,
 tests ~220. This is the largest slice and the only one with an external dependency.
 
 Gates: full battery. Draw-moving risk: extract(type = "ppd") and the new loglik arms
@@ -592,7 +592,7 @@ D1. Do the 714 qualified call sites really "stay untouched"? They cannot: `dbart
 D2. Does "one offset name everywhere" reach the R5 methods $setCategoryOffset /
     $setCategoryTestOffset and their bartcore wrappers? DEFAULT: NO - method names are
     not argument names, their own arguments are already `offset`/`offset.test`, and the
-    judgement names only dbartsData's formals and predict's. Merging them into
+    judgment names only dbartsData's formals and predict's. Merging them into
     $setOffset would be a separate, larger arc.
 D3. Are the four creators part of "the 31"? DEFAULT: NO - the 31 is the contiguous
     handle block (E7). bartcoreBCFSampler, bartcoreMultinomialSampler,
@@ -602,7 +602,7 @@ D3. Are the four creators part of "the 31"? DEFAULT: NO - the 31 is the contiguo
 D4. (g.5) C8, [R/plotTree.R:9-35](https://github.com/vdorie/dbarts/blob/0045507c17f93c9fcc738645ce6586484874c4e0/R/plotTree.R#L9-L35)'s dead padding branch, was folded into VD-H by the
     report but is not named in J6. DEFAULT: leave it, record it as residue.
 D5. minor [M8-gen], setForestBasis(k, ~var) evaluating the formula in
-    environment(basis) instead of against the sampler's data, is named by no judgement.
+    environment(basis) instead of against the sampler's data, is named by no judgment.
     DEFAULT: out of wave 3.
 D6. as_draws_array/as_draws_df on the four own-class fits: refusing "by name" would
     mean registering methods for a Suggests-package generic. DEFAULT: Rd sentence in
@@ -611,7 +611,7 @@ D7. Should the keepSampler-only extract(type = "trees") fallback emit a message 
     as an Rd sentence? DEFAULT: no - plotTree's identical fallback emits none, and J2
     says "follows plotTree's documented fallback".
 D8. J8's shared zero-sample message names bart2/xbart/rbart_vi. bart()'s own ndpost = 0
-    behaviour was not probed in this pass. DEFAULT: leave bart() as it is; if the
+    behavior was not probed in this pass. DEFAULT: leave bart() as it is; if the
     implementer's probe shows it faults rather than refusing, add it to the same helper.
 D9. J1 deletes the retiredDotsNames sunset mechanism along with the dots. If a future
     rename wants that channel back it must be rebuilt. DEFAULT: accepted, per the rule

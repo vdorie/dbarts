@@ -35,7 +35,7 @@ pull_request, zero schedule, zero workflow_dispatch anywhere. All 6 last ran at 
 
 - check-standard.yaml (R-CMD-check): 5-way OS/R matrix (macos-release, windows-release,
   ubuntu-devel/release/oldrel-1); runs tests/tinytest.R (the whole inst/tinytest/ suite) inside R CMD
-  check, plus a standalone re-run of test-simd.R. History: 488 success/25 failure/6 cancelled.
+  check, plus a standalone re-run of test-simd.R. History: 488 success/25 failure/6 canceled.
 - cpp-tests.yaml: `R CMD INSTALL --preclean .` then builds+runs tests/cpp/test_bartcore on macos-latest.
 - exact-gates.yaml: runs 20 benchmarks/R gate scripts (Sec.4) in "quick" mode. History: 200 runs, ALL
   event=push - workflow_dispatch has NEVER been invoked, so mode=full (the long grid) has never run in

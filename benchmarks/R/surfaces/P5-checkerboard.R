@@ -9,7 +9,7 @@
 # There is no published dbarts number for this cell. Its oracle is the
 # inclusion truth, and its primary statistic is structural: the
 # between-chain standard deviation of the time-averaged inclusion
-# proportion on the four true columns and on their immediate neighbours.
+# proportion on the four true columns and on their immediate neighbors.
 # A structural readout is not label invariant, so it is read BETWEEN chains
 # and never within one.
 #

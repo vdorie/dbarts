@@ -19,7 +19,7 @@ recoding of the binary families. Multinomial responses as one forest per
 category coupled by a softmax. Semicontinuous two-part responses composed in R
 from two ordinary fits. Alongside those: a two-forest causal specification and
 its generalization, K forests each carrying a per-row basis whose amplitudes are
-drawn jointly; a variance ensemble modelling the residual scale as a second
+drawn jointly; a variance ensemble modeling the residual scale as a second
 product of trees; leaf models that hold a constant, a monotone-constrained
 constant, a small linear regression, or a Gaussian process over designated
 covariates; a sparsity-inducing prior on split variables; per-forest interaction
@@ -65,7 +65,7 @@ central abstraction and is worth stating plainly because everything else in this
 memo is a footnote to it.
 
 Three things do not fit through it, and they are precisely where the trouble is.
-The monotone leaf's score reads its neighbours' current values, so its leaves are
+The monotone leaf's score reads its neighbors' current values, so its leaves are
 not independent given the tree. The variance ensemble's residual is
 multiplicative rather than additive, and it enters the mean model through the
 precision rather than through the location. And the per-row multiplier family

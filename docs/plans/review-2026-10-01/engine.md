@@ -49,7 +49,7 @@ never accepted and such deaths always are. The sampler then follows the wrong di
 both priors, contradicting the design's "each targeted exactly".
 
 Probe 1 (r3-engine-cone.R: line-for-line R transcription of coneProbability, monotoneIntegrate and
-monotoneAdaptiveSimpson; root birth, no frozen neighbours, so exact = pnorm(-gap, log.p = TRUE)):
+monotoneAdaptiveSimpson; root birth, no frozen neighbors, so exact = pnorm(-gap, log.p = TRUE)):
 
     sR/sL = 1.2:  gap 6 err 0.000, 7 +0.077, 8 +0.119, 9 -0.239, 15 -0.185, 40 -Inf (exact -804.6)
     worst over sR/sL in {0.05..20}:  gap 8 -0.59, 10 -4.28, 15 -3.42, 30 -14.13, 35 -18.97 nats

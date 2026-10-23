@@ -54,7 +54,7 @@ prior term cannot close a gap in the tens. One position sits in a workable 27 to
 `wide`, so the displacement buys back roughly 60 to 140 log units: the
 random-walk Metropolis tuning argument made concrete, step size being the only free parameter any dbarts structural move has.
 
-Two findings are not in the move's favour. Change acceptance RISES from depth 0 to depth 1 in every cell - 2.46 to 6.84 percent at
+Two findings are not in the move's favor. Change acceptance RISES from depth 0 to depth 1 in every cell - 2.46 to 6.84 percent at
 the default cell, and on to 8.44 at depth 2 there, though it falls back to 7.09 at depth 3 on 268 proposals - the opposite of
 what
 [3.3 A high split cannot be changed once the tree is deep (CODE-DERIVED HYPOTHESIS)](tree-mixing-proposals.md#33-a-high-split-cannot-be-changed-once-the-tree-is-deep-code-derived-hypothesis)
@@ -75,7 +75,7 @@ a `splitsBySubset` lookup each, about five lines. **RECOMMEND B.**
 **A width filter is forbidden, and not for cost: it is not invariant, so it biases the sampler.** Counterexample: the root splits
 `x1` at `c = 2` and its left child splits `x1` at index 0 with no further `x1` below. The root's window is `[lo, hi] = [1, ...]`, so
 `c' = 1` is legal, while the left child's own interval `[0, c-1]` is width 2 at `c = 2` and width 1 at `c' = 1`. The selected set's
-size moves with the proposal and `1/|S|` stops cancelling; the same construction runs upward through a same-variable ancestor, whose
+size moves with the proposal and `1/|S|` stops canceling; the same construction runs upward through a same-variable ancestor, whose
 `Walker::minMax` reads this node. A degenerate interval is a no-op inside the kernel, never a node the selector skips.
 
 A categorical rule has no cut to displace; its analogue, a single-category flip in the direction mask, needs its own validity walk
@@ -97,7 +97,7 @@ draw `c'` uniformly from it. Then
 a no-op. The correction is EXACT and needs no new machinery: [`Tree::splitInterval`](../../src/bartcore/tree.hpp) and
 `findGoodOrdinalRules` both ignore the node's OWN rule and read only ancestors and descendants, neither of which a cut displacement
 touches, so `[lo, hi]` is identical on `T` and `T'` and the reverse count is taken on the unmodified tree. At `w = 1` the window is
-`{c-1, c+1}` clipped, `|W|` is 1 or 2, and the correction is bounded by `log 2`. Equalling or crossing an ancestor's or descendant's
+`{c-1, c+1}` clipped, `|W|` is 1 or 2, and the correction is bounded by `log 2`. Equaling or crossing an ancestor's or descendant's
 cut on the same variable is IMPOSSIBLE, not handled: `splitInterval` sets the bounds one index inside every ancestor's, and
 `findGoodOrdinalRules` sets `lower = leftMax + 1`, `upper = rightMin - 1` against the whole subtree.
 
@@ -397,7 +397,7 @@ by this pre-registration, the same four in arm A and arm B, so the summed figure
 adding chains cannot move it because no arm may add one. What differs is resolution. The per-chain column reads 2(1-2) in every
 four-chain arm - one integer, a range of one, no spread a paired difference can be taken over - while the summed column reads
 15(8-31) and 18(9-46), a spread the +8 bar below is derived from and can resolve. So the per-chain figure is what 10.4's sentence
-warns is not to be inflated by chain count, and holding the count fixed is how that warning is honoured; the summed figure is the
+warns is not to be inflated by chain count, and holding the count fixed is how that warning is honored; the summed figure is the
 readable form of it. The per-chain minimum is reported beside the primary in every cell, and a summed gain that leaves it at 2 is
 reported as such.
 
@@ -465,7 +465,7 @@ build and not two.
    `useQuantiles = TRUE`**, four values giving three cuts so perturb is a real move; cost, the cell leaves 10.1's recorded
    configuration and arm A's level must be re-measured, about 3 unit fits. **Alternative ii, keep the shipped grid**, in which case
    what the cell measures is the cost of spending change's share on accepted null moves - a real shipped-configuration cost, not a
-   test of mixing. **RECOMMEND i for the gate, ii beside it as a labelled arm.** The threshold cannot be stated on the minimum,
+   test of mixing. **RECOMMEND i for the gate, ii beside it as a labeled arm.** The threshold cannot be stated on the minimum,
    which arm A already reads 0: arm B's mean switches per chain within arm A's own seed range, chains parked no more than 10 of 40
    against arm A's 5 (a two-standard-error allowance at that binomial), and pooled p(root on x1) within Monte Carlo error of 0.5.
 

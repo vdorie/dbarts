@@ -97,7 +97,7 @@ Locking the scale is not the same as choosing it. A composed model -
 one whose driving R program hands the sampler latents, residuals or
 another block's offsets - still inherits whatever spread the
 CONSTRUCTION vector implied, which is an accident of how the outer loop
-was initialized rather than a modelling statement. So the leaf prior is
+was initialized rather than a modeling statement. So the leaf prior is
 named one of two ways, never both: `k`, relative to the scale the data
 fixes (a number, or a distribution on k, `chi(df, scale)`), or `sd`, the
 prior sd of the forest total's leaf parameter on the scale the family's

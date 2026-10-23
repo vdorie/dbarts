@@ -9,7 +9,7 @@ window: none - runs on any load (see Constraints).
 ## Goal
 
 Decide whether bart2's init can default to n.grow.sweeps > 0, and measure
-what a data-fitted init costs in LONG-RUN behaviour. Two stages: Stage 0
+what a data-fitted init costs in LONG-RUN behavior. Two stages: Stage 0
 calibrates every threshold against measured sampling variance and gates
 the study's own premise; Stage 1 is confirmatory and changes nothing.
 
@@ -50,7 +50,7 @@ re-verification of `test-bart2-grow-from-root.R` (its
 draw-dependent) and `test_grow.cpp`'s seed-pinned replay - to learn a
 quantity whose likeliest value is zero and whose renorm direction pushes
 reserved mass onto ordinal NOISE columns in exactly the designs where it
-fires. (ii) DOCUMENTED BEHAVIOUR: state the A-factor and the
+fires. (ii) DOCUMENTED BEHAVIOR: state the A-factor and the
 graceful-degradation floor in `grow-from-root.md` and the `n.grow.sweeps`
 Rd; carry S7 here as a DESCRIPTIVE cell with a null prediction.
 **Recommendation: (ii)**; the renormalization is prescribed nowhere in
@@ -314,7 +314,7 @@ battery on an extended k grid.
   had also independently left the gate on floor-above-ceiling). The
   root-rotation limitation is itself a stickiness datum, recorded here
   for any future structure-metric design.
-- k* = 16 is a grid artefact: no k satisfied the within-10%-everywhere
+- k* = 16 is a grid artifact: no k satisfied the within-10%-everywhere
   selection rule, and 16 is the largest grid value with B2 still
   falling. Any future flip proposal re-runs Part A on an extended grid.
 - The invariance diagnostic landed on the slow-mixing branch and the

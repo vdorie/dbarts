@@ -649,7 +649,7 @@ methods::setClass(
     n.cuts = "integer",
     sigma = "numeric",
     # always "incorporate" from every entry point: missing predictor values
-    # are modelled for whichever rows 'na.action' kept. The slot survives for
+    # are modeled for whichever rows 'na.action' kept. The slot survives for
     # a host that drives a sampler directly and wants new predictors refused
     # rather than routed.
     missing = "character",

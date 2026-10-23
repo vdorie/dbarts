@@ -54,7 +54,7 @@ Fix options (all exact; none needs a new augmentation):
      convention; new in 1.0, no tombstone); leaf prior needs a log-mean calibration (a fitShift such
      as log(mean y) and a node.scale on that scale), a small design item; every nbinom draw moves;
      negbin-exact.R, the SBC nbinom arm and the nbinom docs re-record.
-  B. Keep logit-p, add a joint ridge move: propose a grid neighbour r' with a forest level shift of
+  B. Keep logit-p, add a joint ridge move: propose a grid neighbor r' with a forest level shift of
      total c = log(r / r') split across trees from drawLevelShift's per-tree Gaussian conditional
      (non-zero-sum version), accept by MH (mean is unchanged, so the ratio is the dispersion part of
      the NB likelihood x r prior x the level-sum prior ratio), run before the omega draw. Costs:
@@ -109,7 +109,7 @@ families-04  QUALIFIED, MAJOR for extract on count-matrix fits; predict defensib
 Probe (v6; every row 10 trials, row 1 zero trials): extract(f, "ppd") int [1:50, 1:40] category
 codes; the zero-trial row still draws categories; its loglik is 0. bart.Rd documents "one category
 per posterior draw", so this is documented, but for count rows it is not a posterior predictive of
-the response the fit modelled. For predict on newdata the trial count is unknown, so a one-trial
+the response the fit modeled. For predict on newdata the trial count is unknown, so a one-trial
 draw is a defensible definition if documented.
 Surface options: (a) on a count-matrix fit, extract ppd returns rmultinom(n_i) counts, K-widened
 (zero vector at n_i = 0); predict keeps one-trial category draws, documented. (b) Refuse ppd on
@@ -127,7 +127,7 @@ requires a response coded 0/1'; probit all-1 -> same, and it is preceded by a mi
 "response values are indistinguishable ... center and/or rescale the response", which the review did
 not list; hurdle + variance names "probit"; aft NA status -> "missing value where TRUE/FALSE
 needed"; NA time refused instead of routed through na.action). Message-only except the NA routing
-(a behaviour change: NA survival rows drop under na.action like NA y). No draws move.
+(a behavior change: NA survival rows drop under na.action like NA y). No draws move.
 
 families-07  CONFIRMED, MINOR.  family(bartBT binary) prints probit(sigma = chisq(3, 0.9));
 dbartsFamilies$probit(sigma = ...) errors "unused argument"; bart(x, yb, family = family(fb))

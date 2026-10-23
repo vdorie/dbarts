@@ -90,7 +90,7 @@ pinned OFF throughout.
 ## The comparator: binding choice
 
 Two comparators are in circulation and the TODO quotes both in one paragraph.
-This design uses each where labelled and never mixes them:
+This design uses each where labeled and never mixes them:
 
 - **PRIMARY, for coverage statements: the SHIPPED single-forest binary
   default.** `resolveNodeHyperprior` (`R/model.R`) defaults a binary response to
@@ -468,8 +468,8 @@ Alternatives:
   ensembles, so the prior on `E[y|x]` depends on how the user DECOMPOSED the
   mean function rather than on what they said about it. Writing the same model
   as two forests or as four changes the prior on the total by `sqrt(2)` while
-  changing nothing the modeller intended. A default should be invariant to a
-  re-expression the modeller regards as cosmetic, and `sqrt(2/K)` is exactly
+  changing nothing the modeler intended. A default should be invariant to a
+  re-expression the modeler regards as cosmetic, and `sqrt(2/K)` is exactly
   that invariance; the magnitude at K = 2 - bcf's own settled convention, from
   Hahn, Murray and Carvalho's prognostic-dominant causal model - is preserved
   rather than judged. This argument is family-free, needs no threshold and no
@@ -589,7 +589,7 @@ Alternatives:
   identity but INVENTS a decomposition, since the state carries only the scale
   and the donor's own divisor and row norm are unknowable; REFUSING `$setState`
   and `$installTrees` on K-forest samplers deletes shipped, tested and
-  deliberately designed behaviour (the restore-then-widen semantics M4.3 built,
+  deliberately designed behavior (the restore-then-widen semantics M4.3 built,
   `multiplier-combiner.md`, "Persistence") to make a getter tidy.
 
   **The engine reads its own SPEC, never the combiner.** The first draft had
@@ -608,7 +608,7 @@ Alternatives:
   quantiles.** Rejected for this slice, recorded as a door. With (3b) every
   INPUT to the formula is readable and the formula itself already ships in
   `man/forest.Rd`; a derived reader would have to decide what to report when a
-  basis-free forest makes the sd undefined, which is a modelling statement
+  basis-free forest makes the sd undefined, which is a modeling statement
   belonging in prose. Ship a six-line worked example in the Rd instead.
 
 Sub-decisions inside (3b), all recommended:
@@ -698,7 +698,7 @@ forest does not.
 ### Fork 6. K = 1 through the K-forest path
 
 **Re-traced by opening both routes, and the two K = 1 routes do DIFFERENT
-things - neither of which is the single behaviour the first draft assumed.**
+things - neither of which is the single behavior the first draft assumed.**
 
 - **The data route.** `dbartsData(x, y, bases = list(b))` - `validateForestBases`
   ([R/data.R:635-668](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L635-L668)) imposes no length floor, `R/spec.R`'s
@@ -738,7 +738,7 @@ corrected two-part form:**
    `any(!vapply(expanded, is.null, ...))` gate, and still falls through to
    `resolveForests`' existing refusal - so [inst/tinytest/test-bcf-creation.R:713](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-creation.R#L713)
    (`forests = list(forest(sd = 1.5))` -> "single-forest 'forests' has none")
-   stays green. **Three behaviours move, not one, and all three are
+   stays green. **Three behaviors move, not one, and all three are
    enumerated** (none is pinned by a fixture - no test anywhere declares a
    length-1 `forests` carrying a basis): (i) the silent drop becomes the
    designed refusal, which is the point; (ii) `forests = list(forest(basis =
@@ -750,7 +750,7 @@ corrected two-part form:**
    already carries K >= 2 bases: [R/spec.R:405-410](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L405-L410) replaces `data@bases` with
    the declaration, so the count drops to 1 and the new refusal fires on a call
    that named two bases. Today that call fits K = 2 with the declaration
-   silently dropped, so both behaviours are wrong; the refusal text must
+   silently dropped, so both behaviors are wrong; the refusal text must
    therefore be written against the RESOLVED basis count and name where that
    count came from, rather than saying "K = 1" flatly at a user who wrote two
    bases.
@@ -1086,7 +1086,7 @@ The mutations each assertion catches, and the one it cannot:
    already carries the "BCF's two forests calibrate differently" leaf-scale
    block, and [tests/cpp/test_sampler.cpp:5982-6009](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/tests/cpp/test_sampler.cpp#L5982-L6009) a BCF calibration READER block that
    asserts positivity, `k == 1` and the tree-count factor but pins no map
-   value, as the nearest neighbours). Build through `createBCFSampler`
+   value, as the nearest neighbors). Build through `createBCFSampler`
    (`src/bartcore/facade.hpp`) with `spec.forests` of length THREE - factors
    {2.5, 0.4, 1.75}, divisors {0.674, 0.8, 0.25}, bases with row norms
    {3, 5, 6} - under `ResponseFamily::probit` and again under `logistic`, and
@@ -1386,7 +1386,7 @@ replacement is a gaussian coverage argument in gaussian's own units -
 the prior sd of `E[y|x]` at exactly `1.049120 sqrt(K)` times `sd(y)`, i.e.
 2.97 `sd(y)` at K = 8, and a prior asserting the mean varies three times as
 much as the response is not a defensible default; "a drawn sigma absorbs it" is
-a posterior-correction claim, not a defence of the prior. The single-forest
+a posterior-correction claim, not a defense of the prior. The single-forest
 gaussian comparator is included as CONTEXT with its data dependence measured
 (`0.5/s` = 2.25 / 2.73 / 3.24 / 3.66 for normal y at n = 50 / 200 / 1000 /
 5000, 1.73 uniform, 4.80 t3) rather than as the argument, because it is not
@@ -1524,7 +1524,7 @@ alternatives are recorded in Fork 3b with their grounds: narrowing the
 contract (a documented lie, which is what Fork 3a was rejected for), deriving a
 factor from the installed scale (invents a decomposition the state cannot
 carry), and refusing the two mutators on K-forest samplers (deletes shipped,
-tested, deliberately designed restore-then-widen behaviour to tidy a getter).
+tested, deliberately designed restore-then-widen behavior to tidy a getter).
 
 **R2-M2 (the gaussian argument permits but does not support) - ADOPTED; the
 argument is replaced and the recommendation stands.** The counterexample
@@ -1744,7 +1744,7 @@ dbarts() writes the declaration through dbartsData(bases = ), so the
 designed refusal would have been reachable from dbartsSpec ALONE - which
 assigns data@bases directly and so bypasses validity - and gate 11's
 "both creation routes" would have failed. The floor therefore relaxes to
-one forest (a container may carry one basis; the refusal is a modelling
+one forest (a container may carry one basis; the refusal is a modeling
 statement, not a well-formedness one), and both routes now reach the
 single designed refusal in resolveSamplerSpec. Mutation arm H pins that
 this is load-bearing rather than tidying. Nothing pinned the old message.

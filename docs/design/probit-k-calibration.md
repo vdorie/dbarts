@@ -67,7 +67,7 @@ than about 25 (the planted error put 86 in the lowest bin).
 Every binary fit draws k by default, as 0.9-34's bart2 did, so this is a
 user-facing mixing problem, not a property of the check. The fix is one
 cheap move a sweep that changes the fit's overall scale in one step:
-interweaving on k (a non-centred draw of k given standardized leaves) or
+interweaving on k (a non-centered draw of k given standardized leaves) or
 a probit parameter expansion (a working scale on the latents and leaves).
 The candidates are compared on k's autocorrelation time over the arm's
 datasets and on how often free chains reach the small-k region of the

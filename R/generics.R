@@ -2041,7 +2041,7 @@ extract.bartMultinomial <- function(
   if (type == "ev") {
     return(probs)
   }
-  # a count-row fit's own rows draw what it modelled, a count vector of each
+  # a count-row fit's own rows draw what it modeled, a count vector of each
   # row's trials; test rows have no trial count, so they draw one category
   # per draw, as predict does
   if (sample == "train" && !is.factor(object[["y"]])) {

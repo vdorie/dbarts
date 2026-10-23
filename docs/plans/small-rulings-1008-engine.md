@@ -15,7 +15,7 @@ budget: ~950 lines (code ~380, tests ~420, help and docs ~150).
 The six rulings are built: a slope is converted by the formula where a leaf covariate holds one value on
 one side of a conversion, every forest of a hazard fit may split on period, leaf covariates have no cap,
 the perturb window is the control setting n.perturb.cuts, setLeafPrior keeps the spread in force, and a
-constant response's window is centred on its value. The tier is "Changes draws"
+constant response's window is centered on its value. The tier is "Changes draws"
 ([Process by risk](README.md#process-by-risk)).
 
 ## Items
@@ -274,7 +274,7 @@ Tests:
   pairs (0, 0) with a response spanning (-0.5, 0.5) in place of (0, 1).
 
 Help: [state-not-model.md](../design/state-not-model.md)'s "spans 1 upward" sentence; one NEWS line under
-changes from 0.9-34 (a fit on a constant response is centred on it, not half a unit above).
+changes from 0.9-34 (a fit on a constant response is centered on it, not half a unit above).
 
 Size: ~120 lines.
 

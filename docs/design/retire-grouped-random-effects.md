@@ -108,7 +108,7 @@ parameterization verbatim - so 0.98 is what non-centering produces here, not
 something it would fix. And a conjugate Gibbs step for tau is not conjugate
 under a Gamma prior on the sd: adopting one means changing stan4bart's prior
 (to an inverse-gamma, or to the half-Cauchy scale mixture dbarts uses), which
-is a modelling decision, not a sampler switch. What the fix is remains open.
+is a modeling decision, not a sampler switch. What the fix is remains open.
 
 **Release prerequisite 1, stan4bart-side: a tau-mixing bar.** Stated
 absolutely, so it neither cites `rbart_vi` nor depends on scripts that stop
@@ -186,7 +186,7 @@ sentence in its doc block that conditions them on a grouped sampler; the
 `logLikelihood` paragraph loses its grouped clause;
 [`DBARTS_RESULTS_INIT`](../../inst/include/dbarts/dbarts.h) drops two of its twelve positional initializers.
 The header's own field-discipline prose says fields "append monotonically
-below the marked boundary and never reorder" - it does not authorise a
+below the marked boundary and never reorder" - it does not authorize a
 removal at all, so that paragraph is amended in the same edit to say what a
 pre-1.0-0 removal does.
 
@@ -346,7 +346,7 @@ re-index, and the size assert goes from 11 pointer members to 9.
 
 The structSize contract cannot cover this in principle. It is safe only under
 the header's stated rule - fields append below the boundary and never reorder,
-which does not authorise a removal at all - so a stale binary would pass a
+which does not authorize a removal at all - so a stale binary would pass a
 *larger* structSize and the library would fill what it believes are
 `logLikelihood`, `shape` and `residualDf` two pointers off.
 
@@ -420,7 +420,7 @@ supplied; for varying intercepts, add (1 | group) to parametric equation". The
 two are mutually exclusive today, so there is no branch to reroute to. What
 the change actually costs bartCause:
 
-- synthesise a `parametric` formula carrying `(1 | g)` from `group.by`, and
+- synthesize a `parametric` formula carrying `(1 | g)` from `group.by`, and
   delete that refusal;
 - keep `object$group.by` and `group.effects` populated, since six sites in
   `R/generics.R` and the summary/plot surface read them for the group-level
@@ -489,7 +489,7 @@ real reasons to reject it are three, and none is caller absence:
   by side rather than one.
 - The channel comes with dbarts's tau prior. stan4bart's Gamma-on-sd has no
   conjugate draw, so taking the engine's draw means taking half-Cauchy too - a
-  modelling change to the receiving package, decided here by accident.
+  modeling change to the receiving package, decided here by accident.
 - It keeps the 428 engine lines, the decorator seam's sole instantiation and
   both ABI fields alive indefinitely, for a consumer that has not asked. Most
   of the composition refusals would go with the R surface anyway, so the
@@ -537,7 +537,7 @@ Three other things would reverse the decision itself, none of them true today:
 **Reversed in part (2026-09-28).** For 1.0-0 the tombstone half of this
 decision is replaced: `rbart_vi` and its methods run again, as 0.9-34's pure-R
 Gibbs loop over the plain sampler, warn once per session that they are
-deprecated in favour of stan4bart, and are removed in 1.1-0 with the rest of
+deprecated in favor of stan4bart, and are removed in 1.1-0 with the rest of
 the tombstone registry. This is the "Keep the R loop, drop the engine path"
 alternative under "Considered and rejected". The engine path, the bridge and
 the two `dbarts_results` fields stay removed. Plan:

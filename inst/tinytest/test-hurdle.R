@@ -326,7 +326,7 @@ expect_equal(restoredMfrow, c(3L, 3L))
 # extract(fit, "sigma") is positive$sigma alone (the only sigma the
 # composition carries); extract(fit, "k") is a list keyed zero/positive, each
 # part's own - positive's k is fixed at its non-binary default (2), so it is
-# the one number, and zero's modelled chi(1.5, 2) is its draws
+# the one number, and zero's modeled chi(1.5, 2) is its draws
 expect_equal(extract(fit, "sigma"), fit$positive$sigma)
 kList <- extract(fit, "k")
 expect_equal(names(kList), c("zero", "positive"))

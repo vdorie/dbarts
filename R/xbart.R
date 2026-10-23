@@ -351,7 +351,7 @@ xbart <- function(
   }
 
   # the k axis is 0.9-x's numeric vector or a list whose entries are numbers
-  # and hyperprior objects, so one sweep scores fixed k against modelled k.
+  # and hyperprior objects, so one sweep scores fixed k against modeled k.
   # Read off the unevaluated argument in the prior vocabulary, as every other
   # prior argument here is, so k = list(1, chi()) resolves without the
   # constructor standing on the caller's search path. An absent k is ONE cell
@@ -410,7 +410,7 @@ xbart <- function(
     sortKeys <- vapply(kGrid, kGridSortKey, 0.0)
   }
   # swept most shrunk first - largest k, smallest sd - so every warm start
-  # comes from a simpler forest than the cell before it; a modelled cell has
+  # comes from a simpler forest than the cell before it; a modeled cell has
   # no fixed value to order by and sweeps last, in the order it was written.
   # kOrder un-permutes the reported axis back to the caller's order once the
   # result array is final
@@ -542,7 +542,7 @@ xbart <- function(
     leaf.hyperprior,
     resid.prior,
     family = family,
-    # an sd cell's anchor is held across folds, created or re-modelled:
+    # an sd cell's anchor is held across folds, created or re-modeled:
     # cellModel swaps it per cell, and the setModel branch re-derives it
     prior.scale = kAnchors[[1L]],
     leaf.scale = defaultLeafScale(family)
@@ -887,7 +887,7 @@ xbart <- function(
     result <- result[,, kOrderInv, , , , drop = FALSE]
   }
   # the k or sd axis labels its cells: a fixed cell by its value, at the two
-  # significant digits every other axis prints, a modelled cell by the
+  # significant digits every other axis prints, a modeled cell by the
   # constructor call that rebuilds it
   k <- sd <- kLabels
 
@@ -1211,7 +1211,7 @@ xbartRunUnits <- function(spec, unitRows, unitSeeds) {
 }
 
 ## xbartRunUnits with every warning its fits raise captured rather than
-## signalled, so a chunk run in this process and one run on a worker, whose
+## signaled, so a chunk run in this process and one run on a worker, whose
 ## own warnings would never reach the caller, report the same way. Returns
 ## the loss matrix, the distinct warnings in the order first raised, the
 ## warned-once keys the chunk set, and the number of its units whose starting
@@ -1364,19 +1364,19 @@ resolveKEntry <- function(entry) {
 }
 
 ## The k one grid cell builds its leaf model at: the value a fixed cell
-## holds, or the hyperprior object a modelled one is drawn under.
+## holds, or the hyperprior object a modeled one is drawn under.
 kGridValue <- function(entry) {
   if (is(entry, "dbartsFixedHyperprior")) entry@k else entry
 }
 
 ## Sort key for the sweep order: fixed cells sweep from the most shrunk
-## down, and a modelled cell, having no fixed k to place, sweeps last.
+## down, and a modeled cell, having no fixed k to place, sweeps last.
 kGridSortKey <- function(entry) {
   if (is(entry, "dbartsFixedHyperprior")) entry@k else -Inf
 }
 
 ## One k axis label. A fixed cell prints its value at the two significant
-## digits every grid axis prints; a modelled cell prints the constructor
+## digits every grid axis prints; a modeled cell prints the constructor
 ## call that rebuilds it, so the two are told apart in the dimnames.
 kGridLabel <- function(entry) {
   if (is(entry, "dbartsFixedHyperprior")) {

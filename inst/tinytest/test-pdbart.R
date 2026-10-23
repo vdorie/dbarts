@@ -328,7 +328,7 @@ expect_error(
   dbarts::pdbart(x, y, power = 3, tree.prior = cgm(), pl = FALSE),
   "'power' and 'tree.prior'"
 )
-# n.trees and family are honoured
+# n.trees and family are honored
 pdbProbit <- dbarts::pdbart(
   x,
   as.numeric(y > 0),

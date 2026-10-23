@@ -508,7 +508,7 @@ any divergence is a leak, ABORT.
   has a `length % 5` prologue and sums 5-wide groups, so removing rows
   re-associates the sum - 1597/2000 bitwise mismatches when simulated. If a
   complement-accumulation oracle is still wanted it must carry a tolerance and
-  be labelled as such. Make the substituted values large and the same test
+  be labeled as such. Make the substituted values large and the same test
   doubles as the `0 * inf` probe.
 - **F2 (S2).** `setForestWeights(f, rep(1, n))` produces a BITWISE identical run
   to not calling it at all - the null-gate and application-path oracle in one.

@@ -80,7 +80,7 @@ entry does not exist, and the shared cursors argue against adding it.
 ## 3. Three rules for the transform
 
 (a) Per chain, as stan4bart's chains freeze it today. Each chain re-derives its own transform and keeps
-it. The chains then target slightly different priors: the leaf prior's centre is the transform's shift
+it. The chains then target slightly different priors: the leaf prior's center is the transform's shift
 and its spread is proportional to the range, so pooled draws are a mixture of posteriors. It breaks
 state-not-model's "every chain of a sampler runs under one prior", and the model record becomes per
 chain. That means `response.range` per chain, a leaf prior and `k.scale` reported per chain, and a
@@ -100,7 +100,7 @@ communication between processes and is not practical.
 re-derived, and no engine work beyond the per-chain setters. The host must hand in the initial fit as
 its parametric part will carry it. stan4bart's parametric model has no intercept, because BART carries
 the level, so the initial fit must leave its intercept out. Today stan4bart creates its sampler with
-the transform taken from the response less the whole `lmer` fit, intercept included. That centres the
+the transform taken from the response less the whole `lmer` fit, intercept included. That centers the
 BART prior near 0 where the BART component sits near 14 (section 4).
 
 ## 4. What warm-up re-derivation buys
@@ -125,13 +125,13 @@ Continuous fits, the transform's width (which sets the leaf prior's spread). The
 at widths within 20%, 6% and 2% of each other at n = 100, 500 and 2000. Their mean was within 13%, 5%
 and 2% of the creation-time width. Re-derivation hardly moves the spread.
 
-Continuous fits, the transform's centre. The chains of one fit froze at centres up to 0.78, 0.63 and
-0.34 widths apart at the three sizes. A chain's centre tracks the level its BART component carries
+Continuous fits, the transform's center. The chains of one fit froze at centers up to 0.78, 0.63 and
+0.34 widths apart at the three sizes. A chain's center tracks the level its BART component carries
 (correlation 0.93 over the 36 chains). That level trades off against the random intercepts, and it
 mixes slowly in every arm: its between-chain R-hat reached 14.4 with re-derivation and 13.5 without. So
-the frozen per-chain centres record where each chain's level was when warm-up ended. They do not
-estimate a quantity better than creation does. C1's creation centre lay within 0.37 widths of the
-chains' mean centre, and within 0.2 in six of nine fits. C0's lay 0.56 to 1.18 widths below it.
+the frozen per-chain centers record where each chain's level was when warm-up ended. They do not
+estimate a quantity better than creation does. C1's creation center lay within 0.37 widths of the
+chains' mean center, and within 0.2 in six of nine fits. C0's lay 0.56 to 1.18 widths below it.
 
 Fitted quantities. The median over rows, averaged over seeds, at n = 100 / 500 / 2000:
 
@@ -166,7 +166,7 @@ Per-chain responses and offsets with that rule:
 
 - Engine: per-chain setters on [`Sampler`](../../src/bartcore/sampler.hpp), and a pooled re-anchor
   built on [`Chain::moveScale`](../../src/bartcore/chain.hpp) and the re-anchor path's restatement,
-  about 140 lines. Range readers: [`GaussianResponse`](../../src/bartcore/model.hpp), the count centre
+  about 140 lines. Range readers: [`GaussianResponse`](../../src/bartcore/model.hpp), the count center
   of [`NBResponse`](../../src/bartcore/model.hpp), and [`AFTResponse`](../../src/bartcore/model.hpp)
   through its Gaussian part. tests/cpp about 200.
 - Bridge and C API: per-chain owned buffers, three dbarts.h entries with their contracts, the version

@@ -162,7 +162,7 @@ sees and which ruling it reverses, if any.
 | operation | the sd is the parameter | k is the parameter |
 |---|---|---|
 | `setLeafPrior` into a drawn prior | sd kept, as built | k kept: the sd jumps at the call by the ratio of the two `k.scale` values (1.30 to 0.70 in the example). Reverses the spelling-switch rulings |
-| `setModel` with another leaf prior | sd kept: 1.30 stays 1.30. Changes built behaviour, which may be a defect today (note a) | k kept, as built |
+| `setModel` with another leaf prior | sd kept: 1.30 stays 1.30. Changes built behavior, which may be a defect today (note a) | k kept, as built |
 | an install across a change of prior | the state's sd: a state saved at 1.30 restarts at 1.30 under any prior, so a saved state records its sd. Reverses the ruling that a parameter is a parameter | k as stored, as built and ruled |
 | an install into a sampler on another response spread | sd kept, as ruled | k as stored: under the k spelling the sd restarts as many times larger as the response is wider, while the leaves keep the donor's function. Reverses the response-spread ruling and its confirmation |
 | warm start | the donor's sd, across a prior and a response spread. Reverses the warm-start ruling's as-built carrying of k | the donor's k, as built |
@@ -175,7 +175,7 @@ carrying of k, and the named-sd ruling for a drawn sd at a re-anchor; it
 changes `setModel`; and, if the report follows, it reverses the ruling that no
 fit stores the leaf sd.
 
-The k view keeps every built behaviour but `setLeafPrior`. It reverses the
+The k view keeps every built behavior but `setLeafPrior`. It reverses the
 spelling-switch rulings and the response-spread ruling with its confirmation.
 A rule relative to the data throughout would also leave a moved state's leaves
 unconverted, as 0.9-34 did, against your "Convert on install."
@@ -217,7 +217,7 @@ What they assume:
   ordinal latent, a Polya-Gamma working response, a SUR or VAR residual). Under
   0.9-34 each call re-derived the scale, so the leaf sd tracked each draw's
   range and the live fit was stretched each time; under 1.0 the scale stays as
-  created. One user asked for the 1.0 behaviour in a dbarts issue of July 2026
+  created. One user asked for the 1.0 behavior in a dbarts issue of July 2026
   ("editing the prior every MCMC iteration (which is incorrect)"), and code in
   a related repository routes the response through the offset, citing that
   issue.

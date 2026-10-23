@@ -197,7 +197,7 @@ jobs:
           fi
           echo "::endgroup::"
           # bd-balance's two arms on a column whose cut grid would repeat a
-          # point were equal neighbours kept: four adjacent doubles, and one
+          # point were equal neighbors kept: four adjacent doubles, and one
           # value beside missing ones
           for arm in narrow constmissing; do
             echo "::group::bd-balance.R $arm"

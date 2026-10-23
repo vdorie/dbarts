@@ -44,7 +44,7 @@ collapses to a per-ATOM residual mass r(c). Then, inside a block:
 So the ~85% "field maintenance" that E2 measured (residual roll + whole-tree
 suffstat recompute + fit scatter) is paid ONCE PER BLOCK instead of once per
 tree: an ~m/b reduction in O(n) DRAM passes, landing E1/E2's ~6x (7-10x low end)
-modelled drop at b in {4,8}, n >= 1e5. The b=1 special case is atoms == leaves
+modeled drop at b in {4,8}, n >= 1e5. The b=1 special case is atoms == leaves
 and reproduces today's draws BITWISE (the de-risking anchor); b>1 regroups the
 summation and re-records once (the "shifting" RNG class), machine independence
 preserved by a fixed atom-iteration order.
@@ -302,7 +302,7 @@ This is the hard part. Moves mutate a block tree mid-sub-sweep and slice atoms.
 - CHANGE / SWAP in tree t_j: the node's rule (and a subtree's routing) changes,
   re-partitioning a subtree near the root. Every atom mapped under that subtree
   can be re-sliced. E2's correction: shallow-tree change/swap re-partition near
-  the root, so this touches ~2x the modelled 7% (hence the realized ~6x not
+  the root, so this touches ~2x the modeled 7% (hence the realized ~6x not
   7-10x). In atom terms: snapshot the affected atoms, rebuild the joint partition
   restricted to the changed subtree's observations by re-routing them through the
   b trees, O(n_subtree). This is the surviving scan the design does NOT remove
@@ -521,7 +521,7 @@ GATES:
   invariant simd-survey.md protects);
 - tinytest: regenerate the RNG-locked snapshots ONCE (replay whole files);
 - bench-sampler on the quiet machine at n in {1e4, 1e5, 1e6}, m=75/200, b in
-  {4,8}: HEADLINE gate. Target the E1/E2-modelled ~6x DRAM drop -> a large
+  {4,8}: HEADLINE gate. Target the E1/E2-modeled ~6x DRAM drop -> a large
   wall-clock win at n >= 1e5. Kill/scope-back if the realized speedup is far
   below the model (e.g. move-scan re-partition cost dominates at shallow trees).
 - This stage carries the single, VD-approved one-time re-record.
@@ -545,7 +545,7 @@ within-chain threading composition (section 6), GPU seam.
 ### 8.1 Risks
 
 - Move-scan re-partition cost. E2's correction: shallow-tree change/swap
-  re-partition near the root, ~2x the modelled 7% scan, which is why the realized
+  re-partition near the root, ~2x the modeled 7% scan, which is why the realized
   drop is ~6x not 7-10x. If atoms fragment or change/swap dominate, the surviving
   O(n_subtree) scans could eat more of the win. Mitigation: the bench gate at
   stage B measures it directly; the atom rebuild cadence (stage C) bounds
@@ -684,7 +684,7 @@ ms/iter at n=1e5 and ~498/505 at n=1e6 across both):
   rejection undo): n=1e5 b=4 229ms (7.8x slower), b=8 285ms (9.7x); n=1e6
   b=4 3482ms (6.9x), b=8 3694ms (7.3x).
 
-The fix bought the modelled ~2.1-2.7x on the fused path but did not change the
+The fix bought the modeled ~2.1-2.7x on the fused path but did not change the
 sign: b>1 still loses ~7x at n=1e6, the slowdown ratio is roughly flat in n
 (no crossover at any feasible size), and b=8 costs about what b=4 does.
 

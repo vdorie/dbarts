@@ -1,7 +1,7 @@
 # Oracles for the parts of xbart upstream of its loss call: which rows a
 # fold holds out, whether a fold's fitted values line up with the y it was
 # scored against, whether a fold's training set ever saw its own held-out
-# rows, and whether a labelled parameter cell in the result array is the
+# rows, and whether a labeled parameter cell in the result array is the
 # cell that was actually fit. The loss arithmetic itself (test-xbart-oracle.R)
 # is not retested here.
 

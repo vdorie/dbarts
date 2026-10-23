@@ -91,7 +91,7 @@ value `TRUE`). Review SOUND WITH CORRECTIONS, then SOUND. Full tinytest 13858 re
 passes, clean under ASan and UBSan; the four seeded snapshot files unchanged on the reference build;
 equivalence 55 of 55 identical, BCF 15 of 15 and multinomial 11 of 11; draws identical to the parent build
 through `setState`, `copy`, a reload, `installTrees` and a warm start on ten sampler kinds. Over 260 restores
-on 18 sampler kinds and the missing-value and factor cases the value equalled "the restored trees are the
+on 18 sampler kinds and the missing-value and factor cases the value equaled "the restored trees are the
 stored ones". A flag forced clear fails 22 tests/cpp checks and 37 tinytest results.
 
 Two things about `TRUE`. The identity rewrite still runs when the units are the same, so a stored leaf value

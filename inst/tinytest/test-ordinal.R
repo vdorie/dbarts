@@ -430,7 +430,7 @@ expect_identical(
 # a value this family does not offer refuses against the set it does
 expect_error(predict(fit, x.test, type = "forest"), "type must be in 'ev'")
 
-# --- extract's combineChains formal, honoured instead of returning the
+# --- extract's combineChains formal, honored instead of returning the
 # fit's own stored layout ---
 
 combinedEv <- extract(fit2c, type = "ev")

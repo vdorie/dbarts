@@ -1,6 +1,6 @@
 # Review 3 - lens: aux (wave two)
 
-Tree: review3 worktree at 01dee4b4, library r3-lib. Old behaviour from CRAN 0.9-34 (scratch lib
+Tree: review3 worktree at 01dee4b4, library r3-lib. Old behavior from CRAN 0.9-34 (scratch lib
 r3-rgen-cranlib). Probe scripts: scratchpad/r3-aux-p*.R, small n, 3-30 trees, n.threads <= 2.
 
 Covered, with real fits:
@@ -49,7 +49,7 @@ Location: R/partialDependence.R, pdbart.defaultLevs, pdbart and pd2bart (x.test[
 plot.pdbart.
 Claim: on a categorical column (bart()'s default factors = "categorical", and sparseFactor columns)
 pdbart and pd2bart treat the 0-based category codes as numbers: default levs are quantiles of the codes,
-which either fail inside the engine or silently skip levels, and results and plots are labelled by codes,
+which either fail inside the engine or silently skip levels, and results and plots are labeled by codes,
 never by level names; levs cannot be given as level names.
 Probe (r3-aux-p8.R, r3-aux-p11.R, r3-aux-p7.R):
   15-level factor, n = 300: default levs 0 1 2 3 5 7 9 10 12 13 14 - levels 4, 6, 8, 11 are absent, and

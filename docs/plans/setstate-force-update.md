@@ -146,7 +146,7 @@ on its own state; a state of 10 kept draws into a store of 4, 4 into 10 and 4 in
 ("state is not consistent with this sampler") and none into 4 installs, TRUE; a state stored while a
 numeric column held missing values, restored after a forced setPredictor filled them, gives FALSE; a
 first missing value by an unforced setPredictor is taken (TRUE) and predict then answers for it. (Two
-behaviours across response units run then are the k-internal slice's under dec-B418.)
+behaviors across response units run then are the k-internal slice's under dec-B418.)
 
 ## Part A: missingness first seen (dec-B320, dec-B321, dec-B322, dec-B378, dec-B399, dec-B400)
 
@@ -259,7 +259,7 @@ predict does with such a row"), as written for the implementer:
 B1. The flag. `Sampler::setState` (and the facade virtual on
 [`SamplerBase`](../../src/bartcore/facade.hpp)) take, after `adoptCapacity`, `bool force = true` and
 `bool* notClean = nullptr`, so the tests/cpp call sites (87 lines matching `setState(`, chain-level calls
-among them; ran: grep on 7f948d02) keep today's behaviour. The `columnMaskRefused`, `interactionRefused`
+among them; ran: grep on 7f948d02) keep today's behavior. The `columnMaskRefused`, `interactionRefused`
 and `monotoneRefused` out-parameters go: those cases are verdicts now (B2, B8). `--preclean` on every
 install: a virtual changes.
 
@@ -462,7 +462,7 @@ tests/cpp:
   [test_data.cpp](../../tests/cpp/test_data.cpp) and [test_sampler.cpp](../../tests/cpp/test_sampler.cpp);
   no data mutation lowers a flag; the pins that read the flag going down change: "drop every missing
   value: hasMissing flips false" in [test_moves.cpp](../../tests/cpp/test_moves.cpp) and
-  [`testPerObservationMissingCommit`](../../tests/cpp/test_moves.cpp)'s neighbours;
+  [`testPerObservationMissingCommit`](../../tests/cpp/test_moves.cpp)'s neighbors;
 - in [test_state.cpp](../../tests/cpp/test_state.cpp): the unforced refusal leaves `getState` bytes
   and the generator equal; verdict and install agree over the fuzz harness's states, constraint cases
   included; the store repack; the collapse at the first offending split.
@@ -638,7 +638,7 @@ Against dd0872da, rebased onto 7f948d02:
 ## Evidence
 
 Ran on 17df64ff (private library scratch/libs/isplan; probes and outputs in scratch/isplan/): the
-behaviours in Context (01-behaviours.R); the restore costs in B3 (02-restore-cost.R, under load). Ran on
+behaviors in Context (01-behaviours.R); the restore costs in B3 (02-restore-cost.R, under load). Ran on
 7f948d02 (grep): callers, tests/cpp setState lines, the refusal pins, the snapshot files. From the
 critique's runs (scratch/iscrit/): the store and hash costs, the one-way rules after setData (p1), the
 kept draws across a first missing value (p3), attribute loss on subsetting. Read on 7f948d02: every engine,

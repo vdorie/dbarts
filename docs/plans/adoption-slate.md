@@ -34,7 +34,7 @@ budget: **RAW ADDITIONS-ONLY (`git show --numstat`), NOT dense-equivalent; the
   1.5x stop applies to these raw numbers.** This is a DELIBERATE ARC-LEVEL
   DEVIATION from `multiplier-combiner.md`'s "Budget units" convention, taken
   because the repo records two conflicting conversions (raw ~ 2x dense as
-  written there; dense ~ 0.8x raw as practised, per this arc's own reading of
+  written there; dense ~ 0.8x raw as practiced, per this arc's own reading of
   `binary-kforest-prior-default.md`'s S1 landing note) and a contested factor
   makes a dense figure unfalsifiable. Every extracted per-slice file, if this
   arc is ever split, repeats this marker verbatim. Divide by 1.25 to 2 for a
@@ -224,12 +224,12 @@ F1's two documentation items. A fit-surface table in
 `man/dbartsSampler-class.Rd` - METHOD / SCALE / OFFSET / CURRENT-OR-STORED
 over `run()$train`, `$getForestFits`, `$predict`, `$getLatents`,
 `$getFitsWithoutOffset` - and one boundary sentence stating that fit-OBJECT
-accessors follow R modelling conventions while the R5 sampler methods are the
+accessors follow R modeling conventions while the R5 sampler methods are the
 composition surface. **IMPLEMENTER INSTRUCTION, binding: open `extract.bart`
 (R/generics.R) and read what its `type` arms actually do with the offset
 before writing that sentence, and check `extract.dbartsSampler`, which takes
 `type = "predictors"` and is not a fitted-value accessor at all. Do not assert
-the fit-object side's offset behaviour from convention.**
+the fit-object side's offset behavior from convention.**
 
 Anchors. `ProbitResponse::latents`, `OrdinalResponse::latents`,
 `LogisticResponse::latents`, `AFTResponse::latents`, `TResponse::latents`,
@@ -489,7 +489,7 @@ pair for `setOffset`; `setData` still refused; and a statistical agreement cell
 never bitwise, the streams differ). **The shipped cell in
 `test-rbart-bartcore.R` is REPLACED, not deleted**: `expect_silent` on the
 default-`updateScale` swap plus `expect_error(..., updateScale = TRUE, pattern
-= "tau")`; its `setData` and save/load neighbours are untouched.
+= "tau")`; its `setData` and save/load neighbors are untouched.
 
 Mutations. (1) Widen the predicate to allow `updateScale = TRUE` on gaussian -
 the swap arm's tau and b ranks must go NON-UNIFORM. **Pre-registered
@@ -675,7 +675,7 @@ why the recorded ~350-line budget, which assumed reuse, is wrong.
 The diagnostic is the ecdf-difference statistic against a simulation-based
 simultaneous band (Talts et al. 2018 fig. 1), already corrected for multiple
 looks across the rank grid, with chi-square and a jittered KS as secondary -
-the judgement `rankUniformity` already records and argues.
+the judgment `rankUniformity` already records and argues.
 
 Blind spot, stated in the Rd: the validator cannot detect a host whose
 `drawPrior` and `simulate` disagree with each other.
@@ -1195,7 +1195,7 @@ Budget, raw additions against 7e6a4a3e: non-test 116 + this note (total 244,
 band 160-215, stop 270), tests 293. Both overshoot, both for the same reason -
 cell count. The test oracle is {run slot, getter, state} x {fixed r, estimated
 r} x {1 chain, 2 chains}, twelve comparisons before the shape, NULL,
-multi-sample, ordinal-neighbour, BCF, heteroscedastic, host-shell and end-to-end
+multi-sample, ordinal-neighbor, BCF, heteroscedastic, host-shell and end-to-end
 cells, and `air`'s vertical call formatting inflates raw lines against a dense
 reading; the note carries four mutations and five deviations. The spec's
 "engine ~10" costed the `storeSample` write alone and not the shape flag, pure
@@ -1293,7 +1293,7 @@ Student-t's report, or aft) - with one keying deviation: ANYTHING BUT FALSE is
 refused, `refuseVarianceForestScaleUpdate`'s condition-keying, not the literal
 `== TRUE`. Reason: the two surfaces convert `updateScale` to the engine's bool
 differently (the R bridge on `== TRUE`, the flat API on `!= 0`), and FALSE/0
-is the only value both read as "pin it"; the sole behavioural delta is NA, now
+is the only value both read as "pin it"; the sole behavioral delta is NA, now
 refused. Grouped probit and logistic take TRUE as the documented no-op;
 `setData` is untouched.
 
@@ -1334,7 +1334,7 @@ said tau AND b go non-uniform; tau and sigma move, b does not, because the
 tau prior scale is converted exactly once at construction while b's conjugate
 conditional re-equilibrates against the new scale within the burn. The gate
 discriminates cleanly regardless; the tool-verified-claims discipline catches
-another plan-stated behavioural prediction.
+another plan-stated behavioral prediction.
 
 Other mutations, applied, run, reverted, source verified clean: (2) drop
 `rebuildWorking()` from `GroupedResponse::setResponse` - 60 RED, every one the
@@ -1353,7 +1353,7 @@ the pinned swap moves the fit TOWARD the new response (the correlation flips
 sign); refusals matched on "tau" AND "random intercepts b"; the probit no-op
 is a BITWISE two-sampler comparison at a fixed rngSeed, both conduits; the
 shipped `test-rbart-bartcore.R` cell replaced with its setData and save/load
-neighbours untouched. **The agreement cell deviates from the plan's letter to
+neighbors untouched. **The agreement cell deviates from the plan's letter to
 its own benefit**: the swapped sampler is created on a PERMUTATION of y2, not
 on a different y1, so sd and hence the creation transform, leaf calibration
 and tau prior scale are IDENTICAL across the pair and the two chains target
@@ -1438,7 +1438,7 @@ Mutations, each built to its own lib, run, reverted, revert verified: (1)
 wrong-side truncation - 32 RED, all probit moment and agreement cells, the
 Albert-Chib slope INVERTS (cor -0.993), logistic untouched; (2) PG shape
 ignored - 16 RED, exactly the weighted-logistic (weights 3) and nbinom
-(y = 2, r = 3 - the spec's y+r > 1 constraint honoured) cells, every shape-1
+(y = 2, r = 3 - the spec's y+r > 1 constraint honored) cells, every shape-1
 cell green; (3) Get/PutRNGstate dropped - 1 RED, the stream-ADVANCE half
 only, the reproduce half stays green, which is why the cell asserts both;
 (4) logistic working response as identity - 5 RED, the logistic agreement
@@ -1477,7 +1477,7 @@ spec's ~336-with-records band 300-390 stop 505; tests 418 against ~230 stop
 a second enum and a spec struct, tests 512 -> 402, R 192 -> 164), no
 assertion was dropped to fit. ADJUDICATED ACCEPTED on the gate-runner's
 line-complete audit: the bridge inventories to exactly the mandated content
-(two entries, family map, marshalling, six distributions, six responses,
+(two entries, family map, marshaling, six distributions, six responses,
 RNG plumbing - no cache, no refactor, no extra export), and all 57
 pre-amend test call sites trace to a mandated oracle, a mutation-kill arm
 the spec's own matrix requires, or a validation the shipped R code
@@ -1539,7 +1539,7 @@ identical band formula, confirmed the prediction unreachable, noted the one
 alternate reading (max -> min in the OBSERVED statistic) is a different bug
 locus than "quantile tail", and recommended accepting M3b as the intent
 realized. The tool-verified-claims discipline catches a third plan-stated
-behavioural prediction this arc (after S3's M1-b and S2's mutation-4
+behavioral prediction this arc (after S3's M1-b and S2's mutation-4
 wording).
 
 Other mutations, each built to its own lib, run, reverted, revert

@@ -18,7 +18,7 @@ mutation diffs and logs under the scratch dir named in section (e).
 
 - CONFIRMED: 8 BLOCKERS, 44 MAJORS, 35 MINORS. REFUTED: 5 leg claims (2 of them by this addendum's
   replants). QUALIFIED: 6. NARROWED by a whole-suite replant: 6. FIXED BEFORE THE REVIEW BEGAN: 1.
-- BINS: AGENT-FIX 44 canonical entries (8 BLOCKERS + 36 MAJORS) plus 15 minor one-liners; 9 VD-JUDGEMENT
+- BINS: AGENT-FIX 44 canonical entries (8 BLOCKERS + 36 MAJORS) plus 15 minor one-liners; 9 VD-JUDGMENT
   groups, deciding the other 8 MAJORS, ~260 executed grid cells and 8 deletion/seam items; 11 DEFER. Only
   M11's three engine divergences move draws; they land last.
 - Three BLOCKERS are live user-visible defects (two wrong answers and one SEGFAULT); five are REACH GAPS - a
@@ -53,7 +53,7 @@ mutation diffs and logs under the scratch dir named in section (e).
   CONFIRMED. AGENT-FIX - strip the method's own formals from `treesCall`, or refuse them by name under
   `type="trees"`; Sonnet, ~15 lines. No draws.
 - **B2. `survivalProbabilities()` is dead on every hazard fit whose training predictors carry column
-  names.** Hazard fits are matrix-interface only and [man/bart.Rd:75](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L75) says column names are honoured, so the
+  names.** Hazard fits are matrix-interface only and [man/bart.Rd:75](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L75) says column names are honored, so the
   named design is the normal spelling - and the broken one. EVIDENCE [R/bart.R:2421-2424](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L2421-L2424) (training) and
   [R/bart.R:2432-2435](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L2432-L2435) (matrix `newdata`) build `cbind(<named covariates>, rep(seq_len(K), each=n))`, leaving the
   period column UNNAMED. REPRO (n=60, `Surv`, keepTrees): named training matrix -> `column names of 'test'
@@ -216,7 +216,7 @@ AGENT-FIX ("write the missing assertion"); none moves draws. R = the 167 tinytes
 - B9 [src/bartcore/model.hpp:3603](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/model.hpp#L3603) `LogisticResponse::setWeights`' cold start of INACTIVE rows deleted -> C++ SURVIVED -
   the line that IS the logistic weight channel's landing claim.
 
-## (c) VD-JUDGEMENT groups, ordered by items decided
+## (c) VD-JUDGMENT groups, ordered by items decided
 
 Nine groups. VD-I is stated in full at (g.3) because its evidence is this addendum's; the other eight follow
 here.
@@ -255,8 +255,8 @@ here.
   `forest` on extract, `sample` and `ci.level` on fitted, `ci.level` on predict, `type` on residuals, `vars`
   on summary - each `identical()` to the call without it, because those methods' formals are `(object, type,
   sample, ...)` against `extract.bart`'s `(object, type, sample, combineChains, forest, contribution, ...)`.
-  `predict` on the SAME fits honours `combineChains` (2x6x8x3 against a combined 12x60x3). [G3, G4]
-  RECOMMEND honour `combineChains` and `ci.level`, refuse the rest BY NAME; silence is the wrong option, and
+  `predict` on the SAME fits honors `combineChains` (2x6x8x3 against a combined 12x60x3). [G3, G4]
+  RECOMMEND honor `combineChains` and `ci.level`, refuse the rest BY NAME; silence is the wrong option, and
   [man/bart2.Rd:38-49](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart2.Rd#L38-L49) is silent, so nothing constrains the call.
 - **VD-C. May every entry spell every `dbartsData` channel, and does the ingest name a survival/matrix
   response?** DECIDES E8's three offset.category spellings - verified: `bart2(offset=<n x K>)` ACCEPTED;
@@ -393,7 +393,7 @@ re-runnable probes in `consol/`.
 - S8 (LAST, DRAW-MOVING) `src/bartcore/` - M11's three divergences. Each needs adjudication of the intended
   model, then a re-record of the affected baselines, then the equivalence trio. Opus. DEPENDS ON a
   maintainer ruling, D5 above all: two admissible specs currently get two different models and which is
-  intended is a modelling call.
+  intended is a modeling call.
 - Deletion slice, GATED ON VD-H.
 
 ## (f) Refuted or qualified leg claims, with the probe
@@ -439,7 +439,7 @@ BLOCKER; C scored per target file and escalated 6 survivors wide over its own 51
 gaps: 31 mutations were re-planted against the FULL 167-file suite (pristine control 0 failing files / 6946
 assertions), and D's key engine mutation was additionally planted against tests/cpp. Verdicts below are
 therefore whole-suite, not half-suite. Driver and per-mutation logs: `addlog/` under the scratch dir named
-in (e); the two legs' own catalogues (`mutation-C-evidence/mutations.jsonl`,
+in (e); the two legs' own catalogs (`mutation-C-evidence/mutations.jsonl`,
 `mutation-D-evidence/mutations.jsonl`) recording not retained.
 
 METHOD CAVEAT, recorded: the earlier header-mutation lane in section (b) was staged from a copy taken while
@@ -528,7 +528,7 @@ finding to whole-suite.
   and bounds-check the group index in `src/R_interface_rbart.cpp`'s `rbart_fitted` besides. COST Sonnet
   R-side (~4 lines) + Opus for the C-side bound (~6 lines), plus one tinytest. Does NOT move draws.
 
-### (g.3) New VD-JUDGEMENT item
+### (g.3) New VD-JUDGMENT item
 
 - **VD-I. `predict`'s `n.threads`: wire it, or drop the formal and say so on `bart.Rd` too?** DECIDES
   `predict.bart`'s `n.threads` formal, the `dbartsSampler$predict` formal, and the fate of
@@ -588,7 +588,7 @@ finding to whole-suite.
     [inst/tinytest/test-prior-predictive.R:104-111](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/inst/tinytest/test-prior-predictive.R#L104-L111)'s (d) block asserts only `var(ppd.pinned) >= var(pinned1)`, which
     holds for any positive noise scale - while carrying its own prior uncertainty is the whole point of a
     prior predictive. [D 4] FIX at the pinned seed, assert a nonzero per-draw sigma spread.
-  - **M18. `test-sampler-setData.R`'s ONE assertion is self-cancelling.** Quantizing the replacement data
+  - **M18. `test-sampler-setData.R`'s ONE assertion is self-canceling.** Quantizing the replacement data
     onto a single cut per column ([R/bartcore.R:441](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bartcore.R#L441)) -> SURVIVED: it compares `sd(rowMeans(samples1$train) -
     y)` against `sd(rowMeans(samples2$train) - y)` at tol 1e-2 and both fits degrade together (verified:
     the file has exactly 1 `expect_`). [D 8] FIX add an absolute band on the post-setData fit beside the
@@ -676,7 +676,7 @@ finding to whole-suite.
 
 ## (h) Calibration lane - ensemble-scale SBC
 
-`calibration-sbc.md` landed as this addendum closed: benchmarks/R/sbc.R UNCHANGED, re-parameterised only
+`calibration-sbc.md` landed as this addendum closed: benchmarks/R/sbc.R UNCHANGED, re-parameterized only
 through `nTrees`, run at n.trees = 200 (`bart()`'s shipped default; `dbartsControl` defaults to 75, so 200
 brackets both) against the 50 every recorded SBC had used. 3 h 43 m wall, 9.45 h CPU at 3 concurrent.
 Admission band Bonferroni'd over the matrix's 83 functionals, 0.05/83 = 6.02e-4.

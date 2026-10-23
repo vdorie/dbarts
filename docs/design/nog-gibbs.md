@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real rule and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); AMENDED 2026-10-05 (the veto counts members, so the neighbourhood is every rule that leaves no child empty and the rank stratum is gone: section 2.2); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50). ADOPTED POST-RELEASE 2026-09-08: the maintainer adopts the cut-only rule draw at `d` = 0.16, to land after the first release.
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real rule and the neighborhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); AMENDED 2026-10-05 (the veto counts members, so the neighborhood is every rule that leaves no child empty and the rank stratum is gone: section 2.2); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50). ADOPTED POST-RELEASE 2026-09-08: the maintainer adopts the cut-only rule draw at `d` = 0.16, to land after the first release.
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
@@ -9,8 +9,8 @@ handle is now read from. The `retired:` cites below name constructs that are gon
 this record says about the R and engine sides still holds.
 
 A fifth tree kernel that replaces the Metropolis change proposal at a nog node - an interior node whose two children are both
-leaves - with a draw from the rule's own full conditional. The neighbourhood is closed, the acceptance is identically one, and there
-is no reverse count. The neighbourhood is every ordinal rule that leaves neither child empty, the empty-leaf veto's own set, which
+leaves - with a draw from the rule's own full conditional. The neighborhood is closed, the acceptance is identically one, and there
+is no reverse count. The neighborhood is every ordinal rule that leaves neither child empty, the empty-leaf veto's own set, which
 section 2.2 states and which is the whole of the correctness argument under a weight mask or a routed missing row.
 [15.3 Cross-lens ranking](tree-mixing-proposals.md#153-cross-lens-ranking) ranked it first of ten mechanisms on a validity argument
 and left two questions open; both have since been measured, by the nog probe of
@@ -42,19 +42,19 @@ kernel's job is to reproduce that assembly and draw from it.
 
 ## 2. The move
 
-### 2.1 The neighbourhood, and why it is closed
+### 2.1 The neighborhood, and why it is closed
 
 At a nog node `u`, the candidate set is every (available ordinal variable `v`, admissible cut `c`), the cut ranging over
 [`Tree::splitInterval`](../../src/bartcore/tree.hpp)'s ancestor-constrained `SI_v(u)` and the variable over
 [`Tree::collectAvailableVariables`](../../src/bartcore/tree.hpp)'s availability set at `u`. Both read ANCESTORS only, and at a nog node
 [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp) coincides with `splitInterval` because there are no descendants to keep
-satisfiable. So the neighbourhood does not depend on the incumbent rule, and neither does the node's member set - a rule change
+satisfiable. So the neighborhood does not depend on the incumbent rule, and neither does the node's member set - a rule change
 repartitions those members, it does not change which rows are there. Three consequences: the candidate set is identical from every
 state in it; its normalizer is the same before and after the draw; and no proposal count survives into the acceptance. Section 2.2
 restricts that set to the rules that leave neither child empty, which reads the ancestors and the node's members and so carries the
 same three consequences; everything below reads on the restricted set.
 
-The weight of a candidate is the tree posterior restricted to `u`'s rule, every factor that does not read it having cancelled:
+The weight of a candidate is the tree posterior restricted to `u`'s rule, every factor that does not read it having canceled:
 
     log w(v, c) = S(v, c)                                          the two children's collapsed marginals
                 + log P_splitvar(v)                                VARIES only under DART
@@ -98,7 +98,7 @@ The two disagree in one reachable state. At a node holding missing members, a cu
 the missing rows routed the other leaves both children a member, while the scan's default reading sentinels both of its
 directions. [`changeMove`](../../src/bartcore/moves.hpp) installs exactly that rule - at a nog node
 [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp) collapses to [`Tree::splitInterval`](../../src/bartcore/tree.hpp), ancestors
-only and no member test, and the missing direction is a fair coin - so a neighbourhood defined by the default reading need not
+only and no member test, and the missing direction is a fair coin - so a neighborhood defined by the default reading need not
 contain the incumbent, and a draw that leaves a positive-target state with probability one and cannot return is reversible with
 respect to nothing. **So the scan takes a flag.** Asked for the moves' reading, it counts each child's routed members and sentinels
 exactly the candidates `logLikelihoodForBranch` would refuse; the flag defaults off, so
@@ -107,10 +107,10 @@ exactly the candidates `logLikelihoodForBranch` would refuse; the flag defaults 
 **A weight mask does not enter.** Emptiness is membership
 ([What counts as empty: membership](empty-leaf-veto.md#what-counts-as-empty-membership)): a mask or a zero weight moves a
 candidate's score and never whether it is a candidate. A child of only zero-weight members is an ordinary child scoring 0, and under
-an all-zero mask `S` is 0 across the whole neighbourhood and the draw is the prior conditional, which is the configuration the
+an all-zero mask `S` is 0 across the whole neighborhood and the draw is the prior conditional, which is the configuration the
 house's cheap balance gates run in and section 5's prior-only arm.
 
-**The neighbourhood, and why the draw is exact.** A candidate is `(v, c, s)` - `s` the missing direction where the node routes
+**The neighborhood, and why the draw is exact.** A candidate is `(v, c, s)` - `s` the missing direction where the node routes
 missing rows - with `v` available at `u`, `c` in `SI_v(u)`, and neither child empty. `S(v, c, s)` is the two children's marginals,
 which is `logLikelihoodForBranch`'s log-likelihood for that candidate, candidate for candidate. The set is a function of the
 ancestors and of the node's members, neither of which the move changes, so it is identical from every state in it; and it contains
@@ -185,7 +185,7 @@ since been removed - [The tree-move mixture reaches every forest of a coupling (
 
 **Two restricted variants, both priced by the same probe.** *Cut-only Gibbs* holds the incumbent variable and enumerates its cuts: ONE
 scan, the pass change already makes, acceptance still one - the variable is a deterministic function of the state and the restricted
-set is again ancestor-determined. *Randomised variable* draws `v` from the split-variable prior as `changeMove` does and then draws
+set is again ancestor-determined. *Randomized variable* draws `v` from the split-variable prior as `changeMove` does and then draws
 the cut from its exact conditional. **It is NOT a Gibbs step and the brief's "one scan" is wrong.** Writing `R_v` for the sum of
 `w(v, .)` over `v`'s cuts with the variable prior divided out, the forward density is `P(v') w(v',c')/Z_{v'}` and the reverse
 `P(v) w(v,c)/Z_v`, so the variable prior cancels and `alpha = min(1, R_{v'} / R_v)` - the incumbent variable's scan sum is required,
@@ -197,7 +197,7 @@ buys 0.007 nats - and 1.659 / 1.579 at `bcf f1`. Only `c1` separates: 6.425 agai
 **RECOMMEND building the FULL rule draw first**, because `c1` IS the benefit cell of section 6 and is the one place the extra
 `p_avail`-fold price has anything to buy, because the cut-only variant is the same code with the variable loop deleted and can be
 taken on a private `-D` build the way perturb's width arms are, and because the census identity of section 5 exists only for the joint
-neighbourhood. The randomised-variable middle is recorded as a door and not built: it needs its own correction and its own balance
+neighborhood. The randomized-variable middle is recorded as a door and not built: it needs its own correction and its own balance
 gate for a saving the cut-only variant already has without either. **The cut-only variant was built and measured after the full
 draw was**, on the private `-D` build this section named: one scan a proposal, 1.04 sweep-equivalents against the full
 draw's 2.21, and about half of Trig+poly's gain with all of Single index's - the cut-only pilot of
@@ -224,7 +224,7 @@ nothing is spent, and folding the share into change for the variance forest alon
 **The monotone leaf needs an explicit guard the probe does not have.**
 [`MonotoneConstantGaussianLeaf`](../../src/bartcore/model.hpp) satisfies `ScalarLeafModel` - it forwards the constant leaf's marginal
 - and therefore satisfies `ScannableLeafModel`, but it is also a [`ParamScoringLeafModel`](../../src/bartcore/model.hpp), so the
-branch score is the constrained joint over the touched leaves given frozen neighbours and NOT the sum of two unconstrained scan
+branch score is the constrained joint over the touched leaves given frozen neighbors and NOT the sum of two unconstrained scan
 entries. The kernel's predicate must be `ScannableLeafModel<L> && !ParamScoringLeafModel<L>`. In practice
 [`resolveSamplerSpec`](../../R/spec.R) rewrites a monotone fit to birth/death-only before this can fire, which is why the probe never
 saw it; the guard is what makes that a convenience rather than the correctness argument.
@@ -301,7 +301,7 @@ Two arms, and unlike perturb's the second is mandatory: the prior-only arm exerc
 factors but NOT one scan entry, and the scan-weighted draw is the whole new mechanism.
 
 **The prior-only arm and its target.** Under an all-zero weight mask every leaf holding rows scores 0 and a rule leaving a child
-empty is no candidate, so section 2.2's neighbourhood is exactly the member-occupied candidate set, `S` is 0 across all of it and
+empty is no candidate, so section 2.2's neighborhood is exactly the member-occupied candidate set, `S` is 0 across all of it and
 every candidate's weight collapses to its prior factors alone. The kernel is then reversible with respect to the CGM prior TRUNCATED to
 member-occupied trees and renormalized, the same target
 [4. Correctness: perturb-balance.R](perturb-move.md#4-correctness-perturb-balancer) names. **The design makes the truncation
@@ -349,7 +349,7 @@ statistic 3's conditioning, not the run, is what has to be paid for.
 **The confirmation arm** runs the same grid with positive weights and no mask, scored against `change-balance.R`'s region dynamic
 program ([The gate](change-move-balance.md#the-gate)), and it is what tests the scan entries themselves.
 
-**The census identity, as a tests/cpp assertion rather than a script.** Assemble the neighbourhood twice at a fixed tree: once by the
+**The census identity, as a tests/cpp assertion rather than a script.** Assemble the neighborhood twice at a fixed tree: once by the
 kernel, once by a reference that installs each candidate rule, calls [`Tree::refreshSubtree`](../../src/bartcore/tree.hpp) - without
 it [`ConstantGaussianLeaf`](../../src/bartcore/model.hpp)'s per-node marginal reads the STALE cached `sumWeights` and
 `sumWeightedResponse`, which is why `changeMove` refreshes before it scores - and only then calls
@@ -431,7 +431,7 @@ rather than optional. (e) 6.4's plateau-error clause needs a stratum no cell her
 
 **What the design does not predict.** Perturb's pilot moved this exact statistic by +0.1 +/- 8.1, and the frozen-structure run says
 the worst C1 point's minimum ESS rises only from 1.6 to 4-21 with structure held fixed entirely - so most of that deficit survives any
-structural kernel. Nothing connects a wider rule neighbourhood to a move in the minimum ESS over 25 points, and the entropy the probe
+structural kernel. Nothing connects a wider rule neighborhood to a move in the minimum ESS over 25 points, and the entropy the probe
 measured is a one-step statistic on a chain this move never ran. Slice 3 can fail honestly.
 
 **Verdict (2026-09-07).** The Stage 2 harness ran both dosages on the shipped four-chain cell over twenty matched pairs, both mean
@@ -587,7 +587,7 @@ changes slice 4, which the coverage secondary and its missing gate still block; 
 which section 2.4 could only bound.
 
 **Reference arm (2026-09-08).** The coverage secondary above is stated against arm A, and arm A's own 0.961 is now measured to be
-an artefact of its chain configuration. A well-mixed reference on this cell - `rule_gibbs` at `d` = 0.32, four chains of 1000 +
+an artifact of its chain configuration. A well-mixed reference on this cell - `rule_gibbs` at `d` = 0.32, four chains of 1000 +
 2500, between-chain ratio 0.48 against arm A's 0.78 and the same coverage at half its kept length, 0.939 against 0.941 - reads
 0.941 on Trig+poly against a nominal 0.95, within 0.002 of arm B's 0.939 and 0.020 below arm A's 0.961; and an eight-chain arm at
 one kernel and one length moves coverage 0.939 to 0.956 where five times the length moves it 0.939 to 0.941, so what carries arm

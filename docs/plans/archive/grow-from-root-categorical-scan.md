@@ -868,7 +868,7 @@ separate the NA rows), OP_GROW in the fuzz configs (confirmed
 firing by instrumentation: 8 hits each in categorical and
 missing, plus gaussian/linear/multichain), and the pooled column
 in testMappedSourceReplay. S1's HARD CARRY IS DISCHARGED, and the
-licence was verified by trace, not trust: O1's expected
+license was verified by trace, not trust: O1's expected
 distribution touches only growthProbability,
 logIntegratedLikelihood and store.codeAt - never
 categoricalGroupLogProbability, scanCategoricalPartitions,
@@ -1069,7 +1069,7 @@ S5 LANDED 1edcaa5a, 2026-08-12, closing the arc. Three files, one
 commit, orchestrator-reviewed with two correction rounds folded in
 before landing. docs/design/grow-from-root.md gains section 8: the
 v1 ordinal-only contract inverted, the enumeration and weight rule
-stated once, the INIT-ONLY licence argued (Fisher truncation +
+stated once, the INIT-ONLY license argued (Fisher truncation +
 absent-position coins break MH reachability, so the kernel drives
 one-shot forest building only), the 1 + A draw contract and the
 count sentinel, the DART consumer including the stream-position

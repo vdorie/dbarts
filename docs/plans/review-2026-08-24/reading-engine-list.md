@@ -1,6 +1,6 @@
 # Reading review: engine, bridge, support libs (b102e17c)
 
-Read-only candidate list for the maintainer's judgement - nothing decided, nothing removed. Counts
+Read-only candidate list for the maintainer's judgment - nothing decided, nothing removed. Counts
 re-derived in-tree; disagreements with review-lenses-memo.md F5 stated. Tags: `extension-point` (a
 doc names what plugs in, or a consumer does), `compile-time-only` (no runtime indirection, no
 reader cost), `sediment` (minted for a killed plan), `stale` (comment contradicts code), `diverge`

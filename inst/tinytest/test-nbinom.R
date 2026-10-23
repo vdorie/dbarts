@@ -474,7 +474,7 @@ expect_error(
   "no leaf scale is defined for family \"hazard\""
 )
 
-# --- extract's combineChains formal, honoured instead of returning the
+# --- extract's combineChains formal, honored instead of returning the
 # fit's own stored layout ---
 
 combinedEv <- extract(fit2c, type = "ev")

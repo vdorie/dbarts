@@ -68,7 +68,7 @@ where the CODE repeats, not just the message.
   copy computes gatedFamily and DROPS the refusal (the per-chain dbarts() call raises it later, stated at [R/rbart.R:351-354](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/rbart.R#L351-L354)).
   The 4-line core folds to numericResponseIsBinary(y). LOST: nothing - the exemption lists are family-set differences,
   not rule differences. Confidence high.
-- 1.7 [duplication; ONE ARM INTENTIONAL] Thin-then-check, four surfaces, four behaviours: [R/bart.R:799-808](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L799-L808) (bart2,
+- 1.7 [duplication; ONE ARM INTENTIONAL] Thin-then-check, four surfaces, four behaviors: [R/bart.R:799-808](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L799-L808) (bart2,
   isTRUE(n.samples <= 0L)), [R/bart.R:2709-2726](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L2709-L2726) (bart, isTRUE(ndpost <= 0L)), [R/rbart.R:101-106](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/rbart.R#L101-L106) (rbart_vi, bare `==
   0L`, message "no posterior draws will be taken after thinning"), [R/xbart.R:51-53](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/xbart.R#L51-L53) + [R/xbart.R:94-95](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/xbart.R#L94-L95) (validates n.thin but
   NEVER divides - its n.samples is a kept-draw count, not a sweep budget). The xbart split is DOCUMENTED AND
@@ -95,7 +95,7 @@ where the CODE repeats, not just the message.
   one detectAutoResponse result, differing only in the type predicate, both single-caller at [R/bart.R:735](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L735)/[R/bart.R:749](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/bart.R#L749));
   [R/generics.R:907-926](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L907-L926) fitted.bartMultinomial vs [R/generics.R:1113-1131](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1113-L1131) fitted.bartOrdinal (shared meanProbs + max.col + factor()
   block; [R/generics.R:936-946](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L936-L946) vs [R/generics.R:1137-1146](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1137-L1146) share the indicator construction - ordinal's `ordered = TRUE` and multinomial's count
-  branch parameterise).
+  branch parameterize).
 - 1.12 [duplication] [R/A_class.R:272-390](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/A_class.R#L272-L390) - dbartsControl's validity is a hand-unrolled table: 13 `length(x) != 1L`
   checks, 4 is.na checks, 7 range checks, each with its own string. ~118 lines a per-field spec renders in ~25. LOST:
   nothing; messages are mechanical from the field name. Pure reading cost, low risk. Confidence high.

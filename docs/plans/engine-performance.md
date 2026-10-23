@@ -289,7 +289,7 @@ S2, the vector suffstat kernel:
    the scalar bodies stay, so the reference build is today's code.
 6. tests/cpp: a deterministic test that vector and scalar node sums
    agree within a mixed absolute/relative bound on a fixed fixture,
-   modelled on [`testFusedSuffstatMatchesStock`](../../tests/cpp/test_sampler.cpp),
+   modeled on [`testFusedSuffstatMatchesStock`](../../tests/cpp/test_sampler.cpp),
    plus prologue-residue coverage per
    [`testGatherTailShapes`](../../tests/cpp/test_sampler.cpp). The
    MANIFEST header records which build each gate uses.

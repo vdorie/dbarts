@@ -41,7 +41,7 @@ sampler runs under one prior.
   | `leaf.scale` | model | installed; marks a calibration-map forest foreign | not written, not installed |
   | glue: amplitude prior variance | state on a scale-mixture forest, model on a fixed-variance one | installed on both | installed on a scale-mixture forest only |
   | glue: amplitudes of a forest created with `update.amplitude = FALSE` | model | installed | not installed |
-  | `fit.scale` | the units the chain's numbers are stored in | installed, and a k-named prior's centre and width move with it | compared with the sampler's own; stored numbers converted when they differ |
+  | `fit.scale` | the units the chain's numbers are stored in | installed, and a k-named prior's center and width move with it | compared with the sampler's own; stored numbers converted when they differ |
   | `cutPoints`, `leaf.covariate.center` and `.scale`, a heuristic gp lengthscale | scratch, but frozen while the data moves, so only the state has them | installed | unchanged |
   | a supplied gp lengthscale | model | installed | the sampler's (dec-A146) |
   | weights and survival digests | data, by digest | compared | unchanged |
@@ -59,9 +59,9 @@ sampler runs under one prior.
 - The registry rule at [`stateFormatVersion`](../../src/R_interface_bartcore.cpp): no format has shipped, so
   neither constant moves.
 - The response transform and the prior. A k-named leaf prior's width is a constant times the range of the
-  chain's transform and every leaf prior's centre is its midpoint; the calibration map's forest scales and the
-  negative-binomial centre follow it too. Measured: installing a state saved on 3y + 10 moves a k-named
-  sampler's anchor from 3.92 to 11.77 and its centre from 3.36 to 20.08, and a sampler given chains in two
+  chain's transform and every leaf prior's center is its midpoint; the calibration map's forest scales and the
+  negative-binomial center follow it too. Measured: installing a state saved on 3y + 10 moves a k-named
+  sampler's anchor from 3.92 to 11.77 and its center from 3.36 to 20.08, and a sampler given chains in two
   transforms runs them as two posteriors. No R field holds the transform: after a response swapped without the
   scale update, a sampler rebuilt from its own control, model and data derives another one, and only the state
   brings the saver's back.
@@ -188,7 +188,7 @@ Ruled after the first two were applied:
    retired: ["FOREIGN CALIBRATION"](../../inst/tinytest/test-forest-basis-r5.R),
    ["a pre-write state"](../../inst/tinytest/test-multiforest-leaf-prior-writer.R),
    retired: ["the per-forest leaf scale rides the state"](../../inst/tinytest/test-bcf.R),
-   ["divergedScale"](../../inst/tinytest/test-calibration-midchain.R) and its neighbour "divergedK", the
+   ["divergedScale"](../../inst/tinytest/test-calibration-midchain.R) and its neighbor "divergedK", the
    `leaf.scale` format cases and ["donor.sf"](../../inst/tinytest/test-sampler-state-format.R), the fixed-shape
    state oracle in inst/tinytest/test-shape-channel.R, the fixed-df and fixed-shape state checks and the
    leaf-scale case in tests/cpp, the two parser anchors in benchmarks/R/mutation-battery.R, and the warm-start block of

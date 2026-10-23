@@ -311,7 +311,7 @@ Speed, on the idle x86 bench host (1-minute load under 1.1), shipped builds of b
 both, and the slice's median sits within 2 percent of the tip's in every cell (0.98 to 1.02), inside the round-to-round
 spread. BCF timed directly (p = 10, 75 prognostic and 50 treatment trees, one chain, one thread, five alternating pairs,
 median ms per sweep, tip then slice): gaussian 0.377 and 0.368 at n = 1000, 3.20 and 3.12 at n = 10000; probit 0.406 and
-0.401, 3.52 and 3.43. The slice is 1.2 to 2.5 percent faster, every pair in its favour. That is below the 4 to 6 percent
+0.401, 3.52 and 3.43. The slice is 1.2 to 2.5 percent faster, every pair in its favor. That is below the 4 to 6 percent
 the Decision records, which was the move's cost with its fix, a full cache re-derivation every sweep; the tip carried
 the move without that re-derivation.
 

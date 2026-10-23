@@ -6,7 +6,7 @@
 #
 # Every generating process below is transcribed from the primary source and
 # carries the citation in a comment above it. Where a source does not print a
-# function it uses, the reconstruction is labelled as such and the constraints
+# function it uses, the reconstruction is labeled as such and the constraints
 # it was built to are stated; a reconstruction cannot carry a reproduction
 # verdict on its own.
 #
@@ -182,7 +182,7 @@ surfacesDiagonalShelf <- function(n = 250L, shelfWidth = 0.15, tau = -1) {
 #   f(X) = 2 x5 x10 + 2 x15 x20
 #
 # run at n in {800, 1600} and p in {20, 40}. Inclusion has an exactly right
-# answer, {x5, x10, x15, x20}, and near-decoys: the immediate neighbours of
+# answer, {x5, x10, x15, x20}, and near-decoys: the immediate neighbors of
 # each true column correlate 0.9 with it and the next ones out 0.81.
 surfacesCheckerboardSignal <- c(5L, 10L, 15L, 20L)
 

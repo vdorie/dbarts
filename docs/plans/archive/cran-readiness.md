@@ -240,7 +240,7 @@ covers the previous pass; this is the re-run on the finished branch.
    entries - one per element of `R.version` ("... Sampler. 6.1.",
    "... Sampler. Happy Hop."). Now a single correct entry.
 2. `DESCRIPTION` `Depends: R (>= 3.5.0)` -> `R (>= 4.0.0)`. `CXX_STD =
-   CXX20` is only recognised from R 4.0.0 (R 4.0.0 NEWS, PACKAGE
+   CXX20` is only recognized from R 4.0.0 (R 4.0.0 NEWS, PACKAGE
    INSTALLATION: "the beginnings of support for the recently approved
    C++20 standard"); the old floor promised installs on releases that
    cannot parse the standard the engine requires.

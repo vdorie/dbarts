@@ -999,7 +999,7 @@ readRun <- function(outDir) {
   # A directory is one leg. Blocks may differ in their repetition counts, an
   # expensive stratum having been run at fewer, but a directory that mixed
   # chain lengths would have summarize report the first block's length for
-  # all of them, so that is refused rather than labelled.
+  # all of them, so that is refused rather than labeled.
   lengths <- unique(vapply(
     pieces,
     function(p) {

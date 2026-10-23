@@ -10,7 +10,7 @@ docs/plans/dbarts-h-freeze.md (D3/D4), which this continues and does not reopen.
 rng: NEUTRAL. Nothing here touches a proposal, a suffstat, a cut builder or an
 RNG consumer. Ten of the 48 entry points change shape; every body below them is
 the one that runs today. The equivalence trio is a FORMALITY and must be
-labelled one in the landing note: `benchmarks/` has zero hits for
+labeled one in the landing note: `benchmarks/` has zero hits for
 `dbarts_sampler_`, `DBARTS_USE_STUBS` or `dbarts/dbarts.h` (measured), so no
 harness drives a flat entry point. The load-bearing gate is
 `inst/tinytest/test-capi.R` + `inst/tinytest/capi/consumer.c`.
@@ -395,7 +395,7 @@ void refuseMultiForestResponseMutation(...) {
 ```
 
 The `numForests >= 2` test moves from the deleted early return at [src/R_interface_bartcore.cpp:2641](https://github.com/vdorie/dbarts/blob/9d0ee10fe32a732c743851d4b2c0427d913c5c5e/src/R_interface_bartcore.cpp#L2641) onto the
-`updateScale` arm, which is where it was doing its work; the R bridge's behaviour
+`updateScale` arm, which is where it was doing its work; the R bridge's behavior
 is bit-for-bit what it is today.
 
 Entry bodies: each of the seven gains its predicate test returning 0 ahead of the

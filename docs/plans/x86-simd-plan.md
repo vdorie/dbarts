@@ -329,7 +329,7 @@ else ran on the box.
 Driver: this memo's own cell - n = 10000, p = 20, 200 trees, 300 burn +
 300 samples, gaussian, one chain, one thread - plus a larger cell,
 n = 100000, same p and trees, 100 burn + 100 samples, so the share is not
-a small-n artefact. Each cell is run twice: weights absent, the default
+a small-n artifact. Each cell is run twice: weights absent, the default
 path the fused pass takes, and weights supplied, which it declines. Five
 profiled processes per host at n = 1e4, four at n = 1e5; the profiler
 costs about 5 to 7 percent of wall time, so the fit seconds below are
@@ -371,7 +371,7 @@ n = 1e4 cell:
 - the four Float twins: ZERO on both, on both hosts. They are reachable
   only under the fp32 residual opt-in, which neither family enables.
 
-Neighbours, for context, as a share of fit on the same runs: the fused
+Neighbors, for context, as a share of fit on the same runs: the fused
 pass itself is 37.4 percent (arm64) and 40.2 percent (x86) at n = 1e4 and
 41.8 / 41.4 percent at n = 1e5 on the default path; partitionRange plus
 partitionIndices is 51.9 percent (arm64 NEON) and 30.3 percent (x86 AVX2)

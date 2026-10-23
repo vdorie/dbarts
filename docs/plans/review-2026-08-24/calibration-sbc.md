@@ -3,7 +3,7 @@
 Method. `git archive HEAD` staged to a scratch tree, `R CMD INSTALL --preclean`
 into a private lib, every R call prefixed `R_LIBS=<lib>`. The machinery is
 benchmarks/R/sbc.R UNCHANGED (source()d, so its CLI block never fires); the only
-re-parameterisation is `nTrees`, through a 90-line driver (sbc-logs/run-arm.R).
+re-parameterization is `nTrees`, through a 90-line driver (sbc-logs/run-arm.R).
 Scale: n.trees = 200, `bart()`'s shipped default (`dbartsControl` defaults to
 75, so 200 brackets both), against the 50 every recorded SBC ran at; n = 150
 (160 grouped, 200 bcf), p = 3. Convention from sbc-calibration.md and

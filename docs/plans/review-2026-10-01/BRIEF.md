@@ -11,13 +11,13 @@ Ground rules.
   or install into it; do not touch any other checkout. Spawn no sub-agents.
 - A library built from that tree: R_LIBS=<scratchpad>/r3-lib
   (prefix every R call). Released 0.9-x is on branch main (git -C <tree> show main:<path>); to probe old
-  behaviour, CRAN's dbarts may be installed into your own scratch lib if useful.
+  behavior, CRAN's dbarts may be installed into your own scratch lib if useful.
 - Scratch files only under <scratchpad>/r3-<lens>-*.
   Run long commands in the FOREGROUND; never a pgrep wait loop; kill any background shell before you finish.
   Threads: n.threads <= 2 in any fit you run.
 - Known items are not findings: check root TODO and docs/decisions.md (ledger) before reporting; if a
   finding is already filed or ruled, drop it or mark it KNOWN with the TODO/ledger id only if you have new
-  evidence it is worse than recorded. docs/ explains intended behaviour: check it before calling something
+  evidence it is worse than recorded. docs/ explains intended behavior: check it before calling something
   accidental.
 - Evidence. Every finding carries a reproducing probe (the R or C++ snippet and its actual output) or, when a
   probe is infeasible, an exact code argument naming file and symbol. Say why the existing gates (tinytest,

@@ -444,7 +444,7 @@ Per-iterate test RMSE at t=100 (the B-vs-k curve):
 | S3-5000 | 0.2488 | 0.2739 | 0.2700 | 0.2595 | 0.2640 | 0.2609 | 0.2689 |
 | S4-5000 | 1.0764 | 0.8232 | 0.7465 | 0.6891 | 0.6691 | 0.6279 | 0.6090 |
 
-**k\* = 16 is a FALLBACK, and it is a grid artefact, not a measured
+**k\* = 16 is a FALLBACK, and it is a grid artifact, not a measured
 optimum.** The plan's selection rule (smallest k within 10% of the
 per-cell warm-grid minimum, in EVERY cell) selected NOTHING: k=16 is the
 warm-grid minimum in S1 (all three n), S2 and S4, while S3 bottoms out at
@@ -657,10 +657,10 @@ X2, IACT, means over replicates:
 | S6-5000-m1 | 177.6 | 43.3 | 89.9 | 1.1 |
 
 Post-hoc transparency check: the frozen floors were measured on the k=4
-Stage-0 pilot; Stage 1 ran at k*=16. Realised SD/rep beside the frozen
+Stage-0 pilot; Stage 1 ran at k*=16. Realized SD/rep beside the frozen
 value; NO THRESHOLD WAS CHANGED ON THE BASIS OF THIS TABLE.
 
-| stratum | metric | frozen SD/rep | realised SD/rep | margin | OK? |
+| stratum | metric | frozen SD/rep | realized SD/rep | margin | OK? |
 |---|---|---|---|---|---|
 | SMALL | C1 | 0.02340 | 0.02350 | 0.03000 | yes |
 | SMALL | C2 | 0.03998 | 0.04415 | 0.06000 | yes |
@@ -671,7 +671,7 @@ value; NO THRESHOLD WAS CHANGED ON THE BASIS OF THIS TABLE.
 | LARGE | C3 | 0.01711 | 0.01718 | 0.02000 | yes |
 | LARGE | C4 | 0.25795 | 0.22256 | 0.30000 | yes |
 
-(4xSE at frozen and realised SD/rep both stayed under margin in every row;
+(4xSE at frozen and realized SD/rep both stayed under margin in every row;
 omitted here for width, present in the working-paper `results.md`.)
 
 ### 4.5 Gate arithmetic - SMALL stratum
@@ -941,7 +941,7 @@ stump, `sampleTreesFromPrior`) is unchanged.
 - **The change-move root-rotation limitation** (section 4.8) is recorded
   as a structural datum about dbarts' sampler, independent of this flip's
   outcome, for any future structure-metric design.
-- **k\*=16 is a grid artefact**, not a validated recommendation for any
+- **k\*=16 is a grid artifact**, not a validated recommendation for any
   future opt-in guidance: B2 was still falling at the largest grid value
   tested.
 - Family consistency (four bart2 families refuse `n.grow.sweeps` via
@@ -1012,9 +1012,9 @@ the working-paper `results.md`); the consequential ones:
 - k\* selection needed a fallback rule invented at analysis time because
   the pre-registered 10%-of-minimum band was empty across cells (section
   4.3) - this is the single largest deviation and the reason k\*=16 is
-  flagged as a grid artefact rather than a result.
+  flagged as a grid artifact rather than a result.
 - Frozen C1-C4 thresholds were measured on the k=4 Stage-0 pilot while
-  Stage 1 ran at the later-selected k\*=16; the realised Stage-1 SD/rep is
+  Stage 1 ran at the later-selected k\*=16; the realized Stage-1 SD/rep is
   reported beside the frozen value as a transparency check (section 4.4)
   and no threshold was changed on the basis of it.
 - The S6 null control failed its non-zero-switch clause, voiding the

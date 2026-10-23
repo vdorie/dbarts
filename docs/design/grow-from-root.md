@@ -280,7 +280,7 @@ and closed 61 percent of the gap to the exact distribution (total variation
 Second, the rows a split score covers, which is that residual. The scan skipped
 naCode, so a split score omitted the missing rows' leaf marginal while the
 no-split term counted them: the omitted weighted sum of squares no longer
-cancelled between the two, and the missing weight never inflated either child's
+canceled between the two, and the missing weight never inflated either child's
 posterior precision. The effect is monotone in the missing rows' weighted sum of
 squared responses - the 0.0169 above is its floor, at zero, where only the
 precision term survives; at 32 the dropped distribution sits a total variation

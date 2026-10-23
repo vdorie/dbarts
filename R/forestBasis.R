@@ -455,7 +455,7 @@ basisVariables <- function(expr) {
 ## looked up. `unbound` is the variables nothing binds at the call and
 ## `unboundFunctions` the functions, none of which is looked up later; a name
 ## whose value cannot be had there keeps the reason in `broken`. Nothing is
-## signalled from here: what taking a value warns of is returned in
+## signaled from here: what taking a value warns of is returned in
 ## `warnings`.
 bindBasisAtCall <- function(expr, place) {
   top <- topenv(place)

@@ -243,7 +243,7 @@ and in posterior standard deviations:
 - Counting weight, the trees are too small - a single leaf 6.3 percent of the
   time against 1.1 exact, three or more leaves 26 percent against 44 - and the
   fitted means are pulled toward the middle: a region with no switched-in row
-  cannot keep its own leaf, so its fit is borrowed from a neighbour. Against
+  cannot keep its own leaf, so its fit is borrowed from a neighbor. Against
   the joint that writes the restriction into the prior it is further off still
   (membership by up to 0.154).
 - An unordered factor is the worst case for it: four levels, subset splits,
@@ -366,7 +366,7 @@ Every path that decides whether a branch is legal reads membership:
 - Monotone: the leaf owns its branch marginal
   ([`MonotoneConstantGaussianLeaf::logLikelihoodForBranchWithParams`](../../src/bartcore/model.hpp)).
   A weightless leaf's term is the prior mass of its cone given its frozen
-  neighbours - finite, and under the "leaf" prior the factor the tree's own
+  neighbors - finite, and under the "leaf" prior the factor the tree's own
   normalizer divides back out - and its draw is the prior truncated to that
   cone.
 - Variance: [`ConstantVarianceLeaf::logIntegratedLikelihood`](../../src/bartcore/model.hpp)
@@ -377,7 +377,7 @@ Every path that decides whether a branch is legal reads membership:
 
 For those eight weeks the veto counted positive-weight members: a zero weight
 was read as absence from the forest as well as from the likelihood, so that a
-weighted fit equalled the fit on the positive-weight rows. The predicate
+weighted fit equaled the fit on the positive-weight rows. The predicate
 scanned a leaf's members for a positive weight, the scans' sentinels read the
 weight on each side, the prior initializers conditioned each forest on its own
 composed vector, and from 2026-08-18 the two failures were ranked apart

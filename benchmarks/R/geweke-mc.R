@@ -30,8 +30,8 @@
 #
 # Self-consistency is the whole game. The forest prior is the ENGINE's own
 # (sampleTreesFromPrior + sampleLeafParametersFromPrior, then predict), so a
-# mismatch between the tree prior the initialiser grows from and the one the
-# Metropolis ratio prices shows up rather than cancelling. sigma has no exposed
+# mismatch between the tree prior the initializer grows from and the one the
+# Metropolis ratio prices shows up rather than canceling. sigma has no exposed
 # prior draw and is transcribed from the model spec (sbc.R's sbcSigmaDraw:
 # scaled-inverse-chi-squared on the REPORTED scale, calibrated so
 # P(sigma < sigest) = quant); a wrong transcription would already have shown as
@@ -63,7 +63,7 @@
 # representations of one prior, and it separates the two readings of a
 # tree-functional fire: a gap there puts the disagreement in the prior
 # representations (the marginal arm's theta is then not the theta the sweep
-# integrates over, which is an initialiser-consistency finding and not a
+# integrates over, which is an initializer-consistency finding and not a
 # statement about the posterior), and no gap there leaves it in the sweep.
 #
 # Sensitivity, measured by poisoning the successive-conditional refresh
@@ -72,7 +72,7 @@
 # itself a failure) at quick size: scaling the refresh noise by 1.02 fires six,
 # at z = +23.2 on log.sigma and +15.0 on the log.resid.ss pivot; reading the
 # refresh's sigma one step stale fires four, at z = +8.3 on log.resid.ss;
-# centring the refresh on 0.99 f fires seven, at z = -14.2 on f.sd, and leaves
+# centering the refresh on 0.99 f fires seven, at z = -14.2 on f.sd, and leaves
 # the pivots alone, which is the shape an error in the mean alone has.
 # poison=skip is a NEGATIVE control - refreshing only every other step still
 # leaves the joint invariant, since a posterior kernel applied twice to one y is
@@ -121,7 +121,7 @@ sigest <- 1
 zBound <- 4
 fitTolerance <- 1e-12
 poisonNoise <- 1.02 # refresh noise sd inflation under poison=noise
-poisonShrink <- 0.99 # refresh centre under poison=fshrink
+poisonShrink <- 0.99 # refresh center under poison=fshrink
 # the prior probe's pinned residual sd: 2000 internal-scale units against a
 # forest prior sd of 0.25, so the structure moves see a flat likelihood
 flatSigma <- 1e4
@@ -170,7 +170,7 @@ nFunctional <- length(gewekeFunctionalNames)
 bandAlpha <- 0.05 / (nFunctional * length(gewekeArms))
 
 ## Fixed design and build response for one arm. The build response is
-## deterministic: it fixes the internal scale (range 5, centre 0) once, and
+## deterministic: it fixes the internal scale (range 5, center 0) once, and
 ## every later setResponse leaves it alone.
 gewekeDesign <- function(arm) {
   set.seed(arm$designSeed)
@@ -291,7 +291,7 @@ gewekeMarginalPool <- function(sampler, arm, drawSigma, nDraw) {
   pool
 }
 
-## One successive-conditional chain, initialised at a marginal-conditional draw
+## One successive-conditional chain, initialized at a marginal-conditional draw
 ## so that it is stationary immediately. Returns the recorded second half; its
 ## last row is the chain's final iterate. Poisons act on the refresh only, never
 ## on the sweep, so a fire under one is the oracle's two arms disagreeing about

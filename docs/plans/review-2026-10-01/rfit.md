@@ -12,7 +12,7 @@ refusals, seed/set.seed reproducibility across n.threads 1 vs 2 for every family
 xbart and rbart_vi, keepTrees/keepSampler/keepCall/keepTrainingFits/keepFits/
 combineChains and the generics on the result, xbart argument sweep, rbart_vi basics,
 output shapes against CRAN 0.9-34 (installed in a scratch lib). Every probe ran
-against the r3-lib build of 01dee4b4; old-behaviour claims ran against CRAN 0.9-34.
+against the r3-lib build of 01dee4b4; old-behavior claims ran against CRAN 0.9-34.
 
 Not covered: statistical correctness of any posterior (no SBC/exact work), the
 sampler reference-class methods, dbartsSpec/multi-forest formula terms beyond a
@@ -98,7 +98,7 @@ Location: R/data.R factor coding on the factors = "indicators" route
   (makeModelMatrix / indicator drop) and bartBT, which always takes that route.
 Claim: under factors = "indicators" a level with no training rows (declared-unused, or
   emptied by subset) loses its indicator column, so predict at that level is silently
-  predicted as another level - the 0.9-34 behaviour NEWS ("A factor level that training
+  predicted as another level - the 0.9-34 behavior NEWS ("A factor level that training
   never saw is an error (0.9-34 silently predicted it as another level)") and dbartsData
   ("A level declared but unobserved in training therefore keeps its own bin") say is
   gone.
@@ -139,7 +139,7 @@ Claim: rbart_vi results depend on n.threads and, with n.threads > 1 (the default
   Reproducibility section promises both.
 Probe (r3-rfit-p11.R): set.seed(11) twice, n.threads = 2 -> identical FALSE;
   seed = 7, n.threads 2 vs 1 -> identical FALSE (seed = 7 twice at 2 threads -> TRUE).
-  0.9-34 port behaviour (dec-B130), deprecated function.
+  0.9-34 port behavior (dec-B130), deprecated function.
 Why gates missed it: rbart tests run n.threads = 1.
 Fix: state in rbart.Rd that its thread count changes draws and that only an explicit
   seed reproduces a multi-threaded run (or draw per-chain seeds from R's stream when

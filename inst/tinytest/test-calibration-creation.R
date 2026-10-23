@@ -54,7 +54,7 @@ composeProbit <- function(
   )
   if (useRecipe) {
     # the documented location lever: prior.mean is the response transform's
-    # shift, and an offset of -prior.mean re-centers the modelled quantity.
+    # shift, and an offset of -prior.mean re-centers the modeled quantity.
     # ($getLeafPrior reports the same number once the mid-chain half lands.)
     priorMean <- constructionRange * 0.5 + min(yInit)
     sampler$setOffset(rep_len(-priorMean, rows), updateScale = FALSE)

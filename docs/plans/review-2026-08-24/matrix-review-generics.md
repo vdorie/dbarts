@@ -48,7 +48,7 @@ training predictor matrix carries column names.**
   also works.
 - Contradicts [man/survivalProbabilities.Rd:11-13](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L11-L13), [man/survivalProbabilities.Rd:45-47](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L45-L47), [man/survivalProbabilities.Rd:87-96](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/survivalProbabilities.Rd#L87-L96) and [man/bart.Rd:328](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L328). Hazard
   fits are matrix-interface only (the formula route is refused by name) and [man/bart.Rd:75](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L75)
-  tells users column names are honoured, so the named matrix is the normal spelling.
+  tells users column names are honored, so the named matrix is the normal spelling.
 - Why no test caught it: [inst/tinytest/test-hazard.R:12](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/inst/tinytest/test-hazard.R#L12) builds
   `x <- matrix(runif(n * p), n, p)` with NO column names, so the file exercises only
   the working branch.
@@ -78,14 +78,14 @@ its own call.** Confirms and broadens matrix-results F3.
 ### MAJOR
 
 **G3. `extract(..., combineChains = FALSE)` is silently ignored on `bartMultinomial`,
-`bartOrdinal` and `bartNegbin`, while `predict` on the same fits honours it.**
+`bartOrdinal` and `bartNegbin`, while `predict` on the same fits honors it.**
 - `extract.bartMultinomial` ([R/generics.R:862](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L862)), `.bartOrdinal` ([R/generics.R:1071](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1071)) and
   `.bartNegbin` ([R/generics.R:1237](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/R/generics.R#L1237)) have formals `(object, type, sample, ...)`, so it lands in
   `...` and is dropped; `extract.bart`, `.rbart` and `.bartHurdle` all carry it.
 - Repro (`generics/probe11.R`, 2-chain fits): `extract(fO, combineChains = FALSE)`
   returns `12x60x3`, `identical()` to the combined result, where the matching
   `predict(fO, xTest, combineChains = FALSE)` returns `2x6x8x3`.
-- Fix class: VD-judgement (group A below).
+- Fix class: VD-judgment (group A below).
 
 **G4. Same swallow for `sample=` and `ci.level=` on `fitted`, `ci.level=` on
 `predict`, `type=` on `residuals`, `forest=` on `extract` and `vars=` on `summary`,
@@ -93,7 +93,7 @@ on those three classes.** Each verified `identical()` to the call without the ar
 (`generics/probe11.R`): `fitted(fM, sample = "test")`, `fitted(fO, ci.level = 0.9)`,
 `predict(fN, xTest, ci.level = 0.9)`, `residuals(fM, type = "bart")`,
 `extract(fM, forest = 1L)`, `summary(fM, vars = "sigma")`. bart/rbart/bartHurdle
-honour every one. Fix class: VD-judgement (A).
+honor every one. Fix class: VD-judgment (A).
 
 **G5. `$n.chains` is absent from every fit that keeps a sampler, i.e. from every
 `keepTrees = TRUE` fit.** Confirms the lenses memo.
@@ -115,18 +115,18 @@ refusing.**
   `extract(f, type = "trees")` -> an `11x4` frame with columns `tree,n,var,value` - no
   `sample` column, no warning - where [man/bart.Rd:257](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L257) scopes the feature to
   `keepTrees = TRUE` and [man/bart.Rd:260-266](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L260-L266) documents `chain, sample, tree, n, var, value`.
-- Fix class: VD-judgement (group F).
+- Fix class: VD-judgment (group F).
 
 **G7. No `plot` method for `bartOrdinal`, `bartNegbin`, `bartHurdle`** (NAMESPACE:
 31-34,56). Confirms matrix-results F6 and names the default: `plot(ordinalFit)` reaches
 `plot.default` and raises `'x' is a list, but does not have components 'x' and 'y'`.
 bart, rbart and bartMultinomial all have one; all six have summary and print.
-Fix class: VD-judgement (group B).
+Fix class: VD-judgment (group B).
 
 **G8. `extract(type = "loglik")` exists only on `bart` and `rbart`.** All four
 own-class families refuse by name (`type must be in 'ev', 'ppd', 'bart'` etc.); this is
 the channel loo/WAIC consume, and [man/bart.Rd:201](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L201) documents `"loglik"` on the `extract`
-generic without scoping it. Fix class: VD-judgement (group C).
+generic without scoping it. Fix class: VD-judgment (group C).
 
 **G9. A saved `bartHurdle` fit cannot `predict` after reload, and no Rd names the
 recipe that fixes it.**
@@ -227,7 +227,7 @@ with different names. Full formals table in `generics/probe11.R`'s first block.
 
 ## 5. Rd sweep: testable claims, by topic
 
-62 testable claims extracted; 50 AGREE, 7 CONTRADICT, 5 SILENT-where-behaviour-exists.
+62 testable claims extracted; 50 AGREE, 7 CONTRADICT, 5 SILENT-where-behavior-exists.
 Only the non-AGREE rows and the load-bearing AGREEs are listed.
 
 - [man/bart.Rd:201](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/man/bart.Rd#L201) type vocabulary, `"response"`/`"link"` synonyms on all four generics,
@@ -271,12 +271,12 @@ Only the non-AGREE rows and the load-bearing AGREEs are listed.
   (G3). No `\usage` for the aliased extract/fitted/predict/print/residuals of
   bartOrdinal/bartNegbin/bartHurdle: SILENT.
 
-## 6. VD-judgement groups (the deciding principle, not the cells)
+## 6. VD-judgment groups (the deciding principle, not the cells)
 
 - A. "Do the own-class generics carry the bart-family argument vocabulary, or refuse
   it by name?" - `combineChains`/`forest` on extract, `sample`/`ci.level` on fitted,
   `ci.level` on predict, `type` on residuals, `vars` on summary. All silently
-  swallowed today; honour or refuse, silence is the wrong option. (G3, G4)
+  swallowed today; honor or refuse, silence is the wrong option. (G3, G4)
 - B. "Does every own-class fit get `plot()`?" - bartOrdinal/bartNegbin/bartHurdle are
   the three without one; bartMultinomial shows what one looks like. (G7)
 - C. "Is `extract(type = 'loglik')` a bart/rbart channel or every family's?" (G8)

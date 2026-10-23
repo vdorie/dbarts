@@ -1,7 +1,7 @@
 r-verify - independent verification of rfit.md and rgen.md (review-3, pinned 01dee4b4)
 
 Method. Own probes (scratchpad r3-verify-r-p1..p11*.R) against r3-lib (1.0-0 at 01dee4b4) and,
-for old behaviour, r3-docs-mainlib (0.9-34 built from main; bart2 there is the formula door).
+for old behavior, r3-docs-mainlib (0.9-34 built from main; bart2 there is the formula door).
 Code paths read in R/data.R, R/generics.R, R/bart.R, R/bartcore.R, R/rbart.R; checked root TODO,
 docs/decisions.md (dec-A85, dec-B78/A06, dec-B130), inst/NEWS.Rd, man/bart.Rd, man/dbarts.Rd,
 man/dbartsSampler-class.Rd. None of the 14 findings is filed in TODO or ruled in the ledger.
@@ -10,7 +10,7 @@ Result: 14 CONFIRMED (one with a severity qualification); 0 refuted. Grouped by 
 Summary table
   id                  verdict    sev     vs 0.9-34        surface change for VD?          moves draws?
   rfit-01 = rgen-01   CONFIRMED  BLOCKER same (not regr.) yes (offset() starts to count)   only fits that use offset()
-  rfit-02             CONFIRMED  BLOCKER same             no (predict.lm behaviour)       no (test/predict only)
+  rfit-02             CONFIRMED  BLOCKER same             no (predict.lm behavior)       no (test/predict only)
   rfit-03             CONFIRMED  MAJOR   same             small (refusals; name lookup)   no (test channel only)
   rfit-04             CONFIRMED  MAJOR   same; NEWS false yes (new refusals)              no
   rgen-05             CONFIRMED  MINOR   message new      yes if fixed via G2 (widening)  no
@@ -103,7 +103,7 @@ rgen-05  CONFIRMED  MINOR
   lm's .getXlevels with drop.unused.levels) on the indicators route too, recode a test factor
   over it by label (factor(as.character(x), levels = trainLevels)) before expansion, and refuse by
   name any level with no training rows. That makes subset-level test factors work (a widening,
-  lm's behaviour - VD) and makes the NEWS sentence true. If VD prefers no widening: keep the
+  lm's behavior - VD) and makes the NEWS sentence true. If VD prefers no widening: keep the
   refusal and reword it ("give the test factor the training levels, or fit with factors =
   \"categorical\""), and still add the unseen-level refusal for rfit-04. Covers bartBT, which
   always takes this route. Tests: subset-away level and declared-unused level refused by name

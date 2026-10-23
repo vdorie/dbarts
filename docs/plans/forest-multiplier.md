@@ -324,7 +324,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   the first plan's fixed tolerance of 0.01 a scale 3 percent off passed every arm and 5 percent off
   passed the held ones (the critic's run). Against an oracle written to a wrong rule, as gaps: 0.674 left
   on a held coefficient 0.03 at the default, 0.10 and 0.21 at sds of 0.6 and 0.2 of the unit; a
-  coefficient variance of 1/2, 0.11; a held coefficient at 0, 0.27; a centred column 0.51; a stated sd
+  coefficient variance of 1/2, 0.11; a held coefficient at 0, 0.27; a centered column 0.51; a stated sd
   read per standard deviation 0.14 to 0.65; a default per unit 0.06 to 0.85; the scale taken over the
   rows of positive weight 0.18 and 0.47; a held plain forest that ignores an sd of 0.3 of the unit,
   0.033. An arm of three trees a forest with K = 3 (a forest with no basis held, a numeric column drawn
@@ -398,8 +398,8 @@ pair (0, 1).
    under 2^-26 of its largest absolute value there: where a default would need one it is refused by
    name, though the column may vary over the rows left out; with an sd stated it is created
    (dec-B307).
-4. The column is never centred and never divided: the engine multiplies by it as given, at the fit, after a
-   swap and at new rows. A default fit on w and on c w is the same fit, for any c that leaves both
+4. The column is never centered and never divided: the engine multiplies by it as given, at the fit, after
+   a swap and at new rows. A default fit on w and on c w is the same fit, for any c that leaves both
    representable: a row leaves a forest's update when its multiplier is at most 2^-26 of the largest
    absolute multiplier that forest has in the sweep, and for no smaller reason.
 5. A held value goes by the forest's kind and never by where the forest stands. `fixed()` takes no
@@ -630,7 +630,7 @@ shows what each forest resolved to; push 3 adds the sentence.
   [`stateFormatVersion`](../../src/R_interface_bartcore.cpp) stays.
   [`serializeGlue`](../../src/bartcore/combiner.hpp), [`restoreGlue`](../../src/bartcore/combiner.hpp) and
   [`glueIsValid`](../../src/bartcore/combiner.hpp) are not touched.
-- `data@bases[[f]]` is not touched: no column is centred, divided or given an attribute.
+- `data@bases[[f]]` is not touched: no column is centered, divided or given an attribute.
 - The unit, the conversion of a stated sd, the statement the engine is handed, the reader's `leaf.prior`,
   `sd` and `sd.stated` and `extract`'s shape are forest-sd-unit's and are carried, not rebuilt. A default
   never passes through the unit on its way in.
@@ -1074,7 +1074,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
 3.2 Tests, a new file test-forest-print.R: the block of "The reader, `extract` and the printed block" by
     exact string for the model of four forests, at `print`, `show` and creation; a stated forest, a held
     one, probit and logistic headers; after a swap to dose / 10 the column's sd and range are the new
-    ones and the line ends with the recorded one; a column centred by `scale()` prints mean 0; a column
+    ones and the line ends with the recorded one; a column centered by `scale()` prints mean 0; a column
     with one value a thousand times the rest shows it in its range; every number in the block read back
     from the text equals the reader's, or R's `mean`, `sd` and `range` of the column, to the digits
     printed; nothing is printed for one forest; no warning anywhere, for an age and for a 0/1 number.
@@ -1193,8 +1193,8 @@ where it is the engine's, run, record the failing count, revert, `touch` the fil
 - push 2, one pass for the mean: step 2.2's 1e7 + i;
 - push 2, "constant" decided by the computed sd: step 2.2's 0.1, 61.7 and 1e8 + 0.1, and step 2.6's
   cleared record; the near-constant bound dropped: 61.7 + 1e-9 sin(i);
-- push 2, a numeric coefficient's variance left at 1/2; the row norm left in; the column centred: step
-  2.3's literals and its closed form, and the gate (0.11; 0.51);
+- push 2, a numeric coefficient's variance left at 1/2; the row norm left in; the column centered:
+  step 2.3's literals and its closed form, and the gate (0.11; 0.51);
 - push 2, a stated sd divided by the scale: step 2.3's literals, and the gate's stated arms (0.14 to 0.65);
 - push 2, the scale taken again at a re-creation; at a swap: step 2.5's "once";
 - push 2, the record kept where a declaration replaces the basis: step 2.5's "other data";

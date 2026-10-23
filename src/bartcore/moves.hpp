@@ -35,7 +35,7 @@ concept ScannableLeafModel =
     { leaf.logIntegratedLikelihood(d, d, d, d) } -> std::same_as<double>;
   };
 
-/// One candidate rule in a nog node's closed neighbourhood: an ordinal
+/// One candidate rule in a nog node's closed neighborhood: an ordinal
 /// (variable, cut) pair, the missing direction where the node routes a missing
 /// row, and the enumeration's log weight. Only a rule that leaves neither
 /// child empty is a candidate. missingDirection is -1 where the scan did not
@@ -59,7 +59,7 @@ struct MoveScratch {
   std::vector<std::uint64_t> reachableWords;
   std::vector<std::uint64_t> patternWords;
   std::vector<std::uint64_t> maskArena;
-  // the nog neighbourhood: the candidates, the per-variable availability flags
+  // the nog neighborhood: the candidates, the per-variable availability flags
   // and the cut scan's own buffers, each grown once to the widest column and
   // reused, so an enumeration allocates nothing
   std::vector<NogRuleCandidate> candidates;
@@ -171,7 +171,7 @@ inline void resolveEmptyLeafVeto(const BranchScore& current,
     *currentLogLikelihood = 0.0;
 }
 
-/// Enumerate the closed rule neighbourhood at a nog node - an interior node
+/// Enumerate the closed rule neighborhood at a nog node - an interior node
 /// whose two children are both leaves - into ctx.scratch.candidates, and
 /// return whether any candidate survived. The candidates are every (available ORDINAL variable, admissible
 /// cut) pair, with the missing direction joining the pair wherever the node
@@ -185,11 +185,11 @@ inline void resolveEmptyLeafVeto(const BranchScore& current,
 /// coincides with splitInterval and the enumeration is identical from every
 /// state in it. Neither does the node's member set move: a rule change
 /// repartitions those rows, it does not change which rows are there. That is
-/// what closes the neighbourhood, and it is why the caller needs no reverse
+/// what closes the neighborhood, and it is why the caller needs no reverse
 /// count.
 ///
 /// A candidate's weight is the tree posterior restricted to the node's rule,
-/// every factor that does not read it having cancelled:
+/// every factor that does not read it having canceled:
 ///
 ///     log w = S                                the scan's marginal over the
 ///                                              two children
@@ -399,7 +399,7 @@ bool enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
 // difference.
 //
 // A 'g' record rides the same change proposal and prices the CLOSED
-// neighbourhood a collapsed rule draw at a nog node would have: every
+// neighborhood a collapsed rule draw at a nog node would have: every
 // (available ordinal variable, admissible cut) pair, weighted by the cut
 // scan's collapsed marginal times the prior factors that survive - the node's
 // own rule prior 1/|SI| (its split-variable factor is uniform over the
@@ -671,7 +671,7 @@ void cutProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
   }
 }
 
-/// A discrete neighbourhood, summarized: how many candidates carry finite
+/// A discrete neighborhood, summarized: how many candidates carry finite
 /// weight, the entropy of the normalized weights in nats, the incumbent's
 /// share and its rank by weight (1 the largest), and the largest share.
 struct Neighbourhood {
@@ -684,9 +684,9 @@ struct Neighbourhood {
 
 /// Normalize log weights and summarize them. A candidate whose weight is the
 /// scan's occupancy sentinel counts for nothing: the empty-leaf veto scores it
-/// -inf, so it is in the neighbourhood at weight zero. Entries are restricted
+/// -inf, so it is in the neighborhood at weight zero. Entries are restricted
 /// to those tagged `tag` when that is non-negative, which is how the
-/// single-variable neighbourhood reuses the joint enumeration.
+/// single-variable neighborhood reuses the joint enumeration.
 inline Neighbourhood summarizeNeighbourhood(const std::vector<double>& logWeight,
                                             const std::vector<int32_t>& tags,
                                             int32_t tag,
@@ -738,7 +738,7 @@ inline void countShape(const Tree& tree, int32_t i, int* leaves, int* interior,
   countShape(tree, tree.at(i).leftChild + 1, leaves, interior, nog);
 }
 
-/// The closed rule neighbourhood at the change proposal's target node, priced
+/// The closed rule neighborhood at the change proposal's target node, priced
 /// but not drawn from. Enumerates (available ordinal variable, admissible cut)
 /// and weights each by the cut scan's collapsed marginal times the surviving
 /// prior factors; the node's rule is written and restored, and no membership,
@@ -1137,7 +1137,7 @@ double birthOrDeathMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 
     // T* is in place: the normalized leaf builds its order here, and counts
     // off it only if the bound leaves the decision open. A count that is
-    // cancelled or runs out of memory leaves the tree at T0 before the
+    // canceled or runs out of memory leaves the tree at T0 before the
     // exception goes on.
     [[maybe_unused]] bool normalized = false;
     [[maybe_unused]] double logBound = 0.0;
@@ -1831,7 +1831,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 /// Perturb-move proposal kernel: displace one interior node's ordinal cut by
 /// at most ctx.perturbWidth grid positions, keeping its split VARIABLE and the
 /// whole tree's shape. The acceptance is changeMove's with the node's own
-/// prior factors cancelling exactly rather than against a proposal density:
+/// prior factors canceling exactly rather than against a proposal density:
 ///   alpha = exp( B(T') - B(T) + yLogL - xLogL + logProposalCorrection ),
 /// where B is the tree-prior log-probability of the subtree STRICTLY BELOW the
 /// node. splitVariableLogProbability reads ancestors only and the rule prior
@@ -1845,7 +1845,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 /// and findGoodOrdinalRules both ignore the node's OWN rule and read only
 /// ancestors and descendants, neither of which a displacement touches, so
 /// [lo, hi] is identical on T and T' and the reverse count is taken on the
-/// unmodified tree. Equalling or crossing an ancestor's or a descendant's cut
+/// unmodified tree. Equaling or crossing an ancestor's or a descendant's cut
 /// on the same variable is impossible rather than handled, [lo, hi] being set
 /// one index inside both. hi == lo leaves an empty window and a no-op. On a
 /// weighted column the node's rule prior is w(c) over a sum the move leaves
@@ -1853,7 +1853,7 @@ double swapMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tree,
 ///
 /// Eligible nodes are the interior nodes on an ORDINAL column, and the filter
 /// is not an optimization: the selected set must be a tree function a
-/// displacement cannot move, or its reciprocal stops cancelling between T and
+/// displacement cannot move, or its reciprocal stops canceling between T and
 /// T'. For the same reason no width filter may skip a node - a degenerate
 /// interval is a no-op INSIDE the kernel. A categorical rule has no cut to
 /// displace and is never proposed, so the move is inert on an all-categorical
@@ -1966,7 +1966,7 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 /// whose two children are both leaves - with a draw from its own full
 /// conditional. There is no acceptance test and no reverse count.
 ///
-/// The neighbourhood enumerateNogRuleNeighbourhood builds is closed: it reads
+/// The neighborhood enumerateNogRuleNeighbourhood builds is closed: it reads
 /// ancestors only, so it is identical from every state in it, its normalizer
 /// is the same before and after the draw, and no proposal count survives into
 /// an acceptance. The node is drawn uniformly among the eligible nog nodes and
@@ -1994,7 +1994,7 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 /// all-categorical design, exactly as perturb is. The leaf model must carry
 /// the scan's scalar marginal and must not score against the leaf-parameter
 /// vector: the monotone leaf's branch score is a constrained joint over the
-/// touched leaves given frozen neighbours and NOT the sum of two unconstrained
+/// touched leaves given frozen neighbors and NOT the sum of two unconstrained
 /// scan entries, and the variance forest's scale leaf has no such marginal at
 /// all. Both are a no-op here that consumes no draw.
 ///

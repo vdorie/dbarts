@@ -52,7 +52,7 @@ wordings that no longer fit the argument the caller wrote are corrected.
 - R, tinytest and manual pages only; no C/C++ change; no draw of an accepted call moves.
 - `guessNumCores()` still returns `NA`. A stated `NA` (and a stated 0 or negative) is refused as before.
 - No subprocess in a test.
-- `inst/NEWS.Rd` changes only where behaviour differs from the released 0.9-34; the root TODO is updated.
+- `inst/NEWS.Rd` changes only where behavior differs from the released 0.9-34; the root TODO is updated.
 
 ## Steps
 

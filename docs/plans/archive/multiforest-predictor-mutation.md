@@ -943,7 +943,7 @@ shape in scope, and the shape where `T_j` is largest (~40).
   NEWS and in the docs that multinomial's veto rate was measured as ungated stress
   rather than covered by a verdict. Note what IS gated: correctness - F2, F5, F6
   and F8 all run on a multinomial configuration. What is ungated is only the
-  modelling cost of the rate.
+  modeling cost of the rate.
 - **(b) Named and gated.** Re-run the falsifier's arm at K = 4 with pre-registered
   thresholds before S1. The harness lives untracked and is not a repository
   artifact, so this costs a rebuild plus a measurement cycle, to gate a shape with
@@ -979,7 +979,7 @@ LANDED (see Landing notes).
   which fires only on a sampler it chose to create with a variance forest. No
   `setPredictor`/`updatePredictor` call found in `src/bart_util.cpp`,
   `parametric_sampler.hpp` or `R/stan4bart_fit.R`; the scan was partial and is
-  labelled partial.
+  labeled partial.
 - **treatSens** (10 flat C entries, mutation every sweep). Same posture; its
   recorded mutation is on the RESPONSE side.
 - **bartCause.** ZERO - pure R, no `LinkingTo`, and no sampler-mutation call
@@ -1246,7 +1246,7 @@ green). Deviation from the plan's signatures, verified sound: the
 two halves take a ForestRevalidation handoff (one per chain, phase
 one over all chains before phase two) plus the touched-column list
 rather than a bare TreeParameters&, because the Pruning section's
-requirement 1 mandates ONE survivor list travelling between phases
+requirement 1 mandates ONE survivor list traveling between phases
 and the variance arm is pruned; the struct gained exactly two
 members. Both calls appended after the forests_ body under the
 runtime varianceForest_ guard; repartitionTrees gains the variance

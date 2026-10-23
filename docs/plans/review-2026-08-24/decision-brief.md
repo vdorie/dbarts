@@ -4,7 +4,7 @@ Read-only against bartcore tip 0045507c, 2026-08-24. Every number is from a tool
 file:line from the working tree, probe output from a staged `git archive HEAD` built with
 `R CMD INSTALL --preclean` into a private library. Probes are in `scratchpad/brief/`.
 
-## DECISION 1 - three places where one modelling rule has two implementations
+## DECISION 1 - three places where one modeling rule has two implementations
 
 ### (i) The amplitude-forest combiner routes on basis shape, not on the prior it carries
 
@@ -222,7 +222,7 @@ ALTERNATIVES.
     on GitHub, where anyone modifying the engine is. Costs: 262 shipped-code lines a CRAN
     reader cannot resolve, with nothing in the comment saying the target was stripped.
 (b) Strip every `docs/` citation and inline the constraint. Buys: every shipped comment
-    is self-contained. Costs: 316 edits over 80 files, each a judgement about what in the
+    is self-contained. Costs: 316 edits over 80 files, each a judgment about what in the
     design document is the CONSTRAINT and what is derivation; done badly it turns a
     one-line pointer into a paragraph.
 (c) Ship the design documents. Measured: `docs/design` is 1.5 MB over 49 files, 594 KB as

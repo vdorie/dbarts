@@ -73,7 +73,7 @@ An all-zeros mask is accepted and runs. Every forest sits at its prior and
 every row still receives a fit, so a stratum that empties needs no special case
 in the caller.
 
-A fractional element is refused rather than rounded or honoured: a value
+A fractional element is refused rather than rounded or honored: a value
 strictly between 0 and 1 is a weighted likelihood, which the latent families
 have no coherent form for, and belongs to `setWeights`
 ([`refuseNonBinaryMask`](../../src/R_interface_bartcore.cpp),

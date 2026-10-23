@@ -1,4 +1,4 @@
-# One declared forest honours forest(vars = ): the forest splits on the named
+# One declared forest honors forest(vars = ): the forest splits on the named
 # columns and no others for the sampler's whole life, and the fit is, seed for
 # seed and given the same residual scale estimate, the fit on those columns
 # alone. The engine's own gates live in tests/cpp/test_state.cpp

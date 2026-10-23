@@ -40,7 +40,7 @@ across twenty seeds, with a thousand draws kept after five hundred
 discarded. The spread across seeds is therefore pure Monte Carlo
 variability, and a two-sample Welch statistic formed from the twenty
 seeds on each side should behave like a standard normal wherever the
-two releases target the same posterior. Each scenario is summarised by
+two releases target the same posterior. Each scenario is summarized by
 the posterior mean fitted value at twenty-five training rows and every
 test row, the posterior mean and standard deviation of the residual
 scale, the mean split count for each predictor, and a nonlinear

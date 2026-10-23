@@ -315,7 +315,7 @@ adopted them. The rename surface is THREE things, not two: this block names
 `setTreatment` and `bcfGlue`, and misses the creation contract documented at
 [inst/include/dbarts/dbarts.h:348-357](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L348-L357) ("dbartsSpec(data, control, treatment = z)") plus the
 ownership sentence at [inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/include/dbarts/dbarts.h#L43). The conflict between this block and
-dbarts-h-reshape's binding decision 3 is adjudicated in favour of this block:
+dbarts-h-reshape's binding decision 3 is adjudicated in favor of this block:
 that decision now carries a conditional carve-out for the two BCF-specific
 names and the creation contract.
 
@@ -399,7 +399,7 @@ forces a lockstep consumer recompile.
    `Sampler::predict` routes to `predictColumns`, whose
    `Chain::predictFromSavedSample` / `predictFromCurrentTrees` both open
    `const Forest& forest = forests_[0]` and loop `forests_[0].numTrees`, so a
-   flat BCF consumer receives mu(x) labelled as the fit. The R bridge already
+   flat BCF consumer receives mu(x) labeled as the fit. The R bridge already
    guards all four of its siblings (`bartcore_predict`,
    `bartcore_setTestPredictor`, `bartcore_setTestOffset`,
    `bartcore_setTestPredictorAndOffset`); of the flat siblings only
@@ -670,7 +670,7 @@ all four.
 - **Grouped x BCF** (stan4bart's multilevel BCF). The combiner composes with
   `GroupedResponse` by design; the BCF chain constructor does not build the
   decorator. S1 REFUSES the composition; building it is its own arc.
-- **Retiring `bartcoreBCFSampler`** in favour of the public path, with the
+- **Retiring `bartcoreBCFSampler`** in favor of the public path, with the
   bcf-equivalence re-record it forces. Own arc.
 - **Public `setForestWeights`** - SCHEDULED as multiforest-extension-surface
   M1, which must land before dbarts-h-reshape S1 makes the flat entry public;
@@ -924,7 +924,7 @@ air 0; lintr 0. No deviations from the pin list.
 
 ## S5 disposition (appended 2026-08-16; the S5 section above is unedited on purpose)
 
-S5 is RELOCATED, not cancelled, and this note is appended rather than written
+S5 is RELOCATED, not canceled, and this note is appended rather than written
 into the S5 section because other documents cite line numbers into this file.
 
 `bcf()` and the `bartBCF` fit class ship in bartCause on its dbarts-1.0 branch,

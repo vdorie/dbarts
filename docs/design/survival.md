@@ -9,7 +9,7 @@ c("probit", "logistic"))` [`dbartsFamily`](../../R/family.R) constructor.
 Section 2 is further AMENDED by
 [interfaces-and-dependencies](../plans/interfaces-and-dependencies.md#interfaces-and-dependencies)
 S2, LANDED 2026-09-09 (c38f02d0): both survival families now take a `Surv`
-left-hand side on the formula interface, honour `subset`, and the hazard
+left-hand side on the formula interface, honor `subset`, and the hazard
 family accepts a `test` set, person-period-expanded on the training grid.
 First survival families for 1.0-x. Companion to the roadmap in
 docs/plans/archive/survival-models.md and the extensions table in

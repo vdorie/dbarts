@@ -83,14 +83,14 @@
 #   independent75pool4level        the shipped mixture unchanged, with the
 #                                  level-fibre Gibbs step on. It varies no
 #                                  proposal probability at all: the step is an
-#                                  exact draw on the leaf fibre, taken once a
+#                                  exact draw on the leaf fiber, taken once a
 #                                  sweep ahead of the tree loop, and it is the
 #                                  dosage the level-fibre benefit study's kill
 #                                  criterion turns on.
 #   independent75pool4ruleGibbsBlevel
 #                                  the rule_gibbs arm above and the level step
 #                                  together, one kernel structural and one on
-#                                  the leaf fibre. It is reported, not gated,
+#                                  the leaf fiber. It is reported, not gated,
 #                                  and it is what says whether the two gains
 #                                  stack.
 #

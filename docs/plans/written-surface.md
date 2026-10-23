@@ -26,7 +26,7 @@ rng: stated per text, as the process contract defines the classes.
   | `basis = ~ 1 + dose` | one column, dose plus one | a constant column and dose; the tip's `~ cbind(1, dose)` |
   | `basis = dose` in a formula term, with another `dose` where the formula is written | the caller's `dose` (draws 3.04 apart from the data's) | the data's; the tip's `~ dose` |
   | `basis = dose` in a `forests` list, with another `dose` where the list is written | the caller's `dose` | the data's; the tip's `~ dose` |
-  | `scale()` or `poly()` in a formula term under `subset` | centre and scale of the rows kept | of every row, as `lm`; equal to rounding to the constants written out |
+  | `scale()` or `poly()` in a formula term under `subset` | center and scale of the rows kept | of every row, as `lm`; equal to rounding to the constants written out |
 
   The review of push 3 found the table's families wider than its rows. The `+`, `- 1` and `1 +`
   re-reading moves the same texts written with no tilde beside the caller's own vectors, which the tip
@@ -150,11 +150,11 @@ said.
   `list(forest(), dose = forest(...))` gives `""`, `"dose"`; two list names alike and a second forest
   named `forest1` are accepted. `getLeafPrior("dose")` is refused: a forest is selected by position.
   `extract(type = "leaf.prior.sd")` on three forests is a vector named `forest1`, `forest2`, `forest3`.
-- Rows. Under `subset`, a formula term's `~ scale(age)` is centred on the rows kept and a list's on every
-  row. A factor column with a level no row has is refused at both doors, as is one whose level `subset`
-  empties; `~ factor(g)` under the same `subset` is accepted, `factor()` being called on the rows kept. A
-  missing value in a basis is refused. `predict` rebuilds a formula term's `scale()` at new rows; for a
-  basis written in a list it stops ("no off-sample basis").
+- Rows. Under `subset`, a formula term's `~ scale(age)` is centered on the rows kept and a list's on
+  every row. A factor column with a level no row has is refused at both doors, as is one whose level
+  `subset` empties; `~ factor(g)` under the same `subset` is accepted, `factor()` being called on the
+  rows kept. A missing value in a basis is refused. `predict` rebuilds a formula term's `scale()` at new
+  rows; for a basis written in a list it stops ("no off-sample basis").
 - `$setForestBasis(2, cbind(age = , dose = ))` on a forest created with `dose`, `age` is accepted and the
   stored names become `age`, `dose`: columns are taken by position and names follow the value.
 - What is written where, counted in the tree at the tip:
@@ -347,7 +347,7 @@ select nothing: a forest is still chosen by position, and the per-forest margins
   given to `$setForestBasis` keep R's own reading of a formula: looked up in the formula's environment,
   at the fit and again by predict.
 - An argument that a function of base R writes for the caller, `lapply()`'s `X[[i]]` and `Map()`'s
-  `dots[[2L]][[1L]]`, is not the caller's code: its value is a value handed over, labelled and named as
+  `dots[[2L]][[1L]]`, is not the caller's code: its value is a value handed over, labeled and named as
   one, and its names are not looked up in the data. The two are told apart by where the argument's code
   stands and by what it names: in the frame of a function whose top environment is the base namespace,
   code that names a variable of that frame (`X`, `i`, `dots`) is the machinery's, and anywhere else (the
@@ -356,7 +356,7 @@ select nothing: a forest is still chosen by position, and the per-forest margins
   list(basis = quote(dose)))`, names no variable of that frame and is the caller's code, as the same
   name handed over through `do.call` is: a column of the data is that column. An argument forwarded
   through dots stands where the forwarding function's caller wrote it. A mapper of another package is
-  not recognised and its argument is read as the caller's code. Built for `vars` too
+  not recognized and its argument is read as the caller's code. Built for `vars` too
   ([`isLoopMachinery`](../../R/model.R)).
 - A basis forwarded through dots by a call that has returned cannot be read where it was written. Its
   value at the call is used when its code names no column of the data; when it names one it is refused
@@ -602,7 +602,7 @@ reader's sake; the implementer may name them otherwise.
 
 ### Push 3: the basis
 
-3.0 Tidy first, as push 3's first commit and with no change of behaviour (the third review of push 2):
+3.0 Tidy first, as push 3's first commit and with no change of behavior (the third review of push 2):
     push 3 doubles each of these for `basis`. (a) Give the captured argument one definition: a
     `dbartsForestTerms` carries up to ten fields (expr, env, value, evaluated, warnings, unbound, error,
     labels, columns, named) set at six sites ([`captureForestVars`](../../R/model.R) and the body of
@@ -664,7 +664,7 @@ reader's sake; the implementer may name them otherwise.
     retired: [`forestBasisPredictCall`](../../R/formulaTerms.R) goes, and is gone. Tests: `scale()`, `poly()` and both at
     new rows, each equal to the constants of the fitted rows written out; `I(age - mean(age))`, which
     as in `lm` is evaluated on the rows given and so uses the NEW rows' mean (corrected after the review
-    of push 3: this step first said it equalled the fitted rows' constants); a basis written in a list
+    of push 3: this step first said it equaled the fitted rows' constants); a basis written in a list
     is rebuilt (fails today: stops); a constant beside the call is used and looked up again; a per-row
     vector found beside the call is refused at predict, pointing to `bases =`; a level the fit never saw
     is refused.

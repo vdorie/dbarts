@@ -59,7 +59,7 @@ information is diagonal (d2l / dmu dr = (y - mu)/(mu + r)^2, mean zero), so
 drawing r given the means costs nothing through them. Under logit-p, moving r
 at fixed psi multiplies every mean by r'/r; the information on a common
 log-mean shift is sum_i r mu_i / (mu_i + r), so at n = 1000 and r = 8 the grid
-neighbour 8 -> 10 cost of order 10^2 nats, and the forest could follow r only
+neighbor 8 -> 10 cost of order 10^2 nats, and the forest could follow r only
 by a coordinated level shift of every tree, which tree-local moves never
 propose. The review's probes (n 200 and 1000, mu = 8 exp(x1)) found every chain
 frozen within burn-in, mostly at the cold start r = 8, whatever the true r

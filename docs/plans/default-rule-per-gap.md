@@ -19,7 +19,7 @@ budget: ~1000 lines planned (Sizing), forecast 1500 to 2000.
 ## Goal
 
 Under the default rule a numeric column with fewer distinct values than `n.cuts` holds one cut point in each
-gap between neighbouring values, and the tree prior and every proposal choose among a node's gaps with
+gap between neighboring values, and the tree prior and every proposal choose among a node's gaps with
 probability in proportion to each gap's width. A column with `n.cuts` or more distinct values keeps its
 `n.cuts` evenly spaced, equally likely points. The engine gains weighted cut choice, stored per column beside
 the grid and carried by a state, in a form TODO cut-point-weights can reuse. The tier is "Changes draws"
@@ -288,10 +288,10 @@ uniform and on a few-valued column (critique finding 15; 1.05 and 1.5).
   man/xbart.Rd, man/dbartsSampler-class.Rd (`setCutPoints`: a grid given there is unweighted; `setPredictor`'s
   `"none"` keeps the grid and weights a column has; `storeState`'s attribute). The text: under the default
   rule a numeric predictor with fewer distinct values than `n.cuts` gets one cut point halfway between each
-  pair of neighbouring values, chosen in proportion to the gap's width.
+  pair of neighboring values, chosen in proportion to the gap's width.
 - NEWS, beside the item on distinct cut points: under the default `useQuantiles = FALSE`, a predictor with
   fewer distinct values than `n.cuts` (a 0/1 column, a small count, a sparse column, any column on fewer rows
-  than `n.cuts`) gets one cut point halfway between each pair of neighbouring values, each chosen in
+  than `n.cuts`) gets one cut point halfway between each pair of neighboring values, each chosen in
   proportion to the gap's width, where 0.9-34 placed `n.cuts` equally spaced points; a 0/1 column has one
   cut point where it had 100, no proposal moves among points that split the same rows, and fits with such a
   column change.
@@ -414,7 +414,7 @@ Open:
    columns move. dec-B235's "Fix it everywhere, bartBT included." fixed a defect and does not decide this
    (critique finding 14). Recommended: follow. Under width weights the gap prior is BayesTree's to within a
    point; what differs is proposals that move no row, which no caller relies on; a BayesTree grid in bartBT
-   would need a rule flag through the data object (about 60 lines) to keep a behaviour the ruling calls
+   would need a rule flag through the data object (about 60 lines) to keep a behavior the ruling calls
    wasteful. Alternative: bartBT keeps evenly spaced points.
 3. The quantile rule unweighted. The ruling names the default rule. Recommended: unweighted; its midpoints
    are chosen as equal shares of the distinct values, which is what `useQuantiles = TRUE` asks for.

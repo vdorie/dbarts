@@ -54,7 +54,7 @@ of the leaf-conversions tree.
   and after the call and restate that chain's kept draws; it is right for whatever transform the response
   installs, so this slice changes no line of it. Its tests re-anchor an aft sampler through `setResponse`
   only.
-- (read) [aft-status-setter.md](../design/aft-status-setter.md) records the behaviour as a property
+- (read) [aft-status-setter.md](../design/aft-status-setter.md) records the behavior as a property
   ("re-anchors on latents"), not as a defect; that sentence goes.
 - (ran) Released 0.9-34 has no aft family: no `family` argument and no survival code in its namespace.
 - (read, by search) No scenario of the three equivalence corpora, no exact gate and no snapshot file
@@ -111,7 +111,7 @@ The residual sd and its prior are restated in the new units as now.
    sentence: for an aft sampler the range is always that of the observed times, a censored row's
    censoring time among them. [aft-status-setter.md](../design/aft-status-setter.md): the sentence that
    the transform "re-anchors on latents" is replaced by the rule, dated. No NEWS item: 0.9-34 had no aft
-   family, so no released behaviour changes. The landing note here.
+   family, so no released behavior changes. The landing note here.
 
 ## Verification
 
@@ -159,14 +159,14 @@ Agent-made, for the maintainer's later mark.
 
 - The aft range is always read from the observed times, never from a chain's drawn times, at creation and
   at every re-derivation (the coordinator's ruling on the critique of the response-scale-rows design,
-  2026-10-07). The alternative, today's behaviour, gives each chain its own prior.
+  2026-10-07). The alternative, today's behavior, gives each chain its own prior.
 - This is its own slice and lands straight after leaf-conversions, ahead of the change of rows (the same
   ruling): it is a defect of today's call whatever the rows rule is.
 - The range routine takes the vector to read as an argument, and aft builds that vector at the call. Not
   taken: aft computing the minimum and maximum itself and installing them, which would be a second place
   that knows how a range is taken, to be kept in step with slice B's rows.
 - No exact-gate arm and no NEWS item, for the reasons under Verification and step 5.
-- The help gains a sentence although no released behaviour changes: `updateScale` on an aft sampler is
+- The help gains a sentence although no released behavior changes: `updateScale` on an aft sampler is
   new in 1.0-0 and the sentence says what it reads.
 - Rechecked against the tip before building, 2026-10-07, after leaf-conversions had landed. Every symbol
   cited is there under its name and the routines read as Context says. A probe on a build of the tip gave

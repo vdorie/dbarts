@@ -1,6 +1,6 @@
 # Review 3, lens "rgen": post-fit generics, data/predict path, sparseFactor, tombstones, sampler user methods
 
-Tree: review3 worktree at 01dee4b4, library r3-lib. Old behaviour from CRAN 0.9-34 in a private scratch lib.
+Tree: review3 worktree at 01dee4b4, library r3-lib. Old behavior from CRAN 0.9-34 in a private scratch lib.
 Probe scripts: scratchpad/r3-rgen-p*.R (all small n, 5-20 trees, n.threads = 1).
 
 Covered (with real fits):
@@ -149,4 +149,4 @@ message is pinned only for the bartBT/x-y route. Fix: say "keep the training lev
   NEWS says; bart(x, y, x.test) note, fourth-positional refusal, BT-name forwarding.
 - survivalProbabilities on hazard fits: test channel == newdata replay, chain shapes.
 - 0.9-34 parity: predict without offset on an offset fit gives the offset-free surface in both versions;
-  bartBT binaryOffset predict/yhat.test behaviour identical to 0.9-34.
+  bartBT binaryOffset predict/yhat.test behavior identical to 0.9-34.

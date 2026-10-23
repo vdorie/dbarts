@@ -33,7 +33,7 @@ included.
 - The [`dbarts_draw`](../../inst/include/dbarts/dbarts.h) field `numReportedLocations` is renamed
   `numFittedValuesPerObservation`.
 - Flat predict reads a multinomial offset as a rows x K matrix where R does.
-- [`dbarts_sampler_run`](../../inst/include/dbarts/dbarts.h) honours R's interrupt poll and raises
+- [`dbarts_sampler_run`](../../inst/include/dbarts/dbarts.h) honors R's interrupt poll and raises
   R's slow-count warning once per sampler, closing TODO
   monotone-count-host-interrupt.
 
@@ -248,7 +248,7 @@ Where the poll lives.
 - [`bartcore_run`](../../src/R_interface_bartcore.cpp) and [`dbarts_sampler_run`](../../src/C_interface.cpp) pass
   the same function. The flat run replaces its `{}` with it.
 - The flat run passes `&stoppedByCallback` to the engine as
-  [`bartcore_run`](../../src/R_interface_bartcore.cpp) does. A run the engine reports cancelled
+  [`bartcore_run`](../../src/R_interface_bartcore.cpp) does. A run the engine reports canceled
   raises only when the stop was NOT the callback's. A callback's nonzero
   return keeps its documented contract (the entry returns normally), which
   the existing `capi_draw_reset(2L)` stop arms in test-capi.R pin.
@@ -393,7 +393,7 @@ predict would need a signature change that forces consumer source edits.
     handshake passes, and every entry resolves by name with an unchanged
     signature. Neither reads `dbarts_draw`, so the field rename does not
     reach them. On gaussian and probit samplers they run bitwise as
-    before, plus the interrupt and warning behaviour, which arrives with the
+    before, plus the interrupt and warning behavior, which arrives with the
     library and not with the rebuild. Step 4 runs exactly this case first.
   - With `DBARTS_REQUIRE_EXACT_ABI`: the first stub call raises "dbarts C ABI
     mismatch ... rebuild".
@@ -409,7 +409,7 @@ predict would need a signature change that forces consumer source edits.
 - Gates (neutral class):
   - Full tinytest on a `--preclean` private-library install, and tests/cpp
     (test_capi.cpp carries the rename).
-  - The equivalence trio, labelled a formality (no harness drives a flat
+  - The equivalence trio, labeled a formality (no harness drives a flat
     entry), IDENTICAL against the baselines in benchmarks/baselines/MANIFEST.
   - The R-loaded AddressSanitizer run of test-capi.R per the plans README.
   - A C99 `-pedantic -fsyntax-only` compile of the header's prototype view.

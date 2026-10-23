@@ -39,7 +39,7 @@ splits an operation the engine does as one, and alone it carries section 3's reb
 
 **B, widen `$setResponse(y, status = NULL)`.** `status` goes LAST, name-only and no prefix of `updateScale` or
 `updateState`, so no positional call changes meaning and the warning
-(["setResponsePositionalUpdateScale"](../../R/dbarts.R)) cannot fire on it. `NULL` is today's behaviour exactly; non-aft
+(["setResponsePositionalUpdateScale"](../../R/dbarts.R)) cannot fire on it. `NULL` is today's behavior exactly; non-aft
 families refuse a non-null `status` by name. A status-only change is `s$setResponse(s$data@y, status = s2)`, `data@y` being
 the log time [`bartcoreSamplerSetResponse`](../../R/bartcore.R) mirrors every later write into.
 
@@ -63,7 +63,7 @@ rather than invented:
   time, which is data, not a draw. A caller driving one sweep per call needs the imputed value, the next sweep's mean forest
   reading the working response before [`AFTResponse::refreshLatents`](../../src/bartcore/model.hpp).
 - **Caveat, masked samplers.** The memcpy is mask-blind, the redraw is not, so the status-only idiom resets EVERY inactive
-  censored row's latent to its bound and leaves it there until the mask clears. Pre-existing `setResponse` behaviour, newly
+  censored row's latent to its bound and leaves it there until the mask clears. Pre-existing `setResponse` behavior, newly
   advertised; documented on the method.
 
 ## 3. Engine
@@ -160,7 +160,7 @@ build response through `dbarts(x, cbind(time, status), family = "aft")`; per rep
 `$setResponse(y0, status = status0, updateScale = FALSE)` and one `$run`. The transform never re-anchors, so both pins go.
 Nine functionals: `avg.f`, `sigma`, `f.star` at the five test points, and two only this family has -
 `S(t0 | x*) = 1 - Phi((log t0 - f(x*)) / sigma)`, the reported deliverable, at the first test point and `t0 = 1`, the build
-response's own median survival time, which centres the ratio at 0 under the prior draw rather than in a tail S would
+response's own median survival time, which centers the ratio at 0 under the prior draw rather than in a tail S would
 eventually underflow to an atom in; and `logT0[i]` at the LOWEST-INDEXED censored row, ranked against that row's posterior
 latents read with `getLatents` by the per-sample `run(0, 1)` idiom the discrete functionals use. The censored set is random
 per replication and can be empty; such a replication contributes no rank there and that functional's R is reported

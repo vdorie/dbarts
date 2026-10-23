@@ -116,7 +116,7 @@ expect_true(length(unique(seriesEst2$slot[, 2L])) >= 2L)
 
 # --- fixed r: the value the sampler was created with, repeated, on both
 # chain counts. 8 is on the grid, so this cell also pins that a fixed r is
-# never quietly re-drawn onto a neighbouring grid point.
+# never quietly re-drawn onto a neighboring grid point.
 
 seriesFix1 <- shapeSeries(
   nbinomSamplerShapeChannel(1L, shape = 8),

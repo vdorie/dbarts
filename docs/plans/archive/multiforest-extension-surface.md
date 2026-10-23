@@ -10,7 +10,7 @@ rng: M0, M1 NEUTRAL (no src). M2 NEUTRAL and BITWISE-GATED: the new creation
   route resolves to the SAME spec the treatment= route resolves to, so BCF must
   come out bitwise identical on all six bcf-equivalence channels; a divergence
   is a LEAK, never a re-record. M3 NEUTRAL (header and C_interface only; the
-  trio is a formality, labelled one, per that arc's rng note). M4 owns the only
+  trio is a formality, labeled one, per that arc's rng note). M4 owns the only
   re-record in this arc and only if the amplitude conditional cannot be made
   bitwise at K = 2; every other M4 slice gates the trio bitwise.
 window: M0, M1, M2 land INSIDE the pre-release breaking window. M3 LANDED
@@ -317,7 +317,7 @@ multivariate-outcome BCF: a d-dimensional outcome needs a d-dimensional
 response, d-dimensional fits, a d x d residual covariance and a Results layout.
 **That half of the door is struck as a category error.** There are TWO asserts
 ([src/bartcore/combiner.hpp:502](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L502) BCF, [src/bartcore/combiner.hpp:825](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L825) multinomial), and the naive lift is
-undefined behaviour, not a configuration change: `muByTree` is documented
+undefined behavior, not a configuration change: `muByTree` is documented
 "Empty for vector and function leaves, which keep the dense `treeFits` slab"
 ([src/bartcore/combiner.hpp:174-181](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L174-L181)) while `BCFForestCombiner::afterCombine` indexes
 `forest.muByTree[t]` unconditionally ([src/bartcore/combiner.hpp:651](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L651)) and rescales it ([src/bartcore/combiner.hpp:682-683](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L682-L683)), as
@@ -615,7 +615,7 @@ rather than boilerplate.
 decision installed for z; `$getForestAmplitudes(forest)`.
 
 **Staged guards, which is what makes the signature shippable before the
-family.** The body accepts, TODAY, only what today's engine honours: forest 1,
+family.** The body accepts, TODAY, only what today's engine honors: forest 1,
 a two-column complementary 0/1 indicator basis, Gaussian family. Everything
 else refuses at the entry, naming the capability. The family's arrival relaxes
 guard bodies and moves NO header. This is the same posture the repo already
@@ -812,7 +812,7 @@ model authors already use.
    answer AND the place binding decision 1b's boundary is stated to users: the
    additive decomposition ports exactly, and what does not port by itself is
    prior shape. The R recipe and the engine target the same posterior only if the
-   caller (a) centres y at its midrange or absorbs the transform's `shift` with
+   caller (a) centers y at its midrange or absorbs the transform's `shift` with
    `setOffset`, because the composition attributes `shift` once per forest and
    the engine attributes it once; (b) pins the leaf prior identically across
    samplers (`node.prior = normal(k)`, and construct every sampler on a common
@@ -836,7 +836,7 @@ Falsifiers: **FD1** the bitwise identity, both halves - extend
 bcf-public-surface S0's BCF pin to a SINGLE-forest sampler, and a deliberately
 mismatched thinning must go red. **FD2** a refusal matrix asserting (ii) entry
 by entry, R5 and flat C. **FD3** the rebuild divergence of fact 3 pinned as
-DOCUMENTED behaviour with its receipt in the test comment. **FD4, the
+DOCUMENTED behavior with its receipt in the test comment. **FD4, the
 continuity falsifier, runnable today with no engine work**: a BCF sampler with
 `update.a = update.b = FALSE` (glue pinned, model exactly `y = mu + z tau`) and
 the R recipe with the section-3 remedies agree on CATE to Monte Carlo error;
@@ -972,7 +972,7 @@ category: the softmax margin reads all K forests, so a row cannot leave one
 category's likelihood alone" before falling through to
 "bartcore_setForestWeights requires a BCF sampler"). POSTURE: the R5 method
 adds NO pre-refusal of its own and lets the bridge raise. This matches the
-house posture of its neighbours - `$setActiveRows` ([R/dbarts.R:1109-1131](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1109-L1131))
+house posture of its neighbors - `$setActiveRows` ([R/dbarts.R:1109-1131](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1109-L1131))
 validates shape and length in R and leaves every family/capability refusal to
 the bridge, and `$setCalibration`'s only R-side pre-refusal
 (`refuseBCFMutation`, [R/dbarts.R:1373-1378](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1373-L1378)) is a BCF-calibration refusal, not a family
@@ -1046,7 +1046,7 @@ scenarios), `bcf-equivalence-8b047f8b` (12) and
    touching `treatment`" this item named before the 2026-08-13 pre-M2 refresh
    was never enumerated and is wrong in both directions - item 9 replaces it
    with the verified list.
-4. Every declaration today's engine cannot honour REFUSES at creation, one
+4. Every declaration today's engine cannot honor REFUSES at creation, one
    assertion each. NINE, up from the six this item carried before the
    2026-08-13 pre-M2 refresh: K > 2 forests; a numeric (non-factor) basis; a
    factor with more than two levels; a basis on forest 0; a non-Gaussian
@@ -2770,7 +2770,7 @@ in FA1 and FA5 below ARE the record.
       than to the downstream guard (an unsupplied `k` resolves to the fixed
       2.0, so the guard sees a default and stays silent), an EXPLICIT
       non-default still refuses by name ([R/model.R:395-400](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/model.R#L395-L400)), and the forced
-      value is not a modelling statement because it is discarded downstream.
+      value is not a modeling statement because it is discarded downstream.
       Point four is why the precedent transfers EXACTLY here: `buildBCFForest`
       pins `forest.k = 1.0` ([src/bartcore/chain.hpp:4506](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4506)) and
       `forest.updateK = false` ([src/bartcore/chain.hpp:4504](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L4504)), so forcing a binary K-forest's
@@ -3859,7 +3859,7 @@ TWO legs, split on where an exact posterior is constructible at all.
     `$setCalibration(forest, prior.scale =)` ([R/dbarts.R:1461-1527](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/dbarts.R#L1461-L1527); legal on
     a single-forest sampler, refused only on BCF). **The location lever must be
     matched too, and it is easy to miss:** `prior.mean` is the response
-    transform's SHIFT and an offset of `-prior.mean` re-centers the modelled
+    transform's SHIFT and an offset of `-prior.mean` re-centers the modeled
     quantity ([inst/tinytest/test-calibration-creation.R:56-63](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-calibration-creation.R#L56-L63), applied as
     `setOffset(rep_len(-priorMean, rows), updateScale = FALSE)`). With two
     samplers each taking a per-forest RESIDUAL response the shift is
@@ -4672,7 +4672,7 @@ nuance in the amendment's `update.amplitude` legality rule. (iv)
 Review round two added pins for facts the first pass verified but left
 unpinned - the `hasBasis` escape (`sd` reaching `params[4]`,
 `update.amplitude` reaching `params[7]`, a K = 2 no-basis spec still
-honouring `n.trees`) and the positive `interactions`/`blocks` routes - and a
+honoring `n.trees`) and the positive `interactions`/`blocks` routes - and a
 suspected `tau.blocks` pin, tested and empirically falsified, was left
 standing as written.
 
@@ -5039,7 +5039,7 @@ plus the bcf row label were re-verified BY SYMBOL; the alias-table
 sentence now reads "EXCEPT where a cell or footnote says otherwise," the
 Status line's "current at" stamp was deliberately NOT bumped, and TODO
 gained feature-matrix-anchor-refresh for the outstanding full pass. Q4:
-all four classes written, evidence labelled honestly - continuous/
+all four classes written, evidence labeled honestly - continuous/
 dose-response BCF's only source (arXiv:2007.09845) is UNPUBLISHED by the
 plan's own correction, so D4 states that plainly rather than inheriting
 the originating phrase's "verified." Q5: the naming debt RECORDED, not

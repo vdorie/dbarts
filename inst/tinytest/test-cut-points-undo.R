@@ -227,7 +227,7 @@ expect_silent(sampler$setCutPoints(own[[3L]], 3L))
 expect_silent(sampler$setCutPoints(own))
 expect_identical(cutPointsOf(sampler), own)
 
-# A grid with equal neighbours is refused on any column, and so is a missing
+# A grid with equal neighbors is refused on any column, and so is a missing
 # value, by column and as an entry of the whole list. The grid is left as it
 # was.
 refusal <- paste(

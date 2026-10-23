@@ -34,7 +34,7 @@ the AST walk now covers the LHS (M-1) and recurses into the non-forest operand
 (M-4); a factor member inside a compound operand is refused rather than
 silently coerced to integer codes (M-2); the `:`'s left operand gains a closed
 grammar that refuses multi-way colon chains (M-3); 5.3 step 4's contradiction
-is resolved in favour of "the symbolic slot names a subset of the design, and a
+is resolved in favor of "the symbolic slot names a subset of the design, and a
 name outside it is a refusal" (M-5); 5.6 grows from nine refusals to twelve;
 and the S12 block-C mapping, the `bartcore.bcf` comparand, the dot-separated
 indicator names, the `y ~ 0` residue, the ancestor-chain check, `-`'s place in

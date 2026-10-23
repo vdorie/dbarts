@@ -131,7 +131,7 @@ tiers takes the higher.
 - Changes draws (the engine, a prior, a default, a sampler move, an exact
   or calibration gate): a plan with a blind critique; an implementer; one
   opus review that runs mutants. The same reviewer checks the fix round
-  unless the fixes change engine behaviour, which takes a fresh review.
+  unless the fixes change engine behavior, which takes a fresh review.
   Local gates: the RNG class's battery above, the full tinytest suite,
   sanitizers on tests/cpp and on the R-loaded path where new numerics are
   reachable, `R CMD check`, and the arm64 reproducibility snapshots.

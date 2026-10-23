@@ -1,4 +1,4 @@
-# level: an exact Gibbs draw on the level fibre
+# level: an exact Gibbs draw on the level fiber
 
 Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the linear leaf out of slice 1 and recorded as a door with its `m n` price, the perturbation algebra halved, the empty-leaf reason restated on the zero pin, the pilot as the residual channel with an advisory bar on medians, the backfit-exact gate repaired by profiling, the control slot fixed at creation, the cost against 16.3's own unit); SLICE 1 LANDED 2026-09-07 (the step behind the flag at default off, cbe80534); SLICE 2 PILOT CONFIRMS 2026-09-07 (bf1a4c9e); SLICE 3 RUN 2026-09-07: KILLED, the primary reads -0.9 and -2.5 against a +8 bar (ca92c11f); AUTO UNDER THE FROZEN MIXTURE 2026-09-08 (127f04ee).
 
@@ -21,7 +21,7 @@ from any structural move: the step is an addition to the sweep, not a redistribu
 **The house already ships two leaf-table moves, and they are HALF the template.**
 [`MultinomialForestCombiner::afterCombine`](../../src/bartcore/combiner.hpp) draws the common level the softmax cannot identify
 from the leaf prior restricted to that direction and absorbs it uniformly over each forest's trees, skipping empty leaves;
-the amplitude rescaling move, since removed (retired: [`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)), travelled the
+the amplitude rescaling move, since removed (retired: [`rescaleAmplitudeRidge`](../../src/bartcore/combiner.hpp)), traveled the
 multiplicative amplitude ridge with a GIG draw on the same principle. What the first shares with this design is the ACCUMULATION: its `prec` and `num` are section 1's `(P_t, Q_t)` read
 along the uniform-absorption direction, so reducing section 1's arithmetic to it is the cheapest check on that half. It is
 otherwise a different animal - one-dimensional, UNCONSTRAINED, with no projection at all - and it MOVES `f`
@@ -34,7 +34,7 @@ and section 5's two poisons stand in for the precedent it does not supply.
 **The subspace.** Let `Z` be the `n x sum_t L_t` leaf-indicator design over the forest's OCCUPIED leaves, so `f = Z mu`. Condition
 on everything else: structures, occupancy, `sigma`, `k`, weights, latents, and `f` itself. On the affine set `{mu : Z mu = f}` the
 likelihood is constant, so the conditional is the leaf prior restricted to `ker(Z)`. Each tree's indicator columns sum to `1_n`, so
-every difference of two trees' block-indicators lies in `ker(Z)`: the level fibre is the `m - 1` dimensional set
+every difference of two trees' block-indicators lies in `ker(Z)`: the level fiber is the `m - 1` dimensional set
 `{(c_1..c_m) : sum_t c_t = 0}`, acting as `mu_{t,l} -> mu_{t,l} + c_t`.
 
 **The conditional.** With independent leaf priors `mu_{t,l} ~ N(0, tau_{t,l}^2)`, write `P_t = sum_l 1/tau_{t,l}^2` and
@@ -127,7 +127,7 @@ nog node's `2n/L = 7900` members (two units, and 1/18 of them) would suggest. Th
 multiple chains it is per chain, inside each chain's own loop and on its own generator, so no barrier and no thread-count
 dependence.
 
-**Degenerate cases.** `m = 1` gives a zero-dimensional fibre and the step is a no-op; a tree with no occupied leaf drops out and the
+**Degenerate cases.** `m = 1` gives a zero-dimensional fiber and the step is a no-op; a tree with no occupied leaf drops out and the
 projection runs over the rest; fewer than two eligible trees is a no-op. The step fires in the sampling loop only, not in the
 grow-from-root warm start, which is an initializer and not MH-exact.
 
@@ -156,7 +156,7 @@ move kept, in the same words.
 - **Heteroscedastic variance forest: SKIPPED, and not because its level is identified.**
   [`ConstantVarianceLeaf`](../../src/bartcore/model.hpp) is not a log-scale gaussian leaf: it is a MULTIPLICATIVE scaled-inverse-
   chi-squared factor, `s^2(x) = prod_j h_j(x)` through
-  [`applyLeafFactor`](../../src/bartcore/chain.hpp). The fibre exists - multiply tree `j`'s leaves by `g_j` with `prod_j g_j = 1`
+  [`applyLeafFactor`](../../src/bartcore/chain.hpp). The fiber exists - multiply tree `j`'s leaves by `g_j` with `prod_j g_j = 1`
   and `s^2(x)` is exactly fixed - but the restricted conditional is a product of inverse-gamma densities on the log-sum-zero
   manifold, with no closed-form projection and no gaussian to condition. **A, skip.** **B, a PAIRWISE variant**: pick two variance
   trees, multiply one by `g` and the other by `1/g`; the conditional of `g` is then
@@ -169,13 +169,13 @@ move kept, in the same words.
   mixing nothing has measured, and adding an untested kernel there would be priced against no deficit.
 - **Monotone leaves: YES, with the per-leaf precision, and 15.2's exclusion does not bite.**
   [15.2 The two facts the lenses agreed on](tree-mixing-proposals.md#152-the-two-facts-the-lenses-agreed-on) scopes monotone forests
-  out of fibre moves because the truncation reads leaf boxes and frozen neighbour values, both of which a REPARTITIONING move
+  out of fiber moves because the truncation reads leaf boxes and frozen neighbor values, both of which a REPARTITIONING move
   changes. This move changes neither. [`monotoneNeighborBounds`](../../src/bartcore/model.hpp) returns bounds that are max and min of
-  NEIGHBOUR values in the same tree and never an absolute constant, so the cone is a set of pure difference constraints, invariant
+  NEIGHBOR values in the same tree and never an absolute constant, so the cone is a set of pure difference constraints, invariant
   under a common shift of the whole tree, and its normalizer is a function of the structure alone and cancels. So the conditional of
-  `c` is section 1's exactly - but the per-leaf prior sd is `cInflation * scale / k` for a leaf with a constrained neighbour and
+  `c` is section 1's exactly - but the per-leaf prior sd is `cInflation * scale / k` for a leaf with a constrained neighbor and
   `scale / k` otherwise, so the homogeneous `(L_t, S_t)` form is WRONG here and the `(P_t, Q_t)` form is required. One eligibility
-  test: a tree carrying an EMPTY leaf is skipped, because that leaf sits at 0 as a hard bound on its occupied neighbours and an
+  test: a tree carrying an EMPTY leaf is skipped, because that leaf sits at 0 as a hard bound on its occupied neighbors and an
   occupied-only shift can leave the cone. Truncating the shift instead is refused: a truncated `c` is not a draw from the restricted
   prior and breaks the Gibbs conditional distribution, which is the same reason the constrained prior draw uses rejection rather than
   a sweep of truncated conditionals.
@@ -191,7 +191,7 @@ move kept, in the same words.
 - **GP leaves: SKIPPED, and not on cost.** The parameters ARE the fitted values at the leaf's rows, and
   [`GPGaussianLeaf`](../../src/bartcore/model.hpp)'s `fitForTestObservationForNode` predicts a test row as
   `sum_r exp(-d^2/2) alpha_r` with `alpha = K^{-1}` times the drawn values. Kriging weights do not sum to one, so adding `c` to every
-  training value does NOT add `c` to the prediction: the shift is not `f`-invariant out of sample and there is no level fibre to
+  training value does NOT add `c` to the prediction: the shift is not `f`-invariant out of sample and there is no level fiber to
   draw on. The in-sample conditional would additionally need `1'K^{-1}1` per leaf per sweep.
 
 ## 4. The surface
@@ -281,12 +281,12 @@ between the flag's two settings within Monte Carlo error, and a `storeState`/`se
 
 **(c) Poisons, both sized.** (i) Drop the zero-sum projection and apply `u` directly: `sum_t u_t` is then
 `N(sum_t m_t, sum_t v_t)` with `sum_t v_t = m tau^2/L`, sd about `tau sqrt(m/L)` = 0.16 at C1's shape, so `f` moves by that much at
-every row and the invariance identity fails by 14 orders. (ii) Drop the prior mean term and centre `u` at zero: the shift's distribution keeps its covariance and loses its mean, so the
+every row and the invariance identity fails by 14 orders. (ii) Drop the prior mean term and center `u` at zero: the shift's distribution keeps its covariance and loses its mean, so the
 empirical mean fails its `z` while the covariance passes - which is the poison that distinguishes a correct conditional from a
 correctly-shaped one.
 
 **(d) The exact-posterior gates, and one that needs a repair.** The 22 exact gates run at the default and are untouched at the
-flag off. At the flag ON, most are single-tree and the fibre is empty there, so they are inert rather than passing.
+flag off. At the flag ON, most are single-tree and the fiber is empty there, so they are inert rather than passing.
 ["the gaussian backfit at ensemble scale"](../../benchmarks/R/backfit-exact.R) is the exception and **as it stands it cannot be exact
 with the step on, for a bookkeeping reason and not a correctness one**: its reference reconstructs tree `j`'s residual from the
 RECORDED trees, taking trees `j+1..m` from the PREVIOUS sweep's record, which is pre-shift, while the engine drew tree `j`
@@ -357,7 +357,7 @@ chain diversity, not gained exploration: it is a fail. Read the three columns to
 in every arm.
 
 **P2 is untouched.** [10.1 P2, the confounded step function](benchmark-surfaces.md#101-p2-the-confounded-step-function)'s rooting
-lock is a connectivity failure in TREE space - two rootings separated by rule changes - and the level fibre lies entirely in leaf
+lock is a connectivity failure in TREE space - two rootings separated by rule changes - and the level fiber lies entirely in leaf
 space, so no leaf step can cross it. P2 stays a must-not-degrade cell (switches per chain within arm A's own seed range, parked
 chains no worse) and is not a cell the step can win on.
 
@@ -445,7 +445,7 @@ alone; neither is gated. Nothing else in this section's list is outstanding: the
 must-not-degrade secondaries and the cost clause were read, the P1 gate is in force, P2 is settled by construction, and the
 sham stands on perturb's own measurement rather than a re-run. What the run does not overturn is the pilot: slice 2's frozen-chain rise of +189.4 and
 +231.6 in the minimum ESS stands as a measurement of the residual channel with the structure held fixed, and what slice 3 adds
-is that the gain does not survive a live structural kernel - the structural half of the sweep moves the level fibre faster than
+is that the gain does not survive a live structural kernel - the structural half of the sweep moves the level fiber faster than
 the exact draw pays for itself, which is the connection this section said in advance it did not have. And nil on this cell is
 not nil everywhere: [6.4 Kill criteria, pre-registered](tree-mixing-proposals.md#64-kill-criteria-pre-registered)'s plateau
 clause needs a noise-heavy or large-n stratum no cell here measures, and the linear leaf, the variance forest and the GP leaf

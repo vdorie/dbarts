@@ -15,7 +15,7 @@ Posture REFUTE. `git archive HEAD` staged under a private scratch prefix, `R CMD
     sd(ppd - ev): 8.043541   scalar sigma: 7.806093   mean s.train: 1.402687
     cor(colwise sd(ppd-ev), colwise mean s.train): 0.0206
 
-sigma is the fixed unit residual of parameterisation A ([docs/design/heteroscedastic.md:279-281](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/docs/design/heteroscedastic.md#L279-L281), `sigmaIsFixed_`)
+sigma is the fixed unit residual of parameterization A ([docs/design/heteroscedastic.md:279-281](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/docs/design/heteroscedastic.md#L279-L281), `sigmaIsFixed_`)
 rescaled by the y range - no posterior content at all. TWO CHANNELS THE MEMO MISSES, both live:
 
 - `predict(type = "ppd")` ([R/generics.R:270-296](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/R/generics.R#L270-L296)) computes `s` into a local at [R/generics.R:273-279](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/R/generics.R#L273-L279), attaches it as

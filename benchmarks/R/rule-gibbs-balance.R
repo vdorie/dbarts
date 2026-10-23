@@ -3,7 +3,7 @@
 # Permanent detailed-balance gate for the RULE_GIBBS move (docs/design/
 # nog-gibbs.md section 5). The move replaces the split rule at a nog node - an
 # interior node whose two children are both leaves - with a draw from that
-# rule's own full conditional. The neighbourhood is closed (it reads ANCESTORS
+# rule's own full conditional. The neighborhood is closed (it reads ANCESTORS
 # only, so it is identical from every state in it), the acceptance is
 # identically one, and no proposal count survives; what the kernel has to get
 # right is the WEIGHT it draws from, and every term of that weight is a term
@@ -62,7 +62,7 @@
 #       a middle cut leaves both splittable at 1 - 0.95/3^0.5 = 0.4515. That
 #       is why the grid is 6 x 2 rather than perturb-balance.R's 6 x 4, where
 #       a depth-1 child still holds cuts of both columns and the two factors
-#       are constant across its whole neighbourhood.
+#       are constant across its whole neighborhood.
 # All three draw the split VARIABLE uniformly among the variables that STILL
 # have a cut at the node, which is what the engine does with no split
 # probabilities set: a variable exhausted below its ancestors drops out of the
@@ -136,9 +136,9 @@
 #             low-cardinality bias in mirror image that change-balance.R's
 #             gate repaired. Statistic 3 is blind to it, the depth-1 child
 #             holding one variable so that 1/|SI| is constant over its whole
-#             neighbourhood.
+#             neighborhood.
 # The matching engine mutations are carried by benchmarks/R/mutation-battery.R
-# (m26, m27), which builds them for real; the neighbourhood's ancestor-only
+# (m26, m27), which builds them for real; the neighborhood's ancestor-only
 # closure, which is what removes the reverse count, is asserted in tests/cpp
 # instead of poisoned here.
 #
@@ -226,7 +226,7 @@ growthProbability <- function(depth, numAvailable) {
 # P(grow at the root) = base, the variable is uniform over the two available
 # columns, and the rule is uniform over that variable's cuts. Seven states,
 # summing to one exactly. The two `1 - growth` factors are CONSTANT over this
-# neighbourhood - every root split leaves both children holding the other
+# neighborhood - every root split leaves both children holding the other
 # column, so both children grow with the depth-1 probability whatever the rule
 # is - which is what makes statistic 1 blind to poison 1 and statistic 3
 # necessary.
@@ -330,7 +330,7 @@ names(leafTarget) <- leafLabels
 # The root splits x2 at its ONLY cut, so the left child's ancestor-constrained
 # rectangle holds all six x1 values and one x2 value: x1 is the child's only
 # available variable, the variable draw is forced and 1/|SI| = 1/5 is constant
-# over the child's whole neighbourhood. Conditional on that child being a nog
+# over the child's whole neighborhood. Conditional on that child being a nog
 # node - it splits, and both grandchildren are leaves - the only term left
 # varying is the pair of `1 - growth` factors, so the distribution over the
 # five cuts is proportional to (1 - growth(left grandchild)) x (1 -

@@ -233,7 +233,7 @@ away under checking, and this is the survey's largest correction:
   rather than O(n) tau cost - not mutability. (As written this also claimed
   "exact exclusion instead of the 1e-9 floor"; the floor became an exact zero on
   2026-08-10, so only the cost half survives. See section 2.)
-- The IV/CACE "neighbour" cited as support has **no compliance classes at all**
+- The IV/CACE "neighbor" cited as support has **no compliance classes at all**
   (no principal strata, no latent classes; it is a two-equation continuous-exposure
   IV with correlated errors, both ensembles on all n rows). Citation **dropped**
   from this record.
@@ -270,7 +270,7 @@ class is efficiency, not mutability.
    per-observation field, a scatter-back on every read, and renumbering through
    reporting, varcounts and the state format.
 
-*The only real-world datapoint favours compaction, with a caveat.* TBAFTcure
+*The only real-world datapoint favors compaction, with a caveat.* TBAFTcure
 draws the cure label per censored row each sweep, then physically allocates fresh
 `nuncured`-sized arrays with a gather loop and sets the data-info row count to
 `nuncured`, restoring n only for prediction - and the **zero-weight alternative
@@ -635,7 +635,7 @@ The critique escalated it on two axes, and the escalation is confirmed here:
 **This is recorded, not specified, here.** The fix - extend re-routing to
 `varianceForest_` across all four mutation paths, versus refuse the whole
 predictor-mutation surface on `hasVarianceForest` (a user-visible removal of
-currently-accepted behaviour) - is its own arc, and it is a release blocker that
+currently-accepted behavior) - is its own arc, and it is a release blocker that
 must not queue behind any door in this document. The narrow `setData`-only guard
 the memo recommended does **not** close it. TODO entry:
 `variance-forest-mutation-routing`.
@@ -680,7 +680,7 @@ operative gate: `negbin-real-dispersion` and `weighted-binary` (the memo itself
 concedes the remaining approximate-PG posture decision stands - the value was
 never the gate); `integer-predictor-storage` (self-described as a use, not a
 model - a note, not a lift); `correlated-outcomes`' AR-1 engine door (already
-labelled causal-motivated, and the entry states panel/ITS/DiD compose today via a
+labeled causal-motivated, and the entry states panel/ITS/DiD compose today via a
 latent AR-state plus nugget in the outer sampler; the panel-BCF citations do not
 show that composition insufficient, which is what lifting the *engine* door would
 require).
@@ -698,7 +698,7 @@ require).
 4. **Transfer / multi-task / co-data BART.** One candidate surfaced (co-data
    learning through prior weights) and was never fetched, so nothing was assessed
    there. It is prior-side, not data-swap, so no door rides on it.
-5. **Online / streaming BART: not found, and the near-neighbour named.** An
+5. **Online / streaming BART: not found, and the near-neighbor named.** An
    independent broad search found no BART instance maintaining a posterior under
    data arrival without refitting. The thing a reader will ask about is
    **dynaTree**: "a dynamic tree model whose state changes in time with the
@@ -732,7 +732,7 @@ drift claim *is* correct: `applyNewData` runs to
 (c) TBAFTcure is **not** a fork of the `bcf` package, as the critique stated; its
 README says the tree code is "constructed following the framework of R package
 bcf" [verified: https://github.com/roxiesun/TBAFTcure]. The correction runs in
-the critique's own favour - an independent reimplementation is stronger evidence
+the critique's own favor - an independent reimplementation is stronger evidence
 of an unmet need than a fork - but the record should say what is true.
 
 ---
@@ -741,7 +741,7 @@ of an unmet need than a fork - but the record should say what is true.
 
 Kept citations, each with its verification URL. One citation the memo used was
 **dropped**: the IV/BART paper offered as the principal-stratification
-"neighbour", because it has no compliance classes, no principal strata and no
+"neighbor", because it has no compliance classes, no principal strata and no
 latent classes, and so supported nothing that survives.
 
 - Hahn, Murray, Carvalho (2020), Bayesian Analysis 15(3) - BCF

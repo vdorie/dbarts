@@ -14,7 +14,7 @@ there and the collector reclaims it at that shape. An earlier run overlapping
 another job on the host read a 4.7 pct median with one linear-cell miss, so
 the grid is scored on a quiet machine and nowhere else. The margin on
 the median is thin, and it is thin for a stated reason: sixteen of the thirty cells sit at n = 1e4, where a
-prediction of 20 to 60 MB is scored against page-level allocator behaviour a
+prediction of 20 to 60 MB is scored against page-level allocator behavior a
 byte model cannot reach. "What the measurement moved" records the rows the
 first run changed, "What the removal moved" the rows the second did, and
 "What the re-record moved" the row the third did.

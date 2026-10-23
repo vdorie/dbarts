@@ -82,7 +82,7 @@ usage is:
   comparison design 0.9-34 reported a residual scale of 0.29 where 1.0-0
   and an unweighted fit on the remaining rows both report about 0.7.
 - Residual prior shorthand. A warning, once per session, and the value is
-  honoured: bart's sigdf, sigquant and resid.prior, and dbarts's and
+  honored: bart's sigdf, sigquant and resid.prior, and dbarts's and
   xbart's resid.prior, all still work, spelled now on the family object,
   family = gaussian(sigma = chisq(...)) or fixed(...), removed in dbarts
   1.1-0. Loud where the two spellings collide: giving the prior both ways
@@ -96,7 +96,7 @@ usage is:
   setControl, which sets it. Silent: setResponse gains updateScale as its
   second positional argument, so setResponse(y, TRUE) now rescales instead
   of storing state, with a once-per-session warning.
-- rngSeed. A warning, and the value is honoured. A package that passes on
+- rngSeed. A warning, and the value is honored. A package that passes on
   only the control constructor's own arguments drops it silently; seed
   passes through.
 - Saved objects. Loud for a saved sampler state, which cannot be restored.

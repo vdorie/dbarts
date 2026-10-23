@@ -260,8 +260,8 @@ rm(xval)
 # an absent k is ONE cell at the front door's own default for the response
 # type, so a default xbart call scores the model a default bart call fits:
 # fixed 2 for a continuous response, chi(1.5, 2) for a binary one (dec ruling
-# 6, superseding dec-B12's fixed-2 binary default). The modelled cell is
-# labelled by the constructor call that rebuilds it, and its draws move,
+# 6, superseding dec-B12's fixed-2 binary default). The modeled cell is
+# labeled by the constructor call that rebuilds it, and its draws move,
 # since k is drawn every sweep inside it
 binaryCV <- function(...) {
   dbarts::xbart(

@@ -24,7 +24,7 @@ work:
   as equivalence.R's is, and at the measured autocorrelation the |z| = 4
   bar tolerates a shift of ~0.9 posterior sd per cell. The verdict is
   TWO-TIER: a tight deviation bound that is the real gate, and a
-  decoupled, explicitly-labelled statistical tier beneath it.
+  decoupled, explicitly-labeled statistical tier beneath it.
 
 Budget: ~90 lines in benchmarks/R/bcf-equivalence.R, ~85 in
 benchmarks/R/multinomial-equivalence.R, ~12 in benchmarks/README.md, ~10
@@ -237,7 +237,7 @@ count the per-scenario lines and require the scenario count):
     default        tier 1 PASS: max dev ratio 3.1e-03 (train 3.1e-03, sigma 8.0e-04), varcount identical
 
 and on a tier-1 failure, that line becomes `tier 1 FAIL` and is followed
-by the labelled tier-2 line, which can never be mistaken for a pass:
+by the labeled tier-2 line, which can never be mistaken for a pass:
 
     default        tier 1 FAIL: train ratio 4.2e+06 (cell 118), varcount 6 of 8 cells differ
     default        decoupled: statistical - 201 summaries, ESS-adjusted max |z| = 1.83 (weak bar: tolerates 1.41 posterior sd); varcount diagnostic-only, 6 cells differ, worst 3
@@ -575,7 +575,7 @@ multinomial-equivalence.R gain a `--cross-host` compare-only flag under
 the two-tier verdict: tier 1 LOCKED is the gate - a relative-deviation
 bound (`rtol = 1e-8`, `atol = rtol * max|a|`) on continuous channels,
 `identical()` on combinatorial channels; tier 2 `decoupled: statistical`
-is a labelled-weak fallback, a Welch z with an ESS-adjusted denominator.
+is a labeled-weak fallback, a Welch z with an ESS-adjusted denominator.
 A non-finite guard runs on every gated channel; the partition assert
 (section 1) fires both at script load and inside the compare loop over
 `names(a)`. `exact-gates.yaml` runs both compares on every push,

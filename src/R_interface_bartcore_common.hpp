@@ -86,7 +86,7 @@ void captureExceptions(CapturedError& into, Body&& body) {
   }
 }
 
-/// captureExceptions, then the raise, labelled with \p caller. For the flat C
+/// captureExceptions, then the raise, labeled with \p caller. For the flat C
 /// API, whose errors are read by a compiled consumer that needs to know which
 /// entry point refused.
 template <typename Body>
@@ -209,7 +209,7 @@ struct ShippedDrawHook {
 /// Arms a hook's unwind protection for the length of one run, and disarms it
 /// however the run ends. An entry point that constructs this promises to catch
 /// UnwindJump and resume the jump with R_ContinueUnwind; one that does not
-/// leaves its callbacks unprotected, which is the behaviour a registered
+/// leaves its callbacks unprotected, which is the behavior a registered
 /// callback had before this existed.
 ///
 /// The previous value is RESTORED rather than cleared: a callback may enter a
@@ -526,7 +526,7 @@ void refuseBinaryWeightChange(const bartcore::SamplerBase& sampler);
 /// built: 0/1 for probit and logistic, an integer category index in [1, K] for
 /// ordinal, a finite non-negative integer count no larger than 1e6 for nbinom.
 /// gaussian and aft (log survival times) constrain nothing, so they pass
-/// through. Memory safety, not only modelling: NBShapePrior::computeKernel
+/// through. Memory safety, not only modeling: NBShapePrior::computeKernel
 /// sizes its count histogram from lround(max y), which a negative element
 /// underflows into a ~1.8e19 allocation and an unbounded positive one grows
 /// linearly out of memory. numCategories is K for ordinal and ignored
@@ -554,7 +554,7 @@ void refuseNonFinite(const double* values, std::size_t count,
 /// reports an interrupt without touching R's signal state and disarms it.
 bool userInterrupted();
 
-/// Raises R's interrupt condition after a run the poll cancelled, by
+/// Raises R's interrupt condition after a run the poll canceled, by
 /// evaluating the namespace's signalInterrupt, which signals a condition of
 /// class c("interrupt", "condition") and, if no handler takes it, does what an
 /// unhandled interrupt does and takes the first restart among "browser",

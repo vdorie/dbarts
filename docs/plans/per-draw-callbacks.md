@@ -226,7 +226,7 @@ call sites):
    small stack copy per draw. Tell a callback stop from an interrupt on
    return, as `bartcore_runWithCallback` tells `closureStopped` from
    `cancelled`, and raise a different condition for each.
-7. Bridge: honour a `keepFits` flag on the control the run entry already
+7. Bridge: honor a `keepFits` flag on the control the run entry already
    reads (its R slot arrives in S3; default TRUE here). When FALSE,
    allocate C one-draw buffers CONTIGUOUSLY per opted-out per-observation
    channel as scratch, set that channel's stride to zero and return no R
@@ -286,7 +286,7 @@ R/bartcore.R and inst/tinytest/test-argument-surface.R):
 15. The automatic default: when `callback` is supplied and the caller did
     not name `keepFits`, `keepFits` becomes FALSE; an explicit value always
     wins. Drive it off `missing()`/the matched call, not a sentinel, so
-    `keepFits = TRUE` with a callback is honoured.
+    `keepFits = TRUE` with a callback is honored.
 16. `checkFamilyUnsupportedArgs` rejects `keepTrainingFits = FALSE` for
     multinomial, ordinal, nbinom and hurdle.lognormal, so an AUTOMATIC
     `keepFits = FALSE` must raise there by name rather than silently
@@ -434,7 +434,7 @@ The bridge's `bartcore_run` now takes six `.Call` arguments: the
 pointer, burn-in and sample counts, two external pointers for the
 callback function and context, and `keepFits`. `keepFits` is a per-RUN
 `.Call` argument, not a `dbartsControl` slot - `R/bartcore.R`'s two
-existing call sites pass `NULL, NULL, TRUE`, so today's behaviour is
+existing call sites pass `NULL, NULL, TRUE`, so today's behavior is
 bitwise unchanged; S3 wires `bart()`/`dbarts()`/the sampler's `run`
 method and the control slot to these three arguments.
 [tests/cpp/test_sampler.cpp](../../tests/cpp/test_sampler.cpp) (465
@@ -463,7 +463,7 @@ reviewer's mutation run shows the ASan gate discriminates - reverting
 the storage-opt-out stride guard produced a heap-buffer overflow
 AddressSanitizer caught at [`Chain::storeSample`](../../src/bartcore/chain.hpp).
 `check-doc-freshness`, `check-rc-codoc` and `check-win-drift` all report
-OK. CI ran on 711942ad but those runs were cancelled when 5a05d799
+OK. CI ran on 711942ad but those runs were canceled when 5a05d799
 (memory-footprint-audit's follow-ons, a sibling slice) pushed on top;
 the CI evidence for this slice is therefore the 5a05d799 run.
 

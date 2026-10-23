@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 # Ensemble-scale SBC driver: reuses benchmarks/R/sbc.R's machinery unchanged
-# (source() never reaches its CLI block) and only re-parameterises the config
+# (source() never reaches its CLI block) and only re-parameterizes the config
 # to the SHIPPED default forest size. Writes the rank matrix as an RDS so the
 # bands can be recomputed (per-functional and Bonferroni) after the fact.
 args <- commandArgs(trailingOnly = TRUE)

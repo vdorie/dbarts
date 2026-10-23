@@ -44,7 +44,7 @@ dec-B99 (posterior removal), dec-B100 (sparse formula columns), dec-B107
 
 ## Goal
 
-Formula LHS takes `Surv` for `aft`/`hazard`, both honour `subset`, and a hazard
+Formula LHS takes `Surv` for `aft`/`hazard`, both honor `subset`, and a hazard
 fit accepts a `test` set person-period-expanded on the training grid,
 `survivalProbabilities` reading stored test draws (no `keepTrees`) when test
 data rode the fit call. A sparse `Matrix` column or `sparseFactor` assigned
@@ -169,7 +169,7 @@ the choice; none remains open.
   (REJECTED by VD - Context above, docs/plans/sparse-formula-audit.md);
   per-column code widths, a streaming range kernel
   (docs/design/sparse-columns.md's open list); `na.action` itself
-  (front-door.md's item, honoured passively via `model.frame`'s kept rows). The
+  (front-door.md's item, honored passively via `model.frame`'s kept rows). The
   wide-factor auto-sparse cutoff (S3) is a level-count threshold the
   implementer picks and comments, not a VD decision - pending a future
   constants audit, no user-facing argument (dec-B100).
@@ -467,7 +467,7 @@ Remaining: S2 (Surv on a formula), S3 (sparse formula columns), S4
 
 LANDED at c38f02d03bfcff8e335cf1fff77dcac20831ff47, fourteen commits:
 
-- df7b554c6a2507c5ec2305a30d97fae29870bc29 Honour subset for aft/hazard, accept a hazard test set
+- df7b554c6a2507c5ec2305a30d97fae29870bc29 Honor subset for aft/hazard, accept a hazard test set
 - fdbc107ac04b133631b8636098d40f035a7e60b8 Read a hazard fit's stored test draws in survivalProbabilities
 - 4526ebbc8b6df780f26e23dcba8ed365e7ac1cc4 Take a Surv left-hand side on the formula interface
 - e24cadd6ee1cc14558bf486293776b963dd23fca Test the Surv formula interface, subset, and the hazard test path

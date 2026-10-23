@@ -157,7 +157,7 @@ test does.  The sentinel shape, milder.
   multinomial and K-forest routes, and no tinytest pairs a linear/gp node prior with a non-gaussian family.
   ASSERTION one end-to-end fixture per vector leaf model under a workingWeightsVaryPerSweep family, its draws
   compared with a cache-disabled run.  FIX agent-fix (test); refusing the cross at the bridge instead is
-  VD-judgement.
+  VD-judgment.
 2 BLOCKER facade.hpp forwarding [F1,F3,F4,F6,F7].  5 of 7 facade mutations survive: numSavedDraws reporting
   capacity ([src/bartcore/facade.hpp:429](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/facade.hpp#L429)), setResponse forwarding !updateScale ([src/bartcore/facade.hpp:454](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/facade.hpp#L454)), savedSlotForDraw as the identity ([src/bartcore/facade.hpp:514](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/facade.hpp#L514)),
   setForestWeights on forest 0 regardless ([src/bartcore/facade.hpp:619](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/facade.hpp#L619)), savedTree on forest 0 regardless ([src/bartcore/facade.hpp:519](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/facade.hpp#L519)); only the two
@@ -220,7 +220,7 @@ R1 [src/bartcore/moves.hpp:280-281](https://github.com/vdorie/dbarts/blob/9cebb3
   comment).
 R2 [src/bartcore/sampler.hpp:765](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/sampler.hpp#L765) - `bool allValid = columnMaskOk;` is redundant with Chain::stateIsValid's own per-forest
   ([src/bartcore/chain.hpp:3229](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/chain.hpp#L3229)) and per-variance-tree ([src/bartcore/chain.hpp:3318](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/chain.hpp#L3318)) columnMaskSubtreeIsValid, and *columnMaskRefused reads
-  columnMaskOk directly, so `true` is behaviourally equivalent (A6, missed).  FIX defer.
+  columnMaskOk directly, so `true` is behaviorally equivalent (A6, missed).  FIX defer.
 
 ## Sanitizer leg
 Pristine staged tree, `make clean && make OPT="-O2 -g -fsanitize=address,undefined"`, run once under

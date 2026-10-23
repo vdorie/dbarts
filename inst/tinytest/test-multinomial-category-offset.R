@@ -164,10 +164,10 @@ expect_identical(
   arm.none$train
 )
 
-# --- Only the row-centred part of the offset is identified: adding a constant
+# --- Only the row-centered part of the offset is identified: adding a constant
 # to every entry of a ROW leaves the margin, the working response and every
 # reported probability unchanged in exact arithmetic, which is why the entrance
-# does not silently re-centre the input. The two runs diverge only through
+# does not silently re-center the input. The two runs diverge only through
 # rounding inside the log-sum-exp, so a short run agrees far below any
 # tolerance a sign or placement error could hide in. ---
 rowShift <- offset + matrix(rep(0.7 * x[, 1L], K), n, K)

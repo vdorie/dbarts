@@ -62,7 +62,7 @@ public engine instead of writing tree code?
   split-rule representation), which this architecture takes as a C++
   contribution selected from R (`facade.hpp` concepts).
 - **(D)** Structurally engine-only in ANY implementation: a likelihood that
-  does not factorise over observations given the forest, a move that writes
+  does not factorize over observations given the forest, a move that writes
   engine state, a coupling not additive on a carriable quantity. A fork or a
   new engine was the honest choice. PLATFORM ports (another language or
   execution model) are graded (D) too, with "platform, not model" stated - a
@@ -470,15 +470,15 @@ regression whose exposure coefficient is a BART function of time-invariant
 covariates. The method paper is Englert, Ebelt and Chang, arXiv 2311.12016,
 whose abstract says "CL-BART utilizes reversible jump Markov chain Monte Carlo
 to bypass the conditional conjugacy requirement". *Unique:* the likelihood is
-stratum-conditional, so it does not factorise over observations - it
-factorises over STRATA, whose rows can land in different leaves - and the leaf
+stratum-conditional, so it does not factorize over observations - it
+factorizes over STRATA, whose rows can land in different leaves - and the leaf
 parameter is not conjugate. *Built:* the tree moves are PURE R
 (`R/tree_proposals.R` implements grow/prune/change as data-frame surgery,
 `R/update_forest.R` runs backfitting, `R/update_mu.R` draws leaves); C++
 appears only for the conditional-logistic log-likelihood (`src/clr.cpp`), a
 log-gamma variate and a variance update. Node parameters come from a Laplace
 approximation (`get_node_map`) inside a reversible-jump acceptance.
-*Counterfactual:* **(D)** - the non-factorising case in the principle's own
+*Counterfactual:* **(D)** - the non-factorizing case in the principle's own
 list; no engine's leaf kernel can serve it. It is also the counterexample that
 keeps clause 2 honest: the tree MOVES here are R, slow but correct, so "C++
 owns the moves" is a home-when-shipped claim, not a capability claim.

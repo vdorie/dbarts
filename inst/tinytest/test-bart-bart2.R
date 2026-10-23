@@ -43,7 +43,7 @@ rm(testData)
 
 # The legacy door is 0.9-34's argument list exactly: the modern settings
 # never on CRAN's 'bart' are gone from it, so each is an ordinary unused
-# argument rather than a silently honoured extra.
+# argument rather than a silently honored extra.
 
 set.seed(202)
 nS10 <- 30L
@@ -330,7 +330,7 @@ expect_identical(
 rm(dI, fitIndicators, fitSubset, newI, fitAll)
 
 # bartBT() keeps 0.9-34's row rule: an incomplete row is dropped, not
-# modelled and not refused, and the door takes no na.action of its own
+# modeled and not refused, and the door takes no na.action of its own
 set.seed(505)
 nMiss <- 40L
 xMiss <- matrix(rnorm(nMiss * 2L), nMiss, 2L)

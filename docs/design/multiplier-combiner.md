@@ -270,7 +270,7 @@ the second glue scalar: ONE fewer power of c. [The naive "move-map Jacobian"
 shortcut -- `q(c) prop pi(T_c(x)) |det T_c'|` with `|det T_c'| = c^{Lt-2}` --
 gives the WRONG `c^{Lt-2}`; it is off by one, exactly as it would be off by
 one for the a-move (`c^{L-1}` vs the correct `c^{L-2}`). The prototype below
-adjudicates decisively in favour of `c^{Lt-3}`.]
+adjudicates decisively in favor of `c^{Lt-3}`.]
 
 **Result: c^2 is Generalized Inverse Gaussian.** Substitute `v = c^2`
 (`c^{Lt-3} dc = (1/2) v^{(Lt-4)/2} dv`):
@@ -677,7 +677,7 @@ standalone probe false-alarmed - vectorization split the multiplies in the
 replica, a recorded methodology lesson). Engine ~180 dense-equivalent.
 
 **M4.3, 983d7f0a (SUBSUME).** `setTreatment` retired as a mutator at all four
-layers in favour of `setForestBasis(f, values, q)`; `installTreatment` became
+layers in favor of `setForestBasis(f, values, q)`; `installTreatment` became
 the constructor-only `synthesizeIndicatorBasis`; `installForestBasis` became
 the sole mutator; `glue_.z` DELETED; draw-path selection moved onto the
 per-forest canonical VALUE predicate; `bcfGlue` re-signed to

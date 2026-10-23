@@ -217,7 +217,7 @@ correctness argument.]
   `|b0|`, `|b1|` only when forming the tau backfit response `resid/m`, `w m^2`.
   It does NOT enter the move (which uses exact b0,b1,tau; no division by m). If
   the move drove `|b|<1e-9`, the next sweep's tau backfit floors it -- benign,
-  consistent with existing behaviour. The `exp(-Mt c^2/(2 leafVar_tau))` term
+  consistent with existing behavior. The `exp(-Mt c^2/(2 leafVar_tau))` term
   self-regulates against pathological shrinkage.
 - **Weights / sigma**: the Gaussian likelihood is EXACTLY invariant on the
   orbit, so w, sigma, y, a, mu ALL drop out of (**). The c-conditional depends

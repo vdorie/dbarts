@@ -17,7 +17,7 @@ run, and five candidate kernels were measured against it, one in two variants.
 Four earn no default weight in the mixture of proposal probabilities over tree
 moves, drawn once per tree per sweep: swap; a same-variable cut move, killed on
 its registered statistic; an exchange of trees between chains, killed on
-acceptance; and an exact draw on the forest's level fibre, the leaf-value
+acceptance; and an exact draw on the forest's level fiber, the leaf-value
 shifts that leave the fitted function exactly unchanged, which does nothing
 measurable while the tree moves run and was kept only for a frozen forest.
 
@@ -98,7 +98,7 @@ family carries keep sampling.
 One leaf-value step sits beside them, not in the mixture. `levelGibbs` adds a
 constant to every occupied leaf of a tree, the constants summing to zero across
 the forest, so the fitted function is exactly unchanged; those shifts are the
-level fibre. Its slot takes three values: `TRUE` and `FALSE` force it, and the
+level fiber. Its slot takes three values: `TRUE` and `FALSE` force it, and the
 default `NA` resolves per forest and per sweep, running the step exactly where
 that forest's mixture is frozen.
 
@@ -316,7 +316,7 @@ rate per thousand units is numerically its own summed minimum ESS. The 14.8 and
 
 The adopted kernel leads that ranking, and the ranking is weaker than it looks:
 it never ran at equal cost, and the statistic grows sub-linearly in chain
-length, so a per-unit ratio across four budgets favours the smallest by
+length, so a per-unit ratio across four budgets favors the smallest by
 construction. The record bridges the two kernels by extrapolation instead, off
 a scaling measured on the shipped kernel and not this one, and its own reading
 is that cut-only at 0.32 does not match the full draw at 0.16; the choice is
@@ -417,7 +417,7 @@ on the first block reads +1.7 on the fresh one, and a wall-time ratio of 1.086,
 taken on a loaded host, fell to 0.986 when the two arms were re-measured alone
 on a quiet one. Killed as a general default, the explanation being the frozen
 run's scope: it measures one channel with the structure held fixed, where the
-tree moves move the level fibre faster than the exact draw pays for itself.
+tree moves move the level fiber faster than the exact draw pays for itself.
 What was kept is that one regime, through the automatic `levelGibbs` default of
 section 3; a non-frozen forest draws nothing, so the shipped engine is bitwise
 unchanged.
@@ -455,7 +455,7 @@ the ensemble averages the effect away, so no default moved.
 
 Killed on acceptance. An exchange of one tree between two chains at one
 temperature is ordinary Metropolis on the product target, the two tree priors
-cancelling, so its acceptance rate is closed form; evaluated on states from a
+canceling, so its acceptance rate is closed form; evaluated on states from a
 running sampler, without the move ever being proposed, it is 10.1 to 11.7
 percent on C1 and effectively zero on the low-noise cell, and alive only on the
 one- and two-split trees birth and death already reach. The exchanges that do

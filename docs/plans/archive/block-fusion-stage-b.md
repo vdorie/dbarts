@@ -386,7 +386,7 @@ Shifting-class gates (docs/plans/README.md; design 7 Stage B):
   the b>1 move phase alone costs 2-2.6x the entire b=1 sweep at n=1e6.
   Re-examining the traffic model finds the treeFits read+write is irreducible
   at any block width, so the bandwidth ceiling from blocking was ~1.3-2x, not
-  the modelled ~6x. Stage C: CLOSED (design section 10).
+  the modeled ~6x. Stage C: CLOSED (design section 10).
   EXCISED (2026-07-13): all Stage B machinery (and the Stage A b=1 atom writer)
   removed from the tip -- see design section 10 and branch archive/block-fusion.
 
@@ -436,7 +436,7 @@ dev/gate knob for exercising the fused path.
 ## 10. Risks and out-of-scope
 
 - MOVE-SCAN re-partition cost (design 8.1, the main way the win underperforms):
-  shallow-tree change/swap re-partition near the root, ~2x the modelled 7% scan.
+  shallow-tree change/swap re-partition near the root, ~2x the modeled 7% scan.
   The bench gate at (iv)/(v) measures it directly; the rebuild cadence is a
   Stage C lever.
 - COMPLEXITY: the joint map is a second partition structure maintained in lockstep

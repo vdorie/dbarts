@@ -195,7 +195,7 @@ expect_identical(dimnames(xvalDescending)$k, c("8", "2"))
 expect_identical(xvalAscending, xvalDescending[, dimnames(xvalAscending)$k])
 rm(xvalAscending, xvalDescending, seed)
 
-# a bare k hyperprior is one modelled cell: k is drawn every sweep inside it,
+# a bare k hyperprior is one modeled cell: k is drawn every sweep inside it,
 # so there is nothing to sort, and the one-cell axis drops under drop = TRUE
 xvalHyperprior <- dbarts::xbart(
   x,
@@ -214,11 +214,11 @@ expect_equal(dim(xvalHyperprior), c(2L, 2L))
 expect_true(all(is.finite(xvalHyperprior)))
 rm(xvalHyperprior)
 
-# the k grid is a LIST when it mixes fixed values with modelled ones. Every
-# cell is fit: the modelled cell is labelled by the call that rebuilds it and
+# the k grid is a LIST when it mixes fixed values with modeled ones. Every
+# cell is fit: the modeled cell is labeled by the call that rebuilds it and
 # differs from both fixed cells, and the two fixed cells reproduce the same
 # call made with the numeric grid alone, since a fixed cell's own sweep
-# position is unchanged by a modelled one sorting after it.
+# position is unchanged by a modeled one sorting after it.
 xvalMixed <- dbarts::xbart(
   x,
   y,

@@ -39,7 +39,7 @@
 # from.
 #
 # Two arms put the gate on a column whose cut grid would repeat a point if
-# equal neighbours were kept, where a grid holds each point once
+# equal neighbors were kept, where a grid holds each point once
 # (docs/design/cut-grid.md); each first asserts the grid.
 # - narrow (Rscript bd-balance.R narrow): the four cells sit on four adjacent
 #   doubles and n.cuts is 5. Five evenly spaced points over that range round

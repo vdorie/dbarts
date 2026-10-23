@@ -182,7 +182,7 @@ R2 [src/bartcore/sampler.hpp:765](https://github.com/vdorie/dbarts/blob/658869ac
   Chain::stateIsValid runs the same scratch build and the same
   columnMaskSubtreeIsValid per forest ([src/bartcore/chain.hpp:3229](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L3229)) and per variance tree
   ([src/bartcore/chain.hpp:3318](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L3318)), and *columnMaskRefused reads columnMaskOk directly, so `true` is
-  behaviourally equivalent (A6, missed).  [src/bartcore/chain.hpp:3390](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L3390) already calls
+  behaviorally equivalent (A6, missed).  [src/bartcore/chain.hpp:3390](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L3390) already calls
   stateIsValid "the invariant's backstop".  Noted so the MISS is not read as a
   hole.  FIX defer.
 

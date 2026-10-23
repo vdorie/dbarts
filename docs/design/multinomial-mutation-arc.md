@@ -43,8 +43,8 @@ present at tip ([`refuseAmplitudeMutation`](../../R/bartcore.R)). Neither commit
 (ordinal/nbinom host construction, pointer adoption, multinomial host
 family resolution, serialization), and every bitwise probe compares two
 arms of the SAME build, so a draw-moving rng port cannot flip a
-TRUE/FALSE. Anything labelled MEASURED below was executed; anything
-labelled READ was traced in source at tip.
+TRUE/FALSE. Anything labeled MEASURED below was executed; anything
+labeled READ was traced in source at tip.
 
 ---
 
@@ -300,7 +300,7 @@ read `refuseHostRead` blocks today.
 | channel | verdict | reason |
 |---|---|---|
 | `$setCounts` | BUILD | the response; n and K fixed at creation |
-| `$setCategoryOffset` | BUILD | n x K, before the softmax; only the row-centred part identified |
+| `$setCategoryOffset` | BUILD | n x K, before the softmax; only the row-centered part identified |
 | `$setCategoryTestOffset` | BUILD | nTest x K, reported test probabilities only |
 | `$setPredictor` (4 shapes), `$setCutPoints`, `$setTestPredictor` | ALREADY OPEN | |
 | `$setActiveRows` | ALREADY OPEN, GLOBAL | per-forest masking permanently refused: the margin is a log-sum-exp over the other K-1 forests |

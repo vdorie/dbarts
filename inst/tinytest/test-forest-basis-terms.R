@@ -684,7 +684,7 @@ local({
   expect_identical(draws(termFit("dose")), fromData)
   expect_identical(draws(listFit("dose")), fromData)
 })
-# scale() and poly() under 'subset' take their centre from every row, as lm()
+# scale() and poly() under 'subset' take their center from every row, as lm()
 # does, and so equal the constants written out
 keep <- frame$age < 56
 centre <- mean(frame$age)
@@ -1015,7 +1015,7 @@ expect_equal(
   as.vector(replayed(centred, newRows)),
   newRows$age - mean(newRows$age)
 )
-# under 'subset' the centre is still every row's
+# under 'subset' the center is still every row's
 subsetFit <- bartFit("scale(age)", subset = keep)
 expect_equal(
   as.vector(replayed(subsetFit, newRows)),

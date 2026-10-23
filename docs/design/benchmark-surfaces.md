@@ -956,7 +956,7 @@ Each covers a mode the others do not.
 | P2 | Confounded predictors (Wu, Tjelmeland and West step function) | arXiv 1312.1895 sec 2.3 | yes, plus an exact symmetry | n 300, p 3, m 1, 8 chains | representation multimodality with two exactly equiprobable modes | one-shot, structural | between-chain sd of the fraction of draws with the root on x1, against the 0.5 symmetry null | ~3 unit fits |
 | P3 | PMLB R-hat ladder (California Housing, Echo Months) | arXiv 2210.09352 sec 4.1 | no | n 200 / 2000 / full, p 8 and 9; 8 chains, m 200 | mixing degrades with n on real data | one-shot | R-hat of held-out RMSE across 8 chains at a FIXED sweep budget, and its slope in n | ~4000 unit fits |
 | P4 | Doppler embedded in nuisance columns | Donoho and Johnstone 1994 | yes | n 2048, p 10 (1 signal + 9 noise), SD(f)/sigma 7 | inhomogeneous smoothness: required cut density varies by orders of magnitude | one-shot | pointwise coverage split by region (high-frequency third vs flat third) | ~10 unit fits |
-| P5 | Checkerboard on an autocorrelated design | Zhu, Zeng and Kosorok 2015 scenario 3, via arXiv 2012.10737 | yes | n 1600, p 40, Sigma_jk 0.9^abs(j-k) | pure two-way interaction plus a design where inclusion is ambiguous | one-shot, structural | between-chain sd of inclusion on {x5,x10,x15,x20} and their immediate neighbours | ~50 unit fits |
+| P5 | Checkerboard on an autocorrelated design | Zhu, Zeng and Kosorok 2015 scenario 3, via arXiv 2012.10737 | yes | n 1600, p 40, Sigma_jk 0.9^abs(j-k) | pure two-way interaction plus a design where inclusion is ambiguous | one-shot, structural | between-chain sd of inclusion on {x5,x10,x15,x20} and their immediate neighbors | ~50 unit fits |
 | P6 | The diagonal shelf with targeted selection | arXiv 1706.09523v4 sec 4, Table 1 | yes | n 250, d 2 plus Z; 200 replications | rotated boundary plus regularization-induced confounding | causal | ATE bias and 95% interval coverage (published BART: 0.27 and 65%) | ~40 unit fits |
 | P7 | IHDP with overlap off | `vdorie/npci` `examples/ihdp_sim/data.R`, setting A, `overlap = FALSE` | yes | n under a thousand after the deletion rule, p 25 mixed; tau 4, sigma 1 | extrapolation into a region with no treated support | causal | SATT bias and 95% coverage; interval width inside the unsupported region | ~20 unit fits |
 | P8 | Hierarchical variance funnel | Neal, arXiv physics/0009028 sec 8, realized on ACIC 2017's group-correlated arm at low noise | yes | n 4302, 16 groups; gaussian | Neal's funnel in the outer scale, at the narrow end | embedded | SBC rank uniformity and ESS of the group scale; NOT any fit statistic | ~500 unit fits |
@@ -1233,7 +1233,7 @@ read is worse than one that says so.
 - **Hill 2011**, the IHDP paper. Paywalled. The construction in section
   3.1 comes from the maintainer's own `vdorie/npci` implementation, read in
   full, which is a stronger source for what the simulation actually does
-  but does not carry the paper's own labelling of response surfaces A, B
+  but does not carry the paper's own labeling of response surfaces A, B
   and C; the letters used in section 3.1 are the code's.
 - **Girolami and Calderhead 2011**. Paywalled; verified through Kleppe's
   replication, which recoded their method and reports their dataset
@@ -1524,7 +1524,7 @@ the inclusion truth and its near-decoys.
 al.'s Theorem 5.2 bounds the hitting time for a pure interaction when the
 change move is disallowed; the shipped mixture is not that, and this cell is
 where the gap gets tested. It comes out clean. Each true column carries
-about 0.128 of the splits against 0.022 for its correlated-0.9 neighbours
+about 0.128 of the splits against 0.022 for its correlated-0.9 neighbors
 and 0.010 for the far columns; the four true columns take 0.51 of all splits
 between them; and in all twenty replicates none of the other thirty-six
 columns outranks the weakest true one. Coverage is 0.98 against a nominal
@@ -2055,7 +2055,7 @@ inflates the pooled interval on this cell and not chain length - pooling
 chains that sit in their own places buys width and the width buys
 coverage - so the shipped four short chains over-cover Trig+poly by
 unfinished mixing, the rule_gibbs arms' 0.939 is the faithful rendering
-of the posterior and the control's 0.961 is the artefact.
+of the posterior and the control's 0.961 is the artifact.
 
 **On Single index the same arms move coverage the other way**, 0.895 at
 the control to 0.912 at the reference against a nominal 0.95, so that
@@ -2198,7 +2198,7 @@ minimum ESS rises only from 1.6 to 4-21, still three orders below the 2500
 kept, and the worst frozen point carries two to three times the median
 posterior spread, so the leaf Gibbs itself is slow at that coordinate and
 [16.3 Ranking](tree-mixing-proposals.md#163-ranking)'s row 1 (the exact draw
-on the level fibre) bears on the ranked (minimum-ESS) statistic rather than
+on the level fiber) bears on the ranked (minimum-ESS) statistic rather than
 the typical one. The two frozen start points agree in order of magnitude
 throughout.
 
@@ -2237,7 +2237,7 @@ as its ESS - the sd at the minimum over the median falls from 2.49 and
 2.45 to 0.96 and 1.27, so the ranked coordinate is no longer the
 high-spread one. Read against the paragraph above, the leaf Gibbs's own
 slowness at the worst coordinate is a level-fibre deficit and the exact
-draw on that fibre removes most of it; this is the frozen chain's residual
+draw on that fiber removes most of it; this is the frozen chain's residual
 channel alone, and the structural channel it cannot see is
 [6. Benefit, pre-registered](level-fibre.md#6-benefit-pre-registered)'s
 slice 3. Host load ran 5 to 6 throughout, so these wall times carry no

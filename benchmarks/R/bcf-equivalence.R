@@ -134,9 +134,9 @@ makeData <- function(n, p, seed) {
 }
 
 # The latent analogue: the same two-forest index, drawn through a link rather
-# than observed with gaussian noise. The index is centred so neither class is
-# rare (a rare-class draw would leave the treatment forest almost nothing to
-# split on and the scenario little to guard). `link` is pnorm or plogis;
+# than observed with gaussian noise. The index is centered so neither class
+# is rare (a rare-class draw would leave the treatment forest almost nothing
+# to split on and the scenario little to guard). `link` is pnorm or plogis;
 # `trials` returns a positive integer count per row, the frequency weight a
 # logistic fit reads as that many copies of the row.
 makeBinaryData <- function(n, p, seed, link) {

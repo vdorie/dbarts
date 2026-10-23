@@ -200,16 +200,16 @@ is invisible to the gates in shipped behavior.
 14. MINOR  [src/bartcore/sampler.hpp:485](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L485)  `setCurrentSampleNum` is an equivalent mutant -
     discarding its argument changes nothing anywhere, because it has no caller in src/, R/,
     tests/ or inst/. Dead public accessor on the engine's shape surface, not a test gap.
-    VD-judgement (delete, or wire it into the setState restore that sets
+    VD-judgment (delete, or wire it into the setState restore that sets
     state.currentSampleNum directly at [src/R_interface_bartcore.cpp:6738](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L6738)).
 15. MINOR  test-bart-formula.R (2 assertions, both `expect_inherits(..., "bart")`) is
     class-only smoke: no mutation, aimed or incidental, can move it, and none did.
-    VD-judgement (fold into test-data-formula.R, or give it one content pin).
+    VD-judgment (fold into test-data-formula.R, or give it one content pin).
 16. MINOR  b04 (logistic PG latent ignoring the case weight, [src/bartcore/model.hpp:3554](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/model.hpp#L3554)) makes the suite
     HANG rather than fail - the 65-file run did not finish in 300s, where every other
     mutation finished in under 45s. The only signal a CI job gets is a timeout. Worth a
     separate look as robustness (an unbounded loop reachable from an inflated working
-    response), not as a test gap.  VD-judgement
+    response), not as a test gap.  VD-judgment
 17. MINOR  Seven reach gaps confined to the CHANGED set - an untouched file is the SOLE
     killer, so no new assertion is needed, only a note not to trim that file: r12
     ppdNoiseScale's per-row weight ([inst/tinytest/test-generics-posteriorPredictiveDistribution.R:90](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/tinytest/test-generics-posteriorPredictiveDistribution.R#L90),
@@ -237,7 +237,7 @@ only an incidental probe and did not move, so it is unproven rather than proven 
 
 Rate, stated honestly: 8 of 55 in-scope files are GAP (14.5%) against 4 of 10 untouched
 (40%), but in-scope files took ~1.5 aimed mutations each and spot files ~0.6, so the true gap
-is at most a factor of two, not four. Either way the wave-3 licence - that the untouched
+is at most a factor of two, not four. Either way the wave-3 license - that the untouched
 suite needs no re-examination - does not survive: the untouched population carries the same
 reach class at no lower a rate. Recommend a second leg over the 112 untouched files, aimed
 first at the print/plot/summary surface and the xbart loss arms.

@@ -91,7 +91,7 @@ undocumented scalar `LPML`: the BART package's `gbart.R` lines 206-230 build exa
 it to the naive harmonic-mean CPO and returns only `sum(log.CPO)`; the `res$CPO` line is commented
 out.  Draws are bare draws x observations matrices, no dimnames, no chain index, no coda/posterior
 support. mbart is a continuation-ratio model (K-1 forests on nested subsets) mbart2 is K
-one-vs-all probit forests whose latents are exponentiated and normalised.  Both flatten n x K into
+one-vs-all probit forests whose latents are exponentiated and normalized.  Both flatten n x K into
 `ndpost x (n*K)`, observation-major `j = (i-1)*K + h`, with NO column names.  Neither is ordinal;
 no cutpoints exist in BART. BayesTree 0.3-1.5: `plot.bart` as in 0.1; three registered methods,
 all `plot`; no likelihood quantity crosses into R at all. bartMachine 1.4.2: no `plot` S3 method;
@@ -100,7 +100,7 @@ segments, a dashed identity line and empirical coverage in the title.  Posterior
 OBSERVATIONS x DRAWS - transposed relative to every other package.  No loglik, no LOO/WAIC.
 SoftBart 1.0.3 is the only tree package computing the right quantity: legacy `softbart()` returns
 `loglik_train`, draws x observations, `= dnorm(Y, Yhat, sigma/sqrt(w), log = TRUE)`
-(SoftBart's `soft_bart.cpp` lines 1257-1266) - undocumented, absent from its four modern fitters, on the NORMALISED y
+(SoftBart's `soft_bart.cpp` lines 1257-1266) - undocumented, absent from its four modern fitters, on the NORMALIZED y
 scale, never wired to loo.  Net: dbarts's loglik channel is already the best in the tree family;
 extend it rather than adopt anything from these packages.
 
@@ -200,11 +200,11 @@ what `summary()` already tables - never the per-observation channels; that is th
     free cutpoint (the fit is probit bit-for-bit), so the panel is skipped and the plot degrades
     to one full-device panel exactly as binary plot.bart does.  P2 the per-observation latent
     posterior interval: `latent.train` median + `plquants` bars, observations ordered by median
-    eta on the x-axis, coloured by observed level, with horizontal dashed lines at the
+    eta on the x-axis, colored by observed level, with horizontal dashed lines at the
     posterior-median cutpoints.  This is the ordinal-native observed-vs-fitted panel - it shows
     whether the latent separates the observed categories at the fitted thresholds - and needs no
-    quantity the fit does not already store. REJECTED: median P(y=k|x) vs interval in K colours
-    (the binary panel generalised) - it hides the ORDER, which is the whole point of the family,
+    quantity the fit does not already store. REJECTED: median P(y=k|x) vs interval in K colors
+    (the binary panel generalized) - it hides the ORDER, which is the whole point of the family,
     and duplicates what a multinomial plot shows.  REJECTED: observed category index vs the
     interval of `sum_k k*p_k` with an identity line - treats the ordered levels as numeric, which
     the model does not.
@@ -237,7 +237,7 @@ shape `type = "ppd"` already returns for this family.
     n_i` is a real number, so plot.bart's GAUSSIAN panel form applies over the n*K cells (observed
     proportion on x, interval on y, identity line) - richer, and the branch is `is.matrix(y) &&
     any(rowSums(y) > 1)`.  See ambiguity 2. Note this changes the current one-panel device
-    behaviour; nothing is frozen pre-release.
+    behavior; nothing is frozen pre-release.
 (b) loglik: ONE formula covers both ingestions.  With `p[s,i,k] = yhat.train[s,i,k]` and `n_i =
     sum_k y_ik` (`= 1` for the label ingestion), `l[s,i] = lgamma(n_i + 1) - sum_k lgamma(y_ik +
     1) + sum_k y_ik * log p[s,i,k]` `= dmultinom(y[i,], prob = p[s,i,], log = TRUE)` - VERIFIED to
@@ -294,7 +294,7 @@ and the observation/category structure posterior's bracket indices carry for fre
     sits on the log scale, and carries no Jacobian.  Dims: `dim(ev)` = S x n over ALL n.
 (c) as_draws: implement, do not refuse.  `as_draws_array.bartHurdle(x, vars = c("sigma", "k",
     "tau"))` returning the union of the two components' present fields with `occupancy.` /
-    `positive.` prefixes - the same two labelled blocks `print.summary.bartHurdle` already prints.
+    `positive.` prefixes - the same two labeled blocks `print.summary.bartHurdle` already prints.
     Use a dot, not a bracket: posterior parses brackets as indices.  Refusing and telling the user
     to call as_draws on `$occupancy` / `$positive` is defensible (they ARE two independent fits)
     but is a worse answer than a two-line prefix, and one object per fit is posterior's whole

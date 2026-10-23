@@ -43,7 +43,7 @@ r = 64 does. b <= 64 keeps today's integer sum of PG(1) draws bit for bit.
 - Measured in BayesLogit 2.4's SP sampler (20,000 draws per cell): proposals per draw 1.03-1.26, flat in b; but
   at b = 1e5 (any psi), b = 1e4 with psi >= 20 and b = 170 with psi = 80 every draw hits the 200-iteration cap and
   returns a biased value (mean 1.10 times the true mean): its envelope weights are formed with exp() of O(b)
-  exponents and overflow. Licence: BayesLogit is GPL (>= 3), dbarts GPL (>= 2); reimplement from WPS, copy
+  exponents and overflow. License: BayesLogit is GPL (>= 3), dbarts GPL (>= 2); reimplement from WPS, copy
   nothing (its `y_func` also computes `1/3` and `2/15` in integer arithmetic, i.e. as zero).
 
 ## Decision

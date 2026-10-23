@@ -119,7 +119,7 @@ binaries).
 
 ## Scope boundary (binding)
 
-Blocked on the test-basis modelling decision
+Blocked on the test-basis modeling decision
 ([docs/plans/bart2-argument-consolidation.md:883-901](https://github.com/vdorie/dbarts/blob/0f5a2285f4899710406aab255f5cae3b66be878f/docs/plans/bart2-argument-consolidation.md#L883-L901); door
 [docs/plans/bcf-bartcause-relocation.md:1274-1276](https://github.com/vdorie/dbarts/blob/0f5a2285f4899710406aab255f5cae3b66be878f/docs/plans/bcf-bartcause-relocation.md#L1274-L1276)) - DO NOT TOUCH: resident test
 basis, setTestPredictors/setTestOffset on an amplitude sampler,
@@ -130,7 +130,7 @@ NOT blocked: per-forest raw f_k at new rows. Full recombination
 (shift + sum_k (B_k %*% g_k) * (scale * f_k)) is pure R arithmetic over
 shipped $glue once per-forest fits exist; document as a 3-line idiom in
 man/bart.Rd. A bases= argument on predict is EXCLUDED (reopens "what
-predict means on a BCF fit"; belongs with the modelling decision).
+predict means on a BCF fit"; belongs with the modeling decision).
 No basis re-expansion is possible (data@bases is a bare matrix list,
 [R/A_class.R:514-524](https://github.com/vdorie/dbarts/blob/0f5a2285f4899710406aab255f5cae3b66be878f/R/A_class.R#L514-L524); no terms/xlev/contrasts retained) - any
 caller-supplied basis arrives pre-expanded; retaining basis terms is a

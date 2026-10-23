@@ -309,7 +309,7 @@ scale mixture (logistic) under the tree moves of Chipman, George and
 McCulloch; published work on BART's mixing concerns tree structures
 (particle Gibbs, grow-from-root, Pratola's proposals), not the leaf
 scale. The general literature's answers to a scale funnel - interweaving
-and non-centring (Yu and Meng 2011; Papaspiliopoulos, Roberts and Skold
+and non-centering (Yu and Meng 2011; Papaspiliopoulos, Roberts and Skold
 2007), parameter expansion (Liu and Wu 1999), partial collapsing (van
 Dyk and Park 2008) and gradient methods built for funnels (WALNUTS) -
 are all represented above or in dec-B371's comparison; and its account
@@ -406,7 +406,7 @@ prototype library first on the library path.
 - Johndrow, J. E., Smith, A., Pillai, N. and Dunson, D. B. (2019). MCMC
   for imbalanced categorical data. JASA 114, 1394-1403.
   https://arxiv.org/abs/1605.05798
-- Liu, J. S. and Sabatti, C. (2000). Generalised Gibbs sampler and
+- Liu, J. S. and Sabatti, C. (2000). Generalized Gibbs sampler and
   multigrid Monte Carlo for Bayesian computation. Biometrika 87, 353-369.
 - Liu, J. S. and Wu, Y. N. (1999). Parameter expansion for data
   augmentation. JASA 94, 1264-1274.

@@ -366,7 +366,7 @@ acrossUnits("variance forest", list(variance = TRUE))
 acrossUnits("count", list(family = nbinom()), 2L * counts, counts)
 
 # a constant response's transform is units too, the window of width 1
-# centred on its value, recorded as (c, c): a
+# centered on its value, recorded as (c, c): a
 # sampler on one keeps them across an install from a normal response, a state
 # stored in them goes into a normal recipient as stored, and its own state is
 # untouched
@@ -402,7 +402,7 @@ constantSelf$setState(constantState)
 constantTwin <- makeConstant()
 constantTwin$setState(constantState)
 expect_identical(sweeps(constantSelf), sweeps(constantTwin))
-# a stored (c, c) read back is the window centred on c: a sampler made on a
+# a stored (c, c) read back is the window centered on c: a sampler made on a
 # constant and given a varying response under the pinned transform still
 # records (2, 2), and a reload, which re-creates on the varying response and
 # installs the stored pair, reports it, shifts by 2 and continues as the

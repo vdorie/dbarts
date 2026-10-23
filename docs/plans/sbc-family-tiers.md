@@ -365,7 +365,7 @@ the pair has the distribution p(T) prod N(mu_l) 1{C(T)}. sig0 is sbcSigmaDraw, a
 for gaussian.
 
 Why the arm was first designed to flag. The move as first built divided each
-touched leaf's marginal by its cone mass given the frozen neighbours, which
+touched leaf's marginal by its cone mass given the frozen neighbors, which
 equals the whole tree's normalizer ratio only at root births, so it targeted
 neither prior; a one-tree mini SBC flagged the x1 contrasts with the posterior
 too steep. The corrected move ([4. Decision - marginal likelihood for the

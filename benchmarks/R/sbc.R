@@ -275,7 +275,7 @@ sbcConfig <- function(
   xTest <- matrix(runif(nTest * p), nTest, p)
   colnames(xTest) <- colnames(x)
   # A deterministic build response fixes the internal data scale (range,
-  # centre) once; setResponse(updateScale = FALSE) then keeps it across
+  # center) once; setResponse(updateScale = FALSE) then keeps it across
   # replications so the prior draw and the posterior share one scale. Binary
   # families need a 0/1 build vector; the probit latent scale is fixed by the
   # link, so no continuous range is involved.
@@ -294,7 +294,7 @@ sbcConfig <- function(
     )
   } else if (family == "nbinom") {
     # mean count 5: the build response fixes the log-mean shift c = log(5)
-    # the prior draw centres on, and the fit is rebuilt from it so it shares c
+    # the prior draw centers on, and the fit is rebuilt from it so it shares c
     as.double(rep_len(c(2L, 4L, 6L, 8L), n))
   } else {
     as.double(rep_len(c(0L, 1L), n))
@@ -537,9 +537,9 @@ sbcRecoverFitMap <- function(sampler, config) {
 
 # Draw theta0 from the prior, simulate y0, refit, and rank each functional's
 # theta0 among its L posterior draws. The rank is #{posterior_l < theta0} in
-# {0, ..., L}, uniform under calibration. The MCMC is re-initialised from a
+# {0, ..., L}, uniform under calibration. The MCMC is re-initialized from a
 # FRESH independent prior draw (not the truth) so a finite burn-in cannot leave
-# the chain parked at theta0 and bias ranks toward the centre. fitMap non-NULL
+# the chain parked at theta0 and bias ranks toward the center. fitMap non-NULL
 # switches f0Train to the stored-fits path (GP leaves).
 sbcReplication <- function(sampler, config, drawSigma, L, burn, fitMap = NULL) {
   # 1. theta0 from the prior (forest + leaves via the engine's own machinery)
@@ -935,7 +935,7 @@ sbcAddCensoring <- function(config, shift = 1.0, sd = 1.2) {
 # The arm's fixed config: a continuous, symmetric-about-0 build response,
 # m = 50 trees, the censoring fixture above, and the survival deliverable's
 # own time. t0 is the build response's median survival time exp(0) = 1, the
-# transform's centre, so (log t0 - f(x*)) / sigma is centred at 0 under the
+# transform's center, so (log t0 - f(x*)) / sigma is centered at 0 under the
 # prior draw and S(t0 | x*) spreads over (0, 1) rather than piling into a tail
 # it would eventually underflow to an atom in.
 sbcConfigAft <- function(n = 150L, nTrees = 50L) {
@@ -1625,7 +1625,7 @@ runSbcBCF <- function(
 #
 #   draw()        theta0 from the family's prior + the y it implies, as a named
 #                 vector of scalar FUNCTIONALS plus the simulated response
-#   fit(y)        the posterior sampler for that y, already re-initialised from
+#   fit(y)        the posterior sampler for that y, already re-initialized from
 #                 an independent prior draw (never from theta0)
 #   burnRun(f, b) b thinned units of burn-in, no samples kept
 #   sample(f)     one retained draw's functionals, same names as theta

@@ -132,7 +132,7 @@ expect_error(
 
 # the print methods summarize a fit to the console, and keep doing so with
 # keepCall = FALSE (previously just "NULL()")
-# the synopsis is the last block of the printout, one labelled line per fact,
+# the synopsis is the last block of the printout, one labeled line per fact,
 # and each label names the value under it: a fit whose control survived
 # reports its own n.trees and n.burn, and a fit's family is its own
 expect_equal(
