@@ -460,14 +460,14 @@ A handful of shapes are refused outright rather than silently misinterpreted, ea
       \code{\link{load}}) continue those same streams too: the draws
       typically agree to the last few digits, not bitwise, since restoring
       rebuilds the fitted values by re-summing the trees.
-    \item \code{copy()}, deep or shallow, installs the original's stored
-      state, so the copy continues the same streams as the original rather
-      than starting an independent chain - again typically to the last few
-      digits, not bitwise; create a new sampler with a different \code{seed}
-      for an independent one. \code{copy()} uses whatever \code{storeState()}
-      last captured (\code{run()} does this automatically unless
-      \code{updateState = FALSE}); a copy made with no stored state instead
-      starts over, drawing fresh trees from the prior.
+    \item \code{copy()}, deep or shallow, installs the original's current
+      chain, or, where its engine is gone, as after a reload, the state
+      \code{storeState()} last captured, so the copy continues the same
+      streams as the original rather than starting an independent chain -
+      again typically to the last few digits, not bitwise; create a new
+      sampler with a different \code{seed} for an independent one. A copy of
+      a sampler whose engine is gone and that has no stored state is
+      refused, as its other calls are.
     \item An unseeded sampler draws fresh chain seeds from R's stream every
       time its underlying engine is (re-)created - at \code{copy()}, and at
       the first use after a reload, including a first \code{setState()} call

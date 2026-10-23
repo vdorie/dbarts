@@ -2063,8 +2063,10 @@ public:
   /// The values the sampler derived from its data and holds while the data
   /// move, which a host records to re-create it on them (DerivedRecords).
   void derivedRecords(DerivedRecords& records) const {
-    records.cutPoints = data_.cutPoints;
-    records.cutMass = data_.cutMass;
+    if (records.withGrids) {
+      records.cutPoints = data_.cutPoints;
+      records.cutMass = data_.cutMass;
+    }
     records.hasRange = chains_[0]->carriesUnits(anchorMin_, anchorMax_);
     records.rangeMin = anchorMin_;
     records.rangeMax = anchorMax_;

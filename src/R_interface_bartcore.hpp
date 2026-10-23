@@ -89,7 +89,7 @@ SEXP bartcore_setState(SEXP ptr, SEXP state, SEXP currentPredictors,
 SEXP bartcore_installForests(SEXP ptr, SEXP donorState, SEXP samples,
                              SEXP currentPredictors, SEXP force);
 SEXP bartcore_anchor(SEXP ptr, SEXP record);
-SEXP bartcore_derivedRecords(SEXP ptr);
+SEXP bartcore_derivedRecords(SEXP ptr, SEXP withGrids);
 SEXP bartcore_sampleTreesFromPrior(SEXP ptr);
 SEXP bartcore_sampleLeafParametersFromPrior(SEXP ptr);
 SEXP bartcore_sampleVarianceForestFromPrior(SEXP ptr);

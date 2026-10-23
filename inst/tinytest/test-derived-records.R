@@ -34,7 +34,7 @@ make <- function(..., data = x, response = y, run = TRUE) {
   sampler
 }
 readerOf <- function(sampler) {
-  .Call(dbarts:::C_dbarts_bartcore_derivedRecords, sampler$getPointer())
+  .Call(dbarts:::C_dbarts_bartcore_derivedRecords, sampler$getPointer(), TRUE)
 }
 recordOf <- function(sampler) {
   list(

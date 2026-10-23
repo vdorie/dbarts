@@ -2105,13 +2105,24 @@ createEngine <- function(control, model, data, active = NULL) {
     if (!is.null(active)) as.double(active)
   )
   applyAnchor(ptr, data)
-  records <- .Call(C_dbarts_bartcore_derivedRecords, ptr)
+  records <- .Call(C_dbarts_bartcore_derivedRecords, ptr, TRUE)
   refuseCarriedOrderedGrid(data, records)
   list(pointer = ptr, records = records)
 }
 
 recreatePointer <- function(control, model, data) {
   createEngine(control, model, checkDerivedRecord(data))$pointer
+}
+
+## The refusal of a sampler whose engine is gone and that holds no stored
+## state to rebuild it from, which a reload and a copy give alike.
+stopWithoutStoredState <- function() {
+  stop(
+    "samplers cannot be re-created without a stored state; call ",
+    "storeState() before serializing (see the Saving section of ",
+    "?`dbartsSampler-class`)",
+    call. = FALSE
+  )
 }
 
 ## The sd a model names for its leaf prior, read off its encoding: prior.scale
@@ -2708,7 +2719,11 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     copy = function(shallow = FALSE) {
-      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and its data object, whose record of the cut points, their weights and the response range it is built on. A sampler whose engine exists in this R session gives the copy its current chain, even one stored since its last storeState(), and the copy's stored state is that chain. Otherwise, as after a save and load, the copy is given the stored state, which goes in as setState does with forceUpdate = TRUE: a split off the recorded cut points moves to the nearest point by value, and a tree that no longer fits the sampler is repaired, silently; see setState."
+      "Creates a deep or shallow copy of the sampler, keeping its model, the response mapping included, and its data object, whose record of the cut points, their weights and the response range it is built on. A sampler whose engine exists in this R session gives the copy its current chain, even one stored since its last storeState(), and the copy's stored state is that chain. Otherwise, as after a save and load, the copy is given the stored state, which goes in as setState does with forceUpdate = TRUE: a split off the recorded cut points moves to the nearest point by value, and a tree that no longer fits the sampler is repaired, silently; see setState. Without a stored state such a copy is refused, as a reload is."
+      live <- .Call(C_dbarts_bartcore_isValidPointer, pointer)
+      if (!live && is.null(state)) {
+        stopWithoutStoredState()
+      }
       # a copy introduces no rows, so it does not raise the creation warning,
       # and it is not a creation, so it does not print the forests' block
       dupe <- withoutZeroTrialsWarning(withoutForestBlock(
@@ -2732,7 +2747,6 @@ dbartsSampler <- setRefClass(
       # chain is read now, drawing nothing; otherwise the stored state, which
       # is opaque and never mutated in place (storeState replaces it whole),
       # so the copy can install the same object
-      live <- .Call(C_dbarts_bartcore_isValidPointer, pointer)
       installing <- if (live) {
         .Call(C_dbarts_bartcore_storeState, pointer)
       } else {
@@ -3104,7 +3118,7 @@ dbartsSampler <- setRefClass(
       )
       scaleKept <- bartcoreSamplerSetResponse(.self, y, updateScale, status)
       if (isTRUE(updateScale)) {
-        recordDerived(.self, getPointer())
+        recordResponseRange(.self, getPointer())
       }
       if (resolveUpdateState(updateState, control)) {
         storeState()
@@ -3124,7 +3138,7 @@ dbartsSampler <- setRefClass(
       )
       scaleKept <- bartcoreSamplerSetOffset(.self, offset, updateScale)
       if (isTRUE(updateScale)) {
-        recordDerived(.self, getPointer())
+        recordResponseRange(.self, getPointer())
       }
       if (resolveUpdateState(updateState, control)) {
         storeState()
@@ -3207,7 +3221,7 @@ dbartsSampler <- setRefClass(
       }
 
       if (updateScale) {
-        recordDerived(.self, ptr)
+        recordResponseRange(.self, ptr)
       }
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
@@ -3884,11 +3898,7 @@ dbartsSampler <- setRefClass(
 
       if (.Call(C_dbarts_bartcore_isValidPointer, pointer) == FALSE) {
         if (is.null(state)) {
-          stop(
-            "samplers cannot be re-created without a stored state; call ",
-            "storeState() before serializing (see the Saving section of ",
-            "?`dbartsSampler-class`)"
-          )
+          stopWithoutStoredState()
         }
         refuseLegacyState(state)
         # the new engine holds the cut points the data object records, and

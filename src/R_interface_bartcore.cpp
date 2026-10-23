@@ -7081,19 +7081,23 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 // entry per predictor, NULL on an unordered factor, a weighted grid carrying
 // its weights as the entry's "mass" attribute; response.range is (min, max),
 // NULL on a family that reads none; forest.calibration is c(anchor, unit),
-// NULL off a calibration map.
-SEXP bartcore_derivedRecords(SEXP ptrExpr) {
+// NULL off a calibration map. withGridsExpr FALSE leaves cutPoints NULL and
+// reads no grid, for a call that moves none.
+SEXP bartcore_derivedRecords(SEXP ptrExpr, SEXP withGridsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::DerivedRecords records;
+  records.withGrids = Rf_asLogical(withGridsExpr) != FALSE;
   holder.sampler->derivedRecords(records);
   const char* names[] = {"cutPoints", "response.range", "forest.calibration",
                          ""};
   SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
+  // empty unless the grids were read, so the loop below fills nothing
   size_t numPredictors = records.cutPoints.size();
-  SEXP gridsExpr =
-    PROTECT(Rf_allocVector(VECSXP, static_cast<R_xlen_t>(numPredictors)));
-  SET_VECTOR_ELT(resultExpr, 0, gridsExpr);
-  UNPROTECT(1);
+  SEXP gridsExpr = R_NilValue;
+  if (records.withGrids) {
+    gridsExpr = Rf_allocVector(VECSXP, static_cast<R_xlen_t>(numPredictors));
+    SET_VECTOR_ELT(resultExpr, 0, gridsExpr);
+  }
   SEXP massSymbol = Rf_install("mass");
   for (size_t j = 0; j < numPredictors; ++j) {
     const std::vector<double>& points = records.cutPoints[j];

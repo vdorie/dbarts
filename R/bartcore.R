@@ -1401,7 +1401,7 @@ bartcoreSamplerSetActiveRows <- function(sampler, active, updateScale) {
     active
   }
   if (updateScale) {
-    recordDerived(sampler, ptr)
+    recordResponseRange(sampler, ptr)
   }
   invisible(scaleKept)
 }

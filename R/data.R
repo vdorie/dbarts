@@ -415,10 +415,31 @@ checkDerivedRecord <- function(data) {
       }
       mass <- attr(grid, "mass", exact = TRUE)
       grid <- as.double(grid)
+      if (
+        !is.null(mass) &&
+          (!is.numeric(mass) ||
+            length(mass) != length(grid) + 1L ||
+            !all(is.finite(mass)) ||
+            any(diff(mass) <= 0))
+      ) {
+        refuse(
+          "cutPoints",
+          "for predictor ",
+          j,
+          " carries weights, its 'mass' attribute, that are not ",
+          length(grid) + 1L,
+          " finite numbers strictly increasing"
+        )
+      }
       # a grid is a set of thresholds, so one out of order is sorted, as
-      # setCutPoints sorts one
+      # setCutPoints sorts one, each point keeping its weight: the mass is
+      # cumulative, point k weighing mass[k + 1] - mass[k]
       if (is.unsorted(grid)) {
-        grid <- sort(grid)
+        ordering <- order(grid)
+        grid <- grid[ordering]
+        if (!is.null(mass)) {
+          mass <- mass[[1L]] + c(0, cumsum(diff(mass)[ordering]))
+        }
       }
       if (anyDuplicated(grid) > 0L) {
         refuse(
@@ -431,21 +452,6 @@ checkDerivedRecord <- function(data) {
         )
       }
       if (!is.null(mass)) {
-        if (
-          !is.numeric(mass) ||
-            length(mass) != length(grid) + 1L ||
-            !all(is.finite(mass)) ||
-            any(diff(mass) <= 0)
-        ) {
-          refuse(
-            "cutPoints",
-            "for predictor ",
-            j,
-            " carries weights, its 'mass' attribute, that are not ",
-            length(grid) + 1L,
-            " finite numbers strictly increasing"
-          )
-        }
         attr(grid, "mass") <- as.double(mass)
       }
       grids[[j]] <- grid
@@ -507,18 +513,33 @@ refuseCarriedOrderedGrid <- function(data, records) {
 }
 
 ## Brings a sampler's record of what it derived from its data up to its
-## engine; called after creation and after every call that can change one.
+## engine; called after creation and after every call that can change a grid,
+## recordResponseRange after one that can move only the range.
 ## The object a caller handed in is never written, the record being on the
 ## sampler's own copy.
 recordDerived <- function(sampler, ptr, records = NULL) {
   if (is.null(records)) {
-    records <- .Call(C_dbarts_bartcore_derivedRecords, ptr)
+    records <- .Call(C_dbarts_bartcore_derivedRecords, ptr, TRUE)
   }
   data <- sampler$data
   data@cutPoints <- records$cutPoints
   data@response.range <- records$response.range
   data@forest.calibration <- records$forest.calibration
   sampler$data <- data
+  invisible(NULL)
+}
+
+## Brings a sampler's record of the response range up to its engine after a
+## call that can move the range and no grid: a response, offset, weights or
+## active-row change with updateScale, which can run every iteration of a
+## larger sampler. A calibration map's anchor and unit are fixed at
+## construction, so none of those calls moves them, and the grids, whose read
+## grows with the predictors, are not read.
+recordResponseRange <- function(sampler, ptr) {
+  range <- .Call(C_dbarts_bartcore_derivedRecords, ptr, FALSE)$response.range
+  if (!identical(range, dataResponseRange(sampler$data))) {
+    sampler$data@response.range <- range
+  }
   invisible(NULL)
 }
 

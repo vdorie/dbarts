@@ -296,7 +296,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_setState", bartcore_setState, 5),
   DEF_FUNC("dbarts_bartcore_installForests", bartcore_installForests, 5),
   DEF_FUNC("dbarts_bartcore_anchor", bartcore_anchor, 2),
-  DEF_FUNC("dbarts_bartcore_derivedRecords", bartcore_derivedRecords, 1),
+  DEF_FUNC("dbarts_bartcore_derivedRecords", bartcore_derivedRecords, 2),
   DEF_FUNC("dbarts_bartcore_sampleTreesFromPrior",
            bartcore_sampleTreesFromPrior, 1),
   DEF_FUNC("dbarts_bartcore_sampleLeafParametersFromPrior",

@@ -426,6 +426,9 @@ struct ForestCalibration {
 /// and a calibration map's anchor and unit (AmplitudeSpec::anchor and unit),
 /// NaN on a sampler without the map.
 struct DerivedRecords {
+  /// Set false by the caller to leave cutPoints and cutMass empty, a read
+  /// that costs nothing per predictor, for a call that moves no grid.
+  bool withGrids = true;
   std::vector<std::vector<double>> cutPoints;
   std::vector<std::vector<double>> cutMass;
   bool hasRange = false;

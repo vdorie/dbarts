@@ -150,7 +150,7 @@ The writer and the install rule: [`Chain::getState`](../../src/bartcore/chain.hp
 [`AmplitudeForestCombiner::restoreGlue`](../../src/bartcore/combiner.hpp). The transform:
 [`Sampler::setAnchor`](../../src/bartcore/sampler.hpp) and [`moveScale`](../../src/bartcore/chain.hpp); a
 re-anchor's rewrite of the kept draws, [`restateSavedDraws`](../../src/bartcore/chain.hpp). The record:
-[`recordDerived`](../../R/data.R), [`applyAnchor`](../../R/dbarts.R) and
-[`createEngine`](../../R/dbarts.R). The floor on precisions:
+[`recordDerived`](../../R/data.R), [`recordResponseRange`](../../R/data.R),
+[`applyAnchor`](../../R/dbarts.R) and [`createEngine`](../../R/dbarts.R). The floor on precisions:
 [`ResponseModel::canHoldLatents`](../../src/bartcore/model.hpp), asked by
 [`Chain::stateIsValid`](../../src/bartcore/chain.hpp).
