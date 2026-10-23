@@ -1797,6 +1797,23 @@ static void testSingleForestColumnRestriction() {
           redrawn[2] == 0.0 && redrawn[0] > 0.0 && redrawn[1] > 0.0 &&
           std::fabs(redrawn[0] + redrawn[1] - 1.0) < 1e-12,
         "forest columns: a DART draw zeroes an excluded column a state carried");
+  // a warm-start donor's DART weights, one a predictor, are its shape
+  {
+    const std::vector<std::pair<size_t, int>> live = {{0, -1}};
+    bool refused = true;
+    for (size_t length : {size_t{1}, p - 1, p + 1, size_t{100000}}) {
+      SamplerStateData misfit = carried;
+      misfit.chains[0].dartProbabilities.assign(length, 1.0 / length);
+      WarmStartResult result;
+      bool altered;
+      refused = refused &&
+        warmVerdictMatchesInstall(*dartChain, misfit, live, x.data(), result,
+                                  altered) &&
+        result == WarmStartResult::shapeMismatch;
+    }
+    check(refused, "forest columns: a warm-start donor whose DART weights "
+                   "are not one a predictor is refused in both forms");
+  }
 
   // an out-of-list donor is declined by a warm start without force, as its
   // state is, and the chain's own state is not
@@ -3384,6 +3401,10 @@ static void testVarianceSavedTreeState() {
   nonPositive.chains[0].savedVarianceTrees[0].back().value = 0.0;
   check(!dest->setState(nonPositive, nullptr),
         "variance saved state: a non-positive saved leaf is refused");
+  nonPositive.chains[0].savedVarianceTrees[0].back().value =
+    std::numeric_limits<double>::infinity();
+  check(!dest->setState(nonPositive, nullptr),
+        "variance saved state: an infinite saved leaf is refused");
   SamplerStateData malformed = state;
   malformed.chains[0].savedVarianceTrees[1].clear();
   check(!dest->setState(malformed, nullptr),
@@ -3540,6 +3561,12 @@ static void testVarianceWarmStartSlot() {
   check(target->installForests(nonPositive, firstMap, x.data()) ==
           WarmStartResult::varianceMismatch,
         "variance slot warm start: a non-positive saved scale leaf is refused");
+  SamplerStateData infinite = donorState;
+  infinite.chains[0].savedVarianceTrees[0].back().value =
+    std::numeric_limits<double>::infinity();
+  check(target->installForests(infinite, firstMap, x.data()) ==
+          WarmStartResult::varianceMismatch,
+        "variance slot warm start: an infinite saved scale leaf is refused");
   // and the refusal is SLOT-specific: the same state installs from any slot
   // whose own trees are intact
   check(target->installForests(nonPositive, lastMap, x.data()) ==

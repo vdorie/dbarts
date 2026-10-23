@@ -4514,7 +4514,7 @@ public:
 
   /// The variance forest's twin, over live variance tree \p j of \p state:
   /// false also where the flat tree is not well formed or holds a leaf that
-  /// is not a positive scale. Requires a variance forest.
+  /// is not a positive, finite scale. Requires a variance forest.
   bool stageLiveVarianceTree(const ChainStateData& state, size_t j,
                              Tree& scratch, index_t* scratchIndices,
                              std::vector<double>& params,
@@ -4528,7 +4528,8 @@ public:
                               numMaskWords))
       return false;
     for (const FlatNode& node : tree)
-      if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+      if (flatKindOf(node) == FlatKind::leaf &&
+          !(node.value > 0.0 && std::isfinite(node.value)))
         return false;
     scratch.initialize(scratchIndices, data_.numObservations);
     // the variance forest carries no interaction constraint; clear the mean
@@ -4735,7 +4736,7 @@ public:
     if (response_->carriesShape() && !(state.fitMax > state.fitMin))
       return false;
     // heteroscedastic: a variance state must carry one flat tree per variance
-    // tree, each well-formed AND with every leaf a strictly positive scale (a
+    // tree, each well-formed AND with every leaf a positive, finite scale (a
     // variance, unlike a Gaussian mean leaf) - the scale-leaf validation. A
     // tree the install would merge or collapse (rebuildVarianceForest) is the
     // verdict's, as on the mean side. The SAVED buffer is held to form and
@@ -4755,7 +4756,7 @@ public:
         if (!stageLiveVarianceTree(state, j, scratch, scratchIndices.data(),
                                    params, notClean))
           return false;
-      // the saved trees: form and the scale-leaf positivity law. A saved slot
+      // the saved trees: form and the scale-leaf rule. A saved slot
       // is a historical replay target routed over NEW rows, never over this
       // sampler's partition.
       for (size_t s = 0; s < state.savedVarianceTrees.size(); ++s) {
@@ -4768,7 +4769,8 @@ public:
                                   numMaskWords))
           return false;
         for (const FlatNode& node : saved)
-          if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+          if (flatKindOf(node) == FlatKind::leaf &&
+              !(node.value > 0.0 && std::isfinite(node.value)))
             return false;
       }
     } else if (!state.varianceTrees.empty() ||

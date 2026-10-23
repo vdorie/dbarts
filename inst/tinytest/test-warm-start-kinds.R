@@ -998,6 +998,38 @@ before <- stateOf(bothParts)
 expect_identical(answerOf(bothParts$installTrees(offRows)), visibly(FALSE))
 expect_identical(stateOf(bothParts), before)
 
+# the starting variance is read on the response transform in force: after
+# setResponse re-anchors it, and after setData, the variance forest starts
+# where a new fit's on the response in force does
+yMoved <- 3 * y + 2
+movedFresh <- heteroscedastic(4L, 4L, sigest = 0.4, response = yMoved)
+for (move in c("setResponse", "setData")) {
+  moved <- heteroscedastic(4L, 4L, sigest = 0.4, sweeps = 30L)
+  if (move == "setResponse") {
+    moved$setResponse(yMoved, updateScale = TRUE)
+  } else {
+    moved$setData(dbarts::dbartsData(x, yMoved))
+  }
+  expect_true(moved$installTrees(plainDonor))
+  expect_identical(moved$getVariance(), movedFresh$getVariance())
+}
+
+# and where the trees are chosen, from a donor of more trees forced
+partsOnSix <- function(sweeps = 0L) {
+  heteroscedastic(6L, 4L, tree.prior = dart(update.delay = 5L), sweeps = sweeps)
+}
+createdParts <- partsOnSix()
+chosen <- partsOnSix(sweeps = 30L)
+twelveDonor <- make(control = trees(12L), sweeps = 40L)
+expect_false(identical(chosen$getVariance(), createdParts$getVariance()))
+expect_false(chosen$installTrees(twelveDonor))
+expect_null(chosen$installTrees(twelveDonor, forceUpdate = TRUE))
+expect_identical(
+  dartOf(stateOf(chosen)),
+  c(dartOf(stateOf(createdParts))[1L:2L], list(5L))
+)
+expect_identical(chosen$getVariance(), createdParts$getVariance())
+
 # ---- kinds of leaf -----------------------------------------------------------------
 
 linearOn <- function(columns, ...) {
@@ -1075,6 +1107,45 @@ refusedBoth(
   make(data = withFactor),
   plainDonor,
   "warm-start donor's column 4 is numeric and this sampler's an unordered factor"
+)
+# DART weights not one a predictor are the donor's shape, the length 1 and
+# a long vector included
+for (length in c(1L, 3L, 5L, 100000L)) {
+  misfit <- stateOf(dartDonor)
+  misfit[[1L]]$dart.probabilities <- rep(1 / length, length)
+  refusedBoth(
+    make(tree.prior = dart(update.delay = 0L), sweeps = 5L),
+    misfit,
+    paste(
+      "warm-start donor is not shape-compatible with this sampler (number of",
+      "forests or predictors differ, or the donor's kept draws do not match",
+      "its tree count)"
+    )
+  )
+}
+# a variance leaf that is not finite is refused on the way across grids too,
+# where no build on this sampler's grid reads it first
+acrossDonor <- function(leaf) {
+  withTrees(
+    stateOf(
+      heteroscedastic(4L, 4L, data = xOther, response = yOther, sweeps = 20L)
+    ),
+    list(stump(leaf), stump(1), stump(1), stump(1)),
+    variance = TRUE
+  )
+}
+expect_null(
+  heteroscedastic(4L, 4L)$installTrees(acrossDonor(2), forceUpdate = TRUE)
+)
+refusedBoth(
+  heteroscedastic(4L, 4L),
+  acrossDonor(Inf),
+  paste(
+    "warm-start donor's variance trees cannot be installed on this sampler's",
+    "data (a scale leaf is not positive and finite, or a flat tree failed to",
+    "rebuild); the donor's variance surface is incompatible with this",
+    "sampler, and nothing was installed"
+  )
 )
 
 # ---- what bart says of parts and kinds ------------------------------------------

@@ -1672,16 +1672,18 @@ public:
       }
     }
 
-    // the scale-leaf positivity law state validation holds a variance block to,
-    // applied at BOTH install arms below for the reason it applies there: a
-    // donor state is hand-buildable whichever arm reaches it, and a rebuild
-    // scatters the leaf straight into a divisor, so a non-positive factor is a
-    // broken model rather than a bad number
+    // the scale-leaf rule state validation holds a variance block to, every
+    // leaf positive and finite, applied at BOTH install arms below for the
+    // reason it applies there: a donor state is hand-buildable whichever arm
+    // reaches it, and a rebuild scatters the leaf straight into a divisor, so
+    // a factor that is not positive and finite is a broken model rather than
+    // a bad number
     auto scaleLeavesArePositive =
       [](const std::vector<std::vector<FlatNode>>& trees) {
         for (const std::vector<FlatNode>& tree : trees)
           for (const FlatNode& node : tree)
-            if (flatKindOf(node) == FlatKind::leaf && !(node.value > 0.0))
+            if (flatKindOf(node) == FlatKind::leaf &&
+                !(node.value > 0.0 && std::isfinite(node.value)))
               return false;
         return true;
       };
@@ -1758,6 +1760,9 @@ public:
       dst.fitMin = src.fitMin;
       dst.fitMax = src.fitMax;
       if (chains_[c]->usesDart()) {
+        // one weight a predictor: installDrawnScalars copies the block whole
+        if (donorDart && src.dartProbabilities.size() != data_.numPredictors)
+          return WarmStartResult::shapeMismatch;
         dst.dartProbabilities = src.dartProbabilities;
         dst.dartAlpha = src.dartAlpha;
         dst.dartNumUpdatesSkipped = src.dartNumUpdatesSkipped;

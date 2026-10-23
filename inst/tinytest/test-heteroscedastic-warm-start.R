@@ -112,6 +112,20 @@ expect_error(
   poisonDest$installTrees(poisonedState),
   "scale leaf is not positive"
 )
+# and one that is not finite, in both forms
+poisonedState[[1L]][["variance.values"]][
+  ((leafNode - 1L) * 8L + 1L):(leafNode * 8L)
+] <- writeBin(Inf, raw())
+expect_error(
+  poisonDest$setState(poisonedState),
+  "state is not consistent with this sampler"
+)
+for (force in c(FALSE, TRUE)) {
+  expect_error(
+    poisonDest$installTrees(poisonedState, forceUpdate = force),
+    "scale leaf is not positive and finite"
+  )
+}
 expect_true(all(is.finite(poisonDest$run(0L, 3L)$sigma)))
 
 ## ---- the pooled-categorical mask channel rides the same slice ----
