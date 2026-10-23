@@ -549,15 +549,19 @@ numTrainingRows <- function(object) {
   length(object[["y"]])
 }
 
-## the replacement weights as one number per training row: the check the
-## offset has, and, for a posterior predictive draw, the one weights have at
-## newdata
+## the replacement weights for the training rows, checked as the weights of
+## newdata are: one value or one per row, none missing (a row's na.action has
+## no say among the fit's own rows, so a missing one is refused, as the
+## offset's is), and then only a posterior predictive draw looks at the
+## values, by the family's check. A type that reads no weight takes whatever
+## else the shape allows and gets NULL back, the fit's own weights standing.
 trainingRowWeights <- function(object, weights, type) {
   nObs <- numTrainingRows(object)
   if (
-    !is.numeric(weights) ||
-      !is.null(dim(weights)) ||
-      !(length(weights) %in% c(1L, nObs)) ||
+    !is.atomic(weights) ||
+      length(dim(weights)) > 2L ||
+      NCOL(weights) != 1L ||
+      !(NROW(weights) %in% c(1L, nObs)) ||
       anyNA(weights)
   ) {
     stop(
@@ -567,11 +571,11 @@ trainingRowWeights <- function(object, weights, type) {
       call. = FALSE
     )
   }
-  weights <- rep_len(as.double(weights), nObs)
-  if (type == "ppd") {
-    refuseUnfitPredictiveWeights(object, weights)
+  if (type != "ppd") {
+    return(NULL)
   }
-  weights
+  refuseUnfitPredictiveWeights(object, weights)
+  rep_len(as.double(weights), nObs)
 }
 
 ## the replacement offset as one number per row of the set 'rows' names, less

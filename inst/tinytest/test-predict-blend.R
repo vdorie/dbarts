@@ -672,6 +672,37 @@ expect_error(
   predict(plainFit, bases = list(NULL)),
   pattern = "this fit has 1 forest"
 )
+# the per-forest arm reads no weight, at the training rows as at newdata, but
+# both check the form of the one given: a value or one per row, none missing,
+# whatever the value holds
+forestOwn <- predict(fit, type = "forest")
+forestNew <- predict(fit, x, type = "forest")
+for (given in list(-1, "a", c(-1, rep(1, n - 1L)))) {
+  expect_identical(
+    tryCatch(
+      predict(fit, type = "forest", weights = given),
+      error = conditionMessage
+    ),
+    forestOwn
+  )
+  expect_identical(
+    tryCatch(
+      predict(fit, x, type = "forest", weights = given),
+      error = conditionMessage
+    ),
+    forestNew
+  )
+}
+for (given in list(NA_real_, c(NA, rep(1, n - 1L)), 1:3)) {
+  expect_error(
+    predict(fit, type = "forest", weights = given),
+    pattern = paste0("one per training row \\(", n, "\\), none missing")
+  )
+  expect_error(
+    predict(fit, x, type = "forest", weights = given),
+    pattern = "'weights' (has missing values|must have the same number of rows)"
+  )
+}
 # a fit kept without the per-forest channels or the training draws names what
 # is missing and the fix
 droppedFits <- bart(

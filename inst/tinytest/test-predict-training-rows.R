@@ -272,7 +272,76 @@ expect_error(
   predict(fit, weights = c(Inf, rep(1, n - 1L)), type = "ppd"),
   "finite and non-negative"
 )
-expect_error(predict(fit, weights = 1, type = "sigma"), "type = \"sigma\"")
+# a column of weights is a vector of them, as at newdata
+set.seed(37)
+a <- predict(fit, weights = matrix(w.new, n, 1L), type = "ppd")
+set.seed(37)
+expect_identical(a, predict(fit, weights = w.new, type = "ppd"))
+# the two paths agree on what each type does with a weight that is negative,
+# not a number, missing or the wrong length: a type that draws nothing never
+# looks at the values, a posterior predictive draw refuses a negative or
+# non-numeric one in the family's words, and a missing or misplaced one is
+# refused on both
+refused <- function(expr) {
+  tryCatch(
+    {
+      force(expr)
+      NA_character_
+    },
+    error = conditionMessage
+  )
+}
+bad.weights <- list(
+  negative = -1,
+  negative.row = c(-1, rep(1, n - 1L)),
+  text = "a",
+  text.rows = rep("a", n),
+  missing = NA_real_,
+  missing.row = c(NA, rep(1, n - 1L)),
+  short = 1:3
+)
+for (type in c("ev", "bart", "ppd")) {
+  for (label in names(bad.weights)) {
+    given <- bad.weights[[label]]
+    here <- refused(predict(fit, weights = given, type = type))
+    there <- refused(predict(fit, df, weights = given, type = type))
+    info <- paste(type, label)
+    expect_identical(is.na(here), is.na(there), info = info)
+    if (label %in% c("negative", "negative.row", "text", "text.rows")) {
+      # the family's check at a posterior predictive draw, in the same words
+      expect_identical(
+        here,
+        if (type == "ppd") there else NA_character_,
+        info = info
+      )
+    }
+  }
+}
+for (type in c("ev", "bart")) {
+  # weights that no draw reads change nothing, whatever they hold
+  for (given in list(-1, "a", rep("a", n), c(-1, rep(1, n - 1L)))) {
+    expect_identical(
+      tryCatch(
+        predict(fit, weights = given, type = type),
+        error = conditionMessage
+      ),
+      predict(fit, type = type)
+    )
+  }
+}
+for (given in bad.weights) {
+  # a heteroscedastic fit's scale takes no weight, whatever it holds
+  expect_error(
+    predict(fit.het, weights = given, type = "sigma"),
+    "does not support 'weights'",
+    info = "sigma, no newdata"
+  )
+  expect_error(
+    predict(fit.het, x, weights = given, type = "sigma"),
+    "does not support 'weights'",
+    info = "sigma, newdata"
+  )
+}
 # the other families take no weight in a posterior predictive draw, as at newdata
 expect_error(predict(fit.nb, weights = 1), "takes no per-observation weight")
 expect_error(predict(fit.ord, weights = 1), "takes no per-observation weight")
