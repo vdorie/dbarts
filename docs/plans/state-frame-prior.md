@@ -682,3 +682,134 @@ Size against the plan: the engine adds 111 lines against a stop of 320; the slic
 1860 against 2800.
 
 Left: slices 2 and 3, built on slice 1's commits before its fix round and moved onto this landing next.
+
+## Slice 2 as built
+
+Built on 3a3fab8a: bartcore a563d753, warm-start-salvage slice D landed, with slice 1 as rebased onto a000d239
+on top. The steps held against that tip: `restoreCalibration` was called from
+[`Chain::setState`](../../src/bartcore/chain.hpp), the warm start converted through the function this slice
+removes, and slice D's pins ("linear, other covariates", "linear into constant") expected no restatement and
+stand unedited. Commits: 0958cbe8 (the slice), 46fa002e (the notes and the retired cites), f3e08d73 (center
+spelled the American way in the lines the slice added) and this record.
+
+What it does. A fourth slot on `dbartsData`, `standardization`: one entry per forest, `list(center = ,
+scale = )` named by the leaf covariates, a scale `NA` for a covariate without spread, and `lengthscale` beside
+them on gp leaves whose model supplies none; `NULL` where no forest's leaves take a covariate. Construction takes
+a supplied standardization ([`SuppliedStandardization`](../../src/bartcore/data.hpp) on `SamplerOptions`,
+consumed at construction) in the leaf's derivation, where a view's parent constants are served
+([`suppliedMoments`](../../src/bartcore/model.hpp)); absent derives through today's code, and a sampler over a
+pre-built store drops one. [`Sampler::derivedRecords`](../../src/bartcore/sampler.hpp) returns the centers,
+scales (`NaN` without spread) and a derived gp lengthscale; [`recordDerived`](../../R/data.R) names and writes
+them; the bridge reads the slot ([`readStandardizationRecord`](../../src/R_interface_bartcore.cpp)) and hands it
+to the standard factory. No install writes the standardization: retired: [`LinearGaussianLeaf::restoreCalibration`](../../src/bartcore/model.hpp)
+and its gp twin are gone, so `setState`, a copy and a reload keep the sampler's and put slopes in as stored, a
+copy and a reload holding the source's through the record. [`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp)
+refuses kept gp draws recorded under another center, scale or lengthscale, live fits alone installing. The warm
+start's conversion is gone (retired: [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), gone
+with its call, its reason for a donor kept across single values and the report's `coefficients.kept`), and
+[`readWarmStartState`](../../src/R_interface_bartcore.cpp) no longer reads a donor's blocks.
+[`checkStandardizationRecord`](../../R/data.R) holds a record to the leaves at creation and at `setData`, which
+hands the call no record, as for slice 1's three.
+
+Departures from the steps and the test table:
+
+- "Through both creating factories": the standard one only. The multinomial factory's leaves take no
+  covariate, so a record has nowhere to go there; the R check refuses one, the bridge as backstop.
+- "Served as `ColumnStore::suppliedStandardization` serves a view": served at the same decision point in the
+  leaf, not as a store channel (the first call below).
+- The gp refusal is inside `lengthscaleStateFeasible`, which it extends, not beside it.
+- "Same frame exact" and "warm start, same frame" literals: as slice 1, a two-library compare in scratch
+  (scratch/sfp2/compare.R), tinytest pinning the doors against each other and the twin of a warm start.
+- "Copy holds it": `setData` onto a stretched column and `setPredictor` back, so a derivation would read
+  another standardization than the sampler holds.
+- "A branch on equal standardizations" cannot be written: nothing at the warm start compares
+  standardizations any more.
+
+Calls made in building, each with its alternative:
+
+- The supplied values ride `SamplerOptions` into the leaf's derivation, consumed at construction.
+  Alternative: a supplied channel on the column store per column, as a view's; not taken, the record being per
+  forest with a gp lengthscale the store has no place for, and a store channel would have to be cleared before
+  `setData` derives again.
+- The slot is `NULL` where no forest's leaves take a covariate (constant leaves, several forests,
+  multinomial). Alternative: always one entry per forest, all `NULL` there.
+- One refusal flag and one text for kept gp draws under another standardization or lengthscale ("another
+  covariate standardization or other lengthscales than this sampler holds", keeping the old pin's words).
+  Alternative: a second out flag through the facade's `setState`, a signature change, and a second text.
+- Centers and scales compare as the leaf divides by them, a scale recorded without spread as 1, so a
+  `setPredictor` that gives a constant column spread or takes it away does not refuse kept gp draws whose
+  kernel is the same. Alternative: compare the no-spread mark too.
+- A state with kept gp draws and no standardization blocks is installed, there being nothing to compare.
+  Alternative: refuse it.
+- The report's `coefficients.kept` and the verbose line's clause are removed. Alternative: keep the field,
+  always `FALSE`.
+- A record's lengthscale is read only by a gp leaf whose model supplies none, and ignored, not refused,
+  elsewhere. Alternative: refuse it on linear leaves and under a supplied lengthscale.
+- `checkDerivedRecord` takes the model and holds the record's count and names to the leaf covariates before
+  creation; an unnamed record is matched by position. Alternative: refuse after creation against the engine's
+  reader, as an ordered factor's grid is.
+- The data handle drops a record twice, in the bridge and in the engine's over-store constructor; the second
+  is what tests/cpp pins, the first keeps a record whose count fits no fold's leaves from the bridge's backstop
+  refusal. Alternative: the engine alone.
+- The new file compares a gp copy's and reload's state by their fits: a gp tree's flat leaf values move in
+  the last place when a tree is rebuilt, on 3a3fab8a as here (2.8e-17).
+
+Tests. tinytest test-standardization-record.R (150 expectations): the record at creation, named, equal to the
+reader and to the state's blocks, `NA` without spread, no lengthscale under a supplied one, `NULL` without
+covariates and with several forests, the object handed in carrying none; copy, reload and twin agree on linear,
+gp and two-covariate fixtures; p2's sequence keeps the sampler's own, slopes as stored, `TRUE` unforced and
+`NULL` forced, and predicts as a sampler made on those values; copy and reload hold the record after
+`setData` and `setPredictor`, linear and gp; `new()`, `dbarts()` and `bart()` take it and `xbart` ignores it;
+kept gp draws refused under another standardization and under another lengthscale handed as a record, live
+fits installed; a model's lengthscale over a record's; the warm start as stored, live and from a kept draw,
+against a twin on the donor's standardization, and across two single values; misfits refused at creation and
+at `setData`; a record-less object derives. tests/cpp `testSuppliedStandardization` (the reader, supplied
+equal to derived bit for bit with draws, other and no-spread values held, a model's lengthscale, a view
+deriving its own, an install keeping it, the gp refusal) and test_model.cpp's re-creation pin.
+
+Existing tests changed. Step 2.3's: in test-leaf-conversions.R, section 4 whole (the coefficients as stored,
+a kept draw against a twin, a broken donor record now installed, a record moved alone seeding the same draws
+through `bart`), section 1's warm start from a donor without spread and section 6's three warm starts (two
+single values now clean, a donor whose placeholder took values not the donor's function, the record moved
+alone); in test-warm-start-forms.R the single-value block, every case clean and as stored; in tests/cpp
+`testWarmStartStandardization` rewritten, and the warm starts of `testNoSpreadLiveConversion` and the report
+check of `testWarmStartForms`. A restore that expected the state's standardization: `testLinearLeafFormats`'s
+re-creation, now made with the live sampler's record supplied, and pinned to keep its own without it. Beyond
+step 2.3: test-derived-records.R's record helper gains the reader's fourth element, a shape and not a value
+derived where the record now holds it. No other test failed.
+
+Mutants, each alone on an export (scratch/sfp2/mutants.py), test-standardization-record.R unless named: the
+supplied path not the derived one bit for bit (dividing by a reciprocal), 4 failures; the state's
+standardization installed, 10; the record written `NULL` (derived at re-creation), the file stops at a copy's
+kept gp draws refused, and test-leaf-conversions.R 2; live fits refused too, the file stops; a record's
+lengthscale over the model's, 1; the conversion put back with its flag, 6, test-warm-start-forms.R 9,
+test-leaf-conversions.R stops, tests/cpp 13 checks; the flag alone, 2, test-warm-start-forms.R 3,
+test-leaf-conversions.R stops, tests/cpp 8. Own: the view's drop in the engine removed, tests/cpp 1 (tinytest
+survives, the bridge's drop covering it); both drops removed, 1 (xbart); a scale without spread not read as 1,
+test-leaf-conversions.R 10; the names check skipped, 2; the reader giving a model's lengthscale, 2; the gp
+refusal without its center and scale, 3, and without its lengthscale, 2.
+
+Size, against 3a3fab8a before this record: engine 136 added and 184 removed (stop 220), bridge and R 251 and
+71, tests 1036 and 173, help, NEWS and notes 57 and 40; 1480 added and 468 removed in all (stop 1700), against
+about 1100 planned.
+
+Gates, on the slice's libraries: tests/cpp plain and under ASAN and UBSAN, 409 ok, no failure and no
+diagnostic; the full suite in one process, 28441 expectations, none failed (28280 on 3a3fab8a); lint (0 lints),
+air, rc-codoc, win-drift, doc-freshness and verify-anchors clean; on a `--preclean` reference install the four
+snapshot files (14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55 identical against
+equivalence-32418b6e (`--strict-coverage`, in five scenario batches, 0 skipped), 19 of 19 against
+bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line; the exact
+gates of exact-gates.yaml at `quick`, the 42 gate commands on the shipped build and the two cross-host compares
+on the reference, all passing; the R-loaded run over ten touched and nearby test files with the package built
+under ASAN and UBSAN through `CXX20FLAGS` (the bridge's compile line carrying `-fsanitize=address`), 1668
+expectations, none failed, no diagnostic; `R CMD check --as-cran --no-manual` from a clean tarball, the Date
+field's NOTE alone; scratch/sfp2/compare.R against 3a3fab8a, 6 fixtures (linear, gp, two covariates, a
+covariate without spread, probit, constant) and 91 parts from creation through copy, reload, a twin, a
+same-frame warm start and a copy after `setPredictor`, every one identical but the four the slice moves,
+`setState` and a warm start across a standardization on the two linear fixtures; stan4bart's suite (its
+bartcore branch at ac80108, built against this slice), 1545 expectations, none failed. Not run: the x86-64 leg.
+
+Left open. The plan's rng block names bcf-equivalence-47838362 and 15 scenarios; the MANIFEST's current file,
+20eed7ed with 19, was used. A sampler saved by an earlier build with kept gp draws, whose leaf covariate
+`setPredictor` changed after creation, derives afresh at its first use (dec-B461) and is then refused, the
+kept draws being under another standardization; for the maintainer's mark.
