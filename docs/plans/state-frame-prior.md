@@ -954,3 +954,41 @@ scratch/sfp2/compare.R against 030b39f0, 6 fixtures and 91 parts, every one iden
 moves. The review's probes 8, 10 and 11 give each covariate its own center and scale and a finite gp
 lengthscale. Not run this round: the exact gates, the R-loaded sanitizers, `R CMD check` and stan4bart's
 suite, which the round above ran on code this round changes in R alone; the x86-64 leg.
+
+### Slice 2 third fix round
+
+On the reviewer's check of the second round (opus, 2026-10-23, FIX FIRST: one package defect), with the
+orchestrator's fix. Commits: aac40745 (the rule and its pins) and this record.
+
+- D1, a sampler's own copy misassigned: the record was keyed by name wherever the columns carried names, so
+  leaf columns named `c("", "")`, `c("x", "x")` or `c(NA, NA)` (as `cbind(a = u, v, w)` names the last two)
+  gave keys that `match()` sent to the first entry, and the copy, the reload and `dbarts(s$data)` held the
+  first covariate's center and scale for the second; a linear copy predicted up to 9.8 off its source with no
+  message, and a gp copy with kept draws was refused. [`leafCovariateNames`](../../R/data.R) now gives names
+  only where the leaf covariates' own names are all present, non-empty and distinct, deciding on the leaf
+  columns alone; otherwise the sampler writes the `columns` key, and covariates whose names cannot be keys
+  match a positional key by position and a named key derives. A record whose own names are missing, empty or
+  repeated cannot come from a sampler and is refused as malformed, naming the slot. Pinned: the three patterns
+  through a copy, a reload and `dbarts(s$data)`, linear and gp, the gp copy keeping its draws, each holding the
+  source's values, and a record with repeated or empty names refused. `?dbartsData` states the rule in place of
+  "where the data's columns have no names" and lists among the refused records a lengthscale not positive,
+  names missing, empty or repeated and `columns` not one position per center; the slot's comment and the design
+  note's table and smaller call state the rule.
+
+Mutants, each alone on an export of aac40745, test-standardization-record.R (255 expectations): D1, names
+keying the record whatever they are and read back as keys, as the second round had it, the file stops at the
+first gp copy (the kept draws refused), and with the gp cases taken out 21 failures, 15 of them the linear
+copy, reload and creation of the three patterns and 6 the refused names; D1w, the writer alone, the file stops
+at the first creation from such a sampler's data object, its own record refused as malformed; D1r, the reader taking such names as keys, 6 (the
+refused names); C1, 2; F2, 5, as in the round above.
+
+Size, against 186d04da: R 28 added and 15 removed, tests 45 and 0, help and notes 4 and 3; 77 added and 18
+removed, beside this record.
+
+Gates on aac40745, on its own libraries (`--preclean`, build mode shipped): test-standardization-record.R 255
+expectations, none failed; the full suite in one process, 28705 expectations, none failed; lint (0 lints), air,
+rc-codoc, win-drift, doc-freshness and verify-anchors clean, each on its own exit status; `R CMD check
+--as-cran` from a clean tarball, with the manual, the Date field's NOTE alone. The review's probes 12 and 13
+give every covariate its own values through a copy and a reload. Not run this round, which changed R alone and
+moved no draw a sampler's own record gives: tests/cpp, the bitwise compares, the exact gates and the compare
+against 030b39f0; the x86-64 leg.
