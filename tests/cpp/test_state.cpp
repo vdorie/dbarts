@@ -6004,12 +6004,6 @@ static void testWarmStartForms() {
   rngState = savedRngState;
 }
 
-// A warm start from a donor of another tree count. The sides a donor grown
-// without missing values owes are drawn once, over every tree of the sample a
-// chain takes, before any round: a recipient of fewer trees ends with its
-// generator where a twin holding all of the donor's trees ends, and the trees
-// it keeps carry the twin's sides. A donor of fewer trees is clean, the rest
-// single leaves; one of more is declined and, forced, altered.
 // A warm start across kinds of leaf (Sampler::installForests): each tree's
 // block is held to the donor's own leaves, gp leaves go only to gp leaves on
 // as many rows, a constant donor gives linear leaves slopes of 0 and is
@@ -6141,6 +6135,12 @@ static void testWarmStartLeafKinds() {
   printf("ok: warm start across kinds of leaf\n");
 }
 
+// A warm start from a donor of another tree count. The sides a donor grown
+// without missing values owes are drawn once, over every tree of the sample a
+// chain takes, before any round: a recipient of fewer trees ends with its
+// generator where a twin holding all of the donor's trees ends, and the trees
+// it keeps carry the twin's sides. A donor of fewer trees is clean, the rest
+// single leaves; one of more is declined and, forced, altered.
 static void testWarmStartTreeCounts() {
   std::uint64_t savedRngState = rngState;
   rngState = 161803u;

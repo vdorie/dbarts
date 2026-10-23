@@ -7024,7 +7024,8 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 // to other cut points, cut back, a monotone tree collapsed into order
 // included, or left without a side for missing values, each tree counted
 // once, and the single leaves that fill a forest of more trees than the
-// donor's; 'variance.trees' is NULL for a sampler with no variance forest.
+// donor's; 'variance.trees' is NULL where no variance tree is offered, the
+// sampler having no variance forest or starting its own fresh.
 // 'fits.cold': function fits started at 0. 'slopes': 1 for a linear donor's
 // slopes left behind, 2 for slopes started at 0 under a constant donor, else
 // 0. 'coefficients.kept': linear coefficients kept as built across a
@@ -8915,17 +8916,15 @@ static const char* readWarmStartState(SEXP stateExpr,
     SEXP cutsExpr = VECTOR_ELT(cutPointsExpr, static_cast<R_xlen_t>(j));
     // columns are matched by position: a subset split on one side only is
     // another column, and so is an ordered factor here on other points. A
-    // state records no cut points for a column of one value either, so a
-    // donor's column without them is told apart only from a numeric one here
-    // that has some
+    // numeric column records at least one cut point, one over a column of
+    // one value, so a donor's column without them is an unordered factor
     if (store.splitsBySubset(j) ? !Rf_isNull(cutsExpr)
                                 : Rf_isNull(cutsExpr) &&
                                     !store.cutPoints[j].empty()) {
       std::snprintf(message, sizeof message,
                     "warm-start donor's column %d is %s and this sampler's %s",
                     static_cast<int>(j + 1),
-                    Rf_isNull(cutsExpr) ? "an unordered factor or held one value"
-                                        : "numeric",
+                    Rf_isNull(cutsExpr) ? "an unordered factor" : "numeric",
                     Rf_isNull(cutsExpr) ? "numeric" : "an unordered factor");
       return message;
     }

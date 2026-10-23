@@ -950,7 +950,7 @@ refusals <- list(
     make(),
     framed(factor(as.integer(levels4))),
     paste(
-      "warm-start donor's column 4 is an unordered factor or held one value",
+      "warm-start donor's column 4 is an unordered factor",
       "and this sampler's numeric"
     ),
     "an unordered factor"
