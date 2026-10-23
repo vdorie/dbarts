@@ -781,6 +781,46 @@ for (names in list(c("a", "", ""), c("a", "x", "x"), c("a", NA, NA))) {
   }
 }
 
+# a leaf column whose name another column also has cannot key the record
+# either, though the leaves' names are distinct: a sampler on columns 2 and 3
+# of columns named x, b and x, carried to leaves on columns 1 and 2, and the
+# reverse, give each covariate its own values; a named record on such columns
+# matches the leaf named once and derives the other
+repeated <- unnamed
+colnames(repeated) <- c("x", "b", "x")
+for (columns in list(list(from = 2:3, to = 1:2), list(from = 1:2, to = 2:3))) {
+  info <- paste(columns$from, collapse = " ")
+  carrier <- make(data = repeated, leaf.prior = linear(columns = columns$from))
+  expect_identical(
+    carrier$data@standardization[[1L]]$columns,
+    columns$from,
+    info = info
+  )
+  carried <- dbarts::dbarts(
+    carrier$data,
+    leaf.prior = linear(columns = columns$to),
+    control = controlWith()
+  )
+  expect_identical(
+    inForce(carried),
+    freshOn(repeated, columns$to),
+    info = info
+  )
+}
+namedCarrier <- make(
+  data = `colnames<-`(unnamed, c("a", "b", "x")),
+  leaf.prior = linear(columns = 2:3)
+)
+renamed <- namedCarrier$data
+renamed@x <- repeated
+renamed@cutPoints <- NULL
+fromNamed <- dbarts::dbarts(
+  renamed,
+  leaf.prior = linear(columns = 1:2),
+  control = controlWith()
+)
+expect_identical(inForce(fromNamed), freshOn(renamed@x, 1:2))
+
 # a gp leaf taking a covariate the record lacks derives its lengthscale too
 gpCarried <- make(leaf.prior = gp(columns = "a"))
 gpBoth <- dbarts::dbarts(
