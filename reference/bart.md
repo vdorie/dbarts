@@ -1050,29 +1050,36 @@ print(x, ...)
   trees from the prior: either a `bart` object fit with
   `keepSampler = TRUE` or a
   [`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md).
-  The donor must share this fit's predictors and DART setting. A donor
-  of fewer trees than this fit is taken whole, the rest of the trees
-  starting as single leaves at zero, and a donor of more gives the trees
-  whose fitted values vary most over this fit's rows. Under `blocks`
-  each block takes the donor's trees it can hold as they stand, so a
-  donor with the same blocks is taken whole, and where not all go in so,
-  the trees that vary most within it. The fit takes all of the earlier
-  fit that this one can hold: a split that is not on this fit's cut
-  points is moved to the nearest one, a tree this fit cannot hold as it
-  stands is cut back at the split that does not fit, and a monotone tree
-  whose leaf values are out of order is cut back where they are. With
+  The donor must share this fit's predictors. DART weights go only
+  between two DART fits and a variance forest only where both have one:
+  a part only one side has is left behind, or starts as a new fit's. A
+  donor of constant leaves seeds linear ones with slopes of zero, a
+  donor of linear leaves seeds constant ones, or linear ones on other
+  covariates, at each leaf's intercept, and Gaussian-process leaves go
+  only to Gaussian-process leaves fit to the same rows. A donor of fewer
+  trees than this fit is taken whole, the rest of the trees starting as
+  single leaves at zero, and a donor of more gives the trees whose
+  fitted values vary most over this fit's rows. Under `blocks` each
+  block takes the donor's trees it can hold as they stand, so a donor
+  with the same blocks is taken whole, and where not all go in so, the
+  trees that vary most within it. The fit takes all of the earlier fit
+  that this one can hold: a split that is not on this fit's cut points
+  is moved to the nearest one, a tree this fit cannot hold as it stands
+  is cut back at the split that does not fit, and a monotone tree whose
+  leaf values are out of order is cut back where they are. With
   `verbose = TRUE` one line after the setup lines says how many trees
-  were taken and how many were moved or cut back. Only its trees, and
-  its `sigma` and `k` where this fit draws them, carry over: the fit
-  runs under its own prior and fixed values, the donor's leaf values,
-  `k` and `sigma` go in as stored on the sampler's internal scale and
-  are not converted to this fit's response (a donor fitted to a response
-  on another scale seeds the same internal numbers, which the first
-  draws move where this fit's data say), and each chain starts from a
-  different donor sample so multiple chains stay overdispersed. A warm
-  start biases early draws toward the donor, so it shortens burn-in
-  rather than removing it; keep a non-zero `n.burn`. Multi-forest
-  samplers refuse it: a fit whose forests carry amplitude bases (a
+  were taken, how many were moved or cut back, and what of the donor was
+  left behind or started fresh. Only its trees, and its `sigma` and `k`
+  where this fit draws them, carry over: the fit runs under its own
+  prior and fixed values, the donor's leaf values, `k` and `sigma` go in
+  as stored on the sampler's internal scale and are not converted to
+  this fit's response (a donor fitted to a response on another scale
+  seeds the same internal numbers, which the first draws move where this
+  fit's data say), and each chain starts from a different donor sample
+  so multiple chains stay overdispersed. A warm start biases early draws
+  toward the donor, so it shortens burn-in rather than removing it; keep
+  a non-zero `n.burn`. Multi-forest samplers refuse it: a fit whose
+  forests carry amplitude bases (a
   [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
   term, or a data object built with `bases`) errors by name, naming its
   forest count, because a donor install is not tested at more than one
@@ -2125,7 +2132,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001770
+#> total seconds in loop: 0.001794
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2175,7 +2182,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.002148
+#> total seconds in loop: 0.002196
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

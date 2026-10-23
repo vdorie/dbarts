@@ -1137,13 +1137,12 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 
   For `installTrees`, the fit whose forests seed this sampler: another
   `dbartsSampler`, or a `bart` object fit with `keepSampler = TRUE`. The
-  donor must share this sampler's predictors and DART setting; a donor
-  of more trees gives some of them, and a donor on other cut points has
-  its splits moved onto this sampler's under `forceUpdate = TRUE`, and
-  needs no move where every split it holds is one of this sampler's cut
-  points, as on a finer grid that holds the donor's; and a different
-  center and scale of a `linear` leaf's covariates is allowed (see ‘Warm
-  starts’).
+  donor must share this sampler's predictors; a donor of more trees
+  gives some of them, and a donor on other cut points has its splits
+  moved onto this sampler's under `forceUpdate = TRUE`, and needs no
+  move where every split it holds is one of this sampler's cut points,
+  as on a finer grid that holds the donor's; and a different center and
+  scale of a `linear` leaf's covariates is allowed (see ‘Warm starts’).
 
 - samples:
 
@@ -1760,8 +1759,21 @@ value here is one the covariate is centered at; a donor column that
 `setPredictor` moved to another single value is converted by the
 formula, as under `setData`. Each chain keeps its own random-number
 stream and redraws everything else, so several chains seeded from one
-donor stay overdispersed. A donor with a different DART setting is
-refused rather than silently reshaped. A donor of fewer trees than this
+donor stay overdispersed. DART weights go only between two DART fits and
+a variance forest only where both have one: a donor's that this sampler
+has no place for is left behind, and this sampler's own, where the donor
+has none, starts as a new fit's once the donor goes in, DART drawing its
+weights from the trees taken at the first sweep; neither is judged, and
+a donor that is declined leaves them as they were. A donor of constant
+leaves into linear ones gives each leaf its value as intercept and
+slopes of zero, the donor as it stands. A donor of linear leaves into
+constant ones, or into linear ones on another number of covariates,
+leaves its slopes behind, each leaf starting at the intercept the donor
+stores. A donor of Gaussian-process leaves where this sampler's are of
+another kind, or the reverse, or one fit to another number of rows, is
+an error naming the two, as is a donor fit to another number of
+predictors or one whose column is an unordered factor where this
+sampler's is not, or the reverse. A donor of fewer trees than this
 sampler is taken whole, its trees in its order and the rest starting as
 single leaves at zero, or at one in a variance forest. Under `blocks`,
 whatever the donor's tree count, each block in turn takes, in the
@@ -1791,20 +1803,20 @@ when it records a side for missing values on a column that has never
 held one here; or when a monotone forest's leaf values are out of order.
 A donor is also declined when it holds more trees than this sampler's
 forest or, under `blocks`, trees the blocks cannot take as they stand,
-when it holds slopes or Gaussian-process fits that a sampler of constant
-leaves does not read, when its Gaussian-process fits were recorded on
-other cut points, and when a linear leaf's covariate holds one value in
-both fits, a different one in each.
-`installTrees(donor, forceUpdate = TRUE)` installs such a donor and
-returns `NULL` invisibly, whether or not anything was changed: a split
-off the cut points moves to the nearest one inside the range the splits
-above it leave or, with none left, becomes one leaf with everything
-beneath it; a split with a side no row reaches, and the first split from
-the root that its forest does not allow, likewise become one leaf, at
-the mean of the leaves it replaces weighted by the rows each held; a
-side is dropped; a monotone tree whose leaf values are out of order is
-cut back where they are; Gaussian-process fits start at zero; leaf
-values the sampler does not read are left behind; and of a donor holding
+when it holds linear slopes this sampler's leaves do not take, constant
+leaves or linear ones on another number of covariates, when its
+Gaussian-process fits were recorded on other cut points, and when a
+linear leaf's covariate holds one value in both fits, a different one in
+each. `installTrees(donor, forceUpdate = TRUE)` installs such a donor
+and returns `NULL` invisibly, whether or not anything was changed: a
+split off the cut points moves to the nearest one inside the range the
+splits above it leave or, with none left, becomes one leaf with
+everything beneath it; a split with a side no row reaches, and the first
+split from the root that its forest does not allow, likewise become one
+leaf, at the mean of the leaves it replaces weighted by the rows each
+held; a side is dropped; a monotone tree whose leaf values are out of
+order is cut back where they are; Gaussian-process fits start at zero;
+slopes the sampler does not take are left behind; and of a donor holding
 more trees, or under `blocks` one whose trees the blocks cannot all take
 as they stand, the trees whose fitted values vary most go in. The
 sampler's cut points and their weights are the same before and after. A
