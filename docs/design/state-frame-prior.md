@@ -118,7 +118,7 @@ and if values are supplied, use them. If explicit arguments are given, we could 
   adoption; the field is then the engine's state) stays.
 - A warm start. The recipient keeps its own values, and a linear donor's slopes go in as stored (dec-B457),
   where today they are converted from the standardization the donor's state records
-  ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), which goes). The seeded fit then
+  (retired: [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), gone in slice 2). The seeded fit then
   starts away from the donor's function where the two standardizations differ, and the next draws move it.
 - Saved objects. A 0.9-34 sampler is refused at its first use ([`refuseLegacyState`](../../R/tombstones.R)), as
   today; a 0.9-34 data object has no slots and derives, as 0.9-34 did. An object saved by an earlier bartcore
@@ -193,7 +193,7 @@ dec-B450 defers past the merge.
   path, unchanged.
 - [`Chain::setState`](../../src/bartcore/chain.hpp) stops calling `restoreCalibration` on an install; the
   slopes go in as stored, and the warm start's conversion,
-  [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), goes with it. `adoptGrid` in
+  retired: [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), goes with it (gone in slice 2). `adoptGrid` in
   [`Sampler::setState`](../../src/bartcore/sampler.hpp) goes (dec-B461).
 - One reader of the four values, read by the bridge after every call that can change one.
 - The bridge resolves the R arguments and the carried slots into the per-value choice; the engine does not

@@ -99,6 +99,11 @@ recipient's shape, and in R ([`refuseMultiForestWarmStart`](../../R/bartcore.R),
   kind is an error naming both kinds. Settled here: a linear donor with another number of covariates is
   reduced to its values at the center and then seeds slopes of 0, the two halves of the ruling in turn, FALSE
   unforced. The bridge reads the donor's kind from the donor's own blocks.
+- dec-B457, "install as stored": a linear donor on as many covariates seeds its slopes as stored, read
+  under the recipient's standardization, whose own the recipient keeps; the donor's is not read. Such a
+  donor is clean whatever the two standardizations, a covariate of one value on both sides included, and
+  the seeded fit starts away from the donor's where they differ
+  ([state-frame-prior.md](state-frame-prior.md)).
 - dec-B326, "One line under verbose = TRUE, alongside the setup bart already prints." Its wording is section
   3 (f). Nothing is printed without `verbose`, and no warning is raised.
 - dec-B343, dec-B418, dec-B440 stand as built: sigma and k only where the recipient draws them, nothing

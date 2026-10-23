@@ -30,7 +30,7 @@ Change: [`convertLinearCoefficients`](../../src/bartcore/model.hpp) loses `guard
 skip where neither side has spread and runs the formula otherwise. A single-valued side divides by its
 placeholder 1, as the saved-draw path already does. [`convertFlatLinearTree`](../../src/bartcore/chain.hpp)
 loses the argument. Its warm-start caller in
-[`convertDonorStandardization`](../../src/bartcore/chain.hpp) drops it, and so does the direct live call to
+retired: [`convertDonorStandardization`](../../src/bartcore/chain.hpp) (gone since state-frame-prior slice 2) drops it, and so does the direct live call to
 `convertLinearCoefficients` in [`applyNewData`](../../src/bartcore/chain.hpp). The comments above
 [`LeafStandardization`](../../src/bartcore/model.hpp) and on the conversion are rewritten.
 

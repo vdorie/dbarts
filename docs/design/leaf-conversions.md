@@ -10,8 +10,9 @@ covariate standardization: a centre and a scale per leaf covariate, and on a gp 
 of a kept draw reads whatever units the sampler holds at the time
 ([`Chain::addFlatPredictions`](../../src/bartcore/chain.hpp)). So a call that re-derived either set changed
 what every kept draw returned, and a forest handed from one sampler to another was read in the second
-sampler's standardization. The rule now is that a draw the sampler has kept is the function that was drawn,
-and a seeded forest starts at its donor's function; the numbers are rewritten when the units move.
+sampler's standardization. The rule now is that a draw the sampler has kept is the function that was drawn;
+its numbers are rewritten when the sampler's units move. An install moves no units and rewrites nothing: a
+state and a seeded forest go in as stored, read in the sampler's own units (dec-B418, dec-B457).
 
 ## What was measured
 
@@ -24,7 +25,7 @@ Before the change, on fixtures with a response sd of about 2:
 | `setResponse(3 y + 10, updateScale = TRUE)`, and `setData` with that response | every kept draw, any leaf | up to 20.7; equal to 3 f + 10 | 7e-15 |
 | `setOffset(-5, updateScale = TRUE)` | every kept draw | 5 | 4e-15 |
 | the same re-anchor under a variance forest | kept variance draws | times 9 | 1e-15 |
-| a warm start, donor centre and scale -0.019, 0.973, recipient 4.94, 2.92 | seeded fit against the donor's | up to 6.30 | 8e-15 |
+| a warm start, donor centre and scale -0.019, 0.973, recipient 4.94, 2.92 | seeded fit against the donor's | up to 6.30 | up to 6.30: the slopes go in as stored (dec-B457) |
 | a warm start from another cut grid | the recipient's centre and scale (and gp lengthscale) | replaced by ones re-derived from its rows | kept |
 
 A constant leaf's kept draws never moved across `setData`. With `updateScale = FALSE` nothing moved and
@@ -68,14 +69,20 @@ nothing moves.
   state brings go in as stored and are read against the recipient's transform (dec-B418;
   [state-not-model.md](state-not-model.md)). A re-anchor keeps the kept draws' functions, and an install
   across transforms does not.
-- A warm start converts the donor's coefficients, live or from a kept draw, from the standardization the
-  donor's state records into the recipient's, as live coefficients are
-  ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), the blocks read by
-  [`readWarmStartState`](../../src/R_interface_bartcore.cpp)). The recipient keeps its centre, scale and
-  lengthscale on either grid: no install re-derives them, and the remap arm that did,
-  retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), is gone with the warm start's two forms (dec-B231, derived data changes only by a call that names it). A donor that records no
-  standardization is read as before. A record that does not fit the leaf is refused with nothing touched.
-- `setState` is unchanged: it installs the standardization a state holds.
+- A warm start puts the donor's coefficients in as stored, live or from a kept draw, read under the
+  recipient's standardization (dec-B457); the donor's is not read
+  ([`readWarmStartState`](../../src/R_interface_bartcore.cpp)). Where the two standardize a covariate
+  differently the seeded forest starts away from the donor's function and the draws move it; a covariate of
+  one value on each side is read at each side's centre, so between two such the seeded fit is the donor's on
+  the training rows. The recipient keeps its centre, scale and lengthscale on either grid: no install
+  re-derives them, and the remap arm that did,
+  retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), is gone with the warm start's
+  two forms (dec-B231, derived data changes only by a call that names it).
+- `setState`, a `copy` and a reload keep the sampler's standardization the same way, the slopes going in as
+  stored; a copy and a reload take the standardization the data object records
+  ([`recordDerived`](../../R/data.R)), so they hold the source's. A state's standardization blocks record
+  what it was stored under: [`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp) refuses kept gp
+  draws made under another centre, scale or lengthscale, and nothing else reads them.
 
 ## One sequence whose posterior changes
 

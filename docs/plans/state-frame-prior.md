@@ -182,7 +182,7 @@ are agent-made and the steps follow them.
     sampler's standardization stays and the slopes go in as stored (dec-B457); a gp forest whose kept
     draws were made under another center, scale or heuristic lengthscale is refused beside
     [`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp). The warm start's conversion goes:
-    [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), its call in `Sampler::installForests`
+    retired: [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp) (gone, as built), its call in `Sampler::installForests`
     and its `keptAcrossValues` reason for an install that is not clean (about 70 lines removed).
 2.2 Bridge and R (about 110 lines): the slot, its accessor and check, its write-back; the refusal's text
     beside the lengthscale one; [`readWarmStartState`](../../src/R_interface_bartcore.cpp) no longer reads a
@@ -305,7 +305,7 @@ The serial engine order: warm-start-salvage slice C (wt/warm-start-c), forest-mu
 - forest-multiplier push 1: [`parseData`](../../src/R_interface_bartcore.cpp) and the anchor on a constant
   response; slice 1 moves that anchor and carries its value ("constant response").
 - warm-start-salvage slice D: leaf kinds, [`readWarmStartState`](../../src/R_interface_bartcore.cpp) and
-  [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp). It lands first, as planned, and needs
+  retired: [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp) (gone in slice 2). It lands first, as planned, and needs
   no change: where it drops a donor's slopes for other covariates it already makes no restatement, and its
   pins expect none. Slice 2 here then removes the conversion and its flag for every warm start, and rewrites
   the pins slice A of that plan and leaf-conversions left on it (step 2.3).

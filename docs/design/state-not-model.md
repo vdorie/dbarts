@@ -22,7 +22,7 @@ nothing else, and installing one should leave the model alone.
 | sigma, k, the Student-t df, the negative-binomial shape, the DART concentration | state where drawn, model where fixed | written only where drawn | installed only where the recipient draws it; absent keeps the recipient's |
 | `fit.scale` | the response mapping the chain was under when the state was read | a record | recorded, not compared: no install reads it (dec-B418) |
 | `cutPoints` and `cutMass` | the cut grid the thresholds were stored on, and its weights | a record | compared by every install, which writes neither and puts the trees onto the sampler's grid; a copy and a reload take the data object's record ([install-surface.md](install-surface.md)) |
-| a leaf's covariate standardization, a heuristic gp lengthscale | the frame the slopes and kernels are read through | scratch, frozen | installed as is |
+| a leaf's covariate standardization, a heuristic gp lengthscale | the frame the slopes and kernels are read through | a record | never installed: the sampler keeps its own and slopes go in as stored (dec-B457); saved gp draws under another are refused; a copy and a reload take the data object's record |
 | a supplied gp lengthscale | the kernel | model | kept; saved draws under another are refused |
 | weights and censoring digests | which data the latents were drawn against | data, by digest | compared; mismatches are reconciled |
 
@@ -83,11 +83,10 @@ a host that splices chains across transforms restores each into a sampler at tha
 It does not hold in four places.
 
 - The frame. The cut grid, a linear or gp leaf's covariate standardization and a heuristic lengthscale are
-  derived from data once and then kept while the data moves, so only the state still has them. They shape a
-  prior too - the split rule, the slope prior, the kernel. A live `setState` no longer installs the grid or
-  its weights (dec-B449), and a copy and a reload take them from the data object's record; the
-  standardization and the lengthscale still install with the state as they are. This is the TODO item
-  state-frame-prior.
+  derived from data once and then kept while the data moves. They shape a prior too - the split rule, the
+  slope prior, the kernel. No install writes any of them (dec-B449, dec-B457), and a copy and a reload take
+  them from the data object's record; `setData` still derives them all, which the TODO item
+  state-frame-prior's last slice gives a choice.
 - Writes through the C API. A host that re-anchors or writes a fixed sigma through `dbarts.h` changes the
   engine and not the R object, so a sampler re-created from that object holds the last values R saw.
 - A sampler made from a model and data as a first creation - `new("dbartsSampler", control, model, data)` -
@@ -139,8 +138,8 @@ Pairs of one family that differ in a value held fixed - the Student-t df or the 
 in one and drawn in the other - install, as does a monotone sampler's state into a plain one; a plain state
 goes into a monotone sampler only when its leaf values are in order. The warm start, `installTrees`, reads no
 latents and is the way to start a sampler from a fit of another family: it takes the donor's trees and, where
-the sampler draws them, its sigma, k and DART state. A linear leaf's coefficients are restated from the
-donor's covariate standardization into the sampler's own ([leaf-conversions.md](leaf-conversions.md)).
+the sampler draws them, its sigma, k and DART state. A linear leaf's coefficients go in as stored under the
+sampler's own covariate standardization, the donor's not read ([leaf-conversions.md](leaf-conversions.md)).
 
 ## Where it lives
 

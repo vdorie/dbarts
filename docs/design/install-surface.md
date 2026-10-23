@@ -220,9 +220,9 @@ installed as it holds its trees and FALSE, the sampler untouched, for one that w
 forced it installs with the changes and returns NULL invisibly. A donor is changed where a row of the
 table above applies to a tree a chain takes, where a live threshold is no point of the sampler's cut grid,
 and where its leaves would not be the donor's: gp fits recorded on other cut points, which start at 0;
-slopes or gp fits that a sampler of constant leaves does not read; and linear coefficients kept across a
-covariate that holds one value on each side and not the same one. The sides drawn under dec-B440 and
-coefficients restated in the sampler's standardization are how a donor is read and are not changes.
+and slopes or gp fits that a sampler of constant leaves does not read. The sides drawn under dec-B440 are
+how a donor is read and are not a change; linear coefficients go in as stored under the sampler's own
+standardization, the donor's not read (dec-B457), and are not one either.
 
 The forced move across grids is the state install's routine handed the warm start's own install step
 ([`Sampler::installAcrossGrids`](../../src/bartcore/sampler.hpp)), so a merged leaf weighs by rows there

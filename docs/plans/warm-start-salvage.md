@@ -96,7 +96,7 @@ Code as it stood before slice A:
 
 - [`Sampler::installForests`](../../src/bartcore/sampler.hpp) assembles each chain's trees from the donor
   sample it takes, restates linear coefficients
-  ([`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp)), draws the missing-value sides
+  (retired: [`Chain::convertDonorStandardization`](../../src/bartcore/chain.hpp), gone since state-frame-prior slice 2), draws the missing-value sides
   ([`Chain::drawDonorMissingDirections`](../../src/bartcore/chain.hpp)), refuses on four scratch passes,
   which slice A removed (retired: [`Chain::interactionStateFeasible`](../../src/bartcore/chain.hpp);
   retired: [`Chain::columnMaskStateFeasible`](../../src/bartcore/chain.hpp);

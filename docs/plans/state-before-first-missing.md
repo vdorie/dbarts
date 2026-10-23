@@ -131,7 +131,7 @@ of 7 splits on x1 send left before any sweep, 8 and 4 after 31. Built after step
   with no coin and no generator read, as when nothing is raised. Of another length: `shapeMismatch`.
 - Where: in [`Sampler::installForests`](../../src/bartcore/sampler.hpp), on `install[c]`, the scratch it
   reassembles per receiving chain from the donor's live trees or the slot asked for, after
-  [`convertDonorStandardization`](../../src/bartcore/chain.hpp) and before `checkContainment`, whose checks then
+  retired: [`convertDonorStandardization`](../../src/bartcore/chain.hpp) (gone since state-frame-prior slice 2) and before `checkContainment`, whose checks then
   judge the completed trees. The draw so precedes both collapses of emptied splits
   ([`Chain::rebuildLiveForest`](../../src/bartcore/chain.hpp), `rebuildLiveForestRemapped`) and the monotone
   reseed. It reads no grid, and the scratch is its copy.

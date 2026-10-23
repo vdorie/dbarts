@@ -165,7 +165,8 @@ Messages, exact; `<caller>` is `$setResponse`, `$setOffset`, `dbarts_sampler_set
    [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) centres a constant column at its value;
    both leaf models report the mark from their gathered covariates
    ([`standardizedColumnHasSpread`](../../src/bartcore/model.hpp)), and
-   [`LinearGaussianLeaf::restoreCalibration`](../../src/bartcore/model.hpp) (and the gp twin) reads `NA` as 1.
+   retired: [`LinearGaussianLeaf::restoreCalibration`](../../src/bartcore/model.hpp) (and the gp twin, both gone since
+   state-frame-prior slice 2) reads `NA` as 1.
    One routine converts a coefficient block between two standardizations, with a switch for the live guard.
    [`Chain::getState`](../../src/bartcore/chain.hpp) writes a marked scale as NaN,
    [`Chain::leafCalibrationIsValid`](../../src/bartcore/chain.hpp) accepts it beside a finite centre, and the
