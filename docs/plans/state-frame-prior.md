@@ -1283,3 +1283,33 @@ built against this tip), 1545 expectations, none failed. Not run: the x86-64 leg
 
 Left open: the count pair's recorded form, which differs between creation and `setData` and moves no draw; the
 agent call above and the build's reading of the family at the gp refusal, for the maintainer's mark.
+
+Second check (the same reviewer, on 782e381b, FIX FIRST: three findings), with the orchestrator's decision on the
+second. Commits: 319686aa (the count window and the two pins), ac995fcd (the note) and this record.
+
+- The gp lengthscale reset in the narrowing had no pin: the gp tests replaced a covariate by an affine map, which
+  leaves the median pairwise distance of the standardized values where it was. Pinned: on gp leaves over a and
+  b, `setPredictor(x[, 1]^3, "a", TRUE, updateStandardization = TRUE)` gives a the center, scale and lengthscale
+  of a sampler made on the new values (lengthscale 0.729 where 1.031 was held), b's held.
+- A count range carried at another width, the orchestrator's decision: [`checkDerivedRecord`](../../R/data.R)
+  reads it by its first number and writes `c(center, center + 1)`, so creation, `setData`, a copy and a reload
+  record the window the sampler holds, an equal pair still refused. Creation had kept the pair as given while
+  `setData` rewrote it, and the gp refusal compares both numbers, so an nbinom gp sampler made from
+  `c(c, c + 4)` and run was refused the object it was made from (the review's probe2). This replaces the round's
+  item that kept the pair at creation and its left-open entry; slice 1's "family as is" pin now expects the
+  window. Pinned: creation from a widened pair records the window, draws as one made from the window, and is
+  served the object it was made from once it holds draws. The help of `dbartsData` and the design note's smaller
+  call say the sampler records the window.
+- The leaf-conversion note names the four setters whose `updateScale = TRUE` a gp sampler holding saved draws
+  refuses, `setResponse`, `setOffset`, `setWeights` and `setActiveRows`, and says only `setData`'s refusal reads
+  the family.
+
+Mutants, each alone on the round's code: Ma, the lengthscale held at a marked covariate, test-setdata-records.R
+(193 expectations) 2 failures, where 186 of 186 passed before the pin; N2a, the window not written,
+test-setdata-records.R 1 and test-derived-records.R 1; N2b, the window skipped at creation alone,
+test-setdata-records.R 3 (the record, the hand-back refused, the record after it) and test-derived-records.R 1.
+Size: R 8 added and 2 removed, tests 36 and 2, help and notes 8 and 6. Gates on ac995fcd (nothing under src/
+changed, so no reference install or bitwise compare): tests/cpp 410 ok, plain and under ASAN and UBSAN; the full
+suite in one process, 28907 expectations, none failed; test-setdata-records.R 193, test-derived-records.R 195,
+test-standardization-record.R 260 and test-mutate-then-serialize.R 144, none failed; lint (0 lints), air,
+rc-codoc, win-drift, doc-freshness and verify-anchors clean, chained.
