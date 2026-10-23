@@ -87,7 +87,7 @@ each value back. Closes TODO `state-frame-prior` and unblocks response-scale-row
   calls of `unitOf` in [test-forest-sd-unit.R](../../inst/tinytest/test-forest-sd-unit.R). Of the suite's
   126 `setData` calls in 37 files about 20 hand back a sampler's data object or an edit of it, most to pin a
   refusal that comes first; five in test-response-scale-rows.R expect the derivation and its fallback
-  warning, and ["donor$setData(donor$data)"](../../inst/tinytest/test-sampler-boundary-refusals.R), after
+  warning, and ["donor$setData(donor$data"](../../inst/tinytest/test-sampler-boundary-refusals.R), after
   a doubled column, will hold the grid and may change the `installTrees` refusal it leads to.
 
 ## Decision
@@ -1034,3 +1034,157 @@ for the slice (136 at the build); the slice with its fixes adds about 2280 again
 fix rounds asked for.
 
 Left: slice 3, built on slice 2 before its fix rounds and moved onto this landing next.
+
+## Slice 3 as built
+
+Built on 84122988: bartcore a563d753 with slice 1 (as rebased onto a000d239) and slice 2 on top; the full suite
+on that base, in one process, 28441 expectations, none failed. The steps held against that tip:
+[`Sampler::setData`](../../src/bartcore/sampler.hpp) derived every value, `bartcore_setData` refused a gp sampler
+holding kept draws outright, `setData` handed the call no carried record (slice 1's last call), `setPredictor`
+took no `updateStandardization`, and the five response-scale-rows sequences, the boundary-refusals donor and the
+gp pins of test-leaf-conversions.R stood as step 3.4 names them. Commits: f1ba4ea4 (the slice), 0fd6f90f (the
+notes, the design note's Status and TODO) and this record.
+
+What it does. `setData(newData, updateState = NULL, updateCutPoints = NULL, updateScale = NULL,
+updateStandardization = NULL)`: an argument given is followed, `"position"`, `"value"` or `TRUE` deriving and
+`"none"` or `FALSE` keeping the sampler's own; `NULL` takes the record the object carries, by presence alone,
+and derives one it lacks ([`setDataChoices`](../../R/bartcore.R), dec-B458, dec-B460). A carried grid moves with
+its columns where [`alignDataFactorLevels`](../../R/bartcore.R) puts them in the sampler's order, and
+[`checkDerivedRecord`](../../R/data.R) now runs after the alignment; a record the call does not take is not
+handed on. The engine's whole-data replacement takes a [`DataReplacement`](../../src/bartcore/data.hpp), per value
+derive, keep or supply: a kept grid quantizes the new rows on the grid in force and moves no split, a supplied
+one moves the splits of a column whose grid it changes by value, a derived one by the placement asked for
+([`Sampler::setData`](../../src/bartcore/sampler.hpp)); a kept standardization regathers the leaf covariates for
+the new rows under the constants in force and a supplied one takes the host's
+([`Chain::replacementStandardization`](../../src/bartcore/chain.hpp)), a linear leaf's coefficients, live and
+kept, rewritten wherever it moves ([`Chain::convertLinearForest`](../../src/bartcore/chain.hpp), dec-B329); a kept
+or supplied range installs the response under that transform through a new response-model virtual,
+[`ResponseModel::setDataInScale`](../../src/bartcore/model.hpp), which gaussian, Student-t, aft and nbinom
+override and the families without units take as `setData`, the kept draws restated only where the transform
+moves. `setPredictor(..., updateStandardization = FALSE)`: `TRUE` derives the standardization over the values an
+accepted update leaves and rewrites a linear leaf's coefficients into it
+([`Sampler::rederiveStandardization`](../../src/bartcore/sampler.hpp), a facade virtual). The bridge's gp refusal
+([`bartcore_setData`](../../src/R_interface_bartcore.cpp)) is narrowed to a call that derives the standardization
+or, where the family has one, the range, or takes a record whose numbers differ from the sampler's
+([`standardizationRecordIsHeld`](../../src/R_interface_bartcore.cpp)), with dec-B237's remedy in its text; the
+grid never refuses. The predictor entries refuse `updateStandardization = TRUE` on a gp sampler holding kept
+draws before anything moves. A count sampler's mask installed by `setData` re-reads the center only where the
+range is derived ([`installWeightsMask`](../../R/bartcore.R)), and the fallback warning is raised only there. The
+help's Saving section carries the design's table; NEWS says `setData` uses the record.
+
+Departures from the steps and the test table:
+
+- Step 3.1 has `setPredictor` and `updatePredictor` take `updateStandardization` in the engine. They do not: one
+  engine call, `Sampler::rederiveStandardization`, which the two bridge entries (step 3.2, which take the flag)
+  make after an accepted update. It serves both setters and response-scale-rows slice D's `setWeights` and
+  `setActiveRows` (dec-B465), and the predictor transaction's virtuals keep their signatures.
+- "The response installed without moving the transform" goes through the new virtual `setDataInScale`, which
+  also carries a supplied range; a family that carries no units has none to hold.
+- "Fresh object neutral": as slices 1 and 2, a two-library compare in scratch (scratch/sfp3/compare.R), and
+  tinytest pins an absent record against the three arguments asking for the derivation, bitwise.
+- "Fallback where derived": the five sequences warn with `updateScale = TRUE` (step 3.4); the held range's
+  silence is pinned in the new file.
+- The plan names no test file: test-setdata-records.R.
+- The plan's Context cite of the donor's `setData` is shortened to the text still in the file.
+
+Calls made in building, each with its alternative:
+
+- R resolves each choice into a word the bridge reads (`"value"`, `"position"`, `"none"` or `"record"`;
+  `"derive"`, `"keep"` or `"record"`) and drops the records it does not take. Alternative: the bridge reading
+  presence off the slots, as the design's sketch has it; not taken, R needing the range's resolution too, for
+  the fallback warning and the count mask, so there is one resolver.
+- Under a family with no range (probit, logistic, ordinal) the range choice is moot, and the gp refusal reads
+  the range only where the family has one, so such a gp sampler holding kept draws takes `setData(s$data)`,
+  whose absent range record reads as derive. Alternative: refuse a derived range blind to the family, as
+  `refuseSavedGPDrawReanchor` does for `setResponse` and `setOffset`; not taken, it would refuse the sampler's
+  own data object.
+- A gp record without a `lengthscale` where the leaf derived one is refused, the call then deriving it.
+  Alternative: derive it over the record's center and scale and refuse only a different result, a refusal that
+  depends on the values.
+- Centers and the range compare bit for bit and scales as the leaf divides by them, a scale without spread as
+  1, as slice 2's install compares. Alternative: a tolerance.
+- A supplied grid equal to the one in force moves nothing (`splitsToMove` narrows the old grids to the columns
+  that changed), and a supplied range or standardization equal to the one in force rewrites nothing, so
+  `setData(s$data)` is a keep bit for bit. Alternative: move every column by value, also the identity on an
+  unchanged grid but a walk of every tree.
+- A held transform that does not move leaves sigma and the residual prior untouched. Alternative: convert them
+  as a derivation always does, a round trip (mutant O1 below, which no test tells apart).
+- `updateStandardization = TRUE` with `forceUpdate = "partial"` is refused, as `updateCutPoints` is there; on
+  leaves that take no covariate it is accepted and derives nothing; after an unforced update that was rolled
+  back it derives nothing. Alternatives: derive after the per-observation session; refuse on such leaves.
+- A carried grid is permuted with the columns only where it has one entry per column; otherwise
+  `checkDerivedRecord`, after the alignment, refuses it naming the slot. Alternative: check the form before the
+  alignment as well.
+- A held range names no rows of the new data as the ones it was read from (the gaussian response's row marks
+  cleared, the row count possibly changed). Alternative: keep the old marks where the count is unchanged.
+- The gp refusal runs after the data are parsed and before the holder's buffers are resized, so a refusal
+  leaves the sampler, its engine and the R object as they were.
+- The design note's Status says built and not landed; LANDED waits for the landing record.
+
+Tests. tinytest test-setdata-records.R (154 expectations): a fresh object equals the three arguments asking for
+the derivation, state, record and next draws, and the derivation a sampler made on those data holds; the edited
+`s$data` holds the grid, the standardization and the range, kept draws as they were, a count center held and
+not re-read by the mask its 0/1 weights install; each argument at each value over a carried record unlike both
+the sampler's and a derivation and over a fresh object, by the reader; `"none"` and `FALSE` the sampler's;
+`"position"` and `"value"` on a doubled column, and a carried grid by value; 40 rows more under a kept record,
+the old rows fitting as they did and the added rows as the rows they repeat; `updateStandardization = TRUE` at
+both setters, the derived center and scale, kept and live fits to 1e-12; the gp refusal narrowed (served: its
+own data object, rows reordered, `FALSE, FALSE`, another grid; refused: a fresh object, each `TRUE`, a record
+differing in its center, scale, lengthscale, a missing lengthscale or its range; a refusal touching nothing;
+`setPredictor` refused; a probit gp sampler and one keeping no draws served); the record written after each
+call; the fallback warned only where derived; each row of the manual's table, the cut points, their weights,
+the standardization and the range put back by the call the table names, `setState` `TRUE` and the next 5 draws
+identical to a twin that only restored. tests/cpp `testDataReplacement` (keep: the grid, range, standardization
+and sigma held, sigma over 50 replacements, the new values coded on the grid, the kept draws untouched, 40 rows
+more; supply: the host's values, kept draws to 1e-12, the values in force moving nothing; a derived grid by
+position; `rederiveStandardization`: the derivation, kept and live fits to 1e-12) and a facade row for the new
+virtual.
+
+Existing tests changed. Step 3.4's: test-response-scale-rows.R's five sequences state `updateScale = TRUE`;
+test-sampler-boundary-refusals.R's donor states `updateCutPoints = "value"`; test-leaf-conversions.R section 7
+takes the new text and pins the sampler's own data object served. Beyond step 3.4, none for a value derived
+where the record now holds it: the internal entries' new arguments at their direct `.Call` sites in
+test-data-handle.R, test-linear-leaves.R, test-multinomial-counts-mutation.R, test-mutate-sparse-valued.R,
+test-sampler-boundary-refusals.R and test-sparse-factor.R; test-derived-records.R's reordered-record comment
+(the record now held in the sampler's order, its expectations unchanged); test_facade.cpp's spy for the two
+virtuals.
+
+Mutants, each alone on an export (scratch/sfp3/mutants.py), test-setdata-records.R unless named: the keep path
+on an absent record, 20 failures; deriving a carried record, 15; `NULL` read as keep, 35; the carried record
+used for `FALSE`, 3; one placement for all, 1; covariates left at the old length, 2; the conversion skipped
+for kept draws, 2, and test-leaf-conversions.R 8; the refusal by argument alone, a carried record not
+compared, 11; a derivation served, the carried record alone compared, 11, and test-leaf-conversions.R 19; a
+stale slot after `setPredictor`, 8; the warning on a held range, 1. Own: keep reading the leaf constants it
+overwrites, 5; keep deriving the standardization, 5; a supplied grid without its weights, 2; the fits not
+rebuilt after `rederiveStandardization`, 2; a count center derived where held, 2; the mask re-reading a held
+count center, 1; lengthscales not compared, 6; the carried grid left in the data's order, test-derived-records.R
+stops at the refusal. Survived: sigma and the residual prior converted at a held transform that did not move
+(O1), in tinytest and in tests/cpp's 50 replacements, the round trip giving back the same bits in every case
+tried; the guard keeps it exact by construction rather than by luck.
+
+Size, against 84122988 before this record: engine 306 added and 73 removed (stop 380), bridge 162 and 18, R 157
+and 45, tests 932 and 32, help, NEWS and notes 99 and 66; 1656 added and 234 removed in all (stop 2500), against
+about 1650 planned.
+
+Gates, on the slice's libraries, from a `--preclean` install of 0fd6f90f (this record touches the plan alone):
+tests/cpp plain and under ASAN and UBSAN, 410 ok, no failure and no diagnostic; the full suite in one process,
+28599 expectations, none failed (28441 on 84122988); lint (0 lints), air, rc-codoc (48 methods), win-drift,
+doc-freshness (after the donor cite above) and verify-anchors clean; on a `--preclean` reference install the
+four snapshot files (14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55 identical against
+equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped, in one run), 19 of 19 against
+bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line; the exact
+gates of exact-gates.yaml at `quick`, the 43 gate commands on the shipped build and the two cross-host compares
+on the reference, all passing; the R-loaded run over 13 touched and nearby test files with the package built
+under ASAN and UBSAN through `CXX20FLAGS` (the bridge's compile line carrying `-fsanitize=address,undefined`),
+2036 expectations, none failed, no diagnostic; `R CMD check --as-cran --no-manual` from a clean tarball, the Date
+field's NOTE alone; scratch/sfp3/compare.R against 84122988, 15 fixtures (slice 1's that take `setData`, and a
+count sampler handed a mask) and 87 parts, `setData` of a fresh object and `setPredictor` without the flag,
+unforced and forced, with the state, readers and next 20 draws after each, every one identical; stan4bart's
+suite (its bartcore branch at ac80108, built against this slice), 1545 expectations, none failed. Not run: the
+x86-64 leg.
+
+Left open. The plan's rng block names bcf-equivalence-47838362 and 15 scenarios; the MANIFEST's current file,
+20eed7ed with 19, was used. The gp refusal's reading of the family (the second call above) departs from the
+blind rule `setResponse` and `setOffset` keep at `updateScale = TRUE`; for the maintainer's mark. Under a mask
+family `s$setData(s$data)` now holds the count center but still drops the mask, the data object carrying no
+weights (TODO `mask-on-own-data-object`, which stands).
