@@ -684,8 +684,9 @@ methods::setClass(
     # c(anchor = , unit = ) of a calibration map of several forests.
     # standardization: NULL as a whole where no forest's leaves take a
     # covariate, else one entry per forest, NULL where its leaves take none
-    # and otherwise list(center = , scale = ) named by the leaf covariates or,
-    # for columns without names, with columns, their positions, beside them;
+    # and otherwise list(center = , scale = ) named by the leaf covariates,
+    # where their names are present, non-empty and distinct, or else with
+    # columns, their positions, beside them;
     # a scale NA for a column without spread, and lengthscale for gp leaves
     # whose model supplies none. A data object saved before the slots existed
     # lacks them, so every read goes through the accessors in data.R.

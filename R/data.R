@@ -371,14 +371,23 @@ dataStandardization <- function(data) {
   data@standardization
 }
 
-## The names of the columns a model's linear or gp leaves take, or NULL where
-## they take none or the data's columns have no names; the record's keys,
-## which are the columns' positions where the columns have no names.
+## The names of the columns a model's linear or gp leaves take, the record's
+## keys, where they are all present, non-empty and distinct; NULL otherwise,
+## or where the leaves take none, the keys then being the columns' positions.
+## A repeated or empty key would match another column's entry.
 leafCovariateNames <- function(model, data) {
   prior <- model@leaf.prior
   if (is(prior, "dbartsLinearPrior") || is(prior, "dbartsGPPrior")) {
-    colnames(data@x)[prior@columns]
+    names <- colnames(data@x)[prior@columns]
+    if (usableKeys(names)) names
   }
+}
+## Whether names can key a record: present, non-empty and distinct.
+usableKeys <- function(names) {
+  !is.null(names) &&
+    !anyNA(names) &&
+    all(nzchar(names)) &&
+    !anyDuplicated(names)
 }
 
 ## Holds the derived values a data object records to the data before a
@@ -524,13 +533,14 @@ checkDerivedRecord <- function(
 ## entry per forest, each NULL or list(center = , scale = ) with, for gp
 ## leaves, lengthscale beside them, as many of each: a finite center, a
 ## positive or NA scale, a logical NA read as one, and a positive lengthscale,
-## keyed by the names of center or, for columns without names, by columns,
-## their positions. Any other form is refused. Which covariates the leaves
-## take is the model's, so the rest is matched and never refused: only the
-## first forest's leaves can take any, and its entry goes to them by key,
-## names to named columns, as covariates gives them, and positions to columns
-## without names, NULL covariates; an entry with neither, as only a hand can
-## write, goes by position where the counts agree. An entry for a covariate
+## keyed by the names of center, present, non-empty and distinct, or by
+## columns, their positions. Any other form is refused. Which covariates the
+## leaves take is the model's, so the rest is matched and never refused: only
+## the first forest's leaves can take any, and its entry goes to them by key,
+## names to leaf columns named as keys can be, as covariates gives them, and
+## positions to the others, NULL covariates (leafCovariateNames); an entry with
+## neither, as only a hand can write, goes by position where the counts
+## agree. An entry for a covariate
 ## the leaves do not take is ignored, and a covariate no entry matches gets an
 ## NA center, which derives it. Returns the matched record, NULL where nothing
 ## matches.
@@ -562,6 +572,7 @@ checkStandardizationRecord <- function(record, model, covariates, refuse) {
     scale <- numbersOf(entry$scale)
     lengthscale <- entry$lengthscale
     positions <- entry$columns
+    keys <- names(center)
     q <- length(center)
     if (
       !is.numeric(center) ||
@@ -578,13 +589,14 @@ checkStandardizationRecord <- function(record, model, covariates, refuse) {
           (is.numeric(positions) &&
             length(positions) == q &&
             all(is.finite(positions) & positions >= 1) &&
-            all(positions == round(positions))))
+            all(positions == round(positions)))) ||
+        !(is.null(keys) || usableKeys(keys))
     ) {
       refuse(
         "standardization",
         "must give a finite 'center', a positive or NA 'scale' and, for gp ",
         "leaves, a positive 'lengthscale', one value each per leaf covariate, ",
-        "and 'columns', where given, their positions"
+        "keyed by distinct non-empty names or by 'columns', their positions"
       )
     }
   }

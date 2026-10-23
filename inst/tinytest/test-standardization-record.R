@@ -744,6 +744,43 @@ for (door in list(unnamedHolder$copy(), reloadOf(unnamedHolder))) {
   expect_identical(inForce(door), recordOf(unnamedHolder))
 }
 
+# leaf columns whose names are empty, missing or repeated cannot key the
+# record, which is keyed by their positions: a copy, a reload and a creation
+# from the data object hold each covariate's own values, linear and gp, a gp
+# copy keeping its draws
+for (names in list(c("a", "", ""), c("a", "x", "x"), c("a", NA, NA))) {
+  partly <- unnamed
+  colnames(partly) <- names
+  for (leaf in c("linear", "gp")) {
+    info <- paste(leaf, deparse(names))
+    source <- if (leaf == "linear") {
+      make(data = partly, leaf.prior = linear(columns = 2:3), sweeps = 5L)
+    } else {
+      make(data = partly, leaf.prior = gp(columns = 2:3), sweeps = 5L)
+    }
+    entry <- source$data@standardization[[1L]]
+    expect_null(names(entry$center), info = info)
+    expect_identical(entry$columns, 2:3, info = info)
+    source$storeState()
+    created <- if (leaf == "linear") {
+      dbarts::dbarts(
+        source$data,
+        leaf.prior = linear(columns = 2:3),
+        control = controlWith()
+      )
+    } else {
+      dbarts::dbarts(
+        source$data,
+        leaf.prior = gp(columns = 2:3),
+        control = controlWith()
+      )
+    }
+    for (door in list(source$copy(), reloadOf(source), created)) {
+      expect_identical(inForce(door), inForce(source), info = info)
+    }
+  }
+}
+
 # a gp leaf taking a covariate the record lacks derives its lengthscale too
 gpCarried <- make(leaf.prior = gp(columns = "a"))
 gpBoth <- dbarts::dbarts(
@@ -782,6 +819,14 @@ malformed <- list(
   ),
   "a center not numeric" = list(
     record = list(list(center = c(a = "0.5"), scale = c(a = 0.3))),
+    message = "must give a finite 'center', a positive or NA 'scale'"
+  ),
+  "repeated names" = list(
+    record = list(list(center = c(a = 0.5, a = 0.6), scale = c(0.3, 0.3))),
+    message = "must give a finite 'center', a positive or NA 'scale'"
+  ),
+  "an empty name" = list(
+    record = list(list(center = c(a = 0.5, 0.6), scale = c(0.3, 0.3))),
     message = "must give a finite 'center', a positive or NA 'scale'"
   ),
   "lengths that differ" = list(
