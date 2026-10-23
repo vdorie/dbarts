@@ -495,6 +495,32 @@ expect_false(grepl(
   tryCatch(survivalProbabilities(fit.hbare), error = conditionMessage),
   fixed = TRUE
 ))
+# nor does a call with newdata, which sample = "test" cannot accompany: the
+# refusal names only the trees, even on a fit that stored a test set
+msg <- tryCatch(
+  survivalProbabilities(fit.htest, newdata = xn),
+  error = conditionMessage
+)
+expect_true(grepl(
+  "requires the trees; refit with keepTrees = TRUE",
+  msg,
+  fixed = TRUE
+))
+expect_false(grepl("sample", msg, fixed = TRUE))
+# sample = "test" on a fit kept without trees and without a test set cannot be
+# answered by newdata either, which replays the trees: the refusal names what
+# does work, a test set at the fit or the trees to give the subjects as newdata
+expect_error(
+  survivalProbabilities(fit.hbare, sample = "test"),
+  "no test set rode the fit call (refit with a test set, or with keepTrees = TRUE to give the subjects as 'newdata')",
+  fixed = TRUE
+)
+# a fit with its trees does take them as newdata
+expect_error(
+  survivalProbabilities(fit.probit, sample = "test"),
+  "no test set rode the fit call (give the subjects as 'newdata' instead)",
+  fixed = TRUE
+)
 # and on a fit kept with trees and a test set it is the training subjects
 fit.htest.k <- do.call(
   bart,
@@ -521,11 +547,17 @@ expect_identical(
   sp.train
 )
 # the two subject sets are not mixed, and a test set must exist to be read
-expect_error(
-  survivalProbabilities(fit.htest.k, newdata = xn, sample = "test"),
-  "sample = \"test\" reads the fit's stored test subjects, and 'newdata' gives other subjects",
-  fixed = TRUE
-)
+for (named in c("train", "test")) {
+  # sample picks among the fit's own subjects, newdata gives other ones, and
+  # naming either value beside newdata is refused, with or without a test set
+  for (fit.named in list(fit.htest.k, fit.probit)) {
+    expect_error(
+      survivalProbabilities(fit.named, newdata = xn, sample = named),
+      "'sample' picks the fit's own subjects, the training ones or with sample = \"test\" the stored test ones, and 'newdata' gives other subjects; give one or the other",
+      fixed = TRUE
+    )
+  }
+}
 expect_error(
   survivalProbabilities(fit.probit, sample = "test"),
   "no test set rode the fit call",

@@ -749,17 +749,33 @@ expect_error(
   fixed = TRUE
 )
 # the test subjects and newdata are two sets of subjects
-expect_error(
-  survivalProbabilities(fit.aftT, times.aft, x.test.aft, sample = "test"),
-  "sample = \"test\" reads the fit's stored test subjects, and 'newdata' gives other subjects",
-  fixed = TRUE
-)
+for (named in c("train", "test")) {
+  # sample picks among the fit's own subjects, newdata gives other ones, and
+  # naming either value beside newdata is refused, with or without a test set
+  for (fit.named in list(fit.aftT, fit.2col)) {
+    expect_error(
+      survivalProbabilities(fit.named, times.aft, x.test.aft, sample = named),
+      "'sample' picks the fit's own subjects, the training ones or with sample = \"test\" the stored test ones, and 'newdata' gives other subjects; give one or the other",
+      fixed = TRUE
+    )
+  }
+}
 # a fit with no test set, or whose test draws keepFits dropped, has none to read
 expect_error(
   survivalProbabilities(fit.2col, times.aft, sample = "test"),
-  "no test set rode the fit call",
+  "no test set rode the fit call (give the subjects as 'newdata' instead)",
   fixed = TRUE
 )
+# kept without trees, newdata would fail for want of them, so the refusal
+# names a test set at the fit or the trees
+fit.2col.bare <- fit.2col
+fit.2col.bare$fit <- NULL
+expect_error(
+  survivalProbabilities(fit.2col.bare, times.aft, sample = "test"),
+  "no test set rode the fit call (refit with a test set, or with keepTrees = TRUE to give the subjects as 'newdata')",
+  fixed = TRUE
+)
+rm(fit.2col.bare)
 fit.aftT.dropped <- fit.aftT
 fit.aftT.dropped$yhat.test <- NULL
 expect_error(

@@ -100,8 +100,13 @@ survivalProbabilities(object, ...)
     call, read from the draws the fit stored, with no trees: a hazard fit's
     stored test grid, an AFT fit's stored test fit and, on a heteroscedastic
     fit, its stored test scale. Refused, by name, together with
-    \code{newdata}, which gives other subjects, and on a fit that carries no
-    test set or whose test draws \code{keepFits = FALSE} dropped.
+    \code{newdata}, which gives other subjects: either value named beside
+    \code{newdata}, \code{"train"} as well as \code{"test"}, is an error,
+    since \code{sample} chooses among the fit's own subjects; leave it out
+    to read \code{newdata}'s. Also refused on a fit that carries no test set
+    or whose test draws \code{keepFits = FALSE} dropped, the message naming
+    both causes and, on a fit kept without trees, a test set at the fit or
+    the trees as what would answer it.
   }
   \item{...}{
     Not a formal on the method: a name belonging to a sibling generic

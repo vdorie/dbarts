@@ -3417,12 +3417,23 @@ refuseWithoutTestSubjects <- function(object) {
   if (!is.null(object[["yhat.test"]])) {
     return(invisible(NULL))
   }
+  # newdata replays the trees, which a fit kept without them lacks
+  instead <- if (is.null(object[["fit"]])) {
+    paste0(
+      "refit with a test set, or with ",
+      bartKeepTreesArgument(object),
+      " = TRUE to give the subjects as 'newdata'"
+    )
+  } else {
+    "give the subjects as 'newdata' instead"
+  }
   stop(
     "survivalProbabilities(sample = \"test\") reads the test subjects' stored ",
-    "draws, and this fit has none: either no test set rode the fit call (give ",
-    "the subjects as 'newdata' instead), or the fit was run with 'keepFits' ",
-    "== FALSE (set automatically when 'callback' is supplied, unless ",
-    "overridden), which drops the channel even when a test set exists",
+    "draws, and this fit has none: either no test set rode the fit call (",
+    instead,
+    "), or the fit was run with 'keepFits' == FALSE (set automatically when ",
+    "'callback' is supplied, unless overridden), which drops the channel ",
+    "even when a test set exists",
     call. = FALSE
   )
 }
@@ -3567,7 +3578,7 @@ hazardSurvivalProbabilities <- function(
       stop(
         "survivalProbabilities on a discrete-time hazard fit requires the ",
         "trees; refit with keepTrees = TRUE",
-        if (!is.null(object[["yhat.test"]])) {
+        if (is.null(newdata) && !is.null(object[["yhat.test"]])) {
           paste0(
             ", or, for the test subjects the fit stored, which need none, ",
             "give sample = \"test\""
@@ -3807,16 +3818,20 @@ survivalProbabilities.bart <- function(
     )
   )
   refuseNonNumericOffset(offset)
+  sampleGiven <- !missing(sample)
   sample <- validateSample(
     sample,
     eval(formals(survivalProbabilities.bart)$sample)
   )
   # no newdata is always the training subjects; the test subjects a fit
-  # stored are asked for by sample = "test", which is no newdata's to name
-  if (sample == "test" && !is.null(newdata)) {
+  # stored are asked for by sample = "test", which is no newdata's to name.
+  # Either value named beside newdata is refused: sample picks among the fit's
+  # own subjects, and newdata gives other ones
+  if (!is.null(newdata) && sampleGiven) {
     stop(
-      "sample = \"test\" reads the fit's stored test subjects, and 'newdata' ",
-      "gives other subjects; give one or the other",
+      "'sample' picks the fit's own subjects, the training ones or with ",
+      "sample = \"test\" the stored test ones, and 'newdata' gives other ",
+      "subjects; give one or the other",
       call. = FALSE
     )
   }
