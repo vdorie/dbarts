@@ -253,7 +253,8 @@ alternative, for the maintainer's later mark.
 - A range carried to a sampler of another family is used as it is: dec-B232 accepted exactly that cost, a
   range "derived under the settings of the sampler that made it" used under others. No family is recorded.
   A family that reads no range (probit, logistic, ordinal, multinomial) does not read it, and its sampler
-  writes `NULL`. The alternative, a family tag under which another family derives, is not taken.
+  writes `NULL`. Under nbinom, whose record is the window `c(c, c + 1)` of its count center, a pair of another
+  width is read by its first number and the sampler records that window, at every door alike. The alternative, a family tag under which another family derives, is not taken.
 - The copy's own `state` field after `copy()` of a live sampler holds the chain it was made from, so a
   reload of the copy rebuilds what the copy was. Alternative: the source's field, as today, which can be older
   than the copy's chain.

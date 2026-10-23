@@ -429,7 +429,8 @@ for (door in list(first$copy(), reloadOf(first))) {
 # ---- family as is ----------------------------------------------------------
 
 # a range carried to a sampler of another family is used as it is where the
-# family reads one, and is not read where it does not
+# family reads one, a count sampler reading its first number as the center
+# and recording the window it holds, and is not read where it does not
 gaussianRange <- make(run = FALSE)$data@response.range
 counts <- rpois(n, exp(x[, 1L]))
 countData <- dbarts::dbartsData(x, counts)
@@ -439,7 +440,7 @@ countSampler <- dbarts::dbarts(
   family = "nbinom",
   control = controlWith()
 )
-expect_identical(countSampler$data@response.range, range(counts) + c(-1, 2))
+expect_identical(countSampler$data@response.range, min(counts) - 1 + c(0, 1))
 binaryData <- dbarts::dbartsData(x, yBinary)
 binaryData@response.range <- gaussianRange
 binarySampler <- dbarts::dbarts(binaryData, control = controlWith())

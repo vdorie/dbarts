@@ -173,6 +173,28 @@ expect_error(
 edited@response.range <- c(2, 5)
 countSampler$setData(edited)
 expect_identical(countSampler$data@response.range, c(2, 3))
+# and so at creation: a gp sampler made from a sampler's data object whose
+# range is so widened holds the window, draws as one made from the window,
+# and once it holds draws is served the object it was made from, the center
+# being its own
+makeCount <- function(data) {
+  dbarts::dbarts(
+    data,
+    family = "nbinom",
+    leaf.prior = gp(columns = "b"),
+    control = controlWith()
+  )
+}
+window <- makeCount(dbarts::dbartsData(x, counts))$data
+center <- window@response.range[[1L]]
+wide <- window
+wide@response.range <- center + c(0, 4)
+fromWide <- makeCount(wide)
+fromWindow <- makeCount(window)
+expect_identical(fromWide$data@response.range, center + c(0, 1))
+expect_identical(fromWide$run(5L, 4L), fromWindow$run(5L, 4L))
+expect_silent(fromWide$setData(wide))
+expect_identical(fromWide$data@response.range, center + c(0, 1))
 # a Student-t sampler holds its range as a gaussian one does
 student <- dbarts::dbarts(x, y, family = "student", control = controlWith())
 invisible(student$run(5L, 4L))
@@ -611,6 +633,17 @@ unkept$setPredictor(x[, 1L] / 2, "a", TRUE, updateStandardization = TRUE)
 record <- unkept$data@standardization[[1L]]
 expect_identical(lapply(record, `[[`, "b"), lapply(held, `[[`, "b"))
 expect_equal(record$center[["a"]], mean(x[, 1L] / 2), tolerance = 1e-14)
+# a replacement that is not affine moves the heuristic lengthscale too: a's
+# center, scale and lengthscale those of a sampler made on the new values
+held <- record
+cubed <- cbind(a = x[, 1L]^3, b = stretched)
+unkept$setPredictor(cubed[, 1L], "a", TRUE, updateStandardization = TRUE)
+record <- unkept$data@standardization[[1L]]
+madeOn <- make(gp(columns = c("a", "b")), data = cubed, keepTrees = FALSE)
+expected <- madeOn$data@standardization[[1L]]
+expect_identical(lapply(record, `[[`, "a"), lapply(expected, `[[`, "a"))
+expect_false(identical(record$lengthscale[["a"]], held$lengthscale[["a"]]))
+expect_identical(lapply(record, `[[`, "b"), lapply(held, `[[`, "b"))
 # a covariate without spread records an NA scale, which the leaf divides by
 # 1: compared as the leaf divides, its own data object is served
 flat <- dbarts::dbarts(

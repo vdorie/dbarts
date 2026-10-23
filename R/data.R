@@ -399,7 +399,8 @@ usableKeys <- function(names) {
 }
 
 ## Holds the derived values a data object records to the data before a
-## sampler is created from it, and returns it with each grid in order and the
+## sampler is created from it, and returns it with each grid in order, a
+## count family's range as the window (c, c + 1) of its first number and the
 ## standardization matched to the model's leaves, by their names in
 ## covariates. Only the record's form, the columns' kinds and the leaf
 ## covariates are read, never a row: a record is the values to use, whatever
@@ -498,7 +499,9 @@ checkDerivedRecord <- function(
     data@cutPoints <- grids
   }
   # a count family's record is its center c, held as (c, c + 1), which is
-  # never an equal pair
+  # never an equal pair; a pair of another width, as a range recorded under
+  # another family is, is read by its first number and recorded in that form
+  # at every door, so the sampler's record is the window it holds
   range <- dataResponseRange(data)
   count <- identical(model@family, "nbinom")
   if (
@@ -515,6 +518,9 @@ checkDerivedRecord <- function(
       if (count) "above" else "not below",
       " the first"
     )
+  }
+  if (count && !is.null(range)) {
+    data@response.range <- as.double(range[[1L]]) + c(0, 1)
   }
   calibration <- dataForestCalibration(data)
   if (
