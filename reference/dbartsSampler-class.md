@@ -1375,23 +1375,24 @@ check what it returns, as in
 `setState` validates that `newState` inherits from `bartcoreState` and
 re-creates the underlying engine if needed: a sampler whose engine is
 gone, as after a [`load`](https://rdrr.io/r/base/load.html), is first
-rebuilt on the cut points, weights and response range its data object
-records and from its own saved state, as any other call rebuilds it, so
-that `setState` gives what it gives a sampler that was never saved; one
-with no saved state, or one whose saved state is refused, is created
-anew on the same record, and `newState` goes onto its cut points as onto
-a live sampler's. Then, where every tree of the state fits the sampler
-as it stands, it installs the state, caches it on the `state` field and
-returns `TRUE`; where one does not, it installs nothing, leaves the
-sampler, its engine and its `state` field exactly as they were, and
-returns `FALSE`. `TRUE` does not mean bit for bit. It means the trees
-and leaf values are the stored ones, and the quantities the sampler
-draws are the stored ones where the state holds them. Of the kept draws
-(`keepTrees`) the newest that fit the sampler's own store are taken,
-whatever number the state holds. The latent variables may be redrawn
-(see the case weights, below), and the chain continues the state's own
-generator streams from where they left off, typically to the last few
-digits, not bitwise (see the Reproducibility section of
+rebuilt on the cut points, weights, response range and leaf
+standardization its data object records and from its own saved state, as
+any other call rebuilds it, so that `setState` gives what it gives a
+sampler that was never saved; one with no saved state, or one whose
+saved state is refused, is created anew on the same record, and
+`newState` goes onto its cut points as onto a live sampler's. Then,
+where every tree of the state fits the sampler as it stands, it installs
+the state, caches it on the `state` field and returns `TRUE`; where one
+does not, it installs nothing, leaves the sampler, its engine and its
+`state` field exactly as they were, and returns `FALSE`. `TRUE` does not
+mean bit for bit. It means the trees and leaf values are the stored
+ones, and the quantities the sampler draws are the stored ones where the
+state holds them. Of the kept draws (`keepTrees`) the newest that fit
+the sampler's own store are taken, whatever number the state holds. The
+latent variables may be redrawn (see the case weights, below), and the
+chain continues the state's own generator streams from where they left
+off, typically to the last few digits, not bitwise (see the
+Reproducibility section of
 [bart](https://vdorie.github.io/dbarts/reference/bart.md)).
 
 A tree does not fit, and `setState` returns `FALSE`, when it would have
@@ -1496,26 +1497,28 @@ either: it is derived from the data when the sampler is created and when
 and recorded as the `response.range` of the sampler's data object (see
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
 so a `copy` or a reload is re-created in it. A state goes in as stored:
-its trees, leaf values, `k`, `sigma` and kept draws are numbers on the
-sampler's internal scale, and an install - `setState`, `copy`, a
-reload - reads them against this sampler's response mapping and never
-converts them. A state stored under the mapping in force, as a sampler's
-own, a `copy`'s or a reload's is unless a re-anchor came between, puts
-the chain back where it was stored, value for value. A state stored
-before a re-anchor, or by a sampler on another response, is legal and
-has no special meaning: the same internal numbers read on this sampler's
-scale are a position the chain could hold, and the next draws move the
-parameters where the data say. A response that was only rescaled is then
-no change at all on the internal scale, the fit, the leaf prior's spread
-and `sigma` all rescaling with it; one whose center moved as well is
-fitted wrongly until the draws catch up. A kept draw restored across
-mappings predicts on the new scale, where a re-anchor converts the kept
-draws so that they predict what they did. No leaf model refuses such a
-state; one whose saved Gaussian-process draws were made under other
-lengthscales than the ones this sampler was given is refused. The state
-records the mapping it was read under, which no install reads. Because a
-re-anchor is not in the state, restoring a state stored before one does
-not undo it; to roll a re-anchoring
+its trees, leaf values, linear slopes, `k`, `sigma` and kept draws are
+numbers on the sampler's internal scale, and an install - `setState`,
+`copy`, a reload - reads them against this sampler's response mapping
+and leaf standardization and never converts them. A state stored under
+the mapping in force, as a sampler's own, a `copy`'s or a reload's is
+unless a re-anchor came between, puts the chain back where it was
+stored, value for value. A state stored before a re-anchor, or by a
+sampler on another response, is legal and has no special meaning: the
+same internal numbers read on this sampler's scale are a position the
+chain could hold, and the next draws move the parameters where the data
+say. A response that was only rescaled is then no change at all on the
+internal scale, the fit, the leaf prior's spread and `sigma` all
+rescaling with it; one whose center moved as well is fitted wrongly
+until the draws catch up. A kept draw restored across mappings predicts
+on the new scale, where a re-anchor converts the kept draws so that they
+predict what they did. No leaf model refuses such a state; one whose
+saved Gaussian-process draws were made under another leaf
+standardization or other lengthscales than this sampler holds is
+refused, a saved Gaussian-process draw replaying only under its own. The
+state records the mapping it was read under, which no install reads.
+Because a re-anchor is not in the state, restoring a state stored before
+one does not undo it; to roll a re-anchoring
 `setResponse(y2, updateScale = TRUE)` back, re-anchor to the old
 response with `setResponse(y, updateScale = TRUE)` and then `setState`
 the saved state, so that the response is restored with the state. The
@@ -1540,9 +1543,9 @@ back and not its weights: `setState` still returns `TRUE`, and the chain
 runs with that column's cut points equally likely.
 `setPredictor(x[, j], j, updateCutPoints = "value")` gives back both
 while the column holds the values its cut points were derived from. A
-`copy` and a reload, which create a new engine, take the cut points and
-weights the sampler's data object records, which are the ones in force
-(see
+`copy` and a reload, which create a new engine, take the cut points,
+weights and leaf standardization the sampler's data object records,
+which are the ones in force (see
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
 and none from a state. A reload of a sampler saved after a change of cut
 points with no `storeState()` since has the stored state's splits moved
@@ -1557,10 +1560,18 @@ levels fixes, a state recording other cut points is refused, by
 frame, `setData` reads the new data's factors by label and records the
 sampler's own levels, so a `copy` and a reload hold the levels the
 sampler was created with and take the state it stored. A linear or
-Gaussian-process leaf's covariate standardization comes with the state
-as it is. A leaf covariate that held a single value when its
-standardization was derived has no scale: the state records `NA` for it,
-and the covariate is divided by 1.
+Gaussian-process leaf's covariate standardization, each covariate's
+center and scale and a Gaussian-process leaf's heuristic lengthscale, is
+data too: derived when the sampler is created and when `setData`
+replaces the data, and recorded as the `standardization` of the
+sampler's data object, which a `copy` and a reload take. A state records
+the standardization it was stored under, which no install reads: the
+sampler keeps its own, so kept linear draws restored across a change of
+standardization predict under the sampler's until the draws replace
+them, as kept draws restored across a change of response mapping predict
+on the new scale. A leaf covariate that held a single value when its
+standardization was derived has no scale: the state and the record hold
+`NA` for it, and the covariate is divided by 1.
 
 The case weights are not in the state, so a restore is reconciled
 against the DESTINATION's own rather than governed by the source's:
@@ -1759,54 +1770,48 @@ stored on the internal scale and are not converted to this sampler's
 response: a donor fitted to a response on another scale seeds the same
 internal numbers, which the next draws move where this sampler's data
 say, and a donor whose response differs only by a rescaling seeds its
-own fit, rescaled. The predictors' frame is another matter. For a
-`linear` leaf whose covariates the donor centered and scaled differently
-the donor's coefficients are converted, the seeded forest is the donor's
-function of those covariates, and this sampler keeps its own center and
-scale, as a Gaussian-process leaf keeps its own center, scale and
-lengthscale, whichever cut grid the donor is on. A covariate that holds
-a single value on one side only is converted by the same formula, with 1
-for that side's scale, so the seeded forest is the donor's function of
-the covariate: where the single value is this sampler's each leaf starts
-at the value the donor's function has there, and where it is the donor's
-the slope no donor row informed is carried onto this sampler's spread.
-Where it holds a single value on both sides the donor's coefficients
-arrive as they are, the slope adding nothing to either fit. A single
-value here is one the covariate is centered at; a donor column that
-`setPredictor` moved to another single value is converted by the
-formula, as under `setData`. Each chain keeps its own random-number
-stream and redraws everything else, so several chains seeded from one
-donor stay overdispersed. DART weights go only between two DART fits and
-a variance forest only where both have one: a donor's that this sampler
-has no place for is left behind, and this sampler's own, where the donor
-has none, starts as a new fit's once the donor goes in, DART drawing its
-weights from the trees taken at the first sweep; neither is judged, and
-a donor that is declined leaves them as they were. A donor of constant
-leaves into linear ones gives each leaf its value as intercept and
-slopes of zero, the donor as it stands. A donor of linear leaves into
-constant ones, or into linear ones on another number of covariates,
-leaves its slopes behind, each leaf starting at the intercept the donor
-stores. A donor of Gaussian-process leaves where this sampler's are of
-another kind, or the reverse, or one fit to another number of rows, is
-an error naming the two, as is a donor fit to another number of
-predictors or one whose column is an unordered factor where this
-sampler's is not, or the reverse. A donor of fewer trees than this
-sampler is taken whole, its trees in its order and the rest starting as
-single leaves at zero, or at one in a variance forest. Under `blocks`,
-whatever the donor's tree count, each block in turn takes, in the
-donor's order and up to its count, the donor's trees not yet taken that
-it holds as they stand, the rest of its trees starting as single leaves,
-and where that leaves a tree out, the same is tried once more with the
-donor's single leaves offered last; a donor all of whose trees go in so
-is taken whole, and one fitted with the same blocks and counts goes in
-tree for tree. A donor of more trees, or under `blocks` one whose trees
-do not all go in so, gives those whose fitted values vary most over this
-sampler's rows, each row weighted by its case weight, in the donor's
-order, the mean and the variance forest choosing apart and each chain
-among the trees of the donor sample it takes; under `blocks` each block
-in turn takes up to its count of the trees that vary most within it as
-it holds them, never one it would hold as a single leaf when the donor
-holds it as more, and starts the rest as single leaves.
+own fit, rescaled. The predictors' frame goes the same way. A `linear`
+leaf's coefficients go in as stored, numbers per unit of this sampler's
+own centered and scaled covariates, and this sampler keeps its own
+center and scale, as a Gaussian-process leaf keeps its own center, scale
+and lengthscale, whichever cut grid the donor is on; the donor's are not
+read. Where the two standardize a covariate differently the seeded
+forest is then not the donor's function of it, and the next draws move
+it where this sampler's data say. A covariate that holds a single value
+is read at the center it holds, so between two single values the seeded
+fit is the donor's on the training rows. Each chain keeps its own
+random-number stream and redraws everything else, so several chains
+seeded from one donor stay overdispersed. DART weights go only between
+two DART fits and a variance forest only where both have one: a donor's
+that this sampler has no place for is left behind, and this sampler's
+own, where the donor has none, starts as a new fit's once the donor goes
+in, DART drawing its weights from the trees taken at the first sweep;
+neither is judged, and a donor that is declined leaves them as they
+were. A donor of constant leaves into linear ones gives each leaf its
+value as intercept and slopes of zero, the donor as it stands. A donor
+of linear leaves into constant ones, or into linear ones on another
+number of covariates, leaves its slopes behind, each leaf starting at
+the intercept the donor stores. A donor of Gaussian-process leaves where
+this sampler's are of another kind, or the reverse, or one fit to
+another number of rows, is an error naming the two, as is a donor fit to
+another number of predictors or one whose column is an unordered factor
+where this sampler's is not, or the reverse. A donor of fewer trees than
+this sampler is taken whole, its trees in its order and the rest
+starting as single leaves at zero, or at one in a variance forest. Under
+`blocks`, whatever the donor's tree count, each block in turn takes, in
+the donor's order and up to its count, the donor's trees not yet taken
+that it holds as they stand, the rest of its trees starting as single
+leaves, and where that leaves a tree out, the same is tried once more
+with the donor's single leaves offered last; a donor all of whose trees
+go in so is taken whole, and one fitted with the same blocks and counts
+goes in tree for tree. A donor of more trees, or under `blocks` one
+whose trees do not all go in so, gives those whose fitted values vary
+most over this sampler's rows, each row weighted by its case weight, in
+the donor's order, the mean and the variance forest choosing apart and
+each chain among the trees of the donor sample it takes; under `blocks`
+each block in turn takes up to its count of the trees that vary most
+within it as it holds them, never one it would hold as a single leaf
+when the donor holds it as more, and starts the rest as single leaves.
 
 `installTrees(donor)` asks first. A donor every tree of which fits this
 sampler as stored is installed and the call returns `TRUE`. One that
@@ -1821,27 +1826,25 @@ held one here; or when a monotone forest's leaf values are out of order.
 A donor is also declined when it holds more trees than this sampler's
 forest or, under `blocks`, trees the blocks cannot take as they stand,
 when it holds linear slopes this sampler's leaves do not take, constant
-leaves or linear ones on another number of covariates, when its
-Gaussian-process fits were recorded on other cut points, and when a
-linear leaf's covariate holds one value in both fits, a different one in
-each. `installTrees(donor, forceUpdate = TRUE)` installs such a donor
-and returns `NULL` invisibly, whether or not anything was changed: a
-split off the cut points moves to the nearest one inside the range the
-splits above it leave or, with none left, becomes one leaf with
-everything beneath it; a split with a side no row reaches, and the first
-split from the root that its forest does not allow, likewise become one
-leaf, at the mean of the leaves it replaces weighted by the rows each
-held; a side is dropped; a monotone tree whose leaf values are out of
-order is cut back where they are; Gaussian-process fits start at zero;
-slopes the sampler does not take are left behind; and of a donor holding
-more trees, or under `blocks` one whose trees the blocks cannot all take
-as they stand, the trees whose fitted values vary most go in. The
-sampler's cut points and their weights are the same before and after. A
-side drawn for missing values and linear coefficients restated in this
-sampler's center and scale are how a donor is read, not changes to it.
-On a column this sampler holds as an ordered factor a donor recorded on
-other cut points, a numeric column or a factor of another number of
-levels, is an error in both forms. `bart`'s `warm.start` always forces.
+leaves or linear ones on another number of covariates, and when its
+Gaussian-process fits were recorded on other cut points.
+`installTrees(donor, forceUpdate = TRUE)` installs such a donor and
+returns `NULL` invisibly, whether or not anything was changed: a split
+off the cut points moves to the nearest one inside the range the splits
+above it leave or, with none left, becomes one leaf with everything
+beneath it; a split with a side no row reaches, and the first split from
+the root that its forest does not allow, likewise become one leaf, at
+the mean of the leaves it replaces weighted by the rows each held; a
+side is dropped; a monotone tree whose leaf values are out of order is
+cut back where they are; Gaussian-process fits start at zero; slopes the
+sampler does not take are left behind; and of a donor holding more
+trees, or under `blocks` one whose trees the blocks cannot all take as
+they stand, the trees whose fitted values vary most go in. The sampler's
+cut points and their weights are the same before and after. A side drawn
+for missing values is how a donor is read, not a change to it. On a
+column this sampler holds as an ordered factor a donor recorded on other
+cut points, a numeric column or a factor of another number of levels, is
+an error in both forms. `bart`'s `warm.start` always forces.
 
 A warm start biases the early draws toward the donor, so it shortens
 burn-in rather than removing it; keep drawing a non-zero number of
