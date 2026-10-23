@@ -311,7 +311,7 @@
             the sampler's (\code{"none"} or \code{FALSE}) whatever the object
             records. \code{$setPredictor(updateStandardization = TRUE)}
             derives a linear or Gaussian-process leaf's standardization again
-            over the new values.
+            for the columns it replaces, over their new values.
       \item A state whose saved draws (\code{keepTrees}) number more or
             fewer than the sampler keeps is installed with the newest that
             fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a

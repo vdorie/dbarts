@@ -497,17 +497,23 @@ checkDerivedRecord <- function(
     }
     data@cutPoints <- grids
   }
+  # a count family's record is its center c, held as (c, c + 1), which is
+  # never an equal pair
   range <- dataResponseRange(data)
+  count <- identical(model@family, "nbinom")
   if (
     !is.null(range) &&
       (!is.numeric(range) ||
         length(range) != 2L ||
         !all(is.finite(range)) ||
-        range[[2L]] < range[[1L]])
+        range[[2L]] < range[[1L]] ||
+        (count && range[[2L]] == range[[1L]]))
   ) {
     refuse(
       "response.range",
-      "must be two finite numbers, the second not below the first"
+      "must be two finite numbers, the second ",
+      if (count) "above" else "not below",
+      " the first"
     )
   }
   calibration <- dataForestCalibration(data)
@@ -645,10 +651,10 @@ checkStandardizationRecord <- function(record, model, covariates, refuse) {
   list(held)
 }
 
-## Refuses an engine just created from data whose record gives an ordered
-## factor other cut points than the ones the engine holds for it, those of its
-## levels, which the record cannot move; records is the engine's own
-## (C_dbarts_bartcore_derivedRecords).
+## Refuses data whose record gives an ordered factor other cut points than the
+## ones the engine holds for it, those of its levels, which the record cannot
+## move; records holds the engine's (C_dbarts_bartcore_derivedRecords), or the
+## sampler's record of them at setData.
 refuseCarriedOrderedGrid <- function(data, records) {
   grids <- dataCutPoints(data)
   for (j in which(data@varTypes == ORDERED_FACTOR_VARIABLE)) {

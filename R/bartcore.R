@@ -1390,6 +1390,10 @@ bartcoreSamplerSetData <- function(
     sampler$model,
     leafCovariateNames(sampler$model, sampler$data)
   )
+  # an ordered factor's cut points are fixed by its levels, which the
+  # sampler's record holds, so other ones hide a mistake, whatever the call
+  # takes
+  refuseCarriedOrderedGrid(newData, list(cutPoints = sampler$data@cutPoints))
   # read off the checked record: a standardization the leaves take nothing
   # from is NULL there, and derives
   choices <- setDataChoices(

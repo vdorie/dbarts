@@ -152,6 +152,82 @@ expect_equal(
   log(mean(2 * counts[x[, 1L] > 0.5])),
   tolerance = 1e-14
 )
+# a count record that is no center's is refused naming the slot; one of
+# another width is read by its first number, the center, and recorded as
+# the window the family holds
+edited <- countSampler$data
+edited@response.range <- c(2, 2)
+expect_error(
+  countSampler$setData(edited),
+  paste0(
+    "the data's 'response.range' record must be two finite numbers, the ",
+    "second above the first; set it to NULL"
+  ),
+  fixed = TRUE
+)
+expect_error(
+  dbarts::dbarts(edited, family = "nbinom", control = controlWith()),
+  "'response.range' record must be two finite numbers, the second above",
+  fixed = TRUE
+)
+edited@response.range <- c(2, 5)
+countSampler$setData(edited)
+expect_identical(countSampler$data@response.range, c(2, 3))
+# a Student-t sampler holds its range as a gaussian one does
+student <- dbarts::dbarts(x, y, family = "student", control = controlWith())
+invisible(student$run(5L, 4L))
+before <- readerOf(student)$response.range
+keptBefore <- kept(student)
+edited <- student$data
+edited@y <- 3 * y + 10
+student$setData(edited)
+expect_identical(readerOf(student)$response.range, before)
+expect_identical(student$data@response.range, before)
+expect_identical(kept(student), keptBefore)
+# the sampler's own data object handed back moves no stored number: a held
+# transform that does not move leaves sigma as it was, which a round trip
+# through the range would not on every chain
+moved <- 0L
+for (seed in 1:20) {
+  sampler <- dbarts::dbarts(
+    x,
+    y,
+    control = controlWith(seed = seed, keepTrees = FALSE)
+  )
+  invisible(sampler$run(10L, 0L))
+  before <- stateOf(sampler)
+  sampler$setData(sampler$data)
+  moved <- moved + !identical(stateOf(sampler), before)
+}
+expect_identical(moved, 0L)
+# an ordered factor's cut points are its levels', so a record giving it
+# others is refused naming the slot, as at creation, the sampler untouched
+ordered <- data.frame(
+  a = x[, 1L],
+  o = factor(rep_len(c("l", "m", "h"), n), c("l", "m", "h"), ordered = TRUE)
+)
+sampler <- dbarts::dbarts(ordered, y, control = controlWith())
+before <- stateOf(sampler)
+edited <- sampler$data
+edited@cutPoints[[2L]] <- 1.5
+for (case in c("setData", "setData, none", "creation")) {
+  expect_error(
+    switch(
+      case,
+      "setData" = sampler$setData(edited),
+      "setData, none" = sampler$setData(edited, updateCutPoints = "none"),
+      "creation" = dbarts::dbarts(edited, control = controlWith())
+    ),
+    paste0(
+      "the data's 'cutPoints' record gives predictor 2, an ordered factor, ",
+      "other cut points than those of its levels"
+    ),
+    fixed = TRUE,
+    info = case
+  )
+}
+expect_identical(stateOf(sampler), before)
+expect_identical(sampler$data@cutPoints[[2L]], c(0.5, 1.5))
 
 # ---- arguments win ---------------------------------------------------------
 
@@ -261,12 +337,22 @@ for (rule in c("position", "value")) {
     expect_true(max(newSplits) <= max(oldGrid) + diff(newGrid[1:2]))
   }
 }
-sampler <- make(normal())
+# a carried grid of the column's own count with every point moved: by value
+# each split takes the point nearest its threshold, where by position it
+# would keep its index
+sampler <- make(normal(), n.trees = 5L, keepTrees = FALSE)
+invisible(sampler$run(10L, 0L))
+own <- sampler$data@cutPoints[[1L]]
+oldSplits <- splitsOn(stateOf(sampler), 1L)
 given <- sampler$data
-given@cutPoints[[1L]] <- c(0.25, 0.5, 0.75)
+given@cutPoints[[1L]] <- 0.9 * own + 0.05
+grid <- given@cutPoints[[1L]]
+nearest <- vapply(oldSplits, function(v) grid[which.min(abs(grid - v))], 0)
+expect_true(length(oldSplits) > 0L)
+expect_false(identical(nearest, grid[match(oldSplits, own)]))
 sampler$setData(given)
-expect_true(all(splitsOn(stateOf(sampler), 1L) %in% c(0.25, 0.5, 0.75)))
-expect_identical(sampler$data@cutPoints[[1L]], c(0.25, 0.5, 0.75))
+expect_identical(splitsOn(stateOf(sampler), 1L), nearest)
+expect_identical(sampler$data@cutPoints[[1L]], grid)
 
 # ---- new row count ---------------------------------------------------------
 
@@ -288,6 +374,25 @@ fitsAfter <- liveFits(sampler)
 expect_equal(fitsAfter[seq_len(n)], fitsBefore, tolerance = 1e-12)
 expect_identical(fitsAfter[n + 1:40], fitsAfter[1:40])
 expect_true(all(is.finite(sampler$run(0L, 3L)$train)))
+# a gp leaf's covariates are gathered for every row as well: kept draws as
+# they were, and the next draws those of a twin handed its own record
+gpSampler <- make(gp(columns = "b"))
+gpTwin <- make(gp(columns = "b"))
+gpKept <- kept(gpSampler)
+ownRecord <- longer
+ownRecord@cutPoints <- gpTwin$data@cutPoints
+ownRecord@response.range <- gpTwin$data@response.range
+ownRecord@standardization <- gpTwin$data@standardization
+gpSampler$setData(
+  longer,
+  updateCutPoints = "none",
+  updateScale = FALSE,
+  updateStandardization = FALSE
+)
+gpTwin$setData(ownRecord)
+expect_identical(kept(gpSampler), gpKept)
+expect_identical(length(liveFits(gpSampler)), n + 40L)
+expect_identical(gpSampler$run(0L, 3L), gpTwin$run(0L, 3L))
 
 # ---- linear converts -------------------------------------------------------
 
@@ -328,19 +433,45 @@ for (setter in c("matrix", "column")) {
     info = setter
   )
 }
-# an unforced update rolled back derives nothing
+# TRUE derives the replaced columns' alone: b, replaced and held, keeps the
+# center and scale it holds when a is replaced and derived
+sampler <- make(linear(columns = c("a", "b")))
+keptBefore <- kept(sampler)
+sampler$setPredictor(stretched, "b", forceUpdate = TRUE)
+held <- sampler$data@standardization[[1L]]
+sampler$setPredictor(
+  x[, 1L] / 2,
+  "a",
+  forceUpdate = TRUE,
+  updateStandardization = TRUE
+)
+record <- sampler$data@standardization[[1L]]
+expect_identical(record$center[["b"]], held$center[["b"]])
+expect_identical(record$scale[["b"]], held$scale[["b"]])
+expect_equal(record$center[["a"]], mean(x[, 1L] / 2), tolerance = 1e-14)
+expect_equal(record$scale[["a"]], sd(x[, 1L] / 2), tolerance = 1e-14)
+expectRecordIsReader(sampler, "replaced columns")
+expect_true(worstGap(keptBefore, kept(sampler)) < 1e-12)
+# an unforced update rolled back derives nothing: a standardization held
+# over values it was not derived from stays
 sampler <- make()
-own <- recordOf(sampler)$standardization
+sampler$setPredictor(
+  stretched,
+  "b",
+  forceUpdate = TRUE,
+  updateCutPoints = "position"
+)
+stale <- recordOf(sampler)$standardization
+expect_true(stale[[1L]]$center < 1)
 result <- sampler$setPredictor(
   rep(0.5, n),
   "b",
   forceUpdate = FALSE,
   updateStandardization = TRUE
 )
-if (isFALSE(result)) {
-  expect_identical(recordOf(sampler)$standardization, own)
-  expect_identical(readerOf(sampler)$standardization, own)
-}
+expect_false(result)
+expect_identical(recordOf(sampler)$standardization, stale)
+expect_identical(readerOf(sampler)$standardization, stale)
 expect_error(
   sampler$setPredictor(x[, 2L], "b", "partial", updateStandardization = TRUE),
   "cannot also update the standardization"
@@ -458,12 +589,35 @@ unkept <- dbarts::dbarts(
 invisible(unkept$run(5L, 2L))
 expect_silent(unkept$setData(dbarts::dbartsData(x.other, y.other)))
 expect_silent(unkept$setPredictor(
-  x[, 2L],
+  stretched,
   "b",
   TRUE,
   updateStandardization = TRUE
 ))
 expectRecordIsReader(unkept, "gp unkept")
+record <- unkept$data@standardization[[1L]]
+expect_equal(record$center[["b"]], mean(stretched), tolerance = 1e-14)
+expect_equal(record$scale[["b"]], sd(stretched), tolerance = 1e-14)
+# and for the replaced columns alone, a covariate not replaced keeping its
+# center, scale and lengthscale
+unkept <- make(gp(columns = c("a", "b")), keepTrees = FALSE)
+unkept$setPredictor(stretched, "b", forceUpdate = TRUE)
+held <- unkept$data@standardization[[1L]]
+unkept$setPredictor(x[, 1L] / 2, "a", TRUE, updateStandardization = TRUE)
+record <- unkept$data@standardization[[1L]]
+expect_identical(lapply(record, `[[`, "b"), lapply(held, `[[`, "b"))
+expect_equal(record$center[["a"]], mean(x[, 1L] / 2), tolerance = 1e-14)
+# a covariate without spread records an NA scale, which the leaf divides by
+# 1: compared as the leaf divides, its own data object is served
+flat <- dbarts::dbarts(
+  cbind(a = x[, 1L], b = rep(0.3, n)),
+  y,
+  leaf.prior = gp(columns = "b"),
+  control = controlWith()
+)
+invisible(flat$run(5L, 4L))
+expect_true(is.na(flat$data@standardization[[1L]]$scale[[1L]]))
+expect_silent(flat$setData(flat$data))
 
 # ---- record written --------------------------------------------------------
 

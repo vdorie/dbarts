@@ -6736,9 +6736,13 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
       splitPlacementFromRule(rule));
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
       Rf_error("%s", predictorLevelRefusal);
+    // derived for the replaced columns alone, as their cut points are
     if (updateStandardization &&
-        result == bartcore::PredictorUpdateResult::accepted)
-      holder.sampler->rederiveStandardization();
+        result == bartcore::PredictorUpdateResult::accepted) {
+      std::vector<std::uint8_t> replaced(numPredictors, 0);
+      for (size_t column : columns) replaced[column] = 1;
+      holder.sampler->rederiveStandardization(replaced.data());
+    }
     return Rf_ScalarLogical(
       result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
   });

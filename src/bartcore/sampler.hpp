@@ -2375,13 +2375,15 @@ public:
 
   /// Derives the leaf covariate standardization again over the covariates
   /// the store holds now, as a whole-data replacement would over new data,
-  /// and rewrites a linear leaf's coefficients, live and saved, into it, so
-  /// each leaf stays the function it was (Chain::rederiveStandardization). A
-  /// leaf that takes no covariate has nothing to derive. The host refuses it
-  /// where a gp leaf holds saved draws.
-  void rederiveStandardization() {
+  /// at the covariates whose predictor column \p replaced marks (a byte per
+  /// predictor; null marks every one), the others held, and rewrites a linear
+  /// leaf's coefficients, live and saved, into it, so each leaf stays the
+  /// function it was (Chain::rederiveStandardization). A leaf that takes no
+  /// covariate has nothing to derive. The host refuses it where a gp leaf
+  /// holds saved draws.
+  void rederiveStandardization(const std::uint8_t* replaced = nullptr) {
     SavedDrawSlots kept = savedDrawSlots();
-    for (auto& chain : chains_) chain->rederiveStandardization(kept);
+    for (auto& chain : chains_) chain->rederiveStandardization(kept, replaced);
   }
 
   /// Replace the predictor matrix from a borrowed view of numObservations

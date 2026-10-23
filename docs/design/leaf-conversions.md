@@ -103,14 +103,16 @@ draws what the same fit on a constant at 1000 draws.
 A kept gp draw is a set of kernel weights. It replays only under the centre, scale and lengthscale it was
 drawn with, and it has no mean term that could carry a shift of the response. So it cannot be rewritten at
 `setData`, nor at a re-anchor that moves the shift; where the shift holds, the ratio is carried like any other
-leaf's. A gp sampler holding kept draws refuses a `setData` that would derive the standardization or the range,
-or take a recorded one other than its own, and every `updateScale = TRUE`, by name instead of silently changing
-them; a `setData` that keeps both is served ([state-frame-prior.md](state-frame-prior.md)) ([`refuseSavedGPDrawReanchor`](../../src/R_interface_bartcore.cpp), on the R methods and
+leaf's. A gp sampler holding kept draws refuses, by name instead of silently changing them, a `setData` that
+would derive the standardization or, under a family with a response range, the range, or take a recorded one
+other than its own, and every `setResponse` and `setOffset` at `updateScale = TRUE`; a `setData` that keeps both
+is served, and so is one at `updateScale = TRUE` under a family with no range (probit, logistic, ordinal), which
+has nothing to derive ([state-frame-prior.md](state-frame-prior.md)) ([`refuseSavedGPDrawReanchor`](../../src/R_interface_bartcore.cpp), on the R methods and
 on both flat C entries). Two decisions stand behind that. dec-B237 rules the change of standardization, which
 is `setData`'s refusal. That a re-derived response range is refused as well, and outright, is the
 coordinator's decision of 2026-10-06, recorded in the plan
 ([Calls made in planning](../plans/leaf-conversions.md#calls-made-in-planning)) and not yet marked by the
-maintainer. The refusal reads neither the new values nor the family. One that passed the re-anchors leaving the
+maintainer. The refusal at `setResponse` and `setOffset` reads neither the new values nor the family. One that passed the re-anchors leaving the
 midpoint alone would let a line of calling code through on one sweep and stop it on the next, so a response
 already in force, one of twice the spread about the same midpoint and a probit response, each of which was
 accepted and the first and last of which changed nothing, are refused with the rest. It is raised before a

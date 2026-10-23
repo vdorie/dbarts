@@ -6924,6 +6924,12 @@ static void testDataReplacement() {
             "rederive standardization: the column is replaced");
     DerivedRecords held, derived;
     sampler->derivedRecords(held);
+    // a mark on a column the leaf does not take derives nothing
+    const std::uint8_t onlyOther[] = {1, 0};
+    sampler->rederiveStandardization(onlyOther);
+    sampler->derivedRecords(derived);
+    check(standardizationOf(derived) == standardizationOf(held),
+          "rederive standardization: a covariate not replaced is held");
     sampler->rederiveStandardization();
     sampler->derivedRecords(derived);
     double mean, sd;
@@ -6940,6 +6946,39 @@ static void testDataReplacement() {
             worstGap(liveSampler, liveTwin) < 1e-12,
           "rederive standardization: the kept draws and the live fit are "
           "the functions they were");
+  }
+
+  // keep on an aft sampler, which R refuses the whole-data conduit and a
+  // header-only host does not: the transform of the log times is held
+  {
+    std::vector<double> status(n, 1.0);
+    for (size_t i = 0; i < n; i += 3) status[i] = 0.0;
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.keepTrees = true;
+    options.numSamplesToStore = numKept;
+    options.survivalStatus = status.data();
+    rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+    ext_rng_setSeed(rngs.back(), 8u);
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::aft, 1.0,
+      3.0, 0.37804942330213542, options, &rngs.back());
+    Results none;
+    sampler->run(10, numKept, none);
+    DerivedRecords before, after;
+    sampler->derivedRecords(before);
+    std::vector<double> keptBefore = kept(*sampler);
+    DataReplacement keep;
+    keep.range = Choice::keep;
+    check(sampler->setData(x.data(), yEdit.data(), n, nullptr, nullptr,
+                           nullptr, 0, nullptr, keep),
+          "data replacement, aft keep: the replacement is taken");
+    sampler->derivedRecords(after);
+    check(before.hasRange && after.rangeMin == before.rangeMin &&
+            after.rangeMax == before.rangeMax &&
+            kept(*sampler) == keptBefore,
+          "data replacement, aft keep: the transform is held and the kept "
+          "draws are not rewritten");
   }
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);

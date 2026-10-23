@@ -156,8 +156,9 @@ snapshot/rollback of fits already covers function-valued leaves because
 fits ARE the parameters. setData derives, keeps or takes the constants
 as it does the cut grid ([`DataReplacement`](../../src/bartcore/data.hpp)); a kept draw replays only under the
 constants it was drawn with, so a sampler holding one refuses a setData
-that would change them or the response range, and takes one that keeps
-both, and a warm start leaves the destination's alone
+that would change them or, under a family with a response range, the
+range, and takes one that keeps both, and a warm start leaves the
+destination's alone
 ([leaf-conversions.md](leaf-conversions.md)). The data object records the constants and the heuristic
 lengthscales, which a re-creation takes
 ([state-frame-prior.md](state-frame-prior.md)); the chain state

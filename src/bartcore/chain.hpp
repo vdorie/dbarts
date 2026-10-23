@@ -3579,15 +3579,24 @@ public:
   }
 
   /// The standardization a whole-data replacement hands \p leaf to
-  /// reinitialize: none, which derives it; the one in force, copied into
-  /// \p held, since reinitialize overwrites the leaf's own before it reads
-  /// what it is handed; or the host's.
+  /// reinitialize: none, which derives it; the one in force
+  /// (heldStandardization); or the host's.
   static SuppliedStandardization replacementStandardization(
       const L& leaf, const DataReplacement& replacement,
       std::vector<double>& held) {
     if (replacement.standardization == DerivedValueChoice::supply)
       return replacement.suppliedStandardization;
     if (replacement.standardization == DerivedValueChoice::derive) return {};
+    return heldStandardization(leaf, held, nullptr);
+  }
+
+  /// The standardization \p leaf holds, copied into \p held, since
+  /// reinitialize overwrites the leaf's own before it reads what it is
+  /// handed, with a center and lengthscale that are not a number, which
+  /// derive, at each covariate whose predictor column \p derive marks (a
+  /// byte per predictor; null marks none).
+  static SuppliedStandardization heldStandardization(
+      const L& leaf, std::vector<double>& held, const std::uint8_t* derive) {
     std::size_t q = leaf.numCovariates();
     held.assign(leaf.covariateMeans().begin(), leaf.covariateMeans().end());
     held.insert(held.end(), leaf.covariateSds().begin(),
@@ -3595,6 +3604,11 @@ public:
     if constexpr (L::hasFunctionParams)
       held.insert(held.end(), leaf.lengthscales().begin(),
                   leaf.lengthscales().end());
+    for (std::size_t j = 0; derive != nullptr && j < q; ++j) {
+      if (derive[leaf.covariateColumns()[j]] == 0) continue;
+      held[j] = std::numeric_limits<double>::quiet_NaN();
+      if constexpr (L::hasFunctionParams) held[2 * q + j] = held[j];
+    }
     SuppliedStandardization result{held.data(), held.data() + q, nullptr};
     if constexpr (L::hasFunctionParams) result.lengthscales = held.data() + 2 * q;
     return result;
@@ -3629,31 +3643,40 @@ public:
 
   /// Derives every forest's leaf covariate standardization again over the
   /// covariates the store holds, a gp leaf's lengthscales with it where its
-  /// model supplies none, and rewrites a linear leaf's coefficients, live and
-  /// the saved draws in \p kept, into it (convertLinearForest), the fits
-  /// rebuilt from them. A gp leaf's per-observation fits stay as they are; its
-  /// saved draws, which replay only under the kernel they were drawn with,
-  /// are the caller's to refuse.
-  void rederiveStandardization(SavedDrawSlots kept) {
-    if constexpr (L::hasVectorParams) {
-      size_t n = data_.numObservations;
+  /// model supplies none, at the covariates whose predictor column
+  /// \p replaced marks (a byte per predictor; null marks every one), the
+  /// others held, and rewrites a linear leaf's coefficients, live and the
+  /// saved draws in \p kept, into it (convertLinearForest), the fits rebuilt
+  /// from them. A gp leaf's per-observation fits stay as they are; its saved
+  /// draws, which replay only under the kernel they were drawn with, are the
+  /// caller's to refuse.
+  void rederiveStandardization(SavedDrawSlots kept,
+                               const std::uint8_t* replaced) {
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      std::vector<double> held;
       for (Forest<L, ResidT>& forest : forests_) {
-        LeafStandardization previous = forest.leaf.standardization();
-        forest.leaf.reinitialize(data_);
-        convertLinearForest(forest, forest.paramsByTree, previous, kept);
-        misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
-        forest.totalFitsScale = 1.0;
-        for (size_t t = 0; t < forest.numTrees; ++t) {
-          setTreeFitsFromParameterBlocks(forest, t, forest.paramsByTree[t]);
-          addTreeFitsToTotal(forest, t);
+        SuppliedStandardization supplied =
+          replaced == nullptr
+            ? SuppliedStandardization{}
+            : heldStandardization(forest.leaf, held, replaced);
+        if constexpr (L::hasVectorParams) {
+          size_t n = data_.numObservations;
+          LeafStandardization previous = forest.leaf.standardization();
+          forest.leaf.reinitialize(data_, supplied);
+          convertLinearForest(forest, forest.paramsByTree, previous, kept);
+          misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+          forest.totalFitsScale = 1.0;
+          for (size_t t = 0; t < forest.numTrees; ++t) {
+            setTreeFitsFromParameterBlocks(forest, t, forest.paramsByTree[t]);
+            addTreeFitsToTotal(forest, t);
+          }
+        } else {
+          forest.leaf.reinitialize(data_, supplied);
         }
       }
-    } else if constexpr (L::hasFunctionParams) {
-      (void) kept;
-      for (Forest<L, ResidT>& forest : forests_) forest.leaf.reinitialize(data_);
-    } else {
-      (void) kept;
     }
+    (void) kept;
+    (void) replaced;
   }
 
   /// The first-sight draw: the store has just raised the missing-value flag

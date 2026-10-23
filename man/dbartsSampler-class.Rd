@@ -334,8 +334,10 @@
     For \code{setPredictor}, \code{FALSE}, the default, keeps a \code{linear}
     or \code{gp} leaf's covariate standardization, each covariate's center and
     scale and a \code{gp} leaf's heuristic lengthscale, whatever values the
-    update installs; \code{TRUE} derives it again over the values the update
-    leaves, as creation would over them, once the update has gone in, and
+    update installs; \code{TRUE} derives it again for the covariates among
+    the columns the update replaces, every column where \code{column} is
+    missing, over all their new values, as creation would over them, once
+    the update has gone in, keeps the other covariates', and
     rewrites a \code{linear} leaf's coefficients, current and saved, into it,
     so that each leaf is the function of the covariate it was and \code{predict}
     returns what it did. For \code{setData}, \code{NULL}, the default, takes
