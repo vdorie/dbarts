@@ -721,8 +721,7 @@ items
     (dec-B273); defaults go by a forest's kind (dec-B274); extract
     returns a list by forest of vectors named by column (dec-B275).
     Landed: written-surface, forest-defaults-by-kind,
-    forest-sd-unit, forest-kind-by-class, pushes 1 and 2 of
-    forest-multiplier. Its push 3 planned.
+    forest-sd-unit, forest-kind-by-class, forest-multiplier.
     Not yet planned: tree.prior on forest() and the variance forest, the
     reader's normal() objects.
   written-surface-leftovers: what the basis left, none planned. A
@@ -767,44 +766,6 @@ items
     1.8e-15 and 3.6e-15 on 0.9-34 with one chain and with two), so
     it is not a regression. Unproven reading: the copy rebuilds a
     running total the original carries. Not before the merge.
-  forest-multiplier: before 1.0-0 (dec-B253, dec-B260 to dec-B265,
-    dec-B269, dec-B271, dec-B272, dec-B275, dec-B354; dec-A171),
-    after forest-kind-by-class (landed 2026-10-17, dec-A210, dec-A212:
-    a forest multiplies one numeric column or two levels, by the
-    class of its basis, at every door) and forest-sd-unit (landed).
-    Push 1 landed (2026-10-17, dec-A216): a forest with a basis defaults to
-    one unit whatever K (dec-B291), a held coefficient is 1 with the
-    basis carrying the coding wherever the forest stands and makes sd
-    exact, a held forest with no basis defaults to bart()'s size
-    (dec-B290, dec-B293), amplitude.prior.variance is gone, and a
-    constant response has the unit one forest gets. Push 2 landed
-    (2026-10-17, dec-A219): the relative row bound, the numeric rule, its scale over
-    the rows in the likelihood recorded in data@basis.scale, a held
-    numeric column, the reader's numeric entries and four BCF baseline
-    scenarios; push 3 is not built. Each kind of forest gets one rule. A
-    held coefficient is 1 and the multiplier is what the basis says,
-    wherever the forest stands (1 with no basis, the column as given
-    for one numeric column, 0 for a two-level factor's reference
-    level and 1 for the other), the forest's sd is then exact, and no
-    other shape is held; fixed() on a forest takes no value but 1,
-    the refusal pointing to the basis for a coding and to sd for a
-    size (dec-B354); amplitude.prior.variance goes. A numeric column
-    is used as given, its coefficient normal; a stated sd is per
-    unit, and the default is one unit of the response's scale
-    whatever the number of forests (dec-B291), for one standard
-    deviation of the column, taken by the engine once
-    at creation and recorded on the data object; a swap moves no
-    prior. A row is dropped from a forest's update by its multiplier
-    relative to that forest's largest, so a column in small units
-    fits as any other. print gives a block with the column's mean,
-    sd and range. Three pushes: held coefficients, the numeric
-    multiplier, the printed block. Changes the posterior of every
-    model with a held coefficient or a numeric multiplier and of no
-    other; glue_toggle of the BCF baseline is re-recorded and four
-    scenarios added; one exact gate script is added, deciding by z.
-    bartCause's bcf loses b.prior.variance the day the first push
-    lands.
-    Plan: docs/plans/forest-multiplier.md.
   factor-column-update-forms: what the joint form's fix left
     (docs/plans/factor-column-update-forms.md, landed). setPredictor by
     column and forceUpdate = "partial" read a factor given for a

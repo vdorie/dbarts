@@ -1,10 +1,9 @@
 # forest-multiplier: what a forest's coefficient is, held or drawn, and what a numeric multiplier's sd is the size of
 
-Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); PUSH 2 LANDED 2026-10-17 (a51ac7fe..5a1e9dca, dec-A219; [Push 2 as built](#push-2-as-built), [Landing note, push 2](#landing-note-push-2)); push 3 PLANNED,
-rechecked 2026-10-11 against 37b59ea0, the tip of the sd unit slice
-([Recheck against bartcore](#recheck-against-bartcore)); its two open calls settled and its cites
-brought to forest-kind-by-class as built on 2026-10-17, with push 1 gaining the unit on a constant
-response. Rulings: dec-B253 and dec-B246 as revised;
+Status: PUSH 1 LANDED 2026-10-17 (f9bc3636..5a62933e, dec-A216; [Push 1 as built](#push-1-as-built), [Landing note](#landing-note)); PUSH 2 LANDED 2026-10-17 (a51ac7fe..5a1e9dca, dec-A219; [Push 2 as built](#push-2-as-built), [Landing note, push 2](#landing-note-push-2)); PUSH 3 LANDED 2026-10-23
+(386d0c06..4c65a3c0, dec-A221 with dec-B466 to dec-B468; [Push 3 as built](#push-3-as-built), [Landing note,
+push 3](#landing-note-push-3)); planned after a recheck against 37b59ea0, the tip of the sd unit slice
+([Recheck against bartcore](#recheck-against-bartcore)). Rulings: dec-B253 and dec-B246 as revised;
 dec-B260 to dec-B265; dec-B269 as dec-B280 and dec-B282 revise it; dec-B271, dec-B272, dec-B275,
 dec-B276, dec-B281, dec-B282; dec-B290, dec-B291 and dec-B293 for the defaults; dec-B303 with dec-B302
 for the rows a column's scale reads; dec-B307 for a constant column; dec-B346 and dec-B452 for a swap;
@@ -2213,3 +2212,24 @@ win-drift and doc-freshness clean, each on its own exit status; `R CMD check --a
 from a clean `git archive` of a802f355 staged outside the tree, 1 NOTE ("Date field over a month old"), its
 tests OK. The reference snapshots are not rerun: nothing under src/ changes on this branch and no draw
 moves. Size: R 46 lines changed, tinytest 57, help 53.
+
+## Landing note, push 3
+
+Push 3 landed 2026-10-23 as 386d0c06..4c65a3c0 on a563d753, 11 commits: the build (386d0c06 to bc5ccca3), the
+first fix round (a02316c1 to 50b3f403), two help fixes from its check (1afff8f3), the second fix round
+(9162fb80 to 0c245d63) and the wording taken from its check (4c65a3c0). It was built on 5a1e9dca and rebased
+onto a000d239 and then a563d753, the records of warm-start slice D, without conflict. The maintainer ruled
+three times during review: a fit keeps the unit (dec-B466), print and show give a short block and summary
+the full one (dec-B467), and the short line gives a numeric forest's sd per sd of its column as it now stands
+(dec-B468). The calls are dec-A221.
+
+Gates on 0c245d63: the suite through `test_package("dbarts")` 28257 results in 262 files, 0 failed; the 43
+exact-gate commands at quick, all passing; lintr (0 lints), air, rc-codoc, win-drift and doc-freshness clean;
+`R CMD check --as-cran` one NOTE, the Date field. On 4c65a3c0, which changes help and a design note,
+`checkRd` and doc-freshness clean. No file under src/ changes and no draw moves.
+
+Not run: Windows; the consumers' suites (none prints a fit of several forests in a test).
+
+Left: nothing of this plan. forest-multiplier is complete; what it leaves for later is in [What this leaves
+for later, and why each is an addition](#what-this-leaves-for-later-and-why-each-is-an-addition) and TODO's
+forest-after-merge.
