@@ -144,6 +144,16 @@ items
     samplePriorPredictive already draws f from the prior at x.test; the
     helper would summarize it, or compute it in closed form where one
     exists (constant, linear).
+  legacy-object-message: a sampler saved by dbarts 0.9-34 errors at
+    first use with "object 'C_dbarts_isValidPointer' not found", its
+    own 0.9-34 methods running, and not with refuseLegacyState's
+    message as docs/design/state-frame-prior.md says; its copy() and
+    predict() fail on a missing slot (bases, counts). Of a 0.9-34 bart
+    or bart2 fit, fitted, extract and residuals work and predict fails
+    on the missing counts slot. Compatibility with 0.9-34 objects is
+    not owed (dec-B461); a message naming the version and saying to
+    refit is the item. Found by the state-frame-prior slice 1 review,
+    the same before the slice.
   pdbart-closed-arguments: at 1.1-0, when pdbart's BayesTree spellings
     are refused, replace pdbart's and pd2bart's ... with bart's usable
     arguments listed explicitly, pinned by a test against bart's formals
@@ -277,6 +287,13 @@ items
     table into its record, which a copy then reads as its count. Record
     the count such a sampler was made with, and decide what a frame
     handed to it means (docs/plans/factor-levels-across-setdata.md).
+    Since state-frame-prior slice 1 the ordered case refuses too: a
+    column declared ordered through attr(x, "varTypes") and handed
+    fewer codes by setData leaves the record the grid of the levels the
+    sampler was made with, which copy() and a reload refuse, where
+    before the copy was made and the reload ran; a carried level grid
+    setting the level count at creation would close it for ordered
+    columns.
   na-level-predictor-doors: predict and setPredictor match a factor
     through as.character, so a predictor's NA level is refused at
     predict as a level training never saw, and at setPredictor a

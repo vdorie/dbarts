@@ -371,9 +371,9 @@ other two as the orchestrator reads them. What changed here:
 ## Slice 1 as built
 
 Built on bartcore 46e1a644, with warm-start-salvage slice C landed; the plan's steps held against that tip,
-warm-start-salvage slice D and forest-multiplier push 2 not yet landed. Commits, as rebased onto a000d239
-(below): 64a61c2f (the slice), 27f10098 (setData hands no carried record on; below), c4a8e4bb (cites of the
-retired helpers), c8a1714f (the forest-prior exact gate reads the unit from the data object) and this record.
+warm-start-salvage slice D and forest-multiplier push 2 not yet landed. Commits, as rebased onto c1d1473f
+(below): 48e4428f (the slice), 7b5dd467 (setData hands no carried record on; below), feb54aa3 (cites of the
+retired helpers), 37d9e8cb (the forest-prior exact gate reads the unit from the data object) and this record.
 
 What it does. Three slots on `dbartsData`, `cutPoints` (the weights as each entry's `mass` attribute),
 `response.range` and `forest.calibration`, read through accessors in R/data.R that answer `NULL` for an object
@@ -416,15 +416,23 @@ Departures from the steps and the test table:
 Calls made in building, each with its alternative:
 
 - A record the engine refuses to hold for an ordered factor whose data object declares other levels than
-  the engine was made with (assigned by hand, or saved by an earlier build) now makes `copy()` and a reload
+  the engine was made with (assigned by hand, saved by an earlier build, or reached with no hand edit, below)
+  now makes `copy()` and a reload
   refuse, the state's grid on that column being another column's ("kinds" in
   test-state-grid-install.R). The tip adopted the state and kept the field current through
   `heldAfterAdoption`; with adoption gone (dec-B461) and the live install refusing another grid on an ordered
   factor, there is nothing left to install it with. Alternative: move an ordered factor's splits by value as a
-  numeric column's are (engine work and a ruling); not taken, the case being reachable only by hand.
+  numeric column's are (engine work and a ruling); not taken, the case first read as reachable only by hand.
+  It is not (corrected in the fix round): a sampler made from a matrix of codes declaring the column ordered
+  through `attr(x, "varTypes")` and handed fewer codes by `setData` keeps the record of the levels it was made
+  with, its own grid, so `copy()` and a reload refuse in R before any install, "the data's 'cutPoints' record
+  gives predictor 2, an ordered factor, other cut points than those of its levels; set it to NULL to derive it
+  from the data", and with the record set to NULL as that says both refuse "state is not consistent with this
+  sampler"; a000d239 made the copy and ran the reload (TODO code-matrix-category-count). The move above does
+  not reach that case; a carried level grid setting the level count at creation would. For the maintainer.
 - The copy of a sampler whose engine is gone and that has no stored state is made fresh, as on the tip,
-  not refused: dec-B459's "refused, as today" read as the reload's refusal, which stands. Alternative: refuse
-  the copy too.
+  not refused (refused since the fix round, below): dec-B459's "refused, as today" read as the reload's
+  refusal, which stands. Alternative: refuse the copy too.
 - A NULL entry in `cutPoints` for a numeric column is refused at the R surface (a kind mismatch) and derives
   that column at the bridge, which is only the backstop. Alternative: let it derive at both.
 - The record is written after `setPredictor` only where it updated a grid, so a predictor loop pays no read.
@@ -470,7 +478,7 @@ saved state adopting the handed state's grid, 1; the copy's field the source's, 
 the file stops at the bridge's backstop; the control's anchor written and read again, 3; the setData check
 skipped, 1; the anchor recorded as 0, the copy refused; the weights dropped by the bridge, 7; the data handle
 handed the record, 1 (xbart); the build ignoring a supplied grid, 18, and tests/cpp `testSuppliedCutGrid` 2 of
-its checks; and the setData record handed on, the file stops (run on the build before 27f10098). Survived:
+its checks; and the setData record handed on, the file stops (run on the build before 7b5dd467). Survived:
 `Sampler::setAnchor` without its family guard, an equivalent mutant, a family without units having no
 transform for the move to change. Not written: the caller's object written, the range supplied at
 construction, the supplied path taken with derived values, and migration (above).
@@ -493,11 +501,15 @@ ac80108, built against this slice), 1545 expectations, none failed. Not run: the
 
 Left open. The plan's "fresh object neutral" and "copy and reload bitwise" literals, held instead by the
 scratch compare above, which the reviewer reruns against 46e1a644. The ordered-factor refusal of a copy and a
-reload of a hand-edited record (first call above) is for the reviewer's and the maintainer's mark.
+reload of a record declaring other levels than its engine holds (first call above) is for the reviewer's and the
+maintainer's mark.
 
 Rebased onto a000d239 (2026-10-22), forest-multiplier push 2 having landed, which `git rebase` stopped on in
 R/dbarts.R and man/dbartsData.Rd; the fold is in the slice's commit and the notes' and the harness's, and this
-paragraph and the repointed cites are their own commit. The calls, each with its alternative:
+paragraph and the repointed cites are their own commit. Rebased again onto a563d753 (2026-10-22),
+warm-start-salvage slice D having landed, with no stop, and in the fix round onto c1d1473f, forest-multiplier
+push 3 having landed (below); the slice is now on c1d1473f, and the cites above are its hashes there. The
+calls, each with its alternative:
 
 - The first creation hands [`createEngine`](../../R/dbarts.R) push 2's mask, `active`, the rows a numeric
   column's scale is read over; every re-creation (`copy`, a reload, a dead-pointer `setState`,
@@ -546,3 +558,103 @@ fixtures of numeric forests (a default, a held one, probit with a 0/1 mask at cr
 under weights, and a swapped basis with a response swap at `updateScale = FALSE`), 54 parts from creation
 through copy, reload and a twin, every one identical to a000d239's; stan4bart's suite (its bartcore branch at
 ac80108, built against the rebased tip), 1545 expectations, none failed. Not run: the x86-64 leg.
+
+### Slice 1 fix round
+
+On the slice's review (opus, 2026-10-22, on the tip before the second rebase above), rebased with the slice onto
+c1d1473f (below): ae835866 (the fixes), 451de695 (the pins) and this record. Every pin is in
+test-derived-records.R.
+
+- A reload's first call handing back its own field (the review's B1): a reload of an `updateState = FALSE`
+  sampler saved after `setCutPoints` with no store since takes `setState(r$state)`, TRUE, and its field is then
+  its engine's.
+- A dead copy's field (B2): a copy of that reload, made before its engine is rebuilt, holds its engine's state
+  as its field and takes it back, TRUE.
+- The prior predictive's grid (B3): its draws differ from those of a sampler made on the same data object with
+  the grid record set to NULL, the same range on derived points.
+- `setPredictor(updateCutPoints = "value")` in "carried at creation" is handed twice the creation's values; the
+  record equals the reader right after the call and differs from the creation's grid.
+- A carried grid out of order is sorted with its weights: `checkDerivedRecord` checks the `mass` attribute
+  first, then reorders its successive differences with the points and accumulates them again from its first
+  value. (0.75, 0.5, 0.25) weighing 1, 2 and 3 records (0.25, 0.5, 0.75) with mass c(0, 3, 5, 6), and the engine
+  holds that.
+- A hand-edited grid out of order at a reload is sorted by `recreatePointer`'s check, the stored splits going in
+  unmoved.
+- The record's cost. A response, offset, weights or active-row change at `updateScale = TRUE` writes the range
+  alone, through [`recordResponseRange`](../../R/data.R), and only where it moved; the read takes a second
+  argument of the reader's bridge entry, FALSE leaving the grids unread (`DerivedRecords::withGrids` in the
+  engine; no virtual changes). A calibration map's anchor and unit are set at construction only, so none of
+  those calls moves them. `setCutPoints`, `setPredictor` with a grid update and `setData` write every record from
+  the full read. tests/cpp's facade row for the reader adds the read without grids. Each call alone in a fresh
+  process on this machine, n = 1000, 50 trees, the best of ten runs of 400 calls, ms per call; base a563d753,
+  before the rebased slice, after this round:
+
+  | call | p = 500: base | before | after | p = 50: base | before | after |
+  |---|---|---|---|---|---|---|
+  | `setResponse(updateScale = TRUE)` | 0.065 | 0.170 | 0.087 | 0.065 | 0.097 | 0.088 |
+  | `setResponse(updateScale = FALSE)` | 0.048 | 0.047 | 0.047 | 0.048 | 0.048 | 0.048 |
+  | `setPredictor(updateCutPoints = "value")` | 0.580 | 0.450 | 0.450 | 0.220 | 0.267 | 0.267 |
+  | `setPredictor()` | 0.572 | 0.578 | 0.585 | 0.215 | 0.215 | 0.227 |
+  | `setOffset(updateScale = TRUE)` | 0.075 | 0.177 | 0.095 | 0.075 | 0.108 | 0.095 |
+  | `setOffset(updateScale = FALSE)` | 0.057 | 0.057 | 0.058 | 0.057 | 0.057 | 0.058 |
+  | `setWeights(updateScale = TRUE)` | 0.055 | 0.163 | 0.053 | 0.057 | 0.092 | 0.052 |
+  | `setWeights(updateScale = FALSE)` | 0.038 | 0.037 | 0.037 | 0.038 | 0.038 | 0.037 |
+
+  A sweep is 0.21 ms at p = 500 and 0.17 at p = 50 on all three. What is left over the base at
+  `updateScale = TRUE`, about 0.02 ms, is the write of the data field where the range moved, most of it the
+  reference class's check of the field's class; these weights leave the range where it was, and nothing is
+  written. `setPredictor` with a grid update still reads every grid; its differences from the base are the
+  slice's.
+- A copy continues its source: its next 20 draws equal the source's to a tolerance of 1e-12, beside the bitwise
+  pin against a second copy.
+- Call (1) is corrected above: the code matrix reaches the ordered-factor refusal with no hand edit. The
+  behavior is unchanged, for the maintainer.
+- Call (2) is built as the orchestrator's reading of dec-B459, whose "refused, as today, without a stored state"
+  covers the copy: `copy()` of a sampler whose engine is gone and that has no stored state is refused with the
+  reload's message, from one helper, before anything is created, so the two agree. Alternative: the fresh copy
+  the slice kept, the ruling's "as today" having been true of the reload alone. Pinned with
+  `updateState = FALSE`, never run and run: the field is NULL and `copy()` and `run()` refuse alike. A live
+  sampler's copy and a dead one's with a stored state are unchanged. The `copy` docstring, the sampler's help
+  (`shallow` and Saving), bart's help, which still said a copy installs the stored state and that one without
+  starts over, and NEWS say so.
+- TODO: code-matrix-category-count adds the ordered case; legacy-object-message records the review's finding on
+  0.9-34 objects, the same before the slice.
+- Forest-multiplier push 3 (c1d1473f, a printed block of each forest's prior) landed during the round, and the
+  slice and the round were rebased onto it. `git rebase` stopped on the copy method in the slice's commit and in
+  the fixes, push 3 wrapping the creation in `withoutForestBlock` beside the slice's docstring and this round's
+  refusal; both are kept. Push 3 read the unit off the control's forests record, which the slice empties:
+  [`packageBartResults`](../../R/bart.R) now sets a fit's `forest.unit` from `dataForestCalibration(fit$data)`
+  and [`samplerForestLines`](../../R/forestPrint.R) reads it off `sampler$data`, the control's record kept for
+  the labels and basis terms; forest-multiplier.md says a sampler holds the unit on its data object. The fold
+  is in the slice's commit, two reads and a comment in R and one line of the note. A verbose creation prints
+  the block after the record is written. No other read of the control's anchor or unit is in R/ or
+  inst/tinytest. test-forest-print.R, 138 results, passes, its `forest.unit` pins included; each of the two
+  reads put back on the control fails it, 10 and 14 failures. The timings above were taken on a563d753, push 3
+  touching no setter.
+
+Mutants, each alone on an export with a plain install (scratch/sfp1fix/mut.py, on the review's definitions),
+test-derived-records.R (195 expectations) unless named: M19, a dead copy's field the installed state, 2
+failures; M22, no own-field refresh in a dead-pointer `setState`, 2; M29, `samplePriorPredictive` on a NULL
+grid record, 1; M32, no check in `recreatePointer`, the file stops at the bridge's refusal; M4, `setPredictor`
+writing no record, 2, this file now killing it alone. The range writes, each removed: `setResponse`'s, 1;
+`setOffset`'s, test-aft.R 4; `setWeights`'s, test-update-scale-rows.R 7; `setActiveRows`'s, the same file 5. The
+sort reordering no weight, 2. Not written, both equivalent but for cost: the grids read under FALSE, and the
+range written where it did not move.
+
+Size: package code 81 added and 41 removed (engine 7 and 2, bridge 12 and 8), tests 55 and 5, help, NEWS and
+notes 17 and 14, beside this record and TODO.
+
+Gates on 451de695, the folded tip, on its own libraries: tests/cpp 408 ok, plain and under ASAN and UBSAN, no
+diagnostic; the full suite in one process, 28439 expectations, none failed; lint (0 lints), air, rc-codoc,
+win-drift, doc-freshness and verify-anchors clean, NEWS.Rd parsing to 226 entries; on a `--preclean` reference
+install the four snapshot files (14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55
+identical against equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against
+bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line; the 43
+commands of exact-gates.yaml at `quick` on the shipped build, all passing; against c1d1473f,
+scratch/sfp1/compare.R, 18 fixtures and 162 parts, every one identical but `samplePriorPredictive` after
+`setCutPoints`, scratch/sfp1/rb-compare-fold.R, 6 fixtures and 54 parts, all identical, and a fit's
+`forest.unit` with its print, summary and a sampler's show, identical; the R-loaded ASAN run over the review's
+23 files and test-forest-print.R, 5921 expectations, none failed, no diagnostic, the bridge built under
+`CXX20FLAGS`; `R CMD check --as-cran` from a clean tarball, with the manual, the Date field's NOTE alone;
+stan4bart's suite (its bartcore branch at ac80108, built against this tip), 1545 expectations, none failed. Not
+run: the x86-64 leg.
