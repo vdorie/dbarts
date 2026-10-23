@@ -245,6 +245,11 @@ items
     x, b, y, d fail with "the data's column 'x' is in the place of the
     sampler's 'x'". The same on 030b39f0, before state-frame-prior
     slice 2; found by its review. Not planned.
+  setdata-own-data-ulp: setData(s$data) holds the stored state and the
+    records bit for bit (state-frame-prior slice 3), but the draws that
+    follow differ from an untouched twin's by about 1e-16, the fits
+    being rebuilt for the data handed in; the build before does the
+    same. Found by that slice's review. Not planned.
   code-matrix-category-count: a sampler made from a matrix of codes
     records no level table, so a re-creation infers each factor's count
     from the codes present: copy() is refused after setData of fewer
@@ -434,7 +439,10 @@ items
     replays under them, so a gp-leaf sampler holding kept draws can take a
     change of standardization (setData deriving one, or
     updateStandardization = TRUE) and a state whose kept gp draws were
-    made under another, which 1.0-0 refuses. Conditional: only a gp
+    made under another, which 1.0-0 refuses. State-frame-prior slice 3
+    (dec-A224) narrowed the setData refusal to a call that derives the
+    standardization or, where the family has a range, the range, or
+    brings a record whose numbers differ. Conditional: only a gp
     sampler that keeps draws carries the record. About 350 lines: the
     ring store and its resize, the writer, the one replay routine every
     predict path reaches, the state writer and reader. Then restate or
@@ -835,17 +843,23 @@ items
     updateStandardization on setWeights and setActiveRows for burn-in
     (dec-B465). Planned in two pushes
     (docs/plans/response-scale-rows-d.md), and unblocked: the
-    state-frame-prior slices hold the center and scale through a copy,
-    a reload and a state install, on the data object's record, and
-    give setData and setPredictor updateStandardization. Cut points
-    still span every row. Before 1.0-0, and before the merge if it can
-    be.
+    state-frame-prior slices (landed 2026-10-23, dec-A222 to dec-A224)
+    hold the center and scale through a copy, a reload and a state
+    install, on the data object's record, and give setData and
+    setPredictor updateStandardization, the latter for the replaced
+    columns alone and over every row, with
+    Sampler::rederiveStandardization the entry setWeights and
+    setActiveRows can call. Cut points still span every row. Before
+    1.0-0, and before the merge if it can be.
   mask-on-own-data-object: under a mask family (probit, ordinal, nbinom,
     hazard.probit) the 0/1 weights become the sampler's active-row mask
     and the data object it hands out, s$data, carries no weights, so
-    s$setData(s$data) and setData of an edited s$data drop the mask, and
-    a derivation there (the response's range or center, a leaf's
-    standardization under response-scale-rows slice D) reads every row.
+    s$setData(s$data) and setData of an edited s$data drop the mask.
+    Since state-frame-prior slice 3 the record the object carries holds
+    the range, a count center included, and the standardization through
+    that call, so a derivation there (the response's range or center, a
+    leaf's standardization under response-scale-rows slice D) reads
+    every row only where one is asked for or the record is absent.
     Found by slice D's critique (run on 9e79f4a3). Decide whether the
     mask rides the data object, as the weights do under gaussian, so
     that a sampler's own data handed back keeps its rows; it would move
@@ -865,6 +879,8 @@ items
     (200 of 200), and probit, logistic, ordinal and nbinom are inert
     at TRUE (0 of 25 each). setWeights and setActiveRows with
     updateScale = TRUE inherit it (docs/plans/response-scale-rows-c.md).
+    setData at a held range (state-frame-prior slice 3) installs the
+    response under the transform in force and leaves them alone.
     Leaving sigma and its prior alone where the range did not move
     shifts draws of both response setters, so it takes that class's
     re-record. After 1.0-0 unless a slice touching that function takes

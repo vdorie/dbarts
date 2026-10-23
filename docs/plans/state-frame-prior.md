@@ -2,7 +2,8 @@
 
 Status: SLICE 1 LANDED 2026-10-23 (48e4428f..954235cb, dec-A222; [Slice 1 as built](#slice-1-as-built),
 [Landing note, slice 1](#landing-note-slice-1)); SLICE 2 LANDED 2026-10-23 (ac9f7acf..ee5d9fdf, dec-A223; [Slice 2 as
-built](#slice-2-as-built), [Landing note, slice 2](#landing-note-slice-2)); slice 3 built, not landed. PLANNED 2026-10-17; revised from its blind critique (scratch/sfdc-crit.md, sound after revisions;
+built](#slice-2-as-built), [Landing note, slice 2](#landing-note-slice-2)); SLICE 3 LANDED 2026-10-23 (4d15a88d..54171f38,
+dec-A224; [Slice 3 as built](#slice-3-as-built), [Landing note, slice 3](#landing-note-slice-3)). PLANNED 2026-10-17; revised from its blind critique (scratch/sfdc-crit.md, sound after revisions;
 [Revision from critique](#revision-from-critique)) and then to the maintainer's rulings dec-B457 to dec-B461
 ([Revision to the rulings](#revision-to-the-rulings)). No call open. Design:
 [state-frame-prior.md](../design/state-frame-prior.md). Rests on dec-B231 to dec-B233, dec-B237, dec-B304,
@@ -1313,3 +1314,41 @@ changed, so no reference install or bitwise compare): tests/cpp 410 ok, plain an
 suite in one process, 28907 expectations, none failed; test-setdata-records.R 193, test-derived-records.R 195,
 test-standardization-record.R 260 and test-mutate-then-serialize.R 144, none failed; lint (0 lints), air,
 rc-codoc, win-drift, doc-freshness and verify-anchors clean, chained.
+
+## Landing note, slice 3
+
+Slice 3 landed 2026-10-23 as 4d15a88d..54171f38 on 97a37a1c, 10 commits: the slice, its notes and record
+(4d15a88d to a20187d9), and after one opus review, FIX FIRST, the fix round (9740f9c2 to 782e381b), whose check by
+the same reviewer was FIX FIRST on three findings, and the second round on them (319686aa to 54171f38), whose check
+was LAND. It was built on slice 2 before its fix rounds and moved onto slice 2's landing with `git rebase --onto`,
+the review's conflict list read against it; the move left one defect, the compare shared with the install refusing
+a state without the leaf blocks, closed in the fix round. The calls are dec-A224.
+
+Gates on a7189447, the fix round's tip, no `src/` change following: tests/cpp 410 ok, plain and under ASAN and
+UBSAN; on the reference build the four snapshot files and the bitwise compares, 55 of 55 against
+equivalence-32418b6e, 19 of 19 against bcf-equivalence-20eed7ed and 11 of 11 against
+multinomial-equivalence-80b1c8d4, unchanged since; the exact gates at quick, 43 of 43; R-loaded ASAN and UBSAN over
+15 files, 3008 results, 0 diagnostics; `R CMD check --as-cran` the Date field's NOTE alone; the two-library compare
+against 97a37a1c, 19 fixtures and 98 parts, the six intended parts differing; stan4bart's suite, 1545 results, 0
+failed. On 54171f38, the second check's tip: the full suite 28907 results, 0 failed (28900 on a7189447); the lint
+chain and anchors clean. The x86-64 leg on 782e381b, the second check changing R, tests and notes alone: tests/cpp
+410 ok, plain and under ASAN with the leak sanitizer; the suite 29028 results, 0 failed; the equivalence compare 55
+of 55 statistically indistinguishable; the BCF and multinomial compares within the cross-host tier 1 bound.
+
+Review: 29 mutants, seven surviving the tests as built (the placement by value, the Student-t range, a gp leaf kept
+over more rows, the sigma guard, a rolled-back update, a gp `setPredictor` deriving nothing, an NA scale), each
+killed after the fix round; the first check's three findings, the gp lengthscale reset and the count range of
+another width each pinned against a mutant and the leaf-conversion note corrected; the second check found nothing.
+
+Not run: Windows; bartCause's and treatSens's suites (stan4bart's passes, 1545 results).
+
+Size against the plan: the engine adds 363 lines and removes 79, against a stop of 380 (306 added at the build); the
+slice with its fixes adds 1992 and removes 263 beside this plan's record, against a stop of 2500 and about 1650
+planned.
+
+Left: response-scale-rows slice D, now unblocked. Until it, creation, `setData` and
+`setPredictor(updateStandardization = TRUE)` derive a leaf's center and scale over every row; it reads the rows in,
+refuses a covariate constant among them, and adds `updateStandardization` to `setWeights` and `setActiveRows`
+(dec-B465), for which `Sampler::rederiveStandardization` is the entry to call. The mask on the data object stays
+TODO `mask-on-own-data-object`. The maintainer's mark on dec-A224 is open, the gp refusal's reading of the family and
+`setData(updateScale = TRUE)` on a probit, logistic or ordinal gp sampler holding draws among its calls.
