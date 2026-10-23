@@ -540,7 +540,47 @@ The constructor is not exported: it resolves by bare name inside the
     <code>forest()</code> where none was, and <code>forest()</code> written back leaves
     its forest as it is (see <code><a href="dbartsSampler-class.html">dbartsSampler</a></code>). A forest's kind is
     fixed at creation: <code>$setForestBasis</code> refuses to give a basis to a
-    forest created without one, and moves no forest's prior.</p></dd>
+    forest created without one, and moves no forest's prior.</p>
+<p><code>print</code> of a fit and <code>show</code> of a sampler give a short block of
+    one line for each forest of a model of several: its label, what it
+    multiplies, for a numeric column the mean and sd it has over the
+    observations in the likelihood as they stand, and the sd the forest
+    resolved to. For a numeric column that is its sd per sd of the column as
+    it now stands, named by the forest's label, the size of the forest's term
+    over one sd of the column in the response's units: for a default it is
+    \(\mathrm{sd}(y)\) (the link's error sd under <code>"probit"</code> and
+    <code>"logistic"</code>) wherever the column, and the observations it is read
+    over, are those the default was taken from, and for a stated <code>sd</code> it
+    is that <code>sd</code> times the column's sd. Where the column is constant it is the <code>sd</code> per
+    unit. For a factor it is the sd between the two levels. The sd per unit
+    of a numeric column, which is what <code>forest(sd = )</code> states, is in the
+    full block and in the reader. The last line of the short block says where
+    each forest's prior is to be had in full: <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> of a fit,
+    which prints the full block, or <code>$getLeafPrior()</code> of a sampler,
+    which returns it. The
+    <code>summary</code> of a fit and the creation of a sampler with
+    <code>verbose = TRUE</code> give the full block. Its header gives the unit the
+    sds are in: \(\mathrm{sd}(y)\), as taken above, or the link's
+    error sd. A numeric line gives the sd per unit and per sd of the column
+    and adds the column's range; every line adds whether the sd was stated or
+    is the default, and whether the coefficient is held. A default whose
+    column has another sd over the observations now in the likelihood than
+    the one it was taken from (the column replaced, the weights or the active
+    rows changed, or, under <code>"gaussian"</code>, every observation read because
+    those in the likelihood held fewer than two values of the response) says
+    so. A fit made with <code>keepFits = FALSE</code> keeps no bases or labels and
+    gives no block.
+    Two things to look for. The mean of a numeric column, in either block, and
+    its range, in the full one: a mean far from 0 is a column that never comes
+    near 0, an age or a year, and should be centered, unless 0 means none, as
+    for a dose; and one wild value shows in the range, and moves the mean and
+    sd. And the figure per sd of the column, in either block, the size of the
+    forest's term over one sd of the column (<code>sd</code> times the column's
+    sd): for a default it is \(\mathrm{sd}(y)\) on every numeric line
+    whose column, and the observations it is read over, are those the default
+    was taken from, so a line that differs has had its column or its
+    observations changed, and for a stated <code>sd</code> it is where a number in
+    the wrong units shows. Nothing in the fit warns of either.</p></dd>
 
   <dt id="arg-interactions-blocks">interactions, blocks<a class="anchor" aria-label="anchor" href="#arg-interactions-blocks"></a></dt>
 <dd><p>Optional <code><a href="interactions.html">interactions</a></code> and <code><a href="blocks.html">blocks</a></code> constraints on
@@ -726,8 +766,11 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span> Cutoff rules c in x&lt;=c vs x&gt;c</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Number of cutoffs: (var: number of possible c):</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> (1: 100) (2: 100) </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> forests, sd in the response's units (sd(y) 1.139):</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000700</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000387</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

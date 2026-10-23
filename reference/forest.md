@@ -570,6 +570,47 @@ forest(
   give a basis to a forest created without one, and moves no forest's
   prior.
 
+  `print` of a fit and `show` of a sampler give a short block of one
+  line for each forest of a model of several: its label, what it
+  multiplies, for a numeric column the mean and sd it has over the
+  observations in the likelihood as they stand, and the sd the forest
+  resolved to. For a numeric column that is its sd per sd of the column
+  as it now stands, named by the forest's label, the size of the
+  forest's term over one sd of the column in the response's units: for a
+  default it is \\\mathrm{sd}(y)\\ (the link's error sd under `"probit"`
+  and `"logistic"`) wherever the column, and the observations it is read
+  over, are those the default was taken from, and for a stated `sd` it
+  is that `sd` times the column's sd. Where the column is constant it is
+  the `sd` per unit. For a factor it is the sd between the two levels.
+  The sd per unit of a numeric column, which is what `forest(sd = )`
+  states, is in the full block and in the reader. The last line of the
+  short block says where each forest's prior is to be had in full:
+  [`summary()`](https://rdrr.io/r/base/summary.html) of a fit, which
+  prints the full block, or `$getLeafPrior()` of a sampler, which
+  returns it. The `summary` of a fit and the creation of a sampler with
+  `verbose = TRUE` give the full block. Its header gives the unit the
+  sds are in: \\\mathrm{sd}(y)\\, as taken above, or the link's error
+  sd. A numeric line gives the sd per unit and per sd of the column and
+  adds the column's range; every line adds whether the sd was stated or
+  is the default, and whether the coefficient is held. A default whose
+  column has another sd over the observations now in the likelihood than
+  the one it was taken from (the column replaced, the weights or the
+  active rows changed, or, under `"gaussian"`, every observation read
+  because those in the likelihood held fewer than two values of the
+  response) says so. A fit made with `keepFits = FALSE` keeps no bases
+  or labels and gives no block. Two things to look for. The mean of a
+  numeric column, in either block, and its range, in the full one: a
+  mean far from 0 is a column that never comes near 0, an age or a year,
+  and should be centered, unless 0 means none, as for a dose; and one
+  wild value shows in the range, and moves the mean and sd. And the
+  figure per sd of the column, in either block, the size of the forest's
+  term over one sd of the column (`sd` times the column's sd): for a
+  default it is \\\mathrm{sd}(y)\\ on every numeric line whose column,
+  and the observations it is read over, are those the default was taken
+  from, so a line that differs has had its column or its observations
+  changed, and for a stated `sd` it is where a number in the wrong units
+  shows. Nothing in the fit warns of either.
+
 - interactions, blocks:
 
   Optional
@@ -764,8 +805,11 @@ fit <- bart(y ~ forest(x1 + x3) +
 #> Cutoff rules c in x<=c vs x>c
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 100) (2: 100) 
+#> forests, sd in the response's units (sd(y) 1.139):
+#>   1 forest1: no basis; sd 2.278 (default)
+#>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000700
+#> total seconds in loop: 0.000387
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 

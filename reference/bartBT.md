@@ -1017,9 +1017,14 @@ returned. In the numeric \\y\\ case, the list has components:
   `basis`, else `forest<i>`; see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `forests` item) rides separately as a `"forest.labels"` attribute on
-  the fit object. `glue` is the ragged (`n.chains` \\\times\\, when
-  uncombined) `n.samples` \\\times\\ sum(q_k) matrix of amplitudes
-  multiplying each forest's basis columns, forest-major (the layout
+  the fit object, and beside it a `"forest.unit"` attribute holds the
+  unit the forests' sds are stated in: \\\mathrm{sd}(y)\\ as the `sd`
+  argument of
+  [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) takes
+  it, or the link's error sd, which the header of the full block names.
+  `glue` is the ragged (`n.chains` \\\times\\, when uncombined)
+  `n.samples` \\\times\\ sum(q_k) matrix of amplitudes multiplying each
+  forest's basis columns, forest-major (the layout
   `$getForestAmplitudes` documents); its `"forest"` attribute names each
   column's forest. `bases` is a length-K list of each forest's basis (no
   draw axis), one value for each training row the fit kept: for a forest
@@ -1228,7 +1233,15 @@ posterior interval on the vertical axis.
 
 For `print.bart`, the fit itself (`x`), returned invisibly; the call and
 a short synopsis (family, chain/tree/burn counts, kept-draw count) print
-to the console as the side effect.
+to the console as the side effect. A fit of several forests adds a short
+block of one line for each, its label, what the forest multiplies, a
+numeric column's mean and sd, and the sd the forest resolved to (for a
+numeric column, per sd of the column as it now stands), with a last line
+pointing to [`summary()`](https://rdrr.io/r/base/summary.html), which
+gives the full block (see the `sd` argument of
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md) for what
+to read in it); a fit made with `keepFits = FALSE` keeps no bases or
+labels and prints none.
 
 ## References
 
@@ -1333,7 +1346,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.220968
+#> total seconds in loop: 0.126326
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

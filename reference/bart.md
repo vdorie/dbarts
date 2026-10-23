@@ -1707,10 +1707,14 @@ full under
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s
 ‘Value’ section - the same `yhat.train`/`sigma`/`varcount`/...
 components (but no `binaryOffset` on a binary fit, which only `bartBT`
-returns), including `forestFits`, `glue`, `bases`, `n.forests`, and a
-`"forest.labels"` attribute when the formula carries a
+returns), including `forestFits`, `glue`, `bases`, `n.forests`, and
+`"forest.labels"` and `"forest.unit"` attributes when the formula
+carries a
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md) term
-(‘Formula Terms’ above): that term route is the only way `bart` itself
+(‘Formula Terms’ above), the second the unit the forests' sds are stated
+in, \\\mathrm{sd}(y)\\ as the `sd` argument of
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md) takes it
+or the link's error sd: that term route is the only way `bart` itself
 reaches the per-forest channel, since it has no `forests =` formal of
 its own. A heteroscedastic fit (`variance` supplied) additionally
 carries `s.train`/`s.test`, posterior draws of the residual scale
@@ -1721,14 +1725,15 @@ argument above. A discrete-time hazard fit
 [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
 dispatches its survival-curve branch on it. Under `keepFits = FALSE`,
 `yhat.train`/`yhat.train.mean`/`yhat.test`/`yhat.test.mean`,
-`s.train`/`s.test`, and `forestFits`/`glue`/`bases` are all ABSENT (not
+`s.train`/`s.test`, and `forestFits`/`glue`/`bases`, with the
+`"forest.labels"` and `"forest.unit"` attributes, are all ABSENT (not
 `NULL` within the list) rather than present-but-empty;
 `plot`/`extract`/`fitted`/`residuals`/`predict` then name `keepFits` in
 their error rather than failing on a bare `NULL`. The model
 descriptors - `family`, `family.spec`, `n.forests`, and on a family with
-a residual law `resid.scale` - are set by the model rather than by run
-options, so they survive `keepFits = FALSE` and the fit's own SHAPE
-stays readable even with every per-observation channel dropped.
+a residual distribution `resid.scale` - are set by the model rather than
+by run options, so they survive `keepFits = FALSE` and the fit's own
+SHAPE stays readable even with every per-observation channel dropped.
 
 The remaining families - `"multinomial"`, `"ordinal"`, `"nbinom"`, and
 `"hurdle.lognormal"` - return their own list class instead, never
@@ -2132,7 +2137,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001794
+#> total seconds in loop: 0.001187
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2181,8 +2186,11 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #> Cutoff rules c in x<=c vs x>c
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
+#> forests, sd in the response's units (sd(y) 0.899):
+#>   1 forest1: no basis; sd 1.798 (default)
+#>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.002196
+#> total seconds in loop: 0.001271
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

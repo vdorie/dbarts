@@ -21,7 +21,12 @@ these same draws is
 vector or, with `combineChains = FALSE`, a chains-by-samples matrix. The
 table holds the parameters the fit sampled; one line under it names each
 requested parameter the fit held fixed, with its value, in the manner of
-`summary.glm`'s dispersion line.
+`summary.glm`'s dispersion line. The summary of a fit of several forests
+adds the full block of what each forest resolved to, after the table
+(see the `sd` argument of
+[`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), and
+the line under the table then leaves out each forest's `leaf.prior.sd`,
+which the block gives.
 
 ## Usage
 
@@ -48,14 +53,14 @@ print(x, ...)
   it by `k`, `leaf.prior.sd` (the `k.scale` over `k`; see
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md), where
   on a fit with several forests it is each forest's `sd` in the
-  response's units, printed under the table as `leaf.prior.sd[<label>]`)
-  for one that named it by `sd`, and either can be requested by name, as
-  can `first.k`, the burn-in draws. A requested parameter the fit held
-  fixed (`sigma` under `fixed()`, a fixed `k` or `leaf.prior.sd`, a
-  fixed `shape` or `resid.df`) is not tabulated but named on the line
-  under the table; with the default `vars` that includes a fixed
-  Student-t `resid.df`, and a sampled one is tabulated; other requested
-  fields absent from `object` are silently dropped. `sigma`, `k` and
+  response's units, printed in the block after the table) for one that
+  named it by `sd`, and either can be requested by name, as can
+  `first.k`, the burn-in draws. A requested parameter the fit held fixed
+  (`sigma` under `fixed()`, a fixed `k` or `leaf.prior.sd`, a fixed
+  `shape` or `resid.df`) is not tabulated but named on the line under
+  the table; with the default `vars` that includes a fixed Student-t
+  `resid.df`, and a sampled one is tabulated; other requested fields
+  absent from `object` are silently dropped. `sigma`, `k` and
   `leaf.prior.sd` contribute one summarized variable each; any other
   field (`varcount`, `varprobs`, `yhat.train`, `yhat.test`) contributes
   one variable per column, named `"field[column]"`.
@@ -88,7 +93,9 @@ frame with one row per requested sampled scalar, or `NULL` if none of
 `vars` are present on the fit), `vars`, and `fixed`, a named list of the
 requested parameters the fit held fixed and their values (on a fit with
 several forests a vector with one entry for each forest, `k` named
-`forest1`, `forest2`, ... and `leaf.prior.sd` by the forests' labels).
+`forest1`, `forest2`, ... and `leaf.prior.sd` by the forests' labels),
+and, on a fit of several forests that kept its fits, `forests`, the
+lines of the full block that the print method gives after the table.
 `stats` has columns `variable`, `mean`, `median`, `sd`, `mad`, `q5`,
 `q95`, `rhat`, `ess_bulk`, and `ess_tail` - the same columns
 `posterior::summarise_draws` reports for a plain array, computed without

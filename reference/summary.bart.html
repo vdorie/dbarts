@@ -17,7 +17,10 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   chains-by-samples matrix. The table holds the parameters the fit
   sampled; one line under it names each requested parameter the fit held
   fixed, with its value, in the manner of summary.glm's dispersion
-  line."><meta property="og:description" content="Reports a per-variable posterior summary of the scalar parameters
+  line. The summary of a fit of several forests adds the full block of what
+  each forest resolved to, after the table (see the sd argument of
+  forest), and the line under the table then leaves out each
+  forest's leaf.prior.sd, which the block gives."><meta property="og:description" content="Reports a per-variable posterior summary of the scalar parameters
   (sigma and the leaf prior's k or leaf.prior.sd) of a bartBT/bart fit, along
   with split-\(\hat{R}\) and bulk/tail effective sample size,
   computed by dbarts itself (no posterior dependency). A
@@ -35,7 +38,10 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   chains-by-samples matrix. The table holds the parameters the fit
   sampled; one line under it names each requested parameter the fit held
   fixed, with its value, in the manner of summary.glm's dispersion
-  line."></head><body>
+  line. The summary of a fit of several forests adds the full block of what
+  each forest resolved to, after the table (see the sd argument of
+  forest), and the line under the table then leaves out each
+  forest's leaf.prior.sd, which the block gives."></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
@@ -93,7 +99,10 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   chains-by-samples matrix. The table holds the parameters the fit
   sampled; one line under it names each requested parameter the fit held
   fixed, with its value, in the manner of <code>summary.glm</code>'s dispersion
-  line.</p>
+  line. The summary of a fit of several forests adds the full block of what
+  each forest resolved to, after the table (see the <code>sd</code> argument of
+  <code><a href="forest.html">forest</a></code>), and the line under the table then leaves out each
+  forest's <code>leaf.prior.sd</code>, which the block gives.</p>
     </div>
 
     <div class="section level2">
@@ -117,8 +126,7 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
     field follows how the leaf prior was named: <code>k</code> for a fit that
     named it by <code>k</code>, <code>leaf.prior.sd</code> (the <code>k.scale</code> over <code>k</code>;
     see <code><a href="bartBT.html">bartBT</a></code>, where on a fit with several forests it is each
-    forest's <code>sd</code> in the response's units, printed under the table as
-    <code>leaf.prior.sd[&lt;label&gt;]</code>) for one that named it by <code>sd</code>, and
+    forest's <code>sd</code> in the response's units, printed in the block after the table) for one that named it by <code>sd</code>, and
     either can be requested by name, as can <code>first.k</code>, the burn-in
     draws. A requested parameter the fit held fixed (<code>sigma</code> under
     <code>fixed()</code>, a fixed <code>k</code> or <code>leaf.prior.sd</code>, a fixed
@@ -157,7 +165,9 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   and <code>fixed</code>, a named list of the requested parameters the fit held
   fixed and their values (on a fit with several forests a vector with one
   entry for each forest, <code>k</code> named <code>forest1</code>, <code>forest2</code>,
-  ... and <code>leaf.prior.sd</code> by the forests' labels). <code>stats</code> has columns <code>variable</code>, <code>mean</code>, <code>median</code>,
+  ... and <code>leaf.prior.sd</code> by the forests' labels), and, on a fit of
+  several forests that kept its fits, <code>forests</code>, the lines of the full block
+  that the print method gives after the table. <code>stats</code> has columns <code>variable</code>, <code>mean</code>, <code>median</code>,
   <code>sd</code>, <code>mad</code>, <code>q5</code>, <code>q95</code>, <code>rhat</code>,
   <code>ess_bulk</code>, and <code>ess_tail</code> - the same columns
   <code>posterior::summarise_draws</code> reports for a plain array, computed
