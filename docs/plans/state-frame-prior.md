@@ -992,3 +992,22 @@ rc-codoc, win-drift, doc-freshness and verify-anchors clean, each on its own exi
 give every covariate its own values through a copy and a reload. Not run this round, which changed R alone and
 moved no draw a sampler's own record gives: tests/cpp, the bitwise compares, the exact gates and the compare
 against 030b39f0; the x86-64 leg.
+
+E1, on the reviewer's check of this round (opus, 2026-10-23, FIX FIRST): the names were held distinct among the
+leaf columns only, so columns named x, b and x with leaves on columns 2 and 3 wrote keys b and x, and
+`dbarts(s$data, leaf.prior = linear(columns = 1:2))` matched x to column 1, which took column 3's center 0.346
+and scale 30.46 where its own are 0.510 and 0.311. A leaf covariate's name now keys the record only where it is
+present, non-empty and the name of exactly one column of the data, the test `setData`'s alignment matches names
+by (75f03074): [`leafCovariateNames`](../../R/data.R) gives NA for any other, the sampler writes `columns`
+where one is NA, and a named record carried to such leaves derives the leaf whose name repeats and matches the
+others. The design note's "no key matches two columns", false here, now says a name key matches only the one
+column it names; the help and the slot's comment state the rule. Pinned: that input, its reverse (leaves on
+columns 1 and 2 carried to 2 and 3), each writing `columns` and giving every covariate its own values, and a
+named record on such columns, which matches b and derives x. Mutant E1, the names held distinct among the
+leaves only, as above, alone on an export of 75f03074: test-standardization-record.R (260 expectations) 5
+failures, the key and the values of the input and of its reverse and the named record. Size: R 28 added and 16
+removed, tests 40, help and notes 5 and 4. Gates on 75f03074 (`--preclean`, build mode shipped):
+test-standardization-record.R 260 expectations, none failed; the full suite in one process, 28710, none failed;
+lint (0 lints), air, rc-codoc, win-drift, doc-freshness and verify-anchors clean, each on its own exit status.
+The review's probe14 gives every case its own values, the key switching between names and `columns` as the
+names allow.
