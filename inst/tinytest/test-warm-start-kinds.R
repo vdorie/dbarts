@@ -1118,13 +1118,13 @@ for (length in c(1L, 3L, 5L, 100000L)) {
     misfit,
     paste(
       "warm-start donor is not shape-compatible with this sampler (number of",
-      "forests or predictors differ, or the donor's kept draws do not match",
-      "its tree count)"
+      "forests or predictors differ, the donor's kept draws do not match its",
+      "tree count, or its DART weights are not one per predictor)"
     )
   )
 }
 # a variance leaf that is not finite is refused on the way across grids too,
-# where no build on this sampler's grid reads it first
+# where the build on the donor's points meets it first
 acrossDonor <- function(leaf) {
   withTrees(
     stateOf(

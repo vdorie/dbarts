@@ -1677,7 +1677,9 @@ public:
     // reason it applies there: a donor state is hand-buildable whichever arm
     // reaches it, and a rebuild scatters the leaf straight into a divisor, so
     // a factor that is not positive and finite is a broken model rather than
-    // a bad number
+    // a bad number; Chain::donorTreesStage holds every variance tree to the
+    // same rule before anything is written, so this is the early answer, not
+    // the only guard
     auto scaleLeavesArePositive =
       [](const std::vector<std::vector<FlatNode>>& trees) {
         for (const std::vector<FlatNode>& tree : trees)
