@@ -67,7 +67,8 @@ stateOf <- function(sampler) {
 readerOf <- function(sampler) {
   .Call(
     dbarts:::C_dbarts_bartcore_derivedRecords,
-    sampler$getPointer()
+    sampler$getPointer(),
+    TRUE
   )$standardization
 }
 # the standardization a chain's leaves hold, as its stored state records it
