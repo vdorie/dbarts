@@ -97,7 +97,7 @@ cutpoints, the shape, the residual degrees of freedom, the amplitudes.
 Every one of these is the same kind of thing: a small named block a family or a
 coupling draws each sweep, serializes, and reports.
 
-**E. The split-rule vocabulary and the availability law.** Per node, per column.
+**E. The split-rule vocabulary and the availability rule.** Per node, per column.
 
 **F. The structural proposal.** Per node.
 
@@ -179,7 +179,7 @@ capability object touches no sampling code at all.
 
 *A leaf model cannot draw its own hyperparameters.* The leaf prior is one scale
 per forest with a chi hyperprior on it. A leaf that wants a per-sweep draw of its
-own - kernel lengthscales, a random feature map, a global-local shrinkage law
+own - kernel lengthscales, a random feature map, a global-local shrinkage prior
 over leaf scales - has no place to make it. This is the axis on which several
 recent peer packages differ, and the current design has no seam for it at all.
 
@@ -266,7 +266,7 @@ and each could be opened by hand more cheaply than the general mechanism costs. 
 designer could reasonably keep the current axes, shrink the refusal matrix by
 declaring the empty cells out of scope by decision rather than by accident, and
 spend the saved effort on the two axes with named consumers: leaf-level
-hyperparameter draws, and a leaf-prior law richer than one scale per forest.
+hyperparameter draws, and a leaf prior richer than one scale per forest.
 
 ## Appendix A. Where the claims can be checked
 

@@ -193,7 +193,7 @@
       \code{invchi(1.5, pi * sqrt(3) / 2)} on logistic. In Stan's terms it
       is \code{scaled_inv_chi_square(df, scale / sqrt(df))} on the
       variance, and an inverse gamma with shape \code{df / 2} and scale
-      \code{scale^2 / 2}. No other law on the sd is offered: this is the
+      \code{scale^2 / 2}. No other distribution on the sd is offered: this is the
       one conjugate to the normal leaves, which the sampler draws exactly;
       a half-t or half-Cauchy would need a non-conjugate update. Refused
       under a monotone constraint, as a \code{chi} on \code{k} is.

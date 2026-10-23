@@ -68,7 +68,7 @@ separates terms, parentheses group, `:` between terms is their product, and `1`,
 
 A basis is one kind: a single factor, character column or logical column, which gives a column for every level
 with no level dropped, or numeric terms ([`basisColumns`](../../R/forestBasis.R)). A factor beside other terms
-is refused, the engine having one law for a forest's coefficients.
+is refused, the engine having one distribution for a forest's coefficients.
 
 ## One reading at both doors
 

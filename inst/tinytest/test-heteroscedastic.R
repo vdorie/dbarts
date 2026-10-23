@@ -109,8 +109,8 @@ expect_error(
 
 # ---- a keepTrees state stored before any recorded sweep is legal ----
 # the unwritten slots hold the MULTIPLICATIVE identity 1.0: a 0-valued leaf
-# would both annihilate the product predict forms and fail the positivity law
-# validation applies to every saved variance tree.
+# would both annihilate the product predict forms and fail the positivity
+# rule validation applies to every saved variance tree.
 preData <- data.frame(x = x, y = y)
 preControl <- dbartsControl(
   n.chains = 1L,

@@ -81,7 +81,7 @@ TODO.
   ([src/bartcore/scan.hpp:105-108](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/src/bartcore/scan.hpp#L105-L108)); the no-split term takes the FULL node stats ([src/bartcore/grow.hpp:183-193](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/grow.hpp#L183-L193), fed by
   setNodeAverages over the whole index buffer, [src/bartcore/chain.hpp:1951](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L1951)). Categorical exempt by design
   ([src/bartcore/scan.hpp:217-220](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/scan.hpp#L217-L220)). Reachable only via $growFromRoot() / bart2(n.grow.sweeps > 0) (default
-  0L, [R/bart.R:677](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/bart.R#L677)) on an ordinal column with NAs. Surface: NEWS-visible and DRAW-LAW-CHANGING
+  0L, [R/bart.R:677](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/bart.R#L677)) on an ordinal column with NAs. Surface: NEWS-visible and DRAW-DISTRIBUTION-CHANGING
   there. Value: MIA + ordinal + grow-from-root is a shipped combination now scoring splits
   against a mismatched no-split term. ~60 engine + tests, Opus. PRE-RC.
 - release-candidate-review ([TODO:372](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/TODO#L372)). All six VD forks executed (slice F 621da478, FX1-channel
@@ -140,11 +140,11 @@ named value. Costs are budgets, not gates.
    warm starts on a column-subset variance forest give correct draws, and the SBC
    heteroscedastic setState lift unblocks. COST ~40 engine + tests, Opus. RECOMMEND: take; the
    backstop is one call.
-3. ordinal-scan-missing-rows ([TODO:305](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/TODO#L305), evidence in sec 1). SURFACE: draw-law change on the
+3. ordinal-scan-missing-rows ([TODO:305](https://github.com/vdorie/dbarts/blob/ee70e6f7b1926a73f888540c52362b13ff863df6/TODO#L305), evidence in sec 1). SURFACE: draw-distribution change on the
    opt-in grow path. VALUE: correct grow-from-root warm starts for ordinal designs with
    missing predictors. COST ~60 engine + tests, Opus; re-record only if a scenario uses
-   n.grow.sweeps. RECOMMEND: take - a draw-law fix is a re-record now and a broken seed
-   promise after 1.0.
+   n.grow.sweeps. RECOMMEND: take - a draw-distribution fix is a re-record now and a
+   broken seed promise after 1.0.
 4. dbartsData(bases =) equal-count ambiguity. NOT IN TODO; scoped out of S13
    ([docs/plans/bart2-argument-consolidation.md:1931-1934](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/docs/plans/bart2-argument-consolidation.md#L1931-L1934)). dbarts()'s formula path now requires a
    FULL-DATA basis and subsets it by the model frame's index ([R/dbarts.R:650-659](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/R/dbarts.R#L650-L659));

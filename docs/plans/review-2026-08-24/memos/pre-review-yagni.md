@@ -515,7 +515,7 @@ pre-release is when alias policy is cheapest to revisit.
   than `generalAmplitudeDraw` (finding 6). The unreachable enumerator arms in
   `AmplitudeChain`'s family switch ([src/bartcore/chain.hpp:775-789](https://github.com/vdorie/dbarts/blob/23b9cde7b3632f649d1cfbc0f61e56a7e488a7d0/src/bartcore/chain.hpp#L775-L789)) are
   deliberate: adding a family fails the build rather than silently acquiring the
-  gaussian law. Correct as written.
+  gaussian distribution. Correct as written.
 - **`dbartsSpec(parentEnv = )`** looks unused in-repo but **is** supplied by
   stan4bart (`R/stan4bart_fit.R` line 556). Keep.
 - `misc/partition.h`, `misc/simd.h`, `misc/io.h`, and `misc/linearAlgebra.h` (bar

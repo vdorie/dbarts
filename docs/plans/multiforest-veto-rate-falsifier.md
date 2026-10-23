@@ -183,8 +183,8 @@ sampler driven with `setPredictor(v, col, forceUpdate = "partial")` and
 with `updatePredictorPerObservationJointly`. Raising `n.chains` from 1 to 4
 widens the criterion by exactly the arithmetic the arc would
 (`revalidateAllChains` already requires every tree of every chain to stay
-occupied). Establishes `r_1` and the transferable count law with no
-assumption at all, and cross-checks bairrtt's prose figure.
+occupied). Establishes `r_1` and the transferable count distribution with
+no assumption at all, and cross-checks bairrtt's prose figure.
 
 **Arm A' - driven closed loop on real multi-ensemble fits (primary for
 shapes).** Real BCF (at the time, `dbarts:::bartcoreBCFSampler`, retired: [`bartcoreBCFSampler`](../../R/bartcore.R); now the public `dbarts(forests = )`
@@ -280,15 +280,16 @@ subpopulation whose latent posterior is wrong for identifiable individuals,
 and running longer does not fix it. That is a different failure from
 "mixes a bit slower" and it needs its own line.
 
-**Why the old count-law check was removed.** `observed / (T_j x r_1) <= 1.5`
-cannot fail: the per-row rejection event is a union of `T_j` per-tree
-events, so by Boole `observed <= sum_t r_1t = T_j x r_1` identically. And a
-`slope >= 0.7` clause is mis-signed - row-level heterogeneity in `r_1`
-makes `mean_i [1 - (1 - r_1(i))^T]` saturate and drives the log-log slope
-below 1, so the cheapest possible widening would have blocked GREEN. L1'
-replaces both: because `r_1^(a)` is estimated off-configuration, `ratio > 1`
-is attainable whenever the added ensembles have tighter leaves or couple
-with mu, which is exactly where the count law can break. L1' is fit and
+**Why the old count-distribution check was removed.**
+`observed / (T_j x r_1) <= 1.5` cannot fail: the per-row rejection event is
+a union of `T_j` per-tree events, so by Boole
+`observed <= sum_t r_1t = T_j x r_1` identically. And a `slope >= 0.7`
+clause is mis-signed - row-level heterogeneity in `r_1` makes
+`mean_i [1 - (1 - r_1(i))^T]` saturate and drives the log-log slope below 1,
+so the cheapest possible widening would have blocked GREEN. L1' replaces
+both: because `r_1^(a)` is estimated off-configuration, `ratio > 1` is
+attainable whenever the added ensembles have tighter leaves or couple with
+mu, which is exactly where the count distribution can break. L1' is fit and
 gated on arm A' too - the only coupled-forest regime.
 
 ## Validity gates (Stage 0; failure blocks every metric)
@@ -427,9 +428,9 @@ modeling-harm line in the design; P1 is throughput.
 - **No KILL clause.** Superadditivity alone moves the verdict to YELLOW and
   makes mask/j-split pruning a REQUIRED element of the arc.
 
-*Rationale.* If the widening is priced by the transferable count law, a
-consumer who cares prices it directly and buys it back with
-`n.trees.treatment`, or eliminates it outright with the moderator or
+*Rationale.* If the widening is priced by the transferable count
+distribution, a consumer who cares prices it directly and buys it back
+with `n.trees.treatment`, or eliminates it outright with the moderator or
 `varianceForestColumns` mask. A priceable cost is a tuning knob. A
 superadditive one is not, but it is also not by itself a reason to decline
 the arc.
@@ -477,9 +478,9 @@ a line as measured when it is judged. Classification:
 - **Mechanism-anchored:** P1's GREEN 2 pp (sized against the one recorded
   consumer's Robbins-Monro acceptance target and its observed per-person
   acceptance spread - though the underlying bairrtt "< 1% at 150 trees"
-  baseline is prose, not a reproducible measurement); L1's count law
-  itself (a theorem, with M1 as its hard assertion), with only the 1.5
-  dependence allowance judged.
+  baseline is prose, not a reproducible measurement); L1's count
+  distribution itself (a theorem, with M1 as its hard assertion), with
+  only the 1.5 dependence allowance judged.
 - **Judgment with structural guards:** P3's 1 pp ceiling (the harm
   mechanism - persistent per-row freezing biases person-level estimands -
   is real; the 1% choice is judged; the operative clause self-calibrates
@@ -516,7 +517,7 @@ and `treeAt` and ship". The arc must carry, as required elements:
 
 | arm | cells | seeds | basis |
 |---|---|---|---|
-| 0 | 13 config cells x 2 column types | 8 | `r_1` and the count law; SE of a per-row rate at n = 1000, W = 200 is ~2e-4 |
+| 0 | 13 config cells x 2 column types | 8 | `r_1` and the count distribution; SE of a per-row rate at n = 1000, W = 200 is ~2e-4 |
 | A' gated | 9 per column type x 2 | 8 (6 at n = 5000) | see below |
 | A' reported | move sizes, `mask = no`, multinomial | 4 | ungated |
 | B | 3 S-levels x 2 n x 2 column types | 8 | plus one subset-replay per non-primary sampler for attribution |
@@ -800,11 +801,11 @@ caveat on the binary type.
 
 GREEN on both types: every cell is at or under the 1.5 ceiling, with the three
 NEAR-LINE cells listed above. Values run 0.22-1.18 (continuous) and 0.86-1.39
-(binary). The count law is not just an upper bound here, it is close to an
-identity: the strongest evidence is arm 0, where quadrupling the number of
-chains widens the criterion by exactly 4x the tree count and
+(binary). The count distribution is not just an upper bound here, it is close
+to an identity: the strongest evidence is arm 0, where quadrupling the number
+of chains widens the criterion by exactly 4x the tree count and
 
-| type | n | `T_j` at 1 chain | reject % at 1 chain | `T_j` at 4 chains | reject % at 4 chains | observed / count-law predicted |
+| type | n | `T_j` at 1 chain | reject % at 1 chain | `T_j` at 4 chains | reject % at 4 chains | observed / count-distribution predicted |
 |---|---|---|---|---|---|---|
 | continuous | 300 | 10.2 | 0.0175 | 40.9 | 0.0754 | 1.08 |
 | continuous | 500 | 10.9 | 0.0085 | 42.6 | 0.0319 | 0.96 |
@@ -972,9 +973,9 @@ question; it does not settle it, and by design it gates nothing.
   reject 0.010% at `E_all` vs 0.002% at `E_0` (continuous) and 0.087% vs
   0.020% (binary); whole-transaction 0.25% vs 0.125% and 1.25% vs 0.25%. Four
   symmetric 75-tree forests raise `T_j` to ~40 and the reject rate rises
-  roughly with it - the count law again. Still far under every line, but this
-  is the shape where a widened veto costs the most, and it is reported, not
-  decided.
+  roughly with it - the count distribution again. Still far under every line,
+  but this is the shape where a widened veto costs the most, and it is
+  reported, not decided.
 - **Five-level categorical latent, UNGATED.** n = 1000, per-observation:
   0.034% (single forest), 0.029% (BCF), 0.050% at `E_all` vs 0.029% at `E_0`
   (het). Whole-transaction at fraction 0.01: 0.25% / 0.375% / 0.50% vs 0.125%
@@ -982,7 +983,8 @@ question; it does not settle it, and by design it gates nothing.
   remain out of scope for the reason recorded below.
 - **p = 5.** Halving the predictor count roughly doubles `T_j` (10.4 -> 19.7
   continuous, 10.1 -> 20.7 binary) and roughly doubles the reject rate
-  (0.0032% -> 0.0104%, 0.0279% -> 0.0531%) - the count law once more.
+  (0.0032% -> 0.0104%, 0.0279% -> 0.0531%) - the count distribution once
+  more.
 
 ### Reading
 
@@ -1062,7 +1064,7 @@ V4 3 pp, 200 replicates, 1e-10 on V2v) follow from the arithmetic above.
    statistical floor at FREEZE; the ceiling - how many persistently frozen
    rows is a modeling harm - is judgment. 0.5% or 2% are arguable.
 3. **L1' ratio ceiling, 1.5.** Well-posed but arbitrary; the meaningful
-   reference points are 1.0 (exactly the count law) and 2.0.
+   reference points are 1.0 (exactly the count distribution) and 2.0.
 4. **Same thresholds for binary as for continuous.** A binary flip
    re-routes the row in every j-splitting tree unconditionally, with no
    cut-crossing discount, so `r_1` is structurally larger and a KILL on the
@@ -1160,7 +1162,7 @@ simulator, not of a scenario.
 **D6 (2026-08-09) - the L1' and P4/T2 estimators.** The file names L1' and the
 attribution statistics but not their estimators. Registered here, pre-data:
 `r_1^(a)` is estimated by pooling every config-(a) decision in the matched
-cell class across seeds and sweeps and inverting the union law once,
+cell class across seeds and sweeps and inverting the union distribution once,
 `r_1 = 1 - (1 - rejectRate)^(1 / mean T_j)`; L1' then divides the pooled
 multi-ensemble reject rate by `1 - (1 - r_1^(a))^(mean T_j)` at that cell's own
 `T_j`. Pooling rather than per-seed inversion is forced by the event counts -

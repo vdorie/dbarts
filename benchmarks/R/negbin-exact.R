@@ -16,8 +16,8 @@
 # so the reference is omega-FREE. It integrates over m on a grid centred on c
 # and, in the estimated arm, sums over the r GRID. Agreement therefore
 # validates the PG mean augmentation, the grid r update given the means, AND
-# their composition into the sweep (an invalid scan shifts the stationary law,
-# which this gate can see).
+# their composition into the sweep (an invalid scan shifts the stationary
+# distribution, which this gate can see).
 #
 # Two details keep the target the sampler's ACTUAL posterior:
 #   - the r grid and its prior weights are the shipped ones (NBShapePrior):

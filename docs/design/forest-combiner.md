@@ -257,7 +257,8 @@ What still does NOT generalize, after M4:
 
 - (i) The single-leaf-type forest vector, unchanged (third bullet above).
 - (ii) Non-Gaussian, PARTLY. The K-forest constructor no longer hardcodes the
-  law: it carries gaussian, probit and logistic arms and records
+  response distribution: it carries gaussian, probit and logistic arms and
+  records
   `family_ = spec.family` ([`Chain::Chain`](../../src/bartcore/chain.hpp)), so a binary amplitude coupling
   is a shipped shape. What does not generalize is the rest: aft, ordinal and
   nbinom are refused at the factory ([`createAmplitudeSampler`](../../src/bartcore/facade.hpp)), each wanting a block

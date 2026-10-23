@@ -563,9 +563,9 @@ n = 1e5, m = 75, one chain, fixed seed, 20 burn-in and 40 kept draws:
   identity across worker count is reconfirmed on the current engine.
 - That digest is NOT the tip's. Grouping a bank's addition chain by block
   regroups it, which is a different association and so a different draw. The
-  blocked law is taken at every worker count above the cutoff, one included,
-  so the threaded path has one law rather than one law per budget - which is
-  what makes the invariance hold at all.
+  blocked rule is taken at every worker count above the cutoff, one
+  included, so the threaded path has one rule rather than one rule per
+  budget - which is what makes the invariance hold at all.
 - Below the cutoff (n = 1e4) the prototype at eight workers is byte-identical
   to the tip, so the serial pass is genuinely untouched.
 - The C++ component suite passes on the prototype build.

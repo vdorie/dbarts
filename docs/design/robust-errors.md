@@ -7,9 +7,9 @@ Status: LANDED 2026-07-17 (b4f818e). Section 8 is AMENDED by
 student()`; `resid.dist` and the bare `student()`/`gaussian()` constructors
 below are retired, and removed outright 2026-09-24 (never reached main, so no
 tombstone was warranted). Plan: docs/plans/archive/robust-errors.md (this is its
-step 1). Continuous responses gain a Student-t residual law by the classic
-Gaussian scale-mixture augmentation, riding the per-observation precisions the
-workingWeights hook already carries for logistic.
+step 1). Continuous responses gain a Student-t residual distribution by the
+classic Gaussian scale-mixture augmentation, riding the per-observation
+precisions the workingWeights hook already carries for logistic.
 
 ## 1. Augmentation and the lambda draw
 
@@ -85,8 +85,8 @@ designation is not one the leaf models can take, or a variance forest is
 combined with a non-gaussian family, Student-t residuals, leaf covariates,
 or a monotone constraint".
 
-**The exported augmentation helpers dispatch on a law, not a family.**
-`dbartsDrawLatents`/`dbartsWorkingResponse` and their flat twins
+**The exported augmentation helpers dispatch on a distribution, not a
+family.** `dbartsDrawLatents`/`dbartsWorkingResponse` and their flat twins
 `dbarts_drawLatents`/`dbarts_workingResponse` draw the same six per-sweep
 augmentation variables the engine draws, at a caller's fit. Keying that on
 `ResponseFamily` would put the Student-t mixture on the `gaussian` arm - the
@@ -95,14 +95,15 @@ plain gaussian response, which draws no augmentation variable at all.
 `AugmentationLaw` (`src/R_interface_bartcore_common.hpp`) is a separate enum,
 total over probit, logistic, ordinal, aft, nbinom and studentT, and is the
 only thing either surface dispatches on. The family survives on that path at
-exactly one point, `supportFamily`, which states the response support a law
-constrains: studentT answers gaussian there because a t response is
-unconstrained, not because the two share a law. Each surface maps into the
-enum at its own boundary - a family name for the R helpers, whose argument is
-a name, and `DBARTS_FAMILY_STUDENT` for the flat entries, the family list
-being that surface's vocabulary for its create AND augmentation entries. A
-list-derived law count backs a `static_assert` in each translation unit that
-enumerates the laws, so adding one fails the build.
+exactly one point, `supportFamily`, which states the response support a
+distribution constrains: studentT answers gaussian there because a t response
+is unconstrained, not because the two share a distribution. Each surface maps
+into the enum at its own boundary - a family name for the R helpers, whose
+argument is a name, and `DBARTS_FAMILY_STUDENT` for the flat entries, the
+family list being that surface's vocabulary for its create AND augmentation
+entries. A list-derived distribution count backs a `static_assert` in each
+translation unit that enumerates the distributions, so adding one fails the
+build.
 
 ## 3. sigma^2 under the mixture
 
@@ -152,7 +153,7 @@ node.prior = normal, family = gaussian(sigma = chisq); [`dbarts`](../../R/dbarts
 [`parsePriors`](../../R/model.R) from [`dbartsPriors`](../../R/model.R). student() composes df
 now and a sampled-nu spec later with no new top-level argument. Do NOT overload
 the family's sigma -- that is the sigma^2 PRIOR (chisq/fixed, [`dbartsPriors`](../../R/model.R)),
-orthogonal to the error law. Recommend: cleanest and most future-proof, a new
+orthogonal to the error distribution. Recommend: cleanest and most future-proof, a new
 resid.dist slot.
 
 (c) A bart2 scalar, resid.df = Inf (Inf = gaussian, finite = t). Precedent:

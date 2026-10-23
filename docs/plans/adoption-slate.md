@@ -67,7 +67,7 @@ the arc generates.
 - The slate and its frame: `docs/design/r-c-division.md`, "Adoption slate"
   and "Defects found by this arc" items 4-6. All items pre-release; utility
   decides and price sizes a budget only.
-- Landed context this arc must not contradict: the empty-leaf veto weight law
+- Landed context this arc must not contradict: the empty-leaf veto weight rule
   (`docs/plans/archive/empty-leaf-veto.md`, "Landing"), and G1/G5/G11 at 33f6fdc
   (`docs/design/r-c-division.md`, "Defects").
 - Gate vocabulary: `docs/plans/README.md`, "RNG classes and their gates" and
@@ -374,7 +374,7 @@ the next scheduled run.
 
 ### S3. The grouped response swap
 
-Scope and law. On a sampler carrying grouped random intercepts, `setResponse`
+Scope and rule. On a sampler carrying grouped random intercepts, `setResponse`
 is ACCEPTED at `updateScale = FALSE` and REFUSED at `TRUE` when the base family
 carries a data-dependent response transform. `setOffset` gains the matching
 refusal, closing a live silent decalibration. `setData` stays refused.
@@ -582,8 +582,8 @@ sentence: `random.h` records native mode as "generally not thread safe", so
 the helpers must not be called from a worker thread.
 
 OUT OF SCOPE, explicitly: the in-sampler draw sites are NOT refactored to
-share code with the helpers. Refactoring them is a draw-law risk and a
-different rng class.
+share code with the helpers. Refactoring them is a draw-distribution risk
+and a different rng class.
 
 Rd and pkgdown: ONE topic, `man/dbartsAugmentation.Rd`, with an `\alias` for
 each function, and a single `- dbartsAugmentation` entry under `_pkgdown.yml`'s
@@ -1171,7 +1171,8 @@ R: `$getDispersion()`, argumentless, docstringed, beside `getSigmas` as its
 count analog, guarded by `refuseHostRead` on S1's precedent (a NEW read is
 guarded; the shipped four stay unguarded by ticket `host-shell-read-guards`).
 The non-nbinom answer is `NULL`, not an error, which is why the Rd states the
-`!is.null` law and every assertion in the test file leads with a shape check.
+`!is.null` rule and every assertion in the test file leads with a shape
+check.
 
 **`bart2Negbin` WAS touched**, under the spec's conditional permission. Its
 one-kept-sample-at-a-time driver STAYS - the sweep structure is untouched and
@@ -1187,8 +1188,8 @@ tells a host to. The stale comment above `bart2Negbin` ("the engine has no
 per-sample dispersion output channel") was corrected in place.
 
 Docs: the `run` `\value` paragraph gains the element with its shape, its two
-r-modes and the absent-not-NULL law; a `\value` entry for `getDispersion`; the
-alias and `\usage` line; one NEWS item.
+r-modes and the absent-not-NULL rule; a `\value` entry for `getDispersion`;
+the alias and `\usage` line; one NEWS item.
 
 Budget, raw additions against 7e6a4a3e: non-test 116 + this note (total 244,
 band 160-215, stop 270), tests 293. Both overshoot, both for the same reason -
@@ -1361,8 +1362,8 @@ different targets.
 
 Docs: the latent-subset-mask.md rule-2 block landed verbatim, 5 lines for 5,
 EOF errata only (numstat 11/5); the Rd's `updateScale` paragraph gains the
-grouped clause and a "Grouped random effects" subsection states the law; one
-NEWS item; the NEWS db builds.
+grouped clause and a "Grouped random effects" subsection states the rule;
+one NEWS item; the NEWS db builds.
 
 Budget, raw additions against 05a2b73a: non-test 104 + this note (band
 130-175, stop 220 - under; the plan's ~90 records allowance is this note);
@@ -1394,9 +1395,9 @@ The API as specced: `dbartsDrawLatents` and `dbartsWorkingResponse` exported,
 `totalFits` convention, the latent's quantity attribute, the two DEF_FUNC
 lines, one Rd topic `dbartsAugmentation` with per-function aliases, the
 `_pkgdown.yml` entry under "The mutable sampler", one NEWS item. The six draw
-laws and six working responses are RESTATED in the bridge, not shared with the
-response models (the spec's OUT OF SCOPE ban; the models run against a
-different generator), and `model.hpp` is absent from the diff entirely.
+distributions and six working responses are RESTATED in the bridge, not shared
+with the response models (the spec's OUT OF SCOPE ban; the models run against
+a different generator), and `model.hpp` is absent from the diff entirely.
 
 The RNG contract and the first-caller obligations, all four discharged and
 independently audited: the per-call generator is init-captured as a
@@ -1414,7 +1415,7 @@ only (y never enters that arm and there is no K to state support against);
 `sigma`, carrying a default, is refused off aft/student on `!missing(sigma)`
 rather than non-NULL; `weights` and `sigma` are refused off-family but
 OPTIONAL within it, while `dispersion`/`thresholds`/`df` are two-way (their
-family REQUIRES them - the law has no fallback); the R layer adds
+family REQUIRES them - the distribution has no fallback); the R layer adds
 positivity/wholeness/sortedness validation the spec implies but does not
 itemize, safe-over-fast.
 
@@ -1447,12 +1448,12 @@ z moving +2.553 -> -8.305 while containment stays GREEN, which is precisely
 the gap the added cell closes.
 
 Post-audit amendment, one commit kept: the independent gate-runner flagged
-the ordinal law as the one cell instrumented by CONTAINMENT alone - true on
-any draw inside the interval - so a 16-line two-sided/one-sided moment cell
-was added under oracle 1's mandate, proven discriminating by mutation 5, and
-the commit AMENDED before push. Full tinytest and `R CMD check` re-ran on the
-amended tree; the C side did not change, so the ASAN and trio legs stand from
-the pre-amend run.
+the ordinal distribution as the one cell instrumented by CONTAINMENT alone -
+true on any draw inside the interval - so a 16-line two-sided/one-sided
+moment cell was added under oracle 1's mandate, proven discriminating by
+mutation 5, and the commit AMENDED before push. Full tinytest and
+`R CMD check` re-ran on the amended tree; the C side did not change, so the
+ASAN and trio legs stand from the pre-amend run.
 
 Gate corrections this slice surfaced, both now standing battery text: the
 NEWS-parse invocation `tools:::.build_news_db("dbarts", ".")` is a SILENT
@@ -1476,14 +1477,14 @@ spec's ~336-with-records band 300-390 stop 505; tests 418 against ~230 stop
 a second enum and a spec struct, tests 512 -> 402, R 192 -> 164), no
 assertion was dropped to fit. ADJUDICATED ACCEPTED on the gate-runner's
 line-complete audit: the bridge inventories to exactly the mandated content
-(two entries, family map, marshalling, six laws, six responses, RNG
-plumbing - no cache, no refactor, no extra export), and all 57 pre-amend
-test call sites trace to a mandated oracle, a mutation-kill arm the spec's
-own matrix requires, or a validation the shipped R code performs. The ~110
-bridge estimate was scaled from a five-way GUARD - which branches to a
-message - while this branches to six SAMPLING LAWS; the same
-estimate-vs-mandate correction as S2's, and the spec itself flagged its
-figure ("the honest total is ~566 raw").
+(two entries, family map, marshalling, six distributions, six responses,
+RNG plumbing - no cache, no refactor, no extra export), and all 57
+pre-amend test call sites trace to a mandated oracle, a mutation-kill arm
+the spec's own matrix requires, or a validation the shipped R code
+performs. The ~110 bridge estimate was scaled from a five-way GUARD - which
+branches to a message - while this branches to six SAMPLING DISTRIBUTIONS;
+the same estimate-vs-mandate correction as S2's, and the spec itself
+flagged its figure ("the honest total is ~566 raw").
 
 Battery, twice, separate libs (implementer /tmp/s4-lib, gate-runner
 /tmp/s4-gate-lib, pre-amend; the amend re-ran tinytest/air/lintr/check):

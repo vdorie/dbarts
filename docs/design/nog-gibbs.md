@@ -1,6 +1,6 @@
 # rule_gibbs: an exact draw of the split rule at a nog node
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real law and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); AMENDED 2026-10-05 (the veto counts members, so the neighbourhood is every rule that leaves no child empty and the rank stratum is gone: section 2.2); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50). ADOPTED POST-RELEASE 2026-09-08: the maintainer adopts the cut-only rule draw at `d` = 0.16, to land after the first release.
+Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (the veto's real rule and the neighbourhood as a rank stratum, the cost table at 1 - stump%, the cost instrument, the balance gate sized, the surface at twenty-four files); AMENDED 2026-10-05 (the veto counts members, so the neighbourhood is every rule that leaves no child empty and the rank stratum is gone: section 2.2); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, 7fb166ca); SLICE 2 LANDED 2026-09-07 (rule-gibbs-balance.R, d888c9f3); SLICE 3 RUN 2026-09-07: NOT KILLED at d = 0.16, the coverage secondary fails (50032833); CUT-ONLY PILOT 2026-09-08: the private cut-only variant keeps about half the Trig+poly gain and all of the Single index one at 1.04 sweep-equivalents against 2.21 (a6f44e12); coverage flag dissolved by the reference arm 2026-09-08 (e002c10d); DOSE RESPONSE 2026-09-08 (17505c50). ADOPTED POST-RELEASE 2026-09-08: the maintainer adopts the cut-only rule draw at `d` = 0.16, to land after the first release.
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,
@@ -74,7 +74,7 @@ scan's entry, the sum of the two children's marginals, a child of only zero-weig
 which entries are candidates.
 
 Draw `(v, c)` from the normalized weights. Acceptance is one; no pairwise [`resolveEmptyLeafVeto`](../../src/bartcore/moves.hpp)
-comparison - 2.2 does that law's work in the enumeration instead - no snapshot-and-restore, no `logProposalCorrection`. Node
+comparison - 2.2 does that rule's work in the enumeration instead - no snapshot-and-restore, no `logProposalCorrection`. Node
 selection is uniform over the eligible nog nodes and its reciprocal cancels because that set is invariant under the move: shape is
 preserved, so `fillNoGrand`'s set does not move ([`Tree::fillNoGrand`](../../src/bartcore/tree.hpp)), and NO NOG NODE IS AN ANCESTOR
 OF ANOTHER - a node with an interior descendant is not nog - so changing `u`'s rule cannot move any other nog node's availability
@@ -84,7 +84,7 @@ Three of `changeMove`'s guards drop outright. No mask pool, an ordinal rule allo
 walk: `tree.interactionSubtreeIsValid` exists because a redrawn variable can strand a descendant SPLIT, and a nog node has none, so
 `collectAvailableVariables`'s own interaction test at `u` is the whole constraint.
 
-### 2.2 The veto's law, and what the scan must emit
+### 2.2 The veto's rule, and what the scan must emit
 
 **The scan's own occupancy test is not the veto's where a node routes missing rows.**
 [`scanOrdinalCuts`](../../src/bartcore/scan.hpp) writes [`cutScanEmptySentinel`](../../src/bartcore/scan.hpp), `-inf`, when either
@@ -123,7 +123,7 @@ set. Acceptance is one.
 As proposed and as first landed on 2026-09-07 this section was longer. The veto then counted positive-weight members and ranked a
 leaf with members but no weight between an empty leaf and an ordinary one, so a mask install could strand the incumbent; the scan
 emitted a branch rank per candidate, and the kernel drew over the stratum of smallest rank, a Metropolis-within-Gibbs step where
-the incumbent lay outside it. That law went on 2026-10-05 with the middle rank, and with it three symbols the landing records
+the incumbent lay outside it. That rule went on 2026-10-05 with the middle rank, and with it three symbols the landing records
 below name: retired: [`Tree::leafVetoRank`](../../src/bartcore/tree.hpp), retired: [`resolveVetoRank`](../../src/bartcore/moves.hpp) and
 retired: [`Tree::bottomNodesHaveWeight`](../../src/bartcore/tree.hpp).
 
@@ -145,11 +145,11 @@ and it is what the probe does; cost, on any mixed design a nog node is usually i
 truncated to a sorted-prefix family and REWEIGHTED so the family carries the whole variable's prior mass, and below it the enumeration
 is over the partitions of the categories PRESENT at the node with the absent reachable positions filled by post-draw coins. Neither is
 the conditional over the `2^R - 2` masks [`CGMTreePrior::ruleForVariableLogProbability`](../../src/bartcore/model.hpp) normalizes, so
-drawing from it targets the wrong law. **C, a mixed rule: enumerate the ORDINAL available variables and let the move act only when the
-incumbent rule is itself ordinal.** The restricted candidate set is still ancestor-determined, so the draw is a Gibbs step on the rule
-conditional on the rule being ordinal, and a node whose rule is categorical is a fixed point of this component - a valid restriction,
-not an approximation. **RECOMMEND C.** It keeps the move alive on the mixed designs A gives up on, at the cost of never proposing a
-categorical rule; `changeMove` still does, and
+drawing from it targets the wrong distribution. **C, a mixed rule: enumerate the ORDINAL available variables and let the move act only
+when the incumbent rule is itself ordinal.** The restricted candidate set is still ancestor-determined, so the draw is a Gibbs step on
+the rule conditional on the rule being ordinal, and a node whose rule is categorical is a fixed point of this component - a valid
+restriction, not an approximation. **RECOMMEND C.** It keeps the move alive on the mixed designs A gives up on, at the cost of never
+proposing a categorical rule; `changeMove` still does, and
 [`drawCategoricalRuleFromPrior`](../../src/bartcore/moves.hpp) remains the only mechanism that reaches a categorical rule at all. On
 an all-categorical design the move is inert, exactly as perturb is.
 
@@ -319,11 +319,11 @@ uniformly among the variables that STILL have a cut, which is what `drawSplitVar
 
 **Two poisons, both sized in advance.** (i) **Drop the two `log(1 - growth(child))` terms.** At the depth-1 left child, splitting x1 at
 either end leaves a grandchild with no available variable and a factor of 1, while a middle cut leaves both splittable at
-`1 - 0.95/3^0.5 = 0.4515` each: the true law over statistic 3's five states is (0.2981, 0.1346, 0.1346, 0.1346, 0.2981) and the
-poisoned one is uniform at 0.2 - the ends fall 33 percent, the middles rise 49. Statistic 1 is BLIND to this poison by construction,
-the root's children always retaining the other variable, which is why statistic 3 exists. (ii) **Drop the `1/|SI_v|` rule factor.**
-The root's six candidates then carry equal weight: x1's cuts go 0.095 to 0.158333 (+67 percent) and x2's single cut 0.475 to 0.158333
-(-67 percent), the same low-cardinality bias in mirror image that
+`1 - 0.95/3^0.5 = 0.4515` each: the true distribution over statistic 3's five states is (0.2981, 0.1346, 0.1346, 0.1346, 0.2981) and
+the poisoned one is uniform at 0.2 - the ends fall 33 percent, the middles rise 49. Statistic 1 is BLIND to this poison by
+construction, the root's children always retaining the other variable, which is why statistic 3 exists. (ii) **Drop the `1/|SI_v|` rule
+factor.** The root's six candidates then carry equal weight: x1's cuts go 0.095 to 0.158333 (+67 percent) and x2's single cut 0.475 to
+0.158333 (-67 percent), the same low-cardinality bias in mirror image that
 [The gate](change-move-balance.md#the-gate) repaired. Both effects are diluted by the arm's other shares; the arm is
 `birth_death 0.10, change 0.10, rule_gibbs 0.80`, change retained because statistic 1 needs a mechanism at a non-nog root and
 birth/death because statistic 2 moves through nothing else.
@@ -529,7 +529,7 @@ arm A.
 [2.4 Cost, and the two restricted variants](#24-cost-and-the-two-restricted-variants)'s first restricted variant, built and measured
 on a private `-DBARTCORE_RULE_GIBBS_CUT_ONLY` build the way the census scaffolding is built, and off in every shipped build. With the
 macro defined [`enumerateNogRuleNeighbourhood`](../../src/bartcore/moves.hpp) holds the node's incumbent variable and enumerates that
-variable's cuts alone - ONE scan a proposal - and every other term of the law stands: the refusal of an empty child, the
+variable's cuts alone - ONE scan a proposal - and every other term of the formula stands: the refusal of an empty child, the
 marginal, the missing coin, the categorical fixed point, and the prior factors, of which the split-variable prior and `1/|SI_v|` now
 cancel outright over one variable's cuts and are KEPT rather than dropped, so a candidate's weight stays on the joint kernel's own
 scale. It is still an exact Gibbs step: the restricted set is a deterministic function of state the move cannot change, so it is the
@@ -731,10 +731,10 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    the test, where the realized draw frequencies must match it** - itself a correctness gate at the kernel level, and the one that
    would catch a mis-assembled weight before any script runs.
 
-   **Landed** (7fb166ca, 2026-09-07), under the rank law section 2.2's next-to-last paragraph describes, which this item's text and
-   its gates name. Three design-versus-code points. (1) [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
+   **Landed** (7fb166ca, 2026-09-07), under the rank rule section 2.2's next-to-last paragraph describes, which this item's text
+   and its gates name. Three design-versus-code points. (1) [`scanOrdinalCuts`](../../src/bartcore/scan.hpp)
    emits the branch rank alone - the max of the two sides - with the marginal summed over the rank-0 sides, not the two
-   sides' own ranks as section 2.2 then specified; that pair is all that law consumed. (2) The cut-only variant of
+   sides' own ranks as section 2.2 then specified; that pair is all that rule consumed. (2) The cut-only variant of
    section 2.4 was not built - not free, only cheaper than the full draw, and slice 1 took 2.4's own recommendation to
    build the full rule draw first. (3) [`census::nogProbe`](../../src/bartcore/moves.hpp) now calls the shared enumerator
    for its weights, but its own eligibility gate is left at section 2.3's option A (every available variable ordinal)
@@ -762,8 +762,8 @@ four-chain configuration, SETTLED. Nothing waits on perturb's slice 3.
    `power = 0.5` the slowest series is the root's x2 cut indicator, at about 52 kept-draw lags to `acf < 0.1`. (4) Quick
    mode batches 125 x 400 rather than full mode's 500 x 500, batch LENGTH rather than count being what has to clear the
    roughly 30-draw integrated autocorrelation. (5) Section 5's constants otherwise reproduce exactly against the engine:
-   0.095 / 0.475 / 0.05, the `(0.2981, 0.1346, 0.1346, 0.1346, 0.2981)` child law, the leaf-count dynamic program, and the
-   undiluted detection floors. (6) Length 1012 lines against the section's 450 to 550 estimate,
+   0.095 / 0.475 / 0.05, the `(0.2981, 0.1346, 0.1346, 0.1346, 0.2981)` child distribution, the leaf-count dynamic program,
+   and the undiluted detection floors. (6) Length 1012 lines against the section's 450 to 550 estimate,
    [`perturb-balance.R`](../../benchmarks/R/perturb-balance.R)'s shape. The gate is a nominal alpha-0.05 family-wise test:
    an off-seed probe produced one Holm rejection in one of four alternate seeds (`|z|` 3.31), no bias when the four are
    pooled, and the shipped seed passes both modes with margin.

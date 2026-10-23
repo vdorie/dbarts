@@ -2,13 +2,13 @@
 # augmentation draws, run from R against R's own stream.
 #
 # THREE ORACLES, each gating what the others cannot see.
-# (1) DISTRIBUTIONAL: the draw laws against CLOSED FORMS - truncated-normal
-# moments at several truncation points and BOTH tails, Polya-Gamma mean and
-# variance at several psi including the psi -> 0 limit - each a z on the mean
-# at a stated Monte Carlo error. The only instrument that sees which SIDE a
-# latent is truncated on or which SHAPE a Polya-Gamma draw carries; a shape
-# defect is invisible at shape 1, so the weighted-logistic (b = 3) and nbinom
-# (b = y + r = 5) cells are load-bearing.
+# (1) DISTRIBUTIONAL: the draw distributions against CLOSED FORMS -
+# truncated-normal moments at several truncation points and BOTH tails,
+# Polya-Gamma mean and variance at several psi including the psi -> 0 limit -
+# each a z on the mean at a stated Monte Carlo error. The only instrument that
+# sees which SIDE a latent is truncated on or which SHAPE a Polya-Gamma draw
+# carries; a shape defect is invisible at shape 1, so the weighted-logistic (b
+# = 3) and nbinom (b = y + r = 5) cells are load-bearing.
 # (2) AGREEMENT: a pure-R Gibbs loop built ONLY from the two helpers reproduces
 # the engine's own posterior for that family. The only instrument that sees the
 # WORKING RESPONSE, which a host can get wrong with perfectly drawn latents -
@@ -50,7 +50,7 @@ momentZ <- function(draws, moments) {
   (mean(draws) - moments[["mean"]]) / sqrt(moments[["var"]] / length(draws))
 }
 
-# --- oracle 1: the draw laws against their closed forms
+# --- oracle 1: the draw distributions against their closed forms
 
 N <- 20000L
 set.seed(5L)
@@ -135,9 +135,10 @@ expect_true(all(
     ordinalDraws <= c(thresholds, Inf)[ordinalY]
 ))
 
-# and the ordinal law itself against the SAME closed forms, since containment
-# passes on any draw inside the interval: category 2 is a TWO-SIDED truncation
-# of N(psi, 1) and category 4 a one-sided one, and psi enters both
+# and the ordinal distribution itself against the SAME closed forms, since
+# containment passes on any draw inside the interval: category 2 is a
+# TWO-SIDED truncation of N(psi, 1) and category 4 a one-sided one, and psi
+# enters both
 ordinalPsi <- rep(0.3, N)
 for (case in list(c(2, -0.5, 0.4), c(4, 1.1, Inf))) {
   draws <- dbartsDrawLatents(
@@ -174,10 +175,11 @@ expect_identical(
   c(logistic = "precision", nbinom = "precision", student = "precision")
 )
 
-# every law in the exported vocabulary, one block: each draws through the same
-# helper and each working response is the quantity its OWN law names, less the
-# offset. "student" is the one no family value can carry - a Student-t response
-# IS gaussian - so a dispatch that lost it would answer here as a location law
+# every distribution in the exported vocabulary, one block: each draws through
+# the same helper and each working response is the quantity its OWN
+# distribution names, less the offset. "student" is the one no family value can
+# carry - a Student-t response IS gaussian - so a dispatch that lost it would
+# answer here as a location distribution
 lawN <- 40L
 set.seed(20260901L)
 lawFit <- rnorm(lawN, 0, 0.5)

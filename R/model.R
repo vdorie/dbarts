@@ -575,8 +575,8 @@ refuseColliding <- function(
 ## nbinom, drawsLeafKByDefault; 'binary' carries that flag),
 ## a positive scalar is fixed, and a hyperprior object passes through. Under a
 ## monotone constraint k is fixed for both families (an unsupplied k resolves
-## to 2, the truncated leaf law having no clean chi-k update) and a chi
-## hyperprior is refused.
+## to 2, the truncated leaf distribution having no clean chi-k update) and a
+## chi hyperprior is refused.
 ##
 ## A multi-forest fit fixes it on the same terms and for the same reason: the
 ## calibration map pins every forest's k at 1 and never updates it, so the
@@ -2327,8 +2327,9 @@ validateLiveScale <- function(value, name) {
   validateNamedScale(value, name)
 }
 
-## A leaf prior's 'sd': NULL, a positive number, or an invchi() law on it. A
-## law on k and the string forms k keeps for 0.9-x are refused by name.
+## A leaf prior's 'sd': NULL, a positive number, or an invchi() distribution
+## on it. A distribution on k and the string forms k keeps for 0.9-x are
+## refused by name.
 validateLeafSd <- function(sd) {
   if (is.null(sd) || is(sd, "dbartsSdHyperprior")) {
     return(sd)

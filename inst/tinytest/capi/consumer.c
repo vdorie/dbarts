@@ -669,10 +669,10 @@ SEXP capi_run_shape(SEXP ptrExpr, SEXP numBurnInExpr,
 
 /* the Student-t df channel a robust host reads: the results slot appended to
  * dbarts_results after the shape one. Same discipline as the shape
- * shim above - the recorded slot is NA-poisoned before the run, so an error law
- * that never fills it reads back as NA rather than as a plausible number, and
- * the first run pins structSize below the appended field over a poisoned
- * pointer, which a size-blind write would dereference. */
+ * shim above - the recorded slot is NA-poisoned before the run, so an error
+ * distribution that never fills it reads back as NA rather than as a plausible
+ * number, and the first run pins structSize below the appended field over a
+ * poisoned pointer, which a size-blind write would dereference. */
 SEXP capi_run_residual_df(SEXP ptrExpr, SEXP numBurnInExpr,
                           SEXP numSamplesExpr) {
   dbarts_sampler* sampler = samplerFromExpr(ptrExpr);

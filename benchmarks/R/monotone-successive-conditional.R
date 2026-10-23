@@ -1,16 +1,16 @@
 #!/usr/bin/env Rscript
 
 # Successive-conditional check of the monotone sampler (Geweke 2004): the
-# kernel leaves the joint law of (theta, y) invariant. Each replication draws
-# theta0 = (tree, leaves, sigma) from the sampler's own prior, simulates y given
-# theta0, installs theta0 as the chain's state and runs K sweeps given y. If the
-# kernel targets the posterior under that prior, theta_K is again a prior draw,
-# so every functional's paired difference g(theta_K) - g(theta0) has mean zero.
-# The pairing cancels most of the replication variance, and the check needs no
-# mixing: the chain starts at a posterior draw, so a one-tree birth/death chain
-# that does not mix its structure on an informative design (the reason the
-# one-tree SBC arm is only a diagnostic, docs/plans/monotone-exact-birth-death.md
-# step 16) is still tested exactly.
+# kernel leaves the joint distribution of (theta, y) invariant. Each replication
+# draws theta0 = (tree, leaves, sigma) from the sampler's own prior, simulates y
+# given theta0, installs theta0 as the chain's state and runs K sweeps given y.
+# If the kernel targets the posterior under that prior, theta_K is again a prior
+# draw, so every functional's paired difference g(theta_K) - g(theta0) has mean
+# zero. The pairing cancels most of the replication variance, and the check
+# needs no mixing: the chain starts at a posterior draw, so a one-tree
+# birth/death chain that does not mix its structure on an informative design
+# (the reason the one-tree SBC arm is only a diagnostic,
+# docs/plans/monotone-exact-birth-death.md step 16) is still tested exactly.
 #
 # Arms: the "leaf" and "joint" monotone priors (x1 increasing) and the
 # unconstrained birth/death-only twin, one tree, one predictor, n 100, under a

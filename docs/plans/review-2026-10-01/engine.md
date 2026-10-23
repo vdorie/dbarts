@@ -45,8 +45,8 @@ with an ABSOLUTE tolerance of 1e-12, so whenever the touched pair's posterior co
 ~1e-12 (the pair's data contradict the constraint by more than ~7 joint posterior sd) the refinement
 never runs and the 16-panel estimate is used, off by up to ~19 nats; past ~38 sd the integral (and
 normalMass) underflows to 0 and the move's -HUGE_VAL "infeasible" sentinel fires, so such births are
-never accepted and such deaths always are. The sampler then follows the wrong law under both priors,
-contradicting the design's "each targeted exactly".
+never accepted and such deaths always are. The sampler then follows the wrong distribution under
+both priors, contradicting the design's "each targeted exactly".
 
 Probe 1 (r3-engine-cone.R: line-for-line R transcription of coneProbability, monotoneIntegrate and
 monotoneAdaptiveSimpson; root birth, no frozen neighbours, so exact = pnorm(-gap, log.p = TRUE)):
@@ -55,9 +55,10 @@ monotoneAdaptiveSimpson; root birth, no frozen neighbours, so exact = pnorm(-gap
     worst over sR/sL in {0.05..20}:  gap 8 -0.59, 10 -4.28, 15 -3.42, 30 -14.13, 35 -18.97 nats
 
 Probe 2 (r3-engine-onecut.R n0 n1 delta sigma nSamp): one constrained binary predictor, increasing,
-one tree, fixed sigma; n0 rows at x = 0, n1 at x = 1 sitting delta below. Exact law of {root, split}
-from closed forms (the split tree's restricted CGM prior includes the (1 - 0.95/4)^2 its vetoed
-children owe, validated by the unconstrained twin r3-engine-onecut-free.R and the gap-2 control):
+one tree, fixed sigma; n0 rows at x = 0, n1 at x = 1 sitting delta below. Exact distribution of
+{root, split} from closed forms (the split tree's restricted CGM prior includes the (1 - 0.95/4)^2
+its vetoed children owe, validated by the unconstrained twin r3-engine-onecut-free.R and the gap-2
+control):
 
     gap 2.0 (control) leaf : P(split) exact 0.3519, sampler 0.3518
     gap 7.2  sU/sL 19.7 leaf : logCone exact -29.02 engine -30.94 | P(split) exact 0.1482, sampler 0.0249
@@ -66,7 +67,7 @@ children owe, validated by the unconstrained twin r3-engine-onecut-free.R and th
     gap 13.2            leaf : exact 0.0730, sampler 0.0037
     gap 19.6 sU/sL 5.0  leaf : exact 0.0301, sampler 0.0217   (100k draws; 5-se band <= 0.0025)
 
-In every row the sampler matches the law implied by the engine's quadrature, not the exact one.
+In every row the sampler matches the distribution implied by the engine's quadrature, not the exact one.
 
 Reach: any constrained-axis birth whose two children are of unequal size and whose data run against
 the constraint by more than ~7 posterior sd - common with large leaves, a misspecified or

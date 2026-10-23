@@ -94,8 +94,8 @@ draft, a rule that `schedule` and `workflow_dispatch` bind to the default branch
   the six pinned datasets: never moves, quick and full; one sweep in 100: full 12 of 12, quick 11 of 12 (2000); one
   sweep in 20: full 1 of 12 (7 of 12 at 2000 draws), quick 3 of 12 (2000); every draw one step up: full 12 of 12,
   quick 0 of 12 (2000); every draw one step down: by (iii) on r0 = 8 seed 1 at the edge of its set, quick 6 of 8
-  streams (2000), full 3 of 5. Not caught: half the draws one step up; a law shifted by less than a grid step is
-  what neither mode sees. Full mode takes 73 s on the laptop (two threads), 40 s at 2000 draws.
+  streams (2000), full 3 of 5. Not caught: half the draws one step up; a distribution shifted by less than a grid step
+  is what neither mode sees. Full mode takes 73 s on the laptop (two threads), 40 s at 2000 draws.
 - k arm, R = 600, L = 99, thin 1000, burn 30000: 67 minutes on the laptop (6.7 s a replication, two runs at once on
   a loaded machine), so 134 at twice that, inside the 180-minute limit. Correct sampler: all seven functionals pass,
   k's chi-square p 0.012 (above the 6e-4 flag) and ecdf difference 0.038 of a 0.080 band, the end bins at 48 and

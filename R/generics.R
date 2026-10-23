@@ -51,12 +51,12 @@ fitIsBinary <- function(object) {
   fitEngineFamily(object) %in% c("probit", "logistic")
 }
 
-# a family with a residual law, and so the resid.scale descriptor
+# a family with a residual distribution, and so the resid.scale descriptor
 fitHasResidual <- function(object) {
   fitEngineFamily(object) %in% c("gaussian", "aft")
 }
 
-# the residual law's shape, which the family fixes
+# the residual distribution's shape, which the family fixes
 fitIsStudent <- function(object) {
   identical(fitFamily(object), "student")
 }
@@ -134,13 +134,13 @@ heteroscedasticScale <- function(s, n.chains) {
 # silently reuse a formula that does not fit it (an aft fit has non-null
 # sigma but is not gaussian): gaussian evaluates the normal density with
 # weights as precision (y | x ~ N(f(x), sigma^2 / w)), and a
-# student() residual law the t marginal at the same location and scale; probit and
-# logistic the bernoulli mass on the y scale, weights being trial counts for
-# logistic (probit never stores weights); aft the log density for events and
-# the log survival tail for right-censored rows, mirroring the engine's
-# AFTResponse::computeLogLikelihood. Any other family errors rather than
-# reporting a wrong number. A row an installed active-row mask takes out of
-# the data set reports NaN whatever the family, as the engine's own channel
+# student() residual distribution the t marginal at the same location and
+# scale; probit and logistic the bernoulli mass on the y scale, weights being
+# trial counts for logistic (probit never stores weights); aft the log density
+# for events and the log survival tail for right-censored rows, mirroring the
+# engine's AFTResponse::computeLogLikelihood. Any other family errors rather
+# than reporting a wrong number. A row an installed active-row mask takes out
+# of the data set reports NaN whatever the family, as the engine's own channel
 # does. A heteroscedastic gaussian or aft fit scores at its
 # own per-observation s(x) instead of the scalar (heteroscedasticScale below).
 pointwiseLogLikelihood <- function(object, ev) {
@@ -160,7 +160,7 @@ pointwiseLogLikelihood <- function(object, ev) {
   }
 
   if (identical(family, "gaussian")) {
-    # the family fixes the residual law. A student() fit scores the
+    # the family fixes the residual distribution. A student() fit scores the
     # MARGINAL t density - the observation-level likelihood loo/waic are
     # defined on, and the density the engine itself reports - rather than the
     # gaussian working likelihood conditional on the latent precisions, which
@@ -848,7 +848,7 @@ predict.bart <- function(
     )
   } else if (type == "ppd" && !is.null(weights) && fitHasResidual(object)) {
     # a precision multiplier, sd_i = scale_i / sqrt(w_i), on every family with
-    # a residual law, aft's log-time one included: an infinite one
+    # a residual distribution, aft's log-time one included: an infinite one
     # silently draws the expected value and a negative one draws NaN. A
     # missing one is the row's na.action's to answer
     observed <- weights[!is.na(weights)]

@@ -99,18 +99,20 @@ another block's offsets - still inherits whatever spread the
 CONSTRUCTION vector implied, which is an accident of how the outer loop
 was initialized rather than a modelling statement. So the leaf prior is
 named one of two ways, never both: `k`, relative to the scale the data
-fixes (a number, or a law on k, `chi(df, scale)`), or `sd`, the prior sd
-of the forest total's leaf parameter on the scale the family's forest
-fits (a number, or a law on the sd itself, `invchi(df, scale)`). For the
-constant leaf `sd` is the prior sd of f(x); for linear leaves it is each
-coefficient's, per standardized covariate; for GP leaves the amplitude.
+fixes (a number, or a distribution on k, `chi(df, scale)`), or `sd`, the
+prior sd of the forest total's leaf parameter on the scale the family's
+forest fits (a number, or a distribution on the sd itself,
+`invchi(df, scale)`). For the constant leaf `sd` is the prior sd of
+f(x); for linear leaves it is each coefficient's, per standardized
+covariate; for GP leaves the amplitude.
 
-Only the ratio of k.scale to k enters a draw law. Under k ~ s chi_df the
-spread is (k.scale / s) / chi_df, a scaled inverse chi on the sd, so a
-named k.scale and the k hyperprior's scale are not separately identified:
-`chi(df, s)` is `invchi(df, k.scale / s)`, and `chi(df, Inf)`, the
-improper sd^-(df + 1), is `invchi(df, 0)`. That family is the only law on
-the sd offered because it is the one conjugate to the normal leaves.
+Only the ratio of k.scale to k enters a draw distribution. Under k ~ s
+chi_df the spread is (k.scale / s) / chi_df, a scaled inverse chi on the
+sd, so a named k.scale and the k hyperprior's scale are not separately
+identified: `chi(df, s)` is `invchi(df, k.scale / s)`, and
+`chi(df, Inf)`, the improper sd^-(df + 1), is `invchi(df, 0)`. That
+family is the only distribution on the sd offered because it is the one
+conjugate to the normal leaves.
 
 A named sd is sugar over k (dec-B416; [leaf-scale-rules.md](leaf-scale-rules.md)). k.scale is the data's
 under every spelling, and the engine holds the named sd and states it as k against that scale: `sd = x` runs
@@ -129,7 +131,7 @@ in force at the call, from a fixed or a drawn prior in either spelling
 (dec-B356, dec-B369, dec-B392, dec-B393): no prior moves k.scale, so k is not touched and the new prior acts
 from the next draw of k; a fixed k or sd stated sets the spread as written. `setModel` keeps a drawn k the
 same way. The reader reports in the terms the prior was named in: `prior.sd`,
-the sd law in force while k is drawn, and k relative to the data's
+the sd distribution in force while k is drawn, and k relative to the data's
 scale, reported as `k.scale` ([`reportLeafPrior`](../../R/dbarts.R)); a fit named by an sd
 hyperprior carries draws of the sd in place of k. The two-forest and
 multinomial models have their own calibration maps and refuse a named

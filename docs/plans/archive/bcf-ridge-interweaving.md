@@ -299,7 +299,7 @@ likelihood is constant along the orbit, the move preserves the posterior IFF
 it preserves the PRIOR's along-orbit conditional. So draw `(a, mu)` from the
 prior (`a ~ half-normal(sd sqrt(aVariance))` on the a>0 branch, `mu_l ~
 N(0, leafVar)` iid), push through the move, and test the pushed sample still
-has the prior law. A wrong GIG parameter shows immediately.
+has the prior distribution. A wrong GIG parameter shows immediately.
 
 Two independent samplers -- a grid inverse-CDF on the operational form (**)
 and a grid inverse-CDF on GIG(p=(L-1)/2, A=M/leafVar, B=a0^2/aVariance) via

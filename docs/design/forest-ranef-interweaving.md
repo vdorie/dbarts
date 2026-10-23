@@ -196,9 +196,9 @@ residual sum (which spans OTHER leaves). Two honest implementation shapes:
   in the decorator (no leaf-model surgery) but is NOT exact (a per-group
   location shrink is not the full rank-1 covariance; the forest's own splitting
   redistributes the shrunk mean across leaves imperfectly). It would need its own
-  exact-posterior gate to prove it targets the right law, and may only recover
-  part of the collapse's gain. Recorded as a door, not the recommendation --
-  shipping an unvalidated approximate kernel is against the repo bar.
+  exact-posterior gate to prove it targets the right distribution, and may only
+  recover part of the collapse's gain. Recorded as a door, not the recommendation
+  -- shipping an unvalidated approximate kernel is against the repo bar.
 
 ### 3.3 Draws changed / RNG
 

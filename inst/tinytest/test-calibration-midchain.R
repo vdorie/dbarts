@@ -165,8 +165,8 @@ inertG <- dbarts(x, yRounding, control = midControl())
 inertH <- dbarts(x, yRounding, control = midControl())
 inertH$setLeafPrior(normal(sd = priorSdOf(inertH)[[1L]]))
 expect_identical(inertG$run(20L, 10L)$train, inertH$run(20L, 10L)$train)
-# a binary default: the read sd law written back is inert, and so is the k
-# spelling of the unnamed default
+# a binary default: the read sd distribution written back is inert, and so
+# is the k spelling of the unnamed default
 yBinary <- rbinom(n, 1L, pnorm(x[, 1L] - x[, 2L]))
 binaryA <- dbarts(x, yBinary, control = midControl())
 binaryB <- dbarts(x, yBinary, control = midControl())
@@ -175,7 +175,8 @@ expect_identical(binaryRead$leaf.prior, priorOf(normal(k = chi(1.5, 2))))
 binaryB$setLeafPrior(normal(sd = invchi(1.5, binaryRead$k.scale / 2)))
 expect_identical(binaryA$run(20L, 10L)$train, binaryB$run(20L, 10L)$train)
 # and the reader's own output written back, for a drawn k and for each
-# spelling of an sd law, which reads its scale off the anchor in force
+# spelling of an sd distribution, which reads its scale off the anchor
+# in force
 roundTrip <- function(leafPrior) {
   twins <- lapply(1:2, function(i) {
     eval(bquote(dbarts(
@@ -232,7 +233,7 @@ for (requested in c(0.75, 0.125, 1.875, 6)) {
   expect_true(max(abs(reported / requested - 1)) < 4 * .Machine$double.eps)
   expect_identical(reported[[1L]], reported[[2L]])
 }
-# a drawn spread reports the law it was written as
+# a drawn spread reports the distribution it was written as
 fidelity$setLeafPrior(normal(sd = invchi(2, 0.5)))
 fidelityLaw <- fidelity$getLeafPrior()$leaf.prior@prior.sd
 expect_identical(fidelityLaw@df, 2)
@@ -278,7 +279,7 @@ expect_true(max(abs(staticM / 0.75 - 1)) < 1e-14)
 expect_true(abs(staticM[2L] / staticM[1L] - 1) < 1e-14)
 # the WRITE, absolutely: prior draws of the forest total after the write have
 # sd prior.sd at every tree count, the only check that crosses the engine's
-# own draw law. 600 draws support a 10% band.
+# own draw distribution. 600 draws support a 10% band.
 staticDrawn <- vapply(
   c(50L, 200L),
   function(numTrees) {
@@ -443,8 +444,8 @@ expect_equal(recipeMean, (max(y) + min(y)) / 2)
 recipe$setOffset(rep_len(-recipeMean, n))
 expect_identical(recipe$getLeafPrior()$prior.mean, recipeMean)
 
-# a drawn k: the sd law is written and survives the k draws of a run, which
-# move the reported spread and not the law
+# a drawn k: the sd distribution is written and survives the k draws of a
+# run, which move the reported spread and not the distribution
 sampledK <- dbarts(x, yBinary, control = midControl())
 sdLawScale <- function(sampler) sampler$getLeafPrior()$leaf.prior@prior.sd@scale
 expect_true(is(sampledK$getLeafPrior()$leaf.prior@k, "dbartsChiHyperprior"))
@@ -572,7 +573,7 @@ expect_error(
 )
 
 # DART is NOT refused. $setModel refuses a DART sampler outright; the write
-# moves the spread, or the law, and the fit runs clean afterwards
+# moves the spread, or the distribution, and the fit runs clean afterwards
 dartSampler <- dbarts(
   x,
   y,

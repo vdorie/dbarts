@@ -10,10 +10,10 @@
 #include <thread>
 
 // The monotone leaf-order counter: log Z_T, the birth/death ratio counted on
-// the finer tree's side, the position laws and the linear-extension draw,
-// against brute-force permutation counts through monotoneTreeIsFeasible, the
-// geometry the counter must reproduce. Takes no shared rng and restores the
-// runif01 stream.
+// the finer tree's side, the position distributions and the linear-extension
+// draw, against brute-force permutation counts through
+// monotoneTreeIsFeasible, the geometry the counter must reproduce. Takes no
+// shared rng and restores the runif01 stream.
 
 namespace {
 
@@ -633,8 +633,8 @@ static void testMonotoneRatioNamed() {
   printf("ok: monotone ratio, named examples\n");
 }
 
-// Position laws against enumerated extensions, every element of the
-// components of random trees.
+// Position distributions against enumerated extensions, every
+// element of the components of random trees.
 static void testMonotonePositionLaw() {
   ColumnStore store;
   makeStore(store, 3, 12, 300);
@@ -2082,8 +2082,9 @@ static void testMonotoneFreeBound() {
 // The "joint" prior's structure draw: one predictor on three values (two
 // cuts), one tree, so the trees are the root, a split at either cut, and each
 // of those with its other side split too. Their CGM probabilities times Z_T
-// (1, 1/2, 1/6 for 1, 2, 3 chained leaves) are the joint law; the "leaf" prior
-// draws CGM's own. Chi-square on 20000 draws each, and the other law refused.
+// (1, 1/2, 1/6 for 1, 2, 3 chained leaves) are the joint distribution; the
+// "leaf" prior draws CGM's own. Chi-square on 20000 draws each, and the other
+// distribution refused.
 static void testMonotoneJointTreePrior() {
   const size_t n = 90;
   std::vector<double> x(n), y(n, 0.0);
@@ -2150,9 +2151,9 @@ static void testMonotoneJointTreePrior() {
 
 // The joint prior's accept step keeps a tree exactly when the iid leaves it
 // drew lie in the cone, read here off the point oracle's required pairs. The
-// tree law alone cannot see a reversed test: negating iid draws of a common
-// sd maps the cone onto its reverse, so both are accepted at the rate Z_T.
-// Own rng; restores the runif01 stream the random trees consume.
+// tree distribution alone cannot see a reversed test: negating iid draws of
+// a common sd maps the cone onto its reverse, so both are accepted at the
+// rate Z_T. Own rng; restores the runif01 stream the random trees consume.
 static void testMonotoneJointAcceptIsConeTest() {
   std::uint64_t saved = rngState;
   ColumnStore store;

@@ -1299,8 +1299,9 @@ resolveKGrid <- function(k, binary) {
 }
 
 ## The sd axis: a numeric vector of absolute spreads, or a list mixing them
-## with invchi() laws, each translated to the leaf hyperprior and anchor a
-## leaf prior naming that sd reaches the engine with (resolveLeafPrior).
+## with invchi() distributions, each translated to the leaf hyperprior and
+## anchor a leaf prior naming that sd reaches the engine with
+## (resolveLeafPrior).
 resolveSdGrid <- function(sd) {
   entries <- if (is.list(sd)) {
     sd

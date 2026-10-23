@@ -851,7 +851,7 @@ might fail.
          double* k;               ///< numChains
          double* responseScale;   ///< numChains; internal-to-response multiplier
          double* responseShift;   ///< numChains; internal-to-response offset
-         int*    kHasHyperprior;  ///< numChains; THIS FOREST's own k law (not the
+         int*    kHasHyperprior;  ///< numChains; THIS FOREST's own k prior (not the
                                   ///< sampler-wide dbarts_sampler_kIsSampled,
                                   ///< which reads the sampler option and
                                   ///< disagrees on BCF and multinomial)

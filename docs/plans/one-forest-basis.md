@@ -96,10 +96,10 @@ Everything below is what the existing code already computes once the floors go; 
 - Leaf calibration: k fixed at 1; the node scale is `sqrt(2/K) s / (0.674 c)` at K = 1, factor 1.414214, so the
   forest total's prior sd is 2.0982 s / c, s the family anchor ([`latentScaleAnchor`](../../src/bartcore/chain.hpp))
   and c the basis's median non-zero row norm. The index prior sd at a row of norm c is 1.4837 s, the all-basis value
-  the K-aware law holds at every K. Its law is a product of two normals, peaked at zero: a probit model's
-  `P(p < 0.01 or p > 0.99)` at such a row is 0.104 (logistic 0.087; Monte Carlo, 4e6 draws), against 0.239 for the
-  single-forest binary default and 0.247 for the two-forest bcf shape. This is the shipped law's own K = 1 value,
-  not a new default.
+  the K-aware distribution holds at every K. Its distribution is a product of two normals, peaked at zero: a probit
+  model's `P(p < 0.01 or p > 0.99)` at such a row is 0.104 (logistic 0.087; Monte Carlo, 4e6 draws), against 0.239
+  for the single-forest binary default and 0.247 for the two-forest bcf shape. This is the shipped distribution's
+  own K = 1 value, not a new default.
 - Readers: `$getLeafPrior()` reports one forest - `amplitude.prior.variance` 0.5, `amplitude.prior.scale` NaN,
   `leaf.scale.factor` 1.414214, `leaf.scale.divisor` 0.674, `basis.row.norm` c; `$getForestAmplitudes()` a q x
   n.chains matrix; `$getForestFits()` the forest's internal-scale total, n x n.chains; `$predictForests()` n.new x 1

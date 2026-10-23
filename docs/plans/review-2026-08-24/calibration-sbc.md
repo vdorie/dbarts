@@ -60,8 +60,9 @@ the mechanism: at n = 150 the r-vs-psi ridge is effectively non-ergodic
 (integrated autocorrelation 2199-6359 sweeps; two chains held disjoint r basins
 for 100000 sweeps with identical avg.mu), the cold start at the grid median
 making the error one-sided exactly as seen here; the n = 20 control passes
-everything. A KNOWN MIXING LIMITATION at ensemble n, not a draw-law defect; new
-here is that it is forest-size-invariant, as a ridge the trees never touch is.
+everything. A KNOWN MIXING LIMITATION at ensemble n, not a draw-distribution
+defect; new here is that it is forest-size-invariant, as a ridge the trees never
+touch is.
 
 FLAG 2 - grouped-gaussian `sigma`. ecdf-diff 0.2916, chisq p 0.000, mean rank
 135.2 of 100, histogram monotone increasing (8 -> 41): theta0's sigma above the
@@ -100,8 +101,8 @@ re-run: ordinal's recorded m = 50 flag was gamma3, 0.0739 PASS here, and at the
 ladder point the marginal ordinal cell moves again to p4 (1.06) while eta.star3
 falls. Five NOTEs over 83 functionals is the 4.15 expected at 5%. Noise.
 
-NO PERSISTENT FLAG THAT IS A DRAW-LAW DEFECT CANDIDATE. Both hard flags are
-pre-adjudicated (one a demonstrated mixing limitation with the derivation
+NO PERSISTENT FLAG THAT IS A DRAW-DISTRIBUTION DEFECT CANDIDATE. Both hard flags
+are pre-adjudicated (one a demonstrated mixing limitation with the derivation
 checked, one a harness scaling artifact reproduced three ways), and every NOTE
 either shrinks under spacing or is ill-posed by construction. At four times the
 forest size, gaussian, student-t, weighted gaussian, probit, logistic, ordinal,

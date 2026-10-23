@@ -378,7 +378,7 @@ of the family-tiers matrix.
 [f48] At HEAD, past this snapshot: the censoring-status setter (docs/design/aft-status-setter.md
 slice 1, landed fcd60feb, e20c6462, f9bc9260, 2026-09-07) adds its own gates - creation parity
 bitwise through both the R5 and handle surfaces; the cpp ordering/bound gate; the joint
-y-and-status gate; the redraw law; the refusals; the store/load handshake in both flip
+y-and-status gate; the redraw distribution; the refusals; the store/load handshake in both flip
 directions; seven poisons caught - and a mutation probe `test-aft.R` catches at the
 index-restricted `restoreLatents`. tests/cpp 278; tinytest 7448/0 (70 in test-aft.R);
 equivalence trio bitwise 50/12/11; ASAN/UBSAN clean; R CMD check --as-cran OK, zero notes;

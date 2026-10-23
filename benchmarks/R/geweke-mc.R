@@ -56,15 +56,15 @@
 # A joint test names a disagreement, not a culprit, so a third arm does the
 # adjudication the tree-shaped functionals need. Pinning sigma enormous
 # (a fixed sigma prior) drives every structure move's marginal-likelihood ratio
-# to 1 within ~1e-6, so the sweep's stationary tree law IS the forest prior the
-# Metropolis ratio prices, with no response, no sigma draw and no leaf posterior
-# in the way. Held against sampleTreesFromPrior's law on the same design, that
-# is a prior-versus-prior statement between two ENGINE-side representations of
-# one prior, and it separates the two readings of a tree-functional fire: a gap
-# there puts the disagreement in the prior representations (the marginal arm's
-# theta is then not the theta the sweep integrates over, which is an
-# initialiser-consistency finding and not a statement about the posterior), and
-# no gap there leaves it in the sweep.
+# to 1 within ~1e-6, so the sweep's stationary tree distribution IS the forest
+# prior the Metropolis ratio prices, with no response, no sigma draw and no leaf
+# posterior in the way. Held against sampleTreesFromPrior's distribution on the
+# same design, that is a prior-versus-prior statement between two ENGINE-side
+# representations of one prior, and it separates the two readings of a
+# tree-functional fire: a gap there puts the disagreement in the prior
+# representations (the marginal arm's theta is then not the theta the sweep
+# integrates over, which is an initialiser-consistency finding and not a
+# statement about the posterior), and no gap there leaves it in the sweep.
 #
 # Sensitivity, measured by poisoning the successive-conditional refresh
 # (poison=<name>, graded on the sixteen response-side functionals of the two
@@ -135,7 +135,7 @@ nChain <- if (quick) 300L else 2000L
 nStep <- if (quick) 100L else 200L
 nPool <- if (quick) 50L else 100L # marginal-conditional draws per rank block
 nNull <- if (quick) 300L else 1000L # replications of the null self-check
-nProbe <- if (quick) 20000L else 200000L # draws per law in the prior probe
+nProbe <- if (quick) 20000L else 200000L # draws per distribution, prior probe
 nBatch <- 100L # batches the prior probe's sweep series is read through
 
 ## The two configurations. Small n keeps the successive-conditional chain
@@ -376,12 +376,13 @@ gewekeCompare <- function(pool, chainMeans, finals, nAverage) {
   )
 }
 
-## The adjudication arm: sampleTreesFromPrior's law against the law the sweep
-## holds in stationarity once the likelihood is flat. Both are the engine's, so
-## a gap is an inconsistency between two representations of the forest prior and
-## nothing to do with the response. The sweep series is read through batches
-## long against its ~20-sweep autocorrelation time, so the batch means are
-## near-independent and their spread is the standard error.
+## The adjudication arm: sampleTreesFromPrior's distribution against the
+## distribution the sweep holds in stationarity once the likelihood is flat.
+## Both are the engine's, so a gap is an inconsistency between two
+## representations of the forest prior and nothing to do with the response. The
+## sweep series is read through batches long against its ~20-sweep
+## autocorrelation time, so the batch means are near-independent and their
+## spread is the standard error.
 gewekePriorProbe <- function(arm) {
   sampler <- gewekeSampler(arm, flat = TRUE)
   stopifnot(sampler$run(0L, 1L)$sigma[1L] == flatSigma)

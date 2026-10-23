@@ -58,7 +58,7 @@ public engine instead of writing tree code?
   the composition validator, augmentation helpers, the M4 basis family. Name
   the unlocking item.
 - **(C)** Needs a CONTRIBUTED engine family or leaf model - an integrand
-  change (likelihood family, link, leaf model, tree prior, hyperprior law,
+  change (likelihood family, link, leaf model, tree prior, hyperprior,
   split-rule representation), which this architecture takes as a C++
   contribution selected from R (`facade.hpp` concepts).
 - **(D)** Structurally engine-only in ANY implementation: a likelihood that
@@ -304,9 +304,9 @@ failure modes come from an independent adversarial re-check.
 
 **sparseVCBART 1.0.0** (Ghosh, Deshpande; CRAN, 2026-05-19; 100/mo). VCBART
 with global-local (horseshoe-type) shrinkage across coefficient functions.
-*Unique:* the hyperprior law on the leaf scales, not the mean structure.
+*Unique:* the hyperprior on the leaf scales, not the mean structure.
 *Built:* a sibling code base to VCBART, own C++. *Counterfactual:* **(C)** - a
-hyperprior law over leaf scales is clause 2, and the leaf draw changes.
+hyperprior over leaf scales is clause 2, and the leaf draw changes.
 *Verified:* DESCRIPTION and `src/` listing, side by side with VCBART's.
 
 **ridgeBART 1.0.2** (Yee, Deshpande; CRAN, 2026-05-27; 161/mo). BART whose

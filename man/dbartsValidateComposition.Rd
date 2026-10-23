@@ -77,7 +77,7 @@ dbartsValidateComposition(drawPrior, simulate, init, step, functionals,
   secondary signals; the verdict does not hinge on them.
 
   \strong{Ties.} A rank is the number of draws below \eqn{\theta_0}{theta0}, which is uniform only
-  for an atomless law. Every functional is ranked with the tie-break instead: draws and
+  for an atomless distribution. Every functional is ranked with the tie-break instead: draws and
   \eqn{\theta_0}{theta0} alike carry an independent uniform tag, so an atom - an indicator, a
   discrete parameter, a probability that underflows to zero - contributes a uniform increment rather
   than piling every replication onto one rank. With no ties it is the plain count, exactly.

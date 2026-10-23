@@ -93,7 +93,7 @@ THE FOUR PATHS AND THE GAP. Construction and sampling draw leaves from an invers
 square, so they are positive by construction and carry no check. Two validation sites do
 check: [src/bartcore/chain.hpp:3301](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L3301) (setState's live variance trees) and [src/bartcore/chain.hpp:3334](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L3334) (setState's saved
 buffer). The warm-start install has two arms and only one checks: the slot-sourced arm at
-[src/bartcore/sampler.hpp:919-923](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L919-L923) applies the law with a comment naming exactly why ("the buffer is
+[src/bartcore/sampler.hpp:919-923](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L919-L923) applies the rule with a comment naming exactly why ("the buffer is
 hand-buildable and a rebuild scatters the leaf straight into a divisor"); the live-sourced
 arm at [src/bartcore/sampler.hpp:891](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/sampler.hpp#L891) is a bare `dst.varianceTrees = src.varianceTrees;` with nothing
 (since fixed: [src/bartcore/sampler.hpp:1099-1102](https://github.com/vdorie/dbarts/blob/297ef69f2a90e887f00fcd763a664abb798ac285/src/bartcore/sampler.hpp#L1099-L1102) now follows that assignment with
@@ -119,8 +119,8 @@ CANDIDATE RULINGS.
     lines, and the existing `WarmStartResult::varianceMismatch` code is already wired to a
     named R error. All four paths then answer the same way.
 (b) Check in the donor parser (`R_interface_bartcore.cpp` around [src/R_interface_bartcore.cpp:7237](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L7237)) so both arms and
-    any future reader inherit it. ~8 lines, better message, but puts a model law in the
-    bridge rather than the engine.
+    any future reader inherit it. ~8 lines, better message, but puts a model rule in
+    the bridge rather than the engine.
 (c) Leave it and document that `installTrees` trusts its donor. Free, and wrong: the
     sibling arm already decided this and `setState` refuses the identical object.
 COST TO BASELINES: none under any option. The check only converts an install that today
@@ -129,7 +129,7 @@ corrupts into a refusal; every legitimate donor's leaves are positive. `equivale
 MOVE: none break - [inst/tinytest/test-heteroscedastic-warm-start.R:91-92](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/tinytest/test-heteroscedastic-warm-start.R#L91-L92) exercises the live-sourced
 arm with a legitimate donor and keeps passing. That file is the natural home for one new
 `expect_error` beside its existing slot-mismatch refusals at [inst/tinytest/test-heteroscedastic-warm-start.R:149](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/tinytest/test-heteroscedastic-warm-start.R#L149) and [inst/tinytest/test-heteroscedastic-warm-start.R:169](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/inst/tinytest/test-heteroscedastic-warm-start.R#L169). No exact
-gate or SBC arm covers this and none should: it is a validation law, not a posterior.
+gate or SBC arm covers this and none should: it is a validation rule, not a posterior.
 RECOMMENDATION: (a), and land it independently of the other two. It is the only one of the
 three that is live on the documented R surface, it costs five lines, it moves no draws,
 and the fix is a copy of the sibling arm's own body. Priority: highest of the three.

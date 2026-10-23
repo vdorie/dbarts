@@ -39,13 +39,14 @@ and anything built on them report the cold start. The mean channel is roughly fi
 Mechanism. At fixed psi, r -> r' multiplies every mean by r'/r. The NB2 information on a common log-mean shift is
 sum_i r mu_i / (mu_i + r) (about 5000 at the probe's n = 1000 and r = 8), so the grid neighbour 8 -> 10 (a shift
 of log 1.25) costs of order 10^2 nats. The forest could follow r only by a coordinated level shift of every tree, which
-tree-local moves never propose. negbin-exact.R (one tree, n = 50) checks the stationary law, not mixing; the SBC
+tree-local moves never propose. negbin-exact.R (one tree, n = 50) checks the stationary distribution, not mixing; the
+SBC
 arm's r flag was waived as a ridge (`SBC_EXPECTED_FLAGS: r,agg.psi`, [.github/workflows/sbc.yaml:104](https://github.com/vdorie/dbarts/blob/01dee4b4f1a21565c91eceea391e666851662a0d/.github/workflows/sbc.yaml#L104)).
 
 ### The new conditionals
 
 Write eta_i = f(x_i) + c + o_i = log mu_i, with c the prior center ([Leaf prior](#leaf-prior)), and
-psi_i = eta_i - log r, so p_i = mu_i / (mu_i + r). The count law is unchanged:
+psi_i = eta_i - log r, so p_i = mu_i / (mu_i + r). The count distribution is unchanged:
 
     NB(y | r, p) = G(y + r) / (G(r) y!) p^y (1 - p)^r,    p^y (1 - p)^r = e^{y psi} / (1 + e^psi)^{y + r}.
 
@@ -363,7 +364,8 @@ All ruled 2026-10-01 in [decisions.md](../decisions.md); this plan carries them 
 
 dbarts, five commits, landing by merge: `A mixing gate for the negative-binomial dispersion` (8394e4c5, C1), the
 rulings fold (7c6bb8c4), the model change (fdfc1fe4, C2), the SBC arm (35ad7fb7, C3) and the equivalence re-record
-(77ac6aa3, C4). families-01 is closed: r leaves its cold start and the predictive law covers fresh counts.
+(77ac6aa3, C4). families-01 is closed: r leaves its cold start and the predictive distribution covers fresh
+counts.
 
 C1. The mixing gate fails at its parent as required: quick, every chain at r = 8 for all 500 draws in both cells,
 95% sets [8, 8], coverage 0.852 and 0.759; full, 11 of 12 chains frozen at 8 and one at 4, coverage 0.709-0.870.

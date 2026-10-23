@@ -71,7 +71,7 @@ measured where possible, and the ones that bind become settings.
   whose association is already fixed at four positional banks
   ([`fusedSuffstatBanks`](../../src/bartcore/chain.hpp),
   [`combineFusedSuffstatBanks`](../../src/bartcore/chain.hpp)) that the
-  engine documents as part of the draw law - independent of ISA, lane
+  engine documents as part of the draw rule - independent of ISA, lane
   width and worker count, and explicitly refused a knob. What that pass
   declines (weighted families, fp32 residuals, a stale leaf map, linear
   and GP leaves) and every per-move child statistic
@@ -195,7 +195,7 @@ choice; none remains open.
    divided into the chains - it warns instead. The default moves from
    the raw core count to `min(guessNumCores(), n.chains)`. Steps 10
    through 13 as written are not built; see the S4 outcome note below.
-5. The summation law under within-chain threading (VD 2026-09-08, "I
+5. The summation rule under within-chain threading (VD 2026-09-08, "I
    don't care about recreating the exact result, but I do care about
    preserving its speed"): two implementations. At or below the chain
    count the fused four-bank pass runs unchanged, keeping its measured
@@ -735,7 +735,7 @@ S4, within-chain threading (dec-B89):
 11. R surface per fork 4: no new argument. The bridge passes the
     budget through; the sampler runs `min(n.threads, n.chains)` chains
     at once and gives each chain `n.threads %/% n.chains` within-chain
-    workers (1 means serial, the law unchanged), so the surplus is
+    workers (1 means serial, the rule unchanged), so the surplus is
     spent as 0.9-34 spent it. `dbartsControl`'s default stays the core
     count. The memory audit's number, once that plan reports, decides
     only the manual's recommendation, not a default. One test asserts

@@ -237,11 +237,11 @@ budgets)
   outcome is `docs/design/empty-leaf-veto.md` - the veto refuses a leaf
   no row reaches outright rather than charging a finite penalty - with
   the plan at `docs/plans/archive/empty-leaf-veto.md`): its own
-  measured slice, a draw-law change. As adopted it also moved the veto
-  from counting LEAF MEMBERS to counting POSITIVE-WEIGHT members
-  (`src/bartcore/moves.hpp`, the `numObservations() == 0` veto site),
-  which was reversed on 2026-10-05: the veto counts members again, a
-  zero-weight or masked row among them (dec-B238).
+  measured slice, a draw-distribution change. As adopted it also moved
+  the veto from counting LEAF MEMBERS to counting POSITIVE-WEIGHT
+  members (`src/bartcore/moves.hpp`, the `numObservations() == 0` veto
+  site), which was reversed on 2026-10-05: the veto counts members
+  again, a zero-weight or masked row among them (dec-B238).
 - A composition validator (DISCHARGED; the named TODO entry is gone, the
   outcome is `docs/plans/adoption-slate.md` S5 and its landing note; SBC
   over a user-supplied one-sweep closure): the item that catches the measured
@@ -370,9 +370,9 @@ confirmed)
    field/guard is deleted - nothing is left to guard.
 
 Recommended sequencing, as landed: items 1-4 and 6 were one stop-loss
-slice at 33f6fdc (the SL/VF S1 pattern: refusals first, no draw-law
-change on valid paths); 5 remains a docs slice, the one item that
-commit does not close.
+slice at 33f6fdc (the SL/VF S1 pattern: refusals first, no
+draw-distribution change on valid paths); 5 remains a docs slice, the
+one item that commit does not close.
 
 ## Errata this arc generates elsewhere
 

@@ -380,8 +380,8 @@ with the new values. Either failure refuses it.
 - The tinytests get their own file; test-monotone.R keeps its forced blocks untouched as pins.
 - The `rng:` line calls the changed sequence posterior-changing and adds no exact gate. Under an embedding
   sampler the reset is a move no acceptance rule accounts for and the refusal is a rejected proposal, so
-  the sequence changes law; it is held to the twin identity. Classed as a changed result with neutral
-  gates, the gates run are the same.
+  the sequence changes its distribution; it is held to the twin identity. Classed as a changed result with
+  neutral gates, the gates run are the same.
 - Order with the other two plans. state-zero-weight-rows is in implementation and changes a facade virtual;
   this slice goes after it and rebases over nothing it edits: other functions of chain.hpp and sampler.hpp,
   another function of the bridge file, other items of the manual page, another tests/cpp file.

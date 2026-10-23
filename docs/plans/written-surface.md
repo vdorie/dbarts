@@ -413,8 +413,8 @@ Each is a requirement with the test that holds it; "what fails it" is under the 
 | A basis written as code is cut by `subset` before its levels are looked at, at both doors | the same text at the formula door and in a list, under `subset` and under a dropped missing response: identical bases and draws, four pairs | 3.4 |
 | A star is settled before the release | dec-B273: refused; the test above | 3.2 |
 
-The critic's sixth condition, that the engine take one stated sd per column, is the multiplier-law
-slice's, in tests/cpp; nothing in R states one and this slice adds no bridge read.
+The critic's sixth condition, that the engine take one stated sd per column, is the
+multiplier-rule slice's, in tests/cpp; nothing in R states one and this slice adds no bridge read.
 
 ## Constraints
 

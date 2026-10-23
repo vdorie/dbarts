@@ -176,8 +176,8 @@ sharedValue <- function(x) {
 }
 
 # Whether a forest's k is drawn from a hyperprior: a calibration-mapped
-# forest pins it, and elsewhere the reader states a drawn k as a law object and
-# a fixed one as a number.
+# forest pins it, and elsewhere the reader states a drawn k as a distribution
+# object and a fixed one as a number.
 leafPriorIsDrawn <- function(prior) {
   if (!is.null(prior[["multiplier"]])) {
     return(FALSE)
@@ -192,8 +192,8 @@ leafPriorIsDrawn <- function(prior) {
 # several, a multinomial sampler's forests sharing the first's), and fixed,
 # the scalars the sampler held fixed - sigma, shape, k and resid.df, among
 # those the fit has - empty when none. Whether a quantity is fixed is the
-# model's law; its value is the sampler's. 'samples' is the run's channels,
-# the one place a Student-t df is recorded.
+# model's distribution; its value is the sampler's. 'samples' is the run's
+# channels, the one place a Student-t df is recorded.
 fitDescriptors <- function(sampler, samples = NULL) {
   priors <- sampler$getLeafPrior()
   multinomial <- samplerCarriesCounts(sampler)
@@ -455,13 +455,15 @@ packageBartResults <- function(
   # never by run options, and each always holds a value, so no reader infers
   # the model from which draw channels a run kept. $family is the family as
   # specified, and whatever follows from it - the link, the engine family,
-  # the residual law's shape - is looked up from it (fitEngineFamily) rather
-  # than stored. resid.scale, the residual law's scale model, is set by the
-  # variance argument rather than by the family, and exists only on a family
-  # with a residual law (gaussian and aft).
+  # the residual distribution's shape - is looked up from it
+  # (fitEngineFamily) rather than stored. resid.scale, the residual
+  # distribution's scale model, is set by the variance argument rather than
+  # by the family, and exists only on a family with a residual distribution
+  # (gaussian and aft).
   residScale <- if (hasVariance) "forest" else "constant"
   # a sampler whose model was built outside dbarts()/dbartsSpec() carries
-  # only the engine token, and a Student-t law only on its resid.df attribute
+  # only the engine token, and a Student-t distribution only on its resid.df
+  # attribute
   familySpec <- attr(fit$model, "family.spec")
   if (is.null(familySpec)) {
     familySpec <- newValidated(
@@ -544,9 +546,9 @@ packageBartResults <- function(
   # the per-draw residual degrees of freedom a student() fit conditions each
   # draw on - a fixed nu repeats, an estimated one is that sweep's grid draw -
   # in sigma's own layout, since it is one scalar per draw as sigma is. The
-  # channel is absent (not NULL) off a Student-t error law, so a gaussian fit
-  # keeps exactly the elements it had; pointwiseLogLikelihood reads it as the
-  # t marginal's df.
+  # channel is absent (not NULL) off a Student-t error distribution, so a
+  # gaussian fit keeps exactly the elements it had; pointwiseLogLikelihood
+  # reads it as the t marginal's df.
   if (!is.null(samples[["resid.df"]])) {
     result[["resid.df"]] <- convertSamplesFromDbartsToBart(
       samples[["resid.df"]],

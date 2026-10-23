@@ -33,8 +33,8 @@ review measured that r never moved under logit-p. Both are written down here,
 since they share every piece of machinery and differ in what f means and in
 what the r step holds fixed.
 
-**Log-mean (shipped): log mu_i = eta_i = f(x_i) + c + o_i.** The count law is
-NB2, the MASS::glm.nb and Stan `neg_binomial_2` convention:
+**Log-mean (shipped): log mu_i = eta_i = f(x_i) + c + o_i.** The count
+distribution is NB2, the MASS::glm.nb and Stan `neg_binomial_2` convention:
 
     y_i ~ NB(size = r, mu = mu_i),   variance mu_i + mu_i^2 / r,
 
@@ -595,7 +595,7 @@ formula first ([negbin-exact.R](../../benchmarks/R/negbin-exact.R));
 tolerances bound MC plus quadrature error and are never widened to pass.
 Agreement validates the PG mean augmentation, the grid r update, AND their
 composition into the sweep (the section 5 ordering; an invalid scan shifts the
-stationary law, which this gate CAN see) - the robust-errors / ordinal
+stationary distribution, which this gate CAN see) - the robust-errors / ordinal
 reference-never-augments logic. STATED LIMITATION: because the reference is
 omega-free and fork (A) draws only integer-shape (exact) PG variates, this gate
 exercises NO approximate code path; if the (B) door ever opens, the gate gains
@@ -624,8 +624,8 @@ reproducibility, never correctness.
   collapsed Gamma conditional, for which the prototype's grid agreement is the
   pilot).
 
-**Mixing gate.** The exact gate checks the stationary law on one tree and
-n = 50, which cannot see a chain that never leaves its cold start: logit-p
+**Mixing gate.** The exact gate checks the stationary distribution on one tree
+and n = 50, which cannot see a chain that never leaves its cold start: logit-p
 passed it while frozen. [negbin-mixing.R](../../benchmarks/R/negbin-mixing.R)
 fits the default forest with two chains at mu = 8 exp(x1) on two cells whose
 posterior on r spreads over several grid values, the chains' shapes set apart

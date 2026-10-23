@@ -38,10 +38,10 @@ rm(sampler)
 ## reproduce today's draws is what the equivalence baselines gate; here each
 ## setting is also passed at its default and must leave the draws alone.
 
-## -- categoricalExhaustiveCap: proposal law, so the trees themselves move.
-## At twelve present levels the default cap emits eleven sorted prefixes and a
-## cap of twelve enumerates all 2047 partitions, so grow-from-root draws a
-## different forest; at eight present levels both caps enumerate and the
+## -- categoricalExhaustiveCap: proposal distribution, so the trees themselves
+## move. At twelve present levels the default cap emits eleven sorted prefixes
+## and a cap of twelve enumerates all 2047 partitions, so grow-from-root draws
+## a different forest; at eight present levels both caps enumerate and the
 ## forests must agree.
 growTrees <- function(nLevels, cap) {
   set.seed(20260910L)

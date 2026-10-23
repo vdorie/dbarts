@@ -184,7 +184,7 @@ argument. The memo should say so rather than let them outrank a wrong number.
    totals surviving bins ([src/bartcore/scan.hpp:105-108](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/src/bartcore/scan.hpp#L105-L108)) while [src/bartcore/grow.hpp:181-186](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/src/bartcore/grow.hpp#L181-L186) builds the no-split term from the FULL
    node stats. Sole caller of `scanOrdinalCuts` is [src/bartcore/grow.hpp:268](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/src/bartcore/grow.hpp#L268), so reach is `n.grow.sweeps > 0`
    (default 0L, [R/bart.R:677](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/R/bart.R#L677)) - opt-in, but it hits EVERY family, this being an ordered COLUMN scan,
-   not family = "ordinal". SURFACE draw-law change on that path. COST ~60 engine + tests. TIER Opus.
+   not family = "ordinal". SURFACE draw-distribution change on that path. COST ~60 engine + tests. TIER Opus.
 5. rbart_vi logistic token. Widen the family list, leave "auto" alone. SURFACE one widened formal
    value, additive-later. VALUE grouped WEIGHTED binary is unreachable today. ~30 R, Sonnet.
 6. survival `entry=` ([TODO:427](https://github.com/vdorie/dbarts/blob/63df524e8b54948c6bdca1820a949f2c5eb17385/TODO#L427)). Additive-later, face only. ~150 R + Rd + tests, Sonnet.

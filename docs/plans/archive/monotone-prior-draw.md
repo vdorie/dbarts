@@ -38,15 +38,15 @@ subsequent `run()` starts from a monotone-infeasible state.
 Exact per-tree rejection: draw the tree's leaf vector iid from the
 unconstrained prior, accept iff monotone-feasible (check via the same
 neighbor-bounds walk), retry to a cap; on cap exhaustion raise the
-engine's usual error rather than install an infeasible or law-bending
-state (sorting draws into feasibility changes the law; do not).
-Justification: prior trees under the CGM(0.95, 2) depth prior are
-shallow, so per-tree acceptance is high; the cap only guards
-pathological warm-started structures. Alternative rejected: refusing
-`samplePriorPredictive` for monotone fits - drops a shipped verb over a
-fixable defect. Evidence that would change this: measured acceptance
-low enough at realistic depths that rejection stalls; then revisit with
-an exact sequential construction.
+engine's usual error rather than install an infeasible or
+distribution-bending state (sorting draws into feasibility changes the
+distribution; do not). Justification: prior trees under the
+CGM(0.95, 2) depth prior are shallow, so per-tree acceptance is high;
+the cap only guards pathological warm-started structures. Alternative
+rejected: refusing `samplePriorPredictive` for monotone fits - drops a
+shipped verb over a fixable defect. Evidence that would change this:
+measured acceptance low enough at realistic depths that rejection
+stalls; then revisit with an exact sequential construction.
 
 ## Constraints
 
@@ -88,7 +88,7 @@ an exact sequential construction.
 LANDED 173a710 (2026-08-04). `MonotoneConstantGaussianLeaf::
 drawFromPriorForTree` (rejection against `monotoneTreeIsFeasible`,
 cap 1e6) + a `TreeDrawLeafModel` branch in
-`sampleNodeParametersFromPrior`; law-level test compares the
+`sampleNodeParametersFromPrior`; distribution-level test compares the
 constrained 1-D/2-D marginals to independent quadrature. Gates re-run
 independently at landing: tests/cpp all pass, tinytest 3474/0,
 equivalence 27/27 identical draws plus BCF and multinomial trios

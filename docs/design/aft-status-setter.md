@@ -230,10 +230,10 @@ assert every S2-censored row's bound is `y2` (by (b)'s log-likelihood comparison
 over the same transform) and every S2-event row's latent is `y2`. Poison: build the bounds before the memcpy and they come
 back at `y1`.
 
-**(d) The redraw's law, and the R surface.** Extend [`testAFTCensoredMoments`](../../tests/cpp/test_model.cpp): after a flip
-that newly censors a row, its redraws match the lower-truncated normal at ITS bound; poison, the pre-flip bound. In
-[test-aft.R](../../inst/tinytest/test-aft.R): (a) through the handle; the refusals (off aft, a wrong length, a non-real
-vector on the handle path, a value neither 0 nor 1, `NA`); and, R5 only, the handshake - set a status, store state,
+**(d) The redraw's distribution, and the R surface.** Extend [`testAFTCensoredMoments`](../../tests/cpp/test_model.cpp):
+after a flip that newly censors a row, its redraws match the lower-truncated normal at ITS bound; poison, the pre-flip
+bound. In [test-aft.R](../../inst/tinytest/test-aft.R): (a) through the handle; the refusals (off aft, a wrong length, a
+non-real vector on the handle path, a value neither 0 nor 1, `NA`); and, R5 only, the handshake - set a status, store state,
 invalidate the pointer, check the re-created sampler continues from the observed times, not stale latents. Poison: drop the
 `survival.digest` write, and a row that was an event at store time and is censored after comes back sitting exactly at its
 bound instead of being redrawn. That is the digest's own case, the reverse flip: the index-restricted `restoreLatents` is
@@ -435,9 +435,10 @@ do not share.
 A fourth mismatch is NOT offered, and its clean reading would be vacuous rather than reassuring: skipping only the
 GENERATOR's variance prior draw, so theta0's surface is what the last replication's chain left. That REMOVES the
 prior-draw entry from the generator rather than mismatching it. The surface it carries is marginally a prior draw only
-if the run's posterior draws are already exact and the chain over replications has reached its stationary law - which
-is what the arm exists to test - and a miscalibrated entry reads clean under it precisely because the generator never
-calls the entry. It costs rank independence across replications besides, successive theta0 sharing a surface.
+if the run's posterior draws are already exact and the chain over replications has reached its stationary
+distribution - which is what the arm exists to test - and a miscalibrated entry reads clean under it precisely because
+the generator never calls the entry. It costs rank independence across replications besides, successive theta0 sharing
+a surface.
 
 What closes. The honest gap [6. Gates](aft-variance-forest.md#6-gates) records - the joint calibration of (mean
 forest, variance forest, censored latents), untested while aft was out of the matrix - is tested by `hetero-aft` and

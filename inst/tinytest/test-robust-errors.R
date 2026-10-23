@@ -64,8 +64,8 @@ expect_equal(attr(samplerEstimate$model, "resid.df"), 0) # 0 signals estimate
 
 # --- family refusal --------------------------------------------------------
 
-# the Student-t law IS a family now, so no combination on the front door can
-# ask a probit fit for it
+# the Student-t distribution IS a family now, so no combination on the front
+# door can ask a probit fit for it
 yBinary <- as.numeric(y > median(y))
 # a binary probit fit takes the gaussian latent scale and attaches no
 # resid.df attribute

@@ -17,16 +17,17 @@ One forest's prior is a named list:
 
 - `leaf.prior`: the specification in the terms it was named in, a
   `normal()`, `linear()` or `gp()` object carrying exactly one of `k` (a
-  number or a `chi()` law) or `sd` (a number or an `invchi()` law). It goes
-  back into `$setLeafPrior()` or a fitting function's `leaf.prior` as is. An
-  unnamed prior is stated as the family default it resolved to. A fixed value
-  is read off the engine, so it is what is in force; a law comes from the
-  model, with an `invchi()` scale read off the anchor in force. On a forest
-  whose scale a calibration map sets, k is pinned at 1 and the entry is the
-  `forest(sd = )` creation takes, which goes back into
-  `$setLeafPrior(forests = )`: the half-Cauchy median on a scale-mixture
-  forest (`prior.sd.of` `"amplitude scale"`), the leaf-scale factor otherwise
-  (`"forest total"`), `NA` while a state install leaves the factor foreign.
+  number or a `chi()` distribution) or `sd` (a number or an `invchi()`
+  distribution). It goes back into `$setLeafPrior()` or a fitting function's
+  `leaf.prior` as is. An unnamed prior is stated as the family default it
+  resolved to. A fixed value is read off the engine, so it is what is in
+  force; a distribution comes from the model, with an `invchi()` scale read
+  off the anchor in force. On a forest whose scale a calibration map sets, k
+  is pinned at 1 and the entry is the `forest(sd = )` creation takes, which
+  goes back into `$setLeafPrior(forests = )`: the half-Cauchy median on a
+  scale-mixture forest (`prior.sd.of` `"amplitude scale"`), the leaf-scale
+  factor otherwise (`"forest total"`), `NA` while a state install leaves the
+  factor foreign.
 - `leaf.model` and `prior.sd.of`: the former attributes, as elements.
 - `prior.mean`, `anchor`, `response.scale`, `response.shift`. `anchor` is the
   one k is relative to, so the spread in force on each chain is
@@ -64,7 +65,7 @@ matrix, the forest margin before the chains as on the sibling readers.
 
 bart's and predict's per-forest channels read `response.scale` and
 `response.shift` from the list; rbart asks whether the spec's k or sd is a
-law. bartCause's bcf changes in lockstep (orchestrator).
+distribution. bartCause's bcf changes in lockstep (orchestrator).
 
 ## Landing
 

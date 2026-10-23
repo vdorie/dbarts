@@ -349,8 +349,8 @@ resolvedAs <- function(name, classes, what, topic = "dbartsPriors") {
 ## constructor name means its defaults; anything else must be a residual
 ## prior object. The name is the PARAMETER, as 'shape' and 'df' are on
 ## their families: 'sigest' is the estimate supplied at creation and
-## $setSigma writes the parameter itself, so 'sigma' here is the law that
-## parameter is drawn under.
+## $setSigma writes the parameter itself, so 'sigma' here is the
+## distribution that parameter is drawn under.
 validateFamilySigma <- function(sigma, caller) {
   if (is.null(sigma)) {
     return(NULL)

@@ -654,15 +654,16 @@ void refuseSparseLeafCovariate(const bartcore::SamplerShape& shape,
 void validateTestContainerAgainstStore(const bartcore::ColumnStore& store,
                                        const bartcore::PredictorSource& view);
 
-/// The augmentation law an entry point selects, and the ONLY thing the
-/// augmentation dispatch keys on. Deliberately not ResponseFamily: a
+/// The augmentation distribution an entry point selects, and the ONLY thing
+/// the augmentation dispatch keys on. Deliberately not ResponseFamily: a
 /// Student-t residual distribution rides the gaussian family, so it has no
 /// family of its own and inside a family-keyed switch would be
 /// indistinguishable from a plain gaussian response - which draws no
-/// augmentation variable at all. TOTAL over the laws drawAugmentation and
-/// computeWorkingResponse implement, and every switch over it names every
-/// enumerator with NO default arm, so a law added without one fails the build
-/// rather than taking some other law's reading silently.
+/// augmentation variable at all. TOTAL over the distributions
+/// drawAugmentation and computeWorkingResponse implement, and every switch
+/// over it names every enumerator with NO default arm, so a distribution
+/// added without one fails the build rather than taking some other
+/// distribution's reading silently.
 #define BARTCORE_AUGMENTATION_LAW_LIST(X) \
   X(probit) X(logistic) X(ordinal) X(aft) X(nbinom) X(studentT)
 enum class AugmentationLaw {
@@ -672,8 +673,9 @@ enum class AugmentationLaw {
 };
 
 /// Derived from the list above, so it cannot drift from it: every site that
-/// enumerates the laws asserts on this count, which is what turns adding one
-/// into a build failure at each site rather than a warning or nothing at all.
+/// enumerates the distributions asserts on this count, which is what turns
+/// adding one into a build failure at each site rather than a warning or
+/// nothing at all.
 #define BARTCORE_AUGMENTATION_LAW_COUNT(name) +1
 inline constexpr int numAugmentationLaws =
   0 BARTCORE_AUGMENTATION_LAW_LIST(BARTCORE_AUGMENTATION_LAW_COUNT);
@@ -683,11 +685,11 @@ inline constexpr int numAugmentationLaws =
 /// is the location WITHOUT the offset - the engine's own totalFits convention -
 /// so the linear predictor psi = fit + offset is formed inside and a null
 /// offset is zero; a working response reads its latent through the same member.
-/// For nbinom fit + offset is the log mean, so its law reads psi - log
+/// For nbinom fit + offset is the log mean, so its distribution reads psi - log
 /// shape and its working response adds log shape back.
 /// weights are the logistic counts (null is unit), ordinalThresholds the
-/// ordinal's K - 1, and the three scalars are read only by the law that names
-/// them.
+/// ordinal's K - 1, and the three scalars are read only by the distribution
+/// that names them.
 struct AugmentationInputs {
   std::size_t numObservations;
   const double* fit;
@@ -701,17 +703,17 @@ struct AugmentationInputs {
   double df;
 };
 
-/// The R surface's boundary into the enum: the law a family name selects,
-/// one of "probit", "logistic", "ordinal", "aft", "nbinom" and "student".
-/// Errors on any other name, naming it. The flat C API has its own boundary,
-/// mapping its family tokens straight onto laws, so no surface reaches a
-/// dispatch through a family value.
+/// The R surface's boundary into the enum: the distribution a family name
+/// selects, one of "probit", "logistic", "ordinal", "aft", "nbinom" and
+/// "student". Errors on any other name, naming it. The flat C API has its
+/// own boundary, mapping its family tokens straight onto distributions, so
+/// no surface reaches a dispatch through a family value.
 AugmentationLaw augmentationLaw(const char* name);
 
-/// The family arm validateResponseSupport states a law's response support
-/// with. Only a support statement - never a dispatch key: studentT answers
-/// gaussian because a Student-t response is unconstrained, exactly as a
-/// gaussian one is, not because the two share a law.
+/// The family arm validateResponseSupport states a distribution's response
+/// support with. Only a support statement - never a dispatch key: studentT
+/// answers gaussian because a Student-t response is unconstrained, exactly
+/// as a gaussian one is, not because the two share a distribution.
 bartcore::ResponseFamily supportFamily(AugmentationLaw law);
 
 /// True where the drawn latent is a PRECISION weighting its row rather than a
@@ -719,19 +721,21 @@ bartcore::ResponseFamily supportFamily(AugmentationLaw law);
 /// getLatents reports per family and what the R helper stamps its result with.
 bool lawDrawsPrecision(AugmentationLaw law);
 
-/// One draw per observation into result, each the law its engine site draws,
-/// from a per-call generator seeded off R's own stream: main R thread only, and
-/// the bracket is taken here rather than by the caller. Both surfaces reach the
-/// stream through this one function, so a flat and an R call under one seed
-/// agree bitwise. caller labels the error a generator that cannot be created
-/// raises; every argument the law reads is the caller's to have validated.
+/// One draw per observation into result, each the distribution its engine site
+/// draws, from a per-call generator seeded off R's own stream: main R thread
+/// only, and the bracket is taken here rather than by the caller. Both surfaces
+/// reach the stream through this one function, so a flat and an R call under
+/// one seed agree bitwise. caller labels the error a generator that cannot be
+/// created raises; every argument the distribution reads is the caller's to
+/// have validated.
 void drawAugmentation(AugmentationLaw law, const AugmentationInputs& in,
                       double* result, const char* caller);
 
 /// The quantity a host regresses on given the drawn latent, read off the same
-/// engine sites: a Polya-Gamma law divides its kappa by the drawn precision,
-/// Student-t regresses on y (its latent weights the row instead), and a
-/// location law on the latent - each less the offset. Draws nothing.
+/// engine sites: a Polya-Gamma distribution divides its kappa by the drawn
+/// precision, Student-t regresses on y (its latent weights the row instead),
+/// and a location distribution on the latent - each less the offset. Draws
+/// nothing.
 void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
                             const double* latent, double* result);
 

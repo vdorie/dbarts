@@ -30,7 +30,7 @@ evaluates, its `reason` says so.
 | dec-A03 | remove startThreads/stopThreads | KEEP, add an UPGRADING line | OVERTURNED to CHANGE, citing dec-B76 | CLOSED | dec-B76 is a VD ruling dated 2026-09-08 that the thread methods stay as no-ops; the removal is reversed by that entry, not by a merits argument |
 | dec-A04 | drop rngKind/rngNormalKind, rename rngSeed to seed | DISCUSS a deprecated rngSeed alias | OVERTURNED to CHANGE, citing dec-B76 | CLOSED | dec-B76 rules rngSeed accepted with a warning for one release, closing the alias question the evaluator raised |
 | dec-A09 | ordered factors get K-1 midpoint cuts above the cut cap | KEEP | not reviewed | KEEP | K-1 is the full candidate-split set an ordered factor has at any K; the large-K memory bound is worth revisiting only if bart later defaults to ordinal coding |
-| dec-A10 | prior forest is rejection-sampled to carry no empty leaf | KEEP | not reviewed | KEEP | rejection sampling draws from the law the move kernels score; main's collapse targeted a different distribution |
+| dec-A10 | prior forest is rejection-sampled to carry no empty leaf | KEEP | not reviewed | KEEP | rejection sampling draws from the distribution the move kernels score; main's collapse targeted a different distribution |
 | dec-A11 | residual-variance df counts positive-weight rows only | KEEP | not reviewed | KEEP | the conjugate update's df equals nu0 plus the positive-weight count; counting every row deflated the sigma posterior for fits carrying zero weights |
 | dec-A13 | sampled k capped at 1e6, no warning path | KEEP | not reviewed | KEEP | the cap addresses a chain that is transient under an improper k prior; the shipped default chi(1.5, 2) keeps the cap off the ordinary path |
 | dec-A14 | mutators store state only on explicit updateState = TRUE | CHANGE, re-arm the state promise on mutation | OVERTURNED to KEEP | KEEP | the two-convention hazard is documented in man/dbartsSampler-class.Rd; re-arming would discard a state an explicit storeState() had just captured under updateState = FALSE |
@@ -120,4 +120,4 @@ evaluates, its `reason` says so.
 - dec-A56: blocks() and interactions(groups=) express different priors over tree allocation, not one approximating the other.
 - dec-B20: the 0.9-x behavior being changed is fitting an ordered-factor response as continuous on its integer level codes, not a silent change.
 - dec-B38: the new tolerance is looser than main's fixed value, so nothing that validated under 0.9-x is newly refused.
-- dec-B42: the t marginal is what stays comparable across residual laws; the conditional-given-augmentation alternative is the one that would not compare.
+- dec-B42: the t marginal is what stays comparable across residual distributions; the conditional-given-augmentation alternative is the one that would not compare.

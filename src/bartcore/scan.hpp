@@ -133,10 +133,10 @@ struct ConstantLeafScanBin {
 /// Tree::leafIsEmpty asks of each child's ACTUAL members, routed rows
 /// included, so a cut every non-missing member falls to one side of is legal
 /// in the direction that sends the missing rows to the other. A caller that
-/// holds the ancestor interval itself and draws on the law the acceptance
-/// would have applied passes true; the sentinel then marks exactly the
-/// candidates logLikelihoodForBranch would refuse, and every other entry is
-/// the sum that function forms for the same split.
+/// holds the ancestor interval itself and draws on the distribution the
+/// acceptance would have applied passes true; the sentinel then marks
+/// exactly the candidates logLikelihoodForBranch would refuse, and every
+/// other entry is the sum that function forms for the same split.
 template <ScalarLeafModel L, typename ResidT = double>
 std::size_t scanOrdinalCuts(const ColumnStore& data, std::size_t variable,
                             const index_t* indices, std::size_t numMembers,
@@ -236,12 +236,12 @@ struct CategoricalScanEntry {
 /// rather than removing it: the candidate set doubles per level, so no finite
 /// cap makes a 40-level factor enumerable.
 ///
-/// Nothing breaks AT the cap; what changes above it is the proposal law,
-/// which sees P - 1 sorted prefixes instead of the full balanced-partition
-/// set. Cost is not what the cap is protecting: enumerating 511 candidates
-/// costs the same as emitting 11 prefixes, because the per-proposal cost is
-/// the O(node members) histogram ahead of the enumeration and not the
-/// candidate loop.
+/// Nothing breaks AT the cap; what changes above it is the proposal
+/// distribution, which sees P - 1 sorted prefixes instead of the full
+/// balanced-partition set. Cost is not what the cap is protecting:
+/// enumerating 511 candidates costs the same as emitting 11 prefixes,
+/// because the per-proposal cost is the O(node members) histogram ahead of
+/// the enumeration and not the candidate loop.
 /// Read only on the grow-from-root path; MH birth draws its categorical
 /// rules from the prior and never enumerates. The DEFAULT of
 /// SamplerOptions::categoricalExhaustiveCap, which a caller may move.

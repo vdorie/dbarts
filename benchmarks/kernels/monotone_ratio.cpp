@@ -366,8 +366,9 @@ int main(int argc, char** argv) {
       logTheta = logExtensions(merged, INFINITY, &D2) -
                  logExtensions(Cs, INFINITY, &D1);
     } else {
-      // two components: position laws of c1 in C1 and c2 in C2, and the
-      // share of riffles that put the one just before the other
+      // two components: position distributions of c1 in C1 and c2 in
+      // C2, and the share of riffles that put the one just before the
+      // other
       n2 = (int) comps[k2].size();
       std::vector<double> p1 = positionLaw(restrict(U, comps[k1]),
                                            at(comps[k1], c1), &D1);

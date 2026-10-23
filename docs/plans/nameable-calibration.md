@@ -9,10 +9,10 @@ rng: NEUTRAL on every default path, EVERY slice, and MEASURED rather than
   asserted. The creation half is byte-identical while `prior.scale` is
   `NA_real_` - the family switch still resolves `node.scale` - and the
   mid-chain half is inert until called and bitwise-SKIPS a write that
-  reproduces the current internal scale. DRAW-LAW-CHANGING only on the opt-in
-  named path, which is the arc's point: naming a calibration names a different
-  prior, and no default moves. Gate: the trio bitwise at every slice; a trio
-  deviation is a bug in the slice, NEVER a re-record.
+  reproduces the current internal scale. DRAW-DISTRIBUTION-CHANGING only on
+  the opt-in named path, which is the arc's point: naming a calibration names
+  a different prior, and no default moves. Gate: the trio bitwise at every
+  slice; a trio deviation is a bug in the slice, NEVER a re-record.
 window: pre-release. S3 is an item INSIDE dbarts-h-reshape S1, the second and
   last re-bake of the window, so the flat spelling is decided there or never;
   S0 must therefore land before that slice starts. S1 and S2 are pure
@@ -62,13 +62,13 @@ divisor `k`, and response transform `(fitScale, fitShift)`:
     prior.mean  = fitShift                       # response units
 
 `prior.scale` is the identified, nameable object. Only the ratio `s/k` enters
-any draw law - measured bitwise on every path, and the reason `k` is not in
-the setter at all - so under a fixed `k` the pair `(prior.scale, k)` has one
-degree of freedom and only `prior.scale` is identified; `k` matters when and
-only when a hyperprior draws it, and then `prior.scale` is the constant of the
-model while `prior.sd` moves every sweep. `prior.sd` is the ergonomic reading
-and is exact whenever `k` is fixed. `prior.mean` is a read-only diagnostic
-whose lever is the offset channel.
+any draw distribution - measured bitwise on every path, and the reason `k` is
+not in the setter at all - so under a fixed `k` the pair `(prior.scale, k)`
+has one degree of freedom and only `prior.scale` is identified; `k` matters
+when and only when a hyperprior draws it, and then `prior.scale` is the
+constant of the model while `prior.sd` moves every sweep. `prior.sd` is the
+ergonomic reading and is exact whenever `k` is fixed. `prior.mean` is a
+read-only diagnostic whose lever is the offset channel.
 
 The engine already spells the anchor internally ([src/bartcore/combiner.hpp:285-286](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/combiner.hpp#L285-L286), "tau
 = nodeScale / k is the per-forest total-fit prior sd"), but that text is the
@@ -161,7 +161,7 @@ help states, per tag:
 - **monotone**: `prior.sd` is a LOWER bound in the interior. The per-leaf
   c-inflation targets a single leaf's post-truncation variance while the prior
   draw is per-tree from the monotone cone (`drawFromPriorForTree`,
-  [src/bartcore/chain.hpp:1555](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1555)), a different law, so the realized sd runs 3% to 20% above
+  [src/bartcore/chain.hpp:1555](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1555)), a different distribution, so the realized sd runs 3% to 20% above
   `prior.sd`, largest in the middle of the constrained axis - real, not Monte
   Carlo (MEASURED 1.067-1.090 at z = 4.2-5.7 over 2000 draws; +2.9% to +20.4%
   at z up to 15.2 in a second run). `prior.mean` is NOT the prior mean of
@@ -362,7 +362,7 @@ END of `DBARTS_C_API_LIST`.
       double* k;               ///< numChains
       double* responseScale;   ///< numChains; internal-to-response multiplier
       double* responseShift;   ///< numChains; internal-to-response offset
-      int*    kHasHyperprior;  ///< numChains; THIS FOREST's own k law (not the
+      int*    kHasHyperprior;  ///< numChains; THIS FOREST's own k prior (not the
                                ///< sampler-wide dbarts_sampler_kIsSampled,
                                ///< which reads the sampler option and
                                ///< disagrees on BCF and multinomial)

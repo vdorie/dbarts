@@ -1167,10 +1167,10 @@ expect_false(identical(printSrcLive, printSrcSaved))
 
 
 # the Student-t df channel from C: the results slot appended to
-# dbarts_results after the shape one, on a sampler whose error law is
-# selected by the model's resid.df attribute rather than by the family
-# string. The slot is NA-poisoned before the run, so an unfilled channel
-# cannot pass for a filled one
+# dbarts_results after the shape one, on a sampler whose error
+# distribution is selected by the model's resid.df attribute rather than
+# by the family string. The slot is NA-poisoned before the run, so an
+# unfilled channel cannot pass for a filled one
 specT <- dbarts(x, y, family = student(df = 5), control = control)
 ptrT <- specT$getPointer()
 dfT <- CALL("capi_run_residual_df", ptrT, 2L, 3L)
@@ -1179,14 +1179,14 @@ expect_equal(length(dfT$recorded), 3L)
 # a FIXED df repeats the value the sampler was created with, every draw
 expect_equal(dfT$recorded, rep(5, 3L))
 # a caller whose structSize predates the field is never written past, on the
-# one error law that HAS a df to write
+# one error distribution that HAS a df to write
 expect_true(dfT$guarded)
-# and it is ABSENT off the error law: a gaussian sampler handed the buffer
-# leaves the poisoned slot exactly as it found it
+# and it is ABSENT off the error distribution: a gaussian sampler handed
+# the buffer leaves the poisoned slot exactly as it found it
 dfG <- CALL("capi_run_residual_df", ptr1, 2L, 3L)
 expect_true(all(is.na(dfG$recorded)))
 # a Student-t residual sampler's family IS gaussian: family = student()
-# selects the error law, not a family of its own
+# selects the error distribution, not a family of its own
 expect_equal(CALL("capi_sampler_family", ptrT), familyConstants[["gaussian"]])
 rm(specT, ptrT, dfT, dfG)
 invisible(gc(FALSE))

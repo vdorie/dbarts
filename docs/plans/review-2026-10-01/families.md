@@ -47,9 +47,9 @@ Probe (p11, p13, p14, p22; n = 200, mu = 8 exp(x1), default bart() settings):
     so the marginal posterior has real mass at r = 1 that the chain can never reach.
   The sampler's own state agrees: s$getDispersion() after each of 200 single-sweep runs: 8 (200 of 200).
 Why gates missed: negbin-exact.R is a single tree on a two-cell design with tiny n, where p(r | psi)
-  is broad; it checks the stationary law (correct), not mixing. test-nbinom.R checks that draws lie
-  on the grid. docs/design/negative-binomial.md measured r mixing with psi held fixed and flagged
-  the f/log r confounding as making ESS "optimistic"; it did not foresee a frozen chain.
+  is broad; it checks the stationary distribution (correct), not mixing. test-nbinom.R checks that
+  draws lie on the grid. docs/design/negative-binomial.md measured r mixing with psi held fixed and
+  flagged the f/log r confounding as making ESS "optimistic"; it did not foresee a frozen chain.
 Fix: move r along the mean-preserving ridge - propose r' with a compensating level shift
   log(r / r') of the forest (the level-fibre move drawLevelShift is the existing template) and
   accept by MH on the collapsed NB likelihood; until then document that r does not mix, or default
@@ -220,5 +220,5 @@ Exact-gate coverage gaps (what the shipped gates cannot see)
   and multinomial arm 6 do (families-02, -03 live there).
 - t-exact pins both nu and sigma, aft-exact pins sigma: the residual-scale draw under the t mixture
   and under censoring is ungated (probed here and correct for nu and for aft sigma).
-- negbin-exact is single-tree, tiny n: it validates the stationary law but cannot see r mixing.
+- negbin-exact is single-tree, tiny n: it validates the stationary distribution but cannot see r mixing.
 - No gate covers R-side reporting: ppd per family, survivalProbabilities, count-row ppd.

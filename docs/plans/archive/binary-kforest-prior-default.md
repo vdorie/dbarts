@@ -18,12 +18,13 @@ rng: S0 DRAW-NEUTRAL (tests only, no `src/` delta). S1 DRAW-NEUTRAL by
   construction - it adds read paths and stores a value the constructor already
   computes and discards; the leaf-scale expression is untouched, the path takes
   no rng, and the trio must come back bitwise on all three baselines. Any
-  divergence at S1 is a LEAK, not a re-record: ABORT. S2 DRAW-LAW-CHANGING on
-  exactly two named configuration classes - every latent-family K-forest fit
-  carrying a basis-free forest, and every K >= 3 fit in every family - and
-  BITWISE everywhere else. **No baseline re-records**, because
-  `benchmarks/R/bcf-equivalence.R` drives gaussian K = 2 exclusively and both
-  moved defaults are identity there (`sqrt(2/2) = 1`, gaussian keeps 2).
+  divergence at S1 is a LEAK, not a re-record: ABORT. S2
+  DRAW-DISTRIBUTION-CHANGING on exactly two named configuration classes - every
+  latent-family K-forest fit carrying a basis-free forest, and every K >= 3 fit
+  in every family - and BITWISE everywhere else. **No baseline re-records**,
+  because `benchmarks/R/bcf-equivalence.R` drives gaussian K = 2 exclusively
+  and both moved defaults are identity there (`sqrt(2/2) = 1`, gaussian keeps
+  2).
 window: none. Everything is pre-release and the sister packages update in
   lockstep. S1 moves `sizeof(dbarts_forest_calibration)`, so a `LinkingTo`
   consumer recompiles; that is a migration cost to enumerate, not a design
@@ -144,7 +145,7 @@ Defaults, all three spellings verified by symbol:
 `forestParams`' `if (withBasis) declared(spec$sd, 1) else 1` at position 4 and
 `if (withBasis) 0 else declared(spec$sd, 2)` at position 7 (`R/model.R`);
 `bartcoreBCFSampler(sd.control = 2, sd.moderate = 1, ...)` (`R/bartcore.R`).
-Two further spellings the census does not enumerate and which a K law must NOT
+Two further spellings the census does not enumerate and which a K rule must NOT
 touch: `BCFSpec::bPriorVariance = 0.5` and `BCFSpec::sdModerate = 1.0`, both the
 K = 2 values of the same quantities.
 
@@ -206,7 +207,7 @@ It also reads correctly: `forest(sd =)`'s default becomes 1 for EVERY forest
 under a latent family, one anchor unit, which is the sentence
 `man/forest.Rd`'s `sd` item wants to say and today cannot.
 
-### Leg (b). The sqrt(K) dispersion law
+### Leg (b). The sqrt(K) dispersion rule
 
 VERDICT: **CHANGE, all families, as a DEFAULT and not as map algebra.**
 
@@ -231,7 +232,7 @@ decisive arm, because `aPriorScale` does not appear in it):
 | 8 | 2.96736 | 0.4001 | 0.1137 |
 
 The current default's tail mass nearly QUADRUPLES from K = 2 to K = 8 while the
-law holds it flat to within 0.005. That is the whole argument: a user who adds
+rule holds it flat to within 0.005. That is the whole argument: a user who adds
 a fourth moderating forest to a three-forest model did not ask for a more
 diffuse prior on p, and under a pinned sigma nothing tells them they got one.
 
@@ -244,7 +245,7 @@ the sum. So the knob keeps its per-forest reading (a declared `sd = 1` means
 exactly what it means today, at every K) and only the DEFAULT acquires the
 budget reading.
 
-The law: **default `nodeScaleFactor` = `sqrt(2/K)`**, K the forest count.
+The rule: **default `nodeScaleFactor` = `sqrt(2/K)`**, K the forest count.
 Re-derived, `sqrt(2/K)` = 1.414214, 1, 0.816497, 0.707107, 0.5, 0.353553 at
 K = 1, 2, 3, 4, 8, 16, and the all-basis index sd is 1.48368 s at every one of
 them. Its three properties:
@@ -260,13 +261,13 @@ them. Its three properties:
   one-basis-free shape; see the cap paragraph below, which is the only correct
   statement about that shape and is the one the user-facing sentences take.
 - **It is defined at K = 1** (1.414214, same index total), which is what the
-  law owed and what `test-bcf-family.R`'s K-written index assertion needs.
+  rule owed and what `test-bcf-family.R`'s K-written index assertion needs.
 
 **The cap, stated exactly, because it is what the shipped shape actually
 gets.** On the shipped shape - one basis-free forest plus K-1 basis forests,
 which is bcf's shape, the only one `bartcoreBCFSampler` can build, and the
 default whenever forest 1 declares no basis - the fixed-variance channel under
-the law is
+the rule is
 
     1.049120 sqrt(K-1) sqrt(2/K) s = sqrt((K-1)/K) s / 0.674
 
@@ -275,7 +276,7 @@ the law is
 | channel sd | 1.0491199 | 1.2114193 | 1.2849042 | 1.3878551 | 1.4836795 |
 | x the `k = 2` budget `1.5 s` | 0.699 | 0.808 | 0.857 | 0.925 | 0.989 |
 
-So on the SHIPPED shape the law CAPS rather than pins: the channel rises
+So on the SHIPPED shape the rule CAPS rather than pins: the channel rises
 monotonically toward 0.989x and never reaches it, against today's unbounded
 `1.049120 sqrt(K-1) s`, which is 1.850x the budget at K = 8 and passes 2x at
 K = 10 (re-derived from the exact `sqrt(0.5)/0.674`:
@@ -283,7 +284,7 @@ K = 10 (re-derived from the exact `sqrt(0.5)/0.674`:
 rather than pins is
 structural: the Cauchy channel has no finite variance to enter a
 root-sum-square budget with, so a K-forest shape carrying one cannot have its
-total pinned by any per-forest law. That is the same fact that killed index
+total pinned by any per-forest rule. That is the same fact that killed index
 normalization, and every user-facing sentence this slice writes must state the
 cap and not the pin.
 
@@ -341,7 +342,7 @@ pin) - sitting on the exact expression this slice moves the default of.
   `b1 - b0 ~ N(0, 1)` has half-normal median 0.674, so dividing by 0.674 is
   exactly what places the effect `(b1 - b0) tau` at `sd_f` anchor units.
   Move `v` and that identity - which `docs/design/bcf.md` and
-  `multiplier-combiner.md` both state - stops being true. A K law routed
+  `multiplier-combiner.md` both state - stops being true. A K rule routed
   through `v` would ALSO shrink the reported amplitudes themselves
   (`$getForestAmplitudes`) and the `(b1 - b0)` effect reading. Fork 2 records
   this as the rejected placement.
@@ -400,7 +401,7 @@ belongs to is gaussian bcf's, where 2 is correct. Making it family-aware would
 put a family branch inside `expandForestSpecs`, which is the one adapter the
 `bcf as the K = 2 instance` contract requires to stay a pure re-spelling.
 
-### Fork 2. The K law: whether, where, and on what count
+### Fork 2. The K rule: whether, where, and on what count
 
 Alternatives:
 
@@ -419,18 +420,18 @@ Alternatives:
 - **(2c) K-aware `amplitude.prior.variance` default, `1/K`.** Reaches the same
   index total. Rejected: it breaks the 0.674-divisor identity (see "What does
   not change"), it shrinks the reported amplitudes rather than the leaf scales,
-  and `v_f` is the one map quantity NO getter reports - routing the law through
-  the invisible knob is the opposite of leg (c).
+  and `v_f` is the one map quantity NO getter reports - routing the rule
+  through the invisible knob is the opposite of leg (c).
 - **(2d) Normalize on the count of BASIS forests `Kb` rather than on K.**
-  Rejected with a number: at bcf's shape `Kb = 1`, so any law normalized to 1
+  Rejected with a number: at bcf's shape `Kb = 1`, so any rule normalized to 1
   at `Kb = 1` leaves bcf alone but sends the ALL-BASIS K = 2 shape to
   `1.049120 s` - which moves M4.4's item-25 anchor gate, the one arm the whole
   Option L verdict was argued on (0.989x the comparator). Normalizing on K
   leaves both K = 2 shapes exactly as they are.
-- **(2e) Apply the law only under latent families. CLOSED 2026-08-15: VD
-  declined 2e; the law ships all-families.** The tradeoff prose below stands as
-  the record of what was weighed, not as an open question. REJECTED, but on a
-  re-argued basis - the first draft's reason ("a family-dependent default for
+- **(2e) Apply the rule only under latent families. CLOSED 2026-08-15: VD
+  declined 2e; the rule ships all-families.** The tradeoff prose below stands
+  as the record of what was weighed, not as an open question. REJECTED, but on
+  a re-argued basis - the first draft's reason ("a family-dependent default for
   `forest(sd =)` cannot be stated in one Rd sentence") is refuted by Fork 1c,
   which is exactly such a default, in the same slice and the same
   `man/forest.Rd` item. After 1c that Rd sentence is family-branched anyway, so
@@ -461,7 +462,7 @@ Alternatives:
   and the first revision reached its band only by excluding the one refuting
   arm with the adjective "normal-ish". Withdrawn.
 
-  **What survives is a COMPOSITIONALITY argument, and it is the one the law
+  **What survives is a COMPOSITIONALITY argument, and it is the one the rule
   actually embodies.** The single-forest default is one ensemble's whole
   budget, however large; the `sqrt(K)` growth compounds that budget ACROSS
   ensembles, so the prior on `E[y|x]` depends on how the user DECOMPOSED the
@@ -720,7 +721,7 @@ critique that raised this fork; it is a silent-wrong-model defect on a public
 route, and it is strictly worse than the error the fork was opened about.
 
 Alternatives: **(6a) out of scope entirely** - rejected, because this slice's
-own law has to state a K = 1 value (1.414214), and because one of the two
+own rule has to state a K = 1 value (1.414214), and because one of the two
 routes silently fits a different model than the user wrote; **(6b) make K = 1
 reachable** - deferred FOR THIS SLICE, on GATE grounds rather than on cost (see
 the corrected pricing below): a new shipped configuration needs acceptance
@@ -814,7 +815,7 @@ debt discharged in its cap-not-pin successor form, Fork 6c's two-part K = 1 fix
 with reachability ticketed separately, and the internal `bartcoreBCFSampler`
 route following the public one.
 
-## RNG / draw-law classification
+## RNG / draw-distribution classification
 
 Per proposed change:
 
@@ -823,8 +824,8 @@ Per proposed change:
 | S0 product pins, `tests/cpp` calibration coverage | DRAW-NEUTRAL | no `src/` delta at all |
 | S1 stored `basisRowNorms_` + 4 `ForestCalibration` fields | DRAW-NEUTRAL | read-only additions; no rng in the path |
 | S1 bridge columns, flat fields, Rd | DRAW-NEUTRAL | reporting only |
-| S2 `aPriorScale` 2 -> 1 under probit/logistic | DRAW-LAW-CHANGING | every latent K-forest fit with a basis-free forest |
-| S2 default `nodeScaleFactor` -> `sqrt(2/K)` | DRAW-LAW-CHANGING | every K >= 3 fit, ALL families |
+| S2 `aPriorScale` 2 -> 1 under probit/logistic | DRAW-DISTRIBUTION-CHANGING | every latent K-forest fit with a basis-free forest |
+| S2 default `nodeScaleFactor` -> `sqrt(2/K)` | DRAW-DISTRIBUTION-CHANGING | every K >= 3 fit, ALL families |
 | S2 K = 1 designed refusal | DRAW-NEUTRAL | an error path that today errors elsewhere |
 
 S1's neutrality is argued from MECHANISM, not from the name of the surface (the
@@ -1123,8 +1124,8 @@ The mutations each assertion catches, and the one it cannot:
 
 - The K-invariance assertion. [inst/tinytest/test-bcf-family.R:118-125](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/inst/tinytest/test-bcf-family.R#L118-L125) currently asserts
   `sqrt(sum(scales^2 * 0.5)) == 1.04912 * sqrt(K) * s` at K = 2 and 3. Under
-  the law it becomes `== 1.04912 * sqrt(2) * s` - a CONSTANT - at K = 2, 3 and
-  4, which is strictly stronger and is the design statement itself.
+  the rule it becomes `== 1.04912 * sqrt(2) * s` - a CONSTANT - at K = 2, 3
+  and 4, which is strictly stronger and is the design statement itself.
 - The default-transport pins: `params[[1]][7]` is 2 under gaussian and 1 under
   probit and logistic; `params[[f]][4]` is `sqrt(2/K)` for a basis forest at
   K = 2, 3, 4 (1, 0.816497, 0.707107) and unchanged when `sd` is declared.
@@ -1167,9 +1168,9 @@ The mutations each assertion catches, and the one it cannot:
   internal one. The trio only covers the internal one.
 - **F3 (S2).** A latent-family fit that DECLARES `forest(sd = 1)` on every
   basis forest and `forest(sd = 2)` on the basis-free one is BITWISE identical
-  before and after S2 at every K. This is the composability claim: the law is a
-  default, not map algebra, and a caller who states the old values gets the old
-  model.
+  before and after S2 at every K. This is the composability claim: the rule is
+  a default, not map algebra, and a caller who states the old values gets the
+  old model.
 - **F4 (S1).** `$getCalibration` on a single-forest sampler and on a
   multinomial sampler returns NaN in exactly the five new columns and is
   otherwise unchanged, including the `leaf.model` attribute. On a K-forest
@@ -1213,20 +1214,20 @@ The mutations each assertion catches, and the one it cannot:
 A forest whose basis has an all-zero row (excluded from the median, not counted
 small). An all-zero basis (`basisRowNorm` returns 1.0; the forest contributes
 nothing and its reported scale is still finite). A basis-free forest under the
-law (factor stays the literal 1; the law touches only the `withBasis` branch).
-`forest(sd = )` declared on a basis-free forest under a latent family (it is
-the half-Cauchy median, now defaulting to 1, and a declared value overrides in
-both families). K = 1 (refused by name, with the message naming the two-forest
-spelling). A `dbartsData(bases = )` object with NO `forests =` declaration at
-K >= 3 (every forest at the new default - this is the route that most silently
-inherits the law). `$getCalibration` on a K-forest sampler between sweeps: the
-two amplitude columns are EXCLUSIVE per forest and the reported variance does
-NOT move with the scale mixture's auxiliary, because the reader carries the
-PRIOR and the auxiliary is state (reachable through `$state`'s `aVariance`,
-recorded as a door). A state install that brings a foreign calibration
-(`$setState`, `$installTrees`), and the `$setForestBasis` that re-imposes the
-map afterwards - F8's three arms, and the one edge case where a column
-legitimately becomes NA on a K-forest sampler.
+rule (factor stays the literal 1; the rule touches only the `withBasis`
+branch). `forest(sd = )` declared on a basis-free forest under a latent family
+(it is the half-Cauchy median, now defaulting to 1, and a declared value
+overrides in both families). K = 1 (refused by name, with the message naming
+the two-forest spelling). A `dbartsData(bases = )` object with NO `forests =`
+declaration at K >= 3 (every forest at the new default - this is the route that
+most silently inherits the rule). `$getCalibration` on a K-forest sampler
+between sweeps: the two amplitude columns are EXCLUSIVE per forest and the
+reported variance does NOT move with the scale mixture's auxiliary, because the
+reader carries the PRIOR and the auxiliary is state (reachable through
+`$state`'s `aVariance`, recorded as a door). A state install that brings a
+foreign calibration (`$setState`, `$installTrees`), and the `$setForestBasis`
+that re-imposes the map afterwards - F8's three arms, and the one edge case
+where a column legitimately becomes NA on a K-forest sampler.
 
 ## Doors held open (recorded, not scheduled)
 
@@ -1288,7 +1289,7 @@ consequence.
    the map's other defaults.** `BCFSpec::bPriorVariance = 0.5` and
    `BCFSpec::sdModerate = 1.0` (`src/bartcore/combiner.hpp`) are two further
    engine spellings of shipped defaults. Neither moves here - both are the
-   K = 2 values - but a K law defined on the wrong count would have hit
+   K = 2 values - but a K rule defined on the wrong count would have hit
    `sdModerate`, which is why Fork 2d is priced.
 4. **"A change to `forestParams` alone turns the creation oracle red" is true
    only under gaussian.** The census says so implicitly (its section 5 marks
@@ -1535,7 +1536,7 @@ conventions, and the first revision reached its band only by excluding that arm
 with an adjective. The magnitude argument is WITHDRAWN for gaussian and the
 table is now IN Fork 2e, so the owner sees the counterexample. What replaces it
 is the critique's own suggested discriminator, which is also the argument the
-law embodies: COMPOSITIONALITY - the single-forest default is one ensemble's
+rule embodies: COMPOSITIONALITY - the single-forest default is one ensemble's
 whole budget however large, while `sqrt(K)` compounds it across ensembles, so
 today the prior on `E[y|x]` depends on how the user decomposed the mean rather
 than on what they said about it, and writing one model as two forests or four
@@ -1765,15 +1766,15 @@ bridge on bartcoreBCFSampler(host, z, family = "aft") and replaced
 "BCF does not support an AFT" - a deliberately placed backstop pin
 (test-bcf-family.R) - with a worse message from the wrong layer.
 
-DRAW LAW, verified by building both trees and comparing draws rather
-than by argument. BITWISE across S2: gaussian K = 2 through the public
-forests route (F2), the same through bartcoreBCFSampler (F2, internal),
-and latent fits DECLARING forest(sd = 2) basis-free plus forest(sd = 1)
-per basis forest at K = 2 probit, K = 3 probit and K = 3 logistic (F3 -
-the composability claim, that the law is a default and a caller who
-states the old values gets the old model). MOVED, as the two named
-classes: probit K = 2 default, logistic K = 2 default, gaussian K = 3
-default. Nothing else.
+DRAW DISTRIBUTION, verified by building both trees and comparing draws
+rather than by argument. BITWISE across S2: gaussian K = 2 through the
+public forests route (F2), the same through bartcoreBCFSampler (F2,
+internal), and latent fits DECLARING forest(sd = 2) basis-free plus
+forest(sd = 1) per basis forest at K = 2 probit, K = 3 probit and K = 3
+logistic (F3 - the composability claim, that the rule is a default and
+a caller who states the old values gets the old model). MOVED, as the
+two named classes: probit K = 2 default, logistic K = 2 default,
+gaussian K = 3 default. Nothing else.
 
 Battery on the slice's own private lib: preclean install clean;
 tests/cpp all ok from make clean (242 ok lines, unchanged from S1 - the
@@ -1792,14 +1793,14 @@ clean staged tarball outside the tree Status OK 0/0/0; NEWS.Rd parses
 
 ASSERTIONS MOVED, all three the plan predicts and no others - the full
 suite went from 4826 results to 4872 with exactly these red:
-(1) test-bcf-family.R cell (c), the induced-index law, probit arm:
-1.04912 * sqrt(K) * s -> 1.04912 * sqrt(2) * s, a CONSTANT, and the loop
-gains K = 4 ("What S2 adds on top", first bullet); the value was
+(1) test-bcf-family.R cell (c), the induced-index distribution, probit
+arm: 1.04912 * sqrt(K) * s -> 1.04912 * sqrt(2) * s, a CONSTANT, and the
+loop gains K = 4 ("What S2 adds on top", first bullet); the value was
 1.81712914 and is 1.48367953. (2) the same cell's logistic arm,
 3.29590768 -> 2.69109698. (3) test-forest-basis-r5.R, F8(d)'s donor arm:
 mapColumn(recipient, 1, "amplitude.prior.scale") 2 -> 1, that fixture
 being probit with an undeclared basis-free forest. Values RE-DERIVED
-from the law rather than regenerated from a run. Every other latent
+from the rule rather than regenerated from a run. Every other latent
 K = 2 fixture either declares its sd or asserts an identity.
 
 ADDED, per "What S2 adds on top": the K-invariance loop at K = 2, 3, 4
@@ -1820,9 +1821,9 @@ library, the tree byte-verified restored after each:
 (A) defaultAmplitudePriorScale not family-aware, 2 everywhere -> 6 moved
 (the shipped-shape reader pin under both families, both latent slot-7
 transport pins, the internal-route pin, and r5's donor arm);
-(B) the K law dropped, factor default back to the literal 1 -> 16 moved
+(B) the K rule dropped, factor default back to the literal 1 -> 16 moved
 (both families' K-invariance loops, and every slot-4 pin);
-(C) the law applied to the BASIS-FREE forest too -> 7 moved (the slot-4
+(C) the rule applied to the BASIS-FREE forest too -> 7 moved (the slot-4
 pins' factors[1] == 1 arm, and the declared-shape pin);
 (D) normalized on the BASIS count Kb rather than K, i.e. Fork 2d -> 15
 moved across three files, including test-bcf-creation's K = 2 transport

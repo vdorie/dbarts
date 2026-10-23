@@ -2,11 +2,11 @@
 
 # Mixing gate for the negative-binomial shape r
 # (docs/plans/nbinom-log-mean.md, Gates; docs/plans/check-shape-fixes.md).
-# negbin-exact.R checks the stationary law on one tree and n = 50; it cannot
-# see a chain that never leaves where it began. This gate fits the default
-# forest at realistic n, with the two chains' shapes SET APART at the start,
-# and checks that r moves, that the two chains agree, and that the predictive
-# law covers fresh counts.
+# negbin-exact.R checks the stationary distribution on one tree and n = 50;
+# it cannot see a chain that never leaves where it began. This gate fits the
+# default forest at realistic n, with the two chains' shapes SET APART at the
+# start, and checks that r moves, that the two chains agree, and that the
+# predictive distribution covers fresh counts.
 #
 # Design: mu = 8 exp(x1), five uniform predictors, default bart() settings
 # except n.chains = 2, on two cells whose posterior on r spreads over several
@@ -82,10 +82,10 @@
 #     edge of its 99.9% set, in quick 6 of 8 streams (2000) and in full 3 of
 #     5 (4000);
 #   - half the draws one step up: not caught, quick or full. A stationary
-#     law shifted by less than a grid step is what neither mode sees.
+#     distribution shifted by less than a grid step is what neither mode sees.
 # Full mode catches fewer slowed or shifted shapes than quick for some
 # mutants: its longer chains fill in the tails that Rhat and the sets read.
-# negbin-exact.R holds the stationary law at n = 50.
+# negbin-exact.R holds the stationary distribution at n = 50.
 #
 # A failure is a finding.
 #

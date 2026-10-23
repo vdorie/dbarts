@@ -222,7 +222,7 @@ data-fitted inits in general; Koehler, Lee and Vuong, arXiv 2411.09117
 weakly than first read - the result needs a kth-order spectral gap, a
 Poincare inequality, and is scoped by its own framing sentence to "score
 matching methods" over a continuous state space via Langevin diffusion or
-Glauber dynamics; it needs samples FROM the stationary law, and
+Glauber dynamics; it needs samples FROM the stationary distribution, and
 grow-from-root draws are not that.
 
 **The honest answer, as the literature stood before this study:** nothing

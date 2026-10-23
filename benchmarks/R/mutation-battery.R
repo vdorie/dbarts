@@ -413,7 +413,7 @@ mutations <- list(
   ## m24-m25 are the perturb kernel's two poisons: the whole Hastings term of a
   ## cut displacement is the window ratio, which fires only at the ends of the
   ## descendant-valid interval, so both defects are invisible in the middle of
-  ## it and only the cut-law gate reads them.
+  ## it and only the cut-distribution gate reads them.
 
   mk(
     "m24",

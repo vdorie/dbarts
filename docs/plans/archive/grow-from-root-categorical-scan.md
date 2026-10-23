@@ -1,6 +1,6 @@
 # grow-from-root-categorical-scan
 
-agent: S0a/S0b/S1/S2 opus (each moves a draw law on the opt-in path, or decides
+agent: S0a/S0b/S1/S2 opus (each moves a draw distribution on the opt-in path, or decides
   whether one moves); S3 sonnet (R surface + tests); S4 opus (it records a
   measurement); S5 sonnet (docs). Serialized: one implementer, each slice lands
   before the next starts. S0 is TWO slices with a VD signature between them:
@@ -20,8 +20,8 @@ rng: NEUTRAL on every default path, EVERY slice. The categorical branch sits
   tip, with the verified fact that NO trio scenario reaches `growTreeFromRoot`
   at all (zero `n.grow.sweeps` / `growFromRoot` hits anywhere under
   `benchmarks/`). A trio deviation is a bug in the slice, NEVER a re-record.
-  DRAW-LAW-CHANGING on the OPT-IN grow path only, and deliberately so: a
-  categorical win spends `1 + A` new Bernoullis, and under `dart = TRUE` the
+  DRAW-DISTRIBUTION-CHANGING on the OPT-IN grow path only, and deliberately so:
+  a categorical win spends `1 + A` new Bernoullis, and under `dart = TRUE` the
   grow sweep's own DART update now sees nonzero categorical split counts - see
   "The DART consumer", which is a stream-POSITION change, not only a value
   change.
@@ -328,8 +328,9 @@ in Open items is presented with; the fix is S0b and runs only if VD signs.
    `{no-split} U {(c, missing-left), (c, missing-right)}` enumeration where
    each of the `2*numRules` candidates carries its OWN exact likelihood with
    the missing rows PLACED on the stated side (no scan approximation). Arm B is
-   the ideal law on the larger enumerated set by construction. Chi-square both
-   arms' root-rule frequencies against arm B's own weights, ~2e5 seeds.
+   the ideal distribution on the larger enumerated set by construction.
+   Chi-square both arms' root-rule frequencies against arm B's own weights,
+   ~2e5 seeds.
 2. Pre-registered decision rule, written into the test file before it is run:
    arm A rejecting while arm B does not CONFIRMS that the shipped weight
    implements the smaller-set convention and deflates the group by exactly 2;
@@ -368,7 +369,7 @@ recorded value can move (re-verified at 9f92074a; the three files are
 test-grow-from-root.R, test-bart2-grow-from-root.R and
 test-sampler-prior-midchain.R). A shift means the change leaked into the
 non-missing ordinal path - STOP, never regenerate. RNG class:
-DRAW-LAW-CHANGING on the opt-in grow path for missing-bearing ordinal columns,
+DRAW-DISTRIBUTION-CHANGING on the opt-in grow path for missing-bearing ordinal columns,
 deliberately; NEUTRAL on every default path, and no baseline covers it.
 
 ## S1. The kernel, the weight, and the install path
@@ -666,19 +667,19 @@ root (grow must still terminate and produce a legal forest).
   The falsifier settles the fact; VD signs the consequence. Fix it and the two
   branches obey one rule - a candidate carries its rule group's total prior
   mass, post-draw coins pick uniformly within the group - at the cost of a
-  deliberate draw-law change on the opt-in path for missing-bearing ordinal
-  columns (zero snapshot burden, verified; magnitude `log 2 = 0.69` against
-  likelihood ratios of `exp(O(n_node))`, so it bites only at the shallow-signal
-  small-node margin). Or pin the shipped weight as the smaller-enumerated-set
-  convention and document it, at the cost of the two branches obeying different
-  rules. Recommendation: fix. CAVEAT the presentation must carry (S0a
-  verifier): the fix reaches the rule-group law, NOT full correctness of the
-  missing-bearing grow draw - 39 percent of the shipped-to-exact
-  total-variation gap survives it, owed to a SECOND, separate inconsistency
-  S0a surfaced (scanOrdinalCuts drops missing rows from the split likelihood
-  while the no-split term counts them; confirmed from code, monotone in the
-  missing rows' weighted sum of squared responses; its own ticket in TODO
-  regardless of how this fork is signed).
+  deliberate draw-distribution change on the opt-in path for missing-bearing
+  ordinal columns (zero snapshot burden, verified; magnitude `log 2 = 0.69`
+  against likelihood ratios of `exp(O(n_node))`, so it bites only at the
+  shallow-signal small-node margin). Or pin the shipped weight as the
+  smaller-enumerated-set convention and document it, at the cost of the two
+  branches obeying different rules. Recommendation: fix. CAVEAT the
+  presentation must carry (S0a verifier): the fix reaches the rule-group
+  distribution, NOT full correctness of the missing-bearing grow draw - 39
+  percent of the shipped-to-exact total-variation gap survives it, owed to a
+  SECOND, separate inconsistency S0a surfaced (scanOrdinalCuts drops missing
+  rows from the split likelihood while the no-split term counts them; confirmed
+  from code, monotone in the missing rows' weighted sum of squared responses;
+  its own ticket in TODO regardless of how this fork is signed).
 - **The mass-spread bias direction is RECORDED, not scheduled.** Above the cap
   the retained greedy prefixes inherit the family's whole mass, which is the
   ESL 9.2.4 many-level-predictor overfitting direction. S7's 8 levels sit below
@@ -704,17 +705,18 @@ root (grow must still terminate and produce a legal forest).
 S0a LANDED 6e7edaf1, 2026-08-12 (amended once at verification for
 a one-word doc mislabel). The falsifier CONFIRMS under the
 pre-registered rule (chi-square GOF, 9 cells, df 8, 2e5 grows,
-alpha 1e-3): shipped draws vs the exact law 6471.30, p below
-1e-300, REJECT; the exact law's own draws 6.06, p 0.640, no
-reject; control (shipped vs the reconstructed shipped law) 7.38,
-p 0.496. A third, ISOLATING law was added beyond the plan's two
-arms, adjudicated right: shipped and exact differ in two ways at
-once, so the plan's literal A-vs-B rule was under-identified (the
-scan omission alone would have satisfied it); the group law
-differs from shipped by exactly log 2 and from exact only in the
-likelihood, and the shipped split-to-no-split odds are exactly 2x
-the group's (asserted at 1e-9; the verifier re-derived all three
-laws independently in R and re-ran the kernel at four fresh seeds
+alpha 1e-3): shipped draws vs the exact distribution 6471.30, p
+below 1e-300, REJECT; the exact distribution's own draws 6.06, p
+0.640, no reject; control (shipped vs the reconstructed shipped
+distribution) 7.38, p 0.496. A third, ISOLATING distribution was
+added beyond the plan's two arms, adjudicated right: shipped and
+exact differ in two ways at once, so the plan's literal A-vs-B
+rule was under-identified (the scan omission alone would have
+satisfied it); the group distribution differs from shipped by
+exactly log 2 and from exact only in the likelihood, and the
+shipped split-to-no-split odds are exactly 2x the group's
+(asserted at 1e-9; the verifier re-derived all three
+distributions independently in R and re-ran the kernel at four fresh seeds
 - every number reproduced, verdicts seed-stable). P(no-split):
 shipped 0.10257, group 0.05406, exact 0.05990. SECOND
 INCONSISTENCY surfaced and confirmed from code: scan.hpp skips
@@ -737,9 +739,9 @@ docs/design/grow-from-root.md section 7, so S0b's change, if
 signed, re-points visibly; the log 2 line is untouched and S0b is
 not started. Budget: 272 tests/cpp lines vs ~110 - the
 pre-registration comment, the in-file tail, the reporting block
-and the third law account for most of the overage; accepted.
-Gates double-run (implementer + independent verifier, fresh
-privlibs, --preclean): tests/cpp plain + ASAN/UBSAN clean
+and the third distribution account for most of the overage;
+accepted. Gates double-run (implementer + independent verifier,
+fresh privlibs, --preclean): tests/cpp plain + ASAN/UBSAN clean
 (statistics bit-identical across optimization levels), tinytest
 4174/0 unchanged with no snapshot regenerated, trio 35/35 strict /
 11/11 / 10/10 (the rng-neutral claim held), categorical-exact
@@ -815,35 +817,35 @@ engine line deleted - the ordinal missing-weight halving - so a
 cut candidate on a missing-bearing ordinal column carries its rule
 group's total prior mass and the post-draw coin picks uniformly
 within the group. The S0a falsifier re-pointed IN PLACE with all
-four arms kept (the old shipped law renamed halved): committed
-seed shipped-vs-group 19.07 on 8 df, p 0.0145, no reject at alpha
-1e-3; shipped-vs-halved 5460.86 REJECT; exact-vs-exact control
-5.08 p 0.749; shipped-vs-exact 443.70 p 8.3e-91 - the expected
-residual, TV 0.0436 -> 0.0169 exactly as S0a predicted, owed to
-ordinal-scan-missing-rows. The verifier settled the low
+four arms kept (the old shipped distribution renamed halved):
+committed seed shipped-vs-group 19.07 on 8 df, p 0.0145, no reject
+at alpha 1e-3; shipped-vs-halved 5460.86 REJECT; exact-vs-exact
+control 5.08 p 0.749; shipped-vs-exact 443.70 p 8.3e-91 - the
+expected residual, TV 0.0436 -> 0.0169 exactly as S0a predicted,
+owed to ordinal-scan-missing-rows. The verifier settled the low
 committed-seed p by POWER TEST rather than spread-eyeballing: at
-10x draws a systematic leak into the group law would scale its
-chi-square linearly to ~118; it FELL to 6.62 (p 0.578, realized
-no-split 0.05404 vs the law's 0.05406) while the
+10x draws a systematic leak into the group distribution would
+scale its chi-square linearly to ~118; it FELL to 6.62 (p 0.578,
+realized no-split 0.05404 vs the distribution's 0.05406) while the
 genuinely-deviating arms scaled as they must (halved -> 51178,
-exact -> 3466) - noise, and the test's group law was read to
-reconstruct the kernel's weights exactly, so nothing but noise is
-available. Grow tinytest files held bitwise (friedmanData carries
-no NA - the fix cannot reach them); trio 35/35 strict / 11/11 /
-10/10 with zero max-z; categorical-exact 0.0008 and
+exact -> 3466) - noise, and the test's group distribution was read
+to reconstruct the kernel's weights exactly, so nothing but noise
+is available. Grow tinytest files held bitwise (friedmanData
+carries no NA - the fix cannot reach them); trio 35/35 strict /
+11/11 / 10/10 with zero max-z; categorical-exact 0.0008 and
 multinomial-exact six arms unchanged; tests/cpp plain + ASAN/UBSAN
 clean with bit-identical statistics; tinytest 4174/0; air 0, lintr
 0. Records re-pointed: grow.hpp's draw-discipline comment states
 the group convention as implemented, keeping the
-still-not-the-exact-law caveat; design-doc section 7 carries the
-pre-fix measurement as record plus the post-fix re-read and the
-ordinal-scan-missing-rows pointer, every quoted number verified
-against live output; the NEWS bullet sits in NEW FEATURES,
-adjudicated correct - n.grow.sweeps first appeared inside the
-1.0-0 cycle and the halved weight never shipped in a release.
-ADVISORIES TO S5's docs pass: inst/NEWS.Rd has NO 1.0-0 bullet
-introducing n.grow.sweeps at all (both grow bullets amend an
-unannounced feature - S5 adds the introducing bullet), and the
+still-not-the-exact-distribution caveat; design-doc section 7
+carries the pre-fix measurement as record plus the post-fix
+re-read and the ordinal-scan-missing-rows pointer, every quoted
+number verified against live output; the NEWS bullet sits in NEW
+FEATURES, adjudicated correct - n.grow.sweeps first appeared
+inside the 1.0-0 cycle and the halved weight never shipped in a
+release. ADVISORIES TO S5's docs pass: inst/NEWS.Rd has NO 1.0-0
+bullet introducing n.grow.sweeps at all (both grow bullets amend
+an unannounced feature - S5 adds the introducing bullet), and the
 "seeded results differ from previous versions" sentence is
 vacuous for a never-released feature (house pattern, pre-existing
 in the S1 bullet too). The design doc's fresh-seed statistics
@@ -866,35 +868,36 @@ separate the NA rows), OP_GROW in the fuzz configs (confirmed
 firing by instrumentation: 8 hits each in categorical and
 missing, plus gaussian/linear/multichain), and the pooled column
 in testMappedSourceReplay. S1's HARD CARRY IS DISCHARGED, and the
-licence was verified by trace, not trust: O1's expected law
-touches only growthProbability, logIntegratedLikelihood and
-store.codeAt - never categoricalGroupLogProbability,
-scanCategoricalPartitions, exactPartitionHoldsPosition or
-categoricalNumEmitted - and at P = R the enumeration reaches each
-of the 2^R - 2 masks exactly once, where the kernel's own weight
-is literally CGM's uniform; the test writes -log(2^R - 2)
-directly. TWO PLAN DEVIATIONS ADJUDICATED RIGHT AT VERIFICATION.
-First, F4b as written is UNFALSIFIABLE - proved symbolically: the
-orientation coin is fair, consumed once, drawn after the
-candidate and before the absent coins, and the literal swap
-b -> 1 - b is a measure-preserving bijection, so the joint law of
-the grown tree and the uniform count is identical (run to
-confirm: chi2 21.51, no rejection); the substituted falsifier
-(coin drawn but not consulted) reddens O1/O1F at 197358/192882.
-Same shape as S1's F3b -> F3b'. Second, O1's cells are the 14
-masks + no-split, not the plan's 7 partitions + no-split: a
-partition-level law is invariant to the orientation coin so the
-coarse cells provably cannot detect an orientation error; the
-split leaves partition-level noncentrality unchanged and only
-moves the critical value 24.32 -> 36.12 at alpha 1e-3, a 1.49x
-requirement against F4a's realized ~663, and the 7 partition
-weights stay asserted twice over (as the coarsening, and exactly
-by the per-partition group-mass arm). The coin-count premise -
-every consumer on the grow path takes exactly one continuous
-uniform per positive-growth node - was verified by full RNG
-census: drawFromDiscreteDistribution and simulateBernoulli each
-consume one uniform, nothing in scan.hpp or tree.hpp draws, and
-the ordinal missing coin sits in the non-categorical branch while
+licence was verified by trace, not trust: O1's expected
+distribution touches only growthProbability,
+logIntegratedLikelihood and store.codeAt - never
+categoricalGroupLogProbability, scanCategoricalPartitions,
+exactPartitionHoldsPosition or categoricalNumEmitted - and at P =
+R the enumeration reaches each of the 2^R - 2 masks exactly once,
+where the kernel's own weight is literally CGM's uniform; the
+test writes -log(2^R - 2) directly. TWO PLAN DEVIATIONS
+ADJUDICATED RIGHT AT VERIFICATION. First, F4b as written is
+UNFALSIFIABLE - proved symbolically: the orientation coin is
+fair, consumed once, drawn after the candidate and before the
+absent coins, and the literal swap b -> 1 - b is a
+measure-preserving bijection, so the joint distribution of the
+grown tree and the uniform count is identical (run to confirm:
+chi2 21.51, no rejection); the substituted falsifier (coin drawn
+but not consulted) reddens O1/O1F at 197358/192882. Same shape as
+S1's F3b -> F3b'. Second, O1's cells are the 14 masks + no-split,
+not the plan's 7 partitions + no-split: a partition-level
+distribution is invariant to the orientation coin so the coarse
+cells provably cannot detect an orientation error; the split
+leaves partition-level noncentrality unchanged and only moves the
+critical value 24.32 -> 36.12 at alpha 1e-3, a 1.49x requirement
+against F4a's realized ~663, and the 7 partition weights stay
+asserted twice over (as the coarsening, and exactly by the
+per-partition group-mass arm). The coin-count premise - every
+consumer on the grow path takes exactly one continuous uniform
+per positive-growth node - was verified by full RNG census:
+drawFromDiscreteDistribution and simulateBernoulli each consume
+one uniform, nothing in scan.hpp or tree.hpp draws, and the
+ordinal missing coin sits in the non-categorical branch while
 O2's fixtures assert hasMissing[1] == 0; expectedUniforms is
 built from tree structure and category counts, never the
 generator, so the oracle is not circular, and two verifier-added
@@ -913,9 +916,9 @@ KNOWN LIMITS ON RECORD, not defects: the family-total mass arm
 is, taken alone, an algebraic identity of the shipped helper
 (emitted is passed in and multiplied back out) - its real content
 is branch-divergence detection (F5 fires it), and the independent
-anchors are the per-partition arm below the cap and O1F's law,
-which uses the literal numLevels - 1 and (2^P - 2)/(2^R - 2);
-and the greedy-prefix retention sort key
+anchors are the per-partition arm below the cap and O1F's
+distribution, which uses the literal numLevels - 1 and (2^P -
+2)/(2^R - 2); and the greedy-prefix retention sort key
 (sumWeightedResponse/(priorVariance + sumWeights)) is recomputed
 from the kernel's formula in both S1's test_scan and O1F with
 strict ordering asserted, so it is a known UNORACLED choice - a
@@ -924,8 +927,8 @@ invariant, only which prefixes are retained changes. Hardening
 items ticketed in TODO for the next tests/cpp-touching slice: the
 per-partition arm runs under if (P <= cap && R <= 40) with no
 ran-at-all counter (silent pass if the grid drifts); O2's
-pooled-below-cap coverage is real (10 of 1169 pooled nodes at
-P <= 10, min 2) but unasserted; and every new fixture passes
+pooled-below-cap coverage is real (10 of 1169 pooled nodes at P
+<= 10, min 2) but unasserted; and every new fixture passes
 weights = nullptr, so a present category with count >= 1 but
 all-zero weights is exercised nowhere. OP_GROW does not reach the
 multiforest fuzz configs, whose explicit op masks predate the

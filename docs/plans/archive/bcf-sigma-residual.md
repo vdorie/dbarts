@@ -116,10 +116,11 @@ rejected on measurement):
   build update.a=FALSE, run W sweeps, storeState, setState into an
   update.a=TRUE sampler (burncurve.R does exactly this). As a shipped feature
   it would be a run-schedule wrapper; opt-in, changes no default draws.
-- (c) longer burn: changes NO draw law -- more of the same chain. Smallest
-  diff: benchmarks/R/sbc.R -- runSbcBCF's burn default (line 938, currently
-  50L) and/or the isBCF CLI branch (line 1382, which passes no burn); pin
-  ABSOLUTE sweeps, e.g. burn = ceiling(72000 / thin), since burn units are
+- (c) longer burn: changes NO draw distribution -- more of the same chain.
+  Smallest diff: benchmarks/R/sbc.R -- runSbcBCF's burn default (line 938,
+  currently 50L) and/or the isBCF CLI branch (line 1382, which passes no
+  burn); pin ABSOLUTE sweeps, e.g. burn = ceiling(72000 / thin), since burn
+  units are
   thinned ([src/bartcore/chain.hpp:642](https://github.com/vdorie/dbarts/blob/7e5b46a02e6cfc2eeda381272344e94e102b52f0/src/bartcore/chain.hpp#L642) totalIterations = (burn + samples) * thin). Plus a
   burn-guidance note in docs/design/bcf.md. ZERO engine change.
 
@@ -166,7 +167,8 @@ is small enough that burn=600 absorbs it at R=400 resolution.
    updateScale=FALSE inside a larger Gibbs loop) -- normal single-fit use with
    the scale set from y keeps |a|~O(1). Correct the prior memo's routing: the
    amplitude-aware a-init it proposed is measured INEFFECTIVE (section 2).
-   No engine change; no draw-law change; all existing gates untouched.
+   No engine change; no draw-distribution change; all existing gates
+   untouched.
 2. OPTIONAL follow-up (new item, not required for acceptance): the extreme
    tail (|a0| >= ~40, ~3% of the prior) is frozen-structure mixing that no
    burn fixes -- a principled engine remedy would target tree-structure mixing

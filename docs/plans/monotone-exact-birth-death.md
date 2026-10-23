@@ -109,7 +109,8 @@ guards the fix.
   - [`Chain::growForestFromRoot`](../../src/bartcore/chain.hpp) draws against the old tree's mu at reused
     node ids. It can also grow, as can installTrees and setState install, a tree of any size.
 - Prior draw. [`MonotoneConstantGaussianLeaf::drawFromPriorForTree`](../../src/bartcore/model.hpp) samples the
-  right law by rejection, but its 1e6-attempt cap fails ~6% of the time on a 9-leaf chain (1/9! = 2.8e-6).
+  right distribution by rejection, but its 1e6-attempt cap fails ~6% of the time on a 9-leaf chain (1/9! =
+  2.8e-6).
 - mBART (Chipman, George, McCulloch and Shively, arXiv 1612.01619v3). Section 3 defines only the "leaf"
   prior: eq. 3.3 incorporates the constraint "by constraining the CGM10 BART independence form p(Mj | Tj) ...
   to have support only over C", and the tree prior of section 3.1 "is the same form used for unconstrained
@@ -158,10 +159,10 @@ the state metric the table uses. Sweep time is per kept sweep.
   in these fits and 3.19e6 in a 1-tree fit with 3 free axes (Counting: algorithm).
 - At ~2^24 down-sets the count is slower per unit: a 25-leaf star takes 15 s (36 ns per unit), a 60-leaf order
   of eight chains 17 s and 424 MB keeping two layers. Keeping every layer, as step 6's draw and the position
-  laws do, took 23 s and 1.09 GB peak on a 1.68e7-down-set star plus a singleton.
-- The current engine targets the d-normalized law, so the corrected one may grow different trees: on monotone
-  data its 1/Z_T factor favours more constrained orders. That moves how much a budget truncates, and under
-  option 5 only the cost.
+  distributions do, took 23 s and 1.09 GB peak on a 1.68e7-down-set star plus a singleton.
+- The current engine targets the d-normalized distribution, so the corrected one may grow different trees: on
+  monotone data its 1/Z_T factor favours more constrained orders. That moves how much a budget truncates, and
+  under option 5 only the cost.
 
 1. Whole-tree down-set budget, B = 2^22 (the first recommendation). Closed: a death maps the new tree's
    down-sets injectively into the old tree's. Cost at most ~0.5 s and ~200 MB per count. What a fit sees:
@@ -526,8 +527,8 @@ verdict; the maintainer rules on the results.
     free, x4 and x5 noise.
 - Noise sd a third of the truth's sd, and equal to it; n 200 and 2000; 8 replicates; one chain of 500 burn-in
   and 500 kept sweeps. Measures as in the feel study's fits: RMSE of the posterior mean against the truth and
-  95% interval coverage on 2000 held-out points from the design's law, held-out log predictive score, interval
-  width, varcount shares, time per sweep.
+  95% interval coverage on 2000 held-out points from the design's distribution, held-out log predictive score,
+  interval width, varcount shares, time per sweep.
 - Rule (advisory): mBART's values are favoured as the tree prior under every monotone fit if (a) at 200 trees, in every design, n
   and noise cell, their RMSE and score are no worse than cgm()'s defaults beyond two paired standard errors,
   and (b) their 95% coverage is at least 0.90 in every cell at 200 and 50 trees. Otherwise cgm()'s defaults
@@ -663,7 +664,7 @@ next move touching it pays its count (step 1).
   encodes the "leaf" target names prior = "leaf" explicitly (monotone-reference.R and
   test-calibration-prior-draws.R's monotone block among them), so the default ruling changed no gate.
 - Out of scope: change moves under the constraint, quadrature speed (since resolved: the cone is a closed
-  form or a log-space integral), and reconciling a chi k hyperprior with the truncated law.
+  form or a log-space integral), and reconciling a chi k hyperprior with the truncated distribution.
 
 ## Staging
 
@@ -789,14 +790,14 @@ constrained value waits for step 12.
    - Relation: build the tree's relation matrix with the adjacency test of `monotoneNeighborBounds`, and split
      it into components.
    - Count: run the layered down-set DP per component, keeping two layers (every layer for step 6's draw and
-     for position laws), and return the whole-tree log Z_T = sum over components of log e(C) - lgamma(|C| + 1).
-     There is no limit (dec-B149); step 15 times each count, lets it be interrupted, and handles its
-     allocation failure.
+     for position distributions), and return the whole-tree log Z_T = sum over components of log e(C) -
+     lgamma(|C| + 1). There is no limit (dec-B149); step 15 times each count, lets it be interrupted, and
+     handles its allocation failure.
    - Ratio (Counting: algorithm): a move changes only the component of the merged leaf in T0 and the
      component(s) holding the two children in T*, and is counted on T*'s side. With the children in one
      component C*, count C* and C0; the current tree's component counts are kept, so a move counts one of the
-     two. With the children in two components, take theta from the position laws of c1 and c2, and do not count
-     C0. c1 is the child lower in the order (Counting: algorithm).
+     two. With the children in two components, take theta from the position distributions of c1 and c2, and do
+     not count C0. c1 is the child lower in the order (Counting: algorithm).
    - First version (commit 3): count both sides of every move; nothing is cached.
    - Lazy cache (commit 4b): per-component counts of the current trees, owned by the monotone leaf
      model's per-chain scratch, not by the shared Tree, and compiled out elsewhere. An accepted two-component
@@ -810,9 +811,9 @@ constrained value waits for step 12.
      and step 6's `monotoneDrawPriorLeaves`, none called yet. The relation holds adjacencies only, not their
      closure: the DP adds an element once its direct predecessors are in, which yields the same down-sets.
      Each layer is scaled by a power of two, so counts stay exact to 2^53 (a 12-leaf star's 12! is exact);
-     a position law sums its f g terms relative to the largest term's binary exponent, since the two scaled
-     factors can underflow as a product where the term still counts. Down-sets live in an open-addressing
-     table of 32-bit indices, so a layer holds fewer than 2^32 of them.
+     a position distribution sums its f g terms relative to the largest term's binary exponent, since the
+     two scaled factors can underflow as a product where the term still counts. Down-sets live in an
+     open-addressing table of 32-bit indices, so a layer holds fewer than 2^32 of them.
    - c1's choice is inert in this ratio (deviation from Counting: algorithm, found in implementation): with
      the pair in one component theta is e(C0) / e(C*), and the merge is symmetric in the pair; the pair sits
      in two components only on a free split, where c1 is the left child under either rule. Taking c1 by code
@@ -931,12 +932,12 @@ constrained value waits for step 12.
    - The count against brute-force permutation counts on hand-built trees (1-3 axes, mixed directions, N, a
      star, a chain over 64 leaves) and 200 random trees.
    - The ratio on T*'s side against e(C0) / e(U) from direct counts, over every birth and death of those random
-     trees, with the pair in one component and in two, and the position law against brute force. Hand cases,
-     x1 constrained and x2 free: x1 cut twice into a < b < c, then b cut on x2 puts the pair in one component
-     (theta 1/2, ratio 2); x1 cut once, then both halves cut on x2 at the same code, puts a sibling pair in two
-     components (theta 1/3, ratio 4/3). Both again with x1 decreasing, giving the same thetas; and a single x1
-     cut with x1 decreasing, a constrained pair whose c1 is the higher-code child: theta 1 (ratio 2), where
-     the lower-code child would give 0.
+     trees, with the pair in one component and in two, and the position distribution against brute force. Hand
+     cases, x1 constrained and x2 free: x1 cut twice into a < b < c, then b cut on x2 puts the pair in one
+     component (theta 1/2, ratio 2); x1 cut once, then both halves cut on x2 at the same code, puts a sibling
+     pair in two components (theta 1/3, ratio 4/3). Both again with x1 decreasing, giving the same thetas; and
+     a single x1 cut with x1 decreasing, a constrained pair whose c1 is the higher-code child: theta 1 (ratio
+     2), where the lower-code child would give 0.
    - Lazy counts: an accepted two-component death marks the merged component uncounted, and the next move
      inside it counts it and matches a direct count.
    - Scale: two 515-leaf chains on a shared minimum give log e and a two-component theta equal to their closed
@@ -982,8 +983,8 @@ constrained value waits for step 12.
       exp(sum base) P_post(C) / Z_T, and computes P_post(C) by the same down-set recursion carrying
       Richardson-extrapolated trapezoid quadrature, self-checked to 2e-12 against the closed form.
     - It compares draws per root rule, which only the root-only tree can change, against each group's
-      conditional law, using a Hotelling T^2 on batch-mean cell frequencies with its F reference. A group fails
-      at p < 1e-4.
+      conditional distribution, using a Hotelling T^2 on batch-mean cell frequencies with its F reference. A
+      group fails at p < 1e-4.
     - Designs, 10 rows per cell: c1, x1 constrained, 4 cells; c2, x1 and x2 constrained, 3x2; c3, x1
       constrained and x2 free, 3x2; cN, x1 constrained and x2 free, 2x3, where the two halves change level at
       different cuts, giving 26% N mass in the tested x1-rooted group; cF (stage 3b), c3's cells with x2 a
@@ -996,7 +997,7 @@ constrained value waits for step 12.
     - The general DP beyond these sizes rests on step 8's brute-force checks.
     - Both targets: engine and prototype modes take the prior, weighting each tree with log Z_T in its weight
       ("leaf") or without it ("joint"), and every group must pass under each. Its unnormalized mode already
-      prints the two exact laws side by side. Every run names its prior.
+      prints the two exact distributions side by side. Every run names its prior.
     - A mirrored design with x1 decreasing (cN's cells reflected along x1), guarding the move's and the
       redraws' handling of a decreasing axis. It cannot see the counter's: a c1 taken by code is inert in
       the ratio (step 1), and an order and its reverse have the same count, so one constrained axis's
@@ -1109,17 +1110,18 @@ constrained value waits for step 12.
       as setState's rebuild. Every state after a cancel is then consistent and valid, but the sweep may be
       partly applied: earlier trees of that sweep hold their new draws. The run's results are discarded as on
       any interrupt, and the sampler can run again.
-    - As implemented (commit 5): the poll sits in the forward DP, the backward counts and the position laws, one
-      per down-set, every 2^16 by default. Only totalFits is rebuilt, re-summed from the trees in tree order: the
-      running residual needs nothing, since each sweep's first roll rewrites it whole from totalFits, and the test
-      totals are rebuilt by every recorded sweep before they are read. A move's allocation failure is rethrown as
-      bartcore::CountOutOfMemory, still a bad_alloc, whose message names the remedies. sampleNodeParametersFromPrior
-      rebuilds totalFits the same way before its allocation failure goes on. The tally and the threshold live on the
-      monotone leaf; the threshold, the poll interval and a one-shot injected allocation failure are process-wide
-      test knobs (monotoneCountHooks), R reaching the first and third through an unexported bridge entry. The
-      bridge attaches the tally as a "slow.count" attribute; a burn-only run, which returns NULL, returns an empty
-      list carrying it when a count was slow. bart()'s burn-in and kept runs merge their tallies and warn once.
-      The burn-only and per-sweep-callback run entries now capture engine exceptions as the main one does.
+    - As implemented (commit 5): the poll sits in the forward DP, the backward counts and the position
+      distributions, one per down-set, every 2^16 by default. Only totalFits is rebuilt, re-summed from the trees in
+      tree order: the running residual needs nothing, since each sweep's first roll rewrites it whole from
+      totalFits, and the test totals are rebuilt by every recorded sweep before they are read. A move's allocation
+      failure is rethrown as bartcore::CountOutOfMemory, still a bad_alloc, whose message names the remedies.
+      sampleNodeParametersFromPrior rebuilds totalFits the same way before its allocation failure goes on. The tally
+      and the threshold live on the monotone leaf; the threshold, the poll interval and a one-shot injected
+      allocation failure are process-wide test knobs (monotoneCountHooks), R reaching the first and third through an
+      unexported bridge entry. The bridge attaches the tally as a "slow.count" attribute; a burn-only run, which
+      returns NULL, returns an empty list carrying it when a count was slow. bart()'s burn-in and kept runs merge
+      their tallies and warn once. The burn-only and per-sweep-callback run entries now capture engine exceptions as
+      the main one does.
 16. SBC arms (benchmarks/R/sbc.R has none today; ~120 lines), as
     [Monotone arm: design](sbc-family-tiers.md#monotone-arm-design) lays them out: the burn-monotone run, the
     monotone-1 and 20-tree arms once per prior, each naming its prior, and the unconstrained monotone-bd twin
@@ -1239,14 +1241,14 @@ bartCause 0 failures. Mutations restoring case-insensitive matching and the sign
 Calls made while implementing: dec-A130.
 
 Stage 3, 2026-09-30: the leaf-order builder, the down-set count, log Z_T, the move ratio on the finer
-tree's side, the position laws, the linear-extension draw and the exact prior leaf draw, none called yet
-(e33a79cb). Reviewed by an independent reader: count, ratio, draws and scaling verified; mutations of the
-position law and the extension weights fail the tests. tests/cpp with ASan/UBSan clean, tinytest
-10,795/0, the lint chain clean, R CMD check --as-cran one NOTE (Date); on the reference build the three
-equivalence compares bitwise 53/15/11. The engine counts the 25-leaf star (1.68e7 down-sets) in 4.6 s,
-about twice the prototype's speed. The review found the geometry defect that stage 3b now fixes, and the
-1-tree p 4 fit re-run on stage 1's draws needs 8.2e8 down-sets on its first move, which neither the engine
-nor the prototype counted in 10 minutes: the checkpoint's trigger is likely to fire.
+tree's side, the position distributions, the linear-extension draw and the exact prior leaf draw, none
+called yet (e33a79cb). Reviewed by an independent reader: count, ratio, draws and scaling verified;
+mutations of the position distribution and the extension weights fail the tests. tests/cpp with ASan/UBSan
+clean, tinytest 10,795/0, the lint chain clean, R CMD check --as-cran one NOTE (Date); on the reference
+build the three equivalence compares bitwise 53/15/11. The engine counts the 25-leaf star (1.68e7
+down-sets) in 4.6 s, about twice the prototype's speed. The review found the geometry defect that stage 3b
+now fixes, and the 1-tree p 4 fit re-run on stage 1's draws needs 8.2e8 down-sets on its first move, which
+neither the engine nor the prototype counted in 10 minutes: the checkpoint's trigger is likely to fire.
 
 Stage 3b, 2026-09-30: the leaf geometry reads level sets and missing-value routing (08613432 design
 note, e3d11f53, d9d338db). A factor split and a free predictor's missing values now relate leaves as the

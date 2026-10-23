@@ -13,9 +13,9 @@
 #
 # is U(0, 1) whenever s is the scale the draw actually used. Conditional on the
 # chain state every v is exactly uniform and the v's are conditionally
-# independent across rows, and because that conditional law does not depend on
-# the state the pooled collection is unconditionally i.i.d. uniform - so a
-# per-cell ks.test against punif is an exact test, not an asymptotic one.
+# independent across rows, and because that conditional distribution does not
+# depend on the state the pooled collection is unconditionally i.i.d. uniform -
+# so a per-cell ks.test against punif is an exact test, not an asymptotic one.
 # Pooling by x-cell is what makes it sensitive to the SCALE rather than to the
 # mean: a redraw run at a scale constant across rows piles the low-s cell's v
 # at 0 and the high-s cell's at 1, which the per-cell KS rejects by many orders

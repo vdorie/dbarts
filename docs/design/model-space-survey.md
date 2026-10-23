@@ -324,7 +324,7 @@ a caller-settable per-forest, per-observation weight on
 and (3) (physical compaction) stay open and unscheduled - the shipment resolves
 only shape (2)'s branch of the fork above, not the fork itself. One fact
 recorded, not decided: because occupancy is count-based, per-forest zero weight
-and physical compaction are NOT the same draw law even in the limit - under
+and physical compaction are NOT the same draw distribution even in the limit - under
 compaction the excluded rows do not exist, so their cut positions cannot be
 split on and their leaves cannot be created; under zero weight they can, at the
 prior. The three shapes are therefore not interchangeable implementations of

@@ -26,8 +26,8 @@ posterior. The classic sampler perturbs a tree by one local move per sweep
 (birth, death, change or swap) with a Hastings correction that makes the
 forest chain pi-stationary for the true posterior. Grow-from-root has no such
 correction: the recursive cut draw is a greedy-stochastic construction whose
-stationary law is XBART's own approximation, close to the posterior in
-predictive fit but not equal to it and not defended by a detailed-balance
+stationary distribution is XBART's own approximation, close to the posterior
+in predictive fit but not equal to it and not defended by a detailed-balance
 argument. This distinction drives the surface decision in section 3.
 
 ## 2. The cut-scan kernel: measured cost
@@ -267,14 +267,15 @@ First, the prior mass. Until 2026-08-12 `logCut` carried a `- log 2` - one
 rule's mass for a candidate standing for two - so a pair entered the draw at
 half its group's prior mass and the remainder accrued to no-split. Realized root
 rules then matched those halved weights (chi-square 7.38 on 8 df, p = 0.50) and
-rejected both the law in which the candidate carries the pair's mass (8937,
-p < 1e-300) and the exact law over all 2 x numCuts rules (6471, p < 1e-300); the
-exact law's own draws did not reject it (6.06, p = 0.64). No-split probability
-was 0.1026 under the halved weights against 0.0541 under the pair's mass and
-0.0599 under the exact law. Deleting the halving moved the realized law onto the
-pair's-mass law (19.07 on 8 df, p = 0.014, and 5.50 / 8.45 / 14.95 / 5.33 / 1.97
-at five fresh seeds) and closed 61 percent of the gap to the exact law
-(total variation 0.0436 to 0.0169), but still rejected it (444, p = 8e-91).
+rejected both the distribution in which the candidate carries the pair's mass
+(8937, p < 1e-300) and the exact distribution over all 2 x numCuts rules (6471,
+p < 1e-300); the exact distribution's own draws did not reject it (6.06, p =
+0.64). No-split probability was 0.1026 under the halved weights against 0.0541
+under the pair's mass and 0.0599 under the exact distribution. Deleting the
+halving moved the realized distribution onto the pair's-mass distribution (19.07
+on 8 df, p = 0.014, and 5.50 / 8.45 / 14.95 / 5.33 / 1.97 at five fresh seeds)
+and closed 61 percent of the gap to the exact distribution (total variation
+0.0436 to 0.0169), but still rejected it (444, p = 8e-91).
 
 Second, the rows a split score covers, which is that residual. The scan skipped
 naCode, so a split score omitted the missing rows' leaf marginal while the
@@ -282,20 +283,21 @@ no-split term counted them: the omitted weighted sum of squares no longer
 cancelled between the two, and the missing weight never inflated either child's
 posterior precision. The effect is monotone in the missing rows' weighted sum of
 squared responses - the 0.0169 above is its floor, at zero, where only the
-precision term survives; at 32 the dropped law sits a total variation of 0.5901
-from the exact one and puts 0.343 on no-split against the exact law's 0.0070.
-Routing the rows closes it at both ends: the realized law now matches the exact
-law at the floor fixture (9.40 on 8 df, p = 0.31) and at the loaded one (6.05,
-p = 0.64), while rejecting the dropped law (293 and 741787) and the halved one
-(4410 and 1064807); the calibration control holds (5.84, p = 0.67 and 19.55,
-p = 0.012). Exact on TRUNCATED SUPPORT, precisely: over the rules whose
-NON-MISSING sides are both occupied, which is every rule on these fixtures.
-Where every non-missing member falls to one side of a cut the scan sentinels
-BOTH of its directions, although the rule routing the missing rows into the
-otherwise-empty child is legal and non-empty under MIA. That truncation is
-deliberate and load-bearing - it is what keeps an out-of-interval cut
-undrawable and the ancestor-interval gauge intact - and it is the one place the
-ordinal and categorical branches part company, the categorical enumeration
+precision term survives; at 32 the dropped distribution sits a total variation
+of 0.5901 from the exact one and puts 0.343 on no-split against the exact
+distribution's 0.0070. Routing the rows closes it at both ends: the realized
+distribution now matches the exact distribution at the floor fixture (9.40 on 8
+df, p = 0.31) and at the loaded one (6.05, p = 0.64), while rejecting the
+dropped distribution (293 and 741787) and the halved one (4410 and 1064807); the
+calibration control holds (5.84, p = 0.67 and 19.55, p = 0.012). Exact on
+TRUNCATED SUPPORT, precisely: over the rules whose NON-MISSING sides are both
+occupied, which is every rule on these fixtures. Where every non-missing member
+falls to one side of a cut the scan sentinels BOTH of its directions, although
+the rule routing the missing rows into the otherwise-empty child is legal and
+non-empty under MIA. That truncation is deliberate and load-bearing - it is what
+keeps an out-of-interval cut undrawable and the ancestor-interval gauge intact -
+and it is the one place the ordinal and categorical branches part company, the
+categorical enumeration
 counting a present missing pseudo-category toward occupancy like any other. Both fixtures are pinned, the sweep
 between them being what tells a scoring fix from a coincidence at one fixture.
 tests/cpp also pins the two scans against each other directly: an ordinal column

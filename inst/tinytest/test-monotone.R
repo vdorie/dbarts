@@ -1012,14 +1012,14 @@ expect_equal(length(warnings), 1L)
 expect_inherits(warnings[[1L]], "dbartsSlowCountWarning")
 rm(warnings, sampler, model, other, freeSlow, constrained)
 
-# ---- exact one-cut law against contrary data ----
+# ---- exact one-cut distribution against contrary data ----
 
 # One row 4.2 below a 200-row cell on an increasing axis, sigma fixed at 0.5:
 # the split's children run against the constraint by 8 joint posterior sd,
 # where the cone probability is far below 1e-12. With one tree and one cut
-# the structure law is {root, split} in closed form; the split frequency must
-# match it under both priors (a quadrature that lost the deep tail drew 0.38
-# and 0.23 here).
+# the structure distribution is {root, split} in closed form; the split
+# frequency must match it under both priors (a quadrature that lost the deep
+# tail drew 0.38 and 0.23 here).
 yCut <- c(rep(0, 200L), -4.2)
 xCut <- data.frame(x = c(rep(1, 200L), 2))
 sigmaCut <- 0.5

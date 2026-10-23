@@ -77,8 +77,8 @@ DIVERGE first - a divergence outranks a large exact clone.
   ([src/R_interface_bartcore.cpp:6151](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6151)) rejects "gaussian" and maps "student" onto
   `ResponseFamily::gaussian`; `drawAugmentationLaws` reads `case RF::gaussian:` as "the Student-t
   scale mixer" ([src/R_interface_bartcore.cpp:6225](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6225)), while `resolveFamily` ([src/R_interface_bartcore.cpp:1582](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L1582)) maps "gaussian" to the same enumerator
-  meaning the Gaussian law and never accepts "student". `diverge`/`sediment`, high; a dedicated
-  token costs nothing.
+  meaning the Gaussian distribution and never accepts "student". `diverge`/`sediment`, high; a
+  dedicated token costs nothing.
 - D5. The shipped-BCF glue draw and the general amplitude draw disagree on the scale-mixture
   refresh: [src/bartcore/combiner.hpp:1171](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/combiner.hpp#L1171) refreshes only `prior[0].variance`, [src/bartcore/combiner.hpp:1213](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/combiner.hpp#L1213) refreshes every forest with
   `halfCauchyScale > 0`. The selector at [src/bartcore/combiner.hpp:986](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/combiner.hpp#L986) routes on `shippedShape()` ([src/bartcore/combiner.hpp:1474](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/combiner.hpp#L1474)), which tests
@@ -90,7 +90,7 @@ DIVERGE first - a divergence outranks a large exact clone.
 
 AGREE-but-restated (reading cost and drift risk, no defect today):
 
-- D6. Six augmentation laws restated in the bridge: [src/R_interface_bartcore.cpp:6145-6270](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6145-L6270) (126 lines)
+- D6. Six augmentation distributions restated in the bridge: [src/R_interface_bartcore.cpp:6145-6270](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6145-L6270) (126 lines)
   re-implements Probit/Ordinal/AFT/Logistic/NB/T response draws ([src/bartcore/model.hpp:3085](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/model.hpp#L3085), [src/bartcore/model.hpp:3220](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/model.hpp#L3220), [src/bartcore/model.hpp:3548](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/model.hpp#L3548) and
   the NB/T drawers). [src/R_interface_bartcore.cpp:6146-6149](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6146-L6149) declares it deliberate (a different generator, citing
   r-c-division.md); nothing enforces lockstep - no shared kernel, no cross-check test named at the
@@ -123,7 +123,7 @@ methods) but the premise does not carry: [src/bartcore/model.hpp:322-324](https:
 `!IntegrableLeafModel<ConstantVarianceLeaf>`, and Forest ([src/bartcore/combiner.hpp:137](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/combiner.hpp#L137)) and Chain
 ([src/bartcore/chain.hpp:532](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/chain.hpp#L532)) are both constrained on IntegrableLeafModel. What CAN be shared is -
 MoveScorableLeafModel admits it, `logLikelihoodForBranch` scores it unchanged. The blocker is the
-combination law (Forest's treeFits/totalFits/treeY are additive; the variance forest is
+combination rule (Forest's treeFits/totalFits/treeY are additive; the variance forest is
 multiplicative, [src/bartcore/chain.hpp:400-407](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/chain.hpp#L400-L407)), logged as open debt in [docs/design/forest-combiner.md:207-211](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/docs/design/forest-combiner.md#L207-L211), [docs/design/forest-combiner.md:252](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/docs/design/forest-combiner.md#L252) and
 [docs/design/heteroscedastic.md:59-62](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/docs/design/heteroscedastic.md#L59-L62), [docs/design/heteroscedastic.md:586-590](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/docs/design/heteroscedastic.md#L586-L590). `extension-point`, high.
 

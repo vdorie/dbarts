@@ -226,7 +226,7 @@ typedef struct dbarts_sampler_t dbarts_sampler;
 /// rather than silently produce no output. k requires a k
 /// hyperprior (dbarts_sampler_kIsSampled), varprobs a DART tree prior
 /// (dbarts_sampler_usesDart), shape a count (nbinom) response, and
-/// residualDf a Student-t residual law; each is
+/// residualDf a Student-t residual distribution; each is
 /// left untouched otherwise. logLikelihood
 /// carries the per-draw training-data log-likelihood for the gaussian,
 /// binary, and aft families; aft reports the log density for events and the
@@ -351,7 +351,7 @@ typedef struct dbarts_draw_t {
   double sigma;
   double k;
   double shape;   ///< NaN off a count (nbinom) response
-  double residualDf;   ///< NaN off a Student-t residual law
+  double residualDf;   ///< NaN off a Student-t residual distribution
   /* 1.0-0 field boundary: every future append goes below this line, never
      above, and bumps DBARTS_C_API_MINOR after 1.0-0. */
 } dbarts_draw;
@@ -568,12 +568,12 @@ typedef enum { DBARTS_LEAF_MODEL_LIST(DBARTS_ENUMERATOR) } dbarts_leaf_model;
 /// The response family a sampler is built with, or (the R side's default)
 /// dispatch on the response shape. 1-6 mirror the engine's own family order;
 /// 7 and 8 name two cases that order alone cannot carry: STUDENT is a
-/// Student-t residual law riding a gaussian family (dbarts_sampler_family
-/// never reports it - a Student-t sampler's family IS gaussian), and
-/// MULTINOMIAL is the K-forest softmax. AUTO likewise never comes back: it is
-/// what an R-side specification may ask for, and creation resolves it. So
-/// dbarts_sampler_family is the only entry here that speaks this enumeration,
-/// and it reports 1-6 or 8.
+/// Student-t residual distribution riding a gaussian family
+/// (dbarts_sampler_family never reports it - a Student-t sampler's family IS
+/// gaussian), and MULTINOMIAL is the K-forest softmax. AUTO likewise never
+/// comes back: it is what an R-side specification may ask for, and creation
+/// resolves it. So dbarts_sampler_family is the only entry here that speaks
+/// this enumeration, and it reports 1-6 or 8.
 #define DBARTS_FAMILY_LIST(X) \
   X(DBARTS_FAMILY_AUTO, 0) \
   X(DBARTS_FAMILY_GAUSSIAN, 1) \

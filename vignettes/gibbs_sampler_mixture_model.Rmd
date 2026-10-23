@@ -326,7 +326,7 @@ a prior, not a defect.
 
 State equally plainly what the recipe does not reach and never will: a
 response family, link or latent structure the sampler does not provide, and a
-leaf or hyperprior law it does not provide. Those are selected by argument,
+leaf or hyperprior it does not provide. Those are selected by argument,
 not composed in R. `forest()` carries the same scale knobs the composition
 sets by hand, and `$setForestBasis`, `$setForestWeights` and
 `$getForestAmplitudes` are the post-creation routes into a multi-forest

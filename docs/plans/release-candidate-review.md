@@ -932,11 +932,11 @@ The bridge reads the slot raw rather than through `rc_getBool`, which narrows to
 bool and would take `NA` for `TRUE`, and `dbartsControl` refuses an argument that
 merely coerces to `NA`. Seventeen files, about 40 lines of engine and surface and
 120 of test and doc. Gates: tests/cpp 283 ok plain and under ASAN/UBSAN, the
-level-fibre law arm reproducing its recorded numbers (worst `|1'c|` 2.91e-16,
-mean z 1.75, covariance z 2.92); tinytest 8001/0; the equivalence trio bitwise
-50/12/11 against the `fbff1989` baselines, which stand; the four quick exact
-gates green; `C1-frozen-ess.R quick` reproducing digit for digit, its off arm
-naming `FALSE`; lint 0, air clean, doc-freshness and rc-codoc OK, NEWS 299,
+level-fibre distribution arm reproducing its recorded numbers (worst `|1'c|`
+2.91e-16, mean z 1.75, covariance z 2.92); tinytest 8001/0; the equivalence trio
+bitwise 50/12/11 against the `fbff1989` baselines, which stand; the four quick
+exact gates green; `C1-frozen-ess.R quick` reproducing digit for digit, its off
+arm naming `FALSE`; lint 0, air clean, doc-freshness and rc-codoc OK, NEWS 299,
 R CMD check --as-cran Status OK zero notes, `DBARTS_C_API_HASH` unchanged. One
 design-versus-code point: the automatic mode reads as `TRUE` only where the
 mixture is frozen for the sampler's whole life, `TRUE` stepping through the
@@ -1109,7 +1109,7 @@ and admissible cuts, weighted by scanOrdinalCuts's rank-admitted marginal and
 the rule prior; acceptance one, no reverse count, a categorical incumbent a
 fixed point. scanOrdinalCuts gains an optional per-candidate branch rank, the
 max of the two sides rather than each side separately, which is all the
-kernel's law consumes. proposal.probs gains rule_gibbs as a fifth structural
+kernel's rule consumes. proposal.probs gains rule_gibbs as a fifth structural
 probability at zero, dispatched fourth (birth/death + swap + perturb +
 rule_gibbs, change the else), so the added test is the perturb test in IEEE
 and no baseline moves. Gates: tests/cpp 281 (census identity 1.25e-16, a
@@ -1247,12 +1247,12 @@ likelihood off and leaving the kernel reversible for the CGM tree prior on
 member-occupied trees; three statistics (root (variable, cut), leaf count,
 same-variable (root cut, left-child cut) joint) score as one 21-state Holm
 family, refused unless the run covers fifty autocorrelation times of its
-slowest statistic. A confirmation arm scores the within-variable cut law
-against an exact region dynamic program. Two poisons and the matching
-mutation-battery.R entries (m24, m25) cover the dropped correction and the
-one-sided window. Gates: quick PASS (worst |z| 1.84 / 2.66); full PASS in 23
-seconds wall (worst |z| 2.04 prior-only, 1.64 confirmation), 0 of 21
-rejected; both poisons FAIL (192.8, 1143.9) and both mutations are KILLED
+slowest statistic. A confirmation arm scores the within-variable cut
+distribution against an exact region dynamic program. Two poisons and the
+matching mutation-battery.R entries (m24, m25) cover the dropped correction
+and the one-sided window. Gates: quick PASS (worst |z| 1.84 / 2.66); full
+PASS in 23 seconds wall (worst |z| 2.04 prior-only, 1.64 confirmation), 0 of
+21 rejected; both poisons FAIL (192.8, 1143.9) and both mutations are KILLED
 (129.5, 703.4). Not landed: the Stage 2 benefit run (slice 3).
 
 ### The perturb kernel: a same-variable cut move at default zero (ab49f83a, 2026-09-07)
@@ -1531,7 +1531,7 @@ feature-matrix.md (47de768a): {ordinal, nbinom, multinom, hurdle} x
 carries no model reason); logistic/rbart_vi R -> M; bcf/pointwise loglik
 M -> ? (the call runs, unadjudicated); table 5 regains maskprobit,
 bart2probit and maskordinal; the hetero calibration cell cites the
-engine site; f2's Student-t claim and f17's weight-law site corrected;
+engine site; f2's Student-t claim and f17's weight-rule site corrected;
 Gaps covers every M and ? cell and no R cell, its nine closed entries
 gone; footnotes that narrated history state the constraint;
 8,746 -> about 7,600 words.
@@ -1864,30 +1864,32 @@ docs/plans/review-2026-08-24/reading-engine-list.md's D4 named one
 enumerator carrying two opposite meanings in the same file:
 augmentationFamily mapped "student" onto ResponseFamily::gaussian, and
 the draw and working-response switches read that arm as the Student-t
-scale mixer - a family value standing for a law, one arm away from a
-plain gaussian response, which draws no augmentation variable at all.
-The bridge's augmentation helpers dispatch on a total AugmentationLaw
-enum now: probit, logistic, ordinal, aft, nbinom, studentT, generated
-from one X-macro list (BARTCORE_AUGMENTATION_LAW_LIST) so no enumerator
-can be added outside it, backing a numAugmentationLaws that a
-static_assert checks in both translation units - verified to hard-error
-in each on a seventh member. The flat API's DBARTS_FAMILY_* tokens map
-straight onto the laws now; dbarts_drawLatents and
-dbarts_workingResponse used to turn their int family into a family
-string only to hand it to the R-side string resolver, and that round
-trip (int -> string -> family) is gone. ResponseFamily survives on the
-augmentation path at exactly one point, supportFamily, which states the
-response support a law constrains rather than standing for the law
+scale mixer - a family value standing for a distribution, one arm away
+from a plain gaussian response, which draws no augmentation variable at
+all. The bridge's augmentation helpers dispatch on a total
+AugmentationLaw enum now: probit, logistic, ordinal, aft, nbinom,
+studentT, generated from one X-macro list
+(BARTCORE_AUGMENTATION_LAW_LIST) so no enumerator can be added outside
+it, backing a numAugmentationLaws that a static_assert checks in both
+translation units - verified to hard-error in each on a seventh member.
+The flat API's DBARTS_FAMILY_* tokens map straight onto the
+distributions now; dbarts_drawLatents and dbarts_workingResponse used
+to turn their int family into a family string only to hand it to the
+R-side string resolver, and that round trip (int -> string -> family)
+is gone. ResponseFamily survives on the augmentation path at exactly
+one point, supportFamily, which states the response support a
+distribution constrains rather than standing for the distribution
 itself.
 
 inst/include/dbarts/dbarts.h is untouched - its documented contract
 already named STUDENT as the augmentation-entry token - and
 DBARTS_C_API_HASH holds at 0xca7b56a64c812b8d. No R file changed.
 
-A/B against the prior build is bitwise identical for all six laws on
-both surfaces: latent draw, working response and every attribute,
-including every refusal message (unrecognized family names on the R
-surface, out-of-range flat tokens by both enumerator name and raw int).
+A/B against the prior build is bitwise identical for all six
+distributions on both surfaces: latent draw, working response and every
+attribute, including every refusal message (unrecognized family names
+on the R surface, out-of-range flat tokens by both enumerator name and
+raw int).
 
 Reviewer fixes folded: augmentationArguments's doc comment lost the
 "resolves the family" clause it no longer earns and regained contact
@@ -2841,10 +2843,11 @@ critique - re-verified every open TODO entry against live code and found four
 undocketed defects (heteroscedastic loglik/PPD, the variance setState column mask,
 dbartsData(bases=)/dbarts() alignment, no summary method for ordinal/nbinom/hurdle).
 Three memo/critique arcs (weights-saved-state, multinomial-forest-replay,
-fuzz-grow-mask) plus one independent adjudication of the ordinal draw-law change
-round out nine slices: design memo -> blind critique -> implementer spec ->
-orchestrator diff review -> (adjudication, for the draw-law change) -> cherry-picked
-stack, five hand-merged append-point conflicts -> one merged-tree gate battery.
+fuzz-grow-mask) plus one independent adjudication of the ordinal draw-distribution
+change round out nine slices: design memo -> blind critique -> implementer spec ->
+orchestrator diff review -> (adjudication, for the draw-distribution change) ->
+cherry-picked stack, five hand-merged append-point conflicts -> one merged-tree gate
+battery.
 
 a0eaf348: getPointer/setState bound a re-created engine to selfEnv$pointer
 BEFORE its state installed, so a refused install left a live unfitted engine that
@@ -2873,9 +2876,9 @@ b4b9119d + 044a9098: the ordinal scan dropped missing rows from
 the split likelihood while the no-split term kept them, biasing toward not-splitting
 under n.grow.sweeps; fixed by scoring each missing direction over the rows it seats.
 Independently adjudicated to a max abs diff of 1.53e-16 against an R re-derivation
-across five fixtures, chi-square rejecting both the dropped and halved-mass laws.
-The adjudication also caught a sentinel gap the passing suite never saw - it
-segfaults a deep-grow probe - closed in the amendment.
+across five fixtures, chi-square rejecting both the dropped and halved-mass
+distributions. The adjudication also caught a sentinel gap the passing suite never
+saw - it segfaults a deep-grow probe - closed in the amendment.
 
 47cdb96a: dbartsData(bases=)'s formula path checked the post-subset row count,
 dbarts()'s the full-data count; at equal counts the two silently accepted different
@@ -3512,7 +3515,7 @@ Mechanics: readWarmStartState now parses the variance.saved.* blocks
 (optional - adjudication belongs to installForests, which knows the
 slot); slot >= 0 slices savedVarianceTrees and the pooled-categorical
 mask channel at slot*nvt; the sliced trees are held to the scale-leaf
-positivity law (hand-buildable surface multiplied by capacity, and a
+positivity rule (hand-buildable surface multiplied by capacity, and a
 rebuild scatters a leaf straight into a divisor); new
 WarmStartResult::varianceSlotMismatch with its own bridge error.
 
@@ -3584,7 +3587,7 @@ comparisons and each acceptance is a hand-derived prior x transition
 constant (birth/death alpha 0.25/0.75 bitwise, change alpha 1.0),
 invariant to response, sigma, k and leaf model; the vetoed branch
 score is pinned 0.0 bitwise under LinearGaussianLeaf whose naive
-vetoed-marginal sum is 8.882e-16; law cited to
+vetoed-marginal sum is 8.882e-16; rule cited to
 docs/design/empty-leaf-veto.md. A dev-time counter (removed before
 commit) proved execution: 7 equal-rank-1 resolutions (4 birth, 2
 death, 1 change), zero unequal-rank realizations. Mutation proofs:
@@ -3756,10 +3759,10 @@ out-of-tree tarball Status OK. The arc-close sweep obligation is
 discharged; the feature-matrix anchor resync (content edits now
 final) is the remaining pre-RC step.
 
-### Wave-5b veto-law enforcement + main-baseline re-record (d15a2bfb + 9ba57750, 2026-08-19)
+### Wave-5b veto-rule enforcement + main-baseline re-record (d15a2bfb + 9ba57750, 2026-08-19)
 
 Fix-queue item 3, the queue's last slice - WAVE 5B CLOSES. Closes
-the veto BLOCKER (empty-leaf weight law unenforced by setWeights/
+the veto BLOCKER (empty-leaf weight rule unenforced by setWeights/
 setActiveRows: a grown forest froze bitwise with NaN ratios). The
 design memo's 3-valued branch veto rank ships as specified with all
 three critique amendments binding: Tree::leafVetoRank (2 member-
@@ -3775,7 +3778,7 @@ reading; both mutations re-run (dropping the rank gate fails 9
 tests + an assert; collapsing rank 2 into 1 fails 6 incl. the
 masked state round trip - rank 2 is load-bearing); RNG discipline
 confirmed (rejections consume the same draws); the monotone leaf's
-weight-law early return safely dropped (feasibility sentinel kept,
+weight-rule early return safely dropped (feasibility sentinel kept,
 the NaN path now explicitly rejected). The adjudication (A2) was
 REPRODUCED with an independent counter build: draw shifts land
 exactly where an equal-rank comparison is realized - maskprobit 2
@@ -3852,22 +3855,22 @@ at the ONLY entry that can resize test rows, killing the OOB read;
 and requireResolvedSigmaEstimate at the three creation paths that
 hand sigmaEstimate to the engine (createHolder, createBCFHolder,
 createFromHandle) closes the silent NA-sigma NaN-draw path - review
-re-derived the family law (only gaussian/T/aft read sigmaEstimate;
-the multinomial builder takes none; sigmaIsFixed resolves before the
-gate) and confirmed the gating exact. Both header-truth MAJORs
-rewritten: the ownership preamble now names the retaining setters
-(setTestOffset included, which the original audit missed) with a
-per-setter ownership sentence on every raw-array setter, and the
-state-continuation promise is semantic-not-bitwise, matching
-stateContinuation.R. Minors 6-12 all fixed (8 in code: the counts
-rule scoped to logistic, the only law reading a weight; 11 verified
-field-by-field and by -Wall -Wextra consumer compiles); INFO 13
-(the version handshake cannot see struct appends) handed to the
-ledger - the remedy re-bakes the API-hash token and is a surface
-decision. Review verdict LAND-WITH-FIXES; the fix round corrected
-four untrue text claims (ownership "each doc states it", the
-every-sweep read claim - gaussian/aft bake buffers at set time, the
-sigma rule restated family-keyed, a wrong refusePinnedSigmaChange
+re-derived the family distribution (only gaussian/T/aft read
+sigmaEstimate; the multinomial builder takes none; sigmaIsFixed
+resolves before the gate) and confirmed the gating exact. Both
+header-truth MAJORs rewritten: the ownership preamble now names the
+retaining setters (setTestOffset included, which the original audit
+missed) with a per-setter ownership sentence on every raw-array
+setter, and the state-continuation promise is semantic-not-bitwise,
+matching stateContinuation.R. Minors 6-12 all fixed (8 in code: the
+counts rule scoped to logistic, the only distribution reading a
+weight; 11 verified field-by-field and by -Wall -Wextra consumer
+compiles); INFO 13 (the version handshake cannot see struct appends)
+handed to the ledger - the remedy re-bakes the API-hash token and is
+a surface decision. Review verdict LAND-WITH-FIXES; the fix round
+corrected four untrue text claims (ownership "each doc states it",
+the every-sweep read claim - gaussian/aft bake buffers at set time,
+the sigma rule restated family-keyed, a wrong refusePinnedSigmaChange
 cross-reference) and put the BCF family refusal ahead of the sigma
 gate. Mutation proofs on every guard (review re-ran two: the
 row-count widening and the sigma gate both bite). Migration note:
@@ -4045,7 +4048,7 @@ zero false positives observed.
 VERDICT: not RC-clean. Ten BLOCKERs, ~19 MAJORs, ~25 MINORs.
 BLOCKERs: hetero predict s(x)==0 after any state round-trip (saved
 variance trees not carried by get/setState); empty-leaf veto weight
-law unenforced by setWeights/setActiveRows (grown forest freezes
+rule unenforced by setWeights/setActiveRows (grown forest freezes
 bitwise, NaN ratios); multinomial level-shift sd divided by sqrt(m)
 twice (prior defect in the tree-structure marginal - the FIX SHIFTS
 DRAWS, so it rides a multinomial baseline re-record);
@@ -4072,7 +4075,7 @@ state round-tripping, guard-less boundaries, and reporting layers.
 
 FIX QUEUE (wave 5b), serialized: (1) bridge crash guards
 (in flight at this writing); (2) hetero saved-variance state carry;
-(3) veto weight-law enforcement at the mutators; (4) multinomial
+(3) veto weight-rule enforcement at the mutators; (4) multinomial
 level-shift fix + baseline re-record (multinomial baseline ONLY,
 carrying the k3countsswap rider; the bart2/xbart/mixed-matrix
 riders were already discharged at 4a42620a/f009eff8 - this note
@@ -4410,13 +4413,13 @@ removes the live fault the critique measured at the fix's tip
 (setActiveRows all-zero + sampleTreesFromPrior exhausted the attempt
 cap on a legal state); the cap stays as the backstop, its comment
 rewritten - exhaustion now means the scan and the predicate
-disagree. growTreeFromRoot's occupancy law moved from member count
+disagree. growTreeFromRoot's occupancy rule moved from member count
 to positive weight in the scans it reads (scanOrdinalCuts,
 scanCategoricalPartitions), so $growFromRoot can no longer land the
 illegal states the prior-init fix closed; the scans are reachable
 ONLY from grow-from-root, so no MH stream moves. sbc.R's BCF theta0
 generator now draws AND INSTALLS the glue (state round-trip) before
-drawing prior trees - under the composed law the tree prior is
+drawing prior trees - under the composed rule the tree prior is
 glue-dependent, and the old order drew theta0 from two inconsistent
 priors.
 
@@ -4424,33 +4427,33 @@ NOT re-record class, confirmed twice: no recorded baseline scenario
 calls sampleTreesFromPrior or growFromRoot, and the trio is bitwise
 at the landed tree - 38/38 (xbart included) / 12/12 / 10/10.
 Mutation evidence, one deviation from the spec's plan: the mandated
-intersection-law mutation is PROVABLY INERT rather than undetected -
-every combiner forms its per-forest weights by multiplying the
-chain's, so composed support is a SUBSET of global support in every
-shipped configuration and the intersection IS the composed set
-(draw digests byte-identical over four fixtures); the implementer
-substituted two mutations that discriminate for real regressions:
-conditioning on the global vector alone (the pre-slice law) is
-killed by the composed-law arm's tauUnreached = 0 against 670
-forbidden leaves, and reverting the scan occupancy to member count
-is killed by grownUnreached = 0 against 1839/1900. The >= scan
-mutation and the forestWeights-only scan mutation are killed by the
-attempt-cap fault arms. New tests: test-prior-init-composed-law.R
-(default-glue BCF fixture - creation amplitudes (1, 0, 1) make the
-defect the DEFAULT construction - per-forest oracle through the
-internal reader, both forests' tree priors stated so the prior
-cannot stand in for the law) plus tests/cpp extensions to
-test_grow/test_scan.
+intersection-rule mutation is PROVABLY INERT rather than
+undetected - every combiner forms its per-forest weights by
+multiplying the chain's, so composed support is a SUBSET of global
+support in every shipped configuration and the intersection IS the
+composed set (draw digests byte-identical over four fixtures); the
+implementer substituted two mutations that discriminate for real
+regressions: conditioning on the global vector alone (the pre-slice
+distribution) is killed by the composed-law arm's tauUnreached = 0
+against 670 forbidden leaves, and reverting the scan occupancy to
+member count is killed by grownUnreached = 0 against 1839/1900.
+The >= scan mutation and the forestWeights-only scan mutation are
+killed by the attempt-cap fault arms. New tests:
+test-prior-init-composed-law.R (default-glue BCF fixture - creation
+amplitudes (1, 0, 1) make the defect the DEFAULT construction -
+per-forest oracle through the internal reader, both forests' tree
+priors stated so the prior cannot stand in for the distribution)
+plus tests/cpp extensions to test_grow/test_scan.
 
 Gates: implementer battery green, then ALL 12 re-run independently
 on the rebase (1e020abb) by a separate gate-runner from its own
 fresh build: tests/cpp 246/246, ASAN zero reports, tinytest 5909/0,
 trio bitwise as above, geweke-mc FULL exit 0 (largest |z| 1.90),
 backfit-exact PASS, bcf-exact quick OK, sbc BCF smoke end-to-end,
-law arms 19/19 and 3/3 with their non-vacuity contrasts, air/lintr
-clean, NEWS parses at 273, R CMD check --as-cran Status: OK. CI at the
-sha: five green (sanitizers included - the engine-landing watch);
-pkgdown stalled at 68 minutes in the known mirror-stall class,
+distribution arms 19/19 and 3/3 with their non-vacuity contrasts,
+air/lintr clean, NEWS parses at 273, R CMD check --as-cran Status: OK.
+CI at the sha: five green (sanitizers included - the engine-landing
+watch); pkgdown stalled at 68 minutes in the known mirror-stall class,
 cancelled and rerun live (attempt 2), concluding under the standing
 timeout guards. The setForestWeights residue and the critique's four
 findings are all DISCHARGED; the empty-leaf-veto design doc carries
@@ -4459,15 +4462,16 @@ the composed-law and bare-root-guard paragraphs.
 ### SBC-deepening - nbinom third ladder point flags; adjudicated MIXING, mechanism demonstrated (2026-08-18)
 
 The owed family-tiers item, unfrozen by the prior-init fix and run
-at the corrected theta0 law: sbc.R nbinom R = 200, L = 150, thin =
-300 (10x spacing; 9009s wall). avg.mu PASSES cleanly (ecdf-diff
-0.058 in the 0.128 band); r and agg.psi STILL FLAG (ecdf-diff
-0.1519 / 0.1419, chisq p 0.000, agg.psi with a 3.6x bottom-rank
-spike). The earlier "crosses into the band at 5x spacing" reading
-rested on reduced-R ladder points with wider bands - at full R the
-failure is spacing-invariant, which strained the recorded H-MIX
-adjudication enough to route it, per the multinomial f_ik
-precedent, to an exact-conditional derivation rather than more SBC.
+at the corrected theta0 distribution: sbc.R nbinom R = 200, L =
+150, thin = 300 (10x spacing; 9009s wall). avg.mu PASSES cleanly
+(ecdf-diff 0.058 in the 0.128 band); r and agg.psi STILL FLAG
+(ecdf-diff 0.1519 / 0.1419, chisq p 0.000, agg.psi with a 3.6x
+bottom-rank spike). The earlier "crosses into the band at 5x
+spacing" reading rested on reduced-R ladder points with wider
+bands - at full R the failure is spacing-invariant, which strained
+the recorded H-MIX adjudication enough to route it, per the
+multinomial f_ik precedent, to an exact-conditional derivation
+rather than more SBC.
 
 The adjudication (independent Opus pass, everything tool-verified)
 came back MIXING - the H-MIX reading CONFIRMED and upgraded from
@@ -4617,15 +4621,16 @@ composed vector, so $growFromRoot can land the illegal states this
 fix closed. (4) sbc.R's BCF theta0 generator must draw AND install
 glue before the prior trees once the tree prior is glue-dependent.
 None of it blocks this landing (no test or consumer reaches the
-fault; the primary law is strictly better) and none of it is
-re-record class (no recorded baseline scenario calls
+fault; the primary distribution is strictly better) and none of it
+is re-record class (no recorded baseline scenario calls
 sampleTreesFromPrior or growFromRoot - they drive bartcoreRun from a
 bare-root start). The all-zero adjudication: BARE ROOT with zero
-parameters - the conditional law does not exist over an empty event,
-the kernel freezes structure under an all-zero vector and recovers
-on restore (both measured), and the bare root is the unique
-structure legal under ANY later weight restore. Slice spec critiqued
-and in flight. UNFROZEN by this landing: SBC-deepening, P16, P6.
+parameters - the conditional distribution does not exist over an
+empty event, the kernel freezes structure under an all-zero vector
+and recovers on restore (both measured), and the bare root is the
+unique structure legal under ANY later weight restore. Slice spec
+critiqued and in flight. UNFROZEN by this landing: SBC-deepening,
+P16, P6.
 
 ### Wave 0c - ensemble-scale gaussian SBC, the premise oracle (2026-08-17)
 
@@ -4788,8 +4793,8 @@ worktree (session-local, not retained); LANDING IS VD-HELD
 because every prior-initializing fit's stream moves (re-record
 class). Engine delta ~21 dense lines: Chain::sampleTreesFromPrior
 regrows each tree whole until Tree::bottomNodesHaveWeight (new,
-the veto's own leafHasNoWeight law, distinguished in its comment
-from the restore path's membership law) accepts it - rejection,
+the veto's own leafHasNoWeight rule, distinguished in its comment
+from the restore path's membership rule) accepts it - rejection,
 not projection, whole-tree so the conditioning tilts the parent's
 rule draw; priorTreeDrawMaxAttempts = 10000 faults loudly and is
 unreachable unless the conditioning event is empty (acceptance
@@ -4846,30 +4851,30 @@ veto, docs/design/empty-leaf-veto.md) - projection != conditioning.
 Sharpest signature: P(single-leaf tree) = 0.04993 from the
 initializer vs 0.05492 from the sweep against theory 0.0500 /
 0.0552 (z = 17.61). The sweep realizes the DOCUMENTED deliberate
-target; the initializer realizes a third, undocumented law - the
-initializer is the deviant. KERNEL PURITY: Chain::run never calls
-the initializer path; the mid-chain collapse sites are forced
-data-mutation repair outside the kernel; converged posteriors are
-unaffected. BLAST RADIUS: fit initialization + rbart_vi warmup +
-n.grow.sweeps (init-only, benign); samplePriorPredictive and the
-$sampleTreesFromPrior surface R AND C API (directly wrong as
-prior-draw products); SBC theta0 (~1% assumption violation, below
-SBC's resolution). Baselines and landed neutrality evidence NOT
-impeached (build-vs-build determinism; law-level correctness never
-enters). SECONDARY DEFECT, same path: collapse triggers on
-numObservations() == 0 but the veto on positive WEIGHT, so under a
-zero-weight half-space 1954/2000 from-prior forests hold a leaf
-the moves forbid (0/2000) and a birth from it compares -HUGE_VAL
-to -HUGE_VAL - a NaN ratio that rejects and never faults. FIX
-SHAPE (adjudicated, NOT implemented here): per-tree rejection loop
-on Tree::leafHasNoWeight - exactly p(T | no empty leaf) because
-the event factorizes over the recursion - fixing both findings;
-reject rate ~9% at n=30, ~1.3% at n=400; moves the initial
-forest's RNG stream everywhere (snapshot + baseline re-record
-class, posterior summaries unchanged). The fix slice is being
-prepared GATED IN A WORKTREE with candidate baselines; LANDING IS
-VD-HELD. Freeze scope stands as recorded in the fire note;
-SBC-deepening remains frozen until the fix lands.
+target; the initializer realizes a third, undocumented
+distribution - the initializer is the deviant. KERNEL PURITY:
+Chain::run never calls the initializer path; the mid-chain collapse
+sites are forced data-mutation repair outside the kernel; converged
+posteriors are unaffected. BLAST RADIUS: fit initialization +
+rbart_vi warmup + n.grow.sweeps (init-only, benign);
+samplePriorPredictive and the $sampleTreesFromPrior surface R AND C
+API (directly wrong as prior-draw products); SBC theta0 (~1%
+assumption violation, below SBC's resolution). Baselines and landed
+neutrality evidence NOT impeached (build-vs-build determinism;
+distribution-level correctness never enters). SECONDARY DEFECT,
+same path: collapse triggers on numObservations() == 0 but the veto
+on positive WEIGHT, so under a zero-weight half-space 1954/2000
+from-prior forests hold a leaf the moves forbid (0/2000) and a
+birth from it compares -HUGE_VAL to -HUGE_VAL - a NaN ratio that
+rejects and never faults. FIX SHAPE (adjudicated, NOT implemented
+here): per-tree rejection loop on Tree::leafHasNoWeight - exactly
+p(T | no empty leaf) because the event factorizes over the
+recursion - fixing both findings; reject rate ~9% at n=30, ~1.3% at
+n=400; moves the initial forest's RNG stream everywhere (snapshot +
+baseline re-record class, posterior summaries unchanged). The fix
+slice is being prepared GATED IN A WORKTREE with candidate
+baselines; LANDING IS VD-HELD. Freeze scope stands as recorded in
+the fire note; SBC-deepening remains frozen until the fix lands.
 
 ### P9 ORACLE FIRE - initializer/prior inconsistency (2026-08-18, ADJUDICATION IN FLIGHT)
 
@@ -4879,17 +4884,17 @@ the tree-shaped functionals while the response side and both exact
 pivots stayed clean in both arms: n.leaves z = -4.41/-6.62,
 leaf.depth -3.66/-5.79 against the band. The implementer's
 adjudication: sampleTreesFromPrior does not realize the
-forest-structure law the Metropolis moves price. An in-script
-probe at sigma pinned to 1e4 (structure-move likelihood ratios ~1)
-reads the gap directly - initializer expected leaves 19.650 vs
-sweep-stationary 19.504 at m = 10 - and a scaling probe shows the
-relative gap tracking the incidence of prior draws carrying a
-leaf of <= 2 observations (-1.11% at n = 30 shrinking to z =
--0.12 at n = 1600). Mechanism HYPOTHESIS, unproven:
+forest-structure distribution the Metropolis moves price. An
+in-script probe at sigma pinned to 1e4 (structure-move likelihood
+ratios ~1) reads the gap directly - initializer expected leaves
+19.650 vs sweep-stationary 19.504 at m = 10 - and a scaling probe
+shows the relative gap tracking the incidence of prior draws
+carrying a leaf of <= 2 observations (-1.11% at n = 30 shrinking to
+z = -0.12 at n = 1600). Mechanism HYPOTHESIS, unproven:
 growSubtreeFromPrior grows into empty children by rule-based
 availability and collapseEmptyNodes projects them out - a
-projection of the unrestricted law, where the birth/death moves
-price a restricted-and-renormalized one. An INDEPENDENT
+projection of the unrestricted distribution, where the birth/death
+moves price a restricted-and-renormalized one. An INDEPENDENT
 adversarial adjudicator (own code reading + own standalone probe)
 is running; P9's landing waits for its verdict.
 
@@ -4905,8 +4910,8 @@ CONTINUES. SBC-deepening is FROZEN: its theta0 draws come from the
 impeached initializer, so tree-shaped SBC evidence generated now
 would be against a known-slightly-wrong prior sampler. The FIX is
 an engine change that moves draws (baseline re-record class) and
-is VD-HELD: direction (initializer -> moves' law vs both -> the
-documented prior) rides the adjudicator's report to VD.
+is VD-HELD: direction (initializer -> moves' distribution vs both
+-> the documented prior) rides the adjudicator's report to VD.
 
 ### FX1-channel - per-draw Student-t df and the t marginal (c3af16a1, 2026-08-18)
 

@@ -387,11 +387,11 @@ about `gamma`, no hyperplane arrangement of finite size represents them,
 and every axis-aligned split captures a vanishing share of the variation.
 It is not a ridge and not a rotated coordinate: `a` is invariant under any
 rotation of those ten axes, and on the independent-normal design so is the
-predictors' joint law, so the cell is unchanged in distribution by every
-rotation and can neither be helped by one nor discriminate one. It is the
-cheapest published non-axis-aligned regression surface, it comes with
-(n, p) settings and a coverage number for BART, and it sits in the same
-factory as the other
+predictors' joint distribution, so the cell is unchanged in distribution
+by every rotation and can neither be helped by one nor discriminate one.
+It is the cheapest published non-axis-aligned regression surface, it comes
+with (n, p) settings and a coverage number for BART, and it sits in the
+same factory as the other
 three He and Hahn functions.
 
 The other useful ridge is Tan et al.'s **Low-Dimensional Smooth**
@@ -884,13 +884,14 @@ Never the reverse. Two consequences that are easy to lose:
   primary statistic, chosen before the run, not whichever of its metrics
   happened to move.
 
-House law from `grow-from-root-default.md` applies unchanged: per-cell
-checks and never a pooled aggregate; thresholds frozen against a pilot
-before any confirmatory contrast; a mandatory fresh-seed re-run of any
-single flagged cell; a null control whose failure voids the estimator
-family. Every cell below is paired on matched seeds in the
-`benchmarks/R/grouped-mixing.R` idiom - data seed indexed by cell and
-replicate, sampler seed the replicate, both shared across arms.
+House rule from `grow-from-root-default.md` applies unchanged:
+per-cell checks and never a pooled aggregate; thresholds frozen
+against a pilot before any confirmatory contrast; a mandatory
+fresh-seed re-run of any single flagged cell; a null control whose
+failure voids the estimator family. Every cell below is paired on
+matched seeds in the `benchmarks/R/grouped-mixing.R` idiom - data seed
+indexed by cell and replicate, sampler seed the replicate, both shared
+across arms.
 
 Cost is quoted in **unit fits**, where one unit fit is the n = 2000,
 p = 10, m = 200, 3000-sweep, single-threaded fit that section 13 of the

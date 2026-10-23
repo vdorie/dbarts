@@ -208,7 +208,7 @@ AGENT-FIX ("write the missing assertion"); none moves draws. R = the 167 tinytes
 - B5 [src/bartcore/moves.hpp:635](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/moves.hpp#L635) and [src/bartcore/moves.hpp:659](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/moves.hpp#L659), the descendant-interval and categorical-gauge rule-validity predicates ->
   C++ SURVIVED (both); neither has a direct caller in tests/cpp.
 - B6 [src/bartcore/grow.hpp:222](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/grow.hpp#L222) `-log(numPredictors)` for `-log(numAvailable)` - identical at a root, wrong below it ->
-  C++ SURVIVED; all three grow-from-root law tests measure ROOT rules only.
+  C++ SURVIVED; all three grow-from-root distribution tests measure ROOT rules only.
 - B7 [src/bartcore/model.hpp:3314](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/model.hpp#L3314) the ordinal log-likelihood loses its lower tail -> C++ SURVIVED. This is the EXPORTED
   per-observation loglik channel of every ordinal fit.
 - B8 [src/bartcore/model.hpp:2185](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/bartcore/model.hpp#L2185) the `+ log 2` a missing-bearing ordinal column owes -> C++ SURVIVED; it cancels on a
@@ -357,9 +357,9 @@ re-runnable probes in `consol/`.
 - S5 tests, R side - B3, the R halves of B4/B5, reach gaps A4-A12: one assertion each, in the file the leg
   names. Sonnet under an Opus read, ~80 lines. No draws.
 - S6 tests, C++ side - B6, B7, reach gaps B3-B9: a facade conformance suite (the largest single item),
-  direct unit tests for the four never-called `*IsValid` predicates, a depth >= 1 conditional-law test, a
-  multi-chain partial-fill predict test, an ordinal-likelihood pin, a non-constant-mean variance fixture,
-  the one-line `setvbuf`. Opus, ~400 lines. No draws.
+  direct unit tests for the four never-called `*IsValid` predicates, a depth >= 1
+  conditional-distribution test, a multi-chain partial-fill predict test, an ordinal-likelihood pin, a
+  non-constant-mean variance fixture, the one-line `setvbuf`. Opus, ~400 lines. No draws.
 - S7 C2's 28 narrative lines and the `docs/`-citation policy. Sonnet, AFTER VD answers the citation
   question. No draws.
 - S9 `R/generics.R` + `src/R_interface_rbart.cpp` - BLOCKER B8: refuse an NA group match before

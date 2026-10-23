@@ -156,7 +156,7 @@ Two more lists beside it. The no-offset one carries BOTH spellings with the same
 
     # A per-observation weight scales the posterior-predictive DRAW of a fit whose
     # noise the caller can rescale - gaussian sigma, a logistic trial count. A
-    # count, category or two-part draw comes from its own law with no such factor,
+    # count, category or two-part draw comes from its own distribution with no such factor,
     # so the argument has nothing to act on here.
     predictWeightsUnusedArgs <- list(
       weights = "this family's posterior-predictive draw takes no per-observation weight"

@@ -126,8 +126,8 @@ LevelLaw levelLawOf(ConstantLeafSampler& sampler, size_t numTrees) {
 }
 
 /// Empirical first and second moments of a stream of shift vectors, scored
-/// against a law as per-coordinate z. The mean's standard error is
-/// sqrt(C_tt / N); a gaussian sample covariance entry's is
+/// against a distribution as per-coordinate z. The mean's standard error
+/// is sqrt(C_tt / N); a gaussian sample covariance entry's is
 /// sqrt((C_tt C_uu + C_tu^2) / N).
 struct LevelMoments {
   size_t numDraws = 0;
@@ -703,8 +703,8 @@ void runEnsembleTests() {
   // is the projection's own arithmetic residual sum_t c_t riding in through
   // totalFits - of order m eps tau, and the band above sits nine orders over
   // that. It sizes the missing-projection poison, which would put a whole
-  // leaf value there, and says nothing about whether the draw's LAW is right;
-  // the frozen-forest gate below is what scores that.
+  // leaf value there, and says nothing about whether the draw's DISTRIBUTION
+  // is right; the frozen-forest gate below is what scores that.
   ext_rng* levelRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(levelRng, 20260907u);
   SamplerOptions shiftedOptions;
@@ -757,7 +757,7 @@ void runEnsembleTests() {
   check(anyDifference, "the level-fibre flag moves the sampled path");
   ext_rng_destroy(offRng);
 
-  // ---- the shift's own law, at a frozen forest -------------------------
+  // ---- the shift's own distribution, at a frozen forest ----------------
   //
   // The step is an exact Gibbs draw, so there is no acceptance ratio for a
   // detailed-balance script to score; what replaces one is a direct test of
@@ -838,9 +838,9 @@ void runEnsembleTests() {
   check(poisonWorstSum > 1.0e6 * levelSumTolerance, what);
 
   // Poison (ii), the prior-mean term dropped: u centred at zero and projected.
-  // The law keeps its covariance and loses its mean, which is the poison that
-  // separates a correct conditional from a correctly-shaped one - so the
-  // covariance score must still PASS while the mean score fails.
+  // The distribution keeps its covariance and loses its mean, which is the
+  // poison that separates a correct conditional from a correctly-shaped one -
+  // so the covariance score must still PASS while the mean score fails.
   LevelMoments poisoned(levelTrees);
   double sumVariance = 0.0;
   for (size_t t = 0; t < levelTrees; ++t) sumVariance += law.variance[t];

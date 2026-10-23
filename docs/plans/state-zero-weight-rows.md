@@ -90,8 +90,8 @@ and estimated. The counts are per chain and were the same in all four arms.
     41 rows positive under both among them). Under the planned rule 40 differ: the 20 that entered and
     left again, which are out of the likelihood, and the 20 that left and came back, which the final
     `setWeights` redraws. The 41 hold the stored scales.
-- The law of what is left, `setState` first. Transformed by the conditional at the stored fit and sigma
-  (uniform for a draw from it): today the rows positive under both vectors are uniform against the
+- The distribution of what is left, `setState` first. Transformed by the conditional at the stored fit and
+  sigma (uniform for a draw from it): today the rows positive under both vectors are uniform against the
   conditional under the proposed weights (KS p 0.55 and 0.56) and not under the old ones when the change is
   large (proposed 20 times the old: mean 0.184, n 3660, p 0); for the (1, 4, 4) to (2, 2, 5) change the
   difference is at the edge of what 12200 scales show (mean 0.5003, p 0.035). Under the planned rule the
@@ -239,9 +239,10 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
      message, the sampler's scales identical after. A well-formed record put by hand on a gaussian state
      changes nothing.
    - Two restores of one state under the same other weights are identical samplers.
-   - The law: forty rounds of a sampler that stores under weights with twenty rows at zero and a second
-     sampler at all-positive weights that restores the state; the entering rows' scales, transformed by
-     the conditional at the stored fit and sigma, have mean within 0.05 of 0.5 and a KS p above 1e-6, the
+   - The distribution: forty rounds of a sampler that stores under weights with twenty rows at zero and a
+     second sampler at all-positive weights that restores the state; the entering rows' scales,
+     transformed by the conditional at the stored fit and sigma, have mean within 0.05 of 0.5 and a KS p
+     above 1e-6, the
      bounds of ["The redrawn Student-t scale is a draw from its conditional"](../../inst/tinytest/test-active-rows-reactivation.R).
      It passes today, when those rows are redrawn with all the others; it is there for the mutation that
      leaves a stored scale at an entering row (that test's comment gives a mean of 0.65 for a kept scale).
@@ -340,16 +341,17 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
 ## Out of scope, and where it goes
 
 - Logistic. Its restore under other counts already lands where the same `setWeights` call does; both
-  redraw every active row, the rows whose count did not change included, and an undo is right in law in
-  either order. Drawing fewer there needs the stored counts, not a flag. No TODO is opened; the
-  coordinator has the text of one should that change.
+  redraw every active row, the rows whose count did not change included, and an undo is right in
+  distribution in either order. Drawing fewer there needs the stored counts, not a flag. No TODO is
+  opened; the coordinator has the text of one should that change.
 - A row that leaves the likelihood and comes back with no sweep between still holds a scale drawn in the
   likelihood, and `setWeights` and `setActiveRows` redraw it all the same. Not redrawing it would make the
   undo bit for bit in either order; it changes what those two setters draw on sequences that exist today
   and is not what dec-B277 names. Not planned.
 - Putting the mask back before the state on a copy or a reload, so an entering masked row waits there too.
   It moves every family's re-creation; the difference is one draw order in a corner (Student-t, a mask, a
-  state stored under other weights, a row both masked and entering), right in law either way. Not planned.
+  state stored under other weights, a row both masked and entering), right in distribution either way. Not
+  planned.
 - A state of one family installed into a sampler of another. Found in review, the same on the base build
   and this one, not fixed here. Measured on the fixture, one chain, each sampler unweighted, the
   destination swept before the install: of the twelve pairs among gaussian, Student-t, probit and
@@ -427,11 +429,11 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
     of 12), the mask going back afterwards. The manual already says so.
   - dec-B277 says a state stored before this has "every scale in the likelihood redrawn". That holds for
     a state with a digest; one without a digest has none redrawn, today and after.
-  - Neither says what the other order of an undo leaves after the change. It is exact in law in every
-    case and bit for bit only when no row went to zero and back (40 of 81 scales differ in the measured
-    case, 20 of them out of the likelihood).
-  - dec-A160's "for one sweep" was checked as a law at the tip: clear when the proposed weights are far
-    from the old ones, at the edge of detection for a modest change.
+  - Neither says what the other order of an undo leaves after the change. It is exact in distribution
+    in every case and bit for bit only when no row went to zero and back (40 of 81 scales differ in the
+    measured case, 20 of them out of the likelihood).
+  - dec-A160's "for one sweep" was checked as a distribution at the tip: clear when the proposed
+    weights are far from the old ones, at the edge of detection for a modest change.
   Nothing in this slice was found done already.
 
 ## Landing note

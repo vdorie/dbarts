@@ -72,28 +72,28 @@
 # The prior-only arm never exercises the likelihood term. The confirmation arm
 # runs the same grid and the same mixture with positive weights and NO mask -
 # the mask is what makes the likelihood constant, so the arms cannot share a
-# configuration - and scores the WITHIN-VARIABLE root cut law against an exact
-# region dynamic program in change-balance.R's shape: a node's reachable set is
-# a rectangle in (x1 value index, x2 value index), splitInterval is
-# ancestor-only, and no depth truncation is needed because 5 + 3 cuts cap every
-# path at depth 8. Calibration is matched to the engine exactly, else the
-# comparison is void: quantile cuts, range scaling, fixed(1) residual variance
-# -> internal sigma = 1 / range, and the constant-leaf conjugate marginal with
-# priorPrecision = (k / scale)^2, scale = leaf.scale / sqrt(ntree) = 0.5. The
-# same Holm machinery scores its eight states as their own family, and the
-# distance to the PRIOR conditional (uniform over the variable's cuts) is
-# reported as the arm's power: a kernel that dropped the likelihood would sit
-# there.
+# configuration - and scores the WITHIN-VARIABLE root cut distribution against
+# an exact region dynamic program in change-balance.R's shape: a node's
+# reachable set is a rectangle in (x1 value index, x2 value index),
+# splitInterval is ancestor-only, and no depth truncation is needed because 5 +
+# 3 cuts cap every path at depth 8. Calibration is matched to the engine
+# exactly, else the comparison is void: quantile cuts, range scaling, fixed(1)
+# residual variance -> internal sigma = 1 / range, and the constant-leaf
+# conjugate marginal with priorPrecision = (k / scale)^2, scale = leaf.scale /
+# sqrt(ntree) = 0.5. The same Holm machinery scores its eight states as their
+# own family, and the distance to the PRIOR conditional (uniform over the
+# variable's cuts) is reported as the arm's power: a kernel that dropped the
+# likelihood would sit there.
 #
 # ---- the poison arms ----
 #
 # Both poisons of the design are engine defects, so each is run here the way
 # change-balance.R and swap-balance.R run their wrong targets: the flag mutates
-# the SCRIPT's expectation to the law the defective kernel would target, and
-# the gate must FAIL against it. Both are leading-order, undiluted predictions
-# - the arm's change and birth/death shares pull a really-poisoned chain back
-# toward the true law - and both mutate statistic 1 alone, which is the
-# statistic the design requires each to fail.
+# the SCRIPT's expectation to the distribution the defective kernel would
+# target, and the gate must FAIL against it. Both are leading-order, undiluted
+# predictions - the arm's change and birth/death shares pull a really-poisoned
+# chain back toward the true distribution - and both mutate statistic 1 alone,
+# which is the statistic the design requires each to fail.
 #   poison1 : logProposalCorrection dropped. The uncorrected chain is
 #             reversible for p(c) proportional to pi(c)|W(c)|, so moves out of
 #             an end are over-accepted and moves into one under-accepted and
@@ -201,8 +201,9 @@ names(rootTarget) <- rootLabels
 stopifnot(abs(sum(rootTarget) - 1) < 1e-12)
 
 # The window count |W(c)| = min(hi, c + w) - max(lo, c - w) at a root, whose
-# own interval is the whole grid. Poison 1's target reweights the cut law by
-# it within each variable; poison 2's absorbs the cut at the top.
+# own interval is the whole grid. Poison 1's target reweights the cut
+# distribution by it within each variable; poison 2's absorbs the cut at the
+# top.
 windowCount <- function(cut, nCut) {
   min(nCut, cut + windowWidth) - max(1L, cut - windowWidth)
 }
@@ -839,9 +840,9 @@ if (poison == 0L) {
     mask = FALSE
   )
 
-  # the WITHIN-VARIABLE cut law, the quantity the cut move governs: the
-  # subsequence of draws whose root splits that variable, exactly as
-  # swap-balance.R scores its A/B subsequence
+  # the WITHIN-VARIABLE cut distribution, the quantity the cut move
+  # governs: the subsequence of draws whose root splits that variable,
+  # exactly as swap-balance.R scores its A/B subsequence
   confirmLabels <- character(0)
   confirmTargets <- numeric(0)
   confirmSeries <- list()

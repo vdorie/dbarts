@@ -865,8 +865,8 @@ expect_true(all(legacyOnly %in% names(formals(dbarts::bart))))
 # rather than as a formal of either door
 expect_false("prior.scale" %in% names(formals(dbarts::bartBT)))
 expect_false("prior.scale" %in% names(formals(dbarts::bart)))
-# the residual law is one of those capabilities, spelled as a family rather
-# than as a formal of its own on either door
+# the residual distribution is one of those capabilities, spelled as a
+# family rather than as a formal of its own on either door
 expect_false("resid.dist" %in% names(formals(dbarts::bart)))
 expect_false("resid.dist" %in% names(formals(dbarts::bartBT)))
 expect_true("student" %in% eval(formals(dbarts::bart)$family))

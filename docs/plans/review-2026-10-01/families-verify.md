@@ -69,7 +69,8 @@ Fix options (all exact; none needs a new augmentation):
   the link means and moves draws; the sbc.yaml waiver should be withdrawn either way).
 Tests: a mixing gate (n 500-1000, r0 in {2, 30}, default settings, 2 chains: every chain visits the
 r0 cell, split-Rhat on r < 1.05, 90% ppd coverage of fresh y within +-0.04); drop SBC_EXPECTED_FLAGS
-r,agg.psi; keep negbin-exact.R's stationary-law check (re-derived on the new scale under A).
+r,agg.psi; keep negbin-exact.R's stationary-distribution check (re-derived on the new scale under
+A).
 
 -----------------------------------------------------------------------------
 

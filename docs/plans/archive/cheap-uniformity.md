@@ -328,10 +328,11 @@ S4 - the sparse route.
 - data.hpp gains `SparseRawColumn`: `SparseColumnData`'s shape (bits,
   wordRanks, O(1) `at(i)`) holding raw doubles and a `double implicitValue`
   instead of codes and a `zeroCode`. No cut grid, no quantization, so it
-  touches no draw-law surface. BUILT PER CALL, NEVER CACHED - `predict`
-  reads its argument, not the resident store, so there is no staleness risk
-  and no implementer should introduce one. The rank bitmap is correct for
-  duplicate values (rank indexes the pattern, not the values).
+  touches no draw-distribution surface. BUILT PER CALL, NEVER CACHED -
+  `predict` reads its argument, not the resident store, so there is no
+  staleness risk and no implementer should introduce one. The rank bitmap
+  is correct for duplicate values (rank indexes the pattern, not the
+  values).
 - A NEW internal virtual `predict(const PredictorSource&, size_t numRows,
   double* out)` and its `predictVariance` twin on `SamplerBase`; the frozen
   dense entries become non-virtual inlines building a dense view, exactly

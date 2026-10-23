@@ -1,8 +1,8 @@
-# forest()'s coefficient and size arguments. A forest's coefficient law is one
-# argument, 'amplitude': fixed() holds the coefficient and nothing stated draws
-# it. A forest's 'sd' is one number, a name on it dropped, judged one way at
-# creation, through $setLeafPrior(forests = ) and in the front door's
-# normal(sd = ).
+# forest()'s coefficient and size arguments. A forest's coefficient
+# distribution is one argument, 'amplitude': fixed() holds the coefficient and
+# nothing stated draws it. A forest's 'sd' is one number, a name on it dropped,
+# judged one way at creation, through $setLeafPrior(forests = ) and in the
+# front door's normal(sd = ).
 
 forest <- dbartsForests$forest
 

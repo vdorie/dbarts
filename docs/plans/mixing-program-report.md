@@ -483,12 +483,12 @@ pricing a transfer needs the residual net of the other trees and the partner's
 leaf statistics, which no existing move sees. A lifted birth and death is cheap
 and valid but recomputes at a gain of only 1.06 to 1.17.
 
-The battery's design law comes from an earlier study. Grow-from-root as a
+The battery's design rule comes from an earlier study. Grow-from-root as a
 default was killed: every aggregate test passed, but per-cell plateau
 posterior-mean error costs of +11.10 percent in a noise-heavy small-n cell and
 of +4.47 and +10.66 percent in a large-n one, each past its frozen margin and
 each confirmed on fresh seeds, were averaged away by pooling. What the battery
-inherits is that law: per-cell checks, thresholds frozen before the run,
+inherits is that rule: per-cell checks, thresholds frozen before the run,
 mandatory fresh-seed re-runs and a null control that voids the family.
 
 ## Appendix C. Source records
@@ -505,7 +505,7 @@ Every claim above is recorded in one of these sections.
 | The accept rule as a procedure | [6.1 The rule, stated operationally](../design/benchmark-surfaces.md#61-the-rule-stated-operationally) |
 | The margins, and the coverage baseline ruling | [6.4 What "no regression on the core" means numerically](../design/benchmark-surfaces.md#64-what-no-regression-on-the-core-means-numerically) |
 | What the battery does not cover | [6.6 What this battery does not measure](../design/benchmark-surfaces.md#66-what-this-battery-does-not-measure) |
-| The rule draw's construction and correctness law | [2. The move](../design/nog-gibbs.md#2-the-move) |
+| The rule draw's construction and correctness distribution | [2. The move](../design/nog-gibbs.md#2-the-move) |
 | Its cost, and the two restricted variants | [2.4 Cost, and the two restricted variants](../design/nog-gibbs.md#24-cost-and-the-two-restricted-variants) |
 | Its benefit run, doses, equal-cost arm and cost instrument | [6. Benefit, pre-registered](../design/nog-gibbs.md#6-benefit-pre-registered) |
 | Its slices, and the adoption ruling | [8. Slices](../design/nog-gibbs.md#8-slices) |
@@ -524,6 +524,6 @@ Every claim above is recorded in one of these sections.
 | Recovery after a response swap | [14. Recovery after a response swap (2026-09-06)](../design/tree-mixing-proposals.md#14-recovery-after-a-response-swap-2026-09-06) |
 | Proposals refuted in the first round | [15.5 Refuted along the way](../design/tree-mixing-proposals.md#155-refuted-along-the-way) |
 | The ranked candidates, built and unbuilt | [16.3 Ranking](../design/tree-mixing-proposals.md#163-ranking) |
-| The warm-start study whose design law the battery inherits | [5. Verdict and consequences](../design/grow-from-root-default.md#5-verdict-and-consequences) |
+| The warm-start study whose design rule the battery inherits | [5. Verdict and consequences](../design/grow-from-root-default.md#5-verdict-and-consequences) |
 | The five structural tree moves | [Tree moves](../architecture.md#tree-moves) |
 | What one sweep does | [One sweep](../architecture.md#one-sweep) |

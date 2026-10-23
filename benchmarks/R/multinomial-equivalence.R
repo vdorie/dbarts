@@ -340,8 +340,8 @@ runScenarios <- function() {
   # tree of all three category forests re-routes and rebuilds. The jitter is
   # finer than the BCF fixture's, because the veto quantifies over three
   # forests of 40 trees rather than two of 50 and 25 (0.002 accepts at this
-  # seed, 0.005 rolls back) - the count law the arc's measurement reports,
-  # visible in the fixture itself.
+  # seed, 0.005 rolls back) - the count distribution the arc's measurement
+  # reports, visible in the fixture itself.
   result$k3txn <- local({
     d <- makeK3(6005L)
     set.seed(6105L)

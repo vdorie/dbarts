@@ -244,9 +244,10 @@ BOTH every sweep, in either order, immediately after drawGlue:
 
 No need to alternate or share machinery beyond the GIG RNG. Order-independence
 is worth a cheap test (run both orders on a fixed seed; combined fit and the
-joint law must agree). [FLAG: the ONLY shared state is the rng stream -- the
-two GIG draws consume rng in call order, so a fixed-seed bitwise gate must fix
-the order a<-b; this is a stream-ordering convention, not a correctness issue.]
+joint distribution must agree). [FLAG: the ONLY shared state is the rng stream
+-- the two GIG draws consume rng in call order, so a fixed-seed bitwise gate
+must fix the order a<-b; this is a stream-ordering convention, not a
+correctness issue.]
 
 ---
 

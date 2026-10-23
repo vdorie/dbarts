@@ -308,9 +308,9 @@ thresholds running from `|z| = 1.96` (least strict) to `|z| = 3.04` (strictest, 
 250,000 kept draws at `n.thin = 20`, batch means over 500 batches per chain: even at an autocorrelation time of 20 that is ~50,000
 effective draws against the ~630 statistic 1 needs for poison (i) at `|z| = 3.04`, and ~245 expected counts in the smallest retained
 state. That 630 is the UNDILUTED floor - it is what a 37 percent shift needs - and the realized shift is smaller, poison (i)'s 37
-percent being the perturb-only limit and the arm's change and birth/death shares pulling the chain back toward the true law, so the
-margin above the floor is deliberate rather than slack. The length is affordable because the likelihood is never evaluated under the
-mask: a sweep costs the move machinery alone, on one tree over 24 rows. The arm's mixture is
+percent being the perturb-only limit and the arm's change and birth/death shares pulling the chain back toward the true
+distribution, so the margin above the floor is deliberate rather than slack. The length is affordable because the likelihood is
+never evaluated under the mask: a sweep costs the move machinery alone, on one tree over 24 rows. The arm's mixture is
 `birth_death 0.10, change 0.10, perturb 0.80` - change retained because it moves the root's VARIABLE
 directly (a perturb-only chain would have to pass through a stump, 5 percent of the prior mass) and birth/death because statistic 2
 moves through nothing else, both at the smallest share keeping their own statistic non-degenerate while leaving perturb dominant on
@@ -333,12 +333,13 @@ statistic, doubling and re-running instead.
 
 **Poisons.** (i) Drop `logProposalCorrection`. The uncorrected chain is then reversible for `p(c)` proportional to `pi(c)|W(c)|`, so
 moves OUT of an end are over-accepted and moves INTO one under-accepted and the boundary cuts starve. The effect is computable in
-advance: on the two-leaf shape, 0.55 of the prior mass, `pi(c)` is uniform over x1's five cuts, so the poisoned conditional law is
-`(1,2,2,2,1)/8` against a true 0.2 each - the end states fall to 0.125, a 37 percent relative shift, diluted by the arm's change and
+advance: on the two-leaf shape, 0.55 of the prior mass, `pi(c)` is uniform over x1's five cuts, so the poisoned conditional
+distribution is `(1,2,2,2,1)/8` against a true 0.2 each - the end states fall to 0.125, a 37 percent relative shift, diluted by the
+arm's change and
 birth/death shares. (ii) A one-sided `+w` window. `|W|` is then 1 everywhere but at `hi`, where it is 0, so on the same two-leaf shape every proposal
-is `c -> c+1` at `alpha = 1` and the cut is absorbed at the top: x1's five cuts go from 0.2 each to a law whose lower four states
-hold only the mass change and birth/death re-seed them with, an order of magnitude past poison (i)'s 37 percent. Both must fail
-statistic 1. A
+is `c -> c+1` at `alpha = 1` and the cut is absorbed at the top: x1's five cuts go from 0.2 each to a distribution whose lower four
+states hold only the mass change and birth/death re-seed them with, an order of magnitude past poison (i)'s 37 percent. Both must
+fail statistic 1. A
 third check is a tests/cpp assertion rather than a poison: `findGoodOrdinalRules` must return the same pair before and after any
 in-interval rule is installed at the node, the invariance the reverse count rests on.
 
@@ -647,12 +648,12 @@ Then, in order:
    **Landed** (30472110, 2026-09-07). Four design-versus-code points. (1) Section 4's statistic-3 drop rule spoke in 0-based
    split indices; in the 1-based cut numbering [`getTrees`](../../R/dbarts.R) exposes, the retained six states sit at root cuts
    2 and 3 and the dropped seven at 4 and 5, masses matching exactly (0.011281 / 0.005641 / 0.018802 / 0.009401 retained,
-   0.003760 / 0.002820 dropped). (2) The confirmation arm scores the within-variable cut law rather than the root-VARIABLE
-   marginal this section named, because under a perturb-dominant mixture that marginal mixes on `change`'s timescale -
-   [`firstUnder`](../../benchmarks/R/perturb-balance.R)'s ladder puts its first lag under 0.1 at 113 to 138 kept draws, two
-   states never getting there within 400 - and scoring it would be refused by the gate's own burn-in rule. (3) Both poisons
-   mutate [`poisonRootTarget`](../../benchmarks/R/perturb-balance.R), statistic 1's target, alone. (4) This section's 20 to 40
-   minute estimate for a full run was wrong by two orders: the masked sweep costs the move machinery alone on 24 rows,
+   0.003760 / 0.002820 dropped). (2) The confirmation arm scores the within-variable cut distribution rather than the
+   root-VARIABLE marginal this section named, because under a perturb-dominant mixture that marginal mixes on `change`'s
+   timescale - [`firstUnder`](../../benchmarks/R/perturb-balance.R)'s ladder puts its first lag under 0.1 at 113 to 138 kept
+   draws, two states never getting there within 400 - and scoring it would be refused by the gate's own burn-in rule. (3) Both
+   poisons mutate [`poisonRootTarget`](../../benchmarks/R/perturb-balance.R), statistic 1's target, alone. (4) This section's
+   20 to 40 minute estimate for a full run was wrong by two orders: the masked sweep costs the move machinery alone on 24 rows,
    microseconds a sweep.
 
    Gates (independent run): quick PASS (worst `|z|` 1.84 prior-only, 2.66 confirmation); full PASS in 23 seconds wall (worst

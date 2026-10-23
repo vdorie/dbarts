@@ -103,13 +103,13 @@ sbcCheckSigmaPrior <- function(sigest, df, quant, nDraws = 2e5L) {
 
 # --- discrete (grid) parameters --------------------------------------------
 
-# Rank of theta0 among L posterior draws WHEN THE LAW HAS ATOMS. #{draws <
-# theta0} is uniform only for an atomless law: an atom parks all its mass on one
-# rank. Attach an iid Uniform(0, 1) tag to every draw AND to theta0 itself and
-# rank the pairs lexicographically: theta0's tag is exchangeable with the tags
-# of the tied draws, so the atom contributes a Uniform{0, ..., #ties} increment
-# and the total rank is uniform on {0, ..., L} under calibration - exactly
-# rankUniformity's null, unchanged.
+# Rank of theta0 among L posterior draws WHEN THE DISTRIBUTION HAS
+# ATOMS. #{draws < theta0} is uniform only for an atomless distribution: an atom
+# parks all its mass on one rank. Attach an iid Uniform(0, 1) tag to every draw
+# AND to theta0 itself and rank the pairs lexicographically: theta0's tag is
+# exchangeable with the tags of the tied draws, so the atom contributes a
+# Uniform{0, ..., #ties} increment and the total rank is uniform on {0, ..., L}
+# under calibration - exactly rankUniformity's null, unchanged.
 #
 # TWO kinds of atom need it, which is why the family driver applies it to every
 # functional rather than only the declared-discrete ones (with no ties it is
@@ -488,7 +488,7 @@ sbcKDraw <- function(config) {
 # The hand-back the replication relies on: after a fixed k is installed, the
 # hyperprior written again keeps that k as the current value and is drawn from
 # there (k moves over a run). A sampler that reset k on the write, or kept it
-# fixed, would make every rank of k a draw from the wrong law.
+# fixed, would make every rank of k a draw from the wrong distribution.
 sbcCheckKHandBack <- function(config, seed = 99L) {
   set.seed(seed)
   sampler <- sbcMakeSampler(config, 20L, 5L, seed)
@@ -1037,10 +1037,11 @@ sbcAftSurvival <- function(t0, f, sigma) {
 # replication's chain left. That REMOVES the prior-draw entry from the
 # generator instead of mismatching it. The carried surface is marginally a
 # prior draw only if the run's posterior draws are already exact and the
-# replication chain has reached its stationary law - which is what the arm
-# exists to test - and a miscalibrated entry reads clean under it precisely
-# because the generator never calls the entry. It costs rank independence
-# across replications besides, successive theta0 sharing a surface.
+# replication chain has reached its stationary distribution - which is what
+# the arm exists to test - and a miscalibrated entry reads clean under it
+# precisely because the generator never calls the entry. It costs rank
+# independence across replications besides, successive theta0 sharing a
+# surface.
 sbcHeteroPoisons <- c("s-scale", "s-shuffle", "s-df")
 
 sbcHeteroPoison <- function(poison) {
@@ -2552,8 +2553,8 @@ runSbcFamily <- function(
         next
       }
       # every functional is ranked with the tie-break: it reduces to
-      # #{draws < theta0} (and consumes no rng) unless the law has an atom, and
-      # both a grid parameter and an underflowed tail probability do
+      # #{draws < theta0} (and consumes no rng) unless the distribution has an
+      # atom, and both a grid parameter and an underflowed tail probability do
       row[j] <- sbcDiscreteRank(draws[j, ], theta[[j]])
     }
     if (is.null(ranks)) {

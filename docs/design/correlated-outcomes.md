@@ -21,7 +21,8 @@ covariance:
   coherent joint credible regions and multiplicity-aware co-primary endpoints;
   causal mediation (the outcome+mediator bivariate system, with the error
   correlation rho as the sequential-ignorability sensitivity parameter);
-  surrogate / principal outcomes (the joint law of surrogate and true outcome).
+  surrogate / principal outcomes (the joint distribution of surrogate and true
+  outcome).
 
 ## The conduit dbarts already exposes (verified)
 

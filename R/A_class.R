@@ -112,9 +112,9 @@ methods::setValidity("dbartsFixedHyperprior", function(object) {
   TRUE
 })
 
-# A law on the leaf prior's sd itself, sd = scale / chi_df: not a law on k, so
-# it is deliberately not a dbartsLeafHyperprior and 'k' refuses it. scale = 0
-# is the improper sd^-(df + 1) limit.
+# A distribution on the leaf prior's sd itself, sd = scale / chi_df: not a
+# distribution on k, so it is deliberately not a dbartsLeafHyperprior and 'k'
+# refuses it. scale = 0 is the improper sd^-(df + 1) limit.
 methods::setClass(
   "dbartsSdHyperprior",
   slots = list(df = "numeric", scale = "numeric")

@@ -31,9 +31,9 @@ Decisions, all in [docs/decisions.md](../decisions.md): dec-B75 (bart is
 the modern door), B76 (tombstones), B77 and B102 (xbart), B79 (names
 lock at the CRAN push), B80 (sigest), B81 (two family vocabularies),
 B82 (hurdle tokens), B83 (the legacy door is strict), B98 and B101
-(family objects, consolidation, residual law), B108 (na.action), B109
-(saved 0.9-x fit). dec-B78 (factor default) is already the shipped
-behaviour and only gains its manual paragraph here.
+(family objects, consolidation, residual distribution), B108
+(na.action), B109 (saved 0.9-x fit). dec-B78 (factor default) is already
+the shipped behaviour and only gains its manual paragraph here.
 
 ## Goal
 
@@ -44,11 +44,11 @@ more levels with a two-remedy message. For one release `bart2` is an
 alias and a BayesTree-spelled call to `bart` forwards to the legacy door
 with a once-per-session warning. Removed functions and arguments are
 tombstones that name their successor and expire together. Family
-settings ride family objects; the residual law is a family; the front
-door has a standard `na.action` whose default drops missing-response
-rows only. `xbart` cross-validates with k fixed or modelled, distributes
-work over folds, and reproduces a seed at any thread count. A saved
-0.9-x fit is refused by name.
+settings ride family objects; the residual distribution is a family; the
+front door has a standard `na.action` whose default drops
+missing-response rows only. `xbart` cross-validates with k fixed or
+modelled, distributes work over folds, and reproduces a seed at any
+thread count. A saved 0.9-x fit is refused by name.
 
 ## Context
 
@@ -68,7 +68,7 @@ work over folds, and reproduces a seed at any thread count. A saved
   for the hazard trio). `twopart` folds to `hurdle.lognormal` at both
   doors; the composition is [`bart2Hurdle`](../../R/bart.R); `dbarts()`
   lists the hurdle tokens and refuses them.
-- Residual law: before S2, `student()`, `gaussian()` and the unexported
+- Residual distribution: before S2, `student()`, `gaussian()` and the unexported
   `dbartsResidDists` in R/model.R, reached through a `resid.dist` argument;
   they are now the family constructors in
   [`dbartsFamilies`](../../R/family.R). The spec
@@ -444,7 +444,7 @@ LANDED at 44b3fa6dcf7966b1b2547243c58b39cee2e9fcc1, five commits:
 - c70aa99bffd82d9e15791b7d2fbd7557ec4dd528 Move family settings onto family objects and consolidate the front-door formals
 - d52ea1d3c4f1eaa531dca027cb6962d056fc0760 Update the test suite for the family objects, the consolidation and na.action
 - 7b1b03f9cd3dac0f92bc4811c35479e030a4b20d Document the family objects and na.keepPredictors, and repoint the benchmark harnesses
-- 04cc4040df3ca28b21e091d15a8b499d1f8ddf31 Apply air formatting and repoint the cites the residual-law move broke
+- 04cc4040df3ca28b21e091d15a8b499d1f8ddf31 Apply air formatting and repoint the cites the residual-distribution move broke
 - 44b3fa6dcf7966b1b2547243c58b39cee2e9fcc1 Align amplitude bases to the rows na.action dropped, cover the tree-prior levelGibbs, and keep the caller's family on the stored call
 
 [`dbartsFamily`](../../R/family.R): an S4 class (token slot, settings

@@ -244,7 +244,7 @@ authoring one.
      those inside `forest()`.
    - **AUTHORING a response shape or a prior is the engine's side**, with C++ as
      its path: a new family, link or latent structure; a new leaf model; a new
-     hyperprior law; a new coupling. The path is to add it to dbarts (the
+     hyperprior; a new coupling. The path is to add it to dbarts (the
      internal seams are the `model.hpp` concepts and the `facade.hpp` factories),
      not to reach it from a consumer package.
    Consequences applied below, so the design is not contorted against this line:
@@ -634,15 +634,15 @@ carries DATA (basis columns) and the SELECTION of engine-provided priors per
 forest: tree count, `base`, `power`, the leaf scale, the moderator column mask,
 per-forest interactions and blocks, all of which `BCFForestSpec` already carries.
 It carries no caller-authored prior and no caller-authored response shape: the
-amplitude's prior law, the leaf model, the family and the link are the engine's,
+amplitude's prior, the leaf model, the family and the link are the engine's,
 selected by argument. So a spec asking for a prior form the engine does not
 implement REFUSES at creation rather than being approximated - the F4 discipline
 - and requests of that kind are engine arcs (a new leaf model, a new family, a
 new hyperprior), never extensions of this channel. Concretely: BCF's asymmetric
 amplitude prior (half-Cauchy on forest 0 via a scale-mixture auxiliary, normal
 on the rest) is an engine choice with a default and a knob, not a slot a caller
-fills with a law of their own; pinned rather than sampled amplitudes are a
-DOOR, not a caller-supplied prior.
+fills with a distribution of their own; pinned rather than sampled amplitudes
+are a DOOR, not a caller-supplied prior.
 
 ## Layering: three homes, and what replaces `treatment =`
 
@@ -824,7 +824,7 @@ model authors already use.
    scale knobs, so a prototype ports without changing the model it targets.
    State equally plainly what the recipe does NOT reach and never will: a
    response family, link or latent structure the engine does not provide, and a
-   leaf or hyperprior LAW the engine does not provide. Those are selected by
+   leaf or hyperprior the engine does not provide. Those are selected by
    argument, not composed in R, and adding one is an engine change.
 4. **Also record the graduation-path debt** the flat surface still has relative
    to R5: no flat per-observation predictor update or joint session, no flat
@@ -2442,7 +2442,7 @@ in FA1 and FA5 below ARE the record.
   K = 8 index SCALE and, separately, Option C's K = 2 RATIO; they are not the
   same object and neither is "exactly Option C's K = 2 value" (which is
   `4.4510 s`).** Both facts are design statements owed a sentence beside the
-  anchor table; the `sqrt(K)` law itself is DEFERRED, see 2f.
+  anchor table; the `sqrt(K)` rule itself is DEFERRED, see 2f.
 
   **2e. The anchor is the slice's single biggest risk, and checklist item 25 is
   the gate on it.** The lines are cheap; the NUMBER in them is argued, not
@@ -2689,7 +2689,8 @@ in FA1 and FA5 below ARE the record.
      engine implements Polya-Gamma ([src/bartcore/model.hpp:3501-3508](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3501-L3508)), whose working
      residual sd at `psi = 0` is 2 (`omega = 1/4`, `coldStart` [src/bartcore/model.hpp:3657-3663](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3657-L3663)),
      not 1.8138. `pi/sqrt(3)` is still the right anchor - it is the sd of the
-     logistic law the log-odds index is stated against, and it is what makes
+     logistic distribution the log-odds index is stated against, and it is
+     what makes
      [R/spec.R:308](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/spec.R#L308)'s `3 * pi/sqrt(3)` equal `3 * (latent sd)`.
   5. [src/bartcore/chain.hpp:1408](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1408) and [src/bartcore/chain.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1514) - `combinedFits()` in place of
      `forests_[0].totalFits.data()`. **F2 (m-i / m-ii).** [src/bartcore/chain.hpp:1514](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/chain.hpp#L1514) is the
@@ -3555,7 +3556,7 @@ in FA1 and FA5 below ARE the record.
     disturb the L-versus-C verdict - the ratio stays exactly 3 regardless, and
     the decisive all-basis arm does not involve `aPriorScale` at all. **Two
     more items join that same slice, both from 2f, and M4.4 must not do
-    either:** the `sqrt(K)` dispersion law (no basis-side option touches the
+    either:** the `sqrt(K)` dispersion rule (no basis-side option touches the
     exponent, and any K fix is a DEFAULTS change; M4.4 owes the exponent in
     prose only), and the OBSERVABILITY gap (option F - `v_f` is readable from
     no getter, so a defaulting user cannot reconstruct their induced prior).
@@ -4158,7 +4159,7 @@ post-freeze as this item originally proposed), the three-home layering
 (dbarts engine, stan4bart WALNUTS collection, bartCause causal fit layer, no
 third package), VD's R-first principle with its scope limit (R-first for
 additive composition and for configuring engine-provided families and
-priors; authoring a response shape or a prior law is an engine change with
+priors; authoring a response shape or a prior is an engine change with
 C++ as its path), and the four VD forks, ALL RESOLVED 2026-08-11 (see "Open
 decisions" below).
 
@@ -4342,7 +4343,7 @@ not a separate decision.
   `dbarts.h`. Under the prototyping principle as qualified by binding decision
   1b this is not any step: `dbarts.h` is the graduation step for PERFORMANCE,
   which is what stan4bart already uses, and the path for AUTHORING a response
-  shape, a leaf model, a prior law or a combiner is to add it to dbarts itself -
+  shape, a leaf model, a prior or a combiner is to add it to dbarts itself -
   the same conclusion stochtree's own documentation reaches for itself ("we add
   our model to the `ModelType` enum"). Extension headers would be a third
   surface serving neither, with the whole engine's internals as its contract.
@@ -4367,7 +4368,7 @@ not a separate decision.
   boundary case that shows the line: its random intercepts reach the forest as an
   OFFSET and the quantity it draws in R is its own block's variance, so nothing
   about the response shape or the forest's leaf prior is authored in R. It is
-  therefore NOT a route to prototyping a new family, link or prior law, and must
+  therefore NOT a route to prototyping a new family, link or prior, and must
   not be priced as one. Widening it to inline multi-chain is a DOOR, priced: its
   results buffers are single-chain by construction and its lambda drops
   `chainIndex`, so it is roughly 60 bridge lines plus an R wrapper and tests,
@@ -4504,7 +4505,7 @@ not a separate decision.
     leaves implicit: CONFIGURING an engine-provided family or prior by argument
     (`family =`, `node.prior = normal(k)`, the per-forest knobs inside
     `forest()`) is on R's side, while AUTHORING a new family, link, latent
-    structure, leaf model or hyperprior law is on the engine's. Without that
+    structure, leaf model or hyperprior is on the engine's. Without that
     middle category the boundary would read as excluding prior arguments from the
     on-ramp, which no evidence supports and which would make `forest(base =,
     power =, sd =)` look boundary-crossing. Three concrete effects on this plan,

@@ -26,8 +26,8 @@ and response transform `(fitScale, fitShift)`:
     prior.mean  = fitShift                  # response units
 
 `prior.scale` is the identified object. Only the ratio `s / k` enters any draw
-law, so under a fixed `k` the pair `(prior.scale, k)` has one degree of
-freedom; `k` matters when and only when a hyperprior draws it, and then
+distribution, so under a fixed `k` the pair `(prior.scale, k)` has one degree
+of freedom; `k` matters when and only when a hyperprior draws it, and then
 `prior.scale` is the constant of the model while `prior.sd` moves every sweep.
 `prior.mean` is a read-only diagnostic whose lever is the offset channel.
 

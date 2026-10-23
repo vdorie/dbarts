@@ -314,7 +314,7 @@ arrives on it; that slice changes the example.
   numbers per forest. The bridge keeps reading forest 1's count from the control and its tree prior from
   the model.
 - A forest's default `sd`, the unit of `sd`, and the two size channels are untouched. No held value
-  and no law of a held forest changes: step 1.10 refuses, and builds nothing.
+  and no rule of a held forest changes: step 1.10 refuses, and builds nothing.
 - No test this slice adds fits a factor of three or more levels or a basis of several numeric columns,
   the refused rows of step 1.10 apart: both are refused two slices on (dec-B281, dec-B282), and a test
   written on one now is deleted then.
@@ -472,7 +472,7 @@ z, and "the table" is each forest's count from the engine and its base and power
     man/dbartsControl.Rd: `n.trees` is the plain forest's count in a model of several. man/dbartsData.Rd:
     `bases` (one `NULL` at most, anywhere). docs/design/forest-defaults-by-kind.md with its index row: the
     rule, what is stated at each door, the one changed sequence with its oracle, what a control carries,
-  the swap law's figures.
+  the swap check's figures.
     docs/design/public-surface.md and docs/architecture.md where they give forest 1 the fit's count. TODO:
     this entry closes; `forest-prior-args` names it landed. man/forest.Rd's `amplitude` item says which
     held forests are taken until the multiplier slice lands, in the table's words; the design note
@@ -542,7 +542,7 @@ cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
   `forest(n.trees = )` and nothing else of this surface (searched again 2026-10-07).
 
 Push 1 in addition: every gate `.github/workflows/exact-gates.yaml` lists, in `quick`, unchanged (the
-class is posterior-changing and a fit's control carries another record); the design note; the swap law,
+class is posterior-changing and a fit's control carries another record); the design note; the swap check,
 run once and recorded in the note: two multiplied forests in either order, and the plain forest first and
 second, 16 seeds each way with 400 sweeps discarded and 800 kept, the difference in mean sigma within 2
 standard errors and the z of the difference in posterior mean fit, over the rows, with a standard
@@ -621,7 +621,7 @@ takes the fitting function's count.
   slices that put `tree.prior` and `leaf.prior` on `forest()` (dec-B246).
 - The unit of `sd` with the reader's and `extract`'s lists named by label, the kind by class at the data
   door with the refusal of a basis of three or more levels or of several numeric columns, the multiplier
-  law with the held values by kind and the printed block: their slices, in TODO `forest-prior-args`.
+  rule with the held values by kind and the printed block: their slices, in TODO `forest-prior-args`.
 - What a held coefficient is where step 1.10 refuses it: the multiplier slice's first push, which lifts
   the two interim rows.
 - `updateBasisScale` and `leaf.prior = normal(sd = )` on `forest()`: after the merge to main (dec-B276).
@@ -637,7 +637,7 @@ takes the fitting function's count.
   addition commutes; it does not name this list. Refusing it would keep a rule by position, and the
   refusal's own words ("what distinguishes it from the first"). The cost: two shapes with no draw on the
   base build to compare with, so their evidence is the forest-for-forest records, the surfaces of step 1.1
-  and the swap law, not a bitwise pair.
+  and the swap check, not a bitwise pair.
 - Stated means named, the default's own value included: 75 named and 75 untouched are told apart at every
   door. A wrapper that always names a count, tree prior or leaf prior is therefore refused on a model
   with no plain forest and must leave it out. The alternative, refusing only a value that differs from
@@ -682,7 +682,7 @@ takes the fitting function's count.
 - Two pushes: the defaults change a model and the selection changes none, and they are reviewed against
   different risks.
 - The held shapes the tip gets wrong are refused here, by width and position (step 1.10). The critique of
-  the multiplier slice found them accepted on every tip until that law's held push, four slices on; the
+  the multiplier slice found them accepted on every tip until that rule's held push, four slices on; the
   coordinator took the finding and placed the refusal in this push, the one that first lets a forest
   with no basis stand second. By width and position and not by class: at this tip the data door cannot
   tell a factor's two indicator columns from two numbers, and a rule by class would refuse bartCause's
@@ -690,7 +690,7 @@ takes the fitting function's count.
   basis held as the third or a later forest is held at 1, the help's value, and is kept.
 - Two numeric columns held as the second forest stay accepted until dec-B282's refusal lands in
   forest-kind-by-class push 2. Refusing them here would need the class at the data door.
-- The pair script and the swap law are run at landing and not tracked: one needs the base build, the
+- The pair script and the swap check are run at landing and not tracked: one needs the base build, the
   other is a statistical run. What stays in the suite is step 1.2's identity between two spellings the
   slice accepts.
 - Rechecked on the landed tip of written-surface (2aabf1ef) before push 1 was built. Every symbol the steps

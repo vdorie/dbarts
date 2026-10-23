@@ -7,9 +7,9 @@ agent: opus (engine, component tests, gate battery, re-records); sonnet (records
 rng: posterior-changing. The amplitude rescaling move and its per-sweep GIG draw are removed, so
   every chain with an updating scale-mixture amplitude (bcf's prognostic forest, and each
   formula-route forest without a basis) draws differently from its first sweep on, and the
-  implemented chain's stationary law moves, because the defect biased it. Every other
-  configuration (single-forest, heteroscedastic, multinomial, and an amplitude coupling whose
-  scale-mixture forests are all held) must replay its baseline bitwise.
+  implemented chain's stationary distribution moves, because the defect biased it. Every
+  other configuration (single-forest, heteroscedastic, multinomial, and an amplitude coupling
+  whose scale-mixture forests are all held) must replay its baseline bitwise.
 window: none (VD 2026-09-24: the right fix, whatever its timing against the merge).
 budget: engine mostly deletion (combiner.hpp, chain.hpp, the bridge, random.c) plus a ~30-line debug
   check; tests/cpp ~250 (two pins, tests rewritten or removed); tinytest ~30; benchmarks ~60 (a

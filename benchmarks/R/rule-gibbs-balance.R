@@ -119,11 +119,11 @@
 #
 # Both poisons of the design are engine defects, so each is run here the way
 # change-balance.R and swap-balance.R run their wrong targets: the flag
-# mutates the SCRIPT's expectation to the law the defective kernel would
-# target, and the gate must FAIL against it. Both are leading-order, undiluted
-# predictions - the arm's change and birth/death shares pull a really-poisoned
-# chain back toward the true law - and each mutates the ONE statistic the
-# design requires it to fail.
+# mutates the SCRIPT's expectation to the distribution the defective kernel
+# would target, and the gate must FAIL against it. Both are leading-order,
+# undiluted predictions - the arm's change and birth/death shares pull a
+# really-poisoned chain back toward the true distribution - and each mutates
+# the ONE statistic the design requires it to fail.
 #   poison1 : the two log(1 - growth(child)) terms dropped. Statistic 3's five
 #             states go from (0.2981, 0.1346, 0.1346, 0.1346, 0.2981) to
 #             uniform 0.2 - the ends fall 33 percent, the middles rise 49.
@@ -332,10 +332,10 @@ names(leafTarget) <- leafLabels
 # available variable, the variable draw is forced and 1/|SI| = 1/5 is constant
 # over the child's whole neighbourhood. Conditional on that child being a nog
 # node - it splits, and both grandchildren are leaves - the only term left
-# varying is the pair of `1 - growth` factors, so the law over the five cuts is
-# proportional to (1 - growth(left grandchild)) x (1 - growth(right)), the
-# factor being 1 where a cut leaves that grandchild no available variable at
-# all.
+# varying is the pair of `1 - growth` factors, so the distribution over the
+# five cuts is proportional to (1 - growth(left grandchild)) x (1 -
+# growth(right)), the factor being 1 where a cut leaves that grandchild no
+# available variable at all.
 
 childCuts <- seq_len(K1 - 1L)
 childWeights <- vapply(

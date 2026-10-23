@@ -500,7 +500,7 @@ named beside it.**
    prior at the default `n.trees.variance = 40`. Change `base.variance`,
    `power.variance` or `n.trees.variance` and the number moves. The correct
    statement is "an ensemble's share of the veto is its share of `T_j`", the count
-   law the same measurement confirmed to within 8% under a 4x widening.
+   distribution the same measurement confirmed to within 8% under a 4x widening.
 3. Conditional on one response surface (deviation D4), one cut grid, and the n/p/
    move grid the pre-registration pinned.
 4. T1's ratio clause, the only non-GREEN clause, is Poisson-noise dominated at the
@@ -1160,7 +1160,7 @@ repartitionTrees no-change asserted by test (plan item 3). Harness:
 three transactional scenarios per shape (accept whole-matrix, accept
 single-column, rollback) with the engine's accepted verdict recorded
 as a channel; multinomial accept jitter 0.002 (0.005 rolls back at
-K=3x40 - the count law visible in the fixture). Baselines
+K=3x40 - the count distribution visible in the fixture). Baselines
 equivalence/bcf-equivalence/multinomial-equivalence-938eb81.rds:
 neutrality partition first, self-reproduction 33/33 strict, 9/9, 7/7;
 equivalence.yaml re-pinned. Gates double-run (implementer +

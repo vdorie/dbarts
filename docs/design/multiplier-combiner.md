@@ -308,9 +308,10 @@ the likelihood is constant along the orbit, so the move preserves the posterior
 IFF it preserves the PRIOR's along-orbit conditional. Draw `(b0,b1,tau)` from
 the prior (`b0,b1 ~ N(0,sB2)`, `tau_l ~ N(0,leafVar_tau)` iid), apply ONE move
 (draw c from its conditional, rescale), test the pushed sample still has the
-prior law (KS on marginals). Two independent parameterizations -- a vectorized
-log-grid inverse-CDF on GIG(p=(Lt-2)/2, A=Mt/vT, B=(b0^2+b1^2)/sB2) via v=c^2,
-and one on the operational form (**) in c directly. Results (N=20000):
+prior distribution (KS on marginals). Two independent parameterizations -- a
+vectorized log-grid inverse-CDF on GIG(p=(Lt-2)/2, A=Mt/vT, B=(b0^2+b1^2)/sB2)
+via v=c^2, and one on the operational form (**) in c directly. Results
+(N=20000):
 
     Lt=3  (p=0.5): GIG KS  b0=.113 b1=.061 tau1=.710 tauLast=.523 Mt=.340
                    oper KS b0=.051 b1=.208 tau1=.623   sign preserved TRUE

@@ -663,11 +663,11 @@ new partition, and recomputes `combinedVariance`. `Chain::repartitionTrees`
 rejected transaction restores the variance trees' partitions exactly rather
 than leaving them re-routed by the declined proposal.
 
-A stored state is held to the same law by merging rather than refusing.
-`Chain::stateIsValid`'s variance branch checks tree well-formedness and strict
-leaf positivity; a variance bottom the current data leaves empty, which would
-carry no drawn scale, is merged into its parent at install with the geometric
-mean, as `refreshVarianceForest` merges after a forced predictor swap
+A stored state is held to the same distribution by merging rather than
+refusing. `Chain::stateIsValid`'s variance branch checks tree well-formedness
+and strict leaf positivity; a variance bottom the current data leaves empty,
+which would carry no drawn scale, is merged into its parent at install with the
+geometric mean, as `refreshVarianceForest` merges after a forced predictor swap
 ([`Chain::rebuildVarianceForest`](../../src/bartcore/chain.hpp)). The mean
 forests merge the same way, so `$setState`, `copy()`, a reload and a warm start
 never install a bottom no row reaches; without `forceUpdate` `$setState`
@@ -739,7 +739,7 @@ Semantics:
 - The default fill is now the MULTIPLICATIVE identity 1.0. A 0.0 leaf is
   user-visible with no round trip at all - `predict()` over a slot no sweep has
   written yet multiplies a zero into the product - and, once validation applies
-  the scale-leaf positivity law to saved trees, it would make the engine's own
+  the scale-leaf positivity rule to saved trees, it would make the engine's own
   `storeState` emit a state its own `stateIsValid` rejects.
 - Saved trees are held to form (`flatTreeIsWellFormed`, masks included) and leaf
   positivity only. A saved slot is a historical replay target routed over NEW
@@ -769,8 +769,8 @@ variance tree count: a state whose live variance block was replaced by a shorter
 one would otherwise slice across two sweeps' trees and still present the right
 count downstream. Both are refused as `varianceSlotMismatch`, before any live
 state is touched. The sliced trees are additionally held to the scale-leaf
-positivity law state validation applies to a saved slot - the fix multiplies the
-hand-buildable surface by capacity, and a rebuild scatters the leaf straight
+positivity rule state validation applies to a saved slot - the fix multiplies
+the hand-buildable surface by capacity, and a rebuild scatters the leaf straight
 into a divisor.
 
 ## 17. Post-landing: the grouped composition is moot (D6)

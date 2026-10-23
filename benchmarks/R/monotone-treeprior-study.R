@@ -18,20 +18,20 @@
 #   interaction p 5, x1 (1 + 4 x2) + x1 x3 + sin(2 pi x2); x1 constrained, x2
 #               and x3 free, x4 and x5 noise
 # Each truth is checked nondecreasing in its constrained predictors before a
-# run starts. Noise sd is the truth's sd under the design's law (Monte Carlo,
-# 10^6 draws) over 3 ("low") or times 1 ("high"). n 200 and 2000, 8
+# run starts. Noise sd is the truth's sd under the design's distribution (Monte
+# Carlo, 10^6 draws) over 3 ("low") or times 1 ("high"). n 200 and 2000, 8
 # replicates, one chain of 500 burn-in and 500 kept sweeps, one thread. A job
 # is one data set (design, noise, n, replicate) at one tree count, fit by all
 # three arms in turn, the order rotated by replicate, so sweep times compare
-# within a job. Per fit, on 2000 held-out points from the design's law: RMSE
-# of the posterior mean against the truth, 95% interval coverage of the truth
-# and mean width, and the log predictive score of fresh noisy responses there
-# (mean per point); varcount shares per predictor, summed over the
-# constrained, free and noise groups, and splits per tree; wall and CPU
-# seconds per sweep. As a check of the constraint, each constrained predictor
-# also gets 3 lines of 51 points with the other predictors drawn once per line,
-# and the largest fall of any draw along any line is kept as a share of the
-# truth's sd (zero for a monotone fit; the free arm's is its own).
+# within a job. Per fit, on 2000 held-out points from the design's
+# distribution: RMSE of the posterior mean against the truth, 95% interval
+# coverage of the truth and mean width, and the log predictive score of fresh
+# noisy responses there (mean per point); varcount shares per predictor, summed
+# over the constrained, free and noise groups, and splits per tree; wall and
+# CPU seconds per sweep. As a check of the constraint, each constrained
+# predictor also gets 3 lines of 51 points with the other predictors drawn once
+# per line, and the largest fall of any draw along any line is kept as a share
+# of the truth's sd (zero for a monotone fit; the free arm's is its own).
 #
 # Rule: mBART's values become the tree prior under every monotone fit if
 #   (a) at 200 trees, in every design, noise and n cell, joint.mbart minus
@@ -146,7 +146,7 @@ drawX <- function(design, n) {
   x
 }
 
-# the truth's sd under the design's law, by Monte Carlo on its own seed
+# the truth's sd under the design's distribution, by Monte Carlo on its own seed
 truthSd <- function(design) {
   set.seed(1L)
   stats::sd(design$f(drawX(design, 1000000L)))

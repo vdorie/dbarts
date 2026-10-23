@@ -1,12 +1,12 @@
 # The no-empty-leaf conditioning the initializer applies
-# (test-prior-init-empty-leaves.R) is ONE law for every forest. A move refuses
-# a tree of forest f that leaves a leaf no row reaches, and reads neither the
-# coupling's per-forest precisions - which carry the glue - nor a weight
-# installed for f, so each forest's rejection draw conditions on membership
-# alone. That matters by DEFAULT, not in a corner: a two-forest construction
-# seeds its amplitudes at (a, b0, b1) = (1, 0, 1), which leaves every control
-# row weightless in the treatment forest, and a treatment tree may still hold a
-# leaf of control rows only.
+# (test-prior-init-empty-leaves.R) is ONE distribution for every forest. A move
+# refuses a tree of forest f that leaves a leaf no row reaches, and reads
+# neither the coupling's per-forest precisions - which carry the glue - nor a
+# weight installed for f, so each forest's rejection draw conditions on
+# membership alone. That matters by DEFAULT, not in a corner: a two-forest
+# construction seeds its amplitudes at (a, b0, b1) = (1, 0, 1), which leaves
+# every control row weightless in the treatment forest, and a treatment tree
+# may still hold a leaf of control rows only.
 #
 # The oracle is the sibling file's - the drawn trees report the rows that reach
 # each node, and routing ONLY the rows a forest's precisions reach through them
@@ -67,7 +67,7 @@ forestNodes <- function(sampler, forest, rows = NULL) {
 }
 leavesPerTree <- function(nodes) tapply(nodes$var == -1L, nodes$tree, sum)
 
-# --- one law for both forests, on the DEFAULT construction ------------------
+# --- one distribution for both forests, on the DEFAULT construction ---------
 # One pass collects three claims: every leaf of either forest holds a row; a
 # treatment-forest leaf that no treated row reaches is legal and common; and
 # the treatment trees have the SHAPE the same prior draws over all 80 rows in a
@@ -109,7 +109,7 @@ expect_true(tauUnreached > 200L)
 # 0.01 apart
 expect_true(abs(mean(referenceCounts) - mean(tauCounts)) < 0.2)
 
-# --- no row weighted at all: the same law, never a fault ---------------------
+# --- no row weighted at all: the same distribution, never a fault ------------
 # A forest whose every row carries zero weight draws its trees from the same
 # conditioned prior, since the conditioning does not read the weights.
 # Reachable per forest, through a zero per-forest weight ...
@@ -135,12 +135,12 @@ expect_true(nrow(maskedNodes) > 2L * numTrees)
 expect_true(all(maskedNodes$n[maskedNodes$var == -1L] > 0L))
 maskedDraws <- masked$run(2L, 2L)
 expect_true(all(is.finite(maskedDraws$train)))
-# with the mask lifted the same sampler draws from the same law
+# with the mask lifted the same sampler draws from the same distribution
 masked$setActiveRows(rep(1, n))
 masked$sampleTreesFromPrior()
 expect_true(nrow(masked$getTrees(current = TRUE)) > 2L * numTrees)
 
-# --- grow-from-root holds the same law -------------------------------------
+# --- grow-from-root holds the same distribution ----------------------------
 # XBART-style initialization keeps both children non-empty through the scan's
 # occupancy gate, which counts MEMBERS as the moves do: every grown leaf holds
 # a row, and one may hold only rows the forest's precisions do not reach. The

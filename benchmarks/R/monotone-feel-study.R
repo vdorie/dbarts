@@ -25,11 +25,11 @@
 # leaves per tree.
 #
 # Fits: x1 increasing, x2 free and x3 noise, uniform on [0, 1]^3; noise sd a
-# third of the truth's sd under that law. Truths: ramp x1; step 1{x1 > 0.5};
-# hinge max(0, x1 - 0.6) / 0.4; interaction x1 (1 + 2 x2) + sin(2 pi x2). n
-# 200 and 2000, 4 replicates (the recorded run took 8), one chain of 500
-# burn-in and 500 kept sweeps, one thread. A job is one data set (truth, n,
-# replicate) at one tree count, fit by all four arms in turn, the order
+# third of the truth's sd under that distribution. Truths: ramp x1; step
+# 1{x1 > 0.5}; hinge max(0, x1 - 0.6) / 0.4; interaction x1 (1 + 2 x2) + sin(2
+# pi x2). n 200 and 2000, 4 replicates (the recorded run took 8), one chain of
+# 500 burn-in and 500 kept sweeps, one thread. A job is one data set (truth,
+# n, replicate) at one tree count, fit by all four arms in turn, the order
 # rotated by replicate, so sweep times compare within a job. Per fit, on a
 # test grid of x1 on 101 points by x2 on 0.05, 0.15, ..., 0.95, with x3
 # uniform per x2 row and held along x1, so every curve along x1 holds x2 and
@@ -90,7 +90,7 @@ truthFunction <- function(truth, x1, x2) {
     interaction = x1 * (1 + 2 * x2) + sin(2 * pi * x2)
   )
 }
-# the truth's sd under the uniform law, by a 1000 x 1000 midpoint rule
+# the truth's sd under the uniform distribution, by a 1000 x 1000 midpoint rule
 truthSd <- function(truth) {
   mid <- (seq_len(1000L) - 0.5) / 1000
   f <- truthFunction(truth, rep(mid, 1000L), rep(mid, each = 1000L))

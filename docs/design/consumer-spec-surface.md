@@ -8,7 +8,7 @@ It closes the last gap in the public path to the flat C API: a `LinkingTo: dbart
 consumer can already build a `dbartsData` and call `dbarts_sampler_create`, but has
 no supported way to produce the `dbartsModel` and the resolved `dbartsControl` that
 call expects. rng class: BYTE-neutral (a pure factoring of `dbarts()`'s existing
-resolution; no draw-law change, no engine code).
+resolution; no draw-distribution change, no engine code).
 
 ## 1. The problem
 

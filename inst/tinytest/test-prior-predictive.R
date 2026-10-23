@@ -137,8 +137,8 @@ expect_error(
 # (f) a heteroscedastic sampler has no scalar sigma to add as observation
 # noise: "ppd" draws the variance forest from its prior too and adds
 # s(x) eps at the predicted rows. "ev" never reaches that draw and is a
-# mean-surface prior draw either way. The law of the added noise is pinned in
-# test-heteroscedastic.R, beside the accessor it reads s(x) with.
+# mean-surface prior draw either way. The distribution of the added noise is
+# pinned in test-heteroscedastic.R, beside the accessor it reads s(x) with.
 sampler.variance <- dbarts(
   y ~ x,
   control = control.plain,

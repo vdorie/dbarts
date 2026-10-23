@@ -4,15 +4,16 @@
 # here draws from a sampler's own prior the way the in-repo SBC harness does;
 # what is shared with it is the rank rule and the uniformity verdict below.
 
-# Rank of theta0 among L draws WHEN THE LAW HAS ATOMS. #{draws < theta0} is
-# uniform only for an atomless law: an atom parks all its mass on one rank.
-# Tagging every draw AND theta0 with an iid Uniform(0, 1) and ranking the pairs
-# lexicographically makes theta0's tag exchangeable with the tags of the tied
-# draws, so an atom contributes a Uniform{0, ..., #ties} increment and the
-# total stays uniform on {0, ..., L}. Applied to EVERY functional: with no ties
-# it is #{draws < theta0} exactly and consumes no random numbers, and a
-# host-supplied functional - an indicator, a discrete parameter, a probability
-# that underflows to zero - ties more readily than a continuous draw does.
+# Rank of theta0 among L draws WHEN THE DISTRIBUTION HAS ATOMS. #{draws <
+# theta0} is uniform only for an atomless distribution: an atom parks all its
+# mass on one rank. Tagging every draw AND theta0 with an iid Uniform(0, 1) and
+# ranking the pairs lexicographically makes theta0's tag exchangeable with the
+# tags of the tied draws, so an atom contributes a Uniform{0, ..., #ties}
+# increment and the total stays uniform on {0, ..., L}. Applied to EVERY
+# functional: with no ties it is #{draws < theta0} exactly and consumes no
+# random numbers, and a host-supplied functional - an indicator, a discrete
+# parameter, a probability that underflows to zero - ties more readily than a
+# continuous draw does.
 sbcDiscreteRank <- function(draws, theta0) {
   below <- sum(draws < theta0)
   ties <- sum(draws == theta0)

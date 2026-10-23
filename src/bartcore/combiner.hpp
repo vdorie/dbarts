@@ -1775,9 +1775,10 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// PG(n_i, psi) is the sum of n_i iid PG(1, psi) draws (the only shipped
   /// sampler); at n_i = 1 the loop is empty, so exactly one PG draw with the
   /// identical psi - the byte-identical single-trial reduction of the label path.
-  /// At n_i = 0 the law is PG(0, .), the point mass at 0, and the row is out of
-  /// the effective mask, so the skip below is its exact draw and consumes no
-  /// variate; the 0 itself lives in the composed precision, never in omega.
+  /// At n_i = 0 the distribution is PG(0, .), the point mass at 0, and the row
+  /// is out of the effective mask, so the skip below is its exact draw and
+  /// consumes no variate; the 0 itself lives in the composed precision, never
+  /// in omega.
   ///
   /// A cancel polled inside the draws throws RefreshCancelled before forest
   /// f's tree update, leaving omega's f-th column part this sweep's draw and

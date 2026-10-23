@@ -75,10 +75,11 @@ logistic. Every fit of one forest, and every fit of several whose plain forest i
 drew: 33 pairs identical. Twelve calls that state a count, a tree prior, `interactions` or `blocks` beside
 forests that all have a basis are refused now and, respelled onto the first forest, draw what they drew.
 
-The same model in the other order has the same law. Sixteen seeds each way, 400 sweeps discarded and 800
-kept, 150 rows: two multiplied forests in either order differ in mean sigma by 0.57 standard errors, and
-the z of the difference in posterior mean fit has standard deviation 0.96 over the rows; the plain forest
-first against second, -0.25 and 1.07. One order under other seeds gives -0.84 and 1.17, and 1.45 and 0.94.
+The same model in the other order has the same distribution. Sixteen seeds each way, 400 sweeps discarded
+and 800 kept, 150 rows: two multiplied forests in either order differ in mean sigma by 0.57 standard
+errors, and the z of the difference in posterior mean fit has standard deviation 0.96 over the rows; the
+plain forest first against second, -0.25 and 1.07. One order under other seeds gives -0.84 and 1.17, and
+1.45 and 0.94.
 
 ## A held coefficient, for now
 

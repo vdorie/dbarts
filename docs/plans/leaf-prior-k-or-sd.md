@@ -40,7 +40,7 @@ for the name in open question (d); the implementer substitutes it everywhere.
 
 - The design being replaced: [nameable-calibration.md](nameable-calibration.md), whose `prior.scale` is
   the forest total's prior sd at k = 1. The rename to leaf vocabulary: [leaf-vocabulary.md](leaf-vocabulary.md).
-- Only the ratio of anchor to k enters a draw law. Under k ~ s * chi_nu (the engine's
+- Only the ratio of anchor to k enters a draw distribution. Under k ~ s * chi_nu (the engine's
   [`ChiKHyperprior`](../../src/bartcore/model.hpp) draws k^2 from a gamma with shape (M + nu) / 2 and a
   rate term 1 / (2 s^2)), the spread is sd = (anchor / s) / chi_nu: a scaled inverse chi on the sd
   scale, or equivalently sd^2 ~ scaled inverse chi-square with nu degrees of freedom. A named anchor and
@@ -111,7 +111,7 @@ hyperprior bits; since the engine does not change, identical inputs give identic
 | hurdle with `scale = P` (both halves) | refused | - | LOST: one sd cannot mean probit units on one half and log-y units on the other. The same posterior is two ordinary fits, a probit on 1{y > 0} and a gaussian on log y over the positive rows, each with its own sd, since the hurdle's halves are independent models |
 | `$setLeafPrior(prior.scale = P)`, k fixed k0 | `$setLeafPrior(prior.sd = P / k0)` | writes P -> writes (P / k0) k0 | identical write for a power-of-two k0 |
 | `$setLeafPrior(prior.scale = P)`, k ~ chi(nu, s), s finite | `$setLeafPrior(prior.sd.scale = P / s)` | writes P -> writes (P / s) s | identical write for a power-of-two s, the default 2 included |
-| `$setLeafPrior(prior.scale = P)`, k ~ chi(nu, Inf) | `$setLeafPrior(prior.sd.scale = 0)`, a no-op | - | nothing lost: the old write changed only the next sweep's leaf draws; the spread's law ignores P |
+| `$setLeafPrior(prior.scale = P)`, k ~ chi(nu, Inf) | `$setLeafPrior(prior.sd.scale = 0)`, a no-op | - | nothing lost: the old write changed only the next sweep's leaf draws; the spread's distribution ignores P |
 | `xbart(k = grid, leaf.prior = normal(scale = P))` | per open question (c) | per cell as the first row | each cell's prior is kept; whether one call can still sweep them is question (c) |
 
 Two things that are not priors change: the starting value of a drawn k when an old spelling paired a
@@ -184,9 +184,9 @@ The constructor states sd = c / chi_nu, c on the sd's scale, nu degrees of freed
 which scale the user thinks on (sd or variance) and whether the parameters carry a sqrt(nu) or a square.
 
 Why only this family: it is the one the engine can honor. k^2 is conjugate to the normal leaves, so
-the engine draws it exactly from a gamma; any law on the sd that is a chi on k (scaled inverse chi on
-the sd) comes free, and a half-t or half-Cauchy on the sd would need a new, non-conjugate engine
-update. The manual says so.
+the engine draws it exactly from a gamma; any distribution on the sd that is a chi on k (scaled
+inverse chi on the sd) comes free, and a half-t or half-Cauchy on the sd would need a new,
+non-conjugate engine update. The manual says so.
 
 What others call this family (per each package's documentation; re-check at implementation):
 
@@ -211,12 +211,13 @@ Options, ranked:
    parameter (as in `chi`, `dcauchy`, `dgamma`); the first argument's name must be chosen against
    `chi` or `chisq`.
 2. `invchisq(df, s)` on the variance, Stan's convention (s on the sd scale). The best-known family
-   name. Cost: a variance law inside an `sd =` argument; c = s * sqrt(nu), so the binary default is not
-   exactly representable (sqrt(1.5)); geoR, LaplacesDemon and extraDistr use the same name with s^2;
-   and it gives one family two names in one vocabulary, since `chisq` already is that law on sigma^2.
+   name. Cost: a variance distribution inside an `sd =` argument; c = s * sqrt(nu), so the binary
+   default is not exactly representable (sqrt(1.5)); geoR, LaplacesDemon and extraDistr use the same
+   name with s^2; and it gives one family two names in one vocabulary, since `chisq` already is that
+   distribution on sigma^2.
 3. `invgamma(shape, scale)` on the variance. Widely known in R; shape = nu / 2, scale = c^2 / 2. Cost:
-   halves and squares, a variance law in an `sd =` argument, and scale-versus-rate conventions differ
-   across packages.
+   halves and squares, a variance distribution in an `sd =` argument, and scale-versus-rate
+   conventions differ across packages.
 4. Reuse `chisq(df, quant)`. `quant` calibrates against `sigest`, a data-fixed value. Carried over,
    P(sd < data anchor) = quant is a RELATIVE statement, a respelling of the k form (the binary default
    `chi(1.5, 2)` is quant = 0.78), not the absolute sd form the ruling asks for. An absolute version
@@ -272,7 +273,8 @@ A prior-predictive helper returning the prior spread of f at given x is filed in
    literals the Step 5 test pins.
 1. The constructor and classes (R/A_class.R, R/model.R; ~70).
    - `dbartsSdHyperprior`: slots nu and c, validity nu > 0 and finite, c >= 0 and finite. Not a
-     subclass of `dbartsLeafHyperprior`, which means a law on k, so `k = invchi()` is refused.
+     subclass of `dbartsLeafHyperprior`, which means a distribution on k, so `k = invchi()` is
+     refused.
    - `invchi(nu = 1.5, c)`: `c` missing is an error. Added to [`dbartsPriors`](../../R/model.R).
    - `dbartsNormalPrior`, `dbartsLinearPrior`, `dbartsGPPrior`: drop the `prior.scale` slot; `prior.sd`
      becomes class "ANY", NULL for unnamed, a positive number, or a `dbartsSdHyperprior` (mirroring the
@@ -313,9 +315,9 @@ A prior-predictive helper returning the prior spread of f at given x is filed in
      k axis, refused beside a `k` grid.
 4. The sampler (R/dbarts.R, R/bart.R; ~80 under b1 and a1; ~+50 under b2; ~+40 under a2).
    1. `getLeafPrior`: the bridge's first column is dropped in R and two columns follow `prior.sd`:
-      `prior.sd.df` and `prior.sd.scale`, the sd law in force when this forest's k is drawn (nu, and
-      the anchor divided by the in-force chi scale; 0 under an infinite chi scale), NaN when k is fixed.
-      The hyperprior is read from the R5 `model` field and gated by the engine's per-forest
+      `prior.sd.df` and `prior.sd.scale`, the sd distribution in force when this forest's k is drawn
+      (nu, and the anchor divided by the in-force chi scale; 0 under an infinite chi scale), NaN when k
+      is fixed. The hyperprior is read from the R5 `model` field and gated by the engine's per-forest
       `k.has.hyperprior`, so a BCF or multinomial forest (k pinned) reads NaN. Under b1, 13 columns
       and the stacked read is n.chains x 13 x n.forests. Under b2, an `anchor` column follows
       `k.has.hyperprior` (14 columns), and on a named-sd model the `k` column and `fit$k` are the
@@ -456,10 +458,10 @@ are not calls; they are listed above for the maintainer.
    identical engine inputs. Rejected: the unit scale (same prior, chain starts at half the named
    spread, bitwise-identical to nothing); a start-k channel in the bridge (a bridge change for an
    initialization detail).
-2. The reader drops `prior.scale` and adds the sd law in force (`prior.sd.df`, `prior.sd.scale`, NaN
-   under a fixed k), computed in R from the model's hyperprior and the engine's anchor. Rejected:
-   adding the hyperprior to the engine's `ForestCalibration` (an engine change for a value the R model
-   already holds truthfully). Whether an anchor column stays is open question (b).
+2. The reader drops `prior.scale` and adds the sd distribution in force (`prior.sd.df`,
+   `prior.sd.scale`, NaN under a fixed k), computed in R from the model's hyperprior and the engine's
+   anchor. Rejected: adding the hyperprior to the engine's `ForestCalibration` (an engine change for a
+   value the R model already holds truthfully). Whether an anchor column stays is open question (b).
 3. `invchi` accepts c = 0, translated to an unnamed anchor with chi(nu, Inf), so the sd form covers
    everything the k form does and the reader's 0 can be written back. Rejected: spelling the improper
    prior only as `k = chi(nu, Inf)` (the reader would report a value the writer refuses).
@@ -516,11 +518,12 @@ Departures from the plan:
 
 - The writer follows the later ruling: `$setLeafPrior(leaf.prior)` takes the
   creation vocabulary, has no forest argument, and replaces
-  `prior.sd`/`prior.sd.scale`/`prior.mean`. A new anchor under the law in
-  force goes through the engine's leaf-scale writer; a new law goes through
-  the model install, with a fixed sigma put back. The engine's writer now
-  derives its internal scale with creation's arithmetic, so writing a named
-  sd back is bitwise inert (an approved correctness fix; draw-neutral).
+  `prior.sd`/`prior.sd.scale`/`prior.mean`. A new anchor under the
+  distribution in force goes through the engine's leaf-scale writer; a new
+  distribution goes through the model install, with a fixed sigma put back.
+  The engine's writer now derives its internal scale with creation's
+  arithmetic, so writing a named sd back is bitwise inert (an approved
+  correctness fix; draw-neutral).
 - The reader's label of what `prior.sd` refers to is the attribute
   `prior.sd.of`, not a column, while the reader's shape is with the
   maintainer. The reader has 14 columns.

@@ -2,9 +2,9 @@
 // seeded determinism and the documented per-node draw count, the well-formed /
 // legal-chain-state invariants of a grown tree, the categorical rules it now
 // places and their gauge, the rows an enumerated cut candidate's likelihood
-// covers on a column with missing values, the law the categorical root draw
-// realizes in both enumeration branches and the closed-form mass invariant
-// behind it, the 1 + A coins a categorical rule assembly spends, and
+// covers on a column with missing values, the distribution the categorical
+// root draw realizes in both enumeration branches and the closed-form mass
+// invariant behind it, the 1 + A coins a categorical rule assembly spends, and
 // grow-then-MH continuation through a live sampler.
 #include "common.hpp"
 
@@ -201,7 +201,7 @@ void testGrownTreeWellFormed() {
 // is the branch the shallow fixtures never reach: the scan must sentinel BOTH
 // directions there, since a candidate scoring a rule outside the ancestor
 // interval is drawable and would place a rule the gauge rejects and a child the
-// occupancy law forbids.
+// occupancy rule forbids.
 void testDeepGrowWithMissing() {
   // a saved snapshot of the shared runif01 stream keeps the seed-pinned suites
   // downstream of this TU bitwise intact
@@ -529,20 +529,20 @@ void testGrowHonorsInteraction() {
 // no-split term covers. growTreeFromRoot therefore enumerates both directions
 // of every cut wherever a node holds missing members, scores each with those
 // rows in the child it names, gives each CGM's mass for ONE rule, and spends no
-// post-draw coin. This measures that the realized law is really so, by
-// comparing three laws over the outcome space {no-split} U {(cut, missing
-// side)}:
+// post-draw coin. This measures that the realized distribution is really so, by
+// comparing three distributions over the outcome space {no-split} U {(cut,
+// missing side)}:
 //
 //   exact    all 2 * numCuts rules enumerated separately, each carrying its own
 //            likelihood with the missing rows PLACED on the side its rule
-//            names. This is the law the CGM prior and the leaf marginal define,
-//            reconstructed here from the raw fixture and not from the kernel,
-//            and it is what the kernel must realize. Support: every cut of
-//            these fixtures is occupancy-nonempty (asserted below), so the
-//            enumeration is the whole rule set here; where a cut's non-missing
-//            members are one-sided the scan sentinels both its directions and
-//            the kernel's support is the smaller one (test_scan.cpp pins the
-//            pairing).
+//            names. This is the distribution the CGM prior and the leaf
+//            marginal define, reconstructed here from the raw fixture and not
+//            from the kernel, and it is what the kernel must realize. Support:
+//            every cut of these fixtures is occupancy-nonempty (asserted
+//            below), so the enumeration is the whole rule set here; where a
+//            cut's non-missing members are one-sided the scan sentinels both
+//            its directions and the kernel's support is the smaller one
+//            (test_scan.cpp pins the pairing).
 //   dropped  each cut's two rules sharing one likelihood that omits the missing
 //            rows while the no-split term counts them - the convention the scan
 //            implemented until this fix, and the arm the realized draws must
@@ -553,18 +553,19 @@ void testGrowHonorsInteraction() {
 //
 // Decision rule, fixed before the run: chi-square goodness of fit at
 // alpha = 1e-3, df = cells - 1, over 2e5 grows per fixture. Realized root rules
-// matching the exact law while REJECTING both others confirms that a candidate
-// covers its missing rows; matching the dropped law instead would mean the scan
-// is skipping them again. The exact law's own draws are the calibration control
-// and must not reject.
+// matching the exact distribution while REJECTING both others confirms that a
+// candidate covers its missing rows; matching the dropped distribution instead
+// would mean the scan is skipping them again. The exact distribution's own
+// draws are the calibration control and must not reject.
 //
 // The fixture is swept in the quantity the defect is monotone in: the missing
-// rows' weighted sum of squared responses. At zero the dropped law is off only
-// by the child precision those rows never inflated - the floor - and the two
-// laws sit a total variation of ~0.017 apart; at 32 the omitted sum of squares
-// no longer cancels split-against-no-split and the distance is ~0.59. The
-// realized law must sit at the exact law at BOTH ends, the dose-response curve
-// being what tells a scoring fix from a coincidence at one fixture.
+// rows' weighted sum of squared responses. At zero the dropped distribution is
+// off only by the child precision those rows never inflated - the floor - and
+// the two distributions sit a total variation of ~0.017 apart; at 32 the
+// omitted sum of squares no longer cancels split-against-no-split and the
+// distance is ~0.59. The realized distribution must sit at the exact
+// distribution at BOTH ends, the dose-response curve being what tells a
+// scoring fix from a coincidence at one fixture.
 
 // deterministic fixture noise from a local counter generator, so the fixture
 // disturbs neither the shared ext_rng stream nor the global rngState the
@@ -582,10 +583,10 @@ double totalVariation(const std::vector<double>& p,
   return 0.5 * distance;
 }
 
-// One fixture of the sweep: build it, reconstruct the three laws, grow 2e5
-// roots against it, and check the realized frequencies. `missingResponse` is
-// the common response the missing rows carry, so their weighted sum of squares
-// is numMissing * missingResponse^2 - the dose.
+// One fixture of the sweep: build it, reconstruct the three distributions,
+// grow 2e5 roots against it, and check the realized frequencies.
+// `missingResponse` is the common response the missing rows carry, so their
+// weighted sum of squares is numMissing * missingResponse^2 - the dose.
 double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
                                 double alpha) {
   const size_t n = 64, numMissing = 8;
@@ -679,7 +680,7 @@ double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
   std::vector<double> dropped(normalizedFromLogWeights(logDropped));
   std::vector<double> halved(normalizedFromLogWeights(logHalved));
 
-  // realized root rules: the shipped kernel, then the exact law's own draws
+  // realized root rules: the shipped kernel, then draws from the exact one
   std::vector<double> shippedCounts(numCells, 0.0), exactCounts(numCells, 0.0);
   ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, nullptr);
   ext_rng_setSeed(rng, 20260812u);
@@ -737,8 +738,9 @@ double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
   check(pValue(x2ExactVsExact) >= alpha,
         "the exact law's own draws match it (chi-square calibration)");
   // the measurement: a candidate carries its missing rows into the child its
-  // own direction names, so the realized law is the exact law on the full rule
-  // set and neither of the laws that drop those rows from a split likelihood
+  // own direction names, so the realized distribution is the exact
+  // distribution on the full rule set and neither of the distributions that
+  // drop those rows from a split likelihood
   check(pValue(x2ShippedVsExact) >= alpha,
         "realized root rules match the exact law over the enumerated rules");
   check(pValue(x2ShippedVsDropped) < alpha,
@@ -757,9 +759,10 @@ void testOrdinalMissingRowsAreRouted() {
   double floorDistance = measureOrdinalMissingLaw(0.0, numDraws, alpha);
   double loadedDistance = measureOrdinalMissingLaw(2.0, numDraws, alpha);
   // the dose-response the defect was monotone in, pinned at both ends: the
-  // dropped law's distance from the exact one is the missing rows' never-
-  // inflated child precision at the floor and grows with their weighted sum of
-  // squares, while the realized law sits on the exact one throughout
+  // dropped distribution's distance from the exact one is the missing rows'
+  // never- inflated child precision at the floor and grows with their weighted
+  // sum of squares, while the realized distribution sits on the exact one
+  // throughout
   checkNear(floorDistance, 0.01691, 1e-3,
             "the dropped law's floor is the child precision those rows never "
             "inflated");
@@ -777,7 +780,7 @@ void testOrdinalMissingRowsAreRouted() {
 // the counter emits each unordered partition of the present set exactly once,
 // the orientation coin picks between that partition's two direction masks, and
 // no reachable position is left absent to need a coin of its own. The realized
-// root rule must then follow the ideal law
+// root rule must then follow the ideal distribution
 //
 //   no-split   (1 - growth) L(node)
 //   mask m     growth / (2^R - 2) * L(left of m) L(right of m)
@@ -880,7 +883,7 @@ void testCategoricalExactDrawLaw() {
     }
     counts[cell] += 1.0;
   }
-  // the calibration control: the law's own draws, at this cell and draw count
+  // the calibration control: the distribution's own draws, same cell and count
   for (size_t draw = 0; draw < numDraws; ++draw)
     control[ext_rng_drawFromDiscreteDistribution(rng, law.data(), numCells)] +=
       1.0;
@@ -1492,21 +1495,23 @@ void testCategoricalGrowHonorsInteraction() {
 }
 
 // ---------------------------------------------------------------------------
-// The conditional law BELOW the root.
+// The conditional distribution BELOW the root.
 //
-// Every other law test here measures a ROOT draw, where every variable is
-// available and the ancestor interval is the whole grid - the two places the
-// split-variable normalizer and the cut normalizer are indistinguishable from
-// their global counterparts. Below the root they are not: the normalizer is
-// 1 / numAvailable over the variables the node can still split on, and a
-// variable whose cuts an ancestor has exhausted is not one of them.
+// Every other distribution test here measures a ROOT draw, where every
+// variable is available and the ancestor interval is the whole grid - the two
+// places the split-variable normalizer and the cut normalizer are
+// indistinguishable from their global counterparts. Below the root they are
+// not: the normalizer is 1 / numAvailable over the variables the node can
+// still split on, and a variable whose cuts an ancestor has exhausted is not
+// one of them.
 //
 // The fixture makes those two counts differ. Column 0 carries two values, so
 // it has ONE cut; the root spends it, and at either child column 0 is
 // unavailable while column 1 still is. numAvailable is therefore 1 against 2
-// predictors, and the law that reads numPredictors instead multiplies every
-// split candidate by 1/2 relative to no-split - which is what the second
-// reference law below is, and what the chi-square must reject.
+// predictors, and the distribution that reads numPredictors instead
+// multiplies every split candidate by 1/2 relative to no-split - which is
+// what the second reference distribution below is, and what the chi-square
+// must reject.
 void testConditionalLawBelowRoot() {
   const size_t n = 512, numDraws = 60000;
   const double alpha = 1e-3, k = 2.0, sigma = 0.9;

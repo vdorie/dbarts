@@ -68,14 +68,14 @@ the question answerable at all.
   in-house measurement of the hazard (56.1 vs 9.3 IACT alternating vs
   collapsed at 3 groups; ~3-9x on the real engine; ASIS made it *worse*).
 - `docs/design/grow-from-root-default.md` sec 3, 4.4, 4.8, 4.9 and
-  `docs/plans/archive/grow-from-root-default-study.md` - the house design law this
-  file is bound by, and the source of the one reusable statistic (C2).
+  `docs/plans/archive/grow-from-root-default-study.md` - the house design rule
+  this file is bound by, and the source of the one reusable statistic (C2).
 - Form: `docs/plans/archive/grow-from-root-default-study.md`,
   `docs/plans/multiforest-veto-rate-falsifier.md`.
 - Feasibility log with every executed command, and prototypes: both
   gitignored (session-local, not retained).
 
-Three house laws this design is bound by:
+Three house rules this design is bound by:
 
 1. **At m = 75 no structural statistic can detect structural mode
    collapse** - the ensemble self-averages a label like "the root splits on
@@ -410,7 +410,7 @@ present at both dial levels and cancels.
 | **E2** | inclusion-dispersion inefficiency factor, between-chain route | **PRIMARY, limb (b)** |
 | **E3** | inclusion autocorrelation time, within-chain route | **limb (b) alternate** |
 | **E4** | IACT of per-sweep mean tree depth | **limb (b) second alternate**; reported |
-| **T3** | per-tree root-variable switch count | REPORTED at m = 75 (house law 1); reported at m = 1 |
+| **T3** | per-tree root-variable switch count | REPORTED at m = 75 (house rule 1); reported at m = 1 |
 | **T4** | at X: root-on-x1 statistics | REPORTED, see below |
 | **T5** | IACT of held-out error, and of sigma (A0/A1/A2 only) | REPORTED - the record's secondary readouts, restored |
 
@@ -1089,7 +1089,7 @@ must not.
    scale with the 56.1 / 9.3 surrogate numbers.
 6. **Anything about the collapse.** No arm here is a collapsed sampler.
    That door stays priced and declined.
-7. **Structural mode collapse at m = 75.** House law 1. T3 at m = 75 is
+7. **Structural mode collapse at m = 75.** House rule 1. T3 at m = 75 is
    reported, never gated; the m = 1 cells are reported for the four reasons
    listed under Scenarios.
 8. **Structural acceptance behaviour.** Not exposed by any shipped surface;

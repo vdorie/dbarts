@@ -61,11 +61,11 @@ defines the classes.
   one. Accepted where refused: an sd stated on such a model, and its `copy()`, reload and
   `new("dbartsSampler", control, model, data)`, which the record's anchor of 0 refused.
 - Push 2, its first commit, the bound under which a row leaves a forest's update: bit for bit for every
-  recorded scenario, every snapshot and every seeded pin of the suite, and gated so, alone. In law it
-  changes a sweep in which some row's multiplier is under 2^-26 in absolute value and not under 2^-26
-  of the forest's largest, or the reverse; that is every sweep of a numeric column whose values are
-  below about 1e-8, to which the forest was blind, and otherwise a sweep where a coefficient has come
-  within nine orders of magnitude of zero or of another level's.
+  recorded scenario, every snapshot and every seeded pin of the suite, and gated so, alone. In
+  distribution it changes a sweep in which some row's multiplier is under 2^-26 in absolute value and
+  not under 2^-26 of the forest's largest, or the reverse; that is every sweep of a numeric column
+  whose values are below about 1e-8, to which the forest was blind, and otherwise a sweep where a
+  coefficient has come within nine orders of magnitude of zero or of another level's.
 - Push 2, the rule: POSTERIOR-CHANGING for every model with a numeric multiplier, drawn, at the default
   sd or a stated one. NEUTRAL for every model whose forests have no basis or a factor, held or drawn,
   stated or not. Accepted where refused: a held coefficient on a numeric column (dec-B353's refusal is
@@ -148,11 +148,11 @@ or eight levels and for two numeric columns were measured too; both shapes are r
 - The suite. At the tip 232 files; on push 3's build (4eeaf03d, traced 2026-10-07) 233, of which 230
   without the three that ask for more than two threads give 17121 results, none failing. At 37b59ea0
   there are 257 files; not run for this recheck.
-- The law today. s is the stated or default number, c the median nonzero absolute value of the column.
+- The rule today. s is the stated or default number, c the median nonzero absolute value of the column.
 
   | forest | coefficient | the forest's own sd | what was measured, over s L |
   |---|---|---|---|
-  | no basis, drawn | N(0, v), v inverse-gamma: its size half-Cauchy, median s (measured 2.05 at s = 2; q90 / q50 6.6, the law's 6.3) | L (0.999) | a F: 1.02 |
+  | no basis, drawn | N(0, v), v inverse-gamma: its size half-Cauchy, median s (measured 2.05 at s = 2; q90 / q50 6.6, the distribution's 6.3) | L (0.999) | a F: 1.02 |
   | no basis, held | 1 | L, whatever s (0.995) | F: 1.42 at s = 0.7; 0.50 at the gaussian default 2; 0.99 at the latent default 1 |
   | two-level factor, drawn | N(0, 1/2) each (sd 0.71) | s L / 0.674 (1.48 at s = 1) | (a_2 - a_1) F: 0.99 to 1.01 |
   | two-level factor, held, second forest | (0, 1) | s L / 0.674 | (a_2 - a_1) F: 1.49 |
@@ -285,11 +285,11 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   forest's sd, as `show` of a sampler and the verbose summary do; `summary()` of a fit has one line
   under its table, `(Fixed, not sampled: leaf.prior.sd[forest1] = 2.2471, leaf.prior.sd[dose] = 0.9174,
   leaf.prior.sd[zf] = 0.6000)`, the reader's `sd` entries by label.
-- A stand-in for the slice: the forest-prior-args design's prototype of the law, ported to the tip (the
-  engine, the bridge and R in the tip's spelling, an sd still in units of L; it also carries the
+- A stand-in for the slice: the forest-prior-args design's prototype of the rule, ported to the tip
+  (the engine, the bridge and R in the tip's spelling, an sd still in units of L; it also carries the
   kind-by-class rule). On it:
-  - The law. 28 rows of the table under "The rule" and of its several-column rows since cut, every kind,
-    held and drawn, default and stated, at the second, third and first position, under the three
+  - The rule. 28 rows of the table under "The rule" and of its several-column rows since cut, every
+    kind, held and drawn, default and stated, at the second, third and first position, under the three
     families: measured size over the rule's 0.967 to 1.032. tests/cpp builds against it and passes, 350
     lines ok.
   - What keeps its bits. 20 of 20 seeded fits of forests with no basis or a factor, coefficients drawn, are
@@ -322,7 +322,7 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   (4.6 to 10.6), times 1.05 and 1.10 fail everywhere; n for n - 1 in the standard deviation, a scale
   times 0.987, fails the drawn arms only just (4.07, 4.06) and passes the held ones (2.6, 1.5). Under
   the first plan's fixed tolerance of 0.01 a scale 3 percent off passed every arm and 5 percent off
-  passed the held ones (the critic's run). Against an oracle written to a wrong law, as gaps: 0.674 left
+  passed the held ones (the critic's run). Against an oracle written to a wrong rule, as gaps: 0.674 left
   on a held coefficient 0.03 at the default, 0.10 and 0.21 at sds of 0.6 and 0.2 of the unit; a
   coefficient variance of 1/2, 0.11; a held coefficient at 0, 0.27; a centred column 0.51; a stated sd
   read per standard deviation 0.14 to 0.65; a default per unit 0.06 to 0.85; the scale taken over the
@@ -344,9 +344,9 @@ or eight levels and for two numeric columns were measured too; both shapes are r
   ["scaleTau"](../../benchmarks/R/bcf-exact.R) with the 0.674 whether it is held or not, and pass
   `amplitude.prior.variance = 0.5`; [sbc.R](../../benchmarks/R/sbc.R) has a
   ["fixedGlue"](../../benchmarks/R/sbc.R) arm. Run on the stand-in, in `quick`, with their oracles as they
-  are: the three gaussian gates pass under the new law (largest gaps 0.0034, 0.0224 against 0.03, and
+  are: the three gaussian gates pass under the new rule (largest gaps 0.0034, 0.0224 against 0.03, and
   0.0004), so they cannot see it. Nor can a small sd make them: by bcf-exact.R's own oracle, in its
-  design (150 rows, noise 0.3), the two laws differ by at most 0.0042 with sd.control 0.3 and sd.moderate
+  design (150 rows, noise 0.3), the two rules differ by at most 0.0042 with sd.control 0.3 and sd.moderate
   0.2, and by 0.0056 at sd.moderate 0.1, against its tolerances of 0.05 and 0.015. The latent gate fails
   in six of the seven arms that hold the treatment forest's coefficients (worst |z| 5.34 to 10.70; the
   seventh, three forests under probit, 3.97 and inside its bound) and passes in the two that hold only
@@ -431,7 +431,7 @@ Before and after, per path.
 | `setData`; a warm start | refused | refused |
 | `setResponse`, `setOffset`, `setWeights`, `setPredictor`, `setActiveRows` | move no forest's sd; with `updateScale = TRUE` refused on several forests (dec-B362, dec-A207) | unchanged, the refusal included; no change of weights or mask moves a recorded scale |
 | a control or a `forests` list carried to another fit | the forests' record is cleared | unchanged; a scale is on the data and never on the control |
-| a state stored before | | installs as any state; it holds nothing of the law |
+| a state stored before | | installs as any state; it holds nothing of the rule |
 
 ## The engine and 1.0-0
 
@@ -442,15 +442,15 @@ general and what is simply not built:
 - Kept as it is: a coefficient for each column of any block, their draw as one block under one variance
   ([`drawForestAmplitude`](../../src/bartcore/combiner.hpp), not edited by this slice), the state's glue
   block for any widths, a swap and a prediction at any width. A two-level factor is two columns there.
-- Kept, and new here: the forest's kind is stated to the engine (push 1), and the law is one function
+- Kept, and new here: the forest's kind is stated to the engine (push 1), and the rule is one function
   with a row for each kind. A two-column block is a factor's because it was said to be, never because of
   its width, so a numeric block of two columns, whichever of its meanings is chosen after the release, is
   a new row and no change to how a 1.0 model is read.
-- Not narrowed: a drawn levels block of more than two levels keeps the factor's law in the engine, which
-  it has today. R refuses it; nothing in tests/cpp is written on it by this slice.
+- Not narrowed: a drawn levels block of more than two levels keeps the factor's rule in the engine,
+  which it has today. R refuses it; nothing in tests/cpp is written on it by this slice.
 - Not built: a prior scale for each coordinate of a block, a default for each of several columns, a
   stated sd for each column, a held value for several numeric columns or for three or more levels, any
-  law for a numeric block of several columns. The engine throws on the last three; R never reaches
+  rule for a numeric block of several columns. The engine throws on the last three; R never reaches
   them. dec-B272 has the engine hold one scale a column from this slice on so that no stored state and
   no compiled interface changes when a size for each column is added. Under dec-B282 no 1.0 model has a
   second column to scale, and what that sentence protects holds without the code: a state stores no sd
@@ -617,11 +617,11 @@ shows what each forest resolved to; push 3 adds the sentence.
   numeric multiplier does too, on the same terms.
 - The help promises a default fit that does not depend on a column's units only on a tip that has the
   relative bound: the bound is push 2's first commit and the sentence its last.
-- The law is resolved in one function of the engine and nowhere in R: R states what the caller stated and
-  the kind, and reports what the engine returns. The engine holds every default, the column's scale
+- The rule is resolved in one function of the engine and nowhere in R: R states what the caller stated
+  and the kind, and reports what the engine returns. The engine holds every default, the column's scale
   among them: R computes no standard deviation that the engine uses.
-- A forest's law is resolved once for each construction, by the chain, and the combiner is handed the
-  result; no second derivation can differ from the first.
+- A forest's rule is resolved once for each construction, by the chain, and the combiner is handed
+  the result; no second derivation can differ from the first.
 - "Constant" is decided by comparing values, never by a computed standard deviation being zero, and in
   the engine, which knows the rows the scale is read from; R gives the engine's refusal its text.
 - [`inst/include/dbarts/dbarts.h`](../../inst/include/dbarts/dbarts.h) is not edited and
@@ -663,17 +663,17 @@ Three, each gated on its own and each a coherent tip.
    held numeric column stays. The exact gate's script is created with its held arms. bartCause's edit the
    same day.
 2. The numeric multiplier. First commit, gated alone and bit for bit: the bound under which a row leaves
-   a forest's update becomes relative. Then the law: the column as given, the normal coefficient, the
+   a forest's update becomes relative. Then the rule: the column as given, the normal coefficient, the
    default for one standard deviation of the column, over the rows in the likelihood, with its record,
    a held numeric column, the reader's and `extract`'s last change. dec-B353's refusal is lifted. The gate's numeric arms and four
    baseline scenarios. The design note is completed here.
 3. The printed block. R only.
 
 No tip between them fits a model nobody asked for: after push 1 a held numeric column is still refused,
-not held under half a law; push 2 lands the numeric law, its reader and its help together. Push 2's tip
-lacks the printed block for as long as push 3 takes; its help does not promise one. Push 3 changes no
-file under src/, so it is built in its own worktree while push 2's engine runs are watched, and takes
-the R-surface tier's review.
+not held under half a rule; push 2 lands the numeric rule, its reader and its help together. Push 2's
+tip lacks the printed block for as long as push 3 takes; its help does not promise one. Push 3 changes
+no file under src/, so it is built in its own worktree while push 2's engine runs are watched, and
+takes the R-surface tier's review.
 
 ## Steps
 
@@ -799,10 +799,10 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     - The four BCF gates: the `amplitude.prior.variance` argument goes, and each oracle takes the
       treatment forest's sd with no 0.674 in an arm that holds its coefficients and the prognostic
       forest's sd as stated in an arm that holds a, so that each says what the engine does. The three
-      gaussian ones are not this push's oracle: they pass under either law (Context) and cannot be made
-      to see it by a small sd. [bcf-latent-exact.R](../../benchmarks/R/bcf-latent-exact.R) is, under
-      probit and logistic: run it once on the push's build with its oracle left as it is, six arms
-      failing, and then restated, none.
+      gaussian ones are not this push's oracle: they pass under either rule (Context) and cannot be
+      made to see it by a small sd. [bcf-latent-exact.R](../../benchmarks/R/bcf-latent-exact.R) is,
+      under probit and logistic: run it once on the push's build with its oracle left as it is, six
+      arms failing, and then restated, none.
     - [sbc.R](../../benchmarks/R/sbc.R): the argument goes, and its fixed-glue arm draws its truth at the
       held scales; the arm constructs and runs its smallest setting.
 1.5 The baseline. Run the BCF compare against `bcf-equivalence-1b7d730c.rds`: 14 scenarios identical, with
@@ -813,7 +813,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     forest-prior-exact.R and of bcf-latent-exact.R pass, with their gaps.
 1.6 Respell. `amplitude.prior.variance` on the test lines that state it (31 lines of 6 files at the tip,
     recounted after the kind-by-class slice's removals): where it states 0.5 the argument is dropped and
-    the fit is the same; where it states another value the test pinned the tip's law and goes with it,
+    the fit is the same; where it states another value the test pinned the tip's rule and goes with it,
     one pin of R's error taking its place. Five benchmark scripts drop the argument.
     forest-defaults-by-kind's pins of its two interim texts by position become step 1.3's creations. The
     reader's pins of `prior.sd.of` and `amplitude.prior.variance` for a forest with no basis or a factor
@@ -877,8 +877,8 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     2^-40 w, drawn, 50 sweeps: identical draws (fails today: blind from 2^-30); a held (0, 1) block
     still gives its first level's rows zero weight; a forest whose coefficient is exactly zero gives
     every row zero weight and finite sums; a row whose multiplier is 2^-30 of the largest leaves, and
-    one at 2^-20 stays. tinytest, always on: dose against 2^-40 dose, drawn, under the tip's law, whose
-    row norm scales with the column: identical draws. (Run so far on the stand-in's law only. If the
+    one at 2^-20 stays. tinytest, always on: dose against 2^-40 dose, drawn, under the tip's rule, whose
+    row norm scales with the column: identical draws. (Run so far on the stand-in's rule only. If the
     tip's row norm does not scale to the bit, this commit's twins assert which rows keep their weight,
     and the bitwise twins are step 2.3's and 2.8's.) Gated alone before anything else of the push is
     written on top: tests/cpp; the suite; on a reference build the four snapshot files and the three
@@ -904,7 +904,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     i in 1 to 150 equals the literal R gives to 1e-10 relative
     (fails with one pass); the constants 1, 0.5, 0.1, 61.7 and 1e8 + 0.1 each throw (the last three fail
     with a test of the computed sd against zero); 61.7 + 1e-9 sin(i) throws; one row throws.
-2.3 The law. [`ForestSpec`](../../src/bartcore/combiner.hpp) gains a scale (`basisScale`, not a number
+2.3 The rule. [`ForestSpec`](../../src/bartcore/combiner.hpp) gains a scale (`basisScale`, not a number
     for "take it"). The numeric row of [`forestMapEntry`](../../src/bartcore/combiner.hpp), which takes
     the scale where it takes the row norm today, is "The rule"'s: s stated, or the default over the scale
     handed or taken; the forest's own sd s / 0.674 where the coefficient is drawn, under variance 1 and
@@ -1047,7 +1047,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     it; the 45 creations of test-bcf-family.R on a constant column that state no sd state one; the pins
     of the reader's old entries and labels
     (["forest total"](../../inst/tinytest/test-calibration-midchain.R)) take the new ones. Each test
-    that only needs some numeric forest is left, and now fits the law.
+    that only needs some numeric forest is left, and now fits the rule.
 2.11 Help and records. man/forest.Rd: the `sd` item above, `amplitude` with a numeric column, `basis`
     where it speaks of a constant column. man/dbartsData.Rd: the slot.
     [`dbartsSampler$setForestBasis`](../../man/dbartsSampler-class.Rd),
@@ -1094,7 +1094,7 @@ two cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
   under src/: tests/cpp unchanged and passing.
 - The full tinytest suite on the shipped build, in one process, counted file by file: no failure, no file
   stopping, and at least the base build's count plus the new files' assertions less those removed with a
-  law; the landing note gives the figures.
+  rule; the landing note gives the figures.
 - On a reference build (`--preclean --configure-args=--enable-reference-build`): the four
   `test-reproducibility-*.R` files pass unchanged, and the three compares are bitwise, every scenario
   reporting identical draws, counted scenario by scenario with no `max |z|` line: 55 against the gaussian
@@ -1126,7 +1126,7 @@ two cores (`MAKEFLAGS=-j2`, `EQUIVALENCE_CORES=2`):
 
 The pair script. Each row is one seeded model on both builds: sampler fits compare the train draws, sigma
 and the coefficients, `bart` fits `yhat.train` and sigma. Rows 01 to 18 and 22 were run for the first
-plan on the tip against the stand-in, which is the law at once: identical; rows 19 to 21 differed.
+plan on the tip against the stand-in, which is the rule at once: identical; rows 19 to 21 differed.
 
 | | model | push 1 | push 2, first commit | push 2 |
 |---|---|---|---|---|
@@ -1231,7 +1231,7 @@ Each requirement with what holds it; "test" is the step above that fails if it i
 | | the reader already says "stated" or "the default" | forest-sd-unit's `sd.stated`; no test here pins the class of `leaf.prior` |
 | | a stated forest keeps its record, so a default put back has the creation's scale | step 2.5's "stated, then put back" |
 | a heavy-tailed coefficient, `amplitude = student(3)` (dec-B262, dec-B271) | `amplitude` takes `fixed()` and nothing else | written-surface's pins |
-| | one row of `forestMapEntry`: a drawn numeric or factor block under the forest with no basis's law | the law is one function |
+| | one row of `forestMapEntry`: a drawn numeric or factor block under the forest with no basis's rule | the rule is one function |
 | | the state already carries one variance a forest and installs it where a size is half-Cauchy | Context; no edit |
 | | the reader has an `amplitude` entry to say it in | step 1.3 |
 | a forest for each level of a factor of three or more (dec-B281, TODO `factor-basis-per-level`) | the call is refused today | the kind-by-class slice's pin |
@@ -1241,7 +1241,7 @@ Each requirement with what holds it; "test" is the step above that fails if it i
 | | `data@basis.scale` holds a vector for each forest | step 2.5 |
 | | the engine is told a forest's kind and never reads it off a width | step 1.2; "The engine and 1.0-0" |
 | | no stored state and no compiled interface holds a forest's sd or scale | Constraints |
-| | not built now, each behind the bridge when it comes: a prior scale for each coordinate of a block, a default for each column, a law and a held value for a numeric block of several columns | "The engine and 1.0-0" |
+| | not built now, each behind the bridge when it comes: a prior scale for each coordinate of a block, a default for each column, a rule and a held value for a numeric block of several columns | "The engine and 1.0-0" |
 
 ## What waits on what
 
@@ -1296,7 +1296,7 @@ Each requirement with what holds it; "test" is the step above that fails if it i
 
 ## Out of scope, and where it goes
 
-- `updateBasisScale`, the long form on `forest()`, the heavy-tailed law: after the merge (TODO
+- `updateBasisScale`, the long form on `forest()`, the heavy-tailed prior: after the merge (TODO
   `forest-after-merge`, `coefficient-law-opt-in`). A forest for each level, and several numeric columns
   with a size for each: after 1.0 (dec-B281, dec-B282, dec-B272).
 - `setData` on a sampler of several forests: refused, as today. The rule for the day it opens goes in the
@@ -1385,8 +1385,8 @@ The coordinator's calls on the critique, each to be recorded in the ledger at la
 - The gate decides by z, with a floor of 0.0005 and 32 seeds of 25000 (finding 3, with the previous
   planner's correction): the first plan's fixed 0.01 passed a scale 3 to 10 percent off. One arm has
   three trees a forest and K = 3. The three gaussian BCF gates leave the list of oracles; they cannot be
-  made to see the held law. The held arms and the numeric arms live in one script. One prior-size test a
-  family runs always.
+  made to see the held rule. The held arms and the numeric arms live in one script. One prior-size test
+  a family runs always.
 - Finding 4, two refusals that told the user to state one sd for columns in different units: both
   concerned several columns and are gone with them. What is kept of it: the constant column's text says
   what to state, and the help says what a stated sd is per unit of.
@@ -1418,15 +1418,15 @@ The planner's own, on the amendment:
   no compiled interface changing later, holds by the state and the header holding no sd ("The engine and
   1.0-0"). Kept instead, at no cost: the shapes a 1.0 user sees (a vector by column in the reader, in
   `extract` and on the data object) and the kind stated to the engine.
-- The kind is stated to the engine though width alone would tell the three 1.0 shapes apart. A law read
-  off a block's width would have to be unpicked the day a numeric block has two columns, and would make
-  the engine's reading of a block depend on what R happens to refuse.
-- The engine is not narrowed to what R accepts: a drawn block of more than two levels keeps the law it
+- The kind is stated to the engine though width alone would tell the three 1.0 shapes apart. A rule
+  read off a block's width would have to be unpicked the day a numeric block has two columns, and would
+  make the engine's reading of a block depend on what R happens to refuse.
+- The engine is not narrowed to what R accepts: a drawn block of more than two levels keeps the rule it
   has. Removing it would be work to undo nothing R can reach, and tests/cpp would lose fixtures that are
   not this slice's.
-- Three pushes, cut between the held coefficients, the numeric law and the printed block. The first cut
-  lets the held law land on the gates that exist and gives the numeric law a hold that already goes by
-  kind; its cost is that a held numeric column stays refused for one push more.
+- Three pushes, cut between the held coefficients, the numeric rule and the printed block. The first
+  cut lets the held rule land on the gates that exist and gives the numeric rule a hold that already
+  goes by kind; its cost is that a held numeric column stays refused for one push more.
 - The bound's change is one commit inside push 2 and not a push: it is six lines, it is what the push's
   twin tests stand on, and a separate battery for it would repeat the three compares the push runs
   anyway. It is gated alone all the same, because it is the one change here that could move a draw of a
@@ -1452,9 +1452,9 @@ The planner's own, on the amendment:
   user wrote, the other names the columns.
 - Gone from the reader: the four entries of the tip's channels; the divisor is in `prior.sd.of`'s "(prior
   median)".
-- A state holds nothing of the law, so none is refused and none is re-read. A state stored on a build that
-  held a forest's coefficients at other values installs its trees under the recipient's, by the standing
-  rule; a check there would refuse what
+- A state holds nothing of the rule, so none is refused and none is re-read. A state stored on a build
+  that held a forest's coefficients at other values installs its trees under the recipient's, by the
+  standing rule; a check there would refuse what
   ["fixed amplitudes"](../../inst/tinytest/test-state-not-model.R) pins as taken. It is in TODO.
 - Drawn starts stay where they are for a forest with no basis or a factor. A start by kind would be the
   cleaner rule and would move the draws of every model of three forests.
@@ -1465,12 +1465,12 @@ The planner's own, on the amendment:
   value.
 - The verbose summary gains the block from R; the engine's own summary, which prints the first forest's
   model, is left to the TODO entry forest-sd-unit adds.
-- Measured for this plan on stand-ins, not on the slice: the law's rows, the 20 pairs, the suite's counts
-  and the BCF compare come from the design's prototype ported to the tip, which holds the kind as an
-  attribute, the sd in units of L and six numbers a forest; the gate's figures from a draft run against
-  the prototype's own build; the relative bound from the critic's six-line copy of the stand-in. Read
-  off push 3's build for this amendment: the held values by position, the counts of held forests and of
-  constant columns, the reader's and `extract`'s shapes. Read and not run: the three baseline compares
+- Measured for this plan on stand-ins, not on the slice: the rule's rows, the 20 pairs, the suite's
+  counts and the BCF compare come from the design's prototype ported to the tip, which holds the kind as
+  an attribute, the sd in units of L and six numbers a forest; the gate's figures from a draft run
+  against the prototype's own build; the relative bound from the critic's six-line copy of the stand-in.
+  Read off push 3's build for this amendment: the held values by position, the counts of held forests and
+  of constant columns, the reader's and `extract`'s shapes. Read and not run: the three baseline compares
   and the bench on the relative bound, the full gaussian compare, the snapshot files, sanitizers, the
   consumers' suites. Nothing of the three pushes is built.
 

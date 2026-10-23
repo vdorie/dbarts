@@ -168,7 +168,7 @@ probitLink <- list(
 )
 logisticLink <- list(
   name = "logistic",
-  anchor = pi / sqrt(3), # the logistic law's sd, latentScaleAnchor's value
+  anchor = pi / sqrt(3), # the logistic sd, latentScaleAnchor's value
   logs = function(eta) {
     list(lp = plogis(eta, log.p = TRUE), lq = plogis(-eta, log.p = TRUE))
   },

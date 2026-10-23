@@ -128,7 +128,7 @@ effect on the next sweep, reinterprets no drawn value, and survives re-creation.
      - a named sd: "$setLeafPrior on a multinomial sampler takes normal(k = ) with a fixed k, as its
        creation does: the softmax calibration map sets every category forest's leaf scale, so a
        named 'sd' has nowhere to land";
-     - a `chi()` law or a k string: "... a 'k' hyperprior is not supported ..., at creation or after";
+     - a `chi()` distribution or a k string: "... a 'k' hyperprior is not supported ..., at creation or after";
      - `forests =`: "its forests are its categories; normal(k = ) states every one".
    - Amplitude sampler:
      - any other `leaf.prior`: "the calibration map sets every forest's leaf scale; state a forest's

@@ -32,8 +32,8 @@ exact count, large moves switch to an exact move that never counts.
   expected loops at 1 / (1 - beta) for acceptance at most beta a_B.
 - Huber, "Fast perfect sampling from linear extensions", Discrete Math. 306 (2006) 420-428, all sections. The
   Karzanov-Khachiyan chain (hold 1/2, else a uniform adjacent transposition when the order allows) has the
-  uniform law on linear extensions. Section 3 builds a bounding chain on the positions' upper bounds, coupled to
-  the chain non-Markovianly (Theorem 3). Theorem 5: it bounds a single state after
+  uniform distribution on linear extensions. Section 3 builds a bounding chain on the positions' upper bounds,
+  coupled to the chain non-Markovianly (Theorem 3). Theorem 5: it bounds a single state after
   (16 / pi^2) n^3 (ln n + ln(2 / eps) / 2) steps with probability at least 1 - eps. Section 4 gives coupling from
   the past for non-Markovian couplings (Theorem 8: exact output), where each doubling level's randomness must be
   reused when the forward pass reruns it. Lemma 10: with doubling, the expected running time is at most
@@ -109,7 +109,7 @@ acceptance rule was used.
 - The two-coin output. It is exactly Bernoulli(a_B) given exact coins (Goncalves et al., section 2).
   - c comes from r1, whose parts the MH move already computes.
   - The coin is exact: by Theorem 8, coupling from the past returns an exact draw from the Karzanov-Khachiyan
-    chain's stationary law, which is uniform on extensions.
+    chain's stationary distribution, which is uniform on extensions.
   - The riffle is exact (above).
   - theta > 0 because T0 is a valid tree (e(C0) >= 1), so the loop ends with probability 1.
 - Support. a_B > 0 wherever a_MH > 0, so reachability and irreducibility are unchanged.

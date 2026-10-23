@@ -145,17 +145,18 @@ drawFromPriorForTree` (model.hpp) calls it as the ACCEPTANCE PREDICATE of the
 rejection sampler for the constrained prior leaf draw, reached from live engine
 code at `Chain::sampleNodeParametersFromPrior` (chain.hpp), which the bridge
 exposes as `bartcore_sampleNodeParametersFromPrior` and R reaches through
-`samplePriorPredictive`. So changing that constant is a draw-law AND target
-change on the monotone family, not a free ride. Two further reasons: the test is
-one-sided (`mu < a - tol`), so widening it ADMITS leaf vectors that violate the
-monotone cone by up to the tolerance - a loosened constraint, not an exactness
-gain, and the opposite in spirit to a snap-to-zero; and its natural scale is the
-leaf-value scale (`scale/k`), not unit, so an absolute machine-derived constant
-is no less arbitrary there than 1e-9. ACTION TAKEN IN S1 REGARDLESS: correct the
-stale comment to name the live caller. What would change the recommendation: a
-decision that ecosystem conformance outweighs the loosening, in which case the
-constant change needs its own slice, its own monotone gates (the monotone
-tests/cpp cases plus tinytest), and an rng verdict of its own.
+`samplePriorPredictive`. So changing that constant is a draw-distribution AND
+target change on the monotone family, not a free ride. Two further reasons: the
+test is one-sided (`mu < a - tol`), so widening it ADMITS leaf vectors that
+violate the monotone cone by up to the tolerance - a loosened constraint, not an
+exactness gain, and the opposite in spirit to a snap-to-zero; and its natural
+scale is the leaf-value scale (`scale/k`), not unit, so an absolute
+machine-derived constant is no less arbitrary there than 1e-9. ACTION TAKEN IN
+S1 REGARDLESS: correct the stale comment to name the live caller. What would
+change the recommendation: a decision that ecosystem conformance outweighs the
+loosening, in which case the constant change needs its own slice, its own
+monotone gates (the monotone tests/cpp cases plus tinytest), and an rng verdict
+of its own.
 
 **The caller-supplied per-forest weight takes NO tolerance band** - a departure
 from the commission's reading, stated so VD can overrule. A supplied weight is
@@ -287,7 +288,7 @@ S1 (the `testCategoricalNeverSplit` precedent); their purpose is the pre-fix
 evidence the MANIFEST cites.
 Gates: `tests/cpp` from clean. No `--preclean`, no trio (zero engine delta).
 
-## S1. The exact-zero snap. TWO commits. THE draw-law slice.
+## S1. The exact-zero snap. TWO commits. THE draw-distribution slice.
 
 **Commit 1, engine.**
 
@@ -466,10 +467,11 @@ step, three CI-red incidents); rchk on the next scheduled run.
    different objects. Do not edit that document (binding decision 5).
 4. **The one fact for the deferred shape fork, recorded not decided**: because
    occupancy is count-based, per-forest zero weight and physical compaction are
-   NOT the same draw law even in the limit - under compaction the excluded rows
-   do not exist, so their cut positions cannot be split on and their leaves
-   cannot be created; under zero weight they can, at the prior. The three door-2
-   shapes are therefore not interchangeable implementations of one semantic.
+   NOT the same draw distribution even in the limit - under compaction the
+   excluded rows do not exist, so their cut positions cannot be split on and
+   their leaves cannot be created; under zero weight they can, at the prior. The
+   three door-2 shapes are therefore not interchangeable implementations of one
+   semantic.
 5. **Sum-to-one unification (VD 2026-08-10: unify).** The three hand-picked
    1e-10 almost-equal checks on user-supplied probability vectors -
    [src/R_interface_bartcore.cpp:1158](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1158) (rule proposal probabilities), [src/R_interface_bartcore.cpp:1330](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/R_interface_bartcore.cpp#L1330)

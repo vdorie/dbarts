@@ -29,7 +29,7 @@ for (i in c(1L, 37L, 100L)) {
   expect_identical(ll[, i], dnorm(y[i], ev[, i], fit$sigma, log = TRUE))
 }
 
-# the family, not a separate field, says which residual law is scored
+# the family, not a separate field, says which residual distribution is scored
 expect_identical(fit$family, "gaussian")
 
 # 7. the type is extract-only: predict and fitted reject it with their
@@ -428,7 +428,7 @@ expect_error(
 )
 
 # a family the lookup does not name is refused rather than scored under some
-# default law
+# default distribution
 fit.other <- fit.t
 fit.other$family <- "laplace"
 expect_error(

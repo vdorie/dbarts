@@ -224,7 +224,8 @@ marginal tau posterior (b analytically integrated: ybar_j ~ N(0, tau^2+sigma^2/n
 
 => all three kernels reproduce the exact quadrature posterior to MC error. The
 slice is correct; my exactIG and asis derivations are correct (same stationary
-law). This quadrature is the exact-posterior GATE a replacement must pass.
+distribution). This quadrature is the exact-posterior GATE a replacement must
+pass.
 
 ### 3d. ATTRIBUTION - what actually drives the full-model bottleneck (attrib.R).
 Full rbart, weak signal, WITH the strong forest f vs WITHOUT f (f=0, pure

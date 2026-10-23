@@ -110,7 +110,8 @@ declined user channel being what frees the internal one; `setData` likewise.
 Four channels change meaning without changing code. [`Chain::setModel`](../../src/bartcore/chain.hpp) under a variance forest
 skips its `gaussian || aft` sigma clause and recalibrates the scale leaf: DECIDE that aft FOLLOWS
 the heteroscedastic gaussian, one residual prior addressing one scale leaf, so a family split would
-give one object two laws; it inherits, not widens, the gap that comment records. A warm start
+give one object two distributions; it inherits, not widens, the gap that comment records. A warm
+start
 ([`Chain::installVarianceForest`](../../src/bartcore/chain.hpp), `installForest`) redraws no latents, so destination latents
 stand under the donor's surface until the next sweep, and `growForestFromRoot` never sweeps the
 variance forest, so its redraws run against the constant initial surface - the staleness

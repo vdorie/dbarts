@@ -130,7 +130,7 @@ probit's nine surviving functionals run 0.0374 to 0.0987, `eff1` (0.0984) and `p
 logistic's nine all PASS at 0.0339 to 0.0721. At `n = 40`, where the glue prior dominates the likelihood, probit flags
 `eff1` (0.0930) and `eff2` (0.0947) and logistic `abs.diff` (0.1084) and `prog3` (0.0973), while logistic's `abs.a` -
 0.1235 at `n = 200` - falls to 0.0453. An exactness error shows MORE at `n = 40` and a ridge LESS, so both controls read
-the same way: the flags are the glue path's mixing, not the backfit's law.
+the same way: the flags are the glue path's mixing, not the backfit's distribution.
 
 The A4e point, at 3x the chain length (thin 150, burn 36000) and `R = 80`, band 0.1445, so `ecdfDiff / band` is what
 compares. Every functional that flagged at the recorded point SHRINKS: probit `abs.diff` 1.051 to 0.648, logistic
@@ -157,10 +157,10 @@ The finding. Neither latent arm is admitted. [`sbcMatrixConfigs`](../../benchmar
 [`sbcMatrixFunctionals`](../../benchmarks/R/sbc.R) and the workflow matrix are unchanged for them and neither gets
 `SBC_EXPECTED_FLAGS`; what lands instead is the exclusion note naming the stratum
 (["Not in the matrix: BCF"](../../.github/workflows/sbc.yaml)). The reading is chain length at large `|a|`, not the
-sampler's stationary law: the `R = 200` verdicts are near-clean at a band stricter than the matrix's, the two controls
-point at the glue path rather than the backfit, the A4e point shrinks every flagged channel, and the exact gate matches
-the same conditional at fixed glue to 7e-4 and 1.6e-3. What would overturn it is a burn that discharges the `(a, mu)`
-ridge at `|a| >= 5`, which 40000 sweeps does not.
+sampler's stationary distribution: the `R = 200` verdicts are near-clean at a band stricter than the matrix's, the two
+controls point at the glue path rather than the backfit, the A4e point shrinks every flagged channel, and the exact
+gate matches the same conditional at fixed glue to 7e-4 and 1.6e-3. What would overturn it is a burn that discharges
+the `(a, mu)` ridge at `|a| >= 5`, which 40000 sweeps does not.
 
 Four corrections to this Decision as written. The mixing limit is at `|a| >= 5`, not `|a| >= 40`. `bcf-weak` is the
 GAUSSIAN arm, so the weak control named above had no route until [`sbcBCFLatentConfig`](../../benchmarks/R/sbc.R) gained
@@ -378,8 +378,9 @@ one block marginal and posterior mean at two configurations, agreeing to its own
 check not sharing the quadrature's assumptions.
 
 Outcome (2026-09-07). Derived blind from the engine and then compared: the enumeration, the block dimensions 2/3/3/2+2,
-the integrand, the glue laws (`a` an inverse-gamma scale mixture whose marginal is Cauchy(0, 1), each `b` normal at 1/2,
-sigma nowhere), the leaf scales and the pinned sigma all match the engine. `getCalibration` agrees across the
+the integrand, the glue distributions (`a` an inverse-gamma scale mixture whose marginal is Cauchy(0, 1), each `b`
+normal at 1/2, sigma nowhere), the leaf scales and the pinned sigma all match the engine. `getCalibration` agrees across
+the
 evaluated-basis route, the `~ factor(z)` route and, at the time, retired: [`bartcoreBCFSampler`](../../R/bartcore.R). A prior Monte Carlo of the
 block marginals at 2e7 draws agrees with two independent quadratures to its own error, and the shipped sampler matches
 the derived oracle at fixed glue to 7e-4 (probit) and 1.6e-3 (logistic). The pass corrected this plan's design line (the
@@ -420,7 +421,7 @@ configuration passes unchanged, so that arm gates the counts and nothing else.
 SBC arms. (i) Simulate `y0` through `plogis` while fitting probit: `p_j` and `prog_j` must FLAG. (ii) Draw theta0's glue
 at gaussian's `sd.control = 2` while the sampler runs at the family default 1, so every replication's `a` comes from the
 wrong prior and `abs.a` and the `p_j` cells must FLAG. This replaces drawing the forests before the glue, which cannot
-flag: that swap moves the tree law in about one replication of 200. (iii) Draw a sigma in the generator as noise the fit cannot model: every latent functional must FLAG. Only (ii)
+flag: that swap moves the tree distribution in about one replication of 200. (iii) Draw a sigma in the generator as noise the fit cannot model: every latent functional must FLAG. Only (ii)
 is glue-targeted, so only (ii) carries the control that `fixedGlue = TRUE` stays clean; (i) and (iii) redden it too.
 
 ## Constraints

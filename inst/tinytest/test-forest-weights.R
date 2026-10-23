@@ -17,8 +17,8 @@
 # samplePriorPredictive and sampleTreesFromPrior are deliberately NOT threaded
 # through this weight: a prior tree draw reads the response model's own working
 # weights and never forms a per-forest response, so it is membership-blind by
-# construction, which is the right law for a draw from the prior. Neither is
-# reachable from a BCF handle today in any case.
+# construction, which is the right distribution for a draw from the prior.
+# Neither is reachable from a BCF handle today in any case.
 
 set.seed(1207)
 n <- 300L

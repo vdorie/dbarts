@@ -489,9 +489,10 @@ makeScenarios <- function() {
   # Contaminated-normal data - a gaussian bulk with a 5% heavy-outlier tail -
   # so both mixture channels do real work: the per-observation lambda draws
   # downweight the contaminants and the capped-grid nu draw responds to the
-  # tail. The default gaussian() error law adds no draws (the existing anchors
-  # are untouched), so this scenario is new and a compare against an earlier
-  # baseline reports it skipped; the anchor re-records at landing.
+  # tail. The default gaussian() error distribution adds no draws (the
+  # existing anchors are untouched), so this scenario is new and a compare
+  # against an earlier baseline reports it skipped; the anchor re-records at
+  # landing.
   set.seed(5122L)
   x <- matrix(runif(500L * 10L), 500L)
   noise <- rnorm(500L)

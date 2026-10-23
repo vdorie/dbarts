@@ -328,10 +328,10 @@ bool enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
 // When it is defined, enumerateNogRuleNeighbourhood holds the node's
 // INCUMBENT variable and enumerates that variable's admissible cuts alone, so
 // a proposal takes ONE scanOrdinalCuts pass rather than one per available
-// ordinal variable. Nothing else in the law moves: a candidate's weight is the
-// same marginal times the same prior factors, the missing direction
-// is scored or coined exactly as before, and a node whose own rule is
-// categorical is the same fixed point.
+// ordinal variable. Nothing else in the distribution moves: a candidate's
+// weight is the same marginal times the same prior factors, the missing
+// direction is scored or coined exactly as before, and a node whose own rule
+// is categorical is the same fixed point.
 //
 // It is still an exact Gibbs step. The restricted set is a deterministic
 // function of state that the move cannot change - the variable is held, and

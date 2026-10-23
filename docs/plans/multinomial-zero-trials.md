@@ -176,8 +176,8 @@ put to VD before the slice starts.
    at those rows). Call it at the end of the constructor, `setCounts` and `setActiveRows`. `drawForestGlue`,
    `formForestResponse` and `formForestVetoWeights` read `effectiveRows_` where they read `activeRows_`. Never
    write 0 into `omega_`. Update the comments: the class header, `drawForestGlue` (n_i = 0 is PG(0, .) = 0, so the
-   skip is the exact law), `setCounts` (no longer a pointer swap: an O(n) recompose), `setActiveRows` (clearing
-   the mask leaves empty rows out), the `trials_` member and `MultinomialSpec` (n_i >= 0), and
+   skip is the exact distribution), `setCounts` (no longer a pointer swap: an O(n) recompose), `setActiveRows`
+   (clearing the mask leaves empty rows out), the `trials_` member and `MultinomialSpec` (n_i >= 0), and
    [`Chain::setCounts`](../../src/bartcore/chain.hpp).
 2. Bridge: drop the two trials loops in [`createMultinomialCountsHolder`](../../src/R_interface_bartcore.cpp) and
    [`bartcore_setCounts`](../../src/R_interface_bartcore.cpp) (a negative cell is still refused per cell) and

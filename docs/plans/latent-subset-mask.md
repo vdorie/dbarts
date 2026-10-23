@@ -9,7 +9,7 @@ rng: NEUTRAL on every shipped configuration, EVERY slice - nothing installs a
   IDENTITY, so `rollAndSetNodeAveragesFused`'s `forestWeights != nullptr`
   refusal (chain.hpp) is reached exactly as it is today. The trio therefore
   expects IDENTICAL at every slice and a deviation is a LEAK, never a re-record.
-  DRAW-LAW-CHANGING on the opt-in masked path only, deliberately: a mask
+  DRAW-DISTRIBUTION-CHANGING on the opt-in masked path only, deliberately: a mask
   composes into `workingWeights()` and suppresses per-row latent draws, so a
   masked sampler consumes a different rng stream than an unmasked one. That is
   the feature. One shipped REPORTING change rides S1 (V3): a zero-composed-weight
@@ -423,10 +423,10 @@ probit + linear leaf and ordinal + linear leaf are constructible.
 
 `forests_[0]` alone is correct and is not a latent bug: both multi-forest
 constructors static_assert `!L::hasVectorParams && !L::hasFunctionParams`, so a
-vector-param chain has exactly one forest. The fix carries ZERO draw-law risk -
-the cache's contract states a served value is bitwise the fresh scan's, so a
-forced clear cannot move a draw - and is therefore unconditional rather than
-conditional on the mask having changed.
+vector-param chain has exactly one forest. The fix carries ZERO
+draw-distribution risk - the cache's contract states a served value is bitwise
+the fresh scan's, so a forced clear cannot move a draw - and is therefore
+unconditional rather than conditional on the mask having changed.
 
 **The GP leaf needs nothing.** Its zero-weight branches DO consult the same
 cache, but every lookup re-compares the exact ordered member list
@@ -515,7 +515,7 @@ reason at all, so neither is an identification argument this design can lean on.
 
 **Land the veto fix FIRST.** Both arcs re-record the zero-weight baseline;
 sequenced fix-then-mask that is ONE re-record and the mask's baseline is recorded
-under the final law. The reverse order needs two re-records and a documentation
+under the final rule. The reverse order needs two re-records and a documentation
 amendment.
 
 The two arcs meet exactly once: today a leaf all of whose members are inactive is
@@ -706,10 +706,10 @@ engine delta). RNG class: NEUTRAL.
 
 ## S1. The channel + gaussian, Student-t, probit, ordinal
 
-THE draw-law slice for masked configurations; bitwise-neutral for every unmasked
-one. Carries the normalizer, the validation scan, the cache invalidation, the
-composition order, the pointwise-log-likelihood decision, the R5 method, the
-bridge entry, and T3a's kernel oracles.
+THE draw-distribution slice for masked configurations; bitwise-neutral for every
+unmasked one. Carries the normalizer, the validation scan, the cache
+invalidation, the composition order, the pointwise-log-likelihood decision, the
+R5 method, the bridge entry, and T3a's kernel oracles.
 
 Four instructions that are easy to read as outcomes and are not:
 
@@ -732,10 +732,10 @@ recommendation, not only an argument against alternatives).
 
 Budget ~265 engine + ~95 bridge + ~50 R + ~560 test. Gates: the house battery
 below, in full. RNG class: NEUTRAL on every shipped configuration - the trio
-expects IDENTICAL and a deviation is a leak, ABORT - and DRAW-LAW-CHANGING on
-the opt-in masked path. ASAN leg REQUIRED (new engine code, a new owned buffer
-per family per chain, a new borrowed pointer). `test_shape.cpp` extended for the
-new `supportsActiveRows` POD field.
+expects IDENTICAL and a deviation is a leak, ABORT - and
+DRAW-DISTRIBUTION-CHANGING on the opt-in masked path. ASAN leg REQUIRED (new
+engine code, a new owned buffer per family per chain, a new borrowed pointer).
+`test_shape.cpp` extended for the new `supportsActiveRows` POD field.
 
 ## S2. logistic, nbinom, aft
 
@@ -756,7 +756,7 @@ Carried from the S1 independent review, inside this slice's test budget:
 
 Budget ~130 engine + ~290 test. Gates: the house battery. RNG class: NEUTRAL on
 every shipped configuration (trio IDENTICAL, deviation is a leak, ABORT);
-draw-law-changing on the opt-in masked path. ASAN leg REQUIRED.
+draw-distribution-changing on the opt-in masked path. ASAN leg REQUIRED.
 
 ## S3. multinomial (global only)
 
@@ -769,7 +769,7 @@ global channel.
 
 Budget ~70 engine + ~180 test. Gates: the house battery. RNG class: NEUTRAL on
 every shipped configuration (trio IDENTICAL, deviation is a leak, ABORT);
-draw-law-changing on the opt-in masked path. ASAN leg REQUIRED.
+draw-distribution-changing on the opt-in masked path. ASAN leg REQUIRED.
 
 ## S4. Surface, records, baselines
 
@@ -940,7 +940,7 @@ reviewed by VD the same day.
   per-forest weight; no `stateFormatVersion` bump, no `statesAgree` field, no
   comparator changes. Both sharp edges are documented instead.
 - **V7. Order against `empty-leaf-veto-fix`: (a) veto fix FIRST.** One baseline
-  re-record, and v1 documents the final occupancy law.
+  re-record, and v1 documents the final occupancy rule.
 - **V8. Name: (a) `setActiveRows` / `dbarts_sampler_setActiveRows`.** `setSubset`
   collides with `dbartsData(subset =)`, which PHYSICALLY drops rows and rebuilds
   the cut grid; `setMask` collides with the categorical rule bitmasks. The TODO
@@ -998,7 +998,7 @@ normalized away at creation for probit/ordinal/nbinom (`test-family.R`,
 `test-ordinal.R`, `test-nbinom.R`). The planned "leaf of only zero-weight
 members is NOT vetoed" pin was DROPPED: the empty-leaf-veto-fix (21fc29c3)
 landed after this plan was written and now vetoes such leaves; its own
-tests pin the new law, and S1's spec sites should be read under it.
+tests pin the new rule, and S1's spec sites should be read under it.
 Gates: tests/cpp from clean, full tinytest FAILURES == 0; tests-only
 slice, independent re-run delegated to CI on the push - six-green
 confirmed 2026-08-12 (sanitizers, cpp-tests, exact-gates, R-CMD-check,

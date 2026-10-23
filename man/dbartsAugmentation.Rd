@@ -72,7 +72,7 @@ dbartsWorkingResponse(family, latent, y, weights = NULL, offset = NULL,
   own convention at every augmentation site, and the linear predictor is formed internally as
   \code{fit + offset}. The two arguments are therefore not interchangeable, and the pair of
   functions is what tells them apart: \code{dbartsDrawLatents(fit = f, offset = o)} and
-  \code{dbartsDrawLatents(fit = f + o, offset = NULL)} draw from the same law and agree, while
+  \code{dbartsDrawLatents(fit = f + o, offset = NULL)} draw from the same distribution and agree, while
   \code{dbartsWorkingResponse} \emph{differs} between the two, the working response being stated in
   units the offset has been taken out of. Pass the offset as \code{offset} to both.
 

@@ -148,8 +148,8 @@ along each constrained axis, intersected across axes. Because the previous sweep
 left every mu feasible and single-site updates keep the others fixed, this
 interval is always non-empty (it contains the leaf's own current value), so the
 draw never fails. Sweeping all leaves in a fixed order is a valid Gibbs kernel on
-the truncated stationary law; a random scan is the documented alternative if the
-fixed order mixes poorly.
+the truncated stationary distribution; a random scan is the documented
+alternative if the fixed order mixes poorly.
 
 **Seam - what actually has to change (the "hook" is aspirational).** The
 provision (core-generalization.md) reads as though a tree-granularity leaf
@@ -467,7 +467,7 @@ Resolution: under `monotone`, an UNSUPPLIED k resolves to fixed k = 2 (the
 continuous default and mBART's value) for BOTH continuous and binary responses -
 silently, since the user requested no hyperprior; only an EXPLICIT chi request
 (k = chi(...)) refuses, with an informative message pointing at fixed k.
-Reconciling the truncated leaf law with the chi-k posterior is a documented
+Reconciling the truncated leaf distribution with the chi-k posterior is a documented
 follow-up, not v1 scope.
 
 ## 7. Seams summary
@@ -648,7 +648,7 @@ the posterior-changing baseline for this arc.
 - **General change/swap under constraint** (section 5): v2, starting with the
   children-terminal change move.
 - **chi-k under truncation** (section 6): v1 fixes k; reconciling the hyperprior
-  with the truncated leaf law is deferred.
+  with the truncated leaf distribution is deferred.
 - **dbarts.h exposure:** none in v1 (the ordinal/robust-errors precedent). A
   future flat-C entry could expose the direction vector for embedded use once
   there is demand.

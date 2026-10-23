@@ -16,9 +16,9 @@
 # compared per root rule, the split variable and cut at the root (the only way
 # to change it is through the root-only tree, which some designs visit rarely,
 # so a chain can hold one root rule for its whole run), each group against its
-# conditional law, by a Hotelling T^2 test of the batch-mean cell frequencies
-# (cells under 0.2% pooled into the omitted reference cell). A group fails at
-# p < 1e-4.
+# conditional distribution, by a Hotelling T^2 test of the batch-mean cell
+# frequencies (cells under 0.2% pooled into the omitted reference cell). A
+# group fails at p < 1e-4.
 #
 # Usage: Rscript monotone-exact-enumeration.R [quick] [mode] [prior] [design ...]
 #   prior  leaf, joint (default: both, each run naming its prior); engine and
@@ -115,7 +115,7 @@ designs <- list(
   # posterior sd with posterior sds 13 times apart - the regime where a cone
   # probability below 1e-12 was scored by an unrefined quadrature (exact
   # P(split) 0.21 leaf, 0.12 joint; that engine drew 0.38 and 0.23). Every
-  # draw is tested against the whole two-tree law
+  # draw is tested against the whole two-tree distribution
   k1 = list(
     nc = 2L,
     dirs = 1L,
@@ -375,7 +375,7 @@ logOrderProbability <- function(rel, m, s) {
   fine + log((4 - exp(coarse - fine)) / 3)
 }
 
-# ---- designs: data, enumeration, exact law -----------------------------------
+# ---- designs: data, enumeration, exact distribution --------------------------
 
 buildDesign <- function(spec, seed = 11L) {
   set.seed(seed)
@@ -1002,7 +1002,8 @@ prototypeKeys <- function(
 
 # Per root-rule group: batch means of the cell indicators over draws in that
 # group (50 batches per chain), cells below 0.2% of the group's conditional
-# law pooled into the omitted reference cell, Hotelling T^2 on the rest.
+# distribution pooled into the omitted reference cell, Hotelling T^2 on the
+# rest.
 testGroups <- function(design, chains, label) {
   law <- design$law
   keys <- names(law)
@@ -1139,7 +1140,8 @@ zcheck <- function() {
 # ---- unnormalized: the posterior without the per-tree 1 / Z_T --------------
 
 # the unnormalized prior p_CGM(T) prod phi 1{M in C(T)} weights each tree by
-# Z_T more than the documented one, so its law is the exact law times Z_T
+# Z_T more than the documented one, so its distribution is the exact
+# distribution times Z_T
 compareUnnormalized <- function(name) {
   design <- buildDesign(designs[[name]])
   trees <- design$trees

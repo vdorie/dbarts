@@ -100,9 +100,9 @@ R check is the friendly early error on the documented path, and the C++ check is
 every one of them ends in `createHolder`.
 
 (a) R, inside `resolveSamplerSpec`'s variance block ([R/spec.R:508-527](https://github.com/vdorie/dbarts/blob/7a8c7286b6b86ce0c6d12c492dde77b8b0ad25b4/R/spec.R#L508-L527)), after the Student-t refusal at [R/spec.R:519-524](https://github.com/vdorie/dbarts/blob/7a8c7286b6b86ce0c6d12c492dde77b8b0ad25b4/R/spec.R#L519-L524) and
-before the monotone one at [R/spec.R:525-527](https://github.com/vdorie/dbarts/blob/7a8c7286b6b86ce0c6d12c492dde77b8b0ad25b4/R/spec.R#L525-L527) - the block's order is family, then residual law, then leaf constraint, and this is a
-response-model composition, so it sits with the residual law. It reads the control the caller supplied, so it fires for
-`dbarts()`, `bart2()` and `dbartsSpec()` (entrances 1 and 2):
+before the monotone one at [R/spec.R:525-527](https://github.com/vdorie/dbarts/blob/7a8c7286b6b86ce0c6d12c492dde77b8b0ad25b4/R/spec.R#L525-L527) - the block's order is family, then residual distribution, then leaf constraint, and this is a
+response-model composition, so it sits with the residual distribution. It reads the control the caller supplied, so it
+fires for `dbarts()`, `bart2()` and `dbartsSpec()` (entrances 1 and 2):
 
     # rbart_vi's group block draws b_j at the SCALAR residual scale the chain
     # carries, which a variance forest pins at 1 while s^2(x) holds the residual

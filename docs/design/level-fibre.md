@@ -177,8 +177,8 @@ move kept, in the same words.
   `scale / k` otherwise, so the homogeneous `(L_t, S_t)` form is WRONG here and the `(P_t, Q_t)` form is required. One eligibility
   test: a tree carrying an EMPTY leaf is skipped, because that leaf sits at 0 as a hard bound on its occupied neighbours and an
   occupied-only shift can leave the cone. Truncating the shift instead is refused: a truncated `c` is not a draw from the restricted
-  prior and breaks the Gibbs law, which is the same reason the constrained prior draw uses rejection rather than a sweep of
-  truncated conditionals.
+  prior and breaks the Gibbs conditional distribution, which is the same reason the constrained prior draw uses rejection rather than
+  a sweep of truncated conditionals.
 - **Linear leaves: the ALGEBRA is section 1's, but they are OUT of slice 1 and recorded as a door.**
   [`LinearGaussianLeaf`](../../src/bartcore/model.hpp)'s `fitForObservation` is `params[0] + sum_j beta_j u_ij`, so `params[0]`
   adds to every row of the leaf and is the level; the slope block is not. Every coordinate shares the `scale / k` prior sd and the
@@ -263,16 +263,16 @@ and `FALSE` turns the step off for a frozen forest whose caller wants the record
 The step is a Gibbs draw from a conditional in closed form: acceptance is identically one, there is no proposal, no reverse count and
 no involution. **No detailed-balance gate is proposed, and that is a decision, not an omission**: `bd-balance.R` and
 `change-balance.R` exist to test a Metropolis ratio against a target, and there is no ratio here. What replaces them is a direct
-test of the conditional's law, which is strictly more informative about a Gibbs step than a marginal is.
+test of the conditional's distribution, which is strictly more informative about a Gibbs step than a marginal is.
 
-**(a) Invariance and law, tests/cpp.** [`runEnsembleTests`](../../tests/cpp/test_ensemble.cpp) already asserts
+**(a) Invariance and distribution, tests/cpp.** [`runEnsembleTests`](../../tests/cpp/test_ensemble.cpp) already asserts
 `totalFits[i] == sum_t fits_t[i]` after every sweep at 200 trees, at a tolerance of `1e-11` against a measured worst deviation of
 `1.2e-15`; re-run with the step on, it must hold at the same tolerance and within an order of magnitude of that worst, the shift
 adding `m` roundings of about `eps` times a leaf value (some `7e-16` at 200 trees). What that re-run checks is NARROW and worth
 saying: the assertion fires at the END of a sweep, by which point every leaf has been redrawn, so all that reaches it is the
 projection's own arithmetic residual `sum_t c_t` riding in through `totalFits`, of order `m eps tau`. It sizes poison (i) - a
-missing projection puts 0.31 there, fourteen orders above the recorded worst - and it says nothing about whether the draw's LAW is right.
-A second test freezes one forest, calls the step some `2e5` times against a seeded generator, and scores the empirical mean and
+missing projection puts 0.31 there, fourteen orders above the recorded worst - and it says nothing about whether the draw's DISTRIBUTION
+is right. A second test freezes one forest, calls the step some `2e5` times against a seeded generator, and scores the empirical mean and
 covariance of `c` against section 1's closed form, per-coordinate `z` at a pre-stated threshold, plus
 `|1'c| < 1e-12` on every draw. **(b) tinytest**: with the flag on, the per-draw sum over trees of `getTrees` leaf values must
 reproduce the recorded training fit (the deterministic precondition
@@ -281,7 +281,7 @@ between the flag's two settings within Monte Carlo error, and a `storeState`/`se
 
 **(c) Poisons, both sized.** (i) Drop the zero-sum projection and apply `u` directly: `sum_t u_t` is then
 `N(sum_t m_t, sum_t v_t)` with `sum_t v_t = m tau^2/L`, sd about `tau sqrt(m/L)` = 0.16 at C1's shape, so `f` moves by that much at
-every row and the invariance identity fails by 14 orders. (ii) Drop the prior mean term and centre `u` at zero: the shift's law keeps its covariance and loses its mean, so the
+every row and the invariance identity fails by 14 orders. (ii) Drop the prior mean term and centre `u` at zero: the shift's distribution keeps its covariance and loses its mean, so the
 empirical mean fails its `z` while the covariance passes - which is the poison that distinguishes a correct conditional from a
 correctly-shaped one.
 
@@ -297,8 +297,8 @@ to repair it. A constant `d` added to tree `j`'s residual moves leaf `l`'s stand
 contrasts that are exactly iid standard normal under a correct draw. The gate as it stands names the flag off; slice 4 carries
 the profiled form, at the cost of one degree of freedom per tree and of the single-leaf trees entirely (tree `m` keeps all of
 its, its own `sum_{t>m} c_t` being empty), so the shipped default still holds a conditional-exactness gate on the leaf draw.
-The distributional test in (a) is not a substitute for it: (a) scores `c`'s own law against section 1, this scores the ENGINE's
-leaf posterior draw against an independently recomputed reference, and they are different oracles.
+The distributional test in (a) is not a substitute for it: (a) scores `c`'s own distribution against section 1, this scores the
+ENGINE's leaf posterior draw against an independently recomputed reference, and they are different oracles.
 
 ## 6. Benefit, pre-registered
 

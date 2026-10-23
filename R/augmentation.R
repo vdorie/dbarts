@@ -3,7 +3,7 @@
 # random number stream. 'fit' is the location
 # WITHOUT the offset - what $getFitsWithoutOffset() reports - and the bridge
 # forms the linear predictor as fit + offset; for nbinom that is the log mean,
-# and the Polya-Gamma law reads it less log(shape).
+# and the Polya-Gamma distribution reads it less log(shape).
 
 augFamilies <- c("probit", "logistic", "ordinal", "aft", "nbinom", "student")
 
@@ -39,7 +39,7 @@ augScalar <- function(x, name, whole = FALSE) {
 # Each optional argument belongs to a named family: it is refused BY NAME
 # elsewhere rather than ignored, a caller passing 'weights' to a probit draw
 # having the wrong model in mind and not a spare argument, and its own family
-# REQUIRES it, the draw law carrying no default to fall back on.
+# REQUIRES it, the draw distribution carrying no default to fall back on.
 augRestrict <- function(supplied, name, family, families) {
   if (supplied && !family %in% families) {
     stop(sprintf(

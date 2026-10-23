@@ -107,7 +107,7 @@ this package, all established by the grow-from-root default study
   m = 75 cells show cold R-hat of 1.003-1.026, so this is a statement about
   one functional at those probe sizes, not a claim that dbarts is broadly
   non-converged at defaults.)
-- **The house design law that follows.** Per-cell kill checks, never a
+- **The house design rule that follows.** Per-cell kill checks, never a
   pooled aggregate - the study's aggregates all passed while the per-cell
   check killed it. Thresholds frozen against a pilot before any
   confirmatory contrast. A mandatory fresh-seed re-run of any single
@@ -703,12 +703,12 @@ interaction term (`10 sin(pi x1 x2)`) plus three separable terms
 changing coefficients while the un-absorbable interaction is held fixed.
 
 **Cost.** The falsifier is XS-to-S: a harness, no engine change, no new
-gate, no draw-law change. What a *positive* result costs is the honest
-question. If composition helps, the immediate deliverable is guidance plus
-documentation of a surface that already exists. If it helps *and* the
-cross-block ridge turns out to be the binding constraint, the deliverable
-is a collapse - the widest change in the queue, already priced and already
-declined once.
+gate, no draw-distribution change. What a *positive* result costs is the
+honest question. If composition helps, the immediate deliverable is
+guidance plus documentation of a surface that already exists. If it helps
+*and* the cross-block ridge turns out to be the binding constraint, the
+deliverable is a collapse - the widest change in the queue, already priced
+and already declined once.
 
 **Falsifier sketch, with kill criterion.** Matched-seed paired arms on a
 Friedman family whose absorbable share is dialed in three settings
@@ -1128,9 +1128,9 @@ survey's top recommendation, at XS cost and bitwise-neutral by default.
    No per-replicate standard error was ever recorded, so the proposed kill
    line ("beat it by more than the measured SE") had no SE. The control
    constant 1.52 was measured at `bartcore 6944811`, before the change-move
-   balance fix and the variance-forest arc both changed the draw law. And
-   holding total sweeps fixed makes "tempering does not help" and
-   "tempering wasted 30% of the burn" read identically.
+   balance fix and the variance-forest arc both changed the draw
+   distribution. And holding total sweeps fixed makes "tempering does not
+   help" and "tempering wasted 30% of the burn" read identically.
 
 **What would have to be true to bring it back.** (a) The census shows that
 high-signal-to-noise structural rejections are *close calls* - proposals
@@ -1859,19 +1859,19 @@ distribution**. `change-balance.R` cannot serve: its pass/fail statistics
 are z-tests on root-split-*variable* marginals, and its cut distribution is
 computed but only printed (`cutReport`, lines 574-593) with no threshold,
 no z, and no verdict. A cut move never changes a variable, so a defect in
-its interval, its cut law, or its window symmetry lives precisely in the
-quantity that gate does not gate - in a package whose last change-move
-defect survived its entire history because the existing gates could not see
-it.
+its interval, its cut distribution, or its window symmetry lives precisely
+in the quantity that gate does not gate - in a package whose last
+change-move defect survived its entire history because the existing gates
+could not see it.
 
 Design: a single-tree enumerable problem, exact posterior over (variable,
 cut) from the region dynamic program `change-balance.R` already implements,
 run with the mixture set perturb-dominant so the realized cut distribution
-*is* the kernel's stationary law. Gate on per-cut z against the exact
-probabilities, Holm-corrected across cuts. **The test problem must place
-cuts near the interval edges**, because the local-window form's correction
-`|W(c)| / |W(c')|` is exercised only when the window is clipped. Failure
-means fix the kernel, not drop the candidate.
+*is* the kernel's stationary distribution. Gate on per-cut z against the
+exact probabilities, Holm-corrected across cuts. **The test problem must
+place cuts near the interval edges**, because the local-window form's
+correction `|W(c)| / |W(c')|` is exercised only when the window is clipped.
+Failure means fix the kernel, not drop the candidate.
 
 ### 6.3 Stage 2 - benefit, with matched exposure
 
@@ -2854,7 +2854,7 @@ addendum schedules no code.
 
 | rank | item | what it is | cost | gate |
 |---|---|---|---|---|
-| 1 | **Stage R0** - generator-only regrow census | build a proposal, compute `log alpha`, discard it; no state change, no draw-law change | days; rides sec 6.1's Stage-0 instrumentation as extra logged columns | none (pilot) |
+| 1 | **Stage R0** - generator-only regrow census | build a proposal, compute `log alpha`, discard it; no state change, no draw-distribution change | days; rides sec 6.1's Stage-0 instrumentation as extra logged columns | none (pilot) |
 | 2 | **reallocation census, re-specified** | the coupling statistic of B3, not the apportionment IACT | ~300-400 lines of R plus a tree walk or a small C-side readout | none (pilot) |
 | 3 | **the `blocks()` arm** | hard, free, exact variable specialization as the premise test for constructions 1 and 3 | zero engine work | restated kill (B3(c)) |
 | 4 | R3(a) partial-regrow dial | rebuild below a chosen node; the jump-size dial | M plus a gate arm plus the shared subtree save/restore | conditional on R0 |

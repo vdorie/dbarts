@@ -79,7 +79,7 @@ OVERSTATED:
 - F. PROSE-ONLY GATES (a one-time agent run is not a gate), instrumentation confirmed absent from src/: (1) the
   "instrumented counter build" measuring equal-rank realizations (2 maskprobit, 1 maskordinal, 0 elsewhere) - the
   MANIFEST's CITED ORACLE for the equivalence-d15a2bfb.rds re-record, unreproducible by anything in the tree (the
-  qualitative law IS gated, by tests/cpp testEqualRankOneComparison and bd-balance.R's veto arm); (2)
+  qualitative rule IS gated, by tests/cpp testEqualRankOneComparison and bd-balance.R's veto arm); (2)
   [docs/plans/monotone-prior-draw.md:73-98](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/docs/plans/monotone-prior-draw.md#L73-L98), instrumentation "removed before landing" giving the P(cap exhausted)~2e-11 that
   justifies the 1e6 retry cap; (3) [docs/plans/setpredictor-leafof-rebuild.md:74-98](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/docs/plans/setpredictor-leafof-rebuild.md#L74-L98), an rdtsc + md5 probe absent from the tree;
   (4) bcf-bartcause-relocation.md, ~50 MEASURED tags from an untracked probe.

@@ -42,15 +42,15 @@ below. The tree prior ratio was not assumed: the unconstrained twin and a mild-g
 control pick it (CGM with both children owing 1 - 0.95/4; the twin 0.9153 vs 0.9115, the controls
 leaf 0.7714 vs 0.7706, joint 0.6312 vs 0.6268, gap 2.4 leaf 0.5528 vs 0.5508). 20000 draws:
 
-    n0 n1 delta sigma  gap  sU/sL | leaf: exact / engine-law / sampler | joint: exact / engine-law / sampler
+    n0 n1 delta sigma  gap  sU/sL | leaf: exact / engine-distribution / sampler | joint: exact / engine-distribution / sampler
     200 1  4.2  0.5   8.29  13.5 | 0.167 / 0.542 / 0.545             | 0.091 / 0.372 / 0.365
     200 1  3.8  0.5   7.48  13.4 | 0.197 / 0.004 / 0.004             | 0.109 / 0.002 / 0.002
     200 1  3.1  0.2  15.40  14.0 | 0.059 / 0.306 / 0.302             | 0.030 / 0.181 / 0.182
      50 1  1.7  0.2   8.27   6.9 | 0.167 / 0.430 / 0.434             | 0.091 / 0.274 / 0.278
     200 5  1.9  0.5   8.39   6.2 | 0.121 / 0.322 / 0.322             | 0.065 / 0.192 / 0.193
 
-The sampler follows the quadrature's law, not the exact one, and the error goes either way. With
-R3_FIX the same sampler gives 0.169 / 0.096 (row 1) and 0.202 / 0.110 (row 2): exact.
+The sampler follows the quadrature's distribution, not the exact one, and the error goes either
+way. With R3_FIX the same sampler gives 0.169 / 0.096 (row 1) and 0.202 / 0.110 (row 2): exact.
 
 Why moderate split probabilities survive at gaps of 8-15 sd: the free split's likelihood gain is
 about gap^2 / 2 and the cone mass costs about the same, so the move is decided by the O(1) remainder,
@@ -85,7 +85,8 @@ those designs but large (and sign-random) whenever the touched children differ m
 
 (e) Fix direction: correct, and the log-space part is necessary, a relative tolerance alone is not
 sufficient (it repairs neither the lower-tail cancellation nor the exp underflow). Validated: the
-R3_FIX log-space reference reproduces the exact one-cut law above. Sketch for an implementer:
+R3_FIX log-space reference reproduces the exact one-cut distribution above. Sketch for an
+implementer:
 
 1. Replace coneProbability with logConeProbability returning the log mass; twoLeafCoupledLogMarginal
    adds it and returns -HUGE_VAL only on an empty domain (lowR > bR), never on a computed zero.
@@ -139,4 +140,4 @@ R_interface_bartcore.cpp ~7055); the top category's one-sided draw is unaffected
 "precision" is a discretization bias, but only in that window. Fix as TODO says: reflect when
 lower > mean (draw -X on (-upper, -lower] about -mean), or build the bulk branch from upper-tail
 pnorm/qnorm when a > 0; the existing equivalence re-record applies. Test: KS of 1e5 draws on
-(8.0, 9.0] and (8.2, 9.0] against the exact truncated law.
+(8.0, 9.0] and (8.2, 9.0] against the exact truncated distribution.

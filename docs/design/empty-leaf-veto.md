@@ -116,7 +116,7 @@ no proposal outside S is ever accepted, and no chain starts outside it. Under
 an ALL-zero vector the marginal is constant and the kernel is the standard CGM
 structure kernel on S - which is what "the forest sits at its prior" means.
 
-The initializer and the moves hold one law.
+The initializer and the moves hold one distribution.
 [`Chain::sampleTreesFromPrior`](../../src/bartcore/chain.hpp) draws each tree
 from the prior conditioned on S by whole-tree rejection, for every forest and
 under every weight vector, an all-zero one included. (While the veto counted

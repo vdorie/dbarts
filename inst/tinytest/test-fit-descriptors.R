@@ -1,8 +1,8 @@
 # What a fit is: $family (the family as specified), family() (the same with
 # its settings), and the stored descriptors a family or model fixes -
-# resid.scale on a family with a residual law, n.forests on every bart fit,
-# leaf.prior and fixed on every fit and hurdle part - none of them logical and
-# none inferred from which draw channels a run kept.
+# resid.scale on a family with a residual distribution, n.forests on every
+# bart fit, leaf.prior and fixed on every fit and hurdle part - none of them
+# logical and none inferred from which draw channels a run kept.
 
 set.seed(71L)
 n <- 60L
@@ -70,8 +70,8 @@ unknownFamily <- fits$probit
 unknownFamily$family <- "cloglog"
 expect_error(fitted(unknownFamily), "unknown family 'cloglog'")
 
-# the residual law's scale model exists exactly on the families with one;
-# its shape is not stored, since the family fixes it
+# the residual distribution's scale model exists exactly on the families
+# with one; its shape is not stored, since the family fixes it
 for (name in c("gaussian", "student", "heteroscedastic", "aft")) {
   expect_true(is.character(fits[[name]]$resid.scale), info = name)
 }

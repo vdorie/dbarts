@@ -361,7 +361,7 @@ leaves an exact draw from each tree's truncated prior, p(T) prod N(mu_l)
 1{C(T)} / Z_T. Under "joint" the trees are drawn by rejection from the tree marginal
 p(T) Z_T (each tree accepted when an unconstrained leaf draw lands in its
 cone, that draw then discarded), and the leaves exactly given the tree, so
-the pair has the law p(T) prod N(mu_l) 1{C(T)}. sig0 is sbcSigmaDraw, as
+the pair has the distribution p(T) prod N(mu_l) 1{C(T)}. sig0 is sbcSigmaDraw, as
 for gaussian.
 
 Why the arm was first designed to flag. The move as first built divided each
