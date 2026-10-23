@@ -1737,7 +1737,8 @@ samplePriorPredictive <- function(
   # samples instead of the live trees this function just drew.
   newControl <- sampler$control
   newControl@keepTrees <- FALSE
-  # under the caller's prior, on the grid and range its data object records
+  # under the caller's prior, on the grid, range and leaf standardization its
+  # data object records
   draw <- dbartsSampler$new(newControl, sampler$model, sampler$data)
 
   xt <- if (is.null(x.test)) extract(draw, "predictors") else x.test

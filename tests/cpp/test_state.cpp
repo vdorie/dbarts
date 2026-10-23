@@ -6407,6 +6407,23 @@ static void testSuppliedStandardization() {
             held.leafScales.size() == 1 && std::isnan(held.leafScales[0]),
           "supplied standardization: a scale without spread divides by 1 and "
           "is recorded so");
+    // a column the record does not give, its center not a number, derives;
+    // a lengthscale not a number derives over the supplied constants
+    const double unknown[] = {nan};
+    std::unique_ptr<SamplerBase> underived =
+      make(x, optionsFor(gp, false, {unknown, unknown, unknown}), 50);
+    underived->derivedRecords(held);
+    bool derivesColumn = bits(held.leafCenters, records.leafCenters) &&
+      bits(held.leafScales, records.leafScales) &&
+      bits(held.leafLengthscales, records.leafLengthscales);
+    DerivedRecords overSupplied;
+    make(x, optionsFor(gp, false, {centers, scales, nullptr}), 60)
+      ->derivedRecords(overSupplied);
+    make(x, optionsFor(gp, false, {centers, scales, unknown}), 60)
+      ->derivedRecords(held);
+    check(derivesColumn &&
+            bits(held.leafLengthscales, overSupplied.leafLengthscales),
+          "supplied standardization: a value not a number derives its column");
     (void) kind;
   }
 

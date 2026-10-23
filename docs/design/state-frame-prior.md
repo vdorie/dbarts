@@ -261,8 +261,11 @@ alternative, for the maintainer's later mark.
   reordered `setData` would have to remap.
 - The anchor and unit's slot is `forest.calibration`. Alternative: inside `response.range`.
 - A record that does not fit the data (another column count or kind, an ordered factor's grid other than its
-  levels', a standardization for columns the leaf does not take) is refused, naming the slot. Alternative:
-  dropped and derived, which hides a mistake.
+  levels') is refused, naming the slot. Alternative: dropped and derived, which hides a mistake.
+- A standardization describes the covariates a leaf model takes, a model choice and not the data's, so it is
+  matched to them by name: an entry for a covariate the leaves do not take is ignored and a covariate they take
+  without an entry derived; only a malformed one is refused. Alternative: refused as a misfit, where a change
+  of leaf model hides no mistake.
 - A carried grid out of order is sorted and one that repeats a point is refused, as dec-A170 as the
   maintainer revised it has `setCutPoints` do. Alternative: refuse any unsorted grid.
 - A carried grid is used whatever `n.cuts` and the quantile rule say; those two say how to derive. Alternative:

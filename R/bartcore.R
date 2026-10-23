@@ -1305,9 +1305,15 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   }
   # nor for levels: a record that names some for a block the data lack is
   # refused before anything is stored, as it is where a sampler is made, and
-  # so are derived values recorded in a form that fits no data
+  # so are derived values recorded in a form that fits no data. The columns
+  # are the sampler's once aligned below, by name or else by position, so a
+  # standardization is matched to its leaf covariates by the sampler's names
   checkBasisRecord(newData)
-  newData <- checkDerivedRecord(newData, sampler$model)
+  newData <- checkDerivedRecord(
+    newData,
+    sampler$model,
+    leafCovariateNames(sampler$model, sampler$data)
+  )
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }

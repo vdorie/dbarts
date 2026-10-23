@@ -2431,10 +2431,11 @@ inline bool standardizedColumnHasSpread(const double* u, std::size_t n,
 
 /// Designated column \p j's center and scale as \p supplied gives them, a
 /// scale that is not a number read as the placeholder 1; false where it
-/// gives none.
+/// gives none, or a center that is not a number.
 inline bool suppliedMoments(const SuppliedStandardization& supplied,
                             std::size_t j, double* mean, double* sd) {
-  if (supplied.centers == nullptr) return false;
+  if (supplied.centers == nullptr || std::isnan(supplied.centers[j]))
+    return false;
   *mean = supplied.centers[j];
   *sd = std::isnan(supplied.scales[j]) ? 1.0 : supplied.scales[j];
   return true;
@@ -3054,7 +3055,8 @@ struct GPGaussianLeaf {
     for (std::size_t j = 0; j < numColumns; ++j)
       lengthscales_[j] = !suppliedLengthscales_.empty()
         ? suppliedLengthscales_[j]
-        : supplied.lengthscales != nullptr
+        : supplied.lengthscales != nullptr &&
+            !std::isnan(supplied.lengthscales[j])
           ? supplied.lengthscales[j]
           : medianPairwiseDistance(u_.data() + j * numObservations_,
                                    numObservations_);

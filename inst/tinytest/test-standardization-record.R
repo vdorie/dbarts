@@ -324,12 +324,13 @@ for (door in names(doors)) {
 }
 derived <- make(data = carried@x)
 expect_false(identical(inForce(derived), recordOf(holder)))
-# xbart's folds derive their own: the carried record changes nothing
-crossValidated <- function(data) {
+# xbart's folds derive their own: the carried record changes nothing, and
+# folds whose leaves take no covariate are never handed it
+crossValidated <- function(data, leafPrior = quote(linear(columns = "a"))) {
   set.seed(9L)
-  dbarts::xbart(
+  eval(bquote(dbarts::xbart(
     data,
-    leaf.prior = linear(columns = "a"),
+    leaf.prior = .(leafPrior),
     n.samples = 3L,
     n.burn = 2L,
     n.reps = 1L,
@@ -337,12 +338,14 @@ crossValidated <- function(data) {
     k = 2,
     n.threads = 1L,
     verbose = FALSE
+  )))
+}
+for (leafPrior in list(quote(linear(columns = "a")), quote(normal()))) {
+  expect_identical(
+    crossValidated(carried, leafPrior),
+    crossValidated(dbarts::dbartsData(carried@x, carried@y), leafPrior)
   )
 }
-expect_identical(
-  crossValidated(carried),
-  crossValidated(dbarts::dbartsData(carried@x, carried@y))
-)
 
 # ---- gp kept refused -------------------------------------------------------
 
@@ -390,6 +393,54 @@ expect_identical(
 before <- stateOf(gpLonger)
 expect_error(gpLonger$setState(gpStored), refusedGp, fixed = TRUE)
 expect_identical(stateOf(gpLonger), before)
+# the scale alone another, by a record with it doubled
+wider <- dbarts::dbartsData(x, y)
+wider@standardization <- gpDonor$data@standardization
+wider@standardization[[1L]]$scale <- 2 * wider@standardization[[1L]]$scale
+gpWider <- dbarts::dbarts(
+  wider,
+  leaf.prior = gp(columns = "a"),
+  control = controlWith(seed = 9L)
+)
+expect_identical(
+  inForce(gpWider)[c("center", "lengthscale")],
+  inForce(gpDonor)[c("center", "lengthscale")]
+)
+expect_identical(inForce(gpWider)$scale, 2 * inForce(gpDonor)$scale)
+expect_error(gpWider$setState(gpStored), refusedGp, fixed = TRUE)
+# and by data: a covariate centered exactly at 0 and then doubled keeps its
+# center and its heuristic lengthscale, read off the standardized values
+centered <- x
+centered[, 1L] <- c(seq_len(n / 2L), -seq_len(n / 2L)) / 64
+doubled <- centered
+doubled[, 1L] <- 2 * centered[, 1L]
+centeredDonor <- noSplitsOnA(
+  leaf.prior = gp(columns = "a"),
+  data = centered,
+  sweeps = 5L
+)
+centeredDonor$storeState()
+doubledSampler <- noSplitsOnA(
+  leaf.prior = gp(columns = "a"),
+  data = doubled,
+  control = list(seed = 8L)
+)
+expect_identical(inForce(centeredDonor)$center, 0)
+expect_identical(
+  inForce(doubledSampler)[c("center", "lengthscale")],
+  inForce(centeredDonor)[c("center", "lengthscale")]
+)
+expect_identical(
+  inForce(doubledSampler)$scale,
+  2 * inForce(centeredDonor)$scale
+)
+before <- stateOf(doubledSampler)
+expect_error(
+  doubledSampler$setState(centeredDonor$state),
+  refusedGp,
+  fixed = TRUE
+)
+expect_identical(stateOf(doubledSampler), before)
 # live fits alone, the state keeping no draw: installed, the sampler's own
 # standardization and lengthscale standing
 gpLive <- make(
@@ -486,63 +537,93 @@ flatDonor$storeState()
 expect_identical(liveOf(stateOf(flatRecipient)), liveOf(flatDonor$state))
 expect_identical(inForce(flatRecipient)$center, 3)
 
-# ---- misfit ----------------------------------------------------------------
+# ---- matched to the leaves -------------------------------------------------
 
-# a record that does not fit the leaves is refused at creation and at
-# setData, naming the slot, the sampler untouched
+# Which covariates the leaves take is the model's, so a record is matched to
+# them by name, never refused for them: an entry the leaves do not take is
+# ignored, and a covariate without one derived
 withRecord <- function(standardization) {
   data <- dbarts::dbartsData(x, y)
   data@standardization <- standardization
   data
 }
 fits <- list(list(center = c(a = 0.5), scale = c(a = 0.3)))
-misfits <- list(
+fresh <- function(leafPrior) {
+  inForce(eval(bquote(make(leaf.prior = .(leafPrior)))))
+}
+# leaves taking no covariate, at creation and at setData
+constantFit <- dbarts::dbarts(carried, control = controlWith())
+expect_null(constantFit$data@standardization)
+constantBart <- dbarts::bart(
+  carried,
+  n.trees = 10L,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)$fit
+expect_null(constantBart$data@standardization)
+constantFit$setData(carried)
+expect_null(constantFit$data@standardization)
+# leaves taking another covariate derive it, and taking another beside the
+# recorded one use the record's for it
+otherCovariate <- dbarts::dbarts(
+  carried,
+  leaf.prior = linear(columns = "b"),
+  control = controlWith()
+)
+expect_identical(inForce(otherCovariate), fresh(quote(linear(columns = "b"))))
+expect_identical(names(otherCovariate$data@standardization[[1L]]$center), "b")
+both <- dbarts::dbarts(
+  carried,
+  leaf.prior = linear(columns = c("b", "a")),
+  control = controlWith()
+)
+expect_identical(
+  lapply(recordOf(both), `[`, 2L),
+  recordOf(holder)
+)
+expect_identical(
+  lapply(recordOf(both), `[`, 1L),
+  fresh(quote(linear(columns = "b")))
+)
+# an entry for another column, an unnamed one of another count and a second
+# forest's: the first two derive, the third is not read
+served <- list(
   "another column" = list(
     record = list(list(center = c(b = 0.5), scale = c(b = 0.3))),
-    message = "names the leaf covariates b, and the leaves take a"
+    held = fresh(quote(linear(columns = "a")))
   ),
   "two covariates" = list(
     record = list(list(center = c(0.5, 0.5), scale = c(0.3, 0.3))),
-    message = "gives 2 leaf covariates, and the leaves take 1"
-  ),
-  "a scale of zero" = list(
-    record = list(list(center = c(a = 0.5), scale = c(a = 0))),
-    message = "must give a finite 'center', a positive or NA 'scale'"
+    held = fresh(quote(linear(columns = "a")))
   ),
   "a second forest's" = list(
     record = c(fits, fits),
-    message = paste(
-      "must be a list with one entry per forest, of which only the first",
-      "can hold one"
-    )
+    held = list(center = 0.5, scale = 0.3)
+  ),
+  # a logical NA is a scale without spread, as NA_real_ is
+  "a logical NA" = list(
+    record = list(list(center = c(a = 0.5), scale = c(a = NA))),
+    held = inForce(dbarts::dbarts(
+      withRecord(list(list(center = c(a = 0.5), scale = c(a = NA_real_)))),
+      leaf.prior = linear(columns = "a"),
+      control = controlWith()
+    ))
   )
 )
 sampler <- make(sweeps = 5L)
-before <- stateOf(sampler)
-for (misfit in names(misfits)) {
-  message <- paste0(
-    "the data's 'standardization' record ",
-    misfits[[misfit]]$message
+for (case in names(served)) {
+  taken <- dbarts::dbarts(
+    withRecord(served[[case]]$record),
+    leaf.prior = linear(columns = "a"),
+    control = controlWith()
   )
-  data <- withRecord(misfits[[misfit]]$record)
-  expect_error(
-    dbarts::dbarts(
-      data,
-      leaf.prior = linear(columns = "a"),
-      control = controlWith()
-    ),
-    message,
-    fixed = TRUE,
-    info = misfit
-  )
-  expect_error(sampler$setData(data), message, fixed = TRUE, info = misfit)
-  expect_identical(stateOf(sampler), before, info = misfit)
+  expect_identical(inForce(taken), served[[case]]$held, info = case)
+  sampler$setData(withRecord(served[[case]]$record))
 }
-expect_error(
-  dbarts::dbarts(withRecord(fits), control = controlWith()),
-  "the data's 'standardization' record gives one, and the leaves take no covariate",
-  fixed = TRUE
-)
 # one that fits, unnamed or named, is taken
 for (record in list(fits, list(lapply(fits[[1L]], unname)))) {
   taken <- dbarts::dbarts(
@@ -552,6 +633,107 @@ for (record in list(fits, list(lapply(fits[[1L]], unname)))) {
   )
   expect_identical(inForce(taken), list(center = 0.5, scale = 0.3))
   expect_identical(taken$data@standardization, fits)
+}
+
+# setData reads the columns by name, else by position, the record taking the
+# new names: a sampler's data object reordered, stripped of its names or
+# renamed is served, linear and gp, and the record is the reader's under the
+# names the data then carry
+variants <- list(
+  reordered = function(data) {
+    data@x <- data@x[, c("b", "a")]
+    data
+  },
+  unnamed = function(data) {
+    colnames(data@x) <- NULL
+    data
+  },
+  renamed = function(data) {
+    colnames(data@x) <- c("c", "d")
+    data
+  }
+)
+for (leaf in c("linear", "gp")) {
+  for (variant in names(variants)) {
+    swapped <- if (leaf == "linear") {
+      make(control = list(keepTrees = FALSE))
+    } else {
+      make(leaf.prior = gp(columns = "a"), control = list(keepTrees = FALSE))
+    }
+    swapped$setData(variants[[variant]](swapped$data))
+    info <- paste(leaf, variant)
+    expect_identical(
+      names(swapped$data@standardization[[1L]]$center),
+      colnames(swapped$data@x)[1L],
+      info = info
+    )
+    expect_identical(recordOf(swapped), readerOf(swapped)[[1L]], info = info)
+  }
+}
+
+# ---- malformed -------------------------------------------------------------
+
+# a record not of the slot's form is refused at creation, whatever the leaves
+# take, and at setData, naming the slot, the sampler untouched
+malformed <- list(
+  "not a list" = list(
+    record = c(a = 0.5),
+    message = "must be a list with one entry per forest"
+  ),
+  "an entry not a list" = list(
+    record = list(c(0.5, 0.3)),
+    message = "must be a list with one entry per forest"
+  ),
+  "no entry" = list(
+    record = list(),
+    message = "must be a list with one entry per forest"
+  ),
+  "a scale of zero" = list(
+    record = list(list(center = c(a = 0.5), scale = c(a = 0))),
+    message = "must give a finite 'center', a positive or NA 'scale'"
+  ),
+  "a center not finite" = list(
+    record = list(list(center = c(a = NA), scale = c(a = 0.3))),
+    message = "must give a finite 'center', a positive or NA 'scale'"
+  ),
+  "a center not numeric" = list(
+    record = list(list(center = c(a = "0.5"), scale = c(a = 0.3))),
+    message = "must give a finite 'center', a positive or NA 'scale'"
+  ),
+  "lengths that differ" = list(
+    record = list(list(center = c(a = 0.5), scale = c(0.3, 0.3))),
+    message = "must give a finite 'center', a positive or NA 'scale'"
+  ),
+  "a lengthscale of zero" = list(
+    record = list(list(
+      center = c(a = 0.5),
+      scale = c(a = 0.3),
+      lengthscale = c(a = 0)
+    )),
+    message = "must give a finite 'center', a positive or NA 'scale'"
+  )
+)
+before <- stateOf(sampler)
+for (case in names(malformed)) {
+  message <- paste0(
+    "the data's 'standardization' record ",
+    malformed[[case]]$message
+  )
+  data <- withRecord(malformed[[case]]$record)
+  for (leafPrior in list(quote(linear(columns = "a")), quote(normal()))) {
+    expect_error(
+      eval(bquote(dbarts::dbarts(
+        data,
+        leaf.prior = .(leafPrior),
+        control = controlWith()
+      ))),
+      message,
+      fixed = TRUE,
+      info = case
+    )
+  }
+  expect_error(sampler$setData(data), message, fixed = TRUE, info = case)
+  expect_identical(stateOf(sampler), before, info = case)
 }
 
 # ---- record-less object ----------------------------------------------------

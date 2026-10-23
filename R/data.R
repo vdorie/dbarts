@@ -381,12 +381,17 @@ leafCovariateNames <- function(model, data) {
 }
 
 ## Holds the derived values a data object records to the data before a
-## sampler is created from it, and returns it with each grid in order. Only
-## the record's form, the columns' kinds and names, and the leaf covariates
-## the model, when given, designates are read, never a row: a record is the
-## values to use, whatever data they came from. Each refusal names the slot
-## and says that NULL derives the value instead.
-checkDerivedRecord <- function(data, model = NULL) {
+## sampler is created from it, and returns it with each grid in order and the
+## standardization matched to the model's leaves, by their names in
+## covariates. Only the record's form, the columns' kinds and the leaf
+## covariates are read, never a row: a record is the values to use, whatever
+## data they came from. Each refusal names the slot and says that NULL
+## derives the value instead.
+checkDerivedRecord <- function(
+  data,
+  model,
+  covariates = leafCovariateNames(model, data)
+) {
   refuse <- function(slot, ...) {
     stop(
       "the data's '",
@@ -502,87 +507,104 @@ checkDerivedRecord <- function(data, model = NULL) {
       "must be two positive finite numbers, c(anchor = , unit = )"
     )
   }
-  checkStandardizationRecord(dataStandardization(data), data, model, refuse)
+  standardization <- dataStandardization(data)
+  if (!is.null(standardization)) {
+    data@standardization <- checkStandardizationRecord(
+      standardization,
+      model,
+      covariates,
+      refuse
+    )
+  }
   data
 }
 
-## The standardization record's part of checkDerivedRecord: one entry per
-## forest, only the first holding one, of a finite center, a positive or NA
-## scale and, beside them, a positive lengthscale, one value per leaf
-## covariate the model designates and named as those columns are; a
-## lengthscale where the model supplies one, or on linear leaves, is not read.
-checkStandardizationRecord <- function(record, data, model, refuse) {
+## The standardization record's part of checkDerivedRecord: a list of one
+## entry per forest, each NULL or list(center = , scale = ) with, for gp
+## leaves, lengthscale beside them, as many of each: a finite center, a
+## positive or NA scale, a logical NA read as one, and a positive lengthscale.
+## Any other form is refused. Which covariates the leaves take is the
+## model's, so the rest is matched and never refused: only the first forest's
+## leaves can take any, and its entry goes to them by name where it and
+## covariates both carry names, else by position where the counts agree. An
+## entry for a covariate the leaves do not take is ignored, and a covariate
+## no entry matches gets an NA center, which derives it. Returns the matched
+## record, NULL where nothing matches.
+checkStandardizationRecord <- function(record, model, covariates, refuse) {
   if (is.null(record)) {
-    return(invisible(NULL))
+    return(NULL)
   }
-  entry <- if (is.list(record) && length(record) > 0L) record[[1L]]
+  given <- if (is.list(record)) !vapply(record, is.null, NA)
   if (
     !is.list(record) ||
       length(record) == 0L ||
-      !all(vapply(record[-1L], is.null, logical(1L)))
+      !all(vapply(record[given], is.list, NA))
   ) {
     refuse(
       "standardization",
-      "must be a list with one entry per forest, of which only the first ",
-      "can hold one"
+      "must be a list with one entry per forest, each NULL or a list of ",
+      "'center' and 'scale'"
     )
   }
-  if (is.null(entry)) {
-    return(invisible(NULL))
+  numbersOf <- function(value) {
+    if (is.logical(value) && length(value) > 0L && all(is.na(value))) {
+      as.double(value)
+    } else {
+      value
+    }
   }
-  center <- entry$center
-  scale <- entry$scale
-  lengthscale <- entry$lengthscale
-  q <- length(center)
-  if (
-    !is.list(entry) ||
+  for (entry in record[given]) {
+    center <- entry$center
+    scale <- numbersOf(entry$scale)
+    lengthscale <- entry$lengthscale
+    q <- length(center)
+    if (
       !is.numeric(center) ||
-      q == 0L ||
-      !all(is.finite(center)) ||
-      !is.numeric(scale) ||
-      length(scale) != q ||
-      !all(is.na(scale) | (is.finite(scale) & scale > 0)) ||
-      !(is.null(lengthscale) ||
-        (is.numeric(lengthscale) &&
-          length(lengthscale) == q &&
-          all(is.finite(lengthscale) & lengthscale > 0)))
-  ) {
-    refuse(
-      "standardization",
-      "must give a finite 'center', a positive or NA 'scale' and, for gp ",
-      "leaves, a positive 'lengthscale', one value each per leaf covariate"
-    )
-  }
-  if (is.null(model)) {
-    return(invisible(NULL))
-  }
-  prior <- model@leaf.prior
-  if (!is(prior, "dbartsLinearPrior") && !is(prior, "dbartsGPPrior")) {
-    refuse("standardization", "gives one, and the leaves take no covariate")
-  }
-  if (q != length(prior@columns)) {
-    refuse(
-      "standardization",
-      "gives ",
-      q,
-      " leaf covariates, and the leaves take ",
-      length(prior@columns)
-    )
-  }
-  expected <- leafCovariateNames(model, data)
-  if (!is.null(names(center)) && !identical(names(center), expected)) {
-    refuse(
-      "standardization",
-      "names the leaf covariates ",
-      paste(names(center), collapse = ", "),
-      ", and the leaves take ",
-      paste(
-        if (is.null(expected)) "unnamed columns" else expected,
-        collapse = ", "
+        q == 0L ||
+        !all(is.finite(center)) ||
+        !is.numeric(scale) ||
+        length(scale) != q ||
+        !all(is.na(scale) | (is.finite(scale) & scale > 0)) ||
+        !(is.null(lengthscale) ||
+          (is.numeric(lengthscale) &&
+            length(lengthscale) == q &&
+            all(is.finite(lengthscale) & lengthscale > 0)))
+    ) {
+      refuse(
+        "standardization",
+        "must give a finite 'center', a positive or NA 'scale' and, for gp ",
+        "leaves, a positive 'lengthscale', one value each per leaf covariate"
       )
-    )
+    }
   }
-  invisible(NULL)
+  entry <- record[[1L]]
+  prior <- model@leaf.prior
+  if (
+    is.null(entry) ||
+      !(is(prior, "dbartsLinearPrior") || is(prior, "dbartsGPPrior"))
+  ) {
+    return(NULL)
+  }
+  q <- length(prior@columns)
+  keys <- names(entry$center)
+  matched <- if (!is.null(keys) && !is.null(covariates)) {
+    match(covariates, keys)
+  } else if (length(entry$center) == q) {
+    seq_len(q)
+  } else {
+    rep(NA_integer_, q)
+  }
+  if (all(is.na(matched))) {
+    return(NULL)
+  }
+  held <- list(
+    center = as.double(entry$center)[matched],
+    scale = as.double(numbersOf(entry$scale))[matched]
+  )
+  if (!is.null(entry$lengthscale)) {
+    held$lengthscale <- as.double(entry$lengthscale)[matched]
+  }
+  list(held)
 }
 
 ## Refuses an engine just created from data whose record gives an ordered

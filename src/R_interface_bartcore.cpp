@@ -1222,16 +1222,18 @@ void readCutPointsRecord(ParsedData& data, SEXP recordExpr) {
 /// Reads a data object's standardization record into \p data: a list with
 /// one entry per forest, NULL where its leaves take no covariate and
 /// otherwise a list of "center" and "scale", one value per leaf covariate,
-/// the scale NA for a column without spread, and "lengthscale" beside them
-/// for gp leaves. Only the first forest's leaves can take covariates; whether
+/// and "lengthscale" beside them for gp leaves. A center NA derives that
+/// covariate, a scale NA marks one without spread and a lengthscale NA
+/// derives that lengthscale. Only the first forest's leaves can take
+/// covariates; R matches the record to them (checkDerivedRecord), and whether
 /// the count is theirs is optionsFromParsed's to say.
 void readStandardizationRecord(ParsedData& data, SEXP recordExpr) {
   const char* malformed =
     "the data's 'standardization' record must be NULL or a list with one "
     "entry per forest, NULL where a forest's leaves take no covariate and, "
-    "for the one whose leaves do, a finite 'center', a positive or NA "
-    "'scale' and, for gp leaves, a positive 'lengthscale', each one value per "
-    "leaf covariate";
+    "for the one whose leaves do, a finite or NA 'center', a positive or NA "
+    "'scale' and, for gp leaves, a positive or NA 'lengthscale', each one "
+    "value per leaf covariate";
   if (TYPEOF(recordExpr) != VECSXP || Rf_xlength(recordExpr) == 0)
     Rf_error("%s", malformed);
   for (R_xlen_t f = 1; f < Rf_xlength(recordExpr); ++f)
@@ -1247,12 +1249,14 @@ void readStandardizationRecord(ParsedData& data, SEXP recordExpr) {
   bool valid = q > 0 && Rf_isReal(scalesExpr) && Rf_xlength(scalesExpr) == q &&
     (!lengthscales ||
      (Rf_isReal(lengthscalesExpr) && Rf_xlength(lengthscalesExpr) == q));
+  // NaN is NA, or a value the engine derives; an infinity is neither
   for (R_xlen_t j = 0; valid && j < q; ++j) {
     double scale = REAL(scalesExpr)[j];
-    valid = std::isfinite(REAL(centersExpr)[j]) &&
+    double lengthscale = lengthscales ? REAL(lengthscalesExpr)[j] : 1.0;
+    valid = !std::isinf(REAL(centersExpr)[j]) &&
       (std::isnan(scale) || (std::isfinite(scale) && scale > 0.0)) &&
-      (!lengthscales || (std::isfinite(REAL(lengthscalesExpr)[j]) &&
-                         REAL(lengthscalesExpr)[j] > 0.0));
+      (std::isnan(lengthscale) ||
+       (std::isfinite(lengthscale) && lengthscale > 0.0));
   }
   if (!valid) Rf_error("%s", malformed);
   data.suppliedLeafCenters.assign(REAL(centersExpr), REAL(centersExpr) + q);
