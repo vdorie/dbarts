@@ -176,8 +176,9 @@ expect_error(
   "one per training row"
 )
 
-# a training row at weight 0 draws its posterior predictive as an ordinary
-# observation, at weight 1 (dec-B372); predict refuses a weight of 0 by name
+# a row at weight 0 has NA posterior predictive draws by every route, with no
+# warning: a weight of 0 holds the row out of the fit and gives it no noise
+# scale (sd sigma / sqrt(w)); every other row's draw is what it was
 w <- rep(c(0, 1, 4), length.out = n)
 fit.w <- suppressWarnings(bart(
   x,
@@ -202,21 +203,167 @@ counted <- function(expr) {
   )
   list(value = value, warnings = seen)
 }
+held <- which(w == 0)
+kept <- which(w != 0)
+# extract: the held rows are NA in every draw, and the rows the weights keep
+# are the draws of the build before, which drew a weight-0 row at weight 1
 set.seed(8)
 ppd.w <- counted(extract(fit.w, "ppd"))
 expect_identical(ppd.w$warnings, 0L)
-expect_false(anyNA(ppd.w$value))
+expect_true(all(is.na(ppd.w$value[, held])))
+expect_false(anyNA(ppd.w$value[, kept]))
+fit.w1 <- fit.w
+fit.w1$weights <- ifelse(w == 0, 1, w)
+set.seed(8)
+ppd.w1 <- extract(fit.w1, "ppd")
+expect_identical(ppd.w$value[, kept], ppd.w1[, kept])
 fitted.w <- counted(fitted(fit.w, type = "ppd"))
 expect_identical(fitted.w$warnings, 0L)
-expect_false(anyNA(fitted.w$value))
-# a weight-0 row draws with the spread of weight 1: the same noise scale
-# as a weight-1 row of the same fit
-spread <- apply(ppd.w$value - extract(fit.w, "ev"), 2L, sd)
-expect_true(
-  abs(mean(spread[w == 0]) - mean(spread[w == 1])) < 0.5 * mean(spread[w == 1])
+expect_identical(which(is.na(fitted.w$value)), held)
+ci.w <- counted(fitted(fit.w, type = "ppd", ci.level = 0.9))
+expect_identical(ci.w$warnings, 0L)
+expect_identical(which(is.na(ci.w$value[, "est"])), held)
+expect_identical(which(is.na(ci.w$value[, "ci.lower"])), held)
+expect_identical(which(is.na(ci.w$value[, "ci.upper"])), held)
+# the other types are untouched by a weight of 0
+expect_false(anyNA(extract(fit.w, "ev")))
+expect_false(anyNA(fitted(fit.w, type = "bart")))
+# a split-chain request holds the same rows out
+expect_identical(
+  which(apply(is.na(extract(fit.w, "ppd", combineChains = FALSE)), 3L, any)),
+  held
+)
+
+# predict at newdata with weights = 0 is NA at those rows, where it was
+# refused by name; a row stated at weight 1 is the way to draw it as a new
+# observation
+nd.w <- c(0, 1, 4, 0, 2)
+set.seed(9)
+pw <- counted(predict(fit.w, x[1:5, ], type = "ppd", weights = nd.w))
+expect_identical(pw$warnings, 0L)
+expect_identical(which(colSums(is.na(pw$value)) > 0L), c(1L, 4L))
+set.seed(9)
+pw1 <- predict(
+  fit.w,
+  x[1:5, ],
+  type = "ppd",
+  weights = ifelse(nd.w == 0, 1, nd.w)
+)
+expect_identical(pw$value[, c(2L, 3L, 5L)], pw1[, c(2L, 3L, 5L)])
+expect_false(anyNA(pw1))
+expect_true(all(is.na(predict(fit.w, x[1:5, ], type = "ppd", weights = 0))))
+expect_identical(
+  which(is.na(predict(
+    fit.w,
+    x[1:5, ],
+    type = "ppd",
+    weights = nd.w,
+    ci.level = 0.9
+  )[, "est"])),
+  c(1L, 4L)
+)
+expect_false(anyNA(predict(fit.w, x[held, ], type = "ppd", weights = 1)))
+# only a weight of 0 is held out: the rest of the check is as it was
+expect_error(
+  predict(fit.w, x[1:5, ], type = "ppd", weights = c(-1, 1, 1, 1, 1)),
+  "finite and non-negative"
 )
 expect_error(
-  predict(fit.w, x, type = "ppd", weights = c(0, rep(1, n - 1L))),
-  "pass 1 for an ordinary observation"
+  predict(fit.w, x[1:5, ], type = "ppd", weights = c(Inf, 1, 1, 1, 1)),
+  "finite and non-negative"
 )
-expect_false(anyNA(predict(fit.w, x, type = "ppd", weights = rep(1, n))))
+
+# the test sample's rows whose test-frame weight is 0
+train.frame <- data.frame(x, y = df$y, weights = w)
+test.rows <- 1:9
+test.frame <- data.frame(
+  x[test.rows, ],
+  y = df$y[test.rows],
+  weights = w[test.rows]
+)
+fit.wt <- suppressWarnings(bart(
+  y ~ a + b + c,
+  train.frame,
+  test = test.frame,
+  weights = weights,
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 2L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+expect_identical(fit.wt$weights.test, w[test.rows])
+set.seed(4)
+ppd.t <- counted(extract(fit.wt, "ppd", sample = "test"))
+expect_identical(ppd.t$warnings, 0L)
+heldTest <- which(w[test.rows] == 0)
+keptTest <- which(w[test.rows] != 0)
+expect_true(all(is.na(ppd.t$value[, heldTest])))
+expect_false(anyNA(ppd.t$value[, keptTest]))
+fit.wt1 <- fit.wt
+fit.wt1$weights.test <- ifelse(w[test.rows] == 0, 1, w[test.rows])
+set.seed(4)
+expect_identical(
+  ppd.t$value[, keptTest],
+  extract(fit.wt1, "ppd", sample = "test")[, keptTest]
+)
+
+# Student-t and aft fits hold a weight of 0 out the same way, a heteroscedastic
+# gaussian fit at its own scale s(x)
+fit.t <- suppressWarnings(bart(
+  x,
+  df$y,
+  weights = w,
+  family = "student",
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  verbose = FALSE
+))
+expect_identical(which(is.na(fitted(fit.t, type = "ppd"))), held)
+fit.s <- suppressWarnings(bart(
+  x,
+  df$y,
+  weights = w,
+  variance = varianceForest(n.trees = 5L),
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+expect_identical(which(is.na(fitted(fit.s, type = "ppd"))), held)
+expect_true(all(is.na(predict(fit.s, x[1:3, ], type = "ppd", weights = 0))))
+expect_identical(
+  which(
+    colSums(is.na(predict(fit.aft, x[1:5, ], type = "ppd", weights = nd.w))) >
+      0L
+  ),
+  c(1L, 4L)
+)
+
+# a binary fit's weights are trial counts and a count of 0 stays refused; the
+# rows a probit fit's 0/1 weights mask out draw as they did
+fit.mask <- suppressWarnings(bart(
+  x,
+  df$z,
+  weights = as.numeric(w > 0),
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 10L,
+  n.chains = 1L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+))
+expect_false(anyNA(extract(fit.mask, "ppd")))
+expect_error(
+  predict(fit.mask, x[1:3, ], type = "ppd", weights = c(0, 1, 1)),
+  "trial counts and must be positive integers"
+)

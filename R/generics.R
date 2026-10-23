@@ -292,7 +292,19 @@ posteriorInterval <- function(draws, ci.level, trailing = 1L) {
   d <- dim(draws)
   keepAxes <- seq.int(length(d) - trailing + 1L, length(d))
   est <- channelMeans(draws, trailing)
-  bounds <- apply(draws, keepAxes, quantile, probs = probs, names = FALSE)
+  # an observation with no draws to speak of, a posterior predictive row held
+  # out at weight 0, has NA for its band as for its mean
+  bounds <- apply(
+    draws,
+    keepAxes,
+    function(v) {
+      if (all(is.na(v))) {
+        rep(NA_real_, length(probs))
+      } else {
+        quantile(v, probs = probs, names = FALSE)
+      }
+    }
+  )
   if (trailing == 1L) {
     result <- cbind(est, bounds[1L, ], bounds[2L, ])
     colnames(result) <- c("est", "ci.lower", "ci.upper")
@@ -860,18 +872,6 @@ predict.bart <- function(
         call. = FALSE
       )
     }
-    # a weight of 0 holds a training row out of the fit; a new observation
-    # at that weight has no noise scale, so the caller says what it is
-    if (any(observed == 0)) {
-      stop(
-        "the posterior predictive 'weights' of a ",
-        fitFamily(object),
-        " fit cannot be 0, which holds a training row out of the fit and ",
-        "gives a new observation no noise scale; pass 1 for an ordinary ",
-        "observation",
-        call. = FALSE
-      )
-    }
   }
 
   if (type == "forest") {
@@ -1320,12 +1320,6 @@ extract.bart <- function(
 
   result <- if (sample == "train") object$yhat.train else object$yhat.test
   weights <- if (sample == "train") object$weights else object$weights.test
-  # a row at weight 0 is held out of the fit, and its posterior predictive is
-  # an ordinary observation, drawn at weight 1 (dec-B372); a binary fit's
-  # weights are trial counts and stay as they are
-  if (!is.null(weights) && !fitIsBinary(object)) {
-    weights[which(weights == 0)] <- 1
-  }
 
   result <- combineOrUncombineChains(result, n.chains, combineChains)
 
@@ -4084,6 +4078,17 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     }
   }
 
+  # a weight of 0 holds a row out of the fit and leaves it no noise scale, sd
+  # sigma / sqrt(w), so its draws are NA. The row is drawn at weight 1 and its
+  # draws overwritten, which leaves the random stream and every other row's
+  # draw as they are. A binary fit's weights are trial counts and stay.
+  heldOut <- integer(0L)
+  if (!is.null(weights) && !responseIsBinary) {
+    weights <- rep_len(weights, dim(ev)[length(dim(ev))])
+    heldOut <- which(weights == 0)
+    weights[heldOut] <- 1
+  }
+
   if (is.null(weights)) {
     if (responseIsBinary) {
       if (n.chains > 1L && length(dim(ev)) < 3L) {
@@ -4175,7 +4180,21 @@ sampleFromPPD <- function(ev, object, weights, n.chains = 1L, s = NULL) {
     .GlobalEnv$.Random.seed <- oldSeed
   }
 
+  if (length(heldOut) > 0L) {
+    result <- setObservationsNA(result, heldOut)
+  }
   result
+}
+
+# x with its observations 'rows' (the last margin) set to NA, in every draw
+setObservationsNA <- function(x, rows) {
+  d <- dim(x)
+  perObservation <- prod(d[-length(d)])
+  x[
+    rep(seq_len(perObservation), length(rows)) +
+      rep((rows - 1L) * perObservation, each = perObservation)
+  ] <- NA
+  x
 }
 
 # The tree count of each forest of a kept sampler, in the forests' order. The

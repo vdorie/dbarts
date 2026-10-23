@@ -106,9 +106,11 @@
       \item Posterior predictive draws follow the case weights on gaussian,
             Student-t and \code{aft} fits (a row's noise sd is sigma over
             the square root of its weight; 0.9-34 used sigma at every row).
-            A training row at weight 0 draws as an ordinary observation, at
-            weight 1, and \code{predict(type = "ppd", weights = 0)} is
-            refused, saying to pass 1.
+            A row at weight 0 has \code{NA} draws, in \code{extract},
+            \code{fitted} and \code{predict} alike: a weight of 0 holds a
+            row out of the fit and gives it no noise scale. To draw such a
+            row as a new observation, state its weight, as in
+            \code{predict(fit, type = "ppd", weights = 1)}.
       \item New predictors for a fit with a factor column come as a data
             frame, coded by label: \code{setPredictor(x)} with no
             \code{column} takes one (0.9-34 stopped on it), as do
