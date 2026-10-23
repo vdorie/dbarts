@@ -371,9 +371,9 @@ other two as the orchestrator reads them. What changed here:
 ## Slice 1 as built
 
 Built on bartcore 46e1a644, with warm-start-salvage slice C landed; the plan's steps held against that tip,
-warm-start-salvage slice D and forest-multiplier push 2 not yet landed. Commits 2206a84f (the slice),
-72c9ef00 (setData hands no carried record on; below), 4616bada (cites of the retired helpers), 3a2a8a9b (the
-forest-prior exact gate reads the unit from the data object) and this record.
+warm-start-salvage slice D and forest-multiplier push 2 not yet landed. Commits, as rebased onto a000d239
+(below): 64a61c2f (the slice), 27f10098 (setData hands no carried record on; below), c4a8e4bb (cites of the
+retired helpers), c8a1714f (the forest-prior exact gate reads the unit from the data object) and this record.
 
 What it does. Three slots on `dbartsData`, `cutPoints` (the weights as each entry's `mass` attribute),
 `response.range` and `forest.calibration`, read through accessors in R/data.R that answer `NULL` for an object
@@ -470,7 +470,7 @@ saved state adopting the handed state's grid, 1; the copy's field the source's, 
 the file stops at the bridge's backstop; the control's anchor written and read again, 3; the setData check
 skipped, 1; the anchor recorded as 0, the copy refused; the weights dropped by the bridge, 7; the data handle
 handed the record, 1 (xbart); the build ignoring a supplied grid, 18, and tests/cpp `testSuppliedCutGrid` 2 of
-its checks; and the setData record handed on, the file stops (run on the build before 72c9ef00). Survived:
+its checks; and the setData record handed on, the file stops (run on the build before 27f10098). Survived:
 `Sampler::setAnchor` without its family guard, an equivalent mutant, a family without units having no
 transform for the move to change. Not written: the caller's object written, the range supplied at
 construction, the supplied path taken with derived values, and migration (above).
@@ -494,3 +494,55 @@ ac80108, built against this slice), 1545 expectations, none failed. Not run: the
 Left open. The plan's "fresh object neutral" and "copy and reload bitwise" literals, held instead by the
 scratch compare above, which the reviewer reruns against 46e1a644. The ordered-factor refusal of a copy and a
 reload of a hand-edited record (first call above) is for the reviewer's and the maintainer's mark.
+
+Rebased onto a000d239 (2026-10-22), forest-multiplier push 2 having landed, which `git rebase` stopped on in
+R/dbarts.R and man/dbartsData.Rd; the fold is in the slice's commit and the notes' and the harness's, and this
+paragraph and the repointed cites are their own commit. The calls, each with its alternative:
+
+- The first creation hands [`createEngine`](../../R/dbarts.R) push 2's mask, `active`, the rows a numeric
+  column's scale is read over; every re-creation (`copy`, a reload, a dead-pointer `setState`,
+  `samplePriorPredictive`) hands none and installs its mask after the install, as push 2's re-creations did.
+  Alternative: the first creation calling the bridge itself, beside `createEngine`, two ways to make an
+  engine.
+- `data@basis.scale` keeps its own writer, [`recordBasisScales`](../../R/dbarts.R), called after
+  [`recordDerived`](../../R/data.R) where the control declares forests, and is not folded into it. The derived
+  records are rewritten from one engine reader after every call that can change one; the scale is written
+  once, at the first creation and only where the object has no entry, is read off `getLeafPrior`, and raises a
+  fallback warning that is the first creation's alone (Constraints: no warning beyond those named). Folding it
+  in would add a second reader to `recordDerived` or a sixth value to `Sampler::derivedRecords`, an engine
+  change, and would need a guard to keep the warning from firing again at every later write. Alternative: fold
+  it in as a step that fills absent entries, the warning split out. Every engine `createEngine` makes is
+  handed the recorded scale, as push 2's were: the bridge reads the slot at every parse and
+  `checkDerivedRecord` leaves it alone. The Constraints' "construction takes supplied values for the grid and
+  the standardization only" predates push 2, whose scale also goes in at construction; the fold adds nothing
+  to it.
+- Push 2's `recordAnchor` and its write of the anchor and unit onto the control's forests' record are
+  dropped. Push 2 added no reader of the model's range; the unit and anchor its tests and its gate read off
+  the control now come from `data@forest.calibration` in test-forest-units-twin.R, test-bcf-family.R, test-forest-leaf-prior-reader.R,
+  test-forest-scale-record.R, test-forest-held.R, test-forest-sd-unit.R and forest-prior-exact.R's numeric
+  oracle.
+- man/dbartsData.Rd keeps both paragraphs, the second naming `basis.scale` as the record that keeps its first
+  creation's value. The notes forest-multiplier.md, state-not-model.md, multiplier-combiner.md and
+  forest-sd-unit.md put the anchor and the unit on the data object; the last two said the control before push
+  2 and were missed here.
+
+The fold is about 15 lines of R beyond the slice's, 7 test lines, one help paragraph, 9 lines of notes and one
+of the harness; no engine or bridge line. Its two mutants, each on a clean export: `createEngine` not handing
+the mask, test-forest-scale-record.R 6 failures; `recordBasisScales` not called at creation, 22.
+
+Gates on the rebased tip, on its own libraries: tests/cpp 407 ok, plain and under ASAN and UBSAN, no
+diagnostic; the full suite in one process, 28228 expectations, none failed; lint (0 lints), air, rc-codoc,
+win-drift, doc-freshness and verify-anchors clean; on a `--preclean` reference install the four snapshot files
+(14, 3, 7 and 3 expectations) and the three `--bitwise` compares, 55 of 55 identical against
+equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against bcf-equivalence-20eed7ed
+and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line; the 43 commands of exact-gates.yaml at
+`quick`, all passing; the R-loaded ASAN run over the 23 test files the slice and the fold touch, 5765
+expectations, none failed, no diagnostic, with the engine and the bridge instrumented through `CXX20FLAGS`
+(the run above instrumented the C files alone, R compiling the package's C++20 under `CXX20FLAGS` and not
+`CXXFLAGS`); `R CMD check --as-cran --no-manual` from a clean tarball, the Date field's NOTE alone;
+scratch/sfp1/compare.R against a000d239, 18 fixtures and 162 parts, every one identical but
+`samplePriorPredictive` after `setCutPoints`, as against 46e1a644; scratch/sfp1/rb-compare-fold.R, six
+fixtures of numeric forests (a default, a held one, probit with a 0/1 mask at creation, logistic, three forests
+under weights, and a swapped basis with a response swap at `updateScale = FALSE`), 54 parts from creation
+through copy, reload and a twin, every one identical to a000d239's; stan4bart's suite (its bartcore branch at
+ac80108, built against the rebased tip), 1545 expectations, none failed. Not run: the x86-64 leg.
