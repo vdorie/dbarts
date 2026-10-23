@@ -34,7 +34,13 @@ setControl(newControl)
 # S4 method for class 'dbartsSampler'
 setModel(newModel)
 # S4 method for class 'dbartsSampler'
-setData(newData, updateState = NULL)
+setData(
+  newData,
+  updateState = NULL,
+  updateCutPoints = NULL,
+  updateScale = NULL,
+  updateStandardization = NULL
+)
 # S4 method for class 'dbartsSampler'
 setResponse(
   y, updateScale = FALSE, updateState = NULL, status = NULL
@@ -58,7 +64,14 @@ setForestBasis(forest, basis, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setSigma(sigma, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setPredictor(x, column, forceUpdate, updateCutPoints = "none", updateState = NULL)
+setPredictor(
+  x,
+  column,
+  forceUpdate,
+  updateCutPoints = "none",
+  updateState = NULL,
+  updateStandardization = FALSE
+)
 # S4 method for class 'dbartsSampler'
 setCutPoints(cuts, column, updateState = NULL, splits = "position")
 # S4 method for class 'dbartsSampler'
@@ -272,13 +285,27 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler's labels first, with `levels<-`, or given to a new sampler. A
   column that could hold missing values before the call still can, and
   one the new data first give a missing value becomes able to, as
-  ‘Missing values in predictors’ in ‘Details’ describes. Draws the
-  sampler has saved (`keepTrees`) stay the functions they were, so
-  `predict` returns the same values for them before and after the call.
-  To that end a `linear` leaf's coefficients, saved and current, are
-  rewritten into the center and scale the new data gives its leaf
-  covariates, and every saved draw into the response scale the new data
-  gives. A row whose leaf covariate is missing is read at that
+  ‘Missing values in predictors’ in ‘Details’ describes. The cut points,
+  the response range and a `linear` or `gp` leaf's covariate
+  standardization follow `updateCutPoints`, `updateScale` and
+  `updateStandardization`; with each left at `NULL`, a value `newData`
+  records (its `cutPoints`, `response.range` and `standardization`
+  slots, see
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md))
+  is used and one it does not record is derived from it. The sampler
+  writes its values into its own data object, so `sampler$setData(d)`
+  with `d <- sampler$data` edited, `d@x[, 1] <- newValues` say, keeps
+  the cut points, the range and the standardization the sampler held,
+  where 0.9-x derived them again, and a data object made by
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  records none and derives every one, as before. Draws the sampler has
+  saved (`keepTrees`) stay the functions they were, so `predict` returns
+  the same values for them before and after the call. To that end a
+  `linear` leaf's coefficients, saved and current, are rewritten into
+  the center and scale the call derives or takes for its leaf
+  covariates, and every saved draw into the response scale it derives or
+  takes; a value kept, or taken equal to the one in force, rewrites
+  nothing. A row whose leaf covariate is missing is read at that
   covariate's center, so what a linear leaf predicts for it follows the
   center to the new data's. A leaf covariate that holds a single value
   is centered at it and divided by 1, so a leaf reads zero for it on
@@ -299,9 +326,15 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler has run on them. Saved draws are rewritten by the formula in
   every case, with 1 for the scale. The saved draws of a
   Gaussian-process (`gp`) leaf cannot be rewritten: a sampler with such
-  leaves that holds saved draws refuses `newData`, whatever it holds.
-  Make a new sampler instead. One that holds none takes it as any other
-  sampler does.
+  leaves that holds saved draws refuses a call that would derive the
+  standardization or the range, as one given a data object that records
+  neither does, or that would take a recorded one other than its own; it
+  takes one that keeps both, as `setData(sampler$data)` or
+  `updateStandardization = FALSE, updateScale = FALSE` do, whatever cut
+  points it is given, a saved draw holding its thresholds by value. Pass
+  those two, or make a new sampler. A family with no response range
+  (`probit`, `ordinal`, `logistic`) has none to change. One that holds
+  no saved draw takes any call as any other sampler does.
 
 - y:
 
@@ -460,21 +493,23 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   creation on the new response would have stated it, and the drawn
   \\s^2(x)\\ is carried into the same units, so the surface keeps its
   meaning in response units across the swap. `setData` carries that
-  restatement too, unconditionally: the whole-data conduit has no
-  `updateScale` to pin the transform with, so a replacement data set
-  always re-anchors it, over its rows in the likelihood as creation
-  would, and a sampler made by hand from another's parts derives them
-  again in the same way. Where rows are out and the rows in hold fewer
-  than two distinct values of the response, `setData` takes every row,
-  under a warning of class `dbartsScaleFallbackWarning`; `setResponse`,
-  `setOffset`, `setWeights` and `setActiveRows` with
-  `updateScale = TRUE` instead keep the scale and the center in force,
-  as with `updateScale = FALSE`, and warn with the same class once for a
-  sampler (a copy or a reload is a new sampler, `setData` is not). On
-  `setResponse`, supplying this argument positionally
-  (`setResponse(y, TRUE)`) rather than by name warns once per session -
-  it is the second argument, where a caller porting code written before
-  this order had `updateState` there instead.
+  restatement too wherever the scale moves. On `setData` the argument
+  defaults to `NULL`, which takes the `response.range` the new data
+  object records and otherwise derives the scale; `TRUE` derives it from
+  the new data, over its rows in the likelihood as creation would, and
+  `FALSE` keeps the sampler's, the new response going in under it with
+  no draw rewritten. A sampler made by hand from another's parts takes
+  the record in the same way. Where rows are out and the rows in hold
+  fewer than two distinct values of the response, a `setData` that
+  derives the scale takes every row, under a warning of class
+  `dbartsScaleFallbackWarning`; `setResponse`, `setOffset`, `setWeights`
+  and `setActiveRows` with `updateScale = TRUE` instead keep the scale
+  and the center in force, as with `updateScale = FALSE`, and warn with
+  the same class once for a sampler (a copy or a reload is a new
+  sampler, `setData` is not). On `setResponse`, supplying this argument
+  positionally (`setResponse(y, TRUE)`) rather than by name warns once
+  per session - it is the second argument, where a caller porting code
+  written before this order had `updateState` there instead.
 
 - offset.test:
 
@@ -961,12 +996,16 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   predictors only: naming a factor column of either kind is refused,
   naming the kind, its grid following its level table rather than any
   externally chosen one. A later `setState` does not undo the change: a
-  state goes onto the cut points the sampler holds (see ‘Saving’). A
-  later `setData` derives every numeric column's cut points again
-  whatever grid was set, at most as many as the `n.cuts` the sampler was
-  created with: with `useQuantiles`, a column with no more distinct
-  values than `n.cuts` gets one cut point fewer than it has distinct
-  values, and a constant column gets one.
+  state goes onto the cut points the sampler holds (see ‘Saving’). The
+  sampler records a grid set this way in its data object, so a later
+  `setData(sampler$data)` keeps it; a later `setData` that derives the
+  cut points, as one given a data object made by
+  [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)
+  does, derives every numeric column's cut points again whatever grid
+  was set, at most as many as the `n.cuts` the sampler was created with:
+  with `useQuantiles`, a column with no more distinct values than
+  `n.cuts` gets one cut point fewer than it has distinct values, and a
+  constant column gets one.
 
 - column:
 
@@ -1055,10 +1094,36 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   update is forced, and otherwise the update is refused and rolled back,
   trees and cut points included. A later `setState` does not bring back
   the cut points a state was stored on (see ‘Saving’). Anything but
-  `"none"` cannot be combined with `forceUpdate = "partial"`. A logical
-  is taken until dbarts 1.1-0, `TRUE` as `"position"` and `FALSE` as
-  `"none"`, with a warning once per session
+  `"none"` cannot be combined with `forceUpdate = "partial"`. For
+  `setData` the same three words, or `NULL`, the default: `"none"` keeps
+  the sampler's cut points and their weights, the new values read on
+  them, `"position"` and `"value"` derive them from the new data as
+  above, and `NULL` takes the `cutPoints` the new data object records, a
+  split on a column whose cut points that changes moving to the nearest
+  of them, and otherwise derives them as `"value"` does, as `setData`
+  always did. For `setPredictor`, a logical is taken until dbarts 1.1-0,
+  `TRUE` as `"position"` and `FALSE` as `"none"`, with a warning once
+  per session
   ([`dbarts-deprecated`](https://vdorie.github.io/dbarts/reference/dbarts-deprecated.md)).
+
+- updateStandardization:
+
+  For `setPredictor`, `FALSE`, the default, keeps a `linear` or `gp`
+  leaf's covariate standardization, each covariate's center and scale
+  and a `gp` leaf's heuristic lengthscale, whatever values the update
+  installs; `TRUE` derives it again for the covariates among the columns
+  the update replaces, every column where `column` is missing, over all
+  their new values, as creation would over them, once the update has
+  gone in, keeps the other covariates', and rewrites a `linear` leaf's
+  coefficients, current and saved, into it, so that each leaf is the
+  function of the covariate it was and `predict` returns what it did.
+  For `setData`, `NULL`, the default, takes the `standardization` the
+  new data object records and otherwise derives it from the new data,
+  `TRUE` derives it and `FALSE` keeps the sampler's, the new rows read
+  under it. A leaf that takes no covariate has nothing to derive. A `gp`
+  sampler that holds saved draws refuses `TRUE` on `setPredictor`, and
+  on `setData` any call that would change the standardization (see
+  `newData`). It cannot be combined with `forceUpdate = "partial"`.
 
 - splits:
 
@@ -1493,8 +1558,9 @@ still installs. The response transform a `k`-named prior is anchored to,
 and which every leaf value is stored relative to, is not in the state
 either: it is derived from the data when the sampler is created and when
 `setResponse` or `setOffset` at `updateScale = TRUE`, `setWeights` or
-`setActiveRows` at `updateScale = TRUE`, or `setData`, re-anchors it,
-and recorded as the `response.range` of the sampler's data object (see
+`setActiveRows` at `updateScale = TRUE`, or a `setData` that derives it,
+re-anchors it, and recorded as the `response.range` of the sampler's
+data object (see
 [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
 so a `copy` or a reload is re-created in it. A state goes in as stored:
 its trees, leaf values, linear slopes, `k`, `sigma` and kept draws are
@@ -1562,16 +1628,36 @@ sampler's own levels, so a `copy` and a reload hold the levels the
 sampler was created with and take the state it stored. A linear or
 Gaussian-process leaf's covariate standardization, each covariate's
 center and scale and a Gaussian-process leaf's heuristic lengthscale, is
-data too: derived when the sampler is created and when `setData`
-replaces the data, and recorded as the `standardization` of the
-sampler's data object, which a `copy` and a reload take. A state records
-the standardization it was stored under, which no install reads: the
-sampler keeps its own, so kept linear draws restored across a change of
-standardization predict under the sampler's until the draws replace
-them, as kept draws restored across a change of response mapping predict
-on the new scale. A leaf covariate that held a single value when its
-standardization was derived has no scale: the state and the record hold
-`NA` for it, and the covariate is divided by 1.
+data too: derived when the sampler is created, by a `setData` that
+derives it and by `setPredictor(updateStandardization = TRUE)`, and
+recorded as the `standardization` of the sampler's data object, which a
+`copy` and a reload take. A state records the standardization it was
+stored under, which no install reads: the sampler keeps its own, so kept
+linear draws restored across a change of standardization predict under
+the sampler's until the draws replace them, as kept draws restored
+across a change of response mapping predict on the new scale. A leaf
+covariate that held a single value when its standardization was derived
+has no scale: the state and the record hold `NA` for it, and the
+covariate is divided by 1.
+
+A state brings back none of these values, so a sampler that changed one
+and is to go back to a stored state has it put back first. The data
+object held in a variable before the change, `d <- sampler$data`, is the
+general answer: it records every one, the weights of the cut points
+included, so `setData(d)` puts back the observations and every derived
+value with them.
+
+|  |  |  |
+|----|----|----|
+| value | changed by | put back by |
+| cut points | `setCutPoints`; `setPredictor(updateCutPoints = )`; a `setData` that derives them | `setCutPoints(d@cutPoints)`, the whole set; or `setData(d)` |
+| their weights | the same | `setPredictor(x[, j], j, updateCutPoints = "value")` while column `j` holds the values they came from; or `setData(d)` |
+| leaf center, scale, lengthscale | `setPredictor(updateStandardization = TRUE)`; a `setData` that derives them | `setPredictor` of the old values with `updateStandardization = TRUE`; or `setData(d)` |
+| response range | `updateScale = TRUE` on `setResponse`, `setOffset`, `setWeights` or `setActiveRows`; a `setData` that derives it | the same setter on the old response, offset, weights or mask with `updateScale = TRUE`; or `setData(d)` |
+| forest anchor and unit | nothing | \- |
+
+Then `setState(st)` of a state `st` stored before the change installs it
+and returns `TRUE`, and the chain is the one stored.
 
 The case weights are not in the state, so a restore is reconciled
 against the DESTINATION's own rather than governed by the source's:

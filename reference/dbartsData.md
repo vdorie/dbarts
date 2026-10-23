@@ -236,7 +236,11 @@ the entry's `"mass"` attribute (an increasing sequence whose successive
 differences are the weights, as a state's `cutMass` holds them);
 `response.range`, the `c(min, max)` of the response the leaf prior's
 scale is taken from, `NULL` under a family that reads none (probit,
-logistic, ordinal and multinomial); `forest.calibration`,
+logistic, ordinal and multinomial), and under `nbinom`
+`c(center, center + 1)` of the count fit's center, where a pair of
+another width, as a range recorded under another family is, is read by
+its first number, the sampler recording it as `c(center, center + 1)`,
+and an equal pair is refused; `forest.calibration`,
 `c(anchor = , unit = )` of a model of several forests (see
 [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)), `NULL`
 elsewhere; and `standardization`, for a forest of `linear` or `gp`
@@ -258,25 +262,30 @@ or `new("dbartsSampler", control, model, data)`, and the copy and reload
 of a sampler, which are created from its own - uses each value the
 object records and derives the others, so `dbarts(sampler$data)` is made
 on the sampler's cut points, response range and leaf standardization,
-while a data object made afresh from the same rows derives its own.
-[`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md) derives
-them in each fold, from the fold's training rows, whatever the object
-records. A record that fits no data - another number of columns, cut
-points for an unordered factor, on an ordered factor other than those of
-its levels, repeated or not finite, a range that is not two finite
-numbers, a standardization whose centers are not finite, whose scales
-are neither positive nor `NA`, whose lengthscales are not positive,
-whose names are missing, empty or repeated, or whose `columns` are not
-one position per center - is refused, naming the slot; setting it to
-`NULL` derives the value instead. Cut points out of order are sorted.
-Which covariates the leaves take is the model's, so a standardization is
-matched to them by its keys, names to leaf columns whose names could key
-one, the others deriving, `columns` where a leaf column's name could
-not, and one with neither by position where the counts agree: an entry
-for a covariate the leaves do not take is not read, a covariate without
-one is derived, and a `lengthscale` the model supplies is used in place
-of the record's. The slots can be set by hand, and are not checked
-against the rows.
+while a data object made afresh from the same rows derives its own. A
+sampler's `setData` does the same unless its `updateCutPoints`,
+`updateScale` or `updateStandardization` says to derive a value or to
+keep the sampler's (see
+[`dbartsSampler-class`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)),
+so `sampler$setData(d)` of the sampler's own data object, edited, keeps
+them. [`xbart`](https://vdorie.github.io/dbarts/reference/xbart.md)
+derives them in each fold, from the fold's training rows, whatever the
+object records. A record that fits no data - another number of columns,
+cut points for an unordered factor, on an ordered factor other than
+those of its levels, repeated or not finite, a range that is not two
+finite numbers, a standardization whose centers are not finite, whose
+scales are neither positive nor `NA`, whose lengthscales are not
+positive, whose names are missing, empty or repeated, or whose `columns`
+are not one position per center - is refused, naming the slot; setting
+it to `NULL` derives the value instead. Cut points out of order are
+sorted. Which covariates the leaves take is the model's, so a
+standardization is matched to them by its keys, names to leaf columns
+whose names could key one, the others deriving, `columns` where a leaf
+column's name could not, and one with neither by position where the
+counts agree: an entry for a covariate the leaves do not take is not
+read, a covariate without one is derived, and a `lengthscale` the model
+supplies is used in place of the record's. The slots can be set by hand,
+and are not checked against the rows.
 
 ## See also
 
