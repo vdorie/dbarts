@@ -2407,20 +2407,12 @@ struct LeafStandardization {
     return !(*this == other);
   }
 
-  /// The pair a state records, in which a scale that is not a number marks a
-  /// column without spread; lengths and values are the caller's to have
-  /// checked.
-  static LeafStandardization fromState(const std::vector<double>& centers,
-                                       const std::vector<double>& scales) {
-    LeafStandardization result;
-    result.centers = centers;
-    result.scales = scales;
-    result.hasSpread.assign(scales.size(), 1);
-    for (std::size_t j = 0; j < scales.size(); ++j)
-      if (std::isnan(scales[j])) {
-        result.scales[j] = 1.0;
-        result.hasSpread[j] = 0;
-      }
+  /// The scales as a state and a host's record hold them: not a number
+  /// where a column has no spread, in place of the placeholder 1.
+  std::vector<double> recordedScales() const {
+    std::vector<double> result = scales;
+    for (std::size_t j = 0; j < result.size(); ++j)
+      if (!hasSpread[j]) result[j] = std::numeric_limits<double>::quiet_NaN();
     return result;
   }
 };
@@ -2435,6 +2427,17 @@ inline bool standardizedColumnHasSpread(const double* u, std::size_t n,
   for (std::size_t i = 0; i < n; ++i)
     if (u[i * stride] != 0.0) return true;
   return false;
+}
+
+/// Designated column \p j's center and scale as \p supplied gives them, a
+/// scale that is not a number read as the placeholder 1; false where it
+/// gives none.
+inline bool suppliedMoments(const SuppliedStandardization& supplied,
+                            std::size_t j, double* mean, double* sd) {
+  if (supplied.centers == nullptr) return false;
+  *mean = supplied.centers[j];
+  *sd = std::isnan(supplied.scales[j]) ? 1.0 : supplied.scales[j];
+  return true;
 }
 
 /// Rewrites one linear leaf's coefficients - its intercept and one slope per
@@ -2509,10 +2512,12 @@ struct LinearGaussianLeaf {
 
   /// Gather and standardize the designated columns from the store's raw
   /// training values. Standardization constants come from the observed
-  /// values alone; a constant (or all-missing) column keeps sd 1 and
-  /// degrades to an extra intercept the ridge prior absorbs.
+  /// values alone, or are the ones \p supplied gives; a constant (or
+  /// all-missing) column keeps sd 1 and degrades to an extra intercept the
+  /// ridge prior absorbs.
   void initialize(const ColumnStore& data, const std::size_t* columns,
-                  std::size_t numColumns, std::size_t numChains = 1) {
+                  std::size_t numColumns, std::size_t numChains = 1,
+                  const SuppliedStandardization& supplied = {}) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
     std::size_t p = numColumns + 1;
@@ -2521,7 +2526,7 @@ struct LinearGaussianLeaf {
     rowScratch_.assign(p, 0.0);
     statisticsCacheBudget_ =
       statisticsCacheTotalBudgetBytes / (numChains == 0 ? 1 : numChains);
-    reinitialize(data);
+    reinitialize(data, supplied);
   }
 
   /// Re-derive the standardization constants and covariates for the stored
@@ -2530,7 +2535,9 @@ struct LinearGaussianLeaf {
   /// view the raw values come from the gathered copies and the constants
   /// from the parent's full data - the same calibration inheritance as the
   /// copied cut grid, so every fold runs the prior a full-data fit would.
-  void reinitialize(const ColumnStore& data) {
+  /// Constants \p supplied gives are taken in place of either.
+  void reinitialize(const ColumnStore& data,
+                    const SuppliedStandardization& supplied = {}) {
     clearStatisticsCache();
     std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
@@ -2540,7 +2547,8 @@ struct LinearGaussianLeaf {
     for (std::size_t j = 0; j < numColumns; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double mean, sd;
-      if (!data.suppliedStandardization(columns_[j], &mean, &sd))
+      if (!suppliedMoments(supplied, j, &mean, &sd) &&
+          !data.suppliedStandardization(columns_[j], &mean, &sd))
         standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
       means_[j] = mean;
       sds_[j] = sd;
@@ -2564,21 +2572,6 @@ struct LinearGaussianLeaf {
         u_[i * numCovariates_ + j] =
           isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
     }
-  }
-
-  /// Install saved standardization constants, numCovariates() of each with
-  /// every sd finite and positive or, for a column a state recorded without
-  /// spread, not a number (it then divides by 1), and regather the
-  /// training and test covariates under them: a restore reads its slopes on
-  /// the scale they were drawn on.
-  void restoreCalibration(const ColumnStore& data, const double* means,
-                          const double* sds) {
-    means_.assign(means, means + numCovariates_);
-    sds_.assign(sds, sds + numCovariates_);
-    for (std::size_t j = 0; j < numCovariates_; ++j)
-      if (std::isnan(sds_[j])) sds_[j] = 1.0;
-    regatherTrainingCovariates(data);
-    rebuildTestCovariates(data);
   }
 
   /// Drop the crossproduct cache when U'WU's other inputs change: the case
@@ -3013,10 +3006,13 @@ struct GPGaussianLeaf {
   /// Gather and standardize the designated columns and fix the kernel
   /// lengthscales: the supplied per-column values (standardized scale) when
   /// non-null, otherwise the median pairwise-distance heuristic over the
-  /// standardized training values.
+  /// standardized training values. \p supplied, a record's, gives the
+  /// constants and the heuristic's lengthscales in place of deriving them;
+  /// it never makes the lengthscales supplied.
   void initialize(const ColumnStore& data, const std::size_t* columns,
                   std::size_t numColumns, const double* lengthscales,
-                  std::size_t maxLeafSize, std::size_t numChains = 1) {
+                  std::size_t maxLeafSize, std::size_t numChains = 1,
+                  const SuppliedStandardization& supplied = {}) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
     maxLeafSize_ = maxLeafSize;
@@ -3026,14 +3022,16 @@ struct GPGaussianLeaf {
       suppliedLengthscales_.assign(lengthscales, lengthscales + numColumns);
     else
       suppliedLengthscales_.clear();
-    reinitialize(data);
+    reinitialize(data, supplied);
   }
 
   /// Re-derive standardization constants, covariates, and (when not
   /// supplied) lengthscales for the stored designation; the whole-data
   /// analogue of the rebuilt cut grid, sharing the linear leaf's calibration
-  /// inheritance on views.
-  void reinitialize(const ColumnStore& data) {
+  /// inheritance on views. Values \p supplied gives are taken in place of
+  /// derived ones.
+  void reinitialize(const ColumnStore& data,
+                    const SuppliedStandardization& supplied = {}) {
     clearKernelCaches();
     std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
@@ -3043,7 +3041,8 @@ struct GPGaussianLeaf {
     for (std::size_t j = 0; j < numColumns; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double mean, sd;
-      if (!data.suppliedStandardization(columns_[j], &mean, &sd))
+      if (!suppliedMoments(supplied, j, &mean, &sd) &&
+          !data.suppliedStandardization(columns_[j], &mean, &sd))
         standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
       means_[j] = mean;
       sds_[j] = sd;
@@ -3053,10 +3052,12 @@ struct GPGaussianLeaf {
     }
     lengthscales_.assign(numColumns, 1.0);
     for (std::size_t j = 0; j < numColumns; ++j)
-      lengthscales_[j] = suppliedLengthscales_.empty()
-        ? medianPairwiseDistance(u_.data() + j * numObservations_,
-                                 numObservations_)
-        : suppliedLengthscales_[j];
+      lengthscales_[j] = !suppliedLengthscales_.empty()
+        ? suppliedLengthscales_[j]
+        : supplied.lengthscales != nullptr
+          ? supplied.lengthscales[j]
+          : medianPairwiseDistance(u_.data() + j * numObservations_,
+                                   numObservations_);
     // sortsByBitmap grows with the member count, so a bitmap it refuses at
     // the largest gp leaf serves no span and stays unallocated
     std::size_t maxMembers = std::min(maxLeafSize_, numObservations_);
@@ -3078,24 +3079,6 @@ struct GPGaussianLeaf {
       for (std::size_t i = 0; i < numObservations_; ++i)
         u[i] = isNA(column[i]) ? 0.0 : (column[i] - means_[j]) / sds_[j];
     }
-  }
-
-  /// Install saved standardization constants and, when non-null,
-  /// lengthscales, numCovariates() of each with every lengthscale finite and
-  /// positive and every sd so too or, for a column a state recorded without
-  /// spread, not a number (it then divides by 1), and regather the
-  /// training and test covariates under them: a restore reads its function
-  /// values and kernels on the scale they were drawn on.
-  void restoreCalibration(const ColumnStore& data, const double* means,
-                          const double* sds, const double* lengthscales) {
-    means_.assign(means, means + numCovariates_);
-    sds_.assign(sds, sds + numCovariates_);
-    for (std::size_t j = 0; j < numCovariates_; ++j)
-      if (std::isnan(sds_[j])) sds_[j] = 1.0;
-    if (lengthscales != nullptr)
-      lengthscales_.assign(lengthscales, lengthscales + numCovariates_);
-    regatherTrainingCovariates(data);
-    rebuildTestCovariates(data);
   }
 
   /// Regather the test covariates under the training standardization; called

@@ -355,7 +355,7 @@ public:
   /// currentPredictors supplies raw for a cross-grid restore's re-quantization
   /// (null for a same-spec continuation, which re-quantizes nothing).
   /// lengthscaleRefused, when non-null, reports Sampler::setState's refusal
-  /// of saved gp draws made under other lengthscales.
+  /// of saved gp draws made under another standardization or lengthscale.
   /// altered, when non-null, reports whether an accepted state was installed
   /// other than as stored (Sampler::setState).
   /// adoptCapacity is Sampler::setState's: a store capacity the store takes
@@ -379,8 +379,8 @@ public:
   /// host re-creating a sampler from its record, read back to keep one.
   virtual void setAnchor(double min, double max) = 0;
   virtual void getAnchor(double& min, double& max) const = 0;
-  /// Sampler::derivedRecords: the grids, weights, range, anchor and unit a
-  /// host records so a re-creation takes them.
+  /// Sampler::derivedRecords: the grids, weights, range, anchor, unit and
+  /// leaf standardization a host records so a re-creation takes them.
   virtual void derivedRecords(DerivedRecords& records) const = 0;
   /// Sampler::installForests: force installs a donor that is not clean with
   /// the changes it needs, where an unforced call declines it; altered, when

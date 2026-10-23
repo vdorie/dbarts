@@ -918,7 +918,6 @@ warmStartLine <- function(report) {
     clauses,
     if (report$fits.cold) "gp fits started at 0",
     c("slopes left behind", "slopes started at 0")[report$slopes],
-    if (report$coefficients.kept) "slopes kept across a covariate of one value",
     c("DART weights started fresh", "donor's DART weights left behind")[
       report$dart
     ],

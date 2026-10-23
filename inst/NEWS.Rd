@@ -277,11 +277,13 @@
             \code{sampler$setState(state)}. A copy and a reloaded sampler
             keep the cut points the sampler's data object records, below.
       \item What a sampler derives from its data - its cut points and their
-            weights, the response range its leaf prior is scaled by and,
+            weights, the response range its leaf prior is scaled by, a
+            linear or Gaussian-process leaf's covariate standardization and,
             with several forests, their calibration - is recorded on the
             data object it holds, \code{sampler$data}, in the new slots
-            \code{cutPoints}, \code{response.range} and
-            \code{forest.calibration} (see \code{\link{dbartsData}}). A
+            \code{cutPoints}, \code{response.range},
+            \code{standardization} and \code{forest.calibration} (see
+            \code{\link{dbartsData}}). A
             sampler created from a data object uses what it records and
             derives the rest, so \code{dbarts(sampler$data)},
             \code{bart(sampler$data)}, \code{new("dbartsSampler", ...,
@@ -482,7 +484,10 @@
             \code{\link{bart}}.
       \item Leaf models. \code{leaf.prior = linear(columns)} fits a linear
             function of chosen predictors in each leaf, and
-            \code{leaf.prior = gp(columns)} a Gaussian-process function.
+            \code{leaf.prior = gp(columns)} a Gaussian-process function. The
+            covariates are centered and scaled by the sampler, which keeps
+            its standardization: a restored state and a warm start put the
+            slopes in as stored under it.
             \code{normal(sd = )} states the leaf prior's spread directly on
             the response (or latent) scale instead of through \code{k}, as a
             number or under the new \code{invchi()} hyperprior. Available on

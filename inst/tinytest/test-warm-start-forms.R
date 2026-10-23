@@ -827,11 +827,11 @@ expect_identical(
   "warm start: 4 of 4 donor trees taken; slopes left behind"
 )
 
-# A linear leaf's covariate that holds one value. On one side only the
-# coefficients are restated and the start is the donor's function at the
-# sampler's rows; at the same value on both sides nothing is restated; at
-# another value on each side the slopes arrive as built, which is not the
-# donor's function there, and the donor is declined. The donor's trees are
+# A linear leaf's covariate that holds one value, on one side or on both.
+# The coefficients go in as stored and the donor's standardization is not
+# read, so every case installs as it stands, the slopes the donor's numbers,
+# and the seeded function is the donor's only where both read the covariate
+# at one centre: the same single value on both sides. The donor's trees are
 # hand-built so that none splits on the covariate
 withX2 <- function(value) {
   frame <- x
@@ -855,55 +855,38 @@ slopedOn <- function(
   sampler
 }
 for (case in list(
-  list(donor = 0, here = spread, info = "one value in the donor"),
-  list(donor = spread, here = 3, info = "one value here"),
-  list(donor = 0, here = 0, info = "one value, the same")
+  list(donor = 0, here = spread, same = FALSE, info = "one value in the donor"),
+  list(donor = spread, here = 3, same = FALSE, info = "one value here"),
+  list(donor = 0, here = 0, same = TRUE, info = "one value, the same"),
+  list(donor = 0, here = 3, same = FALSE, info = "one value on each side")
 )) {
   sloped <- slopedOn(case$donor)
   recipient <- linear2(data = withX2(case$here))
   expect_identical(recipient$installTrees(sloped), TRUE, info = case$info)
-  expect_true(
-    max(abs(
-      fitOf(recipient, withX2(case$here)) - fitOf(sloped, withX2(case$here))
-    )) <
-      1e-12,
+  expect_identical(
+    leavesOf(stateOf(recipient)),
+    leavesOf(stateOf(sloped)),
     info = case$info
   )
+  gap <- max(abs(
+    fitOf(recipient, withX2(case$here)) - fitOf(sloped, withX2(case$here))
+  ))
+  expect_identical(gap < 1e-12, case$same, info = case$info)
 }
-sloped <- slopedOn(0)
-keptSlopes <- expectChanged(
-  function() linear2(data = withX2(3)),
-  sloped,
-  "one value on each side"
-)
-expect_identical(leavesOf(keptSlopes$state), leavesOf(stateOf(sloped)))
-expect_identical(
-  keptSlopes$line,
-  paste0(
-    "warm start: 4 of 4 donor trees taken; ",
-    "slopes kept across a covariate of one value"
-  )
-)
-# a slope of 0 is the same function at any value, so every slope 0 is clean;
-# one that is not 0 in a leaf past the first is not
-for (case in list(
-  list(slopes = rep(0, 5L), clean = TRUE),
-  list(slopes = c(0, -0.4, 0, 0, 0), clean = FALSE)
-)) {
-  expect_identical(
-    linear2(data = withX2(3))$installTrees(slopedOn(0, case$slopes)),
-    case$clean
-  )
+# a slope of 0 or not, the start is clean
+for (slopes in list(rep(0, 5L), c(0, -0.4, 0, 0, 0))) {
+  expect_true(linear2(data = withX2(3))$installTrees(slopedOn(0, slopes)))
 }
 # two covariates, one at the same single value on both sides and the other
-# spread under another center and scale: restated, and clean
+# spread under another center and scale: as stored, and clean
 linear23 <- function(...) make(..., leaf.prior = linear(columns = 2L:3L))
 here <- withX2(0)
 here[, 3L] <- 2 * x[, 3L] + 1
 sloped <- slopedOn(0, rep(c(0.3, 0.2), 5L), linear23)
 recipient <- linear23(data = here)
 expect_identical(recipient$installTrees(sloped), TRUE)
-expect_true(max(abs(fitOf(recipient, here) - fitOf(sloped, here))) < 1e-12)
+expect_identical(leavesOf(stateOf(recipient)), leavesOf(stateOf(sloped)))
+expect_true(max(abs(fitOf(recipient, here) - fitOf(sloped, here))) > 1e-3)
 
 # ---- an ordered factor ---------------------------------------------------------
 

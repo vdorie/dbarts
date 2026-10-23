@@ -1307,7 +1307,7 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   # refused before anything is stored, as it is where a sampler is made, and
   # so are derived values recorded in a form that fits no data
   checkBasisRecord(newData)
-  newData <- checkDerivedRecord(newData)
+  newData <- checkDerivedRecord(newData, sampler$model)
   if (ncol(newData@x) != ncol(sampler$data@x)) {
     stop("$setData: requires the same predictors")
   }
@@ -1318,6 +1318,7 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   newData@cutPoints <- NULL
   newData@response.range <- NULL
   newData@forest.calibration <- NULL
+  newData@standardization <- NULL
 
   newData@n.cuts <- sampler$data@n.cuts
   newData@sigma <- sampler$data@sigma

@@ -144,6 +144,21 @@ struct SuppliedCutGrid {
   }
 };
 
+/// A linear or Gaussian-process leaf's covariate standardization a host hands
+/// a build in place of deriving it, as a sampler re-created from its host's
+/// record takes the one the record holds. Borrowed for the build alone, each
+/// one value per designated column when non-null: centers finite; scales
+/// finite and positive or, for a column without spread, not a number, which
+/// divides by 1; lengthscales finite and positive, read only by a gp leaf
+/// whose model supplies none. Null centers derives the standardization, null
+/// lengthscales the lengthscales over it. The host checks the values; the
+/// build trusts them.
+struct SuppliedStandardization {
+  const double* centers = nullptr;
+  const double* scales = nullptr;
+  const double* lengthscales = nullptr;
+};
+
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
 /// int32 level codes. Exactly one channel is present, so isCoded discriminates
 /// and at() serves either - a code widens, and naDenseCode becomes the NaN

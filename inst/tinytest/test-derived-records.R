@@ -40,7 +40,8 @@ recordOf <- function(sampler) {
   list(
     cutPoints = sampler$data@cutPoints,
     response.range = sampler$data@response.range,
-    forest.calibration = sampler$data@forest.calibration
+    forest.calibration = sampler$data@forest.calibration,
+    standardization = sampler$data@standardization
   )
 }
 stateOf <- function(sampler) {

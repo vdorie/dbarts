@@ -2056,14 +2056,15 @@ static void testCrossGridWarmStart() {
 }
 
 // A warm start between samplers that standardize a leaf covariate
-// differently: the donor's linear coefficients are restated in the
-// recipient's standardization, so the seeded forest is the donor's function
-// on the recipient's rows, from the donor's live trees or a kept draw, on the
-// donor's grid or another; the recipient's centre, scale and lengthscale are
-// never moved; and between equal standardizations, or from a donor recording
-// none, the donor's values arrive bit for bit. A gp leaf's per-row fits hold
-// no kernel: copied on the same grid, cold on another, as before. Two chains,
-// several trees, the edited tree and chain last.
+// differently: the donor's linear coefficients go in as stored, bit for bit,
+// numbers per unit of the recipient's own scaled covariate, from the donor's
+// live trees or a kept draw, on the donor's grid or another, so the seeded
+// forest is not the donor's function where the standardizations differ; the
+// recipient's centre, scale and lengthscale are never moved, and the donor's
+// are not read, so a donor recording none, or a record a hand has broken,
+// installs the same. A gp leaf's per-row fits hold no kernel: copied on the
+// same grid, cold on another, as before. Two chains, several trees, the
+// edited tree and chain last.
 static void testWarmStartStandardization() {
   std::uint64_t savedRngState = rngState;
   rngState = 577215u;
@@ -2191,7 +2192,7 @@ static void testWarmStartStandardization() {
   donor->getState(donorState);
   std::vector<double> donorFits = liveFits(*donor);
 
-  // the donor's grid, another standardization
+  // the donor's grid, another standardization: clean, the values as stored
   {
     std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 200);
     SamplerStateData before, after;
@@ -2200,18 +2201,17 @@ static void testWarmStartStandardization() {
             !sameConstants(before, donorState),
           "warm standardization: the donor's grid, another standardization");
     // the store is not read: the donor's live trees seed both chains
-    check(recipient->installForests(donorState, liveMap, x.data()) ==
-            WarmStartResult::ok,
+    check(warmStartsClean(*recipient, donorState, liveMap, x.data()),
           "warm standardization: a donor under another standardization "
-          "installs");
+          "installs as it stands");
     recipient->getState(after);
-    check(worstGap(liveFits(*recipient), donorFits) < 1e-12,
-          "warm standardization: the seeded fit is the donor's function on "
-          "the recipient's rows");
+    check(sameLiveValues(after, donorState),
+          "warm standardization: the coefficients go in as stored");
     check(sameConstants(before, after),
           "warm standardization: the recipient keeps its standardization");
-    check(!sameLiveValues(after, donorState),
-          "warm standardization: the coefficients were restated");
+    check(worstGap(liveFits(*recipient), donorFits) > 1e-3,
+          "warm standardization: so the seeded fit is not the donor's "
+          "function on the recipient's rows");
     std::vector<double> fits(n * numChains * 2);
     Results results;
     results.trainingFits = fits.data();
@@ -2221,30 +2221,35 @@ static void testWarmStartStandardization() {
     check(finite, "warm standardization: the seeded chains draw");
   }
 
-  // a kept draw as the seed, chains crossed
+  // a kept draw as the seed, chains crossed: each chain's live trees are the
+  // draw it was given, as stored
   {
     std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 300);
-    std::vector<double> kept(n * numKept * numChains);
-    donor->predict(x.data(), n, 1, kept.data());
     const std::vector<std::pair<size_t, int>> slotMap = {
       {1, static_cast<int>(donor->savedSlotForDraw(numKept - 1))},
       {0, static_cast<int>(donor->savedSlotForDraw(0))}};
     check(recipient->installForests(donorState, slotMap, x.data()) ==
             WarmStartResult::ok,
           "warm standardization: a kept draw installs");
-    std::vector<double> seeded = liveFits(*recipient);
-    double worst = 0.0;
-    for (size_t i = 0; i < n; ++i) {
-      worst = std::max(worst, std::fabs(
-        seeded[i] - kept[i + n * ((numKept - 1) + numKept * 1)]));
-      worst = std::max(worst, std::fabs(seeded[i + n] - kept[i]));
+    SamplerStateData expected = donorState, after;
+    for (size_t c = 0; c < numChains; ++c) {
+      const ForestStateData& from =
+        donorState.chains[slotMap[c].first].forests[0];
+      ForestStateData& to = expected.chains[c].forests[0];
+      size_t base = static_cast<size_t>(slotMap[c].second) * numTrees;
+      to.trees.assign(from.savedTrees.begin() + base,
+                      from.savedTrees.begin() + base + numTrees);
+      to.treeParams.assign(from.savedTreeParams.begin() + base,
+                           from.savedTreeParams.begin() + base + numTrees);
     }
-    check(worst < 1e-12,
-          "warm standardization: a kept draw seeds the function it was");
+    recipient->getState(after);
+    check(sameLiveValues(after, expected),
+          "warm standardization: a kept draw seeds its coefficients as "
+          "stored");
   }
 
-  // a grid that holds every donor split point and more: the same function,
-  // and the recipient's standardization is not re-derived
+  // a grid that holds every donor split point and more: the values as
+  // stored, and the recipient's standardization is not re-derived
   {
     std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 400);
     refineGrid(*recipient, donorState.cutPoints);
@@ -2256,9 +2261,9 @@ static void testWarmStartStandardization() {
             WarmStartResult::ok,
           "warm standardization: a donor on another grid installs");
     recipient->getState(after);
-    check(worstGap(liveFits(*recipient), donorFits) < 1e-12,
-          "warm standardization: across grids the seeded fit is the donor's "
-          "function");
+    check(sameLiveValues(after, donorState),
+          "warm standardization: across grids the coefficients go in as "
+          "stored");
     check(sameConstants(before, after),
           "warm standardization: across grids the recipient's standardization "
           "is bit for bit what it was");
@@ -2289,44 +2294,33 @@ static void testWarmStartStandardization() {
           "values are identical to the donor's");
   }
 
-  // a donor that records no standardization is read as it always was
+  // the donor's record is not read: one recording none, and one a hand has
+  // broken, install as stored with nothing of the recipient's moved
   {
-    SamplerStateData unrecorded = donorState;
+    SamplerStateData unrecorded = donorState, zeroScale = donorState,
+      tooLong = donorState, halfRecord = donorState;
     for (ChainStateData& chain : unrecorded.chains) {
       chain.forests[0].leafCovariateCenters.clear();
       chain.forests[0].leafCovariateScales.clear();
     }
-    std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 600);
-    check(recipient->installForests(unrecorded, liveMap, x.data()) ==
-            WarmStartResult::ok,
-          "warm standardization: a donor recording no standardization "
-          "installs");
-    SamplerStateData after;
-    recipient->getState(after);
-    check(sameLiveValues(after, donorState),
-          "warm standardization: and its values arrive as stored");
-  }
-
-  // a record that does not fit the leaf is refused with nothing touched
-  {
-    std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, 700);
-    SamplerStateData before, after;
-    recipient->getState(before);
-    SamplerStateData zeroScale = donorState, tooLong = donorState,
-      halfRecord = donorState;
     const size_t last = numChains - 1;
     zeroScale.chains[last].forests[0].leafCovariateScales[0] = 0.0;
     tooLong.chains[last].forests[0].leafCovariateCenters.push_back(0.0);
     tooLong.chains[last].forests[0].leafCovariateScales.push_back(1.0);
     halfRecord.chains[last].forests[0].leafCovariateScales.clear();
-    for (const SamplerStateData* bad : {&zeroScale, &tooLong, &halfRecord})
-      check(recipient->installForests(*bad, liveMap, x.data()) ==
-              WarmStartResult::shapeMismatch,
-            "warm standardization: a malformed donor record is refused");
-    recipient->getState(after);
-    check(statesAgree(before, after),
-          "warm standardization: a refused donor leaves the recipient as it "
-          "was");
+    std::uint32_t seed = 600;
+    for (const SamplerStateData* given :
+         {&unrecorded, &zeroScale, &tooLong, &halfRecord}) {
+      std::unique_ptr<SamplerBase> recipient = makeOffStandard(false, seed++);
+      SamplerStateData before, after;
+      recipient->getState(before);
+      check(recipient->installForests(*given, liveMap, x.data()) ==
+              WarmStartResult::ok,
+            "warm standardization: a donor's record is not read");
+      recipient->getState(after);
+      check(sameLiveValues(after, donorState) && sameConstants(before, after),
+            "warm standardization: and its values arrive as stored");
+    }
   }
 
   // --- gp leaves: fits copied on the donor's grid, cold on another, the
@@ -2596,15 +2590,14 @@ static void testNoSpreadLiveConversion() {
           "no-spread conversion: between two constants the next draws stay "
           "in the twin's range");
 
-    // the same pair through a warm start
+    // the same pair through a warm start, which installs the coefficients
+    // as stored: each side reads the column at its own centre, so the fit is
+    // the intercepts' on both
     donor->getState(donorState);
     std::unique_ptr<SamplerBase> recipient = make(xDonee, 20);
-    WarmStartReport kept;
-    check(warmStartsAltered(*recipient, donorState, liveMap, xDonee.data(),
-                            nullptr, &kept) &&
-            kept.coefficientsKept && !kept.mean[0].changed(),
-          "no-spread conversion: a donor at another constant is declined "
-          "and, forced, installs with its coefficients reported kept");
+    check(warmStartsClean(*recipient, donorState, liveMap, xDonee.data()),
+          "no-spread conversion: a donor at another constant installs as it "
+          "stands");
     check(worstGap(liveFits(*recipient), n, liveFits(*donor), n, 0, n) <
             tolerance,
           "no-spread conversion: between two constants the seeded fit is the "
@@ -2654,17 +2647,32 @@ static void testNoSpreadLiveConversion() {
           "no-spread conversion: a placeholder given values draws on in the "
           "twin's range");
 
-    // as a donor into a sampler made on the values
-    SamplerStateData donorState;
+    // as a donor into a sampler made on the values, whose standardization
+    // is other: the slopes go in as stored, under the recipient's own
+    SamplerStateData donorState, before, seeded;
     donor->getState(donorState);
     std::unique_ptr<SamplerBase> recipient = make(xReal, 40);
+    recipient->getState(before);
     check(recipient->installForests(donorState, liveMap, xReal.data()) ==
             WarmStartResult::ok,
           "no-spread conversion: a donor whose placeholder took values "
           "installs");
-    check(worstGap(liveFits(*recipient), n, liveFits(*donor), n, 0, n) <
-            tolerance && largestSlope(*recipient) > 0.1,
-          "no-spread conversion: and seeds its function, slopes included");
+    recipient->getState(seeded);
+    bool asStored = largestSlope(*recipient) > 0.1;
+    for (size_t c = 0; c < numChains; ++c) {
+      const ForestStateData& got = seeded.chains[c].forests[0];
+      asStored = asStored &&
+        got.treeParams == donorState.chains[c].forests[0].treeParams &&
+        got.leafCovariateCenters ==
+          before.chains[c].forests[0].leafCovariateCenters &&
+        got.leafCovariateScales ==
+          before.chains[c].forests[0].leafCovariateScales;
+    }
+    check(asStored && worstGap(liveFits(*recipient), n, liveFits(*donor), n,
+                               0, n) > 1e-3,
+          "no-spread conversion: its slopes go in as stored under the "
+          "recipient's standardization, so the seeded fit is not the "
+          "donor's");
   }
 
   // --- made on one constant and moved to another: every row reads the same
@@ -5879,7 +5887,7 @@ static void testWarmStartForms() {
             counts.moved == 1 && counts.cutBack == 1 &&
             counts.sideDropped == 1 &&
             !report.variance[0].changed() && !report.fitsCold &&
-            !report.slopesLeftBehind && !report.coefficientsKept &&
+            !report.slopesLeftBehind &&
             sameFlatTrees({after.chains[0].forests[0].trees[0]}, {trees[0]}) &&
             after.chains[0].forests[0].trees[2].size() == 3,
           "warm start forms: the report counts each changed tree once, moved "
@@ -6278,6 +6286,256 @@ static void testWarmStartTreeCounts() {
   printf("ok: warm start from another tree count\n");
 }
 
+// A leaf standardization a host supplies at construction, as a sampler
+// re-created from its host's record takes it: the build holds the supplied
+// centers and scales, a scale not a number for a column without spread, and a
+// gp leaf the supplied lengthscales where its model gives none, and the reader
+// returns them; supplied equal to a derivation the sampler is the derived one
+// bit for bit, draws included; a sampler over a pre-built store derives its
+// own. An install keeps the standardization and puts the slopes in as
+// stored; kept gp draws made under another center, scale or lengthscale are
+// refused, live fits alone installed.
+static void testSuppliedStandardization() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 1732050u;
+  const size_t n = 140, p = 2, numChains = 2, numKept = 3;
+  std::vector<double> x(n * p), xOther(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    xOther[i] = x[i];
+    xOther[i + n] = 4.0 * runif01() + 3.0;
+    y[i] = std::sin(4.0 * x[i]) + x[i + n] + 0.2 * (runif01() - 0.5);
+  }
+  std::vector<ext_rng*> rngs;
+  auto newRngs = [&](std::uint32_t seed) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), seed + static_cast<std::uint32_t>(c));
+    }
+    return rngs.data() + rngs.size() - numChains;
+  };
+  const size_t covariates[] = {1};
+  const double fixedLengthscale[] = {0.5};
+  auto optionsFor = [&](bool gp, bool keepTrees,
+                        const SuppliedStandardization& supplied,
+                        const double* lengthscales = nullptr) {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.numChains = numChains;
+    options.keepTrees = keepTrees;
+    options.numSamplesToStore = keepTrees ? numKept : 0;
+    options.leafCovariateColumns = covariates;
+    options.numLeafCovariates = 1;
+    options.gpLeaves = gp;
+    options.gpLengthscales = lengthscales;
+    options.suppliedStandardization = supplied;
+    return options;
+  };
+  auto make = [&](const std::vector<double>& xs, const SamplerOptions& options,
+                  std::uint32_t seed) {
+    return createSampler(xs.data(), y.data(), n, p, nullptr, nullptr,
+                         ResponseFamily::gaussian, 1.0, 3.0,
+                         0.37804942330213542, options, newRngs(seed));
+  };
+  auto draws = [&](SamplerBase& sampler) {
+    std::vector<double> fits(n * numChains * 4);
+    Results results;
+    results.trainingFits = fits.data();
+    sampler.run(2, 4, results);
+    return fits;
+  };
+  auto bits = [](const std::vector<double>& a, const std::vector<double>& b) {
+    return a.size() == b.size() &&
+           (a.empty() ||
+            std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0);
+  };
+  Results none;
+
+  for (bool gp : {false, true}) {
+    const char* kind = gp ? "gp" : "linear";
+    std::unique_ptr<SamplerBase> derived = make(x, optionsFor(gp, true, {}), 10);
+    DerivedRecords records;
+    derived->derivedRecords(records);
+    SamplerStateData derivedState;
+    derived->getState(derivedState);
+    const ForestStateData& blocks = derivedState.chains[0].forests[0];
+    check(bits(records.leafCenters, blocks.leafCovariateCenters) &&
+            bits(records.leafScales, blocks.leafCovariateScales) &&
+            (gp ? bits(records.leafLengthscales, blocks.leafLengthscales)
+                : records.leafLengthscales.empty()),
+          "supplied standardization: the reader gives the standardization a "
+          "build holds");
+
+    // the derived values handed back: the same sampler, draws included
+    SuppliedStandardization same{
+      records.leafCenters.data(), records.leafScales.data(),
+      gp ? records.leafLengthscales.data() : nullptr};
+    std::unique_ptr<SamplerBase> again = make(x, optionsFor(gp, true, same), 10);
+    derived = make(x, optionsFor(gp, true, {}), 10);
+    SamplerStateData againState;
+    again->getState(againState);
+    derived->getState(derivedState);
+    check(statesAgree(againState, derivedState) &&
+            draws(*again) == draws(*derived),
+          gp ? "supplied standardization, gp: equal to a derivation, the "
+               "sampler and its draws are the derived ones"
+             : "supplied standardization, linear: equal to a derivation, the "
+               "sampler and its draws are the derived ones");
+
+    // other values, held whatever the rows say; a column without spread
+    // divides by 1
+    const double centers[] = {0.25}, scales[] = {2.5},
+      lengthscales[] = {0.75};
+    std::unique_ptr<SamplerBase> other = make(
+      xOther, optionsFor(gp, false, {centers, scales, lengthscales}), 20);
+    DerivedRecords held;
+    other->derivedRecords(held);
+    check(held.leafCenters == std::vector<double>{0.25} &&
+            held.leafScales == std::vector<double>{2.5} &&
+            (gp ? held.leafLengthscales == std::vector<double>{0.75}
+                : held.leafLengthscales.empty()),
+          "supplied standardization: other values are held");
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double flatScales[] = {nan};
+    std::vector<double> xFlat(x);
+    for (size_t i = 0; i < n; ++i) xFlat[i + n] = 0.25;
+    std::unique_ptr<SamplerBase> flat =
+      make(xFlat, optionsFor(gp, false, {centers, flatScales, nullptr}), 30);
+    flat->derivedRecords(held);
+    check(held.leafCenters == std::vector<double>{0.25} &&
+            held.leafScales.size() == 1 && std::isnan(held.leafScales[0]),
+          "supplied standardization: a scale without spread divides by 1 and "
+          "is recorded so");
+    (void) kind;
+  }
+
+  // a lengthscale the model supplies is model: a record's is not read, and
+  // the reader returns none
+  {
+    const double centers[] = {0.25}, scales[] = {2.5}, lengthscales[] = {3.0};
+    std::unique_ptr<SamplerBase> fixed = make(
+      x, optionsFor(true, false, {centers, scales, lengthscales},
+                    fixedLengthscale), 40);
+    DerivedRecords held;
+    fixed->derivedRecords(held);
+    SamplerStateData state;
+    fixed->getState(state);
+    check(held.leafLengthscales.empty() &&
+            state.chains[0].forests[0].leafLengthscales ==
+              std::vector<double>{0.5} &&
+            held.leafCenters == std::vector<double>{0.25},
+          "supplied standardization: a model's lengthscale is the one in "
+          "force and no record's");
+  }
+
+  // a sampler over a pre-built store takes its constants from the parent's
+  // data, whatever the options supply
+  {
+    ColumnStore parent;
+    check(parent.build(x.data(), n, p, 100, false, nullptr, covariates, 1),
+          "supplied standardization: the parent store builds");
+    std::vector<size_t> rows(n);
+    for (size_t i = 0; i < n; ++i) rows[i] = i;
+    ColumnStore store;
+    store.buildFromParent(parent, rows.data(), n, nullptr, 0, covariates, 1);
+    const double centers[] = {0.25}, scales[] = {2.5};
+    std::unique_ptr<SamplerBase> view = createSamplerOverStore(
+      std::move(store), y.data(), nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542,
+      optionsFor(false, false, {centers, scales, nullptr}), newRngs(50));
+    std::unique_ptr<SamplerBase> derived =
+      make(x, optionsFor(false, false, {}), 51);
+    DerivedRecords fromView, fromData;
+    view->derivedRecords(fromView);
+    derived->derivedRecords(fromData);
+    check(fromView.leafCenters == fromData.leafCenters &&
+            fromView.leafScales == fromData.leafScales,
+          "supplied standardization: a view derives its own");
+  }
+
+  // an install keeps the sampler's standardization and puts slopes in as
+  // stored: the kept draws, which no install moves, read the same numbers
+  {
+    std::unique_ptr<SamplerBase> source = make(x, optionsFor(false, true, {}),
+                                               60);
+    source->run(30, numKept, none);
+    SamplerStateData stored;
+    source->getState(stored);
+    std::unique_ptr<SamplerBase> target =
+      make(xOther, optionsFor(false, true, {}), 61);
+    SamplerStateData before, after;
+    target->getState(before);
+    // column 1's grid is another, so splits on it move by value
+    bool installed = target->setState(stored, xOther.data());
+    target->getState(after);
+    bool slopesAsStored = installed;
+    for (size_t c = 0; c < numChains; ++c) {
+      const ForestStateData& got = after.chains[c].forests[0];
+      const ForestStateData& was = before.chains[c].forests[0];
+      slopesAsStored = slopesAsStored &&
+        got.leafCovariateCenters == was.leafCovariateCenters &&
+        got.leafCovariateScales == was.leafCovariateScales &&
+        got.leafCovariateCenters !=
+          stored.chains[c].forests[0].leafCovariateCenters &&
+        got.savedTreeParams == stored.chains[c].forests[0].savedTreeParams;
+    }
+    check(slopesAsStored,
+          "supplied standardization: an install keeps the standardization "
+          "and puts the slopes in as stored");
+  }
+
+  // kept gp draws made under another standardization or lengthscale are
+  // refused, nothing touched; live fits alone install
+  {
+    std::unique_ptr<SamplerBase> source = make(x, optionsFor(true, true, {}),
+                                               70);
+    source->run(10, numKept, none);
+    SamplerStateData kept, live;
+    source->getState(kept);
+    std::unique_ptr<SamplerBase> unkept = make(x, optionsFor(true, false, {}),
+                                               71);
+    unkept->run(10, 0, none);
+    unkept->getState(live);
+    DerivedRecords records;
+    source->derivedRecords(records);
+    std::vector<double> longer(records.leafLengthscales);
+    longer[0] *= 2.0;
+    std::vector<double> shifted(records.leafCenters);
+    shifted[0] += 0.125;
+    SuppliedStandardization otherLengthscale{
+      records.leafCenters.data(), records.leafScales.data(), longer.data()};
+    SuppliedStandardization otherCenter{
+      shifted.data(), records.leafScales.data(),
+      records.leafLengthscales.data()};
+    for (const SuppliedStandardization& supplied :
+         {otherLengthscale, otherCenter}) {
+      std::unique_ptr<SamplerBase> target =
+        make(x, optionsFor(true, true, supplied), 72);
+      SamplerStateData before, after;
+      target->getState(before);
+      bool refused = true;
+      check(!target->setState(kept, x.data(), &refused) && refused,
+            "supplied standardization, gp: kept draws under another "
+            "standardization or lengthscale are refused");
+      target->getState(after);
+      check(statesAgree(before, after),
+            "supplied standardization, gp: a refusal touches nothing");
+      check(target->setState(live, x.data(), &refused) && !refused,
+            "supplied standardization, gp: live fits alone install");
+    }
+    std::unique_ptr<SamplerBase> twin = make(x, optionsFor(true, true, {}), 73);
+    bool refused = true;
+    check(twin->setState(kept, x.data(), &refused) && !refused,
+          "supplied standardization, gp: kept draws under the sampler's own "
+          "install");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: supplied leaf standardization\n");
+}
+
 /// A creation build handed cut grids (SamplerOptions::suppliedCutGrid) holds
 /// them in place of its derivations: a numeric column's points and weights as
 /// given, a column given none derived, and an ordered factor's grid its
@@ -6461,6 +6719,7 @@ void runStateTests(ext_rng* rng) {
   testLiveThresholdsOnGrid();
   testLiveGridInstall();
   testSuppliedCutGrid();
+  testSuppliedStandardization();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

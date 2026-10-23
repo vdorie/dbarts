@@ -2111,7 +2111,7 @@ createEngine <- function(control, model, data, active = NULL) {
 }
 
 recreatePointer <- function(control, model, data) {
-  createEngine(control, model, checkDerivedRecord(data))$pointer
+  createEngine(control, model, checkDerivedRecord(data, model))$pointer
 }
 
 ## The refusal of a sampler whose engine is gone and that holds no stored
@@ -2564,7 +2564,7 @@ dbartsSampler <- setRefClass(
       # the values a sampler derives from its data are data: the record the
       # data object carries is used and an absent one derived, and none rides
       # the model, where an object saved by an earlier build has the range
-      data <- checkDerivedRecord(data)
+      data <- checkDerivedRecord(data, model)
       attr(model, "response.range") <- NULL
       .self$control <- control
       .self$model <- model
@@ -3931,7 +3931,7 @@ dbartsSampler <- setRefClass(
       pointer
     },
     setState = function(newState, forceUpdate = FALSE) {
-      "Installs a stored state: the chains, never the model, and never the cut points or their weights, which stay this sampler's. A state carries no data, so one from a sampler whose factor has the same levels in another order goes in by position, with no message. The state goes in as stored: its trees, leaf values, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and never converted. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a split whose threshold is not one of this sampler's cut points, a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired - a split off the cut points moved to the nearest point its tree still allows, or merged with what is beneath it into one leaf - and NULL is returned invisibly. A state does not bring its cut points: to restore them too, hold the state in a variable st and call setCutPoints(attr(st, \"cutPoints\")), the whole set, before setState(st). A column whose cut points were changed and that attr(st, \"cutMass\") lists then has its points and not its weights: the restore still returns TRUE and the chain runs with that column's points equally likely; setPredictor(x[, j], j, updateCutPoints = \"value\") restores both while the column holds the values its cut points were derived from. A sampler whose engine is gone, as after a save and load, is first rebuilt on the cut points, weights and response range its data object records, and from its own stored state where it has one. See Saving and Value in ?dbartsSampler."
+      "Installs a stored state: the chains, never the model, and never the cut points or their weights, which stay this sampler's. A state carries no data, so one from a sampler whose factor has the same levels in another order goes in by position, with no message. The state goes in as stored: its trees, leaf values, linear slopes, k, sigma and kept draws are numbers on the sampler's internal scale, read against this sampler's response mapping and its leaf covariates' centers and scales, which stay its own, and never converted; kept linear draws then predict under the sampler's standardization until replaced, and saved Gaussian-process draws made under another standardization or lengthscale are refused. A state stored under the mapping in force puts the chain back where it was stored, value for value; one stored before a re-anchor, or by another sampler, is legal and has no special meaning. Of the state's kept draws the newest that fit this sampler's store are taken. A state one of whose trees would have to be changed to fit this sampler - a split whose threshold is not one of this sampler's cut points, a leaf no row reaches, a split outside its interval or on a column, or in an interaction, its forest does not allow, a missing-value side on a column that has never held a missing value, monotone leaf values out of order - is not installed: the sampler is left as it was and FALSE is returned, where TRUE says the state went in. With forceUpdate = TRUE such a state is installed, the trees repaired - a split off the cut points moved to the nearest point its tree still allows, or merged with what is beneath it into one leaf - and NULL is returned invisibly. A state does not bring its cut points: to restore them too, hold the state in a variable st and call setCutPoints(attr(st, \"cutPoints\")), the whole set, before setState(st). A column whose cut points were changed and that attr(st, \"cutMass\") lists then has its points and not its weights: the restore still returns TRUE and the chain runs with that column's points equally likely; setPredictor(x[, j], j, updateCutPoints = \"value\") restores both while the column holds the values its cut points were derived from. A sampler whose engine is gone, as after a save and load, is first rebuilt on the cut points, weights, response range and leaf standardization its data object records, and from its own stored state where it has one. See Saving and Value in ?dbartsSampler."
       refuseLegacyState(newState)
       if (!inherits(newState, "bartcoreState")) {
         stop("'state' must inherit from bartcoreState")
@@ -4031,8 +4031,10 @@ dbartsSampler <- setRefClass(
        predictors, keeping this sampler's model and cut points. The donor's
        trees and leaf values, and its k and sigma where this sampler draws
        them, go in as stored on the internal scale, not converted to this
-       sampler's response; linear-leaf coefficients drawn under covariates
-       centered and scaled differently are restated in this sampler's. Where
+       sampler's response; so do linear-leaf coefficients, numbers per unit
+       of this sampler's own centered and scaled covariates, which stay this
+       sampler's, so a seeded fit starts away from the donor's where the
+       two standardize a covariate differently and the draws then move it. Where
        the donor's data could hold no missing value in a column this
        sampler's can, each chain draws the side of every rule on that column
        in the trees it takes. 'samples' maps each chain to a 1-based

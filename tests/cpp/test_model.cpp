@@ -2358,10 +2358,11 @@ static void testLinearLeafFormats(ext_rng* rng) {
         "a state with mismatched slopes is refused");
 
   // an in-place update of the designated column keeps the creation-time
-  // standardization (it is sticky); the state carries it, so a sampler built
-  // over the UPDATED values and restored from that state replays the saved
-  // slopes as the live one does, where recomputing the constants from the
-  // updated values would read them on another scale
+  // standardization (it is sticky). A state records it and never installs
+  // it: a sampler built over the UPDATED values keeps the constants it
+  // derived there, and reads the saved slopes on another scale, while one
+  // built with the live sampler's record supplied (derivedRecords) holds
+  // the live constants and replays the saved slopes as the live one does
   std::vector<double> xMut(x);
   for (size_t i = 0; i < n; ++i) xMut[i + n] = 3.0 * x[i + n] + 1.0;
   check(sampler->setPredictor(xMut.data(), true, false) ==
@@ -2372,16 +2373,42 @@ static void testLinearLeafFormats(ext_rng* rng) {
   check(mutated.chains[0].forests[0].leafCovariateScales ==
           state.chains[0].forests[0].leafCovariateScales,
         "the update leaves the standardization as it was");
+  DerivedRecords records;
+  sampler->derivedRecords(records);
+  check(records.leafCenters ==
+            mutated.chains[0].forests[0].leafCovariateCenters &&
+          records.leafScales ==
+            mutated.chains[0].forests[0].leafCovariateScales &&
+          records.leafLengthscales.empty(),
+        "the reader returns the standardization in force");
+  std::vector<double> livePredictions(numTest * numSamples),
+    recreatedPredictions(numTest * numSamples);
+  sampler->predict(xTest.data(), numTest, 1, livePredictions.data());
+  ext_rng* rngDerived = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(rngDerived, 4323);
+  std::unique_ptr<SamplerBase> derived = createSampler(
+    xMut.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+    1.0, 3.0, 0.37804942330213542, options, &rngDerived);
+  check(derived->setState(mutated, xMut.data()),
+        "the mutated state restores over the updated values");
+  SamplerStateData derivedState;
+  derived->getState(derivedState);
+  derived->predict(xTest.data(), numTest, 1, recreatedPredictions.data());
+  check(derivedState.chains[0].forests[0].leafCovariateScales !=
+            mutated.chains[0].forests[0].leafCovariateScales &&
+          livePredictions != recreatedPredictions,
+        "a sampler re-created without the record keeps the standardization "
+        "it derived, and reads the saved slopes under it");
+  SamplerOptions supplied = options;
+  supplied.suppliedStandardization.centers = records.leafCenters.data();
+  supplied.suppliedStandardization.scales = records.leafScales.data();
   ext_rng* rng3 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
   ext_rng_setSeed(rng3, 4322);
   std::unique_ptr<SamplerBase> recreated = createSampler(
     xMut.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
-    1.0, 3.0, 0.37804942330213542, options, &rng3);
+    1.0, 3.0, 0.37804942330213542, supplied, &rng3);
   check(recreated->setState(mutated, xMut.data()),
-        "the mutated state restores over the updated values");
-  std::vector<double> livePredictions(numTest * numSamples),
-    recreatedPredictions(numTest * numSamples);
-  sampler->predict(xTest.data(), numTest, 1, livePredictions.data());
+        "the mutated state restores onto the supplied standardization");
   recreated->predict(xTest.data(), numTest, 1, recreatedPredictions.data());
   check(livePredictions == recreatedPredictions,
         "the re-created sampler replays the saved slopes as the live one does");
@@ -2395,6 +2422,7 @@ static void testLinearLeafFormats(ext_rng* rng) {
         "a linear leaf takes no lengthscales");
 
   ext_rng_destroy(rng3);
+  ext_rng_destroy(rngDerived);
   ext_rng_destroy(rng2);
   printf("ok: linear leaf formats\n");
 }

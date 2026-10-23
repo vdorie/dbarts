@@ -196,6 +196,12 @@ struct SamplerOptions {
   const double* gpLengthscales = nullptr;
   std::size_t gpMaxLeafSize = 256;
 
+  // the single forest's leaf standardization a host supplies, as a sampler
+  // re-created from its host's record takes it (SuppliedStandardization),
+  // one value per designated column; absent derives it. Borrowed; consumed
+  // at construction. A sampler over a pre-built store derives its own.
+  SuppliedStandardization suppliedStandardization;
+
   // AFT survival: per-observation status (1 = uncensored event, 0 = right-
   // censored) required when family is aft, ignored otherwise. Borrowed; the
   // response copies it during construction (see AFTResponse). The y creation
@@ -423,8 +429,11 @@ struct ForestCalibration {
 /// column the cut grid and its weights (ColumnStore::cutPoints and cutMass,
 /// empty on an unordered factor and for equally likely points), the response
 /// transform (Sampler::getAnchor), absent on a family that carries no units,
-/// and a calibration map's anchor and unit (AmplitudeSpec::anchor and unit),
-/// NaN on a sampler without the map.
+/// a calibration map's anchor and unit (AmplitudeSpec::anchor and unit),
+/// NaN on a sampler without the map, and the leaf standardization of its one
+/// forest of linear or gp leaves: a center and a scale per covariate, the
+/// scale NaN for a column without spread, and the lengthscales of a gp leaf
+/// whose model supplies none, each empty where there is none.
 struct DerivedRecords {
   /// Set false by the caller to leave cutPoints and cutMass empty, a read
   /// that costs nothing per predictor, for a call that moves no grid.
@@ -436,6 +445,7 @@ struct DerivedRecords {
   double rangeMax = 0.0;
   double forestAnchor = std::numeric_limits<double>::quiet_NaN();
   double forestUnit = std::numeric_limits<double>::quiet_NaN();
+  std::vector<double> leafCenters, leafScales, leafLengthscales;
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.
@@ -978,13 +988,16 @@ public:
 
     if constexpr (L::hasVectorParams)
       forest.leaf.initialize(data, options.leafCovariateColumns,
-                             options.numLeafCovariates, options.numChains);
+                             options.numLeafCovariates, options.numChains,
+                             options.suppliedStandardization);
     else if constexpr (L::hasFunctionParams)
       forest.leaf.initialize(data, options.leafCovariateColumns,
                              options.numLeafCovariates, options.gpLengthscales,
-                             options.gpMaxLeafSize, options.numChains);
+                             options.gpMaxLeafSize, options.numChains,
+                             options.suppliedStandardization);
     options_.leafCovariateColumns = nullptr;  // consumed above
     options_.gpLengthscales = nullptr;
+    options_.suppliedStandardization = {};
 
     switch (family) {
     case ResponseFamily::probit:
@@ -2510,10 +2523,12 @@ public:
   }
 
   /// Whether a state's saved gp draws can be replayed here: a saved draw
-  /// replays only under the kernel it was drawn with, and a supplied
-  /// lengthscale is this sampler's model, so saved draws made under other
-  /// lengthscales are refused. True off a gp leaf, on derived lengthscales
-  /// (which install with the state), and without saved draws.
+  /// replays only under the center, scale and lengthscale it was drawn with,
+  /// and an install keeps this sampler's own, so saved draws recorded under
+  /// another of any are refused. Centers and scales compare as the leaf
+  /// divides by them, a scale recorded without spread as 1. True off a gp
+  /// leaf, without saved draws, and on a record that does not fit the leaf,
+  /// which stateIsValid refuses.
   bool lengthscaleStateFeasible(const ChainStateData& state,
                                 bool hasSavedDraws) const {
     if constexpr (L::hasFunctionParams) {
@@ -2521,10 +2536,18 @@ public:
         return true;
       for (std::size_t f = 0; f < forests_.size(); ++f) {
         const ForestStateData& fs = state.forests[f];
-        if (forests_[f].leaf.lengthscalesAreSupplied() &&
-            !fs.savedTrees.empty() && !fs.leafLengthscales.empty() &&
-            fs.leafLengthscales != forests_[f].leaf.lengthscales())
+        const L& leaf = forests_[f].leaf;
+        if (fs.savedTrees.empty() || !leafCalibrationIsValid(forests_[f], fs))
+          continue;
+        if (!fs.leafLengthscales.empty() &&
+            fs.leafLengthscales != leaf.lengthscales())
           return false;
+        for (std::size_t j = 0; j < fs.leafCovariateCenters.size(); ++j) {
+          double scale = fs.leafCovariateScales[j];
+          if (fs.leafCovariateCenters[j] != leaf.covariateMeans()[j] ||
+              (std::isnan(scale) ? 1.0 : scale) != leaf.covariateSds()[j])
+            return false;
+        }
       }
     } else {
       (void) state;
@@ -4367,9 +4390,7 @@ public:
         // placeholder 1 the leaf divides by
         LeafStandardization standardization = forest.leaf.standardization();
         fs.leafCovariateCenters = standardization.centers;
-        fs.leafCovariateScales = standardization.scales;
-        for (std::size_t j = 0; j < fs.leafCovariateScales.size(); ++j)
-          if (!standardization.hasSpread[j]) fs.leafCovariateScales[j] = absent;
+        fs.leafCovariateScales = standardization.recordedScales();
       }
       if constexpr (L::hasFunctionParams)
         fs.leafLengthscales = forest.leaf.lengthscales();
@@ -5258,63 +5279,6 @@ public:
           std::min(varianceOffered, live.varianceTrees.size()), variance);
   }
 
-  /// Restates the linear coefficients of \p install's live trees - a warm
-  /// start's reassembled donor - from the standardization \p donor records
-  /// into this chain's own, so the trees seed the function the donor held on
-  /// whatever standardization it was drawn under; this chain's own is never
-  /// moved. A column without spread on both sides is left as the donor built
-  /// it (convertLinearCoefficients), and \p keptAcrossValues is set, never
-  /// cleared, where such a column is centered elsewhere here under a slope
-  /// that is not 0: the leaf is then not the donor's function at this chain's
-  /// value of the column. Nothing is done where the
-  /// donor records no standardization or the two are equal, so such an
-  /// install is the donor's values bit for bit, and nothing on any other
-  /// leaf. False where the donor's record does not fit the leaf
-  /// (leafCalibrationIsValid) or a tree's slopes do not match its leaves;
-  /// \p install, the caller's scratch, may then be part converted.
-  bool convertDonorStandardization(ChainStateData& install,
-                                   const ChainStateData& donor,
-                                   bool& keptAcrossValues) const {
-    if constexpr (L::hasVectorParams) {
-      std::size_t numForests =
-        std::min({install.forests.size(), donor.forests.size(),
-                  forests_.size()});
-      for (std::size_t f = 0; f < numForests; ++f) {
-        const ForestStateData& dfs = donor.forests[f];
-        if (dfs.leafCovariateCenters.empty() &&
-            dfs.leafCovariateScales.empty())
-          continue;
-        if (!leafCalibrationIsValid(forests_[f], dfs)) return false;
-        LeafStandardization from = LeafStandardization::fromState(
-          dfs.leafCovariateCenters, dfs.leafCovariateScales);
-        LeafStandardization to = forests_[f].leaf.standardization();
-        if (from == to) continue;
-        ForestStateData& fs = install.forests[f];
-        if (fs.treeParams.size() != fs.trees.size()) return false;
-        for (std::size_t t = 0; t < fs.trees.size(); ++t)
-          if (!convertFlatLinearTree(fs.trees[t], fs.treeParams[t], from, to,
-                                     /*keepWithoutSpread=*/true))
-            return false;
-        // a kept column's slopes are as the donor built them, one block of
-        // slopes per leaf
-        std::size_t numSlopes = from.centers.size();
-        for (std::size_t j = 0; j < numSlopes; ++j) {
-          if (from.hasSpread[j] || to.hasSpread[j] ||
-              from.centers[j] == to.centers[j])
-            continue;
-          for (const std::vector<double>& slopes : fs.treeParams)
-            for (std::size_t b = j; b < slopes.size(); b += numSlopes)
-              if (slopes[b] != 0.0) keptAcrossValues = true;
-        }
-      }
-    } else {
-      (void) install;
-      (void) donor;
-      (void) keptAcrossValues;
-    }
-    return true;
-  }
-
   /// Whether a state's leaf-covariate calibration block fits this forest's
   /// leaf: absent, or one finite center and one scale per designated column,
   /// the scale finite and positive or, for a column without spread, not a
@@ -5412,10 +5376,12 @@ public:
   /// violation of a validated tree failing to rebuild. The model is this
   /// chain's and stays: the response transform, the leaf scale, a supplied
   /// gp lengthscale, and every scalar, amplitude and amplitude variance the
-  /// chain holds fixed. Every value goes in as stored, a number on the
-  /// internal scale read against this chain's transform; the transform the
-  /// state records is not read, so a state from another one is not
-  /// converted.
+  /// chain holds fixed; so does the leaf covariates' standardization, which
+  /// is data, with a gp leaf's heuristic lengthscales. Every value goes in as
+  /// stored, a number on the internal scale read against this chain's
+  /// transform and standardization; neither the transform nor the
+  /// standardization the state records is read, so a state from another one
+  /// is not converted: a linear leaf's slopes go in as stored.
   ///
   /// altered, when non-null, is set if a live tree, mean or variance, was
   /// installed other than as stored (rebuildLiveForest,
@@ -5459,20 +5425,6 @@ public:
     for (size_t f = 0; f < forests_.size(); ++f) {
       Forest<L, ResidT>& forest = forests_[f];
       const ForestStateData& fs = state.forests[f];
-      // the saved calibration goes in before the trees, whose fits and
-      // future draws read the covariates through it
-      if constexpr (L::hasVectorParams) {
-        if (!fs.leafCovariateCenters.empty())
-          forest.leaf.restoreCalibration(data_, fs.leafCovariateCenters.data(),
-                                         fs.leafCovariateScales.data());
-      } else if constexpr (L::hasFunctionParams) {
-        if (!fs.leafCovariateCenters.empty())
-          forest.leaf.restoreCalibration(
-            data_, fs.leafCovariateCenters.data(),
-            fs.leafCovariateScales.data(),
-            fs.leafLengthscales.empty() || forest.leaf.lengthscalesAreSupplied()
-              ? nullptr : fs.leafLengthscales.data());
-      }
       if (!rebuildLiveForest(f, fs, params, altered)) return false;
       if (fs.savedTrees.size() != forest.savedTrees.size()) {
         size_t stateCapacity = fs.savedTrees.size() / forest.numTrees;

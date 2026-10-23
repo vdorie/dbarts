@@ -1,8 +1,8 @@
 # A draw the sampler has kept is the function that was drawn, and stays so:
 # predict returns the same values before and after setData and before and
 # after the response range is re-derived. A forest seeded from another fit
-# starts at that fit's function even when the two standardize a leaf covariate
-# differently, and the seeded sampler keeps its own standardization. Every
+# takes its coefficients as stored, whatever standardization the donor
+# records, which is not read, and the seeded sampler keeps its own. Every
 # identity is read from the engine - predictions at new rows and at the
 # training rows, live fits, a freshly stored state - on samplers of several
 # trees and two chains.
@@ -186,22 +186,24 @@ expect_true(
 )
 expect_true(worstGap(flat.function, liveFits(flat)) < 1e-10)
 expect_true(max(abs(flat$predict(x.flat.new) - flat.kept)) < 1e-10)
-# and a warm start from such a donor into a sampler whose covariate varies
+# and a warm start from such a donor into a sampler whose covariate varies:
+# the coefficients go in as stored under the sampler's own standardization,
+# which reads the covariate where the donor's did not, so the seeded fit is
+# not the donor's function
 varied <- dbarts(
   x.varying,
   y,
   control = control(keepTrees = FALSE, seed = 9L),
   leaf.prior = linear(columns = 2L)
 )
+varied.standardization <- standardization(varied)
 varied$installTrees(flat.donor, samples = c(5L, 10L))
-expect_true(
-  worstGap(
-    byFormula(flat.trees, flat.standardization, standardization(varied)),
-    leafCoefficients(liveTrees(varied))
-  ) <
-    1e-10
+expect_identical(
+  leafCoefficients(liveTrees(varied)),
+  leafCoefficients(flat.trees)
 )
-expect_true(worstGap(flat.function, liveFits(varied)) < 1e-10)
+expect_identical(standardization(varied), varied.standardization)
+expect_true(worstGap(flat.function, liveFits(varied)) > 1e-3)
 
 ## --- 2. kept draws across setData -------------------------------------------
 ## The same raw points, replayed before and after a setData whose leaf
@@ -354,8 +356,11 @@ expect_true(abs(mean(after[, 3:4, ]) - mean(3 * before[[1L]] + 10)) < 2)
 
 ## --- 4. a warm start between standardizations ------------------------------
 ## A recipient made on the stretched covariate and then given the donor's
-## rows keeps the standardization it was made with. Its seeded fit was off the
-## donor's by about 6, and a donor on another grid replaced its standardization.
+## rows keeps the standardization it was made with, and the donor's
+## coefficients go in as stored, numbers per unit of the recipient's own
+## scaled covariate (dec-B457): its seeded fit is off the donor's by about 6,
+## the next draws moving it, and the donor's record is not read. They were
+## restated, the seeded fit the donor's.
 warm.control <- function(...) control(keepTrees = FALSE, n.burn = 60L, ...)
 donor <- dbarts(
   x,
@@ -379,23 +384,35 @@ offStandard <- function(seed, grid = donor.grid) {
 }
 
 # the donor's grid, another standardization; the donor's live trees are its
-# newest kept draw, so the last of the pool seeds both chains
+# newest kept draw, so the last of the pool seeds both chains, clean and as
+# stored
 recipient <- offStandard(21L)
 own <- standardization(recipient)
 expect_identical(cutGrid(recipient), donor.grid)
 expect_true(abs(own[[2L]]$leaf.covariate.center - 5) < 1)
 donor.kept <- donor$predict(x)
-recipient$installTrees(donor, samples = c(4L, 8L))
-expect_true(max(abs(matrix(liveFits(recipient), n) - donor.fits)) < 1e-12)
+expect_true(recipient$installTrees(donor, samples = c(4L, 8L)))
+expect_identical(liveTrees(recipient), liveTrees(donor))
+expect_true(max(abs(matrix(liveFits(recipient), n) - donor.fits)) > 1)
 expect_identical(standardization(recipient), own)
 expect_true(all(is.finite(recipient$run(0L, 2L)$train)))
 
-# a kept draw as the seed: each chain starts at the draw it was given
-recipient <- offStandard(22L)
-recipient$installTrees(donor, samples = c(6L, 1L))
-seeded <- matrix(liveFits(recipient), n)
+# a kept draw as the seed: each chain takes the draw it was given as stored,
+# the coefficients a twin on the donor's standardization takes, which there
+# is the draw's function
+twin <- dbarts(
+  x,
+  y,
+  control = warm.control(seed = 22L),
+  leaf.prior = linear(columns = 2L)
+)
+twin$installTrees(donor, samples = c(6L, 1L))
+seeded <- matrix(liveFits(twin), n)
 expect_true(max(abs(seeded[, 1L] - donor.kept[, 2L, 2L])) < 1e-12)
 expect_true(max(abs(seeded[, 2L] - donor.kept[, 1L, 1L])) < 1e-12)
+recipient <- offStandard(22L)
+recipient$installTrees(donor, samples = c(6L, 1L))
+expect_identical(liveTrees(recipient), liveTrees(twin))
 expect_identical(standardization(recipient), own)
 
 # a grid that holds every donor split point and more
@@ -406,7 +423,7 @@ recipient <- offStandard(23L, finer)
 own <- standardization(recipient)
 expect_false(identical(cutGrid(recipient), donor.grid))
 recipient$installTrees(donor, samples = c(4L, 8L))
-expect_true(max(abs(matrix(liveFits(recipient), n) - donor.fits)) < 1e-12)
+expect_identical(liveTrees(recipient), liveTrees(donor))
 expect_identical(standardization(recipient), own)
 
 # equal standardizations: the donor's coefficients arrive as they are
@@ -420,30 +437,30 @@ expect_identical(standardization(twin), standardization(donor))
 twin$installTrees(donor, samples = c(4L, 8L))
 expect_identical(liveTrees(twin), liveTrees(donor))
 
-# a donor record a hand has broken is refused, the recipient as it was
+# the donor's record is not read: one a hand has broken installs as stored
 recipient <- offStandard(25L)
-before <- liveTrees(recipient)
+own <- standardization(recipient)
 donor$storeState()
 broken <- donor$state
 broken[[2L]]$forests[[1L]]$leaf.covariate.scale <- 0
-expect_error(
-  recipient$installTrees(broken),
-  "malformed parameters in warm-start donor"
-)
-expect_identical(liveTrees(recipient), before)
+expect_true(recipient$installTrees(broken, samples = c(4L, 8L)))
+expect_identical(liveTrees(recipient), liveTrees(donor))
+expect_identical(standardization(recipient), own)
 
-# through bart: one donor forest written under two standardizations, the
-# second restated here by the rule (slope s' / s, and the intercept gaining
-# slope (m' - m) / s), is one function, so it seeds the same draws
-restated <- function(state, shift, stretch) {
+# through bart: one donor forest whose record alone is moved seeds the same
+# draws, and the same forest with its coefficients restated by the rule
+# (slope s' / s, and the intercept gaining slope (m' - m) / s) seeds others
+restated <- function(state, shift, stretch, coefficients = TRUE) {
   for (chain in seq_along(state)) {
     forest <- state[[chain]]$forests[[1L]]
-    values <- readBin(forest$tree.values, "double", length(forest$tree.vars))
-    leaves <- forest$tree.vars < 0L
-    values[leaves] <- values[leaves] +
-      forest$tree.params * shift / forest$leaf.covariate.scale
-    forest$tree.values <- writeBin(values, raw())
-    forest$tree.params <- forest$tree.params * stretch
+    if (coefficients) {
+      values <- readBin(forest$tree.values, "double", length(forest$tree.vars))
+      leaves <- forest$tree.vars < 0L
+      values[leaves] <- values[leaves] +
+        forest$tree.params * shift / forest$leaf.covariate.scale
+      forest$tree.values <- writeBin(values, raw())
+      forest$tree.params <- forest$tree.params * stretch
+    }
     forest$leaf.covariate.center <- forest$leaf.covariate.center + shift
     forest$leaf.covariate.scale <- forest$leaf.covariate.scale * stretch
     state[[chain]]$forests[[1L]] <- forest
@@ -466,6 +483,7 @@ donor.fit <- bart(
 donor.fit$fit$storeState()
 recorded <- donor.fit$fit$state
 moved <- restated(recorded, shift = 0.7, stretch = 2.5)
+relabeled <- restated(recorded, 0.7, 2.5, coefficients = FALSE)
 warmed <- function(state) {
   bart(
     x.more,
@@ -483,14 +501,15 @@ warmed <- function(state) {
 }
 from.recorded <- warmed(recorded)
 expect_true(diff(range(from.recorded)) > 1)
-expect_true(max(abs(warmed(moved) - from.recorded)) < 1e-8)
+expect_identical(warmed(relabeled), from.recorded)
+expect_true(max(abs(warmed(moved) - from.recorded)) > 1e-3)
 # and before any sweep, through installTrees
 recipient <- offStandard(26L)
 recipient$installTrees(recorded)
 before <- liveFits(recipient)
 recipient <- offStandard(26L)
-recipient$installTrees(moved)
-expect_true(max(abs(liveFits(recipient) - before)) < 1e-12)
+recipient$installTrees(relabeled)
+expect_identical(liveFits(recipient), before)
 
 ## --- 5. gp leaves at a warm start -------------------------------------------
 ## Per-row fits hold no kernel: copied on the donor's grid, zero on another,
@@ -601,15 +620,15 @@ for (constant in c(1000, 0.1)) {
 
   # the same pair through a warm start, and through bart, which runs a sweep
   # before anything can be read and is held to the donor's range. The slopes
-  # arrive as built across the two constants, which is not the donor's
-  # function at this sampler's constant, so the start is declined unforced
+  # arrive as stored, each side reading the column at its own centre, so the
+  # start is clean and the seeded fit the donor's on the training rows
   recipient <- madeOn(withLeafColumn(x, 2 * constant), 41L, keepTrees = FALSE)
   expect_identical(
     recipient$installTrees(donor, samples = newest),
-    FALSE,
+    TRUE,
     info = constant
   )
-  recipient$installTrees(donor, samples = newest, forceUpdate = TRUE)
+  expect_identical(liveTrees(recipient), trees, info = constant)
   expect_true(
     worstGap(live, liveMatrix(recipient)) < tolerance,
     info = constant
@@ -670,21 +689,26 @@ expect_true(drawsLikeTwin(given, twin))
 copied$setData(dbartsData(x.more, y.more))
 expect_true(worstGap(before, liveMatrix(copied)) < tolerance)
 # as a donor into a sampler made on the values, whose cut points on the
-# column are other ones, so the donor's splits there move: forced
+# column are other ones, so the donor's splits there move: forced, and under
+# the sampler's own centre and scale, which the slopes go in to as stored,
+# the seeded fit is not the donor's
 recipient <- madeOn(x, 42L, keepTrees = FALSE)
+own <- standardization(recipient)
 expect_identical(recipient$installTrees(donor, samples = newest), FALSE)
 recipient$installTrees(donor, samples = newest, forceUpdate = TRUE)
-expect_true(worstGap(live, liveMatrix(recipient)) < tolerance)
+expect_identical(standardization(recipient), own)
+expect_true(worstGap(live, liveMatrix(recipient)) > 1e-3)
 expect_true(max(abs(slopes(recipient))) > 0.1)
 expect_true(drawsLikeTwin(recipient, donor))
-# and through bart: the donor's record and the same forest restated by the
-# rule under a centre and scale of its own are one function
+# and through bart: the donor's record is not read, so a record moved alone
+# seeds the same draws
 given <- placeholder(43L, keepTrees = FALSE)
 given$storeState()
 from.recorded <- warmed(given$state)
 expect_true(diff(range(from.recorded)) > 1)
-expect_true(
-  max(abs(warmed(restated(given$state, 0.7, 2.5)) - from.recorded)) < 1e-8
+expect_identical(
+  warmed(restated(given$state, 0.7, 2.5, coefficients = FALSE)),
+  from.recorded
 )
 
 # made on one constant and moved to another: every row reads the same value

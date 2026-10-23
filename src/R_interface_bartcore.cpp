@@ -358,6 +358,12 @@ struct ParsedData {
   // it records none
   double forestAnchor = std::numeric_limits<double>::quiet_NaN();
   double forestUnit = std::numeric_limits<double>::quiet_NaN();
+  // the leaf standardization the data object records for the forest of
+  // linear or gp leaves, a center and a scale per covariate (the scale NaN
+  // for a column without spread) and a gp leaf's lengthscales; empty where
+  // it records none. Read at creation only, never by a data handle.
+  std::vector<double> suppliedLeafCenters, suppliedLeafScales,
+    suppliedLeafLengthscales;
 };
 
 struct ParsedModel {
@@ -1213,6 +1219,49 @@ void readCutPointsRecord(ParsedData& data, SEXP recordExpr) {
   }
 }
 
+/// Reads a data object's standardization record into \p data: a list with
+/// one entry per forest, NULL where its leaves take no covariate and
+/// otherwise a list of "center" and "scale", one value per leaf covariate,
+/// the scale NA for a column without spread, and "lengthscale" beside them
+/// for gp leaves. Only the first forest's leaves can take covariates; whether
+/// the count is theirs is optionsFromParsed's to say.
+void readStandardizationRecord(ParsedData& data, SEXP recordExpr) {
+  const char* malformed =
+    "the data's 'standardization' record must be NULL or a list with one "
+    "entry per forest, NULL where a forest's leaves take no covariate and, "
+    "for the one whose leaves do, a finite 'center', a positive or NA "
+    "'scale' and, for gp leaves, a positive 'lengthscale', each one value per "
+    "leaf covariate";
+  if (TYPEOF(recordExpr) != VECSXP || Rf_xlength(recordExpr) == 0)
+    Rf_error("%s", malformed);
+  for (R_xlen_t f = 1; f < Rf_xlength(recordExpr); ++f)
+    if (!Rf_isNull(VECTOR_ELT(recordExpr, f))) Rf_error("%s", malformed);
+  SEXP entryExpr = VECTOR_ELT(recordExpr, 0);
+  if (Rf_isNull(entryExpr)) return;
+  if (TYPEOF(entryExpr) != VECSXP) Rf_error("%s", malformed);
+  SEXP centersExpr = rc_getListElement(entryExpr, "center");
+  SEXP scalesExpr = rc_getListElement(entryExpr, "scale");
+  SEXP lengthscalesExpr = rc_getListElement(entryExpr, "lengthscale");
+  bool lengthscales = !Rf_isNull(lengthscalesExpr);
+  R_xlen_t q = Rf_isReal(centersExpr) ? Rf_xlength(centersExpr) : 0;
+  bool valid = q > 0 && Rf_isReal(scalesExpr) && Rf_xlength(scalesExpr) == q &&
+    (!lengthscales ||
+     (Rf_isReal(lengthscalesExpr) && Rf_xlength(lengthscalesExpr) == q));
+  for (R_xlen_t j = 0; valid && j < q; ++j) {
+    double scale = REAL(scalesExpr)[j];
+    valid = std::isfinite(REAL(centersExpr)[j]) &&
+      (std::isnan(scale) || (std::isfinite(scale) && scale > 0.0)) &&
+      (!lengthscales || (std::isfinite(REAL(lengthscalesExpr)[j]) &&
+                         REAL(lengthscalesExpr)[j] > 0.0));
+  }
+  if (!valid) Rf_error("%s", malformed);
+  data.suppliedLeafCenters.assign(REAL(centersExpr), REAL(centersExpr) + q);
+  data.suppliedLeafScales.assign(REAL(scalesExpr), REAL(scalesExpr) + q);
+  if (lengthscales)
+    data.suppliedLeafLengthscales.assign(REAL(lengthscalesExpr),
+                                         REAL(lengthscalesExpr) + q);
+}
+
 void parseData(ParsedData& data, SEXP dataExpr) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -1579,6 +1628,11 @@ void parseData(ParsedData& data, SEXP dataExpr) {
       data.forestAnchor = REAL(slotExpr)[0];
       data.forestUnit = REAL(slotExpr)[1];
     }
+  }
+  if (R_has_slot(dataExpr, Rf_install("standardization"))) {
+    REPROTECT_SLOT(slotExpr, dataExpr, "standardization", slotIndex);
+    if (!rc_isS4Null(slotExpr) && !Rf_isNull(slotExpr))
+      readStandardizationRecord(data, slotExpr);
   }
 
   UNPROTECT(2);  // the slot index and the factor level tables
@@ -2374,6 +2428,21 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.gpLengthscales = model.gpLengthscales.empty()
     ? NULL : model.gpLengthscales.data();  // consumed at construction
   options.gpMaxLeafSize = model.gpMaxLeafSize;
+  // a recorded standardization, one value per leaf covariate, consumed at
+  // construction; the R surface holds it to the leaf first
+  // (checkDerivedRecord), so this refusal is the backstop
+  if (!data.suppliedLeafCenters.empty()) {
+    if (data.suppliedLeafCenters.size() != model.leafCovariateColumns.size())
+      Rf_error("the data's 'standardization' record gives %d leaf covariates "
+               "and the leaves take %d",
+               static_cast<int>(data.suppliedLeafCenters.size()),
+               static_cast<int>(model.leafCovariateColumns.size()));
+    options.suppliedStandardization.centers = data.suppliedLeafCenters.data();
+    options.suppliedStandardization.scales = data.suppliedLeafScales.data();
+    if (!data.suppliedLeafLengthscales.empty())
+      options.suppliedStandardization.lengthscales =
+        data.suppliedLeafLengthscales.data();
+  }
 
   // the single forest's column restriction, consumed at construction
   options.forestColumns = model.forestColumns.empty()
@@ -4369,6 +4438,11 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       controlExpr, modelExpr, dataExpr, familyName, control, model, data,
       sigmaIsFixed);
     requireResolvedSigmaEstimate(family, data.sigmaEstimate);
+    // a fold's leaf takes its constants from the handle's data, whatever the
+    // object records (dec-B304)
+    data.suppliedLeafCenters.clear();
+    data.suppliedLeafScales.clear();
+    data.suppliedLeafLengthscales.clear();
 
     if (data.numObservations != parent.numObservations ||
         data.numPredictors != parent.numPredictors)
@@ -7077,19 +7151,23 @@ SEXP bartcore_anchor(SEXP ptrExpr, SEXP recordExpr) {
 }
 
 // The values the sampler derived from its data, as the data object records
-// them: list(cutPoints, response.range, forest.calibration). cutPoints has one
-// entry per predictor, NULL on an unordered factor, a weighted grid carrying
-// its weights as the entry's "mass" attribute; response.range is (min, max),
-// NULL on a family that reads none; forest.calibration is c(anchor, unit),
-// NULL off a calibration map. withGridsExpr FALSE leaves cutPoints NULL and
-// reads no grid, for a call that moves none.
+// them: list(cutPoints, response.range, forest.calibration, standardization).
+// cutPoints has one entry per predictor, NULL on an unordered factor, a
+// weighted grid carrying its weights as the entry's "mass" attribute;
+// response.range is (min, max), NULL on a family that reads none;
+// forest.calibration is c(anchor, unit), NULL off a calibration map;
+// standardization is list(list(center, scale)) for a forest of linear leaves,
+// with lengthscale beside them for gp leaves whose model supplies none, a
+// scale NA for a column without spread, and NULL where no leaf takes a
+// covariate. R names the covariates. withGridsExpr FALSE leaves cutPoints
+// NULL and reads no grid, for a call that moves none.
 SEXP bartcore_derivedRecords(SEXP ptrExpr, SEXP withGridsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::DerivedRecords records;
   records.withGrids = Rf_asLogical(withGridsExpr) != FALSE;
   holder.sampler->derivedRecords(records);
   const char* names[] = {"cutPoints", "response.range", "forest.calibration",
-                         ""};
+                         "standardization", ""};
   SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
   // empty unless the grids were read, so the loop below fills nothing
   size_t numPredictors = records.cutPoints.size();
@@ -7131,6 +7209,26 @@ SEXP bartcore_derivedRecords(SEXP ptrExpr, SEXP withGridsExpr) {
     Rf_setAttrib(calibrationExpr, R_NamesSymbol, calibrationNamesExpr);
     UNPROTECT(1);
   }
+  if (!records.leafCenters.empty()) {
+    int numEntries = records.leafLengthscales.empty() ? 2 : 3;
+    const char* entryNames[] = {
+      "center", "scale", numEntries == 3 ? "lengthscale" : "", ""};
+    const std::vector<double>* values[] = {
+      &records.leafCenters, &records.leafScales, &records.leafLengthscales};
+    SEXP forestsExpr = Rf_allocVector(VECSXP, 1);
+    SET_VECTOR_ELT(resultExpr, 3, forestsExpr);
+    SEXP entryExpr = Rf_mkNamed(VECSXP, entryNames);
+    SET_VECTOR_ELT(forestsExpr, 0, entryExpr);
+    for (int k = 0; k < numEntries; ++k) {
+      SEXP valuesExpr = Rf_allocVector(
+        REALSXP, static_cast<R_xlen_t>(values[k]->size()));
+      SET_VECTOR_ELT(entryExpr, k, valuesExpr);
+      // a scale without spread is NA, as a state writes it
+      for (size_t j = 0; j < values[k]->size(); ++j)
+        REAL(valuesExpr)[j] =
+          ISNAN((*values[k])[j]) ? NA_REAL : (*values[k])[j];
+    }
+  }
   UNPROTECT(1);
   return resultExpr;
 }
@@ -7147,10 +7245,8 @@ SEXP bartcore_derivedRecords(SEXP ptrExpr, SEXP withGridsExpr) {
 // sampler having no variance forest or starting its own fresh.
 // 'fits.cold': function fits started at 0. 'slopes': 1 for a linear donor's
 // slopes left behind, 2 for slopes started at 0 under a constant donor, else
-// 0. 'coefficients.kept': linear coefficients kept as built across a
-// covariate of one value on each side. 'dart' and 'variance': 1 for this
-// sampler's own part started as a new fit's, 2 for the donor's left behind,
-// else 0. Everything is allocated before the install, which then only writes
+// 0. 'dart' and 'variance': 1 for this sampler's own part started as a new
+// fit's, 2 for the donor's left behind, else 0. Everything is allocated before the install, which then only writes
 // into it.
 SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
                              SEXP samplesExpr, SEXP currentPredictorsExpr,
@@ -7163,8 +7259,7 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
   const double* currentPredictors =
     Rf_isReal(currentPredictorsExpr) ? REAL(currentPredictorsExpr) : NULL;
   const char* names[] = {"installed", "altered", "trees", "variance.trees",
-                         "fits.cold", "slopes", "coefficients.kept", "dart",
-                         "variance", ""};
+                         "fits.cold", "slopes", "dart", "variance", ""};
   const char* countNames[] = {"offered", "taken", "moved", "cut.back",
                               "side.dropped", "single.leaves"};
   int numChains = static_cast<int>(holder.sampler->shape().numChains);
@@ -7182,8 +7277,8 @@ SEXP bartcore_installForests(SEXP ptrExpr, SEXP donorStateExpr,
   }
   // vectors of the report's own: a scalar logical made by R is one shared
   // object per value and is not to be written
-  for (int k : {0, 1, 4, 5, 6, 7, 8}) {
-    SEXP flagExpr = Rf_allocVector(k == 5 || k >= 7 ? INTSXP : LGLSXP, 1);
+  for (int k : {0, 1, 4, 5, 6, 7}) {
+    SEXP flagExpr = Rf_allocVector(k >= 5 ? INTSXP : LGLSXP, 1);
     SET_VECTOR_ELT(resultExpr, k, flagExpr);
     INTEGER(flagExpr)[0] = 0;
   }
@@ -8748,9 +8843,10 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
       }
 
       // OPTIONAL, append-only: a linear or gp leaf's calibration, absent in a
-      // state written before the blocks existed (the sampler then keeps the
-      // constants it built from its data). Lengths and values are judged
-      // against the leaf by the engine's stateIsValid.
+      // state written before the blocks existed. Never installed, the
+      // sampler keeping its own; lengths and values are judged against the
+      // leaf by the engine's stateIsValid, and kept gp draws held to it
+      // (Chain::lengthscaleStateFeasible).
       static const char* const calibrationNames[] = {
         "leaf.covariate.center", "leaf.covariate.scale", "leaf.lengthscales"
       };
@@ -8962,9 +9058,10 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
   }
   if (errorMessage != NULL) Rf_error("%s", errorMessage);
   if (lengthscaleRefused)
-    Rf_error("state holds saved gp draws made under other lengthscales than "
-             "the ones this sampler was given; a saved draw replays only under "
-             "the kernel it was drawn with");
+    Rf_error("state holds saved gp draws made under another covariate "
+             "standardization or other lengthscales than this sampler holds; "
+             "a saved draw replays only under the standardization and kernel "
+             "it was drawn with");
   // declined, not refused: the state fits and a tree of it would have to be
   // changed, which only a forced call does. Nothing was touched, so nothing
   // below has anything to reconcile.
@@ -8996,10 +9093,10 @@ bool setState(bartcore::SamplerBase& sampler, SEXP stateExpr,
 
 // Parses a "bartcoreState" donor into a SamplerStateData for a warm start,
 // validating flat trees against the destination sampler's data. Only the
-// channels a warm start consumes are read (trees, leaf params, a linear
-// leaf's standardization, masks, k, sigma, the fit scale, DART, the amplitude
-// glue and the record of missable columns); latents and rng are left for the
-// destination to redraw.
+// channels a warm start consumes are read (trees, leaf params, masks, k,
+// sigma, the fit scale, DART, the amplitude glue and the record of missable
+// columns); latents, rng and a leaf's standardization are left alone, the
+// destination redrawing the first two and keeping its own of the last.
 // Function-leaf donors seed from their live trees, so their saved channel is
 // skipped. The donor's own chain count is honored (a short donor may seed
 // many chains). Each forest's leaf blocks are read in the donor's own shape,
@@ -9176,36 +9273,6 @@ static const char* readWarmStartState(SEXP stateExpr,
                            fs.savedTrees, sampler.data(), fs.savedTreeMasks,
                            &errorMessage))
           break;
-      }
-
-      // a linear leaf's standardization, OPTIONAL as in the setState parser
-      // and never installed: the engine restates the donor's coefficients
-      // from it into this sampler's own. A scale of NA is a column that had
-      // no spread. A gp donor's is not read, its fits holding no kernel.
-      size_t numLeafCovariates = read.numCovariates;
-      if (read.kind == Kind::linear) {
-        SEXP centersExpr =
-          rc_getListElement(forestExpr, "leaf.covariate.center");
-        SEXP scalesExpr = rc_getListElement(forestExpr, "leaf.covariate.scale");
-        if (!Rf_isNull(centersExpr) || !Rf_isNull(scalesExpr)) {
-          bool wellFormed =
-            Rf_isReal(centersExpr) && Rf_isReal(scalesExpr) &&
-            static_cast<size_t>(Rf_xlength(centersExpr)) == numLeafCovariates &&
-            static_cast<size_t>(Rf_xlength(scalesExpr)) == numLeafCovariates;
-          for (size_t j = 0; wellFormed && j < numLeafCovariates; ++j) {
-            double scale = REAL(scalesExpr)[j];
-            wellFormed = R_FINITE(REAL(centersExpr)[j]) &&
-                         (ISNAN(scale) || (R_FINITE(scale) && scale > 0.0));
-          }
-          if (!wellFormed) {
-            errorMessage = "malformed parameters in warm-start donor";
-            break;
-          }
-          fs.leafCovariateCenters.assign(
-            REAL(centersExpr), REAL(centersExpr) + numLeafCovariates);
-          fs.leafCovariateScales.assign(
-            REAL(scalesExpr), REAL(scalesExpr) + numLeafCovariates);
-        }
       }
 
       // optional as in the setState parser above; the leaf scale is not read:
@@ -9410,10 +9477,9 @@ bool installForests(bartcore::SamplerBase& sampler, SEXP donorStateExpr,
         LOGICAL(VECTOR_ELT(reportExpr, 4))[0] = report.fitsCold;
         INTEGER(VECTOR_ELT(reportExpr, 5))[0] =
           report.slopesLeftBehind ? 1 : report.slopesStartedAtZero ? 2 : 0;
-        LOGICAL(VECTOR_ELT(reportExpr, 6))[0] = report.coefficientsKept;
-        INTEGER(VECTOR_ELT(reportExpr, 7))[0] =
+        INTEGER(VECTOR_ELT(reportExpr, 6))[0] =
           report.dartStartedFresh ? 1 : report.dartLeftBehind ? 2 : 0;
-        INTEGER(VECTOR_ELT(reportExpr, 8))[0] =
+        INTEGER(VECTOR_ELT(reportExpr, 7))[0] =
           report.varianceStartedFresh ? 1 : report.varianceLeftBehind ? 2 : 0;
       }
     }

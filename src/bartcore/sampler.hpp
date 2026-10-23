@@ -151,22 +151,21 @@ struct DonorLeafShape {
 
 /// What a warm start installed, filled by installForests for a donor that
 /// went in: a chain's counts for its mean forests and for its variance
-/// forest, and the three ways the leaves it holds are not the donor's -
-/// function fits started at 0 for a donor recorded on other cut points, a
-/// linear donor's slopes left behind, and linear coefficients kept as built
-/// across a covariate of one value on each side. An install is altered
-/// exactly when a count names a change or one of those is up. The rest say
+/// forest, and the two ways the leaves it holds are not the donor's -
+/// function fits started at 0 for a donor recorded on other cut points, and
+/// a linear donor's slopes left behind. An install is altered exactly when a
+/// count names a change or one of those is up. The rest say
 /// what the donor is read as and change nothing of it: slopes of 0 under a
 /// constant donor, and DART or a variance forest on one side only, the
 /// sampler's own started as a new fit's or the donor's left behind.
 struct WarmStartReport {
   std::vector<WarmStartTreeCounts> mean, variance;
-  bool fitsCold = false, slopesLeftBehind = false, coefficientsKept = false;
+  bool fitsCold = false, slopesLeftBehind = false;
   bool slopesStartedAtZero = false, dartStartedFresh = false,
        dartLeftBehind = false, varianceStartedFresh = false,
        varianceLeftBehind = false;
   bool changed() const {
-    bool any = fitsCold || slopesLeftBehind || coefficientsKept;
+    bool any = fitsCold || slopesLeftBehind;
     for (const WarmStartTreeCounts& counts : mean) any = any || counts.changed();
     for (const WarmStartTreeCounts& counts : variance)
       any = any || counts.changed();
@@ -306,6 +305,8 @@ public:
     options_.useQuantiles = data_.useQuantiles;
     options_.missingSeen = nullptr;
     options_.suppliedCutGrid = {};
+    // a view's leaf takes its constants from the parent's data
+    options_.suppliedStandardization = {};
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
                      sigmaRawScale, rngs);
@@ -1216,8 +1217,9 @@ public:
   /// counts, a record of missable columns of another length, a live
   /// threshold that is no point of the grid the state itself records, and,
   /// on a column the store holds as an ordered factor, whose grid its level
-  /// count fixes, a recorded grid other than the store's. lengthscaleRefused names a state whose saved gp draws were made
-  /// under other lengthscales than the ones this sampler was given
+  /// count fixes, a recorded grid other than the store's. lengthscaleRefused
+  /// names a state whose saved gp draws were made under another center,
+  /// scale or lengthscale than this sampler holds
   /// (Chain::lengthscaleStateFeasible), asked only where a saved draw would
   /// be kept. Everything is judged before any chain is touched, against the
   /// grid the state is installed on or, for an install across grids, the one
@@ -1511,11 +1513,11 @@ public:
   /// takes draws its direction with probability one half from that chain's
   /// own generator, before the trees are judged
   /// (Chain::drawDonorMissingDirections); a donor with no record draws
-  /// nothing. Leaf values, k and sigma go in as the donor stored them,
-  /// numbers on the internal scale read against this sampler's response
-  /// transform, never converted from the donor's; a linear leaf's
-  /// coefficients drawn under another covariate standardization are restated
-  /// in this sampler's, whose standardization and lengthscales stay its own.
+  /// nothing. Leaf values, linear coefficients, k and sigma go in as the
+  /// donor stored them, numbers on the internal scale read against this
+  /// sampler's response transform and leaf standardization, never converted
+  /// from the donor's, whose standardization is not read; this sampler's
+  /// standardization and lengthscales stay its own.
   /// Under a variance forest the scale surface rides along, taken from the
   /// same slot as the mean forest.
   ///
@@ -1530,9 +1532,6 @@ public:
   ///   not the store's, equal points being the one sign that the fits, values
   ///   by row, are of these rows: the fits then start at 0;
   /// - a linear donor's slopes are left behind;
-  /// - a linear leaf's covariate holds one value in the donor's data and
-  ///   another single value here under a slope that is not 0, the
-  ///   coefficients being kept as built (Chain::convertDonorStandardization);
   /// - a forest holds fewer trees than the donor's or, under blocks, leaves
   ///   one out.
   /// Without \p force such a donor is not installed: declined is returned
@@ -1643,7 +1642,6 @@ public:
       };
 
     std::vector<ChainStateData> install(chains_.size());
-    bool coefficientsKept = false;
     // by chain, a part this sampler has and the donor sample does not, which
     // starts as a new fit's once the donor is in: 1 DART, 2 a variance forest
     std::vector<int> fresh(chains_.size(), 0);
@@ -1691,9 +1689,9 @@ public:
         }
         dfs.k = sfs.k;
         // the leaf-covariate calibration is not copied: this sampler keeps
-        // its own, and the donor's linear coefficients are restated in it
-        // below. Each tree's block is held to the donor's own leaves; slopes
-        // left behind, or never given, are 0 here
+        // its own, and the donor's linear coefficients go in as stored. Each
+        // tree's block is held to the donor's own leaves; slopes left behind,
+        // or never given, are 0 here
         for (size_t t = 0; t < nt && given.kind != Kind::constant; ++t) {
           size_t size = given.kind == Kind::gp
             ? given.numObservations
@@ -1761,12 +1759,6 @@ public:
         if (!scaleLeavesArePositive(dst.varianceTrees))
           return WarmStartResult::varianceMismatch;
       }
-      // the donor's linear coefficients in this sampler's standardization;
-      // a record that does not fit the leaf is the donor's shape
-      if (!slopesLeft && !slopesZero &&
-          !chains_[c]->convertDonorStandardization(dst, src,
-                                                   coefficientsKept))
-        return WarmStartResult::shapeMismatch;
     }
 
     // the directions the donor's trees were grown without, each chain's from
@@ -1883,7 +1875,7 @@ public:
       return varianceFailed ? WarmStartResult::varianceMismatch
                             : WarmStartResult::rebuildFailed;
     bool notClean = acrossGrids || needsRepair || fitsCold || slopesLeft ||
-                    coefficientsKept || fewer || unplaced;
+                    fewer || unplaced;
     if (notClean && !force) return WarmStartResult::declined;
 
     // Every check above ran before this point, so the installs below are not
@@ -1973,7 +1965,6 @@ public:
                                     report->variance[c]);
       report->fitsCold = fitsCold;
       report->slopesLeftBehind = slopesLeft;
-      report->coefficientsKept = coefficientsKept;
       report->slopesStartedAtZero = slopesZero;
       report->dartStartedFresh = report->varianceStartedFresh = false;
       for (int parts : fresh) {
@@ -2073,6 +2064,16 @@ public:
     ForestCalibration calibration = chains_[0]->forestCalibration(0);
     records.forestAnchor = calibration.mapAnchor;
     records.forestUnit = calibration.mapUnit;
+    // every chain is created on one standardization and no install moves it
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      const L& leaf = chains_[0]->leaf();
+      LeafStandardization standardization = leaf.standardization();
+      records.leafCenters = standardization.centers;
+      records.leafScales = standardization.recordedScales();
+      if constexpr (L::hasFunctionParams)
+        if (!leaf.lengthscalesAreSupplied())
+          records.leafLengthscales = leaf.lengthscales();
+    }
   }
   /// Case weights: a pointer swap entering the next iteration's node
   /// statistics and sigma draw with nothing rescaled, plus, for logistic -
@@ -2934,6 +2935,7 @@ private:
         data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
         sigmaRawScale, options_, rngs[c]));
     options_.survivalStatus = nullptr;  // borrowed; consumed by the chains
+    options_.suppliedStandardization = {};
 
     if (options_.keepTrees) {
       size_t capacity =
