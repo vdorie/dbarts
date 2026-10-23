@@ -6699,6 +6699,254 @@ static void testSuppliedCutGrid() {
   printf("ok: a creation build takes the grids it is handed\n");
 }
 
+/// A whole-data replacement keeps, takes or derives the grid, the leaf
+/// standardization and the transform as it is told (DataReplacement), and
+/// rederiveStandardization takes a linear leaf's standardization over the
+/// values in force, its coefficients rewritten into it.
+static void testDataReplacement() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 1618033u;
+  const size_t n = 120, p = 2, more = 40, numKept = 3, nProbe = 30;
+  std::vector<double> x(n * p), y(n), xEdit(n * p), yEdit(n),
+    xMore((n + more) * p), yMore(n + more), xProbe(nProbe * p);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = 2.0 * runif01() - 1.0;
+    y[i] = std::sin(4.0 * x[i]) + x[i + n] + 0.2 * (runif01() - 0.5);
+    xEdit[i] = 2.0 * x[i];
+    xEdit[i + n] = 3.0 * x[i + n] + 5.0;
+    yEdit[i] = 3.0 * y[i] + 10.0;
+  }
+  for (size_t i = 0; i < n + more; ++i) {
+    xMore[i] = runif01();
+    xMore[i + n + more] = 2.0 * runif01() - 1.0;
+    yMore[i] = std::sin(4.0 * xMore[i]) + xMore[i + n + more];
+  }
+  for (size_t i = 0; i < nProbe * p; ++i) xProbe[i] = runif01();
+  std::vector<ext_rng*> rngs;
+  const size_t covariates[] = {1};
+  auto make = [&](std::uint32_t seed, bool linear = true) {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.keepTrees = true;
+    options.numSamplesToStore = numKept;
+    if (linear) {
+      options.leafCovariateColumns = covariates;
+      options.numLeafCovariates = 1;
+    }
+    rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+    ext_rng_setSeed(rngs.back(), seed);
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, 0.37804942330213542, options, &rngs.back());
+    Results none;
+    sampler->run(10, numKept, none);
+    return sampler;
+  };
+  auto kept = [&](SamplerBase& sampler) {
+    std::vector<double> out(nProbe * numKept);
+    sampler.predict(xProbe.data(), nProbe, 1, out.data());
+    return out;
+  };
+  auto worstGap = [](const std::vector<double>& a,
+                     const std::vector<double>& b) {
+    double worst = 0.0;
+    for (size_t i = 0; i < a.size(); ++i)
+      worst = std::max(worst, std::fabs(a[i] - b[i]) /
+                                std::max(1.0, std::fabs(a[i])));
+    return worst;
+  };
+  auto standardizationOf = [](const DerivedRecords& r) {
+    return std::make_pair(r.leafCenters, r.leafScales);
+  };
+  using Choice = DerivedValueChoice;
+
+  // keep: every value held, the new values quantized on the grid in force,
+  // and nothing rewritten
+  {
+    std::unique_ptr<SamplerBase> sampler = make(4u);
+    DerivedRecords before, after;
+    sampler->derivedRecords(before);
+    std::vector<double> keptBefore = kept(*sampler);
+    double sigmaBefore = sampler->sigma(0);
+    DataReplacement keep;
+    keep.grid = keep.standardization = keep.range = Choice::keep;
+    check(sampler->setData(xEdit.data(), yEdit.data(), n, nullptr, nullptr,
+                           nullptr, 0, nullptr, keep),
+          "data replacement, keep: the replacement is taken");
+    sampler->derivedRecords(after);
+    bool codesOnGrid = true;
+    for (size_t i = 0; i < n; ++i)
+      for (size_t j = 0; j < p; ++j)
+        codesOnGrid = codesOnGrid && sampler->data().codeAt(j, i) ==
+                                       sampler->data().codeFor(j, xEdit[i + j * n]);
+    check(after.cutPoints == before.cutPoints &&
+            after.cutMass == before.cutMass &&
+            after.rangeMin == before.rangeMin &&
+            after.rangeMax == before.rangeMax &&
+            standardizationOf(after) == standardizationOf(before) &&
+            sampler->sigma(0) == sigmaBefore && codesOnGrid,
+          "data replacement, keep: the grid, the range, the standardization "
+          "and sigma are held, the new values quantized on the grid");
+    check(kept(*sampler) == keptBefore,
+          "data replacement, keep: the kept draws are not rewritten");
+    // nor sigma, however many times the data are replaced under it
+    bool sigmaHeld = true;
+    for (int k = 0; k < 50 && sigmaHeld; ++k)
+      sigmaHeld = sampler->setData(k % 2 == 0 ? x.data() : xEdit.data(),
+                                   k % 2 == 0 ? y.data() : yEdit.data(), n,
+                                   nullptr, nullptr, nullptr, 0, nullptr,
+                                   keep) &&
+                  sampler->sigma(0) == sigmaBefore;
+    check(sigmaHeld, "data replacement, keep: sigma is held bit for bit");
+
+    // more rows: the covariates gathered for them under the constants in
+    // force
+    check(sampler->setData(xMore.data(), yMore.data(), n + more, nullptr,
+                           nullptr, nullptr, 0, nullptr, keep),
+          "data replacement, keep: a longer replacement is taken");
+    sampler->derivedRecords(after);
+    std::vector<double> fits((n + more) * 2);
+    Results results;
+    results.trainingFits = fits.data();
+    sampler->run(0, 2, results);
+    bool finite = true;
+    for (double fit : fits) finite = finite && std::isfinite(fit);
+    check(after.cutPoints == before.cutPoints &&
+            standardizationOf(after) == standardizationOf(before) &&
+            sampler->data().numObservations == n + more && finite,
+          "data replacement, keep: 40 rows more are read on the grid and "
+          "the standardization in force, and the fits are finite");
+  }
+
+  // supply: the host's grid, range and standardization, the splits on a
+  // changed grid moved by value and the kept draws rewritten into the rest
+  {
+    std::unique_ptr<SamplerBase> sampler = make(5u);
+    DerivedRecords before, after;
+    sampler->derivedRecords(before);
+    std::vector<double> keptBefore = kept(*sampler);
+    std::vector<std::vector<double>> points(before.cutPoints),
+      mass(before.cutMass);
+    points[0] = {0.25, 0.5, 0.75};
+    mass[0].clear();
+    const double centers[] = {0.5}, scales[] = {2.0};
+    DataReplacement supply;
+    supply.grid = supply.standardization = supply.range = Choice::supply;
+    supply.suppliedGrid = SuppliedCutGrid{&points, &mass};
+    supply.suppliedStandardization = SuppliedStandardization{centers, scales};
+    supply.rangeMin = before.rangeMin - 1.0;
+    supply.rangeMax = before.rangeMax + 2.0;
+    check(sampler->setData(x.data(), y.data(), n, nullptr, nullptr, nullptr, 0,
+                           nullptr, supply),
+          "data replacement, supply: the replacement is taken");
+    sampler->derivedRecords(after);
+    check(after.cutPoints[0] == points[0] && after.cutMass[0].empty() &&
+            after.cutPoints[1] == before.cutPoints[1] &&
+            after.rangeMin == supply.rangeMin &&
+            after.rangeMax == supply.rangeMax &&
+            after.leafCenters == std::vector<double>{0.5} &&
+            after.leafScales == std::vector<double>{2.0},
+          "data replacement, supply: the grid, range and standardization are "
+          "the ones handed");
+    check(worstGap(kept(*sampler), keptBefore) < 1e-12,
+          "data replacement, supply: the kept draws predict what they did");
+
+    // the values in force, handed back, are a keep
+    std::vector<double> keptNow = kept(*sampler);
+    double sigmaNow = sampler->sigma(0);
+    DerivedRecords now;
+    sampler->derivedRecords(now);
+    DataReplacement back;
+    back.grid = back.standardization = back.range = Choice::supply;
+    back.suppliedGrid = SuppliedCutGrid{&now.cutPoints, &now.cutMass};
+    back.suppliedStandardization = SuppliedStandardization{
+      now.leafCenters.data(), now.leafScales.data()};
+    back.rangeMin = now.rangeMin;
+    back.rangeMax = now.rangeMax;
+    check(sampler->setData(x.data(), y.data(), n, nullptr, nullptr, nullptr, 0,
+                           nullptr, back),
+          "data replacement, supply: the values in force are taken");
+    sampler->derivedRecords(after);
+    check(after.cutPoints == now.cutPoints && after.cutMass == now.cutMass &&
+            kept(*sampler) == keptNow && sampler->sigma(0) == sigmaNow,
+          "data replacement, supply: the values in force move nothing");
+  }
+
+  // derive, placed by position: a grid whose count is held keeps every
+  // split on its position
+  {
+    std::unique_ptr<SamplerBase> sampler = make(6u, false);
+    SamplerStateData before, after;
+    sampler->getState(before);
+    std::vector<double> oldGrid = sampler->data().cutPoints[0];
+    DataReplacement position;
+    position.placement = SplitPlacement::byPosition;
+    check(sampler->setData(xEdit.data(), y.data(), n, nullptr, nullptr,
+                           nullptr, 0, nullptr, position),
+          "data replacement, position: the replacement is taken");
+    sampler->getState(after);
+    const std::vector<double>& newGrid = sampler->data().cutPoints[0];
+    bool positionsHeld = newGrid.size() == oldGrid.size();
+    size_t numSplits = 0;
+    const std::vector<std::vector<FlatNode>>& treesBefore =
+      before.chains[0].forests[0].trees;
+    const std::vector<std::vector<FlatNode>>& treesAfter =
+      after.chains[0].forests[0].trees;
+    for (size_t t = 0; t < treesBefore.size() && positionsHeld; ++t) {
+      if (treesBefore[t].size() != treesAfter[t].size()) continue;
+      for (size_t k = 0; k < treesBefore[t].size() && positionsHeld; ++k) {
+        if (treesBefore[t][k].variable != 0) continue;
+        size_t index = static_cast<size_t>(
+          std::find(oldGrid.begin(), oldGrid.end(), treesBefore[t][k].value) -
+          oldGrid.begin());
+        positionsHeld = index < newGrid.size() &&
+                        treesAfter[t][k].value == newGrid[index];
+        ++numSplits;
+      }
+    }
+    check(positionsHeld && numSplits > 0,
+          "data replacement, position: a doubled column's splits keep their "
+          "positions on its grid");
+  }
+
+  // rederiveStandardization: the derivation over the values in force, the
+  // kept draws and the live fit the functions they were
+  {
+    std::unique_ptr<SamplerBase> sampler = make(7u),
+      twin = make(7u);
+    std::vector<double> keptBefore = kept(*sampler);
+    const size_t column = 1;
+    std::vector<double> moved(xEdit.begin() + n, xEdit.end());
+    for (SamplerBase* s : {sampler.get(), twin.get()})
+      check(s->updatePredictor(moved.data(), &column, 1, true, false) ==
+              PredictorUpdateResult::accepted,
+            "rederive standardization: the column is replaced");
+    DerivedRecords held, derived;
+    sampler->derivedRecords(held);
+    sampler->rederiveStandardization();
+    sampler->derivedRecords(derived);
+    double mean, sd;
+    standardizationMomentsForColumn(moved.data(), n, &mean, &sd);
+    std::vector<double> liveSampler(n), liveTwin(n);
+    sampler->fitsWithoutOffset(0, liveSampler.data());
+    twin->fitsWithoutOffset(0, liveTwin.data());
+    check(derived.leafCenters == std::vector<double>{mean} &&
+            derived.leafScales == std::vector<double>{sd} &&
+            held.leafCenters != derived.leafCenters,
+          "rederive standardization: the reader gives the derivation over "
+          "the values in force");
+    check(worstGap(kept(*sampler), keptBefore) < 1e-12 &&
+            worstGap(liveSampler, liveTwin) < 1e-12,
+          "rederive standardization: the kept draws and the live fit are "
+          "the functions they were");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a whole-data replacement derives, keeps or takes each value\n");
+}
+
 void runStateTests(ext_rng* rng) {
   testFlattenRoundTrip();
   testCategoricalFlattenBoundaries();
@@ -6737,6 +6985,7 @@ void runStateTests(ext_rng* rng) {
   testLiveGridInstall();
   testSuppliedCutGrid();
   testSuppliedStandardization();
+  testDataReplacement();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

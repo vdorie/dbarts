@@ -5969,7 +5969,55 @@ SEXP bartcore_getMissingSeen(SEXP ptrExpr) {
   return resultExpr;
 }
 
-SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
+// setData's choice for the grid, as R resolves it: "value" and "position"
+// derive it and say where the splits go, "none" keeps the sampler's, and
+// "record" takes the data object's. R resolves the word, so any other value
+// is a caller that is not the package.
+static bartcore::DerivedValueChoice gridChoiceFromExpression(
+    SEXP choiceExpr, bartcore::SplitPlacement& placement) {
+  const char* choice = TYPEOF(choiceExpr) == STRSXP &&
+      Rf_xlength(choiceExpr) == 1 ? CHAR(STRING_ELT(choiceExpr, 0)) : "";
+  placement = std::strcmp(choice, "position") == 0
+    ? bartcore::SplitPlacement::byPosition : bartcore::SplitPlacement::byValue;
+  if (std::strcmp(choice, "value") == 0 || std::strcmp(choice, "position") == 0)
+    return bartcore::DerivedValueChoice::derive;
+  if (std::strcmp(choice, "none") == 0)
+    return bartcore::DerivedValueChoice::keep;
+  if (std::strcmp(choice, "record") != 0)
+    Rf_error("$setData: unrecognized choice for the cut points");
+  return bartcore::DerivedValueChoice::supply;
+}
+// setData's choice for the range or the standardization, as R resolves it:
+// "derive", "keep" the sampler's, or the data object's "record".
+static bartcore::DerivedValueChoice derivedValueChoiceFromExpression(
+    SEXP choiceExpr, const char* what) {
+  const char* choice = TYPEOF(choiceExpr) == STRSXP &&
+      Rf_xlength(choiceExpr) == 1 ? CHAR(STRING_ELT(choiceExpr, 0)) : "";
+  if (std::strcmp(choice, "derive") == 0)
+    return bartcore::DerivedValueChoice::derive;
+  if (std::strcmp(choice, "keep") == 0)
+    return bartcore::DerivedValueChoice::keep;
+  if (std::strcmp(choice, "record") != 0)
+    Rf_error("$setData: unrecognized choice for the %s", what);
+  return bartcore::DerivedValueChoice::supply;
+}
+
+// Whether the standardization record parsed into \p data is the one \p held
+// records: centers and scales as an install compares a saved gp draw's
+// (bartcore::standardizationIsHeld), and lengthscales equal where the leaf
+// derived its own. A record without them derives them, which is a change.
+static bool standardizationRecordIsHeld(const ParsedData& data,
+                                        const bartcore::DerivedRecords& held) {
+  if (!bartcore::standardizationIsHeld(data.suppliedLeafCenters,
+                                       data.suppliedLeafScales,
+                                       held.leafCenters, held.leafScales))
+    return false;
+  return held.leafLengthscales.empty() ||
+         data.suppliedLeafLengthscales == held.leafLengthscales;
+}
+
+SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
+                      SEXP updateScaleExpr, SEXP updateStandardizationExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
@@ -5983,14 +6031,6 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
              "on the whole-data conduit, whose replacement may change the "
              "number of observations the status is stated over; change the "
              "censoring with setResponse(y, status = ) instead");
-  // the whole-data conduit always re-derives the covariate standardization
-  // and the response range, and has no argument that holds either
-  if (bartcore_bridge::holdsSavedGPDraws(shape))
-    Rf_error("$setData: 'newData' cannot replace the data of a sampler with "
-             "gp leaves that holds saved draws: a saved gp draw replays only "
-             "under the covariate standardization and response range it was "
-             "drawn with; make a new sampler instead");
-
   if (!Rf_inherits(dataExpr, "dbartsData"))
     Rf_error("$setData: 'data' is not of class 'dbartsData'");
 
@@ -6061,6 +6101,79 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     refuseNonFinite(data.y, data.numObservations, "$setData", "response");
     refuseNonFinite(data.offset, data.numObservations, "$setData", "offset");
 
+    // each derived value derived, kept or taken from the data object's
+    // record; R has held the record to the data, so a misfit here is a
+    // caller that is not the package
+    bartcore::DerivedRecords held;
+    held.withGrids = false;
+    sampler.derivedRecords(held);
+    bartcore::DataReplacement replacement;
+    replacement.grid =
+      gridChoiceFromExpression(updateCutPointsExpr, replacement.placement);
+    if (replacement.grid == bartcore::DerivedValueChoice::supply) {
+      if (data.suppliedCutPoints.empty())
+        Rf_error("$setData: the data carry no 'cutPoints' record");
+      replacement.suppliedGrid.points = &data.suppliedCutPoints;
+      replacement.suppliedGrid.mass = &data.suppliedCutMass;
+    }
+    replacement.standardization = derivedValueChoiceFromExpression(
+      updateStandardizationExpr, "standardization");
+    if (replacement.standardization == bartcore::DerivedValueChoice::supply) {
+      if (data.suppliedLeafCenters.size() != held.leafCenters.size() ||
+          held.leafCenters.empty())
+        Rf_error("$setData: the data's 'standardization' record does not fit "
+                 "the sampler's leaf covariates");
+      replacement.suppliedStandardization.centers =
+        data.suppliedLeafCenters.data();
+      replacement.suppliedStandardization.scales =
+        data.suppliedLeafScales.data();
+      if (!data.suppliedLeafLengthscales.empty())
+        replacement.suppliedStandardization.lengthscales =
+          data.suppliedLeafLengthscales.data();
+    }
+    // a family that reads no range has none to derive or keep
+    replacement.range =
+      derivedValueChoiceFromExpression(updateScaleExpr, "response range");
+    if (!held.hasRange) replacement.range = bartcore::DerivedValueChoice::derive;
+    if (replacement.range == bartcore::DerivedValueChoice::supply) {
+      SEXP rangeSymbol = Rf_install("response.range");
+      SEXP rangeExpr = R_has_slot(dataExpr, rangeSymbol)
+        ? R_do_slot(dataExpr, rangeSymbol) : R_NilValue;
+      bool count = shape.family == bartcore::ResponseFamily::nbinom;
+      if (!Rf_isReal(rangeExpr) || Rf_xlength(rangeExpr) != 2 ||
+          !std::isfinite(REAL(rangeExpr)[0]) ||
+          !std::isfinite(REAL(rangeExpr)[1]) ||
+          REAL(rangeExpr)[1] < REAL(rangeExpr)[0] ||
+          (count && REAL(rangeExpr)[1] == REAL(rangeExpr)[0]))
+        Rf_error("the data's response.range record must be two finite "
+                 "numbers, the second %s the first",
+                 count ? "above" : "not below");
+      replacement.rangeMin = REAL(rangeExpr)[0];
+      replacement.rangeMax = REAL(rangeExpr)[1];
+    }
+    // a saved gp draw replays only under the standardization and the range
+    // it was drawn with, so a call that derives either, or takes one other
+    // than the sampler's, is refused; the grid never is, a saved draw holding
+    // its thresholds by value
+    if (bartcore_bridge::holdsSavedGPDraws(shape)) {
+      bool changes =
+        replacement.standardization == bartcore::DerivedValueChoice::derive ||
+        (replacement.standardization == bartcore::DerivedValueChoice::supply &&
+         !standardizationRecordIsHeld(data, held)) ||
+        (replacement.range == bartcore::DerivedValueChoice::derive &&
+         held.hasRange) ||
+        (replacement.range == bartcore::DerivedValueChoice::supply &&
+         (replacement.rangeMin != held.rangeMin ||
+          replacement.rangeMax != held.rangeMax));
+      if (changes)
+        Rf_error("$setData: 'newData' cannot change the covariate "
+                 "standardization or the response range of a sampler with gp "
+                 "leaves that holds saved draws: a saved gp draw replays only "
+                 "under the ones it was drawn with. Pass "
+                 "updateStandardization = FALSE and updateScale = FALSE to keep "
+                 "the sampler's, or make a new sampler");
+    }
+
     // COPY-ON-SET at the one conduit that MOVES the counts: the resize comes
     // FIRST and covers every buffer, the ones a null replacement leaves
     // uncopied included, so none is left the old n wide for a later set to
@@ -6085,7 +6198,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr) {
     if (!sampler.setData(data.predictors.denseValues, y,
                          data.numObservations, weights, offset,
                          data.testPredictors.denseValues,
-                         data.numTestObservations, testOffset))
+                         data.numTestObservations, testOffset, replacement))
       Rf_error("a predictor value is not an existing level code");
     // a family whose augmentation is STATED against the counts takes them
     // through the weight conduit as well, so the latents are drawn against the
@@ -6495,8 +6608,26 @@ static const char* const predictorLevelRefusal =
   "$setPredictor: a factor column was given a value that is not one of its "
   "levels";
 
+// A predictor update's updateStandardization: TRUE derives the leaf
+// covariate standardization again over the values the update leaves, after
+// an update that went in, which a gp sampler holding saved draws refuses
+// before anything moves, a saved gp draw replaying only under the
+// standardization it was drawn with.
+static bool standardizationUpdateFromExpression(
+    const bartcore::SamplerBase& sampler, SEXP updateExpr) {
+  if (Rf_asLogical(updateExpr) != TRUE) return false;
+  if (bartcore_bridge::holdsSavedGPDraws(sampler.shape()))
+    Rf_error("$setPredictor: 'updateStandardization' cannot be TRUE for a "
+             "sampler with gp leaves that holds saved draws: a saved gp draw "
+             "replays only under the covariate standardization it was drawn "
+             "with; derive it during burn-in, before draws are saved, or make "
+             "a new sampler");
+  return true;
+}
+
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
-                           SEXP updateCutPointsExpr) {
+                           SEXP updateCutPointsExpr,
+                           SEXP updateStandardizationExpr) {
   // the parsed buffers are owned across validateSourceColumnValues, whose
   // refusal longjmps past their destructors
   return unwindProtect([&, parsed = ParsedMutationSource{}]() mutable -> SEXP {
@@ -6508,6 +6639,8 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
     // the variance forest, so an unforced call vetoes or rolls back rather
     // than accepting a change one ensemble would misroute
     refuseMutationOnView(*holder.sampler, "$setPredictor");
+    bool updateStandardization = standardizationUpdateFromExpression(
+      *holder.sampler, updateStandardizationExpr);
     bartcore::PredictorSource view;
     if (Rf_isReal(xExpr)) {
       SEXP dims = Rf_getAttrib(xExpr, R_DimSymbol);
@@ -6535,6 +6668,9 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
       splitPlacementFromRule(rule));
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
       Rf_error("%s", predictorLevelRefusal);
+    if (updateStandardization &&
+        result == bartcore::PredictorUpdateResult::accepted)
+      holder.sampler->rederiveStandardization();
     // the engine re-quantized the values into owned codes and retains no
     // pointer; the R method reassigns sampler$data@x, which keeps the current
     // source alive
@@ -6544,7 +6680,8 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
 }
 
 SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
-                              SEXP forceUpdateExpr, SEXP updateCutPointsExpr) {
+                              SEXP forceUpdateExpr, SEXP updateCutPointsExpr,
+                              SEXP updateStandardizationExpr) {
   return unwindProtect([&, columns = std::vector<size_t>{},
                         parsed = ParsedMutationSource{}]() mutable -> SEXP {
     const char* shapeMessage =
@@ -6552,6 +6689,8 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     BartcoreHolder& holder(holderFromExpression(ptrExpr));
     // unguarded, as bartcore_setPredictor above
     refuseMutationOnView(*holder.sampler, "$setPredictor");
+    bool updateStandardization = standardizationUpdateFromExpression(
+      *holder.sampler, updateStandardizationExpr);
     bartcore::SamplerShape shape = holder.sampler->shape();
     size_t numObservations = shape.numObservations;
     size_t numPredictors = shape.numPredictors;
@@ -6597,6 +6736,9 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
       splitPlacementFromRule(rule));
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
       Rf_error("%s", predictorLevelRefusal);
+    if (updateStandardization &&
+        result == bartcore::PredictorUpdateResult::accepted)
+      holder.sampler->rederiveStandardization();
     return Rf_ScalarLogical(
       result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
   });

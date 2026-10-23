@@ -298,6 +298,20 @@
             value, where 0.9-34 brought back the stored cut points. A sampler
             saved with no stored state refuses to be copied or run, where
             0.9-34 made the copy afresh and ran from a fresh start.
+      \item \code{$setData} uses what the data object it is handed
+            records in the same way: the sampler's own data object, edited
+            (\code{d <- sampler$data; d@x[, 1] <- newValues;
+            sampler$setData(d)}), keeps the sampler's cut points and
+            response range, where 0.9-34 derived them again from the new
+            data, while a data object made by \code{dbartsData()} records
+            none and derives them, as before. Its new arguments
+            \code{updateCutPoints}, \code{updateScale} and
+            \code{updateStandardization}, after \code{updateState}, derive a
+            value (\code{"position"}, \code{"value"} or \code{TRUE}) or keep
+            the sampler's (\code{"none"} or \code{FALSE}) whatever the object
+            records. \code{$setPredictor(updateStandardization = TRUE)}
+            derives a linear or Gaussian-process leaf's standardization again
+            over the new values.
       \item A state whose saved draws (\code{keepTrees}) number more or
             fewer than the sampler keeps is installed with the newest that
             fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a

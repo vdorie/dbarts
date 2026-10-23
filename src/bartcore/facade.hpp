@@ -216,16 +216,19 @@ public:
                                      data().numPredictors));
   }
   virtual void setTestOffset(const double* testOffset) = 0;
-  /// Replace the whole data set. Returns false without touching the sampler
-  /// when a factor cell on either side is not a level code of its column's
-  /// table; both sides are checked before anything moves.
-  [[nodiscard]] virtual bool setData(const double* x, const double* y,
-                                     std::size_t numObservations,
-                                     const double* weights,
-                                     const double* offset,
-                                     const double* x_test,
-                                     std::size_t numTestObservations,
-                                     const double* testOffset) = 0;
+  /// Replace the whole data set, deriving, keeping or taking the supplied
+  /// grid, leaf standardization and transform as \p replacement says.
+  /// Returns false without touching the sampler when a factor cell on either
+  /// side is not a level code of its column's table; both sides are checked
+  /// before anything moves.
+  [[nodiscard]] virtual bool setData(
+    const double* x, const double* y, std::size_t numObservations,
+    const double* weights, const double* offset, const double* x_test,
+    std::size_t numTestObservations, const double* testOffset,
+    const DataReplacement& replacement = {}) = 0;
+  /// Derive the leaf covariate standardization again over the covariates in
+  /// force, a linear leaf's coefficients, live and saved, rewritten into it.
+  virtual void rederiveStandardization() = 0;
   /// Replace the predictors from a borrowed view of any shape - dense,
   /// mapped, CSC or mixed, either dense channel - consumed column by column:
   /// a CSC column onto a CSC-backed store column is read as its entries and
@@ -617,10 +620,12 @@ public:
   bool setData(const double* x, const double* y, std::size_t numObservations,
                const double* weights, const double* offset,
                const double* x_test, std::size_t numTestObservations,
-               const double* testOffset) override {
+               const double* testOffset,
+               const DataReplacement& replacement = {}) override {
     return impl_.setData(x, y, numObservations, weights, offset, x_test,
-                         numTestObservations, testOffset);
+                         numTestObservations, testOffset, replacement);
   }
+  void rederiveStandardization() override { impl_.rederiveStandardization(); }
   // the view-taking overrides hide the base's dense convenience spellings;
   // re-expose them so a dense caller still resolves
   using SamplerBase::setPredictor;

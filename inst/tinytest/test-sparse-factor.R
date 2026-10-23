@@ -865,7 +865,8 @@ expect_true(.Call(
   sampler.bound$getPointer(),
   predictors.bound,
   TRUE,
-  0L
+  0L,
+  FALSE
 ))
 expect_true(.Call(
   dbarts:::C_dbarts_bartcore_updatePredictor,
@@ -873,7 +874,8 @@ expect_true(.Call(
   predictors.bound[, 2L],
   2L,
   TRUE,
-  0L
+  0L,
+  FALSE
 ))
 expect_true(all(is.finite(sampler.bound$run(10L, 10L)$train)))
 

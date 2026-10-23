@@ -802,10 +802,12 @@ expect_true(nextDrawsWithin(grown, range(y.more)))
 ## --- 7. gp leaves that hold kept draws --------------------------------------
 ## A kept gp draw replays only under the centre, scale, lengthscale and
 ## response range it was drawn with, and nothing can rewrite it. A gp sampler
-## that holds one refuses setData, and setResponse and setOffset with
-## updateScale = TRUE, whatever the new values are. All were accepted: a
-## response of 3 y + 10 returned the kept draws as 3 f + 10, and one of twice
-## the spread about the same midpoint doubled them about it.
+## that holds one refuses a setData that derives the standardization or the
+## range, as one of a fresh data object does, and setResponse and setOffset
+## with updateScale = TRUE, whatever the new values are; a setData that keeps
+## both is served. All were accepted: a response of 3 y + 10 returned the kept
+## draws as 3 f + 10, and one of twice the spread about the same midpoint
+## doubled them about it.
 gpControl <- function(...) control(n.burn = 20L, n.samples = 3L, ...)
 gpSampler <- function(response = y, ..., keepTrees = TRUE) {
   dbarts(
@@ -829,10 +831,11 @@ held <- function(sampler) {
   )
 }
 refusedData <- paste0(
-  "$setData: 'newData' cannot replace the data of a sampler with gp leaves ",
-  "that holds saved draws: a saved gp draw replays only under the covariate ",
-  "standardization and response range it was drawn with; make a new sampler ",
-  "instead"
+  "$setData: 'newData' cannot change the covariate standardization or the ",
+  "response range of a sampler with gp leaves that holds saved draws: a ",
+  "saved gp draw replays only under the ones it was drawn with. Pass ",
+  "updateStandardization = FALSE and updateScale = FALSE to keep the ",
+  "sampler's, or make a new sampler"
 )
 refusedScale <- function(caller) {
   paste0(
@@ -898,6 +901,11 @@ for (kind in names(refusing)) {
   }
   # and the sampler runs on from where it was
   expect_true(all(is.finite(sampler$run(0L, 2L)$train)), info = kind)
+  # its own data object, which records both, is served, the kept draws as
+  # they were
+  kept <- keptDraws(sampler)
+  expect_silent(sampler$setData(sampler$data), info = kind)
+  expect_identical(keptDraws(sampler), kept, info = kind)
 }
 
 # holding the range is served as before, the kept draws untouched

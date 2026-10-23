@@ -2542,12 +2542,10 @@ public:
         if (!fs.leafLengthscales.empty() &&
             fs.leafLengthscales != leaf.lengthscales())
           return false;
-        for (std::size_t j = 0; j < fs.leafCovariateCenters.size(); ++j) {
-          double scale = fs.leafCovariateScales[j];
-          if (fs.leafCovariateCenters[j] != leaf.covariateMeans()[j] ||
-              (std::isnan(scale) ? 1.0 : scale) != leaf.covariateSds()[j])
-            return false;
-        }
+        if (!standardizationIsHeld(fs.leafCovariateCenters,
+                                   fs.leafCovariateScales,
+                                   leaf.covariateMeans(), leaf.covariateSds()))
+          return false;
       }
     } else {
       (void) state;
@@ -3462,13 +3460,19 @@ public:
   /// gave a missing value: their rules draw their directions, live and saved
   /// (drawMissingDirections), before the trees are remapped and collapsed, so
   /// a collapse merges under the directions the rows are routed by.
+  ///
+  /// \p replacement says whether the transform and the standardization are
+  /// derived, kept or supplied, and how the splits of oldCutPoints' columns
+  /// move; a transform or standardization equal to the one in force moves no
+  /// saved draw and no coefficient.
   void applyNewData(const double* y, const double* weights,
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
                     TreeParameters& params,
                     const TreeParameters& varianceParams,
                     SavedDrawSlots kept = SavedDrawSlots(),
-                    const std::uint8_t* raisedMissing = nullptr) {
+                    const std::uint8_t* raisedMissing = nullptr,
+                    const DataReplacement& replacement = {}) {
     assert(forests_.size() == 1);
     Forest<L, ResidT>& forest = forests_[0];
     size_t n = data_.numObservations;
@@ -3479,7 +3483,14 @@ public:
     double previousSigmaScale = varianceScaleAnchor();
     double previousScale = response_->fitScale();
     double previousShift = response_->fitShift();
-    response_->setData(y, offset, weights, n, &sigma_);
+    if (replacement.range == DerivedValueChoice::derive) {
+      response_->setData(y, offset, weights, n, &sigma_);
+    } else {
+      double min = replacement.rangeMin, max = replacement.rangeMax;
+      if (replacement.range == DerivedValueChoice::keep)
+        response_->getScale(min, max);
+      response_->setDataInScale(y, offset, weights, n, &sigma_, min, max);
+    }
     // the data's scale moved with the transform
     translateNamedSds();
 
@@ -3495,37 +3506,23 @@ public:
     misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
     forest.totalFitsScale = 1.0;
 
-    // fresh standardization constants over the replacement data, like the
-    // rebuilt cut grid. A linear leaf's coefficients, live and saved, are
+    // standardization constants derived over the replacement data, kept or
+    // taken, as the grid is, and the covariates gathered for its rows under
+    // them. A linear leaf's coefficients, live and saved, are
     // rewritten into them, so each leaf stays the function of the raw
     // covariates it was; equal constants move nothing. Function-valued
     // parameters are per-observation fits over the OLD data, so they
     // cold-start at zero instead (the next sweep's draws replace them);
     // structures still carry through the split remap.
+    std::vector<double> held;
     if constexpr (L::hasVectorParams) {
       LeafStandardization previous = forest.leaf.standardization();
-      forest.leaf.reinitialize(data_);
-      LeafStandardization current = forest.leaf.standardization();
-      if (previous != current) {
-        // the live blocks are indexed by node, intercept first
-        size_t numParams = forest.leaf.numParams();
-        for (size_t t = 0; t < forest.numTrees; ++t)
-          for (size_t b = 0; b + numParams <= params[t].size(); b += numParams)
-            convertLinearCoefficients(params[t][b], params[t].data() + b + 1,
-                                      previous, current,
-                                      /*keepWithoutSpread=*/true);
-        size_t capacity = savedTreeCapacity();
-        size_t count = std::min(kept.count, capacity);
-        for (size_t i = 0; i < count; ++i) {
-          size_t base = ((kept.first + i) % capacity) * forest.numTrees;
-          for (size_t t = base; t < base + forest.numTrees; ++t)
-            convertFlatLinearTree(forest.savedTrees[t],
-                                  forest.savedTreeParams[t], previous, current,
-                                  /*keepWithoutSpread=*/false);
-        }
-      }
+      forest.leaf.reinitialize(
+        data_, replacementStandardization(forest.leaf, replacement, held));
+      convertLinearForest(forest, params, previous, kept);
     } else if constexpr (L::hasFunctionParams) {
-      forest.leaf.reinitialize(data_);
+      forest.leaf.reinitialize(
+        data_, replacementStandardization(forest.leaf, replacement, held));
       for (size_t t = 0; t < forest.numTrees; ++t)
         params[t].assign(forest.trees[t].nodes.size(), 0.0);
     }
@@ -3536,7 +3533,8 @@ public:
     if (raisedMissing != nullptr) drawMissingDirections(raisedMissing, kept);
     for (size_t t = 0; t < forest.numTrees; ++t) {
       forest.trees[t].mapOldCutPointsOntoNew(data_, oldCutPoints, params[t],
-                                             paramStride);
+                                             paramStride,
+                                             replacement.placement);
       if (numObservationsChanged)
         forest.trees[t].resetObservations(forest.indexBuffer.data() + t * n, n);
       forest.trees[t].repartitionSubtree(data_, 0);
@@ -3565,7 +3563,7 @@ public:
       bool varianceCountChanged = varianceForest_->numObservations() != n;
       if (varianceCountChanged) resizeVarianceStorage(n);
       refreshVarianceForest(&oldCutPoints, &varianceParams,
-                            varianceCountChanged);
+                            varianceCountChanged, replacement.placement);
       // the refresh re-routes the recovered factors through the new partition,
       // which is scale-free: they are still in the ABANDONED working units and
       // the prior is still stated against them, while response_->setData has
@@ -3578,6 +3576,84 @@ public:
       reanchorVarianceForest(previousSigmaScale, /*carryTestSurface=*/false);
     }
     restateSavedDraws(previousScale, previousShift, kept);
+  }
+
+  /// The standardization a whole-data replacement hands \p leaf to
+  /// reinitialize: none, which derives it; the one in force, copied into
+  /// \p held, since reinitialize overwrites the leaf's own before it reads
+  /// what it is handed; or the host's.
+  static SuppliedStandardization replacementStandardization(
+      const L& leaf, const DataReplacement& replacement,
+      std::vector<double>& held) {
+    if (replacement.standardization == DerivedValueChoice::supply)
+      return replacement.suppliedStandardization;
+    if (replacement.standardization == DerivedValueChoice::derive) return {};
+    std::size_t q = leaf.numCovariates();
+    held.assign(leaf.covariateMeans().begin(), leaf.covariateMeans().end());
+    held.insert(held.end(), leaf.covariateSds().begin(),
+                leaf.covariateSds().end());
+    if constexpr (L::hasFunctionParams)
+      held.insert(held.end(), leaf.lengthscales().begin(),
+                  leaf.lengthscales().end());
+    SuppliedStandardization result{held.data(), held.data() + q, nullptr};
+    if constexpr (L::hasFunctionParams) result.lengthscales = held.data() + 2 * q;
+    return result;
+  }
+
+  /// Rewrites \p forest's linear coefficients from the standardization
+  /// \p previous into the one its leaf holds now, the live \p blocks (per
+  /// tree, indexed by node, intercept first) and the saved draws in \p kept,
+  /// so that each leaf stays the function of the raw covariates it was.
+  /// Equal standardizations move nothing.
+  void convertLinearForest(Forest<L, ResidT>& forest, TreeParameters& blocks,
+                           const LeafStandardization& previous,
+                           SavedDrawSlots kept) {
+    LeafStandardization current = forest.leaf.standardization();
+    if (previous == current) return;
+    size_t numParams = forest.leaf.numParams();
+    for (size_t t = 0; t < forest.numTrees; ++t)
+      for (size_t b = 0; b + numParams <= blocks[t].size(); b += numParams)
+        convertLinearCoefficients(blocks[t][b], blocks[t].data() + b + 1,
+                                  previous, current,
+                                  /*keepWithoutSpread=*/true);
+    size_t capacity = savedTreeCapacity();
+    size_t count = std::min(kept.count, capacity);
+    for (size_t i = 0; i < count; ++i) {
+      size_t base = ((kept.first + i) % capacity) * forest.numTrees;
+      for (size_t t = base; t < base + forest.numTrees; ++t)
+        convertFlatLinearTree(forest.savedTrees[t], forest.savedTreeParams[t],
+                              previous, current,
+                              /*keepWithoutSpread=*/false);
+    }
+  }
+
+  /// Derives every forest's leaf covariate standardization again over the
+  /// covariates the store holds, a gp leaf's lengthscales with it where its
+  /// model supplies none, and rewrites a linear leaf's coefficients, live and
+  /// the saved draws in \p kept, into it (convertLinearForest), the fits
+  /// rebuilt from them. A gp leaf's per-observation fits stay as they are; its
+  /// saved draws, which replay only under the kernel they were drawn with,
+  /// are the caller's to refuse.
+  void rederiveStandardization(SavedDrawSlots kept) {
+    if constexpr (L::hasVectorParams) {
+      size_t n = data_.numObservations;
+      for (Forest<L, ResidT>& forest : forests_) {
+        LeafStandardization previous = forest.leaf.standardization();
+        forest.leaf.reinitialize(data_);
+        convertLinearForest(forest, forest.paramsByTree, previous, kept);
+        misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
+        forest.totalFitsScale = 1.0;
+        for (size_t t = 0; t < forest.numTrees; ++t) {
+          setTreeFitsFromParameterBlocks(forest, t, forest.paramsByTree[t]);
+          addTreeFitsToTotal(forest, t);
+        }
+      }
+    } else if constexpr (L::hasFunctionParams) {
+      (void) kept;
+      for (Forest<L, ResidT>& forest : forests_) forest.leaf.reinitialize(data_);
+    } else {
+      (void) kept;
+    }
   }
 
   /// The first-sight draw: the store has just raised the missing-value flag

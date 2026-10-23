@@ -567,9 +567,10 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
 }
 
 # $setData's data read as the sampler reads them (dec-B454): columns matched by
-# name where they carry the sampler's, else by position, and a column the
-# sampler has a level table for re-coded by label onto it, training and test
-# rows (the test rows coded, as dbartsData codes them, by the training table),
+# name where they carry the sampler's, else by position, a carried grid record
+# moving with its columns, and a column the sampler has a level table for
+# re-coded by label onto it, training and test rows (the test rows coded, as
+# dbartsData codes them, by the training table),
 # a factor column with no table refused (dec-B360). Data with the sampler's
 # names and tables come back untouched; a sparse source is the bridge's.
 alignDataFactorLevels <- function(newData, x.train) {
@@ -591,6 +592,12 @@ alignDataFactorLevels <- function(newData, x.train) {
     x <- permutePredictorColumns(x, order, x.train)
     x.test <- permutePredictorColumns(x.test, order, x.train)
     newData@varTypes <- newData@varTypes[order]
+    # a grid record is one entry per column, so it moves with the columns;
+    # one of another length is the check's to refuse
+    grids <- dataCutPoints(newData)
+    if (length(grids) == length(order)) {
+      newData@cutPoints <- grids[order]
+    }
     newNames <- names
   } else if (!is.null(names) && !is.null(newNames)) {
     # read by position, a name of the sampler's in another place is a column
@@ -871,13 +878,21 @@ bartcoreSamplerSetPredictor <- function(
   x,
   column,
   forceUpdate,
-  updateCutPoints
+  updateCutPoints,
+  updateStandardization = FALSE
 ) {
   updateCutPoints <- matchCutPointRule(
     resolveUpdateCutPoints(updateCutPoints),
     names(cutPointRuleCodes),
     "updateCutPoints"
   )
+  if (
+    !is.logical(updateStandardization) ||
+      length(updateStandardization) != 1L ||
+      is.na(updateStandardization)
+  ) {
+    stop("'updateStandardization' must be TRUE or FALSE", call. = FALSE)
+  }
 
   # read once: each sampler$data is a typed reference-class field's active
   # binding, a few microseconds a read, against a rejected update's whole
@@ -937,6 +952,9 @@ bartcoreSamplerSetPredictor <- function(
     }
     if (updateCutPoints != "none") {
       stop("partial updates cannot also update cut points")
+    }
+    if (updateStandardization) {
+      stop("partial updates cannot also update the standardization")
     }
 
     x <- as.double(x)
@@ -1033,7 +1051,8 @@ bartcoreSamplerSetPredictor <- function(
           ptr,
           sampler$data@x,
           forceUpdate,
-          updateCutPoints
+          updateCutPoints,
+          updateStandardization
         ),
         error = function(e) {
           sampler$data@x <- oldX
@@ -1063,7 +1082,8 @@ bartcoreSamplerSetPredictor <- function(
         ptr,
         x,
         forceUpdate,
-        updateCutPoints
+        updateCutPoints,
+        updateStandardization
       )
       if (isTRUE(updateSuccessful)) sampler$data@x <- newX
     }
@@ -1106,16 +1126,17 @@ bartcoreSamplerSetPredictor <- function(
       x,
       column,
       forceUpdate,
-      updateCutPoints
+      updateCutPoints,
+      updateStandardization
     )
     if (isTRUE(updateSuccessful)) {
       sampler$data@x <- newX
     }
   }
   recordMissingSeen(sampler, ptr)
-  # a grid derived again for the new values is the sampler's record, written
-  # where a call could have derived one
-  if (updateCutPoints != cutPointRuleCodes[["none"]]) {
+  # a grid or a standardization derived again for the new values is the
+  # sampler's record, written where a call could have derived one
+  if (updateCutPoints != cutPointRuleCodes[["none"]] || updateStandardization) {
     recordDerived(sampler, ptr)
   }
 
@@ -1283,7 +1304,56 @@ bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
   invisible(scaleKept)
 }
 
-bartcoreSamplerSetData <- function(sampler, newData) {
+## setData's choice for each value a sampler derives from its data, in the
+## words the bridge reads (dec-B460): an argument given is followed, TRUE,
+## "position" or "value" deriving and FALSE or "none" keeping the sampler's
+## own; NULL takes the record the data object carries, by presence alone
+## (dec-B458), and derives one it lacks, the grid's splits then moving by
+## value as they always have.
+setDataChoices <- function(
+  newData,
+  updateCutPoints,
+  updateScale,
+  updateStandardization
+) {
+  choose <- function(value, name, record) {
+    if (is.null(value)) {
+      return(if (is.null(record)) "derive" else "record")
+    }
+    if (!is.logical(value) || length(value) != 1L || is.na(value)) {
+      stop("'", name, "' must be NULL, TRUE or FALSE", call. = FALSE)
+    }
+    if (value) "derive" else "keep"
+  }
+  grid <- if (!is.null(updateCutPoints)) {
+    matchCutPointRule(
+      updateCutPoints,
+      names(cutPointRuleCodes),
+      "updateCutPoints"
+    )
+  } else if (is.null(dataCutPoints(newData))) {
+    "value"
+  } else {
+    "record"
+  }
+  list(
+    grid = grid,
+    range = choose(updateScale, "updateScale", dataResponseRange(newData)),
+    standardization = choose(
+      updateStandardization,
+      "updateStandardization",
+      dataStandardization(newData)
+    )
+  )
+}
+
+bartcoreSamplerSetData <- function(
+  sampler,
+  newData,
+  updateCutPoints = NULL,
+  updateScale = NULL,
+  updateStandardization = NULL
+) {
   if (!inherits(newData, "dbartsData")) {
     stop("'data' must inherit from dbartsData")
   }
@@ -1305,26 +1375,41 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   }
   # nor for levels: a record that names some for a block the data lack is
   # refused before anything is stored, as it is where a sampler is made, and
-  # so are derived values recorded in a form that fits no data. The columns
-  # are the sampler's once aligned below, by name or else by position, so a
-  # standardization is matched to its leaf covariates by the sampler's names
+  # so are derived values recorded in a form that fits no data, held to the
+  # columns once they are in the sampler's order
   checkBasisRecord(newData)
+  if (ncol(newData@x) != ncol(sampler$data@x)) {
+    stop("$setData: requires the same predictors")
+  }
+  newData <- alignDataFactorLevels(newData, sampler$data@x)
+  # the columns are the sampler's once aligned, by name or else by position,
+  # so a standardization is matched to its leaf covariates by the sampler's
+  # names
   newData <- checkDerivedRecord(
     newData,
     sampler$model,
     leafCovariateNames(sampler$model, sampler$data)
   )
-  if (ncol(newData@x) != ncol(sampler$data@x)) {
-    stop("$setData: requires the same predictors")
+  # read off the checked record: a standardization the leaves take nothing
+  # from is NULL there, and derives
+  choices <- setDataChoices(
+    newData,
+    updateCutPoints,
+    updateScale,
+    updateStandardization
+  )
+  # a record the call does not take is not handed on; the sampler's own is
+  # written after it
+  if (choices$grid != "record") {
+    newData@cutPoints <- NULL
   }
-  newData <- alignDataFactorLevels(newData, sampler$data@x)
-  # the call derives every value again, so a carried record, which the
-  # alignment may have left in another column order, is not handed on; the
-  # sampler's own is written after it
-  newData@cutPoints <- NULL
-  newData@response.range <- NULL
+  if (choices$range != "record") {
+    newData@response.range <- NULL
+  }
+  if (choices$standardization != "record") {
+    newData@standardization <- NULL
+  }
   newData@forest.calibration <- NULL
-  newData@standardization <- NULL
 
   newData@n.cuts <- sampler$data@n.cuts
   newData@sigma <- sampler$data@sigma
@@ -1358,7 +1443,14 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   oldData <- sampler$data
   sampler$data <- newData
   tryResult <- tryCatch(
-    .Call(C_dbarts_bartcore_setData, ptr, sampler$data),
+    .Call(
+      C_dbarts_bartcore_setData,
+      ptr,
+      sampler$data,
+      choices$grid,
+      choices$range,
+      choices$standardization
+    ),
     error = function(e) {
       sampler$data <- oldData
       e
@@ -1374,19 +1466,25 @@ bartcoreSamplerSetData <- function(sampler, newData) {
   # otherwise re-apply one at re-creation goes with it; setActiveRows records
   # the replacement's own below
   sampler$activeRows <- NULL
-  # the caller's own updateState decides the store, once, after the swap
+  # the caller's own updateState decides the store, once, after the swap; a
+  # count center kept or taken from the record is not read again over the
+  # rows the mask keeps
+  rangeDerived <- choices$range == "derive"
   if (!is.null(active)) {
-    installWeightsMask(sampler, active)
+    installWeightsMask(sampler, active, rangeDerived)
   }
-  # the replacement derives as creation does. Whether it had too little to
-  # read is the caller's to say, last: the record and the stored state are
-  # still the replaced data's here
-  invisible(scaleRowsFallBack(
-    newData,
-    sampler$model@family,
-    active,
-    warn = FALSE
-  ))
+  # a derived range is read as creation reads it. Whether it had too little
+  # to read is the caller's to say, last: the record and the stored state
+  # are still the replaced data's here
+  invisible(
+    rangeDerived &&
+      scaleRowsFallBack(
+        newData,
+        sampler$model@family,
+        active,
+        warn = FALSE
+      )
+  )
 }
 
 ## The mask's install for $setActiveRows, creation and setData, on a mask the
@@ -1416,13 +1514,16 @@ bartcoreSamplerSetActiveRows <- function(sampler, active, updateScale) {
 ## Creation's and setData's install of the mask a latent family's 0/1 weights
 ## resolved to. A count sampler takes its center over the rows the mask keeps
 ## in the same call; where those hold fewer than two distinct counts, or the
-## sampler carries amplitudes, the center derived over every row stands. The
-## rows have just been found to hold two counts, so the engine keeps nothing
-## and its once-per-sampler warning is not spent; the bridge answers TRUE on a
-## first keep, and that is an internal error here.
-installWeightsMask <- function(sampler, active) {
+## sampler carries amplitudes, the center derived over every row stands; with
+## rederive FALSE, a setData that kept the center or took it from the record,
+## the center in force stands. The rows have just been found to hold two
+## counts, so the engine keeps nothing and its once-per-sampler warning is not
+## spent; the bridge answers TRUE on a first keep, and that is an internal
+## error here.
+installWeightsMask <- function(sampler, active, rederive = TRUE) {
   active <- as.double(active)
-  updateScale <- identical(sampler$model@family, "nbinom") &&
+  updateScale <- rederive &&
+    identical(sampler$model@family, "nbinom") &&
     !samplerCarriesAmplitudes(sampler) &&
     !scaleRowsFallBack(sampler$data, "nbinom", active, warn = FALSE)
   if (isTRUE(bartcoreSamplerSetActiveRows(sampler, active, updateScale))) {

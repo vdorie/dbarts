@@ -41,7 +41,8 @@ SEXP bartcore_setOffset(SEXP ptr, SEXP offset, SEXP updateScale);
 SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale,
                           SEXP status);
 SEXP bartcore_setSigma(SEXP ptr, SEXP sigma);
-SEXP bartcore_setData(SEXP ptr, SEXP data);
+SEXP bartcore_setData(SEXP ptr, SEXP data, SEXP updateCutPoints,
+                      SEXP updateScale, SEXP updateStandardization);
 SEXP bartcore_getMissingSeen(SEXP ptr);
 SEXP bartcore_setTestPredictor(SEXP ptr, SEXP x_test);
 SEXP bartcore_setTestOffset(SEXP ptr, SEXP offset_test);
@@ -49,9 +50,10 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptr, SEXP x_test,
                                         SEXP offset_test);
 SEXP bartcore_setWeights(SEXP ptr, SEXP weights, SEXP updateScale);
 SEXP bartcore_setPredictor(SEXP ptr, SEXP x, SEXP forceUpdate,
-                           SEXP updateCutPoints);
+                           SEXP updateCutPoints, SEXP updateStandardization);
 SEXP bartcore_updatePredictor(SEXP ptr, SEXP x, SEXP columns, SEXP forceUpdate,
-                              SEXP updateCutPoints);
+                              SEXP updateCutPoints,
+                              SEXP updateStandardization);
 SEXP bartcore_updatePredictorPerObservation(SEXP ptr, SEXP x, SEXP column);
 SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrs, SEXP x,
                                                    SEXP columns);

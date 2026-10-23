@@ -125,13 +125,27 @@ expect_error(
 badData <- sampler$data
 badData@y <- replace(y, 2L, Inf)
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setData, sampler$getPointer(), badData),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setData,
+    sampler$getPointer(),
+    badData,
+    "value",
+    "derive",
+    "derive"
+  ),
   "\\$setData: response contains non-finite values"
 )
 badData <- sampler$data
 badData@offset <- replace(numeric(n), 2L, -Inf)
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setData, sampler$getPointer(), badData),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setData,
+    sampler$getPointer(),
+    badData,
+    "value",
+    "derive",
+    "derive"
+  ),
   "\\$setData: offset contains non-finite values"
 )
 expect_error(sampler$setSigma(Inf), "'sigma' must be finite and positive")
@@ -293,7 +307,9 @@ warmControl <- dbartsControl(
 donor <- dbarts(yw ~ ., xw, control = warmControl)
 invisible(donor$run(2L, 2L))
 invisible(donor$setPredictor(xw$c * 2, 3L))
-donor$setData(donor$data)
+# the grid derived again for the doubled column, which the record the data
+# object carries would otherwise hold
+donor$setData(donor$data, updateCutPoints = "value")
 recipientControl <- warmControl
 recipientControl@keepTrees <- FALSE
 recipientControl@seed <- 7L

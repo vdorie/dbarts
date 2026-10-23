@@ -65,7 +65,8 @@ expect_error(
     bc.fold$ptr,
     x.fold,
     FALSE,
-    0L
+    0L,
+    FALSE
   ),
   pattern = "owns its predictors"
 )
@@ -76,7 +77,8 @@ expect_error(
     x.fold[, 1L],
     1L,
     FALSE,
-    0L
+    0L,
+    FALSE
   ),
   pattern = "owns its predictors"
 )
@@ -101,12 +103,26 @@ expect_error(
   pattern = "owns its predictors"
 )
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setData, bc.fold$ptr, sampler$data),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setData,
+    bc.fold$ptr,
+    sampler$data,
+    "value",
+    "derive",
+    "derive"
+  ),
   pattern = "owns its predictors"
 )
 # the refusal names the method the user called, not the C entry behind it
 expect_error(
-  .Call(dbarts:::C_dbarts_bartcore_setData, bc.fold$ptr, sampler$data),
+  .Call(
+    dbarts:::C_dbarts_bartcore_setData,
+    bc.fold$ptr,
+    sampler$data,
+    "value",
+    "derive",
+    "derive"
+  ),
   pattern = "^\\$setData: requires"
 )
 expect_error(

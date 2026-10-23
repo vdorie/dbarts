@@ -160,6 +160,30 @@ struct SuppliedStandardization {
   const double* lengthscales = nullptr;
 };
 
+/// What a whole-data replacement does with a value the sampler derived from
+/// its data: derives it again over the new data, keeps the one in force, or
+/// takes the one the host supplies.
+enum class DerivedValueChoice { derive, keep, supply };
+
+/// A whole-data replacement's choice for each derived value
+/// (Sampler::setData); the default derives all three and moves splits by
+/// value. placement is where the splits on a column go when a derivation
+/// replaces its grid; a supplied grid other than the one in force moves them
+/// by value, and a kept one moves none. suppliedGrid is read under supply, a
+/// numeric column without an entry deriving; suppliedStandardization under
+/// supply; rangeMin and rangeMax under supply, in the form a chain's getScale
+/// reports, and ignored by a family that carries no units. Borrowed for the
+/// call; the host checks the values.
+struct DataReplacement {
+  DerivedValueChoice grid = DerivedValueChoice::derive;
+  SplitPlacement placement = SplitPlacement::byValue;
+  SuppliedCutGrid suppliedGrid;
+  DerivedValueChoice standardization = DerivedValueChoice::derive;
+  SuppliedStandardization suppliedStandardization;
+  DerivedValueChoice range = DerivedValueChoice::derive;
+  double rangeMin = 0.0, rangeMax = 0.0;
+};
+
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
 /// int32 level codes. Exactly one channel is present, so isCoded discriminates
 /// and at() serves either - a code widens, and naDenseCode becomes the NaN
@@ -2041,11 +2065,7 @@ struct ColumnStore {
         column = DenseColumnValues(widened.data());
       }
       if (types[j] == ColumnKind::numeric && supplied.suppliesColumn(j)) {
-        const std::vector<double>& points = (*supplied.points)[j];
-        cutPoints[j] = points;
-        numCuts[j] = static_cast<std::uint32_t>(points.size());
-        if (supplied.mass != nullptr)
-          cutMass[j] = (*supplied.mass)[j];
+        installSuppliedGrid(j, supplied);
       } else if (!buildCutsForColumn(j, column)) {
         return false;
       }
@@ -2875,10 +2895,23 @@ struct ColumnStore {
         value;
   }
 
+  /// Installs numeric column j's grid and weights from \p supplied, which
+  /// supplies the column.
+  void installSuppliedGrid(size_t j, const SuppliedCutGrid& supplied) {
+    const std::vector<double>& points = (*supplied.points)[j];
+    cutPoints[j] = points;
+    numCuts[j] = static_cast<std::uint32_t>(points.size());
+    if (supplied.mass != nullptr) cutMass[j] = (*supplied.mass)[j];
+    else cutMass[j].clear();
+  }
+
   /// Whole-data replacement: new values for the same predictors, possibly a
-  /// new number of observations, read for the call only. Threshold cuts are
-  /// rebuilt from scratch, so a column's count may change and the caller
-  /// remaps existing splits onto the new grid; a
+  /// new number of observations, read for the call only. Under \p grid
+  /// derive, threshold cuts are rebuilt from scratch, so a column's count may
+  /// change and the caller remaps existing splits onto the new grid; under
+  /// keep every grid and its weights stay and the new values are quantized
+  /// on them; under supply a numeric column \p supplied gives takes that grid
+  /// and its weights, and every other column derives. A
   /// factor column's level count stays fixed whichever kind it is. The
   /// missing-value flags carry over, raised further by the new values: the
   /// store is the same sampler's, and its trees keep their directions. Dense
@@ -2889,7 +2922,10 @@ struct ColumnStore {
   /// pinned, so the count sweep build runs cannot arise here and the check is
   /// membership instead - and it runs before a single code is written, since
   /// unlike a creation build this store has values to preserve.
-  [[nodiscard]] bool setData(const double* x_, size_t n) {
+  [[nodiscard]] bool setData(
+      const double* x_, size_t n,
+      DerivedValueChoice grid = DerivedValueChoice::derive,
+      const SuppliedCutGrid& supplied = {}) {
     if (!replacementLevelCodesAreValid(x_, n)) return false;
     numObservations = n;
     train.codes.resize(n * numPredictors);
@@ -2900,7 +2936,11 @@ struct ColumnStore {
       const double* column = x_ + j * n;
       // the level count is pinned, so the count sweep does not run here; the
       // membership check above is what stands in for it
-      if (splitsByThreshold(j)) (void)buildCutsForColumn(j, column, true);
+      if (grid == DerivedValueChoice::supply &&
+          types[j] == ColumnKind::numeric && supplied.suppliesColumn(j))
+        installSuppliedGrid(j, supplied);
+      else if (splitsByThreshold(j) && grid != DerivedValueChoice::keep)
+        (void)buildCutsForColumn(j, column, true);
       quantizeColumn(j, column);
     }
     return true;

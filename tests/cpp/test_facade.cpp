@@ -36,7 +36,8 @@ enum class FacadeVirtual {
   shape, run, setOffset, setResponse, setWeights, weightsDigest,
   reapplyWeights, zeroWeightRows, setSurvivalStatus, survivalDigest,
   reapplySurvivalStatus,
-  setSigma, setTestData, setTestOffset, setData, setPredictor,
+  setSigma, setTestData, setTestOffset, setData, rederiveStandardization,
+  setPredictor,
   updatePredictor, setCutPoints, updatePredictorPerObservation,
   beginPredictorUpdate, currentSampleNum, savedSlotForDraw, savedTree,
   savedTreeSlopes, savedTreeMasks, flattenTree, predict, predictPerForest,
@@ -119,8 +120,9 @@ public:
   SPY_RET(bool, setData,
           (const double* x, const double* y, std::size_t n, const double* w,
            const double* o, const double* xt, std::size_t nt,
-           const double* ot),
-          (x, y, n, w, o, xt, nt, ot))
+           const double* ot, const DataReplacement& r),
+          (x, y, n, w, o, xt, nt, ot, r))
+  SPY_VOID(rederiveStandardization, (), ())
   SPY_RET(PredictorUpdateResult, setPredictor,
           (const PredictorSource& s, bool f, bool u, SplitPlacement sp),
           (s, f, u, sp))
@@ -775,6 +777,17 @@ const Row rows[] = {
             f.d.impl().data().numObservations == Fixtures::n / 2,
           "facade setData: the impl's store takes the replacement");
     f.buildDisposable();  // the rows after this one want the full store
+  }},
+  {FacadeVirtual::rederiveStandardization, "rederiveStandardization",
+   [](Fixtures& f) {
+    // constant leaves take no covariate, so the call reaches the impl and
+    // moves nothing
+    SamplerStateData before, after;
+    f.d.impl().getState(before);
+    f.d.base().rederiveStandardization();
+    f.d.impl().getState(after);
+    check(statesAgree(before, after),
+          "facade rederiveStandardization: constant leaves hold their state");
   }},
   {FacadeVirtual::setPredictor, "setPredictor", [](Fixtures& f) {
     std::vector<xint_t> codes = storageDigest(f.d.impl().data());

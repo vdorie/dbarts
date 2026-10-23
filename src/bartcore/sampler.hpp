@@ -2304,11 +2304,21 @@ public:
   /// codes and a new observation count while the chains were still sized for
   /// the old ones. The two status tests below are backstops that the checks
   /// here make unreachable.
+  ///
+  /// \p replacement says, for the grid, the leaf standardization and the
+  /// transform each, whether the call derives it as above, keeps the one in
+  /// force or takes the host's (DataReplacement). A kept grid quantizes the
+  /// new values on the grid in force and moves no split; a supplied one
+  /// moves the splits of each column whose grid it changes by value. A kept
+  /// standardization regathers the leaf covariates for the new rows under
+  /// the constants in force, and a kept transform installs the response
+  /// under the one in force, so neither moves a coefficient or a saved draw.
   [[nodiscard]] bool setData(const double* x, const double* y,
                              size_t numObservations, const double* weights,
                              const double* offset, const double* x_test,
                              size_t numTestObservations,
-                             const double* testOffset = nullptr) {
+                             const double* testOffset = nullptr,
+                             const DataReplacement& replacement = {}) {
     bool hasTest = x_test != nullptr && numTestObservations > 0;
     if (!data_.replacementLevelCodesAreValid(x, numObservations)) return false;
     if (hasTest &&
@@ -2329,7 +2339,14 @@ public:
     std::vector<std::vector<double>> oldCutPoints(data_.cutPoints);
     std::vector<std::uint8_t> raisedMissing(data_.hasMissing);
 
-    if (!data_.setData(x, numObservations)) return false;
+    if (!data_.setData(x, numObservations, replacement.grid,
+                       replacement.suppliedGrid))
+      return false;
+    DataReplacement choices = replacement;
+    if (replacement.grid != DerivedValueChoice::derive) {
+      choices.placement = SplitPlacement::byValue;
+      (void)splitsToMove(oldCutPoints, choices.placement);
+    }
     if (hasTest) {
       if (!data_.buildTest(x_test, numTestObservations)) return false;
       data_.testOffset = testOffset;
@@ -2350,9 +2367,21 @@ public:
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
                                varianceParams[c], kept,
-                               anyRaised ? raisedMissing.data() : nullptr);
+                               anyRaised ? raisedMissing.data() : nullptr,
+                               choices);
     recordAnchor();
     return true;
+  }
+
+  /// Derives the leaf covariate standardization again over the covariates
+  /// the store holds now, as a whole-data replacement would over new data,
+  /// and rewrites a linear leaf's coefficients, live and saved, into it, so
+  /// each leaf stays the function it was (Chain::rederiveStandardization). A
+  /// leaf that takes no covariate has nothing to derive. The host refuses it
+  /// where a gp leaf holds saved draws.
+  void rederiveStandardization() {
+    SavedDrawSlots kept = savedDrawSlots();
+    for (auto& chain : chains_) chain->rederiveStandardization(kept);
   }
 
   /// Replace the predictor matrix from a borrowed view of numObservations

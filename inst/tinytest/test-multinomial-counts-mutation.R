@@ -247,7 +247,10 @@ expect_error(
   .Call(
     dbarts:::C_dbarts_bartcore_setData,
     sampler.mn$getPointer(),
-    sampler.mn$data
+    sampler.mn$data,
+    "value",
+    "derive",
+    "derive"
   ),
   "multi-forest"
 )

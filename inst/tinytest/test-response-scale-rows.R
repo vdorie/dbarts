@@ -523,8 +523,9 @@ expect_equal(
   0L
 )
 
-# the flag survives setData, which derives as creation does and says so; a
-# copy and a reload are new samplers and warn on their own first keep
+# the flag survives setData, which with updateScale = TRUE derives as
+# creation does and says so; a copy and a reload are new samplers and warn on
+# their own first keep
 yk <- responseFor("same", yA, 1.5)
 kept <- createQuietly(yk, weights = keepRows$same)
 expect_equal(
@@ -532,7 +533,10 @@ expect_equal(
   1L
 )
 replacement <- kept$data
-expect_equal(length(caught(kept$setData(replacement))$scale), 1L)
+expect_equal(
+  length(caught(kept$setData(replacement, updateScale = TRUE))$scale),
+  1L
+)
 expect_equal(
   length(caught(kept$setOffset(offKeep, updateScale = TRUE))$warnings),
   0L
@@ -740,7 +744,7 @@ expect_true(grepl(
 target <- sampler(y)
 replacement <- target$data
 replacement@weights <- creationCases$one$w
-setDataCaught <- caught(target$setData(replacement))
+setDataCaught <- caught(target$setData(replacement, updateScale = TRUE))
 expect_equal(length(setDataCaught$scale), 1L)
 expect_identical(
   conditionMessage(setDataCaught$scale[[1L]]),
@@ -754,7 +758,9 @@ countTarget <- sampler(countsA, family = "nbinom")
 countReplacement <- countTarget$data
 countReplacement@y <- ySameCount
 countReplacement@weights <- keepRows$same
-countCaught <- caught(countTarget$setData(countReplacement))
+countCaught <- caught(
+  countTarget$setData(countReplacement, updateScale = TRUE)
+)
 expect_equal(length(countCaught$scale), 1L)
 # dbartsSpec with one row in: the one warning, from the spec
 specCaught <- caught(dbartsSpec(
@@ -830,7 +836,7 @@ stored <- target$state
 replacement <- target$data
 replacement@y <- 10 * y + 100
 replacement@weights <- oneIn
-result <- strictly(target$setData(replacement))
+result <- strictly(target$setData(replacement, updateScale = TRUE))
 expect_true(inherits(result, "error"))
 expect_identical(
   conditionMessage(result),
@@ -1091,7 +1097,7 @@ expect_equal(readers(viaDbarts)$response.shift, rowsInCenter, tolerance = 1e-14)
 viaSetData <- sampler(countsA, family = "nbinom")
 withWeights <- viaSetData$data
 withWeights@weights <- w
-viaSetData$setData(withWeights)
+viaSetData$setData(withWeights, updateScale = TRUE)
 expect_equal(
   readers(viaSetData)$response.shift,
   rowsInCenter,

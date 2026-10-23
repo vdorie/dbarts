@@ -2441,6 +2441,26 @@ inline bool suppliedMoments(const SuppliedStandardization& supplied,
   return true;
 }
 
+/// Whether a recorded standardization, \p centers and \p scales, is
+/// \p heldCenters and \p heldScales: as many of each, centers equal bit for
+/// bit and scales equal as a leaf divides by them, a scale that is not a
+/// number as the placeholder 1. A saved gp draw replays only under its own,
+/// so an install and a whole-data replacement share this test.
+inline bool standardizationIsHeld(const std::vector<double>& centers,
+                                  const std::vector<double>& scales,
+                                  const std::vector<double>& heldCenters,
+                                  const std::vector<double>& heldScales) {
+  auto divisor = [](double scale) { return std::isnan(scale) ? 1.0 : scale; };
+  if (centers.size() != heldCenters.size() ||
+      scales.size() != heldScales.size() || scales.size() != centers.size())
+    return false;
+  for (std::size_t j = 0; j < centers.size(); ++j)
+    if (centers[j] != heldCenters[j] ||
+        divisor(scales[j]) != divisor(heldScales[j]))
+      return false;
+  return true;
+}
+
 /// Rewrites one linear leaf's coefficients - its intercept and one slope per
 /// covariate - from the standardization \p from to \p to, so that the leaf is
 /// the same function of the raw covariates: with centres m, m' and scales s,
@@ -4568,6 +4588,16 @@ public:
   virtual void setData(const double* y, const double* offset,
                        const double* weights, std::size_t numObservations,
                        double* sigmaInOut) = 0;
+  /// setData under the transform (min, max), in getScale's form, in place of
+  /// one derived from the new data; sigmaInOut and the variance prior move
+  /// only where the transform does. A family that carries no units has none
+  /// to hold and takes setData.
+  virtual void setDataInScale(const double* y, const double* offset,
+                              const double* weights,
+                              std::size_t numObservations, double* sigmaInOut,
+                              double /*min*/, double /*max*/) {
+    setData(y, offset, weights, numObservations, sigmaInOut);
+  }
 
   /// Replace the case weights (borrowed). For a family whose weights are a
   /// precision this is a bare pointer swap: nothing rescales, and the weighted
@@ -4870,23 +4900,13 @@ public:
 
   void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double* sigmaInOut) override {
-    // sigma and the variance prior stay fixed on the original scale
-    double sigmaUnscaled = *sigmaInOut * range_;
-    double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
-
-    y_ = y;
-    offset_ = offset;
-    numObservations_ = numObservations;
-    // the mask is length-n and n may have changed; a data swap drops it
-    activeRows_.clear();
-    composite_.clear();
-    userWeights_ = weights;
-    installWeights(weights);
-    yRescaled_.resize(numObservations);
-    rescale();
-
-    sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
-    *sigmaInOut = sigmaUnscaled / range_;
+    replaceData(y, offset, weights, numObservations, sigmaInOut, nullptr);
+  }
+  void setDataInScale(const double* y, const double* offset,
+                      const double* weights, std::size_t numObservations,
+                      double* sigmaInOut, double min, double max) override {
+    double held[2] = {min, max};
+    replaceData(y, offset, weights, numObservations, sigmaInOut, held);
   }
 
   /// The two setters are absolute and independent: this replaces the borrowed
@@ -5162,6 +5182,45 @@ private:
       if (value > in.max) in.max = value;
     }
     return in;
+  }
+
+  /// setData's body: the transform derived where \p held is null, and
+  /// otherwise the recorded pair held[0], held[1], which names no rows of
+  /// these data as the ones it was read from.
+  void replaceData(const double* y, const double* offset,
+                   const double* weights, std::size_t numObservations,
+                   double* sigmaInOut, const double* held) {
+    // sigma and the variance prior stay fixed on the original scale
+    double previousRange = range_;
+    double sigmaUnscaled = *sigmaInOut * range_;
+    double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
+
+    y_ = y;
+    offset_ = offset;
+    numObservations_ = numObservations;
+    // the mask is length-n and n may have changed; a data swap drops it
+    activeRows_.clear();
+    composite_.clear();
+    userWeights_ = weights;
+    installWeights(weights);
+    yRescaled_.resize(numObservations);
+    if (held == nullptr) {
+      rescale();
+    } else {
+      scaleRows_.clear();
+      min_ = held[0];
+      max_ = held[1];
+      setWindow();
+      formOffsetAdjusted(y_);
+      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -low_);
+      misc_scalarMultiplyVectorInPlace(yRescaled_.data(), numObservations_,
+                                       1.0 / range_);
+      misc_addScalarToVectorInPlace(yRescaled_.data(), numObservations_, -0.5);
+      if (range_ == previousRange) return;
+    }
+
+    sigmaSqPrior_.scale = priorUnscaled / (range_ * range_);
+    *sigmaInOut = sigmaUnscaled / range_;
   }
 
   /// Re-derives the range and rebuilds the working response under it. The
@@ -6242,6 +6301,18 @@ public:
   /// shrink drops censored indices that fell off the end.
   void setData(const double* logTime, const double* offset, const double*,
                std::size_t numObservations, double* sigmaInOut) override {
+    replaceData(logTime, offset, numObservations, sigmaInOut, nullptr);
+  }
+  void setDataInScale(const double* logTime, const double* offset,
+                      const double*, std::size_t numObservations,
+                      double* sigmaInOut, double min, double max) override {
+    double held[2] = {min, max};
+    replaceData(logTime, offset, numObservations, sigmaInOut, held);
+  }
+  /// setData's body, the transform held at \p held where it is not null.
+  void replaceData(const double* logTime, const double* offset,
+                   std::size_t numObservations, double* sigmaInOut,
+                   const double* held) {
     logT_.assign(logTime, logTime + numObservations);
     numObservations_ = numObservations;
     activeRows_.clear();  // length-n and n may have changed
@@ -6252,8 +6323,12 @@ public:
     }
     for (std::size_t k = 0; k < censoredIndices_.size(); ++k)
       censorBound_[k] = logT_[censoredIndices_[k]];
-    gaussian_->setData(logT_.data(), offset, nullptr, numObservations,
-                       sigmaInOut);
+    if (held == nullptr)
+      gaussian_->setData(logT_.data(), offset, nullptr, numObservations,
+                         sigmaInOut);
+    else
+      gaussian_->setDataInScale(logT_.data(), offset, nullptr,
+                                numObservations, sigmaInOut, held[0], held[1]);
   }
 
   void setSigmaPrior(double sigmaEstimate, double degreesOfFreedom,
@@ -6513,6 +6588,18 @@ public:
 
   void setData(const double* y, const double* offset, const double* weights,
                std::size_t numObservations, double* sigmaInOut) override {
+    replaceData(y, offset, weights, numObservations, sigmaInOut, nullptr);
+  }
+  void setDataInScale(const double* y, const double* offset,
+                      const double* weights, std::size_t numObservations,
+                      double* sigmaInOut, double min, double max) override {
+    double held[2] = {min, max};
+    replaceData(y, offset, weights, numObservations, sigmaInOut, held);
+  }
+  /// setData's body, the transform held at \p held where it is not null.
+  void replaceData(const double* y, const double* offset,
+                   const double* weights, std::size_t numObservations,
+                   double* sigmaInOut, const double* held) {
     y_ = y;
     userWeights_ = weights;
     numObservations_ = numObservations;
@@ -6521,7 +6608,11 @@ public:
     composite_.assign(numObservations, 0.0);
     markInformative();
     gaussian_->setMembership(informative_.data());  // the marks may have moved
-    gaussian_->setData(y, offset, weights, numObservations, sigmaInOut);
+    if (held == nullptr)
+      gaussian_->setData(y, offset, weights, numObservations, sigmaInOut);
+    else
+      gaussian_->setDataInScale(y, offset, weights, numObservations,
+                                sigmaInOut, held[0], held[1]);
     coldInit();
   }
 
@@ -6961,6 +7052,16 @@ public:
   /// it.
   void setData(const double* y, const double* offset, const double*,
                std::size_t numObservations, double*) override {
+    replaceData(y, offset, numObservations, nullptr);
+  }
+  void setDataInScale(const double* y, const double* offset, const double*,
+                      std::size_t numObservations, double*, double min,
+                      double) override {
+    replaceData(y, offset, numObservations, &min);
+  }
+  /// setData's body, the center held at *\p held where it is not null.
+  void replaceData(const double* y, const double* offset,
+                   std::size_t numObservations, const double* held) {
     y_ = y;
     offset_ = offset;
     numObservations_ = numObservations;
@@ -6970,7 +7071,7 @@ public:
     working_.resize(numObservations);
     if (estimateR_)
       setShape(NBShapePrior::grid[NBShapePrior::medianIndex]);
-    shift_ = computeShift(y, offset, numObservations);
+    shift_ = held != nullptr ? *held : computeShift(y, offset, numObservations);
     rPrior_.computeKernel(y, numObservations);
     coldStart();
   }

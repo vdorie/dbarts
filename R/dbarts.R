@@ -3048,8 +3048,14 @@ dbartsSampler <- setRefClass(
 
       invisible(NULL)
     },
-    setData = function(newData, updateState = NULL) {
-      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. Preserves the n.cuts and sigma slots, and the level tables: columns are matched by name where they carry the sampler's names, and otherwise by position, a name of the sampler's in another place refused and the record then taking the new names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
+    setData = function(
+      newData,
+      updateState = NULL,
+      updateCutPoints = NULL,
+      updateScale = NULL,
+      updateStandardization = NULL
+    ) {
+      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. Preserves the n.cuts and sigma slots, and the level tables: columns are matched by name where they carry the sampler's names, and otherwise by position, a name of the sampler's in another place refused and the record then taking the new names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) after an edit keeps every derived value and a fresh dbartsData() derives them. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -3066,7 +3072,13 @@ dbartsSampler <- setRefClass(
           "new predictors contain missing values and the sampler was built with missing = \"error\""
         )
       }
-      allRows <- bartcoreSamplerSetData(.self, newData)
+      allRows <- bartcoreSamplerSetData(
+        .self,
+        newData,
+        updateCutPoints,
+        updateScale,
+        updateStandardization
+      )
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
@@ -3439,9 +3451,10 @@ dbartsSampler <- setRefClass(
       column,
       forceUpdate,
       updateCutPoints = "none",
-      updateState = NULL
+      updateState = NULL,
+      updateStandardization = FALSE
     ) {
-      "Changes a single column of the predictor matrix, or the entire matrix if column is missing, where x is a data frame, coded by label as a column is, or a numeric matrix, taken only where every predictor column is numeric and refused by name on a sampler with a factor column. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateCutPoints is \"none\", which keeps each cut grid, or \"position\" or \"value\", which derive the grid a new sampler would have for the values and say where the splits on it go: each on its position, rescaled when the number of points changes, or each to the point nearest its threshold. updateState follows control@updateState; see setData."
+      "Changes a single column of the predictor matrix, or the entire matrix if column is missing, where x is a data frame, coded by label as a column is, or a numeric matrix, taken only where every predictor column is numeric and refused by name on a sampler with a factor column. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateCutPoints is \"none\", which keeps each cut grid, or \"position\" or \"value\", which derive the grid a new sampler would have for the values and say where the splits on it go: each on its position, rescaled when the number of points changes, or each to the point nearest its threshold. updateStandardization = TRUE derives a linear or gp leaf's covariate standardization again over the values the update leaves, a linear leaf's coefficients, current and saved, rewritten so that each leaf is the function it was; FALSE, the default, keeps it. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
@@ -3450,7 +3463,8 @@ dbartsSampler <- setRefClass(
         x,
         column = if (missing(column)) NULL else column,
         forceUpdate = if (missing(forceUpdate)) NULL else forceUpdate,
-        updateCutPoints = updateCutPoints
+        updateCutPoints = updateCutPoints,
+        updateStandardization = updateStandardization
       ))
       if (resolveUpdateState(updateState, control)) {
         storeState()
@@ -3465,7 +3479,7 @@ dbartsSampler <- setRefClass(
       updateState = NULL,
       splits = "position"
     ) {
-      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing, when the entries of factor columns are not read. A grid out of order is sorted, and a point may appear only once, so for more splits near a value give a denser grid there. splits says where the splits on a column go: \"position\" keeps each on its position, rescaled when the number of points changes, and \"value\" moves each to the point nearest its threshold. Always forced, as in 0.9-x: it has no unforced form, prunes any leaves that end up empty and returns NULL invisibly. It sets a grid, typically once; to have a grid follow values that change inside a loop, use setPredictor(updateCutPoints = ). A later setData derives at most n.cuts cut points again, whatever grid was set. updateState follows control@updateState; see setData."
+      "Changes the cut points for the predictors in column, or the entire set itself if the column argument is missing, when the entries of factor columns are not read. A grid out of order is sorted, and a point may appear only once, so for more splits near a value give a denser grid there. splits says where the splits on a column go: \"position\" keeps each on its position, rescaled when the number of points changes, and \"value\" moves each to the point nearest its threshold. Always forced, as in 0.9-x: it has no unforced form, prunes any leaves that end up empty and returns NULL invisibly. It sets a grid, typically once; to have a grid follow values that change inside a loop, use setPredictor(updateCutPoints = ). The grid is recorded in the sampler's data object, so a later setData(sampler$data) keeps it, while a later setData that derives the cut points derives at most n.cuts again, whatever grid was set. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       bartcoreSamplerSetCutPoints(

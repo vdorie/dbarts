@@ -140,7 +140,8 @@ expect_true(.Call(
   sampler.bridge$getPointer(),
   sparseBlock(a.new),
   TRUE,
-  0L
+  0L,
+  FALSE
 ))
 
 a.one <- sparseBlock(a.new[, 2L, drop = FALSE])
