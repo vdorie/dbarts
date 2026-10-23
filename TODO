@@ -261,7 +261,9 @@ items
     draw. Three engine slices, before response-scale-rows slice D;
     slice 1 landed (2026-10-23, dec-A222): the grid, range and
     calibration records on dbartsData, every engine created from them,
-    a live copy taking the current chain. The grid half of the
+    a live copy taking the current chain; slice 2 landed (2026-10-23,
+    dec-A223): a leaf's covariate standardization recorded and kept at
+    every install, slopes in as stored. The grid half of the
     state install is landed (docs/plans/state-grid-install.md): a live
     setState writes neither the cut points nor their weights, a change
     from 0.9-34, whose state carried the grid and whose restore
@@ -283,6 +285,11 @@ items
     after updateState (dec-B460).
     Ruled: a sampler saved by a development build without the
     records derives afresh, with no migration (dec-B461).
+  setdata-repeated-names: setData refuses some legitimate renames when
+    the sampler's own column names repeat: columns x, b, x, d handed as
+    x, b, y, d fail with "the data's column 'x' is in the place of the
+    sampler's 'x'". The same on 030b39f0, before state-frame-prior
+    slice 2; found by its review. Not planned.
   code-matrix-category-count: a sampler made from a matrix of codes
     records no level table, so a re-creation infers each factor's count
     from the codes present: copy() is refused after setData of fewer

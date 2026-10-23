@@ -1,7 +1,8 @@
 # state-frame-prior: the derived data's records on dbartsData, and every door reading them
 
 Status: SLICE 1 LANDED 2026-10-23 (48e4428f..954235cb, dec-A222; [Slice 1 as built](#slice-1-as-built),
-[Landing note, slice 1](#landing-note-slice-1)); slices 2 and 3 built, not landed. PLANNED 2026-10-17; revised from its blind critique (scratch/sfdc-crit.md, sound after revisions;
+[Landing note, slice 1](#landing-note-slice-1)); SLICE 2 LANDED 2026-10-23 (ac9f7acf..ee5d9fdf, dec-A223; [Slice 2 as
+built](#slice-2-as-built), [Landing note, slice 2](#landing-note-slice-2)); slice 3 built, not landed. PLANNED 2026-10-17; revised from its blind critique (scratch/sfdc-crit.md, sound after revisions;
 [Revision from critique](#revision-from-critique)) and then to the maintainer's rulings dec-B457 to dec-B461
 ([Revision to the rulings](#revision-to-the-rulings)). No call open. Design:
 [state-frame-prior.md](../design/state-frame-prior.md). Rests on dec-B231 to dec-B233, dec-B237, dec-B304,
@@ -1011,3 +1012,25 @@ test-standardization-record.R 260 expectations, none failed; the full suite in o
 lint (0 lints), air, rc-codoc, win-drift, doc-freshness and verify-anchors clean, each on its own exit status.
 The review's probe14 gives every case its own values, the key switching between names and `columns` as the
 names allow.
+
+## Landing note, slice 2
+
+Slice 2 landed 2026-10-23 as ac9f7acf..ee5d9fdf on 030b39f0, 13 commits: the slice, its notes and record
+(ac9f7acf to 1294c756), and after one opus review, FIX FIRST, four fix rounds checked by the same reviewer (3f555674
+to ee5d9fdf), the last three on ways a covariate could take another column's center and scale, closed by keying
+the record by name only where each leaf name names exactly one column and by column position otherwise. It was
+built on slice 1 before slice 1's fix round and moved onto slice 1's landing with `git rebase --onto`, resolving
+the records reader's second argument beside the fourth element. The calls are dec-A223.
+
+Gates on ce2047e8 and the later rounds' are in the fix rounds above. The x86-64 leg on 69123334, the first fix
+round's tip, the later rounds changing R alone: tests/cpp 409 ok, plain and under ASAN with the leak sanitizer;
+the suite 28779 results, 0 failed; the equivalence compare 55 of 55 statistically indistinguishable; the BCF and
+multinomial compares within the cross-host tier 1 bound.
+
+Not run: Windows; bartCause's and treatSens's suites (stan4bart's passes, 1545 results).
+
+Size against the plan: the engine adds 267 lines and removes 242 with the fix rounds, against a stop of 220 added
+for the slice (136 at the build); the slice with its fixes adds about 2280 against 1700, the excess the pins the
+fix rounds asked for.
+
+Left: slice 3, built on slice 2 before its fix rounds and moved onto this landing next.
