@@ -218,8 +218,11 @@ expect_identical(copied$state, current)
 expect_identical(sampler$state, older)
 expect_identical(recordOf(copied), recordOf(sampler))
 expect_identical(sampler$data@cutPoints[[1L]], three)
-# the copy draws as a second copy of the same chain
+# the copy draws as a second copy of the same chain, and continues the
+# source, an install agreeing with a chain run on to the last few digits
 expect_identical(copied$run(0L, 20L), sampler$copy()$run(0L, 20L))
+continued <- sampler$copy()
+expect_equal(continued$run(0L, 20L), sampler$run(0L, 20L), tolerance = 1e-12)
 # and so for a multinomial sampler
 sampler <- fixtures$multinomial()
 sampler$storeState()
@@ -251,6 +254,22 @@ expect_null(twin$setState(older, forceUpdate = TRUE))
 expect_identical(liveOf(stateOf(reloaded)), liveOf(stateOf(twin)))
 expect_identical(reloaded$state, stateOf(reloaded))
 expect_false(identical(liveOf(reloaded$state), liveOf(older)))
+# a reload handed its own field at its first call takes it, the field then
+# its engine's; a copy made before the engine is rebuilt holds its engine's
+# state as its field and takes it back
+first <- reloadOf(sampler)
+expect_true(first$setState(first$state))
+expect_identical(first$state, stateOf(first))
+deadCopy <- reloadOf(sampler)$copy()
+expect_identical(deadCopy$state, stateOf(deadCopy))
+expect_true(deadCopy$setState(deadCopy$state))
+# a hand-edited grid out of order is sorted at the reload, the stored splits
+# on it already
+sampler$storeState()
+edited <- reloadOf(sampler)
+edited$data@cutPoints[[1L]] <- rev(three)
+expect_identical(liveOf(stateOf(edited)), liveOf(sampler$state))
+expect_identical(cutPointsOf(edited)[[1L]], three)
 
 # ---- copy of a live sampler with a current field ---------------------------
 
@@ -276,6 +295,14 @@ bare <- reloadOf(sampler)
 bare$state <- NULL
 expect_null(bare$setState(handedState, forceUpdate = TRUE))
 expect_identical(lengths(cutPointsOf(bare)), c(3L, 100L))
+# with no saved state a copy is refused as a reload is, run or not
+for (runFirst in c(FALSE, TRUE)) {
+  stateless <- reloadOf(make(run = runFirst))
+  expect_null(stateless$state, info = runFirst)
+  for (call in list(stateless$copy, function() stateless$run(0L, 1L))) {
+    expect_error(call(), "without a stored state", info = runFirst)
+  }
+}
 
 # ---- carried at creation ---------------------------------------------------
 
@@ -284,16 +311,19 @@ expect_identical(lengths(cutPointsOf(bare)), c(3L, 100L))
 xWeighted <- cbind(v = rep_len(0:29, n)^2 / 100, b = x[, 2L])
 sampler <- make(data = xWeighted, run = FALSE)
 sampler$setCutPoints(three, 2L)
-sampler$setPredictor(xWeighted[, 1L], 1L, updateCutPoints = "value")
+created <- sampler$data@cutPoints[[1L]]
+sampler$setPredictor(2 * xWeighted[, 1L], 1L, updateCutPoints = "value")
+expectRecordIsReader(sampler, "setPredictor")
 # the range taken from one response and held while another is handed over
 sampler$setResponse(3 * y + 10, updateScale = TRUE)
 sampler$setResponse(y)
 carried <- sampler$data
 expect_identical(carried@cutPoints[[2L]], three)
 expect_false(is.null(attr(carried@cutPoints[[1L]], "mass")))
+expect_false(identical(carried@cutPoints[[1L]], created))
 expect_identical(carried@response.range, range(3 * y + 10))
 expect_identical(carried@y, y)
-fresh <- dbarts::dbartsData(xWeighted, carried@y)
+fresh <- dbarts::dbartsData(carried@x, carried@y)
 spec <- dbarts::dbartsSpec(carried, control = controlWith())
 doors <- list(
   new = new("dbartsSampler", sampler$control, sampler$model, carried),
@@ -325,8 +355,12 @@ priorOf <- function(sampler) {
   set.seed(5L)
   dbarts::samplePriorPredictive(sampler, n.samples = 3L)
 }
+gridless <- carried
+gridless@cutPoints <- NULL
+gridless <- new("dbartsSampler", sampler$control, sampler$model, gridless)
+expect_identical(gridless$data@response.range, carried@response.range)
 expect_identical(priorOf(sampler), priorOf(doors$new))
-expect_false(identical(priorOf(sampler), priorOf(derived)))
+expect_false(identical(priorOf(sampler), priorOf(gridless)))
 
 # ---- xbart ignores ---------------------------------------------------------
 
@@ -468,6 +502,15 @@ unsorted <- dbarts::dbarts(
 )
 expect_identical(unsorted$data@cutPoints, list(three, three))
 expect_identical(cutPointsOf(unsorted), list(three, three))
+# each point keeps its weight: 0.75, 0.5 and 0.25 weighing 1, 2 and 3
+weighted <- rev(three)
+attr(weighted, "mass") <- c(0, 1, 3, 6)
+unsorted <- dbarts::dbarts(
+  withSlot("cutPoints", list(weighted, three)),
+  control = controlWith()
+)
+expect_identical(attr(unsorted$data@cutPoints[[1L]], "mass"), c(0, 3, 5, 6))
+expect_identical(attr(stateOf(unsorted), "cutMass")[[1L]], c(0, 3, 5, 6))
 # an ordered factor's grid is its levels', and a factor's entry is NULL
 frame <- data.frame(a = x[, 1L], o = ordered(rep_len(1:4, n)))
 ordinal <- dbarts::dbarts(frame, y, control = controlWith())

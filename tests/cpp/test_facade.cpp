@@ -1046,6 +1046,13 @@ const Row rows[] = {
       records.cutMass == f.g.impl().data().cutMass && records.hasRange &&
       records.rangeMin == lo && records.rangeMax == hi &&
       std::isnan(records.forestAnchor) && std::isnan(records.forestUnit);
+    // a read without the grids gives the same transform and none of them
+    DerivedRecords rangeOnly;
+    rangeOnly.withGrids = false;
+    f.g.base().derivedRecords(rangeOnly);
+    gaussian = gaussian && rangeOnly.cutPoints.empty() &&
+      rangeOnly.cutMass.empty() && rangeOnly.hasRange &&
+      rangeOnly.rangeMin == lo && rangeOnly.rangeMax == hi;
     DerivedRecords softmax;
     f.m.base().derivedRecords(softmax);
     bool multinomial = softmax.cutPoints == f.m.impl().data().cutPoints &&
