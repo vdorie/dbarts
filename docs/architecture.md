@@ -404,10 +404,12 @@ mutations are legal when. Three kinds:
   of observations. It first checks every factor cell of the replacement and
   of any test matrix against each column's fixed level table, and refuses the
   whole call, leaving the sampler untouched, if any cell is not a known
-  level. Past that check it is not transactional: cut points are rebuilt,
-  each existing split moves to the nearest new cut, and any subtree left
-  empty or invalid collapses. It always re-derives the response transform and
-  re-anchors a variance forest with it.
+  level. Past that check it is not transactional: the cut points, the leaf
+  covariate standardization and the response transform are each derived
+  again, kept or taken from the host's record (`DataReplacement`); a split on
+  a column whose grid changed moves to the nearest new cut, or by position
+  where a derivation says so, and any subtree left empty or invalid
+  collapses. A transform that moves re-anchors a variance forest with it.
 - **Predictor-side** (`setPredictor`, `updatePredictor`, and the
   per-observation session API): transactional, with three outcomes -
   `enum class PredictorUpdateResult { accepted, rolledBack,

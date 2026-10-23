@@ -1,6 +1,6 @@
 # Derived data on the data object: the cut grid, the leaf standardization and the response range
 
-Status: DECIDED 2026-10-17; slices 1 and 2 of the plan LANDED 2026-10-23 (954235cb, ee5d9fdf; calls dec-A222, dec-A223); revised from its blind critique and then to the maintainer's rulings.
+Status: DECIDED 2026-10-17; slices 1 and 2 of the plan LANDED 2026-10-23 (954235cb, ee5d9fdf; calls dec-A222, dec-A223), slice 3 built, not yet landed; revised from its blind critique and then to the maintainer's rulings.
 Plan: [state-frame-prior.md](../plans/state-frame-prior.md). Rulings: dec-B231, dec-B232 and dec-B233, with
 dec-B200 as dec-B418 revises it, dec-B230, dec-B237, dec-B304, dec-B305, dec-B310, dec-B329, dec-B330, dec-B449,
 dec-B450, and for this design dec-B457 to dec-B461 ([Rulings](#rulings)) in docs/decisions.md; dec-A159 (the

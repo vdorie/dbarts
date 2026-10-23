@@ -153,14 +153,16 @@ setPredictor/updatePredictor/per-observation sessions re-route
 observations; the GP leaf regathers covariates under existing constants
 (regatherTrainingCovariates precedent) and the transactional
 snapshot/rollback of fits already covers function-valued leaves because
-fits ARE the parameters. setData reinitializes constants like the
-rebuilt cut grid; a kept draw replays only under the constants it was
-drawn with, so a sampler holding one refuses setData and a re-derived
-response range, and a warm start leaves the destination's alone
-([leaf-conversions.md](leaf-conversions.md)). The standardization constants and the heuristic
-lengthscales ride the chain state (ForestStateData::leafCovariateCenters,
-leafCovariateScales, leafLengthscales), as the linear leaf's do, so a
-re-creation over updated values restores what the live sampler kept. No new refusals expected beyond what linear leaves
+fits ARE the parameters. setData derives, keeps or takes the constants
+as it does the cut grid ([`DataReplacement`](../../src/bartcore/data.hpp)); a kept draw replays only under the
+constants it was drawn with, so a sampler holding one refuses a setData
+that would change them or the response range, and takes one that keeps
+both, and a warm start leaves the destination's alone
+([leaf-conversions.md](leaf-conversions.md)). The data object records the constants and the heuristic
+lengthscales, which a re-creation takes
+([state-frame-prior.md](state-frame-prior.md)); the chain state
+records the ones its draws were stored under (ForestStateData::leafCovariateCenters,
+leafCovariateScales, leafLengthscales), which an install compares. No new refusals expected beyond what linear leaves
 impose today; stage 3 verifies each path with component tests rather
 than assuming.
 
