@@ -109,7 +109,8 @@ expect_error(
     sampler$data,
     "value",
     "derive",
-    "derive"
+    "derive",
+    NULL
   ),
   pattern = "owns its predictors"
 )
@@ -121,7 +122,8 @@ expect_error(
     sampler$data,
     "value",
     "derive",
-    "derive"
+    "derive",
+    NULL
   ),
   pattern = "^\\$setData: requires"
 )

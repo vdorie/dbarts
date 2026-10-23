@@ -204,9 +204,7 @@ static void testColumnStoreColumnSubset() {
           viewFull.requestedNumCuts == viewDefault.requestedNumCuts &&
           viewFull.test.codes == viewDefault.test.codes &&
           viewFull.gatheredRawColumns == viewDefault.gatheredRawColumns &&
-          viewFull.gatheredRawValues == viewDefault.gatheredRawValues &&
-          viewFull.gatheredMeans == viewDefault.gatheredMeans &&
-          viewFull.gatheredSds == viewDefault.gatheredSds,
+          viewFull.gatheredRawValues == viewDefault.gatheredRawValues,
         "an all-columns view matches the default view path byte-for-byte");
 
   // a column subset spans only its columns, each binned identically to the
@@ -249,11 +247,8 @@ static void testColumnStoreColumnSubset() {
     gatherView.gatheredRawColumns[0] == 0 && raw != nullptr;
   for (size_t i = 0; i < rows.size() && gatherMatches; ++i)
     gatherMatches = raw[i] == x[rows[i] + n];
-  double mean, sd, parentMean, parentSd;
-  standardizationMomentsForColumn(x.data() + n, n, &parentMean, &parentSd);
-  gatherMatches = gatherMatches &&
-    gatherView.suppliedStandardization(0, &mean, &sd) && mean == parentMean &&
-    sd == parentSd;
+  // the view carries the subset's values and no constants: a leaf over it
+  // derives its own from them (testViewLeafDerivesOwnRows)
   check(gatherMatches,
         "subset view gathers a leaf covariate through the column map");
 
@@ -3206,12 +3201,8 @@ static void testViewOverCodedAndMixedParent() {
       ok = raw[i] == values[n + rows[i]];
     for (size_t i = 0; i < testRows.size() && ok; ++i)
       ok = rawTest[i] == values[n + testRows[i]];
-    // the constants are the parent's full-data ones, not the subset's
-    double mean, sd, parentMean, parentSd;
-    standardizationMomentsForColumn(values.data() + n, n, &parentMean,
-                                    &parentSd);
-    ok = ok && view.suppliedStandardization(1, &mean, &sd) &&
-      mean == parentMean && sd == parentSd;
+    // the values alone: a leaf over the view derives its constants from
+    // them, the subset's own rows
     check(ok, what);
   };
 

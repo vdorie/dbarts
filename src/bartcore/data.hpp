@@ -172,8 +172,11 @@ enum class DerivedValueChoice { derive, keep, supply };
 /// by value, and a kept one moves none. suppliedGrid is read under supply, a
 /// numeric column without an entry deriving; suppliedStandardization under
 /// supply; rangeMin and rangeMax under supply, in the form a chain's getScale
-/// reports, and ignored by a family that carries no units. Borrowed for the
-/// call; the host checks the values.
+/// reports, and ignored by a family that carries no units. activeRows is the
+/// 0/1 mask the host installs once the replacement is in, one value per new
+/// row, null for none: read only for the rows a derived leaf standardization
+/// is read from, the replacement dropping every mask in force. Borrowed for
+/// the call; the host checks the values.
 struct DataReplacement {
   DerivedValueChoice grid = DerivedValueChoice::derive;
   SplitPlacement placement = SplitPlacement::byValue;
@@ -182,6 +185,7 @@ struct DataReplacement {
   SuppliedStandardization suppliedStandardization;
   DerivedValueChoice range = DerivedValueChoice::derive;
   double rangeMin = 0.0, rangeMax = 0.0;
+  const double* activeRows = nullptr;
 };
 
 /// One dense column's raw as ingestion reads it: the host's doubles, or its
@@ -211,21 +215,26 @@ struct DenseColumnValues {
   }
 };
 
-/// Mean and sample sd of the observed (non-missing) values of a raw column:
-/// the leaf-covariate standardization constants. A constant (or all-missing)
-/// column keeps sd 1 and is centred at its one value exactly, so it reads
-/// zero on every row: a mean taken through the sum can miss that value by
-/// rounding, which would leave a rounding-sized spread to divide by. One
-/// definition shared by LinearGaussianLeaf and the view gather in
-/// buildFromParent, so a full-rows view standardizes bit-identically to a
+/// Mean and sample sd of the observed (non-missing) values of a raw column
+/// over the rows \p rows marks (a nonzero byte each; null reads every row):
+/// the leaf-covariate standardization constants, unweighted. A constant (or
+/// all-missing) column keeps sd 1 and is centred at its one value exactly, so
+/// it reads zero on every row: a mean taken through the sum can miss that
+/// value by rounding, which would leave a rounding-sized spread to divide by.
+/// One definition, so a full-rows view standardizes bit-identically to a
 /// sampler over the raw data.
-inline void standardizationMomentsForColumn(const double* column, size_t n,
-                                            double* mean_, double* sd_) {
+///
+/// \returns true where the rows read hold fewer than two distinct observed
+/// values, one or none, which leaves no scale to take: the constants are then
+/// that placeholder.
+inline bool standardizationMomentsForColumn(const double* column, size_t n,
+                                            double* mean_, double* sd_,
+                                            const std::uint8_t* rows = nullptr) {
   double total = 0.0, first = 0.0;
   size_t numObserved = 0;
   bool isConstant = true;
   for (size_t i = 0; i < n; ++i) {
-    if (isNA(column[i])) continue;
+    if ((rows != nullptr && rows[i] == 0) || isNA(column[i])) continue;
     if (numObserved == 0) first = column[i];
     else if (column[i] != first) isConstant = false;
     total += column[i];
@@ -234,7 +243,7 @@ inline void standardizationMomentsForColumn(const double* column, size_t n,
   double mean = isConstant ? first : total / static_cast<double>(numObserved);
   double sumOfSquares = 0.0;
   for (size_t i = 0; i < n; ++i)
-    if (!isNA(column[i]))
+    if ((rows == nullptr || rows[i] != 0) && !isNA(column[i]))
       sumOfSquares += (column[i] - mean) * (column[i] - mean);
   double sd = numObserved > 1
     ? std::sqrt(sumOfSquares / static_cast<double>(numObserved - 1))
@@ -242,6 +251,7 @@ inline void standardizationMomentsForColumn(const double* column, size_t n,
   if (!(sd > 0.0)) sd = 1.0;
   *mean_ = mean;
   *sd_ = sd;
+  return isConstant;
 }
 
 /// A column's semantic kind, which fixes how its values are read. A numeric
@@ -882,10 +892,9 @@ struct ColumnStore {
   // later change would not relayout anything. Copies with the store, so a
   // view built from a parent keeps the parent's choice.
   double sparseDensityCutoff = sparseDensityThreshold;
-  // Provenance: built from a parent store (buildFromParent). Gates only the
-  // parent-derived standardization constants (suppliedStandardization);
-  // refusal decisions read the capability predicates hasRequantizeSource and
-  // acceptsNewRawPredictors instead.
+  // Provenance: built from a parent store (buildFromParent). Refusal
+  // decisions read the capability predicates hasRequantizeSource and
+  // acceptsNewRawPredictors.
   bool isView = false;
 
   std::vector<ColumnKind> types;
@@ -1018,9 +1027,8 @@ struct ColumnStore {
   // Owned raw values of designated columns. build gathers a sampler's leaf
   // covariates (or a data handle's declared columns) so rawColumn serves owned
   // memory after the build borrow releases; buildFromParent gathers a view's
-  // leaf covariates from its parent, with standardization constants from the
-  // parent's full training data - the same calibration inheritance as the
-  // copied cut grid, so every fold runs the prior a full-data fit would.
+  // leaf covariates from its parent, and a leaf over the view standardizes
+  // them over the view's own rows, as a sampler created on those rows would.
   std::vector<size_t> gatheredRawColumns;
   std::vector<double> gatheredRawValues;      // column-major, numObservations x q
   // the test-side twin, with its OWN column list because the two sides gather
@@ -1030,8 +1038,6 @@ struct ColumnStore {
   // designation. Slots index gatheredRawTestColumns, never gatheredRawColumns.
   std::vector<size_t> gatheredRawTestColumns;
   std::vector<double> gatheredRawTestValues;  // column-major, numTestObservations x its columns
-  std::vector<double> gatheredMeans;
-  std::vector<double> gatheredSds;
 
   // Owned dense block of a mixed build, holding its REAL-VALUED dense-backed
   // columns and packed per predictor over the columns it serves; every
@@ -1140,18 +1146,6 @@ struct ColumnStore {
       return gatheredRawTestValues.data() +
              static_cast<size_t>(slot) * numTestObservations;
     return nullptr;
-  }
-
-  /// Parent-derived standardization constants for column j, when the store
-  /// is a view that gathered them; false tells the caller to compute its own
-  /// (the top-level store standardizes from its own gathered values).
-  bool suppliedStandardization(size_t j, double* mean, double* sd) const {
-    if (!isView) return false;
-    std::int32_t slot = gatheredSlotForColumn(j);
-    if (slot < 0) return false;
-    *mean = gatheredMeans[static_cast<size_t>(slot)];
-    *sd = gatheredSds[static_cast<size_t>(slot)];
-    return true;
   }
 
   // Ordinal codes are k such that cutPoints[k - 1] < value <= cutPoints[k],
@@ -1831,8 +1825,6 @@ struct ColumnStore {
     gatheredRawValues.assign(numGatherColumns * numObservations, 0.0);
     gatheredRawTestColumns.clear();
     gatheredRawTestValues.clear();
-    gatheredMeans.clear();
-    gatheredSds.clear();
   }
 
   /// Reset the per-column source storage to the dense-empty baseline: every
@@ -1853,8 +1845,6 @@ struct ColumnStore {
     gatheredRawValues.clear();
     gatheredRawTestColumns.clear();
     gatheredRawTestValues.clear();
-    gatheredMeans.clear();
-    gatheredSds.clear();
     // no CSC-backed columns until a CSC/mixed build re-sizes these; a dense
     // build leaves them empty and never reaches the mutation-owned path
     ownedCscRows.clear();
@@ -2359,10 +2349,11 @@ struct ColumnStore {
   /// re-quantizable raw (hasRequantizeSource is false), which rules out every
   /// mutation and re-quantize path here; callers enforce that; isView records
   /// the provenance. rawColumnsToGather names the
-  /// view's own columns whose raw values a leaf model reads (linear leaves):
-  /// their subset values and parent-derived standardization constants are
-  /// copied so rawColumn and suppliedStandardization serve them. The view is
-  /// self-contained: nothing references the parent after this returns.
+  /// view's own columns whose raw values a leaf model reads (linear and gp
+  /// leaves): their subset values are copied so rawColumn serves them, and a
+  /// leaf over the view derives its standardization from them, its own rows.
+  /// The view is self-contained: nothing references the parent after this
+  /// returns.
   void buildFromParent(const ColumnStore& parent, const size_t* rows,
                        size_t numRows, const size_t* testRows,
                        size_t numTestRows,
@@ -2427,20 +2418,12 @@ struct ColumnStore {
       gatheredRawTestColumns.push_back(rawColumnsToGather[k]);
       gatheredRawValues.resize(gatheredRawValues.size() + numRows);
       gatheredRawTestValues.resize(gatheredRawTestValues.size() + numTestRows);
-      gatheredMeans.resize(slot + 1);
-      gatheredSds.resize(slot + 1);
       double* values = gatheredRawValues.data() + slot * numRows;
       for (size_t i = 0; i < numRows; ++i)
         values[i] = parentColumn[rows[i]];
       double* testValues = gatheredRawTestValues.data() + slot * numTestRows;
       for (size_t i = 0; i < numTestRows; ++i)
         testValues[i] = parentColumn[testRows[i]];
-      double mean, sd;
-      if (!parent.suppliedStandardization(parentColumnIndex, &mean, &sd))
-        standardizationMomentsForColumn(parentColumn, parent.numObservations,
-                                        &mean, &sd);
-      gatheredMeans[slot] = mean;
-      gatheredSds[slot] = sd;
     }
     for (size_t j = 0; j < numPredictors; ++j) {
       xint_t missingCode = splitsBySubset(j)

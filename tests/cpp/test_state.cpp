@@ -2441,6 +2441,17 @@ static void testNoSpreadLiveConversion() {
     return rngs.data() + rngs.size() - numChains;
   };
   const size_t covariates[] = {1};
+  // a derivation over a column of one value is refused, so a constant
+  // column's center comes from a supplied record without spread, as a host's
+  // carried one would: the value the placeholder centers at
+  const double noScale = std::numeric_limits<double>::quiet_NaN();
+  auto constantOf = [&](const std::vector<double>& x, double* value) {
+    size_t rows = x.size() / p;
+    *value = x[rows];
+    for (size_t i = 1; i < rows; ++i)
+      if (x[i + rows] != *value) return false;
+    return true;
+  };
   auto make = [&](const std::vector<double>& x, std::uint32_t seed) {
     SamplerOptions options;
     options.numTrees = numTrees;
@@ -2449,6 +2460,10 @@ static void testNoSpreadLiveConversion() {
     options.numSamplesToStore = numKept;
     options.leafCovariateColumns = covariates;
     options.numLeafCovariates = 1;
+    double constant;
+    if (constantOf(x, &constant))
+      options.suppliedStandardization =
+        SuppliedStandardization{&constant, &noScale};
     return createSampler(x.data(), y.data(), x.size() / p, p, nullptr, nullptr,
                          ResponseFamily::gaussian, 1.0, 3.0,
                          0.37804942330213542, options, newRngs(seed));
@@ -2529,8 +2544,15 @@ static void testNoSpreadLiveConversion() {
     double anchorMin, anchorMax, newMin, newMax;
     sampler.getAnchor(anchorMin, anchorMax);
     std::vector<double> grid(sampler.data().cutPoints[0]);
+    double constant;
+    DataReplacement replacement;
+    if (constantOf(x, &constant)) {
+      replacement.standardization = DerivedValueChoice::supply;
+      replacement.suppliedStandardization =
+        SuppliedStandardization{&constant, &noScale};
+    }
     bool installed = sampler.setData(x.data(), y.data(), x.size() / p, nullptr,
-                                     nullptr, nullptr, 0, nullptr);
+                                     nullptr, nullptr, 0, nullptr, replacement);
     sampler.getAnchor(newMin, newMax);
     check(installed && newMin == anchorMin && newMax == anchorMax &&
             sampler.data().cutPoints[0] == grid,
@@ -6446,8 +6468,8 @@ static void testSuppliedStandardization() {
           "force and no record's");
   }
 
-  // a sampler over a pre-built store takes its constants from the parent's
-  // data, whatever the options supply
+  // a sampler over a pre-built store derives its constants over its own
+  // rows, whatever the options supply: here every row, a full data's
   {
     ColumnStore parent;
     check(parent.build(x.data(), n, p, 100, false, nullptr, covariates, 1),
@@ -6697,6 +6719,374 @@ static void testSuppliedCutGrid() {
   for (ext_rng* r : rngs) ext_rng_destroy(r);
   rngState = savedRngState;
   printf("ok: a creation build takes the grids it is handed\n");
+}
+
+/// A linear or gp leaf derives its covariates' center, scale and default
+/// lengthscale over the rows in the likelihood: membership by positive weight
+/// and the mask, every row where none is in. Too little of a covariate over
+/// those rows refuses a derivation (the stated-lengthscale gp taking the
+/// placeholder) and keeps it at a re-derivation.
+static void testLeafStandardizationRows() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 2236067u;
+  const size_t n = 1200, p = 2, numChains = 2;
+  std::vector<double> x(n * p), y(n), binary(n), count(n), w(n), mask(n);
+  for (size_t i = 0; i < n; ++i) {
+    bool in = i % 5 != 2;
+    x[i] = runif01();
+    // the rows out lie far off, so the rows in's numbers are not every row's
+    x[i + n] = in ? 2.0 * runif01() - 1.0 : 40.0 + 10.0 * runif01();
+    y[i] = std::sin(4.0 * x[i]) + 0.2 * (runif01() - 0.5);
+    binary[i] = y[i] > 0.0 ? 1.0 : 0.0;
+    count[i] = std::floor(3.0 * x[i]) + static_cast<double>(i % 2);
+    w[i] = in ? 1.0 : 0.0;
+    mask[i] = w[i];
+  }
+  // a row in missing it, among those the heuristic's stride takes
+  x[n + 3] = std::numeric_limits<double>::quiet_NaN();
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  std::vector<std::uint8_t> rowsIn(n);
+  for (size_t i = 0; i < n; ++i) rowsIn[i] = w[i] > 0.0 ? 1 : 0;
+  // the moments over the rows in, by hand
+  double total = 0.0, squares = 0.0;
+  size_t observed = 0;
+  for (size_t i = 0; i < n; ++i)
+    if (rowsIn[i] != 0 && !std::isnan(x[i + n])) {
+      total += x[i + n];
+      ++observed;
+    }
+  double center = total / static_cast<double>(observed);
+  for (size_t i = 0; i < n; ++i)
+    if (rowsIn[i] != 0 && !std::isnan(x[i + n]))
+      squares += (x[i + n] - center) * (x[i + n] - center);
+  double scale = std::sqrt(squares / static_cast<double>(observed - 1));
+  // the heuristic over the rows in: a stride over those rows, a missing row
+  // counted at 0
+  std::vector<double> sampled;
+  {
+    size_t m = 0;
+    for (size_t i = 0; i < n; ++i) m += rowsIn[i];
+    size_t stride = 1 + (m - 1) / 512;
+    for (size_t i = 0, k = 0; i < n; ++i) {
+      if (rowsIn[i] == 0) continue;
+      if (k++ % stride != 0) continue;
+      sampled.push_back(std::isnan(x[i + n]) ? 0.0
+                                             : (x[i + n] - center) / scale);
+    }
+  }
+  std::vector<double> distances;
+  for (size_t a = 0; a < sampled.size(); ++a)
+    for (size_t b = a + 1; b < sampled.size(); ++b)
+      distances.push_back(std::fabs(sampled[a] - sampled[b]));
+  std::sort(distances.begin(), distances.end());
+  size_t numDistances = distances.size();
+  double heuristic = numDistances % 2 == 1
+    ? distances[numDistances / 2]
+    : 0.5 * (distances[numDistances / 2 - 1] + distances[numDistances / 2]);
+  auto near = [](double a, double b) {
+    return std::fabs(a - b) <= 1e-12 * std::max(1.0, std::fabs(b));
+  };
+
+  // the moments: over a row set the literals; a null or all-ones set
+  // today's bits; too little answered for one row, one value, no observed
+  // value, and every row at one value
+  {
+    double mean, sd, allMean, allSd, onesMean, onesSd;
+    bool tooLittle = standardizationMomentsForColumn(x.data() + n, n, &mean,
+                                                     &sd, rowsIn.data());
+    check(!tooLittle && near(mean, center) && near(sd, scale),
+          "leaf rows: the moments over the rows in");
+    std::vector<std::uint8_t> ones(n, 1);
+    standardizationMomentsForColumn(x.data() + n, n, &allMean, &allSd);
+    standardizationMomentsForColumn(x.data() + n, n, &onesMean, &onesSd,
+                                    ones.data());
+    check(std::memcmp(&allMean, &onesMean, sizeof(double)) == 0 &&
+            std::memcmp(&allSd, &onesSd, sizeof(double)) == 0,
+          "leaf rows: an all-ones row set reads today's bits");
+    std::vector<std::uint8_t> one(n, 0);
+    one[0] = 1;
+    std::vector<double> atTwo(x.begin() + n, x.end());
+    for (size_t i = 0; i < n; ++i)
+      if (rowsIn[i] != 0) atTwo[i] = 2.0;
+    std::vector<double> missing(atTwo);
+    for (size_t i = 0; i < n; ++i)
+      if (rowsIn[i] != 0) missing[i] = nan;
+    std::vector<double> flat(n, 0.5);
+    check(standardizationMomentsForColumn(x.data() + n, n, &mean, &sd,
+                                          one.data()) &&
+            standardizationMomentsForColumn(atTwo.data(), n, &mean, &sd,
+                                            rowsIn.data()) &&
+            mean == 2.0 && sd == 1.0 &&
+            standardizationMomentsForColumn(missing.data(), n, &mean, &sd,
+                                            rowsIn.data()) &&
+            standardizationMomentsForColumn(flat.data(), n, &mean, &sd) &&
+            !standardizationMomentsForColumn(atTwo.data(), n, &mean, &sd),
+          "leaf rows: one row, one value, none observed and a constant "
+          "column hold too little, the rows out at other values not");
+  }
+
+  std::vector<ext_rng*> rngs;
+  auto newRngs = [&](std::uint32_t seed) {
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), seed + static_cast<std::uint32_t>(c));
+    }
+    return rngs.data() + rngs.size() - numChains;
+  };
+  rngs.reserve(64);
+  const size_t covariates[] = {1};
+  const size_t bothCovariates[] = {0, 1};
+  auto optionsFor = [&](bool gp, const double* active = nullptr,
+                        SuppliedStandardization supplied = {},
+                        bool both = false) {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.numChains = numChains;
+    options.leafCovariateColumns = both ? bothCovariates : covariates;
+    options.numLeafCovariates = both ? 2 : 1;
+    options.gpLeaves = gp;
+    options.gpMaxLeafSize = 60;
+    options.activeRows = active;
+    options.suppliedStandardization = supplied;
+    options.shape = 3.0;
+    return options;
+  };
+  auto make = [&](const std::vector<double>& xs, const double* ys,
+                  const double* weights, ResponseFamily family,
+                  const SamplerOptions& options, std::uint32_t seed) {
+    return createSampler(xs.data(), ys, n, p, weights, nullptr, family, 1.0,
+                         3.0, 0.37804942330213542, options, newRngs(seed));
+  };
+  auto draws = [&](SamplerBase& sampler, size_t sweeps) {
+    std::vector<double> fits(n * numChains * sweeps);
+    Results results;
+    results.trainingFits = fits.data();
+    sampler.run(0, sweeps, results);
+    return fits;
+  };
+  auto bits = [](const std::vector<double>& a, const std::vector<double>& b) {
+    return a.size() == b.size() &&
+           std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0;
+  };
+
+  // at creation, by weight under gaussian and by the creation mask under
+  // probit and nbinom: the literals, the gp heuristic among them, and the
+  // draws of a sampler handed the same numbers as a record, bit for bit
+  struct Family {
+    const char* name;
+    ResponseFamily family;
+    const double* y;
+    bool byMask;
+  };
+  const Family families[] = {
+    {"gaussian", ResponseFamily::gaussian, y.data(), false},
+    {"probit", ResponseFamily::probit, binary.data(), true},
+    {"nbinom", ResponseFamily::nbinom, count.data(), true}};
+  for (const Family& f : families) {
+    for (bool gp : {false, true}) {
+      std::string name = std::string("leaf rows, ") + f.name +
+                         (gp ? ", gp" : ", linear");
+      const double* weights = f.byMask ? nullptr : w.data();
+      std::unique_ptr<SamplerBase> derived =
+        make(x, f.y, weights, f.family,
+             optionsFor(gp, f.byMask ? mask.data() : nullptr), 10);
+      DerivedRecords records;
+      derived->derivedRecords(records);
+      check(records.leafCenters.size() == 1 &&
+              near(records.leafCenters[0], center) &&
+              near(records.leafScales[0], scale) &&
+              (!gp || near(records.leafLengthscales[0], heuristic)) &&
+              records.leafFromAllRows == std::vector<std::uint8_t>{0},
+            (name + ": the numbers over the rows in").c_str());
+      SuppliedStandardization same{
+        records.leafCenters.data(), records.leafScales.data(),
+        gp ? records.leafLengthscales.data() : nullptr};
+      std::unique_ptr<SamplerBase> supplied =
+        make(x, f.y, weights, f.family, optionsFor(gp, nullptr, same), 10);
+      if (f.byMask) {
+        check(derived->setActiveRows(mask.data()) &&
+                supplied->setActiveRows(mask.data()),
+              (name + ": the mask installs").c_str());
+      }
+      check(bits(draws(*derived, 20), draws(*supplied, 20)),
+            (name + ": draws a record's twin draws, for 20 sweeps").c_str());
+    }
+  }
+
+  // no row in: every row read, and said; too little refused, naming the
+  // column, the gp leaf with stated lengthscales taking the placeholder
+  {
+    std::vector<double> none(n, 0.0);
+    std::unique_ptr<SamplerBase> sampler =
+      make(x, y.data(), none.data(), ResponseFamily::gaussian,
+           optionsFor(false), 20);
+    DerivedRecords records;
+    sampler->derivedRecords(records);
+    double mean, sd;
+    standardizationMomentsForColumn(x.data() + n, n, &mean, &sd);
+    check(records.leafCenters[0] == mean && records.leafScales[0] == sd &&
+            records.leafFromAllRows == std::vector<std::uint8_t>{1},
+          "leaf rows: no row in reads every row and says so");
+
+    std::vector<double> atTwo(x);
+    for (size_t i = 0; i < n; ++i)
+      if (rowsIn[i] != 0) atTwo[i + n] = 2.0;
+    for (bool gp : {false, true}) {
+      bool refused = false;
+      try {
+        make(atTwo, y.data(), w.data(), ResponseFamily::gaussian,
+             optionsFor(gp), 21);
+      } catch (const LeafStandardizationError& error) {
+        refused = error.covariate == 0 && error.column == 1 &&
+                  error.numRowsIn == 960 && error.numObservations == n &&
+                  error.observed;
+      }
+      check(refused, gp ? "leaf rows: gp refused, rows in at one value"
+                        : "leaf rows: linear refused, rows in at one value");
+    }
+    const double stated[] = {0.8};
+    SamplerOptions options = optionsFor(true);
+    options.gpLengthscales = stated;
+    std::unique_ptr<SamplerBase> placeholder =
+      make(atTwo, y.data(), w.data(), ResponseFamily::gaussian, options, 22);
+    placeholder->derivedRecords(records);
+    check(records.leafCenters[0] == 2.0 && records.leafScales[0] == 1.0 &&
+            records.leafLengthscales.empty(),
+          "leaf rows: a stated gp lengthscale takes the placeholder");
+  }
+
+  // a re-derivation over the rows in now, the weights and the mask in force:
+  // a covariate with too little kept and reported, the other derived, and a
+  // covariate not marked held
+  {
+    std::unique_ptr<SamplerBase> sampler =
+      make(x, y.data(), nullptr, ResponseFamily::gaussian,
+           optionsFor(false, nullptr, {}, true), 30);
+    DerivedRecords before, after;
+    sampler->derivedRecords(before);
+    sampler->setWeights(w.data());
+    const std::uint8_t onlyCovariate[] = {0, 1};
+    std::vector<std::uint8_t> kept =
+      sampler->rederiveStandardization(onlyCovariate);
+    sampler->derivedRecords(after);
+    check(kept == std::vector<std::uint8_t>{0, 0} &&
+            after.leafCenters[0] == before.leafCenters[0] &&
+            after.leafScales[0] == before.leafScales[0] &&
+            near(after.leafCenters[1], center) &&
+            near(after.leafScales[1], scale),
+          "leaf rows: the marked covariate over the rows in, another held");
+    // the mask in force joins the weights: the rows both keep
+    std::vector<double> mask2(n);
+    std::vector<std::uint8_t> both(n);
+    for (size_t i = 0; i < n; ++i) {
+      mask2[i] = i % 2 == 0 ? 1.0 : 0.0;
+      both[i] = rowsIn[i] != 0 && mask2[i] != 0.0 ? 1 : 0;
+    }
+    check(sampler->setActiveRows(mask2.data()),
+          "leaf rows: a mask installs on a gaussian sampler");
+    // a mask the chains refuse leaves the copy the one they hold
+    std::vector<double> refusedMask(n, 1.0);
+    refusedMask[1] = 0.5;
+    check(!sampler->setActiveRows(refusedMask.data()),
+          "leaf rows: a mask off 0 and 1 is refused");
+    sampler->rederiveStandardization(onlyCovariate);
+    sampler->derivedRecords(after);
+    double mean, sd;
+    standardizationMomentsForColumn(x.data() + n, n, &mean, &sd, both.data());
+    check(after.leafCenters[1] == mean && after.leafScales[1] == sd,
+          "leaf rows: a re-derivation reads the mask in force");
+    // a covariate at one value over the rows in is kept and reported
+    std::vector<double> atTwo(x.begin() + n, x.end());
+    for (size_t i = 0; i < n; ++i)
+      if (both[i] != 0) atTwo[i] = 2.0;
+    const size_t column[] = {1};
+    check(sampler->updatePredictor(atTwo.data(), column, 1, true, false) ==
+            PredictorUpdateResult::accepted,
+          "leaf rows: the column update installs");
+    DerivedRecords held;
+    sampler->derivedRecords(held);
+    kept = sampler->rederiveStandardization();
+    sampler->derivedRecords(after);
+    check(kept == std::vector<std::uint8_t>{0, 1} &&
+            after.leafCenters[1] == held.leafCenters[1] &&
+            after.leafScales[1] == held.leafScales[1],
+          "leaf rows: too little kept at a re-derivation, and reported");
+    // no row in: every covariate kept
+    std::vector<double> none(n, 0.0);
+    sampler->setWeights(none.data());
+    kept = sampler->rederiveStandardization();
+    check(kept == std::vector<std::uint8_t>{1, 1},
+          "leaf rows: no row in keeps every covariate");
+  }
+
+  // a whole-data replacement derives over its own rows in, the mask it is
+  // handed with them; a refused one leaves the sampler as an untouched
+  // twin's, bit for bit
+  {
+    std::unique_ptr<SamplerBase> sampler =
+      make(x, binary.data(), nullptr, ResponseFamily::probit,
+           optionsFor(false, mask.data()), 40);
+    check(sampler->setActiveRows(mask.data()),
+          "leaf rows: the creation mask installs");
+    const size_t m = n / 2;
+    std::vector<double> xHalf(m * p), yHalf(m), maskHalf(m);
+    std::vector<std::uint8_t> halfIn(m);
+    for (size_t i = 0; i < m; ++i) {
+      xHalf[i] = x[i];
+      xHalf[i + m] = x[i + n] + 1.0;
+      yHalf[i] = binary[i];
+      maskHalf[i] = i % 4 == 0 ? 0.0 : 1.0;
+      halfIn[i] = maskHalf[i] != 0.0 ? 1 : 0;
+    }
+    DataReplacement replacement;
+    replacement.activeRows = maskHalf.data();
+    check(sampler->setData(xHalf.data(), yHalf.data(), m, nullptr, nullptr,
+                           nullptr, 0, nullptr, replacement),
+          "leaf rows: a replacement of another row count installs");
+    DerivedRecords records;
+    sampler->derivedRecords(records);
+    double mean, sd;
+    standardizationMomentsForColumn(xHalf.data() + m, m, &mean, &sd,
+                                    halfIn.data());
+    check(records.leafCenters[0] == mean && records.leafScales[0] == sd,
+          "leaf rows: a replacement derives over the rows its mask keeps");
+    // the replacement dropped the mask, so a re-derivation reads its rows
+    // and no row past them
+    sampler->rederiveStandardization();
+    sampler->derivedRecords(records);
+    standardizationMomentsForColumn(xHalf.data() + m, m, &mean, &sd);
+    check(records.leafCenters[0] == mean && records.leafScales[0] == sd,
+          "leaf rows: the mask goes with the replacement");
+
+    std::unique_ptr<SamplerBase> twin =
+      make(x, binary.data(), nullptr, ResponseFamily::probit,
+           optionsFor(false, mask.data()), 41);
+    std::unique_ptr<SamplerBase> refused =
+      make(x, binary.data(), nullptr, ResponseFamily::probit,
+           optionsFor(false, mask.data()), 41);
+    twin->setActiveRows(mask.data());
+    refused->setActiveRows(mask.data());
+    std::vector<double> xFlat(xHalf);
+    for (size_t i = 0; i < m; ++i)
+      if (halfIn[i] != 0) xFlat[i + m] = 3.0;
+    bool thrown = false;
+    try {
+      (void) refused->setData(xFlat.data(), yHalf.data(), m, nullptr, nullptr,
+                              nullptr, 0, nullptr, replacement);
+    } catch (const LeafStandardizationError& error) {
+      thrown = error.numRowsIn == 3 * m / 4 && error.numObservations == m;
+    }
+    SamplerStateData twinState, refusedState;
+    twin->getState(twinState);
+    refused->getState(refusedState);
+    check(thrown && refused->data().numObservations == n &&
+            bits(draws(*twin, 5), draws(*refused, 5)),
+          "leaf rows: a refused replacement leaves the sampler untouched");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: a leaf derives over the rows in the likelihood\n");
 }
 
 /// A whole-data replacement keeps, takes or derives the grid, the leaf
@@ -7025,6 +7415,7 @@ void runStateTests(ext_rng* rng) {
   testSuppliedCutGrid();
   testSuppliedStandardization();
   testDataReplacement();
+  testLeafStandardizationRows();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

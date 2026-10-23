@@ -131,7 +131,8 @@ expect_error(
     badData,
     "value",
     "derive",
-    "derive"
+    "derive",
+    NULL
   ),
   "\\$setData: response contains non-finite values"
 )
@@ -144,7 +145,8 @@ expect_error(
     badData,
     "value",
     "derive",
-    "derive"
+    "derive",
+    NULL
   ),
   "\\$setData: offset contains non-finite values"
 )

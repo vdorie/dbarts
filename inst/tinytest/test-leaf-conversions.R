@@ -94,6 +94,17 @@ cutGrid <- function(sampler) {
   sampler$storeState()
   attr(sampler$state, "cutPoints")
 }
+# a data object on rows whose leaf column x2 holds one value, carrying a
+# record that centers it there with no scale: a derivation over one value is
+# refused, so such a column's numbers are a record's
+onRecord <- function(rows, response = y) {
+  data <- dbartsData(rows, response)
+  data@standardization <- list(list(
+    center = c(x2 = rows[[1L, 2L]]),
+    scale = c(x2 = NA_real_)
+  ))
+  data
+}
 
 ## --- 1. a leaf covariate without spread ------------------------------------
 ## Its scale is stored as NA beside a finite centre (it was written as the
@@ -102,8 +113,7 @@ cutGrid <- function(sampler) {
 x.flat <- cbind(x1 = x[, 1L], x2 = 1000)
 x.flat.new <- cbind(x1 = runif(20L), x2 = 1000 + rnorm(20L))
 flat <- dbarts(
-  x.flat,
-  y,
+  onRecord(x.flat),
   control = control(),
   leaf.prior = linear(columns = 2L)
 )
@@ -125,8 +135,7 @@ expect_true(max(abs(flat.step(1))) > 1e-3)
 expect_true(max(abs(flat.step(2) - 2 * flat.step(1))) < 1e-10)
 
 flat.twin <- dbarts(
-  x.flat,
-  y,
+  onRecord(x.flat),
   control = control(seed = 8L),
   leaf.prior = linear(columns = 2L)
 )
@@ -559,11 +568,19 @@ expect_true(diff(range(liveFits(recipient))) == 0)
 ## training rows and at appended or fresh ones before and after, to 1e-10
 ## relative to max(1, |value|), and requires the next draws to stay in the
 ## range of a copy taken before the call, widened by twice its width either
-## way.
+## way. A constant is made, and replaced, through a carried record
+## (onRecord), a derivation over one value being refused.
 tolerance <- 1e-10
 newest <- c(5L, 10L) # each chain's last kept draw, which is its live forest
 withLeafColumn <- function(rows, value) cbind(x1 = rows[, 1L], x2 = value)
 madeOn <- function(rows, seed = 7L, response = y, ...) {
+  if (length(unique(rows[, 2L])) == 1L) {
+    return(dbarts(
+      onRecord(rows, response),
+      control = control(n.burn = 60L, seed = seed, ...),
+      leaf.prior = linear(columns = 2L)
+    ))
+  }
   dbarts(
     rows,
     response,
@@ -602,7 +619,7 @@ for (constant in c(1000, 0.1)) {
   live <- liveMatrix(constant.fit)
   trees <- liveTrees(constant.fit)
   kept <- constant.fit$predict(x.fresh)
-  constant.fit$setData(dbartsData(withLeafColumn(x.more, 2 * constant), y.more))
+  constant.fit$setData(onRecord(withLeafColumn(x.more, 2 * constant), y.more))
   for (chain in standardization(constant.fit)) {
     expect_identical(chain$leaf.covariate.center, 2 * constant, info = constant)
     expect_identical(chain$leaf.covariate.scale, NA_real_, info = constant)
@@ -635,8 +652,7 @@ for (constant in c(1000, 0.1)) {
   )
   donor$storeState()
   seeded <- bart(
-    withLeafColumn(x, 2 * constant),
-    y,
+    onRecord(withLeafColumn(x, 2 * constant)),
     leaf.prior = linear(columns = 2L),
     n.trees = 8L,
     n.samples = 3L,
@@ -727,9 +743,10 @@ moved$setData(dbartsData(x.spread, y.more))
 expect_true(worstGap(before, liveMatrix(moved)) < tolerance)
 
 # values made constant after creation keep the centre and scale they were
-# given until a replacement re-derives them; onto the constant the
-# coefficients take the formula, the scale going to the placeholder 1, and
-# each leaf takes its function's value there
+# given until a replacement brings others; onto the constant, centred there
+# with no scale by the replacement's record, the coefficients take the
+# formula, the scale going to the placeholder 1, and each leaf takes its
+# function's value there
 held <- madeOn(x)
 own <- standardization(held)
 expect_true(held$setPredictor(rep(0.25, n), 2L))
@@ -739,7 +756,7 @@ expect_false(own[[2L]]$leaf.covariate.scale %in% c(1, NA))
 x.held <- withLeafColumn(x.more, 0.25)
 before <- liveFunction(held, x.held)
 trees <- liveTrees(held)
-held$setData(dbartsData(x.held, y.more))
+held$setData(onRecord(x.held, y.more))
 for (chain in standardization(held)) {
   expect_identical(chain$leaf.covariate.center, 0.25)
   expect_identical(chain$leaf.covariate.scale, NA_real_)

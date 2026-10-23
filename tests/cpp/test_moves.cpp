@@ -2201,7 +2201,9 @@ static void testLinearLeafSetDataConversion() {
 // placeholder 1: off a constant at 5 onto spread, then onto a constant at 7,
 // each slope is multiplied by s' / s and each intercept gains
 // slope (m' - m) / s. Between two constants, 7 then 9, every training row
-// reads zero before and after, and the blocks stay bit for bit as built.
+// reads zero before and after, and the blocks stay bit for bit as built. A
+// derivation over one value is refused, so each constant's center comes
+// from a supplied record without spread, as a host's carried one would.
 static void testLinearLeafOneSidedConversion() {
   std::uint64_t savedRngState = rngState;
   rngState = 314159u;
@@ -2221,21 +2223,34 @@ static void testLinearLeafOneSidedConversion() {
   size_t covariates[] = {1, 2};
   options.leafCovariateColumns = covariates;
   options.numLeafCovariates = 2;
+  const double nan = std::numeric_limits<double>::quiet_NaN();
+  double scales[] = {nan, nan};
+  double centersAt5[] = {nan, 5.0};
+  options.suppliedStandardization = SuppliedStandardization{centersAt5, scales};
   std::unique_ptr<SamplerBase> sampler = createSampler(
     x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
     1.0, 3.0, 0.37804942330213542, options, &rng);
   Results none;
   sampler->run(40, 0, none);
 
-  // one setData moving column 2 to the given values; true where every block
-  // took the formula (or, with keep, stayed bit for bit)
+  // one setData moving column 2 to the given values, onto a constant
+  // supplying its center; true where every block took the formula (or, with
+  // keep, stayed bit for bit)
   auto convertsTo = [&](const std::vector<double>& column, bool keep) {
     SamplerStateData before, after;
     sampler->getState(before);
     std::vector<double> xNew(x);
     std::copy(column.begin(), column.end(), xNew.begin() + 2 * n);
+    double centers[] = {nan, column[0]};
+    DataReplacement replacement;
+    if (std::all_of(column.begin(), column.end(),
+                    [&](double v) { return v == column[0]; })) {
+      replacement.standardization = DerivedValueChoice::supply;
+      replacement.suppliedStandardization =
+        SuppliedStandardization{centers, scales};
+    }
     if (!sampler->setData(xNew.data(), y.data(), n, nullptr, nullptr,
-                          nullptr, 0, nullptr))
+                          nullptr, 0, nullptr, replacement))
       return false;
     sampler->getState(after);
     const ForestStateData& a = before.chains[0].forests[0];

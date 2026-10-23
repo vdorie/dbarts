@@ -92,14 +92,20 @@ rm(kFormSampler, kFormSd, sdSampler, sdDraws)
 
 # --- linear leaf: prior.sd is a LOWER bound, attained at the standardized
 # covariate origin, with sd(f(x)) = prior.sd * sqrt(1 + ||z(x)||^2). The rows
-# exercise a constant column (which keeps sd 1 and contributes 0), training
-# missingness, and a predict-time NA (which maps to z = 0). ---
+# exercise a constant column (centered at its value with no scale, which
+# divides by 1 and contributes 0: a carried record's, a derivation over one
+# value being refused), training missingness, and a predict-time NA (which
+# maps to z = 0). ---
 xLinear <- x
 xLinear[3L, 1L] <- NA_real_
 xLinear <- cbind(xLinear, x4 = rep(1, n))
+linearData <- dbartsData(xLinear, y)
+linearData@standardization <- list(list(
+  center = c(x4 = 1),
+  scale = c(x4 = NA_real_)
+))
 linearSampler <- dbarts(
-  xLinear,
-  y,
+  linearData,
   control = priorControl(),
   leaf.prior = linear(c("x1", "x2", "x4"), sd = priorSd)
 )

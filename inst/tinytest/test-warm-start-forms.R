@@ -838,12 +838,26 @@ withX2 <- function(value) {
   frame[, 2L] <- value
   frame
 }
+# what a sampler is made from: the frame, under a record giving x2's center
+# and no scale where x2 holds one value, a derivation over one value being
+# refused
+onX2 <- function(frame) {
+  if (length(unique(frame[, 2L])) > 1L) {
+    return(frame)
+  }
+  data <- dbarts::dbartsData(frame, y)
+  data@standardization <- list(list(
+    center = c(x2 = frame[[1L, 2L]]),
+    scale = c(x2 = NA_real_)
+  ))
+  data
+}
 spread <- runif(n, 0, 10)
 slopedOn <- function(
   value,
   slopes = c(0.3, -0.4, 0, 0, 0),
   build = linear2,
-  data = withX2(value)
+  data = onX2(withX2(value))
 ) {
   sampler <- build(data = data)
   state <- withTrees(
@@ -861,7 +875,7 @@ for (case in list(
   list(donor = 0, here = 3, same = FALSE, info = "one value on each side")
 )) {
   sloped <- slopedOn(case$donor)
-  recipient <- linear2(data = withX2(case$here))
+  recipient <- linear2(data = onX2(withX2(case$here)))
   expect_identical(recipient$installTrees(sloped), TRUE, info = case$info)
   expect_identical(
     leavesOf(stateOf(recipient)),
@@ -875,7 +889,9 @@ for (case in list(
 }
 # a slope of 0 or not, the start is clean
 for (slopes in list(rep(0, 5L), c(0, -0.4, 0, 0, 0))) {
-  expect_true(linear2(data = withX2(3))$installTrees(slopedOn(0, slopes)))
+  expect_true(
+    linear2(data = onX2(withX2(3)))$installTrees(slopedOn(0, slopes))
+  )
 }
 # two covariates, one at the same single value on both sides and the other
 # spread under another center and scale: as stored, and clean
@@ -883,7 +899,7 @@ linear23 <- function(...) make(..., leaf.prior = linear(columns = 2L:3L))
 here <- withX2(0)
 here[, 3L] <- 2 * x[, 3L] + 1
 sloped <- slopedOn(0, rep(c(0.3, 0.2), 5L), linear23)
-recipient <- linear23(data = here)
+recipient <- linear23(data = onX2(here))
 expect_identical(recipient$installTrees(sloped), TRUE)
 expect_identical(leavesOf(stateOf(recipient)), leavesOf(stateOf(sloped)))
 expect_true(max(abs(fitOf(recipient, here) - fitOf(sloped, here))) > 1e-3)

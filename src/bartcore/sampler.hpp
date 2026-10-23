@@ -305,7 +305,7 @@ public:
     options_.useQuantiles = data_.useQuantiles;
     options_.missingSeen = nullptr;
     options_.suppliedCutGrid = {};
-    // a view's leaf takes its constants from the parent's data
+    // a view's leaf derives its constants over the view's own rows
     options_.suppliedStandardization = {};
 
     initializeChains(y, weights, offset, sigmaEstimate, sigmaDf,
@@ -2070,6 +2070,7 @@ public:
       LeafStandardization standardization = leaf.standardization();
       records.leafCenters = standardization.centers;
       records.leafScales = standardization.recordedScales();
+      records.leafFromAllRows = leaf.fromAllRows();
       if constexpr (L::hasFunctionParams)
         if (!leaf.lengthscalesAreSupplied())
           records.leafLengthscales = leaf.lengthscales();
@@ -2313,6 +2314,14 @@ public:
   /// standardization regathers the leaf covariates for the new rows under
   /// the constants in force, and a kept transform installs the response
   /// under the one in force, so neither moves a coefficient or a saved draw.
+  ///
+  /// A derived leaf standardization is read over the new rows in the
+  /// likelihood, of positive weight and kept by replacement.activeRows
+  /// (leafRowsFrom), and is refused where they hold too little of a
+  /// covariate before anything moves.
+  ///
+  /// \throws LeafStandardizationError where a covariate the call derives
+  /// holds fewer than two distinct observed values over those rows.
   [[nodiscard]] bool setData(const double* x, const double* y,
                              size_t numObservations, const double* weights,
                              const double* offset, const double* x_test,
@@ -2324,6 +2333,19 @@ public:
     if (hasTest &&
         !data_.testSourceIsIngestible(x_test, numTestObservations))
       return false;
+    std::vector<std::uint8_t> leafRowStorage;
+    LeafRows leafRows;
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      leafRows = leafRowsFrom(weights, replacement.activeRows,
+                              numObservations, leafRowStorage);
+      if (replacement.standardization != DerivedValueChoice::keep)
+        refuseLeafDerivation(
+          x, numObservations,
+          replacement.standardization == DerivedValueChoice::supply
+            ? replacement.suppliedStandardization
+            : SuppliedStandardization{},
+          leafRows);
+    }
     // recover parameters against the old fits and partitions before anything
     // moves; the old cut values drive the split remap. The variance forest's
     // factors ride the same phase: their per-observation slab is strided by
@@ -2363,12 +2385,15 @@ public:
       anyRaised = anyRaised || raisedMissing[j] != 0;
     }
 
+    // the replacement drops every chain's mask, so the sampler's copy goes
+    // with them; the host installs the new rows' mask afterward
+    activeRows_.clear();
     SavedDrawSlots kept = savedDrawSlots();
     for (size_t c = 0; c < chains_.size(); ++c)
       chains_[c]->applyNewData(y, weights, offset, oldCutPoints, params[c],
                                varianceParams[c], kept,
                                anyRaised ? raisedMissing.data() : nullptr,
-                               choices);
+                               choices, leafRows);
     recordAnchor();
     return true;
   }
@@ -2378,12 +2403,57 @@ public:
   /// at the covariates whose predictor column \p replaced marks (a byte per
   /// predictor; null marks every one), the others held, and rewrites a linear
   /// leaf's coefficients, live and saved, into it, so each leaf stays the
-  /// function it was (Chain::rederiveStandardization). A leaf that takes no
-  /// covariate has nothing to derive. The host refuses it where a gp leaf
-  /// holds saved draws.
-  void rederiveStandardization(const std::uint8_t* replaced = nullptr) {
+  /// function it was (Chain::rederiveStandardization). The rows read are
+  /// those in the likelihood now, under the weights and the mask in force
+  /// (leafRowsFrom); a marked covariate those hold at one value, or none, or
+  /// every marked one where no row is in, keeps the numbers in force. Decided
+  /// once, from chain 0, as every chain holds the same rows. A leaf that
+  /// takes no covariate has nothing to derive. The host refuses it where a gp
+  /// leaf holds saved draws.
+  ///
+  /// \returns one byte per leaf covariate, nonzero where it was kept; empty
+  /// for a leaf that takes none.
+  std::vector<std::uint8_t> rederiveStandardization(
+      const std::uint8_t* replaced = nullptr) {
     SavedDrawSlots kept = savedDrawSlots();
-    for (auto& chain : chains_) chain->rederiveStandardization(kept, replaced);
+    std::vector<std::uint8_t> keptCovariates;
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      const L& leaf = chains_[0]->leaf();
+      size_t n = data_.numObservations;
+      std::vector<std::uint8_t> storage;
+      LeafRows rows = leafRowsFrom(
+        chains_[0]->weights(),
+        activeRows_.empty() ? nullptr : activeRows_.data(), n, storage);
+      keptCovariates.assign(leaf.numCovariates(), 0);
+      bool anyKept = false;
+      for (size_t j = 0; j < leaf.numCovariates(); ++j) {
+        size_t column = leaf.covariateColumns()[j];
+        if (replaced != nullptr && replaced[column] == 0) continue;
+        double mean, sd;
+        if (rows.noneIn || standardizationMomentsForColumn(
+                             data_.rawColumn(column), n, &mean, &sd,
+                             rows.rows)) {
+          keptCovariates[j] = 1;
+          anyKept = true;
+        }
+      }
+      // a kept covariate is one the chains hold, as they hold one not marked
+      std::vector<std::uint8_t> marks;
+      if (anyKept) {
+        if (replaced != nullptr)
+          marks.assign(replaced, replaced + data_.numPredictors);
+        else
+          marks.assign(data_.numPredictors, 1);
+        for (size_t j = 0; j < leaf.numCovariates(); ++j)
+          if (keptCovariates[j] != 0) marks[leaf.covariateColumns()[j]] = 0;
+      }
+      for (auto& chain : chains_)
+        chain->rederiveStandardization(kept, anyKept ? marks.data() : replaced,
+                                       rows);
+    } else {
+      for (auto& chain : chains_) chain->rederiveStandardization(kept, replaced);
+    }
+    return keptCovariates;
   }
 
   /// Replace the predictor matrix from a borrowed view of numObservations
@@ -2667,6 +2737,8 @@ public:
     bool installed = true;
     for (auto& chain : chains_)
       installed = chain->setActiveRows(active) && installed;
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      if (installed) keepActiveRows(active);
     return installed;
   }
   /// Whether the forest coupling owns a replaceable count-matrix response;
@@ -2954,19 +3026,87 @@ private:
     return true;
   }
 
+  /// The rows a leaf covariate's standardization is derived over: those of
+  /// positive weight in \p weights (null for every row) that the 0/1 mask
+  /// \p mask keeps (null for every row), over \p n rows, written into
+  /// \p storage; null rows where every row is in, and null with noneIn where
+  /// none is, every row then read in its place. Membership only.
+  static LeafRows leafRowsFrom(const double* weights, const double* mask,
+                               size_t n, std::vector<std::uint8_t>& storage) {
+    LeafRows result;
+    if (weights == nullptr && mask == nullptr) return result;
+    storage.resize(n);
+    size_t numIn = 0;
+    for (size_t i = 0; i < n; ++i) {
+      bool in = (weights == nullptr || weights[i] > 0.0) &&
+                (mask == nullptr || mask[i] != 0.0);
+      storage[i] = in ? 1 : 0;
+      numIn += in ? 1 : 0;
+    }
+    if (numIn == 0) result.noneIn = true;
+    else if (numIn < n) result.rows = storage.data();
+    return result;
+  }
+
+  /// Refuses, before anything moves, a derivation over \p rows that would
+  /// find too little of a leaf covariate: each covariate whose center
+  /// \p supplied leaves to derive (null centers derive every one), its
+  /// values column-major in \p x over \p n rows, as the leaf's own
+  /// derivation reads them (deriveLeafMoments).
+  ///
+  /// \throws LeafStandardizationError for the first such covariate.
+  void refuseLeafDerivation(const double* x, size_t n,
+                            const SuppliedStandardization& supplied,
+                            const LeafRows& rows) const {
+    if constexpr (L::hasVectorParams || L::hasFunctionParams) {
+      const L& leaf = chains_[0]->leaf();
+      bool placeholder = false;
+      if constexpr (L::hasFunctionParams)
+        placeholder = leaf.lengthscalesAreSupplied();
+      for (size_t j = 0; j < leaf.numCovariates(); ++j) {
+        if (supplied.centers != nullptr && !std::isnan(supplied.centers[j]))
+          continue;
+        size_t column = leaf.covariateColumns()[j];
+        double mean, sd;
+        deriveLeafMoments(x + column * n, n, j, column, rows, placeholder,
+                          &mean, &sd);
+      }
+    }
+  }
+
+  /// The sampler's copy of the mask every chain holds, taken once all have
+  /// accepted \p active and normalized as they normalize it: null or all
+  /// ones is no mask. Kept only where a leaf derives from rows.
+  void keepActiveRows(const double* active) {
+    activeRows_.clear();
+    if (active == nullptr) return;
+    size_t n = data_.numObservations;
+    size_t i = 0;
+    while (i < n && active[i] != 0.0) ++i;
+    if (i < n) activeRows_.assign(active, active + n);
+  }
+
   /// Shared constructor tail: one chain per rng over the built store, plus
-  /// saved-tree storage under keepTrees.
+  /// saved-tree storage under keepTrees. A linear or gp leaf derives its
+  /// standardization over the rows of positive weight that the creation
+  /// mask, options_.activeRows, keeps, the same bytes for every chain.
   void initializeChains(const double* y, const double* weights,
                         const double* offset, double sigmaEstimate,
                         double sigmaDf, double sigmaRawScale,
                         ext_rng* const* rngs) {
+    std::vector<std::uint8_t> leafRowStorage;
+    LeafRows leafRows;
+    if constexpr (L::hasVectorParams || L::hasFunctionParams)
+      leafRows = leafRowsFrom(weights, options_.activeRows,
+                              data_.numObservations, leafRowStorage);
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(
         data_, y, weights, offset, family_, sigmaEstimate, sigmaDf,
-        sigmaRawScale, options_, rngs[c]));
+        sigmaRawScale, options_, rngs[c], leafRows));
     options_.survivalStatus = nullptr;  // borrowed; consumed by the chains
     options_.suppliedStandardization = {};
+    options_.activeRows = nullptr;
 
     if (options_.keepTrees) {
       size_t capacity =
@@ -3529,6 +3669,10 @@ private:
   // against. Set by creation, a re-anchor and setAnchor; an install never
   // moves it. (0, 0) on a scale-free family.
   double anchorMin_ = 0.0, anchorMax_ = 0.0;
+  // the 0/1 mask every chain holds, empty for none (keepActiveRows), the
+  // rows a leaf re-derivation reads beside the weights; kept only for a leaf
+  // that takes covariates, and cleared by a whole-data replacement
+  std::vector<double> activeRows_;
   size_t recordedDraws_ = 0;     // slots written since the last reset, capped
                                  // at capacity; the extent of every read
   double runningTime_ = 0.0;     // seconds accumulated across runs

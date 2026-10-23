@@ -202,6 +202,12 @@ struct SamplerOptions {
   // at construction. A sampler over a pre-built store derives its own.
   SuppliedStandardization suppliedStandardization;
 
+  // the 0/1 active-row mask the host installs once the sampler is built, one
+  // value per observation, null for none: read at construction only for the
+  // rows a linear or gp leaf's standardization is derived over, beside the
+  // weights (Sampler::leafRowsFrom). Borrowed; consumed at construction.
+  const double* activeRows = nullptr;
+
   // AFT survival: per-observation status (1 = uncensored event, 0 = right-
   // censored) required when family is aft, ignored otherwise. Borrowed; the
   // response copies it during construction (see AFTResponse). The y creation
@@ -433,7 +439,10 @@ struct ForestCalibration {
 /// NaN on a sampler without the map, and the leaf standardization of its one
 /// forest of linear or gp leaves: a center and a scale per covariate, the
 /// scale NaN for a column without spread, and the lengthscales of a gp leaf
-/// whose model supplies none, each empty where there is none.
+/// whose model supplies none, each empty where there is none. Beside them,
+/// not a record, leafFromAllRows marks a covariate whose center and scale the
+/// last derivation read from every row because no row was in the likelihood,
+/// the status a host warns on.
 struct DerivedRecords {
   /// Set false by the caller to leave cutPoints and cutMass empty, a read
   /// that costs nothing per predictor, for a call that moves no grid.
@@ -446,6 +455,7 @@ struct DerivedRecords {
   double forestAnchor = std::numeric_limits<double>::quiet_NaN();
   double forestUnit = std::numeric_limits<double>::quiet_NaN();
   std::vector<double> leafCenters, leafScales, leafLengthscales;
+  std::vector<std::uint8_t> leafFromAllRows;
 };
 
 /// Posterior draws on the original response scale; caller-owned storage.
@@ -963,10 +973,12 @@ public:
   static constexpr bool leafSupportsVarianceForest =
     std::is_same_v<L, ConstantGaussianLeaf>;
 
+  /// \p leafRows are the rows a linear or gp leaf derives its
+  /// standardization over, the same bytes for every chain (Sampler).
   Chain(const ColumnStore& data, const double* y, const double* weights,
         const double* offset, ResponseFamily family, double sigmaEstimate,
         double sigmaDf, double sigmaRawScale, const SamplerOptions& options,
-        ext_rng* rng)
+        ext_rng* rng, const LeafRows& leafRows = {})
     : options_(options), data_(data), weights_(weights), rng_(rng) {
     size_t numObservations = data.numObservations;
     options_.maxNumCutsPerVariable = nullptr;  // consumed by the store build
@@ -989,15 +1001,17 @@ public:
     if constexpr (L::hasVectorParams)
       forest.leaf.initialize(data, options.leafCovariateColumns,
                              options.numLeafCovariates, options.numChains,
-                             options.suppliedStandardization);
+                             options.suppliedStandardization, leafRows);
     else if constexpr (L::hasFunctionParams)
       forest.leaf.initialize(data, options.leafCovariateColumns,
                              options.numLeafCovariates, options.gpLengthscales,
                              options.gpMaxLeafSize, options.numChains,
-                             options.suppliedStandardization);
+                             options.suppliedStandardization, leafRows);
+    (void) leafRows;
     options_.leafCovariateColumns = nullptr;  // consumed above
     options_.gpLengthscales = nullptr;
     options_.suppliedStandardization = {};
+    options_.activeRows = nullptr;
 
     switch (family) {
     case ResponseFamily::probit:
@@ -3466,7 +3480,9 @@ public:
   /// \p replacement says whether the transform and the standardization are
   /// derived, kept or supplied, and how the splits of oldCutPoints' columns
   /// move; a transform or standardization equal to the one in force moves no
-  /// saved draw and no coefficient.
+  /// saved draw and no coefficient. A derived standardization is read over
+  /// \p leafRows, which the caller has found to hold enough of every
+  /// covariate it derives.
   void applyNewData(const double* y, const double* weights,
                     const double* offset,
                     const std::vector<std::vector<double>>& oldCutPoints,
@@ -3474,7 +3490,8 @@ public:
                     const TreeParameters& varianceParams,
                     SavedDrawSlots kept = SavedDrawSlots(),
                     const std::uint8_t* raisedMissing = nullptr,
-                    const DataReplacement& replacement = {}) {
+                    const DataReplacement& replacement = {},
+                    const LeafRows& leafRows = {}) {
     assert(forests_.size() == 1);
     Forest<L, ResidT>& forest = forests_[0];
     size_t n = data_.numObservations;
@@ -3520,14 +3537,17 @@ public:
     if constexpr (L::hasVectorParams) {
       LeafStandardization previous = forest.leaf.standardization();
       forest.leaf.reinitialize(
-        data_, replacementStandardization(forest.leaf, replacement, held));
+        data_, replacementStandardization(forest.leaf, replacement, held),
+        leafRows);
       convertLinearForest(forest, params, previous, kept);
     } else if constexpr (L::hasFunctionParams) {
       forest.leaf.reinitialize(
-        data_, replacementStandardization(forest.leaf, replacement, held));
+        data_, replacementStandardization(forest.leaf, replacement, held),
+        leafRows);
       for (size_t t = 0; t < forest.numTrees; ++t)
         params[t].assign(forest.trees[t].nodes.size(), 0.0);
     }
+    (void) leafRows;
 
     size_t paramStride = 1;
     if constexpr (L::hasVectorParams) paramStride = forest.leaf.numParams();
@@ -3644,16 +3664,20 @@ public:
   }
 
   /// Derives every forest's leaf covariate standardization again over the
-  /// covariates the store holds, a gp leaf's lengthscales with it where its
-  /// model supplies none, at the covariates whose predictor column
-  /// \p replaced marks (a byte per predictor; null marks every one), the
-  /// others held, and rewrites a linear leaf's coefficients, live and the
-  /// saved draws in \p kept, into it (convertLinearForest), the fits rebuilt
-  /// from them. A gp leaf's per-observation fits stay as they are; its saved
-  /// draws, which replay only under the kernel they were drawn with, are the
+  /// covariates the store holds at the rows \p leafRows reads, a gp leaf's
+  /// lengthscales with it where its model supplies none, at the covariates
+  /// whose predictor column \p replaced marks (a byte per predictor; null
+  /// marks every one), the others held, and rewrites a linear leaf's
+  /// coefficients, live and the saved draws in \p kept, into it
+  /// (convertLinearForest), the fits rebuilt from them. A marked covariate
+  /// must hold two distinct values over those rows; the caller holds one
+  /// that does not by leaving it unmarked (Sampler::rederiveStandardization).
+  /// A gp leaf's per-observation fits stay as they are; its saved draws,
+  /// which replay only under the kernel they were drawn with, are the
   /// caller's to refuse.
   void rederiveStandardization(SavedDrawSlots kept,
-                               const std::uint8_t* replaced) {
+                               const std::uint8_t* replaced,
+                               const LeafRows& leafRows = {}) {
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
       std::vector<double> held;
       for (Forest<L, ResidT>& forest : forests_) {
@@ -3664,7 +3688,7 @@ public:
         if constexpr (L::hasVectorParams) {
           size_t n = data_.numObservations;
           LeafStandardization previous = forest.leaf.standardization();
-          forest.leaf.reinitialize(data_, supplied);
+          forest.leaf.reinitialize(data_, supplied, leafRows);
           convertLinearForest(forest, forest.paramsByTree, previous, kept);
           misc_setVectorToConstant(forest.totalFits.data(), n, 0.0);
           forest.totalFitsScale = 1.0;
@@ -3673,12 +3697,13 @@ public:
             addTreeFitsToTotal(forest, t);
           }
         } else {
-          forest.leaf.reinitialize(data_, supplied);
+          forest.leaf.reinitialize(data_, supplied, leafRows);
         }
       }
     }
     (void) kept;
     (void) replaced;
+    (void) leafRows;
   }
 
   /// The first-sight draw: the store has just raised the missing-value flag
@@ -5609,6 +5634,8 @@ public:
 
   ext_rng* rng() const { return rng_; }
   const L& leaf() const { return forests_[0].leaf; }
+  /// The case weights in force, the host's, which every chain shares.
+  const double* weights() const { return weights_; }
 
   /// This chain's GP fallback census, summed over its forests. Zero for every
   /// leaf model without a size cap, which is every one but the GP leaf.

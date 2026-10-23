@@ -103,6 +103,17 @@ reloadOf <- function(sampler) {
 noSplitsOnA <- function(...) {
   make(..., tree.prior = cgm(split.probs = c(0, 1)))
 }
+# a data object on frame whose record gives one covariate's center and no
+# scale: a derivation over a column of one value is refused, so such a
+# column's numbers are a record's
+recordedFlat <- function(frame, covariate, value) {
+  data <- dbarts::dbartsData(frame, y)
+  data@standardization <- list(list(
+    center = stats::setNames(value, covariate),
+    scale = stats::setNames(NA_real_, covariate)
+  ))
+  data
+}
 
 # ---- written at creation ---------------------------------------------------
 
@@ -149,7 +160,11 @@ expect_identical(
 # without names a record keyed by their positions
 flat <- x
 flat[, 2L] <- 3
-twoFit <- make(data = flat, leaf.prior = linear(columns = c("b", "a")))
+twoFit <- dbarts::dbarts(
+  recordedFlat(flat, "b", 3),
+  leaf.prior = linear(columns = c("b", "a")),
+  control = controlWith()
+)
 expect_identical(names(twoFit$data@standardization[[1L]]$center), c("b", "a"))
 expect_identical(twoFit$data@standardization[[1L]]$scale[["b"]], NA_real_)
 expect_identical(twoFit$data@standardization[[1L]]$center[["b"]], 3)
@@ -528,10 +543,18 @@ constantAt <- function(value) {
   frame[, 1L] <- value
   frame
 }
-flatDonor <- noSplitsOnA(data = constantAt(0), sweeps = 30L)
-flatRecipient <- noSplitsOnA(
-  data = constantAt(3),
-  control = list(keepTrees = FALSE, seed = 9L)
+flatDonor <- dbarts::dbarts(
+  recordedFlat(constantAt(0), "a", 0),
+  leaf.prior = linear(columns = "a"),
+  tree.prior = cgm(split.probs = c(0, 1)),
+  control = controlWith()
+)
+invisible(flatDonor$run(30L, 4L))
+flatRecipient <- dbarts::dbarts(
+  recordedFlat(constantAt(3), "a", 3),
+  leaf.prior = linear(columns = "a"),
+  tree.prior = cgm(split.probs = c(0, 1)),
+  control = controlWith(keepTrees = FALSE, seed = 9L)
 )
 expect_identical(inForce(flatRecipient)$scale, NA_real_)
 expect_true(flatRecipient$installTrees(flatDonor, samples = newest))

@@ -18,6 +18,16 @@
 # means the linear leaf's marginal likelihood, posterior draw, or
 # standardization is wrong.
 #
+# A second arm adds 200 rows at weight 0, every one at the first value, so
+# the cells and the tree space are unchanged and the likelihood is the first
+# arm's: its exact posterior is the first arm's only when the leaf is
+# standardized over the rows in the likelihood. Standardized over every row
+# (mean 1.25, sd 0.72 against 2.5 and 1.13) P(1 leaf) moves by ~0.095. The
+# arm does not see the gp leaf's lengthscale heuristic over those rows, a
+# mask, the refusal of rows in at one value or the keep of a re-derivation;
+# tests/cpp's testLeafStandardizationRows and test-leaf-standardization-rows.R
+# hold those to literals.
+#
 # The single-tree fits below run swap at 0.1 rather than the shipped zero:
 # swap is the only proposal that rotates a child's rule up the tree, and with
 # one tree the change move cannot re-root once the splits beneath the root
@@ -159,7 +169,7 @@ w <- exp(logW - logSumExp(logW))
 exactSizes <- vapply(seq_len(K), function(s) sum(w[numLeaves == s]), 0)
 exactFit <- (colSums(w * fitScaled) + 0.5) * yRange + min(y)
 
-# ---- engine arm ----
+# ---- engine arms ----
 
 ctl <- dbartsControl(
   n.chains = 1L,
@@ -173,34 +183,64 @@ ctl <- dbartsControl(
   seed = engineSeed,
   n.cuts = K - 1L
 )
-sampler <- dbarts(
-  matrix(x, ncol = 1L),
-  y,
-  test = matrix(as.double(seq_len(K)), ncol = 1L),
-  control = ctl,
-  tree.prior = cgm(power, base),
-  proposal.probs = c(birth_death = 0.5, swap = 0.1, change = 0.4, birth = 0.5),
-  leaf.prior = linear(1L, k = kLeaf),
-  family = gaussian(sigma = fixed(1))
-)
-stopifnot(is.null(sampler$data@offset))
-
-nBatch <- as.integer(ceiling(nKept / batchSize))
-engineLeaves <- integer(0L)
-engineFits <- NULL
-first <- TRUE
-for (b in seq_len(nBatch)) {
-  r <- if (first) sampler$run(nBurn, batchSize) else sampler$run(0L, batchSize)
-  first <- FALSE
-  tr <- sampler$getTrees()
-  engineLeaves <- c(
-    engineLeaves,
-    as.integer(tapply(tr$var, tr$sample, function(v) sum(v == -1L)))
+engineArm <- function(xs, ys, weights = NULL) {
+  # the test rows are read for their fits alone, so the notice that weights
+  # do not reach them says nothing here
+  sampler <- withCallingHandlers(
+    dbarts(
+      matrix(xs, ncol = 1L),
+      ys,
+      test = matrix(as.double(seq_len(K)), ncol = 1L),
+      weights = weights,
+      control = ctl,
+      tree.prior = cgm(power, base),
+      proposal.probs = c(
+        birth_death = 0.5,
+        swap = 0.1,
+        change = 0.4,
+        birth = 0.5
+      ),
+      leaf.prior = linear(1L, k = kLeaf),
+      family = gaussian(sigma = fixed(1))
+    ),
+    warning = function(w) {
+      if (grepl("ignored for test data", conditionMessage(w), fixed = TRUE)) {
+        invokeRestart("muffleWarning")
+      }
+    }
   )
-  engineFits <- cbind(engineFits, r$test)
+  stopifnot(is.null(sampler$data@offset))
+
+  nBatch <- as.integer(ceiling(nKept / batchSize))
+  engineLeaves <- integer(0L)
+  engineFits <- NULL
+  first <- TRUE
+  for (b in seq_len(nBatch)) {
+    r <- if (first) {
+      sampler$run(nBurn, batchSize)
+    } else {
+      sampler$run(0L, batchSize)
+    }
+    first <- FALSE
+    tr <- sampler$getTrees()
+    engineLeaves <- c(
+      engineLeaves,
+      as.integer(tapply(tr$var, tr$sample, function(v) sum(v == -1L)))
+    )
+    engineFits <- cbind(engineFits, r$test)
+  }
+  stopifnot(length(engineLeaves) == ncol(engineFits))
+  list(leaves = engineLeaves, fits = engineFits)
 }
-nDraws <- length(engineLeaves)
-stopifnot(nDraws == ncol(engineFits))
+outRows <- 200L
+arms <- list(
+  "every row in" = engineArm(x, y),
+  "200 rows out at the first value" = engineArm(
+    c(x, rep(1, outRows)),
+    c(y, rep(mean(y), outRows)),
+    rep(c(1, 0), c(n, outRows))
+  )
+)
 
 # ---- batch-means MC error and z-scores ----
 
@@ -209,16 +249,6 @@ batchMeanSE <- function(v, nBatches = 400L) {
   bm <- colMeans(matrix(v[seq_len(len)], ncol = nBatches))
   sd(bm) / sqrt(nBatches)
 }
-
-cat(sprintf("\nengine draws: %d (thin %d)\n", nDraws, nThin))
-cat(sprintf(
-  "%-12s %10s %10s %10s %8s\n",
-  "statistic",
-  "engine",
-  "exact",
-  "MCse",
-  "z"
-))
 
 anyFailure <- FALSE
 report <- function(label, engineValue, exactValue, se) {
@@ -236,33 +266,51 @@ report <- function(label, engineValue, exactValue, se) {
   failed
 }
 
-# leaf-count distribution (size 4 folded into size 3+ to keep counts high)
-for (s in 1:2) {
+for (label in names(arms)) {
+  engineLeaves <- arms[[label]]$leaves
+  engineFits <- arms[[label]]$fits
+  cat(sprintf(
+    "\n%s: engine draws %d (thin %d)\n",
+    label,
+    length(engineLeaves),
+    nThin
+  ))
+  cat(sprintf(
+    "%-12s %10s %10s %10s %8s\n",
+    "statistic",
+    "engine",
+    "exact",
+    "MCse",
+    "z"
+  ))
+  # leaf-count distribution (size 4 folded into size 3+ to keep counts high)
+  for (s in 1:2) {
+    anyFailure <- report(
+      sprintf("P(%d leaves)", s),
+      mean(engineLeaves == s),
+      exactSizes[s],
+      batchMeanSE(engineLeaves == s)
+    ) ||
+      anyFailure
+  }
   anyFailure <- report(
-    sprintf("P(%d leaves)", s),
-    mean(engineLeaves == s),
-    exactSizes[s],
-    batchMeanSE(engineLeaves == s)
+    "P(3+ leaves)",
+    mean(engineLeaves >= 3L),
+    sum(exactSizes[3:4]),
+    batchMeanSE(engineLeaves >= 3L)
   ) ||
     anyFailure
-}
-anyFailure <- report(
-  "P(3+ leaves)",
-  mean(engineLeaves >= 3L),
-  sum(exactSizes[3:4]),
-  batchMeanSE(engineLeaves >= 3L)
-) ||
-  anyFailure
 
-# posterior mean fit at each distinct predictor value
-for (p in seq_len(K)) {
-  anyFailure <- report(
-    sprintf("E[f(x=%d)]", p),
-    mean(engineFits[p, ]),
-    exactFit[p],
-    batchMeanSE(engineFits[p, ])
-  ) ||
-    anyFailure
+  # posterior mean fit at each distinct predictor value
+  for (p in seq_len(K)) {
+    anyFailure <- report(
+      sprintf("E[f(x=%d)]", p),
+      mean(engineFits[p, ]),
+      exactFit[p],
+      batchMeanSE(engineFits[p, ])
+    ) ||
+      anyFailure
+  }
 }
 
 if (anyFailure) {

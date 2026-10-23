@@ -1305,11 +1305,18 @@ stateArm <- function(make, compare) {
   compare(donor$state[[1L]]$forests, recipient$state[[1L]]$forests)
 }
 sameForests <- function(a, b) expect_identical(a, b)
+# a gp leaf's covariate standardization is each sampler's own, read over its
+# own rows in at creation, and no state installs one
+standardizationBlocks <- c(
+  "leaf.covariate.center",
+  "leaf.covariate.scale",
+  "leaf.lengthscales"
+)
 sameForestsButValues <- function(a, b) {
   for (f in seq_along(a)) {
     expect_identical(
-      a[[f]][setdiff(names(a[[f]]), "tree.values")],
-      b[[f]][setdiff(names(b[[f]]), "tree.values")]
+      a[[f]][setdiff(names(a[[f]]), c("tree.values", standardizationBlocks))],
+      b[[f]][setdiff(names(b[[f]]), c("tree.values", standardizationBlocks))]
     )
   }
 }

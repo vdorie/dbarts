@@ -1,8 +1,8 @@
 # boundary inputs the suite otherwise never exercises: a single predictor,
 # n = 2, a constant response, and a constant designated column under linear/gp
-# leaves (which the docs claim degrade to an intercept at sd = 0). Every case
-# either produces a finite fit or refuses at the R level with a clear error;
-# none crash or return NaN.
+# leaves (refused, but under a gp leaf whose lengthscale is stated). Every
+# case either produces a finite fit or refuses with a clear error; none crash
+# or return NaN.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),
@@ -102,30 +102,37 @@ expect_true(all(is.finite(samples.const$train)))
 expect_true(all(is.finite(samples.const$sigma)))
 expect_true(all(abs(samples.const$train - 3.0) < 1e-6))
 
-# a constant designated column under linear and gp leaves: an sd-0 column is
-# kept at sd 1 and the leaf degrades to an intercept. Finite fits, no NaN.
+# a constant designated column under linear and gp leaves: one value leaves
+# no center and scale to take, so the creation is refused under linear and
+# under gp; a gp leaf whose lengthscale is stated takes the placeholder, the
+# column at its value divided by 1, and runs finite.
 set.seed(1)
 x1.c <- rep(0.5, n) # constant designated column
 x2.c <- runif(n)
 y.c <- 2 * x2.c + rnorm(n, 0, 0.3)
 df.c <- data.frame(x1 = x1.c, x2 = x2.c, y = y.c)
 
-sampler.lin <- dbarts(
-  y ~ x1 + x2,
-  df.c,
-  leaf.prior = linear("x1"),
-  control = control
+expect_error(
+  dbarts(y ~ x1 + x2, df.c, leaf.prior = linear("x1"), control = control),
+  paste0(
+    'the leaf covariate "x1" holds one value over the rows in the ',
+    "likelihood \\(100 of 100 observations are in it\\), so its center ",
+    "and scale cannot be taken from them; drop it from linear\\(\\)"
+  )
 )
-samples.lin <- sampler.lin$run(40L, 40L)
-expect_true(all(is.finite(samples.lin$train)))
-expect_true(all(is.finite(samples.lin$sigma)))
+expect_error(
+  dbarts(y ~ x1 + x2, df.c, leaf.prior = gp("x1"), control = control),
+  "state its lengthscale in gp\\(\\), drop it from gp\\(\\)"
+)
 
 sampler.gp <- dbarts(
   y ~ x1 + x2,
   df.c,
-  leaf.prior = gp("x1"),
+  leaf.prior = gp("x1", lengthscale = 1),
   control = control
 )
+expect_identical(sampler.gp$data@standardization[[1L]]$center[["x1"]], 0.5)
+expect_true(is.na(sampler.gp$data@standardization[[1L]]$scale[["x1"]]))
 samples.gp <- sampler.gp$run(40L, 40L)
 expect_true(all(is.finite(samples.gp$train)))
 expect_true(all(is.finite(samples.gp$sigma)))
@@ -147,8 +154,6 @@ rm(
   x2.c,
   y.c,
   df.c,
-  sampler.lin,
-  samples.lin,
   sampler.gp,
   samples.gp
 )

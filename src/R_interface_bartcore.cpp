@@ -3818,9 +3818,77 @@ std::string basisScaleMessage(SEXP controlExpr,
          "one with sd =";
 }
 
+// The door a leaf covariate's refused derivation came through, which the
+// refusal's remedies follow.
+enum class LeafRefusalDoor { creation, setData, fold };
+
+// A predictor column as a refusal names it: its name on the data object's x,
+// quoted, where it has a usable one, or its position from 1. x is a matrix, a
+// sparse matrix holding its names in a Dimnames slot, or the mixed
+// container, which holds them as columnNames.
+std::string predictorColumnLabel(SEXP dataExpr, size_t column) {
+  SEXP xExpr = R_do_slot(dataExpr, Rf_install("x"));
+  SEXP namesExpr = R_NilValue;
+  if (Rf_inherits(xExpr, "dbartsMixedMatrix")) {
+    namesExpr = rc_getListElement(xExpr, "columnNames");
+  } else {
+    SEXP dimNamesExpr = Rf_getAttrib(xExpr, R_DimNamesSymbol);
+    if (Rf_isNull(dimNamesExpr) && Rf_isS4(xExpr) &&
+        R_has_slot(xExpr, Rf_install("Dimnames")))
+      dimNamesExpr = R_do_slot(xExpr, Rf_install("Dimnames"));
+    if (Rf_isNewList(dimNamesExpr) && Rf_xlength(dimNamesExpr) == 2)
+      namesExpr = VECTOR_ELT(dimNamesExpr, 1);
+  }
+  if (Rf_isString(namesExpr) &&
+      static_cast<size_t>(Rf_xlength(namesExpr)) > column) {
+    SEXP nameExpr = STRING_ELT(namesExpr, static_cast<R_xlen_t>(column));
+    if (nameExpr != NA_STRING && CHAR(nameExpr)[0] != '\0')
+      return std::string("\"") + CHAR(nameExpr) + "\"";
+  }
+  return "in column " + std::to_string(column + 1);
+}
+
+// The refusal of a derivation whose rows in the likelihood hold fewer than
+// two distinct values of a leaf covariate: the engine decides which rows are
+// in and what the covariate holds there, and this words it, naming the
+// column the data object holds it in.
+std::string leafStandardizationMessage(
+    SEXP dataExpr, const bartcore::LeafStandardizationError& error,
+    size_t dataColumn, bool gp, LeafRefusalDoor door) {
+  std::string holds = error.observed ? "holds one value" : "holds no observed value";
+  std::string what = "the leaf covariate " +
+                     predictorColumnLabel(dataExpr, dataColumn) + " " + holds;
+  std::string prior = gp ? "gp()" : "linear()";
+  std::string remedies =
+    gp ? "state its lengthscale in gp(), drop it from gp(), " : "drop it from " +
+                                                                  prior + ", ";
+  if (door == LeafRefusalDoor::fold)
+    return "in a fold of xbart, " + what +
+           " over the fold's training rows in the likelihood, so its center "
+           "and scale cannot be taken from them; " + remedies +
+           "or change the rows (the weights, subset or n.test)";
+  std::string over =
+    error.numRowsIn == 0
+      ? " over all " + std::to_string(error.numObservations) +
+          " observations, which are read because none is in the likelihood"
+      : " over the rows in the likelihood (" +
+          std::to_string(error.numRowsIn) + " of " +
+          std::to_string(error.numObservations) +
+          " observations are in it)";
+  std::string rows = "the weights, the 0/1 weights' mask, or subset";
+  if (door == LeafRefusalDoor::setData)
+    return "$setData: " + what + over +
+           ", so its center and scale cannot be taken from them; " +
+           remedies + "change the rows in (" + rows +
+           "), or keep the sampler's with updateStandardization = FALSE";
+  return what + over + ", so its center and scale cannot be taken from them; " +
+         remedies + "or change the rows in (" + rows + ")";
+}
+
 // family resolution: see resolveFamily() above. activeExpr is the active-row
 // mask the caller installs once the sampler is built, R_NilValue for none,
-// read here only for the rows a numeric column's scale is taken over.
+// read here only for the rows a numeric column's scale and a leaf
+// covariate's standardization are taken over.
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                              const char* familyName, SEXP activeExpr) {
   BartcoreHolder* holder = nullptr;
@@ -3883,6 +3951,16 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     bool carriesAmplitudes =
       applyForestAttributes(controlExpr, model, data, options.numTrees,
                             amplitudeSpec, amplitudeStorage);
+    // the creation mask, read for the rows a forest's scale or a leaf's
+    // standardization is taken over, and installed by the caller afterward
+    const double* active = nullptr;
+    if (!Rf_isNull(activeExpr)) {
+      if (!Rf_isReal(activeExpr) ||
+          static_cast<size_t>(Rf_xlength(activeExpr)) != data.numObservations)
+        Rf_error("the active-row mask must hold one number for each "
+                 "observation");
+      active = REAL(activeExpr);
+    }
     if (carriesAmplitudes && data.bases.empty())
       Rf_error("a basis forest was configured but the data carry no forest "
                "bases");
@@ -3900,14 +3978,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       // the chains COPY every basis at construction, so this row-major
       // transposition need only outlive the build
       applyForestBases(data, amplitudeSpec, amplitudeStorage);
-      if (!Rf_isNull(activeExpr)) {
-        if (!Rf_isReal(activeExpr) ||
-            static_cast<size_t>(Rf_xlength(activeExpr)) !=
-              data.numObservations)
-          Rf_error("the active-row mask must hold one number for each "
-                   "observation");
-        amplitudeSpec.activeRows = REAL(activeExpr);
-      }
+      amplitudeSpec.activeRows = active;
+    } else {
+      options.activeRows = active;
     }
 
     // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
@@ -3938,15 +4011,26 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // to mend, so it is raised in the caller's terms and not as a failure
     bool sdHasNoUnit = false;
     std::string noBasisScale;
+    char leafRefusal[512] = "";
     using OwnedSampler = std::unique_ptr<bartcore::SamplerBase>;
     OwnedSampler sampler =
       createSamplerOrRaise(rngs, [&]() -> OwnedSampler {
-        if (!carriesAmplitudes)
-          return bartcore::createSampler(
-            data.predictors.denseValues, y, data.numObservations,
-            data.numPredictors, weights, offset, family,
-            data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
-            rngs.data());
+        if (!carriesAmplitudes) {
+          try {
+            return bartcore::createSampler(
+              data.predictors.denseValues, y, data.numObservations,
+              data.numPredictors, weights, offset, family,
+              data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+              rngs.data());
+          } catch (const bartcore::LeafStandardizationError& error) {
+            std::snprintf(leafRefusal, sizeof leafRefusal, "%s",
+                          leafStandardizationMessage(
+                            dataExpr, error, error.column, options.gpLeaves,
+                            LeafRefusalDoor::creation)
+                            .c_str());
+            return nullptr;
+          }
+        }
         try {
           return bartcore::createAmplitudeSampler(
             data.predictors.denseValues, y, data.numObservations,
@@ -3961,9 +4045,10 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
           return nullptr;
         }
       });
-    if (sdHasNoUnit || !noBasisScale.empty()) {
+    if (sdHasNoUnit || !noBasisScale.empty() || leafRefusal[0] != '\0') {
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
       if (sdHasNoUnit) Rf_error("%s", forestSdUnitMessage);
+      if (leafRefusal[0] != '\0') Rf_error("%s", leafRefusal);
       Rf_error("%s", noBasisScale.c_str());
     }
     if (sampler == NULL) {
@@ -4535,9 +4620,8 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       numGatherColumns = viewLeafCovariates.size();
     }
 
-    // a linear leaf prior's designated columns have the view gather their raw
-    // values, with standardization constants from the handle's full data - the
-    // same calibration inheritance as the copied cut grid
+    // a linear or gp leaf prior's designated columns have the view gather
+    // their raw values, which the fold's leaf standardizes over its own rows
     store.buildFromParent(parent, trainRows.data(), numTrainRows,
                           testRows.data(), numTestRows, gatherColumns,
                           numGatherColumns,
@@ -4563,15 +4647,32 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       Rf_error("storage = \"single\" is not supported for this sampler");
     rngs = createChainRngs(control, options.numChains);
 
+    char leafRefusal[512] = "";
     std::unique_ptr<bartcore::SamplerBase> sampler =
-      createSamplerOrRaise(rngs, [&]() {
-        return bartcore::createSamplerOverStore(
-          std::move(store), response.data(),
-          data.weights != NULL ? weights.data() : NULL,
-          data.offset != NULL ? offset.data() : NULL, family,
-          data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
-          rngs.data());
+      createSamplerOrRaise(rngs, [&]() -> std::unique_ptr<bartcore::SamplerBase> {
+        try {
+          return bartcore::createSamplerOverStore(
+            std::move(store), response.data(),
+            data.weights != NULL ? weights.data() : NULL,
+            data.offset != NULL ? offset.data() : NULL, family,
+            data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
+            rngs.data());
+        } catch (const bartcore::LeafStandardizationError& error) {
+          // the view's column, named as the data object holds it
+          size_t dataColumn = columns.empty() ? error.column
+                                              : columns[error.column];
+          std::snprintf(leafRefusal, sizeof leafRefusal, "%s",
+                        bartcore_bridge::leafStandardizationMessage(
+                          dataExpr, error, dataColumn, options.gpLeaves,
+                          bartcore_bridge::LeafRefusalDoor::fold)
+                          .c_str());
+          return nullptr;
+        }
       });
+    if (leafRefusal[0] != '\0') {
+      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      Rf_error("%s", leafRefusal);
+    }
     if (sampler == NULL) {
       // R-side resolution validates column legality first, so what lands here
       // is a covariate the handle did not gather raw for at creation
@@ -4836,15 +4937,24 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   return R_NilValue;
 }
 
+// Whether a keep, of the response's scale or of a leaf covariate's center
+// and scale, is to be warned of NOW: on this holder's first keep of either
+// kind, through whichever setter, and never again.
+static bool firstKeep(BartcoreHolder& holder, bool kept) {
+  bool first = kept && !holder.scaleKeptWarned;
+  if (first) holder.scaleKeptWarned = true;
+  return first;
+}
+
 // What the setters that can re-derive the response transform return to R:
-// whether to warn NOW that the scale was kept, which is on this holder's
-// first keep, through whichever of them, and never again.
+// firstKeep's answer, as a logical.
 static SEXP firstScaleKept(BartcoreHolder& holder,
                            bartcore::ResponseUpdateResult result) {
-  bool first = result == bartcore::ResponseUpdateResult::scaleKept &&
-               !holder.scaleKeptWarned;
-  if (first) holder.scaleKeptWarned = true;
-  return Rf_ScalarLogical(first ? TRUE : FALSE);
+  return Rf_ScalarLogical(
+    firstKeep(holder,
+              result == bartcore::ResponseUpdateResult::scaleKept)
+      ? TRUE
+      : FALSE);
 }
 
 // The two setters of rows refuse a re-derivation before they install
@@ -6017,7 +6127,8 @@ static bool standardizationRecordIsHeld(const ParsedData& data,
 }
 
 SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
-                      SEXP updateScaleExpr, SEXP updateStandardizationExpr) {
+                      SEXP updateScaleExpr, SEXP updateStandardizationExpr,
+                      SEXP activeExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
@@ -6035,7 +6146,12 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     Rf_error("$setData: 'data' is not of class 'dbartsData'");
 
   return unwindProtect([&, data = ParsedData{},
-                       block = std::vector<double>{}]() mutable -> SEXP {
+                       block = std::vector<double>{},
+                       ownedResponse = std::vector<double>{},
+                       ownedWeights = std::vector<double>{},
+                       ownedOffset = std::vector<double>{},
+                       ownedTestOffset = std::vector<double>{}]() mutable
+                         -> SEXP {
     parseData(data, dataExpr);
     if (data.xIsSparse || data.xIsMixed)
       Rf_error("$setData: requires a dense predictor matrix; sparse "
@@ -6174,32 +6290,60 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
                  "the sampler's, or make a new sampler");
     }
 
-    // COPY-ON-SET at the one conduit that MOVES the counts: the resize comes
-    // FIRST and covers every buffer, the ones a null replacement leaves
-    // uncopied included, so none is left the old n wide for a later set to
-    // fill; the copies that follow then reallocate nothing, which is what
-    // keeps the pointers handed to setData below valid past this block
-    holder.ownedResponse.resize(data.numObservations);
-    holder.ownedWeights.resize(data.numObservations);
-    holder.ownedOffset.resize(data.numObservations);
-    holder.ownedTestOffset.resize(data.numTestObservations);
-    const double* y =
-      adoptVector(holder.ownedResponse, data.y, data.numObservations);
+    // the mask the caller installs once the replacement is in, read for the
+    // rows a derived leaf standardization is taken over
+    if (!Rf_isNull(activeExpr)) {
+      if (!Rf_isReal(activeExpr) ||
+          static_cast<size_t>(Rf_xlength(activeExpr)) != data.numObservations)
+        Rf_error("$setData: the active-row mask must hold one number for "
+                 "each observation");
+      replacement.activeRows = REAL(activeExpr);
+    }
+
+    // COPY-ON-SET at the one conduit that MOVES the counts: every buffer is
+    // sized to the new counts, the ones a null replacement leaves uncopied
+    // included, so none is left the old n wide for a later set to fill. They
+    // are the closure's until the engine has taken the replacement and moved
+    // into the holder after, a move keeping each buffer and so the pointers
+    // the engine was handed: the engine refuses a derivation before it
+    // installs anything, and the buffers the sampler borrows until then must
+    // not move under it.
+    ownedResponse.resize(data.numObservations);
+    ownedWeights.resize(data.numObservations);
+    ownedOffset.resize(data.numObservations);
+    ownedTestOffset.resize(data.numTestObservations);
+    const double* y = adoptVector(ownedResponse, data.y, data.numObservations);
     const double* weights =
-      adoptVector(holder.ownedWeights, data.weights, data.numObservations);
+      adoptVector(ownedWeights, data.weights, data.numObservations);
     const double* offset =
-      adoptVector(holder.ownedOffset, data.offset, data.numObservations);
+      adoptVector(ownedOffset, data.offset, data.numObservations);
     const double* testOffset =
-      adoptVector(holder.ownedTestOffset, data.testOffset,
-                  data.numTestObservations);
+      adoptVector(ownedTestOffset, data.testOffset, data.numTestObservations);
     // the loop above bounds every factor cell on both sides against the same
     // fixed level table the engine re-tests, so this refusal is the backstop
     // a header-only host meets rather than a live arm here
-    if (!sampler.setData(data.predictors.denseValues, y,
-                         data.numObservations, weights, offset,
-                         data.testPredictors.denseValues,
-                         data.numTestObservations, testOffset, replacement))
-      Rf_error("a predictor value is not an existing level code");
+    bool installed = false;
+    char leafRefusal[512] = "";
+    try {
+      installed = sampler.setData(data.predictors.denseValues, y,
+                                  data.numObservations, weights, offset,
+                                  data.testPredictors.denseValues,
+                                  data.numTestObservations, testOffset,
+                                  replacement);
+    } catch (const bartcore::LeafStandardizationError& error) {
+      std::snprintf(leafRefusal, sizeof leafRefusal, "%s",
+                    bartcore_bridge::leafStandardizationMessage(
+                      dataExpr, error, error.column,
+                      shape.leafModel == bartcore::LeafModelKind::gp,
+                      bartcore_bridge::LeafRefusalDoor::setData)
+                      .c_str());
+    }
+    if (leafRefusal[0] != '\0') Rf_error("%s", leafRefusal);
+    if (!installed) Rf_error("a predictor value is not an existing level code");
+    holder.ownedResponse = std::move(ownedResponse);
+    holder.ownedWeights = std::move(ownedWeights);
+    holder.ownedOffset = std::move(ownedOffset);
+    holder.ownedTestOffset = std::move(ownedTestOffset);
     // a family whose augmentation is STATED against the counts takes them
     // through the weight conduit as well, so the latents are drawn against the
     // counts now in force rather than left at the deterministic cold start a
@@ -6608,11 +6752,34 @@ static const char* const predictorLevelRefusal =
   "$setPredictor: a factor column was given a value that is not one of its "
   "levels";
 
+// A predictor update's answer: whether it went in, carrying, where the
+// re-derivation kept a covariate's numbers for want of two values over the
+// rows in, "standardization.kept", the kept covariates' positions from 1, and
+// "warn", firstKeep's answer, both for R to read and strip.
+static SEXP predictorUpdateAnswer(BartcoreHolder& holder, bool accepted,
+                                  const std::vector<std::uint8_t>& kept) {
+  R_xlen_t numKept = 0;
+  for (std::uint8_t flag : kept) numKept += flag != 0 ? 1 : 0;
+  if (numKept == 0) return Rf_ScalarLogical(accepted ? TRUE : FALSE);
+  // a vector of its own: Rf_ScalarLogical answers R's shared TRUE and FALSE,
+  // which must never carry an attribute
+  SEXP resultExpr = PROTECT(Rf_allocVector(LGLSXP, 1));
+  LOGICAL(resultExpr)[0] = accepted ? TRUE : FALSE;
+  SEXP keptExpr = Rf_allocVector(INTSXP, numKept);
+  setAttribByName(resultExpr, "standardization.kept", keptExpr);
+  for (size_t j = 0, k = 0; j < kept.size(); ++j)
+    if (kept[j] != 0) INTEGER(keptExpr)[k++] = static_cast<int>(j + 1);
+  setAttribByName(resultExpr, "warn",
+                  Rf_ScalarLogical(firstKeep(holder, true) ? TRUE : FALSE));
+  UNPROTECT(1);
+  return resultExpr;
+}
+
 // A predictor update's updateStandardization: TRUE derives the leaf
-// covariate standardization again over the values the update leaves, after
-// an update that went in, which a gp sampler holding saved draws refuses
-// before anything moves, a saved gp draw replaying only under the
-// standardization it was drawn with.
+// covariate standardization again over the values the update leaves at the
+// rows in the likelihood, after an update that went in, which a gp sampler
+// holding saved draws refuses before anything moves, a saved gp draw
+// replaying only under the standardization it was drawn with.
 static bool standardizationUpdateFromExpression(
     const bartcore::SamplerBase& sampler, SEXP updateExpr) {
   if (Rf_asLogical(updateExpr) != TRUE) return false;
@@ -6668,14 +6835,15 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
       splitPlacementFromRule(rule));
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
       Rf_error("%s", predictorLevelRefusal);
+    std::vector<std::uint8_t> kept;
     if (updateStandardization &&
         result == bartcore::PredictorUpdateResult::accepted)
-      holder.sampler->rederiveStandardization();
+      kept = holder.sampler->rederiveStandardization();
     // the engine re-quantized the values into owned codes and retains no
     // pointer; the R method reassigns sampler$data@x, which keeps the current
     // source alive
-    return Rf_ScalarLogical(
-      result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
+    return predictorUpdateAnswer(
+      holder, result == bartcore::PredictorUpdateResult::accepted, kept);
   });
 }
 
@@ -6737,14 +6905,15 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
     if (result == bartcore::PredictorUpdateResult::invalidCutPoints)
       Rf_error("%s", predictorLevelRefusal);
     // derived for the replaced columns alone, as their cut points are
+    std::vector<std::uint8_t> kept;
     if (updateStandardization &&
         result == bartcore::PredictorUpdateResult::accepted) {
       std::vector<std::uint8_t> replaced(numPredictors, 0);
       for (size_t column : columns) replaced[column] = 1;
-      holder.sampler->rederiveStandardization(replaced.data());
+      kept = holder.sampler->rederiveStandardization(replaced.data());
     }
-    return Rf_ScalarLogical(
-      result == bartcore::PredictorUpdateResult::accepted ? TRUE : FALSE);
+    return predictorUpdateAnswer(
+      holder, result == bartcore::PredictorUpdateResult::accepted, kept);
   });
 }
 
@@ -7316,9 +7485,23 @@ SEXP bartcore_derivedRecords(SEXP ptrExpr, SEXP withGridsExpr) {
   bartcore::DerivedRecords records;
   records.withGrids = Rf_asLogical(withGridsExpr) != FALSE;
   holder.sampler->derivedRecords(records);
+  // a fifth entry, not a record, only where a leaf covariate's numbers were
+  // read from every row for want of a row in the likelihood, so the list is
+  // otherwise the record a data object carries
+  bool fromAllRows = false;
+  for (std::uint8_t flag : records.leafFromAllRows)
+    fromAllRows = fromAllRows || flag != 0;
   const char* names[] = {"cutPoints", "response.range", "forest.calibration",
-                         "standardization", ""};
+                         "standardization",
+                         fromAllRows ? "standardization.all.rows" : "", ""};
   SEXP resultExpr = PROTECT(Rf_mkNamed(VECSXP, names));
+  if (fromAllRows) {
+    SEXP flagsExpr = Rf_allocVector(
+      LGLSXP, static_cast<R_xlen_t>(records.leafFromAllRows.size()));
+    SET_VECTOR_ELT(resultExpr, 4, flagsExpr);
+    for (size_t j = 0; j < records.leafFromAllRows.size(); ++j)
+      LOGICAL(flagsExpr)[j] = records.leafFromAllRows[j] != 0 ? TRUE : FALSE;
+  }
   // empty unless the grids were read, so the loop below fills nothing
   size_t numPredictors = records.cutPoints.size();
   SEXP gridsExpr = R_NilValue;

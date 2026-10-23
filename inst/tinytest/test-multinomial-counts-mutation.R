@@ -250,7 +250,8 @@ expect_error(
     sampler.mn$data,
     "value",
     "derive",
-    "derive"
+    "derive",
+    NULL
   ),
   "multi-forest"
 )

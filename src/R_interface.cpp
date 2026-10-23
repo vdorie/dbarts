@@ -269,7 +269,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_setOffset", bartcore_setOffset, 3),
   DEF_FUNC("dbarts_bartcore_setResponse", bartcore_setResponse, 4),
   DEF_FUNC("dbarts_bartcore_setSigma", bartcore_setSigma, 2),
-  DEF_FUNC("dbarts_bartcore_setData", bartcore_setData, 5),
+  DEF_FUNC("dbarts_bartcore_setData", bartcore_setData, 6),
   DEF_FUNC("dbarts_bartcore_getMissingSeen", bartcore_getMissingSeen, 1),
   DEF_FUNC("dbarts_bartcore_setTestPredictor", bartcore_setTestPredictor, 2),
   DEF_FUNC("dbarts_bartcore_setTestOffset", bartcore_setTestOffset, 2),

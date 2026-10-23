@@ -19,6 +19,7 @@
 #include <new>
 #include <memory>
 #include <numbers>
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -2441,6 +2442,70 @@ inline bool suppliedMoments(const SuppliedStandardization& supplied,
   return true;
 }
 
+/// The rows a leaf covariate's center, scale and default lengthscale are
+/// derived over (Sampler::leafRowsFrom): \p rows a nonzero byte per training
+/// row in the likelihood, null for every row; \p noneIn true where no row is
+/// in and every row is read in its place. Membership only: a row's weight
+/// never enters the numbers.
+struct LeafRows {
+  const std::uint8_t* rows = nullptr;
+  bool noneIn = false;
+};
+
+/// The rows \p rows names in the likelihood out of \p n: 0 where none is in.
+inline std::size_t leafRowsInCount(const LeafRows& rows, std::size_t n) {
+  if (rows.noneIn) return 0;
+  if (rows.rows == nullptr) return n;
+  std::size_t count = 0;
+  for (std::size_t i = 0; i < n; ++i) count += rows.rows[i] != 0 ? 1 : 0;
+  return count;
+}
+
+/// Thrown where a derivation of a leaf covariate's center and scale finds
+/// fewer than two distinct observed values over the rows it reads, one value
+/// or none observed: there is no scale to take, and no number in force to
+/// keep. covariate is its position among the leaf's covariates and column the
+/// store's predictor column; numRowsIn counts the rows in the likelihood out
+/// of numObservations, 0 where none is in and every row was read; observed
+/// says whether any row read holds a value of it. The host words the refusal.
+struct LeafStandardizationError : std::domain_error {
+  LeafStandardizationError(std::size_t covariate_, std::size_t column_,
+                           std::size_t numRowsIn_,
+                           std::size_t numObservations_, bool observed_)
+    : std::domain_error("a leaf covariate holds fewer than two distinct "
+                        "values over the rows in the likelihood, so its "
+                        "center and scale cannot be taken from them"),
+      covariate(covariate_), column(column_), numRowsIn(numRowsIn_),
+      numObservations(numObservations_), observed(observed_) {}
+  std::size_t covariate;
+  std::size_t column;
+  std::size_t numRowsIn;
+  std::size_t numObservations;
+  bool observed;
+};
+
+/// Covariate \p j's center and scale, its values \p column over \p n rows,
+/// derived over the rows \p rows reads (standardizationMomentsForColumn).
+/// Where those hold too little, \p placeholder takes the placeholder there,
+/// as a gp leaf whose model states its lengthscales does, the kernel width
+/// then fixed by the model; otherwise the derivation is refused.
+///
+/// \throws LeafStandardizationError where the rows read hold fewer than two
+/// distinct observed values and \p placeholder is false.
+inline void deriveLeafMoments(const double* column, std::size_t n,
+                              std::size_t j, std::size_t columnIndex,
+                              const LeafRows& rows, bool placeholder,
+                              double* mean, double* sd) {
+  if (!standardizationMomentsForColumn(column, n, mean, sd, rows.rows) ||
+      placeholder)
+    return;
+  bool observed = false;
+  for (std::size_t i = 0; i < n && !observed; ++i)
+    observed = (rows.rows == nullptr || rows.rows[i] != 0) && !isNA(column[i]);
+  throw LeafStandardizationError(j, columnIndex, leafRowsInCount(rows, n), n,
+                                 observed);
+}
+
 /// Whether a recorded standardization, \p centers and \p scales, is
 /// \p heldCenters and \p heldScales: as many of each, centers equal bit for
 /// bit and scales equal as a leaf divides by them, a scale that is not a
@@ -2505,9 +2570,8 @@ inline void convertLinearCoefficients(double& intercept, double* slopes,
 /// Missing covariate values enter at the standardized mean (zero); rules on
 /// the same column still route the missingness itself. Linear leaves read
 /// raw predictor values through ColumnStore::rawColumn: the borrowed matrix
-/// normally, gathered copies (with parent-derived standardization constants)
-/// on a view built with the designation; a view without them is refused
-/// upstream.
+/// normally, gathered copies on a view built with the designation; a view
+/// without them is refused upstream.
 struct LinearGaussianLeaf {
   static constexpr bool hasVectorParams = true;
   static constexpr bool hasFunctionParams = false;
@@ -2531,14 +2595,19 @@ struct LinearGaussianLeaf {
     return result;
   }
 
+  /// Whether covariate j's center and scale were last derived over every
+  /// row because no row was in the likelihood: the status a host warns on.
+  const std::vector<std::uint8_t>& fromAllRows() const { return fromAllRows_; }
+
   /// Gather and standardize the designated columns from the store's raw
   /// training values. Standardization constants come from the observed
-  /// values alone, or are the ones \p supplied gives; a constant (or
-  /// all-missing) column keeps sd 1 and degrades to an extra intercept the
-  /// ridge prior absorbs.
+  /// values of the rows \p rows reads alone, or are the ones \p supplied
+  /// gives; a column whose rows read hold one value, or none, is refused
+  /// (deriveLeafMoments).
   void initialize(const ColumnStore& data, const std::size_t* columns,
                   std::size_t numColumns, std::size_t numChains = 1,
-                  const SuppliedStandardization& supplied = {}) {
+                  const SuppliedStandardization& supplied = {},
+                  const LeafRows& rows = {}) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
     std::size_t p = numColumns + 1;
@@ -2547,30 +2616,34 @@ struct LinearGaussianLeaf {
     rowScratch_.assign(p, 0.0);
     statisticsCacheBudget_ =
       statisticsCacheTotalBudgetBytes / (numChains == 0 ? 1 : numChains);
-    reinitialize(data, supplied);
+    reinitialize(data, supplied, rows);
   }
 
   /// Re-derive the standardization constants and covariates for the stored
   /// designation, for whole-data replacement (possibly a new number of
-  /// observations): the analogue of setData rebuilding the cut grid. On a
-  /// view the raw values come from the gathered copies and the constants
-  /// from the parent's full data - the same calibration inheritance as the
-  /// copied cut grid, so every fold runs the prior a full-data fit would.
-  /// Constants \p supplied gives are taken in place of either.
+  /// observations): the analogue of setData rebuilding the cut grid. The
+  /// constants are derived over the rows \p rows reads, on a view its own,
+  /// or are the ones \p supplied gives. A derivation over rows holding too
+  /// little throws before anything is regathered past that covariate, so the
+  /// caller tests first wherever the leaf must survive it.
   void reinitialize(const ColumnStore& data,
-                    const SuppliedStandardization& supplied = {}) {
+                    const SuppliedStandardization& supplied = {},
+                    const LeafRows& rows = {}) {
     clearStatisticsCache();
     std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
     means_.assign(numColumns, 0.0);
     sds_.assign(numColumns, 1.0);
+    fromAllRows_.assign(numColumns, 0);
     u_.resize(numObservations_ * numColumns);
     for (std::size_t j = 0; j < numColumns; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double mean, sd;
-      if (!suppliedMoments(supplied, j, &mean, &sd) &&
-          !data.suppliedStandardization(columns_[j], &mean, &sd))
-        standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
+      if (!suppliedMoments(supplied, j, &mean, &sd)) {
+        deriveLeafMoments(column, numObservations_, j, columns_[j], rows,
+                          false, &mean, &sd);
+        fromAllRows_[j] = rows.noneIn ? 1 : 0;
+      }
       means_[j] = mean;
       sds_[j] = sd;
       for (std::size_t i = 0; i < numObservations_; ++i)
@@ -2941,6 +3014,7 @@ private:
   std::size_t numTestObservations_ = 0;
   std::vector<std::size_t> columns_;
   std::vector<double> means_, sds_;
+  std::vector<std::uint8_t> fromAllRows_;
   std::vector<double> u_;      // standardized, row-major n x q
   std::vector<double> uTest_;  // standardized, column-major numTest x q
   mutable std::vector<TreeStatisticsCache> statisticsCaches_;
@@ -3023,17 +3097,21 @@ struct GPGaussianLeaf {
   /// derived from the covariates: supplied ones are model, and no state
   /// install replaces them.
   bool lengthscalesAreSupplied() const { return !suppliedLengthscales_.empty(); }
+  /// Whether covariate j's center and scale were last derived over every
+  /// row because no row was in the likelihood: the status a host warns on.
+  const std::vector<std::uint8_t>& fromAllRows() const { return fromAllRows_; }
 
   /// Gather and standardize the designated columns and fix the kernel
   /// lengthscales: the supplied per-column values (standardized scale) when
   /// non-null, otherwise the median pairwise-distance heuristic over the
-  /// standardized training values. \p supplied, a record's, gives the
-  /// constants and the heuristic's lengthscales in place of deriving them;
-  /// it never makes the lengthscales supplied.
+  /// standardized values of the rows \p rows reads. \p supplied, a record's,
+  /// gives the constants and the heuristic's lengthscales in place of
+  /// deriving them; it never makes the lengthscales supplied.
   void initialize(const ColumnStore& data, const std::size_t* columns,
                   std::size_t numColumns, const double* lengthscales,
                   std::size_t maxLeafSize, std::size_t numChains = 1,
-                  const SuppliedStandardization& supplied = {}) {
+                  const SuppliedStandardization& supplied = {},
+                  const LeafRows& rows = {}) {
     numCovariates_ = numColumns;
     columns_.assign(columns, columns + numColumns);
     maxLeafSize_ = maxLeafSize;
@@ -3043,28 +3121,34 @@ struct GPGaussianLeaf {
       suppliedLengthscales_.assign(lengthscales, lengthscales + numColumns);
     else
       suppliedLengthscales_.clear();
-    reinitialize(data, supplied);
+    reinitialize(data, supplied, rows);
   }
 
   /// Re-derive standardization constants, covariates, and (when not
-  /// supplied) lengthscales for the stored designation; the whole-data
-  /// analogue of the rebuilt cut grid, sharing the linear leaf's calibration
-  /// inheritance on views. Values \p supplied gives are taken in place of
-  /// derived ones.
+  /// supplied) lengthscales for the stored designation over the rows \p rows
+  /// reads, on a view its own; the whole-data analogue of the rebuilt cut
+  /// grid. Values \p supplied gives are taken in place of derived ones. A
+  /// covariate whose rows read hold one value, or none, takes the placeholder
+  /// where the model states the lengthscales and is refused otherwise
+  /// (deriveLeafMoments), as the linear leaf refuses it.
   void reinitialize(const ColumnStore& data,
-                    const SuppliedStandardization& supplied = {}) {
+                    const SuppliedStandardization& supplied = {},
+                    const LeafRows& rows = {}) {
     clearKernelCaches();
     std::size_t numColumns = numCovariates_;
     numObservations_ = data.numObservations;
     means_.assign(numColumns, 0.0);
     sds_.assign(numColumns, 1.0);
+    fromAllRows_.assign(numColumns, 0);
     u_.resize(numObservations_ * numColumns);
     for (std::size_t j = 0; j < numColumns; ++j) {
       const double* column = data.rawColumn(columns_[j]);
       double mean, sd;
-      if (!suppliedMoments(supplied, j, &mean, &sd) &&
-          !data.suppliedStandardization(columns_[j], &mean, &sd))
-        standardizationMomentsForColumn(column, numObservations_, &mean, &sd);
+      if (!suppliedMoments(supplied, j, &mean, &sd)) {
+        deriveLeafMoments(column, numObservations_, j, columns_[j], rows,
+                          lengthscalesAreSupplied(), &mean, &sd);
+        fromAllRows_[j] = rows.noneIn ? 1 : 0;
+      }
       means_[j] = mean;
       sds_[j] = sd;
       double* u = u_.data() + j * numObservations_;
@@ -3079,7 +3163,7 @@ struct GPGaussianLeaf {
             !std::isnan(supplied.lengthscales[j])
           ? supplied.lengthscales[j]
           : medianPairwiseDistance(u_.data() + j * numObservations_,
-                                   numObservations_);
+                                   numObservations_, rows.rows);
     // sortsByBitmap grows with the member count, so a bitmap it refuses at
     // the largest gp leaf serves no span and stays unallocated
     std::size_t maxMembers = std::min(maxLeafSize_, numObservations_);
@@ -3422,13 +3506,27 @@ struct GPGaussianLeaf {
   }
 
 private:
-  /// Median of pairwise absolute differences on the standardized scale,
-  /// deterministically subsampled to at most 512 rows; degenerate columns
-  /// fall back to 1.
-  static double medianPairwiseDistance(const double* u, std::size_t n) {
-    std::size_t stride = 1 + (n - 1) / 512;
+  /// Median of pairwise absolute differences on the standardized scale over
+  /// the rows \p rows marks (null for every row), deterministically
+  /// subsampled to at most 512 of them by a stride counted over those rows;
+  /// a row missing the covariate counts at its standardized value 0, and
+  /// degenerate columns fall back to 1.
+  static double medianPairwiseDistance(const double* u, std::size_t n,
+                                       const std::uint8_t* rows = nullptr) {
     std::vector<double> values;
-    for (std::size_t i = 0; i < n; i += stride) values.push_back(u[i]);
+    if (rows == nullptr) {
+      std::size_t stride = 1 + (n - 1) / 512;
+      for (std::size_t i = 0; i < n; i += stride) values.push_back(u[i]);
+    } else {
+      std::size_t m = 0;
+      for (std::size_t i = 0; i < n; ++i) m += rows[i] != 0 ? 1 : 0;
+      std::size_t stride = m == 0 ? 1 : 1 + (m - 1) / 512;
+      for (std::size_t i = 0, k = 0; i < n; ++i) {
+        if (rows[i] == 0) continue;
+        if (k % stride == 0) values.push_back(u[i]);
+        ++k;
+      }
+    }
     if (values.size() < 2) return 1.0;
     std::vector<double> distances;
     distances.reserve(values.size() * (values.size() - 1) / 2);
@@ -3894,6 +3992,7 @@ private:
   mutable GPFallbackTally tally_;
   std::vector<std::size_t> columns_;
   std::vector<double> means_, sds_;
+  std::vector<std::uint8_t> fromAllRows_;
   std::vector<double> lengthscales_, suppliedLengthscales_;
   std::vector<double> u_;      // standardized, column-major n x q
   std::vector<double> uTest_;  // standardized, column-major numTest x q

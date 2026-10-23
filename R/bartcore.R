@@ -873,6 +873,10 @@ matchCutPointRule <- function(x, choices, name) {
   )
 }
 
+## The predictor setters' work, returning list(value, visible, kept): the
+## method's value, whether it is returned visibly, and the labels of the leaf
+## covariates whose center and scale updateStandardization kept, given only
+## on the sampler's first keep, for the method to warn of last.
 bartcoreSamplerSetPredictor <- function(
   sampler,
   x,
@@ -974,7 +978,7 @@ bartcoreSamplerSetPredictor <- function(
       x[installed]
     )
     recordMissingSeen(sampler, ptr)
-    return(installed)
+    return(list(value = installed, visible = TRUE, kept = NULL))
   }
 
   forceUpdate <- if (is.null(forceUpdate)) {
@@ -1139,10 +1143,23 @@ bartcoreSamplerSetPredictor <- function(
   if (updateCutPoints != cutPointRuleCodes[["none"]] || updateStandardization) {
     recordDerived(sampler, ptr)
   }
+  # the leaf covariates whose numbers were kept, the rows in holding too
+  # little of them, named where the bridge says to warn now
+  kept <- attr(updateSuccessful, "standardization.kept", exact = TRUE)
+  if (!isTRUE(attr(updateSuccessful, "warn", exact = TRUE))) {
+    kept <- NULL
+  }
+  attributes(updateSuccessful) <- NULL
 
   # a forced update always installs, and what it returns says nothing of
   # validity (dec-B310): NULL, invisibly, as 0.9-34's did
-  if (!forceUpdate) updateSuccessful else invisible(NULL)
+  list(
+    value = if (!forceUpdate) updateSuccessful,
+    visible = !forceUpdate,
+    kept = if (!is.null(kept)) {
+      leafCovariateLabels(sampler$model, sampler$data)[kept]
+    }
+  )
 }
 
 # The response conduits' updateScale: a single TRUE or FALSE. NA or 1 would
@@ -1211,17 +1228,40 @@ bartcoreSamplerSetResponse <- function(
   invisible(scaleKept)
 }
 
-## Raised by the four setters that re-derive as their last act, so a warning
+## Raised by the setters that re-derive as their last act, so a warning
 ## turned into an error leaves the object and its stored state agreeing with
 ## the engine. 'first' is the bridge's answer: TRUE on the sampler's first
-## re-derivation that kept the scale, FALSE on every other call.
-warnScaleKept <- function(first) {
-  if (isTRUE(first)) {
+## re-derivation that kept the scale or a leaf covariate's numbers, FALSE on
+## every other call. 'covariates', the labels of the leaf covariates kept,
+## gives the leaf's words; NULL the response's.
+warnScaleKept <- function(first, covariates = NULL) {
+  if (!isTRUE(first)) {
+    return(invisible(NULL))
+  }
+  if (is.null(covariates)) {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the response are in the ",
       "likelihood, so the response's scale and the prior's center are kept ",
       "as they were (said once per sampler)"
+    )
+  } else if (length(covariates) == 1L) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of the leaf covariate ",
+      covariates,
+      " are in the likelihood, so its center and scale are kept as they ",
+      "were (said once per sampler)"
+    )
+  } else {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of each of the leaf covariates ",
+      paste(covariates[-length(covariates)], collapse = ", "),
+      " and ",
+      covariates[[length(covariates)]],
+      " are in the likelihood, so their centers and scales are kept as ",
+      "they were (said once per sampler)"
     )
   }
   invisible(NULL)
@@ -1446,6 +1486,8 @@ bartcoreSamplerSetData <- function(
 
   oldData <- sampler$data
   sampler$data <- newData
+  # the mask goes to the engine too, for the rows a derived standardization
+  # is read over, and is installed after the swap below
   tryResult <- tryCatch(
     .Call(
       C_dbarts_bartcore_setData,
@@ -1453,7 +1495,8 @@ bartcoreSamplerSetData <- function(
       sampler$data,
       choices$grid,
       choices$range,
-      choices$standardization
+      choices$standardization,
+      if (!is.null(active)) as.double(active)
     ),
     error = function(e) {
       sampler$data <- oldData
@@ -1465,7 +1508,8 @@ bartcoreSamplerSetData <- function(
   }
   # the records are the sampler's, whatever the object handed in carried
   sampler$data@missing.seen <- .Call(C_dbarts_bartcore_getMissingSeen, ptr)
-  recordDerived(sampler, ptr)
+  records <- .Call(C_dbarts_bartcore_derivedRecords, ptr, TRUE)
+  recordDerived(sampler, ptr, records)
   # the swap cleared whatever mask was in force, so the mirror that would
   # otherwise re-apply one at re-creation goes with it; setActiveRows records
   # the replacement's own below
@@ -1477,18 +1521,106 @@ bartcoreSamplerSetData <- function(
   if (!is.null(active)) {
     installWeightsMask(sampler, active, rangeDerived)
   }
-  # a derived range is read as creation reads it. Whether it had too little
-  # to read is the caller's to say, last: the record and the stored state
-  # are still the replaced data's here
-  invisible(
-    rangeDerived &&
+  # a derived range and a derived standardization are read as creation reads
+  # them. Whether either had too little to read is the caller's to say, last:
+  # the record and the stored state are still the replaced data's here
+  invisible(list(
+    range = rangeDerived &&
       scaleRowsFallBack(
         newData,
         sampler$model@family,
         active,
         warn = FALSE
-      )
+      ),
+    leaf = leafFromAllRows(sampler, records)
+  ))
+}
+
+## The labels of the leaf covariates whose center and scale the engine just
+## read from every row, no row being in the likelihood, from its records
+## (C_dbarts_bartcore_derivedRecords); empty where none was.
+leafFromAllRows <- function(sampler, records) {
+  flags <- records$standardization.all.rows
+  if (is.null(flags)) {
+    return(character())
+  }
+  leafCovariateLabels(sampler$model, sampler$data)[flags]
+}
+
+## A leaf covariate as a message names it: its column's name, quoted, where it
+## has a usable one, or its column's position.
+leafCovariateLabels <- function(model, data) {
+  columns <- model@leaf.prior@columns
+  names <- colnames(data@x)[columns]
+  if (is.null(names)) {
+    names <- rep_len(NA_character_, length(columns))
+  }
+  ifelse(
+    !is.na(names) & nzchar(names),
+    paste0('"', names, '"'),
+    paste("in column", columns)
   )
+}
+
+## The warning that the rows in the likelihood left too little to read a
+## scale from, so numbers were taken from all n rows, raised once for a
+## creation or a setData: 'range' where the response's scale and the prior's
+## center were, of 'rowsIn' rows in, and 'leaf' the labels of the leaf
+## covariates whose center and scale were, which happens only where no row is
+## in. One text names both.
+warnRowsFallBack <- function(n, rowsIn, range, leaf) {
+  if (length(leaf) == 0L) {
+    if (range) {
+      warnClassed(
+        "dbartsScaleFallbackWarning",
+        "fewer than two distinct values of the response are in the ",
+        "likelihood (",
+        rowsIn,
+        " of ",
+        n,
+        " observations are in it), so the response's scale and the prior's ",
+        "center are taken from all ",
+        n
+      )
+    }
+    return(invisible(NULL))
+  }
+  what <- if (length(leaf) == 1L) {
+    paste0("the center and scale of ", leaf)
+  } else {
+    paste0(
+      "the centers and scales of ",
+      paste(leaf[-length(leaf)], collapse = ", "),
+      " and ",
+      leaf[[length(leaf)]]
+    )
+  }
+  if (range) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of the response are in the ",
+      "likelihood (",
+      rowsIn,
+      " of ",
+      n,
+      " observations are in it), so the response's scale, the prior's ",
+      "center and ",
+      what,
+      " are taken from all ",
+      n
+    )
+  } else {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "no observation is in the likelihood (0 of ",
+      n,
+      " have a positive weight), so ",
+      what,
+      " are taken from all ",
+      n
+    )
+  }
+  invisible(NULL)
 }
 
 ## The mask's install for $setActiveRows, creation and setData, on a mask the

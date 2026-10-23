@@ -227,10 +227,13 @@ public:
     std::size_t numTestObservations, const double* testOffset,
     const DataReplacement& replacement = {}) = 0;
   /// Derive the leaf covariate standardization again over the covariates in
-  /// force, at the covariates whose predictor column \p replaced marks (a
-  /// byte per predictor; null marks every one), a linear leaf's
-  /// coefficients, live and saved, rewritten into it.
-  virtual void rederiveStandardization(
+  /// force at the rows now in the likelihood, at the covariates whose
+  /// predictor column \p replaced marks (a byte per predictor; null marks
+  /// every one), a linear leaf's coefficients, live and saved, rewritten into
+  /// it; a marked covariate those rows hold at one value, or none, keeps its
+  /// numbers. Returns a byte per leaf covariate, nonzero where it was kept
+  /// (Sampler::rederiveStandardization).
+  virtual std::vector<std::uint8_t> rederiveStandardization(
     const std::uint8_t* replaced = nullptr) = 0;
   /// Replace the predictors from a borrowed view of any shape - dense,
   /// mapped, CSC or mixed, either dense channel - consumed column by column:
@@ -628,9 +631,9 @@ public:
     return impl_.setData(x, y, numObservations, weights, offset, x_test,
                          numTestObservations, testOffset, replacement);
   }
-  void rederiveStandardization(
+  std::vector<std::uint8_t> rederiveStandardization(
     const std::uint8_t* replaced = nullptr) override {
-    impl_.rederiveStandardization(replaced);
+    return impl_.rederiveStandardization(replaced);
   }
   // the view-taking overrides hide the base's dense convenience spellings;
   // re-expose them so a dense caller still resolves

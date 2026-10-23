@@ -2622,6 +2622,11 @@ static void testNoSpreadStandardization() {
     options.leafCovariateColumns = covariates;
     options.numLeafCovariates = 2;
     options.gpLeaves = gp;
+    // a derivation over a column of one value is refused, so the column
+    // without spread is a record's, the first covariate derived beside it
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    double centers[] = {nan, 1000.0}, scales[] = {nan, nan};
+    options.suppliedStandardization = SuppliedStandardization{centers, scales};
     auto make = [&](std::uint32_t seed) {
       return createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
                            ResponseFamily::gaussian, 1.0, 3.0,
@@ -2726,7 +2731,8 @@ static void testLinearLeafViews() {
   built(parent.build(x.data(), n, p, options.maxNumCuts, false, nullptr, covariates,
                1));
 
-  // view gather mechanics: subset raw values and parent-derived constants
+  // view gather mechanics: subset raw values, and a leaf over the view
+  // deriving its constants over the view's own rows
   {
     std::vector<size_t> rows, testRows;
     for (size_t i = 0; i < n; ++i)
@@ -2746,16 +2752,22 @@ static void testLinearLeafViews() {
     check(view.rawColumn(0) == nullptr && view.rawTestColumn(0) == nullptr,
           "undesignated columns stay unserved on views");
 
-    double mean, sd, parentMean, parentSd;
+    // the subset's own moments, not the parent's every-row ones
+    std::vector<double> subset(rows.size());
+    for (size_t i = 0; i < rows.size(); ++i) subset[i] = x[rows[i] + n];
+    double subsetMean, subsetSd, parentMean, parentSd;
+    standardizationMomentsForColumn(subset.data(), subset.size(), &subsetMean,
+                                    &subsetSd);
     standardizationMomentsForColumn(x.data() + n, n, &parentMean, &parentSd);
-    check(view.suppliedStandardization(1, &mean, &sd) &&
-            mean == parentMean && sd == parentSd,
-          "view standardization constants come from the parent's full data");
-    check(!parent.suppliedStandardization(1, &mean, &sd),
-          "raw-data stores supply no gathered constants");
+    LinearGaussianLeaf leaf;
+    leaf.initialize(view, covariates, 1);
+    check(leaf.covariateMeans()[0] == subsetMean &&
+            leaf.covariateSds()[0] == subsetSd && subsetMean != parentMean &&
+            leaf.standardization().hasSpread[0],
+          "a leaf over a view derives its constants over the view's rows");
 
-    // a view of a column that holds one value takes its centre and the
-    // placeholder 1 from the parent, and a leaf over it reads no spread
+    // a view of a column that holds one value is refused a derivation, and
+    // reaches a covariate without spread only through a supplied record
     std::vector<double> xFlat(x);
     for (size_t i = 0; i < n; ++i) xFlat[i + n] = 1000.0;
     ColumnStore flatParent, flatView;
@@ -2763,15 +2775,25 @@ static void testLinearLeafViews() {
                            nullptr, covariates, 1));
     flatView.buildFromParent(flatParent, rows.data(), rows.size(),
                              testRows.data(), testRows.size(), covariates, 1);
-    LinearGaussianLeaf leaf, flatLeaf;
-    leaf.initialize(view, covariates, 1);
-    flatLeaf.initialize(flatView, covariates, 1);
-    check(leaf.standardization().hasSpread[0] &&
-            !flatLeaf.standardization().hasSpread[0] &&
-            flatLeaf.covariateMeans()[0] == 1000.0 &&
-            flatLeaf.covariateSds()[0] == 1.0,
-          "a view of a column without spread is without spread, and one of "
-          "a column with it is not");
+    LinearGaussianLeaf flatLeaf, heldLeaf;
+    bool refused = false;
+    try {
+      flatLeaf.initialize(flatView, covariates, 1);
+    } catch (const LeafStandardizationError& error) {
+      refused = error.covariate == 0 && error.column == 1 &&
+                error.numRowsIn == rows.size() &&
+                error.numObservations == rows.size() && error.observed;
+    }
+    check(refused, "a view of a column without spread is refused a "
+                   "derivation, naming the column");
+    double flatCenter = 1000.0,
+           flatScale = std::numeric_limits<double>::quiet_NaN();
+    heldLeaf.initialize(flatView, covariates, 1, 1,
+                        SuppliedStandardization{&flatCenter, &flatScale});
+    check(!heldLeaf.standardization().hasSpread[0] &&
+            heldLeaf.covariateMeans()[0] == 1000.0 &&
+            heldLeaf.covariateSds()[0] == 1.0,
+          "a supplied record without spread is without spread on a view");
   }
 
   // a full-rows linear view runs bitwise identically to the raw-data path
@@ -4534,13 +4556,19 @@ static void testMixedColumnStore() {
     check(gatherMatches, "view gathers raw values of a dense-backed column");
     check(view.rawColumn(1) == nullptr,
           "view leaves a CSC-backed column ungathered");
-    double mean = 0.0, sd = 0.0;
+    // the view carries the values alone; a leaf over it derives from them
+    std::vector<double> subset(viewRows.size());
+    for (size_t i = 0; i < viewRows.size(); ++i)
+      subset[i] = fixture.denseSource[viewRows[i]];
     double referenceMean = 0.0, referenceSd = 0.0;
-    standardizationMomentsForColumn(fixture.denseSource.data(), n,
+    standardizationMomentsForColumn(subset.data(), subset.size(),
                                     &referenceMean, &referenceSd);
-    check(view.suppliedStandardization(0, &mean, &sd) &&
-          mean == referenceMean && sd == referenceSd,
-          "view standardization constants come from the parent's full data");
+    LinearGaussianLeaf viewLeaf;
+    std::size_t viewCovariate[] = {0};
+    viewLeaf.initialize(view, viewCovariate, 1);
+    check(viewLeaf.covariateMeans()[0] == referenceMean &&
+            viewLeaf.covariateSds()[0] == referenceSd,
+          "a leaf over a mixed view derives over the view's rows");
   }
   printf("ok: mixed column store\n");
 }

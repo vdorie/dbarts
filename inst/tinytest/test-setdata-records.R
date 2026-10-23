@@ -645,11 +645,13 @@ expect_identical(lapply(record, `[[`, "a"), lapply(expected, `[[`, "a"))
 expect_false(identical(record$lengthscale[["a"]], held$lengthscale[["a"]]))
 expect_identical(lapply(record, `[[`, "b"), lapply(held, `[[`, "b"))
 # a covariate without spread records an NA scale, which the leaf divides by
-# 1: compared as the leaf divides, its own data object is served
+# 1: compared as the leaf divides, its own data object is served. A gp leaf
+# takes the placeholder for a column of one value where its lengthscale is
+# stated, and is refused a derivation there otherwise
 flat <- dbarts::dbarts(
   cbind(a = x[, 1L], b = rep(0.3, n)),
   y,
-  leaf.prior = gp(columns = "b"),
+  leaf.prior = gp(columns = "b", lengthscale = 1),
   control = controlWith()
 )
 invisible(flat$run(5L, 4L))

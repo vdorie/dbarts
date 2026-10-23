@@ -42,7 +42,8 @@ SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale,
                           SEXP status);
 SEXP bartcore_setSigma(SEXP ptr, SEXP sigma);
 SEXP bartcore_setData(SEXP ptr, SEXP data, SEXP updateCutPoints,
-                      SEXP updateScale, SEXP updateStandardization);
+                      SEXP updateScale, SEXP updateStandardization,
+                      SEXP active);
 SEXP bartcore_getMissingSeen(SEXP ptr);
 SEXP bartcore_setTestPredictor(SEXP ptr, SEXP x_test);
 SEXP bartcore_setTestOffset(SEXP ptr, SEXP offset_test);
