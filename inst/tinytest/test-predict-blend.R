@@ -703,6 +703,30 @@ for (given in list(NA_real_, c(NA, rep(1, n - 1L)), 1:3)) {
     pattern = "'weights' (has missing values|must have the same number of rows)"
   )
 }
+# a matrix of several columns is refused on both paths and for every arm, the
+# blend's included; one column is a vector
+for (type in c("ev", "forest")) {
+  expect_error(
+    predict(fit, type = type, weights = matrix(1, n, 2L)),
+    pattern = "'weights' must be one number or one per training row",
+    fixed = TRUE
+  )
+  expect_error(
+    predict(
+      fit,
+      x,
+      type = type,
+      weights = matrix(1, n, 2L),
+      bases = if (type == "ev") fit$bases
+    ),
+    pattern = "'weights' must be one number or one per row of 'newdata'",
+    fixed = TRUE
+  )
+}
+expect_identical(
+  predict(fit, x, type = "forest", weights = matrix(1, n, 1L)),
+  forestNew
+)
 # a fit kept without the per-forest channels or the training draws names what
 # is missing and the fix
 droppedFits <- bart(

@@ -549,6 +549,12 @@ numTrainingRows <- function(object) {
   length(object[["y"]])
 }
 
+## a weight per row comes as a vector or a one-column matrix; a second column
+## would be read as more rows, or ignored
+weightsNotOneColumn <- function(weights) {
+  length(dim(weights)) > 2L || NCOL(weights) != 1L
+}
+
 ## the replacement weights for the training rows, checked as the weights of
 ## newdata are: one value or one per row, none missing (a row's na.action has
 ## no say among the fit's own rows, so a missing one is refused, as the
@@ -559,8 +565,7 @@ trainingRowWeights <- function(object, weights, type) {
   nObs <- numTrainingRows(object)
   if (
     !is.atomic(weights) ||
-      length(dim(weights)) > 2L ||
-      NCOL(weights) != 1L ||
+      weightsNotOneColumn(weights) ||
       !(NROW(weights) %in% c(1L, nObs)) ||
       anyNA(weights)
   ) {
@@ -969,6 +974,13 @@ predict.bart <- function(
       weights = weights,
       bases = bases
     ))
+  }
+
+  if (!is.null(weights) && weightsNotOneColumn(weights)) {
+    stop(
+      "'weights' must be one number or one per row of 'newdata'",
+      call. = FALSE
+    )
   }
 
   # the fit's offset argument and offset() terms are evaluated on newdata, as

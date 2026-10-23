@@ -274,11 +274,36 @@ expect_error(
   predict(fit, weights = c(Inf, rep(1, n - 1L)), type = "ppd"),
   "finite and non-negative"
 )
-# a column of weights is a vector of them, as at newdata
+# a column of weights is a vector of them, with no newdata and at it
 set.seed(37)
 a <- predict(fit, weights = matrix(w.new, n, 1L), type = "ppd")
 set.seed(37)
 expect_identical(a, predict(fit, weights = w.new, type = "ppd"))
+set.seed(37)
+a <- predict(fit, df, weights = matrix(w.new, n, 1L), type = "ppd")
+set.seed(37)
+expect_identical(a, predict(fit, df, weights = w.new, type = "ppd"))
+# and a matrix of several columns is refused on both paths, where newdata had
+# read the first column and let the others go
+for (type in c("ev", "bart", "ppd")) {
+  for (wide in list(
+    matrix(1, n, 2L),
+    matrix(1, 1L, 2L),
+    matrix(w.new, n, 2L),
+    array(1, c(n, 1L, 2L))
+  )) {
+    expect_error(
+      predict(fit, weights = wide, type = type),
+      "'weights' must be one number or one per training row",
+      fixed = TRUE
+    )
+    expect_error(
+      predict(fit, df, weights = wide, type = type),
+      "'weights' must be one number or one per row of 'newdata'",
+      fixed = TRUE
+    )
+  }
+}
 # the two paths agree on what each type does with a weight that is negative,
 # not a number, missing or the wrong length: a type that draws nothing never
 # looks at the values, a posterior predictive draw refuses a negative or
@@ -300,7 +325,8 @@ bad.weights <- list(
   text.rows = rep("a", n),
   missing = NA_real_,
   missing.row = c(NA, rep(1, n - 1L)),
-  short = 1:3
+  short = 1:3,
+  wide = matrix(1, n, 2L)
 )
 for (type in c("ev", "bart", "ppd")) {
   for (label in names(bad.weights)) {
