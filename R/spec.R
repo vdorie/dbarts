@@ -19,31 +19,10 @@
 ## the engine sees it.
 hazardFamilyTokens <- c("hazard", "hazard.probit", "hazard.logistic")
 
-## Refuses a response a binary family cannot fit, saying what is wrong with
-## it: one not coded 0/1, or, for a hazard fit, a 0/1 response with one class.
-## A hazard fit ('hazard', the token the caller gave) is a binary fit on
-## person-period rows the caller never wrote, so its refusal speaks of
-## subjects and events. A probit or logistic fit whose response holds one
-## class is fitted instead (dec-B333); see warnSingleClass.
-refuseNonBinaryResponse <- function(uniqueResponses, family, hazard = NULL) {
-  singleClass <- length(uniqueResponses) == 1L &&
-    uniqueResponses %in% c(0, 1)
-  if (!is.null(hazard) && singleClass) {
-    stop(
-      "family \"",
-      hazard,
-      "\" needs ",
-      if (uniqueResponses == 0) {
-        "an event; every subject is censored"
-      } else {
-        paste0(
-          "a period at risk without an event; every subject has its event ",
-          "in the first period"
-        )
-      },
-      call. = FALSE
-    )
-  }
+## Refuses a response a binary family cannot fit: one not coded 0/1. A
+## response of one class is fitted instead, with one warning (dec-B333); see
+## warnSingleClass.
+refuseNonBinaryResponse <- function(family) {
   stop(
     "family \"",
     family,
@@ -55,17 +34,39 @@ refuseNonBinaryResponse <- function(uniqueResponses, family, hazard = NULL) {
   )
 }
 
-## The one warning a probit or logistic fit gives when its response holds one
-## class: the model is defined, and the prior alone pushes the probability
-## toward 0 or 1.
-warnSingleClass <- function(family) {
-  warning(
-    "family \"",
-    family,
-    "\" is fitted to a response with a single class; the prior alone drives ",
-    "the fitted probabilities toward 0 or 1",
-    call. = FALSE
-  )
+## The one warning a binary fit gives when its response holds one class: the
+## model is defined, and the prior alone pushes the probability toward 0 or 1.
+## A hazard fit ('hazard', the token the caller gave) is a binary fit on
+## person-period rows the caller never wrote, so its warning speaks of
+## subjects and events; 'y' is the class the rows hold.
+warnSingleClass <- function(family, hazard = NULL, y = NULL) {
+  if (is.null(hazard)) {
+    warning(
+      "family \"",
+      family,
+      "\" is fitted to a response with a single class; the prior alone drives ",
+      "the fitted probabilities toward 0 or 1",
+      call. = FALSE
+    )
+  } else {
+    warning(
+      "family \"",
+      hazard,
+      "\" is fitted with ",
+      if (y == 0) {
+        "no event: every subject is censored; the prior alone drives the "
+      } else {
+        paste0(
+          "no period at risk without an event: every subject has its event ",
+          "in the first period; the prior alone drives the "
+        )
+      },
+      "hazards toward ",
+      if (y == 0) "0" else "1",
+      ", so the survival curves sit where the prior puts them",
+      call. = FALSE
+    )
+  }
 }
 
 ## Whether a coded response holds one class of a binary one: every value 0,
@@ -76,10 +77,10 @@ responseHasSingleClass <- function(y) {
   length(values) == 1L && values %in% c(0, 1)
 }
 
-## A single-class response that a binary family fits with its one warning (a
-## hazard family refuses it): an explicit binary family, or "auto" on a
-## categorical encoding, which resolves to one.
-refusesSingleClass <- function(data, family) {
+## A single-class response that a binary family fits with its one warning: an
+## explicit binary or hazard family, or "auto" on a categorical encoding,
+## which resolves to one.
+fitsSingleClass <- function(data, family) {
   responseHasSingleClass(data@y) &&
     (family %in%
       c("probit", "logistic", hazardFamilyTokens) ||
@@ -108,7 +109,7 @@ withBinaryResponsePrecision <- function(family, expr) {
   if (
     !is.null(held) &&
       family %not_in% hazardFamilyTokens &&
-      !(is(data, "dbartsData") && refusesSingleClass(data, family))
+      !(is(data, "dbartsData") && fitsSingleClass(data, family))
   ) {
     warning(held)
   }
@@ -556,29 +557,21 @@ resolveSamplerSpec <- function(
       family != "gaussian" &&
         family != "aft" &&
         !responseIsBinary &&
-        !(is.null(hazardPeriods) && responseHasSingleClass(data@y))
+        !responseHasSingleClass(data@y)
     ) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding. aft fits continuous log-times.
-      refuseNonBinaryResponse(
-        uniqueResponses,
-        family,
-        if (!is.null(hazardPeriods)) requestedFamily
-      )
+      refuseNonBinaryResponse(family)
     }
   }
   # a factor, logical or character response of one class codes to a single
   # 0/1 value, which the numeric check above never sees
   if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {
-    if (is.null(hazardPeriods)) {
-      warnSingleClass(family)
-    } else {
-      refuseNonBinaryResponse(
-        unique(data@y[!is.na(data@y)]),
-        family,
-        requestedFamily
-      )
-    }
+    warnSingleClass(
+      family,
+      if (!is.null(hazardPeriods)) requestedFamily,
+      unique(data@y[!is.na(data@y)])
+    )
   }
   # aft draws sigma and rescales like gaussian; only the binary families are
   # latent-variable models on a fixed unit scale

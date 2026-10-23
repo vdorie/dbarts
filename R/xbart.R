@@ -256,7 +256,7 @@ xbart <- function(
     ) {
       # gaussian on a 0/1 response is a legitimate request; the binary
       # families need latent-variable coding
-      refuseNonBinaryResponse(uniqueResponses, family)
+      refuseNonBinaryResponse(family)
     }
   }
   if (isBinaryFamily(family) && responseHasSingleClass(data@y)) {

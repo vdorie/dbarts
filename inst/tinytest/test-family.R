@@ -83,19 +83,139 @@ for (cls in c(0, 1)) {
     )
   }
 }
-# a hazard fit's binary rows are the caller's subjects, which its refusals
+# a hazard fit's binary rows are the caller's subjects, which its messages
 # name; the binary family underneath it is never named
 if (requireNamespace("survival", quietly = TRUE)) {
-  expect_error(
-    dbarts(x, survival::Surv(1 + rpois(n, 2), rep(0, n)), family = "hazard"),
-    "family \"hazard\" needs an event; every subject is censored",
-    fixed = TRUE
+  # a person-period response of one class, every subject censored or every
+  # subject's event in its first period, is fitted with one warning worded
+  # for subjects and events, at every door and on every hazard token
+  tm.censored <- 1 + rpois(n, 2)
+  hazardOneClass <- list(
+    censored = list(
+      time = tm.censored,
+      status = rep(0, n),
+      says = "no event: every subject is censored",
+      toward = "hazards toward 0"
+    ),
+    first = list(
+      time = rep(1, n),
+      status = rep(1, n),
+      says = paste0(
+        "no period at risk without an event: every subject has its event ",
+        "in the first period"
+      ),
+      toward = "hazards toward 1"
+    )
   )
-  expect_error(
-    dbarts(x, survival::Surv(rep(1, n), rep(1, n)), family = "hazard.logistic"),
-    "family \"hazard.logistic\" needs a period at risk without an event",
-    fixed = TRUE
+  hazardData <- data.frame(x1 = x[, 1L], x2 = x[, 2L])
+  for (caseName in names(hazardOneClass)) {
+    case <- hazardOneClass[[caseName]]
+    hazardData$time <- case$time
+    hazardData$status <- case$status
+    surv <- survival::Surv(case$time, case$status)
+    for (familyName in c("hazard", "hazard.probit", "hazard.logistic")) {
+      doors <- list(
+        xy = function() dbarts(x, surv, family = familyName, control = control),
+        matrix = function() {
+          dbarts(
+            x,
+            cbind(case$time, case$status),
+            family = familyName,
+            control = control
+          )
+        },
+        formula = function() {
+          dbarts(
+            survival::Surv(time, status) ~ x1 + x2,
+            hazardData,
+            family = familyName,
+            control = control
+          )
+        },
+        bart.xy = function() {
+          bart(
+            x,
+            surv,
+            family = familyName,
+            n.trees = 10L,
+            n.samples = 10L,
+            n.burn = 10L,
+            n.chains = 1L,
+            n.threads = 1L,
+            verbose = FALSE
+          )
+        },
+        bart.formula = function() {
+          bart(
+            survival::Surv(time, status) ~ x1 + x2,
+            hazardData,
+            family = familyName,
+            n.trees = 10L,
+            n.samples = 10L,
+            n.burn = 10L,
+            n.chains = 1L,
+            n.threads = 1L,
+            verbose = FALSE
+          )
+        }
+      )
+      for (doorName in names(doors)) {
+        info <- paste(caseName, familyName, doorName)
+        res <- countWarnings(doors[[doorName]]())
+        expect_identical(length(res$warnings), 1L, info = info)
+        expect_true(
+          startsWith(
+            res$warnings,
+            paste0("family \"", familyName, "\" is fitted with ", case$says)
+          ),
+          info = info
+        )
+        expect_true(grepl(case$toward, res$warnings, fixed = TRUE), info = info)
+        expect_true(
+          grepl("survival curves sit where the prior puts them", res$warnings),
+          info = info
+        )
+        expect_false(grepl("single class|response", res$warnings), info = info)
+      }
+    }
+  }
+  # the fit runs and its survival curves sit where the prior puts them: high
+  # with no event, low with every event in the first period
+  for (familyName in c("hazard", "hazard.logistic")) {
+    for (caseName in names(hazardOneClass)) {
+      case <- hazardOneClass[[caseName]]
+      fit <- suppressWarnings(bart(
+        x,
+        survival::Surv(case$time, case$status),
+        family = familyName,
+        n.trees = 20L,
+        n.samples = 20L,
+        n.burn = 20L,
+        n.chains = 1L,
+        n.threads = 1L,
+        keepTrees = TRUE,
+        verbose = FALSE
+      ))
+      curves <- survivalProbabilities(fit, times = c(1, 2))
+      info <- paste(caseName, familyName)
+      expect_true(all(is.finite(curves)), info = info)
+      expect_true(all(curves >= 0 & curves <= 1), info = info)
+      expect_true(
+        if (caseName == "censored") mean(curves) > 0.5 else mean(curves) < 0.5,
+        info = info
+      )
+    }
+  }
+  # a subject-level response that is not one class is not warned about
+  res <- countWarnings(
+    dbarts(
+      x,
+      survival::Surv(1 + rpois(n, 2), rbinom(n, 1L, 0.5)),
+      family = "hazard",
+      control = control
+    )
   )
+  expect_identical(length(res$warnings), 0L)
   expect_error(
     dbarts(
       x,
