@@ -1406,8 +1406,9 @@ Left: slice D; `warm-start-undo-test`, `warm-start-by-position`, `warm-start-lin
 
 ## Slice D as built
 
-Built 2026-10-17 on 46e1a644, the records of slice C's landing, in four commits: the parts one side has with
-their rewritten pins, the leaf kinds and the texts of (d) with step 3, the tests, and the help and notes.
+Built 2026-10-17 on 46e1a644, the records of slice C's landing, rebased onto a000d239, in four commits: the
+parts one side has with their rewritten pins, the leaf kinds and the texts of (d) with step 3, the tests, and the
+help and notes.
 
 - Parts. The DART refusal and the variance presence refusal go. A part the donor alone has is neither assembled
   nor checked: a donor's variance trees, live or saved, go unread into a sampler without a variance forest, a
@@ -1427,16 +1428,17 @@ their rewritten pins, the leaf kinds and the texts of (d) with step 3, the tests
   The bridge keeps one check of its own, that a block divides by the tree or leaf count it is split by, which is
   the parse. Every forest of a donor must give the same shape.
 - The texts of (d). Predictors are counted by the bridge. The column errors name the column by position: the
-  bridge holds no column names. A state records no cut points for a numeric column of one value, as for an
-  unordered factor, so a donor column without them is "an unordered factor or held one value", and the bridge
-  refuses exactly the pairs the engine's grid check refused before it: a numeric donor column where this
-  sampler's splits by subset, and a donor column without cut points where this sampler's numeric column has
-  some. No install is newly refused or newly taken; the engine's grid check stays behind them with its text.
+  bridge holds no column names. A numeric column records at least one cut point, one over a column of one
+  value, so a donor column without cut points is "an unordered factor", and the bridge refuses exactly the
+  pairs the engine's grid check refused before it: a numeric donor column where this sampler's splits by
+  subset, and a donor column without cut points where this sampler's is numeric. No install is newly refused
+  or newly taken; the engine's grid check stays behind them with its text.
 - The line. A linear donor on another number of covariates says "slopes left behind", as one into constant
   leaves does, and not "slopes started at 0" beside it; that phrase is the constant donor's. The report's
   `blocks.unread` is now `slopes`, and `dart` and `variance` say a part started fresh or left behind.
 - Step 3. The tracer (scratch/wsd/tracer.R, the built verdict on a copy before each call) over the four named
-  files and the two warm-start files of slices A and C: no call in the named files returns FALSE, and the three
+  files and the two warm-start files of slices A and C: the one call in the named files that returns FALSE is
+  slice C's forest of fewer trees in test-warm-start.R, which this slice leaves as it was, and the three
   pins of refusals there became checks of what is taken (the DART fit of test-warm-start.R, the variance pair of
   test-sampler-errors.R, the constant donor of test-composition-sequences.R; test-sampler-boundary-refusals.R
   pins none). A departure, as slice C's: test-warm-start-forms.R, outside the named files, pinned slice A's
@@ -1444,7 +1446,9 @@ their rewritten pins, the leaf kinds and the texts of (d) with step 3, the tests
   way, constant into linear, linear on another number of covariates), which went, and gp into constant as
   declined with "gp fits left behind", which is now the error by name; the three texts that list held
   ("malformed cut points", the predictor structure for the factor columns, "malformed leaf parameters" for gp on
-  other rows) are the new ones. The cases taken are pinned in test-warm-start-kinds.R; tests/cpp needed no
+  other rows) are the new ones. Three more left that list though still errors, constant into gp, linear into gp
+  and gp into linear: they moved to test-warm-start-kinds.R's `refusedBoth`, which pins the exact text in both
+  forms and the stored state untouched, as strongly as the list did. The cases taken are pinned in test-warm-start-kinds.R; tests/cpp needed no
   rewritten expectation beyond its calls' new argument and the flag's own test, now a linear donor's slopes.
 - Tests beyond the table: every row's variance is read in R by `getVariance`, not in tests/cpp; a DART donor into
   a plain fit is held to a twin given the same donor without its DART block, state and next draws; the reverse
@@ -1464,3 +1468,44 @@ their rewritten pins, the leaf kinds and the texts of (d) with step 3, the tests
   builder's own: the concentration left as run, DART's weights over every column, the factor-column check gone,
   and the slopes-at-0 flag unset. 22 in all.
 - Size: the engine adds 157 lines and removes 36 against a stop of 350; the range adds 785 and removes 218 against 1550, the tests 411 of them.
+
+### Slice D fix round
+
+From the opus review of 8ac28b5d, whose verdict was land, in three commits on it: the two new refusals with their
+pins and the pins of the review's two surviving mutants, the texts and comments, and this record.
+
+- Two refusals, each older than the slice. A donor's DART weights go in only between two DART fits, and
+  `Sampler::installForests` now refuses a block that is not one weight a predictor, as `shapeMismatch`, before
+  anything is written: [`Chain::installDrawnScalars`](../../src/bartcore/chain.hpp) copies the block whole, so a
+  longer one overflowed the heap and a shorter one left weights that did not sum to 1. A variance leaf that is not
+  finite is refused wherever a scale leaf is held positive: the warm start's check, on both arms,
+  [`Chain::stageLiveVarianceTree`](../../src/bartcore/chain.hpp) and the saved trees of `Chain::stateIsValid`. So
+  `setState` refuses a state with an infinite leaf, which it took before: a change to what `stateIsValid` returns,
+  which Constraints held fixed for the slice's own steps, made here on the review's item 8. The warm start's
+  error says "not positive and finite".
+- Texts and comments. The column error is "is an unordered factor and this sampler's numeric", as the texts of
+  (d) above now say. The bridge comment on the report says `variance.trees` is NULL also where the variance forest
+  starts fresh, and `testWarmStartTreeCounts`'s comment is back above it.
+- Tests. tests/cpp: DART blocks of 1, 2, 4 and 100000 weights refused in both forms with the chain untouched;
+  an infinite saved variance leaf refused by `setState` and by a warm start from its slot. tinytest: DART blocks
+  of 1, 3, 5 and 100000 weights refused in both forms by `refusedBoth`; an infinite live variance leaf refused by
+  `setState` and by a warm start in both forms, on this sampler's grid (test-heteroscedastic-warm-start.R) and
+  across grids (test-warm-start-kinds.R); the starting variance after `setResponse(updateScale = TRUE)` and after
+  `setData`, each identical to a new sampler's on the moved response, which answers the item of
+  [Not verified](#not-verified) by a test; and DART and the variance forest started fresh where a donor of 12
+  trees is forced into 6, so the trees are chosen.
+- Mutants, each alone on an export of the tip, installed with `--preclean`: the review's R2, the starting variance
+  from `initialSigma`, killed by the re-anchoring test, both moves; its R3, the fresh parts skipped where the
+  trees are chosen, killed by the chosen-trees test; the DART block unchecked, killed by tests/cpp, and by
+  tinytest, whose process aborts at the long block; the saved trees' check without finiteness, killed by
+  tests/cpp; `stageLiveVarianceTree`'s, killed by the `setState` pin. The warm start's own check without
+  finiteness survives every test and is equivalent: `Chain::donorTreesStage` stages each variance tree it holds
+  through `stageLiveVarianceTree`, on the recorded points across grids and on the store's otherwise, with the
+  same answer and nothing written.
+- Gates, on the tip: tests/cpp 407 ok, plain and under ASAN/UBSAN with no diagnostic; the full suite 28116
+  results, 0 failed; lint 0; air, rc-codoc (48 methods), win-drift, doc-freshness and verify-anchors each passed;
+  on the reference install the four snapshot files 14, 3, 7 and 3 assertions, 0 failed, and the bitwise compares
+  55, 19 and 11 identical with no |z|; the exact gates in quick 43 of 43; the R-loaded path under ASAN and UBSAN,
+  the seven warm-start files 787 results, 0 failed, and the review's DART probe refused at every length, no report;
+  `R CMD check --as-cran` 1 NOTE, the Date field.
+- Size: the code and tests add 144 lines and remove 26.
