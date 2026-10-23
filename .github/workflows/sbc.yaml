@@ -33,8 +33,12 @@
 # R=100); the monotone arms' are ~3x their GitHub runner job time (leaf 12.6
 # min, joint 8.2 min at R=200). nbinom is the
 # expensive arm: its Polya-Gamma draw loops sum(y_i + r) times per sweep. aft and the two heteroscedastic arms take the gaussian row's
-# 15 minutes rather than their own 3x: under a quarter hour the job's floor is
-# the dependency install and the package build, not the arm.
+# 15 minutes or more rather than their own 3x.
+#
+# A matrix timeout bounds the calibration step alone. The job's own limit,
+# 240 minutes, leaves room for the R setup and dependency install, which took
+# up to 35 minutes on some runners on 2026-10-23 and timed out four arms whose
+# check had not started.
 #
 # Not in the matrix: BCF, in both its gaussian arms (bcf / bcf-weak), whose
 # prognostic cells are a recorded slow-mixing finding rather than a defect
@@ -74,7 +78,7 @@ jobs:
 
     name: sbc (${{ matrix.config }})
 
-    timeout-minutes: ${{ matrix.timeout }}
+    timeout-minutes: 240
 
     strategy:
       fail-fast: false
@@ -195,6 +199,7 @@ jobs:
         run: R CMD INSTALL .
 
       - name: Run the SBC calibration check
+        timeout-minutes: ${{ matrix.timeout }}
         env:
           SBC_EXPECTED_FLAGS: ${{ matrix.SBC_EXPECTED_FLAGS }}
         run: >
