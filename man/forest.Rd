@@ -528,11 +528,12 @@ sampler$setLeafPrior(forests = list(forest(),
     multiplies, for a numeric column the mean and sd it has over the
     observations in the likelihood as they stand, and the sd the forest
     resolved to. For a numeric column that is its sd per sd of the column as
-    it now stands, the size of the forest's term over one sd of the column in
-    the response's units: for a default it is \eqn{\mathrm{sd}(y)}{sd(y)}
-    (the link's error sd under \code{"probit"} and \code{"logistic"}) until
-    the column changes, and for a stated \code{sd} it is that \code{sd} times
-    the column's sd. Where the column is constant it is the \code{sd} per
+    it now stands, named by the forest's label, the size of the forest's term
+    over one sd of the column in the response's units: for a default it is
+    \eqn{\mathrm{sd}(y)}{sd(y)} (the link's error sd under \code{"probit"} and
+    \code{"logistic"}) wherever the column, and the observations it is read
+    over, are those the default was taken from, and for a stated \code{sd} it
+    is that \code{sd} times the column's sd. Where the column is constant it is the \code{sd} per
     unit. For a factor it is the sd between the two levels. The sd per unit
     of a numeric column, which is what \code{forest(sd = )} states, is in the
     full block and in the reader. The last line of the short block says where
@@ -557,9 +558,11 @@ sampler$setLeafPrior(forests = list(forest(),
     for a dose; and one wild value shows in the range, and moves the mean and
     sd. And the figure per sd of the column, in either block, the size of the
     forest's term over one sd of the column (\code{sd} times the column's
-    sd): for a default it is the same on every numeric line not marked as
-    taken from another column, and for a stated \code{sd} it is where a
-    number in the wrong units shows. Nothing in the fit warns of either.
+    sd): for a default it is \eqn{\mathrm{sd}(y)}{sd(y)} on every numeric line
+    whose column, and the observations it is read over, are those the default
+    was taken from, so a line that differs has had its column or its
+    observations changed, and for a stated \code{sd} it is where a number in
+    the wrong units shows. Nothing in the fit warns of either.
   }
   \item{interactions, blocks}{
     Optional \code{\link{interactions}} and \code{\link{blocks}} constraints on
