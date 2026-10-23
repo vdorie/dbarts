@@ -620,7 +620,7 @@ for (constant in c(1000, 0.1)) {
 
   # the same pair through a warm start, and through bart, which runs a sweep
   # before anything can be read and is held to the donor's range. The slopes
-  # arrive as stored, each side reading the column at its own centre, so the
+  # arrive as stored, each side reading the column at its own center, so the
   # start is clean and the seeded fit the donor's on the training rows
   recipient <- madeOn(withLeafColumn(x, 2 * constant), 41L, keepTrees = FALSE)
   expect_identical(
@@ -690,7 +690,7 @@ copied$setData(dbartsData(x.more, y.more))
 expect_true(worstGap(before, liveMatrix(copied)) < tolerance)
 # as a donor into a sampler made on the values, whose cut points on the
 # column are other ones, so the donor's splits there move: forced, and under
-# the sampler's own centre and scale, which the slopes go in to as stored,
+# the sampler's own center and scale, which the slopes go in to as stored,
 # the seeded fit is not the donor's
 recipient <- madeOn(x, 42L, keepTrees = FALSE)
 own <- standardization(recipient)

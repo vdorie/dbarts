@@ -25,7 +25,7 @@ Before the change, on fixtures with a response sd of about 2:
 | `setResponse(3 y + 10, updateScale = TRUE)`, and `setData` with that response | every kept draw, any leaf | up to 20.7; equal to 3 f + 10 | 7e-15 |
 | `setOffset(-5, updateScale = TRUE)` | every kept draw | 5 | 4e-15 |
 | the same re-anchor under a variance forest | kept variance draws | times 9 | 1e-15 |
-| a warm start, donor centre and scale -0.019, 0.973, recipient 4.94, 2.92 | seeded fit against the donor's | up to 6.30 | up to 6.30: the slopes go in as stored (dec-B457) |
+| a warm start, donor center and scale -0.019, 0.973, recipient 4.94, 2.92 | seeded fit against the donor's | up to 6.30 | up to 6.30: the slopes go in as stored (dec-B457) |
 | a warm start from another cut grid | the recipient's centre and scale (and gp lengthscale) | replaced by ones re-derived from its rows | kept |
 
 A constant leaf's kept draws never moved across `setData`. With `updateScale = FALSE` nothing moved and
@@ -73,8 +73,8 @@ nothing moves.
   recipient's standardization (dec-B457); the donor's is not read
   ([`readWarmStartState`](../../src/R_interface_bartcore.cpp)). Where the two standardize a covariate
   differently the seeded forest starts away from the donor's function and the draws move it; a covariate of
-  one value on each side is read at each side's centre, so between two such the seeded fit is the donor's on
-  the training rows. The recipient keeps its centre, scale and lengthscale on either grid: no install
+  one value on each side is read at each side's center, so between two such the seeded fit is the donor's on
+  the training rows. The recipient keeps its center, scale and lengthscale on either grid: no install
   re-derives them, and the remap arm that did,
   retired: [`Chain::rebuildLiveForestRemapped`](../../src/bartcore/chain.hpp), is gone with the warm start's
   two forms (dec-B231, derived data changes only by a call that names it).
@@ -82,7 +82,7 @@ nothing moves.
   stored; a copy and a reload take the standardization the data object records
   ([`recordDerived`](../../R/data.R)), so they hold the source's. A state's standardization blocks record
   what it was stored under: [`Chain::lengthscaleStateFeasible`](../../src/bartcore/chain.hpp) refuses kept gp
-  draws made under another centre, scale or lengthscale, and nothing else reads them.
+  draws made under another center, scale or lengthscale, and nothing else reads them.
 
 ## One sequence whose posterior changes
 

@@ -2060,7 +2060,7 @@ static void testCrossGridWarmStart() {
 // numbers per unit of the recipient's own scaled covariate, from the donor's
 // live trees or a kept draw, on the donor's grid or another, so the seeded
 // forest is not the donor's function where the standardizations differ; the
-// recipient's centre, scale and lengthscale are never moved, and the donor's
+// recipient's center, scale and lengthscale are never moved, and the donor's
 // are not read, so a donor recording none, or a record a hand has broken,
 // installs the same. A gp leaf's per-row fits hold no kernel: copied on the
 // same grid, cold on another, as before. Two chains, several trees, the
@@ -2591,7 +2591,7 @@ static void testNoSpreadLiveConversion() {
           "in the twin's range");
 
     // the same pair through a warm start, which installs the coefficients
-    // as stored: each side reads the column at its own centre, so the fit is
+    // as stored: each side reads the column at its own center, so the fit is
     // the intercepts' on both
     donor->getState(donorState);
     std::unique_ptr<SamplerBase> recipient = make(xDonee, 20);

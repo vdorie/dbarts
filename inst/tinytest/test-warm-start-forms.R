@@ -831,7 +831,7 @@ expect_identical(
 # The coefficients go in as stored and the donor's standardization is not
 # read, so every case installs as it stands, the slopes the donor's numbers,
 # and the seeded function is the donor's only where both read the covariate
-# at one centre: the same single value on both sides. The donor's trees are
+# at one center: the same single value on both sides. The donor's trees are
 # hand-built so that none splits on the covariate
 withX2 <- function(value) {
   frame <- x
