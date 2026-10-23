@@ -319,7 +319,9 @@
             the sampler's (\code{"none"} or \code{FALSE}) whatever the object
             records. \code{$setPredictor(updateStandardization = TRUE)}
             derives a linear or Gaussian-process leaf's standardization again
-            for the columns it replaces, over their new values.
+            for the columns it replaces, over their new values at the rows
+            in the likelihood, keeping a covariate those rows hold at one
+            value, with a warning.
       \item A state whose saved draws (\code{keepTrees}) number more or
             fewer than the sampler keeps is installed with the newest that
             fit, the sampler's \code{n.samples} unchanged. 0.9-34 took a
@@ -509,8 +511,12 @@
       \item Leaf models. \code{leaf.prior = linear(columns)} fits a linear
             function of chosen predictors in each leaf, and
             \code{leaf.prior = gp(columns)} a Gaussian-process function. The
-            covariates are centered and scaled by the sampler, which keeps
-            its standardization: a restored state and a warm start put the
+            covariates are centered and scaled over the rows in the
+            likelihood when the sampler is created, and in each fold of
+            \code{xbart} over that fold's; a covariate those rows hold at
+            one value, a constant column among them, is refused unless a
+            \code{gp} leaf states its lengthscale. The sampler keeps its
+            standardization: a restored state and a warm start put the
             slopes in as stored under it.
             \code{normal(sd = )} states the leaf prior's spread directly on
             the response (or latent) scale instead of through \code{k}, as a

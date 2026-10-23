@@ -74,12 +74,13 @@ Stage-5 (views/xbart) notes:
 
 - ColumnStore::buildFromParent takes the designated columns and gathers
   their raw values by row (training and test), so views serve leaf models
-  while staying self-contained. Standardization constants come from the
-  PARENT's full data - the same calibration inheritance as the copied cut
-  grid, so every fold runs the prior a full-data fit would (and a
+  while staying self-contained. The leaf over a view derives its
+  standardization from the view's own rows, as a fit on them would (a
   full-rows view is bitwise identical to the raw-data path; component
-  test). One helper, standardizationMomentsForColumn (data.hpp), defines
-  the moments for both the gather and LinearGaussianLeaf.
+  test); until response-scale-rows slice D the constants came from the
+  parent's full data, so every fold ran the prior a full-data fit would.
+  One helper, standardizationMomentsForColumn (data.hpp), defines the
+  moments.
 - The leaf model reads raw values through ColumnStore::rawColumn /
   rawTestColumn (the borrowed matrix normally, the gathered copies on
   views; a borrowed x_test installed by setTestPredictors supersedes the

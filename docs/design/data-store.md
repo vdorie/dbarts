@@ -281,9 +281,10 @@ a built parent store, used by xbart folds and the data-handle path. It:
   empty);
 - gathers raw only for designated leaf-covariate columns the parent can
   serve (`parent.rawColumn(...) != null`), on BOTH sides and into both
-  column lists, inheriting the parent's standardization constants
-  (`suppliedStandardization`) so a full-rows view standardizes
-  bit-identically to a sampler over the raw data. Columns the parent cannot
+  column lists. A leaf over the view derives its standardization from those
+  values, the view's own rows, as a sampler created on them would, so a
+  full-rows view standardizes bit-identically to a sampler over the raw data
+  (rule 9 of [response-scale-rows.md](response-scale-rows.md)). Columns the parent cannot
   serve are left ungathered; the view's `rawColumn` returns null there and
   the facade refuses the designation. A factor column is one the parent can
   serve exactly when the parent gathered it, which is why a data handle
@@ -292,9 +293,8 @@ a built parent store, used by xbart folds and the data-handle path. It:
 The view is self-contained: nothing references the parent after
 `buildFromParent` returns.
 
-`isView` is pure provenance - this store was built from a parent - and
-gates only the parent-derived standardization constants
-(`suppliedStandardization`). Refusal reads two capability predicates on
+`isView` is pure provenance - this store was built from a parent; it
+gates nothing a leaf reads. Refusal reads two capability predicates on
 the store, one per granularity: `acceptsNewRawPredictors` (whole-data
 replacement; false for views, which hold no raw, and for CSC-built
 stores, which fix the design at creation - the bridge's
@@ -433,9 +433,9 @@ predictor alive on its own.
 
 You MAY read raw covariates through the store's raw accessors and nothing
 else. `rawColumn(j)` gives owned training raw for a gathered column;
-`rawTestColumn(j)` gives the test twin; `suppliedStandardization(j, ...)`
-gives parent-derived constants on a view (compute your own from
-`standardizationMomentsForColumn` when it returns false). This is exactly
+`rawTestColumn(j)` gives the test twin; the constants are your own,
+from [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) over the rows the sampler hands you, or
+the ones a host supplies. This is exactly
 what `LinearGaussianLeaf` ([`LinearGaussianLeaf`](../../src/bartcore/model.hpp)) and
 `GPGaussianLeaf` ([`GPGaussianLeaf`](../../src/bartcore/model.hpp)) do.
 

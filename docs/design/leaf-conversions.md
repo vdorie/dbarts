@@ -41,6 +41,9 @@ nothing moves.
   arithmetic, so such a call or install is bit for bit what it was.
 - A covariate that holds a single value has no spread: it is centred at that value exactly
   ([`standardizationMomentsForColumn`](../../src/bartcore/data.hpp)) and divided by a placeholder scale of 1,
+  reached through a carried record without a scale, a gp leaf whose lengthscale is stated, or a predictor
+  update under the numbers in force, a derivation over one value being refused
+  ([response-scale-rows.md](response-scale-rows.md), rule 9),
   so the leaf reads zero for it on every training row, its slope adds nothing to the fit and no observation
   informs it. The state stores the scale as `NA` beside a finite centre; a state that holds 1 reads as 1.
   Whether a column is one is read from what the leaf holds when it is asked - the scale is 1 and every

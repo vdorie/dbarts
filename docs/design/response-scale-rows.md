@@ -45,6 +45,17 @@ What it no longer does is move the numbers the prior is stated against.
    subjects in the likelihood; stated boundaries are checked against every subject. A subject at weight 0 is
    expanded on that grid, its time in the interval it falls in; one past the last period is at risk in every
    period with no event. With no subject in, the periods are every subject's under one warning.
+9. Leaf covariates. A linear or gp leaf's covariate center and scale, and the lengthscale a gp leaf derives
+   with them, are read over the rows in wherever the sampler derives them: at creation, under a mask family the
+   rows the creation mask keeps; at a `setData` that derives them, over the new data's rows in; in an `xbart`
+   fold, over the fold's training rows in. Unweighted, as in rule 1, and over every row where none is in, under
+   the creation warning, one text with the response's under the families that read it. Where the rows read hold
+   fewer than two distinct observed values of a covariate, one value or none, a derivation is refused, there
+   being no number in force to keep, unless a gp leaf states its lengthscale, which takes the placeholder: the
+   one value, divided by 1. `setPredictor(updateStandardization = TRUE)` re-derives the replaced covariates over
+   the rows in at that call, under the weights and the mask in force, and keeps one with too little, warning once
+   per sampler as rule 4 does, on the flag the response's keeps share. Held otherwise, through the data object's
+   record: a copy, a reload and a re-creation take it and read no row. Cut points still span every row.
 
 ## 2. What read which rows
 
@@ -58,6 +69,12 @@ with their response 50 higher):
 | unit of a forest's sd | [`scaledResponseSd`](../../src/bartcore/chain.hpp) | 25.25 in y | 1.466 |
 | sigest's stand-in | [`floorSigmaEstimate`](../../R/utility.R) | 25.245 (three rows in, two predictors) | 0.890 |
 | hazard periods | [`resolveHazardGrid`](../../R/dbarts.R) | 7 periods, 167 person-period rows | 5 and 134 |
+
+Slice D adds the leaf covariates: on a fixture with x1 uniform on rows 1 to 100 and on [5, 15] on rows 101 to
+200, which carry weight 0, a linear leaf's center and scale of x1 were 5.346 and 5.210, every row's, and are
+0.518 and 0.268 over the rows in, read by [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) and,
+for a gp leaf's default lengthscale, [`GPGaussianLeaf::medianPairwiseDistance`](../../src/bartcore/model.hpp)
+over the same rows.
 
 Already over the rows in, and unchanged: sigest's regression itself ([`residualStandardError`](../../R/utility.R),
 [`sparseResidualStandardError`](../../R/utility.R)), and every probit, logistic, ordinal and multinomial fit,
@@ -93,6 +110,14 @@ the bridge calls for `setWeights` and `setActiveRows` after their install, with 
   (0) where the coupling admits none. The value is named by a fourth enumerator list, `dbarts_swap_status`,
   folded into the ABI token, so the hash moves and the version pair stays 1/0 before the first release. A caller
   tests for nonzero, not for 1; a keep warns nothing.
+
+A leaf re-derivation decides its keep the same way, once, from chain 0's leaf, per covariate, over the rows the
+weights and the sampler's copy of the mask in force leave in ([`Sampler::rederiveStandardization`](../../src/bartcore/sampler.hpp)),
+and answers the covariates it kept; the bridge carries them on the predictor setters' answer with "warn now"
+from the holder's one flag, and the R method names them in its last act. A derivation that read every row for
+want of a row in marks those covariates in the engine's records (`DerivedRecords::leafFromAllRows`), which R
+reads for the creation warning; a derivation with too little is the engine's typed error, worded by the bridge
+with the column's name and the counts, and `setData` raises it before anything moves.
 
 At creation and `setData` R also tests rule 4, for the warning and for sigest: one function,
 [`scaleRowsFallBack`](../../R/spec.R), called by `resolveSamplerSpec`, `bartcoreSamplerSetData` and `xbart`; the
@@ -134,5 +159,6 @@ response setters while rows are out. Of the recorded baseline scenarios one move
 A: the survival re-anchor reads observed times (landed). B: this note, creation. C: `updateScale` on
 `setWeights` and `setActiveRows`, which extends the keep to them and documents the by-hand count sampler's call
 (landed, [response-scale-rows-c.md](../plans/response-scale-rows-c.md)).
-D: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the rows in, which waits on
-the record slices of the state.
+D: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the rows in, rule 9
+([response-scale-rows-d.md](../plans/response-scale-rows-d.md); its first push built 2026-10-23, not landed),
+and `updateStandardization` on `setWeights` and `setActiveRows` (its second push).

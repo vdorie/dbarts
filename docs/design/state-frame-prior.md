@@ -185,8 +185,9 @@ dec-B450 defers past the merge.
 
 - Construction takes optional supplied values beside the options it takes now: per column a grid and its
   weights, per forest a center, scale and lengthscale, a range, an anchor and unit. A grid goes in before the
-  columns are quantized, so a carried grid costs no second pass; a carried standardization goes in where
-  [`ColumnStore::suppliedStandardization`](../../src/bartcore/data.hpp) now serves a view; a range through
+  columns are quantized, so a carried grid costs no second pass; a carried standardization goes in beside the
+  options, retired: [`ColumnStore::suppliedStandardization`](../../src/bartcore/data.hpp) having served a view
+  until response-scale-rows slice D removed it; a range through
   the path `applyAnchor` uses. Absent derives, through today's code. The data handle is not handed any.
 - [`Sampler::setData`](../../src/bartcore/sampler.hpp) takes, per value, derive, keep or a supplied value.
   Keep re-quantizes the new rows on the grid in force, regathers the leaf covariates under the constants in
@@ -209,6 +210,9 @@ this item a copy, a reload and a state install hold them through the record, and
 exists on both setters. What D still owns: the rows (creation's leaf derivation reads the weights or mask; the
 column store holds none), the fold views in `xbart`, and `updateStandardization = TRUE` reading the rows in at
 that call.
+
+2026-10-23: slice D's first push builds all three, the rule stated in
+[Which rows a prior's scale is read from](response-scale-rows.md#which-rows-a-priors-scale-is-read-from), rule 9.
 
 ## Alternatives
 

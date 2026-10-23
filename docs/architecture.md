@@ -404,7 +404,10 @@ mutations are legal when. Three kinds:
   of observations. It first checks every factor cell of the replacement and
   of any test matrix against each column's fixed level table, and refuses the
   whole call, leaving the sampler untouched, if any cell is not a known
-  level. Past that check it is not transactional: the cut points, the leaf
+  level, or if a leaf covariate standardization it derives finds its rows in
+  the likelihood holding one value of a covariate (rule 9 of
+  [response-scale-rows.md](design/response-scale-rows.md)). Past those
+  checks it is not transactional: the cut points, the leaf
   covariate standardization and the response transform are each derived
   again, kept or taken from the host's record (`DataReplacement`); a split on
   a column whose grid changed moves to the nearest new cut, or by position
