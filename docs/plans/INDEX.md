@@ -1,6 +1,6 @@
 # Plans doc index
 
-Manifest of every `docs/plans/*.md` implementation plan (107 files; `README.md`
+Manifest of every `docs/plans/*.md` implementation plan (108 files; `README.md`
 is the process/contract doc, indexed separately at the bottom, not listed as
 a plan). Grouped by cluster/theme. STATUS reflects each doc's live
 `Status:`/`## Status` section (or its equivalent closing Landing note) -
@@ -87,6 +87,7 @@ Columns: `file | STATUS | one-liner`.
 | file | STATUS | purpose |
 |---|---|---|
 | small-rulings-1008-r.md | LANDED 2026-10-08 (6af82179) | Eleven small R-surface rulings of 2026-10-08: one-class binary fits, training-row predict and survival offsets, zero-column basis swaps, gp re-anchor text, ppd at weight 0, data-frame predictors, held values in fit$fixed, hazard cost text, indicator storage. |
+| small-rulings-1023-r.md | BUILT, not landed | Seven small R-surface rulings of 2026-10-23: training-row weights and bases at predict, NA predictive draws at weight 0, one-class hazard fits, the sample argument of survivalProbabilities, forests named by label, the perturb window cap refused. |
 | front-door-formals.md | LANDED 2026-09-10 (S1 1a6da4d8, S2 b1d2ba6b) | Sheds the seven `bart` scalars that mirror prior-object slots, moves `proposal.probs` onto `dbartsControl`, and gives `bart` and `xbart` a `control =` formal under a flat-wins precedence rule with fit-state controls refused. |
 | front-door.md | LANDED 2026-09-09 (S1 ecb319aa, S2 44b3fa6d, S3 cb5d4ef2, S4 28431413) | Makes `bart` the modern front door with a one-release `bart2` alias and a BayesTree-spelling shim, moves the BayesTree-style function to a new name at 0.9-34's formals, adds the tombstone registry, `sigest` everywhere, family objects with the consolidation pass, the Student-t family, `na.action` with a response-only default, xbart's fold distribution and modelled-k grid, and the saved-0.9-x-fit refusal. |
 | xbart-fork-workers.md | LANDED 2026-09-28 (33ee862f, 700ea9f1) | Gives `xbart` a `parallel` argument choosing forked workers or separate R sessions (default auto, from a session option) and a `cl` argument for a caller's cluster (dec-B131). |
