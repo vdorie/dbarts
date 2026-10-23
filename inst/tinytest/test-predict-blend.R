@@ -449,3 +449,258 @@ expect_error(
 oneForestSlice <- predict(fit, xNew, type = "forest", forest = 1L)
 allForests <- predict(fit, xNew, type = "forest")
 expect_equal(oneForestSlice, allForests[,, 1L, drop = FALSE])
+
+# ---- bases with no newdata: the fit rebuilt at the TRAINING rows on the bases
+# ---- given, which replace its own there. The oracle is the call at newdata =
+# ---- the training data with the same bases, to rounding (measured 4e-15); the
+# ---- rebuild reads the stored forestFits, glue and bases and no trees ----
+arm1 <- factor(rep(1, n), levels = 0:1)
+arm0 <- factor(rep(0, n), levels = 0:1)
+sameAsNewdata <- function(fitted, newdata, bases, ..., tolerance = 1e-12) {
+  at <- predict(fitted, bases = bases, ...)
+  expect_equal(
+    at,
+    predict(fitted, newdata, bases = bases, ...),
+    tolerance = tolerance
+  )
+  at
+}
+# a forest of levels, the counterfactual arms, every type and shape
+for (type in c("ev", "bart")) {
+  for (arm in list(arm1, arm0)) {
+    sameAsNewdata(fit, x, arm, type = type)
+    sameAsNewdata(fit, x, list(NULL, arm), type = type)
+  }
+}
+set.seed(21)
+at <- predict(fit, bases = arm1, type = "ppd")
+set.seed(21)
+expect_equal(at, predict(fit, x, bases = arm1, type = "ppd"), tolerance = 1e-12)
+sameAsNewdata(fit, x, arm1, type = "bart", ci.level = 0.9)
+expect_true(
+  max(abs(predict(fit, bases = arm1) - predict(fit, bases = arm0))) > 1e-6
+)
+# the chains split, and a fit of two chains kept uncombined
+for (combine in c(TRUE, FALSE)) {
+  sameAsNewdata(chainFit, x, arm1, type = "bart", combineChains = combine)
+  sameAsNewdata(chainFit, x, arm1, type = "ev", combineChains = combine)
+}
+expect_equal(
+  dim(predict(chainFit, bases = arm1, combineChains = FALSE)),
+  c(2L, n.samples, n)
+)
+expect_equal(
+  dimnames(predict(chainFit, bases = arm1, combineChains = FALSE)),
+  dimnames(chainFit$yhat.train)
+)
+# binary fits read the rebuilt latent through their link
+sameAsNewdata(probitFit, x, arm1, type = "ev")
+sameAsNewdata(probitFit, x, arm1, type = "bart")
+sameAsNewdata(logisticFit, x, arm1, type = "ev")
+set.seed(22)
+at <- predict(probitFit, bases = arm1, type = "ppd")
+set.seed(22)
+expect_equal(at, predict(probitFit, x, bases = arm1, type = "ppd"))
+# a forest of numbers, whose basis is one numeric column, given bare
+newZ <- rep(c(0, 1), length.out = nFrame)
+for (type in c("ev", "bart")) {
+  expect_equal(
+    predict(termFit, bases = newZ, type = type),
+    predict(termFit, frame, bases = newZ, type = type),
+    tolerance = 1e-12
+  )
+  expect_equal(
+    predict(termFit, bases = matrix(newZ), type = type),
+    predict(termFit, frame, bases = list(NULL, matrix(newZ)), type = type),
+    tolerance = 1e-12
+  )
+}
+# and a fit whose two forests both carry a basis, one of numbers
+wNew <- runif(n)
+expect_equal(
+  predict(bothBasesFit, bases = list(wNew, arm1), type = "bart"),
+  predict(bothBasesFit, x, bases = list(wNew, arm1), type = "bart"),
+  tolerance = 1e-12
+)
+# the fit's own bases give its own draws back, bit for bit
+expect_identical(
+  predict(fit, bases = fit$bases, type = "bart"),
+  extract(fit, "bart")
+)
+expect_identical(
+  predict(fit, bases = fit$bases[[2L]], type = "ev"),
+  extract(fit, "ev")
+)
+expect_identical(
+  predict(
+    chainFit,
+    bases = chainFit$bases,
+    type = "bart",
+    combineChains = FALSE
+  ),
+  extract(chainFit, "bart", combineChains = FALSE)
+)
+expect_identical(
+  predict(termFit, bases = termFit$bases[[2L]], type = "bart"),
+  extract(termFit, "bart")
+)
+expect_identical(
+  predict(bothBasesFit, bases = bothBasesFit$bases, type = "bart"),
+  extract(bothBasesFit, "bart")
+)
+# an offset and bases given together both apply
+offsetTraining <- runif(n)
+expect_equal(
+  predict(fit, bases = arm1, offset = offsetTraining, type = "bart"),
+  predict(fit, x, bases = arm1, offset = offsetTraining, type = "bart"),
+  tolerance = 1e-12
+)
+expect_equal(
+  predict(fit, bases = arm1, offset = offsetTraining, type = "bart"),
+  predict(fit, bases = arm1, type = "bart") +
+    rep(offsetTraining, each = n.samples),
+  tolerance = 1e-12
+)
+# the fit's own offset is replaced, not added to
+offsetFit <- bart(
+  y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z)),
+  data = frame,
+  offset = rep(0.7, nFrame),
+  n.trees = 8L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = 2L,
+  n.samples = n.samples,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+armFrame <- factor(rep(1, nFrame), levels = 0:1)
+# (at newdata the fit's offset expression, 0.7 here, is evaluated and added to
+# the one given, so the same total there is 0.2 less 0.7)
+expect_equal(
+  predict(offsetFit, bases = armFrame, offset = 0.2, type = "bart"),
+  predict(
+    offsetFit,
+    frame,
+    bases = armFrame,
+    offset = 0.2 - 0.7,
+    type = "bart"
+  ),
+  tolerance = 1e-12
+)
+expect_equal(
+  predict(offsetFit, bases = armFrame, offset = 0.2, type = "bart"),
+  predict(offsetFit, bases = armFrame, type = "bart") - 0.5,
+  tolerance = 1e-12
+)
+# with weights, which act on the posterior predictive draw
+wTraining <- runif(n, 0.5, 2)
+set.seed(23)
+at <- predict(fit, bases = arm1, weights = wTraining, type = "ppd")
+set.seed(23)
+expect_equal(
+  at,
+  predict(fit, x, bases = arm1, weights = wTraining, type = "ppd"),
+  tolerance = 1e-12
+)
+# needing no trees: a fit kept without them rebuilds from the stored channels
+expect_identical(
+  predict(noTrees, bases = noTrees$bases, type = "bart"),
+  extract(noTrees, "bart")
+)
+armsApart <- predict(noTrees, bases = arm1, type = "bart") -
+  predict(noTrees, bases = arm0, type = "bart")
+noTreesAmplitudes <- noTrees$glue[, attr(noTrees$glue, "forest") == "forest2"]
+expect_equal(
+  armsApart,
+  (noTreesAmplitudes[, 2L] - noTreesAmplitudes[, 1L]) *
+    noTrees$forestFits[,, 2L],
+  tolerance = 1e-12,
+  check.attributes = FALSE
+)
+# a forest given its basis as a value is handed it by position all the same
+expect_identical(
+  predict(valueFit, bases = valueFit$bases[[2L]], type = "bart"),
+  extract(valueFit, "bart")
+)
+
+# --- refusals at the training rows, as at newdata, worded for them ---
+# a forest that carries a basis must be given one, since the entry for it is
+# not a request to keep the fit's own
+expect_error(
+  predict(fit, bases = list(NULL, NULL)),
+  pattern = "forest 2 carries a basis, so the blend needs its 2 columns at the training rows"
+)
+expect_error(
+  predict(fit, bases = factor(c(0, 1, 0))),
+  pattern = "'bases' must have the same length as the training rows"
+)
+expect_error(
+  predict(fit, bases = list(NULL, arm1[1:5])),
+  pattern = "same length as the training rows"
+)
+expect_error(
+  predict(fit, bases = factor(c(NA, rep(1, n - 1L)), levels = 0:1)),
+  pattern = "a 'bases' cannot be NA"
+)
+expect_error(
+  predict(fit, bases = factor(rep(2, n), levels = 0:2)),
+  pattern = "which it does not have"
+)
+expect_error(predict(fit, bases = rep(1, n)), pattern = "multiplies a factor")
+expect_error(
+  predict(termFit, bases = cbind(1, newZ)),
+  pattern = "multiplies one numeric column, and 'bases' gives it 2"
+)
+expect_error(
+  predict(fit, bases = list(rep(1, n), arm1)),
+  pattern = "'bases' gives forest 1 a basis, and forest 1 was created without"
+)
+expect_error(
+  predict(bothBasesFit, bases = rep(1, n)),
+  pattern = "bare value only when exactly one forest carries a basis"
+)
+expect_error(
+  predict(fit, bases = list(NULL, arm1, NULL)),
+  pattern = "must be a length-2 list"
+)
+expect_error(
+  predict(fit, bases = arm1, type = "forest"),
+  pattern = "does not apply to type = \"forest\""
+)
+expect_error(
+  predict(plainFit, bases = list(NULL)),
+  pattern = "this fit has 1 forest"
+)
+# a fit kept without the per-forest channels or the training draws names what
+# is missing and the fix
+droppedFits <- bart(
+  y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z)),
+  data = frame,
+  n.trees = 8L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = 2L,
+  n.samples = n.samples,
+  keepFits = FALSE,
+  verbose = FALSE
+)
+expect_error(
+  predict(droppedFits, bases = armFrame),
+  pattern = "per-forest channel was dropped by 'keepFits' == FALSE.*refit with 'keepFits = TRUE'"
+)
+droppedTraining <- bart(
+  y ~ x1 + x2 + forest(x1 + x2, basis = ~ factor(z)),
+  data = frame,
+  n.trees = 8L,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.burn = 2L,
+  n.samples = n.samples,
+  keepTrainingFits = FALSE,
+  verbose = FALSE
+)
+expect_error(
+  predict(droppedTraining, bases = armFrame),
+  pattern = "'keepTrainingFits' == TRUE"
+)

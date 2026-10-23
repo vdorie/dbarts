@@ -536,18 +536,6 @@ predictsTrainingRows <- function(newdata) {
   missing(newdata) || is.null(newdata)
 }
 
-## the bases argument describes the rows of 'newdata'
-refuseNewdataOnlyBases <- function(bases) {
-  if (!is.null(bases)) {
-    stop(
-      "'bases' is for the rows of 'newdata'; the training rows use the ",
-      "fit's own bases",
-      call. = FALSE
-    )
-  }
-  invisible(NULL)
-}
-
 ## the number of training rows the fit's stored draws hold
 numTrainingRows <- function(object) {
   draws <- object[["yhat.train"]]
@@ -672,6 +660,54 @@ withTrainingOffset <- function(object, offset) {
   shifted
 }
 
+## the fit with its training draws rebuilt on the bases handed over, which
+## replace the fit's own at the training rows. A multi-forest fit's draws are
+## the response shift plus, forest by forest, (basis %*% glue) * forestFits,
+## plus the offset; the draws are moved by the change in each forest's term,
+## so a basis equal to the fit's own moves nothing, and neither the trees nor
+## the response shift is read.
+withTrainingBases <- function(object, bases) {
+  refuseWithoutTrainingDraws(object)
+  yhat <- object$yhat.train
+  nObs <- numTrainingRows(object)
+  n.chains <- fitNChains(object)
+  given <- resolveForestBases(
+    object,
+    bases,
+    NULL,
+    nObs,
+    rows = "the training rows",
+    where = "the training rows"
+  )
+  fits <- reshapeChainedChannel(object$forestFits, n.chains, TRUE, 2L)
+  glue <- reshapeChainedChannel(object$glue, n.chains, TRUE, 1L)
+  glueForest <- attr(object$glue, "forest")
+  forestNames <- dimnames(fits)[[3L]]
+  ones <- matrix(1, nObs, 1L)
+  change <- matrix(0, nrow(glue), nObs)
+  for (k in seq_along(forestNames)) {
+    own <- storedBasisBlock(object$bases[[k]])
+    new <- given[[k]]
+    if (is.null(own)) {
+      own <- ones
+    }
+    if (is.null(new)) {
+      new <- ones
+    }
+    g <- glue[, glueForest == forestNames[k], drop = FALSE]
+    change <- change + (g %*% t(new - own)) * fits[,, k]
+  }
+  combined <- reshapeChainedChannel(yhat, n.chains, TRUE, 1L) + change
+  shifted <- object
+  shifted$yhat.train <- if (length(dim(yhat)) > 2L) {
+    uncombineChains(combined, n.chains)
+  } else {
+    combined
+  }
+  dimnames(shifted$yhat.train) <- dimnames(yhat)
+  shifted
+}
+
 ## the training-row draws of a family: the extract method's own reading of the
 ## (shifted) stored draws, then ci.level's band
 trainingRowDraws <- function(
@@ -682,9 +718,13 @@ trainingRowDraws <- function(
   combineChains,
   ci.level,
   trailing = 1L,
-  weights = NULL
+  weights = NULL,
+  bases = NULL
 ) {
-  source <- if (is.null(offset)) object else withTrainingOffset(object, offset)
+  source <- if (is.null(bases)) object else withTrainingBases(object, bases)
+  if (!is.null(offset)) {
+    source <- withTrainingOffset(source, offset)
+  }
   if (!is.null(weights)) {
     source[["weights"]] <- weights
   }
@@ -866,7 +906,6 @@ predict.bart <- function(
   # no newdata: the training rows, read off the stored draws (dec-B341). An
   # offset, weights and bases given there replace the fit's own at those rows
   if (trainingRows) {
-    refuseNewdataOnlyBases(bases)
     if (!is.null(weights)) {
       weights <- trainingRowWeights(object, weights, type)
     }
@@ -893,7 +932,8 @@ predict.bart <- function(
       offset,
       combineChains,
       ci.level,
-      weights = weights
+      weights = weights,
+      bases = bases
     ))
   }
 
@@ -1211,6 +1251,24 @@ selectForests <- function(value, forest, labels = NULL) {
   value[index]
 }
 
+# a fit kept without its training draws has none to read, extract's or
+# predict's at the training rows
+refuseWithoutTrainingDraws <- function(object) {
+  if (!is.null(object[["yhat.train"]])) {
+    return(invisible(NULL))
+  }
+  if (callName(object$call) == "bartBT") {
+    stop(
+      "cannot extract train sample predictions; bartBT must be called with 'keeptrainfits' == TRUE"
+    )
+  }
+  stop(
+    "cannot extract train sample predictions; bart must be called with ",
+    "'keepTrainingFits' == TRUE and 'keepFits' == TRUE (the latter set ",
+    "FALSE automatically when 'callback' is supplied, unless overridden)"
+  )
+}
+
 extract.bart <- function(
   object,
   type = c(
@@ -1336,18 +1394,8 @@ extract.bart <- function(
       "overridden), which drops the channel even when test data exists"
     )
   }
-  if (sample == "train" && is.null(object[["yhat.train"]])) {
-    if (callName(object$call) == "bartBT") {
-      stop(
-        "cannot extract train sample predictions; bartBT must be called with 'keeptrainfits' == TRUE"
-      )
-    } else {
-      stop(
-        "cannot extract train sample predictions; bart must be called with ",
-        "'keepTrainingFits' == TRUE and 'keepFits' == TRUE (the latter set ",
-        "FALSE automatically when 'callback' is supplied, unless overridden)"
-      )
-    }
+  if (sample == "train") {
+    refuseWithoutTrainingDraws(object)
   }
 
   n.chains <- if (!is.null(object[["fit"]])) {
@@ -1613,7 +1661,14 @@ refuseMisnamedBases <- function(given, labels, numForests) {
 # call, bases = <arm at the new rows> - and is refused as ambiguous otherwise.
 # Each value is held to its forest's kind and width (conformBasis), so its
 # columns are the fit's own.
-resolveForestBases <- function(object, bases, newdata, n.new) {
+resolveForestBases <- function(
+  object,
+  bases,
+  newdata,
+  n.new,
+  rows = "'newdata'",
+  where = "the new rows"
+) {
   storedBases <- object$bases
   numForests <- length(storedBases)
   carriers <- which(!vapply(storedBases, is.null, logical(1L)))
@@ -1682,7 +1737,7 @@ resolveForestBases <- function(object, bases, newdata, n.new) {
     bases,
     n.new,
     argument = "bases",
-    rows = "'newdata'"
+    rows = rows
   )
   for (k in seq_len(numForests)) {
     width <- NCOL(storedBasisBlock(storedBases[[k]]))
@@ -1696,7 +1751,9 @@ resolveForestBases <- function(object, bases, newdata, n.new) {
         " carries a basis, so the blend needs its ",
         width,
         if (width == 1L) " column" else " columns",
-        " at the new rows: give them through 'bases =' (a length-",
+        " at ",
+        where,
+        ": give them through 'bases =' (a length-",
         numForests,
         " list, or the bare value when only one forest carries a basis)"
       )
