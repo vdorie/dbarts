@@ -423,3 +423,114 @@ expect_identical(
   c("factor(z)0", "factor(z)1")
 )
 expect_identical(labelsOf(levelled), c("forest1", "factor(z)"))
+
+## --- Block D: the forest column of a fit's tree table -----------------------
+# the column is a factor whose levels are the forests' labels in forest order,
+# forest<i> for a forest with none (dec-B484), so that trees$forest == "dose"
+# selects and as.integer gives the position; the sampler's own getTrees keeps
+# the position number
+trees <- extract(heldFit, "trees")
+expect_true(is.factor(trees$forest))
+expect_identical(levels(trees$forest), c("forest1", "dose"))
+expect_identical(levels(trees$forest), attr(heldFit, "forest.labels"))
+expect_identical(
+  colnames(trees),
+  c("forest", "chain", "sample", "tree", "n", "var", "value")
+)
+expect_true(is.integer(trees$var))
+numbered <- heldFit$fit$getTrees()
+expect_true(is.integer(numbered$forest))
+expect_identical(as.integer(trees$forest), numbered$forest)
+expect_identical(
+  trees$forest == "dose",
+  numbered$forest == 2L
+)
+expect_identical(unname(table(trees$forest)), unname(table(numbered$forest)))
+# whatever forests the frame holds, the levels are all of them
+dose <- extract(heldFit, "trees", forest = "dose")
+expect_identical(levels(dose$forest), c("forest1", "dose"))
+expect_true(all(dose$forest == "dose"))
+expect_identical(
+  levels(extract(heldFit, "trees", forest = 1L)$forest),
+  levels(trees$forest)
+)
+expect_identical(
+  levels(extract(heldFit, "trees", forest = "forest2")$forest),
+  levels(trees$forest)
+)
+expect_identical(
+  unique(as.integer(extract(heldFit, "trees", forest = c(2L, 1L))$forest)),
+  c(2L, 1L)
+)
+# and the frame is the sampler's but for that column
+positions <- trees
+positions$forest <- as.integer(positions$forest)
+expect_identical(positions[colnames(numbered)], numbered)
+# at newdata, and at the current trees
+expect_identical(
+  levels(extract(heldFit, "trees", newdata = frame[1:5, ])$forest),
+  c("forest1", "dose")
+)
+expect_identical(
+  levels(extract(heldFit, "trees", current = TRUE)$forest),
+  c("forest1", "dose")
+)
+# a label a list names is the level, in the order written
+packaged <- function(sampler) {
+  burn <- dbarts:::runWithBurnIn(sampler, sampler$control, TRUE)
+  dbarts:::packageBartResults(
+    sampler,
+    burn$samples,
+    burn$burnInSigma,
+    burn$burnInK,
+    TRUE,
+    TRUE
+  )
+}
+named <- packaged(listFit(quote(list(
+  prognostic = forest(),
+  treatment = forest(basis = factor(z))
+))))
+expect_identical(
+  levels(extract(named, "trees")$forest),
+  c("prognostic", "treatment")
+)
+# a fit with one forest declared still has the column, its one level the name a
+# forest with no recorded label has, since a model of one records none; one
+# never declared has no column; a multinomial fit's category forests are
+# forest<i>
+declared <- packaged(listFit(quote(list(only = forest()))))
+expect_identical(levels(extract(declared, "trees")$forest), "forest1")
+expect_null(
+  extract(
+    bart(
+      y ~ x1 + x2,
+      frame,
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 5L,
+      n.samples = 3L,
+      n.burn = 1L,
+      keepTrees = TRUE,
+      verbose = FALSE
+    ),
+    "trees"
+  )$forest
+)
+frame$category <- factor(rep_len(c("p", "q", "r"), n))
+multinomial <- bart(
+  category ~ x1 + x2,
+  frame,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 5L,
+  n.samples = 3L,
+  n.burn = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+expect_identical(
+  levels(extract(multinomial, "trees")$forest),
+  c("forest1", "forest2", "forest3")
+)
+expect_true(is.integer(multinomial$fit$getTrees()$forest))

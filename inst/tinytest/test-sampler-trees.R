@@ -450,8 +450,13 @@ asymFit <- dbarts::bart(
   verbose = FALSE
 )
 asymTrees <- dbarts::extract(asymFit, "trees")
-expect_equal(range(asymTrees$tree[asymTrees$forest == 1L]), c(1L, 75L))
-expect_equal(range(asymTrees$tree[asymTrees$forest == 2L]), c(1L, 50L))
+# the forest column of the fit's table is a factor of the forests' labels
+# (dec-B484): forest 1 has none and forest 2's is the text of its basis
+expect_equal(
+  range(asymTrees$tree[asymTrees$forest == "forest1"]),
+  c(1L, 75L)
+)
+expect_equal(range(asymTrees$tree[asymTrees$forest == "z"]), c(1L, 50L))
 # a small n.trees on forest 1 does not truncate forest 2's own, larger count
 asymFitSmall <- dbarts::bart(
   y ~ a + b + forest(a + b, basis = ~z),

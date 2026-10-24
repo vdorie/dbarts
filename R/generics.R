@@ -1346,6 +1346,25 @@ addTreesChainColumn <- function(trees) {
   )
 }
 
+# The forest column of a fit's tree table is a factor whose levels are the
+# forests' labels in forest order, forest<i> for a forest with none, as every
+# other per-forest margin of a fit is named (dec-B484): trees$forest == "z"
+# selects, and as.integer gives the position. The levels are all the sampler's
+# forests, whichever of them the table holds. The sampler's own getTrees keeps
+# the position number, like its other readers.
+labelTreeForests <- function(trees, object) {
+  if (is.null(trees[["forest"]])) {
+    return(trees)
+  }
+  sampler <- object$fit
+  labels <- forestMarginNames(
+    sampler$control,
+    bartcoreNumForests(sampler$getPointer())
+  )
+  trees$forest <- factor(labels[trees$forest], levels = labels)
+  trees
+}
+
 # extract's four scalar-parameter types, served to every fit class that has
 # them: a parameter the fit sampled comes back as its draws, in the layout the
 # chain margin asks for, and one it held fixed as one number (fixed holds what
@@ -1503,7 +1522,10 @@ extract.bart <- function(
     treesCall[[1L]] <- target
     treesCall$object <- NULL
     treesCall$type <- NULL
-    return(addTreesChainColumn(eval(treesCall, parent.frame())))
+    return(labelTreeForests(
+      addTreesChainColumn(eval(treesCall, parent.frame())),
+      object
+    ))
   }
 
   # below the type == "trees" branch and its own refuseTreesArguments, so
@@ -2294,7 +2316,10 @@ extract.bartMultinomial <- function(
     treesCall[[1L]] <- target
     treesCall$object <- NULL
     treesCall$type <- NULL
-    return(addTreesChainColumn(eval(treesCall, parent.frame())))
+    return(labelTreeForests(
+      addTreesChainColumn(eval(treesCall, parent.frame())),
+      object
+    ))
   }
 
   refuseUnusedGenericArgs(

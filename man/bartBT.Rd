@@ -254,7 +254,7 @@ extract(object, \dots)
 
     The result of \code{extract} will be a data frame with columns:
     \itemize{
-      \item \code{forest} - which forest the row belongs to, from 1; present only on a fit with several forests (a \code{"bartMultinomial"} fit, or one declared with \code{forests =}, whatever the count); a single-forest fit has no such column, and still accepts \code{forest = 1}
+      \item \code{forest} - which forest the row belongs to, a factor whose levels are the forests' labels in forest order (\code{forest<i>} for a forest with none, as the fit's other per-forest results are named), so that \code{trees$forest == "z"} selects a forest and \code{as.integer(trees$forest)} gives its position, and the levels are all of the fit's forests whichever the frame holds; present only on a fit with several forests (a \code{"bartMultinomial"} fit, or one declared with \code{forests =}, whatever the count); a single-forest fit has no such column, and still accepts \code{forest = 1}. The sampler's own \code{getTrees} numbers the forests from 1 instead
       \item \code{chain}, \code{sample}, \code{tree} - index variables; \code{chain} is always present, 1 on a single-chain fit, since tree draws cannot be combined across chains (the sampler's own \code{getTrees} omits it at one chain)
       \item \code{n} - number of observations in node, drawn from the training data or from \code{newdata} when supplied
       \item \code{var} - either the index of the variable used for splitting or -1 if the node is a leaf

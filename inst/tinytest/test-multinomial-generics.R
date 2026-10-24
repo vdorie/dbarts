@@ -266,20 +266,29 @@ expect_error(fitted(fitKeep, type = "loglik"), "type must be in")
 # recorded and identified (only its level is not), so 'forest' selects one
 # of the K category forests instead of being refused ----
 
+# the forest column names the category forests, forest<i> since they have no
+# labels of their own (dec-B484); the sampler's own getTrees stays numbered
 allCategoryTrees <- extract(fitKeep, type = "trees")
 expect_true(all(c("forest", "sample", "tree") %in% colnames(allCategoryTrees)))
-expect_equal(sort(unique(allCategoryTrees$forest)), 1:3)
+expect_true(is.factor(allCategoryTrees$forest))
+expect_identical(levels(allCategoryTrees$forest), paste0("forest", 1:3))
+expect_equal(sort(unique(as.integer(allCategoryTrees$forest))), 1:3)
+expect_identical(
+  as.integer(allCategoryTrees$forest[allCategoryTrees$forest == "forest2"]),
+  rep(2L, sum(allCategoryTrees$forest == "forest2"))
+)
 
 forest2Trees <- extract(fitKeep, type = "trees", forest = 2L)
-expect_true(all(forest2Trees$forest == 2L))
-expect_identical(
-  forest2Trees[colnames(forest2Trees) != "chain"],
-  fitKeep$fit$getTrees(forest = 2L)
-)
+expect_true(all(forest2Trees$forest == "forest2"))
+expect_identical(levels(forest2Trees$forest), paste0("forest", 1:3))
+numbered <- forest2Trees[colnames(forest2Trees) != "chain"]
+numbered$forest <- as.integer(numbered$forest)
+expect_identical(numbered, fitKeep$fit$getTrees(forest = 2L))
+expect_true(is.integer(fitKeep$fit$getTrees(forest = 2L)$forest))
 expect_equal(colnames(forest2Trees)[1:2], c("forest", "chain"))
 
 forestSubsetTrees <- extract(fitKeep, type = "trees", forest = c(1L, 3L))
-expect_equal(sort(unique(forestSubsetTrees$forest)), c(1L, 3L))
+expect_equal(sort(unique(as.integer(forestSubsetTrees$forest))), c(1L, 3L))
 
 expect_error(extract(fitKeep, type = "trees", forest = 4L), "out of range")
 
@@ -301,7 +310,7 @@ expect_equal(
   c("forest", "chain", "sample", "tree", "n", "var", "value")
 )
 expect_equal(sort(unique(twoChainTrees$chain)), 1:2)
-expect_equal(sort(unique(twoChainTrees$forest)), 1:3)
+expect_equal(sort(unique(as.integer(twoChainTrees$forest))), 1:3)
 
 # a fit with no saved trees refuses by name, exactly as for a "bart" fit
 expect_error(extract(fitCombined, type = "trees"), pattern = "saved trees")
