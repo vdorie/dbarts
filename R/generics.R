@@ -556,23 +556,22 @@ weightsNotOneColumn <- function(weights) {
 }
 
 ## the replacement weights for the training rows, checked as the weights of
-## newdata are: one value or one per row, none missing (a row's na.action has
-## no say among the fit's own rows, so a missing one is refused, as the
-## offset's is), and then only a posterior predictive draw looks at the
-## values, by the family's check. A type that reads no weight takes whatever
-## else the shape allows and gets NULL back, the fit's own weights standing.
+## newdata are: one value or one per row, and then only a posterior predictive
+## draw looks at the values, by the family's check. A missing one is its row's
+## na.action to answer (trainingRowsAnswered), which has filled it by here. A
+## type that reads no weight takes whatever else the shape allows and gets NULL
+## back, the fit's own weights standing.
 trainingRowWeights <- function(object, weights, type) {
   nObs <- numTrainingRows(object)
   if (
     !is.atomic(weights) ||
       weightsNotOneColumn(weights) ||
-      !(NROW(weights) %in% c(1L, nObs)) ||
-      anyNA(weights)
+      !(NROW(weights) %in% c(1L, nObs))
   ) {
     stop(
       "'weights' must be one number or one per training row (",
       nObs,
-      "), none missing",
+      ")",
       call. = FALSE
     )
   }
@@ -584,13 +583,16 @@ trainingRowWeights <- function(object, weights, type) {
 }
 
 ## the replacement offset as one number per row of the set 'rows' names, less
-## the fit's own there ('old')
+## the fit's own there ('old'). A missing value is refused unless the caller
+## has answered it already ('complete' FALSE, predict's, whose na.action has
+## filled the rows it sets aside).
 trainingOffsetShift <- function(
   object,
   offset,
   nObs,
   old = object[["offset"]],
-  rows = "training row"
+  rows = "training row",
+  complete = TRUE
 ) {
   if (is.data.frame(offset)) {
     offset <- as.matrix(offset)
@@ -603,7 +605,8 @@ trainingOffsetShift <- function(
       rows,
       " (",
       nObs,
-      "), none missing",
+      ")",
+      if (complete) ", none missing",
       call. = FALSE
     )
   }
@@ -619,14 +622,14 @@ shiftObservations <- function(x, shift) {
 }
 
 ## the fit with its training draws moved onto the replacement offset
-withTrainingOffset <- function(object, offset) {
+withTrainingOffset <- function(object, offset, complete = TRUE) {
   shifted <- object
   if (inherits(object, "bartNegbin")) {
     latent <- object$latent.train
     nObs <- dim(latent)[length(dim(latent))]
     shifted$latent.train <- shiftObservations(
       latent,
-      trainingOffsetShift(object, offset, nObs)
+      trainingOffsetShift(object, offset, nObs, complete = complete)
     )
     shifted$yhat.train <- negbinMeanCounts(shifted$latent.train)
   } else if (inherits(object, "bartOrdinal")) {
@@ -635,7 +638,7 @@ withTrainingOffset <- function(object, offset) {
     nObs <- ncol(latent)
     latent <- shiftObservations(
       latent,
-      trainingOffsetShift(object, offset, nObs)
+      trainingOffsetShift(object, offset, nObs, complete = complete)
     )
     thresholds <- object$thresholds
     if (length(dim(thresholds)) > 2L) {
@@ -671,7 +674,7 @@ withTrainingOffset <- function(object, offset) {
     nObs <- dim(yhat)[length(dim(yhat))]
     shifted$yhat.train <- shiftObservations(
       yhat,
-      trainingOffsetShift(object, offset, nObs)
+      trainingOffsetShift(object, offset, nObs, complete = complete)
     )
   }
   shifted
@@ -742,10 +745,102 @@ withTestOffset <- function(object, offset) {
   shifted
 }
 
+## the rows of the training set an offset or weights given to predict leaves
+## incomplete, as predictChannelIncomplete finds them at newdata's rows. A
+## channel of another shape has none to find, and the check that knows its type
+## refuses it
+trainingChannelIncomplete <- function(value, nObs, argument) {
+  if (is.null(value) || !(length(value) == 1L || NROW(value) == nObs)) {
+    return(NULL)
+  }
+  predictChannelIncomplete(
+    if (is.data.frame(value)) as.matrix(value) else value,
+    nObs,
+    argument
+  )
+}
+
+## The training rows a call with no newdata answers (dec-B482). A missing value
+## in a per-row offset or weights marks its row incomplete, and na.action
+## decides what becomes of the row exactly as it does at newdata, by the one
+## resolver newdata runs (resolvePredictRows): the default refuses with the
+## same hint, na.pass returns the row with NA draws, na.omit drops it,
+## na.exclude pads it and na.fail refuses. The rows have no predictors to
+## route, so the resolver is given none. NULL where no row is incomplete and
+## every row stands; otherwise the record padPredictedRows reads, 'full' for a
+## result computed on every row.
+trainingRowsAnswered <- function(nObs, na.action, offset, weights) {
+  extra <- list()
+  for (name in c("offset", "weights")) {
+    incomplete <- trainingChannelIncomplete(
+      list(offset = offset, weights = weights)[[name]],
+      nObs,
+      name
+    )
+    if (!is.null(incomplete)) {
+      extra[[name]] <- incomplete
+    }
+  }
+  if (length(extra) == 0L) {
+    return(NULL)
+  }
+  noPredictors <- matrix(0, nObs, 0L)
+  resolved <- resolvePredictRows(
+    resolvePredictNaAction(na.action),
+    noPredictors,
+    noPredictors,
+    extra
+  )
+  if (is.null(resolved)) {
+    return(NULL)
+  }
+  rows <- keptRowsRecord(resolved, NULL)
+  rows$full <- TRUE
+  rows
+}
+
+## a channel with its missing values set to 'fill', a number a row set aside by
+## na.action is computed with and then replaced by NA or cut from the result
+fillMissingChannel <- function(value, fill) {
+  if (is.null(value)) {
+    return(NULL)
+  }
+  value[is.na(value)] <- fill
+  value
+}
+
+## a result computed on every training row with the rows na.action set aside
+## replaced by NA or cut from it. The observation margin is the first ('first')
+## or the one 'trailing' places before the last.
+maskTrainingRows <- function(x, rows, trailing = 0L, first = FALSE) {
+  if (is.null(rows)) {
+    return(x)
+  }
+  d <- dim(x)
+  rows$names <- if (is.null(d)) {
+    names(x)
+  } else {
+    dimnames(x)[[if (first) 1L else length(d) - trailing]]
+  }
+  padPredictedRows(x, rows, trailing = trailing, first = first)
+}
+
+## the number of training rows, whatever margin a family puts its categories on
+trainingRowCount <- function(object) {
+  if (inherits(object, c("bartOrdinal", "bartMultinomial"))) {
+    d <- dim(object$yhat.train)
+    return(d[length(d) - 1L])
+  }
+  numTrainingRows(object)
+}
+
 ## the training-row draws of a family: the extract method's own reading of the
 ## (shifted) stored draws, then ci.level's band. An offset, weights or bases
 ## replace the fit's own on the stored draws, so a fit kept without them is
-## refused here, once, for all three.
+## refused here, once, for all three. A missing value in the offset or the
+## weights is answered by na.action (trainingRowsAnswered): the row is computed
+## at a stand-in value, which leaves the random stream and every other row's
+## draw as they are, and then set aside in the result.
 trainingRowDraws <- function(
   object,
   extractMethod,
@@ -755,14 +850,28 @@ trainingRowDraws <- function(
   ci.level,
   trailing = 1L,
   weights = NULL,
-  bases = NULL
+  bases = NULL,
+  na.action = NULL
 ) {
   if (!is.null(offset) || !is.null(weights) || !is.null(bases)) {
     refuseWithoutTrainingDraws(object)
   }
+  rows <- trainingRowsAnswered(
+    trainingRowCount(object),
+    na.action,
+    offset,
+    weights
+  )
+  if (!is.null(rows)) {
+    offset <- fillMissingChannel(offset, 0)
+    weights <- fillMissingChannel(weights, 1)
+  }
+  if (!is.null(weights)) {
+    weights <- trainingRowWeights(object, weights, type)
+  }
   source <- if (is.null(bases)) object else withTrainingBases(object, bases)
   if (!is.null(offset)) {
-    source <- withTrainingOffset(source, offset)
+    source <- withTrainingOffset(source, offset, complete = FALSE)
   }
   if (!is.null(weights)) {
     source[["weights"]] <- weights
@@ -776,12 +885,32 @@ trainingRowDraws <- function(
   if (!is.null(ci.level)) {
     result <- posteriorInterval(result, ci.level, trailing = trailing)
   }
-  result
+  maskTrainingRows(
+    result,
+    rows,
+    trailing = trailing - 1L,
+    first = !is.null(ci.level)
+  )
 }
 
 ## a K-category fit's class at the training rows, from the mean probabilities
-trainingRowClass <- function(object, extractMethod, offset, ordered = FALSE) {
-  probs <- trainingRowDraws(object, extractMethod, "ev", offset, TRUE, NULL)
+trainingRowClass <- function(
+  object,
+  extractMethod,
+  offset,
+  ordered = FALSE,
+  na.action = NULL
+) {
+  probs <- trainingRowDraws(
+    object,
+    extractMethod,
+    "ev",
+    offset,
+    TRUE,
+    NULL,
+    trailing = 2L,
+    na.action = na.action
+  )
   categoryFromMeanProbabilities(
     meanCategoryProbabilities(probs, object$levels),
     object$levels,
@@ -945,9 +1074,6 @@ predict.bart <- function(
   # no newdata: the training rows, read off the stored draws (dec-B341). An
   # offset, weights and bases given there replace the fit's own at those rows
   if (trainingRows) {
-    if (!is.null(weights)) {
-      weights <- trainingRowWeights(object, weights, type)
-    }
     if (type == "forest") {
       if (!is.null(offset)) {
         stop(
@@ -956,12 +1082,30 @@ predict.bart <- function(
           call. = FALSE
         )
       }
-      return(extract.bart(
-        object,
-        type = "forest",
-        sample = "train",
-        combineChains = combineChains,
-        forest = forest
+      # the arm reads no weight, but a row whose weight is missing is
+      # answered by na.action here as at newdata
+      rows <- trainingRowsAnswered(
+        numTrainingRows(object),
+        na.action,
+        NULL,
+        weights
+      )
+      if (!is.null(rows)) {
+        weights <- fillMissingChannel(weights, 1)
+      }
+      if (!is.null(weights)) {
+        trainingRowWeights(object, weights, type)
+      }
+      return(maskTrainingRows(
+        extract.bart(
+          object,
+          type = "forest",
+          sample = "train",
+          combineChains = combineChains,
+          forest = forest
+        ),
+        rows,
+        trailing = 1L
       ))
     }
     return(trainingRowDraws(
@@ -972,7 +1116,8 @@ predict.bart <- function(
       combineChains,
       ci.level,
       weights = weights,
-      bases = bases
+      bases = bases,
+      na.action = na.action
     ))
   }
 
@@ -2445,7 +2590,12 @@ predict.bartMultinomial <- function(
       identical(object$levels.source, "index")
     )
     if (type == "class") {
-      return(trainingRowClass(object, extract.bartMultinomial, offset))
+      return(trainingRowClass(
+        object,
+        extract.bartMultinomial,
+        offset,
+        na.action = na.action
+      ))
     }
     return(trainingRowDraws(
       object,
@@ -2454,7 +2604,8 @@ predict.bartMultinomial <- function(
       offset,
       combineChains,
       ci.level,
-      trailing = if (type == "ev") 2L else 1L
+      trailing = if (type == "ev") 2L else 1L,
+      na.action = na.action
     ))
   }
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {
@@ -2844,7 +2995,8 @@ predict.bartOrdinal <- function(
         object,
         extract.bartOrdinal,
         offset,
-        ordered = TRUE
+        ordered = TRUE,
+        na.action = na.action
       ))
     }
     return(trainingRowDraws(
@@ -2854,7 +3006,8 @@ predict.bartOrdinal <- function(
       offset,
       combineChains,
       ci.level,
-      trailing = if (type == "ev") 2L else 1L
+      trailing = if (type == "ev") 2L else 1L,
+      na.action = na.action
     ))
   }
   if (is.null(object[["thresholds.raw"]])) {
@@ -3197,7 +3350,8 @@ predict.bartNegbin <- function(
       type,
       offset,
       combineChains,
-      ci.level
+      ci.level,
+      na.action = na.action
     ))
   }
   if (is.null(object[["fit"]]) || !object$fit$control@keepTrees) {

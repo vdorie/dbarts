@@ -1271,11 +1271,20 @@ subsetPredictBases <- function(bases, rows, stub) {
 ## stay dropped, and a placeholder's answer is cut to zero width or all NA.
 ## The row margin is the first ('first') or the one 'trailing' places before
 ## the last. The "s" attribute, laid out as draws by rows, goes the same way.
+## A result at the training rows is computed on every one of them (rows$full),
+## and the rows na.action did not keep are then set to NA or cut from it.
 padPredictedRows <- function(x, rows, trailing = 0L, first = FALSE) {
-  if (is.null(rows$keep) || (!rows$pad && !rows$placeholder)) {
+  full <- isTRUE(rows$full)
+  if (is.null(rows$keep) || (!rows$pad && !rows$placeholder && !full)) {
     return(x)
   }
-  index <- if (rows$pad) {
+  index <- if (full) {
+    if (rows$pad) {
+      ifelse(rows$keep, seq_len(rows$n), NA_integer_)
+    } else {
+      which(rows$keep)
+    }
+  } else if (rows$pad) {
     index <- rep_len(NA_integer_, rows$n)
     if (!rows$placeholder) {
       index[rows$keep] <- seq_len(sum(rows$keep))

@@ -673,8 +673,8 @@ expect_error(
   pattern = "this fit has 1 forest"
 )
 # the per-forest arm reads no weight, at the training rows as at newdata, but
-# both check the form of the one given: a value or one per row, none missing,
-# whatever the value holds
+# both check the form of the one given: a value or one per row, whatever the
+# value holds, and answer a missing one by na.action
 forestOwn <- predict(fit, type = "forest")
 forestNew <- predict(fit, x, type = "forest")
 for (given in list(-1, "a", c(-1, rep(1, n - 1L)))) {
@@ -693,16 +693,85 @@ for (given in list(-1, "a", c(-1, rep(1, n - 1L)))) {
     forestNew
   )
 }
-for (given in list(NA_real_, c(NA, rep(1, n - 1L)), 1:3)) {
-  expect_error(
+for (given in list(NA_real_, c(NA, rep(1, n - 1L)))) {
+  here <- tryCatch(
     predict(fit, type = "forest", weights = given),
-    pattern = paste0("one per training row \\(", n, "\\), none missing")
+    error = conditionMessage
   )
-  expect_error(
-    predict(fit, x, type = "forest", weights = given),
-    pattern = "'weights' (has missing values|must have the same number of rows)"
+  expect_identical(
+    here,
+    tryCatch(
+      predict(fit, x, type = "forest", weights = given),
+      error = conditionMessage
+    )
   )
+  expect_true(startsWith(here, "'weights' has missing values"))
 }
+expect_error(
+  predict(fit, type = "forest", weights = 1:3),
+  pattern = paste0("one per training row \\(", n, "\\)")
+)
+expect_error(
+  predict(fit, x, type = "forest", weights = 1:3),
+  pattern = "'weights' must have the same number of rows"
+)
+# a missing weight or offset at the training rows is its row's na.action to
+# answer, as at newdata (dec-B482): the per-forest arm and the blend alike, the
+# fit's own bases or others, the rows set aside NA or cut
+blend.w <- rep(1, n)
+blend.w[c(4L, 11L)] <- NA
+blend.o <- runif(n)
+blend.o[6L] <- NA
+for (action in list(na.pass, na.omit, na.exclude)) {
+  expect_equal(
+    predict(fit, type = "forest", weights = blend.w, na.action = action),
+    predict(fit, x, type = "forest", weights = blend.w, na.action = action)
+  )
+  for (type in c("ev", "bart")) {
+    expect_equal(
+      predict(fit, type = type, offset = blend.o, na.action = action),
+      blendAtTraining(fit, type = type, offset = blend.o, na.action = action),
+      tolerance = 1e-12
+    )
+    expect_equal(
+      predict(
+        fit,
+        type = type,
+        offset = blend.o,
+        weights = blend.w,
+        bases = arm1,
+        na.action = action,
+        ci.level = 0.9
+      ),
+      predict(
+        fit,
+        x,
+        type = type,
+        offset = blend.o,
+        weights = blend.w,
+        bases = arm1,
+        na.action = action,
+        ci.level = 0.9
+      ),
+      tolerance = 1e-12
+    )
+  }
+}
+expect_true(all(is.na(
+  predict(fit, type = "forest", weights = blend.w, na.action = na.pass)[,
+    c(4L, 11L),
+  ]
+)))
+expect_identical(
+  dim(predict(fit, type = "forest", weights = blend.w, na.action = na.omit)),
+  c(dim(forestOwn)[1L], n - 2L, dim(forestOwn)[3L])
+)
+expect_error(
+  predict(fit, offset = blend.o, bases = arm1),
+  pattern = "'offset' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them",
+  fixed = TRUE
+)
+
 # a matrix of several columns is refused on both paths and for every arm, the
 # blend's included; one column is a vector
 for (type in c("ev", "forest")) {

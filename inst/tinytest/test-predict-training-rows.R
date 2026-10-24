@@ -58,7 +58,13 @@ expect_equal(
   predict(fit, df, offset = rep(2, n))
 )
 expect_error(predict(fit.bare, offset = 1:3), "one per training row")
-expect_error(predict(fit.bare, offset = c(NA, rep(1, n - 1L))), "none missing")
+# a missing offset is its row's na.action to answer, as at newdata: the default
+# refuses, with the hint (the section at the end pins the rest)
+expect_error(
+  predict(fit.bare, offset = c(NA, rep(1, n - 1L))),
+  "'offset' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them",
+  fixed = TRUE
+)
 
 # an offset given at fit time is replaced, not added to
 fit.off <- quick(y ~ a + b + c + offset(off), df)
@@ -256,12 +262,20 @@ for (binary.fit in list(fit.p, fit.lg)) {
     "trial counts and must be positive integers"
   )
 }
-# checked as at newdata: one value or one per training row, none missing (the
-# offset's rule, na.action having no say among the fit's own rows), and a
-# posterior predictive draw alone looking at the values
+# checked as at newdata: one value or one per training row, a missing one being
+# its row's na.action to answer (the section at the end), and a posterior
+# predictive draw alone looking at the values
 expect_error(predict(fit, weights = 1:3), "one per training row \\(50\\)")
-expect_error(predict(fit.bare, weights = c(NA, rep(1, n - 1L))), "none missing")
-expect_error(predict(fit, weights = NA_real_), "none missing")
+expect_error(
+  predict(fit.bare, weights = c(NA, rep(1, n - 1L))),
+  "'weights' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them",
+  fixed = TRUE
+)
+expect_error(
+  predict(fit, weights = NA_real_),
+  "'weights' has missing values",
+  fixed = TRUE
+)
 expect_error(
   predict(fit, weights = matrix(1, n, 2L), type = "ppd"),
   "one per training row"
@@ -658,3 +672,427 @@ expect_identical(fit.count$weights.test, count.test$count)
 ppd.count <- extract(fit.count, "ppd", sample = "test")
 expect_false(anyNA(ppd.count))
 expect_true(all(ppd.count[, c(1L, 4L)] == 0))
+
+# a missing offset or weight at the training rows is its row's na.action to
+# answer, exactly as at newdata (dec-B482): the default and na.fail refuse in
+# newdata's words, na.pass and na.exclude return the row with NA draws, na.omit
+# drops it. The row is computed at a stand-in and set aside afterward, so the
+# random stream and every other row's draw are what a call without the missing
+# value draws
+na.w <- runif(n, 0.5, 3)
+na.w[c(3L, 7L)] <- NA
+na.o <- rnorm(n, 0, 0.5)
+na.o[c(2L, 7L)] <- NA
+na.rows <- list(weights = c(3L, 7L), offset = c(2L, 7L), both = c(2L, 3L, 7L))
+na.given <- list(
+  weights = list(weights = na.w),
+  offset = list(offset = na.o),
+  both = list(weights = na.w, offset = na.o)
+)
+seeded <- function(expr, seed = 41L) {
+  set.seed(seed)
+  expr
+}
+messageOf <- function(expr) {
+  tryCatch(
+    {
+      force(expr)
+      NA_character_
+    },
+    error = conditionMessage
+  )
+}
+callOn <- function(object, args, newdata = NULL, ...) {
+  do.call(
+    predict,
+    c(list(object), if (!is.null(newdata)) list(newdata), args, list(...))
+  )
+}
+actions <- list(pass = na.pass, omit = na.omit, exclude = na.exclude)
+# the same fit without its saved trees, which the training rows do not need
+fit.stripped <- fit
+fit.stripped[["fit"]] <- NULL
+
+# the default refuses, and so does na.fail, in newdata's words, every type
+for (type in c("ev", "bart", "ppd")) {
+  for (label in names(na.given)) {
+    for (action in list(NULL, na.fail)) {
+      info <- paste(type, label, if (is.null(action)) "default" else "fail")
+      here <- messageOf(callOn(
+        fit,
+        na.given[[label]],
+        type = type,
+        na.action = action
+      ))
+      there <- messageOf(callOn(
+        fit,
+        na.given[[label]],
+        df,
+        type = type,
+        na.action = action
+      ))
+      expect_false(is.na(here), info = info)
+      expect_identical(here, there, info = info)
+    }
+  }
+}
+expect_identical(
+  messageOf(predict(fit, weights = na.w)),
+  "'weights' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them"
+)
+expect_identical(
+  messageOf(predict(fit, offset = na.o)),
+  "'offset' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them"
+)
+expect_identical(
+  messageOf(predict(fit, weights = na.w, na.action = na.fail)),
+  "'weights' has missing values, which na.action = na.fail refuses"
+)
+expect_identical(
+  messageOf(predict(
+    fit,
+    weights = na.w,
+    offset = na.o,
+    na.action = na.fail
+  )),
+  "'offset' and 'weights' have missing values, which na.action = na.fail refuses"
+)
+# the form of the one given is still checked, in words that do not say none is
+# missing, which na.action may answer
+expect_identical(
+  messageOf(predict(fit, offset = 1:3)),
+  "'offset' must be one number or one per training row (50)"
+)
+expect_identical(
+  messageOf(predict(fit, weights = 1:3)),
+  "'weights' must be one number or one per training row (50)"
+)
+# a lone NA has no row for na.action to answer, whatever it is
+for (action in c(actions, list(default = NULL))) {
+  for (given in list(list(weights = NA_real_), list(offset = NA_real_))) {
+    here <- messageOf(callOn(fit, given, na.action = action))
+    expect_identical(
+      here,
+      messageOf(callOn(fit, given, df, na.action = action))
+    )
+    expect_identical(here, paste0("'", names(given), "' has missing values"))
+  }
+}
+
+# na.pass, na.omit and na.exclude: the numbers of the call at newdata, on the
+# stored draws or on saved trees, with the rows set aside as newdata sets them
+# aside
+for (name in names(actions)) {
+  action <- actions[[name]]
+  for (label in names(na.given)) {
+    aside <- na.rows[[label]]
+    for (type in c("ev", "bart")) {
+      info <- paste(name, label, type)
+      there <- callOn(
+        fit,
+        na.given[[label]],
+        df,
+        type = type,
+        na.action = action
+      )
+      expect_equal(
+        callOn(fit, na.given[[label]], type = type, na.action = action),
+        there,
+        info = info
+      )
+      # no trees are needed
+      expect_equal(
+        callOn(
+          fit.stripped,
+          na.given[[label]],
+          type = type,
+          na.action = action
+        ),
+        there,
+        info = info
+      )
+      expect_equal(
+        callOn(
+          fit.stripped,
+          na.given[[label]],
+          type = type,
+          na.action = action,
+          combineChains = FALSE
+        ),
+        callOn(
+          fit,
+          na.given[[label]],
+          df,
+          type = type,
+          na.action = action,
+          combineChains = FALSE
+        ),
+        info = info
+      )
+      # and the band
+      expect_equal(
+        callOn(
+          fit.stripped,
+          na.given[[label]],
+          type = type,
+          na.action = action,
+          ci.level = 0.9
+        ),
+        callOn(
+          fit,
+          na.given[[label]],
+          df,
+          type = type,
+          na.action = action,
+          ci.level = 0.9
+        ),
+        info = info
+      )
+    }
+    # the rows are set aside by NA, or cut
+    got <- callOn(fit, na.given[[label]], na.action = action)
+    expect_identical(
+      dim(got),
+      c(20L, n - if (name == "omit") length(aside) else 0L),
+      info = paste(name, label)
+    )
+    if (name != "omit") {
+      expect_identical(
+        unname(which(colSums(is.na(got)) > 0L)),
+        aside,
+        info = name
+      )
+    } else {
+      expect_false(anyNA(got), info = name)
+    }
+    # a posterior predictive draw: the rows set aside as at newdata, every
+    # other row the draw of a call that states the stand-ins
+    given <- na.given[[label]]
+    stood <- lapply(given, function(value) replace(value, is.na(value), 1))
+    if (!is.null(stood$offset)) {
+      stood$offset <- replace(given$offset, is.na(given$offset), 0)
+    }
+    ppd <- seeded(callOn(fit, given, type = "ppd", na.action = action))
+    whole <- seeded(callOn(fit, stood, type = "ppd"))
+    there <- callOn(fit, given, df, type = "ppd", na.action = action)
+    expect_identical(dim(ppd), dim(there), info = paste(name, label))
+    expect_identical(
+      which(colSums(is.na(ppd)) > 0L),
+      which(colSums(is.na(there)) > 0L),
+      info = paste(name, label)
+    )
+    expect_identical(
+      unname(ppd),
+      unname(
+        if (name == "omit") {
+          whole[, -aside]
+        } else {
+          replace(
+            whole,
+            cbind(
+              rep(seq_len(nrow(whole)), length(aside)),
+              rep(aside, each = nrow(whole))
+            ),
+            NA_real_
+          )
+        }
+      ),
+      info = paste(name, label)
+    )
+  }
+}
+
+# every row set aside: na.pass returns NA for all of them and na.omit none, a
+# custom function is followed, and the band is NA over the rows set aside
+all.w <- rep(NA_real_, n)
+expect_true(all(is.na(predict(fit, weights = all.w, na.action = na.pass))))
+expect_identical(
+  dim(predict(fit, weights = all.w, na.action = na.pass)),
+  dim(predict(fit, df, weights = all.w, na.action = na.pass))
+)
+expect_identical(
+  dim(predict(fit, weights = all.w, na.action = na.omit)),
+  dim(predict(fit, df, weights = all.w, na.action = na.omit))
+)
+expect_identical(
+  dim(predict(fit, weights = all.w, na.action = na.omit)),
+  c(20L, 0L)
+)
+dropper <- function(object, ...) stats::na.omit(object, ...)
+expect_identical(
+  predict(fit, offset = na.o, na.action = dropper),
+  predict(fit, offset = na.o, na.action = na.omit)
+)
+expect_identical(
+  predict(fit, offset = na.o, na.action = "na.omit"),
+  predict(fit, offset = na.o, na.action = na.omit)
+)
+band <- predict(fit, offset = na.o, ci.level = 0.9, na.action = na.pass)
+expect_identical(unname(which(is.na(band[, "est"]))), na.rows$offset)
+expect_identical(unname(which(is.na(band[, "ci.lower"]))), na.rows$offset)
+expect_identical(unname(which(is.na(band[, "ci.upper"]))), na.rows$offset)
+expect_identical(
+  dim(predict(fit, offset = na.o, ci.level = 0.9, na.action = na.omit)),
+  c(n - 2L, 3L)
+)
+# na.action is not looked at where nothing is missing, as at newdata: a call
+# with a complete offset and weights is what it was, and a name that is no
+# function is not asked about
+expect_identical(
+  predict(fit, offset = new.off, na.action = na.omit),
+  predict(fit, offset = new.off)
+)
+expect_identical(predict(fit, na.action = na.omit), predict(fit))
+expect_identical(predict(fit.h, na.action = na.omit), predict(fit.h))
+# a weight of 0 and a missing weight are different rows: the first has NA
+# draws for want of a noise scale, the second is na.action's to answer
+w.zero.na <- rep(1, n)
+w.zero.na[4L] <- 0
+w.zero.na[9L] <- NA
+mixed <- predict(fit, weights = w.zero.na, type = "ppd", na.action = na.omit)
+expect_identical(dim(mixed), c(20L, n - 1L))
+expect_identical(unname(which(colSums(is.na(mixed)) > 0L)), 4L)
+mixed <- predict(fit, weights = w.zero.na, type = "ppd", na.action = na.pass)
+expect_identical(unname(which(colSums(is.na(mixed)) > 0L)), c(4L, 9L))
+
+# the other families, against the call at newdata: a binary fit's weights are
+# read by no type but a posterior predictive draw, whose trial counts a missing
+# value leaves to na.action
+for (action in actions) {
+  expect_equal(
+    predict(fit.p, offset = na.o, na.action = action),
+    predict(fit.p, df, offset = na.o, na.action = action)
+  )
+  expect_equal(
+    predict(fit.p, weights = na.w, type = "bart", na.action = action),
+    predict(fit.p, df, weights = na.w, type = "bart", na.action = action)
+  )
+}
+counts.na <- n.trials
+counts.na[c(4L, 9L)] <- NA
+for (binary.fit in list(fit.p, fit.lg)) {
+  for (action in list(na.pass, na.omit)) {
+    got <- seeded(predict(
+      binary.fit,
+      weights = counts.na,
+      type = "ppd",
+      na.action = action
+    ))
+    whole <- seeded(predict(
+      binary.fit,
+      weights = replace(counts.na, c(4L, 9L), 1),
+      type = "ppd"
+    ))
+    if (identical(action, na.pass)) {
+      expect_identical(unname(which(colSums(is.na(got)) > 0L)), c(4L, 9L))
+      expect_identical(got[, -c(4L, 9L)], whole[, -c(4L, 9L)])
+    } else {
+      expect_identical(got, whole[, -c(4L, 9L)])
+    }
+  }
+}
+# a count fit, an ordered response and an unordered one
+for (action in actions) {
+  expect_equal(
+    predict(fit.nb, offset = na.o, na.action = action),
+    predict(fit.nb, df, offset = na.o, na.action = action)
+  )
+  expect_equal(
+    predict(
+      fit.nb,
+      offset = na.o,
+      type = "bart",
+      ci.level = 0.9,
+      na.action = action
+    ),
+    predict(
+      fit.nb,
+      df,
+      offset = na.o,
+      type = "bart",
+      ci.level = 0.9,
+      na.action = action
+    )
+  )
+  expect_equal(
+    predict(fit.ord, offset = na.o, na.action = action),
+    predict(fit.ord, df, offset = na.o, na.action = action)
+  )
+  expect_equal(
+    predict(fit.ord, offset = na.o, type = "class", na.action = action),
+    predict(fit.ord, df, offset = na.o, type = "class", na.action = action)
+  )
+  expect_equal(
+    predict(fit.ord, offset = na.o, ci.level = 0.9, na.action = action),
+    predict(fit.ord, df, offset = na.o, ci.level = 0.9, na.action = action)
+  )
+  na.cat <- cat.off
+  na.cat[5L, ] <- NA
+  na.cat[9L, 2L] <- NA
+  expect_equal(
+    predict(fit.mn, offset = na.cat, na.action = action),
+    predict(fit.mn, df, offset = na.cat, na.action = action),
+    tolerance = 1e-6
+  )
+  expect_equal(
+    predict(fit.mn, offset = na.cat, type = "class", na.action = action),
+    predict(fit.mn, df, offset = na.cat, type = "class", na.action = action)
+  )
+}
+expect_true(all(is.na(
+  predict(fit.mn, offset = na.cat, type = "class", na.action = na.pass)[c(
+    5L,
+    9L
+  )]
+)))
+expect_length(
+  predict(fit.mn, offset = na.cat, type = "class", na.action = na.omit),
+  n - 2L
+)
+for (refused.fit in list(fit.p, fit.nb, fit.ord, fit.mn)) {
+  given <- if (identical(refused.fit, fit.mn)) na.cat else na.o
+  expect_identical(
+    messageOf(predict(refused.fit, offset = given)),
+    messageOf(predict(refused.fit, df, offset = given))
+  )
+  expect_true(startsWith(
+    messageOf(predict(refused.fit, offset = given)),
+    "'offset' has missing values; use na.action = na.pass"
+  ))
+}
+# a heteroscedastic, a Student-t and an aft fit draw a row's noise from its
+# weight: the rows set aside have NA draws, as at newdata, and the rest are the
+# draws that a call stating the stand-in weight makes
+for (family.fit in list(fit.stu, fit.het, fit.aft)) {
+  for (action in list(na.pass, na.omit)) {
+    got <- seeded(predict(
+      family.fit,
+      weights = na.w,
+      type = "ppd",
+      na.action = action
+    ))
+    whole <- seeded(predict(
+      family.fit,
+      weights = replace(na.w, is.na(na.w), 1),
+      type = "ppd"
+    ))
+    there <- predict(
+      family.fit,
+      x,
+      weights = na.w,
+      type = "ppd",
+      na.action = action
+    )
+    expect_identical(dim(got), dim(there))
+    expect_identical(
+      unname(which(colSums(is.na(got)) > 0L)),
+      unname(which(colSums(is.na(there)) > 0L))
+    )
+    expect_equal(
+      unname(got[, colSums(is.na(got)) == 0L]),
+      unname(whole[,
+        if (identical(action, na.omit)) -c(3L, 7L) else -c(3L, 7L)
+      ])
+    )
+  }
+}

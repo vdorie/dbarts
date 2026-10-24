@@ -94,7 +94,17 @@ na.keepPredictors(object, \dots)
   value in \code{bases} never marks its row: on a row that is incomplete
   for its predictors, its \code{offset} or its \code{weights}, which the
   \code{na.action} drops or returns \code{NA} for, it is passed by, and on
-  any other row it is an error, whatever \code{na.action} is. The sampler's own
+  any other row it is an error, whatever \code{na.action} is.
+
+  With no \code{newdata}, \code{predict} answers the training rows, which
+  have no predictor to route, and a missing value in a per-row \code{offset}
+  or \code{weights} marks its row incomplete in the same way: every
+  \code{na.action} above governs it as it does at \code{newdata}, the
+  default and \code{na.fail} refusing it, \code{na.pass} returning the row
+  with \code{NA} draws, and \code{na.omit} and \code{na.exclude} dropping
+  it, \code{na.exclude} padding it back. The row is computed at a stand-in
+  value and then set aside, so the other rows are what they would be without
+  the missing one, and a single missing value is always an error. The sampler's own
   \code{predict}, \code{predictForests} and \code{getTrees} methods take no
   \code{na.action}, keep the default, and check no per-row
   \code{offset.test} for a missing value at all: an \code{NA} there reaches

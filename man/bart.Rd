@@ -217,7 +217,7 @@ bart(
    \item{na.action}{
      A function that filters incomplete rows, as \code{\link{lm}} takes one. The default \code{\link{na.keepPredictors}} drops rows with a missing RESPONSE and keeps rows with missing predictors, which the trees route; the base functions keep their usual meaning. A survival response is missing where its time or its status is, as \code{survreg} and \code{coxph} take it. See \code{\link{na.keepPredictors}}.
 
-     For \code{predict}, what to do with the rows of \code{newdata} that have missing values; see \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
+     For \code{predict}, what to do with the rows of \code{newdata} that have missing values, and, with no \code{newdata}, the training rows whose per-row \code{offset} or \code{weights} has one; see \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
    }
    \item{factors}{
      How factor columns in a data frame enter the model, exactly as in \code{\link{dbarts}}. The default \code{"categorical"} keeps each unordered factor as a single predictor whose splits send a subset of its levels down each branch - a different model-matrix representation than \code{\link{bartBT}}'s, which always expands every factor into indicator columns; \code{"indicators"} instead expands each factor into binary indicator columns, matching \code{bartBT}, and matches a test factor to the training levels by label, refusing by name a level with no training rows. A factor-predictor fit therefore changes if moved between the two interfaces. Subset splits let a single split separate any grouping of a factor's levels, where indicator columns need a chain of splits to do the same, and they give a factor the prior split probability of one predictor rather than one per level.
