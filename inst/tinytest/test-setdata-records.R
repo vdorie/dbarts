@@ -601,9 +601,11 @@ probit <- dbarts::dbarts(
 )
 invisible(probit$run(5L, 4L))
 expect_silent(probit$setData(probit$data))
-# and so is updateScale = TRUE, which derives nothing there, though
-# setResponse and setOffset refuse it outright (dec-B330)
+# and so is updateScale = TRUE, which derives nothing there, as setResponse and
+# setOffset take it (dec-B481; test-gp-updatescale-families.R pins the families)
 expect_silent(probit$setData(probit$data, updateScale = TRUE))
+expect_silent(probit$setResponse(as.double(y <= median(y)), updateScale = TRUE))
+expect_silent(probit$setOffset(rep(0.1, n), updateScale = TRUE))
 # with nothing kept, a derivation is served
 unkept <- dbarts::dbarts(
   x,

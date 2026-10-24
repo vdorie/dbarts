@@ -3425,20 +3425,34 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 // A saved gp draw is a set of kernel weights: it has no
 // mean term a new response shift could be carried into and no record of the
 // centre, scale or lengthscale it replays under, so the conversions every
-// other leaf model's saved draws get have nothing to act on. The refusal is
-// blind to the values and to the family - a probit sampler, which has no
-// range to re-derive, is refused as well - because a rule that passed the
-// re-anchors leaving the midpoint alone would let one line of calling code
-// through on one sweep and stop it on the next.
+// other leaf model's saved draws get have nothing to act on.
 // External linkage: the flat C API guards its setResponse and setOffset
 // entries with the same call.
 bool holdsSavedGPDraws(const bartcore::SamplerShape& shape) {
   return shape.usesFunctionLeaves && shape.numSavedDraws > 0;
 }
 
+// The re-anchor of a response that has a scale: gaussian (Student-t and the
+// heteroscedastic variants included), aft and nbinom, whose transform or count
+// center updateScale re-derives. A probit, logistic or ordinal response is
+// scale-free, so updateScale derives nothing for it and moves no saved draw.
+static bool familyHasResponseScale(bartcore::ResponseFamily family) {
+  return family == bartcore::ResponseFamily::gaussian ||
+         family == bartcore::ResponseFamily::aft ||
+         family == bartcore::ResponseFamily::nbinom;
+}
+
+// The refusal is blind to the values - a rule that passed the re-anchors
+// leaving the midpoint alone would let one line of calling code through on
+// one sweep and stop it on the next - but not to the family: only a family
+// with a response scale has one to re-derive, and a scale-free sampler takes
+// updateScale = TRUE as setData does.
 void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
                                const char* caller, int updateScale) {
-  if (updateScale == FALSE || !holdsSavedGPDraws(sampler.shape())) return;
+  if (updateScale == FALSE) return;
+  bartcore::SamplerShape shape = sampler.shape();
+  if (!holdsSavedGPDraws(shape) || !familyHasResponseScale(shape.family))
+    return;
   Rf_error("%s: 'updateScale' cannot be TRUE for a sampler with gp leaves "
            "that holds saved draws: re-derive the scale during burn-in, "
            "before draws are saved (burn-in sweeps, or keepTrees off until "

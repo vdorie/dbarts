@@ -474,12 +474,14 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 /// such a sampler.
 bool holdsSavedGPDraws(const bartcore::SamplerShape& shape);
 
-/// Errors on a sampler that holdsSavedGPDraws and is asked to re-derive its
-/// response range (any updateScale but an explicit FALSE), whatever the new
-/// response or offset and whatever the family: a refusal that read the values
-/// would pass one call and stop the next identical one a sweep later. Raised
-/// before a value is read, so the sampler and its saved draws are untouched.
-/// Both the R bridge and the flat C API guard with this, beside
+/// Errors on a sampler that holdsSavedGPDraws, of a family with a response
+/// scale (gaussian, Student-t, aft, nbinom), asked to re-derive its response
+/// range (any updateScale but an explicit FALSE), whatever the new response or
+/// offset: a refusal that read the values would pass one call and stop the
+/// next identical one a sweep later. A family with no scale (probit, logistic,
+/// ordinal) has none to re-derive, so it is not refused. Raised before a value
+/// is read, so the sampler and its saved draws are untouched. Both the R
+/// bridge and the flat C API guard with this, beside
 /// refuseMultiForestResponseMutation. caller labels the error.
 void refuseSavedGPDrawReanchor(const bartcore::SamplerBase& sampler,
                                const char* caller, int updateScale);

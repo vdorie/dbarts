@@ -820,11 +820,14 @@ expect_true(nextDrawsWithin(grown, range(y.more)))
 ## A kept gp draw replays only under the centre, scale, lengthscale and
 ## response range it was drawn with, and nothing can rewrite it. A gp sampler
 ## that holds one refuses a setData that derives the standardization or the
-## range, as one of a fresh data object does, and setResponse and setOffset
-## with updateScale = TRUE, whatever the new values are; a setData that keeps
-## both is served. All were accepted: a response of 3 y + 10 returned the kept
-## draws as 3 f + 10, and one of twice the spread about the same midpoint
-## doubled them about it.
+## range, as one of a fresh data object does, and, where its family has a
+## response scale, setResponse and setOffset with updateScale = TRUE, whatever
+## the new values are; a setData that keeps both is served. All were accepted: a
+## response of 3 y + 10 returned the kept draws as 3 f + 10, and one of twice
+## the spread about the same midpoint doubled them about it. A probit, logistic
+## or ordinal sampler has no scale to re-derive, so its setResponse and
+## setOffset take updateScale = TRUE (dec-B481, test-gp-updatescale-families.R)
+## and its fresh data object is refused for the standardization alone.
 gpControl <- function(...) control(n.burn = 20L, n.samples = 3L, ...)
 gpSampler <- function(response = y, ..., keepTrees = TRUE) {
   dbarts(
@@ -865,6 +868,12 @@ refusedScale <- function(caller) {
 }
 midpoint <- mean(range(y))
 y.binary <- as.double(y > median(y))
+offsets <- list(
+  "another range" = -5 + x[, 1L],
+  "a constant" = rep(2, n),
+  "zero" = numeric(n),
+  "none" = NULL
+)
 refusing <- list(
   gaussian = list(
     make = function() gpSampler(),
@@ -873,19 +882,15 @@ refusing <- list(
       "the same midpoint, twice the spread" = midpoint + 2 * (y - midpoint),
       "the response in force" = y
     ),
+    offsets = offsets,
     data = list(dbartsData(x.stretched, y), dbartsData(x, y))
   ),
   probit = list(
     make = function() gpSampler(y.binary, family = "probit"),
-    responses = list("flipped" = 1 - y.binary, "in force" = y.binary),
+    responses = list(),
+    offsets = list(),
     data = list(dbartsData(x, y.binary))
   )
-)
-offsets <- list(
-  "another range" = -5 + x[, 1L],
-  "a constant" = rep(2, n),
-  "zero" = numeric(n),
-  "none" = NULL
 )
 for (kind in names(refusing)) {
   sampler <- refusing[[kind]]$make()
@@ -906,10 +911,10 @@ for (kind in names(refusing)) {
     )
     expect_identical(held(sampler), before, info = info)
   }
-  for (onto in names(offsets)) {
+  for (onto in names(refusing[[kind]]$offsets)) {
     info <- paste(kind, "setOffset onto", onto)
     expect_error(
-      sampler$setOffset(offsets[[onto]], updateScale = TRUE),
+      sampler$setOffset(refusing[[kind]]$offsets[[onto]], updateScale = TRUE),
       refusedScale("$setOffset"),
       fixed = TRUE,
       info = info

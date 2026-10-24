@@ -1481,6 +1481,46 @@ expect_equal(served("capi_set_offset", ptrKernel, rep(1, n), FALSE), 1L)
 expect_identical(specKernel$predict(x.test), kernelDraws)
 expect_equal(served("capi_set_offset", ptrKernel, NULL, FALSE), 1L)
 expect_identical(specKernel$predict(x.test), kernelDraws)
+# a family with no response scale has none to re-derive, so a probit, logistic
+# or ordinal sampler with gp leaves and saved draws takes both calls with
+# updateScale true (dec-B481), the saved draws as they were
+yBinary <- as.double(y > median(y))
+yOrdinal <- as.double(cut(y, quantile(y, 0:3 / 3), include.lowest = TRUE))
+for (kind in c("probit", "logistic", "ordinal")) {
+  responseOf <- if (kind == "ordinal") yOrdinal else yBinary
+  specFree <- dbarts(
+    x,
+    responseOf,
+    family = kind,
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.trees = 8L,
+      n.samples = 3L,
+      n.burn = 10L,
+      keepTrees = TRUE,
+      updateState = FALSE,
+      seed = 99L
+    ),
+    leaf.prior = gp(columns = 2L)
+  )
+  invisible(specFree$run())
+  ptrFree <- specFree$getPointer()
+  freeDraws <- specFree$predict(x.test)
+  expect_equal(
+    served("capi_set_response", ptrFree, rev(responseOf), TRUE),
+    1L,
+    info = kind
+  )
+  expect_equal(
+    served("capi_set_offset", ptrFree, rep(-5, n), TRUE),
+    1L,
+    info = kind
+  )
+  expect_equal(served("capi_set_offset", ptrFree, NULL, TRUE), 1L, info = kind)
+  expect_identical(specFree$predict(x.test), freeDraws, info = kind)
+}
+rm(yBinary, yOrdinal, responseOf, specFree, ptrFree, freeDraws, kind)
 # with nothing saved the same entries take the re-derived range
 specBare <- dbarts(x, y, control = control, leaf.prior = gp(columns = 2L))
 ptrBare <- specBare$getPointer()
