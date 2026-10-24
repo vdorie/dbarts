@@ -205,7 +205,7 @@ slice 2).
 
 ## What this slice extends in state-frame-prior
 
-As built: slice 1 landed (dec-A222); slices 2 and 3 read on wt/sfp-3 at 0fd6f90f, slice 2 as its
+As built: slice 1 landed (dec-A222); slices 2 and 3 read on wt/sfp-3 at 90af5380, slice 2 as its
 "Slice 2 as built" records it, slice 3 built and not yet reviewed. Names that exist only there are written
 without a cite until they land. The builder checks them again on the landed slices first
 ([Assumptions the builder checks first](#assumptions-the-builder-checks-first)).
@@ -727,7 +727,7 @@ Push 1:
 | the stated-lengthscale gp refused too | its creation arm |
 | a creation refused where only rows out are constant | the creation literals (rows out at one value, rows in spread) |
 | setData refusing after the swap | the refused-setData twin |
-| every row read where one row in (dec-B309's fallback) instead of the refusal | the one-row-in refusal |
+| one row in refused where the response falls back to every row (the call before the 2026-10-23 ruling) | the one-row-in creation arms (fix round) |
 | no fallback where no row is in | tests/cpp's flag or the no-row literal |
 | the leaf's no-row fallback not warned under probit | the no-row arm under probit and ordinal |
 | two warnings where response and leaf both fall back | the joint-text count |
@@ -854,9 +854,12 @@ Agent-made, each for the maintainer's later mark.
   and not read from the rows, so there is a number in force (dec-B465's reason for the refusal does not
   reach it), and the refusal's message names stating it as a remedy. Not taken: refusing it too, which
   makes that remedy false and leaves no gp fit on such a column.
-- One row in is "one value" and refused, though the response reads every row there (dec-B309). Not taken:
-  dec-B309's every-row fallback for the leaf, which dec-B465 replaces for one value; no row in at all keeps
-  dec-B304's every row.
+- One row in, or any rows in holding fewer than two distinct values of the response, under a family that reads
+  it: the leaf's numbers fall back to every row with the response's, under dec-B309's one warning (the
+  maintainer's ruling of 2026-10-23, which replaced this call; [Push 1 fix round](#push-1-fix-round)). The call
+  first made, refusing one row in as "one value" while the response read every row, is push 1 as built and its
+  fix round's mutant. Under a family that reads no response one row in is one value and refused (dec-B465); no
+  row in at all keeps dec-B304's every row.
 - A covariate missing on every row in has "no observed value" and is refused with the one-value case. Not
   taken: the placeholder, which is the case dec-B465 refuses.
 - A carried record is never refused for its values, an NA scale included: dec-B231 uses a supplied value,
@@ -900,7 +903,7 @@ Agent-made, each for the maintainer's later mark.
 
 ## Assumptions the builder checks first
 
-The recheck of 2026-10-23 read each of the first eight on 030b39f0 and on wt/sfp-3 at 0fd6f90f
+The recheck of 2026-10-23 read each of the first eight on 030b39f0 and on wt/sfp-3 at 90af5380
 ([Recheck against bartcore 030b39f0 and state-frame-prior slices 2 and 3 as built](#recheck-against-bartcore-030b39f0-and-state-frame-prior-slices-2-and-3-as-built));
 the answers are folded into the sections above. On the tip after state-frame-prior slice 3 lands, before
 writing a line, the builder confirms them against the landed code, slice 3's review and fix round being
@@ -945,7 +948,7 @@ was read, not run. Which tests create a sampler on a constant leaf covariate was
 the 37 files that name a linear or gp leaf, not run. The burn-in loop was run for `updateScale` only. The
 baselines' verdicts are read from the scenario sources and the MANIFEST, not run; no reference build,
 sanitizer, x86 run, `R CMD check` or consumer suite was run. The line estimates are an itemization scaled by
-the landed history's ratios. The recheck read state-frame-prior slices 2 and 3 on wt/sfp-3 at 0fd6f90f and
+the landed history's ratios. The recheck read state-frame-prior slices 2 and 3 on wt/sfp-3 at 90af5380 and
 ran nothing; slice 3 there is built and not reviewed.
 
 ## Revision from critique
@@ -991,8 +994,8 @@ the help, where the plan had added no argument. The plan becomes two pushes; the
 
 Read 2026-10-23, nothing run beyond reading. Landed since 46e1a644: warm-start-salvage slice D (dec-A220),
 forest-multiplier pushes 2 and 3 (dec-A219, dec-A221) and state-frame-prior slice 1 with its fix round
-(dec-A222). State-frame-prior slices 2 (0958cbe8 to 84122988) and 3 (f1ba4ea4 and 0fd6f90f) read on
-wt/sfp-3 at 0fd6f90f; slice 3 there is built and not yet reviewed, and has no "as built" record. No ruling
+(dec-A222). State-frame-prior slices 2 (ac9f7acf to 1294c756) and 3 (4d15a88d and 90af5380) read on
+wt/sfp-3 at 90af5380; slice 3 there is built and not yet reviewed, and has no "as built" record. No ruling
 is reopened; the plan's calls stand.
 
 ### The plan's cites and reasoning, checked
@@ -1196,7 +1199,7 @@ build.
 Built on 9740f9c2 (wt/sfp-3, state-frame-prior slice 3 in its fix round, not landed) with this plan's two
 rechecks on top, the steps rechecked against it first
 ([Recheck against state-frame-prior slice 3's fix round](#recheck-against-state-frame-prior-slice-3s-fix-round),
-08f880ad). Commits: 276ad477 (the push), cf8f10f0 (the help, NEWS and notes) and this record.
+e5cd37e8). Commits: a69c8bca (the push), 6440e06c (the help, NEWS and notes) and this record.
 
 What it does. A linear or gp leaf derives its covariates' center and scale, and a gp leaf its default
 lengthscale, over the rows in the likelihood, rows of positive weight that no mask leaves out, by membership
@@ -1319,20 +1322,19 @@ reads the raw values again only at a re-derivation, which the refusal arm now ma
 set built where every row is in (the same sums in the same order), and an all-ones mask kept as a copy, which
 `leafRowsFrom` reads as every row by construction (not run).
 
-Size, against 08f880ad before this record: engine 376 added and 120 removed, bridge 251 and 67, R 184 and 23,
+Size, against e5cd37e8 before this record: engine 376 added and 120 removed, bridge 251 and 67, R 184 and 23,
 tests/cpp 472 and 46, tinytest 948 and 50, the exact arm 108 and 60, help and NEWS 25 and 13, notes 56 and 19;
 2420 added and 398 removed in all, against ~3590 forecast at landing and ~2075 raw (stop ~5390); package code 811
 against ~585 forecast (stop ~880), its engine and bridge over their itemization (the typed error and its wording,
 the copy's lifecycle, the buffer staging, the keep's answer), so a fix round has about 70 lines before that stop.
 
-Gates, on the push's libraries, from a `--preclean` install of cf8f10f0 (this record touches the plan alone; the
+Gates, on the push's libraries, from a `--preclean` install of 6440e06c (this record touches the plan alone; the
 reference, exact, check and R-loaded sanitizer runs were made on the push's earlier spellings, whose package
-code is cf8f10f0's, the later changes touching only test-leaf-standardization-rows.R and test_state.cpp): tests/cpp plain and under ASAN and
-UBSAN, 411 ok, no failure and no diagnostic; the suite: `tinytest::test_package` stops at test-mutate-then-serialize.R,
-which fails at 9740f9c2 itself (its last section's `setState` of a state without the leaf blocks is refused as
-holding gp draws under another standardization; it passes at 0fd6f90f, so slice 3's fix round brought it), and in
-one process file by file as `test_package` runs them, 271 files, 28982 expectations, none failed, that file's error
-alone (the base: 270 files, 28755, the same error); lint (0 lints), air, rc-codoc (48 methods), win-drift,
+code is 6440e06c's, the later changes touching only test-leaf-standardization-rows.R and test_state.cpp): tests/cpp plain and under ASAN and
+UBSAN, 411 ok, no failure and no diagnostic; the suite in one process file by file as `test_package` runs them,
+271 files, 28982 expectations, none failed, test-mutate-then-serialize.R stopping on an error that was 9740f9c2's own
+(restated after the rebase onto f58d1482: a7189447, in slice 3's landing, fixed it, and the file passes on the
+rebased push; [Push 1 fix round](#push-1-fix-round)); lint (0 lints), air, rc-codoc (48 methods), win-drift,
 doc-freshness and verify-anchors clean; on a `--preclean` reference install the four snapshot files (14, 3, 7 and 3
 expectations, none failed) and the three `--bitwise` compares, 55 of 55 identical against equivalence-32418b6e
 (`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against bcf-equivalence-20eed7ed and 11 of 11 against
@@ -1341,14 +1343,92 @@ on the shipped build, all passing, linear-exact.R's new arm within |z| 0.8, and 
 reference passing; the R-loaded run over 13 touched and nearby files with the package built under ASAN and UBSAN
 through `CXX20FLAGS` (the bridge's compile line carrying `-fsanitize=address,undefined`), 2332 expectations, none
 failed, no diagnostic, and the final test-leaf-standardization-rows.R, 225, none failed; `R CMD check --as-cran
---no-manual` from a clean tarball, the Date field's NOTE and an ERROR in its tests that is test-mutate-then-serialize.R's
-failure above; scratch/rsrd1/compare.R against 9740f9c2, 12 fixtures with every row in and every covariate spread
+--no-manual` from a clean tarball, the Date field's NOTE, its tests then stopping on the same file (restated: the
+Date NOTE alone after the rebase); scratch/rsrd1/compare.R against 9740f9c2, 12 fixtures with every row in and every covariate spread
 (linear, gp and two covariates under gaussian, probit, Student-t, nbinom, logistic, aft, ordinal, hazard.probit and
 constant leaves, with `setData` of a fresh object and `setPredictor` deriving), 96 of 96 parts identical, and the 6
 that move all moved (24 parts: rows out by weight and by mask, centers 7.18 and scale 9.50 over every row against
 0.491 and 0.323 over the rows in, a gp lengthscale 0.080 against 1.03, `xbart` with linear and gp leaves, a constant
-column refused); stan4bart's suite (its bartcore branch at ac80108, built against this push), 1545 expectations,
-none failed. Not run: the x86-64 leg.
+column refused); stan4bart's suite (its bartcore branch as it then stood, built against this push), 1545
+expectations, none failed (restated: its bartcore branch is now at 3716b51, 1555 expectations, none failed). Not
+run: the x86-64 leg. These gates ran before the rebase; the fix round's are in its record.
 
-Left open. test-mutate-then-serialize.R's failure is the base's, for slice 3's fix round. Package code stands at
-811 of the 880 stop. The x86-64 leg waits for landing.
+Left open. Package code stands at 811 of the 880 stop. The x86-64 leg waits for landing. (Restated: the
+test-mutate-then-serialize.R failure this paragraph named is gone with the rebase.)
+
+### Push 1 fix round
+
+The orchestrator rebased the push onto bartcore f58d1482, state-frame-prior slice 3's landing among it (its fix
+round's a7189447 fixes the test-mutate-then-serialize.R failure "Push 1 as built" named): the push is ab2d350a,
+e5cd37e8, a69c8bca (the code), 6440e06c (the help and notes) and 8a887960 (the record). Its review, FIX FIRST: eight
+mutants surviving (R12, R13, R26, R07, R08, R05b, R21, R22) and R14 killed by tests/cpp alone; the no-row warning
+garbling an unnamed column; the help naming "the hazard families" among the mask families; hazard.probit with no
+subject in warning twice; nits (a fixed refusal buffer, a part-way failure leaving pointers into freed staging
+buffers, two spellings); stale hashes. Then the maintainer's ruling of 2026-10-23 below. Commits: eff97e92 (the
+review's fixes and pins), 4b618c6c (the ruling) and this record, which also restates the hashes and the claims
+above.
+
+The maintainer's ruling of 2026-10-23, on dec-A216 and this plan's planning call (one row in refused as "one
+value"): where the response falls back to every row because fewer than two distinct values of it are in the
+likelihood at creation (dec-B309's case, one row in say), every quantity the prior reads from the rows in falls
+back with it, a linear or gp leaf covariate's center, scale and default lengthscale among them, under dec-B309's
+one warning; dec-B465's refusal stays for its own case, the response spread over the rows in and a leaf covariate
+at one value there; re-derivations keep dec-B364 and dec-B465's keep. Built in
+[`Sampler::withResponseFallback`](../../src/bartcore/sampler.hpp): under a family that reads the response
+(gaussian with either residual distribution, nbinom), with a row out and the response less its offset (the counts
+under nbinom) at one value over the rows in, the leaf reads every row and marks its covariates, at creation and at
+a `setData` that derives the range; the creation text counts the rows in. The planning call, the mutant table,
+the help and rule 9 are restated. Read as the ruling's doors: a family that reads no response (probit, ordinal,
+hazard.probit) has no fallback to follow, and still refuses one row in as one value. A multiplier forest takes no
+linear leaf ("a treatment forest does not support a linear leaf prior"), refused before any warning, so a sampler
+with both cannot warn of both; that refusal is pinned.
+
+What changed besides:
+- Pins in test-leaf-standardization-rows.R, each on the reviewer's probe: a partial carried record refused before
+  the swap, the reader and 3 sweeps an untouched twin's (R12); a stated-lengthscale gp at a deriving `setData`, at
+  NULL and TRUE, the placeholder taken (R13); a refused `setData` leaving the mask in force for a later derivation
+  (R26); after `setWeights`, a kept covariate leaving one not replaced held (R07); a covariate at one value that the
+  call does not replace neither reported nor kept (R08); a gp leaf's no-row warning under gaussian and probit
+  (R05b); `setData`'s no-row warning under gaussian and probit (R21); the unnamed no-row and keep texts (R22); a
+  refused covariate whose position is not its column, the reader unmoved (R14); a 600-character column name named
+  whole, the remedy after it.
+- The no-row text names an unnamed column "the leaf covariate in column j" ([`leafCentersAndScales`](../../R/bartcore.R),
+  [`warnRowsFallBack`](../../R/bartcore.R) composed once).
+- hazard.probit with no subject in: `dbarts()` holds the periods' warning (`holdPeriods`) and hands it to the
+  creation, which folds the leaves' numbers into its text, one warning; rule 9 says so. By hand, `dbartsSpec()` then
+  `new()`, the two stay apart, as the response's do.
+- The refusal is a `std::string` the closure owns at the three sites, so a long name is not cut and the jump leaks
+  nothing.
+- A `Sampler::setData` failure other than the refusal (an allocation) can leave chains part-swapped onto the
+  closure's buffers; the bridge now releases the sampler (`holder.sampler.reset()`) and raises the failure, so
+  nothing points into freed buffers, and the R object re-creates the sampler from its stored state at its next use,
+  as after a reload. No test reaches it (it needs an allocation failure part-way).
+- The help says hazard.probit; data.hpp's comment and test-leaf-conversions.R's say centered; the refusal over every
+  row says "read because too few are in the likelihood", true of no row in and of the response's fallback.
+
+Mutants, each alone on a clean export of 4b618c6c, `--preclean`; failures in test-leaf-standardization-rows.R: the
+reviewer's R12 2, R13 stops (its setData refused), R26 1, R07 2, R08 1, R05b 4, R21 3, R22 2, R14 1; the periods not
+folded 1; the unnamed label unfixed 1; the refusal cut at 511 bytes 1; one row in refused where the response falls
+back (the call before the ruling) stops at its creation; the setData fallback blind to the range choice 1.
+
+Size, against 8a887960 before this record: engine 27 added and 3 removed, bridge 36 and 28, R 83 and 55, tinytest
+238 and 18, help 2 and 2, rule 9 4 and 2; 390 added and 108 removed. The push's package code stands at 877 lines
+added against f58d1482, under the 880 stop, the ruling's engine lines paid for by composing the fallback text
+once.
+
+Gates, from a `--preclean` install of 4b618c6c (this record touches the plan alone): tests/cpp plain and under ASAN
+and UBSAN, 411 ok, no failure and no diagnostic; `tinytest::test_package` in one process, 266 files with
+expectations, 29662, none failed, its 12 warnings those of the reviewer's run at 8a887960; lint (0 lints), air,
+rc-codoc (48 methods), win-drift, doc-freshness and verify-anchors clean, NEWS parsing with 227 entries; on a
+`--preclean` reference install the four snapshot files (14, 3, 7 and 3, none failed) and the bitwise compares, 55 of
+55 identical against equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against
+bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line, neutral as
+expected (no recorded scenario has one row in with a leaf covariate), and both cross-host compares passing; the 43
+commands of exact-gates.yaml at `quick`, all passing, linear-exact.R's arm within |z| 0.8; the R-loaded run with
+the package built under ASAN and UBSAN through `CXX20FLAGS` (the bridge's compile line carrying
+`-fsanitize=address,undefined`) over 17 files, the 13 of "Push 1 as built", test-mutate-then-serialize.R and the
+three hazard files, 2692 expectations, none failed, no diagnostic; `R CMD check --as-cran --no-manual` from a clean
+tarball, the Date field's NOTE alone; stan4bart's suite, its bartcore branch at 3716b51 built against this push, 25
+files and 1555 expectations, none failed. Not run: the x86-64 leg.
+
+Left open: the ruling's reading for families that read no response, above; package code is 3 lines from the stop.
