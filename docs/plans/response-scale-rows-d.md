@@ -611,17 +611,25 @@ gives the forecast.
 ### Push 2: the burn-in arguments
 
 2.1 Engine (~5) and tests/cpp (~25). No engine method or virtual: the row setters reach push 1's
-    `rederiveStandardization` with null columns. tests/cpp `testRederiveStandardization`: after
+    `rederiveStandardization` with null columns. tests/cpp `testRederiveStandardization`, a new function
+    beside `testLeafStandardizationRows`: after
     `setWeights` or `setActiveRows`, the call leaves the sampler bit for bit where a twin given a predictor
     update of every leaf column in force followed by `rederiveStandardization` of those columns leaves it;
     a keep reports the covariate and moves none of its numbers.
 2.2 Bridge (~35). The fourth argument of `bartcore_setWeights` and `bartcore_setActiveRows`, their
     registration, the gp refusal in `refuseRowsRederivation` before the install and outside the refusal of
-    several forests, the call after `rederiveAfterInstall`, the folded answer with what was kept.
-2.3 R (~45). The two methods' argument, its check (one helper with `setPredictor`'s) and position, the
+    several forests, in the words of `standardizationUpdateFromExpression` with the caller named, the call
+    after `rederiveAfterInstall`'s scale, the folded answer with what was kept: the logical "warn now"
+    carrying, where a leaf covariate was kept, the kept positions as `predictorUpdateAnswer` carries them
+    and whether the response's scale was kept with them. The four tinytest sites and
+    [mask-redraw-exact.R](../../benchmarks/R/mask-redraw-exact.R) that `.Call` the two entries with three
+    arguments pass the fourth as FALSE.
+2.3 R (~45). The two methods' argument, its check (one helper with `setPredictor`'s, moved out of
+    `bartcoreSamplerSetPredictor`) and position, the
     forwarding on a mask family, the standardization written through the reader without the grids beside
-    `recordResponseRange`, the store, the warning last; `setWeights`' rollback; `reapplyActiveRows` passes
-    FALSE for both.
+    `recordResponseRange`, keyed as `recordDerived` keys it (the keying shared), the store, the warning
+    last, [`warnScaleKept`](../../R/bartcore.R) gaining the joint text; `setWeights`' rollback;
+    `reapplyActiveRows` passes FALSE for both.
 2.4 tinytest (~290). In the new file:
     - the identity: for gaussian, Student-t, probit, ordinal, nbinom and hazard.probit, linear and gp with no
       kept draw, the call with `updateStandardization = TRUE` against the plain call and then
@@ -1481,3 +1489,32 @@ Package code stands at 877 of the 880 stop.
 Left: push 2, setWeights and setActiveRows taking updateStandardization, in review; the comments that still say "no row
 in" where the response's fallback now reads every row too (model.hpp, chain.hpp, R/bartcore.R) ride it. TODO
 response-scale-rows stays until push 2 lands.
+
+## Recheck of push 2 against push 1 as built
+
+Read 2026-10-23 on 8a887960, push 1 rebased onto bartcore f58d1482, before building push 2; nothing run. Steps 2.1
+to 2.3 are amended in place; this records what moved. No difference changes what a user sees beyond dec-B464,
+dec-B465 and the plan's calls, so nothing stops the build.
+
+- Between 9740f9c2 and f58d1482 nothing touches the row setters, their bridge entries, the records readers or
+  `rederiveStandardization`: slice 3's second check (a7189447, which mends test-mutate-then-serialize.R, to
+  54171f38), the spelling and wording sweeps and the 10-23 R-surface batch.
+- Engine: push 1's [`Sampler::rederiveStandardization`](../../src/bartcore/sampler.hpp) with null columns derives
+  every leaf covariate over the rows chain 0's weights and the sampler's copy of the mask leave in, keeps a
+  covariate with too little and answers which, and does nothing on constant leaves, so a sampler of several
+  forests or a multinomial one takes it as nothing to do. Push 2 adds no method or virtual (step 2.1 holds); its
+  engine lines are a comment. tests/cpp has no `testRederiveStandardization`; it is a new function.
+- Bridge: the two entries answer `firstScaleKept`'s bare logical through `rederiveAfterInstall`. The gp refusal's
+  words are in `standardizationUpdateFromExpression`, which names `$setPredictor`; push 2 has it name its caller
+  and calls it before the install. The answer's form is fixed (step 2.2): "warn now", with the kept positions and
+  whether the response's scale was kept with them, which the joint text needs. Four tinytest files
+  (test-input-guards.R, test-update-scale-rows.R, test-sampler-errors.R, test-sampler-bridge-errors.R) and
+  mask-redraw-exact.R, an exact gate, call the entries with three arguments and gain the fourth.
+- R: `setPredictor`'s check of the argument is inline in
+  [`bartcoreSamplerSetPredictor`](../../R/bartcore.R); [`recordResponseRange`](../../R/data.R) writes the range
+  alone, and the keying of the standardization by the leaf covariates' names is inside
+  [`recordDerived`](../../R/data.R); [`warnScaleKept`](../../R/bartcore.R) takes the response's text or the
+  leaf's. Push 2 moves the check into a helper, shares the keying and gives `warnScaleKept` the joint text (step
+  2.3).
+- Budget: push 2 raw ~500 to ~520 (the five call sites, the shared keying), forecast ~840 to ~870, package code
+  ~135 forecast as before; the stops stand at ~1250 lines and ~200 of package code.
