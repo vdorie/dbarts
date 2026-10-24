@@ -452,7 +452,9 @@ struct ParsedModel {
 /// calls one) is therefore an init-capture, default-constructed and filled in
 /// the body, or it leaves scope before that call. A capture must own nothing
 /// when the closure is built, which is in the caller and before the
-/// continuation's allocation, itself able to longjmp. Raising a captured
+/// continuation's allocation, itself able to longjmp; the moved-from \p body
+/// left in this frame is crossed by the jump too and owns nothing only because
+/// the move leaves it empty. Raising a captured
 /// message, Rf_error("%s", s.c_str()), is safe: R copies the message before it
 /// jumps, and the closure is deleted on the way out.
 template <typename Body>
@@ -2557,9 +2559,20 @@ createSamplerOrRaise(std::vector<ext_rng*>& rngs, Factory&& factory) {
 std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
                                       size_t numChains) {
   bool haveSeed = control.haveRngSeed;
-  // GetRNGstate raises on a malformed .Random.seed, so it precedes the buffer
-  // below, which that raise would leak
-  if (!haveSeed) GetRNGstate();
+  // R's stream is read and written back before anything is owned: GetRNGstate
+  // raises on a malformed .Random.seed and PutRNGstate on a locked one, and
+  // either raise would leak the generators below. The seeds are R's memory,
+  // freed on a raise as on the return.
+  std::uint_least32_t* streamSeeds = NULL;
+  if (!haveSeed) {
+    streamSeeds = reinterpret_cast<std::uint_least32_t*>(
+      R_alloc(numChains, sizeof(std::uint_least32_t)));
+    GetRNGstate();
+    for (size_t c = 0; c < numChains; ++c)
+      streamSeeds[c] =
+        static_cast<std::uint_least32_t>(unif_rand() * 4294967295.0);
+    PutRNGstate();
+  }
   std::vector<ext_rng*> rngs(numChains, static_cast<ext_rng*>(NULL));
   bool rngFailed = false;
   if (haveSeed) {
@@ -2579,10 +2592,8 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
     for (size_t c = 0; c < numChains && !rngFailed; ++c) {
       rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
       rngFailed = rngs[c] == NULL ||
-        ext_rng_setSeed(rngs[c], static_cast<std::uint_least32_t>(
-                                   unif_rand() * 4294967295.0)) != 0;
+        ext_rng_setSeed(rngs[c], streamSeeds[c]) != 0;
     }
-    PutRNGstate();
   }
   if (rngFailed) {
     for (size_t c = rngs.size(); c > 0; --c)
