@@ -499,8 +499,9 @@ The constructor is not exported: it resolves by bare name inside the
     values of the response, both are taken over every observation, under one
     warning (two by the route of <code><a href="dbartsSpec.html">dbartsSpec</a></code> and <code>new()</code>,
     see its <code>active</code>). <code>"probit"</code> and <code>"logistic"</code> read no
-    \(\mathrm{sd}(y)\), and where no observation is in,
-    \(\mathrm{sd}(w)\) is taken over every one, under one warning. \(\mathrm{sd}(y)\) is of the response net of its
+    \(\mathrm{sd}(y)\), and where fewer than two observations are
+    in, \(\mathrm{sd}(w)\) is taken over every one, under one
+    warning; two or more that hold one value of \(w\) are refused. \(\mathrm{sd}(y)\) is of the response net of its
     offset; on a gaussian response that does not vary over those observations
     it is a quarter of the window of width one the response is then scaled
     by. \(\mathrm{sd}(w)\) is kept with the data, in its
@@ -771,7 +772,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000675</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000479</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

@@ -516,12 +516,13 @@ forest(
   every observation, under one warning (two by the route of
   [`dbartsSpec`](https://vdorie.github.io/dbarts/reference/dbartsSpec.md)
   and `new()`, see its `active`). `"probit"` and `"logistic"` read no
-  \\\mathrm{sd}(y)\\, and where no observation is in, \\\mathrm{sd}(w)\\
-  is taken over every one, under one warning. \\\mathrm{sd}(y)\\ is of
-  the response net of its offset; on a gaussian response that does not
-  vary over those observations it is a quarter of the window of width
-  one the response is then scaled by. \\\mathrm{sd}(w)\\ is kept with
-  the data, in its `basis.scale` slot (see
+  \\\mathrm{sd}(y)\\, and where fewer than two observations are in,
+  \\\mathrm{sd}(w)\\ is taken over every one, under one warning; two or
+  more that hold one value of \\w\\ are refused. \\\mathrm{sd}(y)\\ is
+  of the response net of its offset; on a gaussian response that does
+  not vary over those observations it is a quarter of the window of
+  width one the response is then scaled by. \\\mathrm{sd}(w)\\ is kept
+  with the data, in its `basis.scale` slot (see
   [`dbartsData`](https://vdorie.github.io/dbarts/reference/dbartsData.md)),
   and `$getLeafPrior(f)$basis.scale` reports it. A caller who replaces a
   column and wants the default of the new one states it,
@@ -809,7 +810,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000675
+#> total seconds in loop: 0.000479
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 
