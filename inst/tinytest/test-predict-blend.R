@@ -631,6 +631,94 @@ expect_error(
   predict(fit, bases = list(NULL, NULL)),
   pattern = "forest 2 carries a basis, so the blend needs its 2 columns at the training rows"
 )
+# and the message names the way to keep the fit's own bases and change the
+# others, fit$bases with the entries to change replaced, at the forest's index
+nullHint <- function(index, refused, width) {
+  paste0(
+    "forest ",
+    refused,
+    " carries a basis, so the blend needs its ",
+    if (width == 1L) "1 column" else paste(width, "columns"),
+    " at the training rows, and NULL does not stand for the fit's own: start ",
+    "from them, b <- fit$bases; b[[",
+    index,
+    "]] <- <the new values of forest ",
+    index,
+    ">, and give bases = b"
+  )
+}
+expect_identical(
+  tryCatch(predict(fit, bases = list(NULL, NULL)), error = conditionMessage),
+  nullHint(2L, 2L, 2L)
+)
+# three forests, the second given and the third left NULL, as a caller writes
+# list(NULL, z1, NULL): the entry given is the one the idiom replaces
+threeForests <- fitFromPredictBlend(
+  list(
+    dbarts::dbartsForests$forest(),
+    dbarts::dbartsForests$forest(basis = ~ factor(z)),
+    dbarts::dbartsForests$forest(basis = ~w)
+  ),
+  keepTrees = FALSE
+)
+expect_identical(
+  tryCatch(
+    predict(threeForests, bases = list(NULL, arm1, NULL)),
+    error = conditionMessage
+  ),
+  nullHint(2L, 3L, 1L)
+)
+# with several entries given, the idiom names the first of them
+fourForests <- fitFromPredictBlend(
+  list(
+    dbarts::dbartsForests$forest(),
+    dbarts::dbartsForests$forest(basis = ~ factor(z)),
+    dbarts::dbartsForests$forest(basis = ~w),
+    dbarts::dbartsForests$forest(basis = ~ I(w^2))
+  ),
+  keepTrees = FALSE
+)
+expect_identical(
+  tryCatch(
+    predict(fourForests, bases = list(NULL, arm1, runif(n), NULL)),
+    error = conditionMessage
+  ),
+  nullHint(2L, 4L, 1L)
+)
+# the first entry given names the forest to change, whichever forest is refused
+expect_identical(
+  tryCatch(
+    predict(bothBasesFit, bases = list(runif(n), NULL)),
+    error = conditionMessage
+  ),
+  nullHint(1L, 2L, 2L)
+)
+# at newdata the fit's own bases are not those rows' bases, and the message is
+# the one it was
+expect_false(grepl(
+  "fit$bases",
+  tryCatch(predict(fit, x, bases = list(NULL, NULL)), error = conditionMessage),
+  fixed = TRUE
+))
+# the idiom serves: the fit's own bases with the ones to change replaced, which
+# are the fit's own bit for bit where none is
+b <- threeForests$bases
+expect_identical(
+  predict(threeForests, bases = b, type = "bart"),
+  extract(threeForests, "bart")
+)
+b[[2L]] <- arm1
+b[[3L]] <- threeForests$bases[[3L]]
+oneArm <- predict(threeForests, bases = b, type = "bart")
+expect_equal(
+  oneArm,
+  predict(
+    threeForests,
+    bases = list(NULL, arm1, threeForests$bases[[3L]]),
+    type = "bart"
+  )
+)
+expect_true(max(abs(oneArm - extract(threeForests, "bart"))) > 1e-6)
 expect_error(
   predict(fit, bases = factor(c(0, 1, 0))),
   pattern = "'bases' must have the same length as the training rows"

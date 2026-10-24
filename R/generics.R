@@ -696,7 +696,8 @@ withTrainingBases <- function(object, bases) {
     NULL,
     nObs,
     rows = "the training rows",
-    where = "the training rows"
+    where = "the training rows",
+    training = TRUE
   )
   fits <- reshapeChainedChannel(object$forestFits, n.chains, TRUE, 2L)
   glue <- reshapeChainedChannel(object$glue, n.chains, TRUE, 1L)
@@ -1861,7 +1862,8 @@ resolveForestBases <- function(
   newdata,
   n.new,
   rows = "'newdata'",
-  where = "the new rows"
+  where = "the new rows",
+  training = FALSE
 ) {
   storedBases <- object$bases
   numForests <- length(storedBases)
@@ -1937,6 +1939,28 @@ resolveForestBases <- function(
     width <- NCOL(storedBasisBlock(storedBases[[k]]))
     if (is.null(storedBases[[k]])) {
       next
+    }
+    if (is.null(bases[[k]]) && training) {
+      # at the training rows the fit has bases of its own, which NULL does not
+      # stand for: the way to keep them and change others starts from them
+      given <- which(!vapply(bases, is.null, logical(1L)))
+      change <- if (length(given) > 0L) given[[1L]] else k
+      stop(
+        "forest ",
+        k,
+        " carries a basis, so the blend needs its ",
+        width,
+        if (width == 1L) " column" else " columns",
+        " at ",
+        where,
+        ", and NULL does not stand for the fit's own: start from them, ",
+        "b <- fit$bases; b[[",
+        change,
+        "]] <- <the new values of forest ",
+        change,
+        ">, and give bases = b",
+        call. = FALSE
+      )
     }
     if (is.null(bases[[k]])) {
       stop(
