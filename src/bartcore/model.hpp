@@ -227,7 +227,7 @@ concept ConstrainedLeafModel =
 /// not the tree. normalizerIsActive is false where the prior carries no
 /// normalizer, and no unconstrained leaf declares the seam, so it compiles
 /// out there. The count has no limit: it polls the cancel function the chain
-/// installs, throwing CountCancelled, and times itself into a slow-count
+/// installs, throwing CountCanceled, and times itself into a slow-count
 /// tally the chain resets per run.
 template <typename L>
 concept NormalizedLeafModel =
@@ -770,7 +770,7 @@ double monotoneInvertLogConcave(F logDensity, double lo, double hi,
 /// - subset axis: the reachable levels, the missing position included.
 /// A missing value is a value of an axis only when its training column has
 /// one (predict refuses one otherwise): where no rule was drawn for it, its
-/// route is a labelling artifact, and reading it would make the order depend
+/// route is a labeling artifact, and reading it would make the order depend
 /// on which side of a level split is called left. Two leaves are related
 /// along a constrained threshold
 /// axis when their intervals touch there and some value reaches both on every
@@ -1347,7 +1347,7 @@ inline std::size_t monotoneLayerBytes(const MonotoneDownSetLayer& layer) {
 
 /// Thrown from inside an order count whose cancel function turned true. The
 /// count has no limit, so this is how a run stops in the middle of one.
-struct CountCancelled : std::exception {
+struct CountCanceled : std::exception {
   const char* what() const noexcept override {
     return "the monotone leaf order count was interrupted";
   }
@@ -1397,7 +1397,7 @@ inline void monotonePoll(MonotoneCountScratch& s) {
   if (s.cancel == nullptr || --s.untilPoll != 0) return;
   s.untilPoll = std::max<std::size_t>(
     1, monotoneCountHooks().pollInterval.load(std::memory_order_relaxed));
-  if ((*s.cancel)()) throw CountCancelled();
+  if ((*s.cancel)()) throw CountCanceled();
 }
 
 /// log e(C) by the layered down-set DP, O(down-sets x size) at one word. With
@@ -2389,9 +2389,9 @@ inline void solveUnitLowerTriangularTransposed(const double* m, std::size_t p,
   }
 }
 
-/// A leaf-covariate standardization: per designated column the centre, the
+/// A leaf-covariate standardization: per designated column the center, the
 /// scale its values are divided by, and whether the column has spread. A
-/// column without spread sits at its centre on every training row and is
+/// column without spread sits at its center on every training row and is
 /// divided by 1, a placeholder no observation set: the leaf reads zero for it
 /// throughout, so its slope adds nothing to any training fit and no
 /// observation informs it.
@@ -2531,11 +2531,11 @@ inline bool standardizationIsHeld(const std::vector<double>& centers,
 
 /// Rewrites one linear leaf's coefficients - its intercept and one slope per
 /// covariate - from the standardization \p from to \p to, so that the leaf is
-/// the same function of the raw covariates: with centres m, m' and scales s,
+/// the same function of the raw covariates: with centers m, m' and scales s,
 /// s', slope_j becomes slope_j s'_j / s_j and the intercept gains
 /// slope_j (m'_j - m_j) / s_j. A row missing covariate j is read at the
-/// centre in force, so its fit moves by that intercept term and by nothing
-/// else. A column whose centre, scale and mark agree is not touched.
+/// center in force, so its fit moves by that intercept term and by nothing
+/// else. A column whose center, scale and mark agree is not touched.
 ///
 /// A side without spread divides by its placeholder scale 1, so with spread
 /// on one side only the formula still keeps the leaf the same function.
@@ -2585,7 +2585,7 @@ struct LinearGaussianLeaf {
   const std::vector<std::size_t>& covariateColumns() const { return columns_; }
   const std::vector<double>& covariateMeans() const { return means_; }
   const std::vector<double>& covariateSds() const { return sds_; }
-  /// The centres and scales in force and, read off the gathered training
+  /// The centers and scales in force and, read off the gathered training
   /// covariates, which columns have spread: the mark is therefore true of
   /// whatever values and constants the leaf holds when it is asked. One pass
   /// over the training rows per column still at the placeholder scale.
@@ -2625,7 +2625,7 @@ struct LinearGaussianLeaf {
 
   /// Re-derive the standardization constants and covariates for the stored
   /// designation, for whole-data replacement (possibly a new number of
-  /// observations): the analogue of setData rebuilding the cut grid. The
+  /// observations): the analog of setData rebuilding the cut grid. The
   /// constants are derived over the rows \p rows reads, on a view its own,
   /// or are the ones \p supplied gives. A derivation over rows holding too
   /// little throws before anything is regathered past that covariate, so the
@@ -3084,7 +3084,7 @@ struct GPGaussianLeaf {
   const std::vector<std::size_t>& covariateColumns() const { return columns_; }
   const std::vector<double>& covariateMeans() const { return means_; }
   const std::vector<double>& covariateSds() const { return sds_; }
-  /// The centres and scales in force and, read off the gathered training
+  /// The centers and scales in force and, read off the gathered training
   /// covariates, which columns have spread: the mark is therefore true of
   /// whatever values and constants the leaf holds when it is asked. One pass
   /// over the training rows per column still at the placeholder scale.
@@ -3131,7 +3131,7 @@ struct GPGaussianLeaf {
 
   /// Re-derive standardization constants, covariates, and (when not
   /// supplied) lengthscales for the stored designation over the rows \p rows
-  /// reads, on a view its own; the whole-data analogue of the rebuilt cut
+  /// reads, on a view its own; the whole-data analog of the rebuilt cut
   /// grid. Values \p supplied gives are taken in place of derived ones. A
   /// covariate whose rows read hold one value, or none, takes the placeholder
   /// where the model states the lengthscales and is refused otherwise
@@ -4554,8 +4554,8 @@ enum class ResponseFamily { gaussian, probit, logistic, aft, ordinal, nbinom };
 inline constexpr double maximumCount = 1.0e6;
 
 /// Thrown from inside a Polya-Gamma latent refresh whose cancel function
-/// turned true, as CountCancelled is from inside an order count.
-struct RefreshCancelled : std::exception {
+/// turned true, as CountCanceled is from inside an order count.
+struct RefreshCanceled : std::exception {
   const char* what() const noexcept override {
     return "the latent refresh was interrupted";
   }
@@ -4915,7 +4915,7 @@ public:
   virtual void restoreShape(double /*r*/) {}
 
   /// The run's cancel function, which the Polya-Gamma refreshes poll inside
-  /// their draws and answer by throwing RefreshCancelled; null outside a run.
+  /// their draws and answer by throwing RefreshCanceled; null outside a run.
   void setRefreshCancel(const std::function<bool()>* cancel) {
     refreshPoll_.set(cancel);
   }
@@ -5137,7 +5137,7 @@ public:
   /// and re-anchoring the variance prior on the original scale, exactly as
   /// the mutation methods do; the chain's internal sigma is restored from
   /// the same state afterwards, so no sigmaInOut here. A stored (c, c) is
-  /// read as the window centred on c, as readRange sets it.
+  /// read as the window centered on c, as readRange sets it.
   void restoreScale(double min, double max) override {
     double priorUnscaled = sigmaSqPrior_.scale * range_ * range_;
 
@@ -5240,9 +5240,9 @@ private:
 
   /// The transform's window from the recorded (min_, max_): the range and its
   /// low end, min_ itself where the range is positive. A range of zero width
-  /// is held at 1 and centred on the one value, its low end min_ - 0.5, so a
+  /// is held at 1 and centered on the one value, its low end min_ - 0.5, so a
   /// constant response maps to 0 on the working scale and its fits are
-  /// centred on it.
+  /// centered on it.
   void setWindow() {
     range_ = max_ - min_;
     low_ = min_;
@@ -5732,7 +5732,7 @@ private:
   }
 
   /// z at a deterministic point in each category interval (interval midpoint, or
-  /// one unit past a boundary cutpoint), the ordinal analogue of probit's
+  /// one unit past a boundary cutpoint), the ordinal analog of probit's
   /// z = 2 y - 1; the first sweep's draw replaces it.
   void coldLatents() {
     for (std::size_t i = 0; i < numObservations_; ++i) {
@@ -5906,7 +5906,7 @@ public:
   /// retained rows. Its omega_ and working_ keep their last values, which are
   /// finite and positive, and are stale until the row is active again.
   ///
-  /// A cancel polled inside the draws throws RefreshCancelled with the row
+  /// A cancel polled inside the draws throws RefreshCanceled with the row
   /// being drawn left as it was, so every row holds this sweep's draw or the
   /// previous one; the rows are conditionally independent given the fits, so
   /// redrawing any subset of them is itself a valid Gibbs step.
@@ -5925,7 +5925,7 @@ public:
       }
       if (stop) {
         recompose();
-        throw RefreshCancelled();
+        throw RefreshCanceled();
       }
       omega_[i] = omega;
       double weight = weights_ != nullptr ? weights_[i] : 1.0;
@@ -6058,7 +6058,7 @@ private:
       composite_[i] = activeRows_[i] * omega_[i];
   }
 
-  /// Deterministic cold start, the analogue of probit's z = 2 y - 1: omega
+  /// Deterministic cold start, the analog of probit's z = 2 y - 1: omega
   /// at PG(w, 0)'s mean of w/4, so the working response starts at
   /// 4 (y - 1/2) - offset independent of the weight; real draws replace it
   /// after the first tree sweep.
@@ -6128,7 +6128,7 @@ public:
   /// MultinomialForestCombiner owns. Chain::setActiveRows forwards it there
   /// after this returns, and a MultinomialResponse is constructed only
   /// alongside that coupling, so the capability the probe reads off the
-  /// response is the one the coupling honours. Accepting here rather than
+  /// response is the one the coupling honors. Accepting here rather than
   /// widening the probe keeps SamplerShape::supportsActiveRows derived from the
   /// single predicate the setter refuses on.
   bool supportsActiveRows() const override { return true; }
@@ -7073,7 +7073,7 @@ public:
   /// is ignored (fixed at 1). Fixed-r mode skips step (1) and draws no
   /// shape variate. Under a mask the r step is the subsample's.
   ///
-  /// A cancel polled inside the omega draws throws RefreshCancelled. At a
+  /// A cancel polled inside the omega draws throws RefreshCanceled. At a
   /// fixed r every row then holds this sweep's draw or the previous one, a
   /// valid Gibbs step since the rows are conditionally independent given r and
   /// the fits. A drawn r is not: it was drawn collapsed over omega, so a row
@@ -7093,7 +7093,7 @@ public:
     previousOmega_.assign(omega_.begin(), omega_.end());
     try {
       drawOmega(rng, totalFits);
-    } catch (const RefreshCancelled&) {
+    } catch (const RefreshCanceled&) {
       omega_.swap(previousOmega_);
       setShape(previousR);
       rebuildWorking();
@@ -7342,7 +7342,7 @@ private:
       if (!simulatePolyaGammaShape(rng, y_[i] + r_, totalFits[i] + a,
                                    refreshPoll_, omega)) {
         recompose();
-        throw RefreshCancelled();
+        throw RefreshCanceled();
       }
       omega_[i] = omega;
       working_[i] = 0.5 * (y_[i] - r_) / omega - a;

@@ -107,7 +107,7 @@ onRecord <- function(rows, response = y) {
 }
 
 ## --- 1. a leaf covariate without spread ------------------------------------
-## Its scale is stored as NA beside a finite centre (it was written as the
+## Its scale is stored as NA beside a finite center (it was written as the
 ## placeholder 1 the engine divides by), and such a sampler restores, copies
 ## and reloads.
 x.flat <- cbind(x1 = x[, 1L], x2 = 1000)
@@ -522,7 +522,7 @@ expect_identical(liveFits(recipient), before)
 
 ## --- 5. gp leaves at a warm start -------------------------------------------
 ## Per-row fits hold no kernel: copied on the donor's grid, zero on another,
-## and the recipient's centre, scale and lengthscale its own on both.
+## and the recipient's center, scale and lengthscale its own on both.
 gp.donor <- dbarts(
   x,
   y,
@@ -557,12 +557,12 @@ expect_identical(standardization(recipient), own)
 expect_true(diff(range(liveFits(recipient))) == 0)
 
 ## --- 6. live coefficients across a covariate without spread ----------------
-## A constant leaf covariate is centred at its one value and divided by 1, so
+## A constant leaf covariate is centered at its one value and divided by 1, so
 ## a leaf reads zero for it on every training row and the intercept alone is
 ## the fit: between two constants a live leaf does not move; off a constant
 ## or onto one its coefficients take the formula over that 1, so it is the
 ## function it was, read onto a constant at the constant. Whether
-## a covariate is such a column is read from the values and the centre and
+## a covariate is such a column is read from the values and the center and
 ## scale in force, so one given values, moved or made constant after creation
 ## converts as what it then is. Each case reads the fitted function at the
 ## training rows and at appended or fresh ones before and after, to 1e-10
@@ -728,7 +728,7 @@ expect_identical(
 )
 
 # made on one constant and moved to another: every row reads the same value
-# off the centre, so the function is kept where the next data spreads the
+# off the center, so the function is kept where the next data spreads the
 # covariate about the new constant. The slope's term was dropped: off by 7.
 moved <- madeOn(withLeafColumn(x, 1000))
 expect_true(moved$setPredictor(rep(2000, n), 2L))
@@ -742,7 +742,7 @@ before <- liveFunction(moved, x.spread)
 moved$setData(dbartsData(x.spread, y.more))
 expect_true(worstGap(before, liveMatrix(moved)) < tolerance)
 
-# values made constant after creation keep the centre and scale they were
+# values made constant after creation keep the center and scale they were
 # given until a replacement brings others; onto the constant, centered there
 # with no scale by the replacement's record, the coefficients take the
 # formula, the scale going to the placeholder 1, and each leaf takes its
@@ -770,18 +770,18 @@ expect_true(
     tolerance
 )
 expect_true(worstGap(before, liveMatrix(held)) < tolerance)
-# held at its centre exactly, the covariate reads zero under a real scale,
+# held at its center exactly, the covariate reads zero under a real scale,
 # which is not the placeholder: the scale stays in the state, so a copy
-# predicts off the centre what the sampler does, and the coefficients convert
+# predicts off the center what the sampler does, and the coefficients convert
 # by the formula
-centred <- madeOn(x, 44L)
-expect_true(centred$setPredictor(rep(own[[2L]]$leaf.covariate.center, n), 2L))
-invisible(centred$run())
-expect_identical(standardization(centred), own)
-expect_identical(centred$copy()$predict(x.new), centred$predict(x.new))
-before <- liveFunction(centred, x.more)
-centred$setData(dbartsData(x.more, y.more))
-expect_true(worstGap(before, liveMatrix(centred)) < tolerance)
+centered <- madeOn(x, 44L)
+expect_true(centered$setPredictor(rep(own[[2L]]$leaf.covariate.center, n), 2L))
+invisible(centered$run())
+expect_identical(standardization(centered), own)
+expect_identical(centered$copy()$predict(x.new), centered$predict(x.new))
+before <- liveFunction(centered, x.more)
+centered$setData(dbartsData(x.more, y.more))
+expect_true(worstGap(before, liveMatrix(centered)) < tolerance)
 
 # rows appended that give a constant covariate spread, at a constant whose
 # mean rounds: the coefficients take the formula over the placeholder 1, so
@@ -817,7 +817,7 @@ expect_true(worstGap(kept, grown$predict(x.fresh)) < tolerance)
 expect_true(nextDrawsWithin(grown, range(y.more)))
 
 ## --- 7. gp leaves that hold kept draws --------------------------------------
-## A kept gp draw replays only under the centre, scale, lengthscale and
+## A kept gp draw replays only under the center, scale, lengthscale and
 ## response range it was drawn with, and nothing can rewrite it. A gp sampler
 ## that holds one refuses a setData that derives the standardization or the
 ## range, as one of a fresh data object does, and, where its family has a

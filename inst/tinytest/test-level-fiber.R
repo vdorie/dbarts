@@ -1,4 +1,4 @@
-# The level-fibre Gibbs step: the control surface, the settings it is fixed
+# The level-fiber Gibbs step: the control surface, the settings it is fixed
 # against, and what the step must and must not move. The distributional gate
 # on the shift's own distribution - its mean, its covariance, and both
 # poisons - is a tests/cpp one, since the shift is not a quantity any R

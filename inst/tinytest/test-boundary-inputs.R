@@ -92,8 +92,8 @@ expect_equal(
   sqrt(.Machine$double.eps) * 3.0,
   tolerance = 0
 )
-# the transform's window is centred on the constant, c - 0.5 to c + 0.5, so the
-# leaf prior is centred on it too; it was c to c + 1, half a unit above
+# the transform's window is centered on the constant, c - 0.5 to c + 0.5, so the
+# leaf prior is centered on it too; it was c to c + 1, half a unit above
 prior.const <- sampler.const$getLeafPrior()
 expect_identical(prior.const$prior.mean, 3.0)
 expect_identical(prior.const$response.shift, 3.0)

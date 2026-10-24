@@ -99,7 +99,7 @@ armControl <- "default"
 outputDir <- surfacesOutputDir(args, flags = c("quick", "block2", armNames))
 
 signal <- surfacesCheckerboardSignal
-neighbours <- surfacesCheckerboardNeighbours(p)
+neighbors <- surfacesCheckerboardNeighbors(p)
 decoys <- setdiff(seq_len(p), signal)
 
 surfacesUptime("uptime before")
@@ -165,11 +165,11 @@ for (armName in names(arms)) {
       signalBetweenSd = mean(betweenSd[signal]),
       signalMixingNull = mean(mixingNull[signal]),
       signalRatio = mean(betweenSd[signal]) / mean(mixingNull[signal]),
-      neighbourBetweenSd = mean(betweenSd[neighbours]),
-      neighbourRatio = mean(betweenSd[neighbours]) /
-        mean(mixingNull[neighbours]),
+      neighborBetweenSd = mean(betweenSd[neighbors]),
+      neighborRatio = mean(betweenSd[neighbors]) /
+        mean(mixingNull[neighbors]),
       inclusionSignal = sum(pooledInclusion[signal]),
-      inclusionNeighbour = sum(pooledInclusion[neighbours]),
+      inclusionNeighbor = sum(pooledInclusion[neighbors]),
       maxDecoy = max(pooledInclusion[decoys]),
       decoysAboveWeakest = sum(pooledInclusion[decoys] > weakestSignal),
       coverage = surfacesCoverage(testDraws, data$fTest),
@@ -216,10 +216,10 @@ cat("\n")
 armSummaryRow("between-chain sd, true cols", "signalBetweenSd", digits = 4L)
 armSummaryRow("mixing null, true cols", "signalMixingNull", digits = 4L)
 armSummaryRow("ratio to null, true cols", "signalRatio", digits = 2L)
-armSummaryRow("between-chain sd, decoys", "neighbourBetweenSd", digits = 4L)
-armSummaryRow("ratio to null, decoys", "neighbourRatio", digits = 2L)
+armSummaryRow("between-chain sd, decoys", "neighborBetweenSd", digits = 4L)
+armSummaryRow("ratio to null, decoys", "neighborRatio", digits = 2L)
 armSummaryRow("inclusion share, true cols", "inclusionSignal")
-armSummaryRow("inclusion share, decoys", "inclusionNeighbour")
+armSummaryRow("inclusion share, decoys", "inclusionNeighbor")
 armSummaryRow("largest non-true inclusion", "maxDecoy")
 armSummaryRow("non-true cols above weakest", "decoysAboveWeakest", digits = 1L)
 armSummaryRow("95% coverage of true f", "coverage")
@@ -235,7 +235,7 @@ cat("\n")
 for (j in seq_len(p)) {
   tag <- if (j %in% signal) {
     "TRUE"
-  } else if (j %in% neighbours) {
+  } else if (j %in% neighbors) {
     "decoy"
   } else {
     ""
@@ -292,7 +292,7 @@ if (armControl %in% names(arms) && length(contrastArms) > 0L) {
         digits = 2L
       ),
       surfacesPairedDifference(
-        pairedColumn(pair$contrast, pair$base, "neighbourBetweenSd"),
+        pairedColumn(pair$contrast, pair$base, "neighborBetweenSd"),
         digits = 4L
       )
     ))
@@ -405,7 +405,7 @@ surfacesSave(
       nBurn = nBurn,
       nSamples = nSamples,
       signal = signal,
-      neighbours = neighbours,
+      neighbors = neighbors,
       arms = arms,
       armControl = armControl
     )

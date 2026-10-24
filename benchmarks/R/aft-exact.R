@@ -8,7 +8,7 @@
 # marginal and posterior-mean linear predictor are 1-D quadratures over the
 # leaf parameter. Uncensored observations enter as gaussian data on log T;
 # right-censored ones contribute the upper normal tail (the survival
-# probability past their log censoring time) - the exact analogue of the
+# probability past their log censoring time) - the exact analog of the
 # engine's truncated-normal latent augmentation. The recorded fit is the
 # linear predictor E[log T | x] on the log scale, so the sampler's per-cell
 # posterior-mean fit is compared to range * E[mu] + shift under the engine's

@@ -544,7 +544,7 @@ static void testQuantileCutPoints() {
     discreteCodesMatch &= store.train.codes[i + n] == static_cast<xint_t>(i % 10);
   check(discreteCodesMatch, "discrete quantile codes are value ranks");
 
-  // continuous column: cut k is the midpoint at the centre of the k-th of 20
+  // continuous column: cut k is the midpoint at the center of the k-th of 20
   // equal shares of the n - 1 midpoints
   std::vector<double> sorted(x.begin(), x.begin() + n);
   std::sort(sorted.begin(), sorted.end());
@@ -800,7 +800,7 @@ std::vector<double> gridColumns(size_t n) {
 
 }  // namespace
 
-// No derivation leaves a grid with equal neighbours, whatever the rule, the
+// No derivation leaves a grid with equal neighbors, whatever the rule, the
 // storage or the path - creation, a whole-data replacement, a refresh - and
 // a column whose values supply fewer points than asked holds fewer. The
 // 0/1 and the ordinary column's grids are the ones the fill computes with
@@ -1162,7 +1162,7 @@ static void testSplitPlacement() {
           Tree::rescaledSplitIndex(5, 7, 3) == 2 &&
           Tree::rescaledSplitIndex(3, 7, 3) == 1 &&
           Tree::rescaledSplitIndex(1, 7, 3) == 0,
-        "a changed count rescales to the centre of the position's share");
+        "a changed count rescales to the center of the position's share");
   bool ordered = true;
   for (int32_t i = 1; i < 100; ++i)
     for (size_t m : { size_t(1), size_t(7), size_t(100), size_t(250) })

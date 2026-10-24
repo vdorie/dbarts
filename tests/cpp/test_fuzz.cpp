@@ -1784,7 +1784,7 @@ static F6Capture f6Capture(Sampler<ConstantGaussianLeaf>& s) {
 // round trip it through a subtract and an add.
 //
 // Asserted for f >= 1 and for the variance forest, whose factor slab and
-// combined variance are the scale analogues of a fit slab and a totalFits.
+// combined variance are the scale analogs of a fit slab and a totalFits.
 // Forest 0 is NEVER pruned, by rule: its subtract-then-add round trip IS the
 // recorded single-forest arithmetic, and (T - f) + f differs from T at the last
 // ulp on a few percent of rows, so pruning it would move an equivalence

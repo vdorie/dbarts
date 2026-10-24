@@ -14,7 +14,7 @@ tombstoneExpiry <- "1.1-0"
 ## kind: "function" (exported stub or alias), "method" (registered S3
 ##   method), "rcMethod" (dbartsSampler reference-class method),
 ##   "argument" (a renamed formal accepted on 'owner'), "family" (a family
-##   token), "behaviour" (a call shape handled for the release).
+##   token), "behavior" (a call shape handled for the release).
 ## successor: what to write instead; NA_character_ when there is none.
 ## The registry is asserted against NAMESPACE and the news file by
 ## inst/tinytest/test-tombstones.R.
@@ -203,126 +203,126 @@ dbartsTombstones <- list(
   ),
   list(
     name = "three-element n.burn",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "xbart",
     successor = "n.burn = c(fresh, warm)",
     expires = tombstoneExpiry
   ),
   list(
     name = "sigest beside a fixed residual scale",
-    kind = "behaviour",
+    kind = "behavior",
     owner = NA_character_,
     successor = "drop sigest",
     expires = tombstoneExpiry
   ),
   list(
     name = "BayesTree-spelled bart call",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "bart",
     successor = "bartBT",
     expires = tombstoneExpiry
   ),
   list(
     name = "fourth positional bart argument",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "bart",
     successor = "bartBT",
     expires = tombstoneExpiry
   ),
   list(
     name = "thread count on $run",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "dbartsSampler",
     successor = "setControl",
     expires = tombstoneExpiry
   ),
   list(
     name = "logical updateCutPoints",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "dbartsSampler",
     successor = "updateCutPoints = \"position\" or \"none\"",
     expires = tombstoneExpiry
   ),
   list(
     name = "front-door startup message",
-    kind = "behaviour",
+    kind = "behavior",
     owner = ".onAttach",
     successor = NA_character_,
     expires = tombstoneExpiry
   ),
   list(
     name = "front-door defaults message",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "bart",
     successor = "bartBT",
     expires = tombstoneExpiry
   ),
   list(
     name = "BayesTree-spelled pdbart call",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "pdbart",
     successor = "bart's argument names",
     expires = tombstoneExpiry
   ),
   list(
     name = "BayesTree-spelled pd2bart call",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "pd2bart",
     successor = "bart's argument names",
     expires = tombstoneExpiry
   ),
   list(
     name = "pdbart defaults message",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "pdbart",
     successor = "bartBT",
     expires = tombstoneExpiry
   ),
   list(
     name = "NA sigest",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "bart",
     successor = "sigest = NULL",
     expires = tombstoneExpiry
   ),
   list(
     name = "NA seed",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "bart",
     successor = "seed = NULL",
     expires = tombstoneExpiry
   ),
   list(
     name = "NA seed",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "bartBT",
     successor = "seed = NULL",
     expires = tombstoneExpiry
   ),
   list(
     name = "NA seed",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "xbart",
     successor = "seed = NULL",
     expires = tombstoneExpiry
   ),
   list(
     name = "NA updateState",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "dbartsSampler",
     successor = "updateState = NULL",
     expires = tombstoneExpiry
   ),
   list(
     name = "NA numBurnIn and numSamples",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "dbartsSampler",
     successor = "$run(numBurnIn = NULL, numSamples = NULL)",
     expires = tombstoneExpiry
   ),
   list(
     name = "NA n.samples",
-    kind = "behaviour",
+    kind = "behavior",
     owner = "dbartsControl",
     successor = "n.samples = NULL",
     expires = tombstoneExpiry

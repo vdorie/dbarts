@@ -195,4 +195,4 @@ if (failed) {
   )
   quit(status = 1L)
 }
-cat("\nOK: every arm's paired differences are centred\n")
+cat("\nOK: every arm's paired differences are centered\n")

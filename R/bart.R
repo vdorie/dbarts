@@ -4016,7 +4016,7 @@ refuseLegacyFactorResponse <- function(ordered = FALSE) {
     } else {
       "bart(x, y, family = \"multinomial\") for a multinomial fit"
     },
-    ", or pass as.integer(y) - 1L to keep the old numeric behaviour",
+    ", or pass as.integer(y) - 1L to keep the old numeric behavior",
     call. = FALSE
   )
 }

@@ -15,7 +15,7 @@
 //    partly filled (retained draws != capacity) and, where a row needs it,
 //    wrapped (slot != draw index); samplers carry two chains, the combining
 //    fixture two forests of unequal tree count and unequal amplitude width. A
-//    forwarder that answers with the neighbouring quantity therefore answers
+//    forwarder that answers with the neighboring quantity therefore answers
 //    with a different value, not the same one.
 //  - the table carries one row per virtual and the spy below records which
 //    virtual each row reached, so a row wired to the wrong member fails on its

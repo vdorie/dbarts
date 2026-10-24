@@ -110,11 +110,11 @@ for (state in c(states, list(severalChains))) {
 # and an attribute of that name is not read, whatever it holds: the state
 # installs as the one without it does
 for (value in list("student", "probit", 3)) {
-  labelled <- states$student
-  attr(labelled, "family") <- value
+  labeled <- states$student
+  attr(labeled, "family") <- value
   with <- make("student")
   without <- make("student")
-  expect_identical(with$setState(labelled), without$setState(states$student))
+  expect_identical(with$setState(labeled), without$setState(states$student))
   expect_identical(with$run(0L, 3L), without$run(0L, 3L))
 }
 

@@ -965,7 +965,7 @@ dbarts <- function(
   # interface is handled directly here, the response being the second
   # positional argument; the log event/censoring time replaces it and the
   # status rides the control attribute the bartcore survival family reads.
-  # 'subset' is honoured (applied to the status vector alongside the
+  # 'subset' is honored (applied to the status vector alongside the
   # matchedCall$subset dbartsData() still applies to x/y itself, below). A
   # Surv left-hand side on 'formula' is ingested by dbartsData()'s own
   # formula branch (R/data.R) - it cannot be detected here, before the model
@@ -3325,7 +3325,7 @@ dbartsSampler <- setRefClass(
       invisible(NULL)
     },
     setCategoryOffset = function(offset, updateState = NULL) {
-      "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setCounts rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centred part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centring it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState follows control@updateState; see setData."
+      "Installs, or at NULL clears, a multinomial sampler's n x K category offset: the latent becomes f_ik + o_ik, so the offset enters the log-sum-exp margins, every category's working response and the reported softmax probabilities, and never a leaf value. This is the response-side counterpart of setCounts rather than of setOffset, whose flat shift is added after the categories are blended - the wrong side of the nonlinearity - and is the softmax's own null direction besides. Only the row-centered part is identified: adding a constant to a whole row leaves every reported probability unchanged, and the entrance leaves the matrix as given rather than re-centering it. It shifts the TRAIN latent only; the test rows are other rows and carry their own (setCategoryTestOffset), and predict takes its own matrix per call. Mirrored into data@offset.category, so a re-created sampler carries it. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       requireCountsCapability(.self, "$setCategoryOffset")
       ptr <- bartcoreSamplerSetCategoryOffset(.self, offset)

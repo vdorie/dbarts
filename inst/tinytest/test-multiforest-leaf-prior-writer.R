@@ -318,13 +318,13 @@ expect_error(
   a$setLeafPrior(normal(), forests = list(forest())),
   "not both"
 )
-labelled <- amplitudeSampler(list(
+labeled <- amplitudeSampler(list(
   mu = forest(),
   tau = forest(basis = ~ factor(z))
 ))
-labelled$setLeafPrior(forests = list(mu = forest(), tau = forest(sd = 0.6)))
+labeled$setLeafPrior(forests = list(mu = forest(), tau = forest(sd = 0.6)))
 expect_error(
-  labelled$setLeafPrior(forests = list(tau = forest(sd = 0.6))),
+  labeled$setLeafPrior(forests = list(tau = forest(sd = 0.6))),
   "created as 'mu'"
 )
 # every refusal came before any write

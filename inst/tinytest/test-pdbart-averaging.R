@@ -208,21 +208,21 @@ expect_identical(
   "yy"
 )
 expect_identical(label(NULL, NULL), "partial-dependence")
-pdLabelled <- dbarts::pd2bart(
+pdLabeled <- dbarts::pd2bart(
   gaussianFit,
   xind = c("a", "b"),
   pl = FALSE
 )
 psFile <- tempfile(fileext = ".ps")
 postscript(psFile)
-plot(pdLabelled)
-plot(pdLabelled, main = "mine")
+plot(pdLabeled)
+plot(pdLabeled, main = "mine")
 dev.off()
 psLines <- readLines(psFile, warn = FALSE)
 expect_equal(length(grep("(Median, y)", psLines, fixed = TRUE)), 1L)
 expect_equal(length(grep("(mine)", psLines, fixed = TRUE)), 1L)
 unlink(psFile)
-rm(label, pdLabelled, psFile, psLines)
+rm(label, pdLabeled, psFile, psLines)
 
 # --- variables of the data in a formula fit ---
 # xind names a variable; every term built from it moves with it

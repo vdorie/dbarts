@@ -2414,7 +2414,7 @@ sbcCheckAftLatents <- function(config, seed = 99L) {
   )
 }
 
-# The multinomial analogue: theta0's p_ik is the harness's softmax of the
+# The multinomial analog: theta0's p_ik is the harness's softmax of the
 # per-forest fits, while the posterior's p_ik rides the run's train channel, so
 # those two maps must agree at one state (the GP/BCF fit-map precedent).
 sbcCheckMultinomialProbs <- function(config, seed = 99L) {

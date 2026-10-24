@@ -64,7 +64,7 @@ void checkEnsembleSweep(ConstantLeafSampler& sampler, size_t sweep,
   worstResidual = std::max(worstResidual, sweepResidual);
 }
 
-// The level-fibre arm's own shape: small enough that the shift's 10 x 10
+// The level-fiber arm's own shape: small enough that the shift's 10 x 10
 // covariance is estimated to a few parts in a thousand over the draw budget,
 // large enough that the trees carry several leaves apiece.
 constexpr size_t levelN = 300, levelP = 3, levelTrees = 10,
@@ -699,7 +699,7 @@ void runEnsembleTests() {
   check(allFinite && magnitude > 0.1,
         "the 200-tree ensemble left a finite, non-trivial fit");
 
-  // The same two identities with the level-fibre step on. What this arm
+  // The same two identities with the level-fiber step on. What this arm
   // checks is narrow and worth saying: the assertion fires at the END of a
   // sweep, by which point every leaf has been redrawn, so all that reaches it
   // is the projection's own arithmetic residual sum_t c_t riding in through
@@ -756,7 +756,7 @@ void runEnsembleTests() {
                           0.37804942330213542, offOptions, &offRng);
   off.run(ensembleSweeps, 0, results);
   bool anyDifference = forestTotals(off, 0) != forestTotals(shifted, 0);
-  check(anyDifference, "the level-fibre flag moves the sampled path");
+  check(anyDifference, "the level-fiber flag moves the sampled path");
   ext_rng_destroy(offRng);
 
   // ---- the shift's own distribution, at a frozen forest ----------------
@@ -877,7 +877,7 @@ void runEnsembleTests() {
   printf("ok: ensemble sum invariance, %zu trees x %zu sweeps (worst fit %.3g, "
          "worst residual %.3g)\n", ensembleTrees, ensembleSweeps, worstFit,
          worstResidual);
-  printf("ok: level fibre, flag on (worst fit %.3g, worst residual %.3g, "
+  printf("ok: level fiber, flag on (worst fit %.3g, worst residual %.3g, "
          "from a prior draw %.3g); "
          "%zu draws at %zu trees (worst |sum| %.3g, mean z %.3g, cov z %.3g); "
          "poisons (no projection |sum| %.3g; no prior mean, z %.3g mean and "

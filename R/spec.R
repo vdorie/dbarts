@@ -1467,7 +1467,7 @@ dbartsSpec <- function(
 
   # this surface does no data ingestion of its own, so a declared basis is
   # read here, as dbarts() reads one, and reaches data@bases through the same
-  # class rule and row judgement dbartsData() applies on the fitting path. There is no data
+  # class rule and row judgment dbartsData() applies on the fitting path. There is no data
   # frame for a basis's code to name a column of, so code is the value it had
   # where forest() was called; the caller's data object has already had its
   # own 'subset' applied, so a basis covers the rows it holds

@@ -235,7 +235,7 @@ bartcoreSamplerRun <- function(
   # own callers all read it off the control slot rather than passing an
   # independent value: the sampler's run method takes 'callback' but not
   # its own 'keepFits', so the control's own value is always what a run
-  # honours
+  # honors
   result <- .Call(
     C_dbarts_bartcore_run,
     sampler$getPointer(),
@@ -321,7 +321,7 @@ warnOnSlowCount <- function(result) {
   invisible(NULL)
 }
 
-# What the bridge evaluates once a cancelled run has joined its workers and
+# What the bridge evaluates once a canceled run has joined its workers and
 # left nothing live: the interrupt condition, as base R signals one, handed to
 # any calling or exiting handler for "interrupt". Only an interrupt nothing
 # handled gets what follows, as R's own would: options("interrupt"), the blank
@@ -1979,10 +1979,10 @@ asCountMatrix <- function(counts) {
 # argument against (generics.R, predict.bartMultinomial): NULL means none,
 # anything else must be a numeric n x K matrix with every entry finite (an
 # infinite entry propagates through the log-sum-exp margin into a NaN for
-# every category of that row). Only the row-centred part of the offset is
+# every category of that row). Only the row-centered part of the offset is
 # identified - adding a constant to every entry of a row leaves the softmax
 # unchanged - so the input is passed through as given rather than silently
-# re-centred. `what` names the offset in the refusals, since the train rows
+# re-centered. `what` names the offset in the refusals, since the train rows
 # and the test rows each carry their own.
 validateCategoryOffset <- function(offset, n, K, what = "category offset") {
   if (is.null(offset)) {

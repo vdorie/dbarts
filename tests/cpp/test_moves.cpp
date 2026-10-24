@@ -2155,7 +2155,7 @@ static void testLinearLeafSetDataConversion() {
           0.05 * a.leafCovariateScales[j] &&
         a.leafCovariateScales[j] != b.leafCovariateScales[j];
     }
-  check(moved, "setData conversion: both covariates' centres and scales are "
+  check(moved, "setData conversion: both covariates' centers and scales are "
                "re-derived, on every chain");
 
   double worstLive = 0.0;
@@ -2888,7 +2888,7 @@ static void testRuleGibbsMove() {
   };
 
   // ---- the neighborhood identity ----
-  check(enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma),
+  check(enumerateNogRuleNeighborhood(ctx, constant, tree, 0, y.data(), sigma),
         "the enumeration finds candidates");
 #ifdef BARTCORE_RULE_GIBBS_CUT_ONLY
   // the cut-only build holds the incumbent variable, so the set is x1's four
@@ -2937,7 +2937,7 @@ static void testRuleGibbsMove() {
 #endif
   tree.at(0).rule = other;
   tree.refreshSubtree(store, 0, y.data(), ctx.weights);
-  enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma);
+  enumerateNogRuleNeighborhood(ctx, constant, tree, 0, y.data(), sigma);
   bool sameSet = fromIncumbent.size() == scratch.candidates.size();
   double worstWeightGap = 0.0;
   for (size_t i = 0; sameSet && i < fromIncumbent.size(); ++i) {
@@ -2949,7 +2949,7 @@ static void testRuleGibbsMove() {
     if (gap > worstWeightGap) worstWeightGap = gap;
   }
   check(sameSet && worstWeightGap < 1e-9,
-        "the neighbourhood is the same from every state in it");
+        "the neighborhood is the same from every state in it");
   tree.at(0).rule = rootRule;
   tree.refreshSubtree(store, 0, y.data(), ctx.weights);
 
@@ -2963,7 +2963,7 @@ static void testRuleGibbsMove() {
   MoveContext maskedCtx{store,         prior, 0.0, 0.0, 0.0, 1.0, 0.5,
                         masked.data(), 2.0,   scratch};
   tree.refreshSubtree(store, 0, y.data(), maskedCtx.weights);
-  check(enumerateNogRuleNeighbourhood(maskedCtx, constant, tree, 0, y.data(),
+  check(enumerateNogRuleNeighborhood(maskedCtx, constant, tree, 0, y.data(),
                                       sigma),
         "the enumeration finds candidates under the weights");
   bool sameUnderWeights = scratch.candidates.size() == fromIncumbent.size();
@@ -2992,7 +2992,7 @@ static void testRuleGibbsMove() {
   // ---- the draw: a fixed conditional, and the frequencies that match it ----
   // the tree keeps its shape and its member set, so the conditional does not
   // move between steps and the walk is an iid sample from it
-  enumerateNogRuleNeighbourhood(ctx, constant, tree, 0, y.data(), sigma);
+  enumerateNogRuleNeighborhood(ctx, constant, tree, 0, y.data(), sigma);
   std::vector<double> expected = normalize(reference(ctx, nullptr));
   std::vector<NogRuleCandidate> states(scratch.candidates);
 

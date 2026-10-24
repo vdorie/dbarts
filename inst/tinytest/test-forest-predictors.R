@@ -779,7 +779,7 @@ crossedName <- cbind(x1 = x[, 1L], "x1:x2" = x[, 1L] * x[, 2L], x3 = x[, 3L])
 # is no predictor of a formula fit at all, so the operator there is '*'
 namedFrame <- data.frame(y = y, x, crossed = crossedName[, 2L], z = z)
 names(namedFrame)[names(namedFrame) == "crossed"] <- "x1 * x2"
-labelled <- list(
+labeled <- list(
   # a column named like a call, removed as code and as a backticked name
   list(calls, quote(. - log(x1)), 2:3),
   list(calls, quote(. - `log(x1)`), 2:3),
@@ -803,7 +803,7 @@ labelled <- list(
   list(y ~ x1 + x2 + x3, quote(. - (x1 + x2)), 3L),
   list(y ~ x1 + x2 + x3, quote(. - (. - x2)), 2L)
 )
-for (case in labelled) {
+for (case in labeled) {
   sampler <- if (inherits(case[[1L]], "formula")) {
     eval(bquote(dbarts(
       .(case[[1L]]),
@@ -1061,17 +1061,17 @@ expect_identical(
   1:4
 )
 # on a matrix a column is its own term, whatever its neighbors are called
-neighbours <- cbind(g = x[, 1L], g.total = x[, 2L], g2 = x[, 3L])
+neighbors <- cbind(g = x[, 1L], g.total = x[, 2L], g2 = x[, 3L])
 expect_identical(
   forestColumns(onDesign(
-    neighbours,
+    neighbors,
     quote(list(forest(), forest(. - g, basis = ~z)))
   )),
   list(NULL, 2:3)
 )
 expect_identical(
   forestColumns(onDesign(
-    neighbours,
+    neighbors,
     quote(list(forest(), forest(g, basis = ~z)))
   )),
   list(NULL, 1L)

@@ -393,7 +393,7 @@ essTail <- function(x) min(essQuantile(x, 0.05), essQuantile(x, 0.95))
 # rhat/ess_bulk/ess_tail above - the columns 'posterior::summarise_draws'
 # reports for a plain array, computed without it. Always run, unconditional
 # on any package's availability (Decision 1).
-summariseDraws <- function(arr) {
+summarizeDraws <- function(arr) {
   varNames <- dimnames(arr)[[3L]]
   d <- dim(arr)[1:2]
   rows <- lapply(seq_along(varNames), function(i) {
@@ -496,7 +496,7 @@ summary.bart <- function(
   stats <- if (length(present) == 0L) {
     NULL
   } else {
-    summariseDraws(bartDrawsArray(object, present))
+    summarizeDraws(bartDrawsArray(object, present))
   }
   result <- list(
     call = object[["call"]],
@@ -637,7 +637,7 @@ summary.bartMultinomial <- function(object, ...) {
   structure(
     list(
       call = object[["call"]],
-      stats = summariseDraws(arr),
+      stats = summarizeDraws(arr),
       vars = "prob",
       fixed = fixedSummaryValues(
         object,

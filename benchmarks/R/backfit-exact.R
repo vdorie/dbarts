@@ -132,10 +132,10 @@ backfitArm <- function(
   trees <- sampler$getTrees()
 
   # the internal response scale, re-derived rather than read
-  modelled <- if (useOffset) y - offset else y
-  yRange <- max(modelled) - min(modelled)
-  shift <- min(modelled) + 0.5 * yRange
-  z <- (modelled - min(modelled)) / yRange - 0.5
+  modeled <- if (useOffset) y - offset else y
+  yRange <- max(modeled) - min(modeled)
+  shift <- min(modeled) + 0.5 * yRange
+  z <- (modeled - min(modeled)) / yRange - 0.5
   priorPrecision <- (kLeaf * sqrt(m) / nodeScale)^2
 
   # the calibration in force must be the one the reference assumes: fixed k,

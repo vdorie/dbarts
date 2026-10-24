@@ -251,7 +251,7 @@
             \code{dbartsData}, \code{xbart}) for the previous expansion;
             \code{bartBT} expands as before.
       \item Rows with missing predictors are kept and their missingness
-            modelled, where 0.9-34 dropped them. The new \code{na.action}
+            modeled, where 0.9-34 dropped them. The new \code{na.action}
             of \code{bart}, \code{dbarts} and \code{dbartsData} defaults to
             \code{\link{na.keepPredictors}}, which drops only rows missing
             the response; \code{na.action = na.omit} restores the old rule.
@@ -352,7 +352,7 @@
             \code{bart} fit would use: fixed 2 for a continuous response and
             \code{chi(1.5, 2)} for a binary one, where 0.9-34 used
             \code{chi(1.25, Inf)}; with \code{drop = FALSE} the result
-            then has a labelled \code{k} dimension. \code{n.burn} takes two
+            then has a labeled \code{k} dimension. \code{n.burn} takes two
             values; a third is an error. A chain is no longer carried from
             one fold or replication to the next (0.9-34 could score a
             setting on rows it had effectively been trained on), the
@@ -439,7 +439,7 @@
             returns for them what it returned before the call. 0.9-34
             replayed saved trees on the scale in force, so they came back
             in the new response's units.
-      \item A fit on a constant response is centred on it: the response is
+      \item A fit on a constant response is centered on it: the response is
             mapped from the window half a unit either side of its value,
             where 0.9-34 mapped it from the value to one unit above, so the
             leaf prior sat half a unit above the data.
@@ -593,7 +593,7 @@
             \code{blocks} also hold on each category forest of a
             multinomial fit.
       \item Predictors. Factors split on level subsets, with up to 65535
-            levels; missing predictor values are modelled in place, each
+            levels; missing predictor values are modeled in place, each
             split learning which way they go (Twala et al. 2008). Sparse
             \code{Matrix::dgCMatrix} predictors are used without being
             expanded, and a data frame may mix

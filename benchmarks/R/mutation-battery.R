@@ -454,7 +454,7 @@ mutations <- list(
     "        double below = 0.0;",
     "KILL_EXPECTED",
     kScript("benchmarks/R/rule-gibbs-balance.R"),
-    "poison 26: rule_gibbs neighbourhood weights lose the two log(1 - growth(child)) terms, so a candidate that strands a grandchild is no longer favoured"
+    "poison 26: rule_gibbs neighborhood weights lose the two log(1 - growth(child)) terms, so a candidate that strands a grandchild is no longer favored"
   ),
 
   mk(
@@ -467,7 +467,7 @@ mutations <- list(
     "    double logRulePrior = (doubled ? -std::log(2.0) : 0.0);",
     "KILL_EXPECTED",
     kScript("benchmarks/R/rule-gibbs-balance.R"),
-    "poison 27: rule_gibbs neighbourhood weights lose the 1/|SI_v| rule factor, the low-cardinality bias change-balance.R's own gate repaired"
+    "poison 27: rule_gibbs neighborhood weights lose the 1/|SI_v| rule factor, the low-cardinality bias change-balance.R's own gate repaired"
   )
 )
 

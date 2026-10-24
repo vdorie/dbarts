@@ -969,7 +969,7 @@ struct ForestCombiner {
   virtual bool glueIsValid(const ChainStateData&) const { return true; }
 
   /// The run's cancel function, which a Polya-Gamma glue draw polls inside its
-  /// draws and answers by throwing RefreshCancelled; null outside a run.
+  /// draws and answers by throwing RefreshCanceled; null outside a run.
   void setRefreshCancel(const std::function<bool()>* cancel) {
     refreshPoll_.set(cancel);
   }
@@ -1198,7 +1198,7 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   /// absorbed forest 0's. Seeding the accumulator with the LAST forest leaves
   /// forest 0's product as the only bare multiply in the closing add, so it is
   /// the one contracted and bcf's K = 2 instance stays bitwise. Accumulating
-  /// FORWARD absorbs the last forest's product instead, flipping a sizeable
+  /// FORWARD absorbs the last forest's product instead, flipping a sizable
   /// fraction of rows by one ulp, and that one-ulp difference walks into the
   /// whole trajectory - measured, every bcf-equivalence scenario turns red
   /// on mu, tau, glue, sigma and train.
@@ -1780,7 +1780,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// consumes no variate; the 0 itself lives in the composed precision, never
   /// in omega.
   ///
-  /// A cancel polled inside the draws throws RefreshCancelled before forest
+  /// A cancel polled inside the draws throws RefreshCanceled before forest
   /// f's tree update, leaving omega's f-th column part this sweep's draw and
   /// part the last, and margins_ part written. Neither is state of the chain:
   /// formForestResponse(f), their only reader, is skipped, and the next sweep
@@ -1856,7 +1856,7 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
         draw += ext_rng_simulatePolyaGamma(rng, psi);
         stop = this->refreshPoll_.stop();
       }
-      if (stop) throw RefreshCancelled();
+      if (stop) throw RefreshCanceled();
       omega[i] = draw;
     }
   }

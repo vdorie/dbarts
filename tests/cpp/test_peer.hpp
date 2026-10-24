@@ -174,7 +174,7 @@ struct TestPeer {
     Chain<L, R>& chain, int32_t variableIndex, int32_t splitIndex) {
     return chain.accountStrandedLeafKStats(variableIndex, splitIndex);
   }
-  /// Forest 0's level-fibre shift, drawn once against the leaf tables as they
+  /// Forest 0's level-fiber shift, drawn once against the leaf tables as they
   /// stand and applied to them. shiftOut receives one c_t per tree, zero where
   /// the tree declined; the return says whether the forest as a whole was
   /// eligible.

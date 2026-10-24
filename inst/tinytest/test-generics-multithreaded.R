@@ -36,7 +36,7 @@ partition <- function(n.threads, n.slabs) {
     # a contiguous block partition covering every slab exactly once: every
     # worker owns at least one slab, the map never goes backwards, and the
     # block sizes differ by at most one
-    labelled = identical(sort(unique(part$worker)), seq_len(workers) - 1L),
+    labeled = identical(sort(unique(part$worker)), seq_len(workers) - 1L),
     blocked = !is.unsorted(part$worker),
     balanced = max(table(part$worker)) - min(table(part$worker)) <= 1L
   )
@@ -45,7 +45,7 @@ partitionOK <- c(
   resolved = TRUE,
   workers = TRUE,
   slabs = TRUE,
-  labelled = TRUE,
+  labeled = TRUE,
   blocked = TRUE,
   balanced = TRUE
 )

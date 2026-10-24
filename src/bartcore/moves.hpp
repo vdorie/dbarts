@@ -219,7 +219,7 @@ inline void resolveEmptyLeafVeto(const BranchScore& current,
 /// alone, one scan a proposal; the note below the function states why that
 /// restriction is still an exact Gibbs step and what it gives up.
 template <ScannableLeafModel L, typename ResidT = double>
-bool enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
+bool enumerateNogRuleNeighborhood(const MoveContext& ctx, const L& leaf,
                                   Tree& tree, int32_t node, const ResidT* y,
                                   double sigma,
                                   std::size_t* numVariablesScanned = nullptr) {
@@ -325,7 +325,7 @@ bool enumerateNogRuleNeighbourhood(const MoveContext& ctx, const L& leaf,
 // the kernel are the joint draw verbatim, the restriction sitting behind an
 // ifdef rather than a runtime test.
 //
-// When it is defined, enumerateNogRuleNeighbourhood holds the node's
+// When it is defined, enumerateNogRuleNeighborhood holds the node's
 // INCUMBENT variable and enumerates that variable's admissible cuts alone, so
 // a proposal takes ONE scanOrdinalCuts pass rather than one per available
 // ordinal variable. Nothing else in the distribution moves: a candidate's
@@ -674,7 +674,7 @@ void cutProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
 /// A discrete neighborhood, summarized: how many candidates carry finite
 /// weight, the entropy of the normalized weights in nats, the incumbent's
 /// share and its rank by weight (1 the largest), and the largest share.
-struct Neighbourhood {
+struct Neighborhood {
   double candidates = 0.0;
   double entropy = 0.0;
   double incumbent = 0.0;
@@ -687,11 +687,11 @@ struct Neighbourhood {
 /// -inf, so it is in the neighborhood at weight zero. Entries are restricted
 /// to those tagged `tag` when that is non-negative, which is how the
 /// single-variable neighborhood reuses the joint enumeration.
-inline Neighbourhood summarizeNeighbourhood(const std::vector<double>& logWeight,
+inline Neighborhood summarizeNeighborhood(const std::vector<double>& logWeight,
                                             const std::vector<int32_t>& tags,
                                             int32_t tag,
                                             std::size_t incumbentIndex) {
-  Neighbourhood out;
+  Neighborhood out;
   double largest = -HUGE_VAL;
   for (std::size_t i = 0; i < logWeight.size(); ++i) {
     if (tag >= 0 && tags[i] != tag) continue;
@@ -753,7 +753,7 @@ void nogProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
   countShape(tree, 0, &leaves, &interior, &nog);
   bool isNog = tree.childrenAreBottom(node);
   bool scanned = false;
-  Neighbourhood joint, cut;
+  Neighborhood joint, cut;
 
   if constexpr (ScannableLeafModel<L>) {
     const ColumnStore& data(ctx.data);
@@ -772,7 +772,7 @@ void nogProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
       // the kernel's own enumeration, so the probe cannot drift from the
       // weights the move draws from
       const Rule incumbent = tree.at(node).rule;
-      enumerateNogRuleNeighbourhood(ctx, leaf, tree, node, y, sigma);
+      enumerateNogRuleNeighborhood(ctx, leaf, tree, node, y, sigma);
       std::size_t incumbentIndex = 0;
       bool foundIncumbent = false;
       logWeight.clear();
@@ -792,8 +792,8 @@ void nogProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
       }
 
       if (foundIncumbent) {
-        joint = summarizeNeighbourhood(logWeight, tags, -1, incumbentIndex);
-        cut = summarizeNeighbourhood(logWeight, tags, incumbent.variableIndex,
+        joint = summarizeNeighborhood(logWeight, tags, -1, incumbentIndex);
+        cut = summarizeNeighborhood(logWeight, tags, incumbent.variableIndex,
                                      incumbentIndex);
         scanned = true;
       }
@@ -832,7 +832,7 @@ void deathProbe(const MoveContext& ctx, const L& leaf, const Tree& tree,
   if (file == nullptr) return;
 
   bool scored = false;
-  Neighbourhood out;
+  Neighborhood out;
   if constexpr (ScannableLeafModel<L>) {
     static thread_local std::vector<int32_t> nogNodes;
     static thread_local std::vector<double> logWeight;
@@ -859,7 +859,7 @@ void deathProbe(const MoveContext& ctx, const L& leaf, const Tree& tree,
       tags.push_back(-1);
     }
     if (!logWeight.empty()) {
-      out = summarizeNeighbourhood(logWeight, tags, -1, incumbentIndex);
+      out = summarizeNeighborhood(logWeight, tags, -1, incumbentIndex);
       scored = true;
     }
   }
@@ -1658,7 +1658,7 @@ inline bool categoricalSubtreeIsValid(const Tree& tree, int32_t nodeIndex,
                                    reachable);
 }
 
-/// The pooled-column analogue: reachable spans numWords words, the left
+/// The pooled-column analog: reachable spans numWords words, the left
 /// branch's filtered set lives in the arena's slot at depth (deeper matching
 /// rules use higher slots, so a frame's mask survives its subtree), and the
 /// right branch reads the rule's own immutable pool words.
@@ -1966,7 +1966,7 @@ double perturbMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
 /// whose two children are both leaves - with a draw from its own full
 /// conditional. There is no acceptance test and no reverse count.
 ///
-/// The neighborhood enumerateNogRuleNeighbourhood builds is closed: it reads
+/// The neighborhood enumerateNogRuleNeighborhood builds is closed: it reads
 /// ancestors only, so it is identical from every state in it, its normalizer
 /// is the same before and after the draw, and no proposal count survives into
 /// an acceptance. The node is drawn uniformly among the eligible nog nodes and
@@ -2040,7 +2040,7 @@ double ruleGibbsMove(const MoveContext& ctx, const L& leaf, ext_rng* rng,
     BARTCORE_CENSUS_SHAPE(tree, nodeToDraw);
 
     std::size_t numScanned = 0;
-    bool anyCandidate = enumerateNogRuleNeighbourhood(
+    bool anyCandidate = enumerateNogRuleNeighborhood(
       ctx, leaf, tree, nodeToDraw, y, sigma, &numScanned);
     const std::vector<NogRuleCandidate>& candidates(ctx.scratch.candidates);
     if (!anyCandidate) {

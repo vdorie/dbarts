@@ -143,7 +143,7 @@ plusTerms <- function(expr) {
 }
 
 ## The basis a crossed operand stands for, as it is written in 'basis =': a
-## name, factor() of a name, any other call on columns, or a parenthesised
+## name, factor() of a name, any other call on columns, or a parenthesized
 ## sum, which is its members side by side, one column each. NULL where no one
 ## forest() can be written for it: the operand is itself crossed or holds a
 ## forest(), a basis's grammar does not take it, or the sum has a member that

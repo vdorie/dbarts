@@ -507,7 +507,7 @@ nogTable <- function(g) {
   summary <- function(forest, label, f, prefix) {
     data.frame(
       forest = forest,
-      neighbourhood = label,
+      neighborhood = label,
       proposals = nrow(f),
       candidates = median(f[[paste0(prefix, "Candidates")]]),
       entropy = median(f[[paste0(prefix, "Entropy")]]),
@@ -791,7 +791,7 @@ summarizeCell <- function(dir, cell) {
 
   cat("\nchange target and the tree's nog share:\n")
   print(roundFrame(nogShareTable(g), 2L), row.names = FALSE)
-  cat("\nclosed rule neighbourhood at a nog node:\n")
+  cat("\nclosed rule neighborhood at a nog node:\n")
   print(roundFrame(nogTable(g), 4L), row.names = FALSE)
   cat("\ninformed-death weights against the uniform pick:\n")
   print(roundFrame(deathTable(x), 4L), row.names = FALSE)

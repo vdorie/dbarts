@@ -687,14 +687,14 @@ local({
 # scale() and poly() under 'subset' take their center from every row, as lm()
 # does, and so equal the constants written out
 keep <- frame$age < 56
-centre <- mean(frame$age)
+center <- mean(frame$age)
 spread <- stats::sd(frame$age)
 for (door in doors) {
   fit <- door("scale(age)", subset = keep)
   expect_identical(basisOf(fit), lmColumns("scale(age)", rows = keep))
   expect_equal(
     as.vector(basisOf(fit)),
-    (frame$age[keep] - centre) / spread
+    (frame$age[keep] - center) / spread
   )
   expect_identical(
     basisOf(door("poly(dose, 1)", subset = keep)),
@@ -1010,9 +1010,9 @@ expect_equal(
   as.vector(stats::predict(stats::poly(frame$dose, 1), newRows$dose))
 )
 # arithmetic inside I() is evaluated on the rows given, as lm() evaluates it
-centred <- bartFit("I(age - mean(age))")
+centered <- bartFit("I(age - mean(age))")
 expect_equal(
-  as.vector(replayed(centred, newRows)),
+  as.vector(replayed(centered, newRows)),
   newRows$age - mean(newRows$age)
 )
 # under 'subset' the center is still every row's

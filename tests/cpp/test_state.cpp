@@ -450,10 +450,10 @@ static void testStateRoundTripScaledOffset() {
           readBack.chains[0].fitMin == ownMin &&
           readBack.chains[0].fitMax == ownMax,
         "state from another transform: the sampler keeps its own transform");
-  SamplerStateData relabelled(state);
-  relabelled.chains[0].fitMin = ownMin;
-  relabelled.chains[0].fitMax = ownMax;
-  check(statesAgree(relabelled, readBack) &&
+  SamplerStateData relabeled(state);
+  relabeled.chains[0].fitMin = ownMin;
+  relabeled.chains[0].fitMax = ownMax;
+  check(statesAgree(relabeled, readBack) &&
           !std::isnan(state.chains[0].forests[0].k) &&
           std::memcmp(&readBack.chains[0].sigma, &state.chains[0].sigma,
                       sizeof(double)) == 0 &&
@@ -545,7 +545,7 @@ static void testStateRoundTripScaledOffset() {
   }
 
   // unequal pairs naming the same units: a constant response's (0, 0), the
-  // window centred on 0, and a response spanning exactly (-0.5, 0.5) both
+  // window centered on 0, and a response spanning exactly (-0.5, 0.5) both
   // take multiplier 1 and shift 0, and the install is the stored chain as
   // under any other pair
   std::vector<double> yConstant(n, 0.0), yUnit(n);
@@ -752,10 +752,10 @@ static void testShiftedStateInstalls() {
     check(restoresExactly(recipient, state),
           (label + ": a state under another shift installs").c_str());
     recipient.getState(readBack);
-    SamplerStateData relabelled(state);
-    relabelled.chains[0].fitMin = min;
-    relabelled.chains[0].fitMax = max;
-    check(statesAgree(relabelled, readBack) &&
+    SamplerStateData relabeled(state);
+    relabeled.chains[0].fitMin = min;
+    relabeled.chains[0].fitMax = max;
+    check(statesAgree(relabeled, readBack) &&
             !state.chains[0].forests[0].savedTrees.empty(),
           (label + ": the trees, fits and saved draws read back as stored")
             .c_str());
@@ -2376,7 +2376,7 @@ static void testWarmStartStandardization() {
 }
 
 // A leaf covariate without spread, across the calls that restate live
-// coefficients. Such a column sits at its centre under the placeholder scale
+// coefficients. Such a column sits at its center under the placeholder scale
 // and reads zero on every training row, so the intercept alone is the fit:
 // between two of them a live block does not move; off one or onto one the
 // formula runs over the placeholder 1 and the leaf is the function it was,
@@ -2579,7 +2579,7 @@ static void testNoSpreadLiveConversion() {
       donor = build();
     standardization(*sampler, center, scale);
     check(center == constant && std::isnan(scale),
-          "no-spread conversion: a constant column is centred at its value "
+          "no-spread conversion: a constant column is centered at its value "
           "and stored without a scale");
     check(largestSlope(*sampler) > 1e-3,
           "no-spread conversion: the uninformed slopes are drawn, not zero");
@@ -2698,7 +2698,7 @@ static void testNoSpreadLiveConversion() {
   }
 
   // --- made on one constant and moved to another: every row reads the same
-  // value off the centre, so the column has spread and the function is kept
+  // value off the center, so the column has spread and the function is kept
   // where the next data spreads the covariate about the new constant
   {
     const std::vector<double> x = design(n, 1000.0, 0.0),
@@ -2710,18 +2710,18 @@ static void testNoSpreadLiveConversion() {
     sampler->run(60, numKept, none);
     standardization(*sampler, center, scale);
     check(center == 1000.0 && scale == 1.0,
-          "no-spread conversion: a constant column moved off its centre is "
+          "no-spread conversion: a constant column moved off its center is "
           "stored with the 1 it is divided by");
     const std::vector<double> functionBefore = newestDraw(*sampler, xSpread);
     replace(*sampler, xSpread);
     check(worstGap(liveFits(*sampler), n2, functionBefore, n2, 0, n2) <
             tolerance,
-          "no-spread conversion: a constant moved off its centre keeps its "
+          "no-spread conversion: a constant moved off its center keeps its "
           "function on every row of the next data");
   }
 
-  // --- values made constant after creation. Off the centre the column goes
-  // on reading a value that is not zero under its real scale; at the centre
+  // --- values made constant after creation. Off the center the column goes
+  // on reading a value that is not zero under its real scale; at the center
   // exactly it reads zero under a real scale, which is not the placeholder.
   // Either way it has spread until a replacement re-derives the pair
   {
@@ -2737,7 +2737,7 @@ static void testNoSpreadLiveConversion() {
     sampler->run(60, numKept, none);
     standardization(*sampler, center, scale);
     check(center == realCenter && scale == realScale && scale != 1.0,
-          "no-spread conversion: values made constant keep the centre and "
+          "no-spread conversion: values made constant keep the center and "
           "scale they were given");
     std::vector<double> functionBefore = newestDraw(*sampler, xHeldMore);
     replace(*sampler, xHeldMore);
@@ -2751,20 +2751,20 @@ static void testNoSpreadLiveConversion() {
           "the constant");
 
     const std::vector<double> xAtCenter = design(n, realCenter, 0.0);
-    std::unique_ptr<SamplerBase> centred = make(xReal, 70);
-    check(centred->setPredictor(xAtCenter.data(), true, false) ==
+    std::unique_ptr<SamplerBase> centered = make(xReal, 70);
+    check(centered->setPredictor(xAtCenter.data(), true, false) ==
             PredictorUpdateResult::accepted,
-          "no-spread conversion: the values are made the centre");
-    centred->run(60, numKept, none);
-    standardization(*centred, center, scale);
+          "no-spread conversion: the values are made the center");
+    centered->run(60, numKept, none);
+    standardization(*centered, center, scale);
     check(center == realCenter && scale == realScale,
-          "no-spread conversion: a column held at its centre under a real "
+          "no-spread conversion: a column held at its center under a real "
           "scale keeps that scale in the state");
-    functionBefore = newestDraw(*centred, xMore);
-    replace(*centred, xMore);
-    check(worstGap(liveFits(*centred), n2, functionBefore, n2, 0, n2) <
+    functionBefore = newestDraw(*centered, xMore);
+    replace(*centered, xMore);
+    check(worstGap(liveFits(*centered), n2, functionBefore, n2, 0, n2) <
             tolerance,
-          "no-spread conversion: a column held at its centre under a real "
+          "no-spread conversion: a column held at its center under a real "
           "scale converts by the formula");
   }
 

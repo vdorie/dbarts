@@ -204,7 +204,7 @@ struct ParsedControl {
   bool verbose = false;
   bool keepTrainingFits = true;
   bool useQuantiles = false;
-  // the level-fibre Gibbs step (control@levelGibbs, a tri-state logical: NA
+  // the level-fiber Gibbs step (control@levelGibbs, a tri-state logical: NA
   // is the automatic mode); creation-time, like useQuantiles, so
   // bartcore_setControl never pushes it
   bartcore::LevelGibbsMode levelGibbs = bartcore::LevelGibbsMode::automatic;
@@ -2082,7 +2082,7 @@ void printInitialSummary(const ParsedControl& control,
   }
   ext_printf("\tuse quantiles for rule cut points: %s\n",
              control.useQuantiles ? "true" : "false");
-  ext_printf("\tlevel fibre gibbs step: %s\n",
+  ext_printf("\tlevel fiber gibbs step: %s\n",
              control.levelGibbs == bartcore::LevelGibbsMode::automatic
                ? "auto"
                : (control.levelGibbs == bartcore::LevelGibbsMode::on
@@ -3447,7 +3447,7 @@ void refuseMultiForestResponseMutation(const bartcore::SamplerBase& sampler,
 
 // A saved gp draw is a set of kernel weights: it has no
 // mean term a new response shift could be carried into and no record of the
-// centre, scale or lengthscale it replays under, so the conversions every
+// center, scale or lengthscale it replays under, so the conversions every
 // other leaf model's saved draws get have nothing to act on.
 // External linkage: the flat C API guards its setResponse and setOffset
 // entries with the same call.
@@ -4838,7 +4838,7 @@ SEXP bartcore_setCounts(SEXP ptrExpr, SEXP countsExpr) {
 // response-side counterpart of bartcore_setCounts, and NOT bartcore_setOffset,
 // whose vector the response model adds to every reported channel after the
 // forests are blended - past the softmax, where a shift means nothing a
-// modeller wants (a common per-observation shift is the softmax's own null
+// modeler wants (a common per-observation shift is the softmax's own null
 // direction, which is why the flat entry stays refused here).
 //
 // n and K are fixed, as they are for the counts; a length that happens to match
@@ -5575,7 +5575,7 @@ static void readRunCounts(SEXP numBurnInExpr, SEXP numSamplesExpr,
 // R_UnwindProtect, which turns the jump into a C++ unwind, and this entry
 // frees its own buffers and resumes the jump. From a worker thread a raise
 // would unwind a setjmp context this (the main) thread established, which is
-// undefined behaviour and in practice a crash, so a callback that cannot know
+// undefined behavior and in practice a crash, so a callback that cannot know
 // which run it is in records its own status and returns nonzero.
 //
 // Two facts about what the observer sees through this entry. The
@@ -5677,16 +5677,16 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
 
   if (numSamples == 0) {
     bartcore::Results empty;
-    bool cancelled = false;
+    bool canceled = false;
     bartcore_bridge::CapturedError error;
     GetRNGstate();
     captureExceptions(error, [&]() {
-      cancelled =
+      canceled =
         sampler.run(numBurnIn, 0, empty, bartcore_userInterrupted);
     });
     PutRNGstate();
     if (error.failed) Rf_error("%s", error.message);
-    if (cancelled) bartcore_bridge::raiseInterrupt();
+    if (canceled) bartcore_bridge::raiseInterrupt();
     // a burn-only run returns NULL, or an empty list carrying the tally
     // when a count was slow
     if (sampler.slowCountTally().slowCounts == 0) return R_NilValue;
@@ -5899,7 +5899,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   results.glue = hasForestReporting ? REAL(glueExpr) : NULL;
 
   bool stoppedByCallback = false;
-  bool cancelled = false;
+  bool canceled = false;
   bartcore_bridge::CapturedError error;
   SEXP continuation = NULL;
   // The R route's callback gets the same protection the flat one's does: a
@@ -5908,7 +5908,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   try {
     DrawCallbackProtection armed(drawHook);
     captureExceptions(error, [&]() {
-      cancelled =
+      canceled =
         sampler.run(numBurnIn, numSamples, results, bartcore_userInterrupted,
                     bartcore::SweepCallback(), drawHook.engineHook(),
                     &stoppedByCallback);
@@ -5916,7 +5916,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   } catch (const UnwindJump& jump) {
     continuation = jump.continuation;
   }
-  if (continuation == NULL && !error.failed && !cancelled) {
+  if (continuation == NULL && !error.failed && !canceled) {
     int* varcountOut = INTEGER(varcountExpr);
     for (size_t i = 0;
          i < numPredictors * numVCForests * numSamples * numChains; ++i)
@@ -5933,7 +5933,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // same reason captureExceptions copies its message out before raising
   if (continuation != NULL) R_ContinueUnwind(continuation); // does not return
   if (error.failed) Rf_error("%s", error.message);
-  if (cancelled) {
+  if (canceled) {
     // an abort the observer asked for is not an interrupt, and the two are
     // told apart the way the sweep-callback entry tells its own stop from one:
     // the sampler reports which arm set the flag
@@ -6030,7 +6030,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
 
   bool callbackErrored = false;  // a jump left the closure (R_ToplevelExec)
   bool closureStopped = false;   // the closure returned TRUE (self-caught stop)
-  bool cancelled = false;
+  bool canceled = false;
   bartcore_bridge::CapturedError error;
   {
     // scoped so the closure's heap-held std::function is destroyed before any
@@ -6047,14 +6047,14 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
         return frame.stop;
       };
     captureExceptions(error, [&]() {
-      cancelled = sampler.run(numBurnIn, numSamples, results,
+      canceled = sampler.run(numBurnIn, numSamples, results,
                               bartcore_userInterrupted, onSweep);
     });
   }
   if (error.failed) Rf_error("%s", error.message);
   if (callbackErrored)
     Rf_error("error evaluating the sweep callback");
-  if (cancelled && !closureStopped) bartcore_bridge::raiseInterrupt();
+  if (canceled && !closureStopped) bartcore_bridge::raiseInterrupt();
   return R_NilValue;
 }
 
@@ -8972,7 +8972,7 @@ bool readAmplitudeGlue(SEXP glueExpr, bartcore::ChainStateData& chainState) {
 }
 
 /// The refusal for a stored cut grid that holds a value twice, naming the
-/// column, counted from one, and the value; null where no two neighbours are
+/// column, counted from one, and the value; null where no two neighbors are
 /// equal. \p what names the source. No sampler of this version writes such a
 /// grid, and on one a stored split's value would name several positions. The
 /// buffer is static: the message is raised before the next state is read.

@@ -23,7 +23,7 @@ expect_true(all(vapply(
 expect_true(all(nzchar(names.t)))
 expect_true(all(
   kinds %in%
-    c("function", "method", "rcMethod", "argument", "family", "behaviour")
+    c("function", "method", "rcMethod", "argument", "family", "behavior")
 ))
 
 # one expiry for the whole set: the release that drops them deletes the file,
@@ -154,7 +154,7 @@ expect_error(threadSampler$run(0L, 2L, NULL, 2L, NULL), pattern = "<unnamed>")
 # the logical setPredictor still reads as updateCutPoints is a row of the
 # registry; its reader hands a word on as it came and says nothing (the
 # warning itself is pinned in test-cut-grid-distinct.R)
-expect_true("logical updateCutPoints" %in% names.t[kinds == "behaviour"])
+expect_true("logical updateCutPoints" %in% names.t[kinds == "behavior"])
 expect_silent(expect_identical(
   dbarts:::resolveUpdateCutPoints("value"),
   "value"

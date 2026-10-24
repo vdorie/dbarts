@@ -68,7 +68,7 @@ expectReading <- function(sampler, k, kScale, info) {
   expect_equal(read$sd, kScale / k, tolerance = 1e-12, info = info)
 }
 # a state's numbers, less its record of the mapping it was read under
-unlabelled <- function(state) {
+unlabeled <- function(state) {
   for (chain in seq_along(state)) {
     state[[chain]]$fit.scale <- NULL
   }
@@ -321,7 +321,7 @@ for (leafPrior in list(normal(k = chi(1.5, 2)), normal(sd = invchi(3, 1)))) {
   expect_true(recipient$setState(state), info = info)
   installed <- stored(recipient)
   expect_identical(installed[[1L]]$fit.scale, unitsBefore, info = info)
-  expect_identical(unlabelled(installed), unlabelled(state), info = info)
+  expect_identical(unlabeled(installed), unlabeled(state), info = info)
   expect_identical(kOf(recipient), kOf(donor), info = info)
   expect_equal(reading(recipient)$k.scale, 3 * kScale, tolerance = 1e-12)
   expect_equal(reading(recipient)$sd, 3 * reading(donor)$sd, tolerance = 1e-12)

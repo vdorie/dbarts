@@ -29,8 +29,8 @@ y <- 4 * sin(pi * x[, 1L]) + 2 * x[, 2L] + rnorm(n, sd = 0.3)
 counts <- rpois(n, exp(0.5 + x[, 1L]))
 # a response whose range is symmetric about zero, exactly, so a stretch of it
 # moves the range and leaves the shift, the midpoint, at zero to the last bit
-centred <- y - (min(y) + max(y)) / 2
-centred[which.min(centred)] <- -max(centred)
+centered <- y - (min(y) + max(y)) / 2
+centered[which.min(centered)] <- -max(centered)
 
 stateControl <- function(...) {
   dbartsControl(
@@ -60,7 +60,7 @@ units <- function(sampler) stored(sampler)[[1L]]$fit.scale
 # leaf's parameters are its per-observation fits; the values its flat trees
 # carry are reporting means, formed again at each read, and are dropped where
 # 'means' is FALSE; the read-back compares them as doubles to rounding.
-unlabelled <- function(state, means = TRUE) {
+unlabeled <- function(state, means = TRUE) {
   for (chain in seq_along(state)) {
     state[[chain]]$fit.scale <- NULL
     if (!means) {
@@ -313,7 +313,7 @@ expect_identical(withShape$getShape(), c(10, 10))
 # is converted, so the install is clean and the state read back is the
 # installed one but for its record of the mapping
 rescaled <- 3 * y + 10
-stretched <- 3 * centred # another range, the same shift
+stretched <- 3 * centered # another range, the same shift
 acrossUnits <- function(
   label,
   args,
@@ -331,8 +331,8 @@ acrossUnits <- function(
   expect_identical(recipient$getLeafPrior(), priorBefore, info = label)
   expect_identical(units(recipient), unitsBefore, info = label)
   expect_identical(
-    unlabelled(stored(recipient), means),
-    unlabelled(installed, means),
+    unlabeled(stored(recipient), means),
+    unlabeled(installed, means),
     info = label
   )
   if (!means) {
@@ -356,7 +356,7 @@ acrossUnits("drawn k", list(leaf.prior = normal(k = chi(1.5, 2))))
 acrossUnits("sd hyperprior", list(leaf.prior = normal(sd = invchi(3, 1))))
 acrossUnits("linear", list(leaf.prior = linear("x2")))
 acrossUnits("monotone", list(monotone = c(1L, 0L, 0L)))
-acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centred, FALSE)
+acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centered, FALSE)
 acrossUnits("gp, another shift", list(leaf.prior = gp("x2")), means = FALSE)
 acrossUnits(
   "forests with amplitudes",
@@ -515,7 +515,7 @@ invisible(asStored(
   "gp, equal shift",
   list(leaf.prior = gp("x2")),
   stretched,
-  centred,
+  centered,
   tolerance = 1e-11
 ))
 # no leaf model refuses another shift: a gp leaf and forests with amplitudes

@@ -38,7 +38,7 @@
 #
 # A third arm leaves rows out by 0/1 weights at creation: 4 rows in of 25 a
 # cell, the rows out 30 higher, a fixed shape. The likelihood is over the rows
-# in and so is the center c, the count fit's analogue of a range, so the
+# in and so is the center c, the count fit's analog of a range, so the
 # exact reference takes both from them; the same reference with c over every
 # row is another distribution, and the arm requires the fit to miss it.
 #

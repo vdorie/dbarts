@@ -579,7 +579,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   // below where nothing is in flight.
   bartcore_bridge::CapturedError error;
   SEXP continuation = NULL;
-  bool cancelled = false, stoppedByCallback = false;
+  bool canceled = false, stoppedByCallback = false;
   try {
     DrawCallbackProtection armed(sampler->drawHook);
     bartcore_bridge::captureExceptions(error, [&]() {
@@ -623,7 +623,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
       // poll is the R route's, so a pending interrupt cancels the run at the
       // next sweep boundary or inside a leaf-order count, and the engine says
       // whether a cancel was the callback's stop rather than an interrupt.
-      cancelled = samplerOf(sampler).run(
+      canceled = samplerOf(sampler).run(
         numBurnIn, numSamples, engineResults, bartcore_bridge::userInterrupted,
         {}, sampler->drawHook.engineHook(), &stoppedByCallback);
     });
@@ -639,7 +639,7 @@ void dbarts_sampler_run(dbarts_sampler* sampler, size_t numBurnIn,
   if (error.failed) Rf_error("dbarts_sampler_run: %s", error.message);
   // a callback's stop keeps its contract and returns normally; a real cancel
   // leaves the sampler as that stop does and raises R's interrupt
-  if (cancelled && !stoppedByCallback) bartcore_bridge::raiseInterrupt();
+  if (canceled && !stoppedByCallback) bartcore_bridge::raiseInterrupt();
   // once per holder, last, with nothing of the library's live: any handler
   // that exits on the warning jumps out of a complete run
   if (!sampler->slowCountWarned &&

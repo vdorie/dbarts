@@ -1244,7 +1244,7 @@ struct ColumnStore {
 
   /// Fills column j's numCuts[j] cuts from the grid's M midpoints, midpoint i
   /// lying between sorted distinct values i and i + 1: cut k is midpoint
-  /// floor((2k + 1) M / (2c)) for c = numCuts[j], the centre of the k-th of c
+  /// floor((2k + 1) M / (2c)) for c = numCuts[j], the center of the k-th of c
   /// equal shares of the midpoints. The cuts ascend and leave at most
   /// floor(M / (2c)) + 1 distinct values beyond either end cut; at c == M they
   /// are every midpoint in order. Where the midpoint of two neighboring
@@ -1276,7 +1276,7 @@ struct ColumnStore {
     dropRepeatedCuts(j);
   }
 
-  /// Drops the equal neighbours of column j's ascending grid and sets
+  /// Drops the equal neighbors of column j's ascending grid and sets
   /// numCuts[j] to what is left, so the grid holds each point once.
   void dropRepeatedCuts(size_t j) {
     std::vector<double>& cuts = cutPoints[j];
@@ -2488,7 +2488,7 @@ struct ColumnStore {
     std::memcpy(raw, column, numObservations * sizeof(double));
   }
 
-  /// The one-cell analogue, for the per-observation update session.
+  /// The one-cell analog, for the per-observation update session.
   void writeOwnedDenseCell(size_t i, size_t j, double value) {
     if (train.sources[j].kind != ColumnSourceKind::denseResident) return;
     train.sources[j].residentRaw[i] = value;

@@ -494,19 +494,19 @@ expect_error(
   fixed = TRUE
 )
 # and where its rows are judged, in a list at dbarts() and at dbartsSpec()
-labelled <- list(
+labeled <- list(
   mu = forest(),
   tau = do.call(forest, list(basis = withNaLevel))
 )
-labelledText <- paste0("'basis' gives forest 2 ('tau')", naLevel)
+labeledText <- paste0("'basis' gives forest 2 ('tau')", naLevel)
 expect_error(
-  dbarts(x, y, forests = labelled, control = kindControl()),
-  labelledText,
+  dbarts(x, y, forests = labeled, control = kindControl()),
+  labeledText,
   fixed = TRUE
 )
 expect_error(
-  dbartsSpec(dbartsData(x, y), kindControl(), forests = labelled),
-  labelledText,
+  dbartsSpec(dbartsData(x, y), kindControl(), forests = labeled),
+  labeledText,
   fixed = TRUE
 )
 # a value's block is named whole or not at all: columns of which one has no

@@ -328,8 +328,8 @@ gewekeChain <- function(sampler, arm, drawSigma) {
         sigmalag = lastSigma,
         sigma
       )
-      centre <- if (poison == "fshrink") poisonShrink * f else f
-      y <- centre + noiseSd * rnorm(arm$n)
+      center <- if (poison == "fshrink") poisonShrink * f else f
+      y <- center + noiseSd * rnorm(arm$n)
       sampler$setResponse(y)
     }
     lastSigma <- sigma
@@ -437,7 +437,7 @@ gewekeReportProbe <- function(label, probe, elapsed) {
     nProbe,
     elapsed
   ))
-  gewekeColumns("initialiser", "stationary")
+  gewekeColumns("initializer", "stationary")
   fired <- logical(3L)
   for (j in seq_len(3L)) {
     bad <- abs(probe$z[j]) > zBound

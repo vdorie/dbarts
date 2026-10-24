@@ -186,7 +186,7 @@ expect_identical(
   c("dose", "age")
 )
 # the fit carries them, always
-labelled <- bart(
+labeled <- bart(
   y ~ forest(x1 + x2) + forest(x3, basis = dose),
   frame,
   n.chains = 1L,
@@ -196,11 +196,11 @@ labelled <- bart(
   n.burn = 0L,
   verbose = FALSE
 )
-expect_identical(attr(labelled, "forest.labels"), c("forest1", "dose"))
+expect_identical(attr(labeled, "forest.labels"), c("forest1", "dose"))
 # the per-forest margins are named by the labels, and forest<i> and a label
 # both select by position
 expect_identical(
-  dimnames(labelled$forestFits)[[length(dim(labelled$forestFits))]],
+  dimnames(labeled$forestFits)[[length(dim(labeled$forestFits))]],
   c("forest1", "dose")
 )
 # one forest has one name everywhere: its label, and forest<i> for a forest
@@ -401,28 +401,28 @@ expect_false(identical(
   drawsAfter(function(sampler) NULL)
 ))
 # a factor basis: the levels' names stay too, and a level may be left empty
-levelled <- listFit(quote(list(forest(), forest(basis = factor(z)))))
+leveled <- listFit(quote(list(forest(), forest(basis = factor(z)))))
 expect_identical(
-  colnames(levelled$data@bases[[2L]]),
+  colnames(leveled$data@bases[[2L]]),
   c("factor(z)0", "factor(z)1")
 )
 flipped <- factor(1L - frame$z)
-levelled$setForestBasis(2L, flipped)
+leveled$setForestBasis(2L, flipped)
 expect_identical(
-  levelled$data@bases[[2L]],
+  leveled$data@bases[[2L]],
   matrix(
     as.double(c(frame$z, 1L - frame$z)),
     n,
     dimnames = list(NULL, c("factor(z)0", "factor(z)1"))
   )
 )
-levelled$setForestBasis(2L, ~ factor(rep(0L, n), levels = 0:1))
-expect_identical(unname(colSums(levelled$data@bases[[2L]])), c(n + 0, 0))
+leveled$setForestBasis(2L, ~ factor(rep(0L, n), levels = 0:1))
+expect_identical(unname(colSums(leveled$data@bases[[2L]])), c(n + 0, 0))
 expect_identical(
-  colnames(levelled$data@bases[[2L]]),
+  colnames(leveled$data@bases[[2L]]),
   c("factor(z)0", "factor(z)1")
 )
-expect_identical(labelsOf(levelled), c("forest1", "factor(z)"))
+expect_identical(labelsOf(leveled), c("forest1", "factor(z)"))
 
 ## --- Block D: the forest column of a fit's tree table -----------------------
 # the column is a factor whose levels are the forests' labels in forest order,

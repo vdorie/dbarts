@@ -2,7 +2,7 @@
 
 # BCF bitwise-equivalence fixture. The single-forest anchor (equivalence.R)
 # fits only through dbarts(), which never builds a two-forest BCF sampler, so
-# it says nothing about the BCF path. This fixture is the BCF analogue: record
+# it says nothing about the BCF path. This fixture is the BCF analog: record
 # a baseline from build A, compare from a tree with build B installed, and
 # every recorded channel must match to the bit (identical(), not tolerance).
 # A neutral refactor of the BCF path is proven neutral only if this reports
@@ -133,7 +133,7 @@ makeData <- function(n, p, seed) {
   list(x = x, y = y, z = z)
 }
 
-# The latent analogue: the same two-forest index, drawn through a link rather
+# The latent analog: the same two-forest index, drawn through a link rather
 # than observed with gaussian noise. The index is centered so neither class
 # is rare (a rare-class draw would leave the treatment forest almost nothing
 # to split on and the scenario little to guard). `link` is pnorm or plogis;

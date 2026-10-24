@@ -618,7 +618,7 @@ public:
       relayHook.context = &drawRelay;
     }
     const DrawHook* onDrawPtr = onDraw.fn != nullptr ? &relayHook : nullptr;
-    bool cancelled = false;
+    bool canceled = false;
     if (numWorkers <= 1) {
       // chains run on the main thread, so progress prints directly and the
       // interrupt poll runs inline between sweeps, throttled to ~100ms so a
@@ -639,8 +639,8 @@ public:
       const std::function<bool()>* shouldCancelPtr =
         shouldCancel ? &shouldCancel : nullptr;
       const SweepCallback* onSweepPtr = onSweep ? &onSweep : nullptr;
-      for (size_t c = 0; c < numChains && !cancelled; ++c)
-        cancelled = chains_[c]->run(numBurnIn, numSamples, chainResults[c],
+      for (size_t c = 0; c < numChains && !canceled; ++c)
+        canceled = chains_[c]->run(numBurnIn, numSamples, chainResults[c],
                                     &progress, c, shouldCancelPtr, onSweepPtr,
                                     onDrawPtr);
     } else {
@@ -731,15 +731,15 @@ public:
       for (std::thread& worker : workers) worker.join();
       if (options_.verbose) progress.flush();
       if (firstError) std::rethrow_exception(firstError);
-      cancelled = cancelFlag.load(std::memory_order_relaxed);
+      canceled = cancelFlag.load(std::memory_order_relaxed);
     }
 
     if (stoppedByCallback != nullptr)
       *stoppedByCallback = drawRelay.stopped.load(std::memory_order_relaxed);
 
-    // a cancelled run is aborted by the caller, so skip the completion cursor
+    // a canceled run is aborted by the caller, so skip the completion cursor
     // advance and terminal summary that assume every requested sample landed
-    if (cancelled) return true;
+    if (canceled) return true;
 
     runningTime_ += std::chrono::duration<double>(
       std::chrono::steady_clock::now() - startTime).count();

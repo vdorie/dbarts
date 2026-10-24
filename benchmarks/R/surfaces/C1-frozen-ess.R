@@ -24,7 +24,7 @@
 # it was frozen at.
 #
 # The `levelGibbs` flag adds a paired second frozen chain at each freeze point,
-# identical to its partner but for the level-fibre Gibbs step
+# identical to its partner but for the level-fiber Gibbs step
 # (dbartsControl(treeShift = "always")), which adds a zero-sum constant to each
 # tree's occupied leaves once a sweep. The step is fixed when a sampler is
 # created, so it can only be switched on AFTER the freeze - see levelArm() -

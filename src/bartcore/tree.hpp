@@ -256,7 +256,7 @@ struct ArithmeticMerge {
   static double fromMergeSpace(double merged) { return merged; }
 };
 
-/// The multiplicative analogue, for the variance forest's scale leaves:
+/// The multiplicative analog, for the variance forest's scale leaves:
 /// exp(sum_b w_b log h_b / sum_b w_b). Merging positive factors arithmetically
 /// would average over GM-natural quantities and bias the merged s^2 high;
 /// exp of a finite mean of logs is positive by construction, which is what
@@ -458,7 +458,7 @@ public:
     return mask;
   }
 
-  /// The pooled-column analogue of reachableCategories, writing
+  /// The pooled-column analog of reachableCategories, writing
   /// maskWordsForCount(K) words into out: ones over the K category bits,
   /// the missing position K when the column can route one, then each
   /// ancestor rule's filter by the side the path descends.
@@ -2272,7 +2272,7 @@ inline size_t addFlatPredictionsBelow(const FlatNode* flatNodes,
                                  lo, hi, fits, maskWords);
 }
 
-/// The linear-leaf analogue of addFlatPredictionsBelow: a routed row's fit
+/// The linear-leaf analog of addFlatPredictionsBelow: a routed row's fit
 /// is the leaf's intercept (its record's value) plus its slopes dotted with
 /// the row's designated columns, standardized on the fly by the training
 /// constants (missing values enter at the standardized mean, zero). slopes
@@ -2354,7 +2354,7 @@ inline bool computeFunctionBlockOffsets(const double* blocks,
   return cursor == blocksLength;
 }
 
-/// The function-leaf analogue of addFlatLinearPredictionsBelow: a routed
+/// The function-leaf analog of addFlatLinearPredictionsBelow: a routed
 /// row's fit is its leaf's conditional mean c(x*)' alpha under the
 /// squared-exponential kernel, the row standardized on the fly by the
 /// training constants (missing values enter at the standardized mean,

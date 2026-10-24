@@ -44,7 +44,7 @@ struct TestFitPartitionChannel {
 };
 inline TestFitPartitionChannel testFitPartition;
 
-/// When the level-fibre Gibbs step runs (SamplerOptions::levelGibbs).
+/// When the level-fiber Gibbs step runs (SamplerOptions::levelGibbs).
 enum class LevelGibbsMode : std::uint8_t {
   /// Never; no generator draw is taken and the sweep is the shipped one.
   off,
@@ -85,7 +85,7 @@ struct SamplerOptions {
   int32_t perturbWidth = ::bartcore::perturbWidth;
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
-  // an exact Gibbs step on each forest's LEVEL fibre, taken once per sweep
+  // an exact Gibbs step on each forest's LEVEL fiber, taken once per sweep
   // ahead of the tree loop: c_t added to every occupied leaf of tree t with
   // sum_t c_t = 0 leaves the fitted function unchanged, so the conditional of
   // the shift is the leaf prior restricted to that subspace and is closed
@@ -96,7 +96,7 @@ struct SamplerOptions {
   // Guarded before any generator call, so a mixture that proposes structure
   // leaves the default draw sequence byte-for-byte unchanged. Constant-leaf
   // forests only: a vector or function leaf keeps no leaf table for the shift
-  // to write, and the variance forest's fibre is multiplicative rather than
+  // to write, and the variance forest's fiber is multiplicative rather than
   // additive, so both ignore it.
   LevelGibbsMode levelGibbs = LevelGibbsMode::automatic;
   // the probit rescaling step, taken once per sweep after the level step: the
@@ -1851,7 +1851,7 @@ public:
     try {
       return runSweeps(numBurnIn, numSamples, results, progress, chainIndex,
                        shouldCancel, onSweep, onDraw);
-    } catch (const RefreshCancelled&) {
+    } catch (const RefreshCanceled&) {
       // rows already redrawn carry new precisions, which the vector leaf's
       // cross-sweep U'WU cache is stated against; the sweep's own invalidation
       // after the refresh was skipped
@@ -1860,7 +1860,7 @@ public:
           for (Forest<L, ResidT>& forest : forests_)
             forest.leaf.invalidateStatistics();
       return true;
-    } catch (const CountCancelled&) {
+    } catch (const CountCanceled&) {
       rebuildTotalFitsFromTrees();
       return true;
     } catch (const std::bad_alloc&) {
@@ -2016,7 +2016,7 @@ public:
           forest.ruleGibbsProbability);
       }
 
-      // the level-fibre draw, ahead of the forest loop and so ahead of every
+      // the level-fiber draw, ahead of the forest loop and so ahead of every
       // channel the sweep writes: kSumSquaredParams is zeroed below and
       // re-accumulated against the shifted leaves, the roll rebuilds tree 0's
       // residual from totalFits (which the zero-sum shift leaves correct), and
@@ -6252,7 +6252,7 @@ private:
 
   /// Node-indexed (arena id) leaf factors for variance tree j, recovered from
   /// the per-observation slab (every member of a leaf carries its value): the
-  /// scale analogue of recoverParametersFromFits, for flattening and predict.
+  /// scale analog of recoverParametersFromFits, for flattening and predict.
   ///
   /// A bottom with no members carries no drawn factor and reads the
   /// multiplicative identity 1.0 - that tree abstains where it has no training
@@ -6312,7 +6312,7 @@ private:
   }
 
   /// Route the test rows through every variance tree and multiply their leaf
-  /// factors into s^2(x_test), the test analogue of the maintained combined
+  /// factors into s^2(x_test), the test analog of the maintained combined
   /// variance; called only when a recorded sweep needs the test channel.
   void refreshVarianceTestFits() {
     VarianceForest& vf = *varianceForest_;
@@ -6363,7 +6363,7 @@ private:
           data_, response_->workingWeights(), leafValues);
         if (altered != nullptr) *altered = true;
       }
-      // containment backstop, the variance analogue of rebuildLiveForest's:
+      // containment backstop, the variance analog of rebuildLiveForest's:
       // the live tree carries this forest's column mask and the collapse took
       // out every split it forbids, so none reaches the sweep by any
       // live-install path. Trivially passes for an unrestricted variance
@@ -6406,7 +6406,7 @@ private:
   }
 
   /// Re-anchor the variance forest to the store after a mutation moved the
-  /// predictors, the cut grid, or the observation count: the scale analogue of
+  /// predictors, the cut grid, or the observation count: the scale analog of
   /// the forests_ body of forceRefreshTrees and applyNewData, which loop
   /// forests_ and so never reach it. oldCutPoints remaps split indices onto a
   /// rebuilt grid (null when the grid is installed rather than rebuilt, as
@@ -7013,10 +7013,10 @@ private:
     }
   }
 
-  /// One exact Gibbs draw on this forest's LEVEL fibre: add c_t to every
+  /// One exact Gibbs draw on this forest's LEVEL fiber: add c_t to every
   /// OCCUPIED leaf of tree t, the c_t summing to zero across the forest's
   /// trees. The fitted function is then unchanged exactly, so the likelihood
-  /// is constant along the fibre and the conditional of the shift is the leaf
+  /// is constant along the fiber and the conditional of the shift is the leaf
   /// prior restricted to it.
   ///
   /// Over tree t's occupied leaves, with the leaf prior's per-leaf sd tau_l,
@@ -7061,7 +7061,7 @@ private:
     } else {
       size_t m = forest.numTrees;
       if (shiftOut != nullptr) misc_setVectorToConstant(shiftOut, m, 0.0);
-      // m = 1 is a zero-dimensional fibre
+      // m = 1 is a zero-dimensional fiber
       if (m < 2) return false;
 
       levelVariance_.assign(m, 0.0);
@@ -8054,7 +8054,7 @@ private:
   // because a chain's sweep is sequential, and any future in-chain parallelism
   // has to privatize it.
   std::vector<double> fusedAcc_;
-  // Level-fibre scratch, one entry per tree of whichever forest is being
+  // Level-fiber scratch, one entry per tree of whichever forest is being
   // shifted: the per-tree conditional variance v_t (zero marks a tree that
   // declined, which is what the projection and the apply pass skip on) and
   // the unconstrained draw u_t. Chain-owned so the step allocates nothing

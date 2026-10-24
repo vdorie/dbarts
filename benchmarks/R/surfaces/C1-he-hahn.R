@@ -52,7 +52,7 @@
 #                           length effect is visible inside a single fit
 #
 # Nine further arms sit on that same shipped four-chain configuration and the
-# same twenty seeds, varying only the proposal mixture or the level-fibre
+# same twenty seeds, varying only the proposal mixture or the level-fiber
 # flag, so the kernel contrast is read where the shipped chain default reads
 # it rather than at the one-chain configuration the earlier move-set grid
 # used:
@@ -81,11 +81,11 @@
 #                                  rule_gibbs 0.32, the second dosage of that
 #                                  study's grid. It is reported, not gated.
 #   independent75pool4level        the shipped mixture unchanged, with the
-#                                  level-fibre Gibbs step on. It varies no
+#                                  level-fiber Gibbs step on. It varies no
 #                                  proposal probability at all: the step is an
 #                                  exact draw on the leaf fiber, taken once a
 #                                  sweep ahead of the tree loop, and it is the
-#                                  dosage the level-fibre benefit study's kill
+#                                  dosage the level-fiber benefit study's kill
 #                                  criterion turns on.
 #   independent75pool4ruleGibbsBlevel
 #                                  the rule_gibbs arm above and the level step
@@ -98,7 +98,7 @@
 # contrast is paired within one session. Both perturb arms are PILOT levels,
 # not a confirmatory run of the perturb design; the two rule_gibbs arms are
 # that design's own confirmatory run, its arm B being the first of them, and
-# independent75pool4level is the level-fibre design's.
+# independent75pool4level is the level-fiber design's.
 #
 # Two further arms read the posterior's own coverage on this cell rather than
 # a kernel contrast. Each takes the best-mixing mixture measured here and
@@ -213,7 +213,7 @@ published <- data.frame(
 # chain at the top-level burn-in and sample counts. `prefix` asks for a second
 # set of readouts from the first that many kept draws of each chain. `probs`
 # is a proposal mixture; NULL leaves it unset, which is the shipped one.
-# `levelGibbs` switches on the level-fibre Gibbs step and is named in every
+# `levelGibbs` switches on the level-fiber Gibbs step and is named in every
 # call: FALSE is bart2's own default, so naming it leaves every other arm's
 # draws where they were. `samplerOffset` adds to the sampler seed and to
 # nothing else, so an arm carrying one sees its control's data at a different

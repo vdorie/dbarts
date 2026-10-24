@@ -571,7 +571,7 @@ residueHits <- function(line) {
   for (s in m[nzchar(m)]) {
     g <- regmatches(s, regexec(RESIDUE_PAREN_RE, s, perl = TRUE))[[1L]]
     sym <- g[3L]
-    # A parenthesised aside is not a symbol cite: it must read as an
+    # A parenthesized aside is not a symbol cite: it must read as an
     # identifier (mixed case, an underscore, a "::"/"$" qualifier or a
     # trailing "()") and must not itself be a filename or a bare
     # all-caps status word.

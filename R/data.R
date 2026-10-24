@@ -7,7 +7,7 @@ ORDERED_FACTOR_VARIABLE <- 2L
 ## rows whose predictors are: BART routes a missing predictor value down a
 ## learned side of each rule, so an incomplete row is data rather than a
 ## hole, while a missing response is nothing to fit. rpart's na.rpart is the
-## behavioural precedent. The dropped rows are recorded exactly as
+## behavioral precedent. The dropped rows are recorded exactly as
 ## stats::na.exclude records them - a named integer vector of class
 ## "exclude" - so training fits pad back to the caller's own row count
 ## through stats::naresid.
@@ -1602,7 +1602,7 @@ offsetArgumentFormula <- function(expr, env, dataNames, numRows) {
 
 ## A formula fit's 'offset' expression evaluated as model.frame evaluates
 ## one: in 'data', with 'env' for every name it does not carry. Returns the
-## error rather than signalling it.
+## error rather than signaling it.
 evaluateOffsetExpression <- function(expr, data, env) {
   tryCatch(
     if (is.environment(data)) {
@@ -4068,7 +4068,7 @@ dbartsData <- function(
   # near magnitude s are spaced ~2.22e-16 * s apart, so the 1e-10 threshold is
   # ~1e6x the ulp spacing, clear of legitimately discrete (binary, counts,
   # ordinal) responses. max(abs(y)) == 0 is guarded to avoid a 0/0. A
-  # multinomial 'y' is the trials vector, not a modelled response, so the
+  # multinomial 'y' is the trials vector, not a modeled response, so the
   # check is skipped whenever 'counts' is carried, keyed on the data object
   # rather than on a family dbartsData has no formal for.
   yRange <- diff(range(y))

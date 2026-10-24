@@ -1689,7 +1689,7 @@ static void testMonotoneMoveClosedForm() {
       double dStar = freeSplit ? upperMass(muA, 0.0, tauC) * upperMass(muA, 0.0, tauC)
                                : orderedPairMass(muA, 0.0, tauC, 0.0, tauC);
       double old = joint + std::log(dStar) - std::log(upperMass(muA, 0.0, tauC));
-      check(closed < -20.0, "monotone closed form: the death is unfavoured");
+      check(closed < -20.0, "monotone closed form: the death is unfavored");
       checkNear(std::log(alpha), closed, 1e-6,
                 "monotone closed form: the move's log alpha");
       check(std::fabs(closed - old) > 0.25,

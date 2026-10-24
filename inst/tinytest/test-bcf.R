@@ -501,7 +501,7 @@ internal.ls <- function(bc) {
   prior <- bc$getLeafPrior(1L)
   (bc$getFitsWithoutOffset() - prior$response.shift) / prior$response.scale
 }
-unlabelled.ls <- function(state) {
+unlabeled.ls <- function(state) {
   for (chain in seq_along(state)) {
     state[[chain]]$fit.scale <- NULL
   }
@@ -512,7 +512,7 @@ dest.range <- makeBC(0.5 + 10 * (y.a - 0.5))
 expect_true(dest.range$setState(state.ls))
 dest.range$storeState()
 expect_identical(dest.range$state[[1L]]$fit.scale, c(-4.5, 5.5))
-expect_identical(unlabelled.ls(dest.range$state), unlabelled.ls(state.ls))
+expect_identical(unlabeled.ls(dest.range$state), unlabeled.ls(state.ls))
 expect_equal(internal.ls(dest.range), internal.ls(donor.ls), tolerance = 1e-12)
 expect_false(isTRUE(all.equal(
   dest.range$getFitsWithoutOffset(),
@@ -525,7 +525,7 @@ shift.units <- dest.shift$state[[1L]]$fit.scale
 expect_true(dest.shift$setState(state.ls))
 dest.shift$storeState()
 expect_identical(dest.shift$state[[1L]]$fit.scale, shift.units)
-expect_identical(unlabelled.ls(dest.shift$state), unlabelled.ls(state.ls))
+expect_identical(unlabeled.ls(dest.shift$state), unlabeled.ls(state.ls))
 expect_equal(internal.ls(dest.shift), internal.ls(donor.ls), tolerance = 1e-12)
 
 rm(
@@ -553,5 +553,5 @@ rm(
   dest.shift,
   shift.units,
   internal.ls,
-  unlabelled.ls
+  unlabeled.ls
 )

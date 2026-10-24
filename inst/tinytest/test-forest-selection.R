@@ -596,10 +596,10 @@ dev.off()
 # a name on an entry of 'bases' is its position's label or forest<i>
 atRows <- list(newRows$dose, newRows$age, newRows$age)
 plain <- predict(fitted, newRows, bases = atRows, n.threads = 1L)
-labelled <- atRows
-names(labelled) <- fitLabels
+labeled <- atRows
+names(labeled) <- fitLabels
 expect_identical(
-  predict(fitted, newRows, bases = labelled, n.threads = 1L),
+  predict(fitted, newRows, bases = labeled, n.threads = 1L),
   plain
 )
 positioned <- atRows

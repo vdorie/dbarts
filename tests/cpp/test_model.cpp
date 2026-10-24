@@ -2466,7 +2466,7 @@ static void testLinearCoefficientConversion() {
     check(sameFunction, "conversion: the leaf is the same function of the raw "
                         "covariates");
 
-    // a row missing covariate j is read at the centre in force, so it moves
+    // a row missing covariate j is read at the center in force, so it moves
     // by slope_j (m'_j - m_j) / s_j and by nothing else
     for (size_t j = 0; j < q; ++j) {
       double x[q] = {-4.0, 9.5};
@@ -2488,7 +2488,7 @@ static void testLinearCoefficientConversion() {
           "conversion: there and back returns the coefficients");
   }
 
-  // a column whose centre, scale and mark agree is not touched, and equal
+  // a column whose center, scale and mark agree is not touched, and equal
   // standardizations run no arithmetic: a negative zero keeps its sign
   {
     LeafStandardization oneMoved = from;
@@ -2574,13 +2574,13 @@ static void testLinearCoefficientConversion() {
     convertLinearCoefficients(intercept, slopes, moved, movedElsewhere, true);
     check(std::fabs(intercept - intercept0 - 1000.0 * slopes0[1]) < 1e-9,
           "conversion: a live block on a placeholder scale whose rows are "
-          "off the centre converts by the formula");
+          "off the center converts by the formula");
   }
   printf("ok: linear coefficient conversion\n");
 }
 
 // A leaf covariate without spread: the state records its scale as absent
-// beside a finite centre, the engine divides by 1, and the mark survives a
+// beside a finite center, the engine divides by 1, and the mark survives a
 // state round trip on a linear and a gp leaf alike. A state written with the
 // placeholder 1 reads as 1 and replays the same values, unmarked.
 static void testNoSpreadStandardization() {
@@ -2648,7 +2648,7 @@ static void testNoSpreadStandardization() {
         fs.leafCovariateCenters[1] == 1000.0;
     }
     check(marked, "no spread: the state holds an absent scale beside a "
-                  "finite centre, on every chain");
+                  "finite center, on every chain");
 
     std::vector<double> kept(numTest * numSamples * numChains),
       replayed(kept.size());
@@ -2682,7 +2682,7 @@ static void testNoSpreadStandardization() {
     plain->getState(reread);
     check(std::isnan(
             reread.chains[numChains - 1].forests[0].leafCovariateScales[1]),
-          "no spread: a scale of 1 brought for a column at its centre is "
+          "no spread: a scale of 1 brought for a column at its center is "
           "stored as absent again");
 
     // what a scale may not be is unchanged
@@ -2696,7 +2696,7 @@ static void testNoSpreadStandardization() {
     refused.chains[numChains - 1].forests[0].leafCovariateCenters[1] =
       std::numeric_limits<double>::quiet_NaN();
     check(!restored->setState(refused, nullptr),
-          "no spread: an absent centre is refused");
+          "no spread: an absent center is refused");
   }
 
   for (ext_rng* r : rngs) ext_rng_destroy(r);
@@ -6064,7 +6064,7 @@ static double standardNormalCdf(double z) {
   return 0.5 * std::erfc(-z * 0.7071067811865476);
 }
 
-// A constant response's transform is the window c - 0.5 to c + 0.5 centred
+// A constant response's transform is the window c - 0.5 to c + 0.5 centered
 // on its value: it records (c, c), fits shift by c, and every row sits at 0 on
 // the working scale, at creation and after the stored (c, c) is read back. A
 // response with spread keeps its low end at its minimum.
@@ -6073,7 +6073,7 @@ static void testConstantResponseWindow() {
   const double c = 5.0;
   std::vector<double> y(n, c);
   GaussianResponse response(y.data(), nullptr, nullptr, n, 1.0, 3.0, 0.9);
-  auto centred = [&](const char* when) {
+  auto centered = [&](const char* when) {
     double min, max;
     response.getScale(min, max);
     bool zero = true;
@@ -6083,9 +6083,9 @@ static void testConstantResponseWindow() {
             response.fitScale() == 1.0 && zero,
           when);
   };
-  centred("constant window: (c, c) recorded, shift c, working response 0");
+  centered("constant window: (c, c) recorded, shift c, working response 0");
   response.restoreScale(c, c);
-  centred("constant window: a stored (c, c) is read as the same window");
+  centered("constant window: a stored (c, c) is read as the same window");
 
   // the log-likelihood reads the window too: zero internal fits are the
   // response-scale fit c, and the range is 1, so at internal sigma s every
@@ -6099,7 +6099,7 @@ static void testConstantResponseWindow() {
   bool scored = true;
   for (double value : logLik)
     scored = scored && std::fabs(value - expected) < 1e-12;
-  check(scored, "constant window: the log-likelihood centres the fit on c");
+  check(scored, "constant window: the log-likelihood centers the fit on c");
 
   std::vector<double> spread = {1.0, 3.0, 2.0, 1.5, 2.5, 3.0};
   GaussianResponse ranged(spread.data(), nullptr, nullptr, n, 1.0, 3.0, 0.9);

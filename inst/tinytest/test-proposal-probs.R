@@ -362,7 +362,7 @@ expect_equal(length(unique(frozenLeaves)), length(frozenDraws))
 expect_true(length(unique(as.vector(frozenSamples$sigma))) > 1L)
 expect_true(all(is.finite(frozenSamples$train)))
 
-# and this is the mixture that switches the level-fibre Gibbs step on:
+# and this is the mixture that switches the level-fiber Gibbs step on:
 # dbartsControl's treeShift defaults to "auto", which takes the step for a
 # forest exactly where that forest's structures are frozen. The freeze
 # arrives by setControl after fifty growing sweeps, so the decision is taken

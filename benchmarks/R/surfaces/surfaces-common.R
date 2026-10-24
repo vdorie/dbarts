@@ -186,7 +186,7 @@ surfacesDiagonalShelf <- function(n = 250L, shelfWidth = 0.15, tau = -1) {
 # each true column correlate 0.9 with it and the next ones out 0.81.
 surfacesCheckerboardSignal <- c(5L, 10L, 15L, 20L)
 
-surfacesCheckerboardNeighbours <- function(p) {
+surfacesCheckerboardNeighbors <- function(p) {
   nb <- c(surfacesCheckerboardSignal - 1L, surfacesCheckerboardSignal + 1L)
   sort(nb[nb >= 1L & nb <= p])
 }

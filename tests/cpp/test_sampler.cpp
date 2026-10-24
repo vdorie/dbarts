@@ -571,11 +571,11 @@ static void testDrawCallbackFiring() {
     hook.fn = &drawProbeCallback;
     hook.context = &probe;
     bool stopped = true;
-    bool cancelled =
+    bool canceled =
       sampler.run(numBurnIn, numSamples, results, {}, {}, hook, &stopped);
     destroyDrawRngs(rngs);
 
-    check(!cancelled && !stopped,
+    check(!canceled && !stopped,
           "draw callback: an observer that never stops runs to completion");
     bool counts = true, ordered = true, shapes = true, strided = true;
     for (size_t c = 0; c < numChains; ++c) {
@@ -596,7 +596,7 @@ static void testDrawCallbackFiring() {
 // A per-draw stride of zero gives each chain one draw's buffer, C of them
 // contiguous: every draw of a chain lands in that chain's block and no chain
 // writes outside its own. The blocks are a bare heap array so a stray write is
-// a heap overflow ASan reports rather than a silently clobbered neighbour.
+// a heap overflow ASan reports rather than a silently clobbered neighbor.
 static void testDrawCallbackStride() {
   const size_t n = 150, numChains = 3, numBurnIn = 10, numSamples = 9;
   std::vector<double> x, y;
@@ -640,10 +640,10 @@ static void testDrawCallbackStride() {
     hook.fn = &drawProbeCallback;
     hook.context = &probe;
     bool stopped = true;
-    bool cancelled =
+    bool canceled =
       sampler.run(numBurnIn, numSamples, results, {}, {}, hook, &stopped);
     destroyDrawRngs(rngs);
-    check(!cancelled && !stopped, "draw stride: scratch run completes");
+    check(!canceled && !stopped, "draw stride: scratch run completes");
   }
 
   bool pinned = true, counted = true;
@@ -658,7 +658,7 @@ static void testDrawCallbackStride() {
   check(pinned, "draw stride: each chain writes only its own one-draw block");
 
   // each block holds that chain's LAST draw, which is the kept run's final
-  // slab for that chain: proof no chain overwrote a neighbour's block
+  // slab for that chain: proof no chain overwrote a neighbor's block
   bool lastDraws = true;
   for (size_t c = 0; c < numChains; ++c) {
     const double* kept = keptFits.data() + (c * numSamples + numSamples - 1) * n;
@@ -759,11 +759,11 @@ static void testDrawCallbackStop() {
     hook.fn = &drawProbeCallback;
     hook.context = &probe;
     bool stopped = false;
-    bool cancelled =
+    bool canceled =
       sampler.run(0, numSamples, results, {}, {}, hook, &stopped);
     destroyDrawRngs(rngs);
 
-    check(cancelled, "draw stop: a nonzero return stops the run");
+    check(canceled, "draw stop: a nonzero return stops the run");
     check(stopped, "draw stop: the return path names the observer, not a poll");
     size_t total = 0;
     for (size_t c = 0; c < numChains; ++c) total += probe.calls[c];
@@ -795,10 +795,10 @@ static void testDrawCallbackStop() {
     hook.context = &probe;
     std::function<bool()> always = []() { return true; };
     bool stopped = true;
-    bool cancelled =
+    bool canceled =
       sampler.run(0, numSamples, results, always, {}, hook, &stopped);
     destroyDrawRngs(rngs);
-    check(cancelled && !stopped,
+    check(canceled && !stopped,
           "draw stop: an interrupt is not reported as an observer stop");
   }
   printf("ok: per-draw callback stop path\n");
@@ -1009,8 +1009,8 @@ static void testRunCancellation(ext_rng* rng) {
     Results results;
     results.sigma = sigmaDraws.data();
     std::function<bool()> never = []() { return false; };
-    bool cancelled = sampler.run(10, numSamples, results, never);
-    check(!cancelled, "cancellation: non-firing poll completes");
+    bool canceled = sampler.run(10, numSamples, results, never);
+    check(!canceled, "cancellation: non-firing poll completes");
     check(sigmaDraws[numSamples - 1] > 0.0,
           "cancellation: completed run filled results");
   }
@@ -1028,8 +1028,8 @@ static void testRunCancellation(ext_rng* rng) {
     std::vector<double> sigmaDraws(100000, 0.0);
     Results results;
     results.sigma = sigmaDraws.data();
-    bool cancelled = sampler.run(0, 100000, results, always);
-    check(cancelled, "cancellation: single-chain poll stops the run");
+    bool canceled = sampler.run(0, 100000, results, always);
+    check(canceled, "cancellation: single-chain poll stops the run");
     check(calls >= 1, "cancellation: poll consulted");
   }
 
@@ -1074,7 +1074,7 @@ static void testRunCancellation(ext_rng* rng) {
   const size_t numTimedRuns = 5;
   {
     double fastest = HUGE_VAL;
-    bool allCancelled = true;
+    bool allCanceled = true;
     for (size_t r = 0; r < numTimedRuns; ++r) {
       std::vector<ext_rng*> rngs = makeRngs(2000);
       ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
@@ -1085,11 +1085,11 @@ static void testRunCancellation(ext_rng* rng) {
       Results results;
       results.sigma = sigmaDraws.data();
       auto start = std::chrono::steady_clock::now();
-      allCancelled &= sampler.run(0, 100000, results, always);
+      allCanceled &= sampler.run(0, 100000, results, always);
       fastest = std::min(fastest, msecSince(start));
       destroyRngs(rngs);
     }
-    check(allCancelled, "cancellation: multi-chain poll stops all workers");
+    check(allCanceled, "cancellation: multi-chain poll stops all workers");
     check(fastest < 75.0, "cancellation: multi-chain cancel returns promptly");
   }
 
@@ -1101,7 +1101,7 @@ static void testRunCancellation(ext_rng* rng) {
     const size_t numSamples = 2;
     std::function<bool()> never = []() { return false; };
     double fastest = HUGE_VAL;
-    bool anyCancelled = false, allFilled = true;
+    bool anyCanceled = false, allFilled = true;
     for (size_t r = 0; r < numTimedRuns; ++r) {
       std::vector<ext_rng*> rngs = makeRngs(3000);
       ConstantLeafSampler sampler(x.data(), y.data(), n, p, nullptr, nullptr,
@@ -1111,13 +1111,13 @@ static void testRunCancellation(ext_rng* rng) {
       Results results;
       results.sigma = sigmaDraws.data();
       auto start = std::chrono::steady_clock::now();
-      anyCancelled |= sampler.run(0, numSamples, results, never);
+      anyCanceled |= sampler.run(0, numSamples, results, never);
       fastest = std::min(fastest, msecSince(start));
       allFilled &=
         sigmaDraws[(numChains - 1) * numSamples + numSamples - 1] > 0.0;
       destroyRngs(rngs);
     }
-    check(!anyCancelled, "latency: short multi-chain run completes");
+    check(!anyCanceled, "latency: short multi-chain run completes");
     check(allFilled, "latency: every chain filled its slab");
     check(fastest < 75.0,
           "latency: multi-chain run returns without a tick wait");
@@ -1140,13 +1140,13 @@ static void testRunCancellation(ext_rng* rng) {
     results.sigma = sigmaDraws.data();
     std::string text;
     beginPrintCapture(text);
-    bool cancelled = sampler.run(0, numSamples, results);
+    bool canceled = sampler.run(0, numSamples, results);
     endPrintCapture();
     size_t lines = 0;
     for (size_t at = text.find("iteration: "); at != std::string::npos;
          at = text.find("iteration: ", at + 1))
       ++lines;
-    check(!cancelled, "verbose: multi-chain run completes");
+    check(!canceled, "verbose: multi-chain run completes");
     check(lines == numChains * (numSamples / options.printEvery),
           "verbose: every chain's progress lines reach the console");
     destroyRngs(rngs);
@@ -1195,12 +1195,12 @@ static void testRunCancellation(ext_rng* rng) {
       return flushedByTimeout;
     };
     beginPrintCapture(text);
-    bool cancelled = sampler.run(0, numSamples, results, watch);
+    bool canceled = sampler.run(0, numSamples, results, watch);
     endPrintCapture();
     check(flushedByTimeout, "verbose: queued lines flush before the join");
     // the check above reports on a run that was still going: the poll that
     // saw the line is the one that stopped it
-    check(cancelled, "verbose: the flush was seen with chains still running");
+    check(canceled, "verbose: the flush was seen with chains still running");
     destroyRngs(rngs);
   }
 
@@ -4965,7 +4965,7 @@ static void testBCFResponseSwap() {
 
   // Every forest's cached total still sums its own trees' fits, and both
   // forests are still moving off zero. The tolerance is relative rather than
-  // ulp-level because finalizeTotalFits reaches the total by cancelling the
+  // ulp-level because finalizeTotalFits reaches the total by canceling the
   // running residual against the forest response, which BCF divides by b_z:
   // with b0 near its 1e-9 multiplier floor that division carries ~1e-8 of
   // absolute slop into the tau total (present in an unswapped chain too, and
@@ -9076,7 +9076,7 @@ static void testScaleKeptStatus() {
       destroyDrawRngs(rngs);
     }
   };
-  // burnt in and holding recorded draws, every row in
+  // burned in and holding recorded draws, every row in
   auto build = [&](const Variant& variant, const double* response) {
     SamplerOptions options;
     options.numTrees = 15;
@@ -9376,7 +9376,7 @@ static void testRederiveScale() {
       destroyDrawRngs(rngs);
     }
   };
-  // burnt in and holding recorded draws, created under prev: its range is
+  // burned in and holding recorded draws, created under prev: its range is
   // that of prev's rows in
   auto build = [&](const Variant& variant, const double* offs) {
     SamplerOptions options;
@@ -9399,7 +9399,7 @@ static void testRederiveScale() {
     built.sampler->run(5, 4, results);
     return built;
   };
-  // burnt in, every row in
+  // burned in, every row in
   auto buildFamily = [&](ResponseFamily family, const double* response,
                          const double* offs, const double* status) {
     SamplerOptions options;
@@ -12087,7 +12087,7 @@ static void testVarianceForestMixtureInstall() {
   printf("ok: setModel's mixture on the variance forest\n");
 }
 
-// The level-fibre step's AUTOMATIC mode: it runs for a forest exactly where
+// The level-fiber step's AUTOMATIC mode: it runs for a forest exactly where
 // that forest's structural mixture is frozen. The mixture is mutable between
 // sweeps (setModel) while the mode is fixed when the sampler is created, so
 // the decision is taken per sweep and per forest, and the reading below is

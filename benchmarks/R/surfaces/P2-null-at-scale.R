@@ -19,7 +19,7 @@
 # chain), the share of (draw, tree) roots landing on x3 (the irrelevant
 # column), on x1 and on x2, and the count of trees (out of n.trees) whose
 # root sits on x3 for every kept draw of that chain - the direct multi-tree
-# analogue of P2's single-tree "chain never leaves x3" finding.
+# analog of P2's single-tree "chain never leaves x3" finding.
 #
 # Usage: Rscript P2-null-at-scale.R [outputDir] [quick]
 
