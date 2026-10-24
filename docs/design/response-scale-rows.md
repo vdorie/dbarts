@@ -57,7 +57,9 @@ What it no longer does is move the numbers the prior is stated against.
    training rows), under the creation warning, which counts the rows in, or a hazard fit's subjects: one text
    with the response's where the response falls back too, as one row in always makes it under the families that
    read it, and with a hazard fit's periods where no subject is in (rule 8). The subjects are R's to count, from
-   the period column's layout, and the engine is told that too few are in. Where the rows read hold fewer than two distinct observed values
+   the period column's layout, each subject's rows together at periods 1, 2, 3 and on as the expansion writes
+   them, and the engine is told that too few are in; data that `setData` or `new()` is handed in another layout
+   are refused, their subjects not being countable. Where the rows read hold fewer than two distinct observed values
    of a covariate, one value or none, two or more rows in at one value or every row at one value, a derivation is
    refused, there being no number in force to keep, unless a gp leaf states its lengthscale, which takes the
    placeholder: the one value, divided by 1.

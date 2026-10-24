@@ -1557,6 +1557,14 @@ bartcoreSamplerSetData <- function(
   }
 
   ptr <- sampler$getPointer()
+  # a hazard fit's subjects in, which the engine cannot count, refused before
+  # anything moves where the rows do not say who they belong to
+  tooFew <- tooFewUnitsIn(likelihoodUnits(
+    sampler$control,
+    newData,
+    active,
+    "$setData: "
+  ))
 
   oldData <- sampler$data
   sampler$data <- newData
@@ -1571,9 +1579,7 @@ bartcoreSamplerSetData <- function(
       choices$range,
       choices$standardization,
       if (!is.null(active)) as.double(active),
-      if (tooFewUnitsIn(likelihoodUnits(sampler$control, newData, active))) {
-        TRUE
-      }
+      if (tooFew) TRUE
     ),
     error = function(e) {
       sampler$data <- oldData
@@ -1626,24 +1632,54 @@ leafFromAllRows <- function(sampler, records) {
 }
 
 ## A hazard fit's subject for each person-period row, as the expansion lays
-## the rows out, subject-major: a subject's rows run from its row at period 1
-## in the period column, the data's last; NULL off a hazard fit.
-hazardRowSubjects <- function(control, data) {
+## the rows out: each subject's rows together, at periods 1, 2, 3 and on in
+## the period column, the data's last, so that a subject starts at its row at
+## period 1; NULL off a hazard fit. Rows laid out otherwise, which setData and
+## new() could be handed, are refused, since their subjects cannot be counted
+## from them; 'prefix' opens the refusal.
+hazardRowSubjects <- function(control, data, prefix = "") {
   if (is.null(attr(control, "bartcore.hazard.periods", exact = TRUE))) {
     return(NULL)
   }
   x <- data@x
-  cumsum(as.vector(x[, ncol(x)]) == 1)
+  period <- as.vector(x[, ncol(x)])
+  if (length(period) == 0L) {
+    return(integer())
+  }
+  laidOut <- c(
+    period[1L] == 1,
+    period[-1L] == 1 | period[-1L] == period[-length(period)] + 1
+  )
+  row <- match(FALSE, laidOut %in% TRUE)
+  if (!is.na(row)) {
+    stop(
+      prefix,
+      "the rows of a hazard fit's data hold each subject's rows together, at ",
+      "periods 1, 2, 3 and on in order, as dbarts() expands them, which is ",
+      "how its subjects are counted; row ",
+      row,
+      " is at period ",
+      period[row],
+      if (row == 1L) {
+        ", not 1"
+      } else {
+        paste0(" after a row at period ", period[row - 1L])
+      },
+      call. = FALSE
+    )
+  }
+  cumsum(period == 1)
 }
 
 ## What a creation or a setData counts in the likelihood for the trigger of
 ## dec-B485: the rows of positive weight that the mask 'active' keeps, or,
 ## under a hazard fit, the subjects with such a row (dec-B489). 'n' is the
-## rows or the subjects, 'numIn' those in.
-likelihoodUnits <- function(control, data, active) {
+## rows or the subjects, 'numIn' those in; 'prefix' opens a refusal of rows
+## whose subjects cannot be counted (hazardRowSubjects).
+likelihoodUnits <- function(control, data, active, prefix = "") {
   n <- length(data@y)
   rowsIn <- rowsInLikelihood(data@weights, active, n)
-  subject <- hazardRowSubjects(control, data)
+  subject <- hazardRowSubjects(control, data, prefix)
   if (is.null(subject)) {
     return(list(n = n, numIn = sum(rowsIn), subjects = FALSE))
   }

@@ -818,7 +818,12 @@ subjects <- data.frame(
   times = rep(1:5, length.out = numSubjects),
   status = as.double(seq_len(numSubjects) %% 4L != 0L)
 )
-hazardFit <- function(weights, breaks = 0:5, data = subjects) {
+hazardFit <- function(
+  weights,
+  breaks = 0:5,
+  data = subjects,
+  leaf = dbartsPriors$linear("x1")
+) {
   dbarts::dbarts(
     survival::Surv(times, status) ~ x1 + x2,
     data,
@@ -828,7 +833,7 @@ hazardFit <- function(weights, breaks = 0:5, data = subjects) {
     } else {
       dbartsFamilies$hazard(breaks = breaks)
     },
-    leaf.prior = dbartsPriors$linear("x1"),
+    leaf.prior = leaf,
     control = controlWith()
   )
 }
@@ -890,6 +895,65 @@ expect_identical(
     "no subject is in the likelihood (0 of 60 subjects are in it), so the ",
     "center and scale of \"x1\" are taken from all 60"
   )
+)
+# a fit of one subject has every subject in, so its five rows are read with
+# nothing said: the period, a leaf covariate, spread over them
+made <- fallbacks(hazardFit(
+  NULL,
+  data = subjects[5L, ],
+  leaf = dbartsPriors$linear("period")
+))
+expect_identical(made$warnings, character())
+expect_equal(
+  recordOf(made$value),
+  list(center = 3, scale = sd(1:5)),
+  tolerance = 1e-12
+)
+# rows whose subjects cannot be counted, a subject's rows apart or out of
+# period order, are refused at setData and by new(), before anything moves
+layout <- function(rows) {
+  paste0(
+    "the rows of a hazard fit's data hold each subject's rows together, at ",
+    "periods 1, 2, 3 and on in order, as dbarts() expands them, which is how ",
+    "its subjects are counted; ",
+    rows
+  )
+}
+s <- hazardFit(NULL)
+values <- s$data@x[, seq_len(ncol(s$data@x))]
+subject <- cumsum(values[, "period"] == 1)
+before <- recordOf(s)
+# the rows reversed: subject 5 would count as two
+reversed <- rev(seq_along(subject))
+expect_error(
+  s$setData(dbartsData(
+    values[reversed, ],
+    s$data@y[reversed],
+    weights = as.double(subject == 5L)[reversed]
+  )),
+  paste0("$setData: ", layout("row 1 is at period 5, not 1")),
+  fixed = TRUE
+)
+# subject 5's period-1 row last: subject 4 and its periods 2 to 5 would count
+# as one
+first5 <- which(subject == 5L & values[, "period"] == 1)
+moved <- c(setdiff(seq_along(subject), first5), first5)
+rowsIn <- as.double(subject %in% 4:5 & seq_along(subject) != first5)[moved]
+expect_error(
+  s$setData(dbartsData(values[moved, ], s$data@y[moved], weights = rowsIn)),
+  paste0(
+    "$setData: ",
+    layout(paste0("row ", first5, " is at period 2 after a row at period 4"))
+  ),
+  fixed = TRUE
+)
+expect_identical(recordOf(s), before)
+expect_identical(nrow(s$data@x), 180L)
+movedData <- dbartsData(values[moved, ], s$data@y[moved])
+expect_error(
+  new("dbartsSampler", s$control, s$model, movedData, active = rowsIn),
+  layout(paste0("row ", first5, " is at period 2 after a row at period 4")),
+  fixed = TRUE
 )
 # the setters keep under either count: one subject over five periods holds
 # x1 at one value

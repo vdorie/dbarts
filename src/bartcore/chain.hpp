@@ -1271,6 +1271,7 @@ public:
               scaleRows.rows.empty() ? nullptr : scaleRows.rows.data());
           } catch (BasisScaleError& error) {
             error.forest = f;
+            error.fromAllRows = scaleRows.fellBack;
             throw;
           }
           mapped.basisScaleFromAllRows = scaleRows.fellBack;

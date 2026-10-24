@@ -350,6 +350,49 @@ expect_error(
   "forest 2 ('twoFlat') states no sd and its basis is constant (0.25 on every row in the likelihood)",
   fixed = TRUE
 )
+# a store of two rows with one in reads both
+pairData <- data.frame(
+  yb = c(1, 0),
+  x1 = c(0.2, 0.7),
+  x2 = c(0.4, 0.1),
+  dose = c(0.3, 1.1)
+)
+made <- fallbackTexts(dbarts(
+  yb ~ x1 + x2,
+  pairData,
+  weights = c(1, 0),
+  family = "probit",
+  forests = list(forest(), forest(basis = ~dose)),
+  control = recordControl()
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "one observation is in the likelihood (1 of 2 has a positive weight), so ",
+    "the scale of forest 2 ('dose')'s basis is taken from all 2"
+  )
+)
+expect_equal(recordOf(made$value), sd(pairData$dose), tolerance = 1e-12)
+# a column constant over every row, read because too few are in, says so
+d$allFlat <- 0.3
+for (weights in list(oneIn, rep(0, n))) {
+  expect_error(
+    suppressWarnings(dbarts(
+      yb ~ x1 + x2,
+      d,
+      weights = weights,
+      family = "probit",
+      forests = list(forest(), forest(basis = ~allFlat)),
+      control = recordControl()
+    )),
+    paste0(
+      "forest 2 ('allFlat') states no sd and its basis is constant (0.3 on ",
+      "every row, read because too few are in the likelihood)"
+    ),
+    fixed = TRUE,
+    info = paste(sum(weights), "rows in")
+  )
+}
 expect_error(
   dbarts(
     yb ~ x1 + x2,

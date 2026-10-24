@@ -3856,7 +3856,10 @@ std::string basisScaleMessage(SEXP controlExpr,
   char detail[160];
   if (!std::isnan(error.value))
     std::snprintf(detail, sizeof detail,
-                  "constant (%.15g on every row in the likelihood)",
+                  error.fromAllRows
+                    ? "constant (%.15g on every row, read because too few are "
+                      "in the likelihood)"
+                    : "constant (%.15g on every row in the likelihood)",
                   error.value);
   else
     std::snprintf(detail, sizeof detail,

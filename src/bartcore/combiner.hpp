@@ -360,13 +360,15 @@ struct ForestSpec : ForestStatement {
 /// deviation at most 2^-26 of the largest absolute value there. value is the
 /// column's value where it is constant and ratio the standard deviation over
 /// that largest value where it is constant to rounding, the other NaN; forest
-/// is the forest's index where a chain names it.
+/// is the forest's index where a chain names it, and fromAllRows whether the
+/// rows read were every row because too few were in the likelihood.
 struct BasisScaleError : std::domain_error {
   BasisScaleError(const char* what, double constantValue, double sdRatio)
     : std::domain_error(what), value(constantValue), ratio(sdRatio) {}
   double value;
   double ratio;
   std::size_t forest = static_cast<std::size_t>(-1);
+  bool fromAllRows = false;
 };
 
 /// A numeric column's scale: its sample standard deviation over the rows
