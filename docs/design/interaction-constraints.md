@@ -1,13 +1,13 @@
 # Interaction constraints for BART
 
-Status: LANDED f455d7c (2026-07-21). Deliverable B shipped in two verified
+Status: LANDED f50cde4 (2026-07-21). Deliverable B shipped in two verified
 phases; see the plan's Landing note. Design synthesized from a blind
 three-lens research panel (user-value, engine-feasibility, prior-art) and
 hardened by an adversarial code-verified critique (SOUND-WITH-CAVEATS); the
 two must-fix findings - the cross-variable swap walk and the state-install
 containment gate - were folded in and both shipped. Plan:
 docs/plans/archive/interaction-constraints.md. P4 follow-on (variant A / blocks(),
-the columnMask warm-start bug fix) LANDED aadbbc8/103dbe2/073d3db
+the columnMask warm-start bug fix) LANDED e9d9abd/8516093/b5d5ccf
 (2026-07-21); see "P4 landing" below and plan
 docs/plans/archive/interaction-constraints-p4.md.
 
@@ -210,7 +210,7 @@ worktree; not checked in - referenced by the plan) and directed building all
 three P4 deliverables, overriding the critique's recommendation to defer the
 consumerless engine. Plan: docs/plans/archive/interaction-constraints-p4.md.
 
-Variant A landed as blocks(groups, trees.per.group) (commit aadbbc8),
+Variant A landed as blocks(groups, trees.per.group) (commit e9d9abd),
 confining each WHOLE tree to one declared group via a static per-tree column
 mask (Forest::blockMasks / blockOfTree, installed in chain.hpp's
 installBlockMasks) - a fixed, deterministic, zero-RNG tree->group
@@ -229,7 +229,7 @@ existing moderator mask at install rather than overwriting it - tau.blocks
 therefore partitions exactly the moderator set, not the full predictor set
 (naming a non-moderator errors).
 
-F1 (columnMaskStateFeasible, commit 103dbe2, follow-up 073d3db): the
+F1 (columnMaskStateFeasible, commit 8516093, follow-up b5d5ccf): the
 EXISTING columnMask (BCF moderators, a column-restricted variance forest)
 had no warm-start/setState containment gate - buildFromFlatBelow validates
 cut/mask gauge, not columnAllowed - so a donor tree splitting outside the

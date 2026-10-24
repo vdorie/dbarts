@@ -1,6 +1,6 @@
 # Multinomial softmax: design
 
-Status: LANDED, 2026-07-15 (commit bb8855e). The first multi-forest MODEL, and
+Status: LANDED, 2026-07-15 (commit 4366677). The first multi-forest MODEL, and
 the second consumer of the forest combiner (docs/design/forest-combiner.md).
 K symmetric constant-leaf forests couple through a single-trial softmax
 likelihood, augmented by an interleaved one-vs-rest Polya-Gamma cycle and pinned

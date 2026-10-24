@@ -49,6 +49,6 @@ builds of the same values exactly.
   been delivered elsewhere (2026-08-07 correction): sparse x.test by
   docs/plans/archive/test-data-parity.md (typed sparse test store, CLOSED there),
   and dense-backed mixed-column mutation, R mirror included, by
-  typed-ingestion slice 2a (95db5d7). Still deferred and consumer-gated:
+  typed-ingestion slice 2a (272ba3f). Still deferred and consumer-gated:
   a streaming range kernel, rbart_vi/linear-leaf on sparse, per-column
   u8 widths.

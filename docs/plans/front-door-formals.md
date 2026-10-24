@@ -202,9 +202,9 @@ S3 below.
 
 ## Landing note, S3, the residual prior onto the family (2026-09-14)
 
-LANDED at 323fcd2402b0e8ac1e8a2dcbd0eecf47e1994a12, one commit:
+LANDED at 323fcd24b99acc0ab377aff972cb0147622bc184, one commit:
 
-- 323fcd2402b0e8ac1e8a2dcbd0eecf47e1994a12 Move the residual prior onto the family object
+- 323fcd24b99acc0ab377aff972cb0147622bc184 Move the residual prior onto the family object
 
 The recorded follow-on, closing dec-B98's rule. The residual scale's
 prior is spelled `sigma` on the four families that draw one -

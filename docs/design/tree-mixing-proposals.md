@@ -2205,7 +2205,7 @@ posterior, kept apart by penalties; (b) whether XBART's approximate
 builder plus a "parametric, orthogonal trick" can generate proposals far
 from the current trees. Same pipeline as this document's own: a research
 memo, a blind refuting critique, then this adjudication, which re-opened
-every derivation against the live tree at `ef7335d`, re-ran the numerics
+every derivation against the live tree at `e4150d3`, re-ran the numerics
 independently, and re-fetched every citation it carries. The working
 papers are untracked {memo,critique}.md files
 (gitignored), so every load-bearing fact is carried here rather than

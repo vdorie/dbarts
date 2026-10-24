@@ -986,7 +986,7 @@ reviewed by VD the same day.
 
 ## Landing notes
 
-S0 LANDED dc11a805, 2026-08-12. Two of the five planned pins were written:
+S0 LANDED ec4204b2, 2026-08-12. Two of the five planned pins were written:
 the scan's `count`/`sumWeights` split (a bin of only zero-weight members
 carries positive count and zero sumWeights, and the count-based occupancy
 gate scores it; `tests/cpp/test_scan.cpp`) and the probit `$setWeights`
@@ -998,7 +998,7 @@ at `sumWeights == 0` returning `0.0` (`test_model.cpp`
 (`test_model.cpp` `testGPLeafZeroWeights`), and `weights = rep(1, n)`
 normalized away at creation for probit/ordinal/nbinom (`test-family.R`,
 `test-ordinal.R`, `test-nbinom.R`). The planned "leaf of only zero-weight
-members is NOT vetoed" pin was DROPPED: the empty-leaf-veto-fix (21fc29c3)
+members is NOT vetoed" pin was DROPPED: the empty-leaf-veto-fix (c612df85)
 landed after this plan was written and now vetoes such leaves; its own
 tests pin the new rule, and S1's spec sites should be read under it.
 Gates: tests/cpp from clean, full tinytest FAILURES == 0; tests-only
@@ -1006,7 +1006,7 @@ slice, independent re-run delegated to CI on the push - six-green
 confirmed 2026-08-12 (sanitizers, cpp-tests, exact-gates, R-CMD-check,
 lint, pkgdown).
 
-S1 LANDED 6db22aee, 2026-08-12. The channel (engine normalizer,
+S1 LANDED 37a9c01c, 2026-08-12. The channel (engine normalizer,
 validation scan, cache invalidation, composition order), the R5
 `$setActiveRows` + bridge entry, gaussian/Student-t/probit/ordinal, the
 T3a hooks, the all-zeros arm, and `test_shape`'s `supportsActiveRows`
@@ -1046,7 +1046,7 @@ Carried to S2 (from the independent review): see the S2 section.
 Carried to S4: normalize the plan-label comments in the arc's test
 files.
 
-S2 LANDED 87d370ea, 2026-08-13. Logistic, nbinom and aft composed into
+S2 LANDED 89d26b8c, 2026-08-13. Logistic, nbinom and aft composed into
 the channel per "Per family" - logistic serves `a_i * omega_i` from its
 own composite (omega never zeroed, PG draw skipped not discarded, every
 omega writer recomposes); nbinom restricts the collapsed statistic AND
@@ -1087,7 +1087,7 @@ logistic/nbinom/aft (rule 6 is implemented but only gaussian is
 asserted; the channel has no R reader today) and all-zeros arms for the
 three new families (reviewer verified finite manually; unpinned).
 
-S3 LANDED 8b047f8b, 2026-08-13. The global channel at the COMBINER:
+S3 LANDED 85a91e2e, 2026-08-13. The global channel at the COMBINER:
 `ForestCombiner::setActiveRows` is a base no-op; the multinomial
 combiner skips the inactive rows' K Polya-Gamma draws in
 `drawForestGlue` (skip, never draw-and-discard - shown RED against the
@@ -1179,7 +1179,7 @@ fits alongside multinomial (combiner-level logLikelihoodIsDefined()
 Reviewer attack-aim outcomes: (a) the null gate CONFIRMED on all five
 compares, every scenario bitwise; (b) the MANIFEST partition entries
 CONFIRMED accurate apart from the wording defect the amend fixes -
-the naming-by-engine-tip rule (8b047f8b, the 33f6fdc precedent)
+the naming-by-engine-tip rule (85a91e2e, the b5ef5a3 precedent)
 verified; (c) Rd/NEWS consistency with the S1-S3 landing-note rulings
 CONFIRMED - no per-category setActiveRows surface described, BCF
 documented as ACCEPTING, no multinomial NaN arm claimed; (d) the
@@ -1231,13 +1231,13 @@ shared gaussian response and composeForestWeights, pinned bitwise at
 S4 - and every R-facing surface ships: the R5 method, the dbarts:::
 bridge entry, both equivalence harnesses, Rd and NEWS. The arc's last
 remaining obligation, the flat-C entry dbarts_sampler_setActiveRows,
-LANDED at dbarts-h-reshape S1 (ab3aa2fa, 2026-08-13) - see "The
+LANDED at dbarts-h-reshape S1 (c85d6db6, 2026-08-13) - see "The
 dbarts.h footprint" above. THE MASK ARC'S LAST OBLIGATION IS DONE;
 nothing here is owed forward.
 
 ERRATA 2026-08-15 (adoption-slate S3): rule 2 above was rewritten IN
 PLACE. It said the empty-leaf veto sees an inactive row; the veto has
-counted POSITIVE-WEIGHT members since empty-leaf-veto-fix (21fc29c3),
+counted POSITIVE-WEIGHT members since empty-leaf-veto-fix (c612df85),
 so an all-inactive leaf IS vetoed. The rewrite preserves the line
 count, so every line number cited into this file still resolves.
 

@@ -1107,7 +1107,7 @@ and under ASAN and UBSAN with no diagnostics; the full tinytest suite 26715 resu
 build's three bitwise compares 55 of 55, 15 of 15 and 11 of 11 and the four snapshot files 7, 3, 14 and 3
 results, 0 failed; the 42 exact-gate commands at `quick`, all pass; the composition matrix no disagreement;
 lintr, air, rc-codoc, win-drift and doc-freshness clean; `R CMD check --as-cran --no-manual` one NOTE (the Date
-field). The reviewer's 23 mutants ran on 959de5c9 and were not rerun after the rebase, the engine being
+field). The reviewer's 23 mutants ran on 7251c20e and were not rerun after the rebase, the engine being
 unchanged. The x86-64 leg on 1e728842: tests/cpp 400 ok, plain and under ASAN with no diagnostics; the tinytest
 suite 26748 results, 0 failed; the equivalence compare 55 of 55 statistically indistinguishable. The bcf and
 multinomial bitwise compares differed in latent_logistic_weighted and k3countsswap, the two scenarios the

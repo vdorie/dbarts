@@ -42,7 +42,7 @@ migrations decided when someone wants them.
   clean run plus one deliberately injected error caught in a scratch
   branch (then reverted).
 
-## Landing note (2026-07-07, 56e47f6): sub-items 1-2
+## Landing note (2026-07-07, 00bdad1): sub-items 1-2
 
 Pin audit: all 8 workflows checked against current majors; only
 sanitizers.yaml lagged (checkout@v5 -> v7); no deprecated runtimes.

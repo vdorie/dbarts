@@ -177,7 +177,7 @@ descendant-constrained variables. Invisible when all variables have
 equal cut counts and trees are shallow - which is exactly the
 existing exact-posterior gates' regime. INHERITED: the deleted
 classic engine's changeRule.cpp computes the identical
-pure-pi-ratio acceptance (verified in git history at b354f3a~1), so
+pure-pi-ratio acceptance (verified in git history at 21e4321~1), so
 this was a CGM-lineage defect dbarts had carried since its origin,
 not a rewrite regression. changeMove now carries the missing term as
 logProposalCorrection. Deriver B's toy check shows detailed balance
@@ -326,7 +326,7 @@ constant leaf's k for every coefficient; the GP leaf's nugget
 marginal (observation noise sigma^2/w_i on V's diagonal, distinct
 from the 1e-6 conditioning jitter inside C), its Matheron-rule draw
 (covariance verified equal to the exact posterior), and the correct
-chi-k sufficient statistic f'C^-1 f. The 60a116c U'WU cache
+chi-k sufficient statistic f'C^-1 f. The 782dce3 U'WU cache
 preserves the right invariant: the crossproduct depends only on
 (ordered member list, covariates, weights); the memcmp member-list
 key auto-misses on any structural change or rollback, covariate

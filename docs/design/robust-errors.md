@@ -1,6 +1,6 @@
 # Robust (Student-t) errors: design
 
-Status: LANDED 2026-07-17 (b4f818e). Section 8 is AMENDED by
+Status: LANDED 2026-07-17 (8e4e714). Section 8 is AMENDED by
 [front-door](../plans/front-door.md#front-door) S2, LANDED 2026-09-09
 (44b3fa6d): the Student-t spelling is `family = student(df)`, a
 [`dbartsFamily`](../../R/family.R) constructor object, not `resid.dist =

@@ -13,7 +13,7 @@ budget: harness only;
   nothing under `R/`, `src/`, `inst/`. ~700-850 lines across five files.
 window: none - no timing metric exists, so the measurement is
   load-insensitive. Runs on the laptop.
-tip: d3cb94b (branch bartcore; engine tip 06c0254). Every anchor below
+tip: 2ee84e8 (branch bartcore; engine tip 67d6ed4). Every anchor below
   re-verified at that tip.
 
 ## Goal

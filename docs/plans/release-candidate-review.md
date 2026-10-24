@@ -1,6 +1,6 @@
 # Release-candidate review program
 
-Status: SPECCED 2026-08-17 (base 96ab54e0). This file is the program's
+Status: SPECCED 2026-08-17 (base eb5e6d16). This file is the program's
 charter, its derived slate, and its record (the TODO entry that once
 pointed here is discharged). Landing notes go newest-first under the Landing notes heading.
 
@@ -2499,7 +2499,7 @@ plus a mechanical check of all 463 resolvable anchors: 446 byte-identical target
 lines the strip itself edited). Census rule going forward: `grep -rn "docs/" R src
 inst/include inst/tinytest inst/common man | grep -v http` is empty, and so is the bare
 `*.md` grep. Bitwise 43/12/11; tinytest 7240/0. FOUND, NOT FIXED HERE: feature-matrix.md's
-anchors had rotted BEFORE this pass (its legend is stamped ad4a131b; ~9 verified cells
+anchors had rotted BEFORE this pass (its legend is stamped 51973ad3; ~9 verified cells
 name a construct their line no longer holds - the freshness check verifies presence, not
 construct identity), and ~705 file:line anchors in the other design docs and plans are
 verified by nothing; a whole-file content resync of the matrix, stamped at the tip, runs
@@ -3014,10 +3014,12 @@ also shows unseeded nchain=2/nthread=2 runs bit-identical - the
 0.9-x ambient-seed race is closed by the rewrite, as the UPGRADING
 notes claim), tests/cpp full and sampler-filtered green, trio
 bitwise 42/12/11 identical-draw counts with no max |z| lines,
---as-cran Status OK. HISTORY NOTE: every bartcore hash cited in
-docs/plans and docs/design below this note predates the rebase; the
-old history remains reachable at tag bartcore-pre-cran-rebase (old
-tip fc2af5ce).
+--as-cran Status OK. HISTORY NOTE: the bartcore hashes cited below this
+note, and in the Status lines and landing notes of docs/plans and
+docs/design, were written before the rebase and have since been repointed
+to the rebased commits with the same subject, date and author; a hash cited
+elsewhere in those documents may still predate it. The old history remains
+reachable at tag bartcore-pre-cran-rebase (old tip fc2af5ce).
 
 Residue, recorded not fixed: ext_rng_createDefault decodes
 seed0 % 100 against R's kind numbering while bartcore's trimmed
@@ -3051,7 +3053,7 @@ replay: the port commit d3acbdc1 -> e75a2c79, the NEWS split
 0b424eeb -> f04e8686; the records commit rides at a4e6033d. The
 pre-rebase tag still anchors the original line.
 
-### Cleanup wave 2: the amplitude family sheds its BCF spelling (8215a53c + be1d06e4, 2026-08-20)
+### Cleanup wave 2: the amplitude family sheds its BCF spelling (7ff77ab4 + 11d5f439, 2026-08-20)
 
 The bcf-naming-generalization item executes under the full arc
 discipline: Opus design memo (census, vocabulary, state-key
@@ -3066,7 +3068,7 @@ does not move, no baseline re-record, no consumer reach across all
 four sister packages, "glue" wins the key name on shipped-vocabulary
 precedent) -> two-commit execution -> independent gate-run.
 
-8215a53c: 20 identifiers renamed across engine/bridge/R/tests
+7ff77ab4: 20 identifiers renamed across engine/bridge/R/tests
 (AmplitudeSpec, ForestStructureSpec, AmplitudeState,
 AmplitudeForestCombiner, createAmplitudeSampler, hasAmplitudes,
 samplerCarriesAmplitudes, refuseAmplitudeMutation,
@@ -3085,7 +3087,7 @@ names, harness files and baselines - NO baseline re-record, trio
 bitwise 42/12/11 on both independent batteries, tinytest 6463/0,
 R CMD check --as-cran OK twice.
 
-be1d06e4: docs/design + architecture re-pointed (11 files);
+11d5f439: docs/design + architecture re-pointed (11 files);
 multiplier-combiner.md's debt paragraph records the discharge AND
 corrects its own two mispriced claims (structSize; the M4.3
 re-encode analogy); check-doc-freshness green (503 anchors, 35
@@ -3093,7 +3095,7 @@ symbols). Residue, recorded: two never-emitted static_assert
 strings still say "BCF is a constant-leaf model" (combiner.hpp,
 chain.hpp) - swept opportunistically with the next edit there.
 
-### The oracle lane closes: hazard and hurdle exact-posterior gates (0787b8e3, 2026-08-20)
+### The oracle lane closes: hazard and hurdle exact-posterior gates (7a1463bd, 2026-08-20)
 
 The fork taken as recommended under VD's discretion grant.
 benchmarks/R/hazard-exact.R and hurdle-exact.R gate the two families
@@ -3130,13 +3132,13 @@ index-based, so it shifts the tree prior; both gates keep every
 column live. Every shipped family now carries SBC or a gated
 posterior oracle, or both.
 
-### Cleanup wave 1: perfect-fit muffle, filtered-run fixture, feature-matrix prose (6d82ac86 + e74380f7 + b1559457, 2026-08-19/20)
+### Cleanup wave 1: perfect-fit muffle, filtered-run fixture, feature-matrix prose (20b620c5 + a14108af + 468b97aa, 2026-08-19/20)
 
 The RC soak is VD-paused for a CRAN patch on main; the window goes to
 cleanup at orchestrator discretion, VD's grant covering the two open
 forks.
 
-b1559457 (the muffle fork, taken as recommended):
+468b97aa (the muffle fork, taken as recommended):
 estimateSigmaFromLinearModel muffles base R's "essentially perfect
 fit" condition at the source - only that condition, everything else
 passes through - and test-boundary-inputs.R's constant-response pin
@@ -3145,7 +3147,7 @@ configuration that warns (amd64 R 4.6.1 + OpenBLAS: 2 warnings
 before, exactly 1 after; the fixed test file 13/13 there). CI's
 ubuntu legs green on the landed commit confirm cross-platform.
 
-e74380f7 (TODO test-bartcore-filtered-run-false-fail, discharged):
+a14108af (TODO test-bartcore-filtered-run-false-fail, discharged):
 testBCFGrowForestFromRoot builds its fixture from a local xorshift
 stream instead of the shared runif01() state, so its hardcoded
 characteristic value (re-derived, -0.028618738206336595) is
@@ -3154,7 +3156,7 @@ alone now passes. Zero downstream pinned values moved - the old code
 already restored the shared state it consumed, so isolation shifts
 nothing behind it.
 
-6d82ac86 (TODO feature-matrix-prose-staleness, discharged): the
+20b620c5 (TODO feature-matrix-prose-staleness, discharged): the
 three verified findings fixed in place - test-capi.R's BCF reach
 correctly attributed to forests = list(forest(basis = ...)); [f23]
 quotes the multi-forest calibration-map string its cited test
@@ -3166,9 +3168,9 @@ Batch mechanics: feature-matrix landed alone (docs-only, fires
 nothing); the muffle and fixture slices landed under the batch
 clause with one merged-tree battery (tests/cpp full AND filtered
 modes, tinytest 6462/0, trio bitwise 42/12/11, R CMD check --as-cran
-Status OK), CI six-green on b1559457.
+Status OK), CI six-green on 468b97aa.
 
-### Soak wave 3 addendum: the anchor sweep (662a7ef8, 2026-08-19)
+### Soak wave 3 addendum: the anchor sweep (8693c5af, 2026-08-19)
 
 Ledger item 15 discharges, run LAST after every content edit per the
 serialization rule. The five known-stale sites re-derived by content
@@ -3186,9 +3188,9 @@ fixed in code. The sweeper self-caught three of its own
 manual-counting errors on range endpoints; orchestrator audit
 re-opened a sample and every sampled anchor landed on its named
 content. Docs-only; fires no CI; the built package is byte-identical
-to 49b8cac3's.
+to 177160af's.
 
-### Soak wave 3: cross-arch dead kernel families + error-style residue (ded1f54e + 49b8cac3, 2026-08-19)
+### Soak wave 3: cross-arch dead kernel families + error-style residue (de0d2941 + 177160af, 2026-08-19)
 
 Two slices land under the batch clause (each independently
 implemented and gate-run; one merged-tree battery on the stack -
@@ -3196,7 +3198,7 @@ tests/cpp clean, tinytest 6463/0, trio bitwise 42/12/11, R CMD check
 Status OK, air clean; rebase onto the records tip verified
 patch-id-identical to the gated commits).
 
-ded1f54e (ledger item 16, opened and closed same-day out of item 8's
+de0d2941 (ledger item 16, opened and closed same-day out of item 8's
 caller map): the callerless kernel families are gone on every arch -
 misc_addVectors, misc_addVectorsWithMultiplier, the two
 *AlignedVectorsInPlace dispatch generics (whose per-arch entries were
@@ -3211,7 +3213,7 @@ via clang --target=x86_64-apple-darwin against a doctored config
 defining the x86 ISA macros (implementer and gate-runner each
 re-derived this independently); full x86 compilation rides CI.
 
-49b8cac3 (ledger item 7): the error-style residue clears. R6:
+177160af (ledger item 7): the error-style residue clears. R6:
 spec.R's probit-weights refusal collapses to refusal plus one remedy.
 R14: setControl's per-slot refusal takes the rule's verb shape. R11:
 the seven competing length-mismatch templates unify onto the rule's
@@ -3227,15 +3229,15 @@ proven twice by parse-tree comparison with string literals
 normalized (implementer, then gate-runner: every divergence confined
 to string literals and comments).
 
-### Soak wave 2: count-exact warning assertions + the M0 component contract (c4971bbb + cf4a290c, 2026-08-19)
+### Soak wave 2: count-exact warning assertions + the M0 component contract (046d6cb3 + 33ee397d, 2026-08-19)
 
 Two slices land under the batch clause (each implemented and
-independently gate-run on 3e9ef3aa; one merged-tree battery on
-cf4a290c - tinytest 6462/0, trio bitwise 42/12/11, R CMD check
+independently gate-run on f63dacc7; one merged-tree battery on
+33ee397d - tinytest 6462/0, trio bitwise 42/12/11, R CMD check
 Status OK with the new vignette chunk building, air clean - gated
 the push).
 
-c4971bbb (ledger item 10): all 17 expect_warning sites converted to
+046d6cb3 (ledger item 10): all 17 expect_warning sites converted to
 count-exact assertions. tinytest's expect_warning(expr, pattern) was
 verified to pass with an extra unrelated warning (either order), a
 doubled match, or an interleaved message; no site asserted a count.
@@ -3251,7 +3253,7 @@ the gate-runner's own re-plant at a THIRD site (test-rbart-weights
 via R/data.R's train-only-weights warning). +24 assertions
 (6438 -> 6462).
 
-cf4a290c (M0, closing the multiforest-extension-surface arc): the
+33ee397d (M0, closing the multiforest-extension-surface arc): the
 on-ramp contract ships. docs/design/bart-as-a-component.md is the
 internal layer (driver-loop bitwise identity, the multi-forest
 mutation-predicate matrix entry by entry, what state a mutation does
@@ -3279,7 +3281,7 @@ negative half discriminating). Residue for the error-style slice:
 two stale comments found in existing files ([R/bartcore.R:167](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/bartcore.R#L167);
 [src/R_interface_bartcore_common.hpp:105-108](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/R_interface_bartcore_common.hpp#L105-L108) predicate listing).
 
-CI FIRE AND CURE: cf4a290c went red on the three ubuntu R-CMD-check
+CI FIRE AND CURE: 33ee397d went red on the three ubuntu R-CMD-check
 jobs and both sanitizer jobs - one site, test-boundary-inputs.R's
 constant-response pin, "Expected '1', got '2'" - while macOS and
 both Windows jobs passed. Diagnosis (container-reproduced on amd64
@@ -3291,11 +3293,11 @@ side the least-squares solve lands on is a BLAS/architecture
 property - OpenBLAS falls below (second, leaked base-R warning),
 Accelerate and reference BLAS stay above. The count-exact pin did
 its job: the old pattern-only assertion was blind to this leak on
-every platform. CURE 07b02f06: the site partitions by pattern -
+every platform. CURE cef697a1: the site partitions by pattern -
 exactly one degenerate-response warning, at most one perfect-fit
 warning, total must equal the two matched counts - verified on
-macOS (6463/0) and in the amd64 container pre/post. cf4a290c's two
-red workflows stay red in history by design; 07b02f06 carries the
+macOS (6463/0) and in the amd64 container pre/post. 33ee397d's two
+red workflows stay red in history by design; cef697a1 carries the
 green. OPEN QUESTION for VD (not taken here): whether
 estimateSigmaFromLinearModel should muffle base R's leaked
 "essentially perfect fit" condition at the source - it is an
@@ -3304,14 +3306,14 @@ dbarts user, and the degenerate-response signal is already carried
 by dbarts's own warning; muffling would restore an exact count on
 every platform.
 
-### Soak wave 1: NEON dead kernels + fuzz reach; bairrtt compatible; oracle-lane scoping (4a6acdbc + 15e1174a, 2026-08-19)
+### Soak wave 1: NEON dead kernels + fuzz reach; bairrtt compatible; oracle-lane scoping (02afaea7 + 2be201f8, 2026-08-19)
 
 Two ledger slices land under the batch clause (each implemented and
-independently gate-run on 3e9ef3aa; one merged-tree battery on
-15e1174a - tests/cpp clean full run, tinytest 6438/0, trio bitwise
+independently gate-run on f63dacc7; one merged-tree battery on
+2be201f8 - tests/cpp clean full run, tinytest 6438/0, trio bitwise
 42/12/11 - gated the push), plus two report-only outcomes.
 
-4a6acdbc (ledger item 8): the seven unreachable NEON kernels are
+02afaea7 (ledger item 8): the seven unreachable NEON kernels are
 gone. Four (addVectors, subtractVectors, addVectorsWithMultiplier,
 addAlignedVectorsInPlaceWithMultiplier _neon) had no dispatch entry -
 their generics are plain scalar functions, so nothing could reach
@@ -3329,7 +3331,7 @@ and _c variants alike, plus misc_simd_alignment whose only consumers
 were the aligned variants - a clean cross-arch dead-code slice when
 taken.
 
-15e1174a (ledger item 9): the whole-variance-forest exactness
+2be201f8 (ledger item 9): the whole-variance-forest exactness
 assertion in tests/cpp/test_fuzz.cpp (formerly never executed - 0
 fires at 3 and at 40 seeds) is reachable: a fourth heteroscedastic
 shape confines the variance forest by column mask to columns 0-1, so
@@ -3342,7 +3344,7 @@ string and nowhere else. Existing shapes 0-2 keep their seeds and
 streams; fuzz-suite runtime delta below noise (0.281 -> 0.276 s/run).
 
 bairrtt compat check (report-only, no commit): bairrtt main @ 6167423
-against tip 3e9ef3aa in a private lib - dbarts and bairrtt both
+against tip f63dacc7 in a private lib - dbarts and bairrtt both
 install clean, tinytest 206/206 across all six files, every consumed
 surface exercised live (dbarts(), dbartsControl, setCutPoints,
 sampleTreesFromPrior, run, predict, setPredictor(forceUpdate=TRUE),
@@ -3354,7 +3356,7 @@ bairrtt is clear.
 Oracle-lane scoping (report-only): of the five families the
 SBC-deepening item targeted (aft, hazard, hurdle, heteroscedastic,
 monotone), three - aft, heteroscedastic, monotone - have carried
-gated exact-posterior oracles in exact-gates.yaml since e22ed536
+gated exact-posterior oracles in exact-gates.yaml since 9ae8543b
 (2026-07-24, predating the item's spec), and SBC is structurally
 ill-posed for hazard/hurdle as designed (person-period/positive-
 subset DGP depends on y, breaking exchangeability;
@@ -3366,12 +3368,12 @@ oracle composition vs build small exact-conditional oracles on the
 original data scale, recommendation build) is WITH VD. No SBC runs
 are owed; nbinom's deepening was discharged 2026-08-18.
 
-### rc-gate (e) valgrind: BCF spec leak, model-matrix OOB read, and the clean full-suite pass (7e42dc93 + 7be7a126, 2026-08-19)
+### rc-gate (e) valgrind: BCF spec leak, model-matrix OOB read, and the clean full-suite pass (7555608e + 090c6ba7, 2026-08-19)
 
 The first full-suite local memcheck (native arm64 ubuntu:24.04
 container, stock R 4.3.3, VALGRIND_OPTS matching valgrind.yaml - the
 r-hub amd64 image crashes under Rosetta emulation on this host)
-against db5f88ae found exactly two defects: zero invalid reads/writes,
+against 96b3f0f1 found exactly two defects: zero invalid reads/writes,
 zero uninitialized uses.
 
 Defect 1, caught by memcheck directly: a definite leak, 2464 bytes in
@@ -3381,7 +3383,7 @@ frees the closure's CAPTURES only, and an Rf_error longjmp skips body
 locals, leaking the spec's vector once per bridge refusal raised after
 the assign. Census matched: 7 expected-refusal BCF creations == 7
 blocks (R refuses most bad compositions before C; only
-hand-built-object backstops reach the hole). Fix (7e42dc93): the spec
+hand-built-object backstops reach the hole). Fix (7555608e): the spec
 joins the capture list beside the storage it borrows, both creation
 routes (createBCFHolder preventive, its family door fires before the
 assign). Targeted proof: a 3-refusal repro leaks 1056 bytes/3 blocks
@@ -3405,7 +3407,7 @@ the flip pure heap state even on R 4.6.1 (repeated calls gave ncol
 4,4,4,4,6,6,6,6); categorical route unaffected (real level check),
 fewer-levels factors index in bounds.
 
-Fix (7be7a126), two layers since LinkingTo consumers reach the .Call
+Fix (090c6ba7), two layers since LinkingTo consumers reach the .Call
 entry directly: refuseWiderTestColumns in validateXTest (factor,
 character, matrix columns) BEFORE the replay, plus a shared
 validateDropPatternLength at all four C read sites. Both refuse the
@@ -3423,7 +3425,7 @@ bug, gets the entry), CI green all six incl. Windows; tests/cpp does
 not compile makeModelMatrixFromDataFrame.c, so local ASAN carries no
 signal here by construction.
 
-Final full-suite memcheck against 7be7a126: COMPLETE - "All ok, 6419
+Final full-suite memcheck against 090c6ba7: COMPLETE - "All ok, 6419
 results (1h 47m)" (platform-skips account for the count vs 6438 on the
 dev host), ERROR SUMMARY 0 errors, all lost bytes 0, zero invalid or
 uninitialized accesses, applyBCFSpec absent.
@@ -3431,7 +3433,7 @@ rc-gate (e) is discharged in full (rchk clean at the merged tip per
 the prior note; valgrind clean full-suite at the tip), and with it the
 whole rc-gate slate (a)-(e). RC declaration remains VD-held.
 
-### rchk gate: triage and defensive PROTECTs (69de27ac, 2026-08-19)
+### rchk gate: triage and defensive PROTECTs (9e49b859, 2026-08-19)
 
 rc-gate (e)'s rchk half ran locally (kalibera/rchk docker under amd64
 emulation, ~5 min/run; the CI workflow cannot register until the
@@ -3456,12 +3458,12 @@ prediction bit-identical).
 DECISION (orchestrator): apply a 10-line defensive PROTECT patch
 anyway - CRAN publishes rchk output and standing false positives would
 blind this gate's next real finding; the sites are one-time bridge
-paths, so the sampling loop pays nothing. Landed as 69de27ac (+19/-3,
+paths, so the sampling loop pays nothing. Landed as 9e49b859 (+19/-3,
 each hunk carrying a constraint comment naming the real rooting).
 
 Gates on its own base: tinytest 6413/0, tests/cpp full pass,
 equivalence trio bitwise 42/12/11 identical-draws lines. Merged-tree
-gate stacked on 8dbc0ce9: tinytest 6427/0, tests/cpp 252 ok, main
+gate stacked on b988e967: tinytest 6427/0, tests/cpp 252 ok, main
 equivalence 42/42, and a fresh rchk over the merged tree CLEAN -
 "Analyzed 13502 functions, traversed 3049440 states", 0 [UP], 0 [PB],
 empty maacheck, only the 5 expected bailouts.
@@ -3484,7 +3486,7 @@ extra-factor-level expect_error did not fire, halting tinytest partway
 investigation in flight; CI oldrel-1 R 4.4 is green). Full-suite
 valgrind re-run on the fixed tip remains the gate.
 
-### rc-gate (d): slot-sourced heteroscedastic warm starts pair the sample's own scale surface (8dbc0ce9, 2026-08-19)
+### rc-gate (d): slot-sourced heteroscedastic warm starts pair the sample's own scale surface (b988e967, 2026-08-19)
 
 VD decision 2026-08-19 fix-now (decision brief verified in advance
 that no equivalence scenario or RNG-pinned test reaches hetero
@@ -3535,7 +3537,7 @@ BITWISE 42/12/11 identical-draws lines - zero re-records, the brief's
 prediction confirmed in practice; R CMD check --as-cran from a
 clean-copy tarball Status OK; air/lintr clean; NEWS parses at 280.
 
-RESIDUE, verified stale AT BASE and left untouched (the 95f6fd7f
+RESIDUE, verified stale AT BASE and left untouched (the 09a3384b
 full-namespace resync missed them): [docs/design/data-store.md:198](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/data-store.md#L198)/201/206/214
 (constructs sit ~320 lines below the cited sampler.hpp lines),
 [docs/design/grow-from-root-default.md:141](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/grow-from-root-default.md#L141), [docs/design/model-space-survey.md:71](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/model-space-survey.md#L71) (quoted text
@@ -3544,14 +3546,14 @@ half, whose location could not be placed at bf503e27 (the file is
 only 511 lines there; unresolved: [docs/design/within-chain-threading.md:675-702](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/within-chain-threading.md#L675-L702)),
 [docs/design/data-ownership.md:213](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/docs/design/data-ownership.md#L213) (names deleted code) - ledgered below.
 
-### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (105f2bd6 + 3d5d2ed5 + b9c3f313, 2026-08-19)
+### rc-gate wave 1: NEWS binary-k, sigest sparse surface, equal-rank-1 coverage (ec9ad41a + 4814640c + b0ac4ee9, 2026-08-19)
 
 rc-gate items (a), (b) and (c) landed as three commits; (b) and (c)
-were built in parallel worktrees off db5f88ae/105f2bd6, stacked by
+were built in parallel worktrees off 96b3f0f1/ec9ad41a, stacked by
 rebase, and gated by one shared merged-tree battery per the batch
 clause.
 
-(a) 105f2bd6: inst/NEWS.Rd entry for 5b6e4825's binary-k default
+(a) ec9ad41a: inst/NEWS.Rd entry for 442351cf's binary-k default
 change (chi(1.5, Inf) -> chi(1.5, 2.0)) in the 1.0-0 NEW FEATURES
 subsection; man/dbartsPriors.Rd verified already correct, untouched;
 the entry's "prior median 1.9" claim reproduced numerically
@@ -3559,7 +3561,7 @@ the entry's "prior median 1.9" claim reproduced numerically
 clean-copy tarball check (vignette-flag warnings only, from
 --no-build-vignettes).
 
-(b) 3d5d2ed5: sigest's silent sd(y) fallback on sparse-backed
+(b) 4814640c: sigest's silent sd(y) fallback on sparse-backed
 predictors now warns - a classed warning
 (dbartsSparseSigmaFallbackWarning, dbartsWarning) at
 estimateSigmaFromLinearModel's predictorSourceIsSparse branch,
@@ -3578,7 +3580,7 @@ pre-change, green after. Gates: tinytest 6413/0, equivalence 42/42
 with no max |z| line, R CMD check tarball Status OK, air clean, lintr
 0 on all six touched files, NEWS parse 278.
 
-(c) b9c3f313: tests/cpp only, zero production change -
+(c) b0ac4ee9: tests/cpp only, zero production change -
 testEqualRankOneComparison in test_moves.cpp (206 lines, local ext_rng
 so filtered runs stay clean). Fixture: a one-cut binary split column
 under an all-zero weight vector puts root, split branch and every leaf
@@ -3598,10 +3600,10 @@ clean. Discharges the rc-gate requirement that the flagship veto fix
 carry no untested branch.
 
 Batch gate on the merged tree: tinytest 6413/0, tests/cpp 251 ok, NEWS
-parse 279, air clean, conflict-marker sweep clean. CI on 105f2bd6: a
+parse 279, air clean, conflict-marker sweep clean. CI on ec9ad41a: a
 live Ubuntu-mirror incident stalled setup-r on pkgdown, exact-gates
 and the three ubuntu R-CMD-check jobs - each failed fast at the named
-step's 12-minute bound exactly as the 887787fd hardening intends, and
+step's 12-minute bound exactly as the b2e985d0 hardening intends, and
 bounded reruns cured all three (one to two cycles); macOS/Windows legs
 stayed green throughout.
 
@@ -3640,9 +3642,9 @@ entries on dbarts's own range checks), so pre-enforcement binaries
 must be assumed silently wrong and cured by rebuild; binaries built
 at or after the enforcement fail loudly at create.
 
-### Full-namespace anchor resync, pre-RC pass (95f6fd7f, 2026-08-19)
+### Full-namespace anchor resync, pre-RC pass (09a3384b, 2026-08-19)
 
-The wave-4 precedent (f953127c) repeated over the FINAL content
+The wave-4 precedent (7dcec13a) repeated over the FINAL content
 tree, closing ledger item 13 and the queue's last pre-RC step.
 Whole-file walk of docs/design/feature-matrix.md: 535 anchors
 checked (502 base citations + 29 comma-list continuations the
@@ -3650,7 +3652,7 @@ freshness checker's regex drops + 4 bare no-token continuations
 found by hand) - 230 moved, 305 unchanged, 0 file-changed, 0
 content mismatches; the two historical "the earlier X" citations
 left per the file's own convention. Every anchor re-derived BY
-CONTENT against the live tree from the 8e1e674c baseline blobs,
+CONTENT against the live tree from the 77c09f42 baseline blobs,
 never by offset; deltas region-dependent, from +1 (TODO) and +3
 (chain.hpp head) through +73..+119 (dbarts.h, the ABI-token
 reshape) to +127 (chain.hpp tail - the hetero-state-carry drift
@@ -3662,13 +3664,13 @@ independent sample re-derivation settled the one remaining
 disagreement (the buildMultinomialSampler span starts at its doc
 comment, 3238-3294, preserving the old span's length and
 semantics) and confirmed the +73 CAPI delta against the true
-8e1e674c baseline rather than the intervening tree. Gate:
+77c09f42 baseline rather than the intervening tree. Gate:
 check-doc-freshness OK (505 anchors, 37 symbols, 3 scenario-count
 claims) on the slice base and again on the rebased tree. Docs-only
-(+250/-197, one file); package byte-identical to ad4a131b's fully
+(+250/-197, one file); package byte-identical to 51973ad3's fully
 gated build.
 
-### Flat-C ABI token layout fold + enforced handshake (ad4a131b, 2026-08-19)
+### Flat-C ABI token layout fold + enforced handshake (51973ad3, 2026-08-19)
 
 Closes the flat-C struct-append surface decision (VD: fold the
 layouts, 2026-08-19) and the ledger's hash half of items 4/11.
@@ -3705,7 +3707,7 @@ branches (stan4bart bartcore, treatSens dbarts-1.0) now REQUIRE a
 --preclean rebuild at lockstep - the token moved and the stubs
 enforce it.
 
-### CI hardening - apt stall diagnosis and bounds (887787fd, 2026-08-19)
+### CI hardening - apt stall diagnosis and bounds (b2e985d0, 2026-08-19)
 
 VD-prioritized mid-arc. The recurring "cancelled" CI runs were
 TIMEOUTS misread as the concurrency quirk: job logs show apt-get
@@ -3721,7 +3723,7 @@ timeout-minutes on setup-r (12; 15 on the check matrix) and
 setup-r-dependencies (15; 20 on the check matrix); job timeouts
 resized from hang-sized to observed duration plus headroom (lint
 15->20, exact-gates 25->30, pkgdown 90->30, check-standard 80->30).
-No gate's checks changed; package tree byte-identical to 77349d29's
+No gate's checks changed; package tree byte-identical to 9b01b503's
 gated build. Validated the same afternoon against a live Canonical
 incident: the drop-in skipped the dead azure.archive.ubuntu.com farm
 in ~23s of retries, the archive.ubuntu.com fallback then trickled
@@ -3734,10 +3736,10 @@ earlier genuine cancel-at-creation events (zero steps run) remain a
 separate unexplained phenomenon. The apt-immune legs (cpp-tests,
 sanitizers) stayed green throughout the incident.
 
-### Arc-close comment sweep, residual pass (77349d29, 2026-08-19)
+### Arc-close comment sweep, residual pass (9b01b503, 2026-08-19)
 
 The reading-pass sweep owed at arc close, before the RC call. The
-bulk sweep landed at dcc8262e (2026-08-17); this pass covers what
+bulk sweep landed at cbe75cde (2026-08-17); this pass covers what
 wave 5 added afterward plus what that sweep missed: 8 sites in 6
 files (+19/-19, comments only). Every site keeps its rule text and
 its docs/design citations; only provenance went: plan slice tags
@@ -3759,7 +3761,7 @@ out-of-tree tarball Status OK. The arc-close sweep obligation is
 discharged; the feature-matrix anchor resync (content edits now
 final) is the remaining pre-RC step.
 
-### Wave-5b veto-rule enforcement + main-baseline re-record (d15a2bfb + 9ba57750, 2026-08-19)
+### Wave-5b veto-rule enforcement + main-baseline re-record (19705d3a + 87b89bc1, 2026-08-19)
 
 Fix-queue item 3, the queue's last slice - WAVE 5B CLOSES. Closes
 the veto BLOCKER (empty-leaf weight rule unenforced by setWeights/
@@ -3790,7 +3792,7 @@ target derived by R-side enumeration over the restricted posterior,
 never the engine's ratio; pre-fix the stranded start NEVER absorbs
 in 20000 sweeps, post-fix it absorbs in 1, zero vetoed-partition
 visits in 300000 draws, max |z| = 1.8; default arm unchanged.
-Records commit 9ba57750: equivalence-d15a2bfb.rds (verified 42/42
+Records commit 87b89bc1: equivalence-d15a2bfb.rds (verified 42/42
 strict-bitwise; old-baseline cross-check reproduces exactly 40/42
 plus maskprobit 0.48 / maskordinal 0.65), MANIFEST supersession
 (c7546233 historical, draw-shifting note with the realization
@@ -3804,7 +3806,7 @@ rebased tree: main 40/42 with exactly the two adjudicated lines,
 bcf 12/12, multinomial 11/11, tinytest 6407/0, tests/cpp + ASAN
 clean, R CMD check --as-cran OK, check-doc-freshness OK, CI green.
 
-### Wave-5b test-adequacy repairs (03b97db7, 2026-08-18)
+### Wave-5b test-adequacy repairs (05bca8e4, 2026-08-18)
 
 Fix-queue item 7, test-only (production code untouched; two hand-
 backs below). Closes the vacuity BLOCKER: expectTwinsAgree's
@@ -3843,7 +3845,7 @@ Gates on the rebased tree: trio bitwise 42/12/11, tinytest 6402/0
 guards), tests/cpp green, R CMD check --as-cran (core-limited)
 Status OK, both mutation proofs re-verified post-rebase, CI green.
 
-### Wave-5b flat-C guards + header truth (61ca56d2, 2026-08-18)
+### Wave-5b flat-C guards + header truth (c9443220, 2026-08-18)
 
 Fix-queue item 6, draw-neutral, no dbarts.h signature changes (zero
 consumer migration; stan4bart/treatSens call none of the touched
@@ -3884,7 +3886,7 @@ package and covers them. Gates on the rebased tree: trio bitwise
 42/12/11 (post-re-record baselines), tinytest 6369/0, ASAN leg
 clean, R CMD check --as-cran OK, CI green.
 
-### Wave-5b R-surface fixes + main-baseline re-record (c7546233 + 178d1491, 2026-08-18)
+### Wave-5b R-surface fixes + main-baseline re-record (5287837a + eb62ff2d, 2026-08-18)
 
 Fix-queue item 5. Closes the summary()/as_draws BLOCKER (silently
 wrong on combined multi-chain fits for non-scalar vars) via the
@@ -3914,7 +3916,7 @@ every RNG-stream channel bitwise identical; only k.mean/k.sd moved,
 reorder. Decision: draw-neutral RE-RECORD over a permanent
 fallback, because bart2probit is the sole tripwire for exactly the
 configuration this work touches and |z| < 4 is far too loose there.
-Records commit 178d1491: equivalence-c7546233.rds (42 scenarios,
+Records commit eb62ff2d: equivalence-c7546233.rds (42 scenarios,
 verified 42/42 strict-bitwise; old-baseline cross-check reproduces
 the adjudicated profile exactly), MANIFEST supersession row
 (4a42620a historical, draw-neutral note), equivalence.yaml,
@@ -3924,7 +3926,7 @@ R CMD check --as-cran OK, air/lintr clean, CI green. Next owed:
 the bartCause lockstep slice (sample-major -> chain-major sigma
 reshape, consumer gotcha 2).
 
-### Wave-5b hetero saved-variance state carry (73e14af4, 2026-08-18)
+### Wave-5b hetero saved-variance state carry (5c163dcb, 2026-08-18)
 
 Fix-queue item 2. Closes the hetero BLOCKER: getState/setState kept
 the variance forest's live trees but dropped its saved (keepTrees)
@@ -3955,7 +3957,7 @@ post-re-record baselines, tests/cpp green, tinytest 6338/0, ASAN
 clean, R CMD check --as-cran from a clean-copy tarball Status OK,
 NEWS parses via the check. CI green.
 
-### Wave-5b multinomial prior fix + baseline re-record (4d9a3337 + 509b68cc, 2026-08-18)
+### Wave-5b multinomial prior fix + baseline re-record (237a5cfb + 2f4eb3dd, 2026-08-18)
 
 Fix-queue item 4, the queue's only draw-shifting slice. Closes the
 multinomial BLOCKER: the level-shift combiner divided the prior sd by
@@ -3974,7 +3976,7 @@ the old divisor fails 5 checks with exactly the MANIFEST's numbers).
 The permanent prior-predictive arm 7 - the only arm reading the
 non-identified level - shows 8.3x separation against a pre-fix
 install; the k3countsswap scenario rider is DISCHARGED. Records
-commit 509b68cc: multinomial-equivalence-4d9a3337.rds (11 scenarios),
+commit 2f4eb3dd: multinomial-equivalence-4d9a3337.rds (11 scenarios),
 MANIFEST current row naming both P17 oracles with 1027be5 demoted to
 historical under a draw-shifting supersession note, equivalence.yaml
 baseline line, feature-matrix [f39]=11, TODO trims - nothing else.
@@ -3986,7 +3988,7 @@ bcf 12/12, zero max-z lines anywhere; tests/cpp 246 ok; tinytest
 6028 passed, FAILURES 0; multinomial-exact all 7 arms in band. CI
 green on both pushes.
 
-### Wave-5b docs-coherence slice (ea630c21, 2026-08-18)
+### Wave-5b docs-coherence slice (863c339b, 2026-08-18)
 
 Fix-queue item 8, docs-only. All six MAJOR doc-review findings fixed
 plus the minors: makeind.Rd tells the truth about dbartsMixedMatrix
@@ -4004,10 +4006,10 @@ R CMD check --as-cran from a clean-copy tarball Status OK, tinytest
 green, six CI workflows green. Behavioral follow-ups handed to the
 ledger (TODO wave5-review-followups): sigest silent fallback should
 warn or keep the lm fit; sparseVector/dgCMatrix formula columns need
-the sparseFactor-style guard; NEWS owes an entry for 5b6e4825's
+the sparseFactor-style guard; NEWS owes an entry for 442351cf's
 binary-k default change.
 
-### Wave-5b bridge-guards slice (613d59b9, 2026-08-18)
+### Wave-5b bridge-guards slice (cf82f635, 2026-08-18)
 
 Fix-queue item 1. Closes review BLOCKERs 4-5 of 10 (the two bridge
 crashes) plus three MAJORs and five MINORs, all draw-neutral. An
@@ -4036,7 +4038,7 @@ via a single-level factor.
 
 ### Wave 5a - adversarial whole-branch review; NO COMMIT (review record, 2026-08-18)
 
-Six independent refute-posture reviewers against 13a8867c (engine
+Six independent refute-posture reviewers against 5203de83 (engine
 numerics, bridge/memory safety, R surface, flat-C contract, test
 adequacy, docs coherence), each with build/run probes in a private
 lib from a pristine archive stage. Full evidence in
@@ -4078,7 +4080,7 @@ FIX QUEUE (wave 5b), serialized: (1) bridge crash guards
 (3) veto weight-rule enforcement at the mutators; (4) multinomial
 level-shift fix + baseline re-record (multinomial baseline ONLY,
 carrying the k3countsswap rider; the bart2/xbart/mixed-matrix
-riders were already discharged at 4a42620a/f009eff8 - this note
+riders were already discharged at 55104318/1ce3ff27 - this note
 originally said otherwise; P17 = the MANIFEST oracle-naming rule); (5) R-surface
 fixes (diagnostics layout, prior.scale match.call partial-match,
 keeptrees/keepsampler, bart() route gaps); (6) flat-C guards +
@@ -4088,16 +4090,16 @@ coherence sweep. Draw-shifting: item 4 ONLY; all others gate
 bitwise on the canonical trio.
 
 
-### Full-namespace anchor resync - WAVE 4 CLOSES (f953127c, 2026-08-18)
+### Full-namespace anchor resync - WAVE 4 CLOSES (7dcec13a, 2026-08-18)
 
 The whole-file walk the matrix's value audit recorded as owed: every
 anchor in docs/design/feature-matrix.md re-located by symbol against
-8e1e674c (the walked tree; the landing rebased onto 142a50b6, which
+77c09f42 (the walked tree; the landing rebased onto b4252363, which
 touches no anchored file, so the stamp stays truthful). MOV, four
 byte-identical design docs, and tests/cpp/test_model.cpp carried
 over by byte-identity; the bart2.Rd -> man/bart2.Rd alias was added
 (man/bart2.Rd postdated the alias table); NO anchor changed file;
-two [f15] test_model.cpp anchors stale at c05322a8 itself were
+two [f15] test_model.cpp anchors stale at eed8cbfb itself were
 corrected; the two historical numbers stay as written; no cell value
 re-adjudicated. Guard exits 0 at the new tip (502 anchors resolved).
 
@@ -4118,10 +4120,10 @@ subagent that exceeded its remit and raced it on the branch;
 convergence of two entangled passes is NOT independent verification
 - the orchestrator sampling pass stays load-bearing.
 
-### P12 consumer bundle + revdep-smoke repoint (142a50b6, 2026-08-18)
+### P12 consumer bundle + revdep-smoke repoint (b4252363, 2026-08-18)
 
 All four downstream packages (Fork 3 puts bairrtt in the bundle)
-built and checked against tip 8e1e674c, each agent in its own
+built and checked against tip 77c09f42, each agent in its own
 private lib from a pristine git-archive stage:
 
 - stan4bart bartcore@54e157b: --preclean install with zero dbarts.h
@@ -4139,7 +4141,7 @@ private lib from a pristine git-archive stage:
   206/206; needs NOTHING - no compat branch, no fix-list.
 - bartCause dbarts-1.0: the sweep's only real findings, neither a
   dbarts regression. (1) Three test-06-regression snapshots stale
-  from 31e52644's intentional prior-init draw shift - regenerated
+  from cf80dfb0's intentional prior-init draw shift - regenerated
   in-suite against the tip and pushed to the compat branch
   (bartCause 1b37f91; suite FAIL 0, with an unchanged constant
   reproduced exactly as the fidelity control). (2) The
@@ -4160,10 +4162,10 @@ clone sanity of all three branch/URL pairs. One registration fact
 learned: workflow_dispatch requires the workflow file on the DEFAULT
 branch, so the smoke is fully dark - not even manually dispatchable
 - until the merge registers it (the header's "workflow_dispatch
-only" note was optimistic). CI on 142a50b6 itself: all six green.
+only" note was optimistic). CI on b4252363 itself: all six green.
 
 
-### P15 + P14 - freshness gate and vignette leg; WAVE 4's content closes (60c92fa8, 2026-08-18)
+### P15 + P14 - freshness gate and vignette leg; WAVE 4's content closes (87e853dc, 2026-08-18)
 
 P15 (local half): tools/check-doc-freshness.R - INDEX completeness
 both directions for docs/design and docs/plans, every
@@ -4200,7 +4202,7 @@ rc-review-artifacts-2026-08-18/p14-vignette-run.log.
 With these, wave 4's content items are done; what remains of the
 wave is the FULL-NAMESPACE anchor resync, deliberately last.
 
-### Wave-4 batch - harness extension, statistical mode, P13 (4a42620a, 2026-08-18)
+### Wave-4 batch - harness extension, statistical mode, P13 (55104318, 2026-08-18)
 
 Three individually-gated slices stacked and pushed under the batch
 clause (disjoint files; one merged-tree battery re-ran everything on
@@ -4265,7 +4267,7 @@ air/lintr with zero new lints, the two equivalence.R shifts
 confirmed as moved-not-new; tarball builds). CI watched to
 six-green at the sha before this records push.
 
-### P5b - mutation-sequence composition arms; WAVE 3 CLOSES (61310e0e, 2026-08-18)
+### P5b - mutation-sequence composition arms; WAVE 3 CLOSES (3a4ab6d0, 2026-08-18)
 
 inst/tinytest/test-composition-sequences.R (82 assertions), seeded
 from the gate-blindspot audit's uncovered combinations with every
@@ -4316,9 +4318,9 @@ P6's note predicted). Budget 231 dense vs ~220. Gates green twice
 Status: OK. Tests-only; no NEWS. WAVE 3 IS COMPLETE: P8, P5, P7,
 P16, P6, P5b, P11 all landed.
 
-### P11 - reduced-power-gate audit; two quick gates retuned (2b30ba95, 2026-08-18)
+### P11 - reduced-power-gate audit; two quick gates retuned (cb343434, 2026-08-18)
 
-The audit ran as a measurement pass against 87bf44af using the P6
+The audit ran as a measurement pass against 08fe44c0 using the P6
 driver's poison list: of the 16 poisons, 15 have a quick-capable
 killer (tests/cpp has no quick concept). Five kill under quick
 (m01, m02, m04, m14, m15). Eight are N-A BY DESIGN: the equivalence
@@ -4334,7 +4336,7 @@ build (no new gate gap): change-balance quick at nKept 100000 read
 above the poison-13 a-glue-precision gap of 0.0314. Full table at
 rc-review-artifacts-2026-08-18/p11-reduced-power.md.
 
-The follow-through landed as 2b30ba95: nKept 100000 -> 125000
+The follow-through landed as cb343434: nKept 100000 -> 125000
 (z scales ~sqrt(n)) and quick toleranceProb 0.05 -> 0.03, comments
 stating the kill constraint with the measured margins. Gated
 measured, not assumed: clean-tip pass at the new settings with
@@ -4346,7 +4348,7 @@ diff confined to the two gate scripts. P11's weekly full-mode CI
 schedule half stays deferred on the default-branch gate, as
 specified.
 
-### P6 - the repeatable mutation harness lands (b46c0704, 2026-08-18)
+### P6 - the repeatable mutation harness lands (5939ea24, 2026-08-18)
 
 The durable asset the July poison sweep never committed:
 benchmarks/R/mutation-battery.R, a self-contained driver (modes
@@ -4387,13 +4389,13 @@ now read the harness's own completed exit. Verification: my diff
 review, then an independent cold-start pass - inventory 23,
 verify-anchors clean, subset rerun (m10 equivalence-kill, m17
 tinytest-kill, m21 documented-survival) all as designed, worktree
-untouched before and after, air/lintr clean. Landed at b46c0704
+untouched before and after, air/lintr clean. Landed at 5939ea24
 after a clean rebase (patch byte-identical) with verify-anchors
 re-run at the rebased HEAD - the anchors survive compose's
 combiner.hpp additions. Benchmarks-only: no NEWS, no baseline
 motion; CI legs that fire are exact-gates and lint.
 
-### Compose slice - per-forest veto weights reach the prior initializer (1e020abb, 2026-08-18)
+### Compose slice - per-forest veto weights reach the prior initializer (dbd8283f, 2026-08-18)
 
 The residue VD routed at the fix landing, widened by its blind
 critique, closed in one slice. Chain::sampleTreesFromPrior now
@@ -4446,7 +4448,7 @@ priors stated so the prior cannot stand in for the distribution)
 plus tests/cpp extensions to test_grow/test_scan.
 
 Gates: implementer battery green, then ALL 12 re-run independently
-on the rebase (1e020abb) by a separate gate-runner from its own
+on the rebase (dbd8283f) by a separate gate-runner from its own
 fresh build: tests/cpp 246/246, ASAN zero reports, tinytest 5909/0,
 trio bitwise as above, geweke-mc FULL exit 0 (largest |z| 1.90),
 backfit-exact PASS, bcf-exact quick OK, sbc BCF smoke end-to-end,
@@ -4516,7 +4518,7 @@ rc-review-artifacts-2026-08-18/sbc-nbinom-thin300.log; the
 adjudicator's rank/trace artifacts under the session scratchpad
 (nbderiv-*).
 
-### P16 - xbart hardening; the loss plumbing gets its oracle (f009eff8, 2026-08-18)
+### P16 - xbart hardening; the loss plumbing gets its oracle (1ce3ff27, 2026-08-18)
 
 The least-verified surface hardened. inst/tinytest/test-xbart-oracle.R
 (16 assertions): a capturing loss records the exact (y.test,
@@ -4557,20 +4559,20 @@ Gates: implementer battery green (tinytest 5890/0; trio vs
 with only equivalence.R's two pre-existing warnings; R CMD check
 --as-cran with _R_CHECK_LIMIT_CORES_=TRUE Status: OK) and re-run
 INDEPENDENTLY by a separate gate-runner from its own fresh build,
-ALL GREEN. Landed at f009eff8 (R-only; engine binary is 31e52644's).
+ALL GREEN. Landed at 1ce3ff27 (R-only; engine binary is cf80dfb0's).
 This records commit installs equivalence-f009eff8.rds (the
 gate-runner's fresh-build recording, self-compared 38/38) as
 canonical with the four-place obligation; the xbart scenario's P17
 oracle is the hand-computed loss oracle landed in the same commit.
 
-### Prior-initializer fix LANDS (31e52644, 2026-08-18) + main-baseline re-record
+### Prior-initializer fix LANDS (cf80dfb0, 2026-08-18) + main-baseline re-record
 
 VD's decisions recorded: LAND the prepared fix; the setForestWeights
 residue COMPOSES with an empty-set guard (the all-zero-forest-weight
 case adjudicated below, slice in flight); the P9 freeze scope as
 applied during the fire is RATIFIED as recorded - no landed slice
-re-gates. ccf4b687 rebased onto c98e5c14 with zero conflicts as
-31e52644; the rebased patch is hunk-for-hunk byte-identical (only
+re-gates. ccf4b687 rebased onto 7b56ca91 with zero conflicts as
+cf80dfb0; the rebased patch is hunk-for-hunk byte-identical (only
 inst/NEWS.Rd's base blob moved - intervening entries sit outside the
 fix's hunks). The full battery re-ran INDEPENDENTLY on the rebase:
 install, tests/cpp 246/246, ASAN clean, tinytest 5874/0 (the new
@@ -4592,7 +4594,7 @@ self-compare 37/37 under --strict-coverage, bitwise-identical to the
 pre-rebase candidate 37/37, partition vs 8b047f8b as above.
 bcf-equivalence-6e3b9fb8 and multinomial-equivalence-1027be5 are NOT
 re-recorded: both bitwise at this tip (12/12, 10/10), and the
-MANIFEST convention (the 21fc29c precedent) keeps unmoved baselines
+MANIFEST convention (the c612df8 precedent) keeps unmoved baselines
 current with neutrality noted - the three-baseline obligation is
 discharged as fresh record+compare evidence for all three with only
 the moved harness renamed. Four places bumped in this commit:
@@ -4600,7 +4602,7 @@ equivalence.yaml main line, MANIFEST (new current row, 8b047f8b
 superseded), TODO, feature-matrix f39. The riding scenario additions
 do NOT ride this re-record: bart2 gaussian/probit/two-forest plus
 the B2 mixed-matrix scenario become a dedicated harness-extension
-slice (harness extensions self-record at their own sha, the 33f6fdc
+slice (harness extensions self-record at their own sha, the b5ef5a3
 S0 precedent; queued behind the compose slice), the xbart scenario
 stays with P16 - TODO updated so nothing drops.
 
@@ -4637,7 +4639,7 @@ P16, P6.
 The provenance audit's named highest-value action ran at the tip:
 Rscript benchmarks/R/sbc.R gaussian 200 200 30 (R = 200
 replications, L = 200 retained draws, thin = 30), against the
-a39da5d9 build (d60057b1 is records-only, binary identical), with
+594c1ed8 build (2cedf52d is records-only, binary identical), with
 SBC_FAIL_ON_FLAG=1. ALL SEVEN FUNCTIONALS PASS: avg.f chisq p 0.294
 / ks 0.442, f.star1-5 chisq p 0.255-0.849 / ks 0.051-0.688, sigma
 chisq 0.962 / ks 0.998; every ecdf-diff (0.026-0.094) inside the
@@ -4645,7 +4647,7 @@ chisq 0.962 / ks 0.998; every ecdf-diff (0.026-0.094) inside the
 0.8998 vs target 0.90. Exit 0. Consequences: the freeze protocol
 does not trigger; the cleanup lane is clear; the audit's residue R1
 (the fused roll+suffstat pass, oracle-checked only at single-tree
-scale since c8f661a) is RETIRED at this tip, and R2's cutover-window
+scale since 34da658) is RETIRED at this tip, and R2's cutover-window
 re-anchor is refreshed - the un-retired remainder is unchanged
 (gp/wtgp/quants/missing/sparse/setdata have no varying arm; the
 xbart pin still has no oracle, P16's job).
@@ -4670,7 +4672,7 @@ paths). Full classified report at
 rc-review-artifacts-2026-08-18/p7-branch-reach.md. Explicitly not
 a coverage gate.
 
-### P5 - executable composition matrix (7997e50c, 2026-08-18)
+### P5 - executable composition matrix (b77c9bac, 2026-08-18)
 
 benchmarks/R/composition-matrix.R (740 lines): parses
 feature-matrix.md's tables 1-4 programmatically (header/row-order
@@ -4692,7 +4694,7 @@ was the one new file; tinytest unchanged 5871/0 after the run (no
 fixture state leaked). Run log preserved at
 rc-review-artifacts-2026-08-18/p5-run.log. Prior CI: P8 six-green.
 
-### P8 - refusal census + anti-vacuity pass (5d06f641, 2026-08-18)
+### P8 - refusal census + anti-vacuity pass (10654e12, 2026-08-18)
 
 Wave 3 opens. Census over 912 sites (887 refusals, 25 warnings;
 L's 941-row enumeration reconciled by content): 749 refusals
@@ -4725,7 +4727,7 @@ exact-gates hit the NEW 25-minute timeout on a mirror stall at
 setup-r-dependencies - the guard's first live catch - and went
 green on rerun).
 
-### K6 - boundary guard reconciliation; WAVE 2 CLOSES (ee249420, 2026-08-18)
+### K6 - boundary guard reconciliation; WAVE 2 CLOSES (a188c2f5, 2026-08-18)
 
 The predicate-parity policy lands as error-style.md's R8 addendum
 (R8 had already set message ownership - R canonical, C
@@ -4758,7 +4760,7 @@ WAVE 2 COMPLETE: L (941 messages, 111 rewritten under the signed
 rule) + K6. Wave 3 opens with P8, pinning against settled text as
 the ordering rationale prescribed.
 
-### L - the error-message sweep under the signed rule (efdfa74a, 2026-08-18)
+### L - the error-message sweep under the signed rule (5de31956, 2026-08-18)
 
 Wave 2 opens. Enumeration: 941 reachable messages (570 R stop/
 warning, 344 C Rf_error/Rf_warning, 27 indirect C literal
@@ -4827,7 +4829,7 @@ needs an empty-set-guard adjudication first. At landing the fix
 rebases over the message sweep (NEWS append point conflicts,
 trivial) and the re-record carries the four-place obligation.
 
-### P9 - Geweke marginal-conditional oracle lands FIRING; diagnosis CONFIRMED (2278c929, 2026-08-18)
+### P9 - Geweke marginal-conditional oracle lands FIRING; diagnosis CONFIRMED (84526b05, 2026-08-18)
 
 benchmarks/R/geweke-mc.R (644 lines, 2:57 full / 16s quick) lands
 recording a REAL defect, so its full run exits 1 against this tip
@@ -4913,7 +4915,7 @@ an engine change that moves draws (baseline re-record class) and
 is VD-HELD: direction (initializer -> moves' distribution vs both
 -> the documented prior) rides the adjudicator's report to VD.
 
-### FX1-channel - per-draw Student-t df and the t marginal (c3af16a1, 2026-08-18)
+### FX1-channel - per-draw Student-t df and the t marginal (655d5104, 2026-08-18)
 
 Fork 2 executed. The engine's df dynamics were verified FIRST: nu
 is sampled per sweep in grid mode (TResponse::refreshLatents draws
@@ -4953,7 +4955,7 @@ CI: H six-green, which also covers J's concurrency-canceled
 exact-gates/sanitizers by containment (recorded here as promised);
 P1b's benchmarks push went exact-gates green.
 
-### P1b - backfit conditional-exactness oracle; PASS (ded60c1d, 2026-08-18)
+### P1b - backfit conditional-exactness oracle; PASS (413e72fa, 2026-08-18)
 
 benchmarks/R/backfit-exact.R, 345 lines, 11.4s full / 3s quick.
 Design: nothing frozen by hand - the sweep's own ordering supplies
@@ -4981,7 +4983,7 @@ the one new file (benchmarks push - fires exact-gates only,
 watched). Run log preserved at the session scratchpad
 p1bimpl-run.log.
 
-### H - NEWS 1.0-0 consolidation; WAVE 1 CLOSES (7623af19, 2026-08-17)
+### H - NEWS 1.0-0 consolidation; WAVE 1 CLOSES (e222d8b7, 2026-08-17)
 
 The unreleased section now reads as the delta from 0.9-31: 155
 items -> 153 (149 kept as already-final surface descriptions, 6
@@ -5015,7 +5017,7 @@ census), the wave-2 L sweep gated on VD signing the revised
 message rule, and FX1-channel now UNBLOCKED (Fork 2 resolved, K2
 landed - the per-draw df channel is a one-line add).
 
-### J - exponent-rule promotion (76be5e5b, 2026-08-17)
+### J - exponent-rule promotion (a57f7440, 2026-08-17)
 
 The ledgered door-memo follow-up discharged: the b-move Jacobian
 exponent rule's derivation and prototype evidence (the operational
@@ -5041,7 +5043,7 @@ multiplier-combiner 604 -> 696, glue accounted). TODO's follow-up
 sentence resolved in this records commit. Prior-slice CI: F
 six-green.
 
-### I - core-generalization.md current-state extraction (a55be8b5, 2026-08-17)
+### I - core-generalization.md current-state extraction (5d4c4fb0, 2026-08-17)
 
 The arbiter doc's 533-line Phases DONE-log and the pre-rewrite
 Starting-point constraints section move below the architecture, so
@@ -5064,7 +5066,7 @@ now literally true. Docs-only: fires no CI; the built package is
 byte-identical to the gated F tree. Prior-slice CI: F's six legs
 in flight at landing, watched.
 
-### F - prior-ladder factorization and the Fork 1 binary-k repair (621da478, 2026-08-17)
+### F - prior-ladder factorization and the Fork 1 binary-k repair (5c6e17c4, 2026-08-17)
 
 refuseColliding promoted to R/model.R taking (matchedCall,
 objectName, shorthands) - the collision set stays caller data, so
@@ -5097,7 +5099,7 @@ slice, bart2's binary default is chi on BOTH (the non-change
 gate), and the slice's test file fails 3 on base / 0 on slice.
 Prior-slice CI: K six-green.
 
-### K - calibration-map refusal above K = 2 (ceffd276, 2026-08-17)
+### K - calibration-map refusal above K = 2 (645c93ec, 2026-08-17)
 
 The bcf-naming-generalization ledger item's one user-visible leg,
 landed alone as scoped. calibrationMapName (4 lines + comment)
@@ -5122,7 +5124,7 @@ invocation, manual built); discrimination - base fails exactly the
 two K >= 3 assertions, slice 125/125. TODO trimmed to the rename
 remainder in this records commit. Prior-slice CI: E six-green.
 
-### E - withFixedSeed adoption (1fd22c6f, 2026-08-17)
+### E - withFixedSeed adoption (f2b98350, 2026-08-17)
 
 The six open-coded .Random.seed save/restore sites route through
 the on.exit-based withFixedSeed (xbart's chunk seeds - the one
@@ -5152,7 +5154,7 @@ base fails the restore assertion (1/6) and leaves a created
 .Random.seed behind, slice passes 6/6 and removes it. Prior-slice
 CI: ci-hang-guards six-green, pkgdown inside its normal window.
 
-### CI hang guards - job timeouts everywhere (6000efb7, 2026-08-17)
+### CI hang guards - job timeouts everywhere (ba87cdbf, 2026-08-17)
 
 VD-directed after two same-day hangs. Diagnosis from the canceled
 attempts' logs: pkgdown run 32086436327 (2h20m) and lint run
@@ -5175,9 +5177,9 @@ Push events read the pushed ref's workflow file, so the guard is
 live on bartcore now. Gates: all eleven files parse
 (yaml.safe_load); the landing push itself fires all six live
 workflows as the in-vivo check. Patch-id-verified rebase from base
-75d82925 onto eb8c292d. Prior-slice CI: G six-green, no hangs.
+dff309f7 onto 173ee508. Prior-slice CI: G six-green, no hangs.
 
-### G - dead elements (99f98043, 2026-08-17)
+### G - dead elements (c2d76abd, 2026-08-17)
 
 xbart's n.burn narrowed to two non-negative integers (the third was
 never read; formal default, rep_len, the stale prose comment, the
@@ -5205,7 +5207,7 @@ setup-r past 40 minutes and was canceled and re-run to green, the
 second same-day r-lib-action hang after K4's pkgdown; the
 timeout-minutes guard slice was queued in response.
 
-### K5 - vendored getListElement, setModel arity (71691eb7, 2026-08-17)
+### K5 - vendored getListElement, setModel arity (2282847c, 2026-08-17)
 
 The bridge's local getListElement shadowed the in-scope
 rc_getListElement and read the names attribute unprotected across
@@ -5228,7 +5230,7 @@ canceled and re-run to green (run 32086436327); K2's canceled
 R-CMD-check is covered by containment (K4's green check builds the
 superset tree).
 
-### K4 - bridge indirection trim (1e229a77, 2026-08-17)
+### K4 - bridge indirection trim (b7177d81, 2026-08-17)
 
 Deletions and inlinings, net -29 (-54 pure code; 25 of the
 additions are doc comments relocated out of the shared header):
@@ -5251,7 +5253,7 @@ tests/cpp clean and under ASAN/UBSAN (zero diagnostics); tinytest
 trio bitwise 37/37 12/12 10/10; R CMD check OK from a built
 tarball.
 
-### K2 - run-result packaging compaction (447b8c81, 2026-08-17)
+### K2 - run-result packaging compaction (b57a3eca, 2026-08-17)
 
 The bridge's (`src/R_interface_bartcore.cpp`, not `spec.R`) packaging region -
 its exact span could not be placed at bf503e27 (unresolved: [src/R_interface_bartcore.cpp:4188-4462](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/src/R_interface_bartcore.cpp#L4188-L4462)), 161 lines of channel
@@ -5281,7 +5283,7 @@ plain build is instrumented-codegen artifact; names/dims/types
 identical); tinytest 5825/0; R CMD check --as-cran OK. K4 note
 recorded: installResult now has exactly one caller.
 
-### D - column-resolution and pdbart-prologue extractions (3158d96e, 2026-08-17)
+### D - column-resolution and pdbart-prologue extractions (1651392a, 2026-08-17)
 
 Two pure extractions, net -8 lines. resolveColumnIndex(source,
 column, what) collapses the three near-identical resolution blocks
@@ -5300,7 +5302,7 @@ air clean; lintr - partialDependence.R zero, bartcore.R's seven
 object_usage warnings proven pre-existing and identical on base;
 R CMD check --as-cran OK from a built tarball.
 
-### K3 - bridge/engine sediment sweep (28ead6e2, 2026-08-17)
+### K3 - bridge/engine sediment sweep (7aa2bb76, 2026-08-17)
 
 Comment-only, 54/54 lines across six files, all five findings
 re-derived live. The ten present-tense "classic engine" mentions in
@@ -5332,7 +5334,7 @@ tinytest 5825/0; trio bitwise 37/37 12/12 10/10; R CMD check OK
 from a built tarball (raw-directory check trips on Authors@R -
 staging artifact, build-then-check is the recorded procedure).
 
-### C - the cross-file-checked stale-prose sweep opens wave 1 (5f2ced48, 2026-08-17)
+### C - the cross-file-checked stale-prose sweep opens wave 1 (c8ad6b6c, 2026-08-17)
 
 Five sediment findings, each verified still-stale against the live
 tree then corrected as prose only: R/bartcore.R's comment asserting
@@ -5346,7 +5348,7 @@ consolidation is H's); utility.R's "now that the rename lands"
 tense. The enforced rule, stated for the record: a comment
 asserting a capability's ABSENCE must be checked against the file
 that would PROVIDE it - the class both the landed readability
-review and the dcc8262e sweep missed by reading files in isolation.
+review and the cbe75cde sweep missed by reading files in isolation.
 No finding needed a code change. Neutrality: parse-tree identity
 (keep.source = FALSE) on all three touched R files, proven by the
 implementer and INDEPENDENTLY re-derived by the orchestrator; full
@@ -5355,7 +5357,7 @@ air/lintr clean, NEWS parses at 267, R CMD check --as-cran OK).
 13 insertions / 12 deletions. Landing gated on B2's six-green
 (sanitizers included), which arrived first.
 
-### B2 - the shared container-metadata check; WAVE 0 CLOSES (0a1d56fe, 2026-08-17)
+### B2 - the shared container-metadata check; WAVE 0 CLOSES (89960861, 2026-08-17)
 
 One file-local requireCscReferenceMeta helper in the bridge
 validates a mixed container's sparseReference/sparseCategoryCount
@@ -5406,7 +5408,7 @@ naming residual above. Wave 1 (accumulation cleanups) begins in
 the recommended order C, K3, D, K2, K4, K5, G, E, K, F (fork 1:
 fixed-k grid matching gaussian), H, I, J.
 
-### B - xbart through the shared validation helpers (ef7730a7, 2026-08-17)
+### B - xbart through the shared validation helpers (cd9471dd, 2026-08-17)
 
 The four drifts closed by extracting three helpers into R/spec.R -
 isBinaryFamily, estimateStartingSigma (one shared "unable to obtain
@@ -5437,7 +5439,7 @@ gaussian draw-identity pin (bitwise across builds) and the
 substituted sigma-failure probe (p >= n silently NaNs rather than
 erroring - measured - an Inf column used instead).
 
-### FX2 - unadjudicated heteroscedastic compositions refused (35b2b92d, 2026-08-17)
+### FX2 - unadjudicated heteroscedastic compositions refused (d4022da3, 2026-08-17)
 
 Reproduction first, per the mandate, and it halved the scope:
 resid.dist = student() alongside variance = CONSTRUCTED AND RAN
@@ -5463,7 +5465,7 @@ exactly those two halves, stayed bitwise). Gates twice: tinytest
 266 entries; R CMD check --as-cran OK; discrimination five-way
 clean including construction-time verification.
 
-### FX1-guard - student fits stop scoring gaussian (4975c20b, 2026-08-17)
+### FX1-guard - student fits stop scoring gaussian (19aa0fee, 2026-08-17)
 
 Every packaged bart/bart2 fit now records a resid.dist token
 ("gaussian"/"student", read from the model's resid.df attribute in
@@ -5487,13 +5489,13 @@ R CMD check OK (the gate-runner's first WARNING was its own
 --no-build-vignettes flag, not the slice). Process note: the
 gate-runner FAILED the slice on hygiene - a docs/plans reference on
 an added test-file line the orchestrator's own strip had missed -
-fixed by a one-comment amend (4975c20b vs the gated 2a8082c4;
+fixed by a one-comment amend (19aa0fee vs the gated 2a8082c4;
 comment-byte delta, gates 1-7 evidence carries, the touched file
 re-run 39/39). Budget overage (~4x on R lines) flagged by the
 implementer and accepted: two guard sites and rationale comments,
 in-mandate scope.
 
-### A - bart() weights parity and zero-draw guard (f3f6c80c, 2026-08-17)
+### A - bart() weights parity and zero-draw guard (56292580, 2026-08-17)
 
 bart()'s tail now attaches $weights/$weights.test exactly as bart2's
 does, fixing a silent wrong answer: on a weighted bart() fit the
@@ -5520,7 +5522,7 @@ independent gate-runner): tinytest 5805/0; trio bitwise (37/37,
 over budget on assertion formatting density - flagged by the
 implementer, accepted as precision rather than scope.
 
-### P1a - the ensemble-scale sum-invariance oracle (6bfe46bc, 2026-08-17)
+### P1a - the ensemble-scale sum-invariance oracle (a63efa9e, 2026-08-17)
 
 tests/cpp gains test_ensemble.cpp: 200 trees x 503 observations x 30
 sweeps, asserting after EVERY sweep over EVERY observation that
@@ -5548,10 +5550,10 @@ UNDER BOTH POISONS EVERY PRE-EXISTING GATE STAYED GREEN - the
 census's B1 blind spot confirmed experimentally, now closed.
 Orchestrator re-ran make clean + full suite + standalone filter
 independently, reproducing the reported worst deviations exactly.
-71 dense lines vs ~80 budget. Landed by rebase onto 0ddc233e
+71 dense lines vs ~80 budget. Landed by rebase onto 47f1064b
 (docs-only).
 
-### CI hardening - reduction gates and assertion floors (5e1ee0a1, 2026-08-17)
+### CI hardening - reduction gates and assertion floors (3d6b1a9d, 2026-08-17)
 
 Three workflow files, package untouched. exact-gates.yaml gains
 hazard-reduction.R and hurdle-reduction.R (the only checks those two
@@ -5577,7 +5579,7 @@ paths-ignore/concurrency blocks unchanged (exact-gates' deliberate
 benchmarks/** non-ignore preserved). CI: SIX GREEN on its own push -
 the new gates and floors executed live and passed.
 
-### capi-winfix - the ABI contract test runs on x64 Windows (9a299af6, 2026-08-17)
+### capi-winfix - the ABI contract test runs on x64 Windows (59cf3217, 2026-08-17)
 
 The fix for the finding below: test-capi.R now writes a Makevars
 file into its build dir (PKG_CPPFLAGS = -I"<include>") instead of
@@ -5596,7 +5598,7 @@ executed on x64 Windows for the first time in the leg's history.
 
 ### Wave 0b first CI catch - the ABI contract test never ran on x64 Windows (2026-08-17)
 
-f6c8979d's first CI outing turned P4's hard-fail into a finding: the
+458b4f14's first CI outing turned P4's hard-fail into a finding: the
 windows-latest (x64) R-CMD-check leg ERRORS in test-capi.R -
 "[inst/tinytest/capi/consumer.c:10](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/inst/tinytest/capi/consumer.c#L10) col 10: fatal error: dbarts/dbarts.h: No such file or
 directory" - while windows-11-arm compiles and runs all the C API
@@ -5616,7 +5618,7 @@ header-exists probe so future failures distinguish a missing header
 from a broken flag. The five other legs (three Ubuntu, macOS, ARM
 Windows) stayed green.
 
-### Wave 0b - suite repairs: P3i + P4 in-repo halves + build guard (f6c8979d, 2026-08-17)
+### Wave 0b - suite repairs: P3i + P4 in-repo halves + build guard (458b4f14, 2026-08-17)
 
 statesAgree() now asserts PER FIELD: inst/common/stateContinuation.R
 emits an info-labeled expect_identical per compared field (plus the
@@ -5654,7 +5656,7 @@ on the slice build and pass vacuously/opaquely on base; CI=1 run of
 tests/tinytest.R from the staged copy runs the full suite. No
 trailers; 17-file stat reconciled to the four parts.
 
-### I3 - getForestVariableCounts dimnames (cd918d9a, 2026-08-17)
+### I3 - getForestVariableCounts dimnames (0a2ca11a, 2026-08-17)
 
 The live R5 read $getForestVariableCounts(forest) now names its rows
 from colnames(data@x) when the training matrix carries them (five
@@ -5676,13 +5678,13 @@ values bitwise-identical across builds. Process note recorded in the
 runbook: the main harness's terminal "statistically
 indistinguishable" line prints even on fully-bitwise runs and is
 never evidence; the per-scenario identical-draws COUNT is. Landed by
-rebase onto 51c8f43f (docs-only, gated build byte-identical). CI
+rebase onto 91d1914b (docs-only, gated build byte-identical). CI
 fired into the GitHub outage - backfill pending with the rest.
 
 ### Wave 0f - orphaned scripts and the first equivalence-leg run (2026-08-17)
 
 Twelve benchmarks/R scripts belong to no workflow; all ran (private
-lib at the a39da5d9 build, <2 min each): 8 PASS, 3 BROKEN, 1 not
+lib at the 594c1ed8 build, <2 min each): 8 PASS, 3 BROKEN, 1 not
 standalone (bartcore-shim.R, a sourced helper). hazard-reduction.R
 and hurdle-reduction.R both PASS bitwise ("reduces bitwise to the
 binary fit (both links)" / "to its two standalone component fits") -
@@ -5709,7 +5711,7 @@ classifications corroborated. The YAML parses cleanly; the
 main-has-no-benchmarks red-schedule hazard is CONFIRMED for the
 merge-time shim design. Full report untracked.
 
-### I2 - hurdle variance doc fix (4c2cdb9a, 2026-08-17)
+### I2 - hurdle variance doc fix (ec1f6344, 2026-08-17)
 
 The hurdle docs promised natural-scale predictions consume the
 positive part's per-observation sigma(x) under a heteroscedastic
@@ -5733,14 +5735,14 @@ equivalence/lintr legs. Orchestrator note: the interleavables
 re-verification's [R/spec.R:370](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L370) anchor was loose - the live stop is
 [R/spec.R:392](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L392); other feature-matrix rows citing [R/spec.R:370](https://github.com/vdorie/dbarts/blob/bf503e276958317010fa590d730f4dd34d7e6ab5/R/spec.R#L370) for the same shared
 refusal are stale by the same delta and ride the wave-4 full-
-namespace resync. Prior-slice CI: five green on a39da5d9 plus
-exact-gates green on the build-identical d60057b1 (the records push
+namespace resync. Prior-slice CI: five green on 594c1ed8 plus
+exact-gates green on the build-identical 2cedf52d (the records push
 fired exact-gates - its paths-ignore deliberately omits
-benchmarks/** - and cancel-in-progress killed a39da5d9's own run;
+benchmarks/** - and cancel-in-progress killed 594c1ed8's own run;
 an infra-flake rerun, codeload 429s, is recorded in the run
 history).
 
-### I1 - multinomial silent-drop refusals (a39da5d9, 2026-08-17)
+### I1 - multinomial silent-drop refusals (594c1ed8, 2026-08-17)
 
 bart2(family = "multinomial") now refuses by name the five arguments
 it previously accepted and silently dropped through the

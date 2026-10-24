@@ -1,6 +1,6 @@
 # Ordinal (cumulative-probit) outcomes: design
 
-Status: LANDED 2026-07-18 (e0c4982). Plan: docs/plans/archive/ordinal-outcomes.md (this is its
+Status: LANDED 2026-07-18 (9630b01). Plan: docs/plans/archive/ordinal-outcomes.md (this is its
 step 1). Ordered categorical responses fit by a cumulative probit: the
 truncated-normal latent machinery ProbitResponse already carries
 ([`ProbitResponse`](../../src/bartcore/model.hpp)), generalized from a single threshold at 0 to K-1

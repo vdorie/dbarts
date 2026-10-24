@@ -376,7 +376,7 @@ the R-level fixture cannot reach on its own.
 
 ## Landing notes
 
-Commit 1 = 7145e29. Record a bitwise BCF fixture and close the component gate
+Commit 1 = b5a112d. Record a bitwise BCF fixture and close the component gate
 holes (test-only, no engine change). benchmarks/R/bcf-equivalence.R added in
 equivalence.R's record/compare idiom: five scenarios (default, restricted
 moderator, updateA/updateB toggle, weighted, setTreatment) x six channels
@@ -391,7 +391,7 @@ saved-slot addressing the ridge rescale touches. Gate: equivalence 22/22 +
 full tinytest unchanged + tests/cpp (grown) + the new fixture identical to
 itself.
 
-Commit 2 = 691697b. Introduce the forest combiner and relocate the combining
+Commit 2 = 43f7724. Introduce the forest combiner and relocate the combining
 math (engine, byte-identical). ForestCombiner<L> and AmplitudeForestCombiner<L>
 introduced; combiner_ replaces bcf_; forestMultiplier/formForestResponse/
 combinedFits moved into AmplitudeForestCombiner. DEVIATION recorded: renaming
@@ -410,7 +410,7 @@ drawGlue/afterCombine/serializeGlue/restoreGlue took over its call sites. Gate:
 equivalence 22/22 + BCF fixture identical + tests/cpp + bcf-exact.R quick +
 full tinytest.
 
-Commit 3 = b8b0b4c. Move the coupling draw and ridge move into the combiner
+Commit 3 = 4559520. Move the coupling draw and ridge move into the combiner
 (engine, byte-identical). drawGlue and interweaveGlueRidgeForTesting (the ridge rescale)
 became virtual ForestCombiner methods, called from Chain at the same sweep
 points and in the same rng order as before. DEVIATION recorded: afterCombine
@@ -428,7 +428,7 @@ forward, not at the one-time plan that shipped it. Gate: equivalence 22/22 +
 BCF fixture identical + tests/cpp + bcf-exact.R quick+full +
 bcf-exact-restricted.R + bcf-exact-weak.R + tinytest.
 
-Commit 4 = c90ecf2. Route reporting, serialization, and treatment through the
+Commit 4 = a630197. Route reporting, serialization, and treatment through the
 combiner (engine, byte-identical). storeSample's forest selection and channel
 definedness, getState/setState/installForest's glue (de)serialization, and
 setTreatment/bcfGlue all moved onto the virtual surface

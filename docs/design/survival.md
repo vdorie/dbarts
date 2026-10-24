@@ -1,7 +1,7 @@
 # Survival models: design
 
-Status: AFT log-normal LANDED 2026-07-10 (f0efc03). Discrete-time hazard
-LANDED 2026-07-18 (4bcdccf; the section below). Section 2 is AMENDED by
+Status: AFT log-normal LANDED 2026-07-10 (8212352). Discrete-time hazard
+LANDED 2026-07-18 (fc25719; the section below). Section 2 is AMENDED by
 [front-door](../plans/front-door.md#front-door) S2, LANDED 2026-09-09
 (44b3fa6d): `breaks` and `max.rows` are no longer `bart()`/`dbarts()`
 formals; both live on the `hazard(breaks = NULL, max.rows = 1e7, link =

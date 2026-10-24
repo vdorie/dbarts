@@ -387,7 +387,7 @@ No other live storage lever remains; the arc is complete.
 x86 rdtsc re-profile at n=1e6 (single-thread, 200 trees), buckets = gather
 (computeLeafStats) / roll (rollTreeResidual) / other (moves/scans/draws):
 
-    historical (2941808, pre-cuts):              gather 37.8%
+    historical (fc8a57a, pre-cuts):              gather 37.8%
     storage=double (uint32 idx, fp64 resid):      39.2 / 29.9 / 30.9   sweep 42.4s
     storage=single (uint32 idx, fp32 resid):      33.4 / 32.0 / 34.7   sweep 37.1s
 

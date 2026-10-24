@@ -300,7 +300,7 @@ partitioning entirely; a different library sharing only the tree structure).
    before the fix, aligned-vs-unaligned axpy still). Isolating abstraction
    cost requires pinning both engines to identical kernels; do this before
    claiming the dispatch design is free.
-   Re-measured at full R5 parity (d31c0f8, 2026-07-03) with
+   Re-measured at full R5 parity (aaf41bf, 2026-07-03) with
    bench-sampler.R engine=new, after multiple chains, the facade,
    categorical branches in the hot loops, keepTrees, and the progress
    plumbing all landed: the zero-regression cutover bar HOLDS. Sampling

@@ -1,9 +1,9 @@
 # Heteroscedastic BART (HBART): design
 
-Status: LANDED 2026-07-20 (arc 3775437..994ec7e; records 31c0204); predictor
+Status: LANDED 2026-07-20 (arc 5aa9c96..ddaae03; records 122ae48); predictor
 mutation (setPredictor, transactional and per-observation) on a
 heteroscedastic sampler LANDED 2026-08-12
-(docs/plans/archive/multiforest-predictor-mutation.md S3, a825263; see section 14).
+(docs/plans/archive/multiforest-predictor-mutation.md S3, 9e2e20c; see section 14).
 Plan: docs/plans/archive/multi-forest-models.md (the heteroscedastic half). Users
 declare a second ensemble modeling the residual
 variance as a function of predictors, so y_i = f(x_i) + s(x_i) eps_i with

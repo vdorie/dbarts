@@ -4,7 +4,7 @@ Status: ACCEPTED (VD 2026-08-11), text amended (the text in "The
 principle" below). Arc record, 2026-08-11. Artifacts (gitignored):
 untracked {memo.md,critique.md,guide-memo.md} files - a
 channel-by-family census memo, its adversarial critique (fifteen probe
-scripts, run against a private build of b70b373), and a guide-first
+scripts, run against a private build of 84fd591), and a guide-first
 memo written after VD twice corrected the framing ("a principle ...
 should cover what we aspire to and not what we have currently
 implemented"; "grounding the principle in code ... misses the entire

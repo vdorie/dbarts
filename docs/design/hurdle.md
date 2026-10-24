@@ -1,6 +1,6 @@
 # Hurdle / two-part model: design
 
-Status: LANDED 2026-07-20 (901581e..7903855; records docs/plans/archive/hurdle.md
+Status: LANDED 2026-07-20 (0d15a6c..7bca140; records docs/plans/archive/hurdle.md
 Landing). Section 13 is AMENDED by [front-door](../plans/front-door.md#front-door)
 S2, LANDED 2026-09-09 (44b3fa6d): `hurdle.lognormal` is now also a
 [`dbartsFamily`](../../R/family.R) constructor object (`hurdle.lognormal()`),

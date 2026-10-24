@@ -413,11 +413,11 @@ measurably faster.
 ## Landing (2026-07-07 to 2026-07-10)
 
 The Forest member split and the two-forest sampler above shipped
-2026-07-07: the sampler itself (d1ffb92), calibrated and gated
-against the exact posterior, closing the core item (c9fd2fe;
+2026-07-07: the sampler itself (68ae93b), calibrated and gated
+against the exact posterior, closing the core item (31cd1da;
 docs/plans/archive/forest-split-bcf.md); the state format gained a forest
-dimension (4e6b206); and a sampler can warm-start from a donor fit's
-forests (933eed8). Mixing refinements landed 2026-07-10: an
+dimension (380d1e9); and a sampler can warm-start from a donor fit's
+forests (1a13150). Mixing refinements landed 2026-07-10: an
 interweaving (ASIS) rescale move on the PROGNOSTIC glue ridge - the
 a-move (5109b669; docs/plans/archive/bcf-ridge-interweaving.md) - and the
 sigma burn-in calibration recorded above

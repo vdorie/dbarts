@@ -1068,9 +1068,9 @@ matrix, not a fitted value. Both stale-doc corrections landed: the
 `numObservations`, the scan count and leaf collapsing; the veto counts
 POSITIVE-WEIGHT members, degenerating to the member count only with no weight
 vector installed - and a mask IS one), and `r-c-division.md`'s
-latent-subset-mask bullet names 93afd635 instead of "this slice".
+latent-subset-mask bullet names ccfee2d1 instead of "this slice".
 
-Budget, raw additions against 94747480: non-test 184 + this note, tests 362
+Budget, raw additions against c81611e0: non-test 184 + this note, tests 362
 (tinytest 290, `tests/cpp` 72). Stops 389 / 518.
 
 Battery, all on the slice's private lib (`/tmp/s1-lib`, since `~/.Renviron`
@@ -1136,9 +1136,9 @@ Deviations and carried obligations.
 - `docs/design/feature-matrix.md`'s file:line anchors into `R/dbarts.R` and
   `R_interface_bartcore.cpp` shifted and were NOT refreshed here, following the
   previous arc's pattern of one anchor-refresh commit at the END of the arc
-  (cd27822f). Owed before the arc closes.
+  (940605e2). Owed before the arc closes.
 
-Landed: 5bedf923, pushed 2026-08-15. Independent gate-runner CONFIRM on its
+Landed: 77013d72, pushed 2026-08-15. Independent gate-runner CONFIRM on its
 own lib (243/243 tests/cpp plain and ASAN, tinytest 4919/0 failures, trio
 bitwise 37/12/10, R CMD check --as-cran OK 0/0/0, provenance verified);
 orchestrator diff review against the spec found no deviation beyond those
@@ -1191,7 +1191,7 @@ Docs: the `run` `\value` paragraph gains the element with its shape, its two
 r-modes and the absent-not-NULL rule; a `\value` entry for `getDispersion`;
 the alias and `\usage` line; one NEWS item.
 
-Budget, raw additions against 7e6a4a3e: non-test 116 + this note (total 244,
+Budget, raw additions against 54b9dbe7: non-test 116 + this note (total 244,
 band 160-215, stop 270), tests 293. Both overshoot, both for the same reason -
 cell count. The test oracle is {run slot, getter, state} x {fixed r, estimated
 r} x {1 chain, 2 chains}, twelve comparisons before the shape, NULL,
@@ -1271,7 +1271,7 @@ Deviations and carried obligations.
   refreshed here, following S1 and the previous arc's one anchor-refresh commit
   at the END of the arc. Owed before the arc closes.
 
-Landed: da3c76f9, pushed 2026-08-15. Independent gate-runner CONFIRM on its own
+Landed: 1aa0c39a, pushed 2026-08-15. Independent gate-runner CONFIRM on its own
 lib (243/243 tests/cpp plain and ASAN, tinytest 4985/0 failures, trio bitwise
 37/12/10 incl. the nbinom scenario, R CMD check --as-cran OK 0/0/0, provenance
 verified; weak-gate and mandated-cell audits clean). Orchestrator adjudication
@@ -1365,7 +1365,7 @@ EOF errata only (numstat 11/5); the Rd's `updateScale` paragraph gains the
 grouped clause and a "Grouped random effects" subsection states the rule;
 one NEWS item; the NEWS db builds.
 
-Budget, raw additions against 05a2b73a: non-test 104 + this note (band
+Budget, raw additions against b68776f3: non-test 104 + this note (band
 130-175, stop 220 - under; the plan's ~90 records allowance is this note);
 tests 316 against ~223, stop 335. Overage ADJUDICATED ACCEPTED: the
 independent gate-runner traced every cell to a mandated oracle or its direct
@@ -1383,7 +1383,7 @@ anywhere); air clean; lintr 0 on all three touched R files against the slice
 lib; pkgdown no problems (no new topic); `R CMD check --as-cran` from a
 git-archive tarball staged outside the tree, Status OK, 0/0/0.
 
-Landed: eeedc07c, pushed 2026-08-15. Independent gate-runner CONFIRM (all nine
+Landed: e5dbafd6, pushed 2026-08-15. Independent gate-runner CONFIRM (all nine
 gates, four audits: oracle traceability, weak-gate, rule-2 numstat, no
 docs/plans in code comments). feature-matrix.md's grouped-row cells updated in
 the records commit; the arc-end scoped anchor refresh stays owed.
@@ -1469,7 +1469,7 @@ riding the first nightly after bartcore reaches main. Recorded, not waived;
 that leg has since run by hand, 2026-09-13 on the x86 box over the whole
 tinytest suite including this file (docs/plans/valgrind-xbart.md).
 
-Budget, raw additions against f8e630fe, BOTH SIDES PAST THEIR STOPS -
+Budget, raw additions against c6c0e591, BOTH SIDES PAST THEIR STOPS -
 adjudicated, not slipped: non-test 517 (bridge 218 with the hpp and
 DEF_FUNC lines, R 164, Rd 122, NEWS 11, NAMESPACE 1, pkgdown 1) against the
 spec's ~336-with-records band 300-390 stop 505; tests 418 against ~230 stop
@@ -1497,7 +1497,7 @@ entries, by the corrected invocation); `pkgdown::check_pkgdown` no problems
 with the new topic's entry verified in place; `R CMD check --as-cran` from
 a git-archive tarball staged outside the tree, Status OK, 0/0/0.
 
-Landed: 890efd3d, pushed 2026-08-15. Independent gate-runner CONFIRM
+Landed: 9ae26b80, pushed 2026-08-15. Independent gate-runner CONFIRM
 (pre-amend tree; all nine gates, audits A-D including the budget audit
 above). No feature-matrix cell bears on the helpers; none updated. The
 arc-end scoped anchor refresh stays owed.
@@ -1508,7 +1508,7 @@ R-ONLY, stated plainly: the commit touches NAMESPACE, `_pkgdown.yml`,
 `inst/NEWS.Rd` and three new files (`R/validateComposition.R`,
 `inst/tinytest/test-validate-composition.R`,
 `man/dbartsValidateComposition.Rd`); `src/` is absent from the diff, so the
-engine binary is e650ab8c's - the 33f6fdc precedent the MANIFEST records.
+engine binary is e6894853's - the b5ef5a3 precedent the MANIFEST records.
 
 The five properties, each verified in code by the independent gate-runner
 with line citations: (1) the ranked quantity is
@@ -1564,7 +1564,7 @@ hosts). Timings, measured: every ordinary cell under 0.15 s, the
 many-functional cell 0.36 s, the FILE 1.1 s against its 45 s budget (1.2 s
 inside R CMD check); the n.replications = 100L fallback was never needed.
 
-Budget, raw additions against e650ab8c: non-test 452 (R 297, Rd 141, NEWS
+Budget, raw additions against e6894853: non-test 452 (R 297, Rd 141, NEWS
 8, NAMESPACE 3, pkgdown 3) - over the 280-380 band, UNDER the 525 stop;
 tests 267 against ~200, under the 300 stop. The overshoot is the
 11-argument Rd (141 vs ~70) and air's vertical formatting of the driver's
@@ -1586,7 +1586,7 @@ tree, Status OK, 0/0/0. No ASAN leg owed (R-only), and the blind-spot
 sentence - a drawPrior/simulate mutual inconsistency is undetectable -
 ships in the Rd as mandated.
 
-Landed: 37d9ec81, pushed 2026-08-15. Independent gate-runner CONFIRM (all
+Landed: a98a8508, pushed 2026-08-15. Independent gate-runner CONFIRM (all
 nine gates, audits A-D, M3-deviation algebra checked and accepted). No
 feature-matrix cell bears on the validator; none updated. The arc-end
 scoped anchor refresh stays owed.
@@ -1598,7 +1598,7 @@ R/docs-ONLY: the commit touches `_pkgdown.yml`, `inst/NEWS.Rd`,
 three new files (`vignettes/dbarts-as-a-component.Rmd`,
 `man/dbarts-embedding.Rd`, `inst/tinytest/test-embedding-recipes.R`);
 `src/` and `inst/include/` are absent from the diff, so the engine binary
-is 8a15d0ad's. NAMESPACE is untouched, correctly - the page and the
+is 850eb6f7's. NAMESPACE is untouched, correctly - the page and the
 vignette export nothing.
 
 The six recipes ship as specced, each with its tinytest cell, all six
@@ -1646,7 +1646,7 @@ standard errors"), which the gate-runner reproduced exactly (0.2856,
 runs in CI. A future RNG-stream change can drift those two hedged words;
 the mechanism itself stays gated by the recipe's 6-SE cell.
 
-Budget, raw additions against 8a15d0ad: non-test 474 (vignette 349,
+Budget, raw additions against 850eb6f7: non-test 474 (vignette 349,
 embedding Rd 108, NEWS 9, `\seealso` 7, pkgdown 1) - over the 300-400
 band, UNDER the 555 stop; tests 428 against ~360, under the 540 stop.
 The overshoot is the vignette: the plan's ~210 priced six recipes but
@@ -1664,7 +1664,7 @@ Utilities; `R CMD check --as-cran` from a git-archive tarball staged
 outside the tree WITH vignettes, Status OK, 0/0/0. Vignette build 5.16 s
 (implementer) / 3.4 s (gate-runner) against the 60 s target.
 
-Landed: 55811082, pushed 2026-08-15. Independent gate-runner CONFIRM
+Landed: cbe9f0dd, pushed 2026-08-15. Independent gate-runner CONFIRM
 (all nine gates; recipe traceability, statistical-prose audit against
 the shipped Rd/landing-note record, tolerance recomputation on its own
 bitwise-identical run, deviation audits all clean). No feature-matrix
@@ -1728,7 +1728,7 @@ object and the "clean" verification runs mutated code - `touch` after every
 revert (one mutation run was re-run after this was caught; the recorded
 table is the clean run).
 
-Budget, raw additions against ed04b6f3: non-test 113 as `numstat` counts
+Budget, raw additions against 30c28c1a: non-test 113 as `numstat` counts
 it, of which 25 is the setWeights MOVE charged as additions (bodies
 byte-identical, verified) - net-new 89 against the ~65 estimate, inside
 the 55-95 band; NEWS is 22 for three user-visible refusals. Tests 112
@@ -1744,7 +1744,7 @@ entries); `pkgdown::check_pkgdown` no problems, no topic owed;
 tree, Status OK, 0/0/0. No ASAN leg owed - no new engine code becomes
 reachable and the cap makes an existing path unreachable.
 
-Landed: cedf4c34, pushed 2026-08-15. Independent gate-runner CONFIRM (all
+Landed: d5e57534, pushed 2026-08-15. Independent gate-runner CONFIRM (all
 eight gates, audits A-F all verified against source). This closes the
 response-support-validation entry's whole residue: the G1 landing's
 deliberate deviation (the cap), both of its open follow-ons (the flat
@@ -1815,12 +1815,12 @@ and after, IDENTICAL) and hash-gated unmoved (the static_assert compiled
 and test-capi.R's 0x85bd1ef04beb3848 cell passed on the amended tree);
 install, full tinytest and a fresh clean-copy `R CMD check` re-ran green.
 
-Budget, raw additions against d101ebc9: non-test 350 as numstat counts it,
+Budget, raw additions against ba9c72fc: non-test 350 as numstat counts it,
 70 of it the verbatim promotion MOVE - net-own 280 against the 278 stop,
 the final +11 being the two ORCHESTRATOR-DIRECTED comment fixes.
 ADJUDICATED ACCEPTED: shortening a stated ABI rule to fit a line count
 would defeat the fix, and pre-amendment the slice sat at 269, inside.
-Tests 187 against the 188 stop. The spec's own comparable (ab3aa2fa)
+Tests 187 against the 188 stop. The spec's own comparable (c85d6db6)
 predicted the weight sits in the capi tests; it does (consumer.c 87,
 test-capi.R 100).
 
@@ -1835,7 +1835,7 @@ pkgdown no problems (flat entries carry no R surface, no topic owed);
 `R CMD check --as-cran` from a git-archive tarball staged outside the
 tree, Status OK, 0/0/0, re-run on the final amended commit.
 
-Landed: 13393350, pushed 2026-08-15. Independent gate-runner CONFIRM (all
+Landed: 91611d9c, pushed 2026-08-15. Independent gate-runner CONFIRM (all
 ten gates including its own stan4bart leg; audits A-F). ALL EIGHT SLICES
 OF THE ARC ARE LANDED; the arc-end scoped feature-matrix anchor refresh is
 the one remaining arc obligation.

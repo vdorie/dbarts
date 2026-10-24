@@ -1,6 +1,6 @@
 # Per-variable monotone constraints (mBART): design
 
-Status: LANDED 2026-07-19 (ee4ca79); REVISED 2026-10-01 (d701d0af, 23ec2bfa). Plan:
+Status: LANDED 2026-07-19 (df98589); REVISED 2026-10-01 (d701d0af, 23ec2bfa). Plan:
 docs/plans/archive/monotone-bart.md (this is its step 1). Revised by
 [monotone-exact-birth-death.md](../plans/monotone-exact-birth-death.md): two priors, "joint" (the
 default) and "leaf", each targeted exactly (sections 4 and 9). Revised 2026-10-06 by

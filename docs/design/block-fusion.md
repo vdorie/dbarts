@@ -2,7 +2,7 @@
 
 Status: CLOSED, WONT-DO. Stage A (b=1 exact refactor) landed then the whole
 project was closed: Stage C measured the fused path 4-6x slower than b=1 (no
-win, section 10, tip 10c59bc), and the machinery was excised at 5caf990 (kept
+win, section 10, tip 7716621), and the machinery was excised at 44e19d4 (kept
 on archive/block-fusion). Original proposal (2026-07-11) follows. Turned the
 falsifier-cleared CONCEPT in docs/design/parallel-bart-frontier.md section 3.4
 into an implementable engine design. VD approved pursuing the flagship engine
@@ -678,9 +678,9 @@ single-thread), friedman p=10, m=75, screening protocol (reduced reps of the
 biggrid harness; the ~7x margin needs no finer resolution); two recordings
 bracket the move-maintenance fix (b=1 essentially unchanged, ~29.1/29.4
 ms/iter at n=1e5 and ~498/505 at n=1e6 across both):
-- before (tip b74fec9, O(n)-per-move regroup): n=1e5 b=4 488ms (16.8x
+- before (tip 73f24b4, O(n)-per-move regroup): n=1e5 b=4 488ms (16.8x
   slower), b=8 749ms (25.7x); n=1e6 b=4 7045ms (14.1x), b=8 9945ms (20.0x).
-- after (tip 10c59bc, in-place O(affected) move maintenance + targeted
+- after (tip 7716621, in-place O(affected) move maintenance + targeted
   rejection undo): n=1e5 b=4 229ms (7.8x slower), b=8 285ms (9.7x); n=1e6
   b=4 3482ms (6.9x), b=8 3694ms (7.3x).
 
@@ -696,7 +696,7 @@ change/swap subtree re-slice (8.1).
 
 PHASE DECOMPOSITION (2026-07-13): env-gated wall timers inside runFusedBlock
 (diagnostic only, never committed) split the fused iteration into phases on
-dbarts-bench, quiet, m=75, tip 31a36b9, the same screening protocol as above.
+dbarts-bench, quiet, m=75, tip fb70b15, the same screening protocol as above.
 ms/iter and share of the fused iteration (timer sums match R-measured wall
 within ~1% in every cell):
 - n=1e5 b=4 (total 229.6): entry-ex-build 5.3 (2%), buildForBlock 105.1 (45%),
@@ -758,7 +758,7 @@ CI forces b>1 today.
 EXCISED (2026-07-13): the machinery is removed from the tip -- both the b>1
 fused path and the Stage A b=1 atom writer (the whole AtomMap, its move kernels,
 the blockSize knob, and the DBARTS_BLOCKSIZE override). The complete
-implementation is preserved on branch archive/block-fusion at a225e75; the
+implementation is preserved on branch archive/block-fusion at 089562d; the
 rationale (KILL verdict, traffic-model correction) stays in sections 9-10 above.
 The excision was verified bitwise -- the R equivalence gate reports identical
 draws against the same anchor (equivalence-ac6ec2c.rds), because the Stage A

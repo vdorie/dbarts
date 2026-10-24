@@ -1,7 +1,7 @@
 # Public surface for the major version
 
 Status: MIXED; reviewed 2026-07-03, updated through 2026-08-13 (dbarts-h-reshape S1,
-ab3aa2fa - sec 6). Decisions from that review are recorded inline as DECIDED.
+c85d6db6 - sec 6). Decisions from that review are recorded inline as DECIDED.
 Section 6 is SUPERSEDED by [pure-c-header](../plans/pure-c-header.md#pure-c-header), LANDED
 2026-09-09 (2d0b6d90): "SEXPs at exactly two boundaries" is now none, the header creating no sampler
 and carrying no state or tree entry, and the entry list there is the
@@ -28,7 +28,7 @@ S1-S3 surface; no further behavioral change. front-door arc LANDED
 2026-09-09 (S4 28431413).
 Companion to core-generalization.md:
 the engine reached cutover readiness (full R5 parity, statistical
-equivalence, and the zero-regression speed bar all gated at 209c09b), so
+equivalence, and the zero-regression speed bar all gated at b6a1821), so
 what remains is what the major version exposes. For the shipped engine's
 layering and mechanisms, see docs/architecture.md.
 

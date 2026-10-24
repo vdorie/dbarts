@@ -1,9 +1,9 @@
 # Naming the leaf-prior calibration
 
 Status: ARC COMPLETE; vocabulary superseded by docs/plans/leaf-prior-k-or-sd.md
-(the leaf prior is named by k or sd; this body is the record). Creation half LANDED c2a7e89b, mid-chain half
-LANDED (S2 d809b944 + 7da36dc3); the flat-C half LANDED at the dbarts.h
-reshape's S1 (ab3aa2fa). Plan: docs/plans/nameable-calibration.md. Companion:
+(the leaf prior is named by k or sd; this body is the record). Creation half LANDED d4a3f4fc, mid-chain half
+LANDED (S2 3074ed45 + 9314be8e); the flat-C half LANDED at the dbarts.h
+reshape's S1 (c85d6db6). Plan: docs/plans/nameable-calibration.md. Companion:
 docs/design/prior-defaults.md, which owns the defaults this names an
 alternative to, and docs/design/r-c-division.md, whose "the wall that remains
 is calibration" is what this closes.

@@ -692,12 +692,12 @@ docs/plans/README.md.
 
 ## Landing notes
 
-S0 - LANDED 4c866286, 2026-08-12. The frozen `dbarts_sampler_get/
+S0 - LANDED 9e65cb9e, 2026-08-12. The frozen `dbarts_sampler_get/
 setCalibration` signatures and the `prior.scale` slot shape were
 written into `docs/plans/archive/dbarts-h-reshape.md` S1 (items 7+8, beside
 the active-rows footprint) and `docs/plans/archive/c-api-growth.md`; no code.
 
-S1 - LANDED c2a7e89b, 2026-08-13. All ten items shipped; the
+S1 - LANDED d4a3f4fc, 2026-08-13. All ten items shipped; the
 conversion is a private `Chain::resolvedNodeScale` helper shared by
 the constructor and `setModel` sites, returning `nodeScale` VERBATIM
 (no arithmetic) when `priorScale` is non-finite - the default path is
@@ -733,7 +733,7 @@ from a clean-copy tarball, pkgdown no new topic); x86 box leg green
 (tests/cpp plain+ASAN, tinytest 4276/0 incl. both new test files,
 equivalence.R statistical OK; gcc emits benign
 -Wmissing-field-initializers in sampler.hpp - noted, non-functional);
-CI green on the c2a7e89b push. Carried to S2: (i) `NaN` escapes the
+CI green on the d4a3f4fc push. Carried to S2: (i) `NaN` escapes the
 R-side `validateNamedScale`/validity checks because `is.na(NaN)` is
 TRUE in R, and errors only at the bridge ("named prior scale is NaN")
 - the refusal-5 outcome holds via an unintended path; S2 decides
@@ -744,7 +744,7 @@ already carries, not restate it; (iii) fix the stale comment at
 coverage (test-calibration-prior-draws.R pins the absolute prior sd
 at m = 20, so a sqrt(m)-forgetting conversion fails outright).
 
-S2 - LANDED d809b944 + 7da36dc3 (record correction), 2026-08-13. The
+S2 - LANDED 3074ed45 + 9314be8e (record correction), 2026-08-13. The
 four items plus carried items i-iv, all reviewer-verified: (i) NaN now
 refused R-side via `is.nan` in `validateNamedScale` and the validity
 method, bridge check retained as depth; (ii) NEWS sampled-k content
@@ -763,7 +763,7 @@ but the originally recorded fixture evidence was FALSE - the shipped
 fixture is bitwise-exact at n.trees 20/50/200 and rounds ONLY at
 m = 25, P = 0.25 (the record had it inverted; root cause: a number
 transplanted from a scratch script with a different fitScale).
-Corrected in 7da36dc3, which also adds the m = 25/P = 0.25 arm so the
+Corrected in 9314be8e, which also adds the m = 25/P = 0.25 arm so the
 tolerance is exercised by a genuinely rounding cell; the pin is a
 robustness choice - exactness is a property of the (P, f) pair, not of
 the implementation, so a bitwise assertion would pin an accident.
@@ -785,7 +785,7 @@ and reviewer batteries both green from scratch (preclean private
 libs, tests/cpp plain + ASAN zero reports, tinytest 4400/0, trio
 identical x3, air + lint_package clean, R CMD check Status OK
 clean-copy, pkgdown clean, saveRDS/readRDS updateState round trip
-asserted); x86 box leg green at d809b944 (tinytest 4388/0 incl. both
+asserted); x86 box leg green at 3074ed45 (tinytest 4388/0 incl. both
 calibration files, equivalence.R statistical OK); CI on the push per
 the records commit. Carried to S3 (inside reshape S1): (a) the engine
 `Chain::forestCalibration` getter has NO bounds check on the forest
@@ -796,7 +796,7 @@ C_interface.cpp; (b) cosmetic: on a BCF sampler `refuseBCFMutation`
 fires before argument validation, so setCalibration(prior.mean = 0)
 reports the BCF refusal rather than the prior.mean one.
 
-S3 - LANDED at dbarts-h-reshape S1, ab3aa2fa, 2026-08-13 (implemented as
+S3 - LANDED at dbarts-h-reshape S1, c85d6db6, 2026-08-13 (implemented as
 3a977b6d, amended during independent review). All three items shipped
 exactly to this section's spec: the `dbarts_forest_calibration` POD, the
 `dbarts_leaf_model` enum, the two X-list entries and the per-leaf-model
