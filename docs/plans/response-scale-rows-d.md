@@ -1199,7 +1199,7 @@ build.
 Built on 9740f9c2 (wt/sfp-3, state-frame-prior slice 3 in its fix round, not landed) with this plan's two
 rechecks on top, the steps rechecked against it first
 ([Recheck against state-frame-prior slice 3's fix round](#recheck-against-state-frame-prior-slice-3s-fix-round),
-e5cd37e8). Commits: a69c8bca (the push), 6440e06c (the help, NEWS and notes) and this record.
+dd2c9492). Commits: 786de72e (the push), 5e106141 (the help, NEWS and notes) and this record.
 
 What it does. A linear or gp leaf derives its covariates' center and scale, and a gp leaf its default
 lengthscale, over the rows in the likelihood, rows of positive weight that no mask leaves out, by membership
@@ -1322,15 +1322,15 @@ reads the raw values again only at a re-derivation, which the refusal arm now ma
 set built where every row is in (the same sums in the same order), and an all-ones mask kept as a copy, which
 `leafRowsFrom` reads as every row by construction (not run).
 
-Size, against e5cd37e8 before this record: engine 376 added and 120 removed, bridge 251 and 67, R 184 and 23,
+Size, against dd2c9492 before this record: engine 376 added and 120 removed, bridge 251 and 67, R 184 and 23,
 tests/cpp 472 and 46, tinytest 948 and 50, the exact arm 108 and 60, help and NEWS 25 and 13, notes 56 and 19;
 2420 added and 398 removed in all, against ~3590 forecast at landing and ~2075 raw (stop ~5390); package code 811
 against ~585 forecast (stop ~880), its engine and bridge over their itemization (the typed error and its wording,
 the copy's lifecycle, the buffer staging, the keep's answer), so a fix round has about 70 lines before that stop.
 
-Gates, on the push's libraries, from a `--preclean` install of 6440e06c (this record touches the plan alone; the
+Gates, on the push's libraries, from a `--preclean` install of 5e106141 (this record touches the plan alone; the
 reference, exact, check and R-loaded sanitizer runs were made on the push's earlier spellings, whose package
-code is 6440e06c's, the later changes touching only test-leaf-standardization-rows.R and test_state.cpp): tests/cpp plain and under ASAN and
+code is 5e106141's, the later changes touching only test-leaf-standardization-rows.R and test_state.cpp): tests/cpp plain and under ASAN and
 UBSAN, 411 ok, no failure and no diagnostic; the suite in one process file by file as `test_package` runs them,
 271 files, 28982 expectations, none failed, test-mutate-then-serialize.R stopping on an error that was 9740f9c2's own
 (restated after the rebase onto f58d1482: a7189447, in slice 3's landing, fixed it, and the file passes on the
@@ -1359,13 +1359,13 @@ test-mutate-then-serialize.R failure this paragraph named is gone with the rebas
 ### Push 1 fix round
 
 The orchestrator rebased the push onto bartcore f58d1482, state-frame-prior slice 3's landing among it (its fix
-round's a7189447 fixes the test-mutate-then-serialize.R failure "Push 1 as built" named): the push is ab2d350a,
-e5cd37e8, a69c8bca (the code), 6440e06c (the help and notes) and 8a887960 (the record). Its review, FIX FIRST: eight
+round's a7189447 fixes the test-mutate-then-serialize.R failure "Push 1 as built" named): the push is a3e65674,
+dd2c9492, 786de72e (the code), 5e106141 (the help and notes) and 2888f0a2 (the record). Its review, FIX FIRST: eight
 mutants surviving (R12, R13, R26, R07, R08, R05b, R21, R22) and R14 killed by tests/cpp alone; the no-row warning
 garbling an unnamed column; the help naming "the hazard families" among the mask families; hazard.probit with no
 subject in warning twice; nits (a fixed refusal buffer, a part-way failure leaving pointers into freed staging
-buffers, two spellings); stale hashes. Then the maintainer's ruling of 2026-10-23 below. Commits: eff97e92 (the
-review's fixes and pins), 4b618c6c (the ruling) and this record, which also restates the hashes and the claims
+buffers, two spellings); stale hashes. Then the maintainer's ruling of 2026-10-23 below. Commits: 68a38579 (the
+review's fixes and pins), 7d383cf3 (the ruling) and this record, which also restates the hashes and the claims
 above.
 
 The maintainer's ruling of 2026-10-23, on dec-A216 and this plan's planning call (one row in refused as "one
@@ -1407,19 +1407,19 @@ What changed besides:
 - The help says hazard.probit; data.hpp's comment and test-leaf-conversions.R's say centered; the refusal over every
   row says "read because too few are in the likelihood", true of no row in and of the response's fallback.
 
-Mutants, each alone on a clean export of 4b618c6c, `--preclean`; failures in test-leaf-standardization-rows.R: the
+Mutants, each alone on a clean export of 7d383cf3, `--preclean`; failures in test-leaf-standardization-rows.R: the
 reviewer's R12 2, R13 stops (its setData refused), R26 1, R07 2, R08 1, R05b 4, R21 3, R22 2, R14 1; the periods not
 folded 1; the unnamed label unfixed 1; the refusal cut at 511 bytes 1; one row in refused where the response falls
 back (the call before the ruling) stops at its creation; the setData fallback blind to the range choice 1.
 
-Size, against 8a887960 before this record: engine 27 added and 3 removed, bridge 36 and 28, R 83 and 55, tinytest
+Size, against 2888f0a2 before this record: engine 27 added and 3 removed, bridge 36 and 28, R 83 and 55, tinytest
 238 and 18, help 2 and 2, rule 9 4 and 2; 390 added and 108 removed. The push's package code stands at 877 lines
 added against f58d1482, under the 880 stop, the ruling's engine lines paid for by composing the fallback text
 once.
 
-Gates, from a `--preclean` install of 4b618c6c (this record touches the plan alone): tests/cpp plain and under ASAN
+Gates, from a `--preclean` install of 7d383cf3 (this record touches the plan alone): tests/cpp plain and under ASAN
 and UBSAN, 411 ok, no failure and no diagnostic; `tinytest::test_package` in one process, 266 files with
-expectations, 29662, none failed, its 12 warnings those of the reviewer's run at 8a887960; lint (0 lints), air,
+expectations, 29662, none failed, its 12 warnings those of the reviewer's run at 2888f0a2; lint (0 lints), air,
 rc-codoc (48 methods), win-drift, doc-freshness and verify-anchors clean, NEWS parsing with 227 entries; on a
 `--preclean` reference install the four snapshot files (14, 3, 7 and 3, none failed) and the bitwise compares, 55 of
 55 identical against equivalence-32418b6e (`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against
@@ -1434,13 +1434,15 @@ files and 1555 expectations, none failed. Not run: the x86-64 leg.
 
 Left open: the ruling's reading for families that read no response, above; package code is 3 lines from the stop.
 
-Second check of the fix round (FIX FIRST, tests and help): c2ac10d9 pins the response read the leaf falls back with,
+Second check of the fix round (FIX FIRST, tests and help): 7ac14c83 pins the response read the leaf falls back with,
 a gaussian offset taking y to one value over the rows in (every row, the joint text over 100 of 200) and one
 count over nbinom's rows in beside differing offsets (every row), and an `xbart` fold whose training rows hold one
 row of positive weight (its record over every training row, its all-rows flag set); rule 9, the xbart help and
-the ruling's paragraph above name the fold. No package code (877 of 880). Mutants on a clean export of c2ac10d9,
+the ruling's paragraph above name the fold. No package code (877 of 880). Mutants on a clean export of 7ac14c83,
 failures in test-leaf-standardization-rows.R: gaussian reading y and not y less offset, 2; nbinom reading the
-counts less the offset, 2; a fold built without the fallback, 3. Gates on c2ac10d9: test-leaf-standardization-rows.R
+counts less the offset, 2; a fold built without the fallback, 3. Gates on 7ac14c83: test-leaf-standardization-rows.R
 270 expectations, none failed; `tinytest::test_package` in one process, 266 files, 29671 expectations, none
 failed; lint (0 lints), air, rc-codoc (48), win-drift, doc-freshness and verify-anchors clean. The comments that
 still say "no row in" where the response's fallback now reads every row too ride push 2.
+
+Rebased onto bartcore 08b46a0e (weights-form, an R-only change to predict) without conflict; the hashes above are the rebased ones.
