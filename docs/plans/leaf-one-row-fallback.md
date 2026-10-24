@@ -2,7 +2,7 @@
 
 Status: BUILT 2026-10-24 on wt/leaf-one-row, rebased onto bartcore 36467389, not landed; implements dec-B485,
 and in its fix round dec-B488 (a multiplier's basis) and dec-B489 (a hazard fit's subjects)
-([Fix round](#fix-round)).
+([Fix round](#fix-round), [Second fix round](#second-fix-round)).
 
 agent: one opus implementer (engine, R text, tests, help, notes); one opus review that runs mutants.
 rng: draw-changing only where a case refused today now runs. NEUTRAL, bit for bit, for every other call, with
@@ -193,4 +193,51 @@ both cross-host compares; the 43 commands of exact-gates.yaml at `quick` on the 
 parsing at 227 entries; `R CMD check --as-cran --no-manual` from a tarball built from a clean export, the Date
 field's NOTE alone. Not run: the R-loaded path under ASAN, stan4bart (it calls neither changed entry: they are
 the R bridge's, not dbarts.h's), the x86-64 leg.
+
+## Second fix round
+
+The review of 583e94da (FIX FIRST, R only; the engine half correct) found the subject count resting on the row
+layout, two surviving mutants and a nit. Built in 5a1d9b36.
+
+- The layout. A subject is counted as starting at its row at period 1, which holds for every expansion
+  `dbarts()` writes but not for rows `setData()` or `new()` are handed in another order: subject 5's rows reversed
+  counted as two subjects and were refused, and subject 5's period-1 row moved last made subject 4 and subject 5's
+  other periods one subject, every row read under a warning that said one. [`hazardRowSubjects`](../../R/bartcore.R)
+  now requires the first row at period 1 and each later row at period 1 or one more than the row before, and
+  refuses otherwise, naming the layout and the first row out of it, at creation and at `setData`, which now
+  counts before the swap so that nothing moves. The `setData` help and rule 9 state the layout.
+- The survivors: a probit multiplier store of two rows with one in reads the basis over both with the warning
+  (the mutant `n > 2` of `Chain::rowsForBasisScale` refuses it), and a hazard fit of one subject over five
+  periods with a linear leaf on the period reads its five rows silently (the mutant `n > 0` of
+  [`tooFewUnitsIn`](../../R/bartcore.R) warns "1 of 1 subjects").
+- The nit: a constant basis refused where every row was read, too few being in, says "on every row, read
+  because too few are in the likelihood", as the leaf's refusal does; [`BasisScaleError`](../../src/bartcore/combiner.hpp)
+  carries whether the rows read were every row.
+
+Calls made, each with its alternative:
+
+- Rows whose subjects cannot be counted are refused. Alternative: count rows for such data, as before dec-B489,
+  which would give one subject in two answers by how its rows were handed in.
+- The check runs at both counting doors whatever rows are in, so the layout is one contract of a hazard fit's
+  data. Alternative: check only where a row is out, the one case the count decides, leaving data in another
+  layout accepted until a row leaves.
+- The check is not widened. `survivalProbabilities` and partial dependence read the same layout (a subject's
+  period-1 row) off a fit's data; those come from `dbarts()`, and `setData` now refuses any other layout, so the
+  check guards them through the door that could break it, with nothing added there.
+
+Mutants, each alone, `--preclean`, failures in test-leaf-standardization-rows.R (615) and
+test-forest-scale-record.R (121): F05 (`n > 2` for the basis), stops at the two-row store, tests/cpp passing;
+F10 (`n > 0` for the subjects), 1; the layout check dropped, 4; the first row unchecked, 1; `setData` counting
+after the swap, 1; the basis refusal not told every row was read, 2. All six killed.
+
+Gates, on 5a1d9b36 from `--preclean` installs in a private library: tests/cpp 412 ok plain and under ASAN and
+UBSAN, no diagnostic; the suite at the default `ncpu` in one process, 268 files, 30987 results, none failed; on a
+`--enable-reference-build` install the four snapshot files (14, 3, 7 and 3, none failed) and the bitwise
+compares, 55 of 55 against equivalence-32418b6e (`--strict-coverage`, 0 skipped), 19 of 19 against
+bcf-equivalence-20eed7ed and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line, and both
+cross-host compares; the 43 commands of exact-gates.yaml at `quick`, all passing; lint (0 lints), air,
+check-rc-codoc (48 methods), check-win-drift, check-doc-freshness and verify-anchors clean, NEWS at 227 entries;
+`R CMD check --as-cran --no-manual` from a clean export, the Date field's NOTE alone.
+
+Open: whether the setters count a hazard fit's subjects too is with the maintainer; not built.
 
