@@ -455,14 +455,14 @@ family(object, ...)
   fit's own bases there (see `bases`). The offset and the weights are
   checked against the number of training rows, one value or one per row
   with none missing, and weights, here and at `newdata`, are a vector or
-  a one-column matrix, a matrix of several columns being refused;
-  `na.action` having no say among the fit's own rows, a missing one is
-  refused where `newdata` would answer it by `na.action`. The weights'
-  values are looked at, as at `newdata`, by a `"ppd"` draw alone, which
-  refuses those its family cannot take, and any other type takes
-  whatever they hold. The bases are checked as at `newdata`. None needs
-  saved trees, and a fit kept without its training draws is refused by
-  name.
+  a one-column matrix, a matrix of several columns, a data frame or a
+  list being refused; `na.action` having no say among the fit's own
+  rows, a missing one is refused where `newdata` would answer it by
+  `na.action`. The weights' values are looked at, as at `newdata`, by a
+  `"ppd"` draw alone, which refuses those its family cannot take, and
+  any other type takes whatever they hold. The bases are checked as at
+  `newdata`. None needs saved trees, and a fit kept without its training
+  draws is refused by name.
 
 - offset:
 
@@ -1380,7 +1380,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.221035
+#> total seconds in loop: 0.221902
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 
