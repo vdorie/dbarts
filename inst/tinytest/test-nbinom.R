@@ -641,10 +641,15 @@ expect_true(all(fittedPpd >= 0))
 expect_equal(fittedPpd, fitted(fit, type = "ev"), tolerance = 0.5)
 
 # predict(type = "ppd") pairs each mean-count draw with its own draw's
-# shape whichever layout the fit stored and the caller asks for
+# shape whichever layout the fit stored and the caller asks for, and draws
+# in the split layout's chain-fastest order, as extract does, taking the
+# counts to the caller's layout after
 x.pair <- data.frame(x = runif(60L))
 y.pair <- rnbinom(60L, size = 4L, mu = 3 * exp(x.pair$x))
 newdata.pair <- data.frame(x = c(0.2, 0.8))
+mergeChains <- function(split) {
+  matrix(aperm(split, c(2L, 1L, 3L)), prod(dim(split)[1:2]), dim(split)[3L])
+}
 for (fitCombined in c(TRUE, FALSE)) {
   fit.pair <- bart(
     x.pair,
@@ -660,13 +665,15 @@ for (fitCombined in c(TRUE, FALSE)) {
     verbose = FALSE,
     seed = 1L
   )
+  means <- predict(fit.pair, newdata.pair, combineChains = FALSE)
+  # samples x chains, laid out chain-fastest as the split means' draw margin is
+  r <- as.vector(t(fit.pair$shape.raw))
+  set.seed(3L)
+  expected <- array(
+    rnbinom(length(means), size = rep(r, 2L), mu = as.vector(means)),
+    dim(means)
+  )
   for (predictCombined in c(TRUE, FALSE)) {
-    means <- predict(fit.pair, newdata.pair, combineChains = predictCombined)
-    r <- fit.pair$shape.raw
-    # samples x chains, laid out as the means' draw margin is
-    r <- if (predictCombined) as.vector(r) else as.vector(t(r))
-    set.seed(3L)
-    expected <- rnbinom(length(means), size = rep(r, 2L), mu = as.vector(means))
     set.seed(3L)
     ppd <- predict(
       fit.pair,
@@ -674,18 +681,57 @@ for (fitCombined in c(TRUE, FALSE)) {
       type = "ppd",
       combineChains = predictCombined
     )
-    expect_equal(as.vector(ppd), expected)
+    expect_equal(
+      as.vector(ppd),
+      as.vector(if (predictCombined) mergeChains(expected) else expected)
+    )
+  }
+
+  # under one seed the merged counts at newdata are the merge of the
+  # per-chain call's, and newdata at the training rows is the call with no
+  # newdata, with the chains merged or not
+  set.seed(4L)
+  merged <- predict(fit.pair, newdata.pair, type = "ppd")
+  set.seed(4L)
+  perChain <- predict(
+    fit.pair,
+    newdata.pair,
+    type = "ppd",
+    combineChains = FALSE
+  )
+  expect_identical(dim(perChain), c(2L, 25L, 2L))
+  expect_identical(as.vector(merged), as.vector(mergeChains(perChain)))
+  for (predictCombined in c(TRUE, FALSE)) {
+    set.seed(5L)
+    atTraining <- predict(
+      fit.pair,
+      x.pair,
+      type = "ppd",
+      combineChains = predictCombined
+    )
+    set.seed(5L)
+    noNewdata <- predict(
+      fit.pair,
+      type = "ppd",
+      combineChains = predictCombined
+    )
+    expect_equal(atTraining, noNewdata)
   }
 }
 rm(
   x.pair,
   y.pair,
   newdata.pair,
+  mergeChains,
   fitCombined,
   fit.pair,
   predictCombined,
   means,
   r,
   expected,
-  ppd
+  ppd,
+  merged,
+  perChain,
+  atTraining,
+  noNewdata
 )

@@ -3535,12 +3535,11 @@ predict.bartNegbin <- function(
   if (n.chains == 1L) {
     means <- matrix(means, n.new, n.samples)
   }
-  means <- convertSamplesForCaller(means, n.chains, combineChains)
-  means <- nameObservationMargin(means, rowNames)
   if (type == "ppd") {
-    # each count is drawn with its own draw's shape: the shapes are
-    # laid out as the means are and take the caller's layout with them,
-    # whichever layout the fit stored its own in
+    # each count is drawn with its own draw's shape, in the split layout's
+    # chain-fastest order as extract.bartNegbin draws, and then taken to the
+    # caller's layout, so the counts depend on neither combineChains nor on
+    # whether the rows are the training rows
     shapes <- array(
       rep(disp, each = n.new),
       c(n.new, n.samples, n.chains)
@@ -3548,9 +3547,21 @@ predict.bartNegbin <- function(
     if (n.chains == 1L) {
       shapes <- matrix(shapes, n.new, n.samples)
     }
-    means <- negbinPpd(
-      means,
-      convertSamplesForCaller(shapes, n.chains, combineChains)
+    means <- combineOrUncombineChains(
+      negbinPpd(
+        nameObservationMargin(
+          convertSamplesForCaller(means, n.chains, FALSE),
+          rowNames
+        ),
+        convertSamplesForCaller(shapes, n.chains, FALSE)
+      ),
+      n.chains,
+      combineChains
+    )
+  } else {
+    means <- nameObservationMargin(
+      convertSamplesForCaller(means, n.chains, combineChains),
+      rowNames
     )
   }
   if (!is.null(ci.level)) {

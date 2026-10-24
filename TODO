@@ -248,12 +248,6 @@ items
     'x'" and is now refused as names that are not the sampler's
     (dec-B478). Found by the review of state-frame-prior slice 2. Not
     planned.
-  nbinom-ppd-merged-chains: predict(type = "ppd") on a negative binomial
-    fit at newdata is not the merge of its own combineChains = FALSE
-    call, and differs from the same call with no newdata under one seed
-    with the chains merged, nothing missing; with combineChains = FALSE
-    the two agree. Found by the review of small-rulings-1024-r; the
-    build before does the same. Not planned.
   setdata-own-data-ulp: setData(s$data) holds the stored state and the
     records bit for bit (state-frame-prior slice 3), but the draws that
     follow differ from an untouched twin's by about 1e-16, the fits
