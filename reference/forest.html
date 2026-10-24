@@ -316,7 +316,8 @@ The constructor is not exported: it resolves by bare name inside the
     a forest's label (failing an exact match, the label that is the same code,
     so <code>"I(dose / 30)"</code> finds <code>I(dose/30)</code>), a number is its
     position as base R reads a list element by number, and <code>forest&lt;i&gt;</code> names position
-    <em>i</em>, as it does on every per-forest margin. A string is never a
+    <em>i</em>, though a per-forest margin of a fit is named by the forests'
+    labels. A string is never a
     position: <code>"2"</code> is a forest labeled <code>"2"</code> or none. A string
     that is one forest's label and another position's name, or the same code
     as two labels, is refused.</p>
@@ -770,7 +771,7 @@ The constructor is not exported: it resolves by bare name inside the
 <span class="r-out co"><span class="r-pr">#&gt;</span>   1 forest1: no basis; sd 2.278 (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Running mcmc loop:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000685</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> total seconds in loop: 0.000687</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> Tree sizes, last iteration:</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 2 3 3 2 3 3 2 2 2 2 </span>

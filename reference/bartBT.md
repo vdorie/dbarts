@@ -237,12 +237,19 @@ family(object, ...)
   \\10^6\\, as a sweep's time grows with the total count. For a weighted
   logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
   the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
-  p)\\ with \\p\\ the fitted probability. On a gaussian, Student-t or
-  `aft` fit, the `"ppd"` draw of a training row at weight 0, a row held
-  out of the fit, is that of an ordinary observation, drawn at weight 1,
-  in `extract` and in `fitted(type = "ppd")`;
-  `predict(type = "ppd", weights = )` refuses a weight of 0 by name, so
-  pass 1 for an ordinary observation.
+  p)\\ with \\p\\ the fitted probability. On a gaussian or Student-t
+  fit, a row at weight 0 has `NA` `"ppd"` draws in every route: a
+  training row (`extract`, `fitted(type = "ppd")`), a row of the test
+  sample whose test-frame weight is 0, and a row given `weights` of 0 to
+  `predict`; an `aft` fit takes no case weights at fit time, so only
+  `predict(weights = )` reaches a weight of 0 on it, with the same
+  result. A weight of 0 holds a row out of the fit and gives it no noise
+  scale, \\\sigma / \sqrt{w}\\, as
+  [`simulate`](https://rdrr.io/r/stats/simulate.html) gives `NaN` at a
+  weight-0 row of an `lm` fit; no warning is raised, and every other
+  row's draw is as it would be without the row. To draw such a row as a
+  new observation, state its weight:
+  `predict(fit, type = "ppd", weights = 1)`.
 
 - ntree:
 
@@ -442,7 +449,20 @@ family(object, ...)
   rows from the draws the fit stored, as `extract` with
   `sample = "train"` does, and needs no saved trees; an `offset` given
   then replaces the fit's own at the training rows, one value or one per
-  training row, while `weights` and `bases` are refused there.
+  training row; `weights` replace the fit's own weights for the training
+  rows' `"ppd"` draws, one value or one per training row, acting as they
+  do at `newdata` for each family (see `type`); and `bases` replace the
+  fit's own bases there (see `bases`). The offset and the weights are
+  checked against the number of training rows, one value or one per row
+  with none missing, and weights, here and at `newdata`, are a vector or
+  a one-column matrix, a matrix of several columns being refused;
+  `na.action` having no say among the fit's own rows, a missing one is
+  refused where `newdata` would answer it by `na.action`. The weights'
+  values are looked at, as at `newdata`, by a `"ppd"` draw alone, which
+  refuses those its family cannot take, and any other type takes
+  whatever they hold. The bases are checked as at `newdata`. None needs
+  saved trees, and a fit kept without its training draws is refused by
+  name.
 
 - offset:
 
@@ -591,20 +611,21 @@ family(object, ...)
   position, as base R reads a list element by number, or by label (a
   string; see
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md)),
-  `"forest1"`, `"forest2"`, ... being the position names every
-  per-forest margin carries; `NULL` (the default) returns every forest.
-  For `type = "forest"` the returned array always keeps the trailing
-  forest margin, subset to the requested forests, even when only one is
-  selected; `type = "trees"` returns a data frame and keeps no such
-  margin. For `extract(type = "k")` and
+  `"forest1"`, `"forest2"`, ... naming position *i* when a forest is
+  selected (the margins themselves are named by the forests' labels, as
+  `forest<i>` for a forest with none); `NULL` (the default) returns
+  every forest. For `type = "forest"` the returned array always keeps
+  the trailing forest margin, subset to the requested forests, even when
+  only one is selected; `type = "trees"` returns a data frame and keeps
+  no such margin. For `extract(type = "k")` and
   `extract(type = "leaf.prior.sd")` on a fit with several forests, it
-  selects among the per-forest entries, which `"k"` names `forest1`,
-  `forest2`, ... and `"leaf.prior.sd"` by the forests' labels (the entry
-  itself for a single forest). Selecting a forest outside those is
-  refused by name: every other arm has already recombined the forests
-  into the location it reports, except `"sigma"` (a model parameter with
-  no forest axis) and `"varcount"` (which already keeps every forest on
-  its own trailing margin), each naming its own reason instead.
+  selects among the per-forest entries, which both name by the forests'
+  labels (the entry itself for a single forest). Selecting a forest
+  outside those is refused by name: every other arm has already
+  recombined the forests into the location it reports, except `"sigma"`
+  (a model parameter with no forest axis) and `"varcount"` (which
+  already keeps every forest on its own trailing margin), each naming
+  its own reason instead.
 
 - bases:
 
@@ -628,7 +649,15 @@ family(object, ...)
   factor, a character vector and a logical vector are refused
   ([`as.numeric()`](https://rdrr.io/r/base/numeric.html) of a logical
   vector is its 0/1 column). Either way it is required to have
-  `nrow(newdata)` rows. A missing value is refused on a row the
+  `nrow(newdata)` rows, or as many rows as the fit has training rows
+  when `newdata` is left out; with no `newdata`, `bases` replace the
+  fit's own at the training rows, which is the counterfactual at the
+  rows the fit was made on. The fit is then rebuilt draw by draw from
+  the per-forest channels it stores (`forestFits`, `glue` and `bases`;
+  see ‘Value’), with no saved trees, every `type` reading off the
+  rebuilt total, and an `offset` given with them applies as well; a fit
+  kept without those channels (`keepFits = FALSE`) is refused, saying to
+  refit with `keepFits = TRUE`. A missing value is refused on a row the
   prediction keeps and passed by on a row the `na.action` drops (see
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md)).
   A name on an entry is refused unless it is that forest's label or
@@ -683,9 +712,11 @@ family(object, ...)
   kind of interval follows `type`: `"ev"` yields a credible interval for
   the conditional mean (a probability for binary responses), `"ppd"` a
   prediction interval that additionally carries the residual noise (and
-  so is wider), and `"bart"` a credible interval on the latent scale.
-  For `fitted(type = "forest")` it returns the rows-by-forests-by-3
-  array of `est`, `ci.lower` and `ci.upper`, as for a multinomial fit;
+  so is wider), and `"bart"` a credible interval on the latent scale. A
+  row with no draws, a weight-0 row of a posterior predictive draw (see
+  `weights`), has `NA` in all three columns. For
+  `fitted(type = "forest")` it returns the rows-by-forests-by-3 array of
+  `est`, `ci.lower` and `ci.upper`, as for a multinomial fit;
   `predict(type = "forest")` refuses it by name, since that arm reports
   each forest's own total before any basis. It is also refused on
   `residuals`, where it would band a constant minus an increasing triple
@@ -1012,14 +1043,16 @@ returned. In the numeric \\y\\ case, the list has components:
   RESPONSE-scale raw total at each draw, i.e. \\\mathrm{response.scale}
   \times f_k(x)\\, with NO amplitude (`glue`) folded in - the same
   quantity the sampler's `$getForestFits` reports, up to that one
-  scalar. The trailing margin is named `forest1`, ..., `forestK`; each
-  forest's label (a name in `forests`, else the text of the forest's
-  `basis`, else `forest<i>`; see
+  scalar. The trailing margin is named by the forests' labels (a name in
+  `forests`, else the text of the forest's `basis`, else `forest<i>` for
+  a forest with neither; see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
-  `forests` item) rides separately as a `"forest.labels"` attribute on
-  the fit object, and beside it a `"forest.unit"` attribute holds the
-  unit the forests' sds are stated in: \\\mathrm{sd}(y)\\ as the `sd`
-  argument of
+  `forests` item), as is every per-forest margin or list of the fit and
+  of what `extract`, `fitted` and `predict` return, so one forest has
+  one name everywhere. The labels also ride as a `"forest.labels"`
+  attribute on the fit object, and beside it a `"forest.unit"` attribute
+  holds the unit the forests' sds are stated in: \\\mathrm{sd}(y)\\ as
+  the `sd` argument of
   [`forest`](https://vdorie.github.io/dbarts/reference/forest.md) takes
   it, or the link's error sd, which the header of the full block names.
   `glue` is the ragged (`n.chains` \\\times\\, when uncombined)
@@ -1134,8 +1167,8 @@ returned. In the numeric \\y\\ case, the list has components:
   ([`dbartsSampler`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)'s
   `getLeafPrior`), a list holding the prior as it was named, what its
   standard deviation is the standard deviation of, and `k.scale`, the
-  value `k` is relative to. A list of such lists, named `forest1`,
-  `forest2`, ..., on a fit with several forests.
+  value `k` is relative to. A list of such lists, named by the forests'
+  labels, on a fit with several forests.
 
 - `fixed`:
 
@@ -1347,7 +1380,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.215684
+#> total seconds in loop: 0.221035
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

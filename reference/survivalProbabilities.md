@@ -25,6 +25,7 @@ survivalProbabilities(
   offset = NULL,
   combineChains = TRUE,
   na.action = dbarts::na.keepPredictors,
+  sample = c("train", "test"),
   ...
 )
 
@@ -48,11 +49,11 @@ survivalProbabilities(object, ...)
   A fitted `bart` object from a survival model: an AFT model (its
   `family` element equals `"aft"`) or a discrete-time hazard model (it
   carries a `$periods` grid; its `family` records the binary link). A
-  hazard fit must have been made with `keepTrees = TRUE`, unless
-  `newdata` is `NULL` and a `test` set rode the fit call (the matrix
-  interface's own hazard `test` acceptance, person-period-expanded on
-  the training grid) - then the stored test draws are read directly and
-  no trees are needed.
+  hazard fit must have been made with `keepTrees = TRUE`, except to read
+  the test subjects a `test` set that rode the fit call gave it (the
+  matrix interface's own hazard `test` acceptance,
+  person-period-expanded on the training grid): `sample = "test"` reads
+  their stored draws and no trees are needed.
 
 - times:
 
@@ -64,10 +65,11 @@ survivalProbabilities(object, ...)
 - newdata:
 
   Optional predictors at which to evaluate. When `NULL` the training
-  observations are used, EXCEPT for a hazard fit that also carries a
-  `test` set (below), whose stored draws are read instead, and for an
-  AFT fit, which reads its stored draws; otherwise a hazard `object`
-  must have been fit with `keepTrees = TRUE`.
+  observations are used, always: a `test` set that rode the fit call
+  never changes what the call with no `newdata` returns, and
+  `sample = "test"` is how to get its subjects. An AFT fit reads the
+  training subjects from its stored draws; a hazard `object` must have
+  been fit with `keepTrees = TRUE` to give them.
 
 - offset:
 
@@ -78,15 +80,14 @@ survivalProbabilities(object, ...)
   argument evaluated on `newdata` (see `offset` in
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)). For a
   hazard fit a subject's offset applies at every period. Without
-  `newdata` an offset replaces the fit's own at the training rows (one
-  value or one per training row, or per subject on a hazard fit: the
-  test subjects where it carries a test set, else the training
-  subjects), read off the stored draws with no trees replayed. On a
-  hazard fit that carries a `test` set, the subjects are the test
-  subjects whose draws it stored, and the offset replaces theirs on the
-  latent scale before the link; with no test set a hazard fit replays
-  its trees at the training subjects, as it does for any training
-  subjects, and needs `keepTrees = TRUE`.
+  `newdata` an offset replaces the fit's own at the subjects asked for,
+  the training subjects' under `sample = "train"` and the test subjects'
+  (the `offset.test` the fit stored) under `"test"`, one value or one
+  per subject of that set. An AFT fit's is read off the stored draws
+  with no trees replayed; so is a hazard fit's at its test subjects, on
+  the latent scale before the link, while a hazard fit replays its trees
+  at the training subjects, as it does for any of them, and needs
+  `keepTrees = TRUE`.
 
 - combineChains:
 
@@ -100,13 +101,29 @@ survivalProbabilities(object, ...)
   unused when `newdata` is `NULL`. See ‘At Prediction’ in
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
+- sample:
+
+  Either `"train"` (the default) or `"test"`, as
+  [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)'s and
+  `fitted`'s `sample` are. With no `newdata`, `"train"` gives the
+  training subjects and `"test"` the subjects of the `test` set that
+  rode the fit call, read from the draws the fit stored, with no trees:
+  a hazard fit's stored test grid, an AFT fit's stored test fit and, on
+  a heteroscedastic fit, its stored test scale. Refused, by name,
+  together with `newdata`, which gives other subjects: either value
+  named beside `newdata`, `"train"` as well as `"test"`, is an error,
+  since `sample` chooses among the fit's own subjects; leave it out to
+  read `newdata`'s. Also refused on a fit that carries no test set or
+  whose test draws `keepFits = FALSE` dropped, the message naming both
+  causes and, on a fit kept without trees, a test set at the fit or the
+  trees as what would answer it.
+
 - ...:
 
   Not a formal on the method: a name belonging to a sibling generic
-  (`type`, `sample`, `ci.level`, `weights`, `n.threads`, `forest`,
-  `contribution`, `bases`) is refused by name rather than silently
-  ignored, since this method returns the draws of \\S(t \mid x)\\ at
-  `times` alone.
+  (`type`, `ci.level`, `weights`, `n.threads`, `forest`, `contribution`,
+  `bases`) is refused by name rather than silently ignored, since this
+  method returns the draws of \\S(t \mid x)\\ at `times` alone.
 
 ## Details
 
@@ -137,8 +154,9 @@ row per period and its curve evaluated the same way. The one exception:
 a `test` set that rode the fit call (the matrix interface's own hazard
 `test` acceptance) was already person-period-expanded on the SAME
 training grid at fit time, so its hazards are stored on the fit
-already - `newdata = NULL` on such a fit reads them directly with no
-re-expansion and no trees needed, in preference to the training data.
+already - `sample = "test"` on such a fit reads them directly with no
+re-expansion and no trees needed. The call with no `newdata` is the
+training subjects whether or not the fit carries a test set.
 
 ## Value
 
@@ -148,7 +166,7 @@ dimensions are draws \\\times\\ times \\\times\\ observations; with
 \\\times\\ draws \\\times\\ times \\\times\\ observations), length 1 on
 a one-chain fit rather than dropped, as `extract` and `predict` keep
 theirs. Observations are those of `newdata`, or the training data when
-`newdata` is `NULL`.
+`newdata` is `NULL`, or with `sample = "test"` the test set.
 
 ## See also
 

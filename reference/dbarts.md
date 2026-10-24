@@ -741,16 +741,21 @@ dbarts(
   response requires the family to be requested explicitly (`"auto"`
   selects `"aft"`), on either interface - a `Surv` left-hand side on
   `formula` works too, and both interfaces honor `subset` (applied
-  before the person-period expansion). Survival curves come from
+  before the person-period expansion). A hazard fit whose person-period
+  response holds one class, every subject censored or every subject's
+  event in its first period, is fitted, with one warning saying so; the
+  prior alone then drives the hazards toward 0 or 1, and the survival
+  curves sit where the prior puts them. Survival curves come from
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md),
-  which requires `keepTrees` unless reading a stored `test` set (below);
-  `bart` reports the fit with its `$periods` grid, and its `$family`
-  records the binary link. Both interfaces accept a `test` set,
-  person-period-expanded on the SAME period grid as training (no event
-  time - every subject expands to every period);
+  which requires `keepTrees` unless reading a stored `test` set with
+  `sample = "test"` (below); `bart` reports the fit with its `$periods`
+  grid, and its `$family` records the binary link. Both interfaces
+  accept a `test` set, person-period-expanded on the SAME period grid as
+  training (no event time - every subject expands to every period);
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-  then reads its hazards straight off the fit with no `keepTrees`
-  needed.
+  with `sample = "test"` then reads its hazards straight off the fit
+  with no `keepTrees` needed (the call with no `newdata` is always the
+  training subjects).
 
   `"hurdle.lognormal"` fits a semicontinuous two-part (hurdle) model for
   a non-negative response with exact zeros: a zero-part probit fit of

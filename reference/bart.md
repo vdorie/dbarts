@@ -300,11 +300,20 @@ print(x, ...)
   \\10^6\\, as a sweep's time grows with the total count. For a weighted
   logistic fit, the `"ppd"` draw at an observation with weight \\w\\ is
   the number of successes among \\w\\ trials, \\\mathrm{Binomial}(w,
-  p)\\ with \\p\\ the fitted probability. On a gaussian, Student-t or
-  `aft` fit, the `"ppd"` draw of a training row at weight 0 is that of
-  an ordinary observation, drawn at weight 1, in `extract` and in
-  `fitted(type = "ppd")`; `predict(type = "ppd", weights = )` refuses a
-  weight of 0 by name, so pass 1 for an ordinary observation.
+  p)\\ with \\p\\ the fitted probability. On a gaussian or Student-t
+  fit, a row at weight 0 has `NA` `"ppd"` draws in every route: a
+  training row (`extract`, `fitted(type = "ppd")`), a row of the test
+  sample whose test-frame weight is 0, and a row given `weights` of 0 to
+  `predict`; an `aft` fit takes no case weights at fit time, so only
+  `predict(weights = )` reaches a weight of 0 on it, with the same
+  result. A credible band (`ci.level`) over such a row is `NA` in all
+  three columns. A weight of 0 holds a row out of the fit and gives it
+  no noise scale, \\\sigma / \sqrt{w}\\, as
+  [`simulate`](https://rdrr.io/r/stats/simulate.html) gives `NaN` at a
+  weight-0 row of an `lm` fit; no warning is raised, and every other
+  row's draw is as it would be without the row. To draw such a row as a
+  new observation, state its weight:
+  `predict(fit, type = "ppd", weights = 1)`.
 
 - offset:
 
@@ -687,13 +696,18 @@ print(x, ...)
   no event. A `Surv` response requires the family to be requested
   explicitly (`family = "auto"` selects `"aft"`), on either interface -
   a `Surv` left-hand side on `formula` works too, and both interfaces
-  honor `subset` (applied before the person-period expansion). Both
+  honor `subset` (applied before the person-period expansion). A hazard
+  fit whose person-period response holds one class, every subject
+  censored or every subject's event in its first period, is fitted, with
+  one warning saying so; the prior alone then drives the hazards toward
+  0 or 1, and the survival curves sit where the prior puts them. Both
   interfaces accept a `test` set, person-period-expanded on the SAME
   period grid as training (no event time - every subject expands to
   every period);
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
-  then reads its hazards straight off the fit with no `keepTrees`
-  needed. Any OTHER `newdata` passed to
+  with `sample = "test"` then reads its hazards straight off the fit
+  with no `keepTrees` needed (the call with no `newdata` is always the
+  training subjects). Any OTHER `newdata` passed to
   [`survivalProbabilities`](https://vdorie.github.io/dbarts/reference/survivalProbabilities.md)
   still needs `keepTrees`. The returned object is an ordinary `"bart"`
   fit whose `$family` records the binary link (so every prediction
@@ -2143,7 +2157,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001723
+#> total seconds in loop: 0.001782
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2196,7 +2210,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   1 forest1: no basis; sd 1.798 (default)
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.002095
+#> total seconds in loop: 0.002176
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

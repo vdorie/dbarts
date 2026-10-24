@@ -370,11 +370,15 @@ dbartsControl(
   The most cut positions a perturb proposal moves a split either way: a
   displacement is drawn uniformly from the cuts within that many
   positions of the current one, clipped to those the node's ancestors
-  and descendants allow. A positive whole number or `Inf`; anything at
-  or above the cut cap of 65533, `Inf` included, is that cap. The
-  default, 1, is the window the perturb move has always used. It changes
-  how the proposal moves, not the posterior it targets; acceptance falls
-  as the window widens. Like `proposal.probs`,
+  and descendants allow. A whole number from 1 to the cut cap of 65533,
+  or `Inf`, the explicit window over the node's whole range; a finite
+  value above the cap is refused, the message naming 65533 and `Inf` as
+  the ways to ask for it. The setting is a maximum, and the window stops
+  at the node's range, so a value under the cap that exceeds a
+  predictor's own number of cuts is taken and means that whole range.
+  The default, 1, is the window the perturb move has always used. It
+  changes how the proposal moves, not the posterior it targets;
+  acceptance falls as the window widens. Like `proposal.probs`,
   [`setControl`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)
   accepts a changed value between runs, installing it with the mixture,
   on a heteroscedastic sampler's variance forest as on its mean forest.
@@ -423,7 +427,7 @@ where a measurement supports one.
 | Categorical levels | quantized predictor code | 65535 | any real factor | no; a wider factor is refused by name |
 | Ordered-factor levels | quantized predictor code | 65534 | any real factor | no; one code goes to the cut grid |
 | Exact categorical enumeration | grow-from-root scan | 10 present levels | 8 to 14 | yes, `categoricalExhaustiveCap` |
-| Perturb window | the perturb proposal | 1 grid position | 1 | yes, `n.perturb.cuts`; acceptance falls with width |
+| Perturb window | the perturb proposal | 1 grid position | 1 | yes, `n.perturb.cuts`, up to the cut cap or `Inf`; acceptance falls with width |
 | Test-fit parallel cutoff | test-set fitting | 65536 rows | 8192 to 65536 | yes, `testFitParallelCutoff` |
 | Predict parallel cutoff | [`predict`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md) | 50000 traversals | 3e4 to 1e5 | yes, `predictParallelCutoff` |
 | Sparse density threshold | `dgCMatrix` storage | 0.2 | 0.05 to 0.5 | yes, `sparseDensityThreshold` |

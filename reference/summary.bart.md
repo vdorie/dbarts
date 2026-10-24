@@ -92,16 +92,15 @@ An object of class `summary.bart` with elements `call`, `stats` (a data
 frame with one row per requested sampled scalar, or `NULL` if none of
 `vars` are present on the fit), `vars`, and `fixed`, a named list of the
 requested parameters the fit held fixed and their values (on a fit with
-several forests a vector with one entry for each forest, `k` named
-`forest1`, `forest2`, ... and `leaf.prior.sd` by the forests' labels),
-and, on a fit of several forests that kept its fits, `forests`, the
-lines of the full block that the print method gives after the table.
-`stats` has columns `variable`, `mean`, `median`, `sd`, `mad`, `q5`,
-`q95`, `rhat`, `ess_bulk`, and `ess_tail` - the same columns
-`posterior::summarise_draws` reports for a plain array, computed without
-that package. Its print method notes when any R-hat exceeds 1.01; this
-does not withhold the rest of the summary or error, as dbarts does not
-refuse to summarize a non-converged fit.
+several forests a vector with one entry for each forest, `k` and
+`leaf.prior.sd` named by the forests' labels), and, on a fit of several
+forests that kept its fits, `forests`, the lines of the full block that
+the print method gives after the table. `stats` has columns `variable`,
+`mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`, `ess_bulk`, and
+`ess_tail` - the same columns `posterior::summarise_draws` reports for a
+plain array, computed without that package. Its print method notes when
+any R-hat exceeds 1.01; this does not withhold the rest of the summary
+or error, as dbarts does not refuse to summarize a non-converged fit.
 
 ## See also
 
