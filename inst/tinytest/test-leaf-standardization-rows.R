@@ -477,6 +477,36 @@ for (gp in c(FALSE, TRUE)) {
 made <- fallbacks(make("nbinom", oneIn))
 expect_identical(made$warnings, oneRow)
 expectRecord(made$value, literal(x1), "one row in, nbinom")
+# the value read is the response less its offset under gaussian and the count
+# under nbinom: an offset that takes y to one value over the rows in falls
+# back, and one beside a single count does not stop it
+halfIn <- paste0(
+  "fewer than two distinct values of the response are in the likelihood ",
+  "(100 of 200 observations are in it), so the response's scale, the prior's ",
+  "center and the center and scale of \"x1\" are taken from all 200"
+)
+made <- fallbacks(dbarts::dbarts(
+  x,
+  y,
+  weights = w,
+  offset = ifelse(w == 1, y, 0),
+  leaf.prior = dbartsPriors$linear("x1"),
+  control = controlWith()
+))
+expect_identical(made$warnings, halfIn)
+expectRecord(made$value, literal(x1), "an offset taking y to one value")
+oneCount <- ifelse(w == 1, 2, yCount)
+made <- fallbacks(dbarts::dbarts(
+  x,
+  oneCount,
+  weights = w,
+  offset = log(1 + x2),
+  family = "nbinom",
+  leaf.prior = dbartsPriors$linear("x1"),
+  control = controlWith()
+))
+expect_identical(made$warnings, halfIn)
+expectRecord(made$value, literal(x1), "one count beside differing offsets")
 # the same at a setData that derives the range; one that keeps it has no
 # fallback to follow and refuses
 s <- make()
@@ -1013,6 +1043,31 @@ expect_equal(
   literal(x1[trainRows], w[trainRows] == 1),
   tolerance = 1e-12
 )
+# a fold whose training rows hold one row of positive weight reads its
+# response and its leaf over every training row, as a creation does
+# (the spec says the response's fallback, once)
+specMade <- fallbacks(dbartsSpec(
+  dbartsData(x, y, weights = oneIn),
+  control = controlWith(n.chains = 1L),
+  leaf.prior = dbartsPriors$linear("x1")
+))
+expect_identical(length(specMade$warnings), 1L)
+spec <- specMade$value
+fold <- dbarts:::bartcoreSamplerFromHandle(
+  dbarts:::bartcoreDataHandle(spec$control, spec$data, 1L),
+  spec$control,
+  spec$model,
+  spec$data,
+  trainRows,
+  seq(2L, n, by = 2L)
+)
+foldRecords <- .Call(dbarts:::C_dbarts_bartcore_derivedRecords, fold$ptr, FALSE)
+expect_equal(
+  foldRecords$standardization[[1L]],
+  literal(x1[trainRows]),
+  tolerance = 1e-12
+)
+expect_identical(foldRecords$standardization.all.rows, TRUE)
 # a fold whose training rows in hold one value refuses the call
 expect_error(
   xbart(

@@ -1376,8 +1376,9 @@ one warning; dec-B465's refusal stays for its own case, the response spread over
 at one value there; re-derivations keep dec-B364 and dec-B465's keep. Built in
 [`Sampler::withResponseFallback`](../../src/bartcore/sampler.hpp): under a family that reads the response
 (gaussian with either residual distribution, nbinom), with a row out and the response less its offset (the counts
-under nbinom) at one value over the rows in, the leaf reads every row and marks its covariates, at creation and at
-a `setData` that derives the range; the creation text counts the rows in. The planning call, the mutant table,
+under nbinom) at one value over the rows in, the leaf reads every row and marks its covariates, at creation, a
+`setData` that derives the range, or an `xbart` fold (whose sampler is built through the same constructor tail);
+the creation text counts the rows in. The planning call, the mutant table,
 the help and rule 9 are restated. Read as the ruling's doors: a family that reads no response (probit, ordinal,
 hazard.probit) has no fallback to follow, and still refuses one row in as one value. A multiplier forest takes no
 linear leaf ("a treatment forest does not support a linear leaf prior"), refused before any warning, so a sampler
