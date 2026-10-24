@@ -281,10 +281,9 @@ comparison resolves about a third of a posterior standard deviation.
 The six scheduled workflows have never run on schedule: GitHub runs
 schedules only from the default branch, so on bartcore each has run only
 when dispatched by hand or when a push touched its own file. `equivalence`,
-`sbc`, `rchk`, `exact-gates-weekly` and `revdep-smoke` last ran green.
-`valgrind` has run green once; its latest run found two leaks in the
-bridge's error paths, which are fixed, and the run on the fix has not
-finished. rchk reads all compiled code except the bridge's state-restore
+`sbc`, `rchk`, `exact-gates-weekly`, `revdep-smoke` and `valgrind` last
+ran green; a `valgrind` run before that found two leaks in the bridge's
+error paths, which the green run's commit fixes. rchk reads all compiled code except the bridge's state-restore
 entry, too large for it to analyze (as it will be for CRAN's run); valgrind
 runs the whole suite (`docs/plans/valgrind-xbart.md`).
 
