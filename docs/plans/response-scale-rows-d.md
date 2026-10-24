@@ -1190,3 +1190,165 @@ scratch/rsrd1/probe-logs). The sections above are amended in place; this records
 
 No question changes what a user sees outside dec-B464, dec-B465 and the plan's calls; nothing stops the
 build.
+
+## Push 1 as built
+
+Built on 9740f9c2 (wt/sfp-3, state-frame-prior slice 3 in its fix round, not landed) with this plan's two
+rechecks on top, the steps rechecked against it first
+([Recheck against state-frame-prior slice 3's fix round](#recheck-against-state-frame-prior-slice-3s-fix-round),
+08f880ad). Commits: 276ad477 (the push), cf8f10f0 (the help, NEWS and notes) and this record.
+
+What it does. A linear or gp leaf derives its covariates' center and scale, and a gp leaf its default
+lengthscale, over the rows in the likelihood, rows of positive weight that no mask leaves out, by membership
+([`Sampler::leafRowsFrom`](../../src/bartcore/sampler.hpp)): null where every row is in, so those runs take
+today's loops bit for bit, and every row where none is in, the leaf marking the covariates so read
+(`DerivedRecords::leafFromAllRows`). [`standardizationMomentsForColumn`](../../src/bartcore/data.hpp) takes the
+row set and answers too little, fewer than two distinct observed values;
+[`GPGaussianLeaf::medianPairwiseDistance`](../../src/bartcore/model.hpp) strides over the rows read. At creation
+the rows are the weights' and the creation mask's, a new field of [`SamplerOptions`](../../src/bartcore/chain.hpp),
+`activeRows`, which `createHolder` now reads once for either arm; at `setData` the new data's weights and a new
+field of [`DataReplacement`](../../src/bartcore/data.hpp), set from `bartcore_setData`'s sixth argument; in an
+`xbart` fold the fold's weights over its gathered rows, `ColumnStore::buildFromParent` gathering the values alone
+(`suppliedStandardization`, `gatheredMeans` and `gatheredSds` are gone). A derivation with too little throws
+[`LeafStandardizationError`](../../src/bartcore/model.hpp) from [`deriveLeafMoments`](../../src/bartcore/model.hpp),
+naming the covariate, its column and the counts, unless a gp leaf's model states its lengthscales, which takes
+the placeholder; `Sampler::setData` tests every covariate it will derive before anything moves
+([`Sampler::refuseLeafDerivation`](../../src/bartcore/sampler.hpp)), and the bridge words the error at creation,
+at `setData` with the FALSE remedy and in a fold (`leafStandardizationMessage`). Slice 3's narrowed
+[`Sampler::rederiveStandardization`](../../src/bartcore/sampler.hpp) reads the rows the weights and the sampler's
+copy of the mask leave in ([`Sampler::keepActiveRows`](../../src/bartcore/sampler.hpp): the mask every chain
+holds, cleared by a replacement), holds a replaced covariate with too little by leaving it out of
+`Chain::heldStandardization`'s marks, and returns the covariates kept; the facade virtual returns them and the
+predictor entries carry them, with "warn now" from the holder's one flag, on their answer
+([`predictorUpdateAnswer`](../../src/R_interface_bartcore.cpp), `firstKeep`), which R strips and warns of last in
+the leaf's words ([`warnScaleKept`](../../R/bartcore.R)). R raises the creation warning where a leaf read every
+row, one text with the response's under gaussian, Student-t and nbinom, `dbarts()` dropping its held spec warning
+then, and `setData` the same where it derived ([`warnRowsFallBack`](../../R/bartcore.R),
+[`leafFromAllRows`](../../R/bartcore.R)). `bartcore_setData` copies the new response, weights, offset and test
+offset into buffers of its own and moves them into the holder once the engine has taken the replacement.
+
+Departures from the steps and the test table:
+
+- The sampler's copy of the mask is the mask every chain holds: a replacement clears it, and the mask on
+  `DataReplacement` is read for the derivation alone, the host installing it after as before. The plan had the
+  replacement's mask replace the copy, which between the swap and the host's install would claim a mask no chain
+  holds.
+- `Sampler::setData` tests a supplied record's unmatched covariates (a not-a-number center) as well as a derived
+  standardization's, so a partial record cannot refuse after the swap.
+- hazard.probit with no subject in warns twice: the hazard periods' text, counted in subjects and raised before
+  the sampler exists, and the leaf's, counted in person-period rows. The test table had one warning.
+- test-response-scale-rows.R's gp state arm, not named in step 1.6, leaves the standardization blocks out of its
+  forest compare: donor and recipient are created under other rows in, so each holds its own (a gp leaf with rows
+  out, which the stops allow to move). The direct `.Call` sites of `bartcore_setData` in test-data-handle.R,
+  test-multinomial-counts-mutation.R and test-sampler-boundary-refusals.R gain the sixth argument.
+- The held arm pins the record and the engine's reader before and after each call, not 5 sweeps against a twin;
+  the record arm compares a route's next sweeps with the source's to 1e-10, the live fits being rebuilt from the
+  trees, and its record and reader bit for bit.
+- The xbart arms of test-linear-leaves.R and test-gp-leaves.R and leafPriorChecks.R's `checkDataHandleViews` pass
+  unedited; test-leaf-conversions.R's sections 1 and 6 reach a constant through a carried record (`onRecord`), its
+  seeded `bart()` call from a data object.
+- linear-exact.R's arm puts its 200 rows out at the first value with the mean response; its draws are the first
+  arm's, bit for bit.
+- Step 1.9's TODO entry, ledger entry, indexes and landing note are the landing's; the design notes are written.
+
+Calls made in building, each with its alternative:
+
+- The refusal where no row is in and a covariate is constant over every row reads "holds one value over all n
+  observations, which are read because none is in the likelihood". Alternative: the plan's "(0 of n observations
+  are in it)", which reads as though no row was read.
+- An unnamed column is "the leaf covariate in column j" in the refusal and the keep. Alternative: `x[, j]`.
+- Several kept covariates are named "each of the leaf covariates x1 and x2 ... their centers and scales".
+  Alternative: one warning per covariate, against dec-B465's one per sampler.
+- A stated-lengthscale gp's placeholder records its scale as NA only where no training row reads off the value,
+  and 1 where rows out do, the spread mark reading the values it holds. Alternative: a placeholder mark of its own.
+- The no-row flags are a fifth entry of `bartcore_derivedRecords`'s list present only where one is set, so the
+  reader equals the record a data object carries, which slices 2 and 3's tests compare with `identical()`.
+  Alternatives: always present, which breaks those compares, or a new entry point.
+- `bartcoreSamplerSetPredictor` returns `list(value, visible, kept)` to the method. Alternative: an attribute on
+  the value, which a forced update's `NULL` cannot carry.
+- The bridge answer is a vector of its own: `Rf_ScalarLogical` hands out R's shared TRUE and FALSE, and an
+  attribute set on one leaked onto every later TRUE (found by the new file, before commit).
+- Every mutant installed with `--preclean`, R-only ones included, the export holding the previous build's objects.
+
+Tests. tinytest test-leaf-standardization-rows.R (225 expectations): at creation for gaussian, Student-t,
+probit, ordinal, nbinom, hazard.probit, logistic and aft, linear and gp, the record and the reader against
+literals over the rows in (every row for logistic and aft); fractional weights; the subset twin; every row in for
+each family; no row in, each family's warning and the joint text through `dbarts()` and `bart()`, apart by hand;
+the refusals at `dbarts()`, `bart()` and `new()` with `active` for rows in at one value, a constant column, none
+observed and one row in, linear and gp, and the stated-lengthscale gp created; rows out at one value created;
+missing values among the rows in; `new()` with and without `active`; nine calls that hold; `setPredictor`'s
+re-derivation after `setWeights`, after `setActiveRows` under gaussian and probit, after a `setData` of more rows,
+on a copy, a second covariate held, the keep and its one warning, the flag shared with `setOffset`'s keep, several
+kept, FALSE; `setData` by weight and by nbinom mask, a carried record, TRUE, FALSE, the refusal at NULL and TRUE
+leaving data, state, response and draws as an untouched twin's, served at FALSE, a probit sampler's own data
+object; the record through a copy, a copy of a copy, a reload, a reload of a copy and `new()` from `s$data`; gp
+kept-draw refusals; an `xbart` fold's record and its refusal. tests/cpp `testLeafStandardizationRows`: the moments
+over a row set, the all-ones set's bits, too little; at creation by weight and by mask under gaussian, probit and
+nbinom, linear and gp, the literals with the heuristic over 960 rows in with a missing row among those its stride
+takes, and 20 sweeps identical to a record's twin; no row in; the refusal and the stated-lengthscale placeholder;
+the re-derivation over the rows in, the mask in force, a refused mask, the keep reported, no row in; a replacement
+deriving over its own mask's rows, dropping the mask, and a refused replacement untouched.
+
+Existing tests changed: test-boundary-inputs.R (a constant designated column refused under linear and gp, the
+stated-lengthscale gp created); test-leaf-conversions.R sections 1 and 6, test-standardization-record.R's `twoFit`
+and `flatDonor`/`flatRecipient`, test-warm-start-forms.R's single-value block, test-calibration-prior-draws.R's
+`x4` and test-setdata-records.R's `flat` (a carried record or a stated lengthscale); test-response-scale-rows.R's gp
+state arm; the three direct `.Call` sites; tests/cpp's view pins in test_data.cpp and test_model.cpp, which now pin
+a view's leaf deriving over the view's rows and a constant view refused, testNoSpreadStandardization,
+testLinearLeafOneSidedConversion and testNoSpreadLiveConversion (constants through a supplied record), and the
+facade spy.
+
+Mutants, each alone on a clean export, installed with `--preclean`; failures in test-leaf-standardization-rows.R
+unless named, "stops" where the file stops at a refusal or an error: the row set ignored, 76, tests/cpp 16, and
+linear-exact.R's arm (largest |z| 39.9); membership read off the weight's size (0.001 out), 1; the creation mask
+not handed, 21; the weights ignored, the mask read, 51; the copy keeping the first mask, 1 (it survived a first run,
+the probit arm's sampler having had no creation mask; the arm now creates it under one); the copy not cleared at
+`setData`, 1, tests/cpp 1; the copy set before the chains accept, tests/cpp 2; the placeholder for the refusal, 34,
+test-boundary-inputs.R 2; the stated-lengthscale gp refused, stops in the new file, test-boundary-inputs.R and
+test-setdata-records.R; refused where only rows out are constant, stops; `setData` refusing after the swap, 4,
+tests/cpp 1; one row in read as none, 6; no fallback where none is in, stops, tests/cpp aborts; the probit no-row
+warning dropped, 4; two warnings for a joint fallback, 4; the re-derivation over every row, 7; every keep warned, 2;
+the response's keeps not spending the flag, 1; the response's text for a leaf keep, 3; FALSE refused, stops; the
+heuristic over every row, 10; its stride over every row's index, 1, tests/cpp 3 (tests/cpp's first two-in-three
+pattern took the same rows under either stride; now four in five); the heuristic dropping a missing row in, 1,
+tests/cpp 3 (the missing row moved into the subsample); a view supplying its parent's constants, 2; a fold with too
+little run, 1; `setData` handed no mask, 1; a re-creation deriving, 1 then stops, and test-standardization-record.R
+stops; an NA scale refused, stops in the new file and test-leaf-conversions.R; missing rows counted among the rows
+in, 1; `bartcore_setData` adopting its copies before the engine call, 2 (it survived a first run: the response
+reads the raw values again only at a re-derivation, which the refusal arm now makes). Alive as expected: the row
+set built where every row is in (the same sums in the same order), and an all-ones mask kept as a copy, which
+`leafRowsFrom` reads as every row by construction (not run).
+
+Size, against 08f880ad before this record: engine 376 added and 120 removed, bridge 251 and 67, R 184 and 23,
+tests/cpp 472 and 46, tinytest 948 and 50, the exact arm 108 and 60, help and NEWS 25 and 13, notes 56 and 19;
+2420 added and 398 removed in all, against ~3590 forecast at landing and ~2075 raw (stop ~5390); package code 811
+against ~585 forecast (stop ~880), its engine and bridge over their itemization (the typed error and its wording,
+the copy's lifecycle, the buffer staging, the keep's answer), so a fix round has about 70 lines before that stop.
+
+Gates, on the push's libraries, from a `--preclean` install of cf8f10f0 (this record touches the plan alone; the
+reference, exact, check and R-loaded sanitizer runs were made on the push's earlier spellings, whose package
+code is cf8f10f0's, the later changes touching only test-leaf-standardization-rows.R and test_state.cpp): tests/cpp plain and under ASAN and
+UBSAN, 411 ok, no failure and no diagnostic; the suite: `tinytest::test_package` stops at test-mutate-then-serialize.R,
+which fails at 9740f9c2 itself (its last section's `setState` of a state without the leaf blocks is refused as
+holding gp draws under another standardization; it passes at 0fd6f90f, so slice 3's fix round brought it), and in
+one process file by file as `test_package` runs them, 271 files, 28982 expectations, none failed, that file's error
+alone (the base: 270 files, 28755, the same error); lint (0 lints), air, rc-codoc (48 methods), win-drift,
+doc-freshness and verify-anchors clean; on a `--preclean` reference install the four snapshot files (14, 3, 7 and 3
+expectations, none failed) and the three `--bitwise` compares, 55 of 55 identical against equivalence-32418b6e
+(`--strict-coverage`, 55 compared, 0 skipped), 19 of 19 against bcf-equivalence-20eed7ed and 11 of 11 against
+multinomial-equivalence-80b1c8d4, no "max |z|" line, as expected; the 43 commands of exact-gates.yaml at `quick`
+on the shipped build, all passing, linear-exact.R's new arm within |z| 0.8, and the two cross-host compares on the
+reference passing; the R-loaded run over 13 touched and nearby files with the package built under ASAN and UBSAN
+through `CXX20FLAGS` (the bridge's compile line carrying `-fsanitize=address,undefined`), 2332 expectations, none
+failed, no diagnostic, and the final test-leaf-standardization-rows.R, 225, none failed; `R CMD check --as-cran
+--no-manual` from a clean tarball, the Date field's NOTE and an ERROR in its tests that is test-mutate-then-serialize.R's
+failure above; scratch/rsrd1/compare.R against 9740f9c2, 12 fixtures with every row in and every covariate spread
+(linear, gp and two covariates under gaussian, probit, Student-t, nbinom, logistic, aft, ordinal, hazard.probit and
+constant leaves, with `setData` of a fresh object and `setPredictor` deriving), 96 of 96 parts identical, and the 6
+that move all moved (24 parts: rows out by weight and by mask, centers 7.18 and scale 9.50 over every row against
+0.491 and 0.323 over the rows in, a gp lengthscale 0.080 against 1.03, `xbart` with linear and gp leaves, a constant
+column refused); stan4bart's suite (its bartcore branch at ac80108, built against this push), 1545 expectations,
+none failed. Not run: the x86-64 leg.
+
+Left open. test-mutate-then-serialize.R's failure is the base's, for slice 3's fix round. Package code stands at
+811 of the 880 stop. The x86-64 leg waits for landing.
