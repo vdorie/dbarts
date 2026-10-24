@@ -1522,9 +1522,11 @@ inline void monotoneLogPositionDistribution(
     }
     if (sum > 0.0)
       logDist[k] = std::log(sum) +
-                  static_cast<double>(top + current.forwardExponent +
-                                      up.backwardExponent) * std::numbers::ln2 -
-                  logExtensions;
+                   static_cast<double>(
+                     top + current.forwardExponent + up.backwardExponent
+                   ) *
+                     std::numbers::ln2 -
+                   logExtensions;
   }
 }
 

@@ -114,7 +114,7 @@ static std::vector<double> positionDistribution(const Order& pred, int x,
     for (const auto& kv : layer[k])
       if (!has(kv.first, x) && !(pred[x] & ~kv.first))
         dist[k] += kv.second.first *
-                  layer[k + 1].find(kv.first | one(x))->second.second / e;
+                   layer[k + 1].find(kv.first | one(x))->second.second / e;
   return dist;
 }
 

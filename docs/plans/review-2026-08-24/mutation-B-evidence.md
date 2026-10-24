@@ -6,7 +6,7 @@ Probe: a 7th ResponseFamily enumerator in a staged copy; tests/cpp rebuilt and
 R_interface_bartcore.cpp compiled -fsyntax-only, -Wall -Wextra.  Exactly THREE
 sites warned (-Wswitch): [src/bartcore/chain.hpp:582](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/chain.hpp#L582) (single-forest response factory),
 R_interface:2268 (refusedAmplitudeFamilyReason), and a third,
-[src/R_interface_bartcore.cpp:6244](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L6244) (`drawAugmentationLaws`).
+[src/R_interface_bartcore.cpp:6244](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/R_interface_bartcore.cpp#L6244) (`drawAugmentationLaws` then, `drawAugmentationDistributions` now).
 Four `default:` ladders stayed silent, plus one open-coded chain no -Wswitch
 can reach.  (Only two of the four are in src/bartcore; the memo's list spans
 both files.)
