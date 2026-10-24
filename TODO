@@ -345,6 +345,9 @@ items
     every row with one warning counting the rows in, under every
     family; probit, ordinal and hazard.probit refuse one row in today.
     Gaussian, Student-t and nbinom keep dec-B479's trigger and text.
+    A numeric multiplier forest stating no sd takes its basis's scale
+    the same way (dec-B488, VD 2026-10-24); under probit one row in is
+    refused today as a constant basis.
   missing-label-refusal-text: setPredictor and the joint row update
     refuse a missing label for a factor column with "has missing
     values, which its training values do not"; on a column of 70
