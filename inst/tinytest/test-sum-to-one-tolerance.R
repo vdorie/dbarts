@@ -30,6 +30,7 @@ create <- function(control = sampler$control, model = sampler$model) {
     model,
     sampler$data,
     "",
+    NULL,
     NULL
   )
 }

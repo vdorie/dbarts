@@ -239,7 +239,7 @@ extern "C" {
 #define DEF_FUNC(_N_, _F_, _A_) {_N_, (DL_FUNC) &(_F_), _A_}
 
 static R_CallMethodDef R_callMethods[] = {
-  DEF_FUNC("dbarts_bartcore_create", bartcore_create, 5),
+  DEF_FUNC("dbarts_bartcore_create", bartcore_create, 6),
   DEF_FUNC("dbarts_bartcore_createDataHandle", bartcore_createDataHandle, 3),
   DEF_FUNC("dbarts_bartcore_createFromHandle", bartcore_createFromHandle, 8),
   DEF_FUNC("dbarts_bartcore_setCounts", bartcore_setCounts, 2),
@@ -269,7 +269,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_setOffset", bartcore_setOffset, 3),
   DEF_FUNC("dbarts_bartcore_setResponse", bartcore_setResponse, 4),
   DEF_FUNC("dbarts_bartcore_setSigma", bartcore_setSigma, 2),
-  DEF_FUNC("dbarts_bartcore_setData", bartcore_setData, 6),
+  DEF_FUNC("dbarts_bartcore_setData", bartcore_setData, 7),
   DEF_FUNC("dbarts_bartcore_getMissingSeen", bartcore_getMissingSeen, 1),
   DEF_FUNC("dbarts_bartcore_setTestPredictor", bartcore_setTestPredictor, 2),
   DEF_FUNC("dbarts_bartcore_setTestOffset", bartcore_setTestOffset, 2),

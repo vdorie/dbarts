@@ -251,6 +251,7 @@ expect_error(
     "value",
     "derive",
     "derive",
+    NULL,
     NULL
   ),
   "multi-forest"

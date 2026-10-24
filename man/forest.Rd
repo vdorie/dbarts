@@ -474,8 +474,9 @@ forest(
     values of the response, both are taken over every observation, under one
     warning (two by the route of \code{\link{dbartsSpec}} and \code{new()},
     see its \code{active}). \code{"probit"} and \code{"logistic"} read no
-    \eqn{\mathrm{sd}(y)}{sd(y)}, and where no observation is in,
-    \eqn{\mathrm{sd}(w)}{sd(w)} is taken over every one, under one warning. \eqn{\mathrm{sd}(y)}{sd(y)} is of the response net of its
+    \eqn{\mathrm{sd}(y)}{sd(y)}, and where fewer than two observations are
+    in, \eqn{\mathrm{sd}(w)}{sd(w)} is taken over every one, under one
+    warning; two or more that hold one value of \eqn{w}{w} are refused. \eqn{\mathrm{sd}(y)}{sd(y)} is of the response net of its
     offset; on a gaussian response that does not vary over those observations
     it is a quarter of the window of width one the response is then scaled
     by. \eqn{\mathrm{sd}(w)}{sd(w)} is kept with the data, in its

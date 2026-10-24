@@ -2317,8 +2317,9 @@ public:
   ///
   /// A derived leaf standardization is read over the new rows in the
   /// likelihood, of positive weight and kept by replacement.activeRows
-  /// (leafRowsFrom), and is refused where they hold too little of a
-  /// covariate before anything moves.
+  /// (leafRowsFrom), or over every row where the host says too few of its
+  /// units are in (replacement.tooFewUnitsIn), and is refused where they hold
+  /// too little of a covariate before anything moves.
   ///
   /// \throws LeafStandardizationError where a covariate the call derives
   /// holds fewer than two distinct observed values over those rows.
@@ -2336,8 +2337,10 @@ public:
     std::vector<std::uint8_t> leafRowStorage;
     LeafRows leafRows;
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
-      leafRows = leafRowsFrom(weights, replacement.activeRows,
-                              numObservations, leafRowStorage);
+      leafRows = replacement.tooFewUnitsIn
+        ? LeafRows{nullptr, true}
+        : leafRowsFrom(weights, replacement.activeRows, numObservations,
+                       leafRowStorage);
       if (replacement.range == DerivedValueChoice::derive)
         leafRows = withResponseFallback(leafRows, y, offset, numObservations);
       if (replacement.standardization != DerivedValueChoice::keep)
@@ -3115,7 +3118,9 @@ private:
   /// Shared constructor tail: one chain per rng over the built store, plus
   /// saved-tree storage under keepTrees. A linear or gp leaf derives its
   /// standardization over the rows of positive weight that the creation
-  /// mask, options_.activeRows, keeps, the same bytes for every chain.
+  /// mask, options_.activeRows, keeps, the same bytes for every chain, or
+  /// over every row where the host says too few of its units are in
+  /// (options_.tooFewUnitsIn).
   void initializeChains(const double* y, const double* weights,
                         const double* offset, double sigmaEstimate,
                         double sigmaDf, double sigmaRawScale,
@@ -3123,10 +3128,12 @@ private:
     std::vector<std::uint8_t> leafRowStorage;
     LeafRows leafRows;
     if constexpr (L::hasVectorParams || L::hasFunctionParams)
-      leafRows = withResponseFallback(
-        leafRowsFrom(weights, options_.activeRows, data_.numObservations,
-                     leafRowStorage),
-        y, offset, data_.numObservations);
+      leafRows = options_.tooFewUnitsIn
+        ? LeafRows{nullptr, true}
+        : withResponseFallback(
+            leafRowsFrom(weights, options_.activeRows, data_.numObservations,
+                         leafRowStorage),
+            y, offset, data_.numObservations);
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(
@@ -3135,6 +3142,7 @@ private:
     options_.survivalStatus = nullptr;  // borrowed; consumed by the chains
     options_.suppliedStandardization = {};
     options_.activeRows = nullptr;
+    options_.tooFewUnitsIn = false;
 
     if (options_.keepTrees) {
       size_t capacity =

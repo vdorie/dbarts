@@ -3,9 +3,10 @@
 # once, by the engine, over the rows in the likelihood when the sampler is
 # first created (dec-B303), and recorded with the data: every later creation
 # is handed the record and takes nothing again, so no swap, copy, reload or
-# change of the weights or the mask moves the prior. A column with no standard
-# deviation over those rows is refused where a default would need one, and
-# created with an sd stated (dec-B307).
+# change of the weights or the mask moves the prior. Fewer than two rows in
+# read it over every row under every family (dec-B488). A column with no
+# standard deviation over those rows is refused where a default would need
+# one, and created with an sd stated (dec-B307).
 
 forest <- dbartsForests$forest
 fixed <- dbartsPriors$fixed
@@ -237,6 +238,116 @@ expect_warning(
     control = recordControl()
   ),
   "no observation is in the likelihood (0 of 150 have a positive weight), so the scale of forest 2 ('dose')'s basis is taken from all 150",
+  fixed = TRUE
+)
+# fewer than two rows in read the column over every row under every family
+# (dec-B488), under one warning counting them: one row in under probit,
+# through dbarts() and bart(), under gaussian in the response's text, and
+# under logistic, whose weights leave no row out, by a mask handed to new(),
+# in the mask's words; two rows in are read, and refused at one value
+fallbackTexts <- function(expr) {
+  caught <- character()
+  value <- withCallingHandlers(
+    expr,
+    dbartsScaleFallbackWarning = function(w) {
+      caught <<- c(caught, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    }
+  )
+  list(value = value, warnings = caught)
+}
+oneIn <- c(1, rep(0, n - 1L))
+oneRowBasis <- paste0(
+  "one observation is in the likelihood (1 of 150 has a positive weight), ",
+  "so the scale of forest 2 ('dose')'s basis is taken from all 150"
+)
+made <- fallbackTexts(dbarts(
+  yb ~ x1 + x2,
+  d,
+  weights = oneIn,
+  family = "probit",
+  forests = list(forest(), forest(basis = ~dose)),
+  control = recordControl()
+))
+expect_identical(made$warnings, oneRowBasis)
+expectRule(made$value, sd(dose), info = "probit, one row in")
+viaBart <- fallbackTexts(bart(
+  yb ~ forest(x1 + x2) + forest(x1 + x2, basis = dose),
+  d,
+  family = "probit",
+  weights = oneIn,
+  n.chains = 1L,
+  n.threads = 1L,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.trees = 5L,
+  verbose = FALSE
+))
+expect_identical(viaBart$warnings, oneRowBasis)
+made <- fallbackTexts(dbarts(
+  y ~ x1 + x2,
+  d,
+  weights = oneIn,
+  forests = list(forest(), forest(basis = ~dose)),
+  control = recordControl()
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "fewer than two distinct values of the response are in the likelihood ",
+    "(1 of 150 observations are in it), so the response's scale, the prior's ",
+    "center and the scale of forest 2 ('dose')'s basis are taken from all 150"
+  )
+)
+expect_equal(recordOf(made$value), sd(dose), tolerance = 1e-12)
+logisticFit <- dbarts(
+  yb ~ x1 + x2,
+  d,
+  family = "logistic",
+  forests = list(forest(), forest(basis = ~dose)),
+  control = recordControl()
+)
+unrecorded <- logisticFit$data
+unrecorded@basis.scale <- NULL
+made <- fallbackTexts(new(
+  "dbartsSampler",
+  logisticFit$control,
+  logisticFit$model,
+  unrecorded,
+  active = oneIn
+))
+expect_identical(
+  made$warnings,
+  sub(
+    "has a positive weight",
+    "is kept by the active-row mask",
+    oneRowBasis,
+    fixed = TRUE
+  )
+)
+expect_equal(recordOf(made$value), sd(dose), tolerance = 1e-12)
+twoIn <- c(1, 1, rep(0, n - 2L))
+made <- fallbackTexts(dbarts(
+  yb ~ x1 + x2,
+  d,
+  weights = twoIn,
+  family = "probit",
+  forests = list(forest(), forest(basis = ~dose)),
+  control = recordControl()
+))
+expect_identical(made$warnings, character())
+expect_equal(recordOf(made$value), sd(dose[1:2]), tolerance = 1e-12)
+d$twoFlat <- ifelse(twoIn == 1, 0.25, dose)
+expect_error(
+  dbarts(
+    yb ~ x1 + x2,
+    d,
+    weights = twoIn,
+    family = "probit",
+    forests = list(forest(), forest(basis = ~twoFlat)),
+    control = recordControl()
+  ),
+  "forest 2 ('twoFlat') states no sd and its basis is constant (0.25 on every row in the likelihood)",
   fixed = TRUE
 )
 expect_error(

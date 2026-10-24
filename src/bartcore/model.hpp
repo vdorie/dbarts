@@ -2493,15 +2493,17 @@ struct LeafStandardizationError : std::domain_error {
 /// as a gp leaf whose model states its lengthscales does, the kernel width
 /// then fixed by the model; otherwise the derivation is refused.
 ///
+/// \returns false where the placeholder was taken, true where the numbers
+/// were read from the rows.
 /// \throws LeafStandardizationError where the rows read hold fewer than two
 /// distinct observed values and \p placeholder is false.
-inline void deriveLeafMoments(const double* column, std::size_t n,
+inline bool deriveLeafMoments(const double* column, std::size_t n,
                               std::size_t j, std::size_t columnIndex,
                               const LeafRows& rows, bool placeholder,
                               double* mean, double* sd) {
-  if (!standardizationMomentsForColumn(column, n, mean, sd, rows.rows) ||
-      placeholder)
-    return;
+  if (!standardizationMomentsForColumn(column, n, mean, sd, rows.rows))
+    return true;
+  if (placeholder) return false;
   bool observed = false;
   for (std::size_t i = 0; i < n && !observed; ++i)
     observed = (rows.rows == nullptr || rows.rows[i] != 0) && !isNA(column[i]);
@@ -3103,7 +3105,8 @@ struct GPGaussianLeaf {
   bool lengthscalesAreSupplied() const { return !suppliedLengthscales_.empty(); }
   /// Whether covariate j's center and scale were last derived over every
   /// row because fewer than two rows were in the likelihood, or fewer than
-  /// two distinct response values were: the status a host warns on.
+  /// two distinct response values were: the status a host warns on. A
+  /// covariate that took the placeholder is not marked.
   const std::vector<std::uint8_t>& fromAllRows() const { return fromAllRows_; }
 
   /// Gather and standardize the designated columns and fix the kernel
@@ -3150,9 +3153,12 @@ struct GPGaussianLeaf {
       const double* column = data.rawColumn(columns_[j]);
       double mean, sd;
       if (!suppliedMoments(supplied, j, &mean, &sd)) {
-        deriveLeafMoments(column, numObservations_, j, columns_[j], rows,
-                          lengthscalesAreSupplied(), &mean, &sd);
-        fromAllRows_[j] = rows.tooFewIn ? 1 : 0;
+        // a placeholder is read from no row, so it is never marked as read
+        // from every row
+        bool read = deriveLeafMoments(column, numObservations_, j,
+                                      columns_[j], rows,
+                                      lengthscalesAreSupplied(), &mean, &sd);
+        fromAllRows_[j] = rows.tooFewIn && read ? 1 : 0;
       }
       means_[j] = mean;
       sds_[j] = sd;

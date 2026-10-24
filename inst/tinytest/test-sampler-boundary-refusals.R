@@ -132,6 +132,7 @@ expect_error(
     "value",
     "derive",
     "derive",
+    NULL,
     NULL
   ),
   "\\$setData: response contains non-finite values"
@@ -146,6 +147,7 @@ expect_error(
     "value",
     "derive",
     "derive",
+    NULL,
     NULL
   ),
   "\\$setData: offset contains non-finite values"

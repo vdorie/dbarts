@@ -356,9 +356,11 @@ const double* adoptVector(std::vector<double>& owned, const double* values,
 /// initial summary under a verbose control. Raises R errors on invalid
 /// specifications after cleaning up. \p activeExpr is the active-row mask the
 /// caller installs once the sampler is built, R_NilValue for none, read only
-/// for the rows a numeric column's scale is taken over.
+/// for the rows a numeric column's scale is taken over; \p tooFewUnits is
+/// SamplerOptions::tooFewUnitsIn, the host having counted its units.
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                             const char* familyName, SEXP activeExpr);
+                             const char* familyName, SEXP activeExpr,
+                             bool tooFewUnits = false);
 
 /// The complete sampler state as a serializable R object of class
 /// "bartcoreState"; unprotected on return.

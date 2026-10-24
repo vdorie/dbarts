@@ -50,11 +50,14 @@ What it no longer does is move the numbers the prior is stated against.
    them, are read over the rows in wherever the sampler derives them: at creation, under a mask family the rows
    the creation mask keeps; at a `setData` that derives them, over the new data's rows in; in an `xbart` fold,
    over the fold's training rows in. Unweighted, as in rule 1, and over every row where fewer than two are in,
-   under every family (dec-B485), or where the response's own read falls back to every row under rule 4 (fewer
+   under every family (dec-B485), a hazard fit counting its subjects and not their period rows, so that one
+   subject in reads every row however many periods it spans (dec-B489), or where the response's own read falls
+   back to every row under rule 4 (fewer
    than two distinct values of it in, at creation, a `setData` that derives the range, or an `xbart` fold over its
-   training rows), under the creation warning, which counts the rows in: one text with the response's where the
-   response falls back too, as one row in always makes it under the families that read it, and with a hazard
-   fit's periods where no subject is in (rule 8). Where the rows read hold fewer than two distinct observed values
+   training rows), under the creation warning, which counts the rows in, or a hazard fit's subjects: one text
+   with the response's where the response falls back too, as one row in always makes it under the families that
+   read it, and with a hazard fit's periods where no subject is in (rule 8). The subjects are R's to count, from
+   the period column's layout, and the engine is told that too few are in. Where the rows read hold fewer than two distinct observed values
    of a covariate, one value or none, two or more rows in at one value or every row at one value, a derivation is
    refused, there being no number in force to keep, unless a gp leaf states its lengthscale, which takes the
    placeholder: the one value, divided by 1.

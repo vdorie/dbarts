@@ -2026,8 +2026,10 @@ basisScaleFallbacks <- function(sampler) {
 ## forest's column, where the object has no entry for that forest: a first
 ## creation's, which every later creation from the object is handed. Raises
 ## the one warning where the engine read a scale from every row: under
-## gaussian with the response's, whose scale was read from every row too.
-recordBasisScales <- function(sampler, ptr) {
+## gaussian with the response's, whose scale was read from every row too;
+## under probit and logistic counting the rows the creation mask 'active'
+## keeps, fewer than two.
+recordBasisScales <- function(sampler, ptr, active = NULL) {
   data <- sampler$data
   numForests <- length(data@bases)
   scales <- dataBasisScale(data)
@@ -2068,9 +2070,12 @@ recordBasisScales <- function(sampler, ptr) {
   if (sampler$model@family %in% c("probit", "logistic")) {
     warnClassed(
       "dbartsScaleFallbackWarning",
-      "no observation is in the likelihood (0 of ",
-      n,
-      " have a positive weight), so ",
+      fewRowsInLead(
+        n,
+        sum(rowsInLikelihood(data@weights, active, n)),
+        byMask = sampler$model@family == "logistic"
+      ),
+      ", so ",
       what,
       if (length(named) == 1L) " is" else " are",
       " taken from all ",
@@ -2117,14 +2122,21 @@ applyAnchor <- function(ptr, data) {
 ## which reads a numeric column's scale over its rows; a re-creation is handed
 ## the recorded scale and installs its mask afterward. Returns the pointer and
 ## the engine's records.
-createEngine <- function(control, model, data, active = NULL) {
+createEngine <- function(
+  control,
+  model,
+  data,
+  active = NULL,
+  tooFewUnits = FALSE
+) {
   ptr <- .Call(
     C_dbarts_bartcore_create,
     control,
     model,
     data,
     if (model@family == "auto") "" else model@family,
-    if (!is.null(active)) as.double(active)
+    if (!is.null(active)) as.double(active),
+    if (tooFewUnits) TRUE
   )
   applyAnchor(ptr, data)
   records <- .Call(C_dbarts_bartcore_derivedRecords, ptr, TRUE)
@@ -2606,14 +2618,22 @@ dbartsSampler <- setRefClass(
 
       # "auto" (a hand-built model) keeps the bridge's own dispatch; the mask
       # a latent family's 0/1 weights resolve to, installed below, gives the
-      # rows a numeric column's scale is read from
-      created <- createEngine(.self$control, .self$model, .self$data, active)
+      # rows a numeric column's scale is read from, and a hazard fit's
+      # subjects in, which the engine cannot count, whether too few are in
+      units <- likelihoodUnits(.self$control, .self$data, active)
+      created <- createEngine(
+        .self$control,
+        .self$model,
+        .self$data,
+        active,
+        tooFewUnitsIn(units)
+      )
       .self$pointer <- created$pointer
       # what the engine holds is the record from here on, written on the
       # sampler's own data object and never on the caller's
       recordDerived(.self, .self$pointer, created$records)
       if (!is.null(attr(control, "bartcore.forests", exact = TRUE))) {
-        recordBasisScales(.self, .self$pointer)
+        recordBasisScales(.self, .self$pointer, active)
       }
       # after the call, so a refused creation never spends the warning's key;
       # re-creation from state (getPointer, setState) does not come through
@@ -2655,15 +2675,13 @@ dbartsSampler <- setRefClass(
       fromAllRows <- leafFromAllRows(.self, created$records)
       if (length(fromAllRows) > 0L || !is.null(periods)) {
         warnRowsFallBack(
-          length(.self$data@y),
-          sum(rowsInLikelihood(
-            .self$data@weights,
-            active,
-            length(.self$data@y)
-          )),
+          units$n,
+          units$numIn,
           model@family %in% c("gaussian", "nbinom"),
           fromAllRows,
-          periods
+          periods,
+          byMask = model@family %in% c("logistic", "aft"),
+          subjects = units$subjects
         )
       }
 
@@ -3108,7 +3126,7 @@ dbartsSampler <- setRefClass(
       updateScale = NULL,
       updateStandardization = NULL
     ) {
-      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. Preserves the n.cuts and sigma slots, and the level tables: columns are matched by name, the names being the sampler's in any order and any other refused, as predict refuses them, while a matrix with no column names is read by position with no message, as is any data handed to a sampler with none, whose record then takes the data's names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) after an edit keeps every derived value and a fresh dbartsData() derives them. A derived standardization is read over the new data's rows in the likelihood, and refused where those hold one value of a leaf covariate; FALSE keeps the sampler's. Under a family whose 0/1 weights are a mask, sampler$data carries no weights, so setData(sampler$data) drops the mask in force. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
+      "Sets the data object for the sampler to a new one; a sampler created with one forest and none refuses data that carry bases. Preserves the n.cuts and sigma slots, and the level tables: columns are matched by name, the names being the sampler's in any order and any other refused, as predict refuses them, while a matrix with no column names is read by position with no message, as is any data handed to a sampler with none, whose record then takes the data's names, which predict needs; a factor is read by label against the levels the sampler was created with, so fewer levels, another order and declared levels no row holds are taken, while a row at a label the sampler never had, or a factor column of bare numbers, is refused. A factor whose labels were changed on purpose is relabeled to the sampler's labels with levels<- first, or given to a new sampler. The cut points, the response range and a linear or gp leaf's covariate standardization each follow updateCutPoints, updateScale and updateStandardization where given: \"position\", \"value\" or TRUE derive the value from the new data, and \"none\" or FALSE keep the sampler's. Left NULL, a value the data object records (its cutPoints, response.range and standardization slots, which the sampler writes into its own data) is used, and one it does not record is derived, so setData(sampler$data) after an edit keeps every derived value and a fresh dbartsData() derives them. A derived standardization is read over the new data's rows in the likelihood, over every row where fewer than two are in (subjects, for a hazard fit) or the response's scale is read from every row, and refused where two or more rows in hold one value of a leaf covariate, unless a gp leaf states its lengthscale, which takes the placeholder; FALSE keeps the sampler's. Under a family whose 0/1 weights are a mask, sampler$data carries no weights, so setData(sampler$data) drops the mask in force. Saved draws are rewritten so that they predict what they did. updateState follows control@updateState: NULL, its default, resolves to the control's setting, and an explicit TRUE or FALSE overrides it - the same rule run() applies."
       updateState <- checkUpdateState(updateState)
       refuseCountsMutation(
         .self,
@@ -3137,12 +3155,13 @@ dbartsSampler <- setRefClass(
       }
       # raised last, as warnScaleKept is: a warning turned into an error
       # leaves the record and the stored state the new data's
-      n <- length(data@y)
+      units <- likelihoodUnits(control, data, activeRows)
       warnRowsFallBack(
-        n,
-        sum(rowsInLikelihood(data@weights, activeRows, n)),
+        units$n,
+        units$numIn,
         fellBack$range,
-        fellBack$leaf
+        fellBack$leaf,
+        subjects = units$subjects
       )
       invisible(NULL)
     },

@@ -3939,9 +3939,11 @@ std::string leafStandardizationMessage(
 // family resolution: see resolveFamily() above. activeExpr is the active-row
 // mask the caller installs once the sampler is built, R_NilValue for none,
 // read here only for the rows a numeric column's scale and a leaf
-// covariate's standardization are taken over.
+// covariate's standardization are taken over; tooFewUnits says the host
+// counted fewer than two of its units in (SamplerOptions::tooFewUnitsIn).
 BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                             const char* familyName, SEXP activeExpr) {
+                             const char* familyName, SEXP activeExpr,
+                             bool tooFewUnits) {
   BartcoreHolder* holder = nullptr;
   unwindProtect([&, control = ParsedControl{}, data = ParsedData{},
                  model = ParsedModel{},
@@ -4035,6 +4037,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     } else {
       options.activeRows = active;
     }
+    options.tooFewUnitsIn = tooFewUnits;
 
     // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
     // for the sampler's lifetime, so it borrows buffers the holder owns rather
@@ -4466,8 +4469,10 @@ extern "C" {
 // The external pointer's protection slot pins everything the sampler
 // borrows: the data expression at creation, and any replacement vectors the
 // setters install later. family is as createHolder's.
+// tooFewUnitsExpr, TRUE or NULL, is the host's count of its units in the
+// likelihood, fewer than two (SamplerOptions::tooFewUnitsIn).
 SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
-                     SEXP familyExpr, SEXP activeExpr) {
+                     SEXP familyExpr, SEXP activeExpr, SEXP tooFewUnitsExpr) {
   const char* familyName =
     Rf_isNull(familyExpr) ? "" : CHAR(STRING_ELT(familyExpr, 0));
   // The multinomial (softmax) family is the one whose response is not the data
@@ -4482,8 +4487,9 @@ SEXP bartcore_create(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                                                           modelExpr, dataExpr);
     });
   return createExternalHolder(dataExpr, [&]() {
-    return bartcore_bridge::createHolder(controlExpr, modelExpr, dataExpr,
-                                         familyName, activeExpr);
+    return bartcore_bridge::createHolder(
+      controlExpr, modelExpr, dataExpr, familyName, activeExpr,
+      !Rf_isNull(tooFewUnitsExpr) && Rf_asLogical(tooFewUnitsExpr) == TRUE);
   });
 }
 
@@ -6248,7 +6254,7 @@ static bool standardizationRecordIsHeld(const ParsedData& data,
 
 SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
                       SEXP updateScaleExpr, SEXP updateStandardizationExpr,
-                      SEXP activeExpr) {
+                      SEXP activeExpr, SEXP tooFewUnitsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerBase& sampler(*holder.sampler);
   bartcore::SamplerShape shape = sampler.shape();
@@ -6421,6 +6427,10 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
                  "each observation");
       replacement.activeRows = REAL(activeExpr);
     }
+    // the host's count of its units in, fewer than two (a hazard fit's
+    // subjects), which reads every row in their place
+    replacement.tooFewUnitsIn =
+      !Rf_isNull(tooFewUnitsExpr) && Rf_asLogical(tooFewUnitsExpr) == TRUE;
 
     // COPY-ON-SET at the one conduit that MOVES the counts: every buffer is
     // sized to the new counts, the ones a null replacement leaves uncopied

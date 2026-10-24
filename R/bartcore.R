@@ -1570,7 +1570,10 @@ bartcoreSamplerSetData <- function(
       choices$grid,
       choices$range,
       choices$standardization,
-      if (!is.null(active)) as.double(active)
+      if (!is.null(active)) as.double(active),
+      if (tooFewUnitsIn(likelihoodUnits(sampler$control, newData, active))) {
+        TRUE
+      }
     ),
     error = function(e) {
       sampler$data <- oldData
@@ -1622,6 +1625,42 @@ leafFromAllRows <- function(sampler, records) {
   leafCovariateLabels(sampler$model, sampler$data)[flags]
 }
 
+## A hazard fit's subject for each person-period row, as the expansion lays
+## the rows out, subject-major: a subject's rows run from its row at period 1
+## in the period column, the data's last; NULL off a hazard fit.
+hazardRowSubjects <- function(control, data) {
+  if (is.null(attr(control, "bartcore.hazard.periods", exact = TRUE))) {
+    return(NULL)
+  }
+  x <- data@x
+  cumsum(as.vector(x[, ncol(x)]) == 1)
+}
+
+## What a creation or a setData counts in the likelihood for the trigger of
+## dec-B485: the rows of positive weight that the mask 'active' keeps, or,
+## under a hazard fit, the subjects with such a row (dec-B489). 'n' is the
+## rows or the subjects, 'numIn' those in.
+likelihoodUnits <- function(control, data, active) {
+  n <- length(data@y)
+  rowsIn <- rowsInLikelihood(data@weights, active, n)
+  subject <- hazardRowSubjects(control, data)
+  if (is.null(subject)) {
+    return(list(n = n, numIn = sum(rowsIn), subjects = FALSE))
+  }
+  list(
+    n = length(unique(subject)),
+    numIn = length(unique(subject[rowsIn])),
+    subjects = TRUE
+  )
+}
+
+## Whether the engine is told that fewer than two of a hazard fit's subjects
+## are in, which reads every row however many periods they span; the rows
+## the engine counts itself. One subject of one is every subject in.
+tooFewUnitsIn <- function(units) {
+  units$subjects && units$n > 1L && units$numIn < 2L
+}
+
 ## A leaf covariate as a message names it: its column's name, quoted, where it
 ## has a usable one, or its column's position.
 leafCovariateLabels <- function(model, data) {
@@ -1652,16 +1691,63 @@ leafCentersAndScales <- function(leaf) {
   )
 }
 
+## The opening of a fallback text where fewer than two rows are in the
+## likelihood and nothing is read from the response: 'rowsIn' of 'n', 0 or 1,
+## counted as rows of positive weight or, with 'byMask', as rows the
+## active-row mask keeps, for a family whose weights cannot leave a row out
+## (logistic and aft), where only a mask handed to new() does; with
+## 'subjects', a hazard fit's subjects, as its periods' warning counts them.
+fewRowsInLead <- function(n, rowsIn, byMask = FALSE, subjects = FALSE) {
+  one <- rowsIn == 1L
+  if (subjects) {
+    return(paste0(
+      if (one) "one subject is" else "no subject is",
+      " in the likelihood (",
+      rowsIn,
+      " of ",
+      n,
+      if (one) " subjects is in it)" else " subjects are in it)"
+    ))
+  }
+  paste0(
+    if (one) "one observation is" else "no observation is",
+    " in the likelihood (",
+    rowsIn,
+    " of ",
+    n,
+    if (byMask) {
+      if (one) {
+        " is kept by the active-row mask"
+      } else {
+        " are kept by the active-row mask"
+      }
+    } else {
+      if (one) " has a positive weight" else " have a positive weight"
+    },
+    ")"
+  )
+}
+
 ## The warning that the rows in the likelihood left too little to read a
 ## scale from, so numbers were taken from all n rows, raised once for a
 ## creation or a setData: 'range' where the response's scale and the prior's
 ## center were, of 'rowsIn' rows in, and 'leaf' the labels of the leaf
 ## covariates whose center and scale were, which happens only where fewer
 ## than two rows are in or fewer than two distinct response values are. One
-## text names both; the leaf's alone counts its 0 or 1 rows in. 'periods', a
-## hazard fit's warning that its periods were taken from every subject, folds
-## the leaf's into its own.
-warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
+## text names both; the leaf's alone counts its 0 or 1 rows in, by the mask
+## where 'byMask', or a hazard fit's subjects where 'subjects', 'n' and
+## 'rowsIn' then counting subjects (fewRowsInLead). 'periods', a hazard fit's
+## warning that its periods were taken from every subject, folds the leaf's
+## into its own.
+warnRowsFallBack <- function(
+  n,
+  rowsIn,
+  range,
+  leaf,
+  periods = NULL,
+  byMask = FALSE,
+  subjects = FALSE
+) {
   if (!is.null(periods) && length(leaf) > 0L) {
     periods$message <- sub(
       "the hazard periods are taken",
@@ -1678,10 +1764,8 @@ warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
     return(invisible(NULL))
   }
   what <- if (length(leaf) > 0L) leafCentersAndScales(leaf)
-  lead <- if (!range && rowsIn == 1L) {
-    paste0("one observation is in the likelihood (1 of ", n, " has a positive ")
-  } else if (!range) {
-    paste0("no observation is in the likelihood (0 of ", n, " have a positive ")
+  lead <- if (!range) {
+    paste0(fewRowsInLead(n, rowsIn, byMask, subjects), ", so ")
   } else {
     paste0(
       "fewer than two distinct values of the response are in the likelihood (",
@@ -1699,7 +1783,6 @@ warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
   warnClassed(
     "dbartsScaleFallbackWarning",
     lead,
-    if (!range) "weight), so ",
     what,
     " are taken from all ",
     n

@@ -186,6 +186,7 @@ struct DataReplacement {
   DerivedValueChoice range = DerivedValueChoice::derive;
   double rangeMin = 0.0, rangeMax = 0.0;
   const double* activeRows = nullptr;
+  bool tooFewUnitsIn = false;  // as SamplerOptions::tooFewUnitsIn
 };
 
 /// One dense column's raw as ingestion reads it: the host's doubles, or its

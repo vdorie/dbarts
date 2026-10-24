@@ -49,11 +49,12 @@ likelihood when the sampler is first created (dec-B303). Those are the rows the 
 read from: under gaussian the rows left by `subset` and the na.action with a positive weight, and every
 row where none is in or the rows in hold fewer than two distinct values of the response (dec-B302,
 dec-B309); under probit and logistic, where nothing is read from the response, the rows the 0/1 weights'
-active-row mask keeps, and every row where it keeps none. Either fallback is reported by the engine as a
-status and raised by R as one warning, which under gaussian names the response beside the column. A
-column constant over those rows, by its values, or whose standard deviation there is at most 2^-26 of
-its largest absolute value, has no scale: a forest on it that states no sd is refused by name, the
-refusal giving the constant or the ratio, and with an sd stated it is created (dec-B307).
+active-row mask keeps, and every row where it keeps fewer than two (dec-B488, as a leaf covariate under
+dec-B485). Either fallback is reported by the engine as a status and raised by R as one warning that counts
+the rows in, which under gaussian names the response beside the column. A column constant over those rows,
+by its values, or whose standard deviation there is at most 2^-26 of its largest absolute value, has no
+scale: a forest on it that states no sd is refused by name, the refusal giving the constant or the ratio,
+and with an sd stated it is created (dec-B307).
 
 The engine takes it, once, for a numeric forest that states no sd, in
 [`basisColumnScale`](../../src/bartcore/combiner.hpp), handed the rows by the K-forest constructor of

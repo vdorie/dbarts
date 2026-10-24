@@ -568,12 +568,26 @@ allRowsFlag <- function(s) {
     FALSE
   )$standardization.all.rows
 }
+# a hazard fit counts its subjects, in a text of its own (dec-B489)
+oneSubjectOf <- function(count) {
+  paste0(
+    "one subject is in the likelihood (1 of ",
+    count,
+    " subjects is in it), so the center and scale of \"x1\" are taken from ",
+    "all ",
+    count
+  )
+}
 for (kind in c("probit", "ordinal", "hazard.probit")) {
   for (gp in c(FALSE, TRUE)) {
     info <- paste("one row in,", kind, if (gp) "gp" else "linear")
     prior <- if (gp) dbartsPriors$gp("x1") else dbartsPriors$linear("x1")
     made <- fallbacks(make(kind, oneIn, prior))
-    expect_identical(made$warnings, oneRowLeaf, info = info)
+    expect_identical(
+      made$warnings,
+      if (kind == "hazard.probit") oneSubjectOf(n) else oneRowLeaf,
+      info = info
+    )
     # a hazard fit's one subject in at time 1 takes one period, one row each
     expect_identical(length(made$value$data@y), n, info = info)
     expectRecord(made$value, literal(made$value$data@x[, "x1"], gp = gp), info)
@@ -590,7 +604,7 @@ for (kind in c("probit", "ordinal", "hazard.probit")) {
   )))
   expect_identical(
     made$warnings,
-    oneRowLeafOf(length(s$data@y)),
+    if (kind == "hazard.probit") oneSubjectOf(n) else oneRowLeafOf(n),
     info = paste("setData,", kind)
   )
   expectRecord(s, literal(values[, "x1"]), paste("setData, one row in,", kind))
@@ -643,7 +657,14 @@ made <- fallbacks(new(
   spec$data,
   active = oneIn
 ))
-expect_identical(made$warnings, oneRowLeaf)
+# logistic and aft weights cannot leave a row out, so the mask is named
+oneRowMask <- sub(
+  "has a positive weight",
+  "is kept by the active-row mask",
+  oneRowLeaf,
+  fixed = TRUE
+)
+expect_identical(made$warnings, oneRowMask)
 expectRecord(made$value, literal(x1, gp = TRUE), "one row in, logistic")
 aftFit <- make("aft")
 aftData <- aftFit$data
@@ -655,7 +676,7 @@ made <- fallbacks(new(
   aftData,
   active = oneIn
 ))
-expect_identical(made$warnings, oneRowLeaf)
+expect_identical(made$warnings, oneRowMask)
 expectRecord(made$value, literal(x1), "one row in, aft")
 # a gp leaf whose lengthscale is stated reads every row as well, where the
 # one value took the placeholder before
@@ -714,6 +735,179 @@ expect_error(
   "holds one value over the rows in the likelihood (1 of 1 observations",
   fixed = TRUE
 )
+# a probit store of two rows with one in reads both, with the warning
+made <- fallbacks(dbarts::dbarts(
+  x[1:2, ],
+  c(1, 0),
+  weights = c(1, 0),
+  family = "probit",
+  leaf.prior = dbartsPriors$linear("x1"),
+  control = controlWith()
+))
+expect_identical(made$warnings, oneRowLeafOf(2L))
+expectRecord(made$value, literal(x1[1:2]), "two rows, one in")
+# a setData that keeps the range reads no response, so rows in at one value
+# of it read the leaf over those rows, silently; one that derives the range
+# reads every row with it
+threeIn <- c(1, 1, 1, rep(0, n - 3L))
+yAtTwo <- y
+yAtTwo[1:3] <- 2
+s <- make()
+made <- fallbacks(s$setData(
+  dbartsData(x, yAtTwo, weights = threeIn),
+  updateScale = FALSE
+))
+expect_identical(made$warnings, character())
+expectRecord(s, literal(x1, 1:3), "setData keeping the range, one y in")
+s <- make()
+made <- fallbacks(s$setData(dbartsData(x, yAtTwo, weights = threeIn)))
+expect_identical(
+  made$warnings,
+  sub("(1 of 200", "(3 of 200", oneRow, fixed = TRUE)
+)
+expectRecord(s, literal(x1), "setData deriving the range, one y in")
+# a covariate constant over every row takes the placeholder under a stated
+# lengthscale and is named in no fallback text, at no row in or one; alone,
+# nothing is read from every row and nothing is said
+flatFirst <- cbind(x1 = rep(0.5, n), x2 = x2)
+for (rows in list(none, oneIn)) {
+  info <- paste("stated gp, constant x1,", sum(rows), "in")
+  made <- fallbacks(make(
+    "probit",
+    rows,
+    dbartsPriors$gp(c("x1", "x2"), lengthscale = c(0.7, 0.7)),
+    data = flatFirst
+  ))
+  expect_identical(
+    made$warnings,
+    sub(
+      "\"x1\"",
+      "\"x2\"",
+      if (sum(rows) == 1) oneRowLeaf else leafOnly,
+      fixed = TRUE
+    ),
+    info = info
+  )
+  expect_equal(
+    recordOf(made$value),
+    list(center = c(0.5, mean(x2)), scale = c(NA, sd(x2))),
+    tolerance = 1e-12,
+    info = info
+  )
+  expect_identical(allRowsFlag(made$value), c(FALSE, TRUE), info = info)
+}
+made <- fallbacks(make(
+  "probit",
+  oneIn,
+  dbartsPriors$gp("x1", lengthscale = 0.7),
+  data = flatFirst
+))
+expect_identical(made$warnings, character())
+expect_identical(recordOf(made$value), list(center = 0.5, scale = NA_real_))
+
+# ---- a hazard fit counts subjects (dec-B489) -----------------------------------
+
+# fewer than two subjects in read every row, however many periods they span,
+# at creation and at a setData that derives, said in subjects; two or more are
+# read over their period rows, and refused where they hold one value of a
+# covariate. With the breaks stated each subject is at risk to its own time
+numSubjects <- 60L
+subjects <- data.frame(
+  x1 = sin(seq_len(numSubjects)),
+  x2 = cos(seq_len(numSubjects)),
+  times = rep(1:5, length.out = numSubjects),
+  status = as.double(seq_len(numSubjects) %% 4L != 0L)
+)
+hazardFit <- function(weights, breaks = 0:5, data = subjects) {
+  dbarts::dbarts(
+    survival::Surv(times, status) ~ x1 + x2,
+    data,
+    weights = weights,
+    family = if (is.null(breaks)) {
+      "hazard.probit"
+    } else {
+      dbartsFamilies$hazard(breaks = breaks)
+    },
+    leaf.prior = dbartsPriors$linear("x1"),
+    control = controlWith()
+  )
+}
+subjectIn <- function(i) as.double(seq_len(numSubjects) %in% i)
+# the period rows of subject i, a subject's rows starting at its period 1
+subjectRows <- function(s, i) {
+  period <- s$data@x[, ncol(s$data@x)]
+  as.double(cumsum(period == 1) %in% i)
+}
+# subject 5 is at risk for five periods, subject 1 for one
+for (i in c(5L, 1L)) {
+  info <- paste("subject", i, "in")
+  made <- fallbacks(hazardFit(subjectIn(i)))
+  expect_identical(made$warnings, oneSubjectOf(numSubjects), info = info)
+  expect_identical(length(made$value$data@y), 180L, info = info)
+  expect_identical(sum(made$value$activeRows), if (i == 5L) 5 else 1)
+  expectRecord(made$value, literal(made$value$data@x[, "x1"]), info)
+  expect_identical(allRowsFlag(made$value), TRUE, info = info)
+}
+# the default periods, read off the one subject in
+made <- fallbacks(hazardFit(subjectIn(5L), breaks = NULL))
+expect_identical(made$warnings, oneSubjectOf(numSubjects))
+expectRecord(made$value, literal(made$value$data@x[, "x1"]), "default periods")
+# two subjects in, over their nine rows, and refused at one value of x1
+made <- fallbacks(hazardFit(subjectIn(4:5)))
+expect_identical(made$warnings, character())
+expectRecord(
+  made$value,
+  literal(made$value$data@x[, "x1"], made$value$activeRows != 0),
+  "two subjects in"
+)
+sameValue <- subjects
+sameValue$x1[4:5] <- 0.25
+expect_error(
+  hazardFit(subjectIn(4:5), data = sameValue),
+  "holds one value over the rows in the likelihood (9 of 180 observations",
+  fixed = TRUE
+)
+# a setData that derives counts subjects as creation does
+s <- hazardFit(NULL)
+replacement <- s$data
+replacement@weights <- subjectRows(s, 5L)
+made <- fallbacks(s$setData(replacement, updateStandardization = TRUE))
+expect_identical(made$warnings, oneSubjectOf(numSubjects))
+expectRecord(s, literal(s$data@x[, "x1"]), "setData, one subject in")
+# by hand, no subject in is said in subjects too
+hazardData <- s$data
+hazardData@standardization <- NULL
+made <- fallbacks(new(
+  "dbartsSampler",
+  s$control,
+  s$model,
+  hazardData,
+  active = rep(0, 180L)
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "no subject is in the likelihood (0 of 60 subjects are in it), so the ",
+    "center and scale of \"x1\" are taken from all 60"
+  )
+)
+# the setters keep under either count: one subject over five periods holds
+# x1 at one value
+s <- hazardFit(subjectIn(4:5))
+before <- recordOf(s)
+made <- fallbacks(s$setActiveRows(
+  subjectRows(s, 5L),
+  updateStandardization = TRUE
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "fewer than two distinct values of the leaf covariate \"x1\" are in the ",
+    "likelihood, so its center and scale are kept as they were (said once ",
+    "per sampler)"
+  )
+)
+expect_identical(recordOf(s), before)
 
 # rows out at one value, rows in spread: created, over the rows in
 outAtOne <- x

@@ -10796,7 +10796,8 @@ static void testBasisColumnScale() {
           allRows,
         "basis scale: under probit with no row in, every row and the status");
   // one row in: the gaussian response reads every row, and so the column;
-  // a probit chain reads the one row and refuses
+  // a probit chain reads every row too, fewer than two being in, and two
+  // rows in are read
   std::vector<double> single(n, 0.0);
   single[3] = 1.0;
   allRows = false;
@@ -10805,9 +10806,22 @@ static void testBasisColumnScale() {
              sampleSd(dose, nullptr), 4.0) &&
           allRows,
         "basis scale: under gaussian with one row in, every row");
-  check(std::isnan(scaleOf(ResponseFamily::probit, yBinary.data(), nullptr,
-                           single.data(), dose, nullptr)),
-        "basis scale: under probit with one row in, the column has no scale");
+  allRows = false;
+  check(ulps(scaleOf(ResponseFamily::probit, yBinary.data(), nullptr,
+                     single.data(), dose, &allRows),
+             sampleSd(dose, nullptr), 4.0) &&
+          allRows,
+        "basis scale: under probit with one row in, every row and the status");
+  std::vector<double> pair(n, 0.0);
+  std::vector<unsigned char> pairRows(n, 0);
+  pair[3] = pair[8] = 1.0;
+  pairRows[3] = pairRows[8] = 1;
+  allRows = true;
+  check(ulps(scaleOf(ResponseFamily::probit, yBinary.data(), nullptr,
+                     pair.data(), dose, &allRows),
+             sampleSd(dose, &pairRows), 4.0) &&
+          !allRows,
+        "basis scale: under probit with two rows in, those rows");
   // rows in holding one response value: the response's fallback
   allRows = false;
   check(ulps(scaleOf(ResponseFamily::gaussian, flat.data(), weights.data(),

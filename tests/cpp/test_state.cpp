@@ -7035,6 +7035,28 @@ static void testLeafStandardizationRows() {
             readsEveryRow(*gaussian, mean, sd),
           "leaf rows: a replacement keeping the range reads every row");
 
+    // a host that counts units, a hazard fit's subjects, says too few are
+    // in: every row is read though the rows in hold spread, at creation and
+    // at a replacement
+    std::vector<double> unitMask(n, 0.0);
+    for (size_t i = 0; i < 5; ++i) unitMask[i] = 1.0;
+    SamplerOptions unitOptions = optionsFor(false, unitMask.data());
+    unitOptions.tooFewUnitsIn = true;
+    std::unique_ptr<SamplerBase> units =
+      make(x, binary.data(), nullptr, ResponseFamily::probit, unitOptions, 55);
+    check(readsEveryRow(*units, mean, sd),
+          "leaf rows: too few units in reads every row at creation");
+    std::unique_ptr<SamplerBase> unitsReplaced =
+      make(x, binary.data(), nullptr, ResponseFamily::probit,
+           optionsFor(false), 56);
+    DataReplacement byUnits;
+    byUnits.activeRows = unitMask.data();
+    byUnits.tooFewUnitsIn = true;
+    check(unitsReplaced->setData(x.data(), binary.data(), n, nullptr, nullptr,
+                                 nullptr, 0, nullptr, byUnits) &&
+            readsEveryRow(*unitsReplaced, mean, sd),
+          "leaf rows: too few units in reads every row at a replacement");
+
     std::unique_ptr<SamplerBase> two =
       make(x, binary.data(), nullptr, ResponseFamily::probit,
            optionsFor(false, twoMask.data()), 54);

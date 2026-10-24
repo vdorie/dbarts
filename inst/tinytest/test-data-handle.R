@@ -110,6 +110,7 @@ expect_error(
     "value",
     "derive",
     "derive",
+    NULL,
     NULL
   ),
   pattern = "owns its predictors"
@@ -123,6 +124,7 @@ expect_error(
     "value",
     "derive",
     "derive",
+    NULL,
     NULL
   ),
   pattern = "^\\$setData: requires"

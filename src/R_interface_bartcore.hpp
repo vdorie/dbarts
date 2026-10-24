@@ -8,7 +8,7 @@
 extern "C" {
 
 SEXP bartcore_create(SEXP control, SEXP model, SEXP data, SEXP family,
-                     SEXP active);
+                     SEXP active, SEXP tooFewUnitsIn);
 SEXP bartcore_createDataHandle(SEXP control, SEXP data,
                                SEXP leafCovariateColumns);
 SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
@@ -44,7 +44,7 @@ SEXP bartcore_setResponse(SEXP ptr, SEXP y, SEXP updateScale,
 SEXP bartcore_setSigma(SEXP ptr, SEXP sigma);
 SEXP bartcore_setData(SEXP ptr, SEXP data, SEXP updateCutPoints,
                       SEXP updateScale, SEXP updateStandardization,
-                      SEXP active);
+                      SEXP active, SEXP tooFewUnitsIn);
 SEXP bartcore_getMissingSeen(SEXP ptr);
 SEXP bartcore_setTestPredictor(SEXP ptr, SEXP x_test);
 SEXP bartcore_setTestOffset(SEXP ptr, SEXP offset_test);

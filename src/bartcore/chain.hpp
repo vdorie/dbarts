@@ -209,6 +209,14 @@ struct SamplerOptions {
   // weights (Sampler::leafRowsFrom). Borrowed; consumed at construction.
   const double* activeRows = nullptr;
 
+  // set by a host that groups the observations into units, a discrete-time
+  // hazard fit's subjects with one row per period at risk, where fewer than
+  // two of its units are in the likelihood: a linear or gp leaf's
+  // standardization is then derived over every row, however many rows the
+  // units in hold, as where fewer than two rows are in. Consumed at
+  // construction.
+  bool tooFewUnitsIn = false;
+
   // AFT survival: per-observation status (1 = uncensored event, 0 = right-
   // censored) required when family is aft, ignored otherwise. Borrowed; the
   // response copies it during construction (see AFTResponse). The y creation
@@ -7488,8 +7496,9 @@ private:
   /// where it read them all; that is a fallback where a row is out and the
   /// rows in hold fewer than two distinct values (dec-B302, dec-B309). Under
   /// probit and logistic, which read no rows of their own, the rows the
-  /// active-row mask \p spec hands keeps in, every row where it keeps none.
-  /// Nothing reads the weights' sizes.
+  /// active-row mask \p spec hands keeps in, every row where it keeps fewer
+  /// than two of more than one, as a leaf covariate reads them
+  /// (Sampler::leafRowsFrom). Nothing reads the weights' sizes.
   ScaleRows rowsForBasisScale(const AmplitudeSpec& spec, const double* y) const {
     ScaleRows result;
     result.read = true;
@@ -7499,12 +7508,12 @@ private:
     case ResponseFamily::logistic: {
       if (spec.activeRows == nullptr) return result;
       result.rows.resize(n);
-      bool anyIn = false;
+      std::size_t numIn = 0;
       for (std::size_t i = 0; i < n; ++i) {
         result.rows[i] = spec.activeRows[i] != 0.0;
-        anyIn = anyIn || result.rows[i] != 0;
+        numIn += result.rows[i] != 0 ? 1 : 0;
       }
-      if (!anyIn) {
+      if (numIn == 0 || (numIn == 1 && n > 1)) {
         result.rows.clear();
         result.fellBack = true;
       }
