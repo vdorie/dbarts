@@ -437,18 +437,28 @@ struct ParsedModel {
 #define REPROTECT_SLOT(target, parent, name, index) \
   REPROTECT((target) = Rf_getAttrib((parent), Rf_install(name)), (index))
 
-// Rf_error longjmps past C++ destructors, so an entry point that holds owning
-// C++ containers across an Rf_error-capable call (the rc_ validators error
-// internally) would leak them. Running that owning scope as a heap-held
-// closure under R_UnwindProtect destroys the closure - and the containers it
-// captures by value - on the error jump as well as the normal return, so
-// deliberate error paths free their buffers instead of leaking. This is the
-// only place the longjmp constraint is stated; the wrapped scopes below just
-// capture their owning locals into the closure.
+/// Runs \p body and frees what it captures by value however the body ends.
+///
+/// An R error longjmps past C++ destructors, so an owner (a std::vector, a
+/// std::string, a std::unique_ptr, a struct holding one) live in any frame the
+/// jump crosses leaks. The closure is moved to the heap and R_UnwindProtect
+/// deletes it on the normal return and on the jump alike, so its by-value
+/// captures are freed either way.
+///
+/// Nothing else is protected. A local declared in the body lives in the body's
+/// own frame and leaks on the jump, as does a local of the caller, which the
+/// jump crosses too. An owner that is live across a call that can raise
+/// (Rf_error, an rc_ validator, GetRNGstate, an R allocation, a helper that
+/// calls one) is therefore an init-capture, default-constructed and filled in
+/// the body, or it leaves scope before that call. A capture must own nothing
+/// when the closure is built, which is in the caller and before the
+/// continuation's allocation, itself able to longjmp. Raising a captured
+/// message, Rf_error("%s", s.c_str()), is safe: R copies the message before it
+/// jumps, and the closure is deleted on the way out.
 template <typename Body>
 SEXP unwindProtect(Body body) {
-  // allocate the continuation before the closure: R_MakeUnwindCont can longjmp
-  // on OOM, and a closure allocated first would leak past that jump
+  // allocate the continuation before the heap copy: R_MakeUnwindCont can
+  // longjmp on OOM, and a copy made first would leak past that jump
   SEXP continuation = PROTECT(R_MakeUnwindCont());
   Body* held = new Body(std::move(body));
   SEXP result = R_UnwindProtect(
@@ -3931,6 +3941,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  ownedOffset = std::vector<double>{},
                  ownedTestOffset = std::vector<double>{},
                  leafRefusal = std::string{},
+                 noBasisScale = std::string{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -4037,9 +4048,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // dispatches on the leaf model: a linear leaf prior's designated columns
     // select the linear-leaf instantiation, everything else the constant leaf
     // a forest's sd stated against a response with no spread is the caller's
-    // to mend, so it is raised in the caller's terms and not as a failure
+    // to mend, so it is raised in the caller's terms and not as a failure;
+    // a refusal's message is the closure's, as the raise reads it
     bool sdHasNoUnit = false;
-    std::string noBasisScale;
     using OwnedSampler = std::unique_ptr<bartcore::SamplerBase>;
     OwnedSampler sampler =
       createSamplerOrRaise(rngs, [&]() -> OwnedSampler {
@@ -6236,6 +6247,7 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
 
   return unwindProtect([&, data = ParsedData{},
                        block = std::vector<double>{},
+                       held = bartcore::DerivedRecords{},
                        ownedResponse = std::vector<double>{},
                        ownedWeights = std::vector<double>{},
                        ownedOffset = std::vector<double>{},
@@ -6309,8 +6321,8 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
 
     // each derived value derived, kept or taken from the data object's
     // record; R has held the record to the data, so a misfit here is a
-    // caller that is not the package
-    bartcore::DerivedRecords held;
+    // caller that is not the package. The records are the closure's, since
+    // the refusals below raise while they are read.
     held.withGrids = false;
     sampler.derivedRecords(held);
     bartcore::DataReplacement replacement;
