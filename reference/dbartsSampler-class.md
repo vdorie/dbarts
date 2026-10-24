@@ -1909,8 +1909,8 @@ heteroscedastic (`variance`) sampler exactly as it finds it, along with
 `sigma`, `k` and the family's latent block.
 `sampleVarianceForestFromPrior` is the variance forest's own, drawing
 its tree structures from the tree prior conditioned on carrying no empty
-leaf - the law the variance moves themselves price - and each leaf's
-factor from the calibrated inverse-chi-squared scale prior, then
+leaf - the distribution the variance moves themselves price - and each
+leaf's factor from the calibrated inverse-chi-squared scale prior, then
 rebuilding \\s^2(x)\\ from the drawn factors. A caller wanting a whole
 heteroscedastic chain at its prior calls all three; on a homoscedastic
 sampler this one draws nothing and returns, so a loop over families
@@ -2085,20 +2085,20 @@ vacuously. A sampler built with `family = student()` adds `resid.df` on
 exactly the same terms - the degrees of freedom \\\nu\\ each draw is
 conditioned on, shaped as `sigma`, written from settled state and
 consuming no random numbers, absent from the list under any other error
-law - fixed at the value supplied to `student(df = )`, and that sweep's
-grid draw when the degrees of freedom are estimated. A heteroscedastic
-(`variance` forest) sampler carries no `sigma` element - absent, as
-`shape` is off `"nbinom"` - since its engine holds the scalar fixed; it
-adds `variance`, the per-observation variance surface \\s^2(x_i)\\ on
-the original response scale, shaped as `train`, whose square root is the
-residual scale, and `varianceTest`, the same at the test rows (`NULL`
-without test data). A run can be interrupted with `Ctrl-C`: it stops
-between iterations, or inside an iteration's Polya-Gamma latent draws or
-a monotone leaf-order count, whose time grows with a logistic,
-negative-binomial or multinomial fit's counts or with a large tree,
-joining any worker threads first. It then raises R's interrupt
-condition, class `c("interrupt", "condition")`, as base R's own long
-computations do: nothing is printed as an error,
+distribution - fixed at the value supplied to `student(df = )`, and that
+sweep's grid draw when the degrees of freedom are estimated. A
+heteroscedastic (`variance` forest) sampler carries no `sigma` element -
+absent, as `shape` is off `"nbinom"` - since its engine holds the scalar
+fixed; it adds `variance`, the per-observation variance surface
+\\s^2(x_i)\\ on the original response scale, shaped as `train`, whose
+square root is the residual scale, and `varianceTest`, the same at the
+test rows (`NULL` without test data). A run can be interrupted with
+`Ctrl-C`: it stops between iterations, or inside an iteration's
+Polya-Gamma latent draws or a monotone leaf-order count, whose time
+grows with a logistic, negative-binomial or multinomial fit's counts or
+with a large tree, joining any worker threads first. It then raises R's
+interrupt condition, class `c("interrupt", "condition")`, as base R's
+own long computations do: nothing is printed as an error,
 [`try()`](https://rdrr.io/r/base/try.html) and error handlers do not
 catch it, `tryCatch(interrupt = )` does, and calling handlers, `on.exit`
 and `finally` run. A loop of fits inside

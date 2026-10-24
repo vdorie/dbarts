@@ -850,10 +850,10 @@ imply. `leaf.prior = normal(sd = )` names the spread instead, on the
 family's scale (response units for a continuous response; see
 [`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)
 for the table): the prior standard deviation of the forest total's leaf
-parameter, a number or an `invchi` law on it. The prior mean is the
-response transform's shift (`(max(y) + min(y)) / 2`, net of `offset`,
-for a continuous response; 0 for the latent-scale families). `k` and
-`sd` are exclusive. Unset, nothing changes.
+parameter, a number or an `invchi` hyperprior on it. The prior mean is
+the response transform's shift (`(max(y) + min(y)) / 2`, net of
+`offset`, for a continuous response; 0 for the latent-scale families).
+`k` and `sd` are exclusive. Unset, nothing changes.
 
 The named `sd` is the sd of the normal prior on the leaf model's own
 parameter. It equals the prior standard deviation of \\f(x)\\ at every
