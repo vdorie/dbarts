@@ -947,6 +947,32 @@ expect_error(
   ),
   fixed = TRUE
 )
+# a period repeated or skipped, subject 3 at periods 1, 2, 3 after subject 2
+# at 1, 2
+first3 <- which(subject == 3L & values[, "period"] == 1)
+for (case in list(
+  list(row = first3, period = 2, after = 2),
+  list(row = first3 + 1L, period = 3, after = 1)
+)) {
+  outOfOrder <- values
+  outOfOrder[case$row, "period"] <- case$period
+  expect_error(
+    s$setData(dbartsData(outOfOrder, s$data@y)),
+    paste0(
+      "$setData: ",
+      layout(paste0(
+        "row ",
+        case$row,
+        " is at period ",
+        case$period,
+        " after a row at period ",
+        case$after
+      ))
+    ),
+    fixed = TRUE,
+    info = paste("period", case$period, "after", case$after)
+  )
+}
 expect_identical(recordOf(s), before)
 expect_identical(nrow(s$data@x), 180L)
 movedData <- dbartsData(values[moved, ], s$data@y[moved])

@@ -219,16 +219,23 @@ Calls made, each with its alternative:
 - Rows whose subjects cannot be counted are refused. Alternative: count rows for such data, as before dec-B489,
   which would give one subject in two answers by how its rows were handed in.
 - The check runs at both counting doors whatever rows are in, so the layout is one contract of a hazard fit's
-  data. Alternative: check only where a row is out, the one case the count decides, leaving data in another
-  layout accepted until a row leaves.
+  data. Alternatives: check only where a row is out, the one case the count decides, leaving data in another
+  layout accepted until a row leaves; or check only where a linear or gp leaf derives, the one case the count
+  feeds. The scope this leaves: rows out of order are refused where nothing is derived from the subjects too,
+  `setData` on a hazard sampler with constant leaves, `setData(updateStandardization = FALSE)` and `new()` with
+  the rows reversed, all of which c41f25c0 accepted. The reason: the default time of partial dependence and
+  `survivalProbabilities` read a kept sampler's data in the expansion's order, and hazard fits are new in 1.0-0,
+  so no shipped fit is owed the old acceptance.
 - The check is not widened. `survivalProbabilities` and partial dependence read the same layout (a subject's
   period-1 row) off a fit's data; those come from `dbarts()`, and `setData` now refuses any other layout, so the
   check guards them through the door that could break it, with nothing added there.
 
-Mutants, each alone, `--preclean`, failures in test-leaf-standardization-rows.R (615) and
+Mutants, each alone, `--preclean`, failures in test-leaf-standardization-rows.R (615, 617 with the last pins) and
 test-forest-scale-record.R (121): F05 (`n > 2` for the basis), stops at the two-row store, tests/cpp passing;
 F10 (`n > 0` for the subjects), 1; the layout check dropped, 4; the first row unchecked, 1; `setData` counting
-after the swap, 1; the basis refusal not told every row was read, 2. All six killed.
+after the swap, 1; the basis refusal not told every row was read, 2. All six killed. The check of 5a1d9b36
+(LAND) found G01 alive, a period at least the one before passing for 1 or one more, so that a repeated period
+(1, 2, 2) and a skipped one (1, 3) were taken; both are pinned as refused at `setData`, and G01 fails 2.
 
 Gates, on 5a1d9b36 from `--preclean` installs in a private library: tests/cpp 412 ok plain and under ASAN and
 UBSAN, no diagnostic; the suite at the default `ncpu` in one process, 268 files, 30987 results, none failed; on a
