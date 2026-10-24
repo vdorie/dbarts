@@ -25,7 +25,8 @@ What it no longer does is move the numbers the prior is stated against.
    in at that call; on the last two it comes after `updateState`, installs first and reads after, whether or not
    a row moved, and leaves the test offset alone. `setData` replaces the data and derives as creation does.
    Several forests, and a multinomial sampler on `setActiveRows`, refuse `updateScale = TRUE` before anything is
-   installed, and so does a gp sampler holding saved draws.
+   installed, and so does a gp sampler holding saved draws whose family has a response scale (gaussian,
+   Student-t, aft, nbinom); a probit, logistic or ordinal one has none to derive and takes it.
 4. Too little to read. Where a row is out and the rows in hold fewer than two distinct values (of the response
    less its offset for a range, of the count for a center):
    - at creation and at `setData`, each number is taken over every row, sigest included, under one warning of

@@ -431,6 +431,7 @@ expect_identical(labelsOf(levelled), c("forest1", "factor(z)"))
 # the position number
 trees <- extract(heldFit, "trees")
 expect_true(is.factor(trees$forest))
+expect_identical(class(trees$forest), "factor")
 expect_identical(levels(trees$forest), c("forest1", "dose"))
 expect_identical(levels(trees$forest), attr(heldFit, "forest.labels"))
 expect_identical(

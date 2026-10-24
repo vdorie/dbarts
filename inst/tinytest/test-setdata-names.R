@@ -251,3 +251,89 @@ expect_error(
   sampler$setPredictor(data.frame(a = new.nm$a, b = new.nm$b, a2 = new.nm$a)),
   pattern = "dimension of x must be equal to 2"
 )
+
+# three columns, handed in each cyclic order: a permutation of two is its own
+# inverse, so only three columns tell the match by name from its inverse. The
+# columns sit at different places (means 0.5, 10.5 and 20.5), so a column in
+# another's place shows
+three.nm <- data.frame(
+  a = frame.nm$a,
+  b = 10 + frame.nm$b,
+  c = 20 + frame.nm$a * frame.nm$b
+)
+three.nm$y <- three.nm$a + three.nm$c / 20 + rnorm(n.nm, 0, 0.1)
+threeOf <- function() {
+  set.seed(4L)
+  sampler <- dbarts::dbarts(y ~ a + b + c, three.nm, control = control.nm)
+  set.seed(5L)
+  invisible(sampler$run(10L, 5L))
+  sampler$storeState()
+  sampler
+}
+columnsOf <- function(sampler) {
+  unclass(as.matrix(sampler$data@x))[, c("a", "b", "c")]
+}
+original <- as.matrix(three.nm[c("a", "b", "c")])
+for (order in list(c("c", "a", "b"), c("b", "c", "a"), c("c", "b", "a"))) {
+  info <- paste(order, collapse = "")
+  # setPredictor: a frame, a named matrix and a sparse matrix
+  carriers <- list(
+    frame = three.nm[order],
+    matrix = as.matrix(three.nm[order]),
+    sparse = Matrix::Matrix(as.matrix(three.nm[order]), sparse = TRUE)
+  )
+  for (carrier in names(carriers)) {
+    sampler <- threeOf()
+    sampler$setPredictor(
+      carriers[[carrier]],
+      forceUpdate = TRUE
+    )
+    expect_equal(
+      unname(columnsOf(sampler)),
+      unname(original),
+      info = paste(carrier, info)
+    )
+    expect_identical(
+      colnames(sampler$data@x),
+      c("a", "b", "c"),
+      info = paste(carrier, info)
+    )
+  }
+  # setData: a formula, a matrix and a frame
+  for (carrier in c("formula", "matrix", "frame")) {
+    sampler <- threeOf()
+    sampler$setData(switch(
+      carrier,
+      formula = dbarts::dbartsData(
+        stats::as.formula(paste("y ~", paste(order, collapse = " + "))),
+        three.nm
+      ),
+      matrix = dbarts::dbartsData(as.matrix(three.nm[order]), three.nm$y),
+      frame = dbarts::dbartsData(three.nm[order], three.nm$y)
+    ))
+    expect_equal(
+      unname(columnsOf(sampler)),
+      unname(original),
+      info = paste("setData", carrier, info)
+    )
+  }
+}
+
+# a sampler made from a matrix with no column names and a table of levels for
+# its second column names no column of the data's, so a number in the factor's
+# place is named by the data's column and the place
+codes.nm <- unname(cbind(frame.nm$a, as.double(rep_len(0:2, n.nm))))
+attr(codes.nm, "varTypes") <- c(0L, 1L)
+attr(codes.nm, "factor.levels") <- list(NULL, c("u", "v", "w"))
+bare.factor <- dbarts::dbarts(codes.nm, frame.nm$y, control = control.nm)
+expect_null(colnames(bare.factor$data@x))
+expect_error(
+  bare.factor$setData(dbarts::dbartsData(
+    data.frame(a = frame.nm$a, b = frame.nm$b),
+    frame.nm$y
+  )),
+  pattern = paste0(
+    "^\\$setData: the data's column 'b', in the place of factor 2, holds ",
+    "numbers; give it as a factor of the sampler's labels$"
+  )
+)
