@@ -610,8 +610,9 @@ print(x, ...)
   negative-binomial model on a log link with the Polya-Gamma
   augmentation (a single forest, like logistic): the forest fits the log
   mean, \\\log E\[y_i \mid x\] = \eta_i = f(x_i) + c + o_i\\, and the
-  count law is \\y_i \sim \mathrm{NB}(\mathrm{size} = r, \mathrm{mu} =
-  e^{\eta_i})\\ with shape \\r\\ and variance \\\mu + \mu^2 / r\\, as
+  count distribution is \\y_i \sim \mathrm{NB}(\mathrm{size} = r,
+  \mathrm{mu} = e^{\eta_i})\\ with shape \\r\\ and variance \\\mu +
+  \mu^2 / r\\, as
   [`MASS::glm.nb`](https://rdrr.io/pkg/MASS/man/glm.nb.html) and Stan's
   `neg_binomial_2` parameterize it. The offset \\o_i\\ therefore enters
   the mean multiplicatively and is a log-exposure (\\o_i =
@@ -2142,7 +2143,7 @@ fit.logit <- bart(y.bin ~ x.bin, family = "logistic",
 #> Number of cutoffs: (var: number of possible c):
 #> (1: 59) (2: 59) 
 #> Running mcmc loop:
-#> total seconds in loop: 0.001174
+#> total seconds in loop: 0.001723
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 2 3 2 3 2 2 1 1 2 3 3 3 2 2 
@@ -2195,7 +2196,7 @@ fit.bcf <- bart(y ~ forest(x1 + x2) + forest(x1 + x2, basis = factor(z)),
 #>   1 forest1: no basis; sd 1.798 (default)
 #>   2 factor(z): factor basis, 2 levels; sd 0.899 between the two levels (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.001273
+#> total seconds in loop: 0.002095
 #> 
 #> Tree sizes, last iteration:
 #> [1] 3 2 2 2 3 1 2 2 3 4 

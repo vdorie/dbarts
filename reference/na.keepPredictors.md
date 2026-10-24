@@ -34,7 +34,7 @@ data rather than a hole and dropping it discards information the model
 can use. A missing response, on the other hand, is nothing to fit. This
 function is that distinction:
 [`na.omit`](https://rdrr.io/r/stats/na.fail.html) would drop both.
-rpart's `na.rpart` is the behavioural precedent.
+rpart's `na.rpart` is the behavioral precedent.
 
 The dropped rows are recorded exactly as
 [`na.exclude`](https://rdrr.io/r/stats/na.fail.html) records them - a

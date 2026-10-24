@@ -72,7 +72,7 @@
   row is data rather than a hole and dropping it discards information the
   model can use. A missing response, on the other hand, is nothing to fit.
   This function is that distinction: <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.omit</a></code> would drop both.
-  <span class="pkg">rpart</span>'s <code>na.rpart</code> is the behavioural precedent.</p>
+  <span class="pkg">rpart</span>'s <code>na.rpart</code> is the behavioral precedent.</p>
 <p>The dropped rows are recorded exactly as <code><a href="https://rdrr.io/r/stats/na.fail.html" class="external-link">na.exclude</a></code> records
   them - a named integer vector of class <code>"exclude"</code> - so the training
   fits pad back to the caller's own row count through

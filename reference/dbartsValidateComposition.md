@@ -102,12 +102,12 @@ reported beside it as secondary signals; the verdict does not hinge on
 them.
 
 **Ties.** A rank is the number of draws below \\\theta_0\\, which is
-uniform only for an atomless law. Every functional is ranked with the
-tie-break instead: draws and \\\theta_0\\ alike carry an independent
-uniform tag, so an atom - an indicator, a discrete parameter, a
-probability that underflows to zero - contributes a uniform increment
-rather than piling every replication onto one rank. With no ties it is
-the plain count, exactly.
+uniform only for an atomless distribution. Every functional is ranked
+with the tie-break instead: draws and \\\theta_0\\ alike carry an
+independent uniform tag, so an atom - an indicator, a discrete
+parameter, a probability that underflows to zero - contributes a uniform
+increment rather than piling every replication onto one rank. With no
+ties it is the plain count, exactly.
 
 **The blind spot.** The validator compares the composition against the
 model `drawPrior` and `simulate` state *between them*. It cannot detect

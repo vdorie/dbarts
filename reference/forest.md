@@ -301,7 +301,7 @@ forest(
   the same code, so `"I(dose / 30)"` finds `I(dose/30)`), a number is
   its position as base R reads a list element by number, and `forest<i>`
   names position *i*, as it does on every per-forest margin. A string is
-  never a position: `"2"` is a forest labelled `"2"` or none. A string
+  never a position: `"2"` is a forest labeled `"2"` or none. A string
   that is one forest's label and another position's name, or the same
   code as two labels, is refused.
 
@@ -809,7 +809,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000403
+#> total seconds in loop: 0.000685
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 

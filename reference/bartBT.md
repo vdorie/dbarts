@@ -1088,11 +1088,12 @@ returned. In the numeric \\y\\ case, the list has components:
 
 - `resid.scale`, `resid.df`:
 
-  `resid.scale` is present only on a family with a residual law
-  (`"gaussian"`, `"student"`, `"aft"`): the law's scale model,
+  `resid.scale` is present only on a family with a residual distribution
+  (`"gaussian"`, `"student"`, `"aft"`): the distribution's scale model,
   `"constant"` or `"forest"` for a heteroscedastic fit (`variance` on
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md)), whose
-  draws are `s.train`/`s.test`. The law's shape is the family's own (see
+  draws are `s.train`/`s.test`. The distribution's shape is the family's
+  own (see
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md)'s
   `family = student()`). `resid.df` is present only for a `student()`
   fit: the degrees of freedom \\\nu\\ each draw was conditioned on, in
@@ -1225,11 +1226,11 @@ For continuous response fits, the `plot` method sets `mfrow` to
 draws only the second. The first plot is the sequence of kept draws of
 \\\sigma\\ including the burn-in draws. Initially these draws will
 decline as BART finds a good fit and then level off when the MCMC has
-burnt in. The second plot has \\y\\ on the horizontal axis and posterior
-intervals for the corresponding \\f(x)\\ on the vertical axis. For
-binary response fits, only this second kind of plot is drawn, with the
-posterior median of \\P(Y = 1 \mid x)\\ on the horizontal axis and its
-posterior interval on the vertical axis.
+burned in. The second plot has \\y\\ on the horizontal axis and
+posterior intervals for the corresponding \\f(x)\\ on the vertical axis.
+For binary response fits, only this second kind of plot is drawn, with
+the posterior median of \\P(Y = 1 \mid x)\\ on the horizontal axis and
+its posterior interval on the vertical axis.
 
 For `print.bart`, the fit itself (`x`), returned invisibly; the call and
 a short synopsis (family, chain/tree/burn counts, kept-draw count) print
@@ -1346,7 +1347,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.131634
+#> total seconds in loop: 0.215684
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

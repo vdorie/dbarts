@@ -344,7 +344,7 @@ to ask is whether moving to it changes the posterior being targeted.
 The additive decomposition ports exactly. What does not port by itself
 is prior shape. The two routes agree only if the caller
 
-1.  centres $`y`$ at its midrange, or absorbs the response transform’s
+1.  centers $`y`$ at its midrange, or absorbs the response transform’s
     shift with `setOffset`: each single-forest sampler’s reported fit
     carries that shift, so the composition attributes it once per forest
     where the sampler attributes it once;
@@ -365,7 +365,7 @@ well, which is the point - the difference is a prior, not a defect.
 
 State equally plainly what the recipe does not reach and never will: a
 response family, link or latent structure the sampler does not provide,
-and a leaf or hyperprior law it does not provide. Those are selected by
+and a leaf or hyperprior it does not provide. Those are selected by
 argument, not composed in R.
 [`forest()`](https://vdorie.github.io/dbarts/reference/forest.md)
 carries the same scale knobs the composition sets by hand, and

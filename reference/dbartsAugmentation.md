@@ -95,10 +95,10 @@ the engine's own convention at every augmentation site, and the linear
 predictor is formed internally as `fit + offset`. The two arguments are
 therefore not interchangeable, and the pair of functions is what tells
 them apart: `dbartsDrawLatents(fit = f, offset = o)` and
-`dbartsDrawLatents(fit = f + o, offset = NULL)` draw from the same law
-and agree, while `dbartsWorkingResponse` *differs* between the two, the
-working response being stated in units the offset has been taken out of.
-Pass the offset as `offset` to both.
+`dbartsDrawLatents(fit = f + o, offset = NULL)` draw from the same
+distribution and agree, while `dbartsWorkingResponse` *differs* between
+the two, the working response being stated in units the offset has been
+taken out of. Pass the offset as `offset` to both.
 
 **Why two functions.** For `"probit"`, `"ordinal"` and `"aft"` the
 latent is a LOCATION and the working response is that location less the

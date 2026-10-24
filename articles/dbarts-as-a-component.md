@@ -58,7 +58,7 @@ residual standard deviation is pinned at 1 with
 no free residual scale. And the leaf prior is stated with
 `setLeafPrior`, because a gaussian sampler built on a cold-start vector
 would otherwise inherit its prior scale from that vector’s range – an
-accident of the starting values, not a modelling choice.
+accident of the starting values, not a modeling choice.
 
 ``` r
 
