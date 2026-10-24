@@ -1,8 +1,13 @@
 # Release-candidate review program
 
-Status: SPECCED 2026-08-17 (base eb5e6d16). This file is the program's
-charter, its derived slate, and its record (the TODO entry that once
-pointed here is discharged). Landing notes go newest-first under the Landing notes heading.
+Status: COMPLETE 2026-10-02 (specced 2026-08-17, base eb5e6d16), except the CI legs that land
+with the merge to main (Resolutions, fork 4). Waves 0 to 4 closed on 2026-08-17 and 2026-08-18, wave 5's
+adversarial whole-branch review ran on 2026-08-18 and its fixes landed through 2026-08-19, the oracle lane
+closed on 2026-08-20, a second whole-branch review ran on 2026-08-24 and 2026-08-25 and a third on
+2026-10-01 and 2026-10-02, whose fixes landed through 94b8fd40. The RC call is VD's (TODO rc-gate), and the
+first live runs of the scheduled workflows are TODO's release item. This file is the program's charter, its
+derived slate, and its record (the TODO entry that once pointed here is discharged). Landing notes go
+newest-first under the Landing notes heading.
 
 ## 1. Charter (restated)
 

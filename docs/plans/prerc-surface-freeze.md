@@ -4,7 +4,10 @@ Status: DECIDED 2026-08-25 (VD, adopting the orchestrator's
 recommendations as written); D3 and D4 LANDED 6446ddce
 (docs/plans/dbarts-h-freeze.md); D1, D9, D5 and D2 LANDED 78f334c1
 (docs/plans/predict-surface.md); D6 and D8 LANDED 936825d7
-(docs/plans/composition-refusals.md); D7's cross-host mode LANDED 3f532af2 (docs/plans/bcf-cross-host.md), only its same-host re-record remains, at the RC tip. Work items carry TODO entries named below. Evidence: the
+(docs/plans/composition-refusals.md); D7's cross-host mode LANDED 3f532af2 (docs/plans/bcf-cross-host.md) and
+its same-host re-record at the RC tip LANDED 2026-09-02 (d0237c8d, bcf-equivalence-3c81d6df.rds, since
+superseded by the re-records of later landings), which closed TODO bcf-baseline-cross-host. All nine rulings
+have landed and their work items have left TODO. Evidence: the
 three pre-RC lens reports tracked at
 docs/plans/review-2026-08-24/memos/prerc-lens1-surface.md,
 prerc-lens2-backlog.md, prerc-lens3-external.md (findings cited by

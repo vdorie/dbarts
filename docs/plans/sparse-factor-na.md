@@ -1,6 +1,9 @@
 # sparse-factor-na: a sparseFactor holds missing values
 
-Status: IMPLEMENTED 2026-09-29, pending review (step 2: option B, ruled by the maintainer)
+Status: LANDED 2026-09-29 (0a10ac5e, 199b71f9; step 2: option B, ruled by the maintainer, dec-A100).
+No review of this plan alone is recorded. The 2026-10-01 whole-branch review's ingestion lens exercised a
+sparseFactor's missing values against a dense factor's, at both doors and in all four train and test
+pairings, and found them identical (docs/plans/review-2026-10-01/ingest.md).
 
 agent: sonnet
 rng: neutral (no C or C++ change; every input accepted today codes and routes as before, and the

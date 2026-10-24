@@ -1,8 +1,9 @@
 # Starting sigma: how much the fit depends on it, and what to do for a large sparse design
 
-Status: FINDING, 2026-10-10 (dec-B403, dec-B421, dec-B422). A sensitivity study on dense data and an
-LSQR prototype for sparse designs too large for an exact fit. Measured on arm64 macOS (M1 Max, R 4.6.1,
-R's reference BLAS), two jobs at a time. Scripts and outputs are in scratch/ssens, untracked.
+Status: FINDING, 2026-10-10 (dec-B403, dec-B421, dec-B422); the recommendation was not taken (dec-B433; see
+Recommendation). A sensitivity study on dense data and an LSQR prototype for sparse designs too large for an
+exact fit. Measured on arm64 macOS (M1 Max, R 4.6.1, R's reference BLAS), two jobs at a time. Scripts and
+outputs are in scratch/ssens, untracked.
 
 ## Summary
 
@@ -229,9 +230,14 @@ estimate in Part 1's settings.
 
 ## Recommendation
 
-2026-10-10: not taken. The maintainer ruled the regression at any size, by lm.fit or the exact sparse routine
-as `sigest` names ([`startingSigmaRoute`](../../R/utility.R)), and sd(y) only where it is not defined: no
-cap, no LSQR and no screening. What follows is the record of what was measured.
+2026-10-10: not taken as written. The maintainer first ruled it (dec-B426: the exact routine up to m = 2000,
+LSQR above it, sd(y) under 10 percent residual degrees of freedom), then replaced LSQR with sd(y) above the
+cutoff (dec-B428) and, the same day, removed the cutoff (dec-B433): the starting sigma is the regression
+whenever one is defined, at any size, and sd(y) only where it is not (dec-B429). Of the three points, no LSQR
+routine was built (point 1), no cap exists to lower (point 2), and the exact routine of point 3 runs at every
+size, chosen by what the caller passed or by `sigest = "sparse"`
+([`startingSigmaRoute`](../../R/utility.R); dec-B434). Screening was not built. What follows is the record of
+what was measured.
 
 1. **Above the cap, use LSQR, with no warning**: structural degrees of freedom, tolerance 1e-6, a cap of
    1000 iterations, sd(y) below 10 percent residual degrees of freedom. It keeps dec-B403's promise (a
