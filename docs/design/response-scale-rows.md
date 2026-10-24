@@ -1,6 +1,6 @@
 # Which rows a prior's scale is read from
 
-Status: LANDED 2026-10-11 (d5b637ee). The plan is [response-scale-rows.md](../plans/response-scale-rows.md), which carries the
+Status: LANDED 2026-10-11 (d5b637ee); slice D LANDED 2026-10-24 (a3e65674..da962901 and 8338e66e..60746517). The plan is [response-scale-rows.md](../plans/response-scale-rows.md), which carries the
 steps, the gates and the calls made in planning; this note is the standing statement of the rule.
 
 What a fit takes from the response to place or size a prior - the gaussian and Student-t response range, a
@@ -171,5 +171,5 @@ A: the survival re-anchor reads observed times (landed). B: this note, creation.
 `setWeights` and `setActiveRows`, which extends the keep to them and documents the by-hand count sampler's call
 (landed, [response-scale-rows-c.md](../plans/response-scale-rows-c.md)).
 D: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the rows in, rule 9
-([response-scale-rows-d.md](../plans/response-scale-rows-d.md); its first push built 2026-10-23, not landed),
-and `updateStandardization` on `setWeights` and `setActiveRows` (its second push, built 2026-10-23, not landed).
+([response-scale-rows-d.md](../plans/response-scale-rows-d.md); its first push landed 2026-10-24, dec-A226), and
+`updateStandardization` on `setWeights` and `setActiveRows` (its second push, landed 2026-10-24, dec-A227).

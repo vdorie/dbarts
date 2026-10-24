@@ -883,23 +883,6 @@ items
     section 10). After the multiplier slice's held push it is the one
     place left where a sampler runs trees drawn under other held
     values. Not planned.
-  response-scale-rows: slice D (slices B, creation, and C, updateScale
-    on setWeights and setActiveRows, have landed:
-    docs/design/response-scale-rows.md): a linear or gp leaf's
-    covariate center and scale, and the default lengthscale, over the
-    rows in (dec-B304, dec-B464), refused where the rows in hold one
-    value of a covariate and kept at a re-derivation, and
-    updateStandardization on setWeights and setActiveRows for burn-in
-    (dec-B465). Planned in two pushes
-    (docs/plans/response-scale-rows-d.md), and unblocked: the
-    state-frame-prior slices (landed 2026-10-23, dec-A222 to dec-A224)
-    hold the center and scale through a copy, a reload and a state
-    install, on the data object's record, and give setData and
-    setPredictor updateStandardization, the latter for the replaced
-    columns alone and over every row, with
-    Sampler::rederiveStandardization the entry setWeights and
-    setActiveRows can call. Cut points still span every row. Before
-    1.0-0, and before the merge if it can be.
   mask-on-own-data-object: under a mask family (probit, ordinal, nbinom,
     hazard.probit) the 0/1 weights become the sampler's active-row mask
     and the data object it hands out, s$data, carries no weights, so

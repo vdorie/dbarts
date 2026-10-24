@@ -1,8 +1,10 @@
 # response-scale-rows, slice D: a leaf's covariate center, scale and lengthscale over the rows in
 
-Status: PUSH 1 LANDED 2026-10-24 (a3e65674..da962901, dec-A226 with the ruling dec-B479;
+Status: LANDED 2026-10-24, both pushes: push 1 a3e65674..da962901 (dec-A226, with the ruling dec-B479;
 [Push 1 as built](#push-1-as-built), [Push 1 fix round](#push-1-fix-round),
-[Landing note, push 1](#landing-note-push-1)); PUSH 2 in review. PLANNED 2026-10-17 against 9e79f4a3
+[Landing note, push 1](#landing-note-push-1)); push 2 8338e66e..60746517 (dec-A227;
+[Push 2 as built](#push-2-as-built), [Fix round](#fix-round), [Landing note, push 2](#landing-note-push-2)).
+PLANNED 2026-10-17 against 9e79f4a3
 (bartcore; state-frame-prior designed and planned, not built;
 forest-multiplier push 2 built on wt/forest-mult-p2, not landed); revised from its blind critique
 (scratch/rsrd/crit/crit-report.md, sound after changes; [Revision from critique](#revision-from-critique))
@@ -1753,3 +1755,35 @@ and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line, neutra
 the 43 commands of exact-gates.yaml at `quick`, all passing (mask-redraw-exact.R |z| 0.7); the R-loaded run of the
 ten touched and nearby files under ASAN and UBSAN, 2663 expectations, none failed, no diagnostic. Not run: `R CMD
 check`, stan4bart and the x86-64 leg.
+
+## Landing note, push 2
+
+Landed 2026-10-24 as 8338e66e..60746517 on bartcore 5febcf03, 12 commits: the recheck against push 1 as built
+(8338e66e), the push (6f16f87d, the bridge, R and tests; a45b169a, the help, NEWS and notes) and its record
+(e34b2e5d); rebased onto push 1's fix round, the one-row-in pins (ede3361f), the comments push 1 left (222ee9f5) and
+the rebase's record (05305bdb); after one opus review, FIX FIRST on six findings, the fix round (7f3416f2, the code
+and tests; b164ac29, the help and notes) and its record (69df6915), whose check was LAND; then the restated hashes
+(da80dc9c) and the check's one pin, a second joint keep raising no warning (60746517). It was built on push 1 before
+push 1's review, rebased onto push 1's fix round, onto push 1's landing at da962901 and onto 5febcf03, push 1's
+records, the conflicts only at this plan's end. The calls made building it, and the orchestrator's call reversing the
+builder's per-covariate reading where a response scale is kept, are dec-A227.
+
+Gates on b164ac29, whose code is 7f3416f2's: tests/cpp 412 ok plain and under ASAN and UBSAN; the suite in one
+process, 271 files, 29903 results, 0 failed; lint, air, rc-codoc (48 methods), win-drift and doc-freshness clean; on
+the reference build the four snapshot files (14, 3, 7 and 3) and the bitwise compares, 55 of 55, 19 of 19 and 11 of
+11 identical, no "max |z|" line, neutral as forecast, and both cross-host compares; the exact gates at quick, 43 of
+43; the R-loaded ASAN and UBSAN run over ten files, 2663 results, 0 diagnostics. The reviewer on 69df6915: R CMD check
+--as-cran --no-manual, the Date field's NOTE alone; stan4bart's suite at 3716b51, 1555 results, 0 failed. The x86-64
+leg on 69df6915: tests/cpp 412 ok plain and under ASAN, no diagnostic; the suite 30031 results, 0 failed; the
+equivalence compare 55 of 55 statistically indistinguishable; the BCF and multinomial compares within the cross-host
+tier 1 bound. On 60746517, after a --preclean install in a private library: the suite 271 files, 29905 results, 0
+failed, and the lint chain clean.
+
+Mutants: the builder's 15, none alive, rerun after each rebase; the review's 16 (13 killed, two equivalent, one alive
+and pinned in the fix round); the fix round's 17, none alive; the check's 13 (12 killed, one alive and pinned after
+it, the builder's mutant of it then failing 1). Size against da962901: package code 281 lines added and 112 removed,
+over the plan's stop of about 200, which the coordinator took; 1055 added and 140 removed in all, against about 870
+forecast.
+
+Left: nothing of the slice. TODO response-scale-rows is dropped; mask-on-own-data-object, filed by the critique,
+stays.
