@@ -3436,10 +3436,22 @@ bool holdsSavedGPDraws(const bartcore::SamplerShape& shape) {
 // heteroscedastic variants included), aft and nbinom, whose transform or count
 // center updateScale re-derives. A probit, logistic or ordinal response is
 // scale-free, so updateScale derives nothing for it and moves no saved draw.
+// A switch over every enumerator with no default arm, so a family added later
+// is classified here or the build stops (-Werror=switch in tests/cpp); an
+// unclassified value falls through to the family that has a scale, which keeps
+// the refusal.
 static bool familyHasResponseScale(bartcore::ResponseFamily family) {
-  return family == bartcore::ResponseFamily::gaussian ||
-         family == bartcore::ResponseFamily::aft ||
-         family == bartcore::ResponseFamily::nbinom;
+  switch (family) {
+  case bartcore::ResponseFamily::gaussian:
+  case bartcore::ResponseFamily::aft:
+  case bartcore::ResponseFamily::nbinom:
+    return true;
+  case bartcore::ResponseFamily::probit:
+  case bartcore::ResponseFamily::logistic:
+  case bartcore::ResponseFamily::ordinal:
+    return false;
+  }
+  return true;
 }
 
 // The refusal is blind to the values - a rule that passed the re-anchors
