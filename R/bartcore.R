@@ -440,10 +440,52 @@ refuseMatrixOfCodes <- function(x, x.train, what) {
   invisible(NULL)
 }
 
+# How the columns of data handed to $setData or $setPredictor are read against
+# the sampler's (dec-B478): by name, the data's names being the sampler's.
+# Names that are not the sampler's are refused, as predict refuses them. NULL
+# when the columns are read by position, where either side has no names (a
+# side with none has length 0) or they are the same in the same places;
+# otherwise the order that puts the data's columns in the sampler's, which a
+# name that repeats cannot give, since it names two places.
+matchSamplerNames <- function(names, newNames, caller, given) {
+  if (length(names) != length(newNames) || identical(names, newNames)) {
+    return(NULL)
+  }
+  if (!all(names %in% newNames) || !all(newNames %in% names)) {
+    stop(
+      caller,
+      ": names that are not the sampler's: ",
+      given,
+      " are ",
+      quotedNameList(newNames),
+      " and the sampler's are ",
+      quotedNameList(names),
+      "; columns are matched by name, so name them as the sampler does, or ",
+      "give a matrix with no column names to read them by position",
+      call. = FALSE
+    )
+  }
+  if (anyDuplicated(names) || anyDuplicated(newNames)) {
+    place <- which(names != newNames)[1L]
+    stop(
+      caller,
+      ": ",
+      given,
+      " cannot be matched by name, a name repeating: the column '",
+      newNames[place],
+      "' is in the place of the sampler's '",
+      names[place],
+      "'; give them in the sampler's order",
+      call. = FALSE
+    )
+  }
+  match(names, newNames)
+}
+
 # A data frame given as the whole of the predictors, as the numeric matrix of
-# codes the sampler takes: its columns matched to the design's by name when
-# they carry the names, else by position, the factor columns coded by label
-# and refused a number, the others refused a label.
+# codes the sampler takes: its columns matched to the design's by name, the
+# names being the design's (matchSamplerNames), the factor columns coded by
+# label and refused a number, the others refused a label.
 codePredictorFrame <- function(x.train, x) {
   p <- ncol(x.train)
   plain <- vapply(x, function(v) is.atomic(v) && is.null(dim(v)), NA)
@@ -460,8 +502,14 @@ codePredictorFrame <- function(x.train, x) {
     stop("dimension of x must be equal to ", p, call. = FALSE)
   }
   names <- colnames(x.train)
-  if (!is.null(names) && all(names %in% colnames(x))) {
-    x <- x[names]
+  order <- matchSamplerNames(
+    names,
+    colnames(x),
+    "$setPredictor",
+    "the columns given"
+  )
+  if (!is.null(order)) {
+    x <- x[order]
   }
   factorLevels <- attr(x.train, "factor.levels")
   for (j in seq_len(p)) {
@@ -567,8 +615,9 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
 }
 
 # $setData's data read as the sampler reads them (dec-B454): columns matched by
-# name where they carry the sampler's, else by position, a carried grid record
-# moving with its columns, and a column the sampler has a level table for
+# name, the names being the sampler's (dec-B478) and data with no names read by
+# position, a carried grid record moving with its columns, and a column the
+# sampler has a level table for
 # re-coded by label onto it, training and test rows (the test rows coded, as
 # dbartsData codes them, by the training table),
 # a factor column with no table refused (dec-B360). Data with the sampler's
@@ -576,19 +625,14 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
 alignDataFactorLevels <- function(newData, x.train) {
   x <- newData@x
   x.test <- newData@x.test
+  names <- colnames(x.train)
+  newNames <- colnames(x)
+  # the names are the sampler's whatever the source, a sparse one included
+  order <- matchSamplerNames(names, newNames, "$setData", "the data's columns")
   if (predictorSourceIsSparse(x) || predictorSourceIsSparse(x.test)) {
     return(newData)
   }
-  names <- colnames(x.train)
-  newNames <- colnames(x)
-  if (
-    !is.null(names) &&
-      !identical(names, newNames) &&
-      all(names %in% newNames) &&
-      !anyDuplicated(names) &&
-      !anyDuplicated(newNames)
-  ) {
-    order <- match(names, newNames)
+  if (!is.null(order)) {
     x <- permutePredictorColumns(x, order, x.train)
     x.test <- permutePredictorColumns(x.test, order, x.train)
     newData@varTypes <- newData@varTypes[order]
@@ -599,23 +643,6 @@ alignDataFactorLevels <- function(newData, x.train) {
       newData@cutPoints <- grids[order]
     }
     newNames <- names
-  } else if (!is.null(names) && !is.null(newNames)) {
-    # read by position, a name of the sampler's in another place is a column
-    # read as another
-    moved <- which(names %in% newNames & names != newNames)
-    if (length(moved) > 0L) {
-      k <- match(names[moved[1L]], newNames)
-      stop(
-        "$setData: the data's column '",
-        newNames[k],
-        "' is in the place of the sampler's '",
-        names[k],
-        "'; columns are matched by name only where the data carry every ",
-        "one of the sampler's names and otherwise by position, so name ",
-        "them as the sampler does",
-        call. = FALSE
-      )
-    }
   }
   tables <- attr(x.train, "factor.levels")
   given <- attr(x, "factor.levels")
@@ -921,6 +948,19 @@ bartcoreSamplerSetPredictor <- function(
     x <- codePredictorFrame(currentX, x)
   } else {
     refuseMatrixOfCodes(x, currentX, "'x'")
+    # a matrix carrying column names is matched by name as a frame is; one
+    # without is read by position
+    if (is.matrix(x) || inherits(x, "Matrix")) {
+      order <- matchSamplerNames(
+        colnames(currentX),
+        colnames(x),
+        "$setPredictor",
+        "the columns given"
+      )
+      if (!is.null(order)) {
+        x <- x[, order, drop = FALSE]
+      }
+    }
   }
 
   # a triplet, row-compressed, symmetric, triangular, logical or pattern

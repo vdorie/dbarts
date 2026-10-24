@@ -215,8 +215,8 @@ expect_error(
 expect_identical(untouched(sampler), held)
 
 # columns are matched by name: y ~ g + f on a sampler of y ~ f + g, labels the
-# two share, is read as y ~ f + g. Names that are not the sampler's are read by
-# position, as a whole-frame setPredictor reads them
+# two share, is read as y ~ f + g. Names that are not the sampler's are refused
+# (dec-B478), the sampler left as it was
 set.seed(1L)
 yes.fl <- data.frame(
   f = factor(sample(c("no", "yes"), n.fl, TRUE)),
@@ -239,7 +239,18 @@ expect_identical(sampler$data@x.test, twin$data@x.test)
 expect_identical(fitsOf(sampler), fitsOf(twin))
 renamed <- yes.fl
 names(renamed)[2L] <- "h"
-sampler$setData(dbarts::dbartsData(y ~ f + h, renamed))
+sampler$storeState()
+held <- untouched(sampler)
+expect_error(
+  sampler$setData(dbarts::dbartsData(y ~ f + h, renamed)),
+  pattern = paste0(
+    "^\\$setData: names that are not the sampler's: the data's columns are ",
+    "'f' and 'h' and the sampler's are 'f' and 'g'; columns are matched by ",
+    "name, so name them as the sampler does, or give a matrix with no column ",
+    "names to read them by position$"
+  )
+)
+expect_identical(untouched(sampler), held)
 expect_identical(sampler$data@x$dense, twin$data@x$dense)
 
 # an NA level is matched to the NA level, and a missing value stays missing
@@ -316,29 +327,29 @@ twin$setData(dbarts::dbartsData(y ~ a + f, byLabel(reordered)))
 expect_identical(sampler$data@x, twin$data@x)
 expect_identical(sampler$data@varTypes, twin$data@varTypes)
 
-# read by position, where the data do not carry every name of the sampler's,
-# one of its names in another place is refused: (a, g, h) would read g as f
+# data that do not carry every name of the sampler's are refused, one of the
+# sampler's names in another place or not: (a, g, h) would read g as f
 sampler <- pairs[[1L]]
 sampler$storeState()
 held <- untouched(sampler)
 moved <- data.frame(y = start$y, a = start$a, g = start$f, h = start$g)
 expect_error(
   sampler$setData(dbarts::dbartsData(y ~ a + g + h, moved)),
-  pattern = "the data's column 'g' is in the place of the sampler's 'f'"
+  pattern = paste0(
+    "names that are not the sampler's: the data's columns are 'a', 'g' and ",
+    "'h' and the sampler's are 'a', 'f' and 'g'"
+  )
 )
 expect_identical(untouched(sampler), held)
-# and a number in a factor's place names the data's column and the place
+# a number in a factor's place names the data's column
 sampler <- samplerOf()
 frame <- frameOf(letters[1:6], letters[1:6], 2L)
 expect_error(
   sampler$setData(dbarts::dbartsData(
-    y ~ a + b,
-    data.frame(y = frame$y, a = frame$a, b = runif(n.fl))
+    y ~ a + f,
+    data.frame(y = frame$y, a = frame$a, f = runif(n.fl))
   )),
-  pattern = paste0(
-    "the data's column 'b', in the place of factor 'f', holds numbers; ",
-    "give it as a factor of the sampler's labels"
-  )
+  pattern = "^\\$setData: factor 'f' holds numbers; give it as a factor of the "
 )
 
 # a term whose basis the data fix, poly() or ns(), handed in another order: the

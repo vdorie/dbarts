@@ -30,7 +30,8 @@ samples1 <- sampler$run(500L, 1000L)
 
 x.new <- x + diff(cutoffs[1L:2L])
 
-sampler$setData(dbarts::dbartsData(y ~ x.new))
+# the shifted values go in under the sampler's name for the column, x
+sampler$setData(dbarts::dbartsData(y ~ x, data.frame(y = y, x = x.new)))
 samples2 <- sampler$run(500L, 1000L)
 
 expect_equal(

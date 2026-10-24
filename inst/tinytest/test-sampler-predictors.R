@@ -45,7 +45,7 @@ expect_equal(sampler$data@x.test, as.matrix(test))
 set.seed(0L)
 new.x <- rnorm(n)
 new.z <- as.double(rbinom(n, 1L, 0.5))
-new.data <- cbind(new.x, new.z)
+new.data <- cbind(x = new.x, z = new.z)
 invisible(sampler$setPredictor(new.data))
 
 expect_equal(as.numeric(sampler$data@x), as.numeric(new.data))
@@ -82,30 +82,49 @@ expect_false(isTRUE(accepted))
 expect_equal(dimSampler$data@x, xBefore)
 expect_equal(colnames(dimSampler$data@x), c("qux", "frob"))
 
-# 2: a NAMED replacement installs its OWN names, distinct from the
-# sampler's current ones -- pins that incoming names win rather than the
-# fallback below silently always applying
+# 2: a NAMED replacement installs its OWN names on a sampler that has none --
+# pins that incoming names win rather than the fallback below silently always
+# applying (a sampler with names takes only its own, dec-B478)
+bareSampler <- dbarts::dbarts(
+  unname(as.matrix(dimTrain[c("qux", "frob")])),
+  dimTrain$y,
+  control = dimControl
+)
+invisible(bareSampler$run(50L, 1L))
 namedX <- matrix(rnorm(2L * n), n, dimnames = list(NULL, c("zork", "gleep")))
-invisible(dimSampler$setPredictor(namedX))
-expect_equal(colnames(dimSampler$data@x), c("zork", "gleep"))
+invisible(bareSampler$setPredictor(namedX))
+expect_equal(colnames(bareSampler$data@x), c("zork", "gleep"))
 
 # 3: an UNNAMED replacement falls back to the sampler's CURRENT names
-# (zork/gleep, installed by 2 above, not the original qux/frob) -- pins
-# that the fallback reads the live matrix, not some cached original
+# (zork/gleep, installed by 2 above, not the original ones) -- pins that the
+# fallback reads the live matrix, not some cached original
 unnamedX <- matrix(rnorm(2L * n), n)
+invisible(bareSampler$setPredictor(unnamedX))
+expect_equal(colnames(bareSampler$data@x), c("zork", "gleep"))
+# and on a sampler with names, an unnamed one keeps them
 invisible(dimSampler$setPredictor(unnamedX))
-expect_equal(colnames(dimSampler$data@x), c("zork", "gleep"))
+expect_equal(colnames(dimSampler$data@x), c("qux", "frob"))
 
 # 4: by-name column resolution still works after both whole-matrix calls
 # above; forced so the assertion is about name lookup, not tree acceptance
-invisible(dimSampler$setPredictor(
+invisible(bareSampler$setPredictor(
   numeric(n),
   column = "gleep",
   forceUpdate = TRUE
 ))
-expect_equal(as.numeric(dimSampler$data@x[, "gleep"]), numeric(n))
+expect_equal(as.numeric(bareSampler$data@x[, "gleep"]), numeric(n))
 
-rm(dimTrain, dimControl, dimSampler, n, namedX, unnamedX, xBefore, accepted)
+rm(
+  dimTrain,
+  dimControl,
+  dimSampler,
+  bareSampler,
+  n,
+  namedX,
+  unnamedX,
+  xBefore,
+  accepted
+)
 
 # dec-B310: a forced update returns NULL invisibly, whole matrix or column, by
 # position or by name; an unforced one says whether a valid update was made

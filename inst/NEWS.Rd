@@ -125,14 +125,16 @@
             refused by name on a fit with a factor column; \code{predict}
             had read the codes of such a matrix as levels.
             \code{setData} reads its data the same way, a factor by label
-            against the sampler's levels and the columns by name where
-            they carry the sampler's names: fewer levels, another order
-            and declared levels no row has are taken, and a label the
-            sampler never had is refused by name, as is, where the columns
-            are read by position, a name of the sampler's in another place.
-            0.9-34 refused another count of levels with rows and read
-            reordered, renamed or replaced levels by position, so that the
-            kept draws no longer predicted what they did.
+            against the sampler's levels and the columns by name: fewer
+            levels, another order and declared levels no row has are
+            taken, and a label the sampler never had is refused by name,
+            as is a column name that is not the sampler's, as
+            \code{predict} refuses one. \code{setPredictor(x)} refuses
+            such names too. A matrix with no column names is read by
+            position, as before. 0.9-34 refused another count of levels
+            with rows and read reordered, renamed or replaced levels, and
+            columns under other names, by position, so that the kept draws
+            no longer predicted what they did.
       \item Split probabilities. \code{split.probs} with a negative or
             non-finite entry, or with no positive entry, is refused, as
             \code{sample(prob = )} refuses such weights; 0.9-34 turned a

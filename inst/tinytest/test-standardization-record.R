@@ -660,10 +660,10 @@ for (record in list(fits, list(lapply(fits[[1L]], unname)))) {
   expect_identical(taken$data@standardization, fits)
 }
 
-# setData reads the columns by name, else by position, the record taking the
-# new names: a sampler's data object reordered, stripped of its names or
-# renamed is served, linear and gp, and the record is the reader's under the
-# names the data then carry
+# setData reads the columns by name, else by position where they carry none: a
+# sampler's data object reordered or stripped of its names is served, linear
+# and gp, and the record is the reader's under the names the data then carry;
+# one renamed is refused (dec-B478)
 variants <- list(
   reordered = function(data) {
     data@x <- data@x[, c("b", "a")]
@@ -672,13 +672,24 @@ variants <- list(
   unnamed = function(data) {
     colnames(data@x) <- NULL
     data
-  },
-  renamed = function(data) {
-    colnames(data@x) <- c("c", "d")
-    data
   }
 )
+renamedData <- function(data) {
+  colnames(data@x) <- c("c", "d")
+  data
+}
 for (leaf in c("linear", "gp")) {
+  refused <- if (leaf == "linear") {
+    make(control = list(keepTrees = FALSE))
+  } else {
+    make(leaf.prior = gp(columns = "a"), control = list(keepTrees = FALSE))
+  }
+  expect_error(
+    refused$setData(renamedData(refused$data)),
+    pattern = "names that are not the sampler's: the data's columns are 'c' and 'd'",
+    info = leaf
+  )
+  expect_identical(colnames(refused$data@x), c("a", "b"), info = leaf)
   for (variant in names(variants)) {
     swapped <- if (leaf == "linear") {
       make(control = list(keepTrees = FALSE))
