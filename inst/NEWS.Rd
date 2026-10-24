@@ -517,7 +517,10 @@
             one value, a constant column among them, is refused unless a
             \code{gp} leaf states its lengthscale. The sampler keeps its
             standardization: a restored state and a warm start put the
-            slopes in as stored under it.
+            slopes in as stored under it, and \code{$setWeights} and
+            \code{$setActiveRows} take it again from the rows then in
+            only with their \code{updateStandardization = TRUE}, for a
+            loop whose rows in change during burn-in.
             \code{normal(sd = )} states the leaf prior's spread directly on
             the response (or latent) scale instead of through \code{k}, as a
             number or under the new \code{invchi()} hyperprior. Available on

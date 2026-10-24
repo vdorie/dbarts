@@ -56,7 +56,11 @@ What it no longer does is move the numbers the prior is stated against.
    being no number in force to keep, unless a gp leaf states its lengthscale, which takes the placeholder: the
    one value, divided by 1. `setPredictor(updateStandardization = TRUE)` re-derives the replaced covariates over
    the rows in at that call, under the weights and the mask in force, and keeps one with too little, warning once
-   per sampler as rule 4 does, on the flag the response's keeps share. Held otherwise, through the data object's
+   per sampler as rule 4 does, on the flag the response's keeps share. `updateStandardization = TRUE` on
+   `setWeights` and `setActiveRows` re-derives every leaf covariate over the rows in after the install, keeping
+   by the same rule; where `updateScale = TRUE` keeps the response's scale in the same call, one warning names
+   both. A loop whose rows in change passes it while burning in and then stops, so every kept draw comes from
+   one prior (dec-B465). Held otherwise, through the data object's
    record: a copy, a reload and a re-creation take it and read no row. Cut points still span every row.
 
 ## 2. What read which rows
@@ -115,8 +119,9 @@ the bridge calls for `setWeights` and `setActiveRows` after their install, with 
 
 A leaf re-derivation decides its keep the same way, once, from chain 0's leaf, per covariate, over the rows the
 weights and the sampler's copy of the mask in force leave in ([`Sampler::rederiveStandardization`](../../src/bartcore/sampler.hpp)),
-and answers the covariates it kept; the bridge carries them on the predictor setters' answer with "warn now"
-from the holder's one flag, and the R method names them in its last act. A derivation that read every row for
+and answers the covariates it kept; the bridge carries them on the predictor setters' answer, and on the row
+setters' with whether the transform was kept beside them, with "warn now" from the holder's one flag, and the
+R method names them in its last act. A derivation that read every row for
 want of a row in marks those covariates in the engine's records (`DerivedRecords::leafFromAllRows`), which R
 reads for the creation warning; a derivation with too little is the engine's typed error, worded by the bridge
 with the column's name and the counts, and `setData` raises it before anything moves.
@@ -163,4 +168,4 @@ A: the survival re-anchor reads observed times (landed). B: this note, creation.
 (landed, [response-scale-rows-c.md](../plans/response-scale-rows-c.md)).
 D: a linear or gp leaf's covariate center and scale, and the default lengthscale, over the rows in, rule 9
 ([response-scale-rows-d.md](../plans/response-scale-rows-d.md); its first push built 2026-10-23, not landed),
-and `updateStandardization` on `setWeights` and `setActiveRows` (its second push).
+and `updateStandardization` on `setWeights` and `setActiveRows` (its second push, built 2026-10-23, not landed).

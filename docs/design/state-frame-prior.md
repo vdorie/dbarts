@@ -174,7 +174,7 @@ carries the record, every derived value with them, weights included.
 |---|---|---|
 | cut points | `setCutPoints`; `setPredictor(updateCutPoints = )`; `setData` deriving | `setCutPoints(d@cutPoints)`, the whole set; or `setData(d)` |
 | their weights | the same | `setPredictor(x[, j], j, updateCutPoints = "value")` while the column holds the values they came from; or `setData(d)` |
-| leaf center, scale, lengthscale | `setPredictor(updateStandardization = TRUE)`; `setData` deriving | `setPredictor` of the old values with `updateStandardization = TRUE`; or `setData(d)` |
+| leaf center, scale, lengthscale | `updateStandardization = TRUE` on `setPredictor`, `setWeights` or `setActiveRows`; `setData` deriving | `setPredictor` of the old values, or the row setter of the old weights or mask, with `updateStandardization = TRUE`; or `setData(d)` |
 | response range | `updateScale = TRUE` on the four setters; `setData` deriving | the same setter on the old response, offset, weights or mask with `updateScale = TRUE`; or `setData(d)` |
 | forest anchor and unit | nothing | - |
 
@@ -212,7 +212,8 @@ column store holds none), the fold views in `xbart`, and `updateStandardization 
 that call.
 
 2026-10-23: slice D's first push builds all three, the rule stated in
-[Which rows a prior's scale is read from](response-scale-rows.md#which-rows-a-priors-scale-is-read-from), rule 9.
+[Which rows a prior's scale is read from](response-scale-rows.md#which-rows-a-priors-scale-is-read-from), rule 9;
+its second push gives `setWeights` and `setActiveRows` `updateStandardization` (dec-B465).
 
 ## Alternatives
 

@@ -67,7 +67,10 @@
     \code{\link{dbartsPriors}}), or \code{$setLeafPrior(normal(sd = ))} afterward, with
     \code{$getLeafPrior()} reporting what is actually in force. A caller whose rows enter and leave the
     likelihood asks for the scale to be taken again from the rows then in with \code{updateScale = TRUE}
-    on \code{$setWeights} or \code{$setActiveRows}, in burn-in only. A named sd is absolute: a
+    on \code{$setWeights} or \code{$setActiveRows}, in burn-in only, and a \code{linear} or
+    \code{gp} leaf's covariate center and scale with \code{updateStandardization = TRUE} on the same
+    call; \code{FALSE} after burn-in holds both, so every kept draw comes from one prior (see
+    \code{\link[=dbartsSampler-class]{updateStandardization}}). A named sd is absolute: a
     channel that does re-anchor the transform leaves it where it was.
 
     A decomposition across \eqn{K}{K} samplers needs the same care in the other direction. Each
