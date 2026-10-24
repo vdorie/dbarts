@@ -2461,9 +2461,13 @@ extract.bartMultinomial <- function(
   # row's trials; test rows have no trial count, so they draw one category
   # per draw, as predict does
   if (sample == "train" && !is.factor(object[["y"]])) {
-    return(multinomialCountPpdFromProbs(probs, rowSums(object[["y"]])))
+    return(multinomialCountPpdFromProbs(
+      probs,
+      rowSums(object[["y"]]),
+      n.chains
+    ))
   }
-  multinomialPpdFromProbs(probs)
+  multinomialPpdFromProbs(probs, n.chains)
 }
 
 # ONE formula covers both response ingestions: with p[s,i,k] the reported
@@ -2506,19 +2510,37 @@ multinomialLogLik <- function(object, probs) {
   )
 }
 
+# Runs 'draw' on probs in the split layout, (chains x) samples x obs x K, whose
+# flat order is chain-fastest, then sample, then obs, and returns what it
+# draws in probs' own layout. A combined channel, (chains * samples) x obs x
+# K with chain-blocked rows, is split first and its draws combined after, so
+# under one seed a merged draw is the merge of the per-chain draw, as every
+# other family's is. A one-chain channel is the same flat order in either
+# layout and is drawn as it is.
+drawInSplitLayout <- function(probs, n.chains, draw) {
+  if (n.chains < 2L || length(dim(probs)) > 3L) {
+    return(draw(probs))
+  }
+  result <- draw(reshapeChainedChannel(probs, n.chains, FALSE, 2L))
+  reshapeChainedChannel(result, n.chains, TRUE, length(dim(result)) - 2L)
+}
+
 # shared by extract.bartMultinomial (stored channels) and
 # predict.bartMultinomial (freshly replayed channels), so both draw
 # categories from probabilities the identical way: K rides the trailing
 # dimension already, so reinterpreting the same flat storage as a
 # (draws * obs) x K matrix needs no permutation. codes are 1-based, indexing
-# 'levels', in an array shaped like probs minus the K margin.
-multinomialPpdFromProbs <- function(probs) {
-  d <- dim(probs)
-  K <- d[length(d)]
-  flat <- probs
-  dim(flat) <- c(prod(d[-length(d)]), K)
-  codes <- apply(flat, 1L, function(p) sample.int(K, 1L, prob = p))
-  array(codes, d[-length(d)], dimnames(probs)[-length(d)])
+# 'levels', in an array shaped like probs minus the K margin. n.chains is the
+# fit's, for a combined probs (drawInSplitLayout).
+multinomialPpdFromProbs <- function(probs, n.chains = 1L) {
+  drawInSplitLayout(probs, n.chains, function(split) {
+    d <- dim(split)
+    K <- d[length(d)]
+    flat <- split
+    dim(flat) <- c(prod(d[-length(d)]), K)
+    codes <- apply(flat, 1L, function(p) sample.int(K, 1L, prob = p))
+    array(codes, d[-length(d)], dimnames(split)[-length(d)])
+  })
 }
 
 # The count-row counterpart: a Multinomial(n_i, p) count vector per draw and
@@ -2526,28 +2548,30 @@ multinomialPpdFromProbs <- function(probs) {
 # as rmultinom draws it, by sequential binomials - category k takes
 # Binomial(the trials left, p_k / the probability left) - but one category at
 # a time across every (draw, row) at once rather than one call per row.
-multinomialCountPpdFromProbs <- function(probs, trials) {
-  d <- dim(probs)
-  K <- d[length(d)]
-  nObs <- d[length(d) - 1L]
-  n.draws <- length(probs) %/% (nObs * K)
-  flat <- probs
-  dim(flat) <- c(n.draws * nObs, K)
-  remaining <- rep(as.integer(trials), each = n.draws)
-  probabilityLeft <- rowSums(flat)
-  counts <- matrix(0L, n.draws * nObs, K)
-  for (k in seq_len(K - 1L)) {
-    conditional <- ifelse(
-      probabilityLeft > 0,
-      pmin(1, flat[, k] / probabilityLeft),
-      0
-    )
-    counts[, k] <- stats::rbinom(length(remaining), remaining, conditional)
-    remaining <- remaining - counts[, k]
-    probabilityLeft <- pmax(0, probabilityLeft - flat[, k])
-  }
-  counts[, K] <- remaining
-  array(counts, d, dimnames(probs))
+multinomialCountPpdFromProbs <- function(probs, trials, n.chains = 1L) {
+  drawInSplitLayout(probs, n.chains, function(split) {
+    d <- dim(split)
+    K <- d[length(d)]
+    nObs <- d[length(d) - 1L]
+    n.draws <- length(split) %/% (nObs * K)
+    flat <- split
+    dim(flat) <- c(n.draws * nObs, K)
+    remaining <- rep(as.integer(trials), each = n.draws)
+    probabilityLeft <- rowSums(flat)
+    counts <- matrix(0L, n.draws * nObs, K)
+    for (k in seq_len(K - 1L)) {
+      conditional <- ifelse(
+        probabilityLeft > 0,
+        pmin(1, flat[, k] / probabilityLeft),
+        0
+      )
+      counts[, k] <- stats::rbinom(length(remaining), remaining, conditional)
+      remaining <- remaining - counts[, k]
+      probabilityLeft <- pmax(0, probabilityLeft - flat[, k])
+    }
+    counts[, K] <- remaining
+    array(counts, d, dimnames(split))
+  })
 }
 
 # The posterior-mean n x K probability matrix (colnames = levels(y)), or
@@ -2792,7 +2816,7 @@ predict.bartMultinomial <- function(
     leadNames = rows$keptNames
   )
   if (type == "ppd") {
-    probs <- multinomialPpdFromProbs(probs)
+    probs <- multinomialPpdFromProbs(probs, object$n.chains)
   }
   if (!is.null(ci.level)) {
     return(padPredictedRows(
@@ -2952,7 +2976,7 @@ extract.bartOrdinal <- function(
   if (type == "ev") {
     return(probs)
   }
-  multinomialPpdFromProbs(probs)
+  multinomialPpdFromProbs(probs, n.chains)
 }
 
 # log P(y_i = k | eta, gamma) IS the reported category probability at the
@@ -3195,7 +3219,7 @@ predict.bartOrdinal <- function(
     leadNames = rowNames
   )
   if (type == "ppd") {
-    probs <- multinomialPpdFromProbs(probs)
+    probs <- multinomialPpdFromProbs(probs, n.chains)
   }
   if (!is.null(ci.level)) {
     trailing <- if (type %in% c("ev", "class")) 2L else 1L

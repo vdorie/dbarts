@@ -854,3 +854,129 @@ expect_error(
 )
 # a fit built WITHOUT test data has no test channel to extract
 expect_error(extract(fit3, type = "ev", sample = "test"), "no test channel")
+
+# --- posterior predictive draws are made in the split layout's chain-fastest
+# --- order and taken to the caller's layout after, so under one seed the
+# --- merged draws are the merge of the per-chain ones, in extract and in
+# --- predict, for a labeled response and for the count form, whose own rows
+# --- draw count vectors ---
+
+# (chains, samples, rows[, K]) -> (chains * samples, rows[, K]), chain-blocked
+mergeChains <- function(split) {
+  d <- dim(split)
+  array(
+    aperm(split, c(2L, 1L, seq_along(d)[-(1:2)])),
+    c(d[1L] * d[2L], d[-(1:2)])
+  )
+}
+x.pair <- data.frame(a = runif(60L), b = runif(60L))
+labels.pair <- factor(
+  cut(x.pair$a + rnorm(60L, sd = 0.3), 3L, labels = c("lo", "mid", "hi"))
+)
+counts.pair <- t(vapply(
+  seq_len(60L),
+  function(i) {
+    rmultinom(
+      1L,
+      1L + i %% 4L,
+      c(0.2 + 0.5 * x.pair$a[i], 0.3, 0.5 - 0.3 * x.pair$a[i])
+    )
+  },
+  integer(3L)
+))
+colnames(counts.pair) <- c("lo", "mid", "hi")
+newdata.pair <- data.frame(a = c(0.2, 0.8, 0.5), b = c(0.5, 0.1, 0.9))
+for (fitCombined in c(TRUE, FALSE)) {
+  for (form in c("labeled", "counts")) {
+    fit.pair <- bart(
+      x.pair,
+      if (form == "labeled") labels.pair else counts.pair,
+      test = newdata.pair,
+      family = "multinomial",
+      n.chains = 2L,
+      n.threads = 1L,
+      n.samples = 25L,
+      n.burn = 20L,
+      n.trees = 10L,
+      keepTrees = TRUE,
+      combineChains = fitCombined,
+      verbose = FALSE,
+      seed = 1L
+    )
+    ppdCalls <- list(
+      extract = function(combine) {
+        extract(fit.pair, type = "ppd", combineChains = combine)
+      },
+      extractTest = function(combine) {
+        extract(
+          fit.pair,
+          type = "ppd",
+          sample = "test",
+          combineChains = combine
+        )
+      },
+      predictTraining = function(combine) {
+        predict(fit.pair, type = "ppd", combineChains = combine)
+      },
+      predictNewdata = function(combine) {
+        predict(fit.pair, newdata.pair, type = "ppd", combineChains = combine)
+      }
+    )
+    for (label in names(ppdCalls)) {
+      set.seed(6L)
+      merged <- ppdCalls[[label]](TRUE)
+      set.seed(6L)
+      perChain <- ppdCalls[[label]](FALSE)
+      info <- paste(form, label, fitCombined)
+      expect_identical(dim(perChain)[1:2], c(2L, 25L), info = info)
+      expect_identical(
+        as.vector(merged),
+        as.vector(mergeChains(perChain)),
+        info = info
+      )
+    }
+    # the test rows, whichever way they are asked for
+    set.seed(7L)
+    viaExtract <- extract(fit.pair, type = "ppd", sample = "test")
+    set.seed(7L)
+    expect_identical(
+      predict(fit.pair, newdata.pair, type = "ppd"),
+      viaExtract
+    )
+    # newdata at the training rows draws a category per draw, where a count
+    # fit's own rows draw count vectors; with no newdata it is the training rows
+    if (form == "labeled") {
+      for (combine in c(TRUE, FALSE)) {
+        set.seed(8L)
+        atTraining <- predict(
+          fit.pair,
+          x.pair,
+          type = "ppd",
+          combineChains = combine
+        )
+        set.seed(8L)
+        noNewdata <- predict(fit.pair, type = "ppd", combineChains = combine)
+        expect_identical(atTraining, noNewdata)
+      }
+    }
+  }
+}
+rm(
+  mergeChains,
+  x.pair,
+  labels.pair,
+  counts.pair,
+  newdata.pair,
+  fitCombined,
+  form,
+  fit.pair,
+  ppdCalls,
+  label,
+  merged,
+  perChain,
+  info,
+  viaExtract,
+  combine,
+  atTraining,
+  noNewdata
+)
