@@ -1,6 +1,9 @@
 # response-scale-rows, slice D: a leaf's covariate center, scale and lengthscale over the rows in
 
-Status: PLANNED 2026-10-17 against 9e79f4a3 (bartcore; state-frame-prior designed and planned, not built;
+Status: PUSH 1 LANDED 2026-10-24 (a3e65674..da962901, dec-A226 with the ruling dec-B479;
+[Push 1 as built](#push-1-as-built), [Push 1 fix round](#push-1-fix-round),
+[Landing note, push 1](#landing-note-push-1)); PUSH 2 in review. PLANNED 2026-10-17 against 9e79f4a3
+(bartcore; state-frame-prior designed and planned, not built;
 forest-multiplier push 2 built on wt/forest-mult-p2, not landed); revised from its blind critique
 (scratch/rsrd/crit/crit-report.md, sound after changes; [Revision from critique](#revision-from-critique))
 and then to the maintainer's rulings dec-B464 and dec-B465 ([Rulings](#rulings)). No call open.
@@ -1446,3 +1449,35 @@ failed; lint (0 lints), air, rc-codoc (48), win-drift, doc-freshness and verify-
 still say "no row in" where the response's fallback now reads every row too ride push 2.
 
 Rebased onto bartcore 08b46a0e (weights-form, an R-only change to predict) without conflict; the hashes above are the rebased ones.
+
+## Landing note, push 1
+
+Landed 2026-10-24 as a3e65674..da962901 on bartcore 08b46a0e, 11 commits: the plan's two rechecks (a3e65674,
+dd2c9492), the push (786de72e, the engine, bridge, R and tests; 5e106141, the help, NEWS and notes) and its record
+(2888f0a2); after one opus review, FIX FIRST, the fix round (68a38579), the maintainer's ruling of 2026-10-23
+(7d383cf3) and their record (9914c4a5); after the check of that round, FIX FIRST, the second fix round (7ac14c83) and
+its record (89b0c18a), whose check was LAND; and the record of the rebase (da962901). It was built on 9740f9c2
+(state-frame-prior slice 3 in its fix round), rebased onto f58d1482 and then onto 08b46a0e, an R-only change to
+predict, without conflict. The ruling is dec-B479, which confirms dec-A216's call and replaces this plan's planning
+call on one row in; the calls made planning and building are dec-A226.
+
+Gates on 7d383cf3, the later commits changing tests, help and this plan alone: tests/cpp 411 ok plain and under ASAN
+and UBSAN; the suite in one process, 266 files, 29662 expectations, 0 failed; lint, air, rc-codoc (48 methods),
+win-drift, doc-freshness and verify-anchors clean; on the reference build the four snapshot files (14, 3, 7 and 3) and
+the bitwise compares, 55 of 55, 19 of 19 and 11 of 11 identical, no "max |z|" line; the exact gates at quick, 43 of 43;
+the R-loaded ASAN and UBSAN run over 17 files, 2692 expectations, 0 diagnostics; R CMD check --as-cran --no-manual, the
+Date field's NOTE alone; stan4bart's suite on its bartcore branch at 3716b51, 1555 expectations, 0 failed. On 7ac14c83
+the suite 29671 expectations, 0 failed. On da962901, after a --preclean install in a private library, the suite 29689
+expectations, 0 failed, and the lint chain clean. The x86-64 leg on 9914c4a5: tests/cpp 411
+ok plain and under ASAN, no diagnostic; the suite 29790 results, 0 failed; the equivalence compare 55 of 55
+statistically indistinguishable; the BCF and multinomial compares within the cross-host tier 1 bound.
+
+Mutants: the builder's 31 (29 killed, two expected-equivalent alive); the review's 27 (18 killed, 9 surviving, one
+equivalent on every public path), the survivors pinned in the fix round; the fix round's own 5, all killed; the check
+of the fix round ran the injected part-way failure (the release path verified), the fallback under every family
+(killed) and two offset reads that survived until the second fix round pinned them; the second check's three, killed.
+Package code stands at 877 of the 880 stop.
+
+Left: push 2, setWeights and setActiveRows taking updateStandardization, in review; the comments that still say "no row
+in" where the response's fallback now reads every row too (model.hpp, chain.hpp, R/bartcore.R) ride it. TODO
+response-scale-rows stays until push 2 lands.

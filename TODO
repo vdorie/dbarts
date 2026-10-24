@@ -270,6 +270,47 @@ items
     missing value would read as that level. setData matches it by
     level (dec-B454); bring the other doors to it, beside dec-A210's
     refusal of an NA level for a basis.
+  setdata-names-refused: before the merge to main (dec-B478, VD
+    2026-10-23: "Ok, use option 2."). setData and setPredictor read
+    columns by position where the data's names differ from the
+    sampler's, silently, and record the new names; refuse names that are
+    not the sampler's, an unnamed matrix staying positional with no
+    message. About 20 lines of R and the y ~ x.new tests restated
+    (test-sampler-setData.R hands y ~ x.new to a y ~ x sampler; a loop
+    names the variable x or passes a matrix). R surface, one sonnet
+    review. Built with updatescale-no-scale-families,
+    predict-training-na-action, training-bases-null-hint and
+    trees-forest-labels after response-scale-rows slice D lands, as
+    both touch setData's R path. See setdata-repeated-names.
+  updatescale-no-scale-families: before the merge to main (dec-B481, VD
+    2026-10-24: "Use option 3."). The refusal of updateScale = TRUE on a
+    gp sampler holding saved draws (setResponse, setOffset, setWeights,
+    setActiveRows) skips families with no scale, probit, logistic and
+    ordinal, which take it as setData does; it stays on gaussian,
+    Student-t, aft and nbinom, where a scale moves (dec-B330). Pins on
+    probit, logistic and ordinal and the refusal kept on gaussian. R
+    surface, built with setdata-names-refused.
+  predict-training-na-action: before the merge to main (dec-B482, VD
+    2026-10-24: "Option 2."). predict with no newdata refuses a missing
+    weight or offset at the training rows whatever na.action says;
+    follow na.action there as at newdata: the default
+    (na.keepPredictors) refuses with the same na.pass and na.omit hint,
+    na.pass returns NA rows, na.omit drops those rows, the offset alike.
+    bartBT's help drops the stated difference. R surface, built with
+    setdata-names-refused.
+  training-bases-null-hint: before the merge to main (dec-B483, VD
+    2026-10-24: "Use option 1."). A NULL entry in bases for a forest
+    that carries a basis stays refused at predict with no newdata; the
+    message names fit$bases (b <- fit$bases; b[[2]] <- z1). R surface,
+    built with setdata-names-refused.
+  trees-forest-labels: before the merge to main (dec-B484, VD
+    2026-10-24: "Option 2."). The forest column of extract(fit, "trees")
+    is a factor whose levels are the forests' labels in forest order,
+    forest<i> where a forest has none (trees$forest == "z" selects,
+    as.integer gives the position); the sampler's $getTrees stays
+    numbered (dec-B475), and var stays a column number. Nothing in the
+    package, stan4bart or bartCause reads the column. R surface, built
+    with setdata-names-refused.
   k-mixing-pg-families: after the merge, before 1.0-0 (dec-B404,
     dec-B420, VD 2026-10-09; timing VD 2026-10-17). Binary fits keep a
     drawn k under chi(1.5, 2). Whether k must mix fast for intervals of
@@ -782,6 +823,14 @@ items
     who replaces the column of a default-sd forest stating the sd,
     and the second is R's unused-argument error. Selecting a forest
     by its label is NOT deferred.
+  per-forest-move-settings: after the merge to main (dec-B477, VD
+    2026-10-23: "Use your revised recommendation."). forest() and
+    varianceForest() take proposal.probs, n.perturb.cuts and the
+    tree-shift setting, defaulting to the control's values as n.trees
+    does; setControl changes every forest that set none of its own.
+    Until then one control object per sampler sets the move kernel of
+    every forest that took it at creation (dec-A205), and a mean forest
+    cannot be frozen alone on a heteroscedastic sampler.
   coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()
