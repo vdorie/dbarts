@@ -218,7 +218,7 @@ struct DenseColumnValues {
 /// Mean and sample sd of the observed (non-missing) values of a raw column
 /// over the rows \p rows marks (a nonzero byte each; null reads every row):
 /// the leaf-covariate standardization constants, unweighted. A constant (or
-/// all-missing) column keeps sd 1 and is centred at its one value exactly, so
+/// all-missing) column keeps sd 1 and is centered at its one value exactly, so
 /// it reads zero on every row: a mean taken through the sum can miss that
 /// value by rounding, which would leave a rounding-sized spread to divide by.
 /// One definition, so a full-rows view standardizes bit-identically to a

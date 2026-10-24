@@ -1562,13 +1562,41 @@ leafCovariateLabels <- function(model, data) {
   )
 }
 
+## The leaf covariates' part of a fallback text, "the center and scale of
+## x1" or of several, an unnamed column being "the leaf covariate in column j".
+leafCentersAndScales <- function(leaf) {
+  leaf <- sub("^in column", "the leaf covariate in column", leaf)
+  if (length(leaf) == 1L) {
+    return(paste0("the center and scale of ", leaf))
+  }
+  paste0(
+    "the centers and scales of ",
+    paste(leaf[-length(leaf)], collapse = ", "),
+    " and ",
+    leaf[[length(leaf)]]
+  )
+}
+
 ## The warning that the rows in the likelihood left too little to read a
 ## scale from, so numbers were taken from all n rows, raised once for a
 ## creation or a setData: 'range' where the response's scale and the prior's
 ## center were, of 'rowsIn' rows in, and 'leaf' the labels of the leaf
 ## covariates whose center and scale were, which happens only where no row is
-## in. One text names both.
-warnRowsFallBack <- function(n, rowsIn, range, leaf) {
+## in. One text names both, and 'periods', a hazard fit's warning that its
+## periods were taken from every subject, folds the leaf's into its own.
+warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
+  if (!is.null(periods) && length(leaf) > 0L) {
+    periods$message <- sub(
+      "the hazard periods are taken",
+      paste("the hazard periods and", leafCentersAndScales(leaf), "are taken"),
+      conditionMessage(periods),
+      fixed = TRUE
+    )
+    leaf <- character()
+  }
+  if (!is.null(periods)) {
+    warning(periods)
+  }
   if (length(leaf) == 0L) {
     if (range) {
       warnClassed(
@@ -1585,16 +1613,7 @@ warnRowsFallBack <- function(n, rowsIn, range, leaf) {
     }
     return(invisible(NULL))
   }
-  what <- if (length(leaf) == 1L) {
-    paste0("the center and scale of ", leaf)
-  } else {
-    paste0(
-      "the centers and scales of ",
-      paste(leaf[-length(leaf)], collapse = ", "),
-      " and ",
-      leaf[[length(leaf)]]
-    )
-  }
+  what <- leafCentersAndScales(leaf)
   if (range) {
     warnClassed(
       "dbartsScaleFallbackWarning",

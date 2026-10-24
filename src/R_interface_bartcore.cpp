@@ -3902,6 +3902,7 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  ownedWeights = std::vector<double>{},
                  ownedOffset = std::vector<double>{},
                  ownedTestOffset = std::vector<double>{},
+                 leafRefusal = std::string{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -4011,7 +4012,6 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
     // to mend, so it is raised in the caller's terms and not as a failure
     bool sdHasNoUnit = false;
     std::string noBasisScale;
-    char leafRefusal[512] = "";
     using OwnedSampler = std::unique_ptr<bartcore::SamplerBase>;
     OwnedSampler sampler =
       createSamplerOrRaise(rngs, [&]() -> OwnedSampler {
@@ -4023,11 +4023,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
               data.sigmaEstimate, model.sigmaDf, model.sigmaRawScale, options,
               rngs.data());
           } catch (const bartcore::LeafStandardizationError& error) {
-            std::snprintf(leafRefusal, sizeof leafRefusal, "%s",
-                          leafStandardizationMessage(
-                            dataExpr, error, error.column, options.gpLeaves,
-                            LeafRefusalDoor::creation)
-                            .c_str());
+            leafRefusal = leafStandardizationMessage(
+              dataExpr, error, error.column, options.gpLeaves,
+              LeafRefusalDoor::creation);
             return nullptr;
           }
         }
@@ -4045,10 +4043,10 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
           return nullptr;
         }
       });
-    if (sdHasNoUnit || !noBasisScale.empty() || leafRefusal[0] != '\0') {
+    if (sdHasNoUnit || !noBasisScale.empty() || !leafRefusal.empty()) {
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
       if (sdHasNoUnit) Rf_error("%s", forestSdUnitMessage);
-      if (leafRefusal[0] != '\0') Rf_error("%s", leafRefusal);
+      if (!leafRefusal.empty()) Rf_error("%s", leafRefusal.c_str());
       Rf_error("%s", noBasisScale.c_str());
     }
     if (sampler == NULL) {
@@ -4521,6 +4519,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                         store = bartcore::ColumnStore{},
                         columns = std::vector<size_t>{},
                         viewLeafCovariates = std::vector<size_t>{},
+                        leafRefusal = std::string{},
                         rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -4647,7 +4646,6 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
       Rf_error("storage = \"single\" is not supported for this sampler");
     rngs = createChainRngs(control, options.numChains);
 
-    char leafRefusal[512] = "";
     std::unique_ptr<bartcore::SamplerBase> sampler =
       createSamplerOrRaise(rngs, [&]() -> std::unique_ptr<bartcore::SamplerBase> {
         try {
@@ -4661,17 +4659,15 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
           // the view's column, named as the data object holds it
           size_t dataColumn = columns.empty() ? error.column
                                               : columns[error.column];
-          std::snprintf(leafRefusal, sizeof leafRefusal, "%s",
-                        bartcore_bridge::leafStandardizationMessage(
-                          dataExpr, error, dataColumn, options.gpLeaves,
-                          bartcore_bridge::LeafRefusalDoor::fold)
-                          .c_str());
+          leafRefusal = bartcore_bridge::leafStandardizationMessage(
+            dataExpr, error, dataColumn, options.gpLeaves,
+            bartcore_bridge::LeafRefusalDoor::fold);
           return nullptr;
         }
       });
-    if (leafRefusal[0] != '\0') {
+    if (!leafRefusal.empty()) {
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
-      Rf_error("%s", leafRefusal);
+      Rf_error("%s", leafRefusal.c_str());
     }
     if (sampler == NULL) {
       // R-side resolution validates column legality first, so what lands here
@@ -6150,8 +6146,9 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
                        ownedResponse = std::vector<double>{},
                        ownedWeights = std::vector<double>{},
                        ownedOffset = std::vector<double>{},
-                       ownedTestOffset = std::vector<double>{}]() mutable
-                         -> SEXP {
+                       ownedTestOffset = std::vector<double>{},
+                       refusal = std::string{},
+                       failure = std::string{}]() mutable -> SEXP {
     parseData(data, dataExpr);
     if (data.xIsSparse || data.xIsMixed)
       Rf_error("$setData: requires a dense predictor matrix; sparse "
@@ -6322,8 +6319,11 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
     // the loop above bounds every factor cell on both sides against the same
     // fixed level table the engine re-tests, so this refusal is the backstop
     // a header-only host meets rather than a live arm here
+    // a refusal comes before anything moves; any other failure, an
+    // allocation, can leave the chains part-swapped onto the closure's
+    // buffers, so the sampler is released, and the R object re-creates it
+    // from its stored state as after a reload
     bool installed = false;
-    char leafRefusal[512] = "";
     try {
       installed = sampler.setData(data.predictors.denseValues, y,
                                   data.numObservations, weights, offset,
@@ -6331,14 +6331,22 @@ SEXP bartcore_setData(SEXP ptrExpr, SEXP dataExpr, SEXP updateCutPointsExpr,
                                   data.numTestObservations, testOffset,
                                   replacement);
     } catch (const bartcore::LeafStandardizationError& error) {
-      std::snprintf(leafRefusal, sizeof leafRefusal, "%s",
-                    bartcore_bridge::leafStandardizationMessage(
-                      dataExpr, error, error.column,
-                      shape.leafModel == bartcore::LeafModelKind::gp,
-                      bartcore_bridge::LeafRefusalDoor::setData)
-                      .c_str());
+      refusal = bartcore_bridge::leafStandardizationMessage(
+        dataExpr, error, error.column,
+        shape.leafModel == bartcore::LeafModelKind::gp,
+        bartcore_bridge::LeafRefusalDoor::setData);
+    } catch (const std::exception& error) {
+      failure = error.what();
+      holder.sampler.reset();
+    } catch (...) {
+      failure = "unknown C++ exception";
+      holder.sampler.reset();
     }
-    if (leafRefusal[0] != '\0') Rf_error("%s", leafRefusal);
+    if (!refusal.empty()) Rf_error("%s", refusal.c_str());
+    if (!failure.empty())
+      Rf_error("$setData failed part-way (%s), so the sampler was released; "
+               "its next use re-creates it from its stored state, as after a "
+               "reload", failure.c_str());
     if (!installed) Rf_error("a predictor value is not an existing level code");
     holder.ownedResponse = std::move(ownedResponse);
     holder.ownedWeights = std::move(ownedWeights);

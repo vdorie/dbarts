@@ -231,21 +231,55 @@ for (kind in c("gaussian", "student", "probit", "ordinal", "nbinom")) {
   )
   expectRecord(made$value, literal(x1), paste("no row in,", kind))
 }
-# a hazard fit says first that its periods were taken from every subject, a
-# count of subjects, and then the leaf's over its person-period rows
+# a hazard fit's periods are taken from every subject, counted in subjects,
+# and its leaf's numbers from every subject's rows: one text says both
 made <- fallbacks(make("hazard.probit", none))
-periodRows <- length(made$value$data@y)
 expect_identical(
   made$warnings,
-  c(
-    paste0(
-      "no subject is in the likelihood (0 of 200 subjects are in it), so the ",
-      "hazard periods are taken from all 200"
-    ),
-    gsub("200", periodRows, leafOnly)
+  paste0(
+    "no subject is in the likelihood (0 of 200 subjects are in it), so the ",
+    "hazard periods and the center and scale of \"x1\" are taken from all 200"
   )
 )
 expectRecord(made$value, literal(made$value$data@x[, "x1"]), "hazard.probit")
+# a gp leaf says so as a linear one does
+for (kind in c("gaussian", "probit")) {
+  made <- fallbacks(make(kind, none, dbartsPriors$gp("x1")))
+  expect_identical(
+    made$warnings,
+    if (kind == "probit") leafOnly else joint,
+    info = paste("gp,", kind)
+  )
+}
+# an unnamed column is the leaf covariate in its column
+made <- fallbacks(make(
+  data = unname(x),
+  weights = none,
+  leaf.prior = dbartsPriors$linear(1:2)
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "fewer than two distinct values of the response are in the likelihood ",
+    "(0 of 200 observations are in it), so the response's scale, the ",
+    "prior's center and the centers and scales of the leaf covariate in ",
+    "column 1 and the leaf covariate in column 2 are taken from all 200"
+  )
+)
+# a setData that derives over no row in says so, last, as creation does
+for (kind in c("gaussian", "probit")) {
+  s <- make(kind)
+  made <- fallbacks(s$setData(dbartsData(
+    x,
+    families[[kind]]$response,
+    weights = none
+  )))
+  expect_identical(
+    made$warnings,
+    if (kind == "probit") leafOnly else joint,
+    info = paste("setData,", kind)
+  )
+}
 # several covariates named together
 made <- fallbacks(make("probit", none, dbartsPriors$linear(c("x1", "x2"))))
 expect_identical(
@@ -420,6 +454,23 @@ expectRecord(
   make(data = outAtOne, weights = w),
   literal(x1, inRows),
   "out at one"
+)
+
+# a long column name is named whole, the remedy after it
+longName <- strrep("abcdefghij", 60L)
+longFlat <- flat
+colnames(longFlat)[1L] <- longName
+expect_error(
+  make(data = longFlat, leaf.prior = dbartsPriors$linear(longName)),
+  paste0(
+    '"',
+    longName,
+    '" holds one value over the rows in the likelihood (200 ',
+    "of 200 observations are in it), so its center and scale cannot be ",
+    "taken from them; drop it from linear(), or change the rows in (the ",
+    "weights, the 0/1 weights' mask, or subset)"
+  ),
+  fixed = TRUE
 )
 
 # ---- missing values among the rows in -----------------------------------------
@@ -632,6 +683,52 @@ expect_identical(
     "as they were (said once per sampler)"
   )
 )
+# an unnamed column is the leaf covariate in its column
+s <- make(data = unname(x), weights = w, leaf.prior = dbartsPriors$linear(1L))
+expect_identical(
+  fallbacks(s$setPredictor(
+    atOne,
+    1L,
+    TRUE,
+    updateStandardization = TRUE
+  ))$warnings,
+  paste0(
+    "fewer than two distinct values of the leaf covariate in column 1 are in ",
+    "the likelihood, so its center and scale are kept as they were (said ",
+    "once per sampler)"
+  )
+)
+# a covariate at one value over the rows in that the call does not replace is
+# neither kept nor reported: replacing x2 alone warns of nothing
+s <- make(weights = w, leaf.prior = dbartsPriors$linear(c("x1", "x2")))
+s$setPredictor(atOne, "x1", TRUE)
+expect_identical(
+  fallbacks(s$setPredictor(
+    2 * x2,
+    "x2",
+    TRUE,
+    updateStandardization = TRUE
+  ))$warnings,
+  character()
+)
+expect_equal(
+  recordOf(s)$center[[2L]],
+  literal(2 * x2, inRows)$center,
+  tolerance = 1e-12
+)
+# after the rows in move, a kept covariate leaves one the call does not
+# replace held: x2 is not derived over the new rows
+s <- make(weights = w, leaf.prior = dbartsPriors$linear(c("x1", "x2")))
+before <- recordOf(s)
+s$setWeights(w2)
+invisible(fallbacks(s$setPredictor(
+  ifelse(w2 == 1, 2, x1),
+  "x1",
+  TRUE,
+  updateStandardization = TRUE
+)))
+expect_identical(recordOf(s), before)
+expect_identical(readerOf(s), before)
 # FALSE holds whatever the rows in hold
 s <- make(weights = w)
 before <- recordOf(s)
@@ -704,6 +801,71 @@ s$setData(
   updateStandardization = FALSE
 )
 expect_identical(recordOf(s), recordOf(twin))
+# a carried record that gives x1 alone leaves x2 to derive, and refuses it
+# before anything moves where the rows in hold one value of it
+twoAt <- x
+twoAt[inRows, "x2"] <- 0.25
+s <- make(
+  weights = w,
+  leaf.prior = dbartsPriors$linear(c("x1", "x2")),
+  n.burn = 5L
+)
+twin <- make(
+  weights = w,
+  leaf.prior = dbartsPriors$linear(c("x1", "x2")),
+  n.burn = 5L
+)
+invisible(s$run())
+invisible(twin$run())
+partial <- dbartsData(twoAt, y, weights = w)
+partial@standardization <- list(list(center = c(x1 = 0.5), scale = c(x1 = 0.3)))
+expect_error(
+  s$setData(partial),
+  'leaf covariate "x2" holds one value',
+  fixed = TRUE
+)
+expect_identical(readerOf(s), readerOf(twin))
+expect_identical(sweeps(s, 3L), sweeps(twin, 3L))
+# a covariate whose position among the leaf's is not its column is read from
+# its column: x2, alone in its leaf, is refused
+s <- make(weights = w, leaf.prior = dbartsPriors$linear("x2"))
+before <- recordOf(s)
+expect_error(
+  s$setData(dbartsData(twoAt, y, weights = w)),
+  'leaf covariate "x2" holds one value',
+  fixed = TRUE
+)
+expect_identical(recordOf(s), before)
+expect_identical(readerOf(s), before)
+# a gp leaf whose lengthscale is stated takes the placeholder at a setData
+# that derives, at NULL and at TRUE
+for (argument in list(NULL, TRUE)) {
+  s <- make(
+    weights = w,
+    leaf.prior = dbartsPriors$gp(c("x1", "x2"), lengthscale = c(1, 1))
+  )
+  s$setData(dbartsData(twoAt, y, weights = w), updateStandardization = argument)
+  record <- recordOf(s)
+  expect_identical(record$center[[2L]], 0.25)
+  expect_identical(record$scale[[2L]], 1)
+  expect_equal(record$center[[1L]], mean(x1[inRows]), tolerance = 1e-12)
+}
+# a refused setData leaves the mask in force: a later derivation reads the
+# rows it keeps
+s <- make("probit", w, dbartsPriors$linear(c("x1", "x2")))
+expect_error(
+  s$setData(dbartsData(twoAt, yBinary, weights = w)),
+  "holds one value"
+)
+s$setPredictor(2 * x1, "x1", TRUE, updateStandardization = TRUE)
+expectRecord(
+  s,
+  list(
+    center = c(literal(2 * x1, inRows)$center, literal(x2, inRows)$center),
+    scale = c(literal(2 * x1, inRows)$scale, literal(x2, inRows)$scale)
+  ),
+  "the mask after a refused setData"
+)
 # under probit the sampler's own data object carries no weights: setData of
 # it drops the mask, and a derivation reads every row
 s <- make("probit", w)

@@ -743,7 +743,7 @@ moved$setData(dbartsData(x.spread, y.more))
 expect_true(worstGap(before, liveMatrix(moved)) < tolerance)
 
 # values made constant after creation keep the centre and scale they were
-# given until a replacement brings others; onto the constant, centred there
+# given until a replacement brings others; onto the constant, centered there
 # with no scale by the replacement's record, the coefficients take the
 # formula, the scale going to the placeholder 1, and each leaf takes its
 # function's value there

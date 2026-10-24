@@ -986,6 +986,16 @@ dbarts <- function(
   survivalDataObject <- inherits(formula, "dbartsData") &&
     !is.null(attr(formula, "survivalStatus"))
   hazardTokens <- hazardFamilyTokens
+  # a hazard fit with no subject in takes its periods from every subject;
+  # held for the creation, whose leaves then read every row too, to say both
+  # in one text
+  heldPeriods <- NULL
+  holdPeriods <- function(expr) {
+    withCallingHandlers(expr, dbartsScaleFallbackWarning = function(w) {
+      heldPeriods <<- w
+      invokeRestart("muffleWarning")
+    })
+  }
   # a Surv response declares the model, so it auto-dispatches to aft from
   # "auto"; an explicit hazard token selects the discrete-time model instead
   # (the guard whitelist admits it). Any
@@ -1051,7 +1061,7 @@ dbarts <- function(
       ifelse(is.na(statusForExpansion), NA_real_, timeForExpansion),
       xForExpansion
     )
-    expansion <- expandDiscreteTimeHazard(
+    expansion <- holdPeriods(expandDiscreteTimeHazard(
       xForExpansion,
       timeForExpansion,
       statusForExpansion,
@@ -1071,7 +1081,7 @@ dbarts <- function(
       } else {
         hazardGridTimes(timeForExpansion, weightsForExpansion)
       }
-    )
+    ))
     matchedCall$formula <- expansion$x
     matchedCall$data <- expansion$y
     if (!missing(subset)) {
@@ -1435,7 +1445,7 @@ dbarts <- function(
           "predictor 'period'"
         )
       }
-      expansion <- expandDiscreteTimeHazard(
+      expansion <- holdPeriods(expandDiscreteTimeHazard(
         data@x,
         formulaSurvivalTime,
         formulaSurvivalStatus,
@@ -1444,7 +1454,7 @@ dbarts <- function(
         offset = data@offset,
         weights = data@weights,
         gridTime = hazardGridTimes(formulaSurvivalTime, data@weights)
-      )
+      ))
       # makeModelMatrix already typed the original columns (categorical vs
       # ordinal); the appended period column is ordinal by construction
       # (dec-B97) and rides last, so one more entry keeps the two aligned
@@ -1635,7 +1645,8 @@ dbarts <- function(
     spec$control,
     spec$model,
     spec$data,
-    active = spec$active
+    active = spec$active,
+    periods = heldPeriods
   )
   # the sampler raised one text naming the response with whatever else was
   # read from every row, a multiplier's scale or a leaf's standardization
@@ -2552,7 +2563,14 @@ dbartsSampler <- setRefClass(
     activeRows = "ANY"
   ),
   methods = list(
-    initialize = function(control, model, data, ..., active = NULL) {
+    initialize = function(
+      control,
+      model,
+      data,
+      ...,
+      active = NULL,
+      periods = NULL
+    ) {
       if (!inherits(control, "dbartsControl")) {
         stop("'control' must inherit from dbartsControl")
       }
@@ -2632,12 +2650,13 @@ dbartsSampler <- setRefClass(
       # in the likelihood: under a family that reads the response, whose
       # scale was then read from every row too, one text names both
       fromAllRows <- leafFromAllRows(.self, created$records)
-      if (length(fromAllRows) > 0L) {
+      if (length(fromAllRows) > 0L || !is.null(periods)) {
         warnRowsFallBack(
           length(.self$data@y),
           0L,
           model@family %in% c("gaussian", "nbinom"),
-          fromAllRows
+          fromAllRows,
+          periods
         )
       }
 
