@@ -688,9 +688,9 @@ struct Neighborhood {
 /// to those tagged `tag` when that is non-negative, which is how the
 /// single-variable neighborhood reuses the joint enumeration.
 inline Neighborhood summarizeNeighborhood(const std::vector<double>& logWeight,
-                                            const std::vector<int32_t>& tags,
-                                            int32_t tag,
-                                            std::size_t incumbentIndex) {
+                                          const std::vector<int32_t>& tags,
+                                          int32_t tag,
+                                          std::size_t incumbentIndex) {
   Neighborhood out;
   double largest = -HUGE_VAL;
   for (std::size_t i = 0; i < logWeight.size(); ++i) {
@@ -794,7 +794,7 @@ void nogProbe(const MoveContext& ctx, const L& leaf, Tree& tree, int32_t node,
       if (foundIncumbent) {
         joint = summarizeNeighborhood(logWeight, tags, -1, incumbentIndex);
         cut = summarizeNeighborhood(logWeight, tags, incumbent.variableIndex,
-                                     incumbentIndex);
+                                    incumbentIndex);
         scanned = true;
       }
     }

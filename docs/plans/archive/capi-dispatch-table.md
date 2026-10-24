@@ -284,7 +284,7 @@ ingredient matters; the X-macro is its zero-toolchain form.
 
 - Writing R Extensions documents this exact failure for R_GetCCallable:
   "this mechanism is fragile, as changes to the interface provided by
-  packA have to be recognized by packB. The consequences of not doing so
+  packA have to be recognised by packB. The consequences of not doing so
   have included serious corruption to the memory pool of the R session" -
   and assigns the remedy to the CONSUMER's declaration. That is the
   canonical justification for moving declaration authorship into dbarts.h.

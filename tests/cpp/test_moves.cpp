@@ -2964,7 +2964,7 @@ static void testRuleGibbsMove() {
                         masked.data(), 2.0,   scratch};
   tree.refreshSubtree(store, 0, y.data(), maskedCtx.weights);
   check(enumerateNogRuleNeighborhood(maskedCtx, constant, tree, 0, y.data(),
-                                      sigma),
+                                     sigma),
         "the enumeration finds candidates under the weights");
   bool sameUnderWeights = scratch.candidates.size() == fromIncumbent.size();
   for (size_t i = 0; sameUnderWeights && i < fromIncumbent.size(); ++i)

@@ -641,8 +641,8 @@ public:
       const SweepCallback* onSweepPtr = onSweep ? &onSweep : nullptr;
       for (size_t c = 0; c < numChains && !canceled; ++c)
         canceled = chains_[c]->run(numBurnIn, numSamples, chainResults[c],
-                                    &progress, c, shouldCancelPtr, onSweepPtr,
-                                    onDrawPtr);
+                                   &progress, c, shouldCancelPtr, onSweepPtr,
+                                   onDrawPtr);
     } else {
       // workers never call into R: progress lines queue and the main thread
       // flushes them and polls for interrupts at least every 0.1 seconds,

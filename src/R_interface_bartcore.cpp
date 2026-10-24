@@ -6048,7 +6048,7 @@ SEXP bartcore_runWithCallback(SEXP ptrExpr, SEXP numBurnInExpr,
       };
     captureExceptions(error, [&]() {
       canceled = sampler.run(numBurnIn, numSamples, results,
-                              bartcore_userInterrupted, onSweep);
+                             bartcore_userInterrupted, onSweep);
     });
   }
   if (error.failed) Rf_error("%s", error.message);
