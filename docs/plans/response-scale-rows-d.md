@@ -1492,7 +1492,7 @@ response-scale-rows stays until push 2 lands.
 
 ## Recheck of push 2 against push 1 as built
 
-Read 2026-10-23 on 8a887960, push 1 rebased onto bartcore f58d1482, before building push 2; nothing run. Steps 2.1
+Read 2026-10-23 on 2888f0a2, push 1 rebased onto bartcore f58d1482, before building push 2; nothing run. Steps 2.1
 to 2.3 are amended in place; this records what moved. No difference changes what a user sees beyond dec-B464,
 dec-B465 and the plan's calls, so nothing stops the build.
 
@@ -1521,11 +1521,11 @@ dec-B465 and the plan's calls, so nothing stops the build.
 
 ## Push 2 as built
 
-Built on 8a887960 (push 1 rebased onto bartcore f58d1482, under review), the steps rechecked against it first
-([Recheck of push 2 against push 1 as built](#recheck-of-push-2-against-push-1-as-built), 511f06a6), and rebased
-onto push 1's fix round at e91451db ([Rebase onto push 1's fix round](#rebase-onto-push-1s-fix-round)). Commits,
-restated after the rebase: ae0d944a (the push), 992a62aa (the help, NEWS and notes), e1bdd7c1 (this record),
-a11e1f98 (the one-row-in pins) and the rebase's record. Step 2.6's TODO entry, ledger entry,
+Built on 2888f0a2 (push 1 rebased onto bartcore f58d1482, under review), the steps rechecked against it first
+([Recheck of push 2 against push 1 as built](#recheck-of-push-2-against-push-1-as-built), f198f293), and rebased
+onto push 1's fix round at 9914c4a5 ([Rebase onto push 1's fix round](#rebase-onto-push-1s-fix-round)). Commits,
+restated after the rebase: 9143445a (the push), b5bba34c (the help, NEWS and notes), 85b4f25d (this record),
+cac62edc (the one-row-in pins) and the rebase's record. Step 2.6's TODO entry, ledger entry,
 indexes and landing note are the landing's.
 
 What it does. `setWeights` and `setActiveRows` in [dbarts.R](../../R/dbarts.R) take `updateStandardization` after
@@ -1608,7 +1608,7 @@ after a re-derivation, 7 then stops (the gp loop's copy refused for draws under 
 `reapplyActiveRows` re-deriving, stops (push 1's record arm, its copy refused under gp kept draws); and two of the
 build's own, every keep warned, 2, and the record written unkeyed, 18. None alive.
 
-Size, against 511f06a6, before the rebase's pins: engine 2 added and 1 removed (a comment), bridge 102 and 49, R 175 and 57, tests/cpp 148
+Size, against f198f293, before the rebase's pins: engine 2 added and 1 removed (a comment), bridge 102 and 49, R 175 and 57, tests/cpp 148
 and 0, tinytest 418 and 1, the exact script 1 and 1, help and NEWS 57 and 7, notes 12 and 6; 915 added and 122
 removed in all, against ~870 forecast and ~520 raw (stop ~1250). Package code 279 added and 107 removed (net
 172), against ~135 forecast: past the ~200 stop, the plan's figure for building nothing further, met with
@@ -1618,7 +1618,7 @@ its reader, the keying moved out of `recordDerived` (20 added, 15 removed), the 
 `recordResponseRange`, and air's one-argument-per-line signatures and calls (about 30). The stops on bits, a
 facade change and a test outside the plan were not reached.
 
-Gates, on the push's libraries, from `--preclean` installs of the push as first built, on 8a887960 (the rebased
+Gates, on the push's libraries, from `--preclean` installs of the push as first built, on 2888f0a2 (the rebased
 gates are in [Rebase onto push 1's fix round](#rebase-onto-push-1s-fix-round)): tests/cpp plain and under ASAN and UBSAN,
 412 ok each, no failure and no diagnostic; the suite in one process, file by file as `test_package` runs them, 271
 files, 29817 expectations, none failed and no error (test-mutate-then-serialize.R passing since a7189447); lint (0
@@ -1639,35 +1639,35 @@ landing.
 
 ### Rebase onto push 1's fix round
 
-Rebased 2026-10-23 onto e91451db, push 1's fix round (eff97e92 and 4b618c6c, recorded in
+Rebased 2026-10-23 onto 9914c4a5, push 1's fix round (68a38579 and 7d383cf3, recorded in
 [Push 1 fix round](#push-1-fix-round)); the coordinator takes the package-code overrun above as its call, recorded
 at landing. The one conflict was this plan's end, push 1's record and push 2's recheck both appended there; both
-are kept. The hashes above are restated: e22c2a22, 7eac2efc, fef9cf42 and 54910081, no longer ancestors, are
-511f06a6, ae0d944a, 992a62aa and e1bdd7c1.
+are kept. The push's hashes in this record name its commits as they stand after its latest rebase.
 
 Rechecked against the fix round:
 - The maintainer's ruling of 2026-10-23 is built in `Sampler::withResponseFallback`, which creation and a
   `setData` that derives the range call; [`Sampler::rederiveStandardization`](../../src/bartcore/sampler.hpp) does
   not, so the row setters' TRUE, a re-derivation, keeps as dec-B364 and dec-B465 have it, one row in included: the
   response keeps there too, so there is no read of every row for the leaf to follow. Nothing in push 2's code
-  changes. New pins (a11e1f98): one row in by `setWeights` under gaussian with both arguments keeps the response's
+  changes. New pins (cac62edc): one row in by `setWeights` under gaussian with both arguments keeps the response's
   scale and both covariates under one warning naming them, the record and the reader unmoved; by `setActiveRows`
   under probit both covariates kept in the leaf's words.
 - A reading recorded as a call, with its alternative: where `updateScale = TRUE` keeps the response's scale for
   want of two values over the rows in and a leaf covariate has spread there, the covariate re-derives (dec-B465's
   rule per covariate), as the joint-keep arm pins for x2. Alternative: keeping every covariate wherever the response
-  keeps, the ruling's following of the response carried to re-derivations, which it does not name.
+  keeps, the ruling's following of the response carried to re-derivations, which it does not name. Reversed by the
+  coordinator in the fix round ([Fix round](#fix-round)).
 - The help's sentence that creation refuses rows in at one value of a covariate now says unless the response's
   scale is read from every row with it, and that the setters keep, one row in included; rule 9 says the response
   keeps there too.
 - The unnamed-column fix and the folded hazard warning touch the creation and no-row texts, not the keep's;
   `warnScaleKept`'s labels are unchanged and the push's texts stand.
-- The reviewer's stale comments, carried here at the coordinator's request (4fd04c56): `LeafRows`' `noneIn`,
+- The reviewer's stale comments, carried here at the coordinator's request (75daeca3): `LeafRows`' `noneIn`,
   `leafRowsInCount`, `LeafStandardizationError`'s count, both leaves' `fromAllRows`, `DerivedRecords`'
   `leafFromAllRows` and R's `leafFromAllRows` and `warnRowsFallBack` now say every row is read where no row is in or
   fewer than two distinct response values are in.
 
-Size against e91451db, this record aside: package code 295 added and 115 removed (the comments 16 and 8 of it), 968
+Size against 9914c4a5, this record aside: package code 295 added and 115 removed (the comments 16 and 8 of it), 968
 added and 130 removed in all.
 
 Mutants, rerun on the rebased tree, each alone on a clean export, `--preclean`: the argument dropped in the bridge
@@ -1678,7 +1678,7 @@ alone 2 (the one-row-in arm adds one each); a mask family's `setWeights` not for
 then stops; `reapplyActiveRows` re-deriving, stops at push 1's record arm; every keep warned 2; the record unkeyed
 18. None alive; test-update-scale-rows.R passes under each.
 
-Gates, from `--preclean` installs of a11e1f98 (4fd04c56 changes comments alone; after it a `--preclean` install,
+Gates, from `--preclean` installs of cac62edc (75daeca3 changes comments alone; after it a `--preclean` install,
 tests/cpp plain, 412 ok, and the new file, 458, none failed): tests/cpp plain and under ASAN and UBSAN, 412 ok each,
 no diagnostic; the suite in one process, 271 files, 29859 expectations, none failed, no error; lint (0 lints), air,
 rc-codoc (48), win-drift and doc-freshness clean, chained, NEWS parsing with 227 entries; on a `--preclean`
@@ -1690,3 +1690,66 @@ cross-host compares passing; the 43 commands of exact-gates.yaml at `quick`, all
 check --as-cran --no-manual` from a clean `git archive` tarball, the Date field's NOTE alone. stan4bart was not
 rerun (the fix round and the pins move no entry it calls; 1555, none failed, before the rebase). Not run: the
 x86-64 leg.
+
+### Fix round
+
+The review (FIX FIRST) found no defect in package code; push 1 landed meanwhile as da962901, rebased onto bartcore
+08b46a0e, and push 2 was rebased onto it from push 1's tip before the landing (9914c4a5 as rebased). The one conflict was again this
+plan's end, push 1's second-check note and its landing-rebase line against push 2's recheck; push 1's records are
+kept first. Rule 9 merged without a conflict, push 1's fold wording beside push 2's text, and is rewritten below.
+Push 2's commits on da962901: f198f293 (recheck), 9143445a (the push), b5bba34c (help, NEWS, notes), 85b4f25d (Push 2
+as built), cac62edc (one-row-in pins), 75daeca3 (comments), 553353bf (the rebase record), then 1e89befe (this round's
+code and tests), 98f7eb59 (its help and notes) and this record. The push's and push 1's hashes this record cites are
+restated to the rebased commits, and the four the first rebase superseded are dropped.
+
+What changed, by finding:
+- 1, tests/cpp: `testRederiveStandardization`'s `same` passed `std::memcmp` the null data of two empty vectors (a
+  linear leaf's lengthscales), which Linux UBSAN reports; it and push 1's `bits` in `testLeafStandardizationRows`
+  now answer equal for two empty vectors without the call, as the earlier `bits` does.
+- 2, the line no test reached: `setActiveRows(NULL, updateStandardization = TRUE)` after a mask now re-derives over
+  the rows the weights leave in, pinned by the reviewer's arm (the literals, the reader, 5 sweeps against a twin
+  given `setActiveRows(NULL)` and `setPredictor` of both columns with the argument).
+- 3, the coordinator's call, reversing this push's reading recorded at the rebase above: where `updateScale = TRUE`
+  keeps the response's scale in the same call, for want of two distinct response values over the rows in, every
+  leaf covariate keeps its standardization with it, whatever its spread there. The reasons given: dec-B364's rule
+  keeps the prior in force, not the response's scale alone; the maintainer's ruling of 2026-10-23, dec-B479, has
+  every quantity the prior reads from the rows in move with the response; dec-B465's refusal and per-covariate
+  reading stand wherever the response is re-derived and wherever `updateScale` is FALSE. Alternative, the build's:
+  each covariate by its own values beside a kept response. Built in the bridge's `rederiveAfterInstall`: on a kept
+  transform it skips `rederiveStandardization` and answers every covariate kept. The joint warning's text changes
+  with it, as the old one would name a spread covariate as lacking values: "fewer than two distinct values of the
+  response are in the likelihood, so the response's scale, the prior's center and the centers and scales of "x1"
+  and "x2" are kept as they were (said once per sampler)", the creation fallback's form (`warnScaleKept`, now 15
+  lines shorter). Pins: the joint-keep arm restated (x2 kept, the record and reader unmoved), the same fixture with
+  `updateScale` FALSE (x1 kept, x2 derived, the leaf's text), the reviewer's two probes (gaussian, five rows in at one
+  response value; nbinom, eight rows in all count 0): the record at creation on those rows, read from every row, is
+  `identical()` to a sampler created on every row and kept at the setter; the one-row-in arm in the new text. The
+  help's row-setter paragraph, the setWeights docstring and rule 9 say it.
+- 4, the help's state table: the put-back cell no longer offers the row setters, which give the numbers back only
+  while the leaf columns and the other channel stand as they were (state-frame-prior.md's table likewise).
+- 5, wording: the help's "where it also keeps the response's scale" (now the paragraph of finding 3); rule 9 no
+  longer says the response keeps with `updateScale` FALSE, and is rewrapped to the note's width.
+- 6, records: as above; every 8-character hash in this plan that names a commit is an ancestor of the tip (31 tokens
+  checked with `git merge-base --is-ancestor`).
+
+Mutants, each alone on a clean export of 1e89befe, `--preclean`; failures in test-leaf-standardization-rows.R,
+test-update-scale-rows.R passing under each: the argument dropped 96; the re-derivation before the install 84; the
+keep re-deriving the kept covariate aborts (tests/cpp aborts); keeping all 7, tests/cpp 2; the gp refusal after the
+install 7; the argument before `updateScale` 1; `NA` let through 2; refused on several forests, stops at that arm;
+a joint keep raising two warnings 4, the response's text alone 4; a mask family's `setWeights` not forwarding 36; the
+record not written 7 then stops; `reapplyActiveRows` re-deriving, stops; every keep warned 2; the record unkeyed 18;
+and two new: a spread covariate re-derived beside a kept response (the build before this round) 9, and
+`setActiveRows(NULL, TRUE)` deriving nothing (the reviewer's E01) 2. None alive.
+
+Size against da962901, this record aside: package code 281 added and 112 removed; 1045 added and 140 removed in all.
+This round: package code 22 added and 33 removed, tests 90 and 19, help and notes 31 and 24.
+
+Gates, from `--preclean` installs of 98f7eb59 (this record touches the plan alone): tests/cpp plain and under ASAN
+and UBSAN, 412 ok each, no diagnostic; the suite in one process, 271 files, 29903 expectations, none failed, no
+error; lint (0 lints), air, rc-codoc (48), win-drift and doc-freshness clean, chained; on a `--preclean` reference
+install of a clean export the four snapshot files (14, 3, 7 and 3, none failed) and the bitwise compares, 55 of 55
+identical against equivalence-32418b6e (`--strict-coverage`, 0 skipped), 19 of 19 against bcf-equivalence-20eed7ed
+and 11 of 11 against multinomial-equivalence-80b1c8d4, no "max |z|" line, neutral, both cross-host compares passing;
+the 43 commands of exact-gates.yaml at `quick`, all passing (mask-redraw-exact.R |z| 0.7); the R-loaded run of the
+ten touched and nearby files under ASAN and UBSAN, 2663 expectations, none failed, no diagnostic. Not run: `R CMD
+check`, stan4bart and the x86-64 leg.
