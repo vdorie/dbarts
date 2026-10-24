@@ -729,6 +729,26 @@ for (set in names(hazardMissing)) {
     }
   }
 }
+# every subject set aside: NA curves for all of them, or none
+for (set in c("train", "test")) {
+  numSubjects <- length(hazardOffsets[[set]])
+  allMissing <- rep(NA_real_, numSubjects)
+  pass <- survivalProbabilities(
+    fit.hoff,
+    offset = allMissing,
+    sample = set,
+    na.action = na.pass
+  )
+  expect_equal(dim(pass)[length(dim(pass))], numSubjects)
+  expect_true(all(is.na(pass)))
+  omitted <- survivalProbabilities(
+    fit.hoff,
+    offset = allMissing,
+    sample = set,
+    na.action = na.omit
+  )
+  expect_equal(dim(omitted)[length(dim(omitted))], 0L)
+}
 # the test subjects need no trees, and a lone NA is an error whatever the action
 for (action in list(na.pass, na.omit, na.exclude)) {
   expect_equal(

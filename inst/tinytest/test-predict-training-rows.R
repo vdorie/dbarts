@@ -912,6 +912,14 @@ expect_identical(
   dim(predict(fit, weights = all.w, na.action = na.omit)),
   c(20L, 0L)
 )
+# and with none kept the one row that stands in leaves R's random stream as it
+# was found
+for (action in list(na.pass, na.omit, na.exclude)) {
+  set.seed(5L)
+  stream <- .Random.seed
+  invisible(predict(fit, weights = all.w, type = "ppd", na.action = action))
+  expect_identical(.Random.seed, stream)
+}
 dropper <- function(object, ...) stats::na.omit(object, ...)
 expect_identical(
   predict(fit, offset = na.o, na.action = dropper),

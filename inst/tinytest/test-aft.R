@@ -833,6 +833,27 @@ for (set in names(missingAt)) {
     tolerance = 1e-12,
     check.attributes = FALSE
   )
+  # every subject set aside: NA curves for all of them, or none
+  allMissing <- rep(NA_real_, length(given))
+  pass <- survivalProbabilities(
+    fit.aftT,
+    times.aft,
+    offset = allMissing,
+    sample = set,
+    na.action = na.pass
+  )
+  expect_equal(dim(pass)[3L], length(given))
+  expect_true(all(is.na(pass)))
+  expect_equal(
+    dim(survivalProbabilities(
+      fit.aftT,
+      times.aft,
+      offset = allMissing,
+      sample = set,
+      na.action = na.omit
+    )),
+    c(dim(pass)[1L], 3L, 0L)
+  )
   # a lone NA has no subject for na.action to answer
   expect_error(
     survivalProbabilities(
