@@ -514,10 +514,11 @@
             function of chosen predictors in each leaf, and
             \code{leaf.prior = gp(columns)} a Gaussian-process function. The
             covariates are centered and scaled over the rows in the
-            likelihood when the sampler is created, and in each fold of
-            \code{xbart} over that fold's; a covariate those rows hold at
-            one value, a constant column among them, is refused unless a
-            \code{gp} leaf states its lengthscale. The sampler keeps its
+            likelihood when the sampler is created, over every row where
+            fewer than two are in, and in each fold of \code{xbart} over
+            that fold's; a covariate the rows read hold at one value, a
+            constant column among them, is refused unless a \code{gp} leaf
+            states its lengthscale. The sampler keeps its
             standardization: a restored state and a warm start put the
             slopes in as stored under it, and \code{$setWeights} and
             \code{$setActiveRows} take it again from the rows then in

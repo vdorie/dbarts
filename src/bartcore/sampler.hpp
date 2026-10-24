@@ -2409,10 +2409,10 @@ public:
   /// function it was (Chain::rederiveStandardization). The rows read are
   /// those in the likelihood now, under the weights and the mask in force
   /// (leafRowsFrom); a marked covariate those hold at one value, or none, or
-  /// every marked one where no row is in, keeps the numbers in force. Decided
-  /// once, from chain 0, as every chain holds the same rows. A leaf that
-  /// takes no covariate has nothing to derive. The host refuses it where a gp
-  /// leaf holds saved draws.
+  /// every marked one where fewer than two rows are in, keeps the numbers in
+  /// force. Decided once, from chain 0, as every chain holds the same rows. A
+  /// leaf that takes no covariate has nothing to derive. The host refuses it
+  /// where a gp leaf holds saved draws.
   ///
   /// \returns one byte per leaf covariate, nonzero where it was kept; empty
   /// for a leaf that takes none.
@@ -2433,7 +2433,7 @@ public:
         size_t column = leaf.covariateColumns()[j];
         if (replaced != nullptr && replaced[column] == 0) continue;
         double mean, sd;
-        if (rows.noneIn || standardizationMomentsForColumn(
+        if (rows.tooFewIn || standardizationMomentsForColumn(
                              data_.rawColumn(column), n, &mean, &sd,
                              rows.rows)) {
           keptCovariates[j] = 1;
@@ -3032,8 +3032,10 @@ private:
   /// The rows a leaf covariate's standardization is derived over: those of
   /// positive weight in \p weights (null for every row) that the 0/1 mask
   /// \p mask keeps (null for every row), over \p n rows, written into
-  /// \p storage; null rows where every row is in, and null with noneIn where
-  /// none is, every row then read in its place. Membership only.
+  /// \p storage; null rows where every row is in, and null with tooFewIn
+  /// where fewer than two are, under every family, every row then read in
+  /// their place; the one row of a one-row store is every row in. Membership
+  /// only.
   static LeafRows leafRowsFrom(const double* weights, const double* mask,
                                size_t n, std::vector<std::uint8_t>& storage) {
     LeafRows result;
@@ -3046,13 +3048,14 @@ private:
       storage[i] = in ? 1 : 0;
       numIn += in ? 1 : 0;
     }
-    if (numIn == 0) result.noneIn = true;
+    if (numIn == 0 || (numIn == 1 && n > 1)) result.tooFewIn = true;
     else if (numIn < n) result.rows = storage.data();
     return result;
   }
 
   /// \p rows, or every row where the response's read falls back to every row
-  /// (a family that reads it, \p y less \p offset one value over the rows in).
+  /// (a family that reads it, \p y less \p offset one value over the rows
+  /// in); fewer than two rows in arrive as every row (leafRowsFrom).
   LeafRows withResponseFallback(LeafRows rows, const double* y,
                                 const double* offset, size_t n) const {
     bool gaussian = family_ == ResponseFamily::gaussian;

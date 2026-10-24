@@ -6956,6 +6956,99 @@ static void testLeafStandardizationRows() {
           "leaf rows: a stated gp lengthscale takes the placeholder");
   }
 
+  // one row in: every row read and marked under every family, those that
+  // read no response among them, at creation, over a store view as a fold
+  // builds it and at a replacement, a gaussian one keeping the range among
+  // them; two rows in are read
+  {
+    std::vector<double> oneMask(n, 0.0), oneWeight(n, 0.0), twoMask(n, 0.0);
+    oneMask[0] = 1.0;
+    oneWeight[0] = 1.0;
+    twoMask[0] = twoMask[1] = 1.0;
+    double mean, sd;
+    standardizationMomentsForColumn(x.data() + n, n, &mean, &sd);
+    auto readsEveryRow = [&](SamplerBase& sampler, double center,
+                             double spread) {
+      DerivedRecords records;
+      sampler.derivedRecords(records);
+      return records.leafCenters.size() == 1 &&
+             records.leafCenters[0] == center &&
+             records.leafScales[0] == spread &&
+             records.leafFromAllRows == std::vector<std::uint8_t>{1};
+    };
+    const Family oneRowFamilies[] = {
+      {"gaussian", ResponseFamily::gaussian, y.data(), true},
+      {"probit", ResponseFamily::probit, binary.data(), true},
+      {"nbinom", ResponseFamily::nbinom, count.data(), true},
+      {"logistic", ResponseFamily::logistic, binary.data(), true}};
+    for (const Family& f : oneRowFamilies) {
+      for (bool gp : {false, true}) {
+        std::unique_ptr<SamplerBase> sampler =
+          make(x, f.y, nullptr, f.family, optionsFor(gp, oneMask.data()), 50);
+        check(readsEveryRow(*sampler, mean, sd),
+              (std::string("leaf rows: one row in reads every row, ") +
+               f.name + (gp ? ", gp" : ", linear")).c_str());
+      }
+    }
+
+    // a fold's sampler over a store view, its one row in by the mask
+    ColumnStore parent, view;
+    built(parent.build(x.data(), n, p, 100, false, nullptr, covariates, 1));
+    std::vector<size_t> viewRows;
+    for (size_t i = 0; i < n; i += 2) viewRows.push_back(i);
+    size_t m = viewRows.size();
+    view.buildFromParent(parent, viewRows.data(), m, nullptr, 0, covariates,
+                         1);
+    std::vector<double> viewValues(m), viewBinary(m), viewMask(m, 0.0);
+    for (size_t i = 0; i < m; ++i) {
+      viewValues[i] = x[viewRows[i] + n];
+      viewBinary[i] = binary[viewRows[i]];
+    }
+    viewMask[1] = 1.0;
+    double viewMean, viewSd;
+    standardizationMomentsForColumn(viewValues.data(), m, &viewMean, &viewSd);
+    std::unique_ptr<SamplerBase> fold = createSamplerOverStore(
+      std::move(view), viewBinary.data(), nullptr, nullptr,
+      ResponseFamily::probit, 1.0, 3.0, 0.37804942330213542,
+      optionsFor(false, viewMask.data()), newRngs(51));
+    check(fold != nullptr && readsEveryRow(*fold, viewMean, viewSd),
+          "leaf rows: a view's one row in reads every row of the view");
+
+    // a replacement under probit by its mask, and under gaussian by weight
+    // with the range kept, which reads no response
+    std::unique_ptr<SamplerBase> probit =
+      make(x, binary.data(), nullptr, ResponseFamily::probit,
+           optionsFor(false), 52);
+    DataReplacement byMask;
+    byMask.activeRows = oneMask.data();
+    check(probit->setData(x.data(), binary.data(), n, nullptr, nullptr,
+                          nullptr, 0, nullptr, byMask) &&
+            readsEveryRow(*probit, mean, sd),
+          "leaf rows: a probit replacement with one row in reads every row");
+    std::unique_ptr<SamplerBase> gaussian =
+      make(x, y.data(), nullptr, ResponseFamily::gaussian, optionsFor(false),
+           53);
+    DataReplacement keepRange;
+    keepRange.range = DerivedValueChoice::keep;
+    check(gaussian->setData(x.data(), y.data(), n, oneWeight.data(), nullptr,
+                            nullptr, 0, nullptr, keepRange) &&
+            readsEveryRow(*gaussian, mean, sd),
+          "leaf rows: a replacement keeping the range reads every row");
+
+    std::unique_ptr<SamplerBase> two =
+      make(x, binary.data(), nullptr, ResponseFamily::probit,
+           optionsFor(false, twoMask.data()), 54);
+    std::vector<std::uint8_t> twoIn(n, 0);
+    twoIn[0] = twoIn[1] = 1;
+    standardizationMomentsForColumn(x.data() + n, n, &mean, &sd,
+                                    twoIn.data());
+    DerivedRecords records;
+    two->derivedRecords(records);
+    check(records.leafCenters[0] == mean && records.leafScales[0] == sd &&
+            records.leafFromAllRows == std::vector<std::uint8_t>{0},
+          "leaf rows: two rows in are read");
+  }
+
   // a re-derivation over the rows in now, the weights and the mask in force:
   // a covariate with too little kept and reported, the other derived, and a
   // covariate not marked held
@@ -7012,12 +7105,22 @@ static void testLeafStandardizationRows() {
             after.leafCenters[1] == held.leafCenters[1] &&
             after.leafScales[1] == held.leafScales[1],
           "leaf rows: too little kept at a re-derivation, and reported");
-    // no row in: every covariate kept
+    // no row in, or one: every covariate kept
     std::vector<double> none(n, 0.0);
     sampler->setWeights(none.data());
     kept = sampler->rederiveStandardization();
     check(kept == std::vector<std::uint8_t>{1, 1},
           "leaf rows: no row in keeps every covariate");
+    std::vector<double> one(n, 0.0);
+    one[0] = 1.0;
+    sampler->setWeights(one.data());
+    kept = sampler->rederiveStandardization();
+    DerivedRecords oneIn;
+    sampler->derivedRecords(oneIn);
+    check(kept == std::vector<std::uint8_t>{1, 1} &&
+            oneIn.leafCenters == after.leafCenters &&
+            oneIn.leafScales == after.leafScales,
+          "leaf rows: one row in keeps every covariate");
   }
 
   // a whole-data replacement derives over its own rows in, the mask it is

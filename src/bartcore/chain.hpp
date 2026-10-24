@@ -442,9 +442,9 @@ struct ForestCalibration {
 /// scale NaN for a column without spread, and the lengthscales of a gp leaf
 /// whose model supplies none, each empty where there is none. Beside them,
 /// not a record, leafFromAllRows marks a covariate whose center and scale the
-/// last derivation read from every row because no row was in the likelihood,
-/// or fewer than two distinct response values were in, the status a host
-/// warns on.
+/// last derivation read from every row because fewer than two rows were in
+/// the likelihood, or fewer than two distinct response values were, the
+/// status a host warns on.
 struct DerivedRecords {
   /// Set false by the caller to leave cutPoints and cutMass empty, a read
   /// that costs nothing per predictor, for a call that moves no grid.

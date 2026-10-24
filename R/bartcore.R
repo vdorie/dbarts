@@ -1611,8 +1611,8 @@ bartcoreSamplerSetData <- function(
 }
 
 ## The labels of the leaf covariates whose center and scale the engine just
-## read from every row, no row being in the likelihood or fewer than two
-## distinct response values in, from its records
+## read from every row, fewer than two rows being in the likelihood or fewer
+## than two distinct response values, from its records
 ## (C_dbarts_bartcore_derivedRecords); empty where none was.
 leafFromAllRows <- function(sampler, records) {
   flags <- records$standardization.all.rows
@@ -1656,9 +1656,11 @@ leafCentersAndScales <- function(leaf) {
 ## scale from, so numbers were taken from all n rows, raised once for a
 ## creation or a setData: 'range' where the response's scale and the prior's
 ## center were, of 'rowsIn' rows in, and 'leaf' the labels of the leaf
-## covariates whose center and scale were, which happens only where no row is
-## in or fewer than two distinct response values are in. One text names both, and 'periods', a hazard fit's warning that its
-## periods were taken from every subject, folds the leaf's into its own.
+## covariates whose center and scale were, which happens only where fewer
+## than two rows are in or fewer than two distinct response values are. One
+## text names both; the leaf's alone counts its 0 or 1 rows in. 'periods', a
+## hazard fit's warning that its periods were taken from every subject, folds
+## the leaf's into its own.
 warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
   if (!is.null(periods) && length(leaf) > 0L) {
     periods$message <- sub(
@@ -1676,7 +1678,9 @@ warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
     return(invisible(NULL))
   }
   what <- if (length(leaf) > 0L) leafCentersAndScales(leaf)
-  lead <- if (!range) {
+  lead <- if (!range && rowsIn == 1L) {
+    paste0("one observation is in the likelihood (1 of ", n, " has a positive ")
+  } else if (!range) {
     paste0("no observation is in the likelihood (0 of ", n, " have a positive ")
   } else {
     paste0(

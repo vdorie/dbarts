@@ -2443,20 +2443,20 @@ inline bool suppliedMoments(const SuppliedStandardization& supplied,
 
 /// The rows a leaf covariate's center, scale and default lengthscale are
 /// derived over (Sampler::leafRowsFrom): \p rows a nonzero byte per training
-/// row in the likelihood, null for every row; \p noneIn true where no row is
-/// in, or fewer than two distinct response values are in
-/// (Sampler::withResponseFallback), and every row is read in its place.
+/// row in the likelihood, null for every row; \p tooFewIn true where fewer
+/// than two rows are in, or fewer than two distinct response values are in
+/// (Sampler::withResponseFallback), and every row is read in their place.
 /// Membership only: a row's weight
 /// never enters the numbers.
 struct LeafRows {
   const std::uint8_t* rows = nullptr;
-  bool noneIn = false;
+  bool tooFewIn = false;
 };
 
-/// The rows \p rows names in the likelihood out of \p n: 0 where none is in,
-/// or fewer than two distinct response values are in, every row then read.
+/// The rows \p rows names in the likelihood out of \p n: 0 where too few are
+/// in (LeafRows::tooFewIn), every row then read.
 inline std::size_t leafRowsInCount(const LeafRows& rows, std::size_t n) {
-  if (rows.noneIn) return 0;
+  if (rows.tooFewIn) return 0;
   if (rows.rows == nullptr) return n;
   std::size_t count = 0;
   for (std::size_t i = 0; i < n; ++i) count += rows.rows[i] != 0 ? 1 : 0;
@@ -2468,8 +2468,8 @@ inline std::size_t leafRowsInCount(const LeafRows& rows, std::size_t n) {
 /// or none observed: there is no scale to take, and no number in force to
 /// keep. covariate is its position among the leaf's covariates and column the
 /// store's predictor column; numRowsIn counts the rows in the likelihood out
-/// of numObservations, 0 where none is in, or fewer than two distinct
-/// response values are in, and every row was read; observed
+/// of numObservations, 0 where too few were in (LeafRows::tooFewIn) and every
+/// row was read; observed
 /// says whether any row read holds a value of it. The host words the refusal.
 struct LeafStandardizationError : std::domain_error {
   LeafStandardizationError(std::size_t covariate_, std::size_t column_,
@@ -2599,8 +2599,8 @@ struct LinearGaussianLeaf {
   }
 
   /// Whether covariate j's center and scale were last derived over every
-  /// row because no row was in the likelihood, or fewer than two distinct
-  /// response values were in: the status a host warns on.
+  /// row because fewer than two rows were in the likelihood, or fewer than
+  /// two distinct response values were: the status a host warns on.
   const std::vector<std::uint8_t>& fromAllRows() const { return fromAllRows_; }
 
   /// Gather and standardize the designated columns from the store's raw
@@ -2646,7 +2646,7 @@ struct LinearGaussianLeaf {
       if (!suppliedMoments(supplied, j, &mean, &sd)) {
         deriveLeafMoments(column, numObservations_, j, columns_[j], rows,
                           false, &mean, &sd);
-        fromAllRows_[j] = rows.noneIn ? 1 : 0;
+        fromAllRows_[j] = rows.tooFewIn ? 1 : 0;
       }
       means_[j] = mean;
       sds_[j] = sd;
@@ -3102,8 +3102,8 @@ struct GPGaussianLeaf {
   /// install replaces them.
   bool lengthscalesAreSupplied() const { return !suppliedLengthscales_.empty(); }
   /// Whether covariate j's center and scale were last derived over every
-  /// row because no row was in the likelihood, or fewer than two distinct
-  /// response values were in: the status a host warns on.
+  /// row because fewer than two rows were in the likelihood, or fewer than
+  /// two distinct response values were: the status a host warns on.
   const std::vector<std::uint8_t>& fromAllRows() const { return fromAllRows_; }
 
   /// Gather and standardize the designated columns and fix the kernel
@@ -3152,7 +3152,7 @@ struct GPGaussianLeaf {
       if (!suppliedMoments(supplied, j, &mean, &sd)) {
         deriveLeafMoments(column, numObservations_, j, columns_[j], rows,
                           lengthscalesAreSupplied(), &mean, &sd);
-        fromAllRows_[j] = rows.noneIn ? 1 : 0;
+        fromAllRows_[j] = rows.tooFewIn ? 1 : 0;
       }
       means_[j] = mean;
       sds_[j] = sd;

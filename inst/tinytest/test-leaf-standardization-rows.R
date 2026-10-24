@@ -5,9 +5,9 @@
 # of a covariate a derivation (creation, setData, an xbart fold) is refused,
 # a gp leaf whose lengthscale is stated taking the placeholder, and a
 # re-derivation (setPredictor with updateStandardization = TRUE) keeps that
-# covariate's numbers, warning once per sampler. Where no row is in, every row
-# is read under the creation warning. Every literal is taken in R over the
-# rows named.
+# covariate's numbers, warning once per sampler. Where fewer than two rows are
+# in, a derivation reads every row instead, under the creation warning. Every
+# literal is taken in R over the rows named.
 
 set.seed(20261023L, sample.kind = "Rejection")
 n <- 200L
@@ -442,18 +442,36 @@ stated <- make(
 expect_identical(recordOf(stated), list(center = 2, scale = 1))
 # one row in leaves the response one value, so its scale and the leaf's
 # numbers are read from every row, said in one text (dec-B309), through
-# dbarts() and bart(), and under nbinom's mask; a family that reads no
-# response has nothing to fall back with and refuses one row in as one value
+# dbarts() and bart(), under Student-t and under nbinom's mask, in the words
+# it had before fewer than two rows in read every row under every family; a
+# family that reads no response reads the leaf from every row in its own
+# words (below)
 oneRow <- paste0(
   "fewer than two distinct values of the response are in the likelihood ",
   "(1 of 200 observations are in it), so the response's scale, the prior's ",
   "center and the center and scale of \"x1\" are taken from all 200"
 )
+oneRowLeafOf <- function(count) {
+  paste0(
+    "one observation is in the likelihood (1 of ",
+    count,
+    " has a positive weight), so the center and scale of \"x1\" are taken ",
+    "from all ",
+    count
+  )
+}
+oneRowLeaf <- oneRowLeafOf(200L)
 for (gp in c(FALSE, TRUE)) {
   prior <- if (gp) dbartsPriors$gp("x1") else dbartsPriors$linear("x1")
-  made <- fallbacks(make(weights = oneIn, leaf.prior = prior))
-  expect_identical(made$warnings, oneRow, info = paste("gp", gp))
-  expectRecord(made$value, literal(x1, gp = gp), paste("one row in, gp", gp))
+  for (kind in c("gaussian", "student")) {
+    made <- fallbacks(make(kind, weights = oneIn, leaf.prior = prior))
+    expect_identical(made$warnings, oneRow, info = paste(kind, "gp", gp))
+    expectRecord(
+      made$value,
+      literal(x1, gp = gp),
+      paste("one row in,", kind, "gp", gp)
+    )
+  }
   viaBart <- fallbacks(bart(
     x,
     y,
@@ -468,11 +486,8 @@ for (gp in c(FALSE, TRUE)) {
     verbose = FALSE
   ))
   expect_identical(viaBart$warnings, oneRow, info = paste("bart, gp", gp))
-  expect_error(
-    make("probit", oneIn, prior),
-    refusalOf("holds one value", 1L, gp),
-    fixed = TRUE
-  )
+  made <- fallbacks(make("probit", oneIn, prior))
+  expect_identical(made$warnings, oneRowLeaf, info = paste("probit, gp", gp))
 }
 made <- fallbacks(make("nbinom", oneIn))
 expect_identical(made$warnings, oneRow)
@@ -507,18 +522,21 @@ made <- fallbacks(dbarts::dbarts(
 ))
 expect_identical(made$warnings, halfIn)
 expectRecord(made$value, literal(x1), "one count beside differing offsets")
-# the same at a setData that derives the range; one that keeps it has no
-# fallback to follow and refuses
+# the same at a setData that derives the range; one that keeps it reads the
+# leaf from every row too, one row being in, in the leaf's words
 s <- make()
 made <- fallbacks(s$setData(dbartsData(x, y, weights = oneIn)))
 expect_identical(made$warnings, oneRow)
 expectRecord(s, literal(x1), "setData, one row in")
 s <- make()
-expect_error(
-  s$setData(dbartsData(x, y, weights = oneIn), updateScale = FALSE),
-  "holds one value over the rows in the likelihood (1 of 200",
-  fixed = TRUE
-)
+range <- s$data@response.range
+made <- fallbacks(s$setData(
+  dbartsData(x, y, weights = oneIn),
+  updateScale = FALSE
+))
+expect_identical(made$warnings, oneRowLeaf)
+expectRecord(s, literal(x1), "setData keeping the range, one row in")
+expect_identical(s$data@response.range, range)
 # a multiplier forest takes no linear leaf, so one row in is refused before
 # any warning
 expect_identical(
@@ -533,6 +551,168 @@ expect_identical(
     error = function(e) conditionMessage(e)
   ),
   "a treatment forest does not support a linear leaf prior; drop it or fit a single-forest model"
+)
+
+# ---- one row in under every family ------------------------------------------
+
+# fewer than two rows in leave no spread to read, so a family that reads no
+# response reads the leaf from every row too, under one warning counting the
+# rows in, its record flagged and the sampler running: at creation through
+# dbarts(), bart() and new() by hand, and at a setData that derives. No fold
+# of xbart reaches it under these families: xbart refuses probit's 0/1
+# weights and fits neither ordinal nor hazard.probit
+allRowsFlag <- function(s) {
+  .Call(
+    dbarts:::C_dbarts_bartcore_derivedRecords,
+    s$getPointer(),
+    FALSE
+  )$standardization.all.rows
+}
+for (kind in c("probit", "ordinal", "hazard.probit")) {
+  for (gp in c(FALSE, TRUE)) {
+    info <- paste("one row in,", kind, if (gp) "gp" else "linear")
+    prior <- if (gp) dbartsPriors$gp("x1") else dbartsPriors$linear("x1")
+    made <- fallbacks(make(kind, oneIn, prior))
+    expect_identical(made$warnings, oneRowLeaf, info = info)
+    # a hazard fit's one subject in at time 1 takes one period, one row each
+    expect_identical(length(made$value$data@y), n, info = info)
+    expectRecord(made$value, literal(made$value$data@x[, "x1"], gp = gp), info)
+    expect_identical(allRowsFlag(made$value), TRUE, info = info)
+    expect_true(all(is.finite(sweeps(made$value))), info = info)
+  }
+  # a setData that derives over one row in says so, last, as creation does
+  s <- make(kind)
+  values <- s$data@x
+  made <- fallbacks(s$setData(dbartsData(
+    values,
+    s$data@y,
+    weights = as.double(seq_along(s$data@y) == 1L)
+  )))
+  expect_identical(
+    made$warnings,
+    oneRowLeafOf(length(s$data@y)),
+    info = paste("setData,", kind)
+  )
+  expectRecord(s, literal(values[, "x1"]), paste("setData, one row in,", kind))
+  expect_identical(allRowsFlag(s), TRUE, info = paste("setData,", kind))
+}
+# through bart(), and by hand: the spec's mask under probit, and a mask given
+# to new() under logistic and aft, which take no 0/1 weights; the aft data
+# object drops the record its fit wrote, so that the creation derives
+viaBart <- fallbacks(bart(
+  x,
+  yBinary,
+  weights = oneIn,
+  leaf.prior = dbartsPriors$linear("x1"),
+  n.trees = 5L,
+  n.samples = 2L,
+  n.burn = 0L,
+  n.chains = 1L,
+  n.threads = 1L,
+  seed = 2L,
+  verbose = FALSE
+))
+expect_identical(viaBart$warnings, oneRowLeaf)
+byHand <- fallbacks({
+  spec <- dbartsSpec(
+    dbartsData(x, yBinary, weights = oneIn),
+    control = controlWith(),
+    leaf.prior = dbartsPriors$linear("x1"),
+    family = "probit"
+  )
+  new(
+    "dbartsSampler",
+    spec$control,
+    spec$model,
+    spec$data,
+    active = spec$active
+  )
+})
+expect_identical(byHand$warnings, oneRowLeaf)
+expectRecord(byHand$value, literal(x1), "one row in by hand, probit")
+spec <- dbartsSpec(
+  dbartsData(x, yBinary),
+  control = controlWith(),
+  leaf.prior = dbartsPriors$gp("x1"),
+  family = "logistic"
+)
+made <- fallbacks(new(
+  "dbartsSampler",
+  spec$control,
+  spec$model,
+  spec$data,
+  active = oneIn
+))
+expect_identical(made$warnings, oneRowLeaf)
+expectRecord(made$value, literal(x1, gp = TRUE), "one row in, logistic")
+aftFit <- make("aft")
+aftData <- aftFit$data
+aftData@standardization <- NULL
+made <- fallbacks(new(
+  "dbartsSampler",
+  aftFit$control,
+  aftFit$model,
+  aftData,
+  active = oneIn
+))
+expect_identical(made$warnings, oneRowLeaf)
+expectRecord(made$value, literal(x1), "one row in, aft")
+# a gp leaf whose lengthscale is stated reads every row as well, where the
+# one value took the placeholder before
+made <- fallbacks(make(
+  "probit",
+  oneIn,
+  dbartsPriors$gp("x1", lengthscale = 0.7)
+))
+expect_identical(made$warnings, oneRowLeaf)
+expectRecord(made$value, literal(x1), "one row in, stated lengthscale")
+# the one row in missing the covariate, and several covariates named together
+missingOne <- x
+missingOne[1L, "x1"] <- NA
+made <- fallbacks(make("probit", oneIn, data = missingOne))
+expect_identical(made$warnings, oneRowLeaf)
+expectRecord(made$value, literal(missingOne[, "x1"]), "one row in, missing")
+made <- fallbacks(make("probit", oneIn, dbartsPriors$linear(c("x1", "x2"))))
+expect_identical(
+  made$warnings,
+  paste0(
+    "one observation is in the likelihood (1 of 200 has a positive weight), ",
+    "so the centers and scales of \"x1\" and \"x2\" are taken from all 200"
+  )
+)
+# a column constant over every row is refused, read over every row
+expect_error(
+  make("probit", oneIn, data = flat),
+  paste0(
+    "the leaf covariate \"x1\" holds one value over all 200 observations, ",
+    "read because too few are in the likelihood"
+  ),
+  fixed = TRUE
+)
+# two rows in are read, and refused where they hold one value (dec-B465)
+twoIn <- c(1, 1, rep(0, n - 2L))
+made <- fallbacks(make("probit", twoIn))
+expect_identical(made$warnings, character())
+expectRecord(made$value, literal(x1, 1:2), "two rows in, probit")
+twoAtOne <- x
+twoAtOne[1:2, "x1"] <- 2
+expect_error(
+  make("probit", twoIn, data = twoAtOne),
+  refusalOf("holds one value", 2L),
+  fixed = TRUE
+)
+# a sampler of one row, that row in, has every row in: refused as one value
+expect_error(
+  suppressWarnings(dbarts::dbarts(
+    x[1L, , drop = FALSE],
+    y[1L],
+    weights = 2,
+    leaf.prior = dbartsPriors$linear("x1"),
+    sigest = 1,
+    control = controlWith()
+  )),
+  "holds one value over the rows in the likelihood (1 of 1 observations",
+  fixed = TRUE
 )
 
 # rows out at one value, rows in spread: created, over the rows in
@@ -1456,8 +1636,8 @@ expect_identical(
   fallbacks(s$setActiveRows(wLast, updateStandardization = TRUE))$warnings,
   keepText
 )
-# one row in: a re-derivation keeps, where creation reads every row with the
-# response's fallback; with both arguments the response's scale and every
+# one row in: a re-derivation keeps, where creation reads every row under
+# every family; with both arguments the response's scale and every
 # covariate are kept under one warning, and a family that reads no response
 # keeps every covariate in the leaf's words
 s <- make(weights = w, leaf.prior = leafPriorOf(TRUE))
