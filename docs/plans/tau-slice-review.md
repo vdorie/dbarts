@@ -1,5 +1,7 @@
 # Review: tau slice sampler in the in-core grouped sampler (rbart_vi engine path)
 
+Status: RETIRED, 2026-09-06; see [The decision](../design/retire-grouped-random-effects.md#the-decision).
+
 Repo dbarts @ bartcore 8d763c9. READ-ONLY review. Files cited file:line.
 
 ## VERDICT (summary; detail below)

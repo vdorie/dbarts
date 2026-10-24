@@ -1,5 +1,7 @@
 # pure-c-header
 
+Status: LANDED 2026-09-09 (S1 2d0b6d90); S2 is the stan4bart and treatSens ports, in those repositories, and S3 the CI assertion on the header's hash. See the Landing notes.
+
 agent: opus (S1 header, bridge and C entry file; S2 the two consumer
   ports, worked from their own checkouts); sonnet (S3 the CI assertion,
   NEWS, Rd, records). Serialized: S1 lands before S2 starts; S3 may run

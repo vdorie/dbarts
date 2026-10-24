@@ -1,5 +1,7 @@
 # leaf-prior-reader-shape: the leaf prior alone, and k as chain state
 
+Status: LANDED 2026-09-29 (03af69e8, 2ee95583); see the Landing note.
+
 agent: Opus (R, man and tests; no engine or bridge code)
 rng: neutral
 budget: about 400 lines over R/, man/, inst/tinytest, inst/NEWS.Rd, benchmarks

@@ -1,5 +1,7 @@
 # The binary node hyperprior: a default for now
 
+Status: RUN AND REPORTED, 2026-09-14.
+
 This note answers a ruling of 2026-09-13:
 
 > The reason that motivated the hyperprior was that BART had poor coverage

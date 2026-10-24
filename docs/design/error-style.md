@@ -7,8 +7,7 @@ carry no authority weight and are adopted only on their own scrutinized
 merits. This revision applies both - the draft codified the in-repo
 majority, the measured practice of base, stats, Matrix, survival, lme4,
 and mgcv takes precedence wherever it clearly speaks, and each
-guide-originated adoption states its own merit case). The wave-2 L
-sweep of the existing corpus runs after VD sees the delta summary.
+guide-originated adoption states its own merit case). The wave-2 L sweep of the existing corpus LANDED 2026-08-18 (5de31956; docs/plans/release-candidate-review.md, landing note L).
 Governs every `stop()` in `R/` and every
 `Rf_error`/`ext_throwError` in `src/`. Every NEW message from this point on
 follows this rule; slice L (repo-wide, ~120 strings) rewrites the existing

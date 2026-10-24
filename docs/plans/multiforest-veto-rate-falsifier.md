@@ -1,6 +1,6 @@
 # multiforest-veto-rate-falsifier
 
-status: RUN AND REPORTED (2026-08-09). Verdict: **YELLOW for both column
+Status: RUN AND REPORTED (2026-08-09). Verdict: **YELLOW for both column
   types** - P1, P3 and L1' GREEN, M1 exactly 0, every validity gate passing,
   T1 YELLOW on its ratio clause alone. No KILL clause fired anywhere, so no
   fresh-seed confirmation was triggered. See "Results". Ratified design;

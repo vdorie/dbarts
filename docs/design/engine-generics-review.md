@@ -1,6 +1,6 @@
 # What the engine's generic axes should be
 
-Status: REVIEW (analysis only; nothing proposed for build).
+Status: REVIEW, 2026-09-08 (analysis only; nothing proposed for build).
 
 A memo on the shape of the C++ core. It asks what must vary independently in a
 BART engine that covers the models this package fits or has designed for, works

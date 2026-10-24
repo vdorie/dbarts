@@ -1,5 +1,7 @@
 # The empty-leaf veto: keep and document (investigation, 2026-07-07)
 
+Status: DECIDED (keep-and-document), 2026-07-07. Plan: docs/plans/archive/empty-leaf-veto.md, LANDED 2026-07-07 (07cf431b).
+
 The no-empty-leaf invariant is enforced one way: the branch
 log-likelihood returns a penalty for any branch that contains an empty
 leaf, so trees with empty leaves are never accepted into the chain

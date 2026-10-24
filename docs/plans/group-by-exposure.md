@@ -1,5 +1,7 @@
 # group-by-exposure
 
+Status: RETIRED, 2026-09-06; see [The decision](../design/retire-grouped-random-effects.md#the-decision).
+
 agent: sonnet
 rng: neutral (surface only)
 budget: decision memo first

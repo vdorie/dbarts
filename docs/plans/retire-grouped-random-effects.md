@@ -252,7 +252,7 @@ by a moved stream - which is exactly what the neutrality check below proves.
 
 ## Status
 
-LANDED 2026-09-06 (1e5f80b2); two sister-repo prerequisites gate the release.
+LANDED 2026-09-06 (1e5f80b2); two sister-repo prerequisites gate the release. Reversed in part for 1.0-0: `rbart_vi()` returned as a deprecated port of 0.9-34's R loop ([rbart-vi-port.md](rbart-vi-port.md), LANDED 2026-09-28).
 
 ## Landing
 

@@ -1,5 +1,7 @@
 # In-core grouped random effects
 
+Status: RETIRED, 2026-09-06; see [The decision](retire-grouped-random-effects.md#the-decision).
+
 Wave-2 item, the last one (core-generalization.md section "Wave 2
 models"): move rbart_vi's random-intercept Gibbs loop from R into the
 engine, composing with any response family.

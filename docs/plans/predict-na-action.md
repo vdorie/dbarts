@@ -1,5 +1,7 @@
 # predict-na-action (with observation row names)
 
+Status: LANDED 2026-09-27 (A1 e0f80109, A2 7d61cb39, B e2168430); see the Landing note.
+
 agent: sonnet implementer per slice (R, Rd, tests); opus diff review
 rng: neutral (all three slices)
 window: before the merge (TODO predict-na-action; docs/decisions.md dec-B34 as of 31f3bf53)

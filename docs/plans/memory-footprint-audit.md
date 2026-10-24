@@ -1,5 +1,7 @@
 # memory-footprint-audit
 
+Status: LANDED 2026-09-09 to 2026-09-11 (steps 2-6 2f25e3d1; step 7 fd104888; follow-ons 5a05d799), after the model's design note, [memory-footprint.md](../design/memory-footprint.md). The Landing notes also carry the leaf-cache prune and the re-record.
+
 agent: opus (steps 1 and 5, the derivation and the ranked list); sonnet
   (steps 2 to 4 and 7, the script, the fit run, the manual and the
   two-copy removal). Step 1 lands the note first: the script's predicted

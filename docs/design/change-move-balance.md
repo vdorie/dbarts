@@ -1,5 +1,7 @@
 # The change move's detailed balance (fix, 2026-07-08)
 
+Status: LANDED, 2026-07-08. Plan: docs/plans/archive/change-move-fix.md.
+
 The tree change move proposes a new split variable and rule at an
 internal node and accepts by a Metropolis-Hastings ratio. Since the
 package's origin that ratio omitted the proposal-density term, so the

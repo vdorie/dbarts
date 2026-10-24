@@ -1,5 +1,7 @@
 # nameable-calibration
 
+Status: LANDED 2026-08-12 to 2026-08-13 (S0 9e65cb9e, S1 d4a3f4fc, S2 3074ed45 and 9314be8e, S3 at dbarts-h-reshape S1, c85d6db6); its vocabulary is superseded by [leaf-prior-k-or-sd.md](leaf-prior-k-or-sd.md), LANDED 2026-09-29. See the Landing notes.
+
 agent: S0 opus (it freezes a header signature whose content is engine
   semantics). S1 opus (engine conversion, three refusal sites, creation
   surface). S2 opus (engine get/set, `facade.hpp` virtuals, bridge; the R5 and

@@ -1,6 +1,6 @@
 # Per-chain responses and offsets in one sampler
 
-Status: FOR DECISION, 2026-10-09 (dec-B419). Nothing is built. Measured on stan4bart's bartcore branch
+Status: FOR DECISION, 2026-10-09 (dec-B419). Nothing is built here: the per-chain data is for the maintainer to schedule (TODO per-chain-responses). For stan4bart this note's recommendation is replaced by [stan4bart-response-range.md](stan4bart-response-range.md), LANDED 2026-10-11 (dec-B437). Measured on stan4bart's bartcore branch
 and the bartcore tip.
 
 ## 1. The question

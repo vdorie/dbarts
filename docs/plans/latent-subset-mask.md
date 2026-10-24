@@ -1,5 +1,7 @@
 # latent-subset-mask
 
+Status: LANDED 2026-08-12 to 2026-08-13 (S0 ec4204b2, S1 37a9c01c, S2 89d26b8c, S3 85a91e2e, S4 ccfee2d1; the flat entry at dbarts-h-reshape S1, c85d6db6). See the Landing notes.
+
 agent: S0 sonnet (tests only); S1/S2/S3 opus (each adds an engine channel a
   family composes into its own precision vector, and S1 carries a bridge entry);
   S4 sonnet (Rd, NEWS, records, baseline re-record). Serialized: one

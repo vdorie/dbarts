@@ -1,6 +1,6 @@
 # Leaf scale rules: k or the sd
 
-Status: DECIDED 2026-10-09 (dec-B416, dec-B417, dec-B418) and built with the
+Status: LANDED 2026-10-10 (36ef650c..f6ea29f9); DECIDED 2026-10-09 (dec-B416, dec-B417, dec-B418) and built with the
 plan [k-internal-parameter.md](../plans/k-internal-parameter.md). Sections 1 to
 6 are the note as it was put for the decision: "today" in them is the package
 before it. Section 7 says what was decided.

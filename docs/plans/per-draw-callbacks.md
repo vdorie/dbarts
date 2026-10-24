@@ -1,5 +1,7 @@
 # per-draw-callbacks
 
+Status: LANDED 2026-09-11 (S1 711942ad, S2 e4063140, S3 db3bd084, S4 4cf56b69, S5 1e24bd55); section 7 measured. See the Landing notes.
+
 agent: opus (S1 the engine hook, the per-draw stride, the cancel plumbing
   and the bridge's draw fill; S2 the flat C header, its entry and the ABI
   hash re-bake); sonnet (S3 the R surface and its Rd, S4 the example, its

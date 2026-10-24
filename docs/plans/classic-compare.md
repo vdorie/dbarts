@@ -1,5 +1,7 @@
 # Does 1.0-0 compute what 0.9-34 computed?
 
+Status: RUN AND REPORTED, 2026-09-13.
+
 agent: measurement
 rng: neutral (nothing in the package changes; this is a measurement)
 budget: one benchmark script, one baseline, this note

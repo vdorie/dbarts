@@ -1,5 +1,7 @@
 # The BART implementation landscape
 
+Status: SNAPSHOT 2026-08-12 (descriptive only: a dated photograph, with no ranking, scheduling or maintenance promise).
+
 Snapshot: 2026-08-12. In-repo anchors were read in `wt/zero-weight` between
 `b2290614` and `797d1527` (the tip advanced mid-write when `feature-matrix.md`
 landed; no anchor cited here is touched by the difference). DESCRIPTIVE only -

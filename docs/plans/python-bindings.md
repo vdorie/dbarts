@@ -1,6 +1,6 @@
 # python-bindings
 
-status: RESEARCH-OPEN, decision-gated (as of 2026-08-04) - no spike run
+Status: RESEARCH-OPEN, decision-gated (as of 2026-08-04) - no spike run
         recorded; horizon item, likely out-of-repo (TODO python-bindings
         carries the two non-R-host contracts a binding must take over)
 agent: opus (prototype); decision-gated, likely out-of-repo

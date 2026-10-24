@@ -1,5 +1,7 @@
 # weighted-binary
 
+Status: ACTIVE (parked memo): decision-gated, scheduled after 1.0-0 (VD 2026-08-28).
+
 agent: opus
 rng: posterior-changing (new likelihood support)
 budget: decision memo exists below; decision-gated. 2026-08-06: the

@@ -1,5 +1,7 @@
 # engine-performance
 
+Status: LANDED 2026-09-09 to 2026-09-11 (S1 167e2c62, S3 70305575, weighted fused pass 046c35d7, S5 step 15 d06fbe5e, S5 steps 14, 16-18 1456e999 with follow-up b7802bfa); S2 measured and closed without shipping (dec-B113); S4 measured and closed without shipping (dec-B115). See the Landing notes.
+
 agent: opus (S1 the build flag and its report; S2 the vector suffstat
   kernel; S3 the wait loop; S4 within-chain threading; S5's engine
   plumbing and settings); sonnet (S1's CI axis, S5's scripts, manual

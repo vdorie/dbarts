@@ -1,6 +1,6 @@
 # sparse-formula-audit
 
-status: SURVEY DELIVERED (2026-09-08); recommends one front-door idiom,
+Status: SURVEY DELIVERED (2026-09-08); recommends one front-door idiom,
         no code written
 agent: opus
 rng: neutral (no engine change proposed)

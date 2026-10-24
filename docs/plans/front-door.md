@@ -1,5 +1,7 @@
 # front-door
 
+Status: LANDED 2026-09-09 (S1 ecb319aa, S2 44b3fa6d, S3 cb5d4ef2, S4 28431413). See the Landing notes.
+
 agent: opus (S1 the rename, shim, legacy door and tombstones; S2 family
   objects, consolidation and na.action); sonnet (S3 xbart; S4 manual,
   NEWS, pkgdown, consumer ports). Serial: S1, S2, S3, S4. S2 and S3

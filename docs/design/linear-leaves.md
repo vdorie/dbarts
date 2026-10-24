@@ -1,5 +1,7 @@
 # Linear leaves
 
+Status: LANDED, 2026-07-04 (all four stages, and xbart/view support as stage 5).
+
 Wave-2 model, phase 5 of core-generalization.md. The first leaf model
 beyond the constant leaf: each bottom node holds a small Bayesian linear
 regression, so a forest fits smoothly-varying coefficients

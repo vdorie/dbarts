@@ -13,8 +13,7 @@ basis carries any coding: `fixed()` on a forest refuses a value other than 1, an
 holds by forest position. The two calls the recheck left open are settled, each as the option the steps
 were written to ([Settled calls](#settled-calls)). Follows [forest-defaults-by-kind.md](forest-defaults-by-kind.md),
 [written-surface.md](written-surface.md) and [forest-sd-unit.md](forest-sd-unit.md), landed; and
-[forest-kind-by-class.md](forest-kind-by-class.md), whose push 1 landed and whose push 2 is built
-(32418b6e) and in its landing gates. Amended 2026-10-07 after its blind critique (verdict: build after corrections) and after dec-B281
+[forest-kind-by-class.md](forest-kind-by-class.md), whose pushes 1 and 2 landed 2026-10-17 (1c41b21c, 32418b6e). Amended 2026-10-07 after its blind critique (verdict: build after corrections) and after dec-B281
 and dec-B282, under which a basis is one numeric column or a factor of two levels: three pushes where
 there were four, and nothing for several columns. The counts of tests, lines and blocks below are those
 of 2026-10-07 and are retraced on the first build after forest-kind-by-class's second push, which

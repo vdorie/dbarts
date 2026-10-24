@@ -1,5 +1,7 @@
 # dbarts SIMD candidate survey (READ-ONLY)
 
+Status: REFERENCE (READ-ONLY survey).
+
 Job 120e5d72. Engine at "step-3" (per-column u8/u16 code-width templating in
 scan.hpp/tree.hpp). Baseline pre-step-3 = 2e2b1c9. Dev box arm64; x86 deferred.
 No repo files modified.

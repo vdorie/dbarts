@@ -1,6 +1,6 @@
 # The probit rescaling step: a parameter expansion for k under probit
 
-Status: BUILT 2026-10-08 (dec-B371, dec-B394, dec-B397), not yet landed; plan
+Status: LANDED 2026-10-09 (72205c00); BUILT 2026-10-08 (dec-B371, dec-B394, dec-B397); plan
 [probit-k-scale-move.md](../plans/probit-k-scale-move.md). The finding it
 answers: [probit-k-calibration.md](probit-k-calibration.md).
 

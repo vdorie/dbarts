@@ -1,5 +1,7 @@
 # constructor-vocabulary
 
+Status: LANDED 2026-09-26 (5960b3b9, 0f56bef4, 5227daa4); see the Landing note.
+
 agent: sonnet (R, tests, Rd, sister edits); opus (diff review)
 rng: neutral. No draw changes: only name resolution moves. The same objects reach
   [`resolveSamplerSpec`](../../R/spec.R).

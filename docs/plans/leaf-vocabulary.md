@@ -1,5 +1,7 @@
 # leaf-vocabulary: leaf where a name means a leaf
 
+Status: LANDED 2026-09-27 (59d0dbbb, beb60ae1; records 3feb4931); see the Landing note.
+
 agent: sonnet (R surface, bridge strings, manual; no engine change)
 rng: neutral (names only; the tombstone path fits bitwise what the new spelling fits)
 budget: dbarts ~700 changed lines over ~110 files, nearly all one-token; stan4bart ~20 lines / 6 files; bartCause 1 line

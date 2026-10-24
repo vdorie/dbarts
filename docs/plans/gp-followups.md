@@ -1,5 +1,7 @@
 # gp-followups
 
+Status: RESEARCH-OPEN. Neither deferred GP-leaf extension proceeds without a consumer or a decision memo.
+
 agent: opus
 rng: posterior-changing (new sampling machinery)
 budget: decision memo first; implementation planned separately if approved

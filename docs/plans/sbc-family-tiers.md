@@ -1,7 +1,7 @@
 # sbc-family-tiers
 
 agent: opus implementer; fable adjudicates the rank histograms
-status: BUILT. See "Results" for the measured ladders and the R=200 verdicts.
+Status: BUILT 86cf0cab (2026-08-04); the aft and heteroscedastic arms admitted 2026-09-13, the monotone arms 2026-10-01. See "Results" for the measured ladders and the R=200 verdicts.
 rng: neutral - benchmarks/ and .github/ only; gaussian CI ranks replay exactly
 budget: one sbc.R block per family, a discrete-rank helper, a CI matrix
 

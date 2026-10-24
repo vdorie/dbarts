@@ -1,5 +1,7 @@
 # setpredictor-partition
 
+Status: LANDED 2026-09-10 (28b3ac2a); see the Landing note.
+
 agent: opus (S1 the engine change, its oracle, the re-record); sonnet
   (S2 the kernel bench width defect, file-disjoint, runs beside S1).
 rng: shifting for S1. The root partition on the setPredictor path keeps

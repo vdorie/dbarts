@@ -1,5 +1,7 @@
 # interfaces-and-dependencies
 
+Status: LANDED 2026-09-09 (S1 01634227, S2 c38f02d0, S3 7165c352), S4 2026-09-10 (a98c4cad). See the Landing notes.
+
 agent: sonnet for all four slices; opus only if the R-hat/ESS
   implementation (S1) needs a correctness review.
 rng: neutral throughout - no engine change - EXCEPT S3's wide-factor

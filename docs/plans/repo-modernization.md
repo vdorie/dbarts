@@ -1,5 +1,7 @@
 # repo-modernization
 
+Status: MIXED (recurring/standing item): sub-items 1-2 LANDED 2026-07-07 (00bdad1e), the CI cost/hygiene pass 2026-07-22; the rest is standing. See the Landing notes.
+
 agent: sonnet
 rng: neutral
 budget: small, recurring

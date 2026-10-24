@@ -1,5 +1,7 @@
 # extract scalar types
 
+Status: LANDED 2026-09-26 (b5ae43e7, 98524aac); see the Landing note.
+
 agent: Sonnet (R and man only; no engine code)
 rng: neutral
 window: after the fitted-argument-order slice lands (see Constraints)

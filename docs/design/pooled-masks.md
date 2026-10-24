@@ -1,5 +1,7 @@
 # Pooled category masks
 
+Status: LANDED, 2026-07-04.
+
 Lifts the 53-level categorical cap (public-surface.md section 7; the
 reporting decision it waited on landed 2026-07-04 as the getTrees
 directions column). After this, categorical predictors support up to

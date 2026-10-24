@@ -1,5 +1,7 @@
 # MIA missingness
 
+Status: LANDED, 2026-07-04; AMENDED 2026-09-09 by front-door S2 (44b3fa6d) and 2026-10-10 by setstate-force-update Part A (2269918e), both set out below.
+
 LANDED 2026-07-04, as proposed. AMENDED 2026-09-09 by
 [front-door](../plans/front-door.md#front-door) S2 (44b3fa6d): the `missing`
 argument this document designs is retired outright, no tombstone;

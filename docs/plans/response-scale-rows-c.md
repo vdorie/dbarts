@@ -8,7 +8,7 @@ in dbartsSpec's help). Rests on dec-B362 (several forests refuse), dec-B330 and 
 dec-B314 (sigest is never re-estimated), dec-B381 (the argument's position), dec-B386 (a constant
 response's window) and dec-B417 (a drawn k lags). Slice B is [response-scale-rows.md](response-scale-rows.md),
 whose rule, constraints and keep this slice extends without restating; the standing statement is the
-design note of the same name. Slice D is not planned ([Slice D](#slice-d)).
+design note of the same name. Slice D is stated at the end ([Slice D](#slice-d)) and was planned in [response-scale-rows-d.md](response-scale-rows-d.md), landed 2026-10-24.
 
 agent: one push. Opus implementer for the engine, the facade, the bridge and tests/cpp; sonnet for the R
 methods, the tinytest file, the matrix runner, the help and the records; one opus reviewer told to refute,

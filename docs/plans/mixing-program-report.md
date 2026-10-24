@@ -1,7 +1,6 @@
 # The tree-sampler mixing program
 
-Status: RECORD, 2026-09-08. The cut-only exact rule draw is adopted, to land
-after the first release; no pre-release default changes.
+Status: RECORD, 2026-09-08. The cut-only exact rule draw was adopted on 2026-09-08 to land after the first release; dec-B96 then withdrew its weight of 0.16 (an agent's suggestion taken without a rationale), so it ships at weight zero until the mixing research that resumes after the merge sets one. No pre-release default changes.
 
 ## 1. Summary
 

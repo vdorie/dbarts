@@ -12,8 +12,7 @@ planning calls approved) and dec-B386 (a constant response's window where every 
 dec-B357 (a survival fit's range from observed times), dec-B418 (every install goes in as stored),
 dec-B429, dec-B433 and dec-B439 (the starting sigma as landed), dec-B437 (stan4bart fixes its own range)
 and, for slice C, dec-B327; revises dec-A140. No open call. This file plans slice B, creation. Slice A is
-[aft-reanchor-observed-times.md](aft-reanchor-observed-times.md), landed. Slices C and D are stated at
-the end and have no steps yet. dec-B303 stays in [forest-multiplier.md](forest-multiplier.md).
+[aft-reanchor-observed-times.md](aft-reanchor-observed-times.md), landed. Slices C and D are stated at the end; they were planned in [response-scale-rows-c.md](response-scale-rows-c.md) and [response-scale-rows-d.md](response-scale-rows-d.md), both landed. dec-B303 stays in [forest-multiplier.md](forest-multiplier.md).
 
 agent: one push. Opus implementer for the engine, the keep's status through the facade, the bridge and
 the flat entries, dbarts.h, and their tests; sonnet for the R code (the hazard grid included), the

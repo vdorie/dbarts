@@ -1,6 +1,6 @@
 # perturb: a same-variable cut move
 
-Status: PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a); SLICE 2 LANDED 2026-09-07 (perturb-balance.R, 30472110); SLICE 3 RUN 2026-09-07: KILL at w = 1, d = 0.16 (d73fb4e0).
+Status: KILLED, 2026-09-07 (slice 3 RUN: KILL at w = 1, d = 0.16, d73fb4e0); the kernel stays in the tree at default weight zero as an opt-in with nil measured benefit, through 1.0-0 by ruling (dec-A47), revisited by the mixing research. Was PROPOSED, 2026-09-07; AMENDED 2026-09-07 (slices sized, the benefit stage re-primaried on minimum ESS); SLICE 1 LANDED 2026-09-07 (the kernel at weight zero, ab49f83a); SLICE 2 LANDED 2026-09-07 (perturb-balance.R, 30472110).
 
 Amended by [pure-c-header](../plans/pure-c-header.md#pure-c-header): the flat C header creates no sampler and
 no longer declares the predictor, test-data, weight, active-row, per-forest, state,

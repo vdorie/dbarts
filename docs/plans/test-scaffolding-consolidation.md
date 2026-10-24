@@ -1,5 +1,7 @@
 # Test scaffolding consolidation
 
+Status: LANDED 2026-09-27 (S1 a762ac9c, S2 07297fa8, S3 88be9298, S4 1b65b10f, S5 f2b0f96d, S6 f3fedd2a); see the Landing note.
+
 agent: Sonnet (R and test slices S1-S3, S5), Opus (S4 shifting fold, S6 engine)
 rng: neutral, except S4 (shifting: unseeded ordinal and nbinom fits)
 window: before the merge (dec-A52, dec-A51)

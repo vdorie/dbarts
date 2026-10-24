@@ -2,8 +2,7 @@
 
 Status: LANDED (accepted plan, 2026-07-02); cutover (phase 7) complete 2026-07-03 and
 phases 0-5 are DONE, so most of this plan has shipped - see "Current
-architecture" below for what exists now. Phase 6 (GP leaves, non-conjugate
-moves) is still open (docs/design/gp-leaves.md). This document remains the
+architecture" below for what exists now. Phase 6: GP leaves LANDED (docs/design/gp-leaves.md, Part 1); the non-conjugate move strategy (gp-leaves.md, Part 2) is designed, not built and not scheduled. This document remains the
 historical reference; update it when decisions change. The phase-4 entry's
 "xbart builds one handle per worker chunk" sentence is AMENDED by
 [front-door](../plans/front-door.md#front-door) S3, LANDED 2026-09-09

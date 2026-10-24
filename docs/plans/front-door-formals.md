@@ -1,5 +1,7 @@
 # front-door-formals
 
+Status: LANDED: S1 and S2 2026-09-10 (1a6da4d8, b1d2ba6b), S3 and S4 2026-09-14 (323fcd24, d89c9405). See the Landing notes.
+
 agent: opus (S1 the fold, the control formal and the proposal-mixture
   move); sonnet (S2 manual, NEWS, pkgdown, consumer check). Serial.
 rng: neutral for both slices: the same prior objects, proposal mixture
