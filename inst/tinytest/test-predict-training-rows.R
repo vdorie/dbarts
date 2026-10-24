@@ -1217,6 +1217,8 @@ expect_identical(
   dimnames(predict(fit.counts, type = "ev", ci.level = 0.9))
 )
 expect_equal(unname(rowSums(band.counts[,, 1L])), as.numeric(trials.n))
+# a labeled fit draws one category a row, so its band has no category margin
+expect_identical(dim(predict(fit.mn, type = "ppd", ci.level = 0.9)), c(n, 3L))
 for (action in list(na.pass, na.exclude, na.omit)) {
   band.set <- seeded(predict(
     fit.counts,
