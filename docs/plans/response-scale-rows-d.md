@@ -1433,3 +1433,14 @@ tarball, the Date field's NOTE alone; stan4bart's suite, its bartcore branch at 
 files and 1555 expectations, none failed. Not run: the x86-64 leg.
 
 Left open: the ruling's reading for families that read no response, above; package code is 3 lines from the stop.
+
+Second check of the fix round (FIX FIRST, tests and help): c2ac10d9 pins the response read the leaf falls back with,
+a gaussian offset taking y to one value over the rows in (every row, the joint text over 100 of 200) and one
+count over nbinom's rows in beside differing offsets (every row), and an `xbart` fold whose training rows hold one
+row of positive weight (its record over every training row, its all-rows flag set); rule 9, the xbart help and
+the ruling's paragraph above name the fold. No package code (877 of 880). Mutants on a clean export of c2ac10d9,
+failures in test-leaf-standardization-rows.R: gaussian reading y and not y less offset, 2; nbinom reading the
+counts less the offset, 2; a fold built without the fallback, 3. Gates on c2ac10d9: test-leaf-standardization-rows.R
+270 expectations, none failed; `tinytest::test_package` in one process, 266 files, 29671 expectations, none
+failed; lint (0 lints), air, rc-codoc (48), win-drift, doc-freshness and verify-anchors clean. The comments that
+still say "no row in" where the response's fallback now reads every row too ride push 2.
