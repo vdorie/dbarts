@@ -90,8 +90,12 @@ or `$setLeafPrior(normal(sd = ))` afterward, with `$getLeafPrior()`
 reporting what is actually in force. A caller whose rows enter and leave
 the likelihood asks for the scale to be taken again from the rows then
 in with `updateScale = TRUE` on `$setWeights` or `$setActiveRows`, in
-burn-in only. A named sd is absolute: a channel that does re-anchor the
-transform leaves it where it was.
+burn-in only, and a `linear` or `gp` leaf's covariate center and scale
+with `updateStandardization = TRUE` on the same call; `FALSE` after
+burn-in holds both, so every kept draw comes from one prior (see
+[`updateStandardization`](https://vdorie.github.io/dbarts/reference/dbartsSampler-class.md)).
+A named sd is absolute: a channel that does re-anchor the transform
+leaves it where it was.
 
 A decomposition across \\K\\ samplers needs the same care in the other
 direction. Each carries a prior sized for the whole of \\f\\, so their

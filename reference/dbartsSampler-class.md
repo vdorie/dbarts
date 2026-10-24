@@ -48,7 +48,10 @@ setResponse(
 # S4 method for class 'dbartsSampler'
 setOffset(offset, updateScale = FALSE, updateState = NULL)
 # S4 method for class 'dbartsSampler'
-setWeights(weights, updateState = NULL, updateScale = FALSE)
+setWeights(
+  weights, updateState = NULL, updateScale = FALSE,
+  updateStandardization = FALSE
+)
 # S4 method for class 'dbartsSampler'
 setCounts(counts, updateState = NULL)
 # S4 method for class 'dbartsSampler'
@@ -56,7 +59,10 @@ setCategoryOffset(offset, updateState = NULL)
 # S4 method for class 'dbartsSampler'
 setCategoryTestOffset(offset.test)
 # S4 method for class 'dbartsSampler'
-setActiveRows(active, updateState = NULL, updateScale = FALSE)
+setActiveRows(
+  active, updateState = NULL, updateScale = FALSE,
+  updateStandardization = FALSE
+)
 # S4 method for class 'dbartsSampler'
 setForestWeights(forest, weights, updateState = NULL)
 # S4 method for class 'dbartsSampler'
@@ -761,10 +767,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   precision, and the two deliberately carry opposite degenerate-value
   policies. The response scale, the count center and a forest's default
   sd are held across a mask as across weights, unless the call carries
-  `updateScale = TRUE`. A `probit`, `ordinal` or `nbinom` sampler, which
-  carries no precision channel at all, reaches this one through
-  `setWeights` and `setData` as well: 0/1 weights there install the mask
-  rather than being refused.
+  `updateScale = TRUE`, and a `linear` or `gp` leaf's covariate
+  standardization unless it carries `updateStandardization = TRUE`. A
+  `probit`, `ordinal` or `nbinom` sampler, which carries no precision
+  channel at all, reaches this one through `setWeights` and `setData` as
+  well: 0/1 weights there install the mask rather than being refused.
 
   An inactive row (`active[i] == 0`) contributes nothing to any leaf
   sufficient statistic, branch log-likelihood, birth-scan weight total,
@@ -1143,6 +1150,52 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   sampler that holds saved draws refuses `TRUE` on `setPredictor`, and
   on `setData` any call that would change the standardization (see
   `newData`). It cannot be combined with `forceUpdate = "partial"`.
+
+  For `setWeights` and `setActiveRows`, the argument after
+  `updateScale`: `FALSE`, the default, keeps the standardization
+  whatever rows the call leaves in; `TRUE` installs the weights or the
+  mask first and then derives every leaf covariate's center and scale,
+  and a `gp` leaf's heuristic lengthscale, again over the rows then in
+  the likelihood, as `setPredictor` with `TRUE` would on every leaf
+  covariate's values in force, rewriting a `linear` leaf's coefficients
+  in the same way. A covariate those rows hold at one value, or observe
+  at none, keeps its numbers, the others re-deriving, and the call warns
+  as `setPredictor` does, once per sampler. Where the call also passes
+  `updateScale = TRUE` and keeps the response's scale, those rows
+  holding fewer than two distinct values of the response, the prior in
+  force is kept whole: every covariate keeps its numbers too, whatever
+  its spread over those rows, and one warning names the response and the
+  covariates, as creation on those rows would read the response's scale
+  and the covariates from every row together. A `gp` sampler holding
+  saved draws refuses it before anything is installed. A sampler whose
+  leaves take no covariate, one of several forests among them, takes it
+  and has nothing to derive. A `probit`, `ordinal` or `nbinom` sampler's
+  `setWeights` passes it to `setActiveRows` with the 0/1 weights.
+
+  A loop whose rows in the likelihood change, such as a mixture
+  component or an imputation step, can let the response's scale and the
+  leaf covariates' center and scale follow the rows in during burn-in
+  and then hold them, so every kept draw comes from one prior: pass
+  `updateScale` and `updateStandardization` as `TRUE` on the call that
+  changes the rows while burning in, and `FALSE` after. A `gp` leaf that
+  has kept a draw refuses both, so burn in with sweeps that keep
+  nothing:
+
+      sampler <- dbarts(y ~ x1 + x2, data, weights = w,
+                        leaf.prior = linear("x1"),
+                        control = dbartsControl(n.chains = 1L, keepTrees = TRUE))
+      for (i in seq_len(n.burn + n.keep)) {
+        w <- drawMembership(sampler)            # the outer sampler's step
+        burning <- i <= n.burn
+        sampler$setWeights(w, updateScale = burning,
+                           updateStandardization = burning)
+        draw <- if (burning) sampler$run(1L, 0L) else sampler$run(0L, 1L)
+      }
+
+  Creation and a `setData` that derives refuse rows in that hold one
+  value of a leaf covariate, unless the response's scale is read from
+  every row and the covariates with it (see `newData`); these setters
+  keep instead, one row in included.
 
 - splits:
 
@@ -1648,16 +1701,16 @@ sampler was created with and take the state it stored. A linear or
 Gaussian-process leaf's covariate standardization, each covariate's
 center and scale and a Gaussian-process leaf's heuristic lengthscale, is
 data too: derived when the sampler is created, by a `setData` that
-derives it and by `setPredictor(updateStandardization = TRUE)`, and
-recorded as the `standardization` of the sampler's data object, which a
-`copy` and a reload take. A state records the standardization it was
-stored under, which no install reads: the sampler keeps its own, so kept
-linear draws restored across a change of standardization predict under
-the sampler's until the draws replace them, as kept draws restored
-across a change of response mapping predict on the new scale. A leaf
-covariate that held a single value when its standardization was derived
-has no scale: the state and the record hold `NA` for it, and the
-covariate is divided by 1.
+derives it and by `setPredictor`, `setWeights` or `setActiveRows` with
+`updateStandardization = TRUE`, and recorded as the `standardization` of
+the sampler's data object, which a `copy` and a reload take. A state
+records the standardization it was stored under, which no install reads:
+the sampler keeps its own, so kept linear draws restored across a change
+of standardization predict under the sampler's until the draws replace
+them, as kept draws restored across a change of response mapping predict
+on the new scale. A leaf covariate that held a single value when its
+standardization was derived has no scale: the state and the record hold
+`NA` for it, and the covariate is divided by 1.
 
 A state brings back none of these values, so a sampler that changed one
 and is to go back to a stored state has it put back first. The data
@@ -1671,7 +1724,7 @@ value with them.
 | value | changed by | put back by |
 | cut points | `setCutPoints`; `setPredictor(updateCutPoints = )`; a `setData` that derives them | `setCutPoints(d@cutPoints)`, the whole set; or `setData(d)` |
 | their weights | the same | `setPredictor(x[, j], j, updateCutPoints = "value")` while column `j` holds the values they came from; or `setData(d)` |
-| leaf center, scale, lengthscale | `setPredictor(updateStandardization = TRUE)`; a `setData` that derives them | `setPredictor` of the old values with `updateStandardization = TRUE`, under the weights and mask they were read over; or `setData(d)` |
+| leaf center, scale, lengthscale | `updateStandardization = TRUE` on `setPredictor`, `setWeights` or `setActiveRows`; a `setData` that derives them | `setPredictor` of the old values with `updateStandardization = TRUE`, under the weights and mask they were read over; or `setData(d)` |
 | response range | `updateScale = TRUE` on `setResponse`, `setOffset`, `setWeights` or `setActiveRows`; a `setData` that derives it | the same setter on the old response, offset, weights or mask with `updateScale = TRUE`; or `setData(d)` |
 | forest anchor and unit | nothing | \- |
 
