@@ -270,6 +270,15 @@ items
     missing value would read as that level. setData matches it by
     level (dec-B454); bring the other doors to it, beside dec-A210's
     refusal of an NA level for a basis.
+  predict-newdata-weights-form: at newdata, a data.frame or list passed
+    as weights is accepted and ignored for ev and bart and gives a
+    coercion error for ppd ('list' object cannot be coerced to type
+    'double'), where predict with no newdata refuses it. Found by the
+    check of small-rulings-1023-r (docs/plans/small-rulings-1023-r.md,
+    Landing note); lm refuses a data.frame too. Fix: refuse a weights
+    argument that is not atomic on the newdata path as well, one line
+    beside weightsNotOneColumn in R/generics.R, with a pin on both
+    paths. Before the merge to main.
   k-mixing-pg-families: after the merge, before 1.0-0 (dec-B404,
     dec-B420, VD 2026-10-09; timing VD 2026-10-17). Binary fits keep a
     drawn k under chi(1.5, 2). Whether k must mix fast for intervals of

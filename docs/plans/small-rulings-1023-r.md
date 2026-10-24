@@ -1,6 +1,6 @@
 # small-rulings-1023-r: seven small R-surface rulings of 2026-10-23
 
-Status: BUILT, not landed
+Status: LANDED 2026-10-23 (4b4cb9c7..97f3d7e0; dec-B470 to dec-B476 for the rulings, dec-A225 for the calls made building them)
 
 agent: sonnet implementer, one, one commit per item.
 rng: NEUTRAL. No engine draw moves. Item 3 sets the draws of a row at weight 0 to NA after drawing them as before, so every other draw and the random stream are the build's before; the four seeded-drift snapshot files are checked on the reference build.
@@ -52,3 +52,17 @@ Review (sonnet, FIX FIRST on one wrong NEWS sentence) answered in the commits th
 - A fit kept without its training draws is refused once, in trainingRowDraws, when an offset, weights or bases are given (a plain predict() keeps extract's refusal, and the hurdle fit, which has no top-level training draws and takes none of the three, is not asked); predict(f, offset = 1) on a keepFits = FALSE or keepTrainingFits = FALSE fit no longer says "invalid length.out". withTrainingBases lost its own call. Pinned for offset (scalar, per row, wrong length) and weights on both kinds of fit and on bartBT's wording; mutant killed.
 - Dead code. The dimnames assignment in withTrainingBases changed nothing (identical with named rows, one and three chains, split and combined) and is gone. The hazard tokens in fitsSingleClass were unreachable (withBinaryResponsePrecision excludes them first) and are gone. The binary exclusion in sampleFromPPD's weight-0 NA is reached: a logistic fit's test frame can hold a count of 0, whose draw is 0 successes and finite, and stays; it was unpinned (removing it survived every test) and is pinned now in test-predict-training-rows.R.
 - A weights matrix has one column on both paths. The newdata path had read the first column of a matrix of several and let the rest go, a defect with one answer; it now refuses one of several columns, or a higher-dimensional array, in the training rows' words ("'weights' must be one number or one per row of 'newdata'"), with one function (weightsNotOneColumn) deciding it for both paths, and a one-column matrix is a vector on both. Pinned on both paths for ev, bart and ppd over four shapes, on the forest arm and the blend's, and the one-column acceptance with a shared seed; mutants killed: newdata reading several columns, the training rows taking them, an array of one column slipping through, a one-column matrix refused.
+
+## Landing note
+
+Landed 2026-10-23 as 4b4cb9c7..97f3d7e0 on bartcore 6803ac07, 15 commits: the seven items (4b4cb9c7 to 00bf3702), this plan's record (294fbcbd) and, after one sonnet review, FIX FIRST on one wrong NEWS sentence, the fix round (4dd3546d to 97f3d7e0), whose check by the same reviewer was LAND. It was built on 8c4d337c and rebased onto 6803ac07 (slice 3, the sweep, the records) with no conflict. The rulings are dec-B470 to dec-B476, in the order of the steps; the calls made building them are dec-A225. dec-A185 and dec-A187 are marked revised in part.
+
+Gates on 82338a11, the fix round's tip before the rebase, from the check's fresh --preclean install: the 16 touched test files run singly, 0 failed; the suite in one process 29202 results, 0 failed; the seeded-drift snapshot files on the reference build (binary 7, continuous multithreaded 3, continuous single-threaded 14, xbart 3, rbart 6, xbart-reproducibility 28), 0 failed; lintr 0 lints, air format --check, check-rc-codoc (48 methods), check-win-drift and check-doc-freshness clean; checkRd clean on bart.Rd, bartBT.Rd and survivalProbabilities.Rd; NEWS.Rd parses at 226 entries, as before; R CMD check --as-cran --no-manual on a clean tarball, one NOTE, the Date field. An A/B against the build before (8c4d337c) shows every draw not held out bit for bit the same.
+
+Gates on 97f3d7e0, the rebased tip, run by the orchestrator after a --preclean install in a private library: the suite in one process 29399 results, 0 failed; lintr 0 lints, air clean, check-rc-codoc OK (48 methods), check-win-drift OK, check-doc-freshness OK.
+
+Mutants: 19 in the build, all killed or aborting their test file; 53 valid in the review, 44 killed and 9 surviving (six equivalent or unreachable, three weak pins), the three pinned in the fix round; 15 in the fix round, all killed; the check ran 15 more, 13 killed and two equivalent, and reran the four earlier survivors, three killed and one dead code.
+
+Not run, nothing under src/ changing: the exact gates at quick after the build (39 of 39 on the build; nothing in benchmarks/R reads the renamed margins), the x86-64 leg and the sanitizer runs. No consumer needs a change: bartCause reads forestFits and glue by position, and stan4bart and treatSens read neither the names nor a weights argument of predict.
+
+Left: TODO predict-newdata-weights-form, the check's one LOW finding. At newdata a data.frame or list passed as weights is accepted and ignored for ev and bart and gives a coercion error for ppd, where the no-newdata path refuses it; the fix is to refuse a weights argument that is not atomic on the newdata path too. No TODO item of the batch's names existed to close.
