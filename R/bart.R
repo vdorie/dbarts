@@ -3497,6 +3497,23 @@ survivalProbabilitiesFromDraws <- function(
   nameObservationMargin(result, dimnames(linearPredictor)[[length(lpDims)]])
 }
 
+# The survival probabilities of the fit's own subjects, computed for every
+# subject, with the subjects na.action did not keep (trainingRowsAnswered) cut
+# or set to NA on the last margin, as padPredictedRows does for newdata's.
+answerSurvivalSubjects <- function(result, rows) {
+  if (is.null(rows)) {
+    return(result)
+  }
+  d <- dim(result)
+  rows$names <- dimnames(result)[[length(d)]]
+  indices <- rep(list(quote(expr = )), length(d))
+  indices[[length(d)]] <- if (rows$placeholder) 1L else which(rows$keep)
+  padPredictedRows(
+    do.call(`[`, c(list(result), indices, list(drop = FALSE))),
+    rows
+  )
+}
+
 # Survival-probability draws from a discrete-time hazard fit. The fit is an
 # ordinary binary fit on the person-period-expanded rows, so the
 # per-(subject, period) hazards are
@@ -3538,6 +3555,9 @@ hazardSurvivalProbabilities <- function(
   }
 
   rows <- NULL
+  # the fit's own subjects whose offset has a missing value, answered by
+  # na.action (trainingRowsAnswered); NULL where none is
+  subjects <- NULL
   usesStoredTest <- identical(sample, "test")
   if (usesStoredTest) {
     refuseWithoutTestSubjects(object)
@@ -3551,14 +3571,16 @@ hazardSurvivalProbabilities <- function(
       # an offset given with no newdata replaces each subject's own at every
       # period (dec-B340), off the stored latent draws and so with no trees:
       # the subject's own comes off, the new one goes on, then the link
-      if (!length(offset) %in% c(1L, n) || anyNA(offset)) {
+      if (!length(offset) %in% c(1L, n)) {
         stop(
           "'offset' must be one number or one per test subject (",
           n,
-          "), none missing",
+          ")",
           call. = FALSE
         )
       }
+      subjects <- trainingRowsAnswered(n, na.action, offset, NULL)
+      offset <- fillMissingChannel(offset, 0)
       latent <- extract(
         object,
         type = "bart",
@@ -3612,14 +3634,16 @@ hazardSurvivalProbabilities <- function(
       # period (dec-B340); the hazards of a subject past its event period are
       # not stored, so this arm replays the trees as it always has
       if (!is.null(offset)) {
-        if (!length(offset) %in% c(1L, n) || anyNA(offset)) {
+        if (!length(offset) %in% c(1L, n)) {
           stop(
             "'offset' must be one number or one per training subject (",
             n,
-            "), none missing",
+            ")",
             call. = FALSE
           )
         }
+        subjects <- trainingRowsAnswered(n, na.action, offset, NULL)
+        offset <- fillMissingChannel(offset, 0)
         bigOffset <- rep(rep_len(as.double(offset), n), times = K)
       }
       periodValues <- as.double(rep(seq_len(K), each = n))
@@ -3729,7 +3753,10 @@ hazardSurvivalProbabilities <- function(
     dim(out) <- c(D, numTimes, n)
   }
   if (is.null(rows)) {
-    return(nameObservationMargin(out, subjectNames))
+    return(answerSurvivalSubjects(
+      nameObservationMargin(out, subjectNames),
+      subjects
+    ))
   }
   padPredictedRows(nameObservationMargin(out, rows$keptNames), rows)
 }
@@ -3862,17 +3889,43 @@ survivalProbabilities.bart <- function(
     object$n.chains
   }
 
-  linearPredictor <- if (sample == "test") {
+  # a missing value in an offset given for the fit's own subjects is its
+  # subject's na.action to answer, as it is at newdata and as predict answers
+  # the training rows' (dec-B482): the subject is computed at a stand-in and
+  # cut or set to NA after
+  subjects <- NULL
+  if (sample == "test") {
     refuseWithoutTestSubjects(object)
+  }
+  if (is.null(newdata) && !is.null(offset)) {
+    numSubjects <- if (sample == "test") {
+      dim(object$yhat.test)[length(dim(object$yhat.test))]
+    } else {
+      numTrainingRows(object)
+    }
+    subjects <- trainingRowsAnswered(numSubjects, na.action, offset, NULL)
+    if (!is.null(subjects)) {
+      offset <- fillMissingChannel(offset, 0)
+    }
+  }
+  linearPredictor <- if (sample == "test") {
     extract(
-      if (is.null(offset)) object else withTestOffset(object, offset),
+      if (is.null(offset)) {
+        object
+      } else {
+        withTestOffset(object, offset, complete = FALSE)
+      },
       type = "bart",
       sample = "test",
       combineChains = FALSE
     )
   } else if (is.null(newdata)) {
     extract(
-      if (is.null(offset)) object else withTrainingOffset(object, offset),
+      if (is.null(offset)) {
+        object
+      } else {
+        withTrainingOffset(object, offset, complete = FALSE)
+      },
       type = "bart",
       sample = "train",
       combineChains = FALSE
@@ -3935,12 +3988,15 @@ survivalProbabilities.bart <- function(
     heteroscedasticScale(replayed, n.chains)
   }
 
-  survivalProbabilitiesFromDraws(
-    linearPredictor,
-    scale,
-    times,
-    n.chains,
-    combineChains
+  answerSurvivalSubjects(
+    survivalProbabilitiesFromDraws(
+      linearPredictor,
+      scale,
+      times,
+      n.chains,
+      combineChains
+    ),
+    subjects
   )
 }
 

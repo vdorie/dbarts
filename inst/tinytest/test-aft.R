@@ -740,14 +740,111 @@ expect_equal(
 )
 expect_error(
   survivalProbabilities(fit.aftT, times.aft, offset = 1:3, sample = "test"),
-  "one per test row (15), none missing",
+  "'offset' must be one number or one per test row (15)",
   fixed = TRUE
 )
 expect_error(
   survivalProbabilities(fit.aftT, times.aft, offset = 1:3),
-  "one per training row (200), none missing",
+  "'offset' must be one number or one per training row (200)",
   fixed = TRUE
 )
+# a missing value in an offset given with no newdata is its subject's
+# na.action to answer, as it is at newdata and as predict answers the training
+# rows' (dec-B482): the default and na.fail refuse in newdata's words, na.pass
+# and na.exclude return the subject with NA curves, and na.omit drops it
+missingAt <- list(train = c(3L, 150L), test = c(2L, 11L))
+offsetsFor <- list(train = o.new.train, test = o.new.test)
+for (set in names(missingAt)) {
+  given <- offsetsFor[[set]]
+  given[missingAt[[set]]] <- NA
+  own <- if (set == "train") o.train.aft else 0
+  here <- function(object = fit.aftT, ...) {
+    survivalProbabilities(object, times.aft, offset = given, sample = set, ...)
+  }
+  there <- function(...) {
+    survivalProbabilities(
+      fit.aftT,
+      times.aft,
+      if (set == "train") x else x.test.aft,
+      offset = given - own,
+      ...
+    )
+  }
+  messageOf <- function(expr) tryCatch(expr, error = conditionMessage)
+  expect_identical(
+    messageOf(here()),
+    "'offset' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them"
+  )
+  expect_identical(messageOf(here()), messageOf(there()), info = set)
+  expect_identical(
+    messageOf(here(na.action = na.fail)),
+    messageOf(there(na.action = na.fail)),
+    info = set
+  )
+  expect_identical(
+    messageOf(here(na.action = na.fail)),
+    "'offset' has missing values, which na.action = na.fail refuses"
+  )
+  for (name in c("pass", "omit", "exclude")) {
+    action <- get(paste0("na.", name), asNamespace("stats"))
+    info <- paste(set, name)
+    expect_equal(
+      here(na.action = action),
+      there(na.action = action),
+      tolerance = 1e-12,
+      info = info
+    )
+    # with no trees, and with the chains split
+    expect_equal(
+      here(fit.aftT.bare, na.action = action),
+      there(na.action = action),
+      tolerance = 1e-12,
+      info = info
+    )
+    expect_equal(
+      here(na.action = action, combineChains = FALSE),
+      there(na.action = action, combineChains = FALSE),
+      tolerance = 1e-12,
+      info = info
+    )
+    kept <- here(na.action = action)
+    if (name == "omit") {
+      expect_equal(dim(kept)[3L], length(given) - 2L, info = info)
+      expect_false(anyNA(kept), info = info)
+    } else {
+      expect_equal(dim(kept)[3L], length(given), info = info)
+      expect_identical(
+        unname(which(apply(is.na(kept), 3L, any))),
+        missingAt[[set]],
+        info = info
+      )
+    }
+  }
+  # the subjects kept are the curves of the offsets that are given
+  complete <- seq_along(given)[-missingAt[[set]]]
+  expect_equal(
+    here(na.action = na.omit),
+    survivalProbabilities(
+      fit.aftT,
+      times.aft,
+      offset = replace(given, missingAt[[set]], 0),
+      sample = set
+    )[,, complete],
+    tolerance = 1e-12,
+    check.attributes = FALSE
+  )
+  # a lone NA has no subject for na.action to answer
+  expect_error(
+    survivalProbabilities(
+      fit.aftT,
+      times.aft,
+      offset = NA_real_,
+      sample = set,
+      na.action = na.pass
+    ),
+    "'offset' has missing values"
+  )
+}
 # the test subjects and newdata are two sets of subjects
 for (named in c("train", "test")) {
   # sample picks among the fit's own subjects, newdata gives other ones, and

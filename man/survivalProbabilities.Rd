@@ -89,8 +89,12 @@ survivalProbabilities(object, ...)
   \item{na.action}{
     What to do with the subjects in \code{newdata} that have missing
     values, resolved per subject before a hazard fit's person-period
-    expansion; unused when \code{newdata} is \code{NULL}. See
-    \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
+    expansion. With no \code{newdata} it answers the subjects whose
+    \code{offset} has a missing value, as it does for the rows of
+    \code{newdata}: the default and \code{na.fail} refuse, \code{na.pass}
+    returns the subject with \code{NA} curves, \code{na.omit} drops it and
+    \code{na.exclude} pads it back; a single missing value is always an
+    error. See \sQuote{At Prediction} in \code{\link{na.keepPredictors}}.
   }
   \item{sample}{
     Either \code{"train"} (the default) or \code{"test"}, as

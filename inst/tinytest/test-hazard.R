@@ -665,6 +665,96 @@ expect_error(
   "requires the trees; refit with keepTrees = TRUE, or, for the test",
   fixed = TRUE
 )
+# a missing value in an offset given with no newdata is its subject's
+# na.action to answer, as it is at newdata (dec-B482): the default and na.fail
+# refuse in newdata's words, na.pass and na.exclude return the subject with NA
+# curves, and na.omit drops it, for the test subjects off the stored grid and
+# the training subjects through the trees
+hazardMissing <- list(train = c(2L, 5L), test = 2L)
+hazardOffsets <- list(train = offsets.train, test = offsets.new)
+for (set in names(hazardMissing)) {
+  given <- hazardOffsets[[set]]
+  given[hazardMissing[[set]]] <- NA
+  here <- function(object = fit.hoff, ...) {
+    survivalProbabilities(object, offset = given, sample = set, ...)
+  }
+  there <- function(...) {
+    survivalProbabilities(
+      fit.hoff,
+      newdata = if (set == "train") x else xn,
+      offset = given - 0.3,
+      ...
+    )
+  }
+  messageOf <- function(expr) tryCatch(expr, error = conditionMessage)
+  expect_identical(
+    messageOf(here()),
+    "'offset' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them"
+  )
+  expect_identical(messageOf(here()), messageOf(there()), info = set)
+  expect_identical(
+    messageOf(here(na.action = na.fail)),
+    "'offset' has missing values, which na.action = na.fail refuses"
+  )
+  expect_identical(
+    messageOf(here(na.action = na.fail)),
+    messageOf(there(na.action = na.fail)),
+    info = set
+  )
+  for (name in c("pass", "omit", "exclude")) {
+    action <- get(paste0("na.", name), asNamespace("stats"))
+    info <- paste(set, name)
+    expect_equal(
+      unname(here(na.action = action)),
+      unname(there(na.action = action)),
+      tolerance = 1e-12,
+      info = info
+    )
+    kept <- here(na.action = action)
+    numSubjects <- length(given)
+    if (name == "omit") {
+      expect_equal(
+        dim(kept)[length(dim(kept))],
+        numSubjects - length(hazardMissing[[set]]),
+        info = info
+      )
+      expect_false(anyNA(kept), info = info)
+    } else {
+      expect_equal(dim(kept)[length(dim(kept))], numSubjects, info = info)
+      expect_identical(
+        unname(which(apply(is.na(kept), length(dim(kept)), any))),
+        hazardMissing[[set]],
+        info = info
+      )
+    }
+  }
+}
+# the test subjects need no trees, and a lone NA is an error whatever the action
+for (action in list(na.pass, na.omit, na.exclude)) {
+  expect_equal(
+    survivalProbabilities(
+      fit.hoff.bare,
+      offset = replace(offsets.new, 2L, NA),
+      sample = "test",
+      na.action = action
+    ),
+    survivalProbabilities(
+      fit.hoff,
+      offset = replace(offsets.new, 2L, NA),
+      sample = "test",
+      na.action = action
+    ),
+    tolerance = 1e-12
+  )
+}
+expect_error(
+  survivalProbabilities(
+    fit.hoff,
+    offset = NA_real_,
+    na.action = na.pass
+  ),
+  "'offset' has missing values"
+)
 rm(fit.hoff, fit.hoff.bare, sp.off.stored, offsets.new, offsets.train)
 # a non-hazard, non-aft fit is refused by survivalProbabilities
 fit.gauss <- bart(

@@ -108,7 +108,9 @@ na.keepPredictors(object, \dots)
   and with the rows dropped it is that of the call on the rows kept (a
   negative binomial fit's counts are laid out differently at \code{newdata}
   and with none, so their streams differ even with nothing missing), and a
-  single missing value is always an error. The sampler's own
+  single missing value is always an error. \code{survivalProbabilities}
+  answers a missing value in the \code{offset} it is given for the fit's own
+  subjects in the same way. The sampler's own
   \code{predict}, \code{predictForests} and \code{getTrees} methods take no
   \code{na.action}, keep the default, and check no per-row
   \code{offset.test} for a missing value at all: an \code{NA} there reaches

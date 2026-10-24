@@ -738,7 +738,7 @@ withTrainingBases <- function(object, bases) {
 
 ## the fit with its test draws moved onto the replacement offset of the test
 ## rows, which a fit stores as offset.test
-withTestOffset <- function(object, offset) {
+withTestOffset <- function(object, offset, complete = TRUE) {
   shifted <- object
   yhat <- object$yhat.test
   nObs <- dim(yhat)[length(dim(yhat))]
@@ -749,7 +749,8 @@ withTestOffset <- function(object, offset) {
       offset,
       nObs,
       old = object[["offset.test"]],
-      rows = "test row"
+      rows = "test row",
+      complete = complete
     )
   )
   shifted
