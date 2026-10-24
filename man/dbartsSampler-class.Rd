@@ -370,9 +370,13 @@
     covariate's values in force, rewriting a \code{linear} leaf's
     coefficients in the same way. A covariate those rows hold at one value,
     or observe at none, keeps its numbers, the others re-deriving, and the
-    call warns as \code{setPredictor} does, once per sampler; where
-    \code{updateScale} keeps the response's scale in the same call, one
-    warning names both. A \code{gp} sampler holding saved draws refuses it
+    call warns as \code{setPredictor} does, once per sampler. Where the call
+    also passes \code{updateScale = TRUE} and keeps the response's scale, those
+    rows holding fewer than two distinct values of the response, the prior in
+    force is kept whole: every covariate keeps its numbers too, whatever its
+    spread over those rows, and one warning names the response and the
+    covariates, as creation on those rows would read the response's scale and
+    the covariates from every row together. A \code{gp} sampler holding saved draws refuses it
     before anything is installed. A sampler whose leaves take no covariate,
     one of several forests among them, takes it and has nothing to derive. A
     \code{probit}, \code{ordinal} or \code{nbinom} sampler's
@@ -399,7 +403,7 @@ for (i in seq_len(n.burn + n.keep)) {
     Creation and a \code{setData} that derives refuse rows in that hold one
     value of a leaf covariate, unless the response's scale is read from every
     row and the covariates with it (see \code{newData}); these setters keep
-    instead, one row in included, the response's scale keeping there too.
+    instead, one row in included.
   }
   \item{splits}{
     For \code{setCutPoints}, \code{"position"} (the default) or \code{"value"},
@@ -561,7 +565,7 @@ for (i in seq_len(n.burn + n.keep)) {
       value \tab changed by \tab put back by \cr
       cut points \tab \code{setCutPoints}; \code{setPredictor(updateCutPoints = )}; a \code{setData} that derives them \tab \code{setCutPoints(d@cutPoints)}, the whole set; or \code{setData(d)} \cr
       their weights \tab the same \tab \code{setPredictor(x[, j], j, updateCutPoints = "value")} while column \code{j} holds the values they came from; or \code{setData(d)} \cr
-      leaf center, scale, lengthscale \tab \code{updateStandardization = TRUE} on \code{setPredictor}, \code{setWeights} or \code{setActiveRows}; a \code{setData} that derives them \tab \code{setPredictor} of the old values with \code{updateStandardization = TRUE}, under the weights and mask they were read over, or \code{setWeights} or \code{setActiveRows} of the old weights or mask with it; or \code{setData(d)} \cr
+      leaf center, scale, lengthscale \tab \code{updateStandardization = TRUE} on \code{setPredictor}, \code{setWeights} or \code{setActiveRows}; a \code{setData} that derives them \tab \code{setPredictor} of the old values with \code{updateStandardization = TRUE}, under the weights and mask they were read over; or \code{setData(d)} \cr
       response range \tab \code{updateScale = TRUE} on \code{setResponse}, \code{setOffset}, \code{setWeights} or \code{setActiveRows}; a \code{setData} that derives it \tab the same setter on the old response, offset, weights or mask with \code{updateScale = TRUE}; or \code{setData(d)} \cr
       forest anchor and unit \tab nothing \tab -
     }

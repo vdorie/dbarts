@@ -45,24 +45,27 @@ What it no longer does is move the numbers the prior is stated against.
    subjects in the likelihood; stated boundaries are checked against every subject. A subject at weight 0 is
    expanded on that grid, its time in the interval it falls in; one past the last period is at risk in every
    period with no event. With no subject in, the periods are every subject's under one warning.
-9. Leaf covariates. A linear or gp leaf's covariate center and scale, and the lengthscale a gp leaf derives
-   with them, are read over the rows in wherever the sampler derives them: at creation, under a mask family the
-   rows the creation mask keeps; at a `setData` that derives them, over the new data's rows in; in an `xbart`
-   fold, over the fold's training rows in. Unweighted, as in rule 1, and over every row where none is in, or where
-   the response's own read falls back to every row under rule 4 (fewer than two distinct values of it in, one row
-   say, at creation, a `setData` that derives the range, or an `xbart` fold over its training rows), under the creation warning, one text with the
-   response's under the families that read it and with a hazard fit's periods where no subject is in (rule 8). Where the rows read hold
-   fewer than two distinct observed values of a covariate, one value or none, a derivation is refused, there
-   being no number in force to keep, unless a gp leaf states its lengthscale, which takes the placeholder: the
-   one value, divided by 1. `setPredictor(updateStandardization = TRUE)` re-derives the replaced covariates over
-   the rows in at that call, under the weights and the mask in force, and keeps one with too little, warning once
-   per sampler as rule 4 does, on the flag the response's keeps share. `updateStandardization = TRUE` on
-   `setWeights` and `setActiveRows` re-derives every leaf covariate over the rows in after the install, keeping
-   by the same rule, one row in included: the response keeps there too (rule 4), so there is no read of every
-   row for the leaf to follow, and a covariate spread over the rows in re-derives beside a kept response; where
-   `updateScale = TRUE` keeps the response's scale in the same call, one warning names both. A loop whose rows in change passes it while burning in and then stops, so every kept draw comes from
-   one prior (dec-B465). Held otherwise, through the data object's
-   record: a copy, a reload and a re-creation take it and read no row. Cut points still span every row.
+9. Leaf covariates. A linear or gp leaf's covariate center and scale, and the lengthscale a gp leaf derives with
+   them, are read over the rows in wherever the sampler derives them: at creation, under a mask family the rows
+   the creation mask keeps; at a `setData` that derives them, over the new data's rows in; in an `xbart` fold,
+   over the fold's training rows in. Unweighted, as in rule 1, and over every row where none is in, or where the
+   response's own read falls back to every row under rule 4 (fewer than two distinct values of it in, one row say,
+   at creation, a `setData` that derives the range, or an `xbart` fold over its training rows), under the creation
+   warning, one text with the response's under the families that read it and with a hazard fit's periods where no
+   subject is in (rule 8). Where the rows read hold fewer than two distinct observed values of a covariate, one
+   value or none, a derivation is refused, there being no number in force to keep, unless a gp leaf states its
+   lengthscale, which takes the placeholder: the one value, divided by 1.
+   `setPredictor(updateStandardization = TRUE)` re-derives the replaced covariates over the rows in at that call,
+   under the weights and the mask in force, and keeps one with too little, warning once per sampler as rule 4
+   does, on the flag the response's keeps share. `updateStandardization = TRUE` on `setWeights` and
+   `setActiveRows` re-derives every leaf covariate over the rows in after the install, keeping by the same rule,
+   one row in included. Where `updateScale = TRUE` in the same call keeps the response's scale (rule 4), the prior
+   in force is kept whole: every covariate keeps too, whatever its spread over the rows in, under one warning
+   naming the response and the covariates, as the same rows at creation read both from every row; with
+   `updateScale = FALSE` nothing reads the response and each covariate keeps or re-derives by its own values. A
+   loop whose rows in change passes it while burning in and then stops, so every kept draw comes from one prior
+   (dec-B465). Held otherwise, through the data object's record: a copy, a reload and a re-creation take it and
+   read no row. Cut points still span every row.
 
 ## 2. What read which rows
 
