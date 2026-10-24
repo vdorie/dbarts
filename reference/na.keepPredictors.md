@@ -127,15 +127,14 @@ and `na.exclude` dropping it, `na.exclude` padding it back. Only the
 rows `na.action` keeps are read and drawn, as at `newdata`, so under one
 seed a posterior predictive draw is that of the call at `newdata` with
 the same action, and with the rows dropped it is that of the call on the
-rows kept (a negative binomial fit's counts are laid out differently at
-`newdata` and with none when the chains are merged, so their streams
-differ even with nothing missing; with `combineChains = FALSE` they
-agree), and a single missing value is always an error.
-`survivalProbabilities` answers a missing value in the `offset` it is
-given for the fit's own subjects in the same way. The sampler's own
-`predict`, `predictForests` and `getTrees` methods take no `na.action`,
-keep the default, and check no per-row `offset.test` for a missing value
-at all: an `NA` there reaches the engine unrouted.
+rows kept (except for a multinomial fit on a matrix of counts, whose own
+rows draw a count vector each where `newdata` draws one category), and a
+single missing value is always an error. `survivalProbabilities` answers
+a missing value in the `offset` it is given for the fit's own subjects
+in the same way. The sampler's own `predict`, `predictForests` and
+`getTrees` methods take no `na.action`, keep the default, and check no
+per-row `offset.test` for a missing value at all: an `NA` there reaches
+the engine unrouted.
 
 ## Value
 
