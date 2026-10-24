@@ -320,7 +320,7 @@ The install, Z the recorded rows, w and a the destination's weights and mask in 
   - the record is read inverted (rows positive then are taken as entering): the same two, and tinytest
     "rows that did not enter hold the stored scales";
   - the marks are set from the record and nothing is drawn: tests/cpp "re-derive with the record",
-    tinytest "rows that entered differ from them" and "the law";
+    tinytest "rows that entered differ from them" and "the distribution";
   - every row is marked in after the install: tests/cpp "the mask lifted redraws";
   - the bridge passes null although the state has a record: tinytest "the identity", "the undo" and "a
     copy and a reload";

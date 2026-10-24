@@ -328,14 +328,10 @@ items
     reaches bcf-shaped models. After the forest slices. Before then
     the help says a re-derived basis scale (updateBasisScale, dec-B303)
     and the response scale may span different rows.
-  law-wording-sweep: before 1.0-0 (VD 2026-10-08, no "law" for a
-    distribution or a rule). About 870 whole-word uses of "law" in 181
-    tracked files: docs, R and man text, comments, the TODO item name
-    coefficient-law-opt-in; identifiers where not public. Replace with
-    distribution, prior, rule or formula as fits. Docs/text tier. The
-    same pass moves British spellings to American (VD 2026-10-09):
-    about 576 uses of centre, behaviour, colour, favour, modelling and
-    the like, in R, docs and benchmarks; identifiers where not public.
+  spelling-sweep: before 1.0-0 (VD 2026-10-09): move British spellings
+    to American, about 576 uses of centre, behaviour, colour, favour,
+    modelling and the like, in R, docs and benchmarks; identifiers
+    where not public. Docs/text tier.
   nbinom-default-prior: the negative binomial default stays k drawn
     under chi(1.5, 2) (dec-B431, VD 2026-10-10) after the prior
     predictive study of dec-B412. The maintainer judged the study
@@ -552,8 +548,8 @@ items
     tree code standalone to get it - github roxiesun/TBAFTcure);
     settle whether the subset forest wants its own cut grid before
     designing, since compaction and zero weight are not the same draw
-    law (docs/design/model-space-survey.md D2). Design-gated, NOT
-    scheduled (VD: revisit on a second consumer or a release want).
+    distribution (docs/design/model-space-survey.md D2). Design-gated,
+    NOT scheduled (VD: revisit on a second consumer or a release want).
   multiforest-per-column-ncuts: door, no plan doc of its own. A
     multi-forest sampler refuses per-column n.cuts, but that is a guard,
     not an engine limit: the amplitude sampler's constructor passes
@@ -686,9 +682,9 @@ items
     does not fire; its coverage regression against the control was a
     reference-arm artifact, dissolved by the 2026-09-08 re-measurement;
     the rule draw's default weight stays zero until the mixing research
-    sets one (dec-B96, below). The starting forest's law, an exact
-    rejection draw from the restricted prior, is revisited here too
-    (dec-A10, VD 2026-09-26).
+    sets one (dec-B96, below). The starting forest's distribution, an
+    exact rejection draw from the restricted prior, is revisited here
+    too (dec-A10, VD 2026-09-26).
     Joint structure-and-value proposals (VD 2026-09-27, dec-A71): the
     non-conjugate move strategy of docs/design/gp-leaves.md part 2 -
     birth drawing child values from the prior or a Laplace approximation,
@@ -742,7 +738,7 @@ items
     and the coefficient is normal (dec-B261, dec-B263, dec-B264; the
     sd is the forest's own, dec-B253); a replaced column keeps the
     derived default unless setForestBasis(updateBasisScale = TRUE),
-    for burn-in only (dec-B265). The coefficient's law is one
+    for burn-in only (dec-B265). The coefficient's prior is one
     argument, amplitude: fixed() holds it and update.amplitude goes
     (dec-B271). How a size per column is stated (a named vector, a
     wrapper on the term or a unit on the term) is decided after the
@@ -831,8 +827,8 @@ items
     Until then one control object per sampler sets the move kernel of
     every forest that took it at creation (dec-A205), and a mean forest
     cannot be frozen alone on a heteroscedastic sampler.
-  coefficient-law-opt-in: a caller may opt a forest's drawn coefficient
-    into a heavy-tailed law (half-Cauchy; half-t(3) was measured too),
+  coefficient-prior-opt-in: a caller may opt a forest's drawn coefficient
+    into a heavy-tailed prior (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()
     (dec-B271); the default stays normal (dec-B262). Its user is a caller who redraws
     the multiplier, whose scale drifts during a run. Wanted for 1.0-0,

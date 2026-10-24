@@ -146,7 +146,7 @@ a_i = o_i + c - log r used by every working-response build:
 
 ### Bridge and C API
 
-- [`drawAugmentationLaws`](../../src/R_interface_bartcore.cpp) nbinom arm: psi = fit + offset - log(dispersion).
+- [`drawAugmentationDistributions`](../../src/R_interface_bartcore.cpp) nbinom arm: psi = fit + offset - log(dispersion).
   [`computeWorkingResponse`](../../src/R_interface_bartcore.cpp) nbinom arm: kappa/omega + log(dispersion) - offset.
   `fit` there is what getFitsWithoutOffset reports, which now includes c, so the helpers need no shift argument.
 - dbarts.h: the "(gaussian only)" in the updateScale text of

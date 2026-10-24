@@ -2684,8 +2684,8 @@ in FA1 and FA5 below ARE the record.
      call `scaledResponseSd()` at all, not even to discard the result: it is
      O(n), and its presence is what a later reader would mistake for the
      anchor. Its Doxygen states the ANCHOR, and the logistic arm says "the
-     logistic law's standard deviation" - NOT "the link's own error sd",
-     which reads as a property of the augmentation and is false of one: the
+     logistic distribution's standard deviation" - NOT "the link's own error
+     sd", which reads as a property of the augmentation and is false of one: the
      engine implements Polya-Gamma ([src/bartcore/model.hpp:3501-3508](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3501-L3508)), whose working
      residual sd at `psi = 0` is 2 (`omega = 1/4`, `coldStart` [src/bartcore/model.hpp:3657-3663](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/src/bartcore/model.hpp#L3657-L3663)),
      not 1.8138. `pi/sqrt(3)` is still the right anchor - it is the sd of the

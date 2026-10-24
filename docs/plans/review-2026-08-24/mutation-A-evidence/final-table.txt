@@ -59,7 +59,7 @@ data-mixed-mutation                  15   0   2   7   0   3   2    0    2  OK
 data-sparse                          44   0   5  16   1  10   7    2    1  WEAK
 heteroscedastic                      29   0   3  13   2   4   5    1    0  GAP
 plot-generics                        24   0   2   0   0  12  10    2    0  GAP
-prior-init-composed-law              19   3   2   8   6   0   0    0    5  OK
+prior-init-composed-distribution     19   3   2   8   6   0   0    0    5  OK
 sampler-trees                        32   0   5  14   7   2   4    1    2  OK
 weighted-binary-ppd                  10   0   1   3   6   0   0    1    1  WEAK
 xbart-weight                          5   0   1   0   0   2   2    2    0  GAP

@@ -59,7 +59,7 @@ data-mixed-mutation|15|0|2|7|0|3|2
 data-sparse|44|0|5|16|1|10|7
 heteroscedastic|29|0|3|13|2|4|5
 plot-generics|24|0|2|0|0|12|10
-prior-init-composed-law|19|3|2|8|6|0|0
+prior-init-composed-distribution|19|3|2|8|6|0|0
 sampler-trees|32|0|5|14|7|2|4
 weighted-binary-ppd|10|0|1|3|6|0|0
 xbart-weight|5|0|1|0|0|2|2

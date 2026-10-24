@@ -154,7 +154,7 @@ S3. Single-forest files (R only; neutral in tests). No deletion.
   test-aft-heteroscedastic.R, test-active-rows-pins.R (also its count
   creator), test-bartcore-keepfits.R, test-data-handle.R,
   test-sparse-factor.R, test-linear-leaves.R, test-gp-leaves.R,
-  test-prior-init-composed-law.R, test-proposal-probs.R,
+  test-prior-init-composed-distribution.R, test-proposal-probs.R,
   test-sampler-bridge-errors.R and test-engine-constants.R, plus
   leafPriorChecks.R. The benchmarks are aft-exact.R, aft-hetero-pit.R,
   categorical-exact.R, logistic-reference.R, t-exact.R, negbin-exact.R
@@ -746,7 +746,7 @@ insertions, 109 deletions), well under budget.
 Slice S3 LANDED 2026-09-27 (88be9298): the thirteen single-forest tinytest files,
 inst/common/leafPriorChecks.R and the seven exact-gate benchmarks are off
 `dbarts:::bartcoreSampler` and the inst/common/bartcoreHandle.R wrappers
-(test-prior-init-composed-law.R keeps its source of that file for
+(test-prior-init-composed-distribution.R keeps its source of that file for
 `forestTrees()`; test-engine-constants.R had no handle site). No production R
 or C++ change.
 

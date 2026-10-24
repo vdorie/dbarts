@@ -92,7 +92,7 @@ augmentation variables the engine draws, at a caller's fit. Keying that on
 `ResponseFamily` would put the Student-t mixture on the `gaussian` arm - the
 family a t sampler genuinely reports - where it is indistinguishable from a
 plain gaussian response, which draws no augmentation variable at all.
-`AugmentationLaw` (`src/R_interface_bartcore_common.hpp`) is a separate enum,
+`AugmentationDistribution` (`src/R_interface_bartcore_common.hpp`) is a separate enum,
 total over probit, logistic, ordinal, aft, nbinom and studentT, and is the
 only thing either surface dispatches on. The family survives on that path at
 exactly one point, `supportFamily`, which states the response support a

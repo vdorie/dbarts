@@ -544,7 +544,7 @@ An argument that does not exist gets R's own error: `unused argument (amplitude.
 push 1, and `updateBasisScale =` on `$setForestBasis` as today. Behind these, from the engine and the bridge:
 "a held coefficient block must be a forest's with no basis, a two-level block or one numeric column"; "a
 forest with no basis takes none"; "a basis column is constant, so no default sd can be taken from its
-standard deviation"; "a numeric basis of several columns has no law"; "the sampler refuses this basis for
+standard deviation"; "a numeric basis of several columns has no rule"; "the sampler refuses this basis for
 the forest", where today the bridge drops the engine's answer. Gone with push 1:
 forest-defaults-by-kind's two interim texts, for a held forest with no basis that is the second and for
 a held basis of two columns that is not;
@@ -918,7 +918,7 @@ and weights of which ten are 0; a response whose standard deviation is neither 1
     [`Chain::setForestBasis`](../../src/bartcore/chain.hpp) installs the basis and derives nothing.
     [`ForestCalibration`](../../src/bartcore/chain.hpp) reports the sd in force, the scale held and the
     stated flag, and no longer a row norm, a factor or a divisor.
-    Tests, tests/cpp (`testNumericMultiplierLaw`):
+    Tests, tests/cpp (`testNumericMultiplierRule`):
     - Literals. K = 3 under each family, drawn and held: a forest with no basis, a two-level block and a
       numeric column of sd 0.25, each forest's own sd, its divisor, its coefficients' prior variance and
       start, to 4 ulp (the powers of two make the defaults exact).
@@ -1297,7 +1297,7 @@ Each requirement with what holds it; "test" is the step above that fails if it i
 ## Out of scope, and where it goes
 
 - `updateBasisScale`, the long form on `forest()`, the heavy-tailed prior: after the merge (TODO
-  `forest-after-merge`, `coefficient-law-opt-in`). A forest for each level, and several numeric columns
+  `forest-after-merge`, `coefficient-prior-opt-in`). A forest for each level, and several numeric columns
   with a size for each: after 1.0 (dec-B281, dec-B282, dec-B272).
 - `setData` on a sampler of several forests: refused, as today. The rule for the day it opens goes in the
   design note: a new object's record is used, what it lacks is taken.
@@ -1748,7 +1748,7 @@ Against the steps:
 - 2.3 as planned: `ForestSpec::basisScale`, the numeric row of `forestMapEntry` (variance 1, start 1,
   held at 1), `basisRowNorm` gone, the constructor calling `mapLeafScale`, a swap deriving nothing.
   `ForestCalibration` no longer carries a factor, a divisor or a row norm; tests/cpp reads the entry
-  through `TestPeer::mapEntry`. tests/cpp `testNumericMultiplierLaw`.
+  through `TestPeer::mapEntry`. tests/cpp `testNumericMultiplierRule`.
 - 2.4 as planned, and `bartcore_create` takes a fifth argument, the mask (below).
 - 2.5 as planned: the slot, `dataBasisScale`, `recordBasisScales` in the sampler's `initialize`, the
   entry dropped in `resolveSamplerSpec` where a declaration replaces a basis.

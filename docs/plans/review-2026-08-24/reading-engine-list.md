@@ -75,7 +75,7 @@ DIVERGE first - a divergence outranks a large exact clone.
   CORRECTNESS CANDIDATE.
 - D4. One enumerator, two opposite meanings, same file. `augmentationFamily`
   ([src/R_interface_bartcore.cpp:6151](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6151)) rejects "gaussian" and maps "student" onto
-  `ResponseFamily::gaussian`; `drawAugmentationLaws` reads `case RF::gaussian:` as "the Student-t
+  `ResponseFamily::gaussian`; `drawAugmentationDistributions` reads `case RF::gaussian:` as "the Student-t
   scale mixer" ([src/R_interface_bartcore.cpp:6225](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L6225)), while `resolveFamily` ([src/R_interface_bartcore.cpp:1582](https://github.com/vdorie/dbarts/blob/b102e17cc7226338e7c7b26f73eedae617c8026f/src/R_interface_bartcore.cpp#L1582)) maps "gaussian" to the same enumerator
   meaning the Gaussian distribution and never accepts "student". `diverge`/`sediment`, high; a
   dedicated token costs nothing.

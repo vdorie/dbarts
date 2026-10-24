@@ -1867,12 +1867,12 @@ the draw and working-response switches read that arm as the Student-t
 scale mixer - a family value standing for a distribution, one arm away
 from a plain gaussian response, which draws no augmentation variable at
 all. The bridge's augmentation helpers dispatch on a total
-AugmentationLaw enum now: probit, logistic, ordinal, aft, nbinom,
+AugmentationDistribution enum now: probit, logistic, ordinal, aft, nbinom,
 studentT, generated from one X-macro list
-(BARTCORE_AUGMENTATION_LAW_LIST) so no enumerator can be added outside
-it, backing a numAugmentationLaws that a static_assert checks in both
-translation units - verified to hard-error in each on a seventh member.
-The flat API's DBARTS_FAMILY_* tokens map straight onto the
+(BARTCORE_AUGMENTATION_DISTRIBUTION_LIST) so no enumerator can be added
+outside it, backing a numAugmentationDistributions that a static_assert
+checks in both translation units - verified to hard-error in each on a
+seventh member. The flat API's DBARTS_FAMILY_* tokens map straight onto the
 distributions now; dbarts_drawLatents and dbarts_workingResponse used
 to turn their int family into a family string only to hand it to the
 R-side string resolver, and that round trip (int -> string -> family)
@@ -4434,12 +4434,12 @@ support in every shipped configuration and the intersection IS the
 composed set (draw digests byte-identical over four fixtures); the
 implementer substituted two mutations that discriminate for real
 regressions: conditioning on the global vector alone (the pre-slice
-distribution) is killed by the composed-law arm's tauUnreached = 0
+distribution) is killed by the composed-distribution arm's tauUnreached = 0
 against 670 forbidden leaves, and reverting the scan occupancy to
 member count is killed by grownUnreached = 0 against 1839/1900.
 The >= scan mutation and the forestWeights-only scan mutation are
 killed by the attempt-cap fault arms. New tests:
-test-prior-init-composed-law.R (default-glue BCF fixture - creation
+test-prior-init-composed-distribution.R (default-glue BCF fixture - creation
 amplitudes (1, 0, 1) make the defect the DEFAULT construction -
 per-forest oracle through the internal reader, both forests' tree
 priors stated so the prior cannot stand in for the distribution)
@@ -4457,7 +4457,7 @@ watch); pkgdown stalled at 68 minutes in the known mirror-stall class,
 canceled and rerun live (attempt 2), concluding under the standing
 timeout guards. The setForestWeights residue and the critique's four
 findings are all DISCHARGED; the empty-leaf-veto design doc carries
-the composed-law and bare-root-guard paragraphs.
+the composed-distribution and bare-root-guard paragraphs.
 
 ### SBC-deepening - nbinom third ladder point flags; adjudicated MIXING, mechanism demonstrated (2026-08-18)
 

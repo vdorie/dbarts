@@ -268,7 +268,7 @@ quoted, the form to write given. `<f>` is the forest's text; the push that adds 
     [3] 'basis' has the constant TRUE as a term; a term is a column, and only 1, a constant column, and 0, none, are written as numbers
     [3] 'basis' (0 + 1) is a constant column and nothing else, which multiplies the forest by a constant: leave 'basis' out for the forest with no multiplier
     [3] 'basis' term 'cbind(dose, age)': the columns of a basis are separated by '+'; write dose + age
-    [3] 'basis' term 'normal(dose, sd = 30)' calls normal(), which is not a column: a prior is not stated on a basis term. Give the forest's size as 'sd' and its coefficient's law as 'amplitude'
+    [3] 'basis' term 'normal(dose, sd = 30)' calls normal(), which is not a column: a prior is not stated on a basis term. Give the forest's size as 'sd' and its coefficient's prior as 'amplitude'
     [3] 'basis' (dose + factor(z)) mixes a factor with other terms: a basis is one factor, a character or a logical vector, with one coefficient per level, or numeric columns, with one each. Give the other terms a forest() of their own, or write the factor as numbers
     [3] 'basis' (<text>) has a term that is a logical matrix: a basis is a factor, a character or logical vector, or numeric
     [3] 'basis' (dose > 0) is TRUE on every row the fit keeps, so its other level has no observations and the forest would be multiplied by a constant

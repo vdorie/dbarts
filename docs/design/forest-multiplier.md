@@ -141,7 +141,7 @@ keeps the record.
   standing second, it started at 0. The base build has no spelling of it. Oracles: the numeric arms of
   forest-prior-exact.R (a 0/1 column and one of four values, default and stated, drawn and held, rows of
   weight zero, and an arm of three trees, the coefficient's probability of lying within 0.5, 1 and 2
-  among the functionals), the literals of tests/cpp's `testNumericMultiplierLaw`, and the units twin.
+  among the functionals), the literals of tests/cpp's `testNumericMultiplierRule`, and the units twin.
 - Accepted where refused (push 2): a held numeric column, at 1. Refused where accepted: a numeric column
   constant, or constant to rounding, over the rows its scale reads, on a forest that states no sd.
 - Bit for bit (push 2's first commit): the relative bound, on every recorded scenario, snapshot and pin.

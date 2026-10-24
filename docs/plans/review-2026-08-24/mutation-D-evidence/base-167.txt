@@ -101,7 +101,7 @@ test-ppd-sigma-pairing.R	PASS=15	FAIL=0
 test-predict-blend.R	PASS=49	FAIL=0	
 test-predict-forest.R	PASS=31	FAIL=0	
 test-predict-sparse.R	PASS=20	FAIL=0	
-test-prior-init-composed-law.R	PASS=19	FAIL=0	
+test-prior-init-composed-distribution.R	PASS=19	FAIL=0	
 test-prior-init-empty-leaves.R	PASS=3	FAIL=0	
 test-prior-predictive.R	PASS=20	FAIL=0	
 test-rbart-aft.R	PASS=33	FAIL=0	

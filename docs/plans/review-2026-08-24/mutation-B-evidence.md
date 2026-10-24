@@ -123,8 +123,8 @@ lacks.  Residual exposure: the SHIPPED library has no runtime guard on the
 6 MAJOR [src/bartcore/grow.hpp:222](https://github.com/vdorie/dbarts/blob/658869ac6a90fc23dc9d0860e0aa0890e743c6d7/src/bartcore/grow.hpp#L222) [G5].  -log(numPredictors) for -log(numAvailable) -
   identical at a root where every variable is available, wrong at every node
   below - survives.  All three grow-from-root DISTRIBUTION tests measure ROOT
-  rules only (testOrdinalMissingRowsAreRouted, testCategoricalExactDrawLaw,
-  testCategoricalPrefixDrawLaw); below the root the suite asserts legality and
+  rules only (testOrdinalMissingRowsAreRouted, testCategoricalExactDrawDistribution,
+  testCategoricalPrefixDrawDistribution); below the root the suite asserts legality and
   gauge, never a probability.  ASSERTION one conditional distribution test at
   depth
   >= 1 - fix the root rule, chi-square a child's realized rules against the

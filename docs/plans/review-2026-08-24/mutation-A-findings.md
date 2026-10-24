@@ -3,7 +3,7 @@
 SCOPE 55 tinytest files changed since 03b97db7 (`git diff --name-only 03b97db7 HEAD --
 inst/tinytest`, 56 paths, one of them capi/consumer.c) plus 10 untouched files sampled at
 seed 20260824: bart-formula, bcf-reporting, data-mixed-mutation, data-sparse,
-heteroscedastic, plot-generics, prior-init-composed-law, sampler-trees,
+heteroscedastic, plot-generics, prior-init-composed-distribution, sampler-trees,
 weighted-binary-ppd, xbart-weight.
 
 METHOD 85 mutations planted, 84 scored, 1 wedged the runner (b04). Each was applied to a
@@ -96,7 +96,7 @@ data-mixed-mutation                  15   0   2   7   0   3   2    0    2  OK
 data-sparse                          44   0   5  16   1  10   7    2    1  WEAK
 heteroscedastic                      29   0   3  13   2   4   5    1    0  GAP
 plot-generics                        24   0   2   0   0  12  10    2    0  GAP
-prior-init-composed-law              19   3   2   8   6   0   0    0    5  OK
+prior-init-composed-distribution     19   3   2   8   6   0   0    0    5  OK
 sampler-trees                        32   0   5  14   7   2   4    1    2  OK
 weighted-binary-ppd                  10   0   1   3   6   0   0    1    1  WEAK
 xbart-weight                          5   0   1   0   0   2   2    2    0  GAP
@@ -229,7 +229,7 @@ The one behavior worth flagging is not a defect but finding 16's hang.
 ## Spot check: do the ten untouched files hold?
 
 NO - the leg must widen. 6 of 10 came back OK/WEAK (bcf-reporting OK, data-mixed-mutation OK,
-prior-init-composed-law OK, sampler-trees OK, data-sparse WEAK, weighted-binary-ppd WEAK) and
+prior-init-composed-distribution OK, sampler-trees OK, data-sparse WEAK, weighted-binary-ppd WEAK) and
 4 came back GAP. Two of the four failed an AIMED probe: plot-generics survived both print-
 synopsis mutations (finding 11), xbart-weight survived both loss-weight mutations (finding 8).
 bart-formula is structurally unfalsifiable (finding 15). heteroscedastic (29 assertions) took

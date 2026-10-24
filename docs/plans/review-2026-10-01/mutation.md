@@ -36,7 +36,7 @@ Killers: tt = tinytest file, cpp = tests/cpp, gate = quick exact gate.
 | m30 | MonotoneLeafGeometry::build | missing-side flag `!=` -> `==` | tt monotone, cpp |
 | m31 | MonotoneLeafGeometry::share | factor level overlap `!= 0` -> `== 0` | tt monotone, cpp |
 | m32 | monotoneLogExtensions | forward count `+=` -> `=` | cpp |
-| m33 | monotoneLogPositionLaw | drop backward exponent | cpp |
+| m33 | monotoneLogPositionDistribution | drop backward exponent | cpp |
 | m34 | monotoneLogAdjacentShare | binomial `i+j-2` -> `i+j-1` | cpp |
 | m35 | monotoneLogPairRatio | m drops second.size | cpp |
 | m36 | monotoneMovePair | flip `< 0` -> `> 0` | EQUIVALENT (see below) |
