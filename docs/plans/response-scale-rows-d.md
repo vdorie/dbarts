@@ -1518,3 +1518,118 @@ dec-B465 and the plan's calls, so nothing stops the build.
   2.3).
 - Budget: push 2 raw ~500 to ~520 (the five call sites, the shared keying), forecast ~840 to ~870, package code
   ~135 forecast as before; the stops stand at ~1250 lines and ~200 of package code.
+
+## Push 2 as built
+
+Built on 8a887960 (push 1 rebased onto bartcore f58d1482, under review), the steps rechecked against it first
+([Recheck of push 2 against push 1 as built](#recheck-of-push-2-against-push-1-as-built), e22c2a22). Commits:
+7eac2efc (the push), fef9cf42 (the help, NEWS and notes) and this record. Step 2.6's TODO entry, ledger entry,
+indexes and landing note are the landing's.
+
+What it does. `setWeights` and `setActiveRows` in [dbarts.R](../../R/dbarts.R) take `updateStandardization` after
+`updateScale`, FALSE by default and checked by [`checkUpdateStandardization`](../../R/bartcore.R), the helper
+`setPredictor` now shares. TRUE installs the weights or the mask, then, after `updateScale`'s re-derivation where
+asked, calls push 1's [`Sampler::rederiveStandardization`](../../src/bartcore/sampler.hpp) with no column marked
+from [`bartcore_setWeights`](../../src/R_interface_bartcore.cpp) and
+[`bartcore_setActiveRows`](../../src/R_interface_bartcore.cpp), four arguments each: every leaf covariate is
+derived over the rows then in, a covariate with too little kept, a linear leaf's slopes, live and saved,
+converted. A gp sampler holding saved draws is refused before the install
+([`refuseSavedGPStandardizationUpdate`](../../src/R_interface_bartcore.cpp), joined to
+`refuseRowsRederivation`, the words `setPredictor`'s with the caller named); the refusal of several forests
+stays the scale's alone, and a sampler whose leaves take no covariate derives nothing. The answer
+(`rederiveAfterInstall`) is "warn now" from the holder's one flag, carrying, where a covariate was kept, the
+kept positions ([`keptCovariatesAnswer`](../../src/R_interface_bartcore.cpp), which `predictorUpdateAnswer`
+now builds on too) and whether the response's scale was kept beside them; R names them last
+([`warnRowsKept`](../../R/bartcore.R)), [`warnScaleKept`](../../R/bartcore.R) giving one text for a joint keep.
+The standardization is written after the call through the records read without the grids
+([`recordResponseRange`](../../R/data.R), which takes the range, the standardization or both from one read),
+keyed by [`keyStandardization`](../../R/data.R), the keying `recordDerived` used inline. A mask family's
+`setWeights` passes the argument to `setActiveRows`; `reapplyActiveRows` passes FALSE for both.
+
+Departures from the steps and the test table:
+
+- The identity is bit for bit for linear leaves; for gp leaves the record and the stored state are, and the
+  sweeps agree only to rounding (4e-15): a predictor update rebuilds a gp leaf's per-observation fits in
+  another order, as a plain `setPredictor` of the values in force already does. The gp arms, in tinytest and
+  tests/cpp, give the sampler the twin's plain update first, and then all three agree bit for bit.
+- "every kept draw replays under it" is pinned for the linear loop as `predict` of each kept draw equal to the
+  sweep that drew it, to 1e-12; a gp leaf's `predict` at the training rows is not the live fit (it differs by
+  about 5e-3), so the gp loop, by `setActiveRows` under probit, pins a copy's and a reload's `predict` of the
+  kept draws against the source's, which a saved gp draw under another standardization would not give.
+- Four tinytest files and mask-redraw-exact.R, not named by the steps, gain the fourth argument (the
+  recheck).
+- The help gains, beyond 2.5's items, the manual's table row for the standardization, the state section's list
+  of what derives it and the `active` item's sentence on what a mask holds; the design notes
+  (response-scale-rows.md rule 9 and section 4, state-frame-prior.md's table and dated line) are written here,
+  step 2.6's design-note line among them.
+
+Calls made in building, each with its alternative:
+
+- The joint keep reads "fewer than two distinct values of the response and of the leaf covariate "x1" are in
+  the likelihood, so the response's scale, the prior's center and the covariate's center and scale are kept as
+  they were (said once per sampler)", with "each of the leaf covariates ... the covariates' centers and
+  scales" for several. Alternative: the two texts joined by "and", which repeats the clause.
+- The row setters' answer stays a bare logical where no covariate was kept, so the response's keep reads as
+  before; the attributes appear only with a kept covariate. Alternative: always a list, which every caller of
+  `bartcoreSamplerSetActiveRows` (creation's and setData's mask install among them) would then unpack.
+- `recordResponseRange` gains `range` and `standardization` arguments, one read serving both. Alternative: a
+  second reader, two reads where a call asks for both.
+- The gp refusal at a row setter names the setter that reaches the bridge: a mask family's `setWeights` is
+  refused as `$setActiveRows`, as its `updateScale` refusal already is. Alternative: carrying the R caller's
+  name to the bridge, a fifth argument.
+
+Tests. tinytest test-leaf-standardization-rows.R gains 191 expectations (416 in all): the identity for gaussian,
+Student-t, probit, ordinal, nbinom and hazard.probit, linear and gp, by `setWeights` with rows moving, in the
+record, the data object's slot, the reader, the stored state and 5 sweeps of 2 chains; by `setActiveRows` on
+gaussian over the weights and the mask, against literals and a twin; kept linear draws predicting what they did
+to 1e-12; both arguments, the range and the standardization the literals over the rows in, and a joint keep's one
+warning, its range and x1 held and x2 derived; the argument's position (formals, and a positional TRUE storing
+the state), FALSE as absent, NA and 1 refused with weights and mask as they were; several forests and constant
+leaves taking TRUE with nothing moved; the keep, x1 held and x2 derived, one warning in the leaf's words, none on
+a second keep by `setActiveRows` nor after a keep through `setOffset`, and probit's `setActiveRows` keep in the
+same words; the gp refusal under gaussian and probit by each setter, weights, mask, record and the next 3 sweeps
+as an untouched twin's; the help's burn-in loop by `setWeights` (linear, gaussian) against a twin written with
+the identity's calls, record per pass, kept draws replayed, a copy and a reload, and by `setActiveRows` (gp,
+probit), the masks after burn-in moving rows the record does not follow, a copy and a reload holding it and
+the mask. tests/cpp `testRederiveStandardization`: the identity under gaussian weights and a probit mask, linear
+(with 5 saved draws) and gp, in the records, the state and 5 sweeps, bit for bit; a keep of one covariate with
+the other derived to the moments over the rows in.
+
+Mutants, each alone on a clean export, installed with `--preclean`; failures in test-leaf-standardization-rows.R
+unless named, "stops" where the file stops at an error or an abort, test-update-scale-rows.R
+passing every one: the argument dropped in the bridge, 91; the re-derivation before the install, 79; the keep
+re-deriving the kept covariate, aborts (the engine's refusal uncaught at push 1's keep arm), tests/cpp aborts; the
+keep keeping all, 7, tests/cpp 2; the gp refusal after the install, 7; the argument before `updateScale`, 1; `NA`
+let through, 2; the argument refused on several forests, stops at that arm; a joint keep raising two warnings, 1,
+and the response's text alone, 1; a mask family's `setWeights` not forwarding it, 35; the record not written
+after a re-derivation, 7 then stops (the gp loop's copy refused for draws under another standardization);
+`reapplyActiveRows` re-deriving, stops (push 1's record arm, its copy refused under gp kept draws); and two of the
+build's own, every keep warned, 2, and the record written unkeyed, 18. None alive.
+
+Size, against e22c2a22: engine 2 added and 1 removed (a comment), bridge 102 and 49, R 175 and 57, tests/cpp 148
+and 0, tinytest 418 and 1, the exact script 1 and 1, help and NEWS 57 and 7, notes 12 and 6; 915 added and 122
+removed in all, against ~870 forecast and ~520 raw (stop ~1250). Package code 279 added and 107 removed (net
+172), against ~135 forecast: past the ~200 stop, the plan's figure for building nothing further, met with
+the push already built and reported, not trimmed: of the 279, 48 are comments, and the bridge's 102 against ~55
+and R's 175 against ~70 are the answer and refusal helpers shared with the predictor entries, the joint text and
+its reader, the keying moved out of `recordDerived` (20 added, 15 removed), the second record in
+`recordResponseRange`, and air's one-argument-per-line signatures and calls (about 30). The stops on bits, a
+facade change and a test outside the plan were not reached.
+
+Gates, on the push's libraries, from `--preclean` installs of fef9cf42 (its package code 7eac2efc's): tests/cpp plain and under ASAN and UBSAN,
+412 ok each, no failure and no diagnostic; the suite in one process, file by file as `test_package` runs them, 271
+files, 29817 expectations, none failed and no error (test-mutate-then-serialize.R passing since a7189447); lint (0
+lints), air, rc-codoc (48 methods), win-drift and doc-freshness clean, chained; inst/NEWS.Rd parses (227
+entries); on a `--preclean` reference install of a clean export the four snapshot files (14, 3, 7 and 3
+expectations, none failed) and the three `--bitwise` compares, 55 of 55 identical against equivalence-32418b6e
+(`--strict-coverage`, no "max |z|" line), 19 of 19 against bcf-equivalence-20eed7ed and 11 of 11 against
+multinomial-equivalence-80b1c8d4, 0 skipped, NEUTRAL as expected; the 43 commands of exact-gates.yaml at `quick`
+on the shipped build, all passing (mask-redraw-exact.R, which gained the fourth argument, within |z| 0.7), and
+the two cross-host compares on the reference passing; the R-loaded run of ten touched and nearby files with the
+package built under ASAN and UBSAN, 2595 expectations, none failed, no diagnostic; `R CMD check --as-cran
+--no-manual` from a tarball built from a clean `git archive`, the Date field's NOTE alone; stan4bart's suite (its
+bartcore branch at 3716b51, installed from a git archive into the push's library), 1555 expectations, none
+failed. Not run: the x86-64 leg.
+
+Left open. The package-code stop (279 against ~200) is the coordinator's to weigh. The x86-64 leg waits for
+landing.
