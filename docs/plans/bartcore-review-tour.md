@@ -15,9 +15,8 @@ The R entry points. `bart` becomes the formula-first function that 0.9-34
 called `bart2`, with its defaults. The BayesTree-style function with
 0.9-34's argument names and defaults moves to `bartBT`. `bart2` stays as
 an alias of `bart`, removed in 1.1-0 if no CRAN package still calls it.
-`rbart_vi` stays for this release as 0.9-34's code, deprecated and warning once
-per session; grouped random effects are stan4bart's, and `rbart_vi` is removed in
-1.1-0.
+`rbart_vi` stays for this release, deprecated and warning once per session;
+grouped random effects are stan4bart's, and `rbart_vi` is removed in 1.1-0.
 
 What the new engine adds, none of which 0.9-34 could fit: Student-t,
 logistic, ordinal, multinomial, negative binomial, log-normal accelerated
@@ -38,9 +37,9 @@ can pick.
 
 ## 2. Breaking changes for R users
 
-The UPGRADING block at the head of `inst/NEWS.Rd`'s 1.0-0 section is the
-complete list. These are the breaks most likely to bite a 0.9-34 script,
-most likely first.
+The UPGRADING and USER-VISIBLE CHANGES blocks at the head of `inst/NEWS.Rd`'s
+1.0-0 section are the complete list. These are the breaks most likely to bite
+a 0.9-34 script, most likely first.
 
 1. **Every fit gives different draws.** The engine draws a different random
    stream, the tree change move now satisfies detailed balance, the initial
@@ -108,7 +107,7 @@ most likely first.
    missing response and models missing predictors, so the number of rows
    and the length of fitted values grow. `na.action = na.omit` restores the
    old rule, which `bartBT` keeps. A missing value in test data, in a column
-   that was complete in training, is now an error.
+   that was complete in training, is now an error by default.
 7. **A factor response of three or more levels picks its own family.** Under
    the default `family = "auto"`, `bart` fits an unordered one as
    multinomial and an ordered one as ordinal, and says so in one line.
@@ -129,7 +128,9 @@ most likely first.
    on `family = "logistic"`. On a gaussian fit, rows at weight zero no
    longer count toward the residual variance's degrees of freedom; on the
    comparison design in section 4 the posterior mean of `sigma` moves from
-   0.29 to 0.72.
+   0.29 to 0.72. Such a row also takes no part in the response's scale, which
+   the leaf prior is stated against, and has `NA` posterior predictive draws
+   where 0.9-34 drew a training row at `sigma`.
 10. **Saved objects.** A fit or sampler state saved by 0.9-x is refused by
     name at restore and at `predict`; refit. A saved `dbartsData` keeps its
     old design and fits differently from a fresh one; rebuild it.
@@ -140,15 +141,23 @@ restoring 0.9-x); `run` takes no thread count (either spelling, or a fourth posi
 is ignored with a warning; `setControl` sets the count). `xbart` renames
 `sigma` to `sigest`, takes a two-element `n.burn`, and no longer carries a
 chain across folds, so reported losses rise. `rbart_vi` and its methods
-still run as in 0.9-34, with a once-per-session deprecation warning naming
-stan4bart, and are removed in 1.1-0. `dbarts`'s `node.prior` is spelled
-`leaf.prior`, and the sampler's `sampleNodeParametersFromPrior` is
-`sampleLeafParametersFromPrior`; the old names work until 1.1-0 with a
-once-per-session warning. `extract`, `predict` and `survivalProbabilities`
+still run, with a once-per-session deprecation warning naming stan4bart (a
+binary fit takes 1.0-0's defaults for `k` and the tree moves), and are
+removed in 1.1-0. `dbarts`'s `node.prior` is spelled `leaf.prior`, and the
+sampler's `sampleNodeParametersFromPrior` is `sampleLeafParametersFromPrior`;
+the old names work until 1.1-0 with a once-per-session warning. `extract`, `predict` and `survivalProbabilities`
 with `combineChains = FALSE` keep a chain dimension of length 1 on a
-one-chain fit. The sampler's `getTrees` reads every forest and leads with
-a `forest` column, on a single-forest sampler too. R 4.2.0 and a C++20
-compiler are required.
+one-chain fit. The sampler's `getTrees` reads every forest, and a sampler of
+several forests leads its table with a `forest` column (a position); a
+single-forest sampler's table has none, as in 0.9-34. `extract(type = "trees")`
+carries the same column as a factor of the forests' labels. The sampler's
+`$setState` installs a state only where it fits the sampler as it stands and
+returns `TRUE`, or `FALSE` with the sampler left as it was (0.9-34 installed
+whatever it was given and returned `NULL`), and no longer brings back the cut
+points the state was stored on. `$setData` keeps the cut points and response
+range of a data object that came from a sampler, and with `$setPredictor`
+refuses a column name that is not the sampler's, where 0.9-34 read columns by
+position. R 4.2.0 and a C++20 compiler are required.
 
 ## 3. Breaking changes for linked packages
 
@@ -167,7 +176,7 @@ setters. All of it is gone. Instead:
   object reachable and re-read the handle after any R-side restore.
   Predictor and test-data updates, weights, active rows, per-forest
   settings, state save and restore, and tree extraction are R methods on
-  that object. The C surface is 22 sampler entries plus three version
+  that object. The C surface is 24 sampler entries plus three version
   queries ([`DBARTS_C_API_LIST`](../../inst/include/dbarts/dbarts.h)). A C
   creation entry is scheduled before 1.0-0 (section 6).
 - **Setters copy.** `dbarts_sampler_setResponse` and `_setOffset` copy into
@@ -179,7 +188,10 @@ setters. All of it is gone. Instead:
   do it at all and nothing changed - `setSigma` on a probit sampler, say. A
   bad argument still raises. The answer is fixed per sampler, so probe once
   at setup; a caller that ignores a 0 runs on, conditioned on the old
-  value.
+  value. `setResponse` and `setOffset` can also return 2: the swap was made,
+  but `updateScale` was asked for and found too little to derive a scale from,
+  so the one in force was kept. That answer belongs to the call, so test for
+  nonzero rather than for 1.
 - **Changed signatures.** `dbarts_sampler_predict` takes a
   `dbarts_predictor_source` struct (`dbarts_dense_predictor_source()` builds
   the dense case) and a per-call thread count. `numTrees` and `printTrees`
@@ -206,17 +218,21 @@ setters. All of it is gone. Instead:
   CI fails an ABI change without a minor bump.
 
 The four packages we maintain that use dbarts. Their full test suites
-passed on 2026-09-23 against dbarts as of 2026-09-14. The C header's
-declarations have not changed since; R code has, including `run`'s thread
-count and the fit object's components, and a search of their R code finds
-none that passes a thread count to `run` or reads a fit component that
-changed.
+passed on 2026-09-23 against dbarts as of 2026-09-14. Since then the C header
+has gained two entries and a status enum, renamed result fields and
+re-baked its hash, and R code has changed, including `run`'s thread count and
+the fit object's components; a search of their R code finds none that passes a
+thread count to `run` or reads a fit component that changed. stan4bart's
+suite, grown to 1651 results, passed against dbarts as of 2026-10-24.
+bartCause's has seven failing expectations in five tests - three compare
+against results saved from earlier builds, one is a grouped predict and one a
+stan4bart predict - the same as before the latest changes.
 
 | consumer, branch | how it uses dbarts | state |
 |---|---|---|
-| stan4bart, `bartcore` | flat C API through the stubs, sampler built in R | ported, 559 of 559 tests pass; its CRAN release links the deleted headers, so 0.0-14 ships with dbarts 1.0-0 |
+| stan4bart, `bartcore` | flat C API through the stubs, sampler built in R | ported, 1651 of 1651 results pass (559 of 559 on 2026-09-23); its CRAN release links the deleted headers, so 0.0-14 ships with dbarts 1.0-0 |
 | treatSens, `dbarts-1.0` | flat C API through the stubs; calls `bartBT`; reads two dbarts internals, `parsePriors` and `estimateSigmaFromLinearModel`, through `asNamespace` | ported, 186 of 186; its main branch links the deleted headers; not on CRAN |
-| bartCause, `dbarts-1.0` | R functions only | 790 of 790; releases from this branch |
+| bartCause, `dbarts-1.0` | R functions only | 790 of 790 on 2026-09-23, seven expectations failing since (above); releases from this branch |
 | bairrtt, `main` | R functions only | 206 of 206 unchanged; its posteriors move with item 1 of section 2 |
 
 All four are re-run against the final header after the interface work
@@ -226,13 +242,14 @@ scheduled in section 6.
 
 | workflow | runs | what a pass shows |
 |---|---|---|
-| `check-standard` | every push | `R CMD check` clean on macOS, Windows and Linux (R devel, release, previous release); on Windows arm64 the NEON kernels agree bitwise with scalar; once a 1.x release tag exists, an ABI change without a minor bump fails |
-| `cpp-tests` | every push | the C++ component tests pass on macOS arm64, and the build fails if code that handles response families leaves one out. Then, on the reference build - a configure option that runs every sum in a fixed order - the four seeded snapshot test files and the three equivalence baselines (53 main-corpus, 15 BCF and 11 multinomial scenarios) reproduce bitwise |
-| `sanitizers` | every push | the whole test suite, at least 5200 results, passes under clang and gcc address and undefined-behavior sanitizers with no finding |
-| `exact-gates` | every push | 25 scripts in quick mode: 5 detailed-balance checks (birth/death, change, swap, perturb, rule_gibbs); 16 checks against an exact posterior computed by closed form or enumeration on a small design, the logistic one also compared with the independent BART package; a check that each tree's leaf draw is exact given the rest of a full-size forest; a recovery and calibration check for aft with a variance forest; and 2 draw-for-draw reductions (hazard to binary, hurdle to its parts). Then the BCF and multinomial baselines are compared across hosts |
+| `check-standard` | every push | `R CMD check` clean on macOS, Windows and Linux (R devel, release, previous release and 4.2); on Windows arm64 the NEON kernels agree bitwise with scalar; once a 1.x release tag exists, an ABI change without a minor bump fails |
+| `cpp-tests` | every push | the C++ component tests pass on macOS arm64, and the build fails if code that handles response families leaves one out. Then, on the reference build - a configure option that runs every sum in a fixed order - the four seeded snapshot test files and the three equivalence baselines (55 main-corpus, 19 BCF and 11 multinomial scenarios) reproduce bitwise |
+| `sanitizers` | every push | the whole test suite, about 30,000 results, passes under clang and gcc address and undefined-behavior sanitizers with no finding |
+| `exact-gates` | every push | 29 scripts in quick mode: 5 detailed-balance checks (birth/death, change, swap, perturb, rule_gibbs), with extra arms for zero-weight rows and for degenerate and weighted cut grids; 19 checks against an exact or independently computed posterior on a small design, the logistic one also compared with the independent BART package; a check that each tree's leaf draw is exact given the rest of a full-size forest; a recovery and calibration check for aft with a variance forest; a mixing check for the negative binomial's shape; and 2 draw-for-draw reductions (hazard to binary, hurdle to its parts). A second job checks monotone trees against the exact one-tree posterior under both priors. Then the BCF and multinomial baselines are compared across hosts |
 | `lint`, `doc-freshness`, `pkgdown` | every push | style, citations in the docs resolve, the site builds; nothing about results |
-| `equivalence` | weekly, from main | the 53 main-corpus scenarios agree statistically on Linux with the shipped build |
-| `sbc` | weekly, from main | simulation-based calibration over eight arms - gaussian, ordinal, nbinom, Student-t, multinomial, aft, heteroscedastic gaussian, heteroscedastic aft - and 57 functionals, Bonferroni-corrected; nbinom's two dispersion functionals are waived by name as an identifiability ridge |
+| `equivalence` | weekly, from main | the 55 main-corpus scenarios agree statistically on Linux with the shipped build |
+| `exact-gates-weekly` | weekly, from main | the gates of `exact-gates` in full mode on longer limits, the monotone enumeration in full beside them; the BCF latent gate stays quick |
+| `sbc` | weekly, from main | simulation-based calibration over eleven arms - gaussian, probit with `k` drawn, ordinal, nbinom, Student-t, multinomial, aft, heteroscedastic gaussian, heteroscedastic aft, and the two monotone priors - and 84 functionals, Bonferroni-corrected, no functional waived; a twelfth job checks the rank test on discrete functionals |
 | `rchk` | weekly, from main | PROTECT balance in all compiled code |
 | `valgrind` | nightly, from main | the whole suite under memcheck, with no leak or invalid access |
 | `revdep-smoke` | monthly, from main | stan4bart, bartCause and treatSens pass `R CMD check` from their compat branches |
@@ -249,23 +266,27 @@ Agreement with 0.9-34. One script in 0.9-34's vocabulary ran under both
 releases, installed side by side, on 26 scenarios spanning continuous and
 probit responses, weights, offsets, factors, one to 200 trees, 5000 rows,
 four chains, a Gibbs loop, a predictor swap and crossvalidation, with every
-moved default pinned and 20 seeds a side. 22 agree within Monte Carlo
-error; the four that differ trace to decided changes - zero-weight rows in
+moved default pinned and 20 seeds a side. 21 agree within Monte Carlo
+error; the others differ through five decided changes - zero-weight rows in
 the variance's degrees of freedom, the change move under unequal cut
-counts, and crossvalidation no longer carrying a chain across folds
+counts, crossvalidation no longer carrying a chain across folds, the
+quantile cut grid spread over the whole column, and the default cut grid on
+a column with fewer distinct values than cut points, whose figures are taken
+at the release-candidate run
 ([What differs, and why](classic-compare.md#what-differs-and-why)). The
 comparison resolves about a third of a posterior standard deviation.
 
 ## 5. What is not checked
 
-The five scheduled workflows have never run on schedule: GitHub runs
+The six scheduled workflows have never run on schedule: GitHub runs
 schedules only from the default branch, so on bartcore each has run only
-when started by hand. `equivalence`, `sbc` and `revdep-smoke` last ran
-green. `rchk` and `valgrind` have no green workflow run; the checks
-themselves are clean when run by hand: rchk over all compiled code except
-the bridge's state-restore entry, too large for it to analyze (as it will
-be for CRAN's run), and valgrind over the whole suite on x86
-(`docs/plans/valgrind-xbart.md`).
+when dispatched by hand or when a push touched its own file. `equivalence`,
+`sbc`, `rchk`, `exact-gates-weekly` and `revdep-smoke` last ran green.
+`valgrind` has run green once; its latest run found two leaks in the
+bridge's error paths, which are fixed, and the run on the fix has not
+finished. rchk reads all compiled code except the bridge's state-restore
+entry, too large for it to analyze (as it will be for CRAN's run); valgrind
+runs the whole suite (`docs/plans/valgrind-xbart.md`).
 
 Things that could be wrong and would not be caught:
 
@@ -275,19 +296,18 @@ Things that could be wrong and would not be caught:
   SBC to judge; with a probit or logistic response, the multipliers stay
   correlated past lag 200 when the prognostic multiplier is large
   (`docs/plans/bcf-latent-evidence.md`). BCF has exact checks and bitwise
-  baselines instead. Monotone constraints and ordered-factor
-  predictors have no SBC arm. Logistic, probit, DART, linear and GP leaves
-  have SBC records made by hand in August (`docs/plans/sbc-calibration.md`)
-  that no workflow re-runs. Hazard and hurdle are covered by exact checks
-  and by reducing draw for draw to the binary and gaussian fits they expand
-  into.
+  baselines instead. Ordered-factor predictors have no SBC arm.
+  Logistic, DART, linear and GP leaves have SBC records made by hand in
+  August (`docs/plans/sbc-calibration.md`) that no workflow re-runs. Hazard
+  and hurdle are covered by exact checks and by reducing draw for draw to the
+  binary and gaussian fits they expand into.
 - **Mixing at scale is measured, not guaranteed.** On the He and Hahn design
   at n = 10000, a single chain's minimum pointwise effective sample size is
   2 of 2500 draws and its 95 percent interval coverage is 0.82. The shipped
   four pooled chains reach 0.96 and 0.90 on the two mean functions, because
   the chains disagree and pooling widens the interval
   ([10.4 C1, the He and Hahn factorial](../design/benchmark-surfaces.md#104-c1-the-he-and-hahn-factorial)).
-  Nothing in CI scores mixing.
+  Apart from the negative binomial's shape, nothing in CI scores mixing.
 - **The 0.9-34 comparison is run by hand**, against a hand-installed 0.9-34,
   so a later engine change could separate a scenario unnoticed. It does not
   reach the sampler's accessors, saved state, or prediction from a saved
@@ -302,30 +322,46 @@ Things that could be wrong and would not be caught:
   and comparing the saved states will not reveal it
   ([3. What engine state does not carry, and who reinstalls it](../design/bart-as-a-component.md#3-what-engine-state-does-not-carry-and-who-reinstalls-it)).
 - **Mutation records are old.** The C++ tests caught 63 of 80 planted
-  engine mutations when last measured, a month of engine changes ago; the
-  package-level mutation battery documents three malformed-state refusals
-  no test catches. `benchmarks/R/composition-matrix.R`, which checks the
-  feature matrix's cells, runs in no workflow.
+  engine mutations when last measured, in August. The package-level mutation
+  battery, now 83 sites, planted 62 new ones on 2026-10-01: the tests or an
+  exact gate caught 46, 12 more exposed test gaps that were then closed, and
+  4 were equivalent or dropped; the battery also documents three
+  malformed-state refusals that no test catches. Both records predate the
+  changes since: warm starts, the cut grid and scale a data object records,
+  and the forest multiplier. Each of those slices had its own reviewer's
+  mutants. `benchmarks/R/composition-matrix.R`, which checks the feature
+  matrix's cells, runs in no workflow.
 
 ## 6. Open and scheduled work
 
 Open before the merge:
 
-- **The release-candidate declaration** (`TODO`'s `rc-gate`), after the
-  maintainer's read of this document.
-- **Agent-made decisions not yet ruled on**: 33 unmarked entries in
-  section A of `docs/decisions.md`. Those that fix user-visible surface,
-  and would cost a deprecation cycle to change after release:
-  - 1-based forest indices in R (dec-A69)
-  - which entry points keep the old leaf prior name (dec-A94)
-  - where the forest column sits in the tree readout (dec-A96)
-  - the chain dimension of a one-chain survival read (dec-A91)
-- **Three CRAN packages outside ours.** lorax's examples fit a three-level
+- **The release-candidate declaration** (`TODO`'s `rc-gate`), which the
+  maintainer holds. It waits on the entries `TODO` marks before 1.0-0 and on
+  going over every entry of `docs/decisions.md` with the maintainer.
+- **Agent-made decisions not yet ruled on**: 31 unmarked entries in
+  section A of `docs/decisions.md`; the maintainer was told of 27 of them
+  that they need no ruling. Those that fix user-visible surface, and would
+  cost a deprecation cycle to change after release:
+  - what a forest's basis may be, and what a missing level or value in one
+    does (dec-A210, dec-A212)
+  - how a forest's `sd` is stated in the response's units, and refused on a
+    response with no spread (dec-A208)
+  - which rows a leaf covariate's center and scale are read over, and the
+    row setters' `updateScale` and `updateStandardization` (dec-A207,
+    dec-A226, dec-A227)
+  - how `setData` and `setPredictor` treat a matrix that carries column
+    names (dec-A228)
+- **Five CRAN packages outside ours.** lorax's examples fit a three-level
   factor response, which 0.9-34 coded as 0, 1, 2 and 1.0-0 refuses; its
   maintainer is to be asked to change them. WeightIt and MatchIt fit
   through `bart2`; their BART tests and examples pass under 1.0-0 with the
   alias warning, and their maintainer is to be told that `bart2` goes in
-  1.1-0 if no CRAN package still calls it.
+  1.1-0 if no CRAN package still calls it. tmle's default learners call
+  `bart` with BayesTree's argument names, which 1.0-0 forwards to `bartBT`
+  with a warning and 1.1-0 stops forwarding; countSTAR calls
+  `dbarts(node.prior = )`, which works with a warning until 1.1-0. Their
+  maintainers are to be asked to change them.
 - **GitHub issue #80**, answered by `setResponse`'s `updateScale` switch,
   is still open.
 
@@ -337,11 +373,11 @@ re-verified against the final header afterwards:
   R, so draws are unchanged, and a copy of R's routines and standard
   output elsewhere. The C interface gains an entry that creates a sampler
   from a plain-C specification, with an error contract that does not
-  assume R; today a compiled consumer creates its sampler through R, and a
-  host without R cannot create one at all. The specification's predictor
-  part is the struct `dbarts_sampler_predict` already takes, which gains a
-  per-column statement of whether a column's values are doubles or
-  integer codes. It lands before 1.0-0 because the sister packages build
+  assume R, and a getter for each chain's current `sigma`; today a compiled
+  consumer creates its sampler through R, and a host without R cannot
+  create one at all. The specification's predictor part is the struct
+  `dbarts_sampler_predict` already takes, which gains a per-column
+  statement of whether a column's values are doubles or integer codes. It lands before 1.0-0 because the sister packages build
   against the interface it changes, which becomes the 1.0 contract.
 - **Frequency weights**, where a row stands for w identical observations,
   as an explicit choice beside the precision weights a gaussian fit takes
@@ -349,6 +385,17 @@ re-verified against the final header afterwards:
   stays the default, so no existing fit moves.
 - **A `plot` method in stan4bart**, the one 0.9-x `rbart` method with no
   counterpart there; its ported branch already has `residuals()`.
+- **Forest settings.** Several forests with no basis sharing one prior
+  total; `setForestBasis` re-deriving a default sd from a replaced column
+  during burn-in, and the long form `leaf.prior = normal(sd = )` on
+  `forest()`; an opt-in heavy-tailed prior on a drawn coefficient; and what
+  a variance forest created without its own tree prior inherits.
+- **Defaults under study.** Whether the binary and negative binomial `k`
+  must mix quickly for intervals of the function and of effects, and a
+  redesigned study of the negative binomial's default prior; a change of
+  either default would come back to the maintainer. Also whether a factor's
+  split probability should be weighted by its level count, which the
+  indicator encoding gave implicitly.
 
 Decided, and scheduled after 1.0-0: real-valued nbinom dispersion and
 weighted binary responses, which share one open question about approximate
@@ -377,12 +424,12 @@ Costlier to change after the release, because the release fixes them:
 
 For a reviewer who opens the code after sections 1 to 6. The stops follow
 what a linked package can be broken by. In the four design documents only
-the sections named describe the current design - about 4,900 of their
-17,100 words; the rest can be skipped.
+the sections named describe the current design - about 4,700 of their
+18,700 words; the rest can be skipped.
 
 ### A.1 Orientation
 
-Read `docs/architecture.md` (about 4,600 words) whole before any code; it
+Read `docs/architecture.md` (about 5,400 words) whole before any code; it
 states the current design, and outranks any paraphrase.
 
 ### A.2 The C interface
@@ -395,9 +442,9 @@ then the entry table
 Then `docs/plans/pure-c-header.md`, its Goal and Decision.
 
 Judge: whether every non-void entry says whether it returns a value or a
-capability status, and whether a discarded capability 0 is an acceptable
-failure mode - it leaves the sampler unchanged and the run conditioned on
-what it held before.
+status (a capability status, or for the two swap entries a swap status), and
+whether a discarded capability 0 is an acceptable failure mode - it leaves
+the sampler unchanged and the run conditioned on what it held before.
 
 ### A.3 The engine
 
