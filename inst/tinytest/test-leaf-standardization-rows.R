@@ -320,7 +320,7 @@ expect_error(
   make(data = flat, weights = none),
   paste0(
     "the leaf covariate \"x1\" holds one value over all 200 observations, ",
-    "which are read because none is in the likelihood"
+    "read because too few are in the likelihood"
   ),
   fixed = TRUE
 )
@@ -366,12 +366,6 @@ cases <- list(
     w = w,
     holds = "holds no observed value",
     count = 100L
-  ),
-  "one row in" = list(
-    data = x,
-    w = oneIn,
-    holds = "holds one value",
-    count = 1L
   )
 )
 for (label in names(cases)) {
@@ -379,7 +373,6 @@ for (label in names(cases)) {
   for (gp in c(FALSE, TRUE)) {
     prior <- if (gp) dbartsPriors$gp("x1") else dbartsPriors$linear("x1")
     message <- refusalOf(case$holds, case$count, gp)
-    # one row in also leaves the response one value, which is warned first
     expect_error(
       suppressWarnings(make(
         data = case$data,
@@ -447,6 +440,71 @@ stated <- make(
   leaf.prior = dbartsPriors$gp("x1", lengthscale = 0.7)
 )
 expect_identical(recordOf(stated), list(center = 2, scale = 1))
+# one row in leaves the response one value, so its scale and the leaf's
+# numbers are read from every row, said in one text (dec-B309), through
+# dbarts() and bart(), and under nbinom's mask; a family that reads no
+# response has nothing to fall back with and refuses one row in as one value
+oneRow <- paste0(
+  "fewer than two distinct values of the response are in the likelihood ",
+  "(1 of 200 observations are in it), so the response's scale, the prior's ",
+  "center and the center and scale of \"x1\" are taken from all 200"
+)
+for (gp in c(FALSE, TRUE)) {
+  prior <- if (gp) dbartsPriors$gp("x1") else dbartsPriors$linear("x1")
+  made <- fallbacks(make(weights = oneIn, leaf.prior = prior))
+  expect_identical(made$warnings, oneRow, info = paste("gp", gp))
+  expectRecord(made$value, literal(x1, gp = gp), paste("one row in, gp", gp))
+  viaBart <- fallbacks(bart(
+    x,
+    y,
+    weights = oneIn,
+    leaf.prior = prior,
+    n.trees = 5L,
+    n.samples = 2L,
+    n.burn = 0L,
+    n.chains = 1L,
+    n.threads = 1L,
+    seed = 2L,
+    verbose = FALSE
+  ))
+  expect_identical(viaBart$warnings, oneRow, info = paste("bart, gp", gp))
+  expect_error(
+    make("probit", oneIn, prior),
+    refusalOf("holds one value", 1L, gp),
+    fixed = TRUE
+  )
+}
+made <- fallbacks(make("nbinom", oneIn))
+expect_identical(made$warnings, oneRow)
+expectRecord(made$value, literal(x1), "one row in, nbinom")
+# the same at a setData that derives the range; one that keeps it has no
+# fallback to follow and refuses
+s <- make()
+made <- fallbacks(s$setData(dbartsData(x, y, weights = oneIn)))
+expect_identical(made$warnings, oneRow)
+expectRecord(s, literal(x1), "setData, one row in")
+s <- make()
+expect_error(
+  s$setData(dbartsData(x, y, weights = oneIn), updateScale = FALSE),
+  "holds one value over the rows in the likelihood (1 of 200",
+  fixed = TRUE
+)
+# a multiplier forest takes no linear leaf, so one row in is refused before
+# any warning
+expect_identical(
+  tryCatch(
+    fallbacks(dbarts(
+      y ~ forest(x1 + x2) + forest(x1 + x2, basis = x2),
+      data.frame(y = y, x),
+      weights = oneIn,
+      leaf.prior = dbartsPriors$linear("x1"),
+      control = controlWith()
+    ))$warnings,
+    error = function(e) conditionMessage(e)
+  ),
+  "a treatment forest does not support a linear leaf prior; drop it or fit a single-forest model"
+)
+
 # rows out at one value, rows in spread: created, over the rows in
 outAtOne <- x
 outAtOne[-inRows, "x1"] <- 7

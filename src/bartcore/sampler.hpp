@@ -2338,6 +2338,8 @@ public:
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
       leafRows = leafRowsFrom(weights, replacement.activeRows,
                               numObservations, leafRowStorage);
+      if (replacement.range == DerivedValueChoice::derive)
+        leafRows = withResponseFallback(leafRows, y, offset, numObservations);
       if (replacement.standardization != DerivedValueChoice::keep)
         refuseLeafDerivation(
           x, numObservations,
@@ -3048,6 +3050,26 @@ private:
     return result;
   }
 
+  /// \p rows, or every row where the response's read falls back to every row
+  /// (a family that reads it, \p y less \p offset one value over the rows in).
+  LeafRows withResponseFallback(LeafRows rows, const double* y,
+                                const double* offset, size_t n) const {
+    bool gaussian = family_ == ResponseFamily::gaussian;
+    if (rows.rows == nullptr ||
+        (!gaussian && family_ != ResponseFamily::nbinom))
+      return rows;
+    double first = 0.0;
+    bool seen = false;
+    for (size_t i = 0; i < n; ++i) {
+      if (rows.rows[i] == 0) continue;
+      double value = gaussian && offset != nullptr ? y[i] - offset[i] : y[i];
+      if (seen && value != first) return rows;
+      first = value;
+      seen = true;
+    }
+    return LeafRows{nullptr, true};
+  }
+
   /// Refuses, before anything moves, a derivation over \p rows that would
   /// find too little of a leaf covariate: each covariate whose center
   /// \p supplied leaves to derive (null centers derive every one), its
@@ -3097,8 +3119,10 @@ private:
     std::vector<std::uint8_t> leafRowStorage;
     LeafRows leafRows;
     if constexpr (L::hasVectorParams || L::hasFunctionParams)
-      leafRows = leafRowsFrom(weights, options_.activeRows,
-                              data_.numObservations, leafRowStorage);
+      leafRows = withResponseFallback(
+        leafRowsFrom(weights, options_.activeRows, data_.numObservations,
+                     leafRowStorage),
+        y, offset, data_.numObservations);
     chains_.reserve(options_.numChains);
     for (size_t c = 0; c < options_.numChains; ++c)
       chains_.push_back(std::make_unique<Chain<L, ResidT>>(

@@ -2646,14 +2646,18 @@ dbartsSampler <- setRefClass(
       if (.self$control@verbose && !isTRUE(forestPrintState[["held"]])) {
         writeLines(samplerForestLines(.self, full = TRUE))
       }
-      # a leaf covariate's center and scale read from every row, no row being
-      # in the likelihood: under a family that reads the response, whose
+      # a leaf covariate's center and scale read from every row, too few rows
+      # being in the likelihood: under a family that reads the response, whose
       # scale was then read from every row too, one text names both
       fromAllRows <- leafFromAllRows(.self, created$records)
       if (length(fromAllRows) > 0L || !is.null(periods)) {
         warnRowsFallBack(
           length(.self$data@y),
-          0L,
+          sum(rowsInLikelihood(
+            .self$data@weights,
+            active,
+            length(.self$data@y)
+          )),
           model@family %in% c("gaussian", "nbinom"),
           fromAllRows,
           periods

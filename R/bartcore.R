@@ -1597,48 +1597,34 @@ warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
   if (!is.null(periods)) {
     warning(periods)
   }
-  if (length(leaf) == 0L) {
-    if (range) {
-      warnClassed(
-        "dbartsScaleFallbackWarning",
-        "fewer than two distinct values of the response are in the ",
-        "likelihood (",
-        rowsIn,
-        " of ",
-        n,
-        " observations are in it), so the response's scale and the prior's ",
-        "center are taken from all ",
-        n
-      )
-    }
+  if (!range && length(leaf) == 0L) {
     return(invisible(NULL))
   }
-  what <- leafCentersAndScales(leaf)
-  if (range) {
-    warnClassed(
-      "dbartsScaleFallbackWarning",
-      "fewer than two distinct values of the response are in the ",
-      "likelihood (",
+  what <- if (length(leaf) > 0L) leafCentersAndScales(leaf)
+  lead <- if (!range) {
+    paste0("no observation is in the likelihood (0 of ", n, " have a positive ")
+  } else {
+    paste0(
+      "fewer than two distinct values of the response are in the likelihood (",
       rowsIn,
       " of ",
       n,
-      " observations are in it), so the response's scale, the prior's ",
-      "center and ",
-      what,
-      " are taken from all ",
-      n
-    )
-  } else {
-    warnClassed(
-      "dbartsScaleFallbackWarning",
-      "no observation is in the likelihood (0 of ",
-      n,
-      " have a positive weight), so ",
-      what,
-      " are taken from all ",
-      n
+      " observations are in it), so the response's scale",
+      if (is.null(what)) {
+        " and the prior's center"
+      } else {
+        ", the prior's center and "
+      }
     )
   }
+  warnClassed(
+    "dbartsScaleFallbackWarning",
+    lead,
+    if (!range) "weight), so ",
+    what,
+    " are taken from all ",
+    n
+  )
   invisible(NULL)
 }
 

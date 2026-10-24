@@ -3870,7 +3870,7 @@ std::string leafStandardizationMessage(
   std::string over =
     error.numRowsIn == 0
       ? " over all " + std::to_string(error.numObservations) +
-          " observations, which are read because none is in the likelihood"
+          " observations, read because too few are in the likelihood"
       : " over the rows in the likelihood (" +
           std::to_string(error.numRowsIn) + " of " +
           std::to_string(error.numObservations) +

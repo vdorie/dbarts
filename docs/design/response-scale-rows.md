@@ -48,9 +48,10 @@ What it no longer does is move the numbers the prior is stated against.
 9. Leaf covariates. A linear or gp leaf's covariate center and scale, and the lengthscale a gp leaf derives
    with them, are read over the rows in wherever the sampler derives them: at creation, under a mask family the
    rows the creation mask keeps; at a `setData` that derives them, over the new data's rows in; in an `xbart`
-   fold, over the fold's training rows in. Unweighted, as in rule 1, and over every row where none is in, under
-   the creation warning, one text with the response's under the families that read it and with a hazard fit's
-   periods where no subject is in (rule 8). Where the rows read hold
+   fold, over the fold's training rows in. Unweighted, as in rule 1, and over every row where none is in, or where
+   the response's own read falls back to every row under rule 4 (fewer than two distinct values of it in, one row
+   say, at creation or a `setData` that derives the range), under the creation warning, one text with the
+   response's under the families that read it and with a hazard fit's periods where no subject is in (rule 8). Where the rows read hold
    fewer than two distinct observed values of a covariate, one value or none, a derivation is refused, there
    being no number in force to keep, unless a gp leaf states its lengthscale, which takes the placeholder: the
    one value, divided by 1. `setPredictor(updateStandardization = TRUE)` re-derives the replaced covariates over
