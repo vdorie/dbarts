@@ -396,8 +396,10 @@ for (i in seq_len(n.burn + n.keep)) {
                      updateStandardization = burning)
   draw <- if (burning) sampler$run(1L, 0L) else sampler$run(0L, 1L)
 }}
-    A sampler is refused at creation when its rows in hold one value of a
-    leaf covariate (see \code{newData}).
+    Creation and a \code{setData} that derives refuse rows in that hold one
+    value of a leaf covariate, unless the response's scale is read from every
+    row and the covariates with it (see \code{newData}); these setters keep
+    instead, one row in included, the response's scale keeping there too.
   }
   \item{splits}{
     For \code{setCutPoints}, \code{"position"} (the default) or \code{"value"},

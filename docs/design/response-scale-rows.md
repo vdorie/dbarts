@@ -58,8 +58,9 @@ What it no longer does is move the numbers the prior is stated against.
    the rows in at that call, under the weights and the mask in force, and keeps one with too little, warning once
    per sampler as rule 4 does, on the flag the response's keeps share. `updateStandardization = TRUE` on
    `setWeights` and `setActiveRows` re-derives every leaf covariate over the rows in after the install, keeping
-   by the same rule; where `updateScale = TRUE` keeps the response's scale in the same call, one warning names
-   both. A loop whose rows in change passes it while burning in and then stops, so every kept draw comes from
+   by the same rule, one row in included: the response keeps there too (rule 4), so there is no read of every
+   row for the leaf to follow, and a covariate spread over the rows in re-derives beside a kept response; where
+   `updateScale = TRUE` keeps the response's scale in the same call, one warning names both. A loop whose rows in change passes it while burning in and then stops, so every kept draw comes from
    one prior (dec-B465). Held otherwise, through the data object's
    record: a copy, a reload and a re-creation take it and read no row. Cut points still span every row.
 

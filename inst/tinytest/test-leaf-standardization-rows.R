@@ -1372,6 +1372,40 @@ expect_identical(
   fallbacks(s$setActiveRows(wLast, updateStandardization = TRUE))$warnings,
   keepText
 )
+# one row in: a re-derivation keeps, where creation reads every row with the
+# response's fallback; with both arguments the response's scale and every
+# covariate are kept under one warning, and a family that reads no response
+# keeps every covariate in the leaf's words
+s <- make(weights = w, leaf.prior = leafPriorOf(TRUE))
+range <- s$data@response.range
+before <- recordOf(s)
+expect_identical(
+  fallbacks(s$setWeights(
+    oneIn,
+    updateScale = TRUE,
+    updateStandardization = TRUE
+  ))$warnings,
+  paste0(
+    "fewer than two distinct values of the response and of each of the leaf ",
+    "covariates \"x1\" and \"x2\" are in the likelihood, so the response's ",
+    "scale, the prior's center and the covariates' centers and scales are ",
+    "kept as they were (said once per sampler)"
+  )
+)
+expect_identical(s$data@response.range, range)
+expect_identical(recordOf(s), before)
+expect_identical(readerOf(s), before)
+s <- make("probit", w, leafPriorOf(FALSE))
+before <- recordOf(s)
+expect_identical(
+  fallbacks(s$setActiveRows(oneIn, updateStandardization = TRUE))$warnings,
+  paste0(
+    "fewer than two distinct values of each of the leaf covariates \"x1\" ",
+    "and \"x2\" are in the likelihood, so their centers and scales are kept ",
+    "as they were (said once per sampler)"
+  )
+)
+expect_identical(recordOf(s), before)
 
 # gp with a kept draw: refused before the install, the weights, the mask and
 # the engine as they were
