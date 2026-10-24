@@ -629,68 +629,92 @@ y.pair <- ordered(
   cut(x.pair$a + rnorm(60L, sd = 0.3), 3L, labels = c("lo", "mid", "hi"))
 )
 newdata.pair <- data.frame(a = c(0.2, 0.8, 0.5), b = c(0.5, 0.1, 0.9))
-for (fitCombined in c(TRUE, FALSE)) {
-  fit.pair <- bart(
-    x.pair,
-    y.pair,
-    test = newdata.pair,
-    family = "ordinal",
-    n.chains = 2L,
-    n.threads = 1L,
-    n.samples = 25L,
-    n.burn = 20L,
-    n.trees = 10L,
-    keepTrees = TRUE,
-    combineChains = fitCombined,
-    verbose = FALSE,
-    seed = 1L
-  )
-  ppdCalls <- list(
-    extract = function(combine) {
-      extract(fit.pair, type = "ppd", combineChains = combine)
-    },
-    extractTest = function(combine) {
-      extract(fit.pair, type = "ppd", sample = "test", combineChains = combine)
-    },
-    predictTraining = function(combine) {
-      predict(fit.pair, type = "ppd", combineChains = combine)
-    },
-    predictNewdata = function(combine) {
-      predict(fit.pair, newdata.pair, type = "ppd", combineChains = combine)
-    }
-  )
-  for (label in names(ppdCalls)) {
-    set.seed(6L)
-    merged <- ppdCalls[[label]](TRUE)
-    set.seed(6L)
-    perChain <- ppdCalls[[label]](FALSE)
-    expect_identical(dim(perChain)[1:2], c(2L, 25L), info = label)
-    expect_identical(
-      as.vector(merged),
-      as.vector(mergeChains(perChain)),
-      info = label
-    )
-  }
-  # the test rows, whichever way they are asked for
-  set.seed(7L)
-  viaExtract <- extract(fit.pair, type = "ppd", sample = "test")
-  set.seed(7L)
-  expect_identical(
-    predict(fit.pair, newdata.pair, type = "ppd"),
-    viaExtract
-  )
-  # newdata at the training rows is the call with no newdata, merged or not
-  for (combine in c(TRUE, FALSE)) {
-    set.seed(8L)
-    atTraining <- predict(
-      fit.pair,
+for (chains.pair in c(2L, 3L)) {
+  for (fitCombined in c(TRUE, FALSE)) {
+    fit.pair <- bart(
       x.pair,
-      type = "ppd",
-      combineChains = combine
+      y.pair,
+      test = newdata.pair,
+      family = "ordinal",
+      n.chains = chains.pair,
+      n.threads = 1L,
+      n.samples = 25L,
+      n.burn = 20L,
+      n.trees = 10L,
+      keepTrees = TRUE,
+      combineChains = fitCombined,
+      verbose = FALSE,
+      seed = 1L
     )
-    set.seed(8L)
-    noNewdata <- predict(fit.pair, type = "ppd", combineChains = combine)
-    expect_identical(atTraining, noNewdata)
+    ppdCalls <- list(
+      extract = function(combine) {
+        extract(fit.pair, type = "ppd", combineChains = combine)
+      },
+      extractTest = function(combine) {
+        extract(
+          fit.pair,
+          type = "ppd",
+          sample = "test",
+          combineChains = combine
+        )
+      },
+      predictTraining = function(combine) {
+        predict(fit.pair, type = "ppd", combineChains = combine)
+      },
+      predictNewdata = function(combine) {
+        predict(fit.pair, newdata.pair, type = "ppd", combineChains = combine)
+      }
+    )
+    for (label in names(ppdCalls)) {
+      set.seed(6L)
+      merged <- ppdCalls[[label]](TRUE)
+      set.seed(6L)
+      perChain <- ppdCalls[[label]](FALSE)
+      info <- paste(label, chains.pair, "chains", fitCombined)
+      expect_identical(dim(perChain)[1:2], c(chains.pair, 25L), info = info)
+      expect_identical(
+        as.vector(merged),
+        as.vector(mergeChains(perChain)),
+        info = info
+      )
+    }
+    # the split draws themselves: one category per cell by sample.int on the
+    # cell's probabilities, in chain-fastest, then sample, then row order
+    probs <- extract(fit.pair, type = "ev", combineChains = FALSE)
+    flat <- matrix(probs, ncol = dim(probs)[4L])
+    set.seed(9L)
+    byHand <- vapply(
+      seq_len(nrow(flat)),
+      function(i) sample.int(ncol(flat), 1L, prob = flat[i, ]),
+      1L
+    )
+    set.seed(9L)
+    expect_identical(
+      as.vector(extract(fit.pair, type = "ppd", combineChains = FALSE)),
+      byHand,
+      info = paste(chains.pair, "chains", fitCombined)
+    )
+    # the test rows, whichever way they are asked for
+    set.seed(7L)
+    viaExtract <- extract(fit.pair, type = "ppd", sample = "test")
+    set.seed(7L)
+    expect_identical(
+      predict(fit.pair, newdata.pair, type = "ppd"),
+      viaExtract
+    )
+    # newdata at the training rows is the call with no newdata, merged or not
+    for (combine in c(TRUE, FALSE)) {
+      set.seed(8L)
+      atTraining <- predict(
+        fit.pair,
+        x.pair,
+        type = "ppd",
+        combineChains = combine
+      )
+      set.seed(8L)
+      noNewdata <- predict(fit.pair, type = "ppd", combineChains = combine)
+      expect_identical(atTraining, noNewdata)
+    }
   }
 }
 rm(
@@ -698,12 +722,17 @@ rm(
   x.pair,
   y.pair,
   newdata.pair,
+  chains.pair,
   fitCombined,
   fit.pair,
   ppdCalls,
   label,
   merged,
   perChain,
+  info,
+  probs,
+  flat,
+  byHand,
   viaExtract,
   combine,
   atTraining,

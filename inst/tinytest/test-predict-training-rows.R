@@ -1085,7 +1085,11 @@ for (action in actions) {
   )
   # a posterior predictive draw of each of them reads and draws the kept rows
   # alone, as at newdata
-  for (case in list(list(fit.ord, na.o), list(fit.mn, na.cat))) {
+  for (case in list(
+    list(fit.nb, na.o),
+    list(fit.ord, na.o),
+    list(fit.mn, na.cat)
+  )) {
     expect_equal(
       seeded(predict(
         case[[1L]],
@@ -1103,10 +1107,8 @@ for (action in actions) {
     )
   }
 }
-# a count fit's posterior predictive draw has a layout of its own at newdata
-# (the same call at newdata and with no newdata differ under one seed even with
-# nothing missing), so it is held to what its training rows do: the kept rows
-# alone are drawn, the same draws under each action
+# a count fit's posterior predictive draw reads and draws the kept rows alone,
+# the same draws under each action
 nb.pass <- seeded(predict(
   fit.nb,
   offset = na.o,
@@ -1205,6 +1207,39 @@ passed <- seeded(predict(
 ))
 expect_identical(unname(which(apply(is.na(passed), 2L, any))), c(4L, 9L))
 expect_identical(unname(passed[, -c(4L, 9L), ]), unname(omitted))
+# its credible band keeps the category margin as the draws do, one est,
+# ci.lower and ci.upper per row and category, whether or not a row is set
+# aside; the mean counts of a row add up to its trials
+band.counts <- predict(fit.counts, type = "ppd", ci.level = 0.9)
+expect_identical(dim(band.counts), c(n, 3L, 3L))
+expect_identical(
+  dimnames(band.counts),
+  dimnames(predict(fit.counts, type = "ev", ci.level = 0.9))
+)
+expect_equal(unname(rowSums(band.counts[,, 1L])), as.numeric(trials.n))
+for (action in list(na.pass, na.exclude, na.omit)) {
+  band.set <- seeded(predict(
+    fit.counts,
+    offset = off.counts,
+    type = "ppd",
+    ci.level = 0.9,
+    na.action = action
+  ))
+  if (identical(action, na.omit)) {
+    expect_identical(dim(band.set), c(n - 2L, 3L, 3L))
+    expect_false(anyNA(band.set))
+  } else {
+    expect_identical(dim(band.set), c(n, 3L, 3L))
+    expect_identical(
+      unname(which(apply(is.na(band.set), 1L, any))),
+      c(4L, 9L)
+    )
+    expect_equal(
+      unname(rowSums(band.set[-c(4L, 9L), , 1L])),
+      as.numeric(trials.n[-c(4L, 9L)])
+    )
+  }
+}
 
 # the case the review found: 40 rows, a missing weight at rows 3 and 7, one seed
 df.40 <- df[1:40, c("a", "b", "c", "y")]

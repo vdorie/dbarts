@@ -105,7 +105,9 @@ na.keepPredictors(object, \dots)
   it, \code{na.exclude} padding it back. Only the rows \code{na.action} keeps
   are read and drawn, as at \code{newdata}, so under one seed a posterior
   predictive draw is that of the call at \code{newdata} with the same action,
-  and with the rows dropped it is that of the call on the rows kept, and a
+  and with the rows dropped it is that of the call on the rows kept (except
+  for a multinomial fit on a matrix of counts, whose own rows draw a count
+  vector each where \code{newdata} draws one category), and a
   single missing value is always an error. \code{survivalProbabilities}
   answers a missing value in the \code{offset} it is given for the fit's own
   subjects in the same way. The sampler's own

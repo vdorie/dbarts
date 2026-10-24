@@ -2516,9 +2516,11 @@ multinomialLogLik <- function(object, probs) {
 # K with chain-blocked rows, is split first and its draws combined after, so
 # under one seed a merged draw is the merge of the per-chain draw, as every
 # other family's is. A one-chain channel is the same flat order in either
-# layout and is drawn as it is.
+# layout and a split one is already in it: both are drawn as they are, the
+# split result being left split.
 drawInSplitLayout <- function(probs, n.chains, draw) {
-  if (n.chains < 2L || length(dim(probs)) > 3L) {
+  combined <- n.chains > 1L && length(dim(probs)) == 3L
+  if (!combined) {
     return(draw(probs))
   }
   result <- draw(reshapeChainedChannel(probs, n.chains, FALSE, 2L))
@@ -2750,7 +2752,7 @@ predict.bartMultinomial <- function(
       offset,
       combineChains,
       ci.level,
-      trailing = if (type == "ev") 2L else 1L,
+      trailing = if (trainingResultHasCategories(object, type)) 2L else 1L,
       na.action = na.action
     ))
   }
