@@ -3507,7 +3507,7 @@ answerSurvivalSubjects <- function(result, rows) {
   d <- dim(result)
   rows$names <- dimnames(result)[[length(d)]]
   indices <- rep(list(quote(expr = )), length(d))
-  indices[[length(d)]] <- if (rows$placeholder) 1L else which(rows$keep)
+  indices[[length(d)]] <- which(rows$keep)
   padPredictedRows(
     do.call(`[`, c(list(result), indices, list(drop = FALSE))),
     rows

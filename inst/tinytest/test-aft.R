@@ -738,15 +738,19 @@ expect_equal(
   sp.aftT.train,
   tolerance = 1e-12
 )
-expect_error(
-  survivalProbabilities(fit.aftT, times.aft, offset = 1:3, sample = "test"),
-  "'offset' must be one number or one per test row (15)",
-  fixed = TRUE
+expect_identical(
+  tryCatch(
+    survivalProbabilities(fit.aftT, times.aft, offset = 1:3, sample = "test"),
+    error = conditionMessage
+  ),
+  "'offset' must be one number or one per test row (15)"
 )
-expect_error(
-  survivalProbabilities(fit.aftT, times.aft, offset = 1:3),
-  "'offset' must be one number or one per training row (200)",
-  fixed = TRUE
+expect_identical(
+  tryCatch(
+    survivalProbabilities(fit.aftT, times.aft, offset = 1:3),
+    error = conditionMessage
+  ),
+  "'offset' must be one number or one per training row (200)"
 )
 # a missing value in an offset given with no newdata is its subject's
 # na.action to answer, as it is at newdata and as predict answers the training

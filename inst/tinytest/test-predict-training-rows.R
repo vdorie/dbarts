@@ -1254,3 +1254,69 @@ for (action in list(na.pass, na.exclude)) {
     unname(at.kept)
   )
 }
+
+# the draws, the band and the classes of every family with every row set aside
+# are NA for all of them or for none, shaped as when some are kept and leaving
+# the random stream as it was; a call that read no row at all could not be
+# shaped, which is why one stands in
+all.o <- rep(NA_real_, n)
+all.cat <- matrix(NA_real_, n, 3L)
+categoryFits <- list(fit.ord, fit.mn, fit.counts)
+for (case in list(
+  list(fit, all.o),
+  list(fit.p, all.o),
+  list(fit.nb, all.o),
+  list(fit.ord, all.o),
+  list(fit.mn, all.cat),
+  list(fit.counts, all.cat)
+)) {
+  object <- case[[1L]]
+  for (type in c("ev", "ppd")) {
+    for (ci in list(NULL, 0.9)) {
+      info <- paste(class(object)[1L], type, if (!is.null(ci)) "band")
+      set.seed(5L)
+      stream <- .Random.seed
+      passed <- predict(
+        object,
+        offset = case[[2L]],
+        type = type,
+        ci.level = ci,
+        na.action = na.pass
+      )
+      omitted <- predict(
+        object,
+        offset = case[[2L]],
+        type = type,
+        ci.level = ci,
+        na.action = na.omit
+      )
+      expect_true(all(is.na(passed)), info = info)
+      expect_identical(.Random.seed, stream, info = info)
+      # the observation margin: the first of a band, else the last, or the one
+      # before the categories of the probabilities and of a count draw
+      d <- dim(passed)
+      margin <- if (!is.null(ci)) {
+        1L
+      } else if (
+        any(vapply(categoryFits, identical, NA, object)) &&
+          (type == "ev" || identical(object, fit.counts))
+      ) {
+        length(d) - 1L
+      } else {
+        length(d)
+      }
+      expect_identical(d[margin], n, info = info)
+      expect_identical(dim(omitted)[margin], 0L, info = info)
+    }
+  }
+}
+for (object in list(fit.ord, fit.mn)) {
+  given <- if (identical(object, fit.mn)) all.cat else all.o
+  expect_true(all(is.na(
+    predict(object, offset = given, type = "class", na.action = na.pass)
+  )))
+  expect_length(
+    predict(object, offset = given, type = "class", na.action = na.omit),
+    0L
+  )
+}

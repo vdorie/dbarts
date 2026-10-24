@@ -627,10 +627,12 @@ expect_equal(
   survivalProbabilities(fit.hoff, sample = "test"),
   tolerance = 1e-12
 )
-expect_error(
-  survivalProbabilities(fit.hoff.bare, offset = 1:3, sample = "test"),
-  "one per test subject",
-  fixed = TRUE
+expect_identical(
+  tryCatch(
+    survivalProbabilities(fit.hoff.bare, offset = 1:3, sample = "test"),
+    error = conditionMessage
+  ),
+  "'offset' must be one number or one per test subject (4)"
 )
 # under "train" an offset replaces the training subjects' own (0.3 here), one
 # value or one per subject, by replaying the trees; the test subjects' offset
@@ -655,10 +657,16 @@ expect_equal(
   survivalProbabilities(fit.hoff),
   tolerance = 1e-12
 )
-expect_error(
-  survivalProbabilities(fit.hoff, offset = 1:3),
-  "one per training subject",
-  fixed = TRUE
+expect_identical(
+  tryCatch(
+    survivalProbabilities(fit.hoff, offset = 1:3),
+    error = conditionMessage
+  ),
+  paste0(
+    "'offset' must be one number or one per training subject (",
+    nrow(x),
+    ")"
+  )
 )
 expect_error(
   survivalProbabilities(fit.hoff.bare, offset = 1),
