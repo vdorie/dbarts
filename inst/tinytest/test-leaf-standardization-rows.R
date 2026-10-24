@@ -1177,6 +1177,24 @@ expectRecord(
 )
 expect_identical(storedState(s), storedState(twin))
 expect_identical(sweeps(s), sweeps(twin))
+# clearing the mask with the argument re-derives over the rows the weights
+# leave in
+s <- make(weights = w, leaf.prior = leafPriorOf(FALSE))
+twin <- make(weights = w, leaf.prior = leafPriorOf(FALSE))
+s$setActiveRows(wCall, updateStandardization = TRUE)
+twin$setActiveRows(wCall, updateStandardization = TRUE)
+s$setActiveRows(NULL, updateStandardization = TRUE)
+twin$setActiveRows(NULL)
+twin$setPredictor(x, c("x1", "x2"), TRUE, updateStandardization = TRUE)
+expectRecord(
+  s,
+  list(
+    center = c(mean(x1[w == 1]), mean(x2[w == 1])),
+    scale = c(sd(x1[w == 1]), sd(x2[w == 1]))
+  ),
+  "setActiveRows(NULL)"
+)
+expect_identical(sweeps(s), sweeps(twin))
 # kept linear draws predict what they did
 s <- make(weights = w, leaf.prior = leafPriorOf(FALSE), keepTrees = TRUE)
 invisible(s$run(5L, 5L))
@@ -1208,8 +1226,9 @@ expectRecord(
   ),
   "both arguments"
 )
-# a keep of both: the rows in hold one value of the response and of x1, so
-# both are kept, x2 re-derives, and one warning names both
+# a keep of both: the rows in hold one value of the response, so its scale is
+# kept and every covariate with it, x2 though it has spread there, under one
+# warning naming the response as the cause
 lastRows <- seq_len(n) > 150L
 wLast <- as.double(lastRows)
 yLast <- replace(y, lastRows, 1)
@@ -1229,24 +1248,79 @@ both <- fallbacks(s$setWeights(
   updateScale = TRUE,
   updateStandardization = TRUE
 ))
-expect_identical(
-  both$warnings,
-  paste0(
-    "fewer than two distinct values of the response and of the leaf ",
-    "covariate \"x1\" are in the likelihood, so the response's scale, the ",
-    "prior's center and the covariate's center and scale are kept as they ",
-    "were (said once per sampler)"
-  )
+jointText <- paste0(
+  "fewer than two distinct values of the response are in the likelihood, so ",
+  "the response's scale, the prior's center and the centers and scales of ",
+  "\"x1\" and \"x2\" are kept as they were (said once per sampler)"
 )
+expect_identical(both$warnings, jointText)
 expect_identical(s$data@response.range, range)
+expect_identical(recordOf(s), before)
+expect_identical(readerOf(s), before)
+# with updateScale FALSE nothing reads the response: each covariate keeps or
+# re-derives over the rows in by its own values, x1 kept and x2 derived
+s <- dbarts::dbarts(
+  xLast,
+  yLast,
+  weights = w,
+  leaf.prior = leafPriorOf(FALSE),
+  control = controlWith()
+)
+before <- recordOf(s)
+alone <- fallbacks(s$setWeights(wLast, updateStandardization = TRUE))
+expect_identical(alone$warnings, keepText)
 expect_identical(recordOf(s)$center[[1L]], before$center[[1L]])
-expect_identical(recordOf(s)$scale[[1L]], before$scale[[1L]])
 expect_equal(
   recordOf(s)$center[[2L]],
   mean(x2[lastRows]),
   tolerance = 1e-12
 )
 expect_identical(recordOf(s), readerOf(s))
+# the same rows give the same leaf numbers at creation and at a burn-in
+# setter: a response at one value over the rows in reads every row at
+# creation, under gaussian and nbinom, and a sampler created on every row
+# keeps them at the setter, a covariate's spread there notwithstanding
+in5 <- seq_len(n) <= 5L
+zeros <- as.double(seq_len(n) %in% which(yCount == 0)[1:8])
+tied <- list(
+  gaussian = list(
+    made = function(weights) {
+      dbarts::dbarts(
+        x,
+        replace(y, in5, 1),
+        weights = weights,
+        leaf.prior = leafPriorOf(FALSE),
+        control = controlWith()
+      )
+    },
+    rows = as.double(in5)
+  ),
+  nbinom = list(
+    made = function(weights) make("nbinom", weights, leafPriorOf(FALSE)),
+    rows = zeros
+  )
+)
+for (kind in names(tied)) {
+  created <- fallbacks(tied[[kind]]$made(tied[[kind]]$rows))
+  expect_identical(length(created$warnings), 1L, info = kind)
+  expectRecord(
+    created$value,
+    list(
+      center = c(mean(x1), mean(x2)),
+      scale = c(sd(x1), sd(x2))
+    ),
+    paste(kind, "created on the tied rows")
+  )
+  s <- tied[[kind]]$made(NULL)
+  kept <- fallbacks(s$setWeights(
+    tied[[kind]]$rows,
+    updateScale = TRUE,
+    updateStandardization = TRUE
+  ))
+  expect_identical(kept$warnings, jointText, info = kind)
+  expect_identical(recordOf(s), recordOf(created$value), info = kind)
+  expect_identical(readerOf(s), recordOf(created$value), info = kind)
+}
 
 # the argument: after updateScale, absent and FALSE moving nothing; positional
 # setWeights(w, TRUE) still names updateState
@@ -1385,12 +1459,7 @@ expect_identical(
     updateScale = TRUE,
     updateStandardization = TRUE
   ))$warnings,
-  paste0(
-    "fewer than two distinct values of the response and of each of the leaf ",
-    "covariates \"x1\" and \"x2\" are in the likelihood, so the response's ",
-    "scale, the prior's center and the covariates' centers and scales are ",
-    "kept as they were (said once per sampler)"
-  )
+  jointText
 )
 expect_identical(s$data@response.range, range)
 expect_identical(recordOf(s), before)

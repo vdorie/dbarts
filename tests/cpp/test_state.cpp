@@ -6866,7 +6866,8 @@ static void testLeafStandardizationRows() {
   };
   auto bits = [](const std::vector<double>& a, const std::vector<double>& b) {
     return a.size() == b.size() &&
-           std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0;
+           (a.empty() ||
+            std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0);
   };
 
   // at creation, by weight under gaussian and by the creation mask under
@@ -7155,7 +7156,8 @@ static void testRederiveStandardization() {
   };
   auto same = [](const std::vector<double>& a, const std::vector<double>& b) {
     return a.size() == b.size() &&
-           std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0;
+           (a.empty() ||
+            std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0);
   };
   auto sameRecords = [&](const DerivedRecords& a, const DerivedRecords& b) {
     return same(a.leafCenters, b.leafCenters) &&

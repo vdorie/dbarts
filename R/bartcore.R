@@ -1240,8 +1240,10 @@ bartcoreSamplerSetResponse <- function(
 ## the engine. 'first' is the bridge's answer: TRUE on the sampler's first
 ## re-derivation that kept the scale or a leaf covariate's numbers, FALSE on
 ## every other call. 'covariates', the labels of the leaf covariates kept,
-## gives the leaf's words, and with 'scale' one text naming the response's
-## scale with them; NULL the response's words alone.
+## gives the leaf's words; with 'scale', the response's scale kept and every
+## covariate with it, one text naming the response as the cause and the
+## covariates beside its scale, as the creation's fallback names them; NULL
+## the response's words alone.
 warnScaleKept <- function(
   first,
   covariates = NULL,
@@ -1250,43 +1252,23 @@ warnScaleKept <- function(
   if (!isTRUE(first)) {
     return(invisible(NULL))
   }
-  several <- length(covariates) > 1L
-  named <- if (several) {
-    paste0(
-      paste(covariates[-length(covariates)], collapse = ", "),
-      " and ",
-      covariates[[length(covariates)]]
-    )
-  } else {
-    covariates
-  }
-  if (!is.null(covariates) && scale) {
-    warnClassed(
-      "dbartsScaleFallbackWarning",
-      "fewer than two distinct values of the response and of ",
-      if (several) "each of the leaf covariates " else "the leaf covariate ",
-      named,
-      " are in the likelihood, so the response's scale, the prior's center ",
-      "and the ",
-      if (several) {
-        "covariates' centers and scales"
-      } else {
-        "covariate's center and scale"
-      },
-      " are kept as they were (said once per sampler)"
-    )
-  } else if (is.null(covariates)) {
+  if (scale) {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the response are in the ",
-      "likelihood, so the response's scale and the prior's center are kept ",
-      "as they were (said once per sampler)"
+      "likelihood, so the response's scale",
+      if (is.null(covariates)) {
+        " and the prior's center"
+      } else {
+        paste0(", the prior's center and ", leafCentersAndScales(covariates))
+      },
+      " are kept as they were (said once per sampler)"
     )
-  } else if (!several) {
+  } else if (length(covariates) == 1L) {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the leaf covariate ",
-      named,
+      covariates,
       " are in the likelihood, so its center and scale are kept as they ",
       "were (said once per sampler)"
     )
@@ -1294,7 +1276,9 @@ warnScaleKept <- function(
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of each of the leaf covariates ",
-      named,
+      paste(covariates[-length(covariates)], collapse = ", "),
+      " and ",
+      covariates[[length(covariates)]],
       " are in the likelihood, so their centers and scales are kept as ",
       "they were (said once per sampler)"
     )

@@ -5006,6 +5006,8 @@ static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
 // And once the rows are installed: at updateScale true the transform, and
 // then at updateStandardization every leaf covariate's standardization,
 // re-derived over the rows now in, with no engine call for either otherwise.
+// A transform kept for want of two response values in keeps the prior in
+// force, so every covariate keeps with it, whatever its spread there.
 // The answer is firstKeep's for a keep of either, carrying, where a leaf
 // covariate was kept, keptCovariatesAnswer's positions and "scale.kept",
 // whether the transform was kept with them.
@@ -5015,7 +5017,10 @@ static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale,
                    holder.sampler->rederiveScale() ==
                      bartcore::ResponseUpdateResult::scaleKept;
   std::vector<std::uint8_t> kept;
-  if (updateStandardization) kept = holder.sampler->rederiveStandardization();
+  if (updateStandardization && scaleKept)
+    kept.assign(holder.sampler->shape().numLeafCovariates, 1);
+  else if (updateStandardization)
+    kept = holder.sampler->rederiveStandardization();
   SEXP resultExpr = keptCovariatesAnswer(false, kept);
   if (resultExpr == R_NilValue)
     return Rf_ScalarLogical(firstKeep(holder, scaleKept) ? TRUE : FALSE);
