@@ -1090,3 +1090,417 @@ expect_error(
   ),
   fixed = TRUE
 )
+
+# ---- updateStandardization on setWeights and setActiveRows ---------------------
+
+# rows that move: some out come in, some in go out
+wCall <- as.double(seq_len(n) %% 3L != 0L)
+leafPriorOf <- function(gp, columns = c("x1", "x2")) {
+  if (gp) dbartsPriors$gp(columns) else dbartsPriors$linear(columns)
+}
+storedState <- function(s) {
+  s$storeState()
+  s$state
+}
+# the person-period rows of a hazard fit fill a gp leaf past its cap, which a
+# run says; the draws are what is compared
+quietSweeps <- function(s) {
+  withCallingHandlers(
+    sweeps(s),
+    dbartsGPFallbackWarning = function(w) invokeRestart("muffleWarning")
+  )
+}
+# a reference class's method by name, which `[[` does not install
+setterOf <- function(s, setter) {
+  if (setter == "setWeights") s$setWeights else s$setActiveRows
+}
+# the identity: the call with the argument leaves the sampler where the plain
+# call and then setPredictor of every leaf column in force with the argument
+# leave a twin, in the record, the stored state and the next sweeps. A gp
+# leaf's fits are rebuilt by a predictor update in another order, so under gp
+# the sampler is given the twin's plain update first
+for (kind in c(
+  "gaussian",
+  "student",
+  "probit",
+  "ordinal",
+  "nbinom",
+  "hazard.probit"
+)) {
+  for (gp in c(FALSE, TRUE)) {
+    info <- paste("identity,", kind, if (gp) "gp" else "linear")
+    s <- make(kind, w, leafPriorOf(gp))
+    twin <- make(kind, w, leafPriorOf(gp))
+    rows <- if (kind == "hazard.probit") {
+      as.double(seq_along(s$data@y) %% 3L != 0L)
+    } else {
+      wCall
+    }
+    leafValues <- s$data@x[, c("x1", "x2")]
+    before <- recordOf(s)
+    if (gp) {
+      s$setPredictor(leafValues, c("x1", "x2"), TRUE)
+    }
+    s$setWeights(rows, updateStandardization = TRUE)
+    twin$setWeights(rows)
+    twin$setPredictor(
+      leafValues,
+      c("x1", "x2"),
+      TRUE,
+      updateStandardization = TRUE
+    )
+    expect_false(identical(recordOf(s), before), info = info)
+    expect_identical(
+      s$data@standardization,
+      twin$data@standardization,
+      info = info
+    )
+    expect_identical(recordOf(s), readerOf(s), info = info)
+    expect_identical(storedState(s), storedState(twin), info = info)
+    expect_identical(quietSweeps(s), quietSweeps(twin), info = info)
+  }
+}
+# by setActiveRows on a gaussian sampler, over the weights in force and the
+# new mask
+s <- make(weights = w, leaf.prior = leafPriorOf(FALSE))
+twin <- make(weights = w, leaf.prior = leafPriorOf(FALSE))
+s$setActiveRows(wCall, updateStandardization = TRUE)
+twin$setActiveRows(wCall)
+twin$setPredictor(x, c("x1", "x2"), TRUE, updateStandardization = TRUE)
+expectRecord(
+  s,
+  list(
+    center = c(mean(x1[w == 1 & wCall == 1]), mean(x2[w == 1 & wCall == 1])),
+    scale = c(sd(x1[w == 1 & wCall == 1]), sd(x2[w == 1 & wCall == 1]))
+  ),
+  "setActiveRows over the weights and the mask"
+)
+expect_identical(storedState(s), storedState(twin))
+expect_identical(sweeps(s), sweeps(twin))
+# kept linear draws predict what they did
+s <- make(weights = w, leaf.prior = leafPriorOf(FALSE), keepTrees = TRUE)
+invisible(s$run(5L, 5L))
+predicted <- s$predict(x.probe)
+s$setWeights(wCall, updateStandardization = TRUE)
+expectRecord(
+  s,
+  list(
+    center = c(mean(x1[wCall == 1]), mean(x2[wCall == 1])),
+    scale = c(sd(x1[wCall == 1]), sd(x2[wCall == 1]))
+  ),
+  "kept linear draws"
+)
+expect_true(gap(predicted, s$predict(x.probe)) < 1e-12)
+
+# both arguments: the range and the standardization each over the rows in
+s <- make(weights = w, leaf.prior = leafPriorOf(TRUE))
+s$setWeights(wCall, updateScale = TRUE, updateStandardization = TRUE)
+expect_equal(s$data@response.range, range(y[wCall == 1]), tolerance = 1e-12)
+expectRecord(
+  s,
+  list(
+    center = c(mean(x1[wCall == 1]), mean(x2[wCall == 1])),
+    scale = c(sd(x1[wCall == 1]), sd(x2[wCall == 1])),
+    lengthscale = c(
+      literal(x1, wCall == 1, gp = TRUE)$lengthscale,
+      literal(x2, wCall == 1, gp = TRUE)$lengthscale
+    )
+  ),
+  "both arguments"
+)
+# a keep of both: the rows in hold one value of the response and of x1, so
+# both are kept, x2 re-derives, and one warning names both
+lastRows <- seq_len(n) > 150L
+wLast <- as.double(lastRows)
+yLast <- replace(y, lastRows, 1)
+xLast <- x
+xLast[lastRows, "x1"] <- 9
+s <- dbarts::dbarts(
+  xLast,
+  yLast,
+  weights = w,
+  leaf.prior = leafPriorOf(FALSE),
+  control = controlWith()
+)
+range <- s$data@response.range
+before <- recordOf(s)
+both <- fallbacks(s$setWeights(
+  wLast,
+  updateScale = TRUE,
+  updateStandardization = TRUE
+))
+expect_identical(
+  both$warnings,
+  paste0(
+    "fewer than two distinct values of the response and of the leaf ",
+    "covariate \"x1\" are in the likelihood, so the response's scale, the ",
+    "prior's center and the covariate's center and scale are kept as they ",
+    "were (said once per sampler)"
+  )
+)
+expect_identical(s$data@response.range, range)
+expect_identical(recordOf(s)$center[[1L]], before$center[[1L]])
+expect_identical(recordOf(s)$scale[[1L]], before$scale[[1L]])
+expect_equal(
+  recordOf(s)$center[[2L]],
+  mean(x2[lastRows]),
+  tolerance = 1e-12
+)
+expect_identical(recordOf(s), readerOf(s))
+
+# the argument: after updateScale, absent and FALSE moving nothing; positional
+# setWeights(w, TRUE) still names updateState
+for (setter in c("setWeights", "setActiveRows")) {
+  s <- make(weights = w, leaf.prior = leafPriorOf(TRUE))
+  expect_identical(
+    names(formals(setterOf(s, setter))),
+    c(
+      if (setter == "setWeights") "weights" else "active",
+      "updateState",
+      "updateScale",
+      "updateStandardization"
+    ),
+    info = setter
+  )
+  twin <- make(weights = w, leaf.prior = leafPriorOf(TRUE))
+  before <- recordOf(s)
+  setterOf(s, setter)(wCall, updateStandardization = FALSE)
+  setterOf(twin, setter)(wCall)
+  expect_identical(recordOf(s), before, info = setter)
+  expect_identical(recordOf(twin), before, info = setter)
+  expect_identical(sweeps(s), sweeps(twin), info = setter)
+  # NA and 1 are refused, nothing installed
+  for (value in list(NA, 1)) {
+    weights <- s$data@weights
+    active <- s$activeRows
+    expect_error(
+      setterOf(s, setter)(a, updateStandardization = value),
+      "'updateStandardization' must be TRUE or FALSE",
+      fixed = TRUE,
+      info = setter
+    )
+    expect_identical(s$data@weights, weights, info = setter)
+    expect_identical(s$activeRows, active, info = setter)
+  }
+}
+s <- make(weights = w, leaf.prior = leafPriorOf(FALSE), updateState = FALSE)
+before <- recordOf(s)
+state <- storedState(s)
+invisible(s$run(0L, 1L))
+s$setWeights(wCall, TRUE)
+expect_identical(recordOf(s), before)
+expect_false(identical(s$state, state))
+# on a sampler of several forests and one with no leaf covariate the
+# argument is taken and has nothing to do
+noLeaf <- list(
+  "several forests" = function() {
+    dbarts::dbarts(
+      y ~ forest(x1 + x2) + forest(x1 + x2, basis = b),
+      data.frame(y = y, x, b = as.double(seq_len(n) %% 2L)),
+      control = controlWith()
+    )
+  },
+  "constant leaves" = function() {
+    dbarts::dbarts(x, y, weights = w, control = controlWith())
+  }
+)
+for (label in names(noLeaf)) {
+  for (setter in c("setWeights", "setActiveRows")) {
+    info <- paste(label, setter)
+    s <- noLeaf[[label]]()
+    twin <- noLeaf[[label]]()
+    setterOf(s, setter)(wCall, updateStandardization = TRUE)
+    setterOf(twin, setter)(wCall)
+    expect_null(s$data@standardization, info = info)
+    expect_identical(storedState(s), storedState(twin), info = info)
+    expect_identical(sweeps(s), sweeps(twin), info = info)
+  }
+}
+
+# the keep: the rows in hold one value of x1 and spread of x2, so x1 keeps
+# its numbers and x2 re-derives, with one warning in the leaf's words; none on
+# a second keep, by either setter
+s <- dbarts::dbarts(
+  xLast,
+  y,
+  weights = w,
+  leaf.prior = leafPriorOf(FALSE),
+  control = controlWith()
+)
+before <- recordOf(s)
+kept <- fallbacks(s$setWeights(wLast, updateStandardization = TRUE))
+expect_identical(kept$warnings, keepText)
+expect_identical(recordOf(s)$center[[1L]], before$center[[1L]])
+expect_identical(recordOf(s)$scale[[1L]], before$scale[[1L]])
+expect_equal(
+  recordOf(s)[c("center", "scale")],
+  list(
+    center = c(before$center[[1L]], mean(x2[lastRows])),
+    scale = c(before$scale[[1L]], sd(x2[lastRows]))
+  ),
+  tolerance = 1e-12
+)
+expect_identical(recordOf(s), readerOf(s))
+again <- fallbacks(s$setActiveRows(
+  as.double(seq_len(n) > 160L),
+  updateStandardization = TRUE
+))
+expect_identical(again$warnings, character())
+# the flag is the response's keeps' too
+s <- dbarts::dbarts(
+  xLast,
+  y,
+  weights = w,
+  leaf.prior = leafPriorOf(FALSE),
+  control = controlWith()
+)
+invisible(fallbacks(s$setOffset(ifelse(w == 1, y - 1, 0), updateScale = TRUE)))
+expect_identical(
+  fallbacks(s$setWeights(wLast, updateStandardization = TRUE))$warnings,
+  character()
+)
+# by setActiveRows on a mask family, in the same words
+s <- dbarts::dbarts(
+  xLast,
+  yBinary,
+  weights = w,
+  family = "probit",
+  leaf.prior = leafPriorOf(FALSE),
+  control = controlWith()
+)
+expect_identical(
+  fallbacks(s$setActiveRows(wLast, updateStandardization = TRUE))$warnings,
+  keepText
+)
+
+# gp with a kept draw: refused before the install, the weights, the mask and
+# the engine as they were
+for (kind in c("gaussian", "probit")) {
+  for (setter in c("setWeights", "setActiveRows")) {
+    info <- paste(kind, setter)
+    s <- make(kind, w, dbartsPriors$gp("x1"), keepTrees = TRUE)
+    twin <- make(kind, w, dbartsPriors$gp("x1"), keepTrees = TRUE)
+    invisible(s$run(5L, 5L))
+    invisible(twin$run(5L, 5L))
+    weights <- s$data@weights
+    active <- s$activeRows
+    before <- recordOf(s)
+    expect_error(
+      setterOf(s, setter)(wCall, updateStandardization = TRUE),
+      paste0(
+        if (setter == "setWeights" && kind == "gaussian") {
+          "$setWeights"
+        } else {
+          "$setActiveRows"
+        },
+        ": 'updateStandardization' cannot be TRUE for a sampler with gp ",
+        "leaves that holds saved draws"
+      ),
+      fixed = TRUE,
+      info = info
+    )
+    expect_identical(s$data@weights, weights, info = info)
+    expect_identical(s$activeRows, active, info = info)
+    expect_identical(recordOf(s), before, info = info)
+    expect_identical(sweeps(s, 3L), sweeps(twin, 3L), info = info)
+  }
+}
+
+# the burn-in loop of the help: during burn-in the record follows each pass's
+# rows in, after it holds the last burn-in pass's, every kept draw replays
+# under it, a twin written with the identity's calls is the same sampler, and
+# a copy and a reload hold the record
+set.seed(20261024L, sample.kind = "Rejection")
+numBurn <- 3L
+numKeep <- 3L
+passes <- lapply(seq_len(numBurn + numKeep), function(i) {
+  as.double(runif(n) < 0.6)
+})
+loopControl <- controlWith(keepTrees = TRUE, n.samples = numKeep)
+s <- dbarts::dbarts(
+  x,
+  y,
+  weights = w,
+  leaf.prior = dbartsPriors$linear("x1"),
+  control = loopControl
+)
+twin <- dbarts::dbarts(
+  x,
+  y,
+  weights = w,
+  leaf.prior = dbartsPriors$linear("x1"),
+  control = loopControl
+)
+trained <- list()
+for (i in seq_along(passes)) {
+  burning <- i <= numBurn
+  s$setWeights(
+    passes[[i]],
+    updateScale = burning,
+    updateStandardization = burning
+  )
+  twin$setWeights(passes[[i]], updateScale = burning)
+  if (burning) {
+    twin$setPredictor(x1, "x1", TRUE, updateStandardization = TRUE)
+  }
+  read <- passes[[min(i, numBurn)]] == 1
+  expectRecord(s, literal(x1, read), paste("setWeights loop, pass", i))
+  expect_identical(s$data, twin$data, info = paste("pass", i))
+  draw <- if (burning) s$run(1L, 0L) else s$run(0L, 1L)
+  twinDraw <- if (burning) twin$run(1L, 0L) else twin$run(0L, 1L)
+  expect_identical(draw, twinDraw, info = paste("pass", i))
+  if (!burning) {
+    trained[[length(trained) + 1L]] <- draw$train
+  }
+}
+predicted <- s$predict(x)
+for (k in seq_len(numKeep)) {
+  expect_equal(
+    predicted[, k, ],
+    trained[[k]][, 1L, ],
+    tolerance = 1e-12,
+    info = paste("kept draw", k)
+  )
+}
+record <- recordOf(s)
+s$storeState()
+for (route in list(s$copy(), reloadOf(s))) {
+  expect_identical(recordOf(route), record)
+  expect_identical(readerOf(route), record)
+  expect_equal(route$predict(x), predicted, tolerance = 1e-12)
+}
+# by setActiveRows on a probit sampler with a gp leaf, the masks after
+# burn-in moving rows the record does not follow: a copy and a reload are
+# made on the record, and a saved gp draw replays only under the
+# standardization it was drawn with
+s <- make(
+  "probit",
+  w,
+  dbartsPriors$gp("x1"),
+  keepTrees = TRUE,
+  n.samples = numKeep
+)
+for (i in seq_along(passes)) {
+  burning <- i <= numBurn
+  s$setActiveRows(
+    passes[[i]],
+    updateScale = burning,
+    updateStandardization = burning
+  )
+  read <- passes[[min(i, numBurn)]] == 1
+  expectRecord(
+    s,
+    literal(x1, read, gp = TRUE),
+    paste("setActiveRows loop, pass", i)
+  )
+  invisible(if (burning) s$run(1L, 0L) else s$run(0L, 1L))
+}
+record <- recordOf(s)
+predicted <- s$predict(x)
+s$storeState()
+for (route in list(s$copy(), reloadOf(s))) {
+  expect_identical(route$activeRows, passes[[length(passes)]])
+  expect_identical(recordOf(route), record)
+  expect_identical(readerOf(route), record)
+  expect_equal(route$predict(x), predicted, tolerance = 1e-12)
+}

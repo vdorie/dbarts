@@ -7089,6 +7089,153 @@ static void testLeafStandardizationRows() {
   printf("ok: a leaf derives over the rows in the likelihood\n");
 }
 
+/// The setters of rows re-derive every leaf covariate through
+/// rederiveStandardization with no column marked: after setWeights or
+/// setActiveRows that call leaves the sampler bit for bit where a twin's
+/// predictor update of every leaf column to the values in force, followed by
+/// a re-derivation of those columns, leaves it (a gp leaf's fits, which the
+/// update rebuilds in another order, rebuilt on both). A covariate the rows
+/// in hold at one value is kept and reported, its numbers unmoved, while the
+/// other re-derives.
+static void testRederiveStandardization() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 1732050u;
+  const size_t n = 300, p = 3, numChains = 2;
+  std::vector<double> x(n * p), y(n), binary(n), w(n), mask(n);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    // the rows out by weight lie far off
+    x[i + 2 * n] = i % 4 == 0 ? 10.0 + runif01() : 2.0 * runif01() - 1.0;
+    y[i] = std::sin(4.0 * x[i]) + 0.3 * x[i + 2 * n] +
+           0.2 * (runif01() - 0.5);
+    binary[i] = y[i] > 0.5 ? 1.0 : 0.0;
+    w[i] = i % 4 == 0 ? 0.0 : 1.0;
+    mask[i] = i % 3 == 0 ? 0.0 : 1.0;
+  }
+  // the leaf columns' values in force, column-major, as a predictor update
+  // takes them
+  const size_t leafColumns[] = {0, 2};
+  const std::uint8_t leafMarks[] = {1, 0, 1};
+  std::vector<double> leafValues(x.begin(), x.begin() + n);
+  leafValues.insert(leafValues.end(), x.begin() + 2 * n, x.end());
+
+  std::vector<ext_rng*> rngs;
+  auto make = [&](bool gp, bool byMask, std::uint32_t seed) {
+    SamplerOptions options;
+    options.numTrees = 6;
+    options.numChains = numChains;
+    options.leafCovariateColumns = leafColumns;
+    options.numLeafCovariates = 2;
+    options.gpLeaves = gp;
+    options.gpMaxLeafSize = 60;
+    // a linear leaf's saved slopes are converted with the live ones
+    options.keepTrees = !gp;
+    options.numSamplesToStore = gp ? 0 : 5;
+    ext_rng* chainRngs[numChains];
+    for (size_t c = 0; c < numChains; ++c) {
+      rngs.push_back(ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL));
+      ext_rng_setSeed(rngs.back(), seed + static_cast<std::uint32_t>(c));
+      chainRngs[c] = rngs.back();
+    }
+    std::unique_ptr<SamplerBase> sampler = createSampler(
+      x.data(), byMask ? binary.data() : y.data(), n, p, nullptr, nullptr,
+      byMask ? ResponseFamily::probit : ResponseFamily::gaussian, 1.0, 3.0,
+      0.37804942330213542, options, chainRngs);
+    Results results;
+    sampler->run(5, gp ? 0 : 5, results);
+    return sampler;
+  };
+  auto draws = [&](SamplerBase& sampler) {
+    std::vector<double> fits(n * numChains * 5);
+    Results results;
+    results.trainingFits = fits.data();
+    sampler.run(0, 5, results);
+    return fits;
+  };
+  auto same = [](const std::vector<double>& a, const std::vector<double>& b) {
+    return a.size() == b.size() &&
+           std::memcmp(a.data(), b.data(), a.size() * sizeof(double)) == 0;
+  };
+  auto sameRecords = [&](const DerivedRecords& a, const DerivedRecords& b) {
+    return same(a.leafCenters, b.leafCenters) &&
+           same(a.leafScales, b.leafScales) &&
+           same(a.leafLengthscales, b.leafLengthscales);
+  };
+  auto setRows = [&](SamplerBase& sampler, bool byMask) {
+    if (byMask) return sampler.setActiveRows(mask.data());
+    sampler.setWeights(w.data());
+    return true;
+  };
+  auto refresh = [&](SamplerBase& sampler) {
+    return sampler.updatePredictor(leafValues.data(), leafColumns, 2, true,
+                                   false) == PredictorUpdateResult::accepted;
+  };
+
+  for (bool byMask : {false, true}) {
+    for (bool gp : {false, true}) {
+      std::string name = std::string("row setters, ") +
+                         (byMask ? "probit mask" : "gaussian weights") +
+                         (gp ? ", gp" : ", linear");
+      std::unique_ptr<SamplerBase> sampler = make(gp, byMask, 40);
+      std::unique_ptr<SamplerBase> twin = make(gp, byMask, 40);
+      DerivedRecords before, after, twinAfter;
+      sampler->derivedRecords(before);
+      bool installed = (!gp || refresh(*sampler)) && setRows(*sampler, byMask);
+      std::vector<std::uint8_t> kept = sampler->rederiveStandardization();
+      installed = installed && setRows(*twin, byMask) && refresh(*twin);
+      std::vector<std::uint8_t> twinKept =
+        twin->rederiveStandardization(leafMarks);
+      sampler->derivedRecords(after);
+      twin->derivedRecords(twinAfter);
+      SamplerStateData state, twinState;
+      sampler->getState(state);
+      twin->getState(twinState);
+      check(installed && kept == std::vector<std::uint8_t>{0, 0} &&
+              twinKept == kept && sameRecords(after, twinAfter) &&
+              !same(after.leafCenters, before.leafCenters) &&
+              statesAgree(state, twinState) &&
+              same(draws(*sampler), draws(*twin)),
+            (name + ": every covariate as a twin's update and "
+                    "re-derivation of the leaf columns")
+              .c_str());
+    }
+  }
+
+  // a keep: the rows in hold the first covariate at one value, so it keeps
+  // its numbers while the second re-derives over those rows
+  {
+    std::unique_ptr<SamplerBase> sampler = make(false, false, 50);
+    std::vector<double> atHalf(x.begin(), x.begin() + n);
+    for (size_t i = 0; i < n; ++i)
+      if (w[i] > 0.0) atHalf[i] = 0.5;
+    const size_t column[] = {0};
+    bool installed = sampler->updatePredictor(atHalf.data(), column, 1, true,
+                                              false) ==
+                     PredictorUpdateResult::accepted;
+    DerivedRecords held, after;
+    sampler->derivedRecords(held);
+    sampler->setWeights(w.data());
+    std::vector<std::uint8_t> kept = sampler->rederiveStandardization();
+    sampler->derivedRecords(after);
+    std::vector<std::uint8_t> rowsIn(n);
+    for (size_t i = 0; i < n; ++i) rowsIn[i] = w[i] > 0.0 ? 1 : 0;
+    double mean, sd;
+    standardizationMomentsForColumn(x.data() + 2 * n, n, &mean, &sd,
+                                    rowsIn.data());
+    check(installed && kept == std::vector<std::uint8_t>{1, 0} &&
+            after.leafCenters[0] == held.leafCenters[0] &&
+            after.leafScales[0] == held.leafScales[0] &&
+            after.leafCenters[1] == mean && after.leafScales[1] == sd,
+          "row setters: a covariate the rows in hold at one value kept and "
+          "reported, the other derived over them");
+  }
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: the setters of rows re-derive every leaf covariate\n");
+}
+
 /// A whole-data replacement keeps, takes or derives the grid, the leaf
 /// standardization and the transform as it is told (DataReplacement), and
 /// rederiveStandardization takes a linear leaf's standardization over the
@@ -7416,6 +7563,7 @@ void runStateTests(ext_rng* rng) {
   testSuppliedStandardization();
   testDataReplacement();
   testLeafStandardizationRows();
+  testRederiveStandardization();
   testStaleMissingDirectionBuild();
   testStaleMissingDirectionRestores();
   testVarianceForestPriorDraw();

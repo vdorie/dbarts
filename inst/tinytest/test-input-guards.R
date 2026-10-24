@@ -113,6 +113,7 @@ expect_error(
     dbarts:::C_dbarts_bartcore_setWeights,
     logisticSampler$getPointer(),
     replace(rep(1, n), 3L, Inf),
+    FALSE,
     FALSE
   ),
   "logistic weights are observation counts"

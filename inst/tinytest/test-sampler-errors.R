@@ -123,6 +123,7 @@ expect_error(
     dbarts:::C_dbarts_bartcore_setWeights,
     sampler$getPointer(),
     c(NaN, rep(1, n - 1L)),
+    FALSE,
     FALSE
   ),
   "gaussian case weights must be finite and non-negative"

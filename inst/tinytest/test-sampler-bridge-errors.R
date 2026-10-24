@@ -87,6 +87,7 @@ for (value in c(0.5, -1, 2)) {
       dbarts:::C_dbarts_bartcore_setActiveRows,
       sampler$getPointer(),
       c(value, rep(1, n - 1L)),
+      FALSE,
       FALSE
     ),
     pattern = "exactly 0 or 1",

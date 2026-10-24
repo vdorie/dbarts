@@ -4953,23 +4953,78 @@ static SEXP firstScaleKept(BartcoreHolder& holder,
       : FALSE);
 }
 
-// The two setters of rows refuse a re-derivation before they install
-// anything, so a refused call leaves the weights and the mask as they were:
-// on a sampler of several forests, whose conduit the caller names, and on gp
-// leaves holding saved draws.
-static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
-                                   const char* caller, ResponseConduit conduit,
-                                   int updateScale) {
-  refuseMultiForestResponseMutation(sampler, caller, conduit, updateScale);
-  refuseSavedGPDrawReanchor(sampler, caller, updateScale);
+// An answer carrying the leaf covariates a re-derivation kept: \p value, a
+// vector of its own (Rf_ScalarLogical answers R's shared TRUE and FALSE,
+// which must never carry an attribute), and "standardization.kept", the kept
+// covariates' positions from 1, for R to read and strip. R_NilValue where
+// none was kept.
+static SEXP keptCovariatesAnswer(bool value,
+                                 const std::vector<std::uint8_t>& kept) {
+  R_xlen_t numKept = 0;
+  for (std::uint8_t flag : kept) numKept += flag != 0 ? 1 : 0;
+  if (numKept == 0) return R_NilValue;
+  SEXP resultExpr = PROTECT(Rf_allocVector(LGLSXP, 1));
+  LOGICAL(resultExpr)[0] = value ? TRUE : FALSE;
+  SEXP keptExpr = Rf_allocVector(INTSXP, numKept);
+  setAttribByName(resultExpr, "standardization.kept", keptExpr);
+  for (size_t j = 0, k = 0; j < kept.size(); ++j)
+    if (kept[j] != 0) INTEGER(keptExpr)[k++] = static_cast<int>(j + 1);
+  UNPROTECT(1);
+  return resultExpr;
 }
 
-// And once the rows are installed: at updateScale true the transform
-// re-derived over the rows now in and firstScaleKept's answer, FALSE and no
-// engine call otherwise.
-static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale) {
-  if (updateScale != TRUE) return Rf_ScalarLogical(FALSE);
-  return firstScaleKept(holder, holder.sampler->rederiveScale());
+// A re-derivation of the leaf covariate standardization at \p caller, which
+// a gp sampler holding saved draws refuses before anything moves, a saved gp
+// draw replaying only under the standardization it was drawn with.
+static void refuseSavedGPStandardizationUpdate(
+    const bartcore::SamplerBase& sampler, const char* caller,
+    bool updateStandardization) {
+  if (!updateStandardization ||
+      !bartcore_bridge::holdsSavedGPDraws(sampler.shape()))
+    return;
+  Rf_error("%s: 'updateStandardization' cannot be TRUE for a sampler with gp "
+           "leaves that holds saved draws: a saved gp draw replays only "
+           "under the covariate standardization it was drawn with; derive it "
+           "during burn-in, before draws are saved, or make a new sampler",
+           caller);
+}
+
+// The two setters of rows refuse a re-derivation before they install
+// anything, so a refused call leaves the weights and the mask as they were:
+// of the transform on a sampler of several forests, whose conduit the caller
+// names, and of either on gp leaves holding saved draws. Several forests take
+// no leaf covariate, so their standardization has nothing to derive.
+static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
+                                   const char* caller, ResponseConduit conduit,
+                                   int updateScale,
+                                   bool updateStandardization) {
+  refuseMultiForestResponseMutation(sampler, caller, conduit, updateScale);
+  refuseSavedGPDrawReanchor(sampler, caller, updateScale);
+  refuseSavedGPStandardizationUpdate(sampler, caller, updateStandardization);
+}
+
+// And once the rows are installed: at updateScale true the transform, and
+// then at updateStandardization every leaf covariate's standardization,
+// re-derived over the rows now in, with no engine call for either otherwise.
+// The answer is firstKeep's for a keep of either, carrying, where a leaf
+// covariate was kept, keptCovariatesAnswer's positions and "scale.kept",
+// whether the transform was kept with them.
+static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale,
+                                 bool updateStandardization) {
+  bool scaleKept = updateScale == TRUE &&
+                   holder.sampler->rederiveScale() ==
+                     bartcore::ResponseUpdateResult::scaleKept;
+  std::vector<std::uint8_t> kept;
+  if (updateStandardization) kept = holder.sampler->rederiveStandardization();
+  SEXP resultExpr = keptCovariatesAnswer(false, kept);
+  if (resultExpr == R_NilValue)
+    return Rf_ScalarLogical(firstKeep(holder, scaleKept) ? TRUE : FALSE);
+  PROTECT(resultExpr);
+  LOGICAL(resultExpr)[0] = firstKeep(holder, true) ? TRUE : FALSE;
+  setAttribByName(resultExpr, "scale.kept",
+                  Rf_ScalarLogical(scaleKept ? TRUE : FALSE));
+  UNPROTECT(1);
+  return resultExpr;
 }
 
 // A per-observation 0/1 mask saying which rows are in the data set this sweep:
@@ -4980,14 +5035,17 @@ static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale) {
 // reports as gaussian - then the length; the exact-{0,1} scan and the all-ones
 // normalization are the engine's, so every surface inherits them. NULL clears.
 // The values are copied into the sampler, so nothing is retained here.
-// updateScale re-derives the response transform over the rows the mask leaves
-// in, after the install; every refusal comes before it. The answer is
-// firstScaleKept's.
+// updateScale re-derives the response transform, and updateStandardization
+// the leaf covariate standardization, over the rows the mask leaves in, after
+// the install; every refusal comes before it. The answer is
+// rederiveAfterInstall's.
 SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
-                            SEXP updateScaleExpr) {
+                            SEXP updateScaleExpr,
+                            SEXP updateStandardizationExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
+  bool updateStandardization = Rf_asLogical(updateStandardizationExpr) == TRUE;
   // Every shipped family implements the channel, multinomial included (there
   // the mask is GLOBAL: it lands on the softmax coupling's K interleaved
   // precisions, since the response holds none of its own). The probe stays as
@@ -4997,10 +5055,11 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
   if (!shape.supportsActiveRows)
     Rf_error("active-row masking is not implemented for this response family");
   refuseRowsRederivation(*holder.sampler, "$setActiveRows",
-                         ResponseConduit::activeRows, updateScale);
+                         ResponseConduit::activeRows, updateScale,
+                         updateStandardization);
   if (activeExpr == R_NilValue) {
     holder.sampler->setActiveRows(NULL);
-    return rederiveAfterInstall(holder, updateScale);
+    return rederiveAfterInstall(holder, updateScale, updateStandardization);
   }
   size_t n = shape.numObservations;
   if (!Rf_isReal(activeExpr) ||
@@ -5010,7 +5069,7 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
   // and the re-derivation probed above, no other reason to refuse remains
   refuseNonBinaryMask(REAL(activeExpr), n);
   holder.sampler->setActiveRows(REAL(activeExpr));
-  return rederiveAfterInstall(holder, updateScale);
+  return rederiveAfterInstall(holder, updateScale, updateStandardization);
 }
 
 // The sampler's forest count, the R twin of dbarts_sampler_numForests. The R5
@@ -6519,17 +6578,21 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // stream, which is why no GetRNGstate bracket appears here. Student-t draws
 // from the same generator, the scale of each row whose weight leaves zero.
 // refuseBinaryWeightChange refuses the families whose likelihood has no weight
-// slot at all. updateScale re-derives the response transform over the rows
-// the weights leave in, after the install; every refusal comes before it. The
-// answer is firstScaleKept's.
+// slot at all. updateScale re-derives the response transform, and
+// updateStandardization the leaf covariate standardization, over the rows the
+// weights leave in, after the install; every refusal comes before it. The
+// answer is rederiveAfterInstall's.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr,
-                         SEXP updateScaleExpr) {
+                         SEXP updateScaleExpr,
+                         SEXP updateStandardizationExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t numObservations = shape.numObservations;
   int updateScale = Rf_asLogical(updateScaleExpr);
+  bool updateStandardization = Rf_asLogical(updateStandardizationExpr) == TRUE;
   refuseRowsRederivation(*holder.sampler, "$setWeights",
-                         ResponseConduit::weights, updateScale);
+                         ResponseConduit::weights, updateScale,
+                         updateStandardization);
   refuseBinaryWeightChange(*holder.sampler);
   if (!Rf_isReal(weightsExpr) ||
       static_cast<size_t>(Rf_xlength(weightsExpr)) != numObservations)
@@ -6543,7 +6606,7 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr,
                             "$setWeights");
   holder.sampler->setWeights(
     adoptVector(holder.ownedWeights, weights, numObservations));
-  return rederiveAfterInstall(holder, updateScale);
+  return rederiveAfterInstall(holder, updateScale, updateStandardization);
 }
 
 // Between-run reconfiguration. The R side refuses changes to the engine, rng,
@@ -6766,17 +6829,10 @@ static const char* const predictorLevelRefusal =
 // "warn", firstKeep's answer, both for R to read and strip.
 static SEXP predictorUpdateAnswer(BartcoreHolder& holder, bool accepted,
                                   const std::vector<std::uint8_t>& kept) {
-  R_xlen_t numKept = 0;
-  for (std::uint8_t flag : kept) numKept += flag != 0 ? 1 : 0;
-  if (numKept == 0) return Rf_ScalarLogical(accepted ? TRUE : FALSE);
-  // a vector of its own: Rf_ScalarLogical answers R's shared TRUE and FALSE,
-  // which must never carry an attribute
-  SEXP resultExpr = PROTECT(Rf_allocVector(LGLSXP, 1));
-  LOGICAL(resultExpr)[0] = accepted ? TRUE : FALSE;
-  SEXP keptExpr = Rf_allocVector(INTSXP, numKept);
-  setAttribByName(resultExpr, "standardization.kept", keptExpr);
-  for (size_t j = 0, k = 0; j < kept.size(); ++j)
-    if (kept[j] != 0) INTEGER(keptExpr)[k++] = static_cast<int>(j + 1);
+  SEXP resultExpr = keptCovariatesAnswer(accepted, kept);
+  if (resultExpr == R_NilValue)
+    return Rf_ScalarLogical(accepted ? TRUE : FALSE);
+  PROTECT(resultExpr);
   setAttribByName(resultExpr, "warn",
                   Rf_ScalarLogical(firstKeep(holder, true) ? TRUE : FALSE));
   UNPROTECT(1);
@@ -6786,18 +6842,13 @@ static SEXP predictorUpdateAnswer(BartcoreHolder& holder, bool accepted,
 // A predictor update's updateStandardization: TRUE derives the leaf
 // covariate standardization again over the values the update leaves at the
 // rows in the likelihood, after an update that went in, which a gp sampler
-// holding saved draws refuses before anything moves, a saved gp draw
-// replaying only under the standardization it was drawn with.
+// holding saved draws refuses before anything moves
+// (refuseSavedGPStandardizationUpdate).
 static bool standardizationUpdateFromExpression(
     const bartcore::SamplerBase& sampler, SEXP updateExpr) {
-  if (Rf_asLogical(updateExpr) != TRUE) return false;
-  if (bartcore_bridge::holdsSavedGPDraws(sampler.shape()))
-    Rf_error("$setPredictor: 'updateStandardization' cannot be TRUE for a "
-             "sampler with gp leaves that holds saved draws: a saved gp draw "
-             "replays only under the covariate standardization it was drawn "
-             "with; derive it during burn-in, before draws are saved, or make "
-             "a new sampler");
-  return true;
+  bool update = Rf_asLogical(updateExpr) == TRUE;
+  refuseSavedGPStandardizationUpdate(sampler, "$setPredictor", update);
+  return update;
 }
 
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,

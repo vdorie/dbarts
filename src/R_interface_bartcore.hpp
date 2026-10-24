@@ -19,7 +19,8 @@ SEXP bartcore_setCategoryOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setCategoryTestOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setForestBasis(SEXP ptr, SEXP forest, SEXP basis);
 SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
-SEXP bartcore_setActiveRows(SEXP ptr, SEXP active, SEXP updateScale);
+SEXP bartcore_setActiveRows(SEXP ptr, SEXP active, SEXP updateScale,
+                            SEXP updateStandardization);
 SEXP bartcore_numForests(SEXP ptr);
 SEXP bartcore_numTreesInForest(SEXP ptr, SEXP forest);
 SEXP bartcore_getForestAmplitudes(SEXP ptr, SEXP forest);
@@ -49,7 +50,8 @@ SEXP bartcore_setTestPredictor(SEXP ptr, SEXP x_test);
 SEXP bartcore_setTestOffset(SEXP ptr, SEXP offset_test);
 SEXP bartcore_setTestPredictorAndOffset(SEXP ptr, SEXP x_test,
                                         SEXP offset_test);
-SEXP bartcore_setWeights(SEXP ptr, SEXP weights, SEXP updateScale);
+SEXP bartcore_setWeights(SEXP ptr, SEXP weights, SEXP updateScale,
+                         SEXP updateStandardization);
 SEXP bartcore_setPredictor(SEXP ptr, SEXP x, SEXP forceUpdate,
                            SEXP updateCutPoints, SEXP updateStandardization);
 SEXP bartcore_updatePredictor(SEXP ptr, SEXP x, SEXP columns, SEXP forceUpdate,

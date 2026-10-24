@@ -890,13 +890,7 @@ bartcoreSamplerSetPredictor <- function(
     names(cutPointRuleCodes),
     "updateCutPoints"
   )
-  if (
-    !is.logical(updateStandardization) ||
-      length(updateStandardization) != 1L ||
-      is.na(updateStandardization)
-  ) {
-    stop("'updateStandardization' must be TRUE or FALSE", call. = FALSE)
-  }
+  updateStandardization <- checkUpdateStandardization(updateStandardization)
 
   # read once: each sampler$data is a typed reference-class field's active
   # binding, a few microseconds a read, against a rejected update's whole
@@ -1176,6 +1170,19 @@ checkUpdateScale <- function(updateScale) {
   updateScale
 }
 
+# updateStandardization on setPredictor, setWeights and setActiveRows, by the
+# same rule as updateScale; setData's, which may be NULL, is resolved apart.
+checkUpdateStandardization <- function(updateStandardization) {
+  if (
+    !is.logical(updateStandardization) ||
+      length(updateStandardization) != 1L ||
+      is.na(updateStandardization)
+  ) {
+    stop("'updateStandardization' must be TRUE or FALSE", call. = FALSE)
+  }
+  updateStandardization
+}
+
 bartcoreSamplerSetResponse <- function(
   sampler,
   y,
@@ -1233,23 +1240,53 @@ bartcoreSamplerSetResponse <- function(
 ## the engine. 'first' is the bridge's answer: TRUE on the sampler's first
 ## re-derivation that kept the scale or a leaf covariate's numbers, FALSE on
 ## every other call. 'covariates', the labels of the leaf covariates kept,
-## gives the leaf's words; NULL the response's.
-warnScaleKept <- function(first, covariates = NULL) {
+## gives the leaf's words, and with 'scale' one text naming the response's
+## scale with them; NULL the response's words alone.
+warnScaleKept <- function(
+  first,
+  covariates = NULL,
+  scale = is.null(covariates)
+) {
   if (!isTRUE(first)) {
     return(invisible(NULL))
   }
-  if (is.null(covariates)) {
+  several <- length(covariates) > 1L
+  named <- if (several) {
+    paste0(
+      paste(covariates[-length(covariates)], collapse = ", "),
+      " and ",
+      covariates[[length(covariates)]]
+    )
+  } else {
+    covariates
+  }
+  if (!is.null(covariates) && scale) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two distinct values of the response and of ",
+      if (several) "each of the leaf covariates " else "the leaf covariate ",
+      named,
+      " are in the likelihood, so the response's scale, the prior's center ",
+      "and the ",
+      if (several) {
+        "covariates' centers and scales"
+      } else {
+        "covariate's center and scale"
+      },
+      " are kept as they were (said once per sampler)"
+    )
+  } else if (is.null(covariates)) {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the response are in the ",
       "likelihood, so the response's scale and the prior's center are kept ",
       "as they were (said once per sampler)"
     )
-  } else if (length(covariates) == 1L) {
+  } else if (!several) {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the leaf covariate ",
-      covariates,
+      named,
       " are in the likelihood, so its center and scale are kept as they ",
       "were (said once per sampler)"
     )
@@ -1257,14 +1294,27 @@ warnScaleKept <- function(first, covariates = NULL) {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of each of the leaf covariates ",
-      paste(covariates[-length(covariates)], collapse = ", "),
-      " and ",
-      covariates[[length(covariates)]],
+      named,
       " are in the likelihood, so their centers and scales are kept as ",
       "they were (said once per sampler)"
     )
   }
   invisible(NULL)
+}
+
+## warnScaleKept for a setter of rows, from the bridge's answer: TRUE on the
+## sampler's first keep, carrying, where a leaf covariate was kept, their
+## positions and whether the response's scale was kept with them.
+warnRowsKept <- function(sampler, answer) {
+  kept <- attr(answer, "standardization.kept", exact = TRUE)
+  if (is.null(kept)) {
+    return(warnScaleKept(answer))
+  }
+  warnScaleKept(
+    isTRUE(as.vector(answer)),
+    leafCovariateLabels(sampler$model, sampler$data)[kept],
+    scale = isTRUE(attr(answer, "scale.kept", exact = TRUE))
+  )
 }
 
 bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
@@ -1633,23 +1683,36 @@ warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
 ## engine normalizes (an all-ones vector installs nothing, so it records as no
 ## mask and not as a vector to re-apply), then the record where the call
 ## re-derived. With updateScale the engine takes the response's scale or the
-## count center over the rows the mask leaves in, in the same call and after
+## count center, and with updateStandardization every leaf covariate's center
+## and scale, over the rows the mask leaves in, in the same call and after
 ## the install; nothing else is touched: no draw beyond the install's own, no
 ## slot of the data object, no test offset here or in the engine. No store
 ## and no warning, both being the caller's; the answer is the bridge's, TRUE
-## on the sampler's first re-derivation that kept the scale.
-bartcoreSamplerSetActiveRows <- function(sampler, active, updateScale) {
+## on the sampler's first re-derivation that kept the scale or a covariate's
+## numbers (warnRowsKept).
+bartcoreSamplerSetActiveRows <- function(
+  sampler,
+  active,
+  updateScale,
+  updateStandardization = FALSE
+) {
   ptr <- sampler$getPointer()
-  scaleKept <- .Call(C_dbarts_bartcore_setActiveRows, ptr, active, updateScale)
+  kept <- .Call(
+    C_dbarts_bartcore_setActiveRows,
+    ptr,
+    active,
+    updateScale,
+    updateStandardization
+  )
   sampler$activeRows <- if (is.null(active) || all(active == 1)) {
     NULL
   } else {
     active
   }
-  if (updateScale) {
-    recordResponseRange(sampler, ptr)
+  if (updateScale || updateStandardization) {
+    recordResponseRange(sampler, ptr, updateScale, updateStandardization)
   }
-  invisible(scaleKept)
+  invisible(kept)
 }
 
 ## Creation's and setData's install of the mask a latent family's 0/1 weights

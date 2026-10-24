@@ -2403,7 +2403,8 @@ public:
   /// Derives the leaf covariate standardization again over the covariates
   /// the store holds now, as a whole-data replacement would over new data,
   /// at the covariates whose predictor column \p replaced marks (a byte per
-  /// predictor; null marks every one), the others held, and rewrites a linear
+  /// predictor; null marks every one, as a host's change of the weights or
+  /// the mask asks), the others held, and rewrites a linear
   /// leaf's coefficients, live and saved, into it, so each leaf stays the
   /// function it was (Chain::rederiveStandardization). The rows read are
   /// those in the likelihood now, under the weights and the mask in force

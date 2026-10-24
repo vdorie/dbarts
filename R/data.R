@@ -693,35 +693,62 @@ recordDerived <- function(sampler, ptr, records = NULL) {
   data@cutPoints <- records$cutPoints
   data@response.range <- records$response.range
   data@forest.calibration <- records$forest.calibration
-  # keyed by the leaf covariates' names, or by their positions where any of
-  # those names cannot be a key
-  standardization <- records$standardization
-  if (!is.null(standardization)) {
-    covariates <- leafCovariateNames(sampler$model, data)
-    standardization[[1L]] <- if (!is.null(covariates) && !anyNA(covariates)) {
-      lapply(standardization[[1L]], `names<-`, covariates)
-    } else {
-      c(
-        standardization[[1L]],
-        list(columns = as.integer(sampler$model@leaf.prior@columns))
-      )
-    }
-  }
-  data@standardization <- standardization
+  data@standardization <- keyStandardization(
+    sampler$model,
+    data,
+    records$standardization
+  )
   sampler$data <- data
   invisible(NULL)
 }
 
-## Brings a sampler's record of the response range up to its engine after a
-## call that can move the range and no grid: a response, offset, weights or
-## active-row change with updateScale, which can run every iteration of a
-## larger sampler. A calibration map's anchor and unit are fixed at
+## The engine's standardization as a data object records it: keyed by the
+## leaf covariates' names, or by their positions where any of those names
+## cannot be a key.
+keyStandardization <- function(model, data, standardization) {
+  if (is.null(standardization)) {
+    return(NULL)
+  }
+  covariates <- leafCovariateNames(model, data)
+  standardization[[1L]] <- if (!is.null(covariates) && !anyNA(covariates)) {
+    lapply(standardization[[1L]], `names<-`, covariates)
+  } else {
+    c(
+      standardization[[1L]],
+      list(columns = as.integer(model@leaf.prior@columns))
+    )
+  }
+  standardization
+}
+
+## Brings a sampler's record of the response range, and with standardization
+## its leaf covariates' standardization, up to its engine after a call that
+## can move them and no grid: a response, offset, weights or active-row change
+## with updateScale or updateStandardization, which can run every iteration of
+## a larger sampler. A calibration map's anchor and unit are fixed at
 ## construction, so none of those calls moves them, and the grids, whose read
 ## grows with the predictors, are not read.
-recordResponseRange <- function(sampler, ptr) {
-  range <- .Call(C_dbarts_bartcore_derivedRecords, ptr, FALSE)$response.range
-  if (!identical(range, dataResponseRange(sampler$data))) {
-    sampler$data@response.range <- range
+recordResponseRange <- function(
+  sampler,
+  ptr,
+  range = TRUE,
+  standardization = FALSE
+) {
+  records <- .Call(C_dbarts_bartcore_derivedRecords, ptr, FALSE)
+  if (
+    range && !identical(records$response.range, dataResponseRange(sampler$data))
+  ) {
+    sampler$data@response.range <- records$response.range
+  }
+  if (standardization) {
+    keyed <- keyStandardization(
+      sampler$model,
+      sampler$data,
+      records$standardization
+    )
+    if (!identical(keyed, sampler$data@standardization)) {
+      sampler$data@standardization <- keyed
+    }
   }
   invisible(NULL)
 }
