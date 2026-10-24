@@ -2557,6 +2557,9 @@ createSamplerOrRaise(std::vector<ext_rng*>& rngs, Factory&& factory) {
 std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
                                       size_t numChains) {
   bool haveSeed = control.haveRngSeed;
+  // GetRNGstate raises on a malformed .Random.seed, so it precedes the buffer
+  // below, which that raise would leak
+  if (!haveSeed) GetRNGstate();
   std::vector<ext_rng*> rngs(numChains, static_cast<ext_rng*>(NULL));
   bool rngFailed = false;
   if (haveSeed) {
@@ -2573,7 +2576,6 @@ std::vector<ext_rng*> createChainRngs(const ParsedControl& control,
     }
     if (seedGenerator != NULL) ext_rng_destroy(seedGenerator);
   } else {
-    GetRNGstate();
     for (size_t c = 0; c < numChains && !rngFailed; ++c) {
       rngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
       rngFailed = rngs[c] == NULL ||
@@ -4504,6 +4506,11 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
       }
     }
 
+    // the pointer and its finalizer before the store, so no allocation runs
+    // while a raw pointer alone holds it (createExternalHolder)
+    SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, dataExpr));
+    R_RegisterCFinalizerEx(result, dataHandleFinalizer,
+                           static_cast<Rboolean>(FALSE));
     bartcore::ColumnStore* handle = new bartcore::ColumnStore;
     // the layout choice is read at build, so it is set before it
     handle->sparseDensityCutoff = control.sparseDensityThreshold;
@@ -4523,9 +4530,7 @@ SEXP bartcore_createDataHandle(SEXP controlExpr, SEXP dataExpr,
                "represent");
     }
 
-    SEXP result = PROTECT(R_MakeExternalPtr(handle, R_NilValue, dataExpr));
-    R_RegisterCFinalizerEx(result, dataHandleFinalizer,
-                           static_cast<Rboolean>(FALSE));
+    R_SetExternalPtrAddr(result, handle);
     UNPROTECT(1);
     return result;
   });
@@ -4560,6 +4565,15 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
                         viewLeafCovariates = std::vector<size_t>{},
                         leafRefusal = std::string{},
                         rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
+    // the pointer and its finalizer before anything is owned, so no
+    // allocation runs while a frame local holds the sampler or the holder
+    // (createExternalHolder)
+    SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
+    SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
+    SEXP result = PROTECT(R_MakeExternalPtr(NULL, R_NilValue, protExpr));
+    R_RegisterCFinalizerEx(result, holderFinalizer,
+                           static_cast<Rboolean>(FALSE));
+
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
       controlExpr, modelExpr, dataExpr, familyName, control, model, data,
@@ -4728,12 +4742,7 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     if (!holder->ownedTestOffset.empty())
       holder->sampler->setTestOffset(holder->ownedTestOffset.data());
 
-    SEXP protExpr = PROTECT(Rf_allocVector(VECSXP, PROT_COUNT));
-    SET_VECTOR_ELT(protExpr, PROT_DATA, dataExpr);
-    SEXP result = PROTECT(R_MakeExternalPtr(holder, R_NilValue, protExpr));
-    R_RegisterCFinalizerEx(result, holderFinalizer,
-                           static_cast<Rboolean>(FALSE));
-
+    R_SetExternalPtrAddr(result, holder);
     UNPROTECT(2);
     return result;
   });
@@ -7144,20 +7153,20 @@ SEXP bartcore_updatePredictorPerObservation(SEXP ptrExpr, SEXP xExpr,
                        static_cast<size_t>(column - 1), REAL(xExpr),
                        numObservations);
 
-  std::unique_ptr<bool[]> installed(new bool[numObservations]);
+  // R's, so freed on a raise as on the return: GetRNGstate raises on a
+  // malformed .Random.seed
+  bool* installed =
+    reinterpret_cast<bool*>(R_alloc(numObservations, sizeof(bool)));
 
   GetRNGstate();  // scan-order permutation
   bool treesAreValid = holder.sampler->updatePredictorPerObservation(
-    REAL(xExpr), static_cast<size_t>(column - 1), installed.get());
+    REAL(xExpr), static_cast<size_t>(column - 1), installed);
   PutRNGstate();
 
   // The sequential guard admits no empty leaf and no monotone tree out of
   // order, so an invalid rebuild is an internal invariant violation; fail
   // loudly rather than leave the sampler in an invalid state.
-  if (!treesAreValid) {
-    installed.reset();  // free before longjmp
-    Rf_error("$setPredictor left a tree invalid");
-  }
+  if (!treesAreValid) Rf_error("$setPredictor left a tree invalid");
 
   SEXP result = PROTECT(
     Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
@@ -7213,18 +7222,17 @@ SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrsExpr, SEXP xExpr,
       validateColumnValues(samplers[k]->data(), columns[k], REAL(xExpr),
                            numObservations);
 
-    std::unique_ptr<bool[]> installed(new bool[numObservations]);
+    // R's, as in the single-sampler entry
+    bool* installed =
+      reinterpret_cast<bool*>(R_alloc(numObservations, sizeof(bool)));
 
     GetRNGstate();  // scan-order permutation
     bool treesAreValid = bartcore::updatePredictorPerObservationJointly(
-      samplers.data(), numSamplers, REAL(xExpr), columns.data(),
-      installed.get());
+      samplers.data(), numSamplers, REAL(xExpr), columns.data(), installed);
     PutRNGstate();
 
-    if (!treesAreValid) {
-      installed.reset();  // free before longjmp
+    if (!treesAreValid)
       Rf_error("updatePredictorPerObservationJointly() left a tree invalid");
-    }
 
     SEXP result = PROTECT(
       Rf_allocVector(LGLSXP, static_cast<R_xlen_t>(numObservations)));
@@ -8506,11 +8514,11 @@ static void drawAugmentationDistributions(ext_rng* rng,
 void drawAugmentation(AugmentationDistribution distribution,
                       const AugmentationInputs& in, double* result,
                       const char* caller) {
-  // the caller has already allocated result, so nothing that can longjmp runs
-  // while the generator is alive
+  // the caller has already allocated result, and the generator is made in the
+  // body, not the capture: unwindProtect allocates before it runs the body
   GetRNGstate();
-  unwindProtect([&, rng = NativeRng(ext_rng_createDefault(true))]()
-                  mutable -> SEXP {
+  unwindProtect([&, rng = NativeRng{}]() mutable -> SEXP {
+    rng.reset(ext_rng_createDefault(true));
     if (rng == nullptr) {
       PutRNGstate();
       Rf_error("%s: could not create a random number generator", caller);
