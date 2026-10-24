@@ -870,6 +870,72 @@ for (set in names(missingAt)) {
     "'offset' has missing values"
   )
 }
+# the subjects answered keep their names on the curves, cut under na.omit and
+# padded under na.pass and na.exclude, as newdata's do; and a call that gives
+# newdata is answered by predict alone, even when newdata has as many rows as
+# the training set and the offset has a missing value (answering it again would
+# cut subjects twice)
+x.named <- x
+rownames(x.named) <- paste0("s", seq_len(n))
+fit.aftN <- bart(
+  x.named,
+  cbind(time.s, status.s),
+  family = "aft",
+  n.trees = 10L,
+  n.burn = 10L,
+  n.samples = 20L,
+  n.chains = 2L,
+  n.threads = 1L,
+  keepTrees = TRUE,
+  verbose = FALSE
+)
+o.named <- runif(n, -1, 1)
+o.named[c(3L, 150L)] <- NA
+x.named.na <- x.named
+x.named.na[5L, 1L] <- NA
+for (action in list(na.pass, na.omit, na.exclude)) {
+  here <- survivalProbabilities(
+    fit.aftN,
+    times.aft,
+    offset = o.named,
+    na.action = action
+  )
+  there <- survivalProbabilities(
+    fit.aftN,
+    times.aft,
+    x.named,
+    offset = o.named,
+    na.action = action
+  )
+  expect_identical(dimnames(here)[[3L]], dimnames(there)[[3L]])
+  expect_identical(
+    dimnames(here)[[3L]],
+    if (identical(action, na.omit)) {
+      rownames(x.named)[-c(3L, 150L)]
+    } else {
+      rownames(x.named)
+    }
+  )
+  expect_equal(
+    dim(there)[3L],
+    if (identical(action, na.omit)) n - 2L else n
+  )
+}
+# newdata as long as the training set, a predictor and an offset missing
+omitted.named <- survivalProbabilities(
+  fit.aftN,
+  times.aft,
+  x.named.na,
+  offset = o.named,
+  na.action = na.omit
+)
+expect_equal(dim(omitted.named)[3L], n - 3L)
+expect_identical(
+  dimnames(omitted.named)[[3L]],
+  rownames(x.named)[-c(3L, 5L, 150L)]
+)
+rm(fit.aftN, x.named, x.named.na, o.named, omitted.named)
+
 # the test subjects and newdata are two sets of subjects
 for (named in c("train", "test")) {
   # sample picks among the fit's own subjects, newdata gives other ones, and

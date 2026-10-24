@@ -48,7 +48,8 @@ fitFromPredictBlend <- function(
   n.chains = 1L,
   combineChains = TRUE,
   keepTrees = TRUE,
-  n.trees = 8L
+  n.trees = 8L,
+  design = x
 ) {
   # the control's count is the count of the forest with no basis; a model in
   # which every forest has a basis hands over NULL and states its own
@@ -58,7 +59,7 @@ fitFromPredictBlend <- function(
     keptControlPredictBlend(n.chains, n.trees = n.trees)
   }
   sampler <- dbarts(
-    x,
+    design,
     response,
     forests = forests,
     family = family,
@@ -859,6 +860,36 @@ expect_error(
   pattern = "'offset' has missing values; use na.action = na.pass to return NA for them, or na.omit to drop them",
   fixed = TRUE
 )
+
+# the rows set aside keep the names of the rest: named training rows, the
+# per-forest arm and the blend alike, as newdata's are named
+design.named <- x
+rownames(design.named) <- paste0("r", seq_len(n))
+fit.named <- fitFromPredictBlend(twoForests, design = design.named)
+for (action in list(na.pass, na.omit, na.exclude)) {
+  here <- predict(
+    fit.named,
+    type = "forest",
+    weights = blend.w,
+    na.action = action
+  )
+  there <- predict(
+    fit.named,
+    design.named,
+    type = "forest",
+    weights = blend.w,
+    na.action = action
+  )
+  expect_identical(dimnames(here), dimnames(there))
+  expect_identical(
+    dimnames(here)[[2L]],
+    if (identical(action, na.omit)) {
+      rownames(design.named)[-c(4L, 11L)]
+    } else {
+      rownames(design.named)
+    }
+  )
+}
 
 # a matrix of several columns is refused on both paths and for every arm, the
 # blend's included; one column is a vector

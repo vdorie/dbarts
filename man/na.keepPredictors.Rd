@@ -107,7 +107,8 @@ na.keepPredictors(object, \dots)
   predictive draw is that of the call at \code{newdata} with the same action,
   and with the rows dropped it is that of the call on the rows kept (a
   negative binomial fit's counts are laid out differently at \code{newdata}
-  and with none, so their streams differ even with nothing missing), and a
+  and with none when the chains are merged, so their streams differ even
+  with nothing missing; with \code{combineChains = FALSE} they agree), and a
   single missing value is always an error. \code{survivalProbabilities}
   answers a missing value in the \code{offset} it is given for the fit's own
   subjects in the same way. The sampler's own
