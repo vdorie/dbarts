@@ -844,7 +844,7 @@ needing one, so no second window is owed before the freeze. Four items:
    updated and one `FILL(dispersion, dispersion)` line added. Hash-neutral by
    itself, and `structSize` bounds the write so a consumer built against the
    smaller header is never written past.
-2. `dbarts_sampler_dispersion`, the flat mid-sweep getter - the C-side analogue
+2. `dbarts_sampler_dispersion`, the flat mid-sweep getter - the C-side analog
    of S2's R5 getter, for a host composing a count block in C++.
 3. F5's LinkingTo exposure of the augmentation surface.
 4. The decision-8 carve-out comment. `dbarts.h` says in two places - the

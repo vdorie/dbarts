@@ -223,7 +223,7 @@ before each category's own forest updates (`drawForestGlue`).
 A forest's cached fits (`totalFits`) are kept by difference updates, so they
 may differ from the forest's leaves gathered in tree order by additive
 rounding only. A transform that writes leaf values in bulk and is additive -
-the multinomial level shift in `afterCombine`, the level-fibre shift - may
+the multinomial level shift in `afterCombine`, the level-fiber shift - may
 update the cache in place. A multiplicative one - the probit rescaling step -
 may update it in place while the forest's accumulated factor since the
 cache was last re-derived (`Forest::totalFitsScale`) stays within [1/2, 2],

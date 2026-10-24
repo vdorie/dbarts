@@ -221,7 +221,7 @@ chains (`c += numWorkers`) moves on regardless. Making the flag real takes
 one cancel flag shared by both arms, the worker lambda storing into it when
 `Chain::run` returns true, and the bridge telling a callback stop from an
 interrupt as `bartcore_runWithCallback` tells `closureStopped` from
-`cancelled` - about 30 lines. Two properties are stated rather than fixed:
+`canceled` - about 30 lines. Two properties are stated rather than fixed:
 another chain sees the flag only at its next sweep boundary, and a stop is an
 ABORT, since `Sampler::run` returns before advancing `currentSampleNum_` and
 `recordedDraws_` while `storeSavedTreeRecord` has already written saved trees

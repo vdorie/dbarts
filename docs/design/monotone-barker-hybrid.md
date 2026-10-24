@@ -37,7 +37,7 @@ exact count, large moves switch to an exact move that never counts.
   (16 / pi^2) n^3 (ln n + ln(2 / eps) / 2) steps with probability at least 1 - eps. Section 4 gives coupling from
   the past for non-Markovian couplings (Theorem 8: exact output), where each doubling level's randomness must be
   reused when the forward pass reruns it. Lemma 10: with doubling, the expected running time is at most
-  4.3 n^3 ln n steps. Conditions: any partial order on n elements, relabelled so the identity is an extension.
+  4.3 n^3 ln n steps. Conditions: any partial order on n elements, relabeled so the identity is an extension.
 
 The plan's statements of these results check out: expected coin draws c / (1 + c theta) <= min(c, 1 / theta)
 (from the loop count above with p2 = 1), Barker at least half of MH's acceptance, and Huber's O(n^3 log n).

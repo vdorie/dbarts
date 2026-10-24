@@ -276,7 +276,7 @@ confounded step function's root variable moving at all. On the ungated function
 the cut-only kernel is past the 1.02 margin at every dose, 1.033 at worst, and
 1.009 against that function's reference ratio.
 
-**The other four kernels.** The level-fibre step, perturb, swap and the
+**The other four kernels.** The level-fiber step, perturb, swap and the
 cross-chain exchange earned no weight. Each verdict and the evidence behind
 it are in Appendix A.
 
@@ -398,7 +398,7 @@ read. A kill leaves the kernel in place at weight zero rather than deleting it.
 
 Section 1 gives each verdict in a sentence; this appendix gives the evidence.
 
-### A.1 The level-fibre step
+### A.1 The level-fiber step
 
 With the forest's structures held fixed this step is the largest effect in the
 program; alongside the tree moves it is nothing. Because it leaves the fitted
@@ -508,10 +508,10 @@ Every claim above is recorded in one of these sections.
 | Its cost, and the two restricted variants | [2.4 Cost, and the two restricted variants](../design/nog-gibbs.md#24-cost-and-the-two-restricted-variants) |
 | Its benefit run, doses, equal-cost arm and cost instrument | [6. Benefit, pre-registered](../design/nog-gibbs.md#6-benefit-pre-registered) |
 | Its slices, and the adoption ruling | [8. Slices](../design/nog-gibbs.md#8-slices) |
-| The level-fibre step's placement and cost | [2. Placement and cost](../design/level-fibre.md#2-placement-and-cost) |
-| Its three-valued surface | [4. The surface](../design/level-fibre.md#4-the-surface) |
-| Its frozen and live benefit runs | [6. Benefit, pre-registered](../design/level-fibre.md#6-benefit-pre-registered) |
-| The re-record bundle a default share pays | [7. RNG and baselines](../design/level-fibre.md#7-rng-and-baselines) |
+| The level-fiber step's placement and cost | [2. Placement and cost](../design/level-fiber.md#2-placement-and-cost) |
+| Its three-valued surface | [4. The surface](../design/level-fiber.md#4-the-surface) |
+| Its frozen and live benefit runs | [6. Benefit, pre-registered](../design/level-fiber.md#6-benefit-pre-registered) |
+| The re-record bundle a default share pays | [7. RNG and baselines](../design/level-fiber.md#7-rng-and-baselines) |
 | Perturb's benefit run, the +8 bar and the sham arm | [5. Benefit, pre-registered](../design/perturb-move.md#5-benefit-pre-registered) |
 | The chain configuration, and the primary statistic | [5.1 The chain configuration, and what it makes the primary statistic](../design/perturb-move.md#51-the-chain-configuration-and-what-it-makes-the-primary-statistic) |
 | Swap's removal and the evidence for it | [1. The decision, and its evidence](../design/swap-removal.md#1-the-decision-and-its-evidence) |

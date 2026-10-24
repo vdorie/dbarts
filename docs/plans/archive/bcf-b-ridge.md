@@ -31,7 +31,7 @@ move that already ships), jointly rescale the treatment-scale coordinates
 
 `c` from its exact full conditional. It travels the likelihood ridge
 `b_{z(i)} * tau(x_i) = (b_{z(i)}/c) * (c*tau(x_i))`, collapsing the slow
-`(b, tau-amplitude)` mode -- the exact analogue, on the treatment forest, of
+`(b, tau-amplitude)` mode -- the exact analog, on the treatment forest, of
 the non-identifiability the a-move fixed on the prognostic forest.
 
 ---
@@ -174,7 +174,7 @@ Moved to docs/design/multiplier-combiner.md, "The exponent rule" (section 4
 below still uses the result: `gigP = (Lt-2)/2`, `gigB =
 (b0^2+b1^2)/bPriorVariance`).
 
-### 2.4 No aVariance analogue -- nothing to condition on or refresh
+### 2.4 No aVariance analog -- nothing to condition on or refresh
 
 The b prior is a fixed-variance normal (1.2), so there is no scale-mixture
 auxiliary. B is a deterministic function of the current (b0, b1) and the fixed
@@ -261,7 +261,7 @@ Required:
 - `forests_[1].treeFits *= c` over all `n*T_tau` entries -- MANDATORY: next
   sweep's residual roll reads each treeFits slab once before overwriting; a
   stale slab desyncs the roll. One `misc_scalarMultiplyVectorInPlace` over
-  `forests_[1].treeFits.data()`, length `n*T_tau` ([src/bartcore/chain.hpp:572](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/chain.hpp#L572) analogue).
+  `forests_[1].treeFits.data()`, length `n*T_tau` ([src/bartcore/chain.hpp:572](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/chain.hpp#L572) analog).
 - `forests_[1].totalFits *= c` over `n` (read by the roll and combinedFits).
 
 Required when recorded AND test data present:
@@ -272,7 +272,7 @@ Required when recorded AND test data present:
 Required when recorded AND keepTrees on (THE SHARP EDGE, identical to a-move):
 - this sweep's saved TAU tree slot was flattened with PRE-move leaf values; after
   the move multiply every FlatNode leaf value in the slot's T_tau saved tau
-  trees by c ([src/bartcore/chain.hpp:588-597](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/chain.hpp#L588-L597) analogue, `node.variable == invalidVariable`),
+  trees by c ([src/bartcore/chain.hpp:588-597](https://github.com/vdorie/dbarts/blob/9cebb35221ff0d932f126c1a8f710eb464fbc608/src/bartcore/chain.hpp#L588-L597) analog, `node.variable == invalidVariable`),
   so `b_saved * tau_saved` keeps the identified product. Verify with a keepTrees
   BCF round-trip: predicted `b_z*tau` from saved trees must track the live fit.
 

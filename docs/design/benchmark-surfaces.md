@@ -378,7 +378,7 @@ function plus a realistic set of nuisance columns, which is what section
 
 Section 1.8's twonorm/threenorm/ringnorm are the canonical axis-alignment
 stressors, with Breiman's own warning that they are variance problems and
-therefore partly cured by any ensemble. The regression analogue that is
+therefore partly cured by any ensemble. The regression analog that is
 NOT cured that way is a RADIAL surface: XBART's
 **Single index** function, `10 sqrt(a) + sin(5a)` with
 `a = sum_{j=1..10} (x_j - gamma_j)^2`, makes the response depend on a
@@ -645,7 +645,7 @@ written for.
 ## 4. The parametric MCMC canon, and what transfers
 
 For each: does the pathology appear in a sum-of-trees posterior, and can a
-BART analogue be built.
+BART analog be built.
 
 ### 4.1 Neal's funnel - YES, and dbarts already has three of them
 
@@ -671,7 +671,7 @@ NO decay through 40k sweeps - frozen structure", and injecting a large `a`
 made the bias WORSE mid-burn than a cold start
 ([3.2 Structure freezes when the noise level is low (ESTABLISHED)](tree-mixing-proposals.md#32-structure-freezes-when-the-noise-level-is-low-established)).
 (iii) The leaf-prior scale itself, which is the same object at m = 1.
-**A BART analogue is cheap to build**: a grouped design with few
+**A BART analog is cheap to build**: a grouped design with few
 observations per group and a genuinely small group-level scale, fitted with
 the group scale sampled, reporting the scale's own ESS and a
 prior-predictive calibration check rather than any fit statistic.
@@ -692,7 +692,7 @@ interweaving question, and this package already investigated it and
 recorded NO-GO (`docs/design/forest-ranef-interweaving.md`), and grouped
 random intercepts are being retired from dbarts entirely
 (`docs/design/retire-grouped-random-effects.md`). So the eight-schools
-analogue belongs to stan4bart, not to dbarts, and the thing dbarts owes it
+analog belongs to stan4bart, not to dbarts, and the thing dbarts owes it
 is that any embedded-use cell in this battery reports the OUTER scale
 parameter's effective sample size.
 
@@ -702,7 +702,7 @@ A curved narrow valley in a continuous parameter space. The primary
 sources for the twisted-Gaussian construction could **not be fetched**
 (section 8), so nothing numeric is claimed for it here.
 
-**The sum-of-trees analogue is not in tree space at all**: it is the ridge
+**The sum-of-trees analog is not in tree space at all**: it is the ridge
 between a parametric block and the forest when both can explain the same
 signal, and this house has it at 6x
 ([4.1 Move signal out of the forest, and let BART fit the remainder](tree-mixing-proposals.md#41-move-signal-out-of-the-forest-and-let-bart-fit-the-remainder),
@@ -712,8 +712,8 @@ because the composed cell has the ridge AND the right estimand.
 
 ### 4.4 Multimodal mixtures and label switching - YES, exactly
 
-The `k!` symmetry of a mixture posterior under relabelling, and the family
-of remedies - identifiability constraints, relabelling algorithms, and
+The `k!` symmetry of a mixture posterior under relabeling, and the family
+of remedies - identifiability constraints, relabeling algorithms, and
 **label-invariant loss functions** (Jasra, Holmes and Stephens, Statistical
 Science 20(1); record and abstract only, full text **not fetched**).
 
@@ -766,7 +766,7 @@ small `nu` in place of half-Cauchy - works, but "the drawback is that the
 prior becomes less sparsifying" [verified: Piironen and Vehtari, arXiv
 1707.01694 sec 2.4].
 
-**dbarts' analogue is DART, and the trade has already been measured in the
+**dbarts' analog is DART, and the trade has already been measured in the
 same direction.** Tan et al.'s Experiment 3 compares a Dirichlet split
 prior at `alpha = 1` against the uniform one: "Use of a Dirichlet prior on
 split feature probabilities either exacerbates the increasing trend for
@@ -1936,11 +1936,11 @@ index pays slightly more than before, held-out RMSE 1.033 against 1.028.
 Full reading at [6. Benefit,
 pre-registered](nog-gibbs.md#6-benefit-pre-registered).
 
-**Level-fibre arms (2026-09-07).** level-fibre.md's slice 3 run adds two
+**Level-fiber arms (2026-09-07).** level-fiber.md's slice 3 run adds two
 more arms on the same shipped four-chain configuration and the same
 twenty seeds: `independent75pool4level`, which varies no proposal
-probability at all and only switches on the level-fibre Gibbs step
-([1. The draw](level-fibre.md#1-the-draw)), and
+probability at all and only switches on the level-fiber Gibbs step
+([1. The draw](level-fiber.md#1-the-draw)), and
 `independent75pool4ruleGibbsBlevel`, that step on top of the rule_gibbs
 arm above. `independent75pool4` is re-run in the same session as their
 paired control and reproduces the Chain configuration paragraph's own
@@ -1996,7 +1996,7 @@ stack, and the coverage flag the structural kernel carries is unmoved by
 the level step. Host load ran 4.2 to 9.7 through the arm runs, so those
 wall times carry no timing claim beyond the quiet re-measure. Full
 verdict at
-[6. Benefit, pre-registered](level-fibre.md#6-benefit-pre-registered).
+[6. Benefit, pre-registered](level-fiber.md#6-benefit-pre-registered).
 
 **The coverage reference arm (2026-09-08).** The coverage flag the
 rule_gibbs arms carry is stated against `independent75pool4`, four short
@@ -2204,8 +2204,8 @@ throughout.
 
 **Frozen-structure ESS with the level step (2026-09-07).** The same script
 at its `levelGibbs` flag branches a paired second frozen chain at each
-freeze point, identical to its partner but for the level-fibre Gibbs step
-([1. The draw](level-fibre.md#1-the-draw)). The step is fixed when a
+freeze point, identical to its partner but for the level-fiber Gibbs step
+([1. The draw](level-fiber.md#1-the-draw)). The step is fixed when a
 sampler is created, so it is enabled only AFTER the freeze: the arm is
 a fresh sampler carrying the flag with the recorded chain's stored
 state transplanted in, refused unless its trees, leaf values and sigma
@@ -2236,10 +2236,10 @@ ten arms 632.7. What changes at the worst point is its character as well
 as its ESS - the sd at the minimum over the median falls from 2.49 and
 2.45 to 0.96 and 1.27, so the ranked coordinate is no longer the
 high-spread one. Read against the paragraph above, the leaf Gibbs's own
-slowness at the worst coordinate is a level-fibre deficit and the exact
+slowness at the worst coordinate is a level-fiber deficit and the exact
 draw on that fiber removes most of it; this is the frozen chain's residual
 channel alone, and the structural channel it cannot see is
-[6. Benefit, pre-registered](level-fibre.md#6-benefit-pre-registered)'s
+[6. Benefit, pre-registered](level-fiber.md#6-benefit-pre-registered)'s
 slice 3. Host load ran 5 to 6 throughout, so these wall times carry no
 timing claim: 12.4 to 13.3 s per seed for the recorded fit and its two
 frozen chains, 2.9 s for each chain of the paired arm.

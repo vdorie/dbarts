@@ -528,7 +528,7 @@ arm A.
 **Cut-only pilot (2026-09-08).**
 [2.4 Cost, and the two restricted variants](#24-cost-and-the-two-restricted-variants)'s first restricted variant, built and measured
 on a private `-DBARTCORE_RULE_GIBBS_CUT_ONLY` build the way the census scaffolding is built, and off in every shipped build. With the
-macro defined [`enumerateNogRuleNeighbourhood`](../../src/bartcore/moves.hpp) holds the node's incumbent variable and enumerates that
+macro defined [`enumerateNogRuleNeighborhood`](../../src/bartcore/moves.hpp) holds the node's incumbent variable and enumerates that
 variable's cuts alone - ONE scan a proposal - and every other term of the formula stands: the refusal of an empty child, the
 marginal, the missing coin, the categorical fixed point, and the prior factors, of which the split-variable prior and `1/|SI_v|` now
 cancel outright over one variable's cuts and are KEPT rather than dropped, so a candidate's weight stays on the joint kernel's own

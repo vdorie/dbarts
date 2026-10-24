@@ -194,7 +194,7 @@ rows in), and what stands:
   held numbers is reached as before.
 - dec-B358 (a single-valued covariate centered at its value exactly): stands where a placeholder is still
   made: a gp leaf with a stated lengthscale, and a record carried with no spread. dec-A177's filed floor is
-  TODO `leaf-covariate-single-value-off-centre`, left out here.
+  TODO `leaf-covariate-single-value-off-center`, left out here.
 - dec-B344, dec-A146, dec-A148 (a supplied lengthscale is model): stand.
 - dec-B457 to dec-B461 and dec-A217: stand; this slice changes no install and no record check.
 - dec-B200: its home for the range is revised by dec-B232 and its conversion on install reversed by
@@ -515,7 +515,7 @@ R.
   touched.
 - No subprocess in tinytest; base-build comparisons by literals written into the test or a two-library
   compare in scratch recorded in the landing note.
-- Out of scope: TODO `leaf-covariate-single-value-off-centre` (the floor); weights on the grid; kept gp
+- Out of scope: TODO `leaf-covariate-single-value-off-center` (the floor); weights on the grid; kept gp
   draws that store their kernel (dec-B237's later option); the mask riding the sampler's own data object
   (the TODO entry at the end); `setModel` accepting a changed gp lengthscale it does not honor (dec-B254
   calls it a parameter; if it is ever honored, a change to the heuristic becomes a door that derives);
@@ -910,7 +910,7 @@ Agent-made, each for the maintainer's later mark.
 - The `setData(s$data)` case under a mask family is named in the table and the help, and the mask riding the
   data object is filed, not built: it is the state of every mask today, and its fix moves `setData` for
   every masked sampler.
-- TODO `leaf-covariate-single-value-off-centre` stays out: a column constant to the eye and not to the bit
+- TODO `leaf-covariate-single-value-off-center` stays out: a column constant to the eye and not to the bit
   holds two distinct values and is not refused; its floor is a change to the spread mark
   ([`standardizedColumnHasSpread`](../../src/bartcore/model.hpp)) and the conversions, not to the rows.
 
@@ -1056,7 +1056,7 @@ Holds:
 - The design notes' sections: response-scale-rows.md sections 2, 4 and 8 (rule 9 is new, the note having 1
   to 8); state-frame-prior.md's "What response-scale-rows slice D gets". The help files named in 1.8 and
   2.5, dbarts-embedding.Rd's "Whose prior is in force" among them. TODO `response-scale-rows`,
-  `mask-on-own-data-object` and `leaf-covariate-single-value-off-centre`.
+  `mask-on-own-data-object` and `leaf-covariate-single-value-off-center`.
 
 Moved:
 - bcf-equivalence-47838362 (15) to bcf-equivalence-20eed7ed (19), current since dec-A219.

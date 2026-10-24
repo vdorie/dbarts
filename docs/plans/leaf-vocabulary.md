@@ -194,7 +194,7 @@ Tests and harnesses:
   - test-composition-sequences, test-data-handle, test-data-mixed-mutation, test-data-mixed, test-data-sparse;
   - test-embedding-recipes, test-engine-constants, test-family-objects, test-fits-without-offset,
     test-forest-basis-r5, test-gp-leaves, test-grow-from-root;
-  - test-heteroscedastic-mutation, test-heteroscedastic, test-host-shell-pins, test-level-fibre,
+  - test-heteroscedastic-mutation, test-heteroscedastic, test-host-shell-pins, test-level-fiber,
     test-linear-leaves;
   - test-model-errors (pins "'node.prior' must be a node prior specification"), test-model-priors, test-monotone;
   - test-multinomial-r5-surface, test-mutate-then-serialize, test-predict-blend, test-predict-forest,

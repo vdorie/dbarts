@@ -93,7 +93,7 @@ interval ([`Tree::splitInterval`](../../src/bartcore/tree.hpp)) in
 over the valid range from [`findGoodOrdinalRules`](../../src/bartcore/moves.hpp)),
 [`perturbMove`](../../src/bartcore/moves.hpp) (symmetric over window positions; the node's own rule factor
 cancels only while positions are equally likely),
-[`enumerateNogRuleNeighbourhood`](../../src/bartcore/moves.hpp) (rule_gibbs, `logRulePrior`) and
+[`enumerateNogRuleNeighborhood`](../../src/bartcore/moves.hpp) (rule_gibbs, `logRulePrior`) and
 [`growTreeFromRoot`](../../src/bartcore/grow.hpp) (`logCut`). Availability, the monotone leaf's moves and the
 interaction constraint read only whether an interval is empty or which variable a node holds, and do not
 change. The scan scores positions and does not change.
@@ -155,7 +155,7 @@ Engine ([`ColumnStore`](../../src/bartcore/data.hpp) unless named):
    `CGMTreePrior::drawRuleForVariable` and `changeMove`, unweighted columns keeping that call and its
    generator use.
 5. Moves: `changeMove`'s four counts become sums; `perturbMove` adds log w_target - log w_current;
-   `enumerateNogRuleNeighbourhood` and `growTreeFromRoot` add log w_c to each candidate and take the
+   `enumerateNogRuleNeighborhood` and `growTreeFromRoot` add log w_c to each candidate and take the
    interval's sum as normalizer.
 6. Rollbacks: every snapshot that saves `cutPoints` and `numCuts` saves the weights
    (`setState`'s, `revalidateAllChains`'s, the refresh undo in [`Chain::undoSplitMoves`](../../src/bartcore/chain.hpp)'s

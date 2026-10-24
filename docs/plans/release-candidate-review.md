@@ -915,7 +915,7 @@ still blocked, now by 6.4's missing plateau-error gate and the owed
 equal-cost arm alone. Recorded at nog-gibbs.md 6, 8; benchmark-surfaces.md
 6.4, 10.4. Script only, no engine change.
 
-### The level-fibre step becomes automatic under a frozen mixture (127f04ee, 2026-09-08)
+### The level-fiber step becomes automatic under a frozen mixture (127f04ee, 2026-09-08)
 
 Ruled by the maintainer: the step is KEPT and `levelGibbs` becomes tri-state.
 `TRUE` takes it every sweep, `FALSE` never, and `NA` - the new default - takes
@@ -932,7 +932,7 @@ The bridge reads the slot raw rather than through `rc_getBool`, which narrows to
 bool and would take `NA` for `TRUE`, and `dbartsControl` refuses an argument that
 merely coerces to `NA`. Seventeen files, about 40 lines of engine and surface and
 120 of test and doc. Gates: tests/cpp 283 ok plain and under ASAN/UBSAN, the
-level-fibre distribution arm reproducing its recorded numbers (worst `|1'c|`
+level-fiber distribution arm reproducing its recorded numbers (worst `|1'c|`
 2.91e-16, mean z 1.75, covariance z 2.92); tinytest 8001/0; the equivalence trio
 bitwise 50/12/11 against the `fbff1989` baselines, which stand; the four quick
 exact gates green; `C1-frozen-ess.R quick` reproducing digit for digit, its off
@@ -942,7 +942,7 @@ design-versus-code point: the automatic mode reads as `TRUE` only where the
 mixture is frozen for the sampler's whole life, `TRUE` stepping through the
 growing sweeps too, so the grown-forest reading of automatic against on lives in
 tests/cpp behind a chain-level mode hook and the R gate reads automatic against
-`FALSE` at a `$setModel` freeze instead. Recorded at level-fibre.md 4, 8.
+`FALSE` at a `$setModel` freeze instead. Recorded at level-fiber.md 4, 8.
 
 ### A private cut-only switch prices the rule_gibbs variable axis (a6f44e12, 2026-09-08)
 
@@ -954,7 +954,7 @@ restriction sitting behind an ifdef rather than a runtime test, and the shipped
 engine is bitwise unchanged: the macro-off build reads 50 / 12 / 11 identical
 against the fbff1989 equivalence, bcf and multinomial baselines, and so does the
 macro-on build at the shipped defaults, where the rule_gibbs share is zero.
-Engine diff is one ifdef inside enumerateNogRuleNeighbourhood plus its note;
+Engine diff is one ifdef inside enumerateNogRuleNeighborhood plus its note;
 tests/cpp restates the rule_gibbs cell for the restricted set under the macro -
 four candidates on the incumbent variable, closure read from another cut of the
 same variable, the enumerated conditional at 3 degrees of freedom, and the
@@ -975,9 +975,9 @@ none of the other's. No default changes, no baseline is re-recorded, no user
 surface moves and NEWS takes nothing. Recorded at nog-gibbs.md 2.4, 6;
 benchmark-surfaces.md 10.4.
 
-### The level-fibre benefit run kills the step, which stays at default off (ca92c11f, 2026-09-07)
+### The level-fiber benefit run kills the step, which stays at default off (ca92c11f, 2026-09-07)
 
-Slice 3 of docs/design/level-fibre.md. C1-he-hahn.R's armSpec gains a
+Slice 3 of docs/design/level-fiber.md. C1-he-hahn.R's armSpec gains a
 levelGibbs field, named in every bart2 call - FALSE is bart2's own default, so
 every existing arm's draws are unchanged, checked by identical() on the
 control's own rows before and after the edit - and two arms are appended:
@@ -1005,12 +1005,12 @@ baseline is re-recorded, the three fbff1989 files stand, and the
 backfit-exact.R repair is not owed. The step stays behind levelGibbs at default
 off, an opt-in whose measured benefit on the pre-registered cell is nil;
 whether it is removed before release is the maintainer's call. Recorded at
-level-fibre.md 6, 8; benchmark-surfaces.md 10.4; tree-mixing-proposals.md 16.4.
+level-fiber.md 6, 8; benchmark-surfaces.md 10.4; tree-mixing-proposals.md 16.4.
 Script only, no engine change.
 
-### The level-fibre frozen-structure pilot confirms its advisory bar (bf1a4c9e, 2026-09-07)
+### The level-fiber frozen-structure pilot confirms its advisory bar (bf1a4c9e, 2026-09-07)
 
-Slice 2 of docs/design/level-fibre.md, script only, no engine change.
+Slice 2 of docs/design/level-fiber.md, script only, no engine change.
 C1-frozen-ess.R gains a levelGibbs flag that branches a paired second
 frozen chain at each of the recorded arm's two freeze points. The control
 slot is fixed when a sampler is created, so the step cannot be switched on
@@ -1029,7 +1029,7 @@ medians 715.1 and 743.0 with a worst seed of 632.7, so nothing falls below
 the recorded ~600. CONFIRMS under section 6's advisory bar. The verdict is
 advisory and gates nothing: it reads the residual channel of the leaf half
 in isolation, and slice 3's four-chain benefit run on the live kernel is
-unmoved by it. Recorded at level-fibre.md 8; benchmark-surfaces.md 10.4.
+unmoved by it. Recorded at level-fiber.md 8; benchmark-surfaces.md 10.4.
 
 ### rule_gibbs's benefit stage runs, does not kill the move, and flags its coverage (50032833, 2026-09-07)
 
@@ -1059,9 +1059,9 @@ quiet machine, and slice 2's rule-gibbs-balance.R. Recorded at
 nog-gibbs.md 6, 8; benchmark-surfaces.md 10.4; tree-mixing-proposals.md
 15.3. Script only, no engine change.
 
-### The level-fibre Gibbs step lands behind a flag at default off (cbe80534, 2026-09-07)
+### The level-fiber Gibbs step lands behind a flag at default off (cbe80534, 2026-09-07)
 
-Slice 1 of docs/design/level-fibre.md: Chain::drawLevelShift
+Slice 1 of docs/design/level-fiber.md: Chain::drawLevelShift
 (src/bartcore/chain.hpp) adds a constant c_t to every occupied leaf of tree
 t, the constants summing to zero across a forest's trees, once per sweep
 ahead of the tree loop; the fitted function is unchanged exactly, so the
@@ -2174,7 +2174,7 @@ reallocation, not by a calibration check at its own shape. And the
 oracle's own conditions are worth naming since they are what make it
 exact rather than approximate: the split-variable term is omitted
 because the design has one predictor, the empty-leaf veto is
-unmodelled and is inert only because every available cut under the
+unmodeled and is inert only because every available cut under the
 midpoint grid separates two occupied sides, and tau = 3 / k assumes
 the single tree and the numeric k the arm builds.
 
@@ -2521,7 +2521,7 @@ sweeps 8 before 4). THE PROGRAM'S THIRD BASELINE RE-RECORD: equivalence-736bfb05
 with the P17 row, feature-matrix [f39], TODO). Partition against 5a3bc276: 42 of 43
 scenarios bitwise, xbart alone moves (8 summaries, max |z| = 1.94; its grid is k = c(1, 3),
 now swept 3 then 1). Adjudicated independently: the new order's c(1, 3) is BITWISE the old
-build's c(3, 1) on all 40 seeds - a pure relabelling of the previous sweep - and a 40-seed
+build's c(3, 1) on all 40 seeds - a pure relabeling of the previous sweep - and a 40-seed
 paired per-cell comparison puts the pooled difference at -0.019 (SE 0.014, 0.8 percent of
 the loss), with the k = 1 cell's warm start shifted toward its k = 3 predecessor
 (-0.044, t = -2.6) and the k = 3 cell's not (-0.006): the target is unmoved to

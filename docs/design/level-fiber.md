@@ -320,7 +320,7 @@ slice 3, which is why slice 3 carries its own arms.
 seeds, and report the median with its own paired standard error. The per-seed ratio is not the statistic: the recorded frozen
 minima span 5.5 to 162.7 at the 2500 freeze and 3.1 to 160.8 at the 1250 one, five seeds each, with medians 21.2 and 4.2 of 2500
 kept. A median moving to a few hundred at both points, with the median-point frozen ESS not falling below its recorded ~600,
-confirms the level-fibre reading. A median inside two paired standard errors of zero refutes it. Anything between confirms
+confirms the level-fiber reading. A median inside two paired standard errors of zero refutes it. Anything between confirms
 nothing either way - a five-fold rise is 106 and 21 of 2500 kept, still one to two orders short at the ranked coordinate, and
 a per-seed ratio bar of 5 would have licensed exactly that as a pass. The verdict is advisory and does not gate slice 3 by
 itself: a refutation, read with 10.4's finding that the median point's deficit is overwhelmingly structural, is grounds to stop.
@@ -507,7 +507,7 @@ Then, in order:
    holds every row); the code keeps it as the precision-sum guard. (6) Two engine test hooks the design did not
    enumerate, beside the existing ForTesting cluster.
 
-   Gates (independent run): tests/cpp 282 ok on the plain, ASAN/UBSAN and move-census builds; the level-fibre test:
+   Gates (independent run): tests/cpp 282 ok on the plain, ASAN/UBSAN and move-census builds; the level-fiber test:
    worst `|1'c|` 2.91e-16 (bar 1e-12), mean z 1.75 and covariance z 2.92 at a pre-stated 4.5 over 65 statistics,
    200000 draws at 10 trees; poison (i) no projection worst `|1'u|` 0.546; poison (ii) no prior mean: mean z 647
    fails, covariance z 2.54 passes; ensemble identity with the flag on worst fit 3.72e-15, residual 3.73e-15,

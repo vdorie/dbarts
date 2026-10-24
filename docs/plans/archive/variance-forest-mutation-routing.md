@@ -70,7 +70,7 @@ conflict resolutions and two overturns this plan encodes.
   leaf, so `mapOldCutPointsOntoNew`, `repartitionSubtree`, `collapseEmptyNodes`,
   `dropStaleMissingDirections` and `resetObservations` (tree.hpp) all apply
   verbatim. Both halves of the recover/scatter pair already exist -
-  `recoverVarianceLeafValues` is the scale analogue of
+  `recoverVarianceLeafValues` is the scale analog of
   `recoverParametersFromFits`, and `rebuildVarianceForest` is the scatter. The
   note in docs/design/heteroscedastic.md section "Commit decomposition" item C2
   ("templated on the mean L and does not transfer to a differently-typed
@@ -234,7 +234,7 @@ carries nine heteroscedastic tests including a state round trip and a
    never consults a split rule). Add routing agreement: for every tree of every
    forest AND of the variance forest, every observation must sit in the leaf
    `findBottomNodeForObservation` routes it to. This is the invariant the whole
-   defect violates, and it catches the mean-forest analogue for free. Its
+   defect violates, and it catches the mean-forest analog for free. Its
    `isfinite(s.sigma(c))` check already exists - do not re-add it.
 4. Variance product invariant: `combinedVariance[i] == prod_j
    factorByTree[j*n + i]` to the sweep's own recompute tolerance, every factor

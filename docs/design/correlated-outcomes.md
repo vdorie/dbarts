@@ -114,7 +114,7 @@ cannot pre-whiten and hand the result to dbarts. Three routes:
   callback argument on dbartsSampler$run - it removes the per-sweep round-
   trip cost for every R-side outer-Gibbs composition (the multivariate recipe,
   custom outer-Gibbs loops, AR prototypes) without touching the engine or the
-  shipped C ABI, whose analogue dbarts_sampler_setCallback already exists.
+  shipped C ABI, whose analog dbarts_sampler_setCallback already exists.
 
 Hypothesis CONFIRMED: the existing weighted-fit + between-sample-swap conduit
 covers everything whose conditional precision is diagonal, and both models

@@ -157,7 +157,7 @@ the choice; none remains open.
    `missing` is retired outright, no tombstone (VD 2026-09-08): missing
    predictors are always modeled for the rows `na.action` keeps;
    `na.fail` covers the old `missing = "error"`.
-6. xbart's "leave k modelled" spelling (VD 2026-09-08): `k` accepts a
+6. xbart's "leave k modeled" spelling (VD 2026-09-08): `k` accepts a
    numeric vector as today or a list whose entries are numbers or
    hyperprior objects, so `k = list(1, 2, chi())` sweeps two fixed
    values and the modeled default; the modeled cell is labeled by
@@ -495,7 +495,7 @@ check-rc-codoc.R, check-win-drift exit 0. Mutation probes: a no-op
 [test-na-action.R](../../inst/tinytest/test-na-action.R); skipping the
 response-NA drop errors the file; an off-by-one student df fails 7
 across two files; dropping the levelGibbs copy in R/spec.R fails 5 in
-[test-level-fibre.R](../../inst/tinytest/test-level-fibre.R).
+[test-level-fiber.R](../../inst/tinytest/test-level-fiber.R).
 
 Review findings fixed before landing: amplitude bases not aligned to
 rows `na.action` dropped absent a `subset`, on both paths; the

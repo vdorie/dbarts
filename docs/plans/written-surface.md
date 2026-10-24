@@ -92,7 +92,7 @@ said.
 - The suite. 224 test files, 14274 assertions, none failing.
 - Two spellings of a multiplier. `y ~ x1 + x2 + z:forest(x1 + x2)` and
   `y ~ x1 + x2 + forest(x1 + x2, basis = ~ z)` are one fit, draw for draw; so are `(dose + age):forest(x1)`
-  and `basis = ~ cbind(dose, age)`. The colon takes a name, `factor(name)` or a parenthesised sum of
+  and `basis = ~ cbind(dose, age)`. The colon takes a name, `factor(name)` or a parenthesized sum of
   names; `scale(age):forest(x1)` is refused ("is not a supported forest() modulator") and `z * forest(x1)`
   is refused naming the colon. [`walkFormulaTerms`](../../R/formulaTerms.R); the operand was read by
   retired: [`desugarBasisOperand`](../../R/formulaTerms.R), which push 2 removed.

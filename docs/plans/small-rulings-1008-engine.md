@@ -346,7 +346,7 @@ Stop and report, without working around, when:
 - response-scale-rows slice C (dec-B364) keeps the scale in force when the rows in hold one value, so
   after it the window of item 6 is reached at creation, at setData and from a stored pair; no shared code
   beyond `readRange`.
-- leaf-covariate-single-value-off-centre (with dec-B304) adds a floor to the standardization that item 1's
+- leaf-covariate-single-value-off-center (with dec-B304) adds a floor to the standardization that item 1's
   conversion reads; it is later and touches test-leaf-conversions.R only.
 - This sitting's R-surface slice may land while this one's CI runs; R/dbarts.R and dbartsSampler-class.Rd
   conflicts are textual.

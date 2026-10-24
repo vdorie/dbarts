@@ -78,7 +78,7 @@ a `splitsBySubset` lookup each, about five lines. **RECOMMEND B.**
 size moves with the proposal and `1/|S|` stops canceling; the same construction runs upward through a same-variable ancestor, whose
 `Walker::minMax` reads this node. A degenerate interval is a no-op inside the kernel, never a node the selector skips.
 
-A categorical rule has no cut to displace; its analogue, a single-category flip in the direction mask, needs its own validity walk
+A categorical rule has no cut to displace; its analog, a single-category flip in the direction mask, needs its own validity walk
 ([`categoricalSubtreeIsValid`](../../src/bartcore/moves.hpp)) and correction, and is not proposed here - so perturb is INERT on an
 all-categorical design. That is what
 [6.3 Stage 2 - benefit, with matched exposure](tree-mixing-proposals.md#63-stage-2---benefit-with-matched-exposure) asks a null
@@ -477,7 +477,7 @@ moves which move is diluted. The null is therefore taken in two pieces the move 
 own first absolute gate and is strictly stronger than a statistical one: at `perturb 0` arm B must be BITWISE identical to arm A
 under benchmarks/R/equivalence.R. Slice 1 already runs it. **(b) A sham comparison**, arm A against arm A at twenty FRESH sampler
 seeds on cell 1, whose paired minimum-ESS difference must sit inside the +8 bar - the only control that calibrates the bar against
-the harness rather than against a formula, at the cost of twenty more fits. The all-categorical cell stays, RELABELLED a dilution
+the harness rather than against a formula, at the cost of twenty more fits. The all-categorical cell stays, RELABELED a dilution
 arm rather than a null: arm B against `birth_death 0.6, swap 0, change 0.24` with 0.16 discarded, measuring what a discarded
 proposal share costs where perturb cannot act. It reports; it gates nothing and voids nothing.
 

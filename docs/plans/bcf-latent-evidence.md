@@ -145,7 +145,7 @@ channel absorbing the swap instead (`abs.a` 0.3352, 2.5x the band). (ii) The gen
 flags the raw `a` (0.1570) and `p1` (0.1336) and leaves the named `abs.a` at 0.1321 against 0.1332, 0.99 of the band, so
 it was re-run at `R = 200`, band 0.0924, where `abs.a` lands (0.1085) beside `a` (0.1385) and `prog2` (0.0938) and every
 `p_j` is non-uniform on chi-square (0.013, 0.087, 0.006) without reaching the band. That poison is named on `abs.a` and
-takes `R = 200` to land it. (iii) An unmodellable generator sigma flags the amplitude pair alone, `abs.a` 0.2117 and `a`
+takes `R = 200` to land it. (iii) An unmodelable generator sigma flags the amplitude pair alone, `abs.a` 0.2117 and `a`
 0.1470, no `prog_j`, `eff_j` or `p_j` reaching the band: the noise inflates the index scale and the sampler absorbs it
 into `a`. Only (ii) is glue-targeted and only (ii) carries the held-glue control, which is inert in the strongest sense
 available - the same settings under a held glue with and without the poison agree byte for byte, every rank and every

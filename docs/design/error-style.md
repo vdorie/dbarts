@@ -380,7 +380,7 @@ below - see there for the explicit sign-off).
 Two sub-shapes, tracking two different R predicates. **Value present but
 NULL** (`is.null(x)` / C `ptr == NULL`): `"'<name>' cannot be NULL"`.
 Conformance: `"x.test cannot be NULL"` (["x.test cannot be NULL"](../../R/dbarts.R)).
-**Argument omitted from the call** (R `missing(x)`, no C analogue):
+**Argument omitted from the call** (R `missing(x)`, no C analog):
 `"'<name>' must be specified"`. The sub-shape has no live instance left: both
 the conformance site, [R/rbart.R:127](https://github.com/vdorie/dbarts/blob/c585ba2c9bc6c6bf7b1c8b33aeda450d554e97d8/R/rbart.R#L127), and the
 name-matching variant it was contrasted with,

@@ -195,7 +195,7 @@ stretched (0.8992 to 2.6977); and xbart's warm path, `setModel` from a fixed `sd
 dec-B418 emulated on today's build (scratch/kint/04-no-convert.R, ran): a chain run 100 sweeps,
 re-anchored through `setOffset(0.8 x3 + 0.5, updateScale = TRUE)` as stan4bart's warm-up does, run 100
 more, its state installed into a sampler created from the same data. Converted, as built: the
-recipient's fit equals the donor's to 6.7e-16. Unconverted (the state's `fit.scale` relabelled as the
+recipient's fit equals the donor's to 6.7e-16. Unconverted (the state's `fit.scale` relabeled as the
 recipient's, so nothing converts): the fit is off by up to 0.97, against a spread of the donor's fit of
 0.70 sd, the mapping's center having moved as well as its width; k and sigma are as stored.
 

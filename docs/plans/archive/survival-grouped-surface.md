@@ -86,7 +86,7 @@ gated; this is R surface only.
 
 - Reduction gate (primary, free): rbart_vi family = "aft" on
   all-status-1 data == rbart_vi gaussian on log T, same seed, BITWISE
-  (ranef, tau, sigma, train fits) - the grouped analogue of the
+  (ranef, tau, sigma, train fits) - the grouped analog of the
   ungrouped aft reduction gate.
 - tinytest: survivalProbabilities.rbart dims (draws x times x obs;
   chain margin under combineChains = FALSE), values in [0, 1] and

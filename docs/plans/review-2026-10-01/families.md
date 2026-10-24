@@ -51,7 +51,7 @@ Why gates missed: negbin-exact.R is a single tree on a two-cell design with tiny
   draws lie on the grid. docs/design/negative-binomial.md measured r mixing with psi held fixed and
   flagged the f/log r confounding as making ESS "optimistic"; it did not foresee a frozen chain.
 Fix: move r along the mean-preserving ridge - propose r' with a compensating level shift
-  log(r / r') of the forest (the level-fibre move drawLevelShift is the existing template) and
+  log(r / r') of the forest (the level-fiber move drawLevelShift is the existing template) and
   accept by MH on the collapsed NB likelihood; until then document that r does not mix, or default
   to a fixed r.
 

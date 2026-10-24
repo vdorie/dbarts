@@ -368,7 +368,7 @@ faster than superpolynomial mixing time" (published EJS wording;
 the preprint says exponential; both conditional on `L = L_max ~ log(n/2)`).
 [verified: EJS 19(2):3041-3067, DOI 10.1214/25-EJS2397, Theorem 5.1;
 arXiv 2306.00126] Ronen et al. prove the multi-dimensional single-tree
-analogue, also grow/prune only. **Neither binds dbarts' kernel**: single
+analog, also grow/prune only. **Neither binds dbarts' kernel**: single
 tree, grow/prune only, and Ronen et al. concede "If either Change or Swap
 moves are allowed, the conductance computations would become more
 complicated and we may not be able to use the same bottleneck set". Both
@@ -1002,7 +1002,7 @@ break-even bar is therefore far above "p times the classic kernel", which
 is where the survey set its kill line.
 
 **Cost.** M-L, ~300 lines plus a gate arm; the scan itself is already paid
-for, and the categorical analogue - scheduled when this was written - has
+for, and the categorical analog - scheduled when this was written - has
 LANDED (`docs/plans/archive/grow-from-root-categorical-scan.md`; the TODO door is
 recorded closed and removed from `TODO`). **The half worth as much as the
 mixing gain** is the free by-product: because the scan scores the whole
@@ -2384,7 +2384,7 @@ not on the digits.
 **What survives, and it is worth keeping.** The log importance weight is a
 *sum over non-root nodes*, so a prior that keeps trees small keeps the
 number of terms small. That is a derived version of "BART's shallow trees
-are the favourable regime", and it gives Stage R0 a **per-node** quantity
+are the favorable regime", and it gives Stage R0 a **per-node** quantity
 to log rather than a whole-tree acceptance rate.
 
 **The SNR direction needs re-derivation, not deletion.** The memo argued
@@ -3563,7 +3563,7 @@ a soft-gate bridge; and Linero's retrospective auxiliary leaf values.
   an enumerator, and once that exists it is item 6.
 - **Mask complement as a move.** Complementing a categorical direction mask
   and swapping the two child subtrees preserves partition, depth and prior
-  exactly - a free `Z2` relabelling the canonical gauge does not quotient,
+  exactly - a free `Z2` relabeling the canonical gauge does not quotient,
   changing no fit. A caution that an informed categorical scan must not
   double-count, not a move.
 - **C1's Single index as the rotation falsifier**, and **a learned rotation
@@ -3829,7 +3829,7 @@ pre-check across chains; row 7's fixed warp on P2. Needing code before any
 evidence exists: rows 2, 3 and 5 as kernels (row 1's kernel: slice 1 landed
 cbe80534 and the benefit run KILLED it 2026-09-07, the step staying at
 default off - see
-[level: an exact Gibbs draw on the level fiber](level-fibre.md#level-an-exact-gibbs-draw-on-the-level-fiber)),
+[level: an exact Gibbs draw on the level fiber](level-fiber.md#level-an-exact-gibbs-draw-on-the-level-fiber)),
 row 8 as a cost model, and row 4 beyond its probe. Nothing here is
 scheduled. Of the four, three have
 now run - the nog probe, the signed run-length column and the
@@ -3848,7 +3848,7 @@ leaves-per-tree count (sec 6.1's third 2026-09-07 addendum) - leaving row
   BART's leaf prior is proper, so a constraint moves the target; row 1 is
   the target-preserving form.
 - **Prior-only tempering as the fiber temperature**: it flattens exactly
-  `ker(Z)` and nothing else - the clean answer to "flatten only the fibre" -
+  `ker(Z)` and nothing else - the clean answer to "flatten only the fiber" -
   but it is tempering, dormant for cause, and row 1 makes it unnecessary
   wherever the fiber-restricted conditional is closed form.
 - **Pseudo-prior dormant subtrees** (Carlin-Chib in the product space):
@@ -3862,7 +3862,7 @@ leaves-per-tree count (sec 6.1's third 2026-09-07 addendum) - leaving row
   running caches instead is history-dependent, hence adaptation.
 - **Lifted variable choice**: `p` split variables carry no order, and
   ordering them by DART's `s` is the adaptation trap.
-- **Whole-state exchange between same-temperature chains**: a relabelling of
+- **Whole-state exchange between same-temperature chains**: a relabeling of
   exchangeable chains, acceptance 1, effect nil. (What makes Rigat's
   whole-tree swap real is that his chains differ in PROPOSAL.)
 - **Block exchange of `k > 1` trees, and subtree crossover between chains**:

@@ -198,7 +198,7 @@ rather than by drawing from the prior and collapsing empty nodes, so
 the distribution at sweep zero differs from every released version of
 the package; five hundred discarded draws are enough that nothing of it
 survives into the summaries. And the chi hyperprior's degrees-of-
-freedom argument was relabelled, so the same written prior means
+freedom argument was relabeled, so the same written prior means
 something different in the two releases; at the infinite scale the
 scenario uses, the posterior for k is set by the data rather than by
 the hyperprior, and sweeping the degrees of freedom from 1.25 to 5

@@ -6,7 +6,7 @@ in docs/decisions.md.
 
 A stored leaf is a set of numbers read through two sets of units. One is the response transform, a multiplier
 and a shift every leaf value is stored relative to. The other, on a linear or Gaussian-process (gp) leaf, is the
-covariate standardization: a centre and a scale per leaf covariate, and on a gp leaf a lengthscale. A replay
+covariate standardization: a center and a scale per leaf covariate, and on a gp leaf a lengthscale. A replay
 of a kept draw reads whatever units the sampler holds at the time
 ([`Chain::addFlatPredictions`](../../src/bartcore/chain.hpp)). So a call that re-derived either set changed
 what every kept draw returned, and a forest handed from one sampler to another was read in the second
@@ -26,26 +26,26 @@ Before the change, on fixtures with a response sd of about 2:
 | `setOffset(-5, updateScale = TRUE)` | every kept draw | 5 | 4e-15 |
 | the same re-anchor under a variance forest | kept variance draws | times 9 | 1e-15 |
 | a warm start, donor center and scale -0.019, 0.973, recipient 4.94, 2.92 | seeded fit against the donor's | up to 6.30 | up to 6.30: the slopes go in as stored (dec-B457) |
-| a warm start from another cut grid | the recipient's centre and scale (and gp lengthscale) | replaced by ones re-derived from its rows | kept |
+| a warm start from another cut grid | the recipient's center and scale (and gp lengthscale) | replaced by ones re-derived from its rows | kept |
 
 A constant leaf's kept draws never moved across `setData`. With `updateScale = FALSE` nothing moved and
 nothing moves.
 
 ## The rules
 
-- One leaf's coefficients go from centre m and scale s to m' and s' by
+- One leaf's coefficients go from center m and scale s to m' and s' by
   [`convertLinearCoefficients`](../../src/bartcore/model.hpp): each slope is multiplied by s' / s and the
   intercept gains slope (m' - m) / s. The leaf is then the same function wherever the covariate is observed. A
-  row missing the covariate is read at the centre in force, so its fit moves by that intercept term; the
-  manual says so. A column whose centre and scale agree is not touched, and equal standardizations run no
+  row missing the covariate is read at the center in force, so its fit moves by that intercept term; the
+  manual says so. A column whose center and scale agree is not touched, and equal standardizations run no
   arithmetic, so such a call or install is bit for bit what it was.
-- A covariate that holds a single value has no spread: it is centred at that value exactly
+- A covariate that holds a single value has no spread: it is centered at that value exactly
   ([`standardizationMomentsForColumn`](../../src/bartcore/data.hpp)) and divided by a placeholder scale of 1,
   reached through a carried record without a scale, a gp leaf whose lengthscale is stated, or a predictor
   update under the numbers in force, a derivation over one value being refused
   ([response-scale-rows.md](response-scale-rows.md), rule 9),
   so the leaf reads zero for it on every training row, its slope adds nothing to the fit and no observation
-  informs it. The state stores the scale as `NA` beside a finite centre; a state that holds 1 reads as 1.
+  informs it. The state stores the scale as `NA` beside a finite center; a state that holds 1 reads as 1.
   Whether a column is one is read from what the leaf holds when it is asked - the scale is 1 and every
   gathered row is zero ([`standardizedColumnHasSpread`](../../src/bartcore/model.hpp)) - and is not
   remembered, so a placeholder column that `setPredictor` gave values, a constant moved to another constant
@@ -98,12 +98,12 @@ between unequal standardizations, the same posterior reached from converted coef
 
 One kind of fit changes too. A leaf covariate constant at a value its mean missed by rounding (0.1 over 150
 rows) was given that rounding as its scale, 2.5e-16, and read about 1 on every row; a test row at 0.11 was
-predicted at 1.8e14. It is now centred at its value and divided by 1 like a constant at 1000, and such a fit
+predicted at 1.8e14. It is now centered at its value and divided by 1 like a constant at 1000, and such a fit
 draws what the same fit on a constant at 1000 draws.
 
 ## Gaussian-process leaves
 
-A kept gp draw is a set of kernel weights. It replays only under the centre, scale and lengthscale it was
+A kept gp draw is a set of kernel weights. It replays only under the center, scale and lengthscale it was
 drawn with, and it has no mean term that could carry a shift of the response. So it cannot be rewritten at
 `setData`, nor at a re-anchor that moves the shift; where the shift holds, the ratio is carried like any other
 leaf's. A gp sampler holding kept draws refuses, by name instead of silently changing them, a `setData` that
@@ -146,6 +146,6 @@ a warm start copies them on the donor's grid and starts them at zero on another,
 
 ## Not here
 
-The centre, scale, lengthscale and response range as records on the data object, `setData`'s arguments for
+The center, scale, lengthscale and response range as records on the data object, `setData`'s arguments for
 holding them, and a state install that compares a stored standardization and converts instead of installing
 it: the TODO item state-frame-prior.

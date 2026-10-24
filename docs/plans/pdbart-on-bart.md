@@ -55,7 +55,7 @@ scale it holds, and the plots label it.
   [`dbartsTombstones`](../../R/tombstones.R), checked by
   [test-tombstones.R](../../inst/tinytest/test-tombstones.R): an
   `"argument"` row's successor must be a formal of its owner, so pdbart's
-  translations are `"behaviour"` rows, as `bart`'s own forwarding is.
+  translations are `"behavior"` rows, as `bart`'s own forwarding is.
 - Prediction on new rows: [`predict.bart`](../../R/generics.R),
   [`predict.bartNegbin`](../../R/generics.R),
   [`predict.bartHurdle`](../../R/generics.R), with
@@ -282,7 +282,7 @@ Slice 1 - fit through `bart`.
    matching the general route's, not one row's).
 4. pdbart's own once-per-session message for a data call with no BayesTree
    name, exempt for package callers; `bart`'s message held back inside pdbart
-   with its key saved and restored. `"behaviour"` registry rows: a
+   with its key saved and restored. `"behavior"` registry rows: a
    BayesTree-spelled pdbart call, the same for pd2bart, and the defaults
    message, each owned by its function, expiring 1.1-0. Tinytest, clearing
    and restoring both keys in `onceWarnState` as test-tombstones does: the

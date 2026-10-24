@@ -292,7 +292,7 @@ Each compiles, gates, and aborts cleanly (default blockSize = 1 => Stage A).
   fused block of WIDTH 1 (tree count < blockSize, or a short final block) fell
   into the b=1 kernels, which assume atom members alias tree.indices and that
   the node cache carries raw Q; buildForBlock owns the members buffer and
-  writeAffineNodeCaches seeds Q = 0. Wrong leaf offsets plus an uncancelled Q
+  writeAffineNodeCaches seeds Q = 0. Wrong leaf offsets plus an uncanceled Q
   penalty on births under-fit the forest (categorical-exact gap 0.093 vs 0.004
   at b=1). Fix: dispatch the hooks on an explicit blockMode flag set by
   buildForBlock, cleared by the per-tree/aggregate builders. New gate

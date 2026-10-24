@@ -129,7 +129,7 @@ DESCRIPTION drops the drop-in claim for a compatible-interface one;
   `quantileSummary` (mean/sd/quantiles only); `man/summary.bart.Rd` documented
   the column set (`mean`, `median`, `sd`, `mad`, `q5`, `q95`, `rhat`,
   `ess_bulk`, `ess_tail`) - now produced unconditionally by
-  [`summariseDraws`](../../R/diagnostics.R). Five tinytest files called
+  [`summarizeDraws`](../../R/diagnostics.R). Five tinytest files called
   `posterior::` directly (named in step 4). dec-B99 already fixes the
   replacement extractor's shape - "a base-R draws extractor returning an
   iterations by chains by variables array with dimnames" that `posterior`'s own
@@ -222,7 +222,7 @@ independent of S2-S4):
    CI library after this slice).
 3. Rewrite the summary path: `summary.bart`, `summary.bartMultinomial`,
    `printSummaryBartBody` drop the `havePosterior`/`quantileSummary` branch,
-   always call new `summariseDraws(arr)` (Decision 1);
+   always call new `summarizeDraws(arr)` (Decision 1);
    `quantileSummary`/`posteriorAvailable` deleted. Ten `as_draws_array.*`/
    `as_draws_df.*` functions deleted; `draws.bart`/`draws.bartMultinomial`/
    `draws.bartOrdinal`/`draws.bartNegbin`/`draws.bartHurdle` added, thin
@@ -237,7 +237,7 @@ independent of S2-S4):
    test-hurdle.R against `draws()` and the new summary columns;
    test-convergence-diagnostics.R keeps the step-2 numeric tests.
 5. man/summary.bart.Rd: rewrite for `draws()`, drop "install posterior"
-   language, keep the Rhat > 1.01 note, document `summariseDraws`'s columns as
+   language, keep the Rhat > 1.01 note, document `summarizeDraws`'s columns as
    unconditional. DESCRIPTION: remove `posterior` from Suggests;
    `Matrix`/`survival` untouched.
 
@@ -413,7 +413,7 @@ LANDED at 01634227616afa7e865bbab35bb8a0bc476db940, seven commits:
 - 68253ca3bd44e4349d82dad982e45ef26af14625 Fix three edge-case bugs in the Rhat/ESS estimator
 - 01634227616afa7e865bbab35bb8a0bc476db940 Nits: drop a dead tbl_df branch, fix the plan's rank-normalize formula
 
-[`summariseDraws`](../../R/diagnostics.R) computes rank-normalized split-Rhat
+[`summarizeDraws`](../../R/diagnostics.R) computes rank-normalized split-Rhat
 (bulk and folded) and bulk/tail ESS per Vehtari, Gelman, Simpson, Carpenter
 and Burkner (2021), matching `posterior`'s own internals exactly - fold
 before split and rank-normalize, Blom ranks `(rank - 3/8)/(S + 1/4)`, FFT
@@ -422,7 +422,7 @@ on 42 arrays and edge cases the max relative differences are rhat 2.9e-16,
 ess_bulk 5.1e-15, ess_tail 1.7e-15; NA/NaN/Inf draws return NA as posterior
 does, except at 2-3 draws per chain, where posterior's dim-dropping split
 returns a number and dbarts's NA is the defensible one. `summary` always
-calls `summariseDraws`'s nine columns (retired: [`quantileSummary`](../../R/diagnostics.R),
+calls `summarizeDraws`'s nine columns (retired: [`quantileSummary`](../../R/diagnostics.R),
 retired: [`posteriorAvailable`](../../R/diagnostics.R) deleted); the ten
 `as_draws_array`/`as_draws_df` methods are deleted and a
 [`draws`](../../R/generics.R) generic added (bart, bartMultinomial,
@@ -454,7 +454,7 @@ Review findings fixed before landing (68253ca3):
 [`rhoHatT`](../../R/diagnostics.R) indexed `seq_len(maxT)` where posterior's
 `1:max_t` still selects element 1 at `max_t == 0`, inflating ESS on short
 chains (a 4-chain, 10-sample summary read 64 against posterior's 20; now
-20); [`essQuantile`](../../R/diagnostics.R) and `summariseDraws`'s q5/q95
+20); [`essQuantile`](../../R/diagnostics.R) and `summarizeDraws`'s q5/q95
 lacked posterior's NA guard, erroring on an NA draw;
 [`rankNormalizeMatrix`](../../R/diagnostics.R) ranked NA as finite, so rhat
 read 4.62 where posterior returns NA. 01634227 drops a dead tbl_df test

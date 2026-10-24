@@ -8,7 +8,7 @@ Covered (by probe or by reading changed code whole):
   grids, two constrained axes, NA in constrained and free columns, ordered-factor axis incl. an unused
   level, both priors.
 - Geweke successive-conditional probes (my own, fixed sigma, 5 trees, n = 40, pivots plus forest
-  functionals vs the engine's prior): plain; level-fibre step on, auto at a frozen mixture, off at a
+  functionals vs the engine's prior): plain; level-fiber step on, auto at a frozen mixture, off at a
   frozen mixture; swap, perturb, rule_gibbs mixtures; numeric + unordered factor + ordered factor with
   NA under all five moves and birth/death only; monotone "joint"/"leaf" with and without NA; monotone +
   level step; probit and logistic through setResponse. All |z| < 3 at 1000-3000 chains (one perturb
@@ -94,7 +94,7 @@ exact 8.318 (0.29 sd biased); (7.5, 8]: 282 values, mean 7.6188 vs 7.6192. The r
 
 ## Checked and found correct
 
-- Level-fibre step (drawLevelShift): conditional c = u - v (1'u)/(1'v) is the exact Gaussian
+- Level-fiber step (drawLevelShift): conditional c = u - v (1'u)/(1'v) is the exact Gaussian
   conditioning; totalFits/roll bookkeeping consistent; Geweke passes on, auto-frozen, and monotone.
 - swap, perturb, rule_gibbs (incl. categorical, ordered factor, NA routing): Geweke passes.
 - Monotone fitted function is monotone on every grid probed (NA in constrained and free columns,

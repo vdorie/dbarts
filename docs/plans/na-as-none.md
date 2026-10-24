@@ -48,7 +48,7 @@ for absent or default, per the rulings dec-B136 to dec-B140.
    from cgm() and dart(), their S4 slots and validity, and spec.R's copy to
    the control; fix spec.R's comment that calls it "the categorical-split
    level Gibbs step". Development-only: no tombstone. Update
-   man/dbartsControl.Rd, dbartsPriors.Rd, docs/design/level-fibre.md's
+   man/dbartsControl.Rd, dbartsPriors.Rd, docs/design/level-fiber.md's
    surface paragraph, benchmarks that pass levelGibbs, and tests.
 5. nbinom(dispersion = NULL) (dec-B140): NULL estimates, a positive value
    fixes; NA refused (development-only).

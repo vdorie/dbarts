@@ -896,7 +896,7 @@ because the sugar rewrites to the named call before anything numeric runs.
   `test` is refused, restating that message in the term's spelling. Supporting
   test bases is the engine-side door
   [docs/plans/bcf-bartcause-relocation.md:1275-1277](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/bcf-bartcause-relocation.md#L1275-L1277) records as "A test
-  treatment vector / test basis [...] A modelling decision first" - not cheap,
+  treatment vector / test basis [...] A modeling decision first" - not cheap,
   and not this arc's. S12 loses the test-frame work rev 4 budgeted.
 - **`missing = "incorporate"`**: an NA in an expanded basis has no defined
   multiplier; `validateForestBases`'s finiteness check ([R/data.R:662-664](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/data.R#L662-L664))
@@ -1379,7 +1379,7 @@ Count: **14 slices**, of which 3 are fork 6's and 1 is fork 7's.
    slice S6.)
 4. **Fork 3 = L1 warn, grounded in R standards** - the stats-package
    disregard precedent, the caller-owned severity policy, and the classed
-   condition `dbartsFamilyGatedWarning` (whose base-R analogue is
+   condition `dbartsFamilyGatedWarning` (whose base-R analog is
    `chkDotsWarning`). Monotonicity stands. (3.c.5; slice S2.)
 5. **Fork 4 = route (i)**, a standalone helper at the six family-resolution
    sites, keyed on the `matchedCall` snapshot at [R/bart.R:655](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/R/bart.R#L655). Route (ii)

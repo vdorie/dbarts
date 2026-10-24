@@ -652,7 +652,7 @@ Four obligations reshape S1 must carry:
 2. **A body that ACCEPTS something.** The S1 body accepts GAUSSIAN (and
    Student-t, which is the same `shape.family`) and refuses every other family by
    name - the pattern reshape S1 PROPOSES at its item 5b: "The body accepts only
-   what today's engine honours ... and refuses the rest naming the capability, so
+   what today's engine honors ... and refuses the rest naming the capability, so
    the family relaxes guard bodies later and moves no header." That item is
    itself CONDITIONAL on multiforest-extension-surface's fork 3, so it is a
    proposed pattern rather than shipped practice, and this obligation does not

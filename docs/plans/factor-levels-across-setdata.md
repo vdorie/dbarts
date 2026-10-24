@@ -195,7 +195,7 @@ Measured with lm (scratch/fls/lm.R). `predict.lm` reads a new factor by label ag
 fewer levels, another order (an ordered factor in reverse order predicts 0.03 2.02 4.01 0.97, as the
 original) and an extra declared level no row has all predict as the full factor would; a new label on a
 row is refused ("factor f has new levels e"), renamed levels too. `update(fit, data = )` refits from
-scratch and takes the new data's levels: that is a new model, the analogue of a new sampler, not of a
+scratch and takes the new data's levels: that is a new model, the analog of a new sampler, not of a
 swap.
 
 ## What a user means
@@ -220,7 +220,7 @@ ambiguity the ruling forbids. The precedent is in `setData` already: it refuses 
 kind as "a different design rather than new values for this one", and it overwrites the handed object's
 `n.cuts` and `sigma` with the sampler's. The level table is the same kind of thing, the design the
 sampler was made with. Where dec-B231 moves a numeric split onto a re-derived grid by value, so that a
-threshold keeps its meaning, the factor's analogue is reading by label, which this plan does by
+threshold keeps its meaning, the factor's analog is reading by label, which this plan does by
 re-coding the rows and not the trees.
 
 ## Options

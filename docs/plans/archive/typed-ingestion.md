@@ -41,7 +41,7 @@ view (the TODO's pre-registered rule, triggered by the probe below).
 - Plumb-through touch list: R makeCategoricalModelMatrix ->
   assembleDenseColumnMatrix (R/mixedMatrix.R) -> dbartsData initialize
   (R/data.R); bridge parseData -> optionsFromParsed ->
-  validateCategoricalPredictors; engine SamplerOptions dense analogue
+  validateCategoricalPredictors; engine SamplerOptions dense analog
   of cscCategoryCounts -> ColumnStore::build -> buildCutsForColumn
   branching on declared-vs-inferred. dbarts.h has zero categorical
   surface: no ABI cost.

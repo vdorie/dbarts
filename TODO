@@ -181,7 +181,7 @@ items
     1.0-0, after the merge to main if need be: the refusal of every
     structural difference (today another family's model, a Student-t
     change, interaction limits, blocks and Gaussian-process settings are
-    accepted and not honoured); setters for the Student-t degrees of
+    accepted and not honored); setters for the Student-t degrees of
     freedom, a fixed negative-binomial shape, a Gaussian-process
     lengthscale and tree priors on forests past the first and on the
     variance forest; DART's own settings, and the ordinary prior
@@ -213,7 +213,7 @@ items
     arrives while the closure runs under R's evaluator and comes out as
     "error evaluating the sweep callback": evaluate the closure under a
     handler for interrupts and errors, as the poll does, an interrupt
-    cancelling the run and an error keeping its message. The entry has
+    canceling the run and an error keeping its message. The entry has
     no caller in R/ today.
   warm-start-by-position: a warm start matches the donor's columns and
     a factor's levels to the recipient's by position, not by name: a
@@ -296,10 +296,6 @@ items
     reaches bcf-shaped models. After the forest slices. Before then
     the help says a re-derived basis scale (updateBasisScale, dec-B303)
     and the response scale may span different rows.
-  spelling-sweep: before 1.0-0 (VD 2026-10-09): move British spellings
-    to American, about 576 uses of centre, behaviour, colour, favour,
-    modelling and the like, in R, docs and benchmarks; identifiers
-    where not public. Docs/text tier.
   nbinom-default-prior: the negative binomial default stays k drawn
     under chi(1.5, 2) (dec-B431, VD 2026-10-10) after the prior
     predictive study of dec-B412. The maintainer judged the study
@@ -342,11 +338,11 @@ items
     (dec-B395, VD 2026-10-08). cibart runs its compiled Gibbs driver
     once per chain in parallel, each chain with its own confounder state
     and buffers, the draws combined.
-  leaf-covariate-single-value-off-centre: a leaf covariate constant
+  leaf-covariate-single-value-off-center: a leaf covariate constant
     to the eye but not to the bit keeps a rounding-sized scale: a floor
-    relative to the centre closes it. A slope on a column moved to
+    relative to the center closes it. A slope on a column moved to
     another single value stays converted by the formula (dec-B328).
-    With the slice that takes the centre and scale from the rows in
+    With the slice that takes the center and scale from the rows in
     the likelihood (dec-B304), which moves the same test (dec-A177).
   missing-label-refusal-text: setPredictor and the joint row update
     refuse a missing label for a factor column with "has missing
@@ -440,7 +436,7 @@ items
     reading - reproduce, then pin the tally on something the clock does
     not choose.
   gp-kept-draw-kernel (dec-B237, after 1.0-0): a kept draw from a gp leaf
-    stores the centre, scale and lengthscale it was drawn under and
+    stores the center, scale and lengthscale it was drawn under and
     replays under them, so a gp-leaf sampler holding kept draws can take a
     change of standardization (setData deriving one, or
     updateStandardization = TRUE) and a state whose kept gp draws were
@@ -660,10 +656,10 @@ items
     mixing gain for every leaf model, not GP leaves alone; the second
     sweep variant it needs is the largest piece.
     xbart warm starts (VD 2026-09-28, dec-A05): a fresh chain per fold
-    pays a full burn-in; a partial carry-over from a neighbouring cell
+    pays a full burn-in; a partial carry-over from a neighboring cell
     or fold, such as keeping the stumps or half the trees, is a
     candidate once the mixing research says what burn-in buys.
-    A per-draw joint log-posterior (Stan's lp__ analogue: tree-structure
+    A per-draw joint log-posterior (Stan's lp__ analog: tree-structure
     prior, leaf prior, sigma prior and likelihood) is a candidate mixing
     diagnostic for this research; not an extract type for 1.0-0, and not
     for loo, which takes the pointwise log-likelihood (VD 2026-09-28
@@ -676,10 +672,10 @@ items
     docs/design/tree-mixing-proposals.md (ranking
     sec 4.1 as amended, specialization addendum sec 12).
   vartypes-attribute: door, no plan doc of its own. dbartsData's
-    initialize and validateXTest honour a "varTypes" attribute on a user's
+    initialize and validateXTest honor a "varTypes" attribute on a user's
     predictor matrix, which marks columns categorical by code; nothing
     documents it, and tests use it to reach codings a factor cannot hold.
-    Document it, or refuse it in favour of factor and ordered columns.
+    Document it, or refuse it in favor of factor and ordered columns.
   veto-arc-doors: a per-sweep diagnostics counter, R-readable, of
     leaves that hold rows and none the likelihood sees - none exists in
     src/bartcore, so it is an additive new channel
@@ -699,7 +695,7 @@ items
     leaf.prior = normal(sd = ) the long form (dec-B266, dec-B269;
     dec-B246 as revised; tree.prior as dec-B246, dec-B252). Meant: a
     multiplier is a factor by its class alone (dec-B260); a numeric
-    multiplier is never centred or divided, its default sd is
+    multiplier is never centered or divided, its default sd is
     one unit of the response's scale per standard deviation of the
     column whatever the number of forests (dec-B291), derived once at
     creation and kept with the data, a stated sd is literal per unit,

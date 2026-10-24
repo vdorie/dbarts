@@ -623,7 +623,7 @@ After the review, by the implementer who took the slice over; reversible, open f
    warning; the word is matched by the caller. Deleting the tombstones leaves a call that no longer
    resolves, as for the thread methods. Its row of
    [`dbartsTombstones`](../../R/tombstones.R) is ["logical updateCutPoints"](../../R/tombstones.R),
-   kind `behaviour`, owner `dbartsSampler`. The tombstone test asks the news list for functions,
+   kind `behavior`, owner `dbartsSampler`. The tombstone test asks the news list for functions,
    methods and arguments only; the logical is named there all the same.
 2. The news item on quantile cut points is amended, not the plan: against 0.9-34 a refresh onto more
    distinct values no longer keeps the lowest ones, and it no longer keeps the column's count either.

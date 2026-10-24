@@ -361,7 +361,7 @@ single-forest anchor (benchmarks/R/equivalence.R vs
 equivalence-ac6ec2c.rds, 22/22 IDENTICAL) guards the fast path; it says
 nothing about BCF, since equivalence fits only through dbarts(), which never
 builds a multi-forest sampler. benchmarks/R/bcf-equivalence.R is the BCF
-analogue this plan added (step 1): five scenarios (default two-forest, a
+analog this plan added (step 1): five scenarios (default two-forest, a
 restricted moderator, the updateA/updateB toggle, a WEIGHTED fit, and a
 setTreatment mutation), each recording six channels (both forests' raw fits,
 the glue, sigma, and the reported train/varcount channels) and asserting

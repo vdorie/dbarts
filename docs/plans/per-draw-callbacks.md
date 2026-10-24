@@ -87,7 +87,7 @@ implementer needs from the code:
   main thread's [`pollInterrupt`](../../src/bartcore/sampler.hpp), and a
   worker holding several chains moves on regardless. The precedent for
   telling a self-caught stop from an interrupt is
-  [`closureStopped`](../../src/R_interface_bartcore.cpp) beside `cancelled`
+  [`closureStopped`](../../src/R_interface_bartcore.cpp) beside `canceled`
   in [`bartcore_runWithCallback`](../../src/R_interface_bartcore.cpp).
 - Burn-in is an R-layer problem: [`runWithBurnIn`](../../R/bart.R) passes
   no burn-in count to the engine, running `sampler$run(0L, control@n.burn)`
@@ -227,7 +227,7 @@ call sites):
    before the call, so the engine stays header-agnostic at a cost of one
    small stack copy per draw. Tell a callback stop from an interrupt on
    return, as `bartcore_runWithCallback` tells `closureStopped` from
-   `cancelled`, and raise a different condition for each.
+   `canceled`, and raise a different condition for each.
 7. Bridge: honor a `keepFits` flag on the control the run entry already
    reads (its R slot arrives in S3; default TRUE here). When FALSE,
    allocate C one-draw buffers CONTIGUOUSLY per opted-out per-observation

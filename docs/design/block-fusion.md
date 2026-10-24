@@ -144,7 +144,7 @@ just (A, G, S, members, leaf-tuple).
 Two coupled arrays, sized to atoms not n where possible:
 
 - `atomMembers` : size_t[n]. A permutation of 0..n-1 grouped by atom: atom c owns
-  the contiguous slice [atomBegin[c], atomEnd[c]). This is the atom-map analogue
+  the contiguous slice [atomBegin[c], atomEnd[c]). This is the atom-map analog
   of the per-tree index buffer, but ONE buffer shared by the whole block (not b
   of them). Within an atom the members are stored in a fixed order (section 4
   fixes it for the b=1 bitwise anchor).
@@ -343,7 +343,7 @@ Mirror the tree's existing snapshot/restore ([`Tree::snapshotSubtree`](../../src
   the index segment), and restore leafTuple/atomOf. O(touched atoms + n_L).
 - CHANGE/SWAP rejected: snapshot the affected atoms' (A, G, S, members,
   leaf-tuple) and the atomMembers segment under the changed subtree before the
-  re-partition; restore on rejection. This is the atom analogue of
+  re-partition; restore on rejection. This is the atom analog of
   SubtreeSnapshot; its cost is the same O(n_subtree) the engine already pays.
 
 Because a rejected structure move never consumed a leaf-mean draw (params are

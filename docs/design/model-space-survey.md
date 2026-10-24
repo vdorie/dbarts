@@ -812,7 +812,7 @@ ledger, so it is stated rather than blurred.
   called "verified" before its own later pass downgraded it
   ([docs/plans/multiforest-extension-surface.md:488-493](https://github.com/vdorie/dbarts/blob/4c018187036ff83eddde8308f243ed6584268004/docs/plans/multiforest-extension-surface.md#L488-L493)).
   Kept as a named class with an unverified source, rather than dropped or
-  relabelled.
+  relabeled.
 - Deshpande, Bai, Balocchi, Starling, Weiss - VCBART, varying-coefficient BART;
   Bayesian Analysis 21(1):281-308, 2026 (the 2024-10-04 date is the advance
   publication). Structure verified; the MCMC differs - its leaf jumps are

@@ -320,7 +320,7 @@ Every path that decides whether a branch is legal reads membership:
   ancestor split interval; the rule draw at a nog node holds that interval
   itself and asks for each child's actual members, routed missing rows
   included, which is the moves' own reading
-  ([`enumerateNogRuleNeighbourhood`](../../src/bartcore/moves.hpp)).
+  ([`enumerateNogRuleNeighborhood`](../../src/bartcore/moves.hpp)).
 - The categorical scan, whose enumeration puts a present category on each
   side and so emits no empty child at all
   ([`scanCategoricalPartitions`](../../src/bartcore/scan.hpp)).

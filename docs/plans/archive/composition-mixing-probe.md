@@ -510,7 +510,7 @@ For each basis direction `u_k`:
 
 ```
 a_t^k = < parametric-block fitted vector at sweep t, u_k >
-b_t^k = < forest fitted vector at sweep t (offset stripped, centred), u_k >
+b_t^k = < forest fitted vector at sweep t (offset stripped, centered), u_k >
 s_t^k = a_t^k + b_t^k     the total absorbable fit  - identified
 d_t^k = a_t^k - b_t^k     the ridge coordinate
 ```
@@ -709,7 +709,7 @@ re-run point estimates also fall short of both limbs' margins.
 
 This instantiates the record's kill line - "the transfer either does not
 shrink the forest's job or does not translate into better tree-space
-behaviour when it does" - with the record's raw cross-arm contrast replaced
+behavior when it does" - with the record's raw cross-arm contrast replaced
 by the dial DiD, because the raw contrast was measured to be 2.5x the
 transfer effect it claims to measure.
 

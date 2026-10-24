@@ -107,7 +107,7 @@ This design uses each where labeled and never mixes them:
   forbids the hyperprior (`resolveNodeHyperprior`'s `multiForest` arm; the
   bridge backstops it in `refuseUnsupportedBCFComposition`, and
   `Chain::buildBCFForest` then sets `forest.k = 1.0` regardless), so the
-  K-forest prior is normal-tailed and has no hyperprior analogue. This is the
+  K-forest prior is normal-tailed and has no hyperprior analog. This is the
   denominator behind the TODO's "1.978x" and behind the "0.989x" identity.
 
 The two models are not nested and the ratio changes by a factor of ~2 between
@@ -1569,7 +1569,7 @@ true, so both sentences now agree.
 door for the live auxiliary (`$state`'s `aVariance`), and F8's restore arms -
 the one place a K-forest column legitimately reads `NA`.
 
-**R2-m4 ("the only behaviour that moves" too strong) - ADOPTED.** Fork 6c
+**R2-m4 ("the only behavior that moves" too strong) - ADOPTED.** Fork 6c
 fix 1 now enumerates three moves, not one, with the two the critique found: the
 message change on `forests = list(forest(basis =, sd =))`, and the length-1
 declaration over a data object already carrying K >= 2 bases, where the count

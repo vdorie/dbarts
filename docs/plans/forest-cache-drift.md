@@ -62,7 +62,7 @@ fits, each forest without a basis (`forestParams` in [R/model.R](../../R/model.R
 forest 0 only), under gaussian, probit and logistic.
 
 Design: [The ASIS ridge](../design/multiplier-combiner.md#the-asis-ridge),
-[5. Correctness](../design/level-fibre.md#5-correctness),
+[5. Correctness](../design/level-fiber.md#5-correctness),
 [Identification and the level-centering move](../design/multinomial.md#identification-and-the-level-centering-move),
 [Decision 2 - the exact gate](bcf-latent-evidence.md#decision-2---the-exact-gate).
 
@@ -149,7 +149,7 @@ development builds.
 - No change to dbarts.h or the state format. The amplitude and its half-Cauchy auxiliary are still
   drawn from their exact conditionals every sweep.
 - Bitwise gates hold for every configuration with no updating scale-mixture amplitude (see rng
-  above). The multinomial and level-fibre paths are untouched.
+  above). The multinomial and level-fiber paths are untouched.
 - Out of scope: the gate-statistic and SBC-matrix edits (D4 follow-ups), and the variance
   re-anchor (rule iii).
 

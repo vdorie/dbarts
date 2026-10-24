@@ -788,7 +788,7 @@ might fail.
    `X(int, dbarts_sampler_forestAmplitudes, (const dbarts_sampler*, size_t
    forest, double* out), (sampler, forest, out))` filling
    numForestAmplitudes(forest) x numChains. 1 = accepted, 0 = refused. The
-   body accepts only what today's engine honours - forest 1, a two-column
+   body accepts only what today's engine honors - forest 1, a two-column
    complementary 0/1 basis, Gaussian family - and refuses the rest naming the
    capability, so the family relaxes guard bodies later and moves no header.
    Ownership: the entry COPIES, matching `setTreatment` ([inst/include/dbarts/dbarts.h:43](https://github.com/vdorie/dbarts/blob/8d80ab01eba883400005093084754536b5c56f6a/inst/include/dbarts/dbarts.h#L43)); state
@@ -974,7 +974,7 @@ might fail.
    Body decision (subset-mask V4): the S1 body ACCEPTS gaussian (and
    Student-t, the same `shape.family`) and refuses every other family by
    name - the pattern this plan's own item 5b proposes ("The body accepts
-   only what today's engine honours ... and refuses the rest naming the
+   only what today's engine honors ... and refuses the rest naming the
    capability, so the family relaxes guard bodies later and moves no
    header"). Gaussian masking needs no new engine work at that point: it is
    `setWeights(w * a)` composed at the entry. Validation runs the
@@ -1754,7 +1754,7 @@ itself), the thread contract now marks `predict`/`setTestPredictors`
 main-R-thread-only (both ride `R_alloc`), and `DBARTS_PREDICTOR_SOURCE_INIT`
 became the fully-named initializer recorded above; the `dbarts(forests=)`
 `tryCatch` relabel narrowed to rethrow an unrelated error with its original
-condition rather than relabelling every error it catches. Deviations
+condition rather than relabeling every error it catches. Deviations
 adjudicated: (i) the probit `setActiveRows` arm ACCEPTS rather than refuses,
 against the plan's stale refusal arm - JUSTIFIED, every `ResponseModel`
 subclass now reports `supportsActiveRows` (measured at eight `model.hpp`

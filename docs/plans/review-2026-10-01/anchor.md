@@ -292,7 +292,7 @@ fails.**
 - bartBT reproduces 0.9-34's bart, pinned and at defaults: the compatibility door keeps BayesTree's
   mixture and defaults.
 - Front-door defaults: gaussian bart vs bart2, 4 chains. Swap off leaves the posterior where it was.
-- The chi(nu) relabelling identity, for continuous and binary responses.
+- The chi(nu) relabeling identity, for continuous and binary responses.
 - The rbart_vi port: continuous (two designs) and binary, ranef, tau and sigma at 10x.
 - Zero weights mean dropped rows in 1.0-0: gaussian and probit, against 0.9-34 on the subset.
 - E1 lives entirely in 0.9-34: in every design tried, 1.0-0's posterior is invariant to the

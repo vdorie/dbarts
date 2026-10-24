@@ -318,7 +318,7 @@ exposure; equivalence identical draws). Facts vs the plan:
   Lengthscales are NOT baked into the rows - the replay divides - so
   the format survives a future sampled-theta follow-up unchanged.
 - Replay: addFlatFunctionPredictionsBelow (tree.hpp) is the linear
-  analogue with per-leaf block offsets threaded exactly like
+  analog with per-leaf block offsets threaded exactly like
   leafOffset. It standardizes test rows on the fly and repeats the
   live evaluation's arithmetic order (((x - mean)/sd - row)/theta,
   members in draw order), so saved replays BIT-MATCH the recorded test
@@ -342,7 +342,7 @@ exposure; equivalence identical draws). Facts vs the plan:
   tree's leaf count; restores of truncated channels or short slabs
   refuse without mutating (component test).
 - initializeSavedTrees default function slot: {0, 0} (zero-constant
-  block), the analogue of the scalar zero leaf. printTree/
+  block), the analog of the scalar zero leaf. printTree/
   printSavedTree print the mean values through the scalar path.
 - All stage-1 refusals are lifted; what remains engine-refused is
   nothing - stage 3 adds creation-time validation (factory) and the R

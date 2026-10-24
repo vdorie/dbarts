@@ -127,7 +127,7 @@ OVERSTATED:
    PR intent with VD first.
 7. agent-fix, Sonnet, 3-4 deletions. Delete change-fix-instrumentation.R, change-fix-stage2.R, parallel-falsifiers.R
    (cannot execute); delete or document linear-leaf-xcheck.R.
-8. VD-judgment, sizeable. Move the private-directory artifacts that TRACKED files cite - the p10 baseline-provenance audit
+8. VD-judgment, sizable. Move the private-directory artifacts that TRACKED files cite - the p10 baseline-provenance audit
    MANIFEST names, the rchk .bcheck logs, the valgrind final log - into a tracked tree, or rewrite those citations to
    stand alone, so provenance survives a clone. Miss E.
 9. agent-fix, Opus, ~1 day. Add an ensemble-scale arm (75 trees, real cut points) to the gaussian and probit gates:

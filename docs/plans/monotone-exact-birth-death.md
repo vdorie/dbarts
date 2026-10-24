@@ -120,7 +120,7 @@ guards the fix.
   in unconstrained BART". All its examples use those values. The software (remcc/mBART_shlib, bd.cpp,
   coninteg1 and coninteg2) matches section 4.3: it accumulates the prior mass sumpr and never uses it. mBART
   users have therefore fit the "joint" prior with that retuned tree prior, on a grid.
-- Unaffected: the leaf Gibbs sweep and the level-fibre shift (conditionals given T), and prediction.
+- Unaffected: the leaf Gibbs sweep and the level-fiber shift (conditionals given T), and prediction.
   Monotone is new in 1.0-0, so NEWS gets no new entry; its existing 1.0-0 item, which shows
   monotone = c(x1 = "+", x2 = "-"), is edited to the new vocabulary (step 14).
 - Claims to reword: [4. Decision - marginal likelihood for the structure moves](../design/monotone.md#4-decision---marginal-likelihood-for-the-structure-moves),
@@ -743,7 +743,7 @@ points prediction routes to a leaf form a product over predictors, and one helpe
 - threshold axis: the code interval [lo, hi], and whether a missing value reaches the leaf (every ancestor
   rule on the axis sends missing values to the leaf's side);
 - subset axis: the reachable level set, with the missing position when the column has missing values, each
-  ancestor mask filtering it, as `Tree::reachableCategories` and its pooled analogue do.
+  ancestor mask filtering it, as `Tree::reachableCategories` and its pooled analog do.
 
 Calls:
 
@@ -1096,10 +1096,10 @@ constrained value waits for step 12.
       2^16 down-sets. On inline chains it calls the host's throttled pollInterrupt on the main thread; on
       worker chains it reads the atomic cancel flag the main thread sets, so no worker calls into R, and SIGINT
       stays blocked on workers as run() already arranges.
-    - Mechanics. A cancel inside the count throws bartcore::CountCancelled (a new std::exception type); an
+    - Mechanics. A cancel inside the count throws bartcore::CountCanceled (a new std::exception type); an
       allocation failure throws std::bad_alloc. birthOrDeathMove catches both, undoes the birth (the rollback
       its reject path already takes) or restores the dying node (the count reads T*'s order, built before
-      `orphanChildren`, but runs after it; step 2), and rethrows. Chain::run catches both, rebuilds (below), and returns canceled for CountCancelled or
+      `orphanChildren`, but runs after it; step 2), and rethrows. Chain::run catches both, rebuilds (below), and returns canceled for CountCanceled or
       rethrows bad_alloc. In Sampler::run each worker's try/catch sits inside its per-chain body, around
       chains_[c]->run, so numChainsRunning is still decremented and the join cannot deadlock; it stores the first
       exception_ptr and sets the cancel flag, and run() rethrows it after the join on the caller's thread, as

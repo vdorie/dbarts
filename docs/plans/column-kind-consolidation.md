@@ -1536,7 +1536,7 @@ reallocation, not by a calibration check at its own shape - TODO
 sbc-ordered-factor-arm. And the oracle's own conditions are worth naming
 because they are what makes it exact rather than approximate: the
 split-variable term is omitted because the design has one predictor, the
-empty-leaf veto is unmodelled and is inert only because every available
+empty-leaf veto is unmodeled and is inert only because every available
 cut under the midpoint grid separates two occupied sides, and
 tau = 3 / k assumes the single tree and the numeric k the arm builds. Any
 of the three failing would make the enumerated posterior the wrong target
