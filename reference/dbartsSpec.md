@@ -199,9 +199,14 @@ A list with components
   call is silent on it and warns once on `dbarts`'s sampler. For a
   probit or ordinal list `sampler$setActiveRows(spec$active)` with no
   argument makes it `dbarts`'s, there being nothing to re-derive, and a
-  list that carries several forests is refused the argument. A list of
-  several forests, one of them on a numeric column that states no `sd`,
-  takes the mask at creation,
+  list that carries several forests is refused the argument. A list
+  whose leaves take covariates (`linear`, `gp`) takes the mask at
+  creation,
+  `new("dbartsSampler", spec$control, spec$model, spec$data, active = spec$active)`,
+  which installs it as `dbarts` does and reads the covariates' centers
+  and scales over the rows it keeps; created without it, the sampler
+  reads them over every row. A list of several forests, one of them on a
+  numeric column that states no `sd`, takes the mask at creation,
   `new("dbartsSampler", spec$control, spec$model, spec$data, active = spec$active)`,
   which installs it as `dbarts` does and reads the column's scale over
   the rows it keeps; a mask installed after creation moves no forest's

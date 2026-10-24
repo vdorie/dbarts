@@ -307,29 +307,42 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   takes; a value kept, or taken equal to the one in force, rewrites
   nothing. A row whose leaf covariate is missing is read at that
   covariate's center, so what a linear leaf predicts for it follows the
-  center to the new data's. A leaf covariate that holds a single value
-  is centered at it and divided by 1, so a leaf reads zero for it on
-  every row and its slope adds nothing to the fit. Where a covariate is
-  such a column on one side of the call only, the current coefficients
-  are still rewritten by the formula, with 1 for that side's scale, so
-  each leaf keeps its function of the covariate: onto such a column it
-  takes the value its function has at the new constant, and off one the
-  slope no row informed is carried onto the new data's spread, so the
-  fit may move until the sampler has run on them. Where it is such a
-  column on both sides the current coefficients are left as they are. A
-  column that `setPredictor` has since given other values is read as
-  what it then holds: one moved to another single value no longer sits
-  at its center and is rewritten as any other column is, by the formula,
-  which keeps the function of the covariate. The data fixed that
-  function at one point only, so new data that spread the covariate
-  widely can carry the current fit far from where it was until the
-  sampler has run on them. Saved draws are rewritten by the formula in
-  every case, with 1 for the scale. The saved draws of a
-  Gaussian-process (`gp`) leaf cannot be rewritten: a sampler with such
-  leaves that holds saved draws refuses a call that would derive the
-  standardization or the range, as one given a data object that records
-  neither does, or that would take a recorded one other than its own; it
-  takes one that keeps both, as `setData(sampler$data)` or
+  center to the new data's. A standardization the call derives is read
+  over the new data's rows in the likelihood, those of positive weight
+  or, under a family whose 0/1 weights are a mask (`probit`, `ordinal`,
+  `nbinom` and `hazard.probit`), those the mask they resolve to keeps;
+  where the call reads the response's scale from every row, those
+  holding fewer than two distinct values of it, the leaf covariates are
+  read from every row with it, under its one warning; where the rows in
+  hold one value of a leaf covariate otherwise, or observe none, the
+  call is refused before anything changes, unless a `gp` leaf states its
+  `lengthscale`, and `updateStandardization = FALSE` takes the data
+  under the sampler's own. Under such a family the sampler's own data
+  object carries no weights, so `setData(sampler$data)` drops the mask
+  in force: hand the 0/1 weights back on the data object, or call
+  `setActiveRows` after. A leaf covariate that holds a single value is
+  centered at it and divided by 1, so a leaf reads zero for it on every
+  row and its slope adds nothing to the fit. Where a covariate is such a
+  column on one side of the call only, the current coefficients are
+  still rewritten by the formula, with 1 for that side's scale, so each
+  leaf keeps its function of the covariate: onto such a column it takes
+  the value its function has at the new constant, and off one the slope
+  no row informed is carried onto the new data's spread, so the fit may
+  move until the sampler has run on them. Where it is such a column on
+  both sides the current coefficients are left as they are. A column
+  that `setPredictor` has since given other values is read as what it
+  then holds: one moved to another single value no longer sits at its
+  center and is rewritten as any other column is, by the formula, which
+  keeps the function of the covariate. The data fixed that function at
+  one point only, so new data that spread the covariate widely can carry
+  the current fit far from where it was until the sampler has run on
+  them. Saved draws are rewritten by the formula in every case, with 1
+  for the scale. The saved draws of a Gaussian-process (`gp`) leaf
+  cannot be rewritten: a sampler with such leaves that holds saved draws
+  refuses a call that would derive the standardization or the range, as
+  one given a data object that records neither does, or that would take
+  a recorded one other than its own; it takes one that keeps both, as
+  `setData(sampler$data)` or
   `updateStandardization = FALSE, updateScale = FALSE` do, whatever cut
   points it is given, a saved draw holding its thresholds by value. Pass
   those two, or make a new sampler. A family with no response range
@@ -1112,15 +1125,21 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   leaf's covariate standardization, each covariate's center and scale
   and a `gp` leaf's heuristic lengthscale, whatever values the update
   installs; `TRUE` derives it again for the covariates among the columns
-  the update replaces, every column where `column` is missing, over all
-  their new values, as creation would over them, once the update has
-  gone in, keeps the other covariates', and rewrites a `linear` leaf's
+  the update replaces, every column where `column` is missing, over
+  their new values at the rows in the likelihood under the weights and
+  mask in force, as creation would over them, once the update has gone
+  in, keeps the other covariates', and rewrites a `linear` leaf's
   coefficients, current and saved, into it, so that each leaf is the
-  function of the covariate it was and `predict` returns what it did.
-  For `setData`, `NULL`, the default, takes the `standardization` the
-  new data object records and otherwise derives it from the new data,
-  `TRUE` derives it and `FALSE` keeps the sampler's, the new rows read
-  under it. A leaf that takes no covariate has nothing to derive. A `gp`
+  function of the covariate it was and `predict` returns what it did. A
+  replaced covariate those rows hold at one value, or observe at none,
+  keeps its numbers, and the call warns, with class
+  `dbartsScaleFallbackWarning`, on the sampler's first keep, of this or
+  of the response's scale (`updateScale`). For `setData`, `NULL`, the
+  default, takes the `standardization` the new data object records and
+  otherwise derives it from the new data's rows in, `TRUE` derives it,
+  both refused where those hold one value of a covariate (see
+  `newData`), and `FALSE` keeps the sampler's, the new rows read under
+  it. A leaf that takes no covariate has nothing to derive. A `gp`
   sampler that holds saved draws refuses `TRUE` on `setPredictor`, and
   on `setData` any call that would change the standardization (see
   `newData`). It cannot be combined with `forceUpdate = "partial"`.
@@ -1652,7 +1671,7 @@ value with them.
 | value | changed by | put back by |
 | cut points | `setCutPoints`; `setPredictor(updateCutPoints = )`; a `setData` that derives them | `setCutPoints(d@cutPoints)`, the whole set; or `setData(d)` |
 | their weights | the same | `setPredictor(x[, j], j, updateCutPoints = "value")` while column `j` holds the values they came from; or `setData(d)` |
-| leaf center, scale, lengthscale | `setPredictor(updateStandardization = TRUE)`; a `setData` that derives them | `setPredictor` of the old values with `updateStandardization = TRUE`; or `setData(d)` |
+| leaf center, scale, lengthscale | `setPredictor(updateStandardization = TRUE)`; a `setData` that derives them | `setPredictor` of the old values with `updateStandardization = TRUE`, under the weights and mask they were read over; or `setData(d)` |
 | response range | `updateScale = TRUE` on `setResponse`, `setOffset`, `setWeights` or `setActiveRows`; a `setData` that derives it | the same setter on the old response, offset, weights or mask with `updateScale = TRUE`; or `setData(d)` |
 | forest anchor and unit | nothing | \- |
 

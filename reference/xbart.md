@@ -418,7 +418,13 @@ xbart(
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md). The
   default fits constant leaves. A `k` given inside the prior stands in
   for a missing `k` argument; the `k` argument otherwise drives the
-  crossvalidation grid as usual.
+  crossvalidation grid as usual. Each fold centers and scales a `linear`
+  or `gp` leaf's covariates over its own training rows of positive
+  weight, as a fit on those rows would. Where those rows hold fewer than
+  two distinct values of a gaussian response, the fold reads its
+  response's scale and the covariates over every training row; otherwise
+  a fold whose such rows hold one value of a covariate refuses the call,
+  unless its `gp` leaf states `lengthscale`.
 
   A named `sd` inside the prior (`normal(sd = )`, and likewise for
   `linear` and `gp`) stands in for a missing `sd` argument, as a

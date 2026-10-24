@@ -219,8 +219,18 @@ dbarts(
   `linear(columns, k)` instead fits each leaf with an intercept plus a
   linear term in the designated continuous predictor columns (character
   names or numeric indices into the model matrix), standardized
-  internally, all coefficients sharing the `normal(k)` prior; unordered
-  factor columns cannot be designated.
+  internally, all coefficients sharing the `normal(k)` prior. Each
+  covariate is centered and scaled by its mean and standard deviation
+  over the rows in the likelihood when the sampler is created, those of
+  positive weight that no 0/1 weights' mask leaves out, each counting in
+  full, or over every row where none is in, or where the response's
+  scale is read from every row because the rows in hold fewer than two
+  distinct values of it (one row in, say), under that one warning; the
+  numbers are held from then on, `gp`'s default lengthscale with them. A
+  covariate those rows hold at one value, or observe at none, a constant
+  column among them, is refused, since no scale can be taken from it,
+  unless its `gp` leaf states `lengthscale`: it is then centered at that
+  value and divided by 1; unordered factor columns cannot be designated.
   `gp(columns, k, lengthscale, max.leaf.size)` fits each leaf with a
   smooth Gaussian-process function of the designated columns under a
   squared-exponential kernel; leaves larger than `max.leaf.size` fall
