@@ -976,7 +976,9 @@ predict.bart <- function(
     ))
   }
 
-  if (!is.null(weights) && weightsNotOneColumn(weights)) {
+  if (
+    !is.null(weights) && (!is.atomic(weights) || weightsNotOneColumn(weights))
+  ) {
     stop(
       "'weights' must be one number or one per row of 'newdata'",
       call. = FALSE

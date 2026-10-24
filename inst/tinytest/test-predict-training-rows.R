@@ -304,6 +304,21 @@ for (type in c("ev", "bart", "ppd")) {
     )
   }
 }
+# so is a data frame or a list, which newdata had ignored or failed to coerce
+for (type in c("ev", "bart", "ppd")) {
+  for (notAtomic in list(data.frame(w = w.new), list(w.new), as.list(w.new))) {
+    expect_error(
+      predict(fit, weights = notAtomic, type = type),
+      "'weights' must be one number or one per training row",
+      fixed = TRUE
+    )
+    expect_error(
+      predict(fit, df, weights = notAtomic, type = type),
+      "'weights' must be one number or one per row of 'newdata'",
+      fixed = TRUE
+    )
+  }
+}
 # the two paths agree on what each type does with a weight that is negative,
 # not a number, missing or the wrong length: a type that draws nothing never
 # looks at the values, a posterior predictive draw refuses a negative or
