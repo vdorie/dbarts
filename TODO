@@ -338,17 +338,6 @@ items
     another single value stays converted by the formula (dec-B328).
     With the slice that takes the center and scale from the rows in
     the likelihood (dec-B304), which moves the same test (dec-A177).
-  leaf-one-row-fallback: before the merge (dec-B485, VD 2026-10-24).
-    Where fewer than two rows are in the likelihood at creation, at a
-    setData that derives or in an xbart fold, a linear or gp leaf
-    covariate's center, scale and default lengthscale are taken over
-    every row with one warning counting the rows in, under every
-    family; probit, ordinal and hazard.probit refuse one row in today.
-    Gaussian, Student-t and nbinom keep dec-B479's trigger and text.
-    A numeric multiplier forest stating no sd takes its basis's scale
-    the same way (dec-B488, VD 2026-10-24); under probit one row in is
-    refused today as a constant basis. A hazard fit counts its subjects
-    in, not its period rows (dec-B489, VD 2026-10-24).
   missing-label-refusal-text: setPredictor and the joint row update
     refuse a missing label for a factor column with "has missing
     values, which its training values do not"; on a column of 70
