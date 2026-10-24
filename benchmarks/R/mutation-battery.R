@@ -561,13 +561,13 @@ mutations <- c(
       "up.backwardExponent) * std::numbers::ln2 -",
       "0) * std::numbers::ln2 -",
       c(kMonotone, kGate("monotone-successive-conditional.R")),
-      "monotone position law drops the backward counts' binary exponent (matters once a layer rescales)"
+      "monotone position distribution drops the backward counts' binary exponent (matters once a layer rescales)"
     ),
     r3(
       "m34",
       mh,
-      "return firstLaw[i - 1] + secondLaw[j - 1] + logChoose(i + j - 2, i - 1) +",
-      "return firstLaw[i - 1] + secondLaw[j - 1] + logChoose(i + j - 1, i - 1) +",
+      "return firstDist[i - 1] + secondDist[j - 1] + logChoose(i + j - 2, i - 1) +",
+      "return firstDist[i - 1] + secondDist[j - 1] + logChoose(i + j - 1, i - 1) +",
       c(kMonotone, kGate("monotone-successive-conditional.R")),
       "monotone two-component ratio: interleaving binomial off by one"
     ),
@@ -617,7 +617,7 @@ mutations <- c(
       "if (lower > upper) return false;",
       "if (lower < upper) return false;",
       c(kMonotone, kGate("monotone-successive-conditional.R")),
-      "monotone joint prior: the structure draw's cone test inverted; equivalent in the tree law (negated iid draws of one sd map the cone onto its reverse), killed by test_monotone.cpp's accept-is-cone-test check against the point oracle's pairs"
+      "monotone joint prior: the structure draw's cone test inverted; equivalent in the tree distribution (negated iid draws of one sd map the cone onto its reverse), killed by test_monotone.cpp's accept-is-cone-test check against the point oracle's pairs"
     ),
     r3(
       "m43",

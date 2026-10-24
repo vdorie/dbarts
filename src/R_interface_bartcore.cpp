@@ -32,8 +32,8 @@ using std::size_t;
 using std::uint32_t;
 using bartcore_bridge::adoptVector;
 using bartcore_bridge::AugmentationInputs;
-using bartcore_bridge::augmentationLaw;
-using bartcore_bridge::AugmentationLaw;
+using bartcore_bridge::augmentationDistribution;
+using bartcore_bridge::AugmentationDistribution;
 using bartcore_bridge::BartcoreHolder;
 using bartcore_bridge::callRaisingEngineError;
 using bartcore_bridge::captureExceptions;
@@ -41,7 +41,7 @@ using bartcore_bridge::computeWorkingResponse;
 using bartcore_bridge::DrawCallbackProtection;
 using bartcore_bridge::drawAugmentation;
 using bartcore_bridge::enforceBinaryWeightPolicy;
-using bartcore_bridge::lawDrawsPrecision;
+using bartcore_bridge::distributionDrawsPrecision;
 using bartcore_bridge::refuseUndefinedTestFits;
 using bartcore_bridge::refuseBinaryWeightChange;
 using bartcore_bridge::refuseCscReferenceAgainstStore;
@@ -2009,7 +2009,7 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   }
 
   // Student-t residual df: an optional numeric model attribute (resid.df)
-  // the R surface attaches; absent it stays NaN, the Gaussian law. Read raw
+  // the R surface attaches; absent it stays NaN, Gaussian errors. Read raw
   // here - the family cross-check and sign policy live in
   // parseSamplerSpecification, once the family is known.
   SEXP residDfExpr = Rf_getAttrib(modelExpr, Rf_install("resid.df"));
@@ -2381,7 +2381,7 @@ bartcore::SamplerOptions optionsFromParsed(const ParsedControl& control,
   options.numTrees = control.numTrees;
   options.sigmaIsFixed = sigmaIsFixed;
   // the gaussian construction path reads this: finite selects Student-t
-  // errors, NaN keeps the Gaussian law
+  // errors, NaN keeps Gaussian errors
   options.residualDf = model.residualDf;
   // ordinal construction reads this: K >= 2 selects OrdinalResponse with a
   // K-1 threshold vector, 0 leaves a non-ordinal response
@@ -3004,11 +3004,11 @@ double defaultLeafScale(bartcore::ResponseFamily family) {
 // and k, buildSpecifiedForest takes no DART or split probabilities, the
 // constant leaf is the single instantiation, the variance forest is built
 // only by the single-forest constructor, the cut cap
-// and the test surface are left undefined, and the gaussian response law is
-// not the Student-t mixture. The tree-move mixture is NOT on the list: every
-// forest of the coupling is built with the control's own mixture. The R
-// surface refuses the same list ahead of this backstop, which is what a direct
-// dbarts.h consumer meets.
+// and the test surface are left undefined, and the gaussian response
+// distribution is not the Student-t mixture. The tree-move mixture is NOT on
+// the list: every forest of the coupling is built with the control's own
+// mixture. The R surface refuses the same list ahead of this backstop, which
+// is what a direct dbarts.h consumer meets.
 void refuseUnsupportedAmplitudeComposition(
     bartcore::ResponseFamily family, const ParsedModel& model,
     const ParsedData& data, const bartcore::SamplerOptions& options) {
@@ -3246,10 +3246,10 @@ bartcore::ResponseFamily parseSamplerSpecification(
   if (family == bartcore::ResponseFamily::nbinom && data.weights != NULL)
     Rf_error("nbinom (count) models do not support weights: exposure belongs in "
              "the offset as a log-exposure term");
-  // Student-t continuous errors: a finite resid.df selects the
-  // scale-mixture error law - a positive value fixes the degrees of
-  // freedom, 0 estimates them on the grid. Only the gaussian family carries
-  // it; NaN (absent) keeps the Gaussian law.
+  // Student-t continuous errors: a finite resid.df selects the scale-mixture
+  // error distribution - a positive value fixes the degrees of freedom, 0
+  // estimates them on the grid. Only the gaussian family carries it; NaN
+  // (absent) keeps Gaussian errors.
   if (std::isfinite(model.residualDf)) {
     if (family != bartcore::ResponseFamily::gaussian)
       Rf_error("a continuous gaussian response is required for Student-t "
@@ -3335,7 +3335,8 @@ void refuseMultiForestMutation(const bartcore::SamplerBase& sampler,
 // The OTHER initialization is not refused: growForestFromRoot composes through
 // the combiner inside its own sweep - drawForestGlue, formForestResponse and
 // drawGlue, the same calls run() makes - and its two-forest branch is
-// exercised from R (test-prior-init-composed-law.R) and pinned in tests/cpp.
+// exercised from R (test-prior-init-composed-distribution.R) and pinned in
+// tests/cpp.
 void refuseMultiForestWarmStart(const bartcore::SamplerBase& sampler,
                                 const char* caller) {
   size_t numForests = sampler.shape().numForests;
@@ -5656,8 +5657,9 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // threshold slot, so every later conditional slot shifts by it; no family
   // carries both, but the arithmetic composes regardless of that
   bool hasShape = shape.carriesShape;
-  // a Student-t error law appends its per-draw df nu next, on the same
-  // arithmetic; no response carries both, but the count composes regardless
+  // a Student-t error distribution appends its per-draw df nu next, on the
+  // same arithmetic; no response carries both, but the count composes
+  // regardless
   bool hasResidualDf = shape.carriesResidualDf;
   // a heteroscedastic sampler reports no sigma: its engine holds the scalar
   // fixed, and the per-observation variance channel is the residual scale
@@ -5825,7 +5827,7 @@ SEXP bartcore_run(SEXP ptrExpr, SEXP numBurnInExpr, SEXP numSamplesExpr,
   // guard storeSample's write shares
   results.shape = hasShape ? REAL(shapeExpr) : NULL;
   // the residual df nu each draw is conditioned on; null off a Student-t error
-  // law, the guard storeSample's write shares
+  // distribution, the guard storeSample's write shares
   results.residualDf = hasResidualDf ? REAL(residualDfExpr) : NULL;
   results.varianceFits = !hasVariance ? NULL
     : (keepFits ? REAL(varianceTrainExpr) : scratchAt(scratchVariance));
@@ -8226,8 +8228,9 @@ SEXP bartcore_getLatents(SEXP ptrExpr, SEXP resultExpr) {
 
 // ---- the exported augmentation helpers, dbartsDrawLatents and
 // dbartsWorkingResponse: the per-sweep augmentation draws, run against R's own
-// stream on a caller's fit rather than inside a sampler. The laws themselves
-// live in bartcore_bridge, which the flat C API's wrapped forms call too.
+// stream on a caller's fit rather than inside a sampler. The distributions
+// themselves live in bartcore_bridge, which the flat C API's wrapped forms
+// call too.
 
 /// The inputs both helpers read off R; the flat forms fill the same struct
 /// from their own arguments.
@@ -8275,20 +8278,22 @@ SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
                           SEXP weightsExpr, SEXP offsetExpr, SEXP sigmaExpr,
                           SEXP shapeExpr, SEXP ordinalThresholdsExpr,
                           SEXP dfExpr) {
-  AugmentationLaw law = augmentationLaw(CHAR(STRING_ELT(familyExpr, 0)));
+  AugmentationDistribution distribution =
+    augmentationDistribution(CHAR(STRING_ELT(familyExpr, 0)));
   AugmentationInputs in =
     augmentationInputs(fitExpr, yExpr, weightsExpr, offsetExpr,
                        ordinalThresholdsExpr, sigmaExpr, shapeExpr,
                        dfExpr);
-  validateResponseSupport(supportFamily(law), in.numOrdinalThresholds + 1, in.y,
+  validateResponseSupport(supportFamily(distribution),
+                          in.numOrdinalThresholds + 1, in.y,
                           in.numObservations, "dbartsDrawLatents");
   refuseAugmentationCountsOverCap(in, "dbartsDrawLatents");
   // everything that can longjmp runs BEFORE the generator exists, the result
   // vector included, so the draw loop cannot strand it
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
-  bool precision = lawDrawsPrecision(law);
-  drawAugmentation(law, in, REAL(result), "dbartsDrawLatents");
+  bool precision = distributionDrawsPrecision(distribution);
+  drawAugmentation(distribution, in, REAL(result), "dbartsDrawLatents");
   setAttribByName(result, "quantity",
                   Rf_mkString(precision ? "precision" : "location"));
   UNPROTECT(1);
@@ -8298,19 +8303,20 @@ SEXP bartcore_drawLatents(SEXP familyExpr, SEXP fitExpr, SEXP yExpr,
 SEXP bartcore_workingResponse(SEXP familyExpr, SEXP latentExpr, SEXP yExpr,
                               SEXP weightsExpr, SEXP offsetExpr,
                               SEXP shapeExpr) {
-  AugmentationLaw law = augmentationLaw(CHAR(STRING_ELT(familyExpr, 0)));
+  AugmentationDistribution distribution =
+    augmentationDistribution(CHAR(STRING_ELT(familyExpr, 0)));
   AugmentationInputs in =
     augmentationInputs(latentExpr, yExpr, weightsExpr, offsetExpr, R_NilValue,
                        R_NilValue, shapeExpr, R_NilValue);
   // the ordinal working response is the latent less the offset, so y never
   // enters it and there is no category count here to state its support against
-  if (law != AugmentationLaw::ordinal)
-    validateResponseSupport(supportFamily(law), 0, in.y, in.numObservations,
-                            "dbartsWorkingResponse");
+  if (distribution != AugmentationDistribution::ordinal)
+    validateResponseSupport(supportFamily(distribution), 0, in.y,
+                            in.numObservations, "dbartsWorkingResponse");
   refuseAugmentationCountsOverCap(in, "dbartsWorkingResponse");
   SEXP result =
     PROTECT(Rf_allocVector(REALSXP, static_cast<R_xlen_t>(in.numObservations)));
-  computeWorkingResponse(law, in, REAL(latentExpr), REAL(result));
+  computeWorkingResponse(distribution, in, REAL(latentExpr), REAL(result));
   UNPROTECT(1);
   return result;
 }
@@ -8321,20 +8327,21 @@ namespace bartcore_bridge {
 
 // ---- the augmentation cores, reached by the R helpers
 // dbartsDrawLatents/dbartsWorkingResponse above; the flat C header carries no
-// augmentation entry. The laws are RESTATED here rather than shared with the
-// response models, which run against a different generator.
+// augmentation entry. The distributions are RESTATED here rather than shared
+// with the response models, which run against a different generator.
 
-// Every dispatch below names every AugmentationLaw enumerator and carries no
-// default arm, which makes an unhandled law a -Wswitch warning; this assertion
-// is what makes it a build FAILURE, and its message names the arms to add.
-// Update it only together with those arms.
-static_assert(bartcore_bridge::numAugmentationLaws == 6,
-              "a law was added to AugmentationLaw: augmentationLaw, "
-              "supportFamily, lawDrawsPrecision, drawAugmentationLaws and "
+// Every dispatch below names every AugmentationDistribution enumerator and
+// carries no default arm, which makes an unhandled distribution a -Wswitch
+// warning; this assertion is what makes it a build FAILURE, and its message
+// names the arms to add. Update it only together with those arms.
+static_assert(bartcore_bridge::numAugmentationDistributions == 6,
+              "a distribution was added to AugmentationDistribution: "
+              "augmentationDistribution, supportFamily, "
+              "distributionDrawsPrecision, drawAugmentationDistributions and "
               "computeWorkingResponse each need an arm for it");
 
-AugmentationLaw augmentationLaw(const char* name) {
-  using AL = AugmentationLaw;
+AugmentationDistribution augmentationDistribution(const char* name) {
+  using AL = AugmentationDistribution;
   if (std::strcmp(name, "probit") == 0) return AL::probit;
   if (std::strcmp(name, "logistic") == 0) return AL::logistic;
   if (std::strcmp(name, "ordinal") == 0) return AL::ordinal;
@@ -8345,10 +8352,10 @@ AugmentationLaw augmentationLaw(const char* name) {
   return AL::studentT;
 }
 
-bartcore::ResponseFamily supportFamily(AugmentationLaw law) {
-  using AL = AugmentationLaw;
+bartcore::ResponseFamily supportFamily(AugmentationDistribution distribution) {
+  using AL = AugmentationDistribution;
   using RF = bartcore::ResponseFamily;
-  switch (law) {
+  switch (distribution) {
   case AL::probit: return RF::probit;
   case AL::logistic: return RF::logistic;
   case AL::ordinal: return RF::ordinal;
@@ -8361,9 +8368,9 @@ bartcore::ResponseFamily supportFamily(AugmentationLaw law) {
   return RF::gaussian; // unreached: the switch above is total
 }
 
-bool lawDrawsPrecision(AugmentationLaw law) {
-  using AL = AugmentationLaw;
-  switch (law) {
+bool distributionDrawsPrecision(AugmentationDistribution distribution) {
+  using AL = AugmentationDistribution;
+  switch (distribution) {
   case AL::logistic:
   case AL::nbinom:
   case AL::studentT:
@@ -8385,18 +8392,21 @@ struct NativeRngDeleter {
 };
 typedef std::unique_ptr<ext_rng, NativeRngDeleter> NativeRng;
 
-/// One draw per observation, each the law its engine site draws
+/// One draw per observation, each from the distribution its engine site draws
 /// (ProbitResponse::refreshLatents, OrdinalResponse::drawLatents,
 /// AFTResponse::refreshLatents, LogisticResponse::refreshLatents,
 /// NBResponse::drawOmega, TResponse::refreshLatents), NaN fallbacks included.
-static void drawAugmentationLaws(ext_rng* rng, AugmentationLaw law,
-                                 const AugmentationInputs& in, double* result) {
-  using AL = AugmentationLaw;
+static void drawAugmentationDistributions(ext_rng* rng,
+                                          AugmentationDistribution distribution,
+                                          const AugmentationInputs& in,
+                                          double* result) {
+  using AL = AugmentationDistribution;
   for (size_t i = 0; i < in.numObservations; ++i) {
     double psi = in.fit[i] + (in.offset != NULL ? in.offset[i] : 0.0);
-    // the switch names every enumerator and carries no default arm, so a law
-    // added without one must fail the build rather than go undrawn
-    switch (law) {
+    // the switch names every enumerator and carries no default arm, so a
+    // distribution added without one must fail the build rather than go
+    // undrawn
+    switch (distribution) {
     case AL::probit: {
       double sign = 2.0 * in.y[i] - 1.0;
       double z = sign *
@@ -8439,7 +8449,7 @@ static void drawAugmentationLaws(ext_rng* rng, AugmentationLaw law,
       result[i] = omega;
       break;
     }
-    case AL::nbinom: // fit + offset is the log mean; the law reads log-odds
+    case AL::nbinom: // fit + offset is the log mean; the draw reads log-odds
       result[i] = bartcore::simulatePolyaGammaShape(
         rng, in.y[i] + in.shape, psi - std::log(in.shape));
       break;
@@ -8454,8 +8464,9 @@ static void drawAugmentationLaws(ext_rng* rng, AugmentationLaw law,
   }
 }
 
-void drawAugmentation(AugmentationLaw law, const AugmentationInputs& in,
-                      double* result, const char* caller) {
+void drawAugmentation(AugmentationDistribution distribution,
+                      const AugmentationInputs& in, double* result,
+                      const char* caller) {
   // the caller has already allocated result, so nothing that can longjmp runs
   // while the generator is alive
   GetRNGstate();
@@ -8465,21 +8476,23 @@ void drawAugmentation(AugmentationLaw law, const AugmentationInputs& in,
       PutRNGstate();
       Rf_error("%s: could not create a random number generator", caller);
     }
-    drawAugmentationLaws(rng.get(), law, in, result);
+    drawAugmentationDistributions(rng.get(), distribution, in, result);
     PutRNGstate();
     return R_NilValue;
   });
 }
 
-void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
-                            const double* latent, double* result) {
-  using AL = AugmentationLaw;
+void computeWorkingResponse(AugmentationDistribution distribution,
+                            const AugmentationInputs& in, const double* latent,
+                            double* result) {
+  using AL = AugmentationDistribution;
   for (size_t i = 0; i < in.numObservations; ++i) {
-    // the location laws' working response IS the drawn latent; the switch
-    // names every enumerator and carries no default arm, so a law added
-    // without one must fail the build rather than take that reading silently
+    // the location distributions' working response IS the drawn latent; the
+    // switch names every enumerator and carries no default arm, so a
+    // distribution added without one must fail the build rather than take that
+    // reading silently
     double value = latent[i];
-    switch (law) {
+    switch (distribution) {
     case AL::logistic:
       value = (in.weights != NULL ? in.weights[i] : 1.0) * (in.y[i] - 0.5) /
         latent[i];

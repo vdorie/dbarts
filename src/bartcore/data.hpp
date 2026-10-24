@@ -689,7 +689,7 @@ inline void materializePredictorSource(const PredictorSource& source,
 /// SparseColumnData's shape over RAW values: the same fixed pattern (bits,
 /// wordRanks) and O(1) at(i), holding the borrowed nonzero doubles of one CSC
 /// column and the double its implicit rows read. No cut grid and no
-/// quantization, so nothing here touches a draw law - it is the read side of a
+/// quantization, so nothing here touches a draw - it is the read side of a
 /// replay over a caller's sparse argument.
 ///
 /// Built per call and never cached: a consumer reads the source it was handed,

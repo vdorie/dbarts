@@ -180,52 +180,52 @@ expect_identical(
 # distribution names, less the offset. "student" is the one no family value can
 # carry - a Student-t response IS gaussian - so a dispatch that lost it would
 # answer here as a location distribution
-lawN <- 40L
+famN <- 40L
 set.seed(20260901L)
-lawFit <- rnorm(lawN, 0, 0.5)
-lawOffset <- rep_len(c(-0.25, 0.15), lawN)
-lawWeights <- as.double(1L + seq_len(lawN) %% 3L)
-lawY <- list(
-  probit = as.double(rbinom(lawN, 1L, 0.5)),
-  logistic = as.double(rbinom(lawN, 1L, 0.5)),
-  ordinal = as.double(1L + seq_len(lawN) %% 3L),
-  aft = rnorm(lawN),
-  nbinom = as.double(rpois(lawN, 3)),
-  student = rnorm(lawN)
+famFit <- rnorm(famN, 0, 0.5)
+famOffset <- rep_len(c(-0.25, 0.15), famN)
+famWeights <- as.double(1L + seq_len(famN) %% 3L)
+famY <- list(
+  probit = as.double(rbinom(famN, 1L, 0.5)),
+  logistic = as.double(rbinom(famN, 1L, 0.5)),
+  ordinal = as.double(1L + seq_len(famN) %% 3L),
+  aft = rnorm(famN),
+  nbinom = as.double(rpois(famN, 3)),
+  student = rnorm(famN)
 )
-expect_identical(names(lawY), dbarts:::augFamilies)
-for (law in names(lawY)) {
-  yLaw <- lawY[[law]]
+expect_identical(names(famY), dbarts:::augFamilies)
+for (fam in names(famY)) {
+  yFam <- famY[[fam]]
   latent <- dbartsDrawLatents(
-    law,
-    lawFit,
-    yLaw,
-    weights = if (law == "logistic") lawWeights,
-    offset = lawOffset,
-    sigma = if (law %in% c("aft", "student")) 1.2,
-    shape = if (law == "nbinom") 3,
-    thresholds = if (law == "ordinal") c(-0.5, 0.7),
-    df = if (law == "student") 5
+    fam,
+    famFit,
+    yFam,
+    weights = if (fam == "logistic") famWeights,
+    offset = famOffset,
+    sigma = if (fam %in% c("aft", "student")) 1.2,
+    shape = if (fam == "nbinom") 3,
+    thresholds = if (fam == "ordinal") c(-0.5, 0.7),
+    df = if (fam == "student") 5
   )
   expect_true(all(is.finite(latent)))
   working <- dbartsWorkingResponse(
-    law,
+    fam,
     as.vector(latent),
-    yLaw,
-    weights = if (law == "logistic") lawWeights,
-    offset = lawOffset,
-    shape = if (law == "nbinom") 3
+    yFam,
+    weights = if (fam == "logistic") famWeights,
+    offset = famOffset,
+    shape = if (fam == "nbinom") 3
   )
   expected <- switch(
-    law,
-    logistic = lawWeights * (yLaw - 0.5) / as.vector(latent),
-    nbinom = 0.5 * (yLaw - 3) / as.vector(latent) + log(3),
-    student = yLaw,
+    fam,
+    logistic = famWeights * (yFam - 0.5) / as.vector(latent),
+    nbinom = 0.5 * (yFam - 3) / as.vector(latent) + log(3),
+    student = yFam,
     as.vector(latent)
   )
-  expect_equal(working, expected - lawOffset)
+  expect_equal(working, expected - famOffset)
 }
-rm(lawN, lawFit, lawOffset, lawWeights, lawY, law, yLaw, latent, working)
+rm(famN, famFit, famOffset, famWeights, famY, fam, yFam, latent, working)
 rm(expected)
 
 # --- oracle 2: a composed Gibbs loop reproduces the engine's own posterior

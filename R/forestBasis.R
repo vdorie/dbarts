@@ -213,7 +213,7 @@ parseBasisGrammar <- function(expr) {
         "' calls ",
         operator,
         "(), which is not a column: a prior is not stated on a basis term. ",
-        "Give the forest's size as 'sd' and its coefficient's law as ",
+        "Give the forest's size as 'sd' and its coefficient's prior as ",
         "'amplitude'",
         call. = FALSE
       )

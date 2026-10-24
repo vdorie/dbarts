@@ -235,9 +235,9 @@ for (requested in c(0.75, 0.125, 1.875, 6)) {
 }
 # a drawn spread reports the distribution it was written as
 fidelity$setLeafPrior(normal(sd = invchi(2, 0.5)))
-fidelityLaw <- fidelity$getLeafPrior()$leaf.prior@prior.sd
-expect_identical(fidelityLaw@df, 2)
-expect_true(abs(fidelityLaw@scale / 0.5 - 1) < 4 * .Machine$double.eps)
+fidelityHyperprior <- fidelity$getLeafPrior()$leaf.prior@prior.sd
+expect_identical(fidelityHyperprior@df, 2)
+expect_true(abs(fidelityHyperprior@scale / 0.5 - 1) < 4 * .Machine$double.eps)
 # and a k spelling returns the reader to k terms, relative to the data
 fidelity$setLeafPrior(normal(k = 3))
 expect_identical(fidelity$getLeafPrior()$leaf.prior, priorOf(normal(k = 3)))
@@ -447,12 +447,14 @@ expect_identical(recipe$getLeafPrior()$prior.mean, recipeMean)
 # a drawn k: the sd distribution is written and survives the k draws of a
 # run, which move the reported spread and not the distribution
 sampledK <- dbarts(x, yBinary, control = midControl())
-sdLawScale <- function(sampler) sampler$getLeafPrior()$leaf.prior@prior.sd@scale
+sdHyperpriorScale <- function(sampler) {
+  sampler$getLeafPrior()$leaf.prior@prior.sd@scale
+}
 expect_true(is(sampledK$getLeafPrior()$leaf.prior@k, "dbartsChiHyperprior"))
 sampledK$setLeafPrior(normal(sd = invchi(1.5, 0.75)))
-expect_true(abs(sdLawScale(sampledK) / 0.75 - 1) < 1e-14)
+expect_true(abs(sdHyperpriorScale(sampledK) / 0.75 - 1) < 1e-14)
 sampledRun <- sampledK$run(20L, 10L)
-expect_true(abs(sdLawScale(sampledK) / 0.75 - 1) < 1e-14)
+expect_true(abs(sdHyperpriorScale(sampledK) / 0.75 - 1) < 1e-14)
 expect_true(any(priorSdOf(sampledK) != 0.75))
 # getK is the value the run records, bitwise its last draw
 expect_identical(sampledK$getK(), sampledRun$k[10L, ])

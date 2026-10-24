@@ -664,22 +664,24 @@ void validateTestContainerAgainstStore(const bartcore::ColumnStore& store,
 /// over it names every enumerator with NO default arm, so a distribution
 /// added without one fails the build rather than taking some other
 /// distribution's reading silently.
-#define BARTCORE_AUGMENTATION_LAW_LIST(X) \
+#define BARTCORE_AUGMENTATION_DISTRIBUTION_LIST(X) \
   X(probit) X(logistic) X(ordinal) X(aft) X(nbinom) X(studentT)
-enum class AugmentationLaw {
-#define BARTCORE_AUGMENTATION_LAW_ENUMERATOR(name) name,
-  BARTCORE_AUGMENTATION_LAW_LIST(BARTCORE_AUGMENTATION_LAW_ENUMERATOR)
-#undef BARTCORE_AUGMENTATION_LAW_ENUMERATOR
+enum class AugmentationDistribution {
+#define BARTCORE_AUGMENTATION_DISTRIBUTION_ENUMERATOR(name) name,
+  BARTCORE_AUGMENTATION_DISTRIBUTION_LIST(
+    BARTCORE_AUGMENTATION_DISTRIBUTION_ENUMERATOR)
+#undef BARTCORE_AUGMENTATION_DISTRIBUTION_ENUMERATOR
 };
 
 /// Derived from the list above, so it cannot drift from it: every site that
 /// enumerates the distributions asserts on this count, which is what turns
 /// adding one into a build failure at each site rather than a warning or
 /// nothing at all.
-#define BARTCORE_AUGMENTATION_LAW_COUNT(name) +1
-inline constexpr int numAugmentationLaws =
-  0 BARTCORE_AUGMENTATION_LAW_LIST(BARTCORE_AUGMENTATION_LAW_COUNT);
-#undef BARTCORE_AUGMENTATION_LAW_COUNT
+#define BARTCORE_AUGMENTATION_DISTRIBUTION_COUNT(name) +1
+inline constexpr int numAugmentationDistributions =
+  0 BARTCORE_AUGMENTATION_DISTRIBUTION_LIST(
+    BARTCORE_AUGMENTATION_DISTRIBUTION_COUNT);
+#undef BARTCORE_AUGMENTATION_DISTRIBUTION_COUNT
 
 /// What one per-observation augmentation step reads, from either surface. fit
 /// is the location WITHOUT the offset - the engine's own totalFits convention -
@@ -708,18 +710,18 @@ struct AugmentationInputs {
 /// "student". Errors on any other name, naming it. The flat C API has its
 /// own boundary, mapping its family tokens straight onto distributions, so
 /// no surface reaches a dispatch through a family value.
-AugmentationLaw augmentationLaw(const char* name);
+AugmentationDistribution augmentationDistribution(const char* name);
 
 /// The family arm validateResponseSupport states a distribution's response
 /// support with. Only a support statement - never a dispatch key: studentT
 /// answers gaussian because a Student-t response is unconstrained, exactly
 /// as a gaussian one is, not because the two share a distribution.
-bartcore::ResponseFamily supportFamily(AugmentationLaw law);
+bartcore::ResponseFamily supportFamily(AugmentationDistribution distribution);
 
 /// True where the drawn latent is a PRECISION weighting its row rather than a
 /// location standing in for the response, which is what dbarts_sampler_
 /// getLatents reports per family and what the R helper stamps its result with.
-bool lawDrawsPrecision(AugmentationLaw law);
+bool distributionDrawsPrecision(AugmentationDistribution distribution);
 
 /// One draw per observation into result, each the distribution its engine site
 /// draws, from a per-call generator seeded off R's own stream: main R thread
@@ -728,16 +730,18 @@ bool lawDrawsPrecision(AugmentationLaw law);
 /// one seed agree bitwise. caller labels the error a generator that cannot be
 /// created raises; every argument the distribution reads is the caller's to
 /// have validated.
-void drawAugmentation(AugmentationLaw law, const AugmentationInputs& in,
-                      double* result, const char* caller);
+void drawAugmentation(AugmentationDistribution distribution,
+                      const AugmentationInputs& in, double* result,
+                      const char* caller);
 
 /// The quantity a host regresses on given the drawn latent, read off the same
 /// engine sites: a Polya-Gamma distribution divides its kappa by the drawn
 /// precision, Student-t regresses on y (its latent weights the row instead),
 /// and a location distribution on the latent - each less the offset. Draws
 /// nothing.
-void computeWorkingResponse(AugmentationLaw law, const AugmentationInputs& in,
-                            const double* latent, double* result);
+void computeWorkingResponse(AugmentationDistribution distribution,
+                            const AugmentationInputs& in, const double* latent,
+                            double* result);
 
 } // namespace bartcore_bridge
 

@@ -970,7 +970,7 @@ inline void monotoneNeighborBounds(const Tree& tree, const ColumnStore& data,
 /// values, and the cone and its normalizer range over every leaf. It reads
 /// the rules and the leaf values only, never the partition. Each related
 /// pair is tested as both of its leaves' bounds would test it.
-/// tol is a test slack for rounding at a bound; no draw law reads it.
+/// tol is a test slack for rounding at a bound; it changes no draw.
 inline bool monotoneTreeIsFeasible(const Tree& tree, const ColumnStore& data,
                                    const std::int8_t* directions,
                                    const double* mu, double tol = 1e-9) {
@@ -1385,7 +1385,7 @@ struct MonotoneCountScratch {
   std::vector<std::uint64_t> key, successors;
   MonotoneLeafOrder order;
   MonotoneOrderComponent merged;
-  std::vector<double> firstLaw, secondLaw, weights, values;
+  std::vector<double> firstDist, secondDist, weights, values;
   std::vector<std::size_t> candidates, extension;
   std::size_t downSets = 0, peakBytes = 0;
   const std::function<bool()>* cancel = nullptr;
@@ -1402,9 +1402,9 @@ inline void monotonePoll(MonotoneCountScratch& s) {
 
 /// log e(C) by the layered down-set DP, O(down-sets x size) at one word. With
 /// keepAll every layer stays in place (layer k at layers[k]), as the
-/// extension draw and the position laws need; otherwise two alternate. Past
-/// `budget` down-sets the count stops and returns NaN, s.downSets then
-/// exceeding the budget.
+/// extension draw and the position distributions need; otherwise two
+/// alternate. Past `budget` down-sets the count stops and returns NaN,
+/// s.downSets then exceeding the budget.
 inline double monotoneLogExtensions(
   const MonotoneOrderComponent& c, MonotoneCountScratch& s, bool keepAll,
   std::size_t budget = std::numeric_limits<std::size_t>::max()) {
@@ -1478,17 +1478,16 @@ inline void monotoneBackwardCounts(const MonotoneOrderComponent& c,
 }
 
 /// log P(x is the (k+1)-th element of a uniform linear extension) at
-/// logLaw[k], -HUGE_VAL where impossible: the sum over down-sets D of size k
+/// logDist[k], -HUGE_VAL where impossible: the sum over down-sets D of size k
 /// that x extends of f(D) g(D + x) / e. Needs a keepAll count and the
 /// backward counts. A term's two scaled factors can underflow as a product
 /// where the term still matters, so terms are summed relative to the largest
 /// one's binary exponent.
-inline void monotoneLogPositionLaw(const MonotoneOrderComponent& c,
-                                   MonotoneCountScratch& s, std::size_t x,
-                                   double logExtensions,
-                                   std::vector<double>& logLaw) {
+inline void monotoneLogPositionDistribution(
+  const MonotoneOrderComponent& c, MonotoneCountScratch& s, std::size_t x,
+  double logExtensions, std::vector<double>& logDist) {
   std::size_t n = c.size, words = c.words;
-  logLaw.assign(n, -HUGE_VAL);
+  logDist.assign(n, -HUGE_VAL);
   s.key.assign(words, 0);
   std::size_t xWord = x / 64;
   std::uint64_t xBit = std::uint64_t(1) << (x % 64);
@@ -1522,7 +1521,7 @@ inline void monotoneLogPositionLaw(const MonotoneOrderComponent& c,
       sum += std::ldexp(mf * mg, ef + eg - top);
     }
     if (sum > 0.0)
-      logLaw[k] = std::log(sum) +
+      logDist[k] = std::log(sum) +
                   static_cast<double>(top + current.forwardExponent +
                                       up.backwardExponent) * std::numbers::ln2 -
                   logExtensions;
@@ -1530,13 +1529,13 @@ inline void monotoneLogPositionLaw(const MonotoneOrderComponent& c,
 }
 
 /// log theta for a pair in two components of sizes a and b, from c1's and
-/// c2's log position laws: the share of interleavings of the two that put
-/// c1 immediately before c2, sum over i and j of P1(i) P2(j)
+/// c2's log position distributions: the share of interleavings of the two that
+/// put c1 immediately before c2, sum over i and j of P1(i) P2(j)
 /// C(i+j-2, i-1) C(a+b-i-j, a-i) / C(a+b, a), binomials held as logs.
-inline double monotoneLogAdjacentShare(const std::vector<double>& firstLaw,
-                                       const std::vector<double>& secondLaw,
+inline double monotoneLogAdjacentShare(const std::vector<double>& firstDist,
+                                       const std::vector<double>& secondDist,
                                        std::vector<double>& logFactorial) {
-  std::size_t a = firstLaw.size(), b = secondLaw.size();
+  std::size_t a = firstDist.size(), b = secondDist.size();
   logFactorial.resize(a + b + 1);
   for (std::size_t i = 0; i <= a + b; ++i)
     logFactorial[i] = std::lgamma(static_cast<double>(i) + 1.0);
@@ -1544,18 +1543,18 @@ inline double monotoneLogAdjacentShare(const std::vector<double>& firstLaw,
     return logFactorial[n] - logFactorial[k] - logFactorial[n - k];
   };
   auto term = [&](std::size_t i, std::size_t j) {
-    return firstLaw[i - 1] + secondLaw[j - 1] + logChoose(i + j - 2, i - 1) +
+    return firstDist[i - 1] + secondDist[j - 1] + logChoose(i + j - 2, i - 1) +
            logChoose(a + b - i - j, a - i);
   };
   double largest = -HUGE_VAL;
   for (std::size_t i = 1; i <= a; ++i)
     for (std::size_t j = 1; j <= b; ++j)
-      if (firstLaw[i - 1] > -HUGE_VAL && secondLaw[j - 1] > -HUGE_VAL)
+      if (firstDist[i - 1] > -HUGE_VAL && secondDist[j - 1] > -HUGE_VAL)
         largest = std::max(largest, term(i, j));
   double sum = 0.0;
   for (std::size_t i = 1; i <= a; ++i)
     for (std::size_t j = 1; j <= b; ++j)
-      if (firstLaw[i - 1] > -HUGE_VAL && secondLaw[j - 1] > -HUGE_VAL)
+      if (firstDist[i - 1] > -HUGE_VAL && secondDist[j - 1] > -HUGE_VAL)
         sum += std::exp(term(i, j) - largest);
   return largest + std::log(sum) - logChoose(a + b, a);
 }
@@ -1611,8 +1610,8 @@ struct MonotonePairWork {
 /// log(Z_T0 / Z_T*) = log(m theta) over s.order, which holds T*'s order.
 /// With the pair in one component C*, theta = e(C0) / e(C*), C0 the pair
 /// merged, which is symmetric in the pair; in two (only a free split
-/// separates them), theta comes from c1's and c2's position laws and the
-/// merged component is not counted. Two isolated leaves give exactly 0.
+/// separates them), theta comes from c1's and c2's position distributions and
+/// the merged component is not counted. Two isolated leaves give exactly 0.
 inline double monotoneLogPairRatio(MonotoneCountScratch& s,
                                    MonotoneMovePair pair,
                                    MonotonePairWork* work = nullptr) {
@@ -1644,15 +1643,15 @@ inline double monotoneLogPairRatio(MonotoneCountScratch& s,
     double logFirst = monotoneLogExtensions(first, s, true);
     note(first, true);
     monotoneBackwardCounts(first, s);
-    monotoneLogPositionLaw(first, s, order.labelOf[pair.first], logFirst,
-                           s.firstLaw);
+    monotoneLogPositionDistribution(first, s, order.labelOf[pair.first],
+                                    logFirst, s.firstDist);
     double logSecond = monotoneLogExtensions(second, s, true);
     note(second, true);
     monotoneBackwardCounts(second, s);
-    monotoneLogPositionLaw(second, s, order.labelOf[pair.second], logSecond,
-                           s.secondLaw);
+    monotoneLogPositionDistribution(second, s, order.labelOf[pair.second],
+                                    logSecond, s.secondDist);
     result = std::log(static_cast<double>(first.size + second.size)) +
-             monotoneLogAdjacentShare(s.firstLaw, s.secondLaw, s.values);
+             monotoneLogAdjacentShare(s.firstDist, s.secondDist, s.values);
   }
   if (work != nullptr) *work = tally;
   return result;
@@ -1966,8 +1965,8 @@ struct MonotoneConstantGaussianLeaf {
   }
 
   // Exact draw of a tree's leaf vector from the CONSTRAINED prior, the same
-  // law under both priors: per component of the leaf order a uniform linear
-  // extension, with iid (c-inflated) draws sorted into it
+  // distribution under both priors: per component of the leaf order a
+  // uniform linear extension, with iid (c-inflated) draws sorted into it
   // (monotoneDrawPriorLeaves). Every count runs before any leaf is written.
   void drawFromPriorForTree(ext_rng* rng, const Tree& tree, double k,
                             double* mu) const {
@@ -4881,8 +4880,8 @@ public:
       out[i] = std::numeric_limits<double>::quiet_NaN();
   }
 
-  /// Continuous responses under a Student-t error law (TResponse) carry a
-  /// residual degrees of freedom nu beside the mixing precisions in
+  /// Continuous responses under a Student-t error distribution (TResponse)
+  /// carry a residual degrees of freedom nu beside the mixing precisions in
   /// latents(). carriesResidualDf marks the family: it gates the recorded df
   /// channel and the latents a state must hold. drawsResidualDf says nu is
   /// drawn rather than held fixed, and gates the state's nu block alone.
@@ -4901,11 +4900,11 @@ public:
   virtual std::size_t numOrdinalThresholds() const { return 0; }
   virtual void restoreOrdinalThresholds(const double* /*gamma*/) {}
 
-  /// Count responses under a negative-binomial law (NBResponse) carry a scalar
-  /// shape r. carriesShape marks the family: it gates the recorded shape
-  /// channel, the latents a state must hold and its shift pair. drawsShape
-  /// says r is drawn rather than held fixed, and gates the state's by-name
-  /// "shape" block alone (the residualDf scalar analog). The name is
+  /// Count responses under a negative-binomial distribution (NBResponse) carry
+  /// a scalar shape r. carriesShape marks the family: it gates the recorded
+  /// shape channel, the latents a state must hold and its shift pair.
+  /// drawsShape says r is drawn rather than held fixed, and gates the state's
+  /// by-name "shape" block alone (the residualDf scalar analog). The name is
   /// parameterization-neutral and the value real-valued (grid mode stores an
   /// integer-valued double), so a later real-r mode loads and saves with no
   /// state-format change. RESTORE CONTRACT: restoreShape MUST run before
@@ -7008,8 +7007,8 @@ private:
 
 /// Negative-binomial counts by the Polya-Gamma augmentation (Polson-Scott-Windle
 /// 2013; Zhou-Li-Dunson-Carin 2012) on a log-mean link: the forest fits
-/// eta_i = f(x_i) + c + offset_i = log E[y_i], the count law is
-/// y_i ~ NB(r, p_i) with p_i = mu_i / (mu_i + r), so the offset is a
+/// eta_i = f(x_i) + c + offset_i = log E[y_i], the count distribution
+/// is y_i ~ NB(r, p_i) with p_i = mu_i / (mu_i + r), so the offset is a
 /// log-exposure. In log-odds terms psi_i = eta_i - log r and
 /// omega_i ~ PG(y_i + r, psi_i) (integer shape while r is integer-valued),
 /// kappa_i = (y_i - r)/2, working response z_i = kappa_i/omega_i - a_i under

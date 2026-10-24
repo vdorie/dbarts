@@ -635,7 +635,7 @@ static void testMonotoneRatioNamed() {
 
 // Position distributions against enumerated extensions, every
 // element of the components of random trees.
-static void testMonotonePositionLaw() {
+static void testMonotonePositionDistribution() {
   ColumnStore store;
   makeStore(store, 3, 12, 300);
   MonotoneCountScratch s;
@@ -658,20 +658,21 @@ static void testMonotonePositionLaw() {
         for (size_t r = 0; r < c.size; ++r) counts[perm[r] * c.size + r] += 1.0;
       } while (std::next_permutation(perm.begin(), perm.end()));
       double logE = monotoneLogExtensions(c, s, true);
-      checkNear(logE, std::log(total), 1e-12, "monotone position law: count");
+      checkNear(logE, std::log(total), 1e-12,
+                "monotone position distribution: count");
       monotoneBackwardCounts(c, s);
       for (size_t x = 0; x < c.size; ++x) {
-        monotoneLogPositionLaw(c, s, x, logE, s.firstLaw);
+        monotoneLogPositionDistribution(c, s, x, logE, s.firstDist);
         for (size_t r = 0; r < c.size; ++r)
-          worst = std::max(worst, std::fabs(std::exp(s.firstLaw[r]) -
+          worst = std::max(worst, std::fabs(std::exp(s.firstDist[r]) -
                                             counts[x * c.size + r] / total));
         ++checked;
       }
     }
   }
-  checkNear(worst, 0.0, 1e-13, "monotone position law vs enumeration");
-  check(checked > 100, "monotone position law: elements checked");
-  printf("ok: monotone position law (%d elements)\n", checked);
+  checkNear(worst, 0.0, 1e-13, "monotone position distribution vs enumeration");
+  check(checked > 100, "monotone position distribution: elements checked");
+  printf("ok: monotone position distribution (%d elements)\n", checked);
 }
 
 // The linear-extension draw is uniform: chi-square over the extensions of a
@@ -2128,15 +2129,16 @@ static void testMonotoneJointTreePrior() {
       for (const FlatNode& node : flat) leaves += node.variable == invalidVariable;
       observed[(flat[0].value < 1.0 ? 1 : 3) + (leaves == 3)] += 1.0;
     }
-    for (int law = 0; law < 2; ++law) {
+    for (int tilted = 0; tilted < 2; ++tilted) {
       double total = 0.0, expected[5];
-      for (int i = 0; i < 5; ++i) total += expected[i] = cgm[i] * (law ? z[i] : 1.0);
+      for (int i = 0; i < 5; ++i)
+        total += expected[i] = cgm[i] * (tilted ? z[i] : 1.0);
       double chi2 = 0.0;
       for (int i = 0; i < 5; ++i) {
         double e = draws * expected[i] / total;
         chi2 += (observed[i] - e) * (observed[i] - e) / e;
       }
-      stat[which][law] = chi2;
+      stat[which][tilted] = chi2;
     }
     ext_rng_destroy(rng);
   }
@@ -2750,7 +2752,7 @@ void runMonotoneTests() {
         "");
   }
   testMonotoneRatioNamed();
-  testMonotonePositionLaw();
+  testMonotonePositionDistribution();
   testMonotoneExtensionDraw();
   testMonotoneCountScale();
   testMonotoneGeometryPoints();

@@ -724,7 +724,10 @@ for (place in c("creation", "writer")) {
   expect_match(sdMessage(mean, place), "must be a number, not a function")
   expect_match(
     sdMessage(dbartsPriors$invchi(3, 1), place),
-    "must be a number, not invchi(): a law on a forest's sd is not supported yet",
+    paste0(
+      "must be a number, not invchi(): a hyperprior on a forest's sd is ",
+      "not supported yet"
+    ),
     fixed = TRUE
   )
   # a named number is judged as its value is, the name dropped

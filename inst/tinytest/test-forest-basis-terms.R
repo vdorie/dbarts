@@ -261,7 +261,7 @@ refused <- list(
   "normal(dose, sd = 30)" = paste0(
     "'basis' term 'normal(dose, sd = 30)' calls normal(), which is not a ",
     "column: a prior is not stated on a basis term. Give the forest's size ",
-    "as 'sd' and its coefficient's law as 'amplitude'"
+    "as 'sd' and its coefficient's prior as 'amplitude'"
   )
 )
 for (text in names(refused)) {

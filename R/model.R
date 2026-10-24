@@ -595,7 +595,7 @@ resolveLeafHyperprior <- function(
   } else if (monotone && !is.numeric(k)) {
     stop(
       "a 'k' hyperprior is not supported under a monotone constraint; ",
-      "supply a fixed numeric k (the truncated leaf law has no chi-k update)"
+      "supply a fixed numeric k (the truncated leaf prior has no chi-k update)"
     )
   }
   if (is.numeric(k)) {
@@ -1640,8 +1640,8 @@ validateForestSd <- function(sd) {
   }
   if (is(sd, "dbartsSdHyperprior")) {
     stop(
-      "forest 'sd' must be a number, not invchi(): a law on a forest's sd is ",
-      "not supported yet"
+      "forest 'sd' must be a number, not invchi(): a hyperprior on a forest's ",
+      "sd is not supported yet"
     )
   }
   kind <- sdKindRefused(sd)
@@ -2342,8 +2342,8 @@ validateLeafSd <- function(sd) {
   }
   if (is(sd, "dbartsLeafHyperprior")) {
     stop(
-      "'sd' takes a number or invchi(), a law on the sd itself; a law on k ",
-      "is spelled k = chi(), and the same prior on the sd is ",
+      "'sd' takes a number or invchi(), a hyperprior on the sd itself; a ",
+      "hyperprior on k is spelled k = chi(), and the same prior on the sd is ",
       "sd = invchi(df, k.scale / scale)"
     )
   }
@@ -2403,7 +2403,7 @@ resolveLeafPrior <- function(
   if (monotone) {
     stop(
       "an 'sd' hyperprior is not supported under a monotone constraint; ",
-      "supply a fixed numeric sd (the truncated leaf law has no chi-k update)"
+      "supply a fixed numeric sd (the truncated leaf prior has no chi-k update)"
     )
   }
   if (sd@scale == 0.0) {
@@ -2441,8 +2441,8 @@ normal <- function(k = NULL, sd = NULL) {
   ) {
     if (is(k, "dbartsSdHyperprior")) {
       stop(
-        "'k' takes a number or chi(), a law on k; invchi() is a law on the ",
-        "sd and is spelled sd = invchi()"
+        "'k' takes a number or chi(), a hyperprior on k; invchi() is a ",
+        "hyperprior on the sd and is spelled sd = invchi()"
       )
     }
     stop("'k' must be a positive scalar or a hyperprior specification")

@@ -80,11 +80,12 @@ constexpr double levelSumTolerance = 1.0e-12;
 /// The closed form of section 1 at the homogeneous constant leaf, read off
 /// the frozen forest: v_t = tau^2 / L_t and m_t = -S_t / L_t over tree t's
 /// occupied leaves, then the zero-sum conditioning.
-struct LevelLaw {
+struct LevelDistribution {
   std::vector<double> mean, variance, covariance;  // covariance is m x m
 };
 
-LevelLaw levelLawOf(ConstantLeafSampler& sampler, size_t numTrees) {
+LevelDistribution levelDistributionOf(ConstantLeafSampler& sampler,
+                                      size_t numTrees) {
   ForestCalibration calibration = sampler.chain(0).forestCalibration(0);
   // priorScale is the response-unit total; the internal per-leaf sd is that
   // divided by the response transform and sqrt(m)
@@ -92,9 +93,9 @@ LevelLaw levelLawOf(ConstantLeafSampler& sampler, size_t numTrees) {
                (calibration.responseScale *
                 std::sqrt(static_cast<double>(numTrees)));
 
-  LevelLaw law;
-  law.mean.assign(numTrees, 0.0);
-  law.variance.assign(numTrees, 0.0);
+  LevelDistribution dist;
+  dist.mean.assign(numTrees, 0.0);
+  dist.variance.assign(numTrees, 0.0);
   std::vector<int32_t> bottoms;
   double sumVariance = 0.0, sumMean = 0.0;
   for (size_t t = 0; t < numTrees; ++t) {
@@ -108,21 +109,21 @@ LevelLaw levelLawOf(ConstantLeafSampler& sampler, size_t numTrees) {
       leafCount += 1.0;
       leafSum += mu[static_cast<size_t>(node)];
     }
-    law.variance[t] = tau * tau / leafCount;
-    law.mean[t] = -leafSum / leafCount;
-    sumVariance += law.variance[t];
-    sumMean += law.mean[t];
+    dist.variance[t] = tau * tau / leafCount;
+    dist.mean[t] = -leafSum / leafCount;
+    sumVariance += dist.variance[t];
+    sumMean += dist.mean[t];
   }
   double ratio = sumMean / sumVariance;
-  law.covariance.assign(numTrees * numTrees, 0.0);
+  dist.covariance.assign(numTrees * numTrees, 0.0);
   for (size_t t = 0; t < numTrees; ++t) {
-    law.mean[t] -= law.variance[t] * ratio;
+    dist.mean[t] -= dist.variance[t] * ratio;
     for (size_t u = 0; u < numTrees; ++u)
-      law.covariance[t * numTrees + u] =
-        (t == u ? law.variance[t] : 0.0) -
-        law.variance[t] * law.variance[u] / sumVariance;
+      dist.covariance[t * numTrees + u] =
+        (t == u ? dist.variance[t] : 0.0) -
+        dist.variance[t] * dist.variance[u] / sumVariance;
   }
-  return law;
+  return dist;
 }
 
 /// Empirical first and second moments of a stream of shift vectors, scored
@@ -146,7 +147,8 @@ struct LevelMoments {
     }
   }
 
-  void score(const LevelLaw& law, double& worstMeanZ, double& worstCovZ) const {
+  void score(const LevelDistribution& dist, double& worstMeanZ,
+             double& worstCovZ) const {
     size_t m = sum.size();
     double n = static_cast<double>(numDraws);
     worstMeanZ = 0.0;
@@ -154,15 +156,15 @@ struct LevelMoments {
     std::vector<double> empiricalMean(m);
     for (size_t t = 0; t < m; ++t) empiricalMean[t] = sum[t] / n;
     for (size_t t = 0; t < m; ++t) {
-      double se = std::sqrt(law.covariance[t * m + t] / n);
+      double se = std::sqrt(dist.covariance[t * m + t] / n);
       worstMeanZ = std::max(worstMeanZ,
-                            std::fabs(empiricalMean[t] - law.mean[t]) / se);
+                            std::fabs(empiricalMean[t] - dist.mean[t]) / se);
       for (size_t u = t; u < m; ++u) {
         double empirical =
           sumProducts[t * m + u] / n - empiricalMean[t] * empiricalMean[u];
-        double target = law.covariance[t * m + u];
-        double se2 = std::sqrt((law.covariance[t * m + t] *
-                                  law.covariance[u * m + u] +
+        double target = dist.covariance[t * m + u];
+        double se2 = std::sqrt((dist.covariance[t * m + t] *
+                                  dist.covariance[u * m + u] +
                                 target * target) / n);
         worstCovZ = std::max(worstCovZ, std::fabs(empirical - target) / se2);
       }
@@ -764,8 +766,8 @@ void runEnsembleTests() {
   // the conditional. Freeze a burned-in forest, restore its leaf tables
   // between calls so every draw scores against the SAME closed form, and read
   // the empirical mean and covariance of c.
-  ext_rng* lawRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
-  ext_rng_setSeed(lawRng, 3141592u);
+  ext_rng* distRng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+  ext_rng_setSeed(distRng, 3141592u);
 
   std::vector<double> levelX(levelN * levelP), levelY(levelN);
   for (double& v : levelX) v = runif01();
@@ -773,19 +775,19 @@ void runEnsembleTests() {
     levelY[i] = 2.0 * levelX[i] - levelX[i + levelN] * levelX[i + 2 * levelN] +
                 0.3 * (runif01() - 0.5);
 
-  SamplerOptions lawOptions;
-  lawOptions.numTrees = levelTrees;
-  lawOptions.levelGibbs = LevelGibbsMode::off;
-  ConstantLeafSampler lawSampler(levelX.data(), levelY.data(), levelN, levelP,
-                                 nullptr, nullptr, ResponseFamily::gaussian,
-                                 1.0, 3.0, 0.37804942330213542, lawOptions,
-                                 &lawRng);
-  lawSampler.run(levelBurnIn, 0, results);
+  SamplerOptions distOptions;
+  distOptions.numTrees = levelTrees;
+  distOptions.levelGibbs = LevelGibbsMode::off;
+  ConstantLeafSampler distSampler(levelX.data(), levelY.data(), levelN, levelP,
+                                  nullptr, nullptr, ResponseFamily::gaussian,
+                                  1.0, 3.0, 0.37804942330213542, distOptions,
+                                  &distRng);
+  distSampler.run(levelBurnIn, 0, results);
 
   std::vector<std::vector<double>> frozenMu(levelTrees);
   for (size_t t = 0; t < levelTrees; ++t)
-    frozenMu[t] = TestPeer::muByTree(lawSampler.chain(0), t);
-  LevelLaw law = levelLawOf(lawSampler, levelTrees);
+    frozenMu[t] = TestPeer::muByTree(distSampler.chain(0), t);
+  LevelDistribution dist = levelDistributionOf(distSampler, levelTrees);
 
   LevelMoments moments(levelTrees);
   std::vector<double> shift(levelTrees, 0.0);
@@ -793,16 +795,16 @@ void runEnsembleTests() {
   bool everyDrawEligible = true;
   for (size_t draw = 0; draw < levelDraws; ++draw) {
     for (size_t t = 0; t < levelTrees; ++t)
-      TestPeer::muByTree(lawSampler.chain(0), t) = frozenMu[t];
+      TestPeer::muByTree(distSampler.chain(0), t) = frozenMu[t];
     everyDrawEligible = everyDrawEligible &&
-      TestPeer::drawLevelShift(lawSampler.chain(0), shift.data());
+      TestPeer::drawLevelShift(distSampler.chain(0), shift.data());
     double total = 0.0;
     for (size_t t = 0; t < levelTrees; ++t) total += shift[t];
     worstSum = std::max(worstSum, std::fabs(total));
     moments.add(shift);
   }
   for (size_t t = 0; t < levelTrees; ++t)
-    TestPeer::muByTree(lawSampler.chain(0), t) = frozenMu[t];
+    TestPeer::muByTree(distSampler.chain(0), t) = frozenMu[t];
 
   check(everyDrawEligible, "the frozen forest is eligible on every draw");
   char what[160];
@@ -811,7 +813,7 @@ void runEnsembleTests() {
   check(worstSum < levelSumTolerance, what);
 
   double worstMeanZ = 0.0, worstCovZ = 0.0;
-  moments.score(law, worstMeanZ, worstCovZ);
+  moments.score(dist, worstMeanZ, worstCovZ);
   std::snprintf(what, sizeof what,
                 "the shift's mean matches its conditional (worst z %.3g)",
                 worstMeanZ);
@@ -829,7 +831,7 @@ void runEnsembleTests() {
   for (size_t draw = 0; draw < 1000; ++draw) {
     double total = 0.0;
     for (size_t t = 0; t < levelTrees; ++t)
-      total += law.mean[t] + std::sqrt(law.variance[t]) * standardNormal();
+      total += dist.mean[t] + std::sqrt(dist.variance[t]) * standardNormal();
     poisonWorstSum = std::max(poisonWorstSum, std::fabs(total));
   }
   std::snprintf(what, sizeof what,
@@ -843,20 +845,20 @@ void runEnsembleTests() {
   // one - so the covariance score must still PASS while the mean score fails.
   LevelMoments poisoned(levelTrees);
   double sumVariance = 0.0;
-  for (size_t t = 0; t < levelTrees; ++t) sumVariance += law.variance[t];
+  for (size_t t = 0; t < levelTrees; ++t) sumVariance += dist.variance[t];
   for (size_t draw = 0; draw < levelDraws; ++draw) {
     double total = 0.0;
     for (size_t t = 0; t < levelTrees; ++t) {
-      shift[t] = std::sqrt(law.variance[t]) * standardNormal();
+      shift[t] = std::sqrt(dist.variance[t]) * standardNormal();
       total += shift[t];
     }
     double ratio = total / sumVariance;
     for (size_t t = 0; t < levelTrees; ++t)
-      shift[t] -= law.variance[t] * ratio;
+      shift[t] -= dist.variance[t] * ratio;
     poisoned.add(shift);
   }
   double poisonMeanZ = 0.0, poisonCovZ = 0.0;
-  poisoned.score(law, poisonMeanZ, poisonCovZ);
+  poisoned.score(dist, poisonMeanZ, poisonCovZ);
   std::snprintf(what, sizeof what,
                 "poison (ii), no prior mean: the mean fails (z %.3g)",
                 poisonMeanZ);
@@ -866,7 +868,7 @@ void runEnsembleTests() {
                 "(z %.3g)", poisonCovZ);
   check(poisonCovZ < levelZThreshold, what);
 
-  ext_rng_destroy(lawRng);
+  ext_rng_destroy(distRng);
 
   runForestRescaleTests();
 

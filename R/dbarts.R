@@ -2279,12 +2279,15 @@ reportLeafPrior <- function(sampler, raw, index) {
 ## force is kept until the next draw.
 writeLeafPrior <- function(sampler, ptr, newModel) {
   oldModel <- sampler$model
-  sameLaw <- identical(newModel@leaf.hyperprior, oldModel@leaf.hyperprior)
-  if (sameLaw && !is.na(newModel@prior.scale)) {
+  sameHyperprior <- identical(
+    newModel@leaf.hyperprior,
+    oldModel@leaf.hyperprior
+  )
+  if (sameHyperprior && !is.na(newModel@prior.scale)) {
     .Call(C_dbarts_bartcore_setLeafPrior, ptr, 0L, namedLeafSd(newModel))
     return(invisible(NULL))
   }
-  if (sameLaw && is.na(oldModel@prior.scale)) {
+  if (sameHyperprior && is.na(oldModel@prior.scale)) {
     return(invisible(NULL))
   }
   sigmas <- .Call(C_dbarts_bartcore_getSigmas, ptr)

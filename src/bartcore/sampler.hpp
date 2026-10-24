@@ -2655,7 +2655,7 @@ public:
     return chains_[chainNum]->shape();
   }
   /// Whether the response family carries a residual df nu; chain 0 answers for
-  /// all, as every chain carries the same error law.
+  /// all, as every chain carries the same error distribution.
   bool carriesResidualDf() const { return chains_[0]->carriesResidualDf(); }
   bool testFitsAreDefined() const {
     return chains_[0]->testFitsAreDefined();

@@ -877,7 +877,10 @@ if (poison == 0L) {
   reportFamily(
     confirmResult,
     sprintf(
-      "confirmation arm, within-variable cut law (m = %d, Holm at alpha %.2f)",
+      paste0(
+        "confirmation arm, within-variable cut distribution ",
+        "(m = %d, Holm at alpha %.2f)"
+      ),
       nrow(confirmResult),
       familyAlpha
     )

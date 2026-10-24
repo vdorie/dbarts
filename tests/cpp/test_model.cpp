@@ -776,9 +776,9 @@ static void testVarianceForestRefusal() {
                         3.0, 0.378, options, rngs) == nullptr,
           "variance forest refused for a latent family");
   }
-  // a Student-t error law reports the gaussian family, so the refusal keys on
-  // the residual df: the scale-mixture augmentation and the variance forest
-  // route through the same weight channel
+  // a Student-t error distribution reports the gaussian family, so the
+  // refusal keys on the residual df: the scale-mixture augmentation and the
+  // variance forest route through the same weight channel
   options.residualDf = 5.0;
   check(createSampler(x.data(), y.data(), n, p, nullptr, nullptr,
                       ResponseFamily::gaussian, 1.0, 3.0, 0.378, options, rngs)
@@ -5083,7 +5083,7 @@ static void testGPLeafMarginal() {
 }
 
 // Zero-weight members have infinite noise variance: they contribute no
-// likelihood and their draws follow the conditional law given the
+// likelihood and their draws follow the conditional distribution given the
 // positive-weight rows. The marginal must equal a leaf holding exactly
 // the positive rows, bitwise.
 static void testGPLeafZeroWeights(ext_rng* rng) {
@@ -6376,7 +6376,7 @@ static void testAFTCensoredMoments(ext_rng* rng) {
   // A row the status setter NEWLY censors is truncated at its OWN observed
   // log-time, not at the bound of the row that left the censored set. The two
   // are far apart on this fixture, so the pre-flip bound is a visibly
-  // different law and the negative arm below says so.
+  // different distribution and the negative arm below says so.
   const size_t m3 = 5;
   std::vector<double> logTime3 = {0.2, 0.5, 1.0, 1.5, 2.0};
   std::vector<double> status3 = {1.0, 1.0, 0.0, 1.0, 1.0};  // index 2 censored
@@ -7129,10 +7129,11 @@ static void testOrdinalTruncatedNormal(ext_rng*) {
 // incremental two-category acceptance the sampler forms equals a full
 // all-category log-likelihood-plus-log-prior difference (a direct evaluation).
 // Then, holding (y, eta) fixed, the gamma_2 draws from repeated refreshLatents
-// form a Markov chain whose stationary law is the exact 1-D posterior p(gamma_2)
-// proportional to prod_i (Phi-difference) times the log-gap prior with its
-// Jacobian; the sampler's posterior mean/variance and a coarse histogram match a
-// fine-grid quadrature of it. Local generator, restored global rngState.
+// form a Markov chain whose stationary distribution is the exact 1-D posterior
+// p(gamma_2) proportional to prod_i (Phi-difference) times the log-gap prior
+// with its Jacobian; the sampler's posterior mean/variance and a coarse
+// histogram match a fine-grid quadrature of it. Local generator, restored
+// global rngState.
 static void testOrdinalThresholdConditional(ext_rng*) {
   std::uint64_t savedRngState = rngState;
   const std::size_t n = 10, K = 3;
@@ -8991,8 +8992,9 @@ static void testNBStateRoundTrip() {
   for (std::size_t i = 0; i < n; ++i) {
     for (std::size_t j = 0; j < p; ++j) x[i + j * n] = runif01();
     double f = 1.2 * (x[i] - 0.5) - 0.6 * (x[i + n] - 0.5);
-    // a moderate mean count; the data law is immaterial to a state round trip,
-    // only non-negative integrality matters, so a crude count around mu suffices
+    // a moderate mean count; the data distribution is immaterial to a state
+    // round trip, only non-negative integrality matters, so a crude count
+    // around mu suffices
     y[i] = std::floor(3.0 * std::exp(f) + 2.0 * runif01());
   }
 

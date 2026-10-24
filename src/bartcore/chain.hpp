@@ -114,8 +114,9 @@ struct SamplerOptions {
   bool useQuantiles = false;
 
   // The four engine limits a caller may move (dbartsControl's settings of the
-  // same names). Only the first is proposal law: moving it moves the draws,
-  // and the other three are time or memory against byte-identical results.
+  // same names). Only the first changes the proposal distribution: moving it
+  // moves the draws, and the other three are time or memory against
+  // byte-identical results.
   //
   // Present-category count above which grow-from-root's exact partition
   // enumeration gives way to the sorted prefixes; rides the scan scratch from
@@ -281,7 +282,7 @@ struct SamplerOptions {
   // continuous (gaussian family) responses only: a finite residualDf selects
   // Student-t errors via the scale-mixture augmentation (TResponse) - a
   // positive value fixes nu, <= 0 estimates it on the grid; NaN (default)
-  // and +Inf keep the Gaussian law. Non-gaussian
+  // and +Inf keep Gaussian errors. Non-gaussian
   // families ignore it (the bridge refuses the combination host-side).
   double residualDf = std::numeric_limits<double>::quiet_NaN();
 
@@ -502,10 +503,10 @@ struct Results {
   double* shape = nullptr;
   // per-draw Student-t residual degrees of freedom nu, numSamples, or null;
   // filled only when the response family carriesResidualDf() (a Student-t error
-  // law). A pure read of state the sweep already settled on - a fixed nu repeats
-  // the installed value, an estimated nu reports that sweep's grid draw - so the
-  // channel consumes no rng. Every other error law leaves it null and allocates
-  // nothing.
+  // distribution). A pure read of state the sweep already settled on - a fixed
+  // nu repeats the installed value, an estimated nu reports that sweep's grid
+  // draw - so the channel consumes no rng. Every other error distribution
+  // leaves it null and allocates nothing.
   double* residualDf = nullptr;
   // heteroscedastic variance surface s^2(x), original response scale, or null:
   // varianceFits is numObservations x numSamples, varianceTestFits is
@@ -795,8 +796,8 @@ double sliceFromZero(ext_rng* rng, const LogDensity& logDensity, double width,
 }
 
 /// Bank count of the fused roll + node-average suffstat pass. K fixes the
-/// summation order and so is part of the draw law: a knob here would mean the
-/// package has no single law, with every baseline and every bug report
+/// summation order and so is part of the draw rule: a knob here would mean the
+/// package has no single rule, with every baseline and every bug report
 /// conditional on it. Measured: K = 1 loses (the single-accumulator FP
 /// dependency chain), K = 4 is green on both architectures.
 constexpr std::size_t fusedSuffstatBanks = 4;
@@ -1023,9 +1024,9 @@ public:
         std::make_unique<LogisticResponse>(y, offset, weights, numObservations);
       break;
     case ResponseFamily::gaussian:
-      // a finite residualDf selects the Student-t scale-mixture error law
-      // (TResponse: > 0 fixes nu, <= 0 estimates it on the grid); NaN and Inf
-      // keep the Gaussian law
+      // a finite residualDf selects the Student-t scale-mixture error
+      // distribution (TResponse: > 0 fixes nu, <= 0 estimates it on the grid);
+      // NaN and Inf keep the Gaussian distribution
       if (std::isfinite(options.residualDf))
         response_ = std::make_unique<TResponse>(
           y, offset, weights, numObservations, sigmaEstimate, sigmaDf,
@@ -1181,7 +1182,7 @@ public:
     options_.predictors = {};
     // The families the coupling is built for, EVERY enumerator listed and no
     // default arm: a family added without an arm here must fail the build
-    // rather than silently acquire the gaussian law. aft, ordinal and nbinom
+    // rather than silently acquire the gaussian arm. aft, ordinal and nbinom
     // cannot arrive - every creation route refuses them ahead of this - and
     // share gaussian's arm only because there is no response of theirs to
     // build. Not lifted out of the single-forest constructor's six-arm switch:
@@ -1446,7 +1447,8 @@ public:
   /// (options.shape > 0) or redrawn on the grid every sweep.
   double shape() const { return response_->shape(); }
   /// Whether the response family carries a residual df nu (a Student-t error
-  /// law) - the gate the recorded df channel and the serialized state share.
+  /// distribution) - the gate the recorded df channel and the serialized state
+  /// share.
   bool carriesResidualDf() const { return response_->carriesResidualDf(); }
   /// Whether the recorded test-fit channel carries a defined value: true off any
   /// combiner (single forest) and for a combiner that blends a test surface
@@ -2684,8 +2686,8 @@ public:
   static constexpr int priorTreeDrawMaxAttempts = 10000;
 
   /// Replace every tree's structure with a draw from the tree prior over the
-  /// current cut grid - the law the move kernels price, so the CGM prior
-  /// CONDITIONED on carrying no empty leaf - and return the forest to the
+  /// current cut grid - the distribution the move kernels price, so the CGM
+  /// prior CONDITIONED on carrying no empty leaf - and return the forest to the
   /// zero-fit state a freshly constructed chain carries: every tree's leaf
   /// parameters are zero, hence every tree's fit is identically zero,
   /// totalFits and totalTestFits are zero, and the constant leaf's obs-to-leaf
@@ -2733,7 +2735,7 @@ public:
         // instead of removing it. The retry is WHOLE-TREE because the
         // conditioning tilts every draw the recursion made, the parent's rule
         // included; regrowing only the offending subtree would leave that rule
-        // at its unconditioned law. The predicate is the veto's own,
+        // at its unconditioned distribution. The predicate is the veto's own,
         // membership: the conditioning event reads the predictors alone, so
         // it is the same for every forest and under every weight vector and
         // mask, an all-zero one included.
@@ -2931,13 +2933,12 @@ public:
   /// find it, so before this there was no path to a prior-drawn s(x) at all.
   /// A homoscedastic chain has nothing to draw and returns.
   ///
-  /// Both halves are the sweep's own laws. The structure is the CGM prior
-  /// CONDITIONED on carrying no empty leaf, drawn by whole-tree rejection on
-  /// membership - the same predicate the variance moves veto on - under
-  /// sampleTreesFromPrior's attempt cap. The leaf factors are
-  /// ConstantVarianceLeaf's
-  /// prior draw, the chi^-2(nu', lambda'^2) the per-tree calibration states,
-  /// one per bottom.
+  /// Both halves are the sweep's own distributions. The structure is the CGM
+  /// prior CONDITIONED on carrying no empty leaf, drawn by whole-tree
+  /// rejection on membership - the same predicate the variance moves veto on -
+  /// under sampleTreesFromPrior's attempt cap. The leaf factors are
+  /// ConstantVarianceLeaf's prior draw, the chi^-2(nu', lambda'^2) the
+  /// per-tree calibration states, one per bottom.
   ///
   /// The rebuild is what Chain::setState's validation demands of live variance
   /// state: every leaf a positive scale and every bottom occupied. factorByTree
@@ -4026,7 +4027,7 @@ public:
       // a scale leaf's default is the MULTIPLICATIVE identity 1.0, not the
       // mean side's additive 0.0: predictVarianceFromSavedSample forms s^2 as
       // a product, so a 0-valued unwritten slot annihilates it and reports
-      // s(x) == 0 - and a 0 leaf fails the positivity law state validation
+      // s(x) == 0 - and a 0 leaf fails the positivity rule state validation
       // applies to every saved variance tree
       FlatNode identity;
       identity.value = 1.0;
@@ -7411,7 +7412,7 @@ private:
   ///              quarter of the window of width one a response with no
   ///              spread there is scaled by
   ///   probit   - 1, the standard normal link's error sd
-  ///   logistic - pi/sqrt(3), the logistic law's standard deviation
+  ///   logistic - pi/sqrt(3), the logistic distribution's standard deviation
   ///
   /// A latent family's anchor is a CONSTANT rather than a statistic of y. The
   /// empirical alternative - the sample sd of the cold-start working response -
@@ -7421,12 +7422,12 @@ private:
   /// demands. It also agrees with 1.0 at p = 0.5 up to a Bessel factor, which
   /// is why a balanced fixture cannot see it.
   ///
-  /// The logistic constant is the LOGISTIC LAW's standard deviation, not a
+  /// The logistic constant is the LOGISTIC DISTRIBUTION's sd, not a
   /// property of the augmentation: the engine samples that family through
   /// Polya-Gamma, whose working residual sd at psi = 0 is 2 (omega = 1/4), not
-  /// 1.8138. pi/sqrt(3) is the sd of the law the log-odds index is stated
-  /// against, and is what makes the single-forest default node scale three of
-  /// these units in both binary families.
+  /// 1.8138. pi/sqrt(3) is the sd of the distribution the log-odds index is
+  /// stated against, and is what makes the single-forest default node scale
+  /// three of these units in both binary families.
   double latentScaleAnchor(ResponseFamily family) const {
     switch (family) {
     case ResponseFamily::probit: return 1.0;

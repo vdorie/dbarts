@@ -434,7 +434,7 @@ buildDesign <- function(spec, seed = 11L) {
   }
   names(trees) <- vapply(trees, `[[`, "", "key")
   # "leaf" divides by Z_T, "joint" does not
-  lawOf <- function(normalized) {
+  pmfOf <- function(normalized) {
     logW <- vapply(
       trees,
       function(tr) {
@@ -445,16 +445,16 @@ buildDesign <- function(spec, seed = 11L) {
       },
       0
     )
-    law <- exp(logW - max(logW))
-    law / sum(law)
+    pmf <- exp(logW - max(logW))
+    pmf / sum(pmf)
   }
   list(
     spec = spec,
     x = x,
     y = y,
     trees = trees,
-    law = lawOf(TRUE),
-    laws = list(leaf = lawOf(TRUE), joint = lawOf(FALSE)),
+    pmf = pmfOf(TRUE),
+    pmfs = list(leaf = pmfOf(TRUE), joint = pmfOf(FALSE)),
     residVar = residVar
   )
 }
@@ -1005,8 +1005,8 @@ prototypeKeys <- function(
 # distribution pooled into the omitted reference cell, Hotelling T^2 on the
 # rest.
 testGroups <- function(design, chains, label) {
-  law <- design$law
-  keys <- names(law)
+  pmf <- design$pmf
+  keys <- names(pmf)
   groupOf <- if (identical(design$spec$groups, "all")) {
     function(k) rep("all", length(k))
   } else {
@@ -1025,11 +1025,11 @@ testGroups <- function(design, chains, label) {
     if (!length(inGroup)) {
       next
     }
-    lawG <- ifelse(group == g, law, 0)
-    lawG <- lawG / sum(lawG)
-    kept <- which(lawG >= 0.002)
-    if (length(kept) == sum(lawG > 0)) {
-      kept <- kept[-which.min(lawG[kept])]
+    pmfG <- ifelse(group == g, pmf, 0)
+    pmfG <- pmfG / sum(pmfG)
+    kept <- which(pmfG >= 0.002)
+    if (length(kept) == sum(pmfG > 0)) {
+      kept <- kept[-which.min(pmfG[kept])]
     }
     nb <- 50L
     means <- do.call(
@@ -1051,13 +1051,13 @@ testGroups <- function(design, chains, label) {
         )
       })
     )
-    diff <- colMeans(means) - lawG[kept]
+    diff <- colMeans(means) - pmfG[kept]
     # floored at the iid multinomial variance, so a kept cell no chain
     # visited counts against the sampler rather than making T2 singular
     nGroup <- sum(lengths(inGroup))
     covMean <- cov(means) /
       nrow(means) +
-      diag(lawG[kept] * (1 - lawG[kept]) / nGroup, length(kept))
+      diag(pmfG[kept] * (1 - pmfG[kept]) / nGroup, length(kept))
     t2 <- drop(crossprod(diff, solve(covMean, diff)))
     p <- length(kept)
     nbt <- nrow(means)
@@ -1156,7 +1156,7 @@ compareUnnormalized <- function(name) {
     0
   )
   logZ <- vapply(trees, `[[`, 0, "logZ")
-  unnorm <- design$law * exp(logZ - max(logZ))
+  unnorm <- design$pmf * exp(logZ - max(logZ))
   unnorm <- unnorm / sum(unnorm)
   summ <- function(w) {
     sprintf(
@@ -1174,9 +1174,9 @@ compareUnnormalized <- function(name) {
 ",
     name,
     length(trees),
-    summ(design$law),
+    summ(design$pmf),
     summ(unnorm),
-    sum(abs(design$law - unnorm)) / 2
+    sum(abs(design$pmf - unnorm)) / 2
   ))
 }
 
@@ -1228,7 +1228,7 @@ anyFailure <- FALSE
 for (prior in priors) {
   for (name in chosen) {
     design <- buildDesign(designs[[name]])
-    design$law <- design$laws[[prior]]
+    design$pmf <- design$pmfs[[prior]]
     cat(sprintf(
       "%s: %d structures, %s draws over %d chains (%s, prior \"%s\")\n",
       name,

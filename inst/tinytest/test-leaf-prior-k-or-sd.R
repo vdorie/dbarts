@@ -9,7 +9,7 @@
 hex <- function(value) sprintf("%a", value)
 inputsOf <- function(model) {
   hyperprior <- model@leaf.hyperprior
-  law <- if (is(hyperprior, "dbartsChiHyperprior")) {
+  hyperKey <- if (is(hyperprior, "dbartsChiHyperprior")) {
     c(
       "chi",
       hex(hyperprior@degreesOfFreedom),
@@ -18,7 +18,7 @@ inputsOf <- function(model) {
   } else {
     c("fixed", hex(hyperprior@k))
   }
-  c(if (is.na(model@prior.scale)) "NA" else hex(model@prior.scale), law)
+  c(if (is.na(model@prior.scale)) "NA" else hex(model@prior.scale), hyperKey)
 }
 
 set.seed(1L)

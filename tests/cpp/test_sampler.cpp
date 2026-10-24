@@ -244,7 +244,7 @@ static void testGatherTailShapes(ext_rng* rng) {
 }
 
 // The fused suffstat's K banks combine strictly left to right,
-// ((b0 + b1) + b2) + b3, which is part of the draw law rather than an
+// ((b0 + b1) + b2) + b3, which is part of the draw rule rather than an
 // implementation detail. These banks discriminate: 1e-16 is below half an ulp
 // of 1.0 (2.22e-16), so left to right each small term rounds away and the sum
 // is exactly 1.0, while any pairwise regrouping sums the three small terms
@@ -2948,7 +2948,7 @@ static void testActiveRows() {
 // leaves leaves no likelihood term reaches, which are legal. The forest must
 // keep moving there (the promise setActiveRows makes: it sits at its PRIOR,
 // which is a distribution, not a freeze) and must never install a member-empty
-// leaf while it does - the state law export and restore require.
+// leaf while it does - the state rule export and restore require.
 static void testActiveRowsOnGrownForest() {
   const size_t n = 300, numSamples = 4;
   std::vector<double> x, y;
@@ -3005,7 +3005,7 @@ static void testActiveRowsOnGrownForest() {
   for (double v : sigma) finite = finite && v > 0.0;
   check(finite, "a fully masked grown forest reports finite draws throughout");
 
-  // the state law is what export and restore gate on, and it still holds
+  // the state rule is what export and restore gate on, and it still holds
   SamplerStateData state;
   sampler.getState(state);
   ext_rng* rng2 = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
@@ -10822,7 +10822,7 @@ static void testBasisColumnScale() {
 /// N(0, 1) and starting at 1 where drawn, held at 1, and with no sd stated
 /// one unit for one standard deviation of the column. A default fit is the
 /// same fit whatever the column's units.
-static void testNumericMultiplierLaw() {
+static void testNumericMultiplierRule() {
   std::uint64_t state = 20261020u;
   auto unif = [&]() {
     state ^= state << 13; state ^= state >> 7; state ^= state << 17;
@@ -12270,7 +12270,7 @@ void runSamplerTests(ext_rng* rng) {
   testHeldCoefficients();
   testRelativeRowBound();
   testBasisColumnScale();
-  testNumericMultiplierLaw();
+  testNumericMultiplierRule();
   testForestSdUnit();
   testBCFCalibrationMap();
 }

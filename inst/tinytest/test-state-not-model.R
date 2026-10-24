@@ -103,7 +103,7 @@ storeWriteRestore(
   function() make(leaf.prior = normal(sd = 1)),
   function(s) s$setLeafPrior(normal(sd = 0.3))
 )
-storeWriteRestore("sd law", function() make(), function(s) {
+storeWriteRestore("sd hyperprior", function() make(), function(s) {
   s$setLeafPrior(normal(sd = invchi(3, 0.5)))
 })
 storeWriteRestore(
@@ -353,7 +353,7 @@ acrossUnits <- function(
 acrossUnits("k-named", list())
 acrossUnits("sd-named", list(leaf.prior = normal(sd = 1)))
 acrossUnits("drawn k", list(leaf.prior = normal(k = chi(1.5, 2))))
-acrossUnits("sd law", list(leaf.prior = normal(sd = invchi(3, 1))))
+acrossUnits("sd hyperprior", list(leaf.prior = normal(sd = invchi(3, 1))))
 acrossUnits("linear", list(leaf.prior = linear("x2")))
 acrossUnits("monotone", list(monotone = c(1L, 0L, 0L)))
 acrossUnits("gp", list(leaf.prior = gp("x2")), stretched, centred, FALSE)

@@ -841,7 +841,7 @@ resolveSamplerSpec <- function(
   # gaussian response carries them (the binary families and aft have their own
   # latent scale), refused here R-side to match the C bridge's backstop. The
   # resolved degrees of freedom ride the model's resid.df attribute the bridge
-  # reads - the bartcore.survival precedent above - absent for the Gaussian law.
+  # reads - the bartcore.survival precedent above - absent for Gaussian errors.
   # NA in the settings means estimate, which the bridge spells 0.
   if (!is.null(residDf) && family != "gaussian") {
     stop(
@@ -1169,11 +1169,11 @@ resolveSamplerSpec <- function(
     # The amplitude chain builds every forest from its own calibration map (fixed
     # k = 1, leaf scales from the family's own latent scale) and reads neither
     # the DART machinery, the split probabilities, the monotone directions, a
-    # non-constant leaf, a variance forest, an fp32
-    # residual, a per-column cut cap, nor the Student-t error law. Every one of
-    # those would otherwise be dropped in silence, changing the fitted model
-    # without a word; name each one instead. 'proposal.probs' is NOT among them:
-    # the chain carries the control's mixture onto every forest it builds, so a
+    # non-constant leaf, a variance forest, an fp32 residual, a per-column cut
+    # cap, nor the Student-t error distribution. Every one of those would
+    # otherwise be dropped in silence, changing the fitted model without a
+    # word; name each one instead. 'proposal.probs' is NOT among them: the
+    # chain carries the control's mixture onto every forest it builds, so a
     # coupling honors it rather than dropping it.
     unsupported <- c(
       "a DART tree prior" = is(priors$tree.prior, "dbartsDartPrior"),

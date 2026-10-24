@@ -587,8 +587,8 @@ double totalVariation(const std::vector<double>& p,
 // grow 2e5 roots against it, and check the realized frequencies.
 // `missingResponse` is the common response the missing rows carry, so their
 // weighted sum of squares is numMissing * missingResponse^2 - the dose.
-double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
-                                double alpha) {
+double measureOrdinalMissingDistribution(double missingResponse,
+                                         size_t numDraws, double alpha) {
   const size_t n = 64, numMissing = 8;
   const double k = 2.0, sigma = 0.9;
   double residualVariance = sigma * sigma;
@@ -720,35 +720,38 @@ double measureOrdinalMissingLaw(double missingResponse, size_t numDraws,
   printf("    no-split probability: exact %.5f dropped %.5f halved %.5f, "
          "realized %.5f\n", exact[0], dropped[0], halved[0],
          shippedCounts[0] / total);
-  printf("    chi2 shipped draws vs exact law    %.2f (p %.3g)\n",
+  printf("    chi2 shipped draws vs exact distribution    %.2f (p %.3g)\n",
          x2ShippedVsExact, pValue(x2ShippedVsExact));
-  printf("    chi2 shipped draws vs dropped law  %.2f (p %.3g)\n",
+  printf("    chi2 shipped draws vs dropped distribution  %.2f (p %.3g)\n",
          x2ShippedVsDropped, pValue(x2ShippedVsDropped));
-  printf("    chi2 shipped draws vs halved law   %.2f (p %.3g)\n",
+  printf("    chi2 shipped draws vs halved distribution   %.2f (p %.3g)\n",
          x2ShippedVsHalved, pValue(x2ShippedVsHalved));
-  printf("    chi2 exact draws vs exact law      %.2f (p %.3g)\n",
+  printf("    chi2 exact draws vs exact distribution      %.2f (p %.3g)\n",
          x2ExactVsExact, pValue(x2ExactVsExact));
   printf("    total variation dropped-exact %.5f; smallest expected cell "
          "%.0f\n", distance, minExpected);
 
   check(minExpected >= 100.0,
-        "every cell of the exact law is measurable at this draw count");
+        "every cell of the exact distribution is measurable at this draw "
+        "count");
   // the calibration control: the chi-square is calibrated at this cell count
   // and draw count
   check(pValue(x2ExactVsExact) >= alpha,
-        "the exact law's own draws match it (chi-square calibration)");
+        "the exact distribution's own draws match it (chi-square "
+        "calibration)");
   // the measurement: a candidate carries its missing rows into the child its
   // own direction names, so the realized distribution is the exact
   // distribution on the full rule set and neither of the distributions that
   // drop those rows from a split likelihood
   check(pValue(x2ShippedVsExact) >= alpha,
-        "realized root rules match the exact law over the enumerated rules");
+        "realized root rules match the exact distribution over the enumerated "
+        "rules");
   check(pValue(x2ShippedVsDropped) < alpha,
-        "the realized law is not the one that drops the missing rows from a "
-        "split likelihood");
+        "the realized distribution is not the one that drops the missing rows "
+        "from a split likelihood");
   check(pValue(x2ShippedVsHalved) < alpha,
-        "the realized law is not the one that also halves the candidate to one "
-        "of its two rules");
+        "the realized distribution is not the one that also halves the "
+        "candidate to one of its two rules");
   return distance;
 }
 
@@ -756,19 +759,21 @@ void testOrdinalMissingRowsAreRouted() {
   const size_t numDraws = 200000;
   const double alpha = 1e-3;
   printf("  ordinal missing-row routing, swept in the omitted sum of squares\n");
-  double floorDistance = measureOrdinalMissingLaw(0.0, numDraws, alpha);
-  double loadedDistance = measureOrdinalMissingLaw(2.0, numDraws, alpha);
+  double floorDistance =
+    measureOrdinalMissingDistribution(0.0, numDraws, alpha);
+  double loadedDistance =
+    measureOrdinalMissingDistribution(2.0, numDraws, alpha);
   // the dose-response the defect was monotone in, pinned at both ends: the
   // dropped distribution's distance from the exact one is the missing rows'
   // never- inflated child precision at the floor and grows with their weighted
   // sum of squares, while the realized distribution sits on the exact one
   // throughout
   checkNear(floorDistance, 0.01691, 1e-3,
-            "the dropped law's floor is the child precision those rows never "
-            "inflated");
+            "the dropped distribution's floor is the child precision those "
+            "rows never inflated");
   checkNear(loadedDistance, 0.59012, 1e-3,
-            "the dropped law's distance grows with the missing rows' weighted "
-            "sum of squares");
+            "the dropped distribution's distance grows with the missing rows' "
+            "weighted sum of squares");
   printf("ok: grow ordinal missing rows routed into a named child\n");
 }
 
@@ -806,7 +811,7 @@ void categoryBinsFromRaw(const ColumnStore& store, size_t variable,
   }
 }
 
-void testCategoricalExactDrawLaw() {
+void testCategoricalExactDrawDistribution() {
   const size_t n = 64, numDraws = 200000;
   const std::uint32_t numLevels = 4;
   const double alpha = 1e-3, k = 2.0, sigma = 0.9;
@@ -863,7 +868,7 @@ void testCategoricalExactDrawLaw() {
     logWeight[mask] =
       std::log(growth) + logRule + marginal(left) + marginal(right);
   }
-  std::vector<double> law(normalizedFromLogWeights(logWeight));
+  std::vector<double> dist(normalizedFromLogWeights(logWeight));
 
   std::vector<double> counts(numCells, 0.0), control(numCells, 0.0);
   size_t offGauge = 0;
@@ -885,38 +890,41 @@ void testCategoricalExactDrawLaw() {
   }
   // the calibration control: the distribution's own draws, same cell and count
   for (size_t draw = 0; draw < numDraws; ++draw)
-    control[ext_rng_drawFromDiscreteDistribution(rng, law.data(), numCells)] +=
+    control[ext_rng_drawFromDiscreteDistribution(rng, dist.data(), numCells)] +=
       1.0;
   ext_rng_destroy(rng);
 
   double total = static_cast<double>(numDraws);
   double df = static_cast<double>(numCells - 1);
-  double x2Grown = chiSquareStatistic(counts, law, total);
-  double x2Control = chiSquareStatistic(control, law, total);
+  double x2Grown = chiSquareStatistic(counts, dist, total);
+  double x2Control = chiSquareStatistic(control, dist, total);
   double minExpected = total;
-  for (double probability : law)
+  for (double probability : dist)
     if (total * probability < minExpected) minExpected = total * probability;
 
   printf("  categorical exact branch, P = R = %u, %zu cells, df %.0f, %zu "
          "grows\n", numLevels, numCells, df, numDraws);
-  printf("    no-split probability: law %.5f realized %.5f; smallest expected "
-         "cell %.0f\n", law[0], counts[0] / total, minExpected);
-  printf("    chi2 grown root rules vs the exact CGM law %.2f (p %.3g)\n",
-         x2Grown, chiSquareUpperTail(x2Grown, df));
-  printf("    chi2 the law's own draws vs itself       %.2f (p %.3g)\n",
-         x2Control, chiSquareUpperTail(x2Control, df));
+  printf("    no-split probability: exact %.5f realized %.5f; smallest "
+         "expected cell %.0f\n", dist[0], counts[0] / total, minExpected);
+  printf("    chi2 grown root rules vs the exact CGM distribution %.2f "
+         "(p %.3g)\n", x2Grown, chiSquareUpperTail(x2Grown, df));
+  printf("    chi2 the distribution's own draws vs itself         %.2f "
+         "(p %.3g)\n", x2Control, chiSquareUpperTail(x2Control, df));
 
   check(offGauge == 0,
         "every grown root mask is a non-degenerate assignment of the four "
         "categories");
   check(minExpected >= 20.0,
-        "every cell of the exact law is measurable at this draw count");
+        "every cell of the exact distribution is measurable at this draw "
+        "count");
   check(chiSquareUpperTail(x2Control, df) >= alpha,
-        "the exact law's own draws match it (chi-square calibration)");
+        "the exact distribution's own draws match it (chi-square "
+        "calibration)");
   check(chiSquareUpperTail(x2Grown, df) >= alpha,
-        "grown categorical root rules follow the exact CGM law at P = R");
+        "grown categorical root rules follow the exact CGM distribution at "
+        "P = R");
 
-  printf("ok: grow categorical exact-branch draw law\n");
+  printf("ok: grow categorical exact-branch draw distribution\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -928,7 +936,7 @@ void testCategoricalExactDrawLaw() {
 // the sort order, so the test rebuilds that order from the raw rows: a wrong
 // key, a wrong tie-break or a prefix decode that disagrees with the assembly
 // all move the realized mask frequencies.
-void testCategoricalPrefixDrawLaw() {
+void testCategoricalPrefixDrawDistribution() {
   const size_t n = 120, numDraws = 200000;
   const std::uint32_t numLevels = 12;
   const double alpha = 1e-3, k = 2.0, sigma = 0.9;
@@ -1009,7 +1017,7 @@ void testCategoricalPrefixDrawLaw() {
     cellMask[1 + 2 * c] = prefix;
     cellMask[2 + 2 * c] = complement;
   }
-  std::vector<double> law(normalizedFromLogWeights(logWeight));
+  std::vector<double> dist(normalizedFromLogWeights(logWeight));
 
   std::vector<double> counts(numCells, 0.0), control(numCells, 0.0);
   size_t unexpectedMask = 0;
@@ -1032,38 +1040,41 @@ void testCategoricalPrefixDrawLaw() {
     counts[cell] += 1.0;
   }
   for (size_t draw = 0; draw < numDraws; ++draw)
-    control[ext_rng_drawFromDiscreteDistribution(rng, law.data(), numCells)] +=
+    control[ext_rng_drawFromDiscreteDistribution(rng, dist.data(), numCells)] +=
       1.0;
   ext_rng_destroy(rng);
 
   double total = static_cast<double>(numDraws);
   double df = static_cast<double>(numCells - 1);
-  double x2Grown = chiSquareStatistic(counts, law, total);
-  double x2Control = chiSquareStatistic(control, law, total);
+  double x2Grown = chiSquareStatistic(counts, dist, total);
+  double x2Control = chiSquareStatistic(control, dist, total);
   double minExpected = total;
-  for (double probability : law)
+  for (double probability : dist)
     if (total * probability < minExpected) minExpected = total * probability;
 
   printf("  categorical prefix branch, P = R = %u over a cap of %zu, %zu "
          "cells, df %.0f, %zu grows\n", numLevels, categoricalExhaustiveCap,
          numCells, df, numDraws);
-  printf("    no-split probability: law %.5f realized %.5f; smallest expected "
-         "cell %.0f\n", law[0], counts[0] / total, minExpected);
-  printf("    chi2 grown root rules vs the prefix law %.2f (p %.3g)\n",
-         x2Grown, chiSquareUpperTail(x2Grown, df));
-  printf("    chi2 the law's own draws vs itself      %.2f (p %.3g)\n",
-         x2Control, chiSquareUpperTail(x2Control, df));
+  printf("    no-split probability: prefix %.5f realized %.5f; smallest "
+         "expected cell %.0f\n", dist[0], counts[0] / total, minExpected);
+  printf("    chi2 grown root rules vs the prefix distribution %.2f "
+         "(p %.3g)\n", x2Grown, chiSquareUpperTail(x2Grown, df));
+  printf("    chi2 the distribution's own draws vs itself      %.2f "
+         "(p %.3g)\n", x2Control, chiSquareUpperTail(x2Control, df));
 
   check(unexpectedMask == 0,
         "every grown root mask is a sorted prefix or its complement");
   check(minExpected >= 20.0,
-        "every cell of the prefix law is measurable at this draw count");
+        "every cell of the prefix distribution is measurable at this draw "
+        "count");
   check(chiSquareUpperTail(x2Control, df) >= alpha,
-        "the prefix law's own draws match it (chi-square calibration)");
+        "the prefix distribution's own draws match it (chi-square "
+        "calibration)");
   check(chiSquareUpperTail(x2Grown, df) >= alpha,
-        "grown categorical root rules follow the mass-spread prefix law");
+        "grown categorical root rules follow the mass-spread prefix "
+        "distribution");
 
-  printf("ok: grow categorical prefix-branch draw law\n");
+  printf("ok: grow categorical prefix-branch draw distribution\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -1512,7 +1523,7 @@ void testCategoricalGrowHonorsInteraction() {
 // multiplies every split candidate by 1/2 relative to no-split - which is
 // what the second reference distribution below is, and what the chi-square
 // must reject.
-void testConditionalLawBelowRoot() {
+void testConditionalDistributionBelowRoot() {
   const size_t n = 512, numDraws = 60000;
   const double alpha = 1e-3, k = 2.0, sigma = 0.9;
   double residualVariance = sigma * sigma;
@@ -1626,20 +1637,25 @@ void testConditionalLawBelowRoot() {
   for (double probability : exact) minExpected = std::min(minExpected,
                                                           total * probability);
 
-  printf("  depth-1 conditional law, %zu cells, %zu draws: no-split exact "
-         "%.5f global %.5f realized %.5f\n", numCells, numDraws, exact[0],
-         global[0], realized[0] / total);
-  printf("    p(realized vs exact) %.3g, p(realized vs numPredictors law) "
-         "%.3g, p(control) %.3g\n", vsExact, vsGlobal, calibration);
+  printf("  depth-1 conditional distribution, %zu cells, %zu draws: no-split "
+         "exact %.5f global %.5f realized %.5f\n", numCells, numDraws,
+         exact[0], global[0], realized[0] / total);
+  printf("    p(realized vs exact) %.3g, p(realized vs numPredictors "
+         "distribution) %.3g, p(control) %.3g\n", vsExact, vsGlobal,
+         calibration);
   check(minExpected >= 100.0,
-        "every cell of the conditional law is measurable at this draw count");
+        "every cell of the conditional distribution is measurable at this "
+        "draw count");
   check(calibration >= alpha,
-        "the conditional law's own draws match it (chi-square calibration)");
+        "the conditional distribution's own draws match it (chi-square "
+        "calibration)");
   check(vsExact >= alpha,
-        "realized child rules match the exact law over the available variable");
+        "realized child rules match the exact distribution over the "
+        "available variable");
   check(vsGlobal < alpha,
-        "the realized law is not the one normalizing over every predictor");
-  printf("ok: grow conditional law below the root\n");
+        "the realized distribution is not the one normalizing over every "
+        "predictor");
+  printf("ok: grow conditional distribution below the root\n");
 }
 
 // Grow-from-root's root draw on a weighted column: each cut's prior is its
@@ -1730,11 +1746,11 @@ void runGrowTests(ext_rng* rng) {
   testGrowThenContinue(rng);
   testGrowHonorsInteraction();
   testOrdinalMissingRowsAreRouted();
-  testCategoricalExactDrawLaw();
-  testCategoricalPrefixDrawLaw();
+  testCategoricalExactDrawDistribution();
+  testCategoricalPrefixDrawDistribution();
   testCategoricalGroupMassClosedForm();
   testCategoricalGrowGaugeAndCoins();
   testCategoricalGrowHonorsInteraction();
-  testConditionalLawBelowRoot();
+  testConditionalDistributionBelowRoot();
   testWeightedGrowDistribution();
 }

@@ -428,7 +428,10 @@ gewekeColumns <- function(first, second) {
 
 gewekeReportProbe <- function(label, probe, elapsed) {
   cat(sprintf(
-    "\n%s prior probe (sigma pinned at %g) | %d draws per law | %.1fs\n",
+    paste0(
+      "\n%s prior probe (sigma pinned at %g) | %d draws per distribution | ",
+      "%.1fs\n"
+    ),
     label,
     flatSigma,
     nProbe,
@@ -632,9 +635,9 @@ if (poison != "none") {
 }
 if (probeFire) {
   cat(
-    "\nFAIL: sampleTreesFromPrior's forest law and the law the sweep holds\n",
-    "under a flat likelihood are not the same prior, so a tree-shaped fire\n",
-    "above is that inconsistency and not the sweep\n",
+    "\nFAIL: sampleTreesFromPrior's forest distribution and the distribution\n",
+    "the sweep holds under a flat likelihood are not the same prior, so a\n",
+    "tree-shaped fire above is that inconsistency and not the sweep\n",
     sep = ""
   )
   quit(status = 1L)

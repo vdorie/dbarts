@@ -9,8 +9,8 @@
 #
 # Grow-from-root is deliberately NOT refused: it composes through the combiner
 # inside its own sweep and its two-forest branch is covered from R
-# (test-prior-init-composed-law.R) and in tests/cpp, so the arms below pin that
-# it still runs at two forests rather than that it errors.
+# (test-prior-init-composed-distribution.R) and in tests/cpp, so the arms
+# below pin that it still runs at two forests rather than that it errors.
 
 source(
   system.file("common", "captureWarnings.R", package = "dbarts"),

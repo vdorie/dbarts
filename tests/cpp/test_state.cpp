@@ -3215,8 +3215,8 @@ static void testVarianceForestPriorDraw() {
   // the leaf half is ConstantVarianceLeaf's own prior. One tree and a tree
   // prior that never grows leaves a bare root, so each draw IS one leaf factor
   // h ~ chi^-2(nu, lambda^2) at the m = 1 calibration (nu = sigmaDf, lambda^2 =
-  // initialVariance * rawScale). Score the reciprocal, whose law is exactly
-  // chisq(nu) / (nu lambda^2): mean 1 / lambda^2 and variance 2 / (nu
+  // initialVariance * rawScale). Score the reciprocal, whose distribution is
+  // exactly chisq(nu) / (nu lambda^2): mean 1 / lambda^2 and variance 2 / (nu
   // lambda^4), so the Monte Carlo error of the mean is known in closed form
   // and the bound below is five standard errors rather than a guess.
   auto flat = makeSampler(5151, 1, 0.0);
@@ -3583,7 +3583,7 @@ static void testVarianceWarmStartSlot() {
         "variance slot warm start: a stride the live block contradicts is "
         "refused");
 
-  // the positivity law the saved buffer is held to on the state side: a zero
+  // the positivity rule the saved buffer is held to on the state side: a zero
   // scale leaf annihilates the product a rebuild forms
   SamplerStateData nonPositive = donorState;
   nonPositive.chains[0].savedVarianceTrees[0].back().value = 0.0;

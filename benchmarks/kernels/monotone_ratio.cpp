@@ -84,7 +84,8 @@ static double logExtensions(const Order& pred, double cap, double* downSets) {
 // Every layer, with forward counts f(D) (orders of D) and backward counts g(D)
 // (linear extensions of the rest): P(x at position i) sums f(D) g(D + x) over
 // the down-sets D of size i that x can extend.
-static std::vector<double> positionLaw(const Order& pred, int x, double* ds) {
+static std::vector<double> positionDistribution(const Order& pred, int x,
+                                                double* ds) {
   int n = (int) pred.size();
   std::vector<std::unordered_map<u128, std::pair<double, double>, Hash>> layer(
     n + 1);
@@ -108,13 +109,13 @@ static std::vector<double> positionLaw(const Order& pred, int x, double* ds) {
       kv.second.second = g;
     }
   double e = layer[0].begin()->second.second;
-  std::vector<double> law(n, 0.0);
+  std::vector<double> dist(n, 0.0);
   for (int k = 0; k < n; ++k)
     for (const auto& kv : layer[k])
       if (!has(kv.first, x) && !(pred[x] & ~kv.first))
-        law[k] += kv.second.first *
+        dist[k] += kv.second.first *
                   layer[k + 1].find(kv.first | one(x))->second.second / e;
-  return law;
+  return dist;
 }
 
 // Down-sets by branching on one element (in or out), memoized on what is
@@ -370,10 +371,10 @@ int main(int argc, char** argv) {
       // C2, and the share of riffles that put the one just before the
       // other
       n2 = (int) comps[k2].size();
-      std::vector<double> p1 = positionLaw(restrict(U, comps[k1]),
-                                           at(comps[k1], c1), &D1);
-      std::vector<double> p2 = positionLaw(restrict(U, comps[k2]),
-                                           at(comps[k2], c2), &D2);
+      std::vector<double> p1 = positionDistribution(restrict(U, comps[k1]),
+                                                    at(comps[k1], c1), &D1);
+      std::vector<double> p2 = positionDistribution(restrict(U, comps[k2]),
+                                                    at(comps[k2], c2), &D2);
       double theta = 0.0;
       for (int i = 1; i <= n1; ++i)
         for (int j = 1; j <= n2; ++j)

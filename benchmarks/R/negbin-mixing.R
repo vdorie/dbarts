@@ -280,6 +280,8 @@ if (sys.nframe() == 0L) {
     quit(status = 1L)
   }
   cat(
-    "\nOK: the shape moves and the chains agree on it, and the predictive law covers fresh counts\n"
+    "\nOK: the shape moves and the chains agree on it, and the predictive ",
+    "distribution covers fresh counts\n",
+    sep = ""
   )
 }

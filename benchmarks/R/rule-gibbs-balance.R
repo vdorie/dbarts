@@ -973,7 +973,11 @@ if (poison == 0L) {
   ))
   confirmOk <- !any(confirmResult$rejected)
 } else {
-  cat("\n  confirmation arm skipped: the poison arms score the prior law\n")
+  cat(
+    "\n  confirmation arm skipped: ",
+    "the poison arms score the prior distribution\n",
+    sep = ""
+  )
 }
 
 # ---- verdict ----
