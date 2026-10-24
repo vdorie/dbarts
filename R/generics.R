@@ -555,14 +555,11 @@ weightsNotOneColumn <- function(weights) {
   length(dim(weights)) > 2L || NCOL(weights) != 1L
 }
 
-## the replacement weights for the training rows, checked as the weights of
-## newdata are: one value or one per row, and then only a posterior predictive
-## draw looks at the values, by the family's check. A missing one is its row's
-## na.action to answer (trainingRowsAnswered), which has filled it by here. A
-## type that reads no weight takes whatever else the shape allows and gets NULL
-## back, the fit's own weights standing.
-trainingRowWeights <- function(object, weights, type) {
-  nObs <- numTrainingRows(object)
+## the form of the weights given for the training rows, as the weights of
+## newdata are held to one: one value or one per row, a vector or a one-column
+## matrix. Asked before a missing value is answered, so that a malformed value
+## is refused as malformed whatever na.action says.
+refuseTrainingRowWeightsForm <- function(nObs, weights) {
   if (
     !is.atomic(weights) ||
       weightsNotOneColumn(weights) ||
@@ -575,6 +572,18 @@ trainingRowWeights <- function(object, weights, type) {
       call. = FALSE
     )
   }
+  invisible(NULL)
+}
+
+## the replacement weights for the training rows, checked as the weights of
+## newdata are: the form, and then only a posterior predictive draw looks at
+## the values, by the family's check. A missing one is its row's na.action to
+## answer (trainingRowsAnswered), which has filled it by here. A type that
+## reads no weight takes whatever else the shape allows and gets NULL back, the
+## fit's own weights standing.
+trainingRowWeights <- function(object, weights, type) {
+  nObs <- numTrainingRows(object)
+  refuseTrainingRowWeightsForm(nObs, weights)
   if (type != "ppd") {
     return(NULL)
   }
@@ -768,8 +777,7 @@ trainingChannelIncomplete <- function(value, nObs, argument) {
 ## same hint, na.pass returns the row with NA draws, na.omit drops it,
 ## na.exclude pads it and na.fail refuses. The rows have no predictors to
 ## route, so the resolver is given none. NULL where no row is incomplete and
-## every row stands; otherwise the record padPredictedRows reads, 'full' for a
-## result computed on every row.
+## every row stands; otherwise the record padPredictedRows reads.
 trainingRowsAnswered <- function(nObs, na.action, offset, weights) {
   extra <- list()
   for (name in c("offset", "weights")) {
@@ -795,13 +803,11 @@ trainingRowsAnswered <- function(nObs, na.action, offset, weights) {
   if (is.null(resolved)) {
     return(NULL)
   }
-  rows <- keptRowsRecord(resolved, NULL)
-  rows$full <- TRUE
-  rows
+  keptRowsRecord(resolved, NULL)
 }
 
-## a channel with its missing values set to 'fill', a number a row set aside by
-## na.action is computed with and then replaced by NA or cut from the result
+## a channel with its missing values set to 'fill', the stand-in a row na.action
+## sets aside is carried at until it is cut from what is drawn
 fillMissingChannel <- function(value, fill) {
   if (is.null(value)) {
     return(NULL)
@@ -810,20 +816,66 @@ fillMissingChannel <- function(value, fill) {
   value
 }
 
-## a result computed on every training row with the rows na.action set aside
-## replaced by NA or cut from it. The observation margin is the first ('first')
-## or the one 'trailing' places before the last.
-maskTrainingRows <- function(x, rows, trailing = 0L, first = FALSE) {
-  if (is.null(rows)) {
-    return(x)
+## the fit with the per-row channels a draw reads cut to the training rows
+## 'index', so that what is drawn from it is drawn for those rows alone, as at
+## newdata, where only the rows na.action keeps are predicted and drawn. The
+## observation margin is the last of a channel, the one before the last for the
+## category probabilities of an ordinal or multinomial fit and for forestFits.
+withTrainingRowsKept <- function(object, index) {
+  nObs <- trainingRowCount(object)
+  cutRows <- function(x, trailing) {
+    d <- dim(x)
+    indices <- rep(list(quote(expr = )), length(d))
+    indices[[length(d) - trailing]] <- index
+    do.call(`[`, c(list(x), indices, list(drop = FALSE)))
   }
-  d <- dim(x)
-  rows$names <- if (is.null(d)) {
-    names(x)
-  } else {
-    dimnames(x)[[if (first) 1L else length(d) - trailing]]
+  trailing <- c(
+    yhat.train = trainingRowMargin(object),
+    latent.train = 0L,
+    s.train = 0L,
+    forestFits = 1L
+  )
+  for (name in names(trailing)) {
+    if (!is.null(object[[name]])) {
+      object[[name]] <- cutRows(object[[name]], trailing[[name]])
+    }
   }
-  padPredictedRows(x, rows, trailing = trailing, first = first)
+  if (length(object[["weights"]]) == nObs) {
+    object[["weights"]] <- object[["weights"]][index]
+  }
+  # a count-matrix response, whose trials a multinomial draw reads
+  y <- object[["y"]]
+  if (!is.null(y) && NROW(y) == nObs) {
+    object[["y"]] <- if (is.null(dim(y))) y[index] else y[index, , drop = FALSE]
+  }
+  object
+}
+
+## the margins after the observation margin of a fit's category probabilities:
+## one for an ordinal or multinomial fit, whose last margin is its categories
+trainingRowMargin <- function(object) {
+  if (inherits(object, c("bartOrdinal", "bartMultinomial"))) 1L else 0L
+}
+
+## whether the draws a call at the training rows returns keep the category
+## margin after the observation margin: the probabilities of an ordinal or
+## multinomial fit, and the counts a multinomial fit on a count matrix draws, one
+## vector of counts per row. The posterior predictive category of a fit on a
+## factor is one number per draw and row.
+trainingResultHasCategories <- function(object, type) {
+  trainingRowMargin(object) == 1L &&
+    (type == "ev" ||
+      (type == "ppd" &&
+        inherits(object, "bartMultinomial") &&
+        !is.factor(object[["y"]])))
+}
+
+## the names of the training rows on the observation margin of a channel
+trainingRowNames <- function(x, trailing) {
+  if (is.null(x)) {
+    return(NULL)
+  }
+  dimnames(x)[[length(dim(x)) - trailing]]
 }
 
 ## the number of training rows, whatever margin a family puts its categories on
@@ -857,12 +909,11 @@ trainingRowDraws <- function(
   if (!is.null(offset) || !is.null(weights) || !is.null(bases)) {
     refuseWithoutTrainingDraws(object)
   }
-  rows <- trainingRowsAnswered(
-    trainingRowCount(object),
-    na.action,
-    offset,
-    weights
-  )
+  nObs <- trainingRowCount(object)
+  if (!is.null(weights)) {
+    refuseTrainingRowWeightsForm(nObs, weights)
+  }
+  rows <- trainingRowsAnswered(nObs, na.action, offset, weights)
   if (!is.null(rows)) {
     offset <- fillMissingChannel(offset, 0)
     weights <- fillMissingChannel(weights, 1)
@@ -877,6 +928,23 @@ trainingRowDraws <- function(
   if (!is.null(weights)) {
     source[["weights"]] <- weights
   }
+  # as at newdata, only the rows na.action keeps are read and drawn; the rest
+  # are set to NA or left out after. With none kept one row stands in, as at
+  # newdata, and what it draws is discarded with the random stream put back
+  if (!is.null(rows)) {
+    rows$names <- trainingRowNames(
+      source$yhat.train,
+      trainingRowMargin(source)
+    )
+    source <- withTrainingRowsKept(
+      source,
+      if (rows$placeholder) 1L else which(rows$keep)
+    )
+    if (rows$placeholder) {
+      restoreSeed <- protectRandomSeed()
+      on.exit(restoreSeed(), add = TRUE)
+    }
+  }
   result <- extractMethod(
     source,
     type = type,
@@ -886,10 +954,13 @@ trainingRowDraws <- function(
   if (!is.null(ci.level)) {
     result <- posteriorInterval(result, ci.level, trailing = trailing)
   }
-  maskTrainingRows(
+  if (is.null(rows)) {
+    return(result)
+  }
+  padPredictedRows(
     result,
     rows,
-    trailing = trailing - 1L,
+    trailing = if (trainingResultHasCategories(source, type)) 1L else 0L,
     first = !is.null(ci.level)
   )
 }
@@ -1085,29 +1156,30 @@ predict.bart <- function(
       }
       # the arm reads no weight, but a row whose weight is missing is
       # answered by na.action here as at newdata
-      rows <- trainingRowsAnswered(
-        numTrainingRows(object),
-        na.action,
-        NULL,
-        weights
-      )
-      if (!is.null(rows)) {
-        weights <- fillMissingChannel(weights, 1)
-      }
+      nObs <- numTrainingRows(object)
       if (!is.null(weights)) {
-        trainingRowWeights(object, weights, type)
+        refuseTrainingRowWeightsForm(nObs, weights)
       }
-      return(maskTrainingRows(
-        extract.bart(
+      rows <- trainingRowsAnswered(nObs, na.action, NULL, weights)
+      source <- object
+      if (!is.null(rows)) {
+        rows$names <- trainingRowNames(object$forestFits, 1L)
+        source <- withTrainingRowsKept(
           object,
-          type = "forest",
-          sample = "train",
-          combineChains = combineChains,
-          forest = forest
-        ),
-        rows,
-        trailing = 1L
-      ))
+          if (rows$placeholder) 1L else which(rows$keep)
+        )
+      }
+      result <- extract.bart(
+        source,
+        type = "forest",
+        sample = "train",
+        combineChains = combineChains,
+        forest = forest
+      )
+      if (is.null(rows)) {
+        return(result)
+      }
+      return(padPredictedRows(result, rows, trailing = 1L))
     }
     return(trainingRowDraws(
       object,

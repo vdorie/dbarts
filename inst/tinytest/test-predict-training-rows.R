@@ -865,40 +865,34 @@ for (name in names(actions)) {
     } else {
       expect_false(anyNA(got), info = name)
     }
-    # a posterior predictive draw: the rows set aside as at newdata, every
-    # other row the draw of a call that states the stand-ins
+    # a posterior predictive draw reads and draws only the rows na.action
+    # keeps, as at newdata, so under one seed it is the draw of the call at
+    # newdata with the same action, and with the rows left out it is the call at
+    # the kept rows of newdata
     given <- na.given[[label]]
-    stood <- lapply(given, function(value) replace(value, is.na(value), 1))
-    if (!is.null(stood$offset)) {
-      stood$offset <- replace(given$offset, is.na(given$offset), 0)
-    }
     ppd <- seeded(callOn(fit, given, type = "ppd", na.action = action))
-    whole <- seeded(callOn(fit, stood, type = "ppd"))
-    there <- callOn(fit, given, df, type = "ppd", na.action = action)
-    expect_identical(dim(ppd), dim(there), info = paste(name, label))
-    expect_identical(
-      which(colSums(is.na(ppd)) > 0L),
-      which(colSums(is.na(there)) > 0L),
+    expect_equal(
+      ppd,
+      seeded(callOn(fit, given, df, type = "ppd", na.action = action)),
       info = paste(name, label)
     )
-    expect_identical(
-      unname(ppd),
-      unname(
-        if (name == "omit") {
-          whole[, -aside]
-        } else {
-          replace(
-            whole,
-            cbind(
-              rep(seq_len(nrow(whole)), length(aside)),
-              rep(aside, each = nrow(whole))
-            ),
-            NA_real_
-          )
-        }
-      ),
-      info = paste(name, label)
-    )
+    kept <- setdiff(seq_len(n), aside)
+    atKept <- seeded(callOn(
+      fit,
+      lapply(given, function(value) value[kept]),
+      df[kept, ],
+      type = "ppd"
+    ))
+    if (name == "omit") {
+      expect_equal(ppd, atKept, info = paste(name, label))
+    } else {
+      expect_equal(
+        unname(ppd[, kept]),
+        unname(atKept),
+        info = paste(name, label)
+      )
+      expect_true(all(is.na(ppd[, aside])), info = paste(name, label))
+    }
   }
 }
 
@@ -935,7 +929,8 @@ expect_identical(
   dim(predict(fit, offset = na.o, ci.level = 0.9, na.action = na.omit)),
   c(n - 2L, 3L)
 )
-# na.action is not looked at where nothing is missing, as at newdata: a call
+# na.action is not looked at where nothing is missing, as predict.lm with no
+# newdata does not look at it (at newdata it is resolved on every call): a call
 # with a complete offset and weights is what it was, and a name that is no
 # function is not asked about
 expect_identical(
@@ -944,6 +939,34 @@ expect_identical(
 )
 expect_identical(predict(fit, na.action = na.omit), predict(fit))
 expect_identical(predict(fit.h, na.action = na.omit), predict(fit.h))
+expect_identical(predict(fit, na.action = "nonexistent"), predict(fit))
+expect_identical(
+  predict(fit, offset = new.off, weights = 2, na.action = "nonexistent"),
+  predict(fit, offset = new.off, weights = 2)
+)
+expect_error(
+  predict(fit, df, na.action = "nonexistent"),
+  "nonexistent"
+)
+# and it is asked about once a value is missing
+expect_error(
+  predict(fit, offset = na.o, na.action = "nonexistent"),
+  "nonexistent"
+)
+# a malformed weight is refused as malformed whatever na.action says of the
+# missing value in it, in the words of the training rows
+for (malformed in list(
+  data.frame(w = c(NA, rep(1, n - 1L))),
+  list(NA),
+  matrix(c(NA, rep(1, 2L * n - 1L)), n, 2L)
+)) {
+  for (action in c(actions, list(default = NULL, fail = na.fail))) {
+    expect_identical(
+      messageOf(callOn(fit, list(weights = malformed), na.action = action)),
+      "'weights' must be one number or one per training row (50)"
+    )
+  }
+}
 # a weight of 0 and a missing weight are different rows: the first has NA
 # draws for want of a noise scale, the second is na.action's to answer
 w.zero.na <- rep(1, n)
@@ -971,26 +994,40 @@ for (action in actions) {
 counts.na <- n.trials
 counts.na[c(4L, 9L)] <- NA
 for (binary.fit in list(fit.p, fit.lg)) {
-  for (action in list(na.pass, na.omit)) {
+  for (action in list(na.pass, na.omit, na.exclude)) {
     got <- seeded(predict(
       binary.fit,
       weights = counts.na,
       type = "ppd",
       na.action = action
     ))
-    whole <- seeded(predict(
-      binary.fit,
-      weights = replace(counts.na, c(4L, 9L), 1),
-      type = "ppd"
-    ))
-    if (identical(action, na.pass)) {
-      expect_identical(unname(which(colSums(is.na(got)) > 0L)), c(4L, 9L))
-      expect_identical(got[, -c(4L, 9L)], whole[, -c(4L, 9L)])
+    # the draw of the call at newdata, which draws the kept rows alone
+    expect_equal(
+      got,
+      seeded(predict(
+        binary.fit,
+        df,
+        weights = counts.na,
+        type = "ppd",
+        na.action = action
+      ))
+    )
+    if (identical(action, na.omit)) {
+      expect_equal(
+        got,
+        seeded(predict(
+          binary.fit,
+          df[-c(4L, 9L), ],
+          weights = n.trials[-c(4L, 9L)],
+          type = "ppd"
+        ))
+      )
     } else {
-      expect_identical(got, whole[, -c(4L, 9L)])
+      expect_identical(unname(which(colSums(is.na(got)) > 0L)), c(4L, 9L))
     }
   }
 }
+
 # a count fit, an ordered response and an unordered one
 for (action in actions) {
   expect_equal(
@@ -1038,7 +1075,47 @@ for (action in actions) {
     predict(fit.mn, offset = na.cat, type = "class", na.action = action),
     predict(fit.mn, df, offset = na.cat, type = "class", na.action = action)
   )
+  # a posterior predictive draw of each of them reads and draws the kept rows
+  # alone, as at newdata
+  for (case in list(list(fit.ord, na.o), list(fit.mn, na.cat))) {
+    expect_equal(
+      seeded(predict(
+        case[[1L]],
+        offset = case[[2L]],
+        type = "ppd",
+        na.action = action
+      )),
+      seeded(predict(
+        case[[1L]],
+        df,
+        offset = case[[2L]],
+        type = "ppd",
+        na.action = action
+      ))
+    )
+  }
 }
+# a count fit's posterior predictive draw has a layout of its own at newdata
+# (the same call at newdata and with no newdata differ under one seed even with
+# nothing missing), so it is held to what its training rows do: the kept rows
+# alone are drawn, the same draws under each action
+nb.pass <- seeded(predict(
+  fit.nb,
+  offset = na.o,
+  type = "ppd",
+  na.action = na.pass
+))
+nb.omit <- seeded(predict(
+  fit.nb,
+  offset = na.o,
+  type = "ppd",
+  na.action = na.omit
+))
+expect_identical(dim(nb.omit), c(20L, n - 2L))
+expect_identical(unname(which(colSums(is.na(nb.pass)) > 0L)), na.rows$offset)
+expect_identical(unname(nb.pass[, -na.rows$offset]), unname(nb.omit))
+expect_false(anyNA(nb.omit))
+expect_true(all(nb.omit == round(nb.omit)))
 expect_true(all(is.na(
   predict(fit.mn, offset = na.cat, type = "class", na.action = na.pass)[c(
     5L,
@@ -1061,38 +1138,111 @@ for (refused.fit in list(fit.p, fit.nb, fit.ord, fit.mn)) {
   ))
 }
 # a heteroscedastic, a Student-t and an aft fit draw a row's noise from its
-# weight: the rows set aside have NA draws, as at newdata, and the rest are the
-# draws that a call stating the stand-in weight makes
+# weight: the rows set aside have NA draws, as at newdata, and under one seed
+# the rest are the draws of the call at newdata (a heteroscedastic call at
+# newdata also carries the scale s(x) as an attribute, which the training rows
+# never did)
 for (family.fit in list(fit.stu, fit.het, fit.aft)) {
-  for (action in list(na.pass, na.omit)) {
+  for (action in list(na.pass, na.omit, na.exclude)) {
     got <- seeded(predict(
       family.fit,
       weights = na.w,
       type = "ppd",
       na.action = action
     ))
-    whole <- seeded(predict(
-      family.fit,
-      weights = replace(na.w, is.na(na.w), 1),
-      type = "ppd"
-    ))
-    there <- predict(
+    there <- seeded(predict(
       family.fit,
       x,
       weights = na.w,
       type = "ppd",
       na.action = action
-    )
+    ))
     expect_identical(dim(got), dim(there))
+    expect_equal(got, there, check.attributes = FALSE)
     expect_identical(
       unname(which(colSums(is.na(got)) > 0L)),
       unname(which(colSums(is.na(there)) > 0L))
     )
-    expect_equal(
-      unname(got[, colSums(is.na(got)) == 0L]),
-      unname(whole[,
-        if (identical(action, na.omit)) -c(3L, 7L) else -c(3L, 7L)
-      ])
-    )
   }
+}
+
+# a multinomial fit on a count matrix draws, at its training rows, a vector of
+# counts with each row's own trials: the rows kept are drawn with their own
+# trials and the rows set aside are not drawn
+trials.n <- rep_len(2:6, n)
+counts.n <- t(vapply(
+  seq_len(n),
+  function(i) rmultinom(1L, trials.n[i], c(0.5, 0.3, 0.2))[, 1L],
+  integer(3L)
+))
+fit.counts <- quick(x, counts.n, family = "multinomial")
+off.counts <- matrix(0, n, 3L)
+off.counts[c(4L, 9L), 2L] <- NA
+omitted <- seeded(predict(
+  fit.counts,
+  offset = off.counts,
+  type = "ppd",
+  na.action = na.omit
+))
+expect_identical(dim(omitted)[2L], n - 2L)
+expect_identical(
+  unname(apply(omitted, c(1L, 2L), sum)),
+  matrix(trials.n[-c(4L, 9L)], dim(omitted)[1L], n - 2L, byrow = TRUE)
+)
+passed <- seeded(predict(
+  fit.counts,
+  offset = off.counts,
+  type = "ppd",
+  na.action = na.pass
+))
+expect_identical(unname(which(apply(is.na(passed), 2L, any))), c(4L, 9L))
+expect_identical(unname(passed[, -c(4L, 9L), ]), unname(omitted))
+
+# the case the review found: 40 rows, a missing weight at rows 3 and 7, one seed
+df.40 <- df[1:40, c("a", "b", "c", "y")]
+fit.40 <- quick(y ~ a + b + c, df.40)
+w.40 <- runif(40L, 0.5, 3)
+w.40[c(3L, 7L)] <- NA
+ok.40 <- !is.na(w.40)
+at.kept <- seeded(
+  predict(
+    fit.40,
+    df.40[ok.40, ],
+    weights = w.40[ok.40],
+    type = "ppd"
+  ),
+  10L
+)
+expect_equal(
+  seeded(
+    predict(fit.40, weights = w.40, type = "ppd", na.action = na.omit),
+    10L
+  ),
+  at.kept
+)
+expect_equal(
+  seeded(
+    predict(fit.40, df.40, weights = w.40, type = "ppd", na.action = na.omit),
+    10L
+  ),
+  at.kept
+)
+for (action in list(na.pass, na.exclude)) {
+  expect_equal(
+    seeded(
+      predict(fit.40, weights = w.40, type = "ppd", na.action = action),
+      10L
+    ),
+    seeded(
+      predict(fit.40, df.40, weights = w.40, type = "ppd", na.action = action),
+      10L
+    )
+  )
+  expect_equal(
+    unname(seeded(
+      predict(fit.40, weights = w.40, type = "ppd", na.action = action),
+      10L
+    )[, ok.40]),
+    unname(at.kept)
+  )
 }

@@ -102,9 +102,13 @@ na.keepPredictors(object, \dots)
   \code{na.action} above governs it as it does at \code{newdata}, the
   default and \code{na.fail} refusing it, \code{na.pass} returning the row
   with \code{NA} draws, and \code{na.omit} and \code{na.exclude} dropping
-  it, \code{na.exclude} padding it back. The row is computed at a stand-in
-  value and then set aside, so the other rows are what they would be without
-  the missing one, and a single missing value is always an error. The sampler's own
+  it, \code{na.exclude} padding it back. Only the rows \code{na.action} keeps
+  are read and drawn, as at \code{newdata}, so under one seed a posterior
+  predictive draw is that of the call at \code{newdata} with the same action,
+  and with the rows dropped it is that of the call on the rows kept (a
+  negative binomial fit's counts are laid out differently at \code{newdata}
+  and with none, so their streams differ even with nothing missing), and a
+  single missing value is always an error. The sampler's own
   \code{predict}, \code{predictForests} and \code{getTrees} methods take no
   \code{na.action}, keep the default, and check no per-row
   \code{offset.test} for a missing value at all: an \code{NA} there reaches
