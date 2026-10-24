@@ -19,7 +19,7 @@ sweeps. The fitting functions
 [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) and
 [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) own their
 own loop and are not the surface for this; they return fit objects, and
-the R modelling accessors
+the R modeling accessors
 ([`fitted`](https://rdrr.io/r/stats/fitted.values.html),
 [`predict`](https://rdrr.io/r/stats/predict.html),
 [`extract`](https://vdorie.github.io/dbarts/reference/bartBT.md)) apply

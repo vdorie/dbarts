@@ -857,7 +857,7 @@ data or test data supplied during the initial fit.
 
 Using `predict` with a `bart` object requires that it be fitted with the
 option `keeptrees`/`keepTrees` as `TRUE`. Keeping the trees for a fit
-can require a sizeable amount of memory and is off by default.
+can require a sizable amount of memory and is off by default.
 
 All generics return values on the scale of expected value of the
 response by default. This means that `predict`, `extract`, and `fitted`
@@ -1369,7 +1369,7 @@ bartFit <- bartBT(x, y)
 #>  scale in sigma prior: 0.002181
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  level fibre gibbs step: auto
+#>  level fiber gibbs step: auto
 #>  proposal probabilities: birth/death 0.50, swap 0.10, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
@@ -1393,7 +1393,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.139576
+#> total seconds in loop: 0.135287
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

@@ -197,7 +197,7 @@ xbart(
   which should work across the most common operating system/hardware
   pairs, and is one where the cores cannot be counted; a stated `NA` is
   refused. Warnings raised while fitting or scoring, including by a
-  supplied `loss` function, are collected from every unit and signalled
+  supplied `loss` function, are collected from every unit and signaled
   in the calling session once all units have finished, in unit order and
   each distinct warning once, so the same warnings are seen at any
   `n.threads`.
@@ -243,16 +243,16 @@ xbart(
   are positive numbers and `k` hyperpriors
   ([`dbartsPriors`](https://vdorie.github.io/dbarts/reference/dbartsPriors.md)),
   so that `k = list(1, 2, chi())` sweeps two fixed values against the
-  modelled one. A modelled cell holds its hyperprior and DRAWS `k` every
+  modeled one. A modeled cell holds its hyperprior and DRAWS `k` every
   sweep, so its loss is computed under a shrinkage that moves within the
-  fit rather than under a named value; it is labelled in the result by
+  fit rather than under a named value; it is labeled in the result by
   the constructor call that rebuilds it. If `NULL`, one cell is run at
   the default
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) would fit
   for the response type: fixed 2 for a continuous response and
   `chi(1.5, 2)` for a binary one. A `k` carried by a supplied
   `leaf.prior` stands in for a missing argument. Fixed cells are always
-  swept largest to smallest, with a modelled cell last, and the reported
+  swept largest to smallest, with a modeled cell last, and the reported
   `k` axis is un-permuted back to the order given, so results do not
   depend on the order `k` is listed in; cells still warm-start off the
   previous one, so this is order-invariance, not an unbiased estimate
@@ -268,7 +268,7 @@ xbart(
   `invchi` priors. Each spread is held fixed across folds, where a `k`
   is relative to each fold's own training range; on a binary family,
   whose `k.scale` is a constant of the latent scale, a grid of fixed
-  cells is the same sweep either way (`sd = k.scale / k`); a modelled
+  cells is the same sweep either way (`sd = k.scale / k`); a modeled
   cell is not, since `invchi(df, c)` starts its chain at the spread `c`
   where `chi(df, k.scale / c)` starts at `k.scale / 2`. Those starts are
   the first cell's: each later cell of the warm sweep starts at the
@@ -276,7 +276,7 @@ xbart(
   is stated in. A `k` inside `leaf.prior` beside an `sd` grid is
   refused, as an `sd` there is beside either grid. The cells are swept
   most shrunk first - the smallest sd - with the warm starts and unit
-  parallelism the `k` grid has, and the result's axis is labelled `sd`.
+  parallelism the `k` grid has, and the result's axis is labeled `sd`.
 
 - power:
 
@@ -520,7 +520,7 @@ result collapses to a plain vector of length `n.reps`. When the result
 remains an array, its `dimnames` name the swept values on each surviving
 hyperparameter axis - exact integer labels for `n.trees`, values rounded
 to 2 significant digits for the double-valued `k`/`power`/`base` axes,
-and the constructor call for a modelled `k` cell; the `loss` axis, when
+and the constructor call for a modeled `k` cell; the `loss` axis, when
 present, carries no per-slot names, and neither does `rep`.
 
 For method `"k-fold"`, each element is an average across the \\K\\ fits.

@@ -2365,7 +2365,7 @@ n.test x n.chains matrix at `test = TRUE`. It is the mid-sweep read of
 the channels `run()` records as `variance` and `varianceTest`: at the
 state a recorded sweep left, the accessor and the channel agree exactly.
 What it reports is a VARIANCE, so a residual scale is its square root -
-it is the surface analogue of `getSigmas`, which reports the scalar
+it is the surface analog of `getSigmas`, which reports the scalar
 \\\sigma\\ a homoscedastic sampler carries. `NULL` where those channels
 report nothing: on a homoscedastic sampler, and at `test = TRUE` with no
 test rows installed. Unlike `predict`, which addresses the saved

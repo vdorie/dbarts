@@ -794,7 +794,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>  scale in sigma prior: 0.008161
 #>  power and base for tree prior: 2.000000 0.950000
 #>  use quantiles for rule cut points: false
-#>  level fibre gibbs step: auto
+#>  level fiber gibbs step: auto
 #>  proposal probabilities: birth/death 0.60, swap 0.00, change 0.40, perturb 0.00, rule_gibbs 0.00; birth 0.50
 #> data:
 #>  number of training observations: 100
@@ -809,7 +809,7 @@ fit <- bart(y ~ forest(x1 + x3) +
 #>   1 forest1: no basis; sd 2.278 (default)
 #>   2 scale(w): numeric basis, mean 0, sd 1, range -2.666 to 1.923; sd 1.139 per unit, 1.139 per sd (default)
 #> Running mcmc loop:
-#> total seconds in loop: 0.000480
+#> total seconds in loop: 0.000429
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 3 3 2 2 2 2 
