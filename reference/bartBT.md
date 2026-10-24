@@ -453,16 +453,18 @@ family(object, ...)
   rows' `"ppd"` draws, one value or one per training row, acting as they
   do at `newdata` for each family (see `type`); and `bases` replace the
   fit's own bases there (see `bases`). The offset and the weights are
-  checked against the number of training rows, one value or one per row
-  with none missing, and weights, here and at `newdata`, are a vector or
-  a one-column matrix, a matrix of several columns, a data frame or a
-  list being refused; `na.action` having no say among the fit's own
-  rows, a missing one is refused where `newdata` would answer it by
-  `na.action`. The weights' values are looked at, as at `newdata`, by a
-  `"ppd"` draw alone, which refuses those its family cannot take, and
-  any other type takes whatever they hold. The bases are checked as at
-  `newdata`. None needs saved trees, and a fit kept without its training
-  draws is refused by name.
+  checked against the number of training rows, one value or one per row,
+  and weights, here and at `newdata`, are a vector or a one-column
+  matrix, a matrix of several columns, a data frame or a list being
+  refused. A missing value in a per-row offset or weights is answered by
+  `na.action` exactly as at `newdata`: the default and `na.fail` refuse
+  it, `na.pass` returns that row with `NA` draws, `na.omit` drops the
+  row from the result and `na.exclude` pads it back as `NA`; a single
+  missing value is always refused. The weights' values are looked at, as
+  at `newdata`, by a `"ppd"` draw alone, which refuses those its family
+  cannot take, and any other type takes whatever they hold. The bases
+  are checked as at `newdata`. None needs saved trees, and a fit kept
+  without its training draws is refused by name.
 
 - offset:
 
@@ -666,7 +668,11 @@ family(object, ...)
   the list: for a Bayesian causal forest fit with its arm as
   `factor(z)`, `bases = factor(zstar, levels = levels(factor(z)))` is
   the counterfactual arm being predicted under, and `bases = fit$bases`
-  at the training rows is the training fit, to rounding. Unlike at fit
+  at the training rows is the training fit, to rounding. With no
+  `newdata` a `NULL` entry for a forest that carries a basis is refused,
+  as at `newdata`, since it does not stand for the fit's own; the
+  message names the way to keep the fit's own bases and change others,
+  `b <- fit$bases; b[[2]] <- z1; predict(fit, bases = b)`. Unlike at fit
   time, a column of all zeros on a forest of numbers and, on a forest of
   levels, a factor or a character vector with every row at one of the
   forest's levels are accepted, since a constant arm is the point of a
@@ -697,7 +703,8 @@ family(object, ...)
 - na.action:
 
   For `predict`: what to do with the rows of `newdata` that have missing
-  values; see ‘At Prediction’ in
+  values, and, with no `newdata`, the training rows whose per-row
+  `offset` or `weights` has one; see ‘At Prediction’ in
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - ci.level:
@@ -924,10 +931,16 @@ carry more than one); see
 
 The result of `extract` will be a data frame with columns:
 
-- `forest` - which forest the row belongs to, from 1; present only on a
-  fit with several forests (a `"bartMultinomial"` fit, or one declared
-  with `forests =`, whatever the count); a single-forest fit has no such
-  column, and still accepts `forest = 1`
+- `forest` - which forest the row belongs to, a factor whose levels are
+  the forests' labels in forest order (`forest<i>` for a forest with
+  none, as the fit's other per-forest results are named), so that
+  `trees$forest == "z"` selects a forest and `as.integer(trees$forest)`
+  gives its position, and the levels are all of the fit's forests
+  whichever the frame holds; present only on a fit with several forests
+  (a `"bartMultinomial"` fit, or one declared with `forests =`, whatever
+  the count); a single-forest fit has no such column, and still accepts
+  `forest = 1`. The sampler's own `getTrees` numbers the forests from 1
+  instead
 
 - `chain`, `sample`, `tree` - index variables; `chain` is always
   present, 1 on a single-chain fit, since tree draws cannot be combined
@@ -1380,7 +1393,7 @@ bartFit <- bartBT(x, y)
 #> iteration: 800 (of 1000)
 #> iteration: 900 (of 1000)
 #> iteration: 1000 (of 1000)
-#> total seconds in loop: 0.139027
+#> total seconds in loop: 0.174829
 #> 
 #> Tree sizes, last iteration:
 #> [1] 2 3 3 2 2 2 2 2 4 2 3 3 3 1 2 1 2 3 

@@ -68,7 +68,11 @@ present, the arguments `chainNums`, `sampleNums`, and/or `treeNums` can
 be used to extract only a subset of trees, and `forest` selects among a
 fit’s forests (a single index, a vector, or the default of every forest)
 on a fit with more than one, such as a Bayesian causal forest or a
-multinomial fit itself.
+multinomial fit itself. On such a fit the `forest` column of the result
+is a factor whose levels are the forests’ labels, in forest order
+(`forest1`, `forest2` and so on for a forest with none), so that
+`trees$forest == "z"` selects a forest and `as.integer(trees$forest)`
+gives its position.
 
 ``` r
 

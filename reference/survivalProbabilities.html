@@ -148,8 +148,12 @@ bart's four own-class fits (&quot;bartMultinomial&quot;,
   <dt id="arg-na-action">na.action<a class="anchor" aria-label="anchor" href="#arg-na-action"></a></dt>
 <dd><p>What to do with the subjects in <code>newdata</code> that have missing
     values, resolved per subject before a hazard fit's person-period
-    expansion; unused when <code>newdata</code> is <code>NULL</code>. See
-    ‘At Prediction’ in <code><a href="na.keepPredictors.html">na.keepPredictors</a></code>.</p></dd>
+    expansion. With no <code>newdata</code> it answers the subjects whose
+    <code>offset</code> has a missing value, as it does for the rows of
+    <code>newdata</code>: the default and <code>na.fail</code> refuse, <code>na.pass</code>
+    returns the subject with <code>NA</code> curves, <code>na.omit</code> drops it and
+    <code>na.exclude</code> pads it back; a single missing value is always an
+    error. See ‘At Prediction’ in <code><a href="na.keepPredictors.html">na.keepPredictors</a></code>.</p></dd>
 
   <dt id="arg-sample">sample<a class="anchor" aria-label="anchor" href="#arg-sample"></a></dt>
 <dd><p>Either <code>"train"</code> (the default) or <code>"test"</code>, as

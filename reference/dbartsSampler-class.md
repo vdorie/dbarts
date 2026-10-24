@@ -278,15 +278,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `bases`, having no forest to multiply them; make a new sampler from
   such data with
   [`dbarts`](https://vdorie.github.io/dbarts/reference/dbarts.md).
-  Columns are matched by name where the new data carry the sampler's
-  names, and by position otherwise; read by position, a name of the
-  sampler's in another place is refused, and the record takes the new
-  data's names, which `predict` then needs. A factor column is read by
-  label against the levels the sampler was created with, which it keeps:
-  fewer levels, the levels in another order and declared levels no row
-  has are taken, each row at its own label; a row, training or test, at
-  a label the sampler never had is refused by name, as `predict` refuses
-  one, and so is a factor column given as numbers with no level table. A
+  Columns are matched by name: the new data carry the sampler's names,
+  in any order, and names that are not the sampler's are refused, as
+  `predict` refuses them, leaving the sampler as it was. A matrix with
+  no column names is read by position, with no message, as is any data
+  handed to a sampler that has none, whose record then takes the data's
+  names, which `predict` needs; a sampler whose names repeat takes the
+  same names in the same places only. A factor column is read by label
+  against the levels the sampler was created with, which it keeps: fewer
+  levels, the levels in another order and declared levels no row has are
+  taken, each row at its own label; a row, training or test, at a label
+  the sampler never had is refused by name, as `predict` refuses one,
+  and so is a factor column given as numbers with no level table. A
   factor whose labels were changed on purpose is relabeled to the
   sampler's labels first, with `levels<-`, or given to a new sampler. A
   column that could hold missing values before the call still can, and
@@ -403,17 +406,20 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
 - x:
 
   For `setPredictor` with no `column`, the whole of the predictors: a
-  data frame, whose columns are matched to the sampler's by name when it
-  has them (else by position) and whose factor columns are coded by
-  label as a column update's are, or a numeric matrix, taken only where
-  every predictor column is numeric - on a sampler with a factor column
-  a matrix is refused by name, since its codes could not say which
-  values are labels. Otherwise, a numeric predictor vector of length
-  equal to that with which the sampler was created. Can be of a distinct
-  number of rows for `setTestPredictor`. A column update (`column`
-  given) on a column coded from a factor takes that column's labels
-  instead, for `setPredictor` and `setTestPredictor` alike: a factor,
-  character vector or
+  data frame, whose columns are matched to the sampler's by name, in any
+  order, a name that is not the sampler's being refused (a sampler with
+  no names reads them by position), and whose factor columns are coded
+  by label as a column update's are, or a numeric matrix, taken only
+  where every predictor column is numeric - on a sampler with a factor
+  column a matrix is refused by name, since its codes could not say
+  which values are labels. A matrix that carries column names is matched
+  by name as a frame is, and one with none is read by position, with no
+  message. Otherwise, a numeric predictor vector of length equal to that
+  with which the sampler was created. Can be of a distinct number of
+  rows for `setTestPredictor`. A column update (`column` given) on a
+  column coded from a factor takes that column's labels instead, for
+  `setPredictor` and `setTestPredictor` alike: a factor, character
+  vector or
   [`sparseFactor`](https://vdorie.github.io/dbarts/reference/sparseFactor.md),
   matched by label against the training levels, as a whole data-frame
   update is coded; several columns take a data frame. A label the column
@@ -480,8 +486,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   not changed, and neither is a test offset, a cut point, a covariate
   standardization or the residual prior. Nothing is taken again by a
   one-forest `probit`, `ordinal`, `logistic` or `hazard` sampler, which
-  accepts the argument and ignores it, unless it has `gp` leaves holding
-  saved draws, which refuse it as below. A call refused for any reason
+  accepts the argument and ignores it, also with `gp` leaves holding
+  saved draws, none of which it moves. A call refused for any reason
   installs nothing; a call that keeps the scale (below) installs the
   weights or the mask. A stored state does not undo a re-derivation, and
   with `updateState` resolving to `TRUE` the state is stored after it.
@@ -492,15 +498,18 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   draws included, so `predict` returns the values it returned before the
   call; the current fit follows the new scale. `TRUE` is refused by a
   sampler with Gaussian-process (`gp`) leaves that holds saved draws,
-  whatever the new response, offset, weights or mask, and whatever the
-  family: make a new sampler, or leave `updateScale` at `FALSE`. A draw
-  is saved by every sweep run as a sample while trees are kept, warm-up
-  sweeps included, so such a sampler takes a re-anchor during burn-in
-  only as long as its sweeps are run as burn-in, which saves nothing:
-  `run(1, 0)` between re-anchors, not `run(0, 1)`. For a survival
-  (`aft`) sampler the scale is always that of the observed times, a
-  censored row's censoring time among them, and never of a time the
-  sampler has drawn for a censored row. `TRUE` is refused by a
+  whatever the new response, offset, weights or mask, where its family
+  has a scale to re-derive (`gaussian`, `student`, `aft` and `nbinom`):
+  make a new sampler, or leave `updateScale` at `FALSE`. A `probit`,
+  `logistic` or `ordinal` sampler has none, so it takes `TRUE` as it
+  takes it in `setData`, and its saved draws predict what they did. A
+  draw is saved by every sweep run as a sample while trees are kept,
+  warm-up sweeps included, so such a sampler takes a re-anchor during
+  burn-in only as long as its sweeps are run as burn-in, which saves
+  nothing: `run(1, 0)` between re-anchors, not `run(0, 1)`. For a
+  survival (`aft`) sampler the scale is always that of the observed
+  times, a censored row's censoring time among them, and never of a time
+  the sampler has drawn for a censored row. `TRUE` is refused by a
   multi-forest (`forests`) sampler, whose calibration map is pinned at
   creation - whatever its response family, and whether or not there is a
   transform to re-anchor - and is never restated; the response and a
@@ -1891,12 +1900,13 @@ sampler's forests, and it is declined in all of them otherwise.
 
 Column names after a whole-matrix replacement: a transactional or forced
 whole-matrix `setPredictor(x, ...)` (`column` missing) carries column
-names onto the installed `sampler$data@x`. When `x` itself has
-`dimnames`, those names are installed; when it does not (a bare matrix,
-or a vector reshaped through `dim`), the sampler's existing column names
-are kept instead. Either way, a later *by-name* column reference on that
-sampler - `setPredictor`'s own `column` argument given as a character
-string, or
+names onto the installed `sampler$data@x`. When `x` itself has column
+names they are matched to the sampler's, which it keeps, a name that is
+not the sampler's being refused, and a sampler with no column names
+takes `x`'s; when it does not (a bare matrix, or a vector reshaped
+through `dim`), the sampler's existing column names are kept instead.
+Either way, a later *by-name* column reference on that sampler -
+`setPredictor`'s own `column` argument given as a character string, or
 [`updatePredictorPerObservationJointly`](https://vdorie.github.io/dbarts/reference/updatePredictorPerObservationJointly.md)'s
 shared-column match - continues to resolve against
 `colnames(sampler$data@x)` as it did before the replacement.

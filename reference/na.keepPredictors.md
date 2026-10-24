@@ -116,7 +116,23 @@ whatever `na.action` is, since there is then no row for it to mark. A
 missing value in `bases` never marks its row: on a row that is
 incomplete for its predictors, its `offset` or its `weights`, which the
 `na.action` drops or returns `NA` for, it is passed by, and on any other
-row it is an error, whatever `na.action` is. The sampler's own
+row it is an error, whatever `na.action` is.
+
+With no `newdata`, `predict` answers the training rows, which have no
+predictor to route, and a missing value in a per-row `offset` or
+`weights` marks its row incomplete in the same way: every `na.action`
+above governs it as it does at `newdata`, the default and `na.fail`
+refusing it, `na.pass` returning the row with `NA` draws, and `na.omit`
+and `na.exclude` dropping it, `na.exclude` padding it back. Only the
+rows `na.action` keeps are read and drawn, as at `newdata`, so under one
+seed a posterior predictive draw is that of the call at `newdata` with
+the same action, and with the rows dropped it is that of the call on the
+rows kept (a negative binomial fit's counts are laid out differently at
+`newdata` and with none when the chains are merged, so their streams
+differ even with nothing missing; with `combineChains = FALSE` they
+agree), and a single missing value is always an error.
+`survivalProbabilities` answers a missing value in the `offset` it is
+given for the fit's own subjects in the same way. The sampler's own
 `predict`, `predictForests` and `getTrees` methods take no `na.action`,
 keep the default, and check no per-row `offset.test` for a missing value
 at all: an `NA` there reaches the engine unrouted.

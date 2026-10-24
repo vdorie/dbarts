@@ -97,8 +97,12 @@ survivalProbabilities(object, ...)
 - na.action:
 
   What to do with the subjects in `newdata` that have missing values,
-  resolved per subject before a hazard fit's person-period expansion;
-  unused when `newdata` is `NULL`. See ‘At Prediction’ in
+  resolved per subject before a hazard fit's person-period expansion.
+  With no `newdata` it answers the subjects whose `offset` has a missing
+  value, as it does for the rows of `newdata`: the default and `na.fail`
+  refuse, `na.pass` returns the subject with `NA` curves, `na.omit`
+  drops it and `na.exclude` pads it back; a single missing value is
+  always an error. See ‘At Prediction’ in
   [`na.keepPredictors`](https://vdorie.github.io/dbarts/reference/na.keepPredictors.md).
 
 - sample:

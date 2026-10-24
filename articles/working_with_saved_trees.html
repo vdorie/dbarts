@@ -137,7 +137,11 @@ illustrative purposes, a model can be fit thusly:</p>
 extract only a subset of trees, and <code>forest</code> selects among a
 fit’s forests (a single index, a vector, or the default of every forest)
 on a fit with more than one, such as a Bayesian causal forest or a
-multinomial fit itself.</p>
+multinomial fit itself. On such a fit the <code>forest</code> column of
+the result is a factor whose levels are the forests’ labels, in forest
+order (<code>forest1</code>, <code>forest2</code> and so on for a forest
+with none), so that <code>trees$forest == "z"</code> selects a forest
+and <code>as.integer(trees$forest)</code> gives its position.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">trees</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/bartBT.html">extract</a></span><span class="op">(</span><span class="va">bartFit</span>, <span class="st">"trees"</span><span class="op">)</span></span></code></pre></div>
 </div>
