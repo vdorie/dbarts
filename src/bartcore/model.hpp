@@ -2445,14 +2445,17 @@ inline bool suppliedMoments(const SuppliedStandardization& supplied,
 /// The rows a leaf covariate's center, scale and default lengthscale are
 /// derived over (Sampler::leafRowsFrom): \p rows a nonzero byte per training
 /// row in the likelihood, null for every row; \p noneIn true where no row is
-/// in and every row is read in its place. Membership only: a row's weight
+/// in, or fewer than two distinct response values are in
+/// (Sampler::withResponseFallback), and every row is read in its place.
+/// Membership only: a row's weight
 /// never enters the numbers.
 struct LeafRows {
   const std::uint8_t* rows = nullptr;
   bool noneIn = false;
 };
 
-/// The rows \p rows names in the likelihood out of \p n: 0 where none is in.
+/// The rows \p rows names in the likelihood out of \p n: 0 where none is in,
+/// or fewer than two distinct response values are in, every row then read.
 inline std::size_t leafRowsInCount(const LeafRows& rows, std::size_t n) {
   if (rows.noneIn) return 0;
   if (rows.rows == nullptr) return n;
@@ -2466,7 +2469,8 @@ inline std::size_t leafRowsInCount(const LeafRows& rows, std::size_t n) {
 /// or none observed: there is no scale to take, and no number in force to
 /// keep. covariate is its position among the leaf's covariates and column the
 /// store's predictor column; numRowsIn counts the rows in the likelihood out
-/// of numObservations, 0 where none is in and every row was read; observed
+/// of numObservations, 0 where none is in, or fewer than two distinct
+/// response values are in, and every row was read; observed
 /// says whether any row read holds a value of it. The host words the refusal.
 struct LeafStandardizationError : std::domain_error {
   LeafStandardizationError(std::size_t covariate_, std::size_t column_,
@@ -2596,7 +2600,8 @@ struct LinearGaussianLeaf {
   }
 
   /// Whether covariate j's center and scale were last derived over every
-  /// row because no row was in the likelihood: the status a host warns on.
+  /// row because no row was in the likelihood, or fewer than two distinct
+  /// response values were in: the status a host warns on.
   const std::vector<std::uint8_t>& fromAllRows() const { return fromAllRows_; }
 
   /// Gather and standardize the designated columns from the store's raw
@@ -3098,7 +3103,8 @@ struct GPGaussianLeaf {
   /// install replaces them.
   bool lengthscalesAreSupplied() const { return !suppliedLengthscales_.empty(); }
   /// Whether covariate j's center and scale were last derived over every
-  /// row because no row was in the likelihood: the status a host warns on.
+  /// row because no row was in the likelihood, or fewer than two distinct
+  /// response values were in: the status a host warns on.
   const std::vector<std::uint8_t>& fromAllRows() const { return fromAllRows_; }
 
   /// Gather and standardize the designated columns and fix the kernel

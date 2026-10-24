@@ -1587,7 +1587,8 @@ bartcoreSamplerSetData <- function(
 }
 
 ## The labels of the leaf covariates whose center and scale the engine just
-## read from every row, no row being in the likelihood, from its records
+## read from every row, no row being in the likelihood or fewer than two
+## distinct response values in, from its records
 ## (C_dbarts_bartcore_derivedRecords); empty where none was.
 leafFromAllRows <- function(sampler, records) {
   flags <- records$standardization.all.rows
@@ -1632,7 +1633,7 @@ leafCentersAndScales <- function(leaf) {
 ## creation or a setData: 'range' where the response's scale and the prior's
 ## center were, of 'rowsIn' rows in, and 'leaf' the labels of the leaf
 ## covariates whose center and scale were, which happens only where no row is
-## in. One text names both, and 'periods', a hazard fit's warning that its
+## in or fewer than two distinct response values are in. One text names both, and 'periods', a hazard fit's warning that its
 ## periods were taken from every subject, folds the leaf's into its own.
 warnRowsFallBack <- function(n, rowsIn, range, leaf, periods = NULL) {
   if (!is.null(periods) && length(leaf) > 0L) {
