@@ -1257,6 +1257,16 @@ expect_identical(both$warnings, jointText)
 expect_identical(s$data@response.range, range)
 expect_identical(recordOf(s), before)
 expect_identical(readerOf(s), before)
+# a second joint keep, as each burn-in pass on the same rows makes, says nothing
+expect_identical(
+  fallbacks(s$setWeights(
+    wLast,
+    updateScale = TRUE,
+    updateStandardization = TRUE
+  ))$warnings,
+  character()
+)
+expect_identical(recordOf(s), before)
 # with updateScale FALSE nothing reads the response: each covariate keeps or
 # re-derives over the rows in by its own values, x1 kept and x2 derived
 s <- dbarts::dbarts(
