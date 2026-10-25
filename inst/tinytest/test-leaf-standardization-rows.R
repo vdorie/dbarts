@@ -1306,7 +1306,202 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   ))
   expect_identical(made$warnings, keptText(1L, both))
   expect_identical(recordOf(s), before)
+  # the period column out of the layout is refused on this route too
+  design <- as.matrix(s$data@x)
+  design[, "period"] <- rev(design[, "period"])
+  expect_error(
+    s$setPredictor(design),
+    paste0("$setPredictor: ", layout("row 1 is at period 5, not 1")),
+    fixed = TRUE
+  )
+  expect_identical(recordOf(s), before)
 }
+
+# a fit of one subject: with every row in nothing is left out to fall back
+# from, and its rows are read as they are, silently; with any row out fewer
+# than two subjects are in, as on any fit, so creation and a setData that
+# derive read every row and a setter that re-derives keeps, said in subjects
+oneSubject <- subjects[5L, ]
+twoOfFive <- c(1, 1, 0, 0, 0)
+everyRow <- list(center = 3, scale = sd(1:5))
+oneSubjectText <- function(count, what) {
+  paste0(
+    if (count == 1L) "one subject is" else "no subject is",
+    " in the likelihood (",
+    count,
+    " of 1 subjects ",
+    if (count == 1L) "is" else "are",
+    " in it), so the center and scale of \"period\" are ",
+    what
+  )
+}
+s <- hazardFit(NULL, data = oneSubject, leaf = dbartsPriors$linear("period"))
+hazardOne <- s$data
+hazardOne@standardization <- NULL
+for (rows in list(twoOfFive, rep(1, 5L))) {
+  info <- paste("one subject by hand,", sum(rows), "rows in")
+  made <- fallbacks(new(
+    "dbartsSampler",
+    s$control,
+    s$model,
+    hazardOne,
+    active = rows
+  ))
+  expect_identical(
+    made$warnings,
+    if (sum(rows) < 5) oneSubjectText(1L, "taken from all 1") else character(),
+    info = info
+  )
+  expect_equal(recordOf(made$value), everyRow, tolerance = 1e-12, info = info)
+}
+for (rows in list(twoOfFive, NULL)) {
+  info <- paste(
+    "one subject, setData,",
+    if (is.null(rows)) "every" else 2,
+    "rows in"
+  )
+  replacement <- hazardOne
+  replacement@weights <- rows
+  made <- fallbacks(s$setData(replacement, updateStandardization = TRUE))
+  expect_identical(
+    made$warnings,
+    if (!is.null(rows)) oneSubjectText(1L, "taken from all 1") else character(),
+    info = info
+  )
+  expect_equal(recordOf(s), everyRow, tolerance = 1e-12, info = info)
+}
+for (setter in c("setActiveRows", "setWeights", "setPredictor")) {
+  s <- hazardFit(NULL, data = oneSubject, leaf = dbartsPriors$linear("period"))
+  rowsTo <- function(rows) {
+    if (setter == "setActiveRows") {
+      s$setActiveRows(rows, updateStandardization = TRUE)
+    } else if (setter == "setWeights") {
+      s$setWeights(rows, updateStandardization = TRUE)
+    } else {
+      s$setActiveRows(rows)
+      s$setPredictor(as.matrix(s$data@x), updateStandardization = TRUE)
+    }
+  }
+  made <- fallbacks(rowsTo(rep(1, 5L)))
+  expect_identical(made$warnings, character(), info = setter)
+  made <- fallbacks(rowsTo(twoOfFive))
+  expect_identical(
+    made$warnings,
+    oneSubjectText(1L, "kept as they were (said once per sampler)"),
+    info = setter
+  )
+  expect_equal(recordOf(s), everyRow, tolerance = 1e-12, info = setter)
+}
+s <- hazardFit(NULL, data = oneSubject, leaf = dbartsPriors$linear("period"))
+made <- fallbacks(s$setActiveRows(rep(0, 5L), updateStandardization = TRUE))
+expect_identical(
+  made$warnings,
+  oneSubjectText(0L, "kept as they were (said once per sampler)")
+)
+# a fit of two subjects is counted as any other
+s <- hazardFit(
+  NULL,
+  data = subjects[4:5, ],
+  leaf = dbartsPriors$linear(c("x2", "period"))
+)
+before <- recordOf(s)
+expect_equal(before$center[[2L]], mean(c(1:4, 1:5)), tolerance = 1e-12)
+made <- fallbacks(s$setActiveRows(
+  subjectRows(s, 2L),
+  updateStandardization = TRUE
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "one subject is in the likelihood (1 of 2 subjects is in it), so the ",
+    "centers and scales of \"x2\" and \"period\" are kept as they were (said ",
+    "once per sampler)"
+  )
+)
+expect_identical(recordOf(s), before)
+# the keep where too few subjects are in takes the engine's own path, which a
+# covariate the rows hold at one value takes: the draws that follow are bit
+# for bit those of a re-derivation that keeps x1 for its one value
+pair <- list(
+  hazardFit(subjectIn(c(4:5, 10L))),
+  hazardFit(subjectIn(c(4:5, 10L)))
+)
+for (s in pair) {
+  s$run(0L, 30L)
+}
+made <- fallbacks(pair[[1L]]$setActiveRows(
+  subjectRows(pair[[1L]], 5L),
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, keptText(1L, "the center and scale of \"x1\""))
+kept <- .Call(
+  dbarts:::C_dbarts_bartcore_setActiveRows,
+  pair[[2L]]$getPointer(),
+  subjectRows(pair[[2L]], 5L),
+  FALSE,
+  TRUE,
+  NULL
+)
+expect_identical(attr(kept, "standardization.kept"), 1L)
+expect_identical(pair[[1L]]$run(0L, 10L)$train, pair[[2L]]$run(0L, 10L)$train)
+
+# a period column that could leave the layout is refused at every door that
+# writes one, whatever updateStandardization, before anything moves; handed
+# back as it is, it goes in
+s <- hazardFit(NULL)
+twin <- hazardFit(NULL)
+design <- as.matrix(s$data@x)
+period <- design[, "period"]
+reversed <- design
+reversed[, "period"] <- rev(period)
+atFive <- paste0("$setPredictor: ", layout("row 1 is at period 5, not 1"))
+expect_error(s$setPredictor(reversed), atFive, fixed = TRUE)
+expect_error(
+  s$setPredictor(reversed, updateStandardization = TRUE),
+  atFive,
+  fixed = TRUE
+)
+expect_error(s$setPredictor(rev(period), "period"), atFive, fixed = TRUE)
+expect_error(
+  s$setPredictor(rev(period), "period", "partial"),
+  atFive,
+  fixed = TRUE
+)
+expect_error(
+  updatePredictorPerObservationJointly(s, rev(period), "period"),
+  paste0(
+    "updatePredictorPerObservationJointly: ",
+    layout("row 1 is at period 5, not 1")
+  ),
+  fixed = TRUE
+)
+# row by row, values the layout takes as a whole can leave it: subject 5's
+# periods 1 to 5 handed as 1, 2, 1, 2, 3 could go in as 1, 2, 3, 2
+rows5 <- which(cumsum(period == 1) == 5L)
+split5 <- period
+split5[rows5] <- c(1, 2, 1, 2, 3)
+splitAt <- layout(paste0(
+  "row ",
+  rows5[[4L]],
+  " is at period 2 after a row at period 3"
+))
+expect_error(
+  s$setPredictor(split5, "period", "partial"),
+  paste0("$setPredictor: ", splitAt),
+  fixed = TRUE
+)
+expect_error(
+  updatePredictorPerObservationJointly(s, split5, "period"),
+  paste0("updatePredictorPerObservationJointly: ", splitAt),
+  fixed = TRUE
+)
+expect_identical(as.matrix(s$data@x), design)
+expect_identical(s$run(0L, 3L)$train, twin$run(0L, 3L)$train)
+expect_silent(s$setPredictor(design))
+expect_true(s$setPredictor(period, "period"))
+expect_silent(s$setPredictor(period, "period", "partial"))
+expect_silent(updatePredictorPerObservationJointly(s, period, "period"))
+expect_identical(as.vector(as.matrix(s$data@x)), as.vector(design))
 
 # rows out at one value, rows in spread: created, over the rows in
 outAtOne <- x

@@ -52,31 +52,31 @@ What it no longer does is move the numbers the prior is stated against.
    over the fold's training rows in. Unweighted, as in rule 1, and over every row where fewer than two are in,
    under every family (dec-B485), a hazard fit counting its subjects and not their period rows, so that one
    subject in reads every row however many periods it spans (dec-B489), or where the response's own read falls
-   back to every row under rule 4 (fewer
-   than two distinct values of it in, at creation, a `setData` that derives the range, or an `xbart` fold over its
-   training rows), under the creation warning, which counts the rows in, or a hazard fit's subjects: one text
-   with the response's where the response falls back too, as one row in always makes it under the families that
-   read it, and with a hazard fit's periods where no subject is in (rule 8). The subjects are R's to count, from
-   the period column's layout, each subject's rows together at periods 1, 2, 3 and on as the expansion writes
-   them, and the engine is told that too few are in; data that `setData` or `new()` is handed in another layout
-   are refused, their subjects not being countable. Where the rows read hold fewer than two distinct observed values
-   of a covariate, one value or none, two or more rows in at one value or every row at one value, a derivation is
+   back to every row under rule 4 (fewer than two distinct values of it in, at creation, a `setData` that derives
+   the range, or an `xbart` fold over its training rows), under the creation warning, which counts the rows in, or
+   a hazard fit's subjects: one text with the response's where the response falls back too, as one row in always
+   makes it under the families that read it, and with a hazard fit's periods where no subject is in (rule 8). The
+   subjects are R's to count, from the period column's layout, each subject's rows together at periods 1, 2, 3 and
+   on as the expansion writes them, and the engine is told that too few are in, a fit of one subject only where
+   some of its rows are out; data that `setData` or `new()` is handed in another layout, and a period column
+   `setPredictor` or `updatePredictorPerObservationJointly` could leave it in, whole or row by row, are refused,
+   their subjects not being countable. Where the rows read hold fewer than two distinct observed values of a
+   covariate, one value or none, two or more rows in at one value or every row at one value, a derivation is
    refused, there being no number in force to keep, unless a gp leaf states its lengthscale, which takes the
-   placeholder: the one value, divided by 1.
-   `setPredictor(updateStandardization = TRUE)` re-derives the replaced covariates over the rows in at that call,
-   under the weights and the mask in force, and keeps one with too little, every one on a hazard fit where fewer
-   than two subjects are in (dec-B491), warning once per sampler as rule 4 does, on the flag the response's keeps
-   share. `updateStandardization = TRUE` on `setWeights` and
+   placeholder: the one value, divided by 1. `setPredictor(updateStandardization = TRUE)` re-derives the replaced
+   covariates over the rows in at that call, under the weights and the mask in force, and keeps one with too
+   little, every one on a hazard fit where fewer than two subjects are in (dec-B491), warning once per sampler as
+   rule 4 does, on the flag the response's keeps share. `updateStandardization = TRUE` on `setWeights` and
    `setActiveRows` re-derives every leaf covariate over the rows in after the install, keeping by the same rule,
    one row in included; a hazard fit counts its subjects there too, and fewer than two in after the call keep
    every covariate, the period column among them, under one warning once per sampler that counts subjects, R
-   telling the re-derivation as it tells creation (dec-B490). Where `updateScale = TRUE` in the same call keeps the response's scale (rule 4), the prior
-   in force is kept whole: every covariate keeps too, whatever its spread over the rows in, under one warning
-   naming the response and the covariates, as the same rows at creation read both from every row; with
-   `updateScale = FALSE` nothing reads the response and each covariate keeps or re-derives by its own values. A
-   loop whose rows in change passes it while burning in and then stops, so every kept draw comes from one prior
-   (dec-B465). Held otherwise, through the data object's record: a copy, a reload and a re-creation take it and
-   read no row. Cut points still span every row.
+   telling the re-derivation as it tells creation (dec-B490). Where `updateScale = TRUE` in the same call keeps
+   the response's scale (rule 4), the prior in force is kept whole: every covariate keeps too, whatever its spread
+   over the rows in, under one warning naming the response and the covariates, as the same rows at creation read
+   both from every row; with `updateScale = FALSE` nothing reads the response and each covariate keeps or
+   re-derives by its own values. A loop whose rows in change passes it while burning in and then stops, so every
+   kept draw comes from one prior (dec-B465). Held otherwise, through the data object's record: a copy, a reload
+   and a re-creation take it and read no row. Cut points still span every row.
 
 ## 2. What read which rows
 

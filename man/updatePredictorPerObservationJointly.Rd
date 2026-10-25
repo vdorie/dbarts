@@ -49,7 +49,9 @@ updatePredictorPerObservationJointly(samplers, x, column, updateState = NULL)
   its previous value in all of them. Under a \code{\link{monotone}} constraint a row that brings an
   unordered factor column its first missing value is declined, in every sampler, where the sides drawn
   for the column's rules would leave a tree's leaf values out of order in any of them; a numeric
-  column's first missing value breaks no order.
+  column's first missing value breaks no order. On a hazard fit, a period column that a row-by-row
+  install could leave out of the layout its subjects are counted by is refused before anything moves
+  (see \code{newData} in \code{\link[=dbartsSampler-class]{dbartsSampler}}).
   Any of the samplers may itself carry more than one forest - a
   Bayesian causal forest, a multinomial sampler, or a heteroscedastic (\code{variance}) sampler - and
   each of its forests is checked on the same terms as an ordinary single-forest sampler's mean forest

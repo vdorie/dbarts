@@ -3304,7 +3304,13 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
-      units <- rowSetterUnits(.self, weights, activeRows, updateStandardization)
+      units <- rowSetterUnits(
+        .self,
+        weights,
+        activeRows,
+        updateStandardization,
+        "$setWeights: "
+      )
 
       oldWeights <- data@weights
       selfEnv$data@weights <- weights
@@ -3404,7 +3410,8 @@ dbartsSampler <- setRefClass(
         .self,
         data@weights,
         active,
-        updateStandardization
+        updateStandardization,
+        "$setActiveRows: "
       )
       kept <- bartcoreSamplerSetActiveRows(
         .self,

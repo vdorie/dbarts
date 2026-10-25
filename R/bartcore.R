@@ -997,6 +997,14 @@ bartcoreSamplerSetPredictor <- function(
     }
 
     x <- as.double(x)
+    refusePeriodUpdate(
+      sampler$control,
+      currentX,
+      x,
+      column,
+      TRUE,
+      "$setPredictor: "
+    )
     installed <- .Call(
       C_dbarts_bartcore_updatePredictorPerObservation,
       ptr,
@@ -1031,7 +1039,8 @@ bartcoreSamplerSetPredictor <- function(
     sampler,
     sampler$data@weights,
     sampler$activeRows,
-    updateStandardization
+    updateStandardization,
+    "$setPredictor: "
   )
   tooFew <- if (!is.null(units)) TRUE
 
@@ -1088,6 +1097,14 @@ bartcoreSamplerSetPredictor <- function(
         }
       }
     }
+    refusePeriodUpdate(
+      sampler$control,
+      currentX,
+      x,
+      NULL,
+      FALSE,
+      "$setPredictor: "
+    )
     if (!sparseSource) {
       # a pointer swap: the engine borrows data@x, so install there first and
       # revert if the transaction rolls back
@@ -1169,6 +1186,14 @@ bartcoreSamplerSetPredictor <- function(
     # CSC-backed column's install rewrites the container's sparse slots, and a
     # throw there after acceptance would leave data@x describing the old design
     # (sampler re-creation after save/load reads it).
+    refusePeriodUpdate(
+      sampler$control,
+      currentX,
+      x,
+      column,
+      FALSE,
+      "$setPredictor: "
+    )
     newX <- installPredictorColumns(currentX, NULL, column, x)
     updateSuccessful <- .Call(
       C_dbarts_bartcore_updatePredictor,
@@ -1371,16 +1396,29 @@ warnRowsKept <- function(sampler, answer, units = NULL) {
 ## What a row setter or setPredictor that re-derives a leaf covariate's
 ## standardization tells the engine (dec-B490, dec-B491): a hazard fit's
 ## subjects counted over 'weights' and the mask 'active' in force after the
-## call, where fewer than two are in, which keeps every covariate the call
-## re-derives; NULL otherwise, the rows being the engine's to count.
-rowSetterUnits <- function(sampler, weights, active, updateStandardization) {
-  if (!updateStandardization) {
+## call, where fewer than two are in (tooFewUnitsIn), which keeps every
+## covariate the call re-derives; NULL otherwise, the rows being the engine's
+## to count, and where the leaf takes no covariate. 'prefix' names the caller.
+rowSetterUnits <- function(
+  sampler,
+  weights,
+  active,
+  updateStandardization,
+  prefix
+) {
+  leaf <- sampler$model@leaf.prior
+  if (
+    !updateStandardization ||
+      !(methods::is(leaf, "dbartsLinearPrior") ||
+        methods::is(leaf, "dbartsGPPrior"))
+  ) {
     return(NULL)
   }
   units <- likelihoodUnits(
     sampler$control,
     sampler$data,
     active,
+    prefix,
     weights = weights
   )
   if (tooFewUnitsIn(units)) units
@@ -1679,49 +1717,118 @@ leafFromAllRows <- function(sampler, records) {
 ## A hazard fit's subject for each person-period row, as the expansion lays
 ## the rows out: each subject's rows together, at periods 1, 2, 3 and on in
 ## the period column, the data's last, so that a subject starts at its row at
-## period 1; NULL off a hazard fit. Rows laid out otherwise, which setData and
-## new() could be handed, are refused, since their subjects cannot be counted
-## from them; 'prefix' opens the refusal.
+## period 1; NULL off a hazard fit. Rows laid out otherwise are refused
+## (refuseHazardLayout); 'prefix' opens the refusal.
 hazardRowSubjects <- function(control, data, prefix = "") {
-  if (is.null(attr(control, "bartcore.hazard.periods", exact = TRUE))) {
+  column <- hazardPeriodColumn(control, data@x)
+  if (is.null(column)) {
     return(NULL)
   }
-  x <- data@x
-  period <- as.vector(x[, ncol(x)])
-  if (length(period) == 0L) {
-    return(integer())
-  }
-  laidOut <- c(
-    period[1L] == 1,
-    period[-1L] == 1 | period[-1L] == period[-length(period)] + 1
-  )
-  row <- match(FALSE, laidOut %in% TRUE)
-  if (!is.na(row)) {
-    stop(
-      prefix,
-      "the rows of a hazard fit's data hold each subject's rows together, at ",
-      "periods 1, 2, 3 and on in order, as dbarts() expands them, which is ",
-      "how its subjects are counted; row ",
-      row,
-      " is at period ",
-      period[row],
-      if (row == 1L) {
-        ", not 1"
-      } else {
-        paste0(" after a row at period ", period[row - 1L])
-      },
-      call. = FALSE
-    )
-  }
+  period <- as.vector(data@x[, column])
+  refuseHazardLayout(list(period), prefix)
   cumsum(period == 1)
 }
 
-## What a creation or a setData counts in the likelihood for the trigger of
-## dec-B485: the rows of positive weight, under 'weights', that the mask
-## 'active' keeps, or, under a hazard fit, the subjects with such a row
-## (dec-B489). 'n' is the rows or the subjects, 'numIn' those in; 'prefix'
-## opens a refusal of rows whose subjects cannot be counted
-## (hazardRowSubjects).
+## A hazard fit's period column, the last of 'x'; NULL off a hazard fit.
+hazardPeriodColumn <- function(control, x) {
+  if (is.null(attr(control, "bartcore.hazard.periods", exact = TRUE))) {
+    return(NULL)
+  }
+  ncol(x)
+}
+
+## Refuses a predictor update that can put a hazard fit's period column out
+## of the expansion's layout (refuseHazardLayout), before anything moves:
+## 'x' holds the new values of 'columns' of 'currentX', every column where
+## NULL, as a matrix or as one vector column after column, and with
+## 'rowByRow' goes in a row at a time.
+refusePeriodUpdate <- function(
+  control,
+  currentX,
+  x,
+  columns,
+  rowByRow,
+  prefix
+) {
+  periodColumn <- hazardPeriodColumn(control, currentX)
+  if (is.null(periodColumn)) {
+    return(invisible(NULL))
+  }
+  k <- if (is.null(columns)) periodColumn else match(periodColumn, columns)
+  if (is.na(k)) {
+    return(invisible(NULL))
+  }
+  n <- nrow(currentX)
+  values <- as.vector(
+    if (is.null(dim(x))) x[(k - 1L) * n + seq_len(n)] else x[, k]
+  )
+  refuseHazardLayout(
+    if (rowByRow) {
+      list(as.vector(currentX[, periodColumn]), values)
+    } else {
+      list(values)
+    },
+    prefix
+  )
+}
+
+## Refuses a hazard fit's period column that can leave the expansion's
+## layout, each subject's rows together at periods 1, 2, 3 and on, which every
+## reader of a fit's rows takes them in (the subject count, partial
+## dependence's default time, survivalProbabilities), before anything moves,
+## 'prefix' opening the text. Each row may hold any of the values the vectors
+## of 'choices' give it: one vector for a column replaced whole, the column in
+## force and the new values for one installed row by row, any of whose rows
+## may go in.
+refuseHazardLayout <- function(choices, prefix = "") {
+  n <- length(choices[[1L]])
+  row <- NA_integer_
+  for (current in choices) {
+    if (n > 0L && !isTRUE(current[1L] == 1)) {
+      row <- 1L
+      period <- current[1L]
+      break
+    }
+  }
+  if (is.na(row) && n > 1L) {
+    for (before in choices) {
+      for (current in choices) {
+        laidOut <- current[-1L] == 1 | current[-1L] == before[-n] + 1
+        out <- match(FALSE, laidOut %in% TRUE)
+        if (!is.na(out) && (is.na(row) || out + 1L < row)) {
+          row <- out + 1L
+          period <- current[row]
+          after <- before[out]
+        }
+      }
+    }
+  }
+  if (is.na(row)) {
+    return(invisible(NULL))
+  }
+  stop(
+    prefix,
+    "the rows of a hazard fit's data hold each subject's rows together, at ",
+    "periods 1, 2, 3 and on in order, as dbarts() expands them, which is ",
+    "how its subjects are counted; row ",
+    row,
+    " is at period ",
+    period,
+    if (row == 1L) {
+      ", not 1"
+    } else {
+      paste0(" after a row at period ", after)
+    },
+    call. = FALSE
+  )
+}
+
+## What a creation, a setData, a row setter or setPredictor counts in the
+## likelihood for the trigger of dec-B485: the rows of positive weight, under
+## 'weights', that the mask 'active' keeps, or, under a hazard fit, the
+## subjects with such a row (dec-B489). 'n' is the rows or the subjects,
+## 'numIn' those in, 'allIn' whether every row is; 'prefix' opens a refusal of
+## rows whose subjects cannot be counted (hazardRowSubjects).
 likelihoodUnits <- function(
   control,
   data,
@@ -1738,15 +1845,20 @@ likelihoodUnits <- function(
   list(
     n = length(unique(subject)),
     numIn = length(unique(subject[rowsIn])),
+    allIn = all(rowsIn),
     subjects = TRUE
   )
 }
 
 ## Whether the engine is told that fewer than two of a hazard fit's subjects
-## are in, which reads every row however many periods they span; the rows
-## the engine counts itself. One subject of one is every subject in.
+## are in: a creation or a setData that derives then reads every row, however
+## many periods they span, and a row setter or setPredictor that re-derives
+## keeps every covariate it re-derives (dec-B490, dec-B491); the rows the
+## engine counts itself. A fit of one subject with every row in has nothing
+## left out to fall back from, as one row of a one-row store has not, and is
+## not told; with any of its rows out it is, as any other fit.
 tooFewUnitsIn <- function(units) {
-  units$subjects && units$n > 1L && units$numIn < 2L
+  units$subjects && units$numIn < 2L && !units$allIn
 }
 
 ## A leaf covariate as a message names it: its column's name, quoted, where it

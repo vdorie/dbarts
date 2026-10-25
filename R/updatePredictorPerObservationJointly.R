@@ -73,6 +73,16 @@ updatePredictorPerObservationJointly <- function(
   }
 
   x <- as.double(codeJointColumnUpdate(samplers, x, columnIndices, columnName))
+  for (i in seq_along(samplers)) {
+    refusePeriodUpdate(
+      samplers[[i]]$control,
+      samplers[[i]]$data@x,
+      x,
+      columnIndices[i],
+      TRUE,
+      "updatePredictorPerObservationJointly: "
+    )
+  }
 
   ptrs <- lapply(samplers, function(sampler) sampler$getPointer())
   installed <- .Call(
