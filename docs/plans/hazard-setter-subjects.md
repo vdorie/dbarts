@@ -1,7 +1,8 @@
 # hazard-setter-subjects: a hazard fit's row setters count its subjects
 
-Status: BUILT 2026-10-24 on wt/hazard-setter, off bartcore 0aa94644, not landed; implements dec-B490
-([Built](#built)).
+Status: BUILT 2026-10-25 on wt/hazard-setpredictor (dc6fc00c on wt/hazard-setter, off bartcore 0aa94644, then
+its fix round and dec-B491), not landed; implements dec-B490 and dec-B491 ([Built](#built),
+[Fix round](#fix-round), [setPredictor (dec-B491)](#setpredictor-dec-b491)).
 
 agent: one opus implementer (engine flag, bridge, R text, tests, help, notes); one opus review that runs mutants.
 rng: draw-changing only where a setter on a hazard fit re-derived a covariate at fewer than two subjects in and
@@ -9,7 +10,8 @@ now keeps it. NEUTRAL, bit for bit, for every other call; no recorded scenario h
 in: expected 55, 19 and 11 identical against equivalence-32418b6e, bcf-equivalence-20eed7ed and
 multinomial-equivalence-80b1c8d4, no re-record.
 window: before the merge (TODO `hazard-setter-subjects`).
-budget: ~100 lines of package code plus tests; built at 92 code lines added and 32 removed, comments aside.
+budget: ~100 lines of package code plus tests; built at 92 code lines added and 32 removed, comments aside;
+dec-B491 34 and 14, the fix round 151 and 43 (30 of them the bridge's `using` list sorted).
 
 ## Goal
 
@@ -92,8 +94,10 @@ Calls made, each with its alternative:
   fewer than two subjects in, the 16 already kept today among them, since the engine's keep rebuilds a linear
   leaf's fits under the numbers held and the bridge's skip does not; told, they stay bit for bit what they were,
   and the setters take the trigger creation and `setData` take.
-- The count runs only where the call re-derives. Alternative: at every setter call; the bridge reads the flag only
-  for a re-derivation, so it would cost a pass over the period column and change nothing.
+- The count runs only where the call re-derives. Alternative: at every setter call, which the bridge reads only for
+  a re-derivation; it would cost a pass over the period column and, while setPredictor still took a period column
+  out of the layout, refuse every later setter call on such rows (corrected in the [Fix round](#fix-round), which
+  refuses that column where it is handed in).
 - The warning counts subjects and names every leaf covariate, all kept. Alternative: the one-value text,
   "fewer than two distinct values of the leaf covariate", which is false of the period spread over one subject's
   periods.
@@ -136,3 +140,124 @@ check-win-drift, check-doc-freshness and verify-anchors clean; `R CMD check --as
 built from a clean export, the Date field's NOTE alone. Not run: the R-loaded path under ASAN (no new numerics: the
 flag sends a re-derivation down the path no row in already takes), stan4bart (it calls neither changed entry, both
 the R bridge's), the x86-64 leg.
+
+## Fix round
+
+The review of dc6fc00c (one opus reader, FIX FIRST) ran an 848-case two-library compare (240 moved, all hazard
+fits with `updateStandardization = TRUE` at fewer than two subjects in, the draws bit for bit after 30 sweeps where
+a covariate was already kept) and 13 mutants: 8 killed, 2 equivalent, 3 surviving. Built in 9d9a83d8, on
+wt/hazard-setpredictor beside dec-B491, as the orchestrator ruled each finding.
+
+1. A fit of one subject was exempt everywhere: `tooFewUnitsIn`'s `n > 1` let subject 5 alone as a fit re-read its
+   period over two of its five rows (1.5 and 0.71) silently at `setActiveRows`, say the one-value text with none
+   in, and read two rows at a deriving `setData` and by hand. Narrowed to dec-A231's analogy, one row of a one-row
+   store being every row in: a fit of one subject is exempt only where every row is in, nothing then being fallen
+   back from. [`likelihoodUnits`](../../R/bartcore.R) reports whether every row is in, and
+   [`tooFewUnitsIn`](../../R/bartcore.R) flags fewer than two subjects in unless it is, at every door that counts
+   (creation, by hand too, a deriving `setData`, the row setters, `setPredictor`): with some rows out a one-subject
+   fit now reads every row at creation and `setData`, "one subject is in the likelihood (1 of 1 subjects is in it),
+   so the center and scale of "period" are taken from all 1", and keeps at a setter; with every row in it reads its
+   rows, silently, as before.
+2. `setPredictor` took a period column out of the layout, after which the setters' count refused with no prefix
+   (0aa94644 re-derived there). Every door that writes a hazard fit's training period column now refuses one that
+   could leave the layout, whatever `updateStandardization`, before anything moves, in the layout text behind the
+   door's name: `setPredictor` whole (the dense and the sparse-bearing route), by column and row by row
+   (`"partial"`), and `updatePredictorPerObservationJointly`. A row-by-row install can put in any subset of its
+   rows, so there each row is taken at its value in force or its new one
+   ([`refuseHazardLayout`](../../R/bartcore.R), [`refusePeriodUpdate`](../../R/bartcore.R)): subject 5's periods 1
+   to 5 handed as 1, 2, 1, 2, 3, in the layout as a whole, are refused, since 1, 2, 3, 2 could go in; handed back
+   as they are, they go in. The setters' count takes the caller's prefix. The plan's claim that counting at every
+   call would change nothing is corrected above.
+3. M13 (`n > 2L`, a two-subject fit exempt) survived: pinned, subjects 4 and 5 as a fit with a leaf on x2 and
+   period, `setActiveRows` to the second subject keeping 2.78 and 1.39 under "1 of 2 subjects is in it".
+4. M11 (the bridge keeping every covariate itself) survived: pinned bit for bit, two seeded fits over subjects 4, 5
+   and 10 with a linear leaf on x1, 30 sweeps, then one `setActiveRows` to subject 5 with `updateStandardization`
+   and the other the bridge entry without the flag, which keeps x1 for its one value: the next ten draws agree.
+
+Notes, all taken: the comments of `likelihoodUnits` and `tooFewUnitsIn` state every door and that at a setter the
+flag keeps; the header's parameter names take the source's stems (`tooFewUnits`, six entries); the count is
+skipped where the leaf takes no covariate; rule 9 is rewrapped to the note's width; the bridge's `using` list is
+sorted.
+
+Calls made, each with its alternative:
+
+- The exemption by whether every row is in (the orchestrator's). Alternative: no exemption, under which a fit of
+  one subject with every row in would read every row with a warning at creation, the same rows it reads, and keep
+  at a setter what it would read again unchanged.
+- A row-by-row door checks every way the column in force and the new values can mix. Alternatives: the new values
+  alone, which takes a column whose partial install leaves the layout; refusing any change to the period column
+  row by row, which refuses a split of a subject that keeps it.
+- The creation text says "taken from all 1" of a one-subject fit, as it says "all 60". Alternative: words of its
+  own for one subject.
+- The count at `setPredictor` reads the rows in force before the call, the new period column having been checked
+  first. Alternative: count over the new column, the same answer once it is checked.
+- The setters keep their prefix though their count can no longer refuse, every door that writes the period column
+  now checking it. Not checked: a test set's period column, which `setTestPredictor` writes, is laid out period by
+  period across the test subjects, a contract of its own the subject count does not read.
+- `setWeights` on a probit hazard fit passes its 0/1 weights to `setActiveRows`, whose prefix its count takes.
+
+## setPredictor (dec-B491)
+
+Built in 7869e3b0. `setPredictor(updateStandardization = TRUE)` on a hazard fit where fewer than two subjects are
+in keeps every replaced leaf covariate's center and scale, and a gp leaf's default lengthscale, the period column
+among them, under dec-B490's subject text, once per sampler on the flag the row setters' keeps share; two or more
+subjects in re-derive each by its own values. [`bartcoreSamplerSetPredictor`](../../R/bartcore.R) counts through
+`rowSetterUnits` over the weights and the mask in force, before anything moves, and hands the flag to both bridge
+entries, [`bartcore_setPredictor`](../../src/R_interface_bartcore.cpp) (whole matrix, the dense and the
+sparse-bearing route) and [`bartcore_updatePredictor`](../../src/R_interface_bartcore.cpp) (by column), as a sixth
+and seventh argument, which pass it to `Sampler::rederiveStandardization`, the engine function dec-B490 changed; no
+other engine function is touched, and dbarts.h is unchanged. The method warns through `warnScaleKept` with the
+count. A hazard fit that `dbarts()` makes takes the dense route; one with a sparse column takes the other.
+
+Probes (60 subjects, breaks 0:5, subjects 4 and 5 in, then the mask to subject 5): on dc6fc00c the whole matrix kept
+x1 under the one-value text and read period at 3 and 1.58, and the period column alone read it at 3 and 1.58
+silently; built, both keep 2.78 and 1.39 under the subject text.
+
+What moves, by a two-library compare against dc6fc00c over 209 `setPredictor` cases (probit and logistic hazard
+fits, linear on x1, on period and on both, gp on both, subject 5, subjects 4 and 5, every subject and none in, the
+whole matrix, period alone, x1 alone, x2 alone and x1 with period, `updateStandardization` TRUE and FALSE, a
+one-subject fit, gaussian and probit fits at 0, 1, 2 and 50 rows in): 153 identical in record, warnings and draws;
+of the 56 that move, 18 move record and draws (a period column replaced and read again at subject 5, now kept) and
+38 only the warning's text (x1 at one subject, any leaf at none). x2 alone, every non-hazard case and dec-B490's 113
+row-setter cases are identical; after the fix round both compares are unchanged.
+
+Calls made, each with its alternative:
+
+- The count reuses the row setters' (`rowSetterUnits`), the one rule for every setter. Alternative: a count of its
+  own in the predictor setters.
+- The flag reaches the engine through both bridge entries' new argument. Alternative: R keeping the replaced
+  covariates by passing `updateStandardization = FALSE`, which would bypass the engine's keep path and the
+  holder's once-per-sampler flag, as the bridge-only route measured for dec-B490 does.
+- The keep is only of the replaced covariates, as the re-derivation already marks them; a replaced column that is
+  no leaf covariate keeps nothing and says nothing.
+
+Tests (test-leaf-standardization-rows.R, 710 results then, 750 after the fix round): the whole matrix and the period
+column alone, linear and gp on x1 and period, each keeping the record and the reader's numbers under its text, with
+finite sweeps; a period-only leaf; x2 alone silent; no subject in; once per sampler with the row setters, either
+first; two subjects in, the whole matrix keeping x1 for its one value and reading period again, and the period
+column alone read again silently under probit and logistic; the sparse-bearing route. The direct `.Call` sites of
+the two entries in four test files take the new argument.
+
+Mutants on the final code (9d9a83d8), each alone, `--preclean`, failures in test-leaf-standardization-rows.R of 750
+(tinytest lists up to seven failures a run): dec-B491's, the count dropped 20; the flag not passed at the dense
+whole-matrix call 7, the sparse-bearing call 3, the column call 9; the whole-matrix entry ignoring it 10, the
+column entry 9; the flag's reader taking NULL for TRUE 67; the warning without the count 9; the mask ignored by the
+count 20; the flag on every re-derivation 67. The fix round's: the one-subject exemption dropped 10; the old
+exemption restored 11; a two-subject fit exempt (M13) 13, the two-subject pin among them; the bridge keeping
+itself (M11) 1, the bit-for-bit pin; the whole-matrix door unchecked 6, the column door 5, the row-by-row door 5,
+the joint door 5; the row-by-row door, and the joint door, checking the new values alone 4 and 3; the first row
+checked in one of the choices alone 2. All 21 killed. Before the fix round dec-B491's ten were run on 7869e3b0,
+all killed. Equivalent and not run: the setters' prefix dropped and the count run for a leaf with no covariates,
+neither reachable once every door checks the layout.
+
+Gates, once, on the package code of 9d9a83d8 (the final commit adds this record), from `--preclean` installs in a
+private library: tests/cpp 412 ok plain and under ASAN and UBSAN, no diagnostic; `tinytest::test_package` at its
+default `ncpu` in one process, 268 files, 31122 results, none failed; the 43 commands of exact-gates.yaml at
+`quick` on the shipped build, all passing; on a `--enable-reference-build` install the four snapshot files (14, 3,
+7 and 3, none failed) and the bitwise compares, 55 of 55 identical against equivalence-32418b6e
+(`--strict-coverage`, 0 skipped), 19 of 19 against bcf-equivalence-20eed7ed and 11 of 11 against
+multinomial-equivalence-80b1c8d4 on every channel, no "max |z|" line, and both cross-host compares within tier 1;
+lint (0 lints), air, check-rc-codoc (48 methods), check-win-drift, check-doc-freshness and verify-anchors clean;
+`R CMD check --as-cran --no-manual` from a tarball built from a clean export, the Date field's NOTE alone. Not
+run: the R-loaded path under ASAN (no new numerics), stan4bart (it calls none of the changed entries, all the R
+bridge's), the x86-64 leg.
