@@ -337,3 +337,52 @@ multinomial-equivalence-80b1c8d4 on every channel, no "max |z|" line, and both c
 lint (0 lints), air, check-rc-codoc (48 methods), check-win-drift, check-doc-freshness and verify-anchors clean;
 `R CMD check --as-cran --no-manual` from a tarball built from a clean export, the Date field's NOTE alone. Not
 run: the R-loaded path under ASAN (no new numerics), stan4bart, the x86-64 leg.
+
+## Third fix round
+
+The review of 3a2d9b3d (FIX FIRST for missing tests only, no defect in the package) closed the second review's three
+blocking findings and the regrouping, found the hand-back accepted at every door tried and the texts and help
+matching, and ran 7 mutants: P06 and P08 killed, Q01 equivalent, P01 with the same end state, P02, P03 and P07
+surviving. A 1420-case compare was 1414 identical and 6 moved in the one-subject text alone. Built in f7e925ad, as
+the orchestrator directed for each finding.
+
+1. P02: `na.rm = TRUE` in the equality of [`refusePeriodUpdate`](../../R/bartcore.R) survived, a period column with
+   one missing value (otherwise unchanged) refused on the slice and taken under the mutant. Pinned at every door,
+   whole matrix with and without `updateStandardization`, by column, row by row and jointly, the sampler left as it
+   was.
+2. P03: a tolerance of 0.5 in the equality survived, `period + 0.3` taken. Pinned at the same doors.
+3. P07: `if (subjects && n == 1L)` weakened to `if (n == 1L)` in [`warnRowsFallBack`](../../R/bartcore.R) survived,
+   the "taken from the fit's one subject" wording leaking to a fit that is no hazard fit. Pinned: a gaussian fit of
+   3 rows, `setData` of one row at weight 0 with `updateScale = TRUE`, says "taken from all 1".
+4. P01 (a note): checking only the last occurrence of the column handed twice has the same end state, the install
+   writing the last. Pinned all the same, the first changed and the last as it is, dense and dgCMatrix, since the
+   rule is that every occurrence is checked.
+5. A row-by-row update of the wrong number of values, through `setPredictor`'s `"partial"` route or
+   `updatePredictorPerObservationJointly`, got the period refusal in place of "requires one value per observation":
+   the equality read the vector past its end as missing, and a longer one by its first rows. `refusePeriodUpdate`
+   now returns for a vector that is not the rows of each column named long, which the bridge's length check then
+   refuses before anything moves; the whole-matrix and column doors check their length before the period, and a
+   matrix is read as it was. Pinned for n - 1, n + 1 and 2n values, the column's own or reversed, both doors,
+   nothing moved. A column update handed as one vector, column after column (`c(period, reversed)` for two
+   columns), is still refused as a change: pinned, since a skip on any length but one column's takes it.
+6. The joint door's refusal opened "updatePredictorPerObservationJointly: " where the bridge's errors there open
+   "updatePredictorPerObservationJointly(): ": now the bridge's form. No help text quoted it.
+
+Calls made, each with its alternative:
+
+- The period check leaves a vector of the wrong length to the bridge's length check. Alternative: a length check in
+  R ahead of the period check at the two row-by-row doors, a second copy of the bridge's words.
+
+Tests (test-leaf-standardization-rows.R, 791 results): the above, 28 results over the 763.
+
+Mutants on f7e925ad, each alone, `--preclean`, failures in test-leaf-standardization-rows.R of 791: P02 11, P03 9,
+P07 1, P01 2 (the dense and the sparse pin); the period check ahead of the length check again 8; a skip on any vector
+not of one column's length 7 listed, then the file stops, the changed column in force refusing the later hand-back;
+the joint door's old prefix 5. All 7 killed. No compare was run: a call changed by this round is an error before
+and after, in its words alone.
+
+Gates, once, on the package code of f7e925ad (the final commit adds this record), from a `--preclean` install in a
+private library: `tinytest::test_package` at its default `ncpu` in one process, 268 files, 31163 results, none
+failed; lint (0 lints), air, check-rc-codoc (48 methods), check-win-drift and check-doc-freshness clean. Not run: no
+C or C++ changed, so tests/cpp, the sanitizer legs, the exact gates, the snapshot files, the bitwise compares and
+`R CMD check` stand as of the second fix round.
