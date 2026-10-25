@@ -179,7 +179,8 @@ expect_error(
     x.view,
     FALSE,
     0L,
-    FALSE
+    FALSE,
+    NULL
   ),
   pattern = "views hold none"
 )

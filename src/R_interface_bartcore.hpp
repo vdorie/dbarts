@@ -53,10 +53,12 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptr, SEXP x_test,
 SEXP bartcore_setWeights(SEXP ptr, SEXP weights, SEXP updateScale,
                          SEXP updateStandardization, SEXP tooFewUnitsIn);
 SEXP bartcore_setPredictor(SEXP ptr, SEXP x, SEXP forceUpdate,
-                           SEXP updateCutPoints, SEXP updateStandardization);
+                           SEXP updateCutPoints, SEXP updateStandardization,
+                           SEXP tooFewUnitsIn);
 SEXP bartcore_updatePredictor(SEXP ptr, SEXP x, SEXP columns, SEXP forceUpdate,
                               SEXP updateCutPoints,
-                              SEXP updateStandardization);
+                              SEXP updateStandardization,
+                              SEXP tooFewUnitsIn);
 SEXP bartcore_updatePredictorPerObservation(SEXP ptr, SEXP x, SEXP column);
 SEXP bartcore_updatePredictorPerObservationJointly(SEXP ptrs, SEXP x,
                                                    SEXP columns);

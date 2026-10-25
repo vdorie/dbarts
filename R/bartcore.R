@@ -900,10 +900,11 @@ matchCutPointRule <- function(x, choices, name) {
   )
 }
 
-## The predictor setters' work, returning list(value, visible, kept): the
-## method's value, whether it is returned visibly, and the labels of the leaf
+## The predictor setters' work, returning list(value, visible, kept, units):
+## the method's value, whether it is returned visibly, the labels of the leaf
 ## covariates whose center and scale updateStandardization kept, given only
-## on the sampler's first keep, for the method to warn of last.
+## on the sampler's first keep, for the method to warn of last, and
+## rowSetterUnits's answer, which keeps every replaced covariate.
 bartcoreSamplerSetPredictor <- function(
   sampler,
   x,
@@ -1024,6 +1025,15 @@ bartcoreSamplerSetPredictor <- function(
     stop("'forceUpdate' must be TRUE, FALSE or \"partial\"")
   }
   updateCutPoints <- cutPointRuleCodes[[updateCutPoints]]
+  # a hazard fit's subjects, counted over the rows in, which the update
+  # leaves as they are, before anything moves
+  units <- rowSetterUnits(
+    sampler,
+    sampler$data@weights,
+    sampler$activeRows,
+    updateStandardization
+  )
+  tooFew <- if (!is.null(units)) TRUE
 
   # no BCF pre-check here either: a transactional whole-matrix or column
   # update revalidates every forest and rolls the whole change back if any
@@ -1090,7 +1100,8 @@ bartcoreSamplerSetPredictor <- function(
           sampler$data@x,
           forceUpdate,
           updateCutPoints,
-          updateStandardization
+          updateStandardization,
+          tooFew
         ),
         error = function(e) {
           sampler$data@x <- oldX
@@ -1121,7 +1132,8 @@ bartcoreSamplerSetPredictor <- function(
         x,
         forceUpdate,
         updateCutPoints,
-        updateStandardization
+        updateStandardization,
+        tooFew
       )
       if (isTRUE(updateSuccessful)) sampler$data@x <- newX
     }
@@ -1165,7 +1177,8 @@ bartcoreSamplerSetPredictor <- function(
       column,
       forceUpdate,
       updateCutPoints,
-      updateStandardization
+      updateStandardization,
+      tooFew
     )
     if (isTRUE(updateSuccessful)) {
       sampler$data@x <- newX
@@ -1192,7 +1205,8 @@ bartcoreSamplerSetPredictor <- function(
     visible = !forceUpdate,
     kept = if (!is.null(kept)) {
       leafCovariateLabels(sampler$model, sampler$data)[kept]
-    }
+    },
+    units = units
   )
 }
 
@@ -1354,11 +1368,11 @@ warnRowsKept <- function(sampler, answer, units = NULL) {
   )
 }
 
-## What a row setter that re-derives a leaf covariate's standardization tells
-## the engine (dec-B490): a hazard fit's subjects counted over 'weights' and
-## the mask 'active' in force after the call, where fewer than two are in,
-## which keeps every covariate; NULL otherwise, the rows being the engine's to
-## count.
+## What a row setter or setPredictor that re-derives a leaf covariate's
+## standardization tells the engine (dec-B490, dec-B491): a hazard fit's
+## subjects counted over 'weights' and the mask 'active' in force after the
+## call, where fewer than two are in, which keeps every covariate the call
+## re-derives; NULL otherwise, the rows being the engine's to count.
 rowSetterUnits <- function(sampler, weights, active, updateStandardization) {
   if (!updateStandardization) {
     return(NULL)

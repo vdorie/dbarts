@@ -350,7 +350,9 @@
     returns what it did. A replaced covariate those rows hold at one value,
     or observe at none, keeps its numbers, and the call warns, with class
     \code{dbartsScaleFallbackWarning}, on the sampler's first keep, of this
-    or of the response's scale (\code{updateScale}). For \code{setData},
+    or of the response's scale (\code{updateScale}); on a hazard fit where
+    fewer than two subjects are in, every replaced covariate keeps, the
+    period among them, the warning counting subjects. For \code{setData},
     \code{NULL}, the default, takes the \code{standardization} the new data
     object records and otherwise derives it from the new data's rows in,
     \code{TRUE} derives it, both reading every row where fewer than two rows

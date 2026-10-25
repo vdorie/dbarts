@@ -66,7 +66,8 @@ expect_error(
     x.fold,
     FALSE,
     0L,
-    FALSE
+    FALSE,
+    NULL
   ),
   pattern = "owns its predictors"
 )
@@ -78,7 +79,8 @@ expect_error(
     1L,
     FALSE,
     0L,
-    FALSE
+    FALSE,
+    NULL
   ),
   pattern = "owns its predictors"
 )

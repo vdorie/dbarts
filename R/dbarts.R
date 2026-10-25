@@ -3567,7 +3567,7 @@ dbartsSampler <- setRefClass(
       updateState = NULL,
       updateStandardization = FALSE
     ) {
-      "Changes a single column of the predictor matrix, or the entire matrix if column is missing, where x is a data frame, coded by label as a column is, or a numeric matrix, taken only where every predictor column is numeric and refused by name on a sampler with a factor column; the columns are matched by name, a name that is not the sampler's being refused, and a matrix with no column names is read by position with no message. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateCutPoints is \"none\", which keeps each cut grid, or \"position\" or \"value\", which derive the grid a new sampler would have for the values and say where the splits on it go: each on its position, rescaled when the number of points changes, or each to the point nearest its threshold. updateStandardization = TRUE derives a linear or gp leaf's covariate standardization again for the covariates among the columns the update replaces, over their new values at the rows in the likelihood, keeping one those rows hold at one value with a warning on the sampler's first keep, and keeps the others', a linear leaf's coefficients, current and saved, rewritten so that each leaf is the function it was; FALSE, the default, keeps it. updateState follows control@updateState; see setData."
+      "Changes a single column of the predictor matrix, or the entire matrix if column is missing, where x is a data frame, coded by label as a column is, or a numeric matrix, taken only where every predictor column is numeric and refused by name on a sampler with a factor column; the columns are matched by name, a name that is not the sampler's being refused, and a matrix with no column names is read by position with no message. Unforced, returns TRUE when the update was made and FALSE when it was refused and the sampler left as it was; forced, returns NULL invisibly. updateCutPoints is \"none\", which keeps each cut grid, or \"position\" or \"value\", which derive the grid a new sampler would have for the values and say where the splits on it go: each on its position, rescaled when the number of points changes, or each to the point nearest its threshold. updateStandardization = TRUE derives a linear or gp leaf's covariate standardization again for the covariates among the columns the update replaces, over their new values at the rows in the likelihood, keeping one those rows hold at one value, and every one, the period among them, on a hazard fit where fewer than two subjects are in, with a warning on the sampler's first keep, and keeps the others', a linear leaf's coefficients, current and saved, rewritten so that each leaf is the function it was; FALSE, the default, keeps it. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
 
       checkMissingPolicy(data, sourceAnyNA(x), "predictors")
@@ -3584,7 +3584,7 @@ dbartsSampler <- setRefClass(
       }
       # raised last: a warning turned into an error leaves the record and the
       # stored state the update's
-      warnScaleKept(!is.null(result$kept), result$kept)
+      warnScaleKept(!is.null(result$kept), result$kept, units = result$units)
       # a forced update's NULL comes back invisible and an unforced update's
       # verdict visible; a bare value here would always be visible
       if (result$visible) result$value else invisible(result$value)

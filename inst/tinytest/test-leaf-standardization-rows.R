@@ -1139,6 +1139,175 @@ made <- fallbacks(s$setActiveRows(NULL, updateStandardization = TRUE))
 expect_identical(made$warnings, character())
 expect_equal(recordOf(s), list(center = 3, scale = sd(1:5)), tolerance = 1e-12)
 
+# setPredictor counts subjects too (dec-B491): fewer than two subjects in keep
+# every replaced covariate, the period column too, under the row setters'
+# warning and their once-per-sampler flag; two or more re-derive each by its
+# own values. The mask goes to subject 5 first, the numbers those of subjects
+# 4 and 5
+atSubject5 <- function(leaf, data = subjects) {
+  s <- hazardFit(subjectIn(4:5), data = data, leaf = leaf)
+  s$setActiveRows(subjectRows(s, 5L))
+  s
+}
+periodText <- "the center and scale of \"period\""
+for (gp in c(FALSE, TRUE)) {
+  leaf <- if (gp) {
+    dbartsPriors$gp(c("x1", "period"))
+  } else {
+    dbartsPriors$linear(c("x1", "period"))
+  }
+  for (door in c("matrix", "period")) {
+    info <- paste("setPredictor,", door, if (gp) "gp" else "linear")
+    s <- atSubject5(leaf)
+    before <- recordOf(s)
+    design <- as.matrix(s$data@x)
+    made <- fallbacks(
+      if (door == "matrix") {
+        s$setPredictor(design, updateStandardization = TRUE)
+      } else {
+        s$setPredictor(
+          design[, "period"],
+          "period",
+          updateStandardization = TRUE
+        )
+      }
+    )
+    expect_identical(
+      made$warnings,
+      keptText(1L, if (door == "matrix") both else periodText),
+      info = info
+    )
+    expect_identical(recordOf(s), before, info = info)
+    expect_identical(recordOf(s), readerOf(s), info = info)
+    expect_true(all(is.finite(sweeps(s))), info = info)
+  }
+}
+# a leaf on the period alone, which subject 5 alone would read at 3 and 1.58
+s <- atSubject5(dbartsPriors$linear("period"))
+before <- recordOf(s)
+made <- fallbacks(s$setPredictor(
+  as.matrix(s$data@x)[, "period"],
+  "period",
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, keptText(1L, periodText))
+expect_identical(recordOf(s), before)
+# a column that is no leaf covariate: nothing to keep, nothing said
+s <- atSubject5(dbartsPriors$linear(c("x1", "period")))
+before <- recordOf(s)
+made <- fallbacks(s$setPredictor(
+  2 * as.matrix(s$data@x)[, "x2"],
+  "x2",
+  TRUE,
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, character())
+expect_identical(recordOf(s), before)
+# no subject in
+s <- atSubject5(dbartsPriors$linear(c("x1", "period")))
+s$setActiveRows(rep(0, 180L))
+made <- fallbacks(s$setPredictor(
+  as.matrix(s$data@x),
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, keptText(0L, both))
+expect_identical(recordOf(s), before)
+# once per sampler, the flag shared with the row setters' keep, either first
+s <- atSubject5(dbartsPriors$linear(c("x1", "period")))
+made <- fallbacks(s$setActiveRows(
+  subjectRows(s, 5L),
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, keptText(1L, both))
+made <- fallbacks(s$setPredictor(
+  as.matrix(s$data@x),
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, character())
+expect_identical(recordOf(s), before)
+s <- atSubject5(dbartsPriors$linear(c("x1", "period")))
+made <- fallbacks(s$setPredictor(
+  as.matrix(s$data@x)[, "period"],
+  "period",
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, keptText(1L, periodText))
+made <- fallbacks(s$setWeights(
+  subjectRows(s, 5L),
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, character())
+expect_identical(recordOf(s), before)
+# two subjects in: the whole matrix keeps x1, which they hold at one value,
+# and reads the period again; the period column alone is read again, silently
+s <- hazardFit(
+  NULL,
+  data = sameValue,
+  leaf = dbartsPriors$linear(c("x1", "period"))
+)
+before <- recordOf(s)
+s$setActiveRows(subjectRows(s, 4:5))
+made <- fallbacks(s$setPredictor(
+  as.matrix(s$data@x),
+  updateStandardization = TRUE
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "fewer than two distinct values of the leaf covariate \"x1\" are in the ",
+    "likelihood, so its center and scale are kept as they were (said once ",
+    "per sampler)"
+  )
+)
+held <- twoRead(s)
+held$center[[1L]] <- before$center[[1L]]
+held$scale[[1L]] <- before$scale[[1L]]
+expectRecord(s, held, "setPredictor, two subjects in, x1 at one value")
+for (link in c("probit", "logistic")) {
+  s <- hazardFit(
+    NULL,
+    leaf = dbartsPriors$linear(c("x1", "period")),
+    link = link
+  )
+  before <- recordOf(s)
+  s$setActiveRows(subjectRows(s, 4:5))
+  made <- fallbacks(s$setPredictor(
+    as.matrix(s$data@x)[, "period"],
+    "period",
+    updateStandardization = TRUE
+  ))
+  expect_identical(made$warnings, character(), info = link)
+  held <- twoRead(s)
+  held$center[[1L]] <- before$center[[1L]]
+  held$scale[[1L]] <- before$scale[[1L]]
+  expectRecord(s, held, paste("setPredictor, the period, two subjects,", link))
+}
+# a design with a sparse column takes the whole matrix by its own route
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  sparseSubjects <- subjects
+  sparseSubjects$sv <- Matrix::Matrix(
+    matrix(ifelse(seq_len(numSubjects) %% 3L == 0L, subjects$x2, 0)),
+    sparse = TRUE
+  )
+  s <- dbarts::dbarts(
+    survival::Surv(times, status) ~ x1 + sv,
+    sparseSubjects,
+    weights = subjectIn(4:5),
+    family = dbartsFamilies$hazard(breaks = 0:5),
+    leaf.prior = dbartsPriors$linear(c("x1", "period")),
+    control = controlWith()
+  )
+  expect_true(dbarts:::predictorSourceIsSparse(s$data@x))
+  s$setActiveRows(subjectRows(s, 5L))
+  before <- recordOf(s)
+  made <- fallbacks(s$setPredictor(
+    as.matrix(s$data@x),
+    updateStandardization = TRUE
+  ))
+  expect_identical(made$warnings, keptText(1L, both))
+  expect_identical(recordOf(s), before)
+}
+
 # rows out at one value, rows in spread: created, over the rows in
 outAtOne <- x
 outAtOne[-inRows, "x1"] <- 7

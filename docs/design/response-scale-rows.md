@@ -64,8 +64,9 @@ What it no longer does is move the numbers the prior is stated against.
    refused, there being no number in force to keep, unless a gp leaf states its lengthscale, which takes the
    placeholder: the one value, divided by 1.
    `setPredictor(updateStandardization = TRUE)` re-derives the replaced covariates over the rows in at that call,
-   under the weights and the mask in force, and keeps one with too little, warning once per sampler as rule 4
-   does, on the flag the response's keeps share. `updateStandardization = TRUE` on `setWeights` and
+   under the weights and the mask in force, and keeps one with too little, every one on a hazard fit where fewer
+   than two subjects are in (dec-B491), warning once per sampler as rule 4 does, on the flag the response's keeps
+   share. `updateStandardization = TRUE` on `setWeights` and
    `setActiveRows` re-derives every leaf covariate over the rows in after the install, keeping by the same rule,
    one row in included; a hazard fit counts its subjects there too, and fewer than two in after the call keep
    every covariate, the period column among them, under one warning once per sampler that counts subjects, R

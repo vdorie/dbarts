@@ -6932,6 +6932,13 @@ static SEXP predictorUpdateAnswer(BartcoreHolder& holder, bool accepted,
   return resultExpr;
 }
 
+// A predictor update's tooFewUnitsExpr, TRUE or NULL: the host counted fewer
+// than two of its units in (a hazard fit's subjects), which keeps every
+// replaced covariate's numbers (Sampler::rederiveStandardization).
+static bool tooFewUnitsFromExpression(SEXP tooFewUnitsExpr) {
+  return !Rf_isNull(tooFewUnitsExpr) && Rf_asLogical(tooFewUnitsExpr) == TRUE;
+}
+
 // A predictor update's updateStandardization: TRUE derives the leaf
 // covariate standardization again over the values the update leaves at the
 // rows in the likelihood, after an update that went in, which a gp sampler
@@ -6946,7 +6953,8 @@ static bool standardizationUpdateFromExpression(
 
 SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
                            SEXP updateCutPointsExpr,
-                           SEXP updateStandardizationExpr) {
+                           SEXP updateStandardizationExpr,
+                           SEXP tooFewUnitsExpr) {
   // the parsed buffers are owned across validateSourceColumnValues, whose
   // refusal longjmps past their destructors
   return unwindProtect([&, parsed = ParsedMutationSource{}]() mutable -> SEXP {
@@ -6990,7 +6998,8 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
     std::vector<std::uint8_t> kept;
     if (updateStandardization &&
         result == bartcore::PredictorUpdateResult::accepted)
-      kept = holder.sampler->rederiveStandardization();
+      kept = holder.sampler->rederiveStandardization(
+        nullptr, tooFewUnitsFromExpression(tooFewUnitsExpr));
     // the engine re-quantized the values into owned codes and retains no
     // pointer; the R method reassigns sampler$data@x, which keeps the current
     // source alive
@@ -7001,7 +7010,8 @@ SEXP bartcore_setPredictor(SEXP ptrExpr, SEXP xExpr, SEXP forceUpdateExpr,
 
 SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
                               SEXP forceUpdateExpr, SEXP updateCutPointsExpr,
-                              SEXP updateStandardizationExpr) {
+                              SEXP updateStandardizationExpr,
+                              SEXP tooFewUnitsExpr) {
   return unwindProtect([&, columns = std::vector<size_t>{},
                         parsed = ParsedMutationSource{}]() mutable -> SEXP {
     const char* shapeMessage =
@@ -7062,7 +7072,8 @@ SEXP bartcore_updatePredictor(SEXP ptrExpr, SEXP xExpr, SEXP columnsExpr,
         result == bartcore::PredictorUpdateResult::accepted) {
       std::vector<std::uint8_t> replaced(numPredictors, 0);
       for (size_t column : columns) replaced[column] = 1;
-      kept = holder.sampler->rederiveStandardization(replaced.data());
+      kept = holder.sampler->rederiveStandardization(
+        replaced.data(), tooFewUnitsFromExpression(tooFewUnitsExpr));
     }
     return predictorUpdateAnswer(
       holder, result == bartcore::PredictorUpdateResult::accepted, kept);

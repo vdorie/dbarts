@@ -141,7 +141,8 @@ expect_true(.Call(
   sparseBlock(a.new),
   TRUE,
   0L,
-  FALSE
+  FALSE,
+  NULL
 ))
 
 a.one <- sparseBlock(a.new[, 2L, drop = FALSE])
