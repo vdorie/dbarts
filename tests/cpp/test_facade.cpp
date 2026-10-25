@@ -123,7 +123,8 @@ public:
            const double* ot, const DataReplacement& r),
           (x, y, n, w, o, xt, nt, ot, r))
   SPY_RET(std::vector<std::uint8_t>, rederiveStandardization,
-          (const std::uint8_t* replaced), (replaced))
+          (const std::uint8_t* replaced, bool tooFewUnitsIn),
+          (replaced, tooFewUnitsIn))
   SPY_RET(PredictorUpdateResult, setPredictor,
           (const PredictorSource& s, bool f, bool u, SplitPlacement sp),
           (s, f, u, sp))

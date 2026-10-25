@@ -373,7 +373,10 @@
     covariate's values in force, rewriting a \code{linear} leaf's
     coefficients in the same way. A covariate those rows hold at one value,
     or observe at none, keeps its numbers, the others re-deriving, and the
-    call warns as \code{setPredictor} does, once per sampler. Where the call
+    call warns as \code{setPredictor} does, once per sampler. On a hazard
+    fit, where fewer than two subjects are in after the call, every covariate
+    keeps its numbers, the period among them, which varies within a subject,
+    under one warning that counts subjects. Where the call
     also passes \code{updateScale = TRUE} and keeps the response's scale, those
     rows holding fewer than two distinct values of the response, the prior in
     force is kept whole: every covariate keeps its numbers too, whatever its
@@ -407,8 +410,8 @@ for (i in seq_len(n.burn + n.keep)) {
     than two rows are in, or where the response's scale is read from every
     row, and refuse two or more rows in that hold one value of a leaf
     covariate, a \code{gp} leaf that states its \code{lengthscale} taking the
-    placeholder (see \code{newData}); these setters keep instead, one row in
-    included.
+    placeholder (see \code{newData}); these setters keep instead, one row or
+    one subject in included.
   }
   \item{splits}{
     For \code{setCutPoints}, \code{"position"} (the default) or \code{"value"},

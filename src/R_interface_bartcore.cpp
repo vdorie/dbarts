@@ -5075,12 +5075,15 @@ static void refuseRowsRederivation(const bartcore::SamplerBase& sampler,
 // then at updateStandardization every leaf covariate's standardization,
 // re-derived over the rows now in, with no engine call for either otherwise.
 // A transform kept for want of two response values in keeps the prior in
-// force, so every covariate keeps with it, whatever its spread there.
+// force, so every covariate keeps with it, whatever its spread there; so
+// does every covariate where \p tooFewUnitsIn says the host counted fewer
+// than two of its units in (a hazard fit's subjects).
 // The answer is firstKeep's for a keep of either, carrying, where a leaf
 // covariate was kept, keptCovariatesAnswer's positions and "scale.kept",
 // whether the transform was kept with them.
 static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale,
-                                 bool updateStandardization) {
+                                 bool updateStandardization,
+                                 bool tooFewUnitsIn) {
   bool scaleKept = updateScale == TRUE &&
                    holder.sampler->rederiveScale() ==
                      bartcore::ResponseUpdateResult::scaleKept;
@@ -5088,7 +5091,7 @@ static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale,
   if (updateStandardization && scaleKept)
     kept.assign(holder.sampler->shape().numLeafCovariates, 1);
   else if (updateStandardization)
-    kept = holder.sampler->rederiveStandardization();
+    kept = holder.sampler->rederiveStandardization(nullptr, tooFewUnitsIn);
   SEXP resultExpr = keptCovariatesAnswer(false, kept);
   if (resultExpr == R_NilValue)
     return Rf_ScalarLogical(firstKeep(holder, scaleKept) ? TRUE : FALSE);
@@ -5110,15 +5113,19 @@ static SEXP rederiveAfterInstall(BartcoreHolder& holder, int updateScale,
 // The values are copied into the sampler, so nothing is retained here.
 // updateScale re-derives the response transform, and updateStandardization
 // the leaf covariate standardization, over the rows the mask leaves in, after
-// the install; every refusal comes before it. The answer is
-// rederiveAfterInstall's.
+// the install; every refusal comes before it. tooFewUnitsExpr, TRUE or NULL,
+// is the host's count of its units in after the call, fewer than two. The
+// answer is rederiveAfterInstall's.
 SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
                             SEXP updateScaleExpr,
-                            SEXP updateStandardizationExpr) {
+                            SEXP updateStandardizationExpr,
+                            SEXP tooFewUnitsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   int updateScale = Rf_asLogical(updateScaleExpr);
   bool updateStandardization = Rf_asLogical(updateStandardizationExpr) == TRUE;
+  bool tooFewUnits =
+    !Rf_isNull(tooFewUnitsExpr) && Rf_asLogical(tooFewUnitsExpr) == TRUE;
   // Every shipped family implements the channel, multinomial included (there
   // the mask is GLOBAL: it lands on the softmax coupling's K interleaved
   // precisions, since the response holds none of its own). The probe stays as
@@ -5132,7 +5139,8 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
                          updateStandardization);
   if (activeExpr == R_NilValue) {
     holder.sampler->setActiveRows(NULL);
-    return rederiveAfterInstall(holder, updateScale, updateStandardization);
+    return rederiveAfterInstall(holder, updateScale, updateStandardization,
+                                tooFewUnits);
   }
   size_t n = shape.numObservations;
   if (!Rf_isReal(activeExpr) ||
@@ -5142,7 +5150,8 @@ SEXP bartcore_setActiveRows(SEXP ptrExpr, SEXP activeExpr,
   // and the re-derivation probed above, no other reason to refuse remains
   refuseNonBinaryMask(REAL(activeExpr), n);
   holder.sampler->setActiveRows(REAL(activeExpr));
-  return rederiveAfterInstall(holder, updateScale, updateStandardization);
+  return rederiveAfterInstall(holder, updateScale, updateStandardization,
+                              tooFewUnits);
 }
 
 // The sampler's forest count, the R twin of dbarts_sampler_numForests. The R5
@@ -6659,16 +6668,20 @@ SEXP bartcore_setTestPredictorAndOffset(SEXP ptrExpr, SEXP xTestExpr,
 // refuseBinaryWeightChange refuses the families whose likelihood has no weight
 // slot at all. updateScale re-derives the response transform, and
 // updateStandardization the leaf covariate standardization, over the rows the
-// weights leave in, after the install; every refusal comes before it. The
-// answer is rederiveAfterInstall's.
+// weights leave in, after the install; every refusal comes before it.
+// tooFewUnitsExpr is as bartcore_setActiveRows's. The answer is
+// rederiveAfterInstall's.
 SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr,
                          SEXP updateScaleExpr,
-                         SEXP updateStandardizationExpr) {
+                         SEXP updateStandardizationExpr,
+                         SEXP tooFewUnitsExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t numObservations = shape.numObservations;
   int updateScale = Rf_asLogical(updateScaleExpr);
   bool updateStandardization = Rf_asLogical(updateStandardizationExpr) == TRUE;
+  bool tooFewUnits =
+    !Rf_isNull(tooFewUnitsExpr) && Rf_asLogical(tooFewUnitsExpr) == TRUE;
   refuseRowsRederivation(*holder.sampler, "$setWeights",
                          ResponseConduit::weights, updateScale,
                          updateStandardization);
@@ -6685,7 +6698,8 @@ SEXP bartcore_setWeights(SEXP ptrExpr, SEXP weightsExpr,
                             "$setWeights");
   holder.sampler->setWeights(
     adoptVector(holder.ownedWeights, weights, numObservations));
-  return rederiveAfterInstall(holder, updateScale, updateStandardization);
+  return rederiveAfterInstall(holder, updateScale, updateStandardization,
+                              tooFewUnits);
 }
 
 // Between-run reconfiguration. The R side refuses changes to the engine, rng,

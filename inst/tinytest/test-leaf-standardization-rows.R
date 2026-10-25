@@ -822,7 +822,8 @@ hazardFit <- function(
   weights,
   breaks = 0:5,
   data = subjects,
-  leaf = dbartsPriors$linear("x1")
+  leaf = dbartsPriors$linear("x1"),
+  link = "probit"
 ) {
   dbarts::dbarts(
     survival::Surv(times, status) ~ x1 + x2,
@@ -831,7 +832,7 @@ hazardFit <- function(
     family = if (is.null(breaks)) {
       "hazard.probit"
     } else {
-      dbartsFamilies$hazard(breaks = breaks)
+      dbartsFamilies$hazard(breaks = breaks, link = link)
     },
     leaf.prior = leaf,
     control = controlWith()
@@ -981,12 +982,138 @@ expect_error(
   layout(paste0("row ", first5, " is at period 2 after a row at period 4")),
   fixed = TRUE
 )
-# the setters keep under either count: one subject over five periods holds
-# x1 at one value
+# the row setters count subjects too (dec-B490): fewer than two subjects in
+# after the call keep every covariate, the period column too, which varies
+# within a subject's periods, under one warning, once per sampler, counting
+# subjects; two or more re-derive each covariate by its own values
+keptText <- function(count, what) {
+  paste0(
+    if (count == 1L) "one subject is" else "no subject is",
+    " in the likelihood (",
+    count,
+    " of 60 subjects ",
+    if (count == 1L) "is" else "are",
+    " in it), so ",
+    what,
+    " are kept as they were (said once per sampler)"
+  )
+}
+both <- "the centers and scales of \"x1\" and \"period\""
+setterOf <- function(s, setter) {
+  if (setter == "setWeights") s$setWeights else s$setActiveRows
+}
+# over subjects 4 and 5 the period's center is 2.78 and its scale 1.39;
+# subject 5 alone, five periods, would read it at 3 and 1.58
+for (gp in c(FALSE, TRUE)) {
+  leaf <- if (gp) {
+    dbartsPriors$gp(c("x1", "period"))
+  } else {
+    dbartsPriors$linear(c("x1", "period"))
+  }
+  for (setter in c("setActiveRows", "setWeights")) {
+    info <- paste(setter, if (gp) "gp" else "linear")
+    s <- hazardFit(subjectIn(4:5), leaf = leaf)
+    before <- recordOf(s)
+    expect_equal(
+      before$center[[2L]],
+      mean(s$data@x[s$activeRows != 0, "period"]),
+      tolerance = 1e-12,
+      info = info
+    )
+    made <- fallbacks(setterOf(s, setter)(
+      subjectRows(s, 5L),
+      updateStandardization = TRUE
+    ))
+    expect_identical(made$warnings, keptText(1L, both), info = info)
+    expect_identical(recordOf(s), before, info = info)
+    expect_identical(recordOf(s), readerOf(s), info = info)
+    expect_true(all(is.finite(sweeps(s))), info = info)
+    # once per sampler: said again by neither setter, and by a copy
+    for (again in c("setActiveRows", "setWeights")) {
+      made <- fallbacks(setterOf(s, again)(
+        subjectRows(s, 7L),
+        updateStandardization = TRUE
+      ))
+      expect_identical(made$warnings, character(), info = info)
+    }
+    expect_identical(recordOf(s), before, info = info)
+    copied <- s$copy()
+    made <- fallbacks(setterOf(copied, setter)(
+      subjectRows(copied, 5L),
+      updateStandardization = TRUE
+    ))
+    expect_identical(made$warnings, keptText(1L, both), info = info)
+  }
+}
+# the period alone, and x1 alone, which one subject holds at one value; no
+# subject in
+s <- hazardFit(subjectIn(4:5), leaf = dbartsPriors$linear("period"))
+before <- recordOf(s)
+made <- fallbacks(s$setActiveRows(
+  subjectRows(s, 5L),
+  updateStandardization = TRUE
+))
+expect_identical(
+  made$warnings,
+  keptText(1L, "the center and scale of \"period\"")
+)
+expect_identical(recordOf(s), before)
 s <- hazardFit(subjectIn(4:5))
 before <- recordOf(s)
 made <- fallbacks(s$setActiveRows(
   subjectRows(s, 5L),
+  updateStandardization = TRUE
+))
+expect_identical(made$warnings, keptText(1L, "the center and scale of \"x1\""))
+expect_identical(recordOf(s), before)
+s <- hazardFit(subjectIn(4:5))
+made <- fallbacks(s$setWeights(rep(0, 180L), updateStandardization = TRUE))
+expect_identical(made$warnings, keptText(0L, "the center and scale of \"x1\""))
+expect_identical(recordOf(s), before)
+# the weights' own door, under the logistic link, whose weights are counts:
+# the mask in force leaves one subject in
+s <- hazardFit(
+  NULL,
+  leaf = dbartsPriors$linear(c("x1", "period")),
+  link = "logistic"
+)
+s$setActiveRows(subjectRows(s, 4:5), updateStandardization = TRUE)
+before <- recordOf(s)
+s$setActiveRows(subjectRows(s, 5L))
+made <- fallbacks(s$setWeights(rep(2, 180L), updateStandardization = TRUE))
+expect_identical(made$warnings, keptText(1L, both))
+expect_identical(recordOf(s), before)
+# two subjects in re-derive each covariate over their nine period rows, x1
+# kept where they hold it at one value, the period read again
+twoRead <- function(s, x1 = s$data@x[, "x1"]) {
+  rows <- s$activeRows != 0
+  period <- s$data@x[, "period"]
+  list(
+    center = c(mean(x1[rows]), mean(period[rows])),
+    scale = c(stats::sd(x1[rows]), stats::sd(period[rows]))
+  )
+}
+for (link in c("probit", "logistic")) {
+  s <- hazardFit(
+    NULL,
+    leaf = dbartsPriors$linear(c("x1", "period")),
+    link = link
+  )
+  made <- fallbacks(s$setActiveRows(
+    subjectRows(s, 4:5),
+    updateStandardization = TRUE
+  ))
+  expect_identical(made$warnings, character(), info = link)
+  expectRecord(s, twoRead(s), paste("two subjects in,", link))
+}
+s <- hazardFit(
+  NULL,
+  data = sameValue,
+  leaf = dbartsPriors$linear(c("x1", "period"))
+)
+before <- recordOf(s)
+made <- fallbacks(s$setWeights(
+  subjectRows(s, 4:5),
   updateStandardization = TRUE
 ))
 expect_identical(
@@ -997,7 +1124,20 @@ expect_identical(
     "per sampler)"
   )
 )
-expect_identical(recordOf(s), before)
+held <- twoRead(s)
+held$center[[1L]] <- before$center[[1L]]
+held$scale[[1L]] <- before$scale[[1L]]
+expectRecord(s, held, "two subjects in, x1 at one value")
+# a fit of one subject has every subject in: its five rows read again, with
+# nothing said
+s <- hazardFit(
+  NULL,
+  data = subjects[5L, ],
+  leaf = dbartsPriors$linear("period")
+)
+made <- fallbacks(s$setActiveRows(NULL, updateStandardization = TRUE))
+expect_identical(made$warnings, character())
+expect_equal(recordOf(s), list(center = 3, scale = sd(1:5)), tolerance = 1e-12)
 
 # rows out at one value, rows in spread: created, over the rows in
 outAtOne <- x

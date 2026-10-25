@@ -715,7 +715,7 @@ for (entry in c("setWeights", "setActiveRows")) {
     dbarts:::C_dbarts_bartcore_setActiveRows
   }
   expect_error(
-    .Call(symbol, s$getPointer(), w01, TRUE, FALSE),
+    .Call(symbol, s$getPointer(), w01, TRUE, FALSE, NULL),
     "updateScale",
     info = entry
   )

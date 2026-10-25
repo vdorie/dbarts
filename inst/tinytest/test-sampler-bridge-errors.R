@@ -88,7 +88,8 @@ for (value in c(0.5, -1, 2)) {
       sampler$getPointer(),
       c(value, rep(1, n - 1L)),
       FALSE,
-      FALSE
+      FALSE,
+      NULL
     ),
     pattern = "exactly 0 or 1",
     info = format(value)

@@ -1283,16 +1283,27 @@ bartcoreSamplerSetResponse <- function(
 ## gives the leaf's words; with 'scale', the response's scale kept and every
 ## covariate with it, one text naming the response as the cause and the
 ## covariates beside its scale, as the creation's fallback names them; NULL
-## the response's words alone.
+## the response's words alone. 'units', a hazard fit's subjects counted
+## where fewer than two are in (likelihoodUnits), every covariate kept for
+## it, counts them in the leaf's words.
 warnScaleKept <- function(
   first,
   covariates = NULL,
-  scale = is.null(covariates)
+  scale = is.null(covariates),
+  units = NULL
 ) {
   if (!isTRUE(first)) {
     return(invisible(NULL))
   }
-  if (scale) {
+  if (!scale && !is.null(units)) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      fewRowsInLead(units$n, units$numIn, subjects = TRUE),
+      ", so ",
+      leafCentersAndScales(covariates),
+      " are kept as they were (said once per sampler)"
+    )
+  } else if (scale) {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the response are in the ",
@@ -1328,8 +1339,9 @@ warnScaleKept <- function(
 
 ## warnScaleKept for a setter of rows, from the bridge's answer: TRUE on the
 ## sampler's first keep, carrying, where a leaf covariate was kept, their
-## positions and whether the response's scale was kept with them.
-warnRowsKept <- function(sampler, answer) {
+## positions and whether the response's scale was kept with them; 'units' as
+## rowSetterUnits answered the call.
+warnRowsKept <- function(sampler, answer, units = NULL) {
   kept <- attr(answer, "standardization.kept", exact = TRUE)
   if (is.null(kept)) {
     return(warnScaleKept(answer))
@@ -1337,8 +1349,27 @@ warnRowsKept <- function(sampler, answer) {
   warnScaleKept(
     isTRUE(as.vector(answer)),
     leafCovariateLabels(sampler$model, sampler$data)[kept],
-    scale = isTRUE(attr(answer, "scale.kept", exact = TRUE))
+    scale = isTRUE(attr(answer, "scale.kept", exact = TRUE)),
+    units = units
   )
+}
+
+## What a row setter that re-derives a leaf covariate's standardization tells
+## the engine (dec-B490): a hazard fit's subjects counted over 'weights' and
+## the mask 'active' in force after the call, where fewer than two are in,
+## which keeps every covariate; NULL otherwise, the rows being the engine's to
+## count.
+rowSetterUnits <- function(sampler, weights, active, updateStandardization) {
+  if (!updateStandardization) {
+    return(NULL)
+  }
+  units <- likelihoodUnits(
+    sampler$control,
+    sampler$data,
+    active,
+    weights = weights
+  )
+  if (tooFewUnitsIn(units)) units
 }
 
 bartcoreSamplerSetOffset <- function(sampler, offset, updateScale) {
@@ -1672,13 +1703,20 @@ hazardRowSubjects <- function(control, data, prefix = "") {
 }
 
 ## What a creation or a setData counts in the likelihood for the trigger of
-## dec-B485: the rows of positive weight that the mask 'active' keeps, or,
-## under a hazard fit, the subjects with such a row (dec-B489). 'n' is the
-## rows or the subjects, 'numIn' those in; 'prefix' opens a refusal of rows
-## whose subjects cannot be counted (hazardRowSubjects).
-likelihoodUnits <- function(control, data, active, prefix = "") {
+## dec-B485: the rows of positive weight, under 'weights', that the mask
+## 'active' keeps, or, under a hazard fit, the subjects with such a row
+## (dec-B489). 'n' is the rows or the subjects, 'numIn' those in; 'prefix'
+## opens a refusal of rows whose subjects cannot be counted
+## (hazardRowSubjects).
+likelihoodUnits <- function(
+  control,
+  data,
+  active,
+  prefix = "",
+  weights = data@weights
+) {
   n <- length(data@y)
-  rowsIn <- rowsInLikelihood(data@weights, active, n)
+  rowsIn <- rowsInLikelihood(weights, active, n)
   subject <- hazardRowSubjects(control, data, prefix)
   if (is.null(subject)) {
     return(list(n = n, numIn = sum(rowsIn), subjects = FALSE))
@@ -1834,15 +1872,17 @@ warnRowsFallBack <- function(
 ## count center, and with updateStandardization every leaf covariate's center
 ## and scale, over the rows the mask leaves in, in the same call and after
 ## the install; nothing else is touched: no draw beyond the install's own, no
-## slot of the data object, no test offset here or in the engine. No store
-## and no warning, both being the caller's; the answer is the bridge's, TRUE
-## on the sampler's first re-derivation that kept the scale or a covariate's
-## numbers (warnRowsKept).
+## slot of the data object, no test offset here or in the engine. 'units',
+## rowSetterUnits's answer, keeps every covariate. No store and no warning,
+## both being the caller's; the answer is the bridge's, TRUE on the sampler's
+## first re-derivation that kept the scale or a covariate's numbers
+## (warnRowsKept).
 bartcoreSamplerSetActiveRows <- function(
   sampler,
   active,
   updateScale,
-  updateStandardization = FALSE
+  updateStandardization = FALSE,
+  units = NULL
 ) {
   ptr <- sampler$getPointer()
   kept <- .Call(
@@ -1850,7 +1890,8 @@ bartcoreSamplerSetActiveRows <- function(
     ptr,
     active,
     updateScale,
-    updateStandardization
+    updateStandardization,
+    if (!is.null(units)) TRUE
   )
   sampler$activeRows <- if (is.null(active) || all(active == 1)) {
     NULL

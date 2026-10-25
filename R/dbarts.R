@@ -3241,7 +3241,7 @@ dbartsSampler <- setRefClass(
       updateScale = FALSE,
       updateStandardization = FALSE
     ) {
-      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler redraws the scale of each row whose weight leaves zero, from the sampler's own generators. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the new weights leave in, as setOffset(updateScale = TRUE) does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate center and scale, and a gp leaf's heuristic lengthscale, again from those rows, as setPredictor(updateStandardization = TRUE) does for every leaf covariate, keeping a covariate those rows hold at one value with the same warning, and every covariate where updateScale = TRUE keeps the response's scale in the same call; a gp sampler holding saved draws refuses it. Both are for burn-in: pass them TRUE while burning in and FALSE after, so every kept draw comes from one prior. updateState follows control@updateState; see setData."
+      "Changes the weights with which the sampler is fitted. A row of weight 0 leaves the likelihood but stays in the fit, occupying a leaf. A probit, ordinal or nbinom sampler carries no weight channel, and takes only weights of 0 and 1: those name the rows in its data set, so they install as the active-row mask (see setActiveRows) and the data object's weights slot stays empty. A Student-t sampler redraws the scale of each row whose weight leaves zero, from the sampler's own generators. updateScale = TRUE then takes the response's scale (a count sampler's center) again from the rows the new weights leave in, as setOffset(updateScale = TRUE) does; it is refused on a sampler of several forests, and kept, with one warning per sampler, where those rows hold fewer than two distinct values. updateStandardization = TRUE then takes a linear or gp leaf's covariate center and scale, and a gp leaf's heuristic lengthscale, again from those rows, as setPredictor(updateStandardization = TRUE) does for every leaf covariate, keeping a covariate those rows hold at one value with the same warning, and every covariate where updateScale = TRUE keeps the response's scale in the same call or, on a hazard fit, fewer than two subjects are in, the period among them, under a warning counting subjects; a gp sampler holding saved draws refuses it. Both are for burn-in: pass them TRUE while burning in and FALSE after, so every kept draw comes from one prior. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
       updateScale <- checkUpdateScale(updateScale)
       updateStandardization <- checkUpdateStandardization(
@@ -3304,6 +3304,7 @@ dbartsSampler <- setRefClass(
 
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
+      units <- rowSetterUnits(.self, weights, activeRows, updateStandardization)
 
       oldWeights <- data@weights
       selfEnv$data@weights <- weights
@@ -3313,7 +3314,8 @@ dbartsSampler <- setRefClass(
           ptr,
           data@weights,
           updateScale,
-          updateStandardization
+          updateStandardization,
+          if (!is.null(units)) TRUE
         ),
         error = function(e) {
           selfEnv$data@weights <- oldWeights
@@ -3330,7 +3332,7 @@ dbartsSampler <- setRefClass(
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
       }
-      warnRowsKept(.self, tryResult)
+      warnRowsKept(.self, tryResult, units)
       invisible(NULL)
     },
     setCounts = function(counts, updateState = NULL) {
@@ -3398,16 +3400,23 @@ dbartsSampler <- setRefClass(
         }
       }
 
+      units <- rowSetterUnits(
+        .self,
+        data@weights,
+        active,
+        updateStandardization
+      )
       kept <- bartcoreSamplerSetActiveRows(
         .self,
         active,
         updateScale,
-        updateStandardization
+        updateStandardization,
+        units
       )
       if (resolveUpdateState(updateState, control)) {
         storeState()
       }
-      warnRowsKept(.self, kept)
+      warnRowsKept(.self, kept, units)
       invisible(NULL)
     },
     setForestWeights = function(forest, weights, updateState = NULL) {
@@ -4010,7 +4019,14 @@ dbartsSampler <- setRefClass(
     reapplyActiveRows = function(ptr) {
       "Re-installs the active-row mask mirrored on this sampler onto ptr, a freshly (re-)created or restated engine pointer that carries none. Called from getPointer, setState and copy, never recursing through getPointer."
       if (!is.null(activeRows)) {
-        .Call(C_dbarts_bartcore_setActiveRows, ptr, activeRows, FALSE, FALSE)
+        .Call(
+          C_dbarts_bartcore_setActiveRows,
+          ptr,
+          activeRows,
+          FALSE,
+          FALSE,
+          NULL
+        )
       }
       invisible(NULL)
     },

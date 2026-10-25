@@ -7143,6 +7143,16 @@ static void testLeafStandardizationRows() {
             oneIn.leafCenters == after.leafCenters &&
             oneIn.leafScales == after.leafScales,
           "leaf rows: one row in keeps every covariate");
+    // the host's units too few in: every covariate kept, one the rows in
+    // spread too
+    sampler->setWeights(w.data());
+    sampler->derivedRecords(held);
+    kept = sampler->rederiveStandardization(nullptr, true);
+    sampler->derivedRecords(after);
+    check(kept == std::vector<std::uint8_t>{1, 1} &&
+            after.leafCenters == held.leafCenters &&
+            after.leafScales == held.leafScales,
+          "leaf rows: too few units in keeps every covariate");
   }
 
   // a whole-data replacement derives over its own rows in, the mask it is

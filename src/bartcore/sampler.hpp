@@ -2412,24 +2412,28 @@ public:
   /// function it was (Chain::rederiveStandardization). The rows read are
   /// those in the likelihood now, under the weights and the mask in force
   /// (leafRowsFrom); a marked covariate those hold at one value, or none, or
-  /// every marked one where fewer than two rows are in, keeps the numbers in
-  /// force. Decided once, from chain 0, as every chain holds the same rows. A
-  /// leaf that takes no covariate has nothing to derive. The host refuses it
-  /// where a gp leaf holds saved draws.
+  /// every marked one where fewer than two rows are in, or where the host
+  /// says too few of its units are in (\p tooFewUnitsIn, as
+  /// DataReplacement::tooFewUnitsIn), keeps the numbers in force. Decided
+  /// once, from chain 0, as every chain holds the same rows. A leaf that
+  /// takes no covariate has nothing to derive. The host refuses it where a
+  /// gp leaf holds saved draws.
   ///
   /// \returns one byte per leaf covariate, nonzero where it was kept; empty
   /// for a leaf that takes none.
   std::vector<std::uint8_t> rederiveStandardization(
-      const std::uint8_t* replaced = nullptr) {
+      const std::uint8_t* replaced = nullptr, bool tooFewUnitsIn = false) {
     SavedDrawSlots kept = savedDrawSlots();
     std::vector<std::uint8_t> keptCovariates;
     if constexpr (L::hasVectorParams || L::hasFunctionParams) {
       const L& leaf = chains_[0]->leaf();
       size_t n = data_.numObservations;
       std::vector<std::uint8_t> storage;
-      LeafRows rows = leafRowsFrom(
-        chains_[0]->weights(),
-        activeRows_.empty() ? nullptr : activeRows_.data(), n, storage);
+      LeafRows rows = tooFewUnitsIn
+        ? LeafRows{nullptr, true}
+        : leafRowsFrom(chains_[0]->weights(),
+                       activeRows_.empty() ? nullptr : activeRows_.data(), n,
+                       storage);
       keptCovariates.assign(leaf.numCovariates(), 0);
       bool anyKept = false;
       for (size_t j = 0; j < leaf.numCovariates(); ++j) {
@@ -2458,6 +2462,7 @@ public:
                                        rows);
     } else {
       for (auto& chain : chains_) chain->rederiveStandardization(kept, replaced);
+      (void) tooFewUnitsIn;
     }
     return keptCovariates;
   }

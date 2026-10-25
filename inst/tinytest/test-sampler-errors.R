@@ -124,7 +124,8 @@ expect_error(
     sampler$getPointer(),
     c(NaN, rep(1, n - 1L)),
     FALSE,
-    FALSE
+    FALSE,
+    NULL
   ),
   "gaussian case weights must be finite and non-negative"
 )

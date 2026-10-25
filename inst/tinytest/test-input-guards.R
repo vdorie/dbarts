@@ -114,7 +114,8 @@ expect_error(
     logisticSampler$getPointer(),
     replace(rep(1, n), 3L, Inf),
     FALSE,
-    FALSE
+    FALSE,
+    NULL
   ),
   "logistic weights are observation counts"
 )

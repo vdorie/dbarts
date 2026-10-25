@@ -67,7 +67,9 @@ What it no longer does is move the numbers the prior is stated against.
    under the weights and the mask in force, and keeps one with too little, warning once per sampler as rule 4
    does, on the flag the response's keeps share. `updateStandardization = TRUE` on `setWeights` and
    `setActiveRows` re-derives every leaf covariate over the rows in after the install, keeping by the same rule,
-   one row in included. Where `updateScale = TRUE` in the same call keeps the response's scale (rule 4), the prior
+   one row in included; a hazard fit counts its subjects there too, and fewer than two in after the call keep
+   every covariate, the period column among them, under one warning once per sampler that counts subjects, R
+   telling the re-derivation as it tells creation (dec-B490). Where `updateScale = TRUE` in the same call keeps the response's scale (rule 4), the prior
    in force is kept whole: every covariate keeps too, whatever its spread over the rows in, under one warning
    naming the response and the covariates, as the same rows at creation read both from every row; with
    `updateScale = FALSE` nothing reads the response and each covariate keeps or re-derives by its own values. A

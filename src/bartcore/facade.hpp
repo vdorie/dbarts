@@ -231,10 +231,11 @@ public:
   /// predictor column \p replaced marks (a byte per predictor; null marks
   /// every one), a linear leaf's coefficients, live and saved, rewritten into
   /// it; a marked covariate those rows hold at one value, or none, keeps its
-  /// numbers. Returns a byte per leaf covariate, nonzero where it was kept
-  /// (Sampler::rederiveStandardization).
+  /// numbers, as every marked one does where \p tooFewUnitsIn says too few
+  /// of the host's units are in. Returns a byte per leaf covariate, nonzero
+  /// where it was kept (Sampler::rederiveStandardization).
   virtual std::vector<std::uint8_t> rederiveStandardization(
-    const std::uint8_t* replaced = nullptr) = 0;
+    const std::uint8_t* replaced = nullptr, bool tooFewUnitsIn = false) = 0;
   /// Replace the predictors from a borrowed view of any shape - dense,
   /// mapped, CSC or mixed, either dense channel - consumed column by column:
   /// a CSC column onto a CSC-backed store column is read as its entries and
@@ -632,8 +633,9 @@ public:
                          numTestObservations, testOffset, replacement);
   }
   std::vector<std::uint8_t> rederiveStandardization(
-    const std::uint8_t* replaced = nullptr) override {
-    return impl_.rederiveStandardization(replaced);
+    const std::uint8_t* replaced = nullptr,
+    bool tooFewUnitsIn = false) override {
+    return impl_.rederiveStandardization(replaced, tooFewUnitsIn);
   }
   // the view-taking overrides hide the base's dense convenience spellings;
   // re-expose them so a dense caller still resolves
