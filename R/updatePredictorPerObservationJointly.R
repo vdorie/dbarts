@@ -79,7 +79,7 @@ updatePredictorPerObservationJointly <- function(
       samplers[[i]]$data@x,
       x,
       columnIndices[i],
-      "updatePredictorPerObservationJointly: "
+      "updatePredictorPerObservationJointly(): "
     )
   }
 

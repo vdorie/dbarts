@@ -1147,7 +1147,7 @@ periodChangeText <- paste0(
 )
 periodRefusal <- paste0("$setPredictor: ", periodChangeText)
 jointRefusal <- paste0(
-  "updatePredictorPerObservationJointly: ",
+  "updatePredictorPerObservationJointly(): ",
   periodChangeText
 )
 # setPredictor counts subjects too (dec-B491): fewer than two subjects in keep
@@ -1476,6 +1476,21 @@ expect_identical(
     "one subject"
   )
 )
+# a fit that is not a hazard fit has no subjects: one row of one in is read
+# as rows, "all 1", not as the fit's one subject
+s <- dbarts::dbarts(x[1:3, ], y[1:3], control = controlWith())
+made <- suppressWarnings(fallbacks(s$setData(
+  dbartsData(x[1L, , drop = FALSE], y[1L], weights = 0),
+  updateScale = TRUE
+)))
+expect_identical(
+  made$warnings,
+  paste0(
+    "fewer than two distinct values of the response are in the likelihood (0 ",
+    "of 1 observations are in it), so the response's scale and the prior's ",
+    "center are taken from all 1"
+  )
+)
 # the layout check names the first row out of it, a one-row column included
 expect_error(
   dbarts:::refuseHazardLayout(2, "p: "),
@@ -1537,6 +1552,88 @@ expect_error(
   fixed = TRUE
 )
 expect_true(s$setPredictor(cbind(design[, "x1"], period), c("x1", "period")))
+# the column twice, the first changed and the last as it is
+expect_error(
+  s$setPredictor(cbind(reversed, period), c("period", "period")),
+  periodRefusal,
+  fixed = TRUE
+)
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  expect_error(
+    s$setPredictor(
+      Matrix::Matrix(cbind(reversed, period), sparse = TRUE),
+      c("period", "period")
+    ),
+    periodRefusal,
+    fixed = TRUE
+  )
+}
+# a column update handed as one vector, column after column, is read by the
+# width of the columns named
+expect_error(
+  s$setPredictor(c(period, reversed), c("period", "period")),
+  periodRefusal,
+  fixed = TRUE
+)
+expect_error(
+  s$setPredictor(c(design[, "x1"], reversed), c("x1", "period")),
+  periodRefusal,
+  fixed = TRUE
+)
+# the equality is exact, over every value: a missing value is a change, and so
+# is a difference of 0.3, at every door
+periodNA <- period
+periodNA[2L] <- NA
+periodOff <- period + 0.3
+for (new in list(periodNA, periodOff)) {
+  changed <- design
+  changed[, "period"] <- new
+  expect_error(s$setPredictor(changed), periodRefusal, fixed = TRUE)
+  expect_error(
+    s$setPredictor(changed, updateStandardization = TRUE),
+    periodRefusal,
+    fixed = TRUE
+  )
+  expect_error(s$setPredictor(new, "period"), periodRefusal, fixed = TRUE)
+  expect_error(
+    s$setPredictor(new, "period", "partial"),
+    periodRefusal,
+    fixed = TRUE
+  )
+  expect_error(
+    updatePredictorPerObservationJointly(s, new, "period"),
+    jointRefusal,
+    fixed = TRUE
+  )
+  expect_identical(as.vector(as.matrix(s$data@x)), as.vector(design))
+}
+# a row-by-row update of the wrong length, the period column's or not, is
+# refused for its length, whatever its values, and nothing moves
+rowsOfFit <- length(period)
+partialLength <- "$setPredictor: requires one value per observation"
+jointLength <- paste0(
+  "updatePredictorPerObservationJointly(): ",
+  "requires one value per observation"
+)
+for (new in list(
+  period[-rowsOfFit],
+  reversed[-rowsOfFit],
+  c(period, 1),
+  c(reversed, 1),
+  c(reversed, reversed)
+)) {
+  expect_error(
+    s$setPredictor(new, "period", "partial"),
+    partialLength,
+    fixed = TRUE
+  )
+  expect_error(
+    updatePredictorPerObservationJointly(s, new, "period"),
+    jointLength,
+    fixed = TRUE
+  )
+}
+expect_identical(as.vector(as.matrix(s$data@x)), as.vector(design))
 # the joint update with the hazard fit second
 other <- dbarts::dbarts(
   design,

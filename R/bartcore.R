@@ -1740,9 +1740,16 @@ hazardPeriodColumn <- function(control, x) {
 ## occurrence of it among 'columns', every column where NULL, holds the values
 ## in force; a changed history goes through setData. 'x' holds the new values
 ## of 'columns' of 'currentX', as a matrix or as one vector column after column.
+## A vector of another length is no update of 'columns': the door's own length
+## check refuses it, in its own words, before anything moves.
 refusePeriodUpdate <- function(control, currentX, x, columns, prefix) {
   periodColumn <- hazardPeriodColumn(control, currentX)
   if (is.null(periodColumn)) {
+    return(invisible(NULL))
+  }
+  n <- nrow(currentX)
+  width <- if (is.null(columns)) ncol(currentX) else length(columns)
+  if (is.null(dim(x)) && length(x) != n * width) {
     return(invisible(NULL))
   }
   occurrences <- if (is.null(columns)) {
@@ -1750,7 +1757,6 @@ refusePeriodUpdate <- function(control, currentX, x, columns, prefix) {
   } else {
     which(columns == periodColumn)
   }
-  n <- nrow(currentX)
   current <- as.vector(currentX[, periodColumn])
   for (k in occurrences) {
     values <- as.vector(
