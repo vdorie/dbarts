@@ -1,8 +1,9 @@
 # hazard-setter-subjects: a hazard fit's row setters count its subjects
 
 Status: BUILT 2026-10-25 on wt/hazard-setpredictor (dc6fc00c on wt/hazard-setter, off bartcore 0aa94644, then
-its fix round and dec-B491), not landed; implements dec-B490 and dec-B491 ([Built](#built),
-[Fix round](#fix-round), [setPredictor (dec-B491)](#setpredictor-dec-b491)).
+its two fix rounds and dec-B491), not landed; implements dec-B490 and dec-B491 ([Built](#built),
+[Fix round](#fix-round), [setPredictor (dec-B491)](#setpredictor-dec-b491),
+[Second fix round](#second-fix-round)).
 
 agent: one opus implementer (engine flag, bridge, R text, tests, help, notes); one opus review that runs mutants.
 rng: draw-changing only where a setter on a hazard fit re-derived a covariate at fewer than two subjects in and
@@ -188,9 +189,12 @@ Calls made, each with its alternative:
   alone, which takes a column whose partial install leaves the layout; refusing any change to the period column
   row by row, which refuses a split of a subject that keeps it.
 - The creation text says "taken from all 1" of a one-subject fit, as it says "all 60". Alternative: words of its
-  own for one subject.
-- The count at `setPredictor` reads the rows in force before the call, the new period column having been checked
-  first. Alternative: count over the new column, the same answer once it is checked.
+  own for one subject (taken in the [Second fix round](#second-fix-round)).
+- The count at `setPredictor` reads the rows in force before the call, ahead of the period column's check.
+  Corrected in the second fix round: this said the column was checked first and that a count over the new column
+  gave the same answer once checked; the count ran first, and a regrouping kept in the layout gave another
+  answer. Since the second fix round the column cannot change at that door, so the count is the same before or
+  after the install.
 - The setters keep their prefix though their count can no longer refuse, every door that writes the period column
   now checking it. Not checked: a test set's period column, which `setTestPredictor` writes, is laid out period by
   period across the test subjects, a contract of its own the subject count does not read.
@@ -261,3 +265,75 @@ lint (0 lints), air, check-rc-codoc (48 methods), check-win-drift, check-doc-fre
 `R CMD check --as-cran --no-manual` from a tarball built from a clean export, the Date field's NOTE alone. Not
 run: the R-loaded path under ASAN (no new numerics), stan4bart (it calls none of the changed entries, all the R
 bridge's), the x86-64 leg.
+
+## Second fix round
+
+The review of 9eac74df (the same opus reader, FIX FIRST) closed the first review's four findings, found dec-B491
+right on every route and nothing moved that should not (a 1420-case compare, 78 moved, all hazard fits with
+`updateStandardization = TRUE` at fewer than two subjects in or a one-subject fit with rows out), and ran 11
+mutants, 6 killed. Built in 9630d190, as the orchestrator ruled each finding.
+
+1. A period column handed twice passed the check, which read the first occurrence while the install writes the
+   last (`setPredictor(cbind(p, rev(p)), c("period", "period"))`, dense and dgCMatrix), after which the setters'
+   count refused; N03 (the column route reading the first column handed) and N16 (the joint door checking its
+   first sampler) survived; and a regrouping kept in the layout (subjects 5 and 6 relabeled as one subject's
+   periods 1 to 6) was taken, leaving `survivalProbabilities` 59 subjects and partial dependence an error. The
+   predictor doors, `setPredictor` whole (both routes), by column and row by row and
+   `updatePredictorPerObservationJointly`, now take a hazard fit's period column only unchanged, every occurrence
+   of it checked, and refuse any other values before anything moves, behind the door's name: "the period column of
+   a hazard fit is its expansion of each subject's time at risk, set with the response, so it can only be handed
+   back unchanged; replace the data with setData to change it" ([`refusePeriodUpdate`](../../R/bartcore.R)). The
+   check of every mix of values at the row-by-row doors goes; creation, `new()` and `setData` keep dec-A231's
+   layout check ([`refuseHazardLayout`](../../R/bartcore.R), one vector again). With the column fixed at those
+   doors, the subject count is the same before or after the install; the fix round's two sentences that said
+   otherwise are corrected above.
+2. A fit of one subject was worded "(1 of 1 subjects is in it)" and "taken from all 1", and at no subject in
+   "(0 of 1 subjects are in it)", in the leaf's text ([`fewRowsInLead`](../../R/bartcore.R),
+   [`warnRowsFallBack`](../../R/bartcore.R)) and the periods' text (`hazardGridTimes`): now "(1 of 1 subject is in
+   it)", "(0 of 1 subject is in it)" and "taken from the fit's one subject".
+3. The test set's period column, which `setTestPredictor` writes, stays unchecked: the reviewer found nothing that
+   reads it after the fit. No help text.
+4. N10 (a one-row column passing the layout check) is pinned on the check itself, a one-row store at period 2
+   refused; built by hand it cannot be made cheaply, `dbartsData` stopping first on a one-row store's cut count.
+   N11 (the last row out of the layout named) is killed by the existing pins on rows reversed, where several rows
+   are out.
+
+Calls made, each with its alternative:
+
+- The predictor doors take the period column only unchanged (the orchestrator's, as the reviewer recommended).
+  Alternative: keep a layout check there, every occurrence and every mix checked, under which a regrouping kept in
+  the layout still goes in, renumbering subjects behind the response they were expanded from; a row's period says
+  which interval its 0/1 response belongs to, so a changed history goes through `setData`, which checks it with
+  the response.
+- Equality is checked on the values, a missing value counting as a change. Alternative: within a tolerance, which
+  a column of whole periods does not need.
+- The one-subject wording changes only where n is one. Alternative: "every subject" for any n, a change to every
+  hazard fit's text.
+
+Tests (test-leaf-standardization-rows.R, 763 results): at every predictor door, whole matrix with and without
+`updateStandardization`, by column, row by row and jointly, the period column reversed and regrouped in the layout
+refused, the sampler left as it was (its predictors and the draws of a twin); the column twice with the second
+changed, dense and dgCMatrix; the period after x1, changed and unchanged; the joint update with the hazard fit
+second; the column handed back unchanged at every door, the joint one with the hazard fit second too; the sparse
+route refusing a changed column and taking it unchanged; the one-subject texts at creation by hand, `setData`, the
+setters and no subject in, and the periods' text of a one-subject fit at weight 0; the one-row layout check.
+
+Mutants on 9630d190, each alone, `--preclean`, failures in test-leaf-standardization-rows.R of 763 (a door that
+lets a changed column in stops the file, a later hand-back of the column in force then being refused): the
+whole-matrix door unchecked, stops; the column door, 11; the row-by-row door, stops; the joint door, stops; the
+first occurrence checked alone, stops; the column route reading the first column handed (N03), stops at the
+unchanged period after x1; the joint door checking its first sampler (N16), stops; the layout check in place of
+equality, 16; the singular noun dropped, 6; "the fit's one subject" dropped from the leaf's text, 2, and from the
+periods' text, 1; a one-row column passing the layout check (N10), 1; the last row out named (N11), 3. All 13
+killed. Both compares (209 `setPredictor` and 113 row-setter cases) are unchanged by this round.
+
+Gates, once, on the package code of 9630d190 (the final commit adds this record), from `--preclean` installs in a
+private library: tests/cpp 412 ok plain and under ASAN and UBSAN, no diagnostic; `tinytest::test_package` at its
+default `ncpu` in one process, 268 files, 31135 results, none failed; the 43 commands of exact-gates.yaml at
+`quick` on the shipped build, all passing; on a `--enable-reference-build` install the four snapshot files (14, 3,
+7 and 3, none failed) and the bitwise compares, 55 of 55 identical against equivalence-32418b6e
+(`--strict-coverage`, 0 skipped), 19 of 19 against bcf-equivalence-20eed7ed and 11 of 11 against
+multinomial-equivalence-80b1c8d4 on every channel, no "max |z|" line, and both cross-host compares within tier 1;
+lint (0 lints), air, check-rc-codoc (48 methods), check-win-drift, check-doc-freshness and verify-anchors clean;
+`R CMD check --as-cran --no-manual` from a tarball built from a clean export, the Date field's NOTE alone. Not
+run: the R-loaded path under ASAN (no new numerics), stan4bart, the x86-64 leg.
