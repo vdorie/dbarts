@@ -434,7 +434,11 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   `setTestPredictor` refuses a missing value, a label or a number, in a
   column that has never held one in training, as the whole test set is
   refused. What a column's first missing value does is under ‘Missing
-  values in predictors’ in ‘Details’.
+  values in predictors’ in ‘Details’. On a hazard fit, `setPredictor`
+  takes the period column, whole, as a column or row by row
+  (`"partial"`), only unchanged, refusing any other values before
+  anything moves: the column is the expansion of each subject's time at
+  risk, set with the response, and `setData` replaces it.
 
 - x.test:
 
@@ -1155,7 +1159,9 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   replaced covariate those rows hold at one value, or observe at none,
   keeps its numbers, and the call warns, with class
   `dbartsScaleFallbackWarning`, on the sampler's first keep, of this or
-  of the response's scale (`updateScale`). For `setData`, `NULL`, the
+  of the response's scale (`updateScale`); on a hazard fit where fewer
+  than two subjects are in, every replaced covariate keeps, the period
+  among them, the warning counting subjects. For `setData`, `NULL`, the
   default, takes the `standardization` the new data object records and
   otherwise derives it from the new data's rows in, `TRUE` derives it,
   both reading every row where fewer than two rows are in or the
@@ -1177,7 +1183,10 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   covariate's values in force, rewriting a `linear` leaf's coefficients
   in the same way. A covariate those rows hold at one value, or observe
   at none, keeps its numbers, the others re-deriving, and the call warns
-  as `setPredictor` does, once per sampler. Where the call also passes
+  as `setPredictor` does, once per sampler. On a hazard fit, where fewer
+  than two subjects are in after the call, every covariate keeps its
+  numbers, the period among them, which varies within a subject, under
+  one warning that counts subjects. Where the call also passes
   `updateScale = TRUE` and keeps the response's scale, those rows
   holding fewer than two distinct values of the response, the prior in
   force is kept whole: every covariate keeps its numbers too, whatever
@@ -1213,8 +1222,8 @@ are documented and does not reflect the calling syntax; see ‘Examples’.
   two rows are in, or where the response's scale is read from every row,
   and refuse two or more rows in that hold one value of a leaf
   covariate, a `gp` leaf that states its `lengthscale` taking the
-  placeholder (see `newData`); these setters keep instead, one row in
-  included.
+  placeholder (see `newData`); these setters keep instead, one row or
+  one subject in included.
 
 - splits:
 

@@ -73,8 +73,11 @@ observation is rolled back to its previous value in all of them. Under a
 constraint a row that brings an unordered factor column its first
 missing value is declined, in every sampler, where the sides drawn for
 the column's rules would leave a tree's leaf values out of order in any
-of them; a numeric column's first missing value breaks no order. Any of
-the samplers may itself carry more than one forest - a Bayesian causal
+of them; a numeric column's first missing value breaks no order. A
+hazard fit's period column, its expansion of each subject's time at
+risk, set with the response, is taken only unchanged, and refused
+otherwise before anything moves; `setData` replaces it. Any of the
+samplers may itself carry more than one forest - a Bayesian causal
 forest, a multinomial sampler, or a heteroscedastic (`variance`)
 sampler - and each of its forests is checked on the same terms as an
 ordinary single-forest sampler's mean forest (see ‘Multi-forest and
