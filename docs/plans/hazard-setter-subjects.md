@@ -386,3 +386,8 @@ private library: `tinytest::test_package` at its default `ncpu` in one process, 
 failed; lint (0 lints), air, check-rc-codoc (48 methods), check-win-drift and check-doc-freshness clean. Not run: no
 C or C++ changed, so tests/cpp, the sanitizer legs, the exact gates, the snapshot files, the bitwise compares and
 `R CMD check` stand as of the second fix round.
+
+The review of e5c100cd found the package code correct and one survivor: R03, the `is.null(dim(x))` guard dropped from
+the early return of `refusePeriodUpdate`, which lets a sparse-bearing fit's container, handed whole to `setPredictor`,
+skip the check, its `length()` counting its fields. Pinned (795 results): the container with the period's dense column
+reversed refused, the sampler left as it was, and the container handed back as it is taken; R03 fails 2 of 795.

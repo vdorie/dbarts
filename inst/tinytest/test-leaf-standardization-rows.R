@@ -1324,6 +1324,17 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   changed[, "period"] <- rev(design[, "period"])
   expect_error(s$setPredictor(changed), periodRefusal, fixed = TRUE)
   expect_identical(recordOf(s), before)
+  # the design handed as the container itself, whose length() counts its
+  # fields, with the period's dense column reversed: refused, and handed back
+  # as it is, taken
+  container <- s$data@x
+  periodSlot <- container$map[ncol(container)]
+  reversedContainer <- container
+  reversedContainer$dense[[periodSlot]] <- rev(container$dense[[periodSlot]])
+  expect_error(s$setPredictor(reversedContainer), periodRefusal, fixed = TRUE)
+  expect_identical(recordOf(s), before)
+  expect_identical(as.vector(as.matrix(s$data@x)), as.vector(design))
+  expect_silent(s$setPredictor(container))
   expect_silent(s$setPredictor(design))
 }
 
