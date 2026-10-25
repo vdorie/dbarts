@@ -150,8 +150,17 @@ hazardGridTimes <- function(time, weights) {
       "dbartsScaleFallbackWarning",
       "no subject is in the likelihood (0 of ",
       length(time),
-      " subjects are in it), so the hazard periods are taken from all ",
-      length(time)
+      if (length(time) == 1L) {
+        paste0(
+          " subject is in it), so the hazard periods are taken from the ",
+          "fit's one subject"
+        )
+      } else {
+        paste0(
+          " subjects are in it), so the hazard periods are taken from all ",
+          length(time)
+        )
+      }
     )
     return(time)
   }

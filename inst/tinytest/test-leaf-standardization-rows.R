@@ -1139,6 +1139,17 @@ made <- fallbacks(s$setActiveRows(NULL, updateStandardization = TRUE))
 expect_identical(made$warnings, character())
 expect_equal(recordOf(s), list(center = 3, scale = sd(1:5)), tolerance = 1e-12)
 
+# the predictor setters' refusal of a changed period column
+periodChangeText <- paste0(
+  "the period column of a hazard fit is its expansion of each subject's time ",
+  "at risk, set with the response, so it can only be handed back unchanged; ",
+  "replace the data with setData to change it"
+)
+periodRefusal <- paste0("$setPredictor: ", periodChangeText)
+jointRefusal <- paste0(
+  "updatePredictorPerObservationJointly: ",
+  periodChangeText
+)
 # setPredictor counts subjects too (dec-B491): fewer than two subjects in keep
 # every replaced covariate, the period column too, under the row setters'
 # warning and their once-per-sampler flag; two or more re-derive each by its
@@ -1306,15 +1317,14 @@ if (requireNamespace("Matrix", quietly = TRUE)) {
   ))
   expect_identical(made$warnings, keptText(1L, both))
   expect_identical(recordOf(s), before)
-  # the period column out of the layout is refused on this route too
+  # a changed period column is refused on this route too, and the column
+  # handed back as it is goes in
   design <- as.matrix(s$data@x)
-  design[, "period"] <- rev(design[, "period"])
-  expect_error(
-    s$setPredictor(design),
-    paste0("$setPredictor: ", layout("row 1 is at period 5, not 1")),
-    fixed = TRUE
-  )
+  changed <- design
+  changed[, "period"] <- rev(design[, "period"])
+  expect_error(s$setPredictor(changed), periodRefusal, fixed = TRUE)
   expect_identical(recordOf(s), before)
+  expect_silent(s$setPredictor(design))
 }
 
 # a fit of one subject: with every row in nothing is left out to fall back
@@ -1329,9 +1339,7 @@ oneSubjectText <- function(count, what) {
     if (count == 1L) "one subject is" else "no subject is",
     " in the likelihood (",
     count,
-    " of 1 subjects ",
-    if (count == 1L) "is" else "are",
-    " in it), so the center and scale of \"period\" are ",
+    " of 1 subject is in it), so the center and scale of \"period\" are ",
     what
   )
 }
@@ -1349,7 +1357,11 @@ for (rows in list(twoOfFive, rep(1, 5L))) {
   ))
   expect_identical(
     made$warnings,
-    if (sum(rows) < 5) oneSubjectText(1L, "taken from all 1") else character(),
+    if (sum(rows) < 5) {
+      oneSubjectText(1L, "taken from the fit's one subject")
+    } else {
+      character()
+    },
     info = info
   )
   expect_equal(recordOf(made$value), everyRow, tolerance = 1e-12, info = info)
@@ -1365,7 +1377,11 @@ for (rows in list(twoOfFive, NULL)) {
   made <- fallbacks(s$setData(replacement, updateStandardization = TRUE))
   expect_identical(
     made$warnings,
-    if (!is.null(rows)) oneSubjectText(1L, "taken from all 1") else character(),
+    if (!is.null(rows)) {
+      oneSubjectText(1L, "taken from the fit's one subject")
+    } else {
+      character()
+    },
     info = info
   )
   expect_equal(recordOf(s), everyRow, tolerance = 1e-12, info = info)
@@ -1445,62 +1461,106 @@ kept <- .Call(
 expect_identical(attr(kept, "standardization.kept"), 1L)
 expect_identical(pair[[1L]]$run(0L, 10L)$train, pair[[2L]]$run(0L, 10L)$train)
 
-# a period column that could leave the layout is refused at every door that
-# writes one, whatever updateStandardization, before anything moves; handed
-# back as it is, it goes in
+# a fit of one subject with no subject in takes its periods, and its leaf's
+# numbers, from that subject
+made <- fallbacks(hazardFit(
+  0,
+  data = oneSubject,
+  leaf = dbartsPriors$linear("period")
+))
+expect_identical(
+  made$warnings,
+  paste0(
+    "no subject is in the likelihood (0 of 1 subject is in it), so the hazard ",
+    "periods and the center and scale of \"period\" are taken from the fit's ",
+    "one subject"
+  )
+)
+# the layout check names the first row out of it, a one-row column included
+expect_error(
+  dbarts:::refuseHazardLayout(2, "p: "),
+  paste0("p: ", layout("row 1 is at period 2, not 1")),
+  fixed = TRUE
+)
+
+# a hazard fit's period column is its expansion of each subject's time at
+# risk, so the predictor setters refuse any change to it, whatever
+# updateStandardization, before anything moves, every occurrence of it
+# checked, and take it handed back as it is
 s <- hazardFit(NULL)
 twin <- hazardFit(NULL)
 design <- as.matrix(s$data@x)
 period <- design[, "period"]
-reversed <- design
-reversed[, "period"] <- rev(period)
-atFive <- paste0("$setPredictor: ", layout("row 1 is at period 5, not 1"))
-expect_error(s$setPredictor(reversed), atFive, fixed = TRUE)
+reversed <- rev(period)
+# subject 5's periods 1 to 5 regrouped as 1, 2, 1, 2, 3: still laid out
+regrouped <- period
+regrouped[cumsum(period == 1) == 5L] <- c(1, 2, 1, 2, 3)
+for (new in list(reversed, regrouped)) {
+  changed <- design
+  changed[, "period"] <- new
+  expect_error(s$setPredictor(changed), periodRefusal, fixed = TRUE)
+  expect_error(
+    s$setPredictor(changed, updateStandardization = TRUE),
+    periodRefusal,
+    fixed = TRUE
+  )
+  expect_error(s$setPredictor(new, "period"), periodRefusal, fixed = TRUE)
+  expect_error(
+    s$setPredictor(new, "period", "partial"),
+    periodRefusal,
+    fixed = TRUE
+  )
+  expect_error(
+    updatePredictorPerObservationJointly(s, new, "period"),
+    jointRefusal,
+    fixed = TRUE
+  )
+}
+# the column twice, the second changed, dense and sparse
+twice <- cbind(period, reversed)
 expect_error(
-  s$setPredictor(reversed, updateStandardization = TRUE),
-  atFive,
+  s$setPredictor(twice, c("period", "period")),
+  periodRefusal,
   fixed = TRUE
 )
-expect_error(s$setPredictor(rev(period), "period"), atFive, fixed = TRUE)
+if (requireNamespace("Matrix", quietly = TRUE)) {
+  expect_error(
+    s$setPredictor(Matrix::Matrix(twice, sparse = TRUE), c("period", "period")),
+    periodRefusal,
+    fixed = TRUE
+  )
+}
+# the period after another column
 expect_error(
-  s$setPredictor(rev(period), "period", "partial"),
-  atFive,
+  s$setPredictor(cbind(design[, "x1"], reversed), c("x1", "period")),
+  periodRefusal,
   fixed = TRUE
 )
-expect_error(
-  updatePredictorPerObservationJointly(s, rev(period), "period"),
-  paste0(
-    "updatePredictorPerObservationJointly: ",
-    layout("row 1 is at period 5, not 1")
-  ),
-  fixed = TRUE
-)
-# row by row, values the layout takes as a whole can leave it: subject 5's
-# periods 1 to 5 handed as 1, 2, 1, 2, 3 could go in as 1, 2, 3, 2
-rows5 <- which(cumsum(period == 1) == 5L)
-split5 <- period
-split5[rows5] <- c(1, 2, 1, 2, 3)
-splitAt <- layout(paste0(
-  "row ",
-  rows5[[4L]],
-  " is at period 2 after a row at period 3"
-))
-expect_error(
-  s$setPredictor(split5, "period", "partial"),
-  paste0("$setPredictor: ", splitAt),
-  fixed = TRUE
+expect_true(s$setPredictor(cbind(design[, "x1"], period), c("x1", "period")))
+# the joint update with the hazard fit second
+other <- dbarts::dbarts(
+  design,
+  rnorm(nrow(design)),
+  control = controlWith()
 )
 expect_error(
-  updatePredictorPerObservationJointly(s, split5, "period"),
-  paste0("updatePredictorPerObservationJointly: ", splitAt),
+  updatePredictorPerObservationJointly(list(other, s), reversed, "period"),
+  jointRefusal,
   fixed = TRUE
 )
-expect_identical(as.matrix(s$data@x), design)
+expect_identical(as.matrix(other$data@x)[, "period"], period)
+expect_identical(as.vector(as.matrix(s$data@x)), as.vector(design))
 expect_identical(s$run(0L, 3L)$train, twin$run(0L, 3L)$train)
+# handed back as it is, at every door
 expect_silent(s$setPredictor(design))
 expect_true(s$setPredictor(period, "period"))
 expect_silent(s$setPredictor(period, "period", "partial"))
 expect_silent(updatePredictorPerObservationJointly(s, period, "period"))
+expect_silent(updatePredictorPerObservationJointly(
+  list(other, s),
+  period,
+  "period"
+))
 expect_identical(as.vector(as.matrix(s$data@x)), as.vector(design))
 
 # rows out at one value, rows in spread: created, over the rows in

@@ -1002,7 +1002,6 @@ bartcoreSamplerSetPredictor <- function(
       currentX,
       x,
       column,
-      TRUE,
       "$setPredictor: "
     )
     installed <- .Call(
@@ -1102,7 +1101,6 @@ bartcoreSamplerSetPredictor <- function(
       currentX,
       x,
       NULL,
-      FALSE,
       "$setPredictor: "
     )
     if (!sparseSource) {
@@ -1191,7 +1189,6 @@ bartcoreSamplerSetPredictor <- function(
       currentX,
       x,
       column,
-      FALSE,
       "$setPredictor: "
     )
     newX <- installPredictorColumns(currentX, NULL, column, x)
@@ -1725,7 +1722,7 @@ hazardRowSubjects <- function(control, data, prefix = "") {
     return(NULL)
   }
   period <- as.vector(data@x[, column])
-  refuseHazardLayout(list(period), prefix)
+  refuseHazardLayout(period, prefix)
   cumsum(period == 1)
 }
 
@@ -1737,72 +1734,55 @@ hazardPeriodColumn <- function(control, x) {
   ncol(x)
 }
 
-## Refuses a predictor update that can put a hazard fit's period column out
-## of the expansion's layout (refuseHazardLayout), before anything moves:
-## 'x' holds the new values of 'columns' of 'currentX', every column where
-## NULL, as a matrix or as one vector column after column, and with
-## 'rowByRow' goes in a row at a time.
-refusePeriodUpdate <- function(
-  control,
-  currentX,
-  x,
-  columns,
-  rowByRow,
-  prefix
-) {
+## Refuses, before anything moves, a predictor update that changes a hazard
+## fit's period column: the column is dbarts()'s expansion of each subject's
+## time at risk, set with the response, so an update takes it only where every
+## occurrence of it among 'columns', every column where NULL, holds the values
+## in force; a changed history goes through setData. 'x' holds the new values
+## of 'columns' of 'currentX', as a matrix or as one vector column after column.
+refusePeriodUpdate <- function(control, currentX, x, columns, prefix) {
   periodColumn <- hazardPeriodColumn(control, currentX)
   if (is.null(periodColumn)) {
     return(invisible(NULL))
   }
-  k <- if (is.null(columns)) periodColumn else match(periodColumn, columns)
-  if (is.na(k)) {
-    return(invisible(NULL))
+  occurrences <- if (is.null(columns)) {
+    periodColumn
+  } else {
+    which(columns == periodColumn)
   }
   n <- nrow(currentX)
-  values <- as.vector(
-    if (is.null(dim(x))) x[(k - 1L) * n + seq_len(n)] else x[, k]
-  )
-  refuseHazardLayout(
-    if (rowByRow) {
-      list(as.vector(currentX[, periodColumn]), values)
-    } else {
-      list(values)
-    },
-    prefix
-  )
+  current <- as.vector(currentX[, periodColumn])
+  for (k in occurrences) {
+    values <- as.vector(
+      if (is.null(dim(x))) x[(k - 1L) * n + seq_len(n)] else x[, k]
+    )
+    if (!isTRUE(all(values == current))) {
+      stop(
+        prefix,
+        "the period column of a hazard fit is its expansion of each ",
+        "subject's time at risk, set with the response, so it can only be ",
+        "handed back unchanged; replace the data with setData to change it",
+        call. = FALSE
+      )
+    }
+  }
+  invisible(NULL)
 }
 
-## Refuses a hazard fit's period column that can leave the expansion's
-## layout, each subject's rows together at periods 1, 2, 3 and on, which every
-## reader of a fit's rows takes them in (the subject count, partial
-## dependence's default time, survivalProbabilities), before anything moves,
-## 'prefix' opening the text. Each row may hold any of the values the vectors
-## of 'choices' give it: one vector for a column replaced whole, the column in
-## force and the new values for one installed row by row, any of whose rows
-## may go in.
-refuseHazardLayout <- function(choices, prefix = "") {
-  n <- length(choices[[1L]])
-  row <- NA_integer_
-  for (current in choices) {
-    if (n > 0L && !isTRUE(current[1L] == 1)) {
-      row <- 1L
-      period <- current[1L]
-      break
-    }
+## Refuses a hazard fit's period column out of the expansion's layout, each
+## subject's rows together at periods 1, 2, 3 and on, which every reader of a
+## fit's rows takes them in (the subject count, partial dependence's default
+## time, survivalProbabilities), naming the first row out of it, 'prefix'
+## opening the text.
+refuseHazardLayout <- function(period, prefix = "") {
+  if (length(period) == 0L) {
+    return(invisible(NULL))
   }
-  if (is.na(row) && n > 1L) {
-    for (before in choices) {
-      for (current in choices) {
-        laidOut <- current[-1L] == 1 | current[-1L] == before[-n] + 1
-        out <- match(FALSE, laidOut %in% TRUE)
-        if (!is.na(out) && (is.na(row) || out + 1L < row)) {
-          row <- out + 1L
-          period <- current[row]
-          after <- before[out]
-        }
-      }
-    }
-  }
+  laidOut <- c(
+    period[1L] == 1,
+    period[-1L] == 1 | period[-1L] == period[-length(period)] + 1
+  )
+  row <- match(FALSE, laidOut %in% TRUE)
   if (is.na(row)) {
     return(invisible(NULL))
   }
@@ -1813,11 +1793,11 @@ refuseHazardLayout <- function(choices, prefix = "") {
     "how its subjects are counted; row ",
     row,
     " is at period ",
-    period,
+    period[row],
     if (row == 1L) {
       ", not 1"
     } else {
-      paste0(" after a row at period ", after)
+      paste0(" after a row at period ", period[row - 1L])
     },
     call. = FALSE
   )
@@ -1906,7 +1886,13 @@ fewRowsInLead <- function(n, rowsIn, byMask = FALSE, subjects = FALSE) {
       rowsIn,
       " of ",
       n,
-      if (one) " subjects is in it)" else " subjects are in it)"
+      if (n == 1L) {
+        " subject is in it)"
+      } else if (one) {
+        " subjects is in it)"
+      } else {
+        " subjects are in it)"
+      }
     ))
   }
   paste0(
@@ -1984,8 +1970,11 @@ warnRowsFallBack <- function(
     "dbartsScaleFallbackWarning",
     lead,
     what,
-    " are taken from all ",
-    n
+    if (subjects && n == 1L) {
+      " are taken from the fit's one subject"
+    } else {
+      paste0(" are taken from all ", n)
+    }
   )
   invisible(NULL)
 }
