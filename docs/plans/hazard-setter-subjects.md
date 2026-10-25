@@ -1,9 +1,8 @@
 # hazard-setter-subjects: a hazard fit's row setters count its subjects
 
-Status: BUILT 2026-10-25 on wt/hazard-setpredictor (dc6fc00c on wt/hazard-setter, off bartcore 0aa94644, then
-its two fix rounds and dec-B491), not landed; implements dec-B490 and dec-B491 ([Built](#built),
-[Fix round](#fix-round), [setPredictor (dec-B491)](#setpredictor-dec-b491),
-[Second fix round](#second-fix-round)).
+Status: LANDED 2026-10-25 (33731694); implements dec-B490 and dec-B491, recorded as dec-A232 ([Built](#built),
+[Fix round](#fix-round), [setPredictor (dec-B491)](#setpredictor-dec-b491), [Second fix round](#second-fix-round),
+[Third fix round](#third-fix-round)).
 
 agent: one opus implementer (engine flag, bridge, R text, tests, help, notes); one opus review that runs mutants.
 rng: draw-changing only where a setter on a hazard fit re-derived a covariate at fewer than two subjects in and

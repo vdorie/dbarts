@@ -1,8 +1,8 @@
 # leaf-one-row-fallback: fewer than two rows in read a leaf covariate from every row, under every family
 
-Status: BUILT 2026-10-24 on wt/leaf-one-row, rebased onto bartcore 36467389, not landed; implements dec-B485,
-and in its fix round dec-B488 (a multiplier's basis) and dec-B489 (a hazard fit's subjects)
-([Fix round](#fix-round), [Second fix round](#second-fix-round)).
+Status: LANDED 2026-10-24 (8a4a6859); implements dec-B485, and in its fix rounds dec-B488 (a multiplier's
+basis) and dec-B489 (a hazard fit's subjects), recorded as dec-A231 ([Fix round](#fix-round),
+[Second fix round](#second-fix-round)).
 
 agent: one opus implementer (engine, R text, tests, help, notes); one opus review that runs mutants.
 rng: draw-changing only where a case refused today now runs. NEUTRAL, bit for bit, for every other call, with
