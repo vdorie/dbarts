@@ -509,7 +509,7 @@ new fits.
 - The flipped build: a correct one-line patch setting the move's toggle default to false, applied to an export
   of the tip.
 
-Outputs stay in scratch/bis; the finding goes to docs/design/binary-interval-study.md.
+Outputs stay in scratch/bis; the finding is docs/design/binary-interval-pilot.md.
 
 ## Order of work
 
