@@ -1101,7 +1101,7 @@ isPositionalTreePrior <- function(expr, evalEnv) {
     identical(value, dart)
 }
 
-## The refusal of 'tree.prior' on a fitting function that never took it,
+## The refusal of 'tree.prior' on a fitting function that never shipped it,
 ## bart() and xbart() (`caller`), naming the plain arguments it translates to.
 refuseRetiredTreePrior <- function(expr, evalEnv, caller) {
   translated <- if (!is.null(expr)) {
