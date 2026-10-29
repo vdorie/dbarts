@@ -51,7 +51,7 @@ btFitUL <- function(data, test) {
 
 remedyWhole <- paste0(
   "refit with a training factor that declares %s, ",
-  "factor(x, levels = c(levels(x), extra))"
+  "factor(x, levels = c(levels(as.factor(x)), extra))"
 )
 oneWhole <- paste0(
   "test data factor 'f' has a level not present in the training data: ",
@@ -350,13 +350,25 @@ expect_error(
   pattern = "names levels not present in training: 'new1', 'new2', 'new3', 'new4', 'new5' and 2 more"
 )
 
-# a sampler's setPredictor and setData name the labels it never had, bounded
+# a sampler's setPredictor and setData name the labels it never had, bounded,
+# and the ways out that fit a sampler (no refit)
 labelsUL <- paste0("x", 1:8)
+samplerRemedy <- paste0(
+  " not among its training levels. Recode %s to levels the sampler has, or ",
+  "create the sampler from a factor that declares %s"
+)
 expect_identical(
   messageOf(plainSampler$setPredictor(rep_len(labelsUL, nUL), 1L)),
   paste0(
-    "column 'f' has labels 'x1', 'x2', 'x3', 'x4', 'x5' and 3 more not ",
-    "among its training levels"
+    "column 'f' has labels 'x1', 'x2', 'x3', 'x4', 'x5' and 3 more",
+    sprintf(samplerRemedy, "them", "them")
+  )
+)
+expect_identical(
+  messageOf(plainSampler$setPredictor(rep_len("x1", nUL), 1L)),
+  paste0(
+    "column 'f' has label 'x1'",
+    sprintf(samplerRemedy, "it", "it")
   )
 )
 swapUL <- data.frame(
@@ -367,9 +379,59 @@ swapUL$y <- dUL$y
 expect_identical(
   messageOf(plainSampler$setData(dbartsData(y ~ f + z, swapUL))),
   paste0(
-    "$setData: column 'f' has labels 'x1', 'x2', 'x3', 'x4', 'x5' and 3 more ",
-    "not among its training levels"
+    "$setData: column 'f' has labels 'x1', 'x2', 'x3', 'x4', 'x5' and 3 more",
+    sprintf(samplerRemedy, "them", "them")
   )
+)
+# the way out named works: a sampler made from a factor that declares the
+# labels takes them
+declaredLabels <- dUL
+declaredLabels$f <- factor(
+  as.character(dUL$f),
+  levels = c(seenUL, labelsUL)
+)
+declaredLabelsSampler <- dbarts(
+  y ~ f + z,
+  declaredLabels,
+  control = dbartsControl(
+    n.trees = 5L,
+    n.samples = 6L,
+    n.burn = 4L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+)
+expect_silent(declaredLabelsSampler$setPredictor(rep_len(labelsUL, nUL), 1L))
+expect_silent(declaredLabelsSampler$setData(dbartsData(
+  y ~ f + z,
+  swapUL
+)))
+
+# setTestPredictor on one column is refused as a whole test table is
+testSamplerUL <- dbarts(
+  y ~ f + z,
+  dUL,
+  test = data.frame(f = factor(c("L1", "L2")), z = c(0, 0)),
+  control = dbartsControl(
+    n.trees = 5L,
+    n.samples = 6L,
+    n.burn = 4L,
+    n.chains = 1L,
+    n.threads = 1L,
+    verbose = FALSE
+  )
+)
+expect_identical(
+  messageOf(testSamplerUL$setTestPredictor(c("L1", "new1"), 1L)),
+  oneWhole
+)
+expect_identical(
+  messageOf(testSamplerUL$setTestPredictor(
+    c("L1", paste0("new", 1:10000)),
+    1L
+  )),
+  manyWhole
 )
 
 # a hand-built indicator design, whose test factor has fewer levels than the
@@ -399,4 +461,107 @@ expect_identical(
     "the training levels, factor(x, levels = ...), or fit with factors = ",
     "\"categorical\""
   )
+)
+
+# --- the remedy named is right as written, for a factor column and for a
+# character one: levels(x) alone is NULL for text, and the rows would all
+# become missing ---
+remedyText <- regmatches(
+  oneWhole,
+  regexpr("factor\\(x, levels = .*\\)$", oneWhole)
+)
+expect_identical(
+  remedyText,
+  "factor(x, levels = c(levels(as.factor(x)), extra))"
+)
+for (kind in c("character", "factor")) {
+  declaredColumn <- if (kind == "character") {
+    as.character(dUL$f)
+  } else {
+    factor(dUL$f, levels = rev(seenUL))
+  }
+  declaredFrame <- dUL
+  declaredFrame$f <- eval(
+    parse(text = remedyText)[[1L]],
+    list(x = declaredColumn, extra = fewUL(2L))
+  )
+  expect_false(anyNA(declaredFrame$f), info = kind)
+  expect_identical(
+    levels(declaredFrame$f),
+    c(levels(as.factor(declaredColumn)), fewUL(2L)),
+    info = kind
+  )
+  declaredFit <- formulaFitUL(declaredFrame, test = testUL(fewUL(2L)))
+  expect_identical(dim(declaredFit$yhat.test), c(6L, 3L), info = kind)
+}
+
+# --- a long label is cut, so five of them cannot run the message past the
+# limit and take the remedy with it ---
+longNew <- testUL(paste0(strrep("a", 3000L), 1:5))
+longMessage <- messageOf(predict(fitWhole, longNew))
+expect_true(nchar(longMessage) < 1000L)
+expect_true(startsWith(
+  longMessage,
+  paste0(
+    "test data factor 'f' has levels not present in the training data: '",
+    strrep("a", 37L),
+    "...', '"
+  )
+))
+expect_true(endsWith(
+  longMessage,
+  "factor(x, levels = c(levels(as.factor(x)), extra))"
+))
+expect_identical(
+  dbarts:::quotedLevelList(strrep("b", 40L)),
+  paste0("'", strrep("b", 40L), "'")
+)
+expect_identical(
+  dbarts:::quotedLevelList(strrep("b", 41L)),
+  paste0("'", strrep("b", 37L), "...'")
+)
+
+# --- a missing level is listed as R prints one, not as the text "NA" ---
+naNew <- data.frame(
+  f = factor(c("L1", NA, "new1", "NA"), exclude = NULL),
+  z = 0
+)
+expect_identical(
+  messageOf(predict(fitWhole, naNew)),
+  paste0(
+    "test data factor 'f' has levels not present in the training data: ",
+    "<NA>, 'new1' and 'NA'. Recode them to training levels, drop the rows ",
+    "that take them, or ",
+    sprintf(remedyWhole, "them")
+  )
+)
+expect_true(grepl(
+  "has a level not present in the training data: <NA>. Recode it",
+  messageOf(predict(
+    fitWhole,
+    data.frame(f = factor(c("L1", NA), exclude = NULL), z = 0)
+  )),
+  fixed = TRUE
+))
+
+# --- the level lists of a forest's basis are bounded the same way ---
+expect_error(
+  dbarts(
+    y ~ z,
+    data.frame(z = dUL$z, y = dUL$y),
+    forests = list(
+      forest(),
+      forest(basis = factor(rep_len(paste0("b", 1:8), nUL)))
+    ),
+    control = dbartsControl(
+      n.trees = 5L,
+      n.samples = 6L,
+      n.burn = 4L,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    )
+  ),
+  pattern = "has a basis of 8 levels ('b1', 'b2', 'b3', 'b4', 'b5' and 3 more)",
+  fixed = TRUE
 )

@@ -1854,7 +1854,7 @@ unseenLevelsMessage <- function(name, unseen, declare, unused = FALSE) {
         them,
         ", or refit with a training factor that declares ",
         them,
-        ", factor(x, levels = c(levels(x), extra))"
+        ", factor(x, levels = c(levels(as.factor(x)), extra))"
       )
     } else {
       paste0(

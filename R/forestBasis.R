@@ -993,7 +993,7 @@ basisSizeFault <- function(block, levels, forest, code = NULL) {
       " has a basis of ",
       length(levels),
       " levels (",
-      toString(sQuote(levels, FALSE)),
+      quotedLevelList(levels, comma = TRUE),
       "); in this version a factor, a character or a logical basis has two ",
       "levels. Give each level but the first a forest of its own, ",
       advice
@@ -1173,7 +1173,10 @@ conformBasis <- function(value, kind, levels, argument, forest) {
       if (kind == "numeric") {
         "numbers"
       } else {
-        paste0("a factor with the levels ", toString(sQuote(levels, FALSE)))
+        paste0(
+          "a factor with the levels ",
+          quotedLevelList(levels, comma = TRUE)
+        )
       },
       argument,
       read$what
@@ -1197,7 +1200,7 @@ conformBasis <- function(value, kind, levels, argument, forest) {
         " the level '",
         given[given %not_in% levels][1L],
         "', which it does not have: its levels are ",
-        toString(sQuote(levels, FALSE)),
+        quotedLevelList(levels, comma = TRUE),
         ", fixed at creation. Give every row one of them"
       )
     }

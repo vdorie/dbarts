@@ -89,7 +89,7 @@ expect_error(
 )
 expect_error(
   sampler.col$setTestPredictor(c("a", "b", "c", "e", "d", "a"), column = "g"),
-  pattern = "column 'g' has label 'e' not among its training levels"
+  pattern = "test data factor 'g' has a level not present in the training data: 'e'"
 )
 # a missing value in a test column whose training column has never held one
 # is refused as the whole test set refuses it, a label and a number alike

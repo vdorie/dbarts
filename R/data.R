@@ -1044,7 +1044,10 @@ refuseExtraMissingness <- function(extra, naActionHint) {
 ## Joins quoted names in prose: one alone, or every name but the last
 ## comma-separated with "and" before it.
 quotedNameList <- function(names) {
-  quoted <- paste0("'", names, "'")
+  joinNames(paste0("'", names, "'"))
+}
+
+joinNames <- function(quoted) {
   if (length(quoted) <= 1L) {
     return(quoted)
   }
@@ -1057,14 +1060,22 @@ quotedNameList <- function(names) {
 
 ## The same, for a list that can be long: the first 'max' names, then a count
 ## of the rest. A message that names every level of a factor with thousands
-## of them runs past R's limit on one and is cut mid-list.
-quotedLevelList <- function(names, max = 5L) {
+## of them runs past R's limit on one and is cut mid-list. 'comma' keeps a
+## list that fits as a plain comma-separated one.
+quotedLevelList <- function(names, max = 5L, width = 40L, comma = FALSE) {
   names <- unique(names)
+  shown <- names[seq_len(min(length(names), max))]
+  # a label past 'width' characters is cut, so five of them cannot run the
+  # message past the limit either; a missing label is shown as R prints one
+  size <- nchar(shown, "chars", allowNA = TRUE)
+  long <- !is.na(size) & size > width
+  shown[long] <- paste0(substr(shown[long], 1L, width - 3L), "...")
+  quoted <- ifelse(is.na(shown), "<NA>", paste0("'", shown, "'"))
   if (length(names) <= max) {
-    return(quotedNameList(names))
+    return(if (comma) paste(quoted, collapse = ", ") else joinNames(quoted))
   }
   paste0(
-    paste0("'", names[seq_len(max)], "'", collapse = ", "),
+    paste(quoted, collapse = ", "),
     " and ",
     length(names) - max,
     " more"

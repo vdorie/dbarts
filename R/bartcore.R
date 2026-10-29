@@ -540,8 +540,10 @@ codePredictorFrame <- function(x.train, x) {
 # missing value, which the column takes whether or not it has held one. A
 # label the column does not declare is refused by name; so is a number, which
 # could only be read as a code, and a coded matrix or container. A data frame
-# addresses several columns; other columns pass through as numbers.
-codeCategoricalColumnUpdate <- function(x.train, x, column) {
+# addresses several columns; other columns pass through as numbers. A test
+# column's refusal is the one a whole test table gets; a training column's
+# is the sampler's own, which has no refit to advise.
+codeCategoricalColumnUpdate <- function(x.train, x, column, test = FALSE) {
   factorLevels <- attr(x.train, "factor.levels")
   if (is.null(factorLevels) || !is.numeric(column) || anyNA(column)) {
     return(x)
@@ -601,13 +603,14 @@ codeCategoricalColumnUpdate <- function(x.train, x, column) {
     codes <- match(labels, factorLevels[[j]]) - 1L
     unknown <- unique(labels[!is.na(labels) & is.na(codes)])
     if (length(unknown) > 0L) {
-      stop(
-        label(j),
-        " has ",
-        if (length(unknown) > 1L) "labels " else "label ",
-        quotedLevelList(unknown),
-        " not among its training levels"
-      )
+      if (test) {
+        stop(unseenLevelsMessage(
+          if (is.null(columnNames)) j else columnNames[j],
+          unknown,
+          TRUE
+        ))
+      }
+      stop(samplerLabelsMessage(label(j), unknown))
     }
     result[, k] <- as.double(codes)
   }
@@ -698,14 +701,28 @@ alignDataFactorLevels <- function(newData, x.train) {
 refuseNewDataLabels <- function(column, unknown) {
   if (length(unknown <- unique(unknown)) > 0L) {
     stop(
-      "$setData: column ",
-      column,
-      if (length(unknown) > 1L) " has labels " else " has label ",
-      quotedLevelList(unknown),
-      " not among its training levels",
+      samplerLabelsMessage(paste0("$setData: column ", column), unknown),
       call. = FALSE
     )
   }
+}
+
+# A sampler's refusal of labels its columns never had, on a training or a
+# test update: the labels named, at most a few, and the two ways out - the
+# sampler takes a level its factor declared, whether or not a row held it, so
+# a sampler made from a factor that declares the level takes it.
+samplerLabelsMessage <- function(subject, unknown) {
+  them <- if (length(unknown) > 1L) "them" else "it"
+  paste0(
+    subject,
+    if (length(unknown) > 1L) " has labels " else " has label ",
+    quotedLevelList(unknown),
+    " not among its training levels. Recode ",
+    them,
+    " to levels the sampler has, or create the sampler from a factor that ",
+    "declares ",
+    them
+  )
 }
 
 # Column j of a dense source re-coded by label from 'given' onto 'table', NA
@@ -2137,7 +2154,12 @@ bartcoreSamplerSetTestPredictor <- function(sampler, x.test, column) {
         "' is out of range"
       )
     }
-    x.test <- codeCategoricalColumnUpdate(sampler$data@x, x.test, column)
+    x.test <- codeCategoricalColumnUpdate(
+      sampler$data@x,
+      x.test,
+      column,
+      test = TRUE
+    )
     xTestDim <- dim(x.test)
     if (!is.null(xTestDim) && xTestDim[2L] != length(column)) {
       stop("'x.test' must have ", length(column), " column(s)")

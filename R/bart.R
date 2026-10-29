@@ -2221,7 +2221,7 @@ alignCategoryColumns <- function(
     "the column names of '",
     argument,
     "' must be the category levels (",
-    paste(levels, collapse = ", "),
+    quotedLevelList(levels, comma = TRUE),
     "); rename them to the category levels or remove them with unname()"
   )
 }
