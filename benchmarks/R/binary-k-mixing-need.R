@@ -2509,6 +2509,22 @@ acceptanceFile <- function(cell, link, rep) {
 # effective draws at least 100. A failing first pass escalates only when its
 # effective draws per sweep project a pass at escalateRecord sweeps.
 acceptReference <- function(cell, link, rep, final = FALSE) {
+  # a first pass that did not escalate is already final: the reference it
+  # read is the one the final pass would read
+  path <- acceptanceFile(cell, link, rep)
+  if (final && file.exists(path)) {
+    prev <- loadChecked(path)
+    if (isTRUE(prev$final) && !identical(prev$decision, "escalate")) {
+      cat(sprintf(
+        "accept %s %s %d: %s, final from the first pass\n",
+        cell,
+        link,
+        as.integer(rep),
+        prev$decision
+      ))
+      return(invisible(prev))
+    }
+  }
   design <- blind(loadDesign(cell, link, rep))
   ref <- loadReference(cell, link, rep)
   labels <- referenceLabels(ref, design, link)
