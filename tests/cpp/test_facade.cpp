@@ -1,7 +1,7 @@
 // Conformance gate for the type-erased boundary (bartcore/facade.hpp).
 //
 // SamplerBase is the one dispatch layer between the shipped flat C API and the
-// engine: 62 pure virtuals, each forwarded by SamplerFacade<L> to a Sampler<L>
+// engine: its pure virtuals, each forwarded by SamplerFacade<L> to a Sampler<L>
 // method of the same name. Every other test in this suite drives Sampler<L>
 // DIRECTLY, so a forwarder that drops an argument, inverts a flag, or reads the
 // wrong forest/chain/slot is invisible to them - the engine twin it should have
@@ -50,7 +50,7 @@ enum class FacadeVirtual {
   setModel, setMoveSettings,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
-  setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
+  setForestBasisRescaled, setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
   setForestMapSd, setActiveRows, rederiveScale,
   setCounts, setCategoryOffset, setCategoryTestOffset, totalAmplitudes,
   numForestAmplitudes, amplitudes, forestTotalFits, fitsWithoutOffset,
@@ -223,6 +223,8 @@ public:
   SPY_RET(double, sigma, (std::size_t c) const, (c))
   SPY_RET(double, shapeParameter, (std::size_t c) const, (c))
   SPY_RET(bool, setForestBasis,
+          (std::size_t f, const double* v, std::size_t n), (f, v, n))
+  SPY_RET(BasisRescaleResult, setForestBasisRescaled,
           (std::size_t f, const double* v, std::size_t n), (f, v, n))
   SPY_RET(bool, setForestWeights, (std::size_t f, const double* w), (f, w))
   SPY_RET(ForestCalibration, forestCalibration,
@@ -1295,6 +1297,48 @@ const Row rows[] = {
             f.b.impl().forestCalibration(0, 1).priorScale == priors[1],
           "facade setForestBasis: the basis moves the combination and no "
           "forest's prior");
+  }},
+  {FacadeVirtual::setForestBasisRescaled, "setForestBasisRescaled",
+   [](Fixtures& f) {
+    // the combining fixture's forest 0 states a multiple and its forest 1 is
+    // of levels: both refused, with nothing installed
+    const double* combined = TestPeer::combinedFits(f.b.impl().chain(0));
+    std::vector<double> before(combined, combined + Fixtures::n);
+    check(f.b.base().setForestBasisRescaled(0, f.newColumn.data(), 1) ==
+              BasisRescaleResult::refused &&
+            f.b.base().setForestBasisRescaled(1, f.wideBasis2.data(), 2) ==
+              BasisRescaleResult::refused &&
+            f.g.base().setForestBasisRescaled(0, f.newColumn.data(), 1) ==
+              BasisRescaleResult::refused,
+          "facade setForestBasisRescaled: a stated forest, a forest of "
+          "levels and an amplitude-free sampler refuse");
+    combined = TestPeer::combinedFits(f.b.impl().chain(0));
+    check(std::vector<double>(combined, combined + Fixtures::n) == before,
+          "facade setForestBasisRescaled: a refusal installs nothing");
+    // a numeric forest stating no sd, two chains, at a scale the new column
+    // does not share
+    SamplerOptions options;
+    options.numChains = 2;
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::numeric;
+    spec.forests[1].basis = f.newColumn.data();
+    std::vector<double> wider(Fixtures::n);
+    for (std::size_t i = 0; i < Fixtures::n; ++i)
+      wider[i] = 4.0 * f.newColumn2[i];
+    ext_rng* pair[2] = {f.newRng(51101u), f.newRng(51102u)};
+    Fixture numeric;
+    numeric.build(f.x.data(), f.y.data(), Fixtures::n, Fixtures::p, nullptr,
+                  nullptr, 1.0, 3.0, 0.37804942330213542, options, spec, pair);
+    double scale = numeric.impl().forestCalibration(1, 1).basisScale;
+    check(numeric.base().setForestBasisRescaled(1, wider.data(), 1) ==
+            BasisRescaleResult::rescaled,
+          "facade setForestBasisRescaled: the named numeric forest rescales");
+    check(numeric.impl().forestCalibration(1, 1).basisScale ==
+              basisColumnScale(wider.data(), Fixtures::n, nullptr) &&
+            numeric.impl().forestCalibration(1, 1).basisScale != scale,
+          "facade setForestBasisRescaled: the impl holds the new column's "
+          "scale on the second chain");
   }},
   {FacadeVirtual::setForestWeights, "setForestWeights", [](Fixtures& f) {
     std::vector<double> zeros(Fixtures::n, 0.0);

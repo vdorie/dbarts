@@ -69,6 +69,7 @@ finite number for the forest's one column. On every path:
 | first creation, at every door | taken over the rows in and recorded |
 | `copy()`, a reload, `new("dbartsSampler", control, model, data)` | handed from the record: the creation's prior, bit for bit |
 | `$setForestBasis` | nothing moves: a swap installs the basis and derives nothing (dec-B452), a column of zeros among them (dec-B346) |
+| `$setForestBasis(updateBasisScale = TRUE)` | taken from the new column over the rows in at the call (positive weight, kept by the mask; a forest's own weights not read) and recorded, overwriting the entry; trees and coefficients stay. Fewer than two rows in, or a column with no scale there: the column installed and the scale kept, one warning per sampler (dec-B504). Refused on a stated forest and a factor (dec-B265) |
 | `$setLeafPrior(forests = )` | the forest is stated at s; the record stays, so a default put back later has the creation's scale |
 | `setResponse`, `setOffset`, `setWeights`, `setPredictor`, `setActiveRows` | nothing moves |
 | `setState`, a state in a reload | nothing moves: a state holds no scale and installs under the recipient's own record |
@@ -160,9 +161,6 @@ after the release, is a new row and no change to how a 1.0 model is read; today 
 
 Each later addition is an addition and not a change of a 1.0 model:
 
-- `$setForestBasis(updateBasisScale = TRUE)`: the argument does not exist, so no call states it; with
-  none a swap keeps the scale; the record is a slot a call can rewrite and `basisColumnScale` takes the
-  rows it is handed; no state or shipped signature is involved.
 - `leaf.prior = normal(sd = )` on `forest()`, and `normal()` for the default back: the reader already
   says stated or not, and a stated forest keeps its record, so a default put back has the creation's
   scale.

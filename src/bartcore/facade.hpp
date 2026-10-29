@@ -450,6 +450,14 @@ public:
   /// non-finite value). The SOLE basis-mutation route.
   virtual bool setForestBasis(std::size_t forestIndex, const double* values,
                               std::size_t numColumns) = 0;
+  /// Installs forest forestIndex's one-column numeric basis as setForestBasis
+  /// does and takes the forest's default scale again from it, over the rows
+  /// then in the likelihood; the outcome says whether it was refused, restated
+  /// or installed with the scale in force kept.
+  /// Sampler::setForestBasisRescaled states the semantics.
+  virtual BasisRescaleResult setForestBasisRescaled(
+      std::size_t forestIndex, const double* values,
+      std::size_t numColumns) = 0;
   /// Installs (or clears, at a null vector) a borrowed per-observation weight
   /// on forest forestIndex in every chain; false, installing nothing, when the
   /// coupling admits none or the index names no forest. Chain::setForestWeights
@@ -812,6 +820,11 @@ public:
   bool setForestBasis(std::size_t forestIndex, const double* values,
                       std::size_t numColumns) override {
     return impl_.setForestBasis(forestIndex, values, numColumns);
+  }
+  BasisRescaleResult setForestBasisRescaled(std::size_t forestIndex,
+                                            const double* values,
+                                            std::size_t numColumns) override {
+    return impl_.setForestBasisRescaled(forestIndex, values, numColumns);
   }
   bool setForestWeights(std::size_t forestIndex,
                         const double* weights) override {

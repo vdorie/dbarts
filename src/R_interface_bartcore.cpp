@@ -5160,8 +5160,27 @@ static size_t forestIndexFrom(SEXP forestExpr,
   return forestIndex;
 }
 
-SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
+// Whether a keep, of the response's scale, of a leaf covariate's center and
+// scale or of a numeric basis's scale, is to be warned of NOW: on this
+// holder's first keep of any kind, through whichever setter, and never again.
+static bool firstKeep(BartcoreHolder& holder, bool kept) {
+  bool first = kept && !holder.scaleKeptWarned;
+  if (first) holder.scaleKeptWarned = true;
+  return first;
+}
+
+// Installs a forest's basis. At updateBasisScaleExpr FALSE the swap moves no
+// prior and returns NULL. At TRUE the engine also takes a numeric forest's
+// default scale again from the column, over the rows in the likelihood
+// (Sampler::setForestBasisRescaled), and the answer is an integer: 1 where the
+// scale in force was kept because fewer than two rows are in, 2 where it was
+// kept because the column has no scale over them, each on the holder's first
+// keep of any kind only (firstKeep), and 0 otherwise. R names the refusals it
+// can reach before the call; the engine's own refusal is the generic one.
+SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr,
+                             SEXP updateBasisScaleExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bool updateBasisScale = Rf_asLogical(updateBasisScaleExpr) == TRUE;
   bartcore::SamplerShape shape = holder.sampler->shape();
   size_t n = shape.numObservations;
   // A capability probe, not a forest count: a basis is defined only as what the
@@ -5189,10 +5208,29 @@ SEXP bartcore_setForestBasis(SEXP ptrExpr, SEXP forestExpr, SEXP basisExpr) {
         if (!R_FINITE(value)) Rf_error("a forest basis value is not finite");
         rowMajor[i * numColumns + j] = value;
       }
-    if (!holder.sampler->setForestBasis(forestIndex, rowMajor.data(),
-                                        numColumns))
+    if (!updateBasisScale) {
+      if (!holder.sampler->setForestBasis(forestIndex, rowMajor.data(),
+                                          numColumns))
+        Rf_error("the sampler refuses this basis for the forest");
+      return R_NilValue;
+    }
+    bartcore::BasisRescaleResult result =
+      holder.sampler->setForestBasisRescaled(forestIndex, rowMajor.data(),
+                                             numColumns);
+    int answer = 0;
+    switch (result) {
+    case bartcore::BasisRescaleResult::refused:
       Rf_error("the sampler refuses this basis for the forest");
-    return R_NilValue;
+    case bartcore::BasisRescaleResult::rescaled:
+      break;
+    case bartcore::BasisRescaleResult::keptTooFewRows:
+      answer = firstKeep(holder, true) ? 1 : 0;
+      break;
+    case bartcore::BasisRescaleResult::keptConstant:
+      answer = firstKeep(holder, true) ? 2 : 0;
+      break;
+    }
+    return Rf_ScalarInteger(answer);
   });
 }
 
@@ -5238,15 +5276,6 @@ SEXP bartcore_setForestWeights(SEXP ptrExpr, SEXP forestExpr,
   owned.assign(weights, weights + n);
   holder.sampler->setForestWeights(forestIndex, owned.data());
   return R_NilValue;
-}
-
-// Whether a keep, of the response's scale or of a leaf covariate's center
-// and scale, is to be warned of NOW: on this holder's first keep of either
-// kind, through whichever setter, and never again.
-static bool firstKeep(BartcoreHolder& holder, bool kept) {
-  bool first = kept && !holder.scaleKeptWarned;
-  if (first) holder.scaleKeptWarned = true;
-  return first;
 }
 
 // What the setters that can re-derive the response transform return to R:

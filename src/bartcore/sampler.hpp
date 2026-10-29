@@ -94,6 +94,21 @@ enum class PredictorUpdateResult { accepted, rolledBack, invalidCutPoints };
 /// updateScale false. Nothing is raised: the caller decides what to say.
 enum class ResponseUpdateResult { accepted, scaleKept };
 
+/// Outcome of a basis install that takes a numeric forest's default scale
+/// again from the column it installs (Sampler::setForestBasisRescaled).
+/// refused: nothing was installed and no prior moved. rescaled: the column
+/// was installed and the forest's default restated from its scale.
+/// keptTooFewRows and keptConstant: the column was installed and the scale in
+/// force kept, fewer than two rows being in the likelihood, or the column
+/// having no scale over the rows in (basisColumnScale). Nothing is raised: the
+/// caller decides what to say.
+enum class BasisRescaleResult : std::uint8_t {
+  refused,
+  rescaled,
+  keptTooFewRows,
+  keptConstant
+};
+
 /// A whole sampler's serializable state: per-chain states, the cut grid they
 /// were read on, the saved-tree write position, and the draw count that
 /// position is read against.
@@ -2700,6 +2715,51 @@ public:
                   installed;
     return installed;
   }
+  /// Installs forest forestIndex's one-column numeric basis in every chain, as
+  /// setForestBasis does, and takes the forest's default scale again from the
+  /// installed column, so its prior is the one a sampler created on that column
+  /// over the rows then in would have (Chain::restateForestBasisScale). Trees,
+  /// coefficients and every other forest are untouched, and no draw is
+  /// consumed; the new prior acts from the next sweep.
+  ///
+  /// Decided once, from chain 0, before any chain moves, as every chain holds
+  /// the same weights, mask and statements. Refused, installing nothing, off a
+  /// numeric map forest that states no sd (neither an sd nor a multiple), on
+  /// other than one column, and wherever setForestBasis refuses. The rows read
+  /// are those in the likelihood now, of positive case weight and kept by the
+  /// mask (leafRowsFrom); a forest's own weights are not read. Where fewer
+  /// than two rows are in, or the column has no scale over them
+  /// (basisColumnScale), the column is installed and the scale in force kept.
+  BasisRescaleResult setForestBasisRescaled(size_t forestIndex,
+                                            const double* values,
+                                            size_t numColumns) {
+    if (numColumns != 1 || values == nullptr ||
+        !chains_[0]->restatesForestBasisScale(forestIndex))
+      return BasisRescaleResult::refused;
+    size_t n = data_.numObservations;
+    std::vector<std::uint8_t> storage;
+    LeafRows rows =
+      leafRowsFrom(chains_[0]->weights(),
+                   activeRows_.empty() ? nullptr : activeRows_.data(), n,
+                   storage);
+    BasisRescaleResult outcome = BasisRescaleResult::rescaled;
+    double scale = std::numeric_limits<double>::quiet_NaN();
+    if (rows.tooFewIn) {
+      outcome = BasisRescaleResult::keptTooFewRows;
+    } else {
+      try {
+        scale = basisColumnScale(values, n, rows.rows);
+      } catch (const BasisScaleError&) {
+        outcome = BasisRescaleResult::keptConstant;
+      }
+    }
+    if (!setForestBasis(forestIndex, values, numColumns))
+      return BasisRescaleResult::refused;
+    if (outcome == BasisRescaleResult::rescaled)
+      for (auto& chain : chains_)
+        chain->restateForestBasisScale(forestIndex, scale);
+    return outcome;
+  }
   /// Whether the forest coupling admits a caller-supplied per-forest weight;
   /// chain 0 answers for all, as every chain carries the same combiner.
   bool supportsForestWeights() const {
@@ -2764,8 +2824,7 @@ public:
     bool installed = true;
     for (auto& chain : chains_)
       installed = chain->setActiveRows(active) && installed;
-    if constexpr (L::hasVectorParams || L::hasFunctionParams)
-      if (installed) keepActiveRows(active);
+    if (installed) keepActiveRows(active);
     return installed;
   }
   /// Whether the forest coupling owns a replaceable count-matrix response;
@@ -3126,7 +3185,7 @@ private:
 
   /// The sampler's copy of the mask every chain holds, taken once all have
   /// accepted \p active and normalized as they normalize it: null or all
-  /// ones is no mask. Kept only where a leaf derives from rows.
+  /// ones is no mask.
   void keepActiveRows(const double* active) {
     activeRows_.clear();
     if (active == nullptr) return;
@@ -3727,8 +3786,8 @@ private:
   // moves it. (0, 0) on a scale-free family.
   double anchorMin_ = 0.0, anchorMax_ = 0.0;
   // the 0/1 mask every chain holds, empty for none (keepActiveRows), the
-  // rows a leaf re-derivation reads beside the weights; kept only for a leaf
-  // that takes covariates, and cleared by a whole-data replacement
+  // rows a leaf re-derivation and a basis rescale read beside the weights;
+  // cleared by a whole-data replacement
   std::vector<double> activeRows_;
   size_t recordedDraws_ = 0;     // slots written since the last reset, capped
                                  // at capacity; the extent of every read

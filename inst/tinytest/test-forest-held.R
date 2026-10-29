@@ -524,12 +524,18 @@ heldPair <- function(basis) {
   )$run()$train
 }
 expect_identical(heldPair(z), heldPair(zf))
-expect_error(
-  heldDoors$list.matrix(c("none", "dose"))$setForestBasis(
-    2L,
-    dose,
-    updateBasisScale = TRUE
-  ),
-  "unused argument (updateBasisScale = TRUE)",
-  fixed = TRUE
+# a held numeric forest takes its default scale again from a new column as
+# a drawn one does: the prior of a sampler created on that column
+heldSwapped <- heldDoors$list.matrix(c("none", "dose*"))
+tripled <- 3 * dose
+heldSwapped$setForestBasis(2L, tripled, updateBasisScale = TRUE)
+heldTwin <- dbarts(
+  x,
+  y,
+  forests = list(forest(), forest(basis = tripled, amplitude = fixed())),
+  control = heldControl()
 )
+heldReading <- function(sampler) {
+  lapply(sampler$getLeafPrior(2L)[c("sd", "k.scale", "basis.scale")], unname)
+}
+expect_identical(heldReading(heldSwapped), heldReading(heldTwin))

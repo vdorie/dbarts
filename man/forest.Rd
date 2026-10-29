@@ -469,8 +469,9 @@ forest(
     once, over the observations in the likelihood when the sampler is created
     (those \code{subset} and the missing-value handling keep, with a positive
     weight, and not masked out), and kept: replacing the column, the weights
-    or the mask later does not move the prior, and a copy, a saved and
-    reloaded sampler and a sampler made again from its own control, model
+    or the mask later does not move the prior, unless the column is replaced
+    with \code{$setForestBasis(updateBasisScale = TRUE)}, and a copy, a saved
+    and reloaded sampler and a sampler made again from its own control, model
     and data keep it. Where those observations hold fewer than two distinct
     values of the response, both are taken over every observation, under one
     warning (two by the route of \code{\link{dbartsSpec}} and \code{new()},
@@ -483,12 +484,12 @@ forest(
     by. \eqn{\mathrm{sd}(w)}{sd(w)} is kept with the data, in its
     \code{basis.scale} slot (see \code{\link{dbartsData}}), and
     \code{$getLeafPrior(f)$basis.scale} reports it. A caller who replaces a
-    column and wants the default of the new one states it,
-    \preformatted{p <- sampler$getLeafPrior(2)
-sampler$setLeafPrior(forests = list(forest(),
-  forest(sd = p$sd * p$basis.scale / sd(w.new))))}
-    A column that is constant over those observations has no standard
-    deviation and needs \code{sd} stated.
+    column during burn-in and wants the default of the new one replaces it
+    with \code{$setForestBasis(f, w.new, updateBasisScale = TRUE)}, which takes
+    \eqn{\mathrm{sd}(w)}{sd(w)} again over the observations in the
+    likelihood then (see \code{\linkS4class{dbartsSampler}}). A column that
+    is constant over those observations has no standard deviation and needs
+    \code{sd} stated.
 
     A treatment belongs in a factor or a logical vector, where \code{sd} is
     the treatment effect. Written as a 0/1 number it is scaled as any number:

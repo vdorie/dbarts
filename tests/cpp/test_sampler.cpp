@@ -11123,6 +11123,342 @@ static void testNumericMultiplierRule() {
   printf("ok: the numeric multiplier's rule\n");
 }
 
+/// A swap that takes a numeric forest's default scale again from the column it
+/// installs (Sampler::setForestBasisRescaled): every chain then holds the leaf
+/// scale and calibration of a sampler created on that column, the rows read
+/// are those in the likelihood at the call, too few rows or a column with no
+/// scale over them installs the column and keeps the scale, and a forest that
+/// takes no default from its column is refused with nothing written. One
+/// fixture of two forests, the second numeric, two chains.
+static void testBasisScaleUpdate() {
+  std::uint64_t state = 20261029u;
+  auto unif = [&]() {
+    state ^= state << 13; state ^= state >> 7; state ^= state << 17;
+    return static_cast<double>(state >> 11) * 0x1.0p-53;
+  };
+  auto ulps = [](double actual, double expected, double count) {
+    return std::fabs(actual - expected) <=
+           count * std::numeric_limits<double>::epsilon() * std::fabs(expected);
+  };
+  auto bits = [](double a, double b) {
+    return std::memcmp(&a, &b, sizeof a) == 0;
+  };
+  auto sameCalibration = [&](const ForestCalibration& a,
+                             const ForestCalibration& b) {
+    return bits(a.priorScale, b.priorScale) && bits(a.priorSd, b.priorSd) &&
+           bits(a.priorMean, b.priorMean) && bits(a.k, b.k) &&
+           bits(a.responseScale, b.responseScale) &&
+           bits(a.responseShift, b.responseShift) &&
+           a.kHasHyperprior == b.kHasHyperprior &&
+           bits(a.kPriorScale, b.kPriorScale) && bits(a.namedSd, b.namedSd) &&
+           a.kind == b.kind && a.amplitudeHeld == b.amplitudeHeld &&
+           bits(a.amplitudePriorVariance, b.amplitudePriorVariance) &&
+           bits(a.amplitudePriorScale, b.amplitudePriorScale) &&
+           bits(a.basisScale, b.basisScale) &&
+           a.basisScaleFromAllRows == b.basisScaleFromAllRows &&
+           bits(a.mapAnchor, b.mapAnchor) && bits(a.mapUnit, b.mapUnit) &&
+           bits(a.mapSd, b.mapSd);
+  };
+  auto sampleSd = [](const std::vector<double>& v,
+                     const std::vector<unsigned char>* rows) {
+    double mean = 0.0, count = 0.0, squares = 0.0;
+    for (size_t i = 0; i < v.size(); ++i)
+      if (rows == nullptr || (*rows)[i] != 0) { mean += v[i]; count += 1.0; }
+    mean /= count;
+    for (size_t i = 0; i < v.size(); ++i)
+      if (rows == nullptr || (*rows)[i] != 0)
+        squares += (v[i] - mean) * (v[i] - mean);
+    return std::sqrt(squares / (count - 1.0));
+  };
+
+  // 120 rows; a fifth out by weight or mask, the column far off on them
+  const size_t n = 120, p = 2, numChains = 2;
+  std::vector<double> x(n * p), y(n), yBinary(n), w(n), tenfold(n), dose(n),
+    weights(n), zeroed(n), mask(n), onlyOne(n, 0.0), none(n, 0.0),
+    flatInside(n), yFlat(n);
+  std::vector<unsigned char> in(n);
+  for (double& v : x) v = unif();
+  for (size_t i = 0; i < n; ++i) {
+    bool out = i % 5 == 2;
+    w[i] = 0.5 + unif();
+    tenfold[i] = 10.0 * w[i];
+    dose[i] = out ? 50.0 + unif() : 0.02 * unif();
+    weights[i] = 1.0;
+    zeroed[i] = out ? 0.0 : 1.0;
+    mask[i] = out ? 0.0 : 1.0;
+    in[i] = out ? 0 : 1;
+    flatInside[i] = out ? 40.0 + static_cast<double>(i) : 2.5;
+    y[i] = 2.0 + 3.0 * x[i] + 2.0 * w[i] * x[i + n] + unif();
+    yBinary[i] = unif() < 0.45 ? 1.0 : 0.0;
+    yFlat[i] = out ? y[i] : 4.0;
+  }
+  onlyOne[7] = 1.0;
+  SamplerOptions options;
+  options.numChains = numChains;
+  double nan = std::numeric_limits<double>::quiet_NaN();
+  struct Made {
+    std::unique_ptr<ConstantLeafSampler> sampler;
+    std::vector<ext_rng*> rngs;
+    ~Made() { destroyDrawRngs(rngs); }
+  };
+  auto make = [&](ResponseFamily family, const double* response,
+                  const double* caseWeights, const double* column, double sd,
+                  double sdMultiple, unsigned seed) {
+    AmplitudeSpec spec;
+    spec.family = family;
+    spec.forests.resize(2);
+    spec.forests[0].forest.numTrees = 6;
+    spec.forests[1].forest.numTrees = 5;
+    spec.forests[1].kind = ForestKind::numeric;
+    spec.forests[1].basis = column;
+    spec.forests[1].sd = sd;
+    spec.forests[1].sdMultiple = sdMultiple;
+    auto made = std::make_unique<Made>();
+    made->rngs = makeDrawRngs(numChains, seed);
+    made->sampler = std::make_unique<ConstantLeafSampler>(
+      x.data(), response, n, p, caseWeights, nullptr, 1.0, 3.0,
+      0.37804942330213542, options, spec, made->rngs.data());
+    return made;
+  };
+  auto draws = [&](ConstantLeafSampler& sampler, size_t numSamples) {
+    std::vector<double> out(numSamples * numChains * (1 + n));
+    Results results;
+    results.sigma = out.data();
+    results.trainingFits = out.data() + numSamples * numChains;
+    sampler.run(0, numSamples, results);
+    return out;
+  };
+  // every chain's map, leaf scales, forest fits and coefficients
+  struct Snapshot {
+    std::vector<ForestCalibration> calibration;
+    std::vector<double> leafScale, fits, amplitudes, combined;
+  };
+  auto snapshot = [&](ConstantLeafSampler& sampler) {
+    Snapshot s;
+    std::vector<double> buffer(n), amplitudes(sampler.totalAmplitudes());
+    for (size_t c = 0; c < numChains; ++c) {
+      for (size_t f = 0; f < 2; ++f) {
+        s.calibration.push_back(sampler.forestCalibration(c, f));
+        s.leafScale.push_back(TestPeer::leafScale(sampler.chain(c), f));
+        sampler.forestTotalFits(c, f, buffer.data());
+        s.fits.insert(s.fits.end(), buffer.begin(), buffer.end());
+      }
+      sampler.amplitudes(c, amplitudes.data());
+      s.amplitudes.insert(s.amplitudes.end(), amplitudes.begin(),
+                          amplitudes.end());
+      const double* combined = TestPeer::combinedFits(sampler.chain(c));
+      s.combined.insert(s.combined.end(), combined, combined + n);
+    }
+    return s;
+  };
+  auto samePrior = [&](const Snapshot& a, const Snapshot& b) {
+    bool same = a.calibration.size() == b.calibration.size();
+    for (size_t i = 0; same && i < a.calibration.size(); ++i)
+      same = sameCalibration(a.calibration[i], b.calibration[i]) &&
+             bits(a.leafScale[i], b.leafScale[i]);
+    return same;
+  };
+  // the coefficients and the trees: per-forest fits and amplitudes
+  auto sameState = [&](const Snapshot& a, const Snapshot& b) {
+    return a.fits == b.fits && a.amplitudes == b.amplitudes;
+  };
+  // whether the column installed is the one handed: a combined fit after
+  // the call that differs from the one before it
+  auto moved = [&](const Snapshot& before, ConstantLeafSampler& sampler) {
+    return snapshot(sampler).combined != before.combined;
+  };
+  auto runSome = [&](ConstantLeafSampler& sampler) {
+    Results results;
+    sampler.run(5, 0, results);
+  };
+
+  // the twin: created on w and rescaled to 10 w before any sweep, against
+  // one created on 10 w; and a plain swap moves no prior
+  {
+    auto swapped = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(),
+                        nan, nan, 9921);
+    auto plain = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(),
+                      nan, nan, 9921);
+    auto twin = make(ResponseFamily::gaussian, y.data(), nullptr,
+                     tenfold.data(), nan, nan, 9921);
+    Snapshot created = snapshot(*plain->sampler);
+    check(plain->sampler->setForestBasis(1, tenfold.data(), 1) &&
+            samePrior(snapshot(*plain->sampler), created),
+          "basis rescale: a plain swap moves no prior on any chain");
+    check(swapped->sampler->setForestBasisRescaled(1, tenfold.data(), 1) ==
+            BasisRescaleResult::rescaled,
+          "basis rescale: a numeric default forest is rescaled");
+    check(samePrior(snapshot(*swapped->sampler), snapshot(*twin->sampler)),
+          "basis rescale: every chain's leaf scale and calibration are a "
+          "creation's on the new column, bitwise");
+    check(swapped->sampler->forestCalibration(1, 1).basisScale ==
+            twin->sampler->forestCalibration(1, 1).basisScale &&
+          swapped->sampler->forestCalibration(1, 1).basisScale !=
+            created.calibration[3].basisScale,
+          "basis rescale: the second chain holds the new scale");
+    check(draws(*swapped->sampler, 20) == draws(*twin->sampler, 20),
+          "basis rescale: the rescaled sampler draws as its twin");
+    check(draws(*plain->sampler, 20) != draws(*twin->sampler, 20),
+          "basis rescale: a plain swap draws as before, not as the twin");
+  }
+
+  // after sweeps: trees, coefficients and the other forest are untouched,
+  // and the scale is the new column's over every row
+  {
+    auto made = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(),
+                     nan, nan, 9922);
+    ConstantLeafSampler& sampler = *made->sampler;
+    runSome(sampler);
+    Snapshot before = snapshot(sampler);
+    check(sampler.setForestBasisRescaled(1, dose.data(), 1) ==
+            BasisRescaleResult::rescaled,
+          "basis rescale: rescaled after sweeps");
+    Snapshot after = snapshot(sampler);
+    check(sameState(before, after),
+          "basis rescale: the trees and coefficients are untouched");
+    check(sameCalibration(before.calibration[0], after.calibration[0]) &&
+            sameCalibration(before.calibration[2], after.calibration[2]) &&
+            bits(before.leafScale[0], after.leafScale[0]) &&
+            bits(before.leafScale[2], after.leafScale[2]),
+          "basis rescale: the other forest's calibration is untouched");
+    check(ulps(after.calibration[1].basisScale, sampleSd(dose, nullptr), 4.0) &&
+            after.calibration[3].basisScale == after.calibration[1].basisScale,
+          "basis rescale: the scale is the new column's, over every row");
+    check(moved(before, sampler), "basis rescale: the column is installed");
+  }
+
+  // rows: a weight of zero and a mask entry each take their rows out
+  {
+    auto made = make(ResponseFamily::gaussian, y.data(), weights.data(),
+                     w.data(), nan, nan, 9923);
+    made->sampler->setWeights(zeroed.data());
+    check(made->sampler->setForestBasisRescaled(1, dose.data(), 1) ==
+              BasisRescaleResult::rescaled &&
+            ulps(made->sampler->forestCalibration(1, 1).basisScale,
+                 sampleSd(dose, &in), 4.0),
+          "basis rescale: rows of weight zero are not read");
+    auto masked = make(ResponseFamily::probit, yBinary.data(), nullptr,
+                       w.data(), nan, nan, 9924);
+    check(masked->sampler->setActiveRows(mask.data()) &&
+            masked->sampler->setForestBasisRescaled(1, dose.data(), 1) ==
+              BasisRescaleResult::rescaled &&
+            ulps(masked->sampler->forestCalibration(1, 1).basisScale,
+                 sampleSd(dose, &in), 4.0),
+          "basis rescale: rows the mask leaves out are not read");
+    // a forest's own weights are not read
+    auto own = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(), nan,
+                    nan, 9925);
+    check(own->sampler->setForestWeights(1, zeroed.data()) &&
+            own->sampler->setForestBasisRescaled(1, dose.data(), 1) ==
+              BasisRescaleResult::rescaled &&
+            ulps(own->sampler->forestCalibration(1, 1).basisScale,
+                 sampleSd(dose, nullptr), 4.0),
+          "basis rescale: a forest's own weights are not read");
+    // rows in holding one response value, and a column varying over them
+    auto flat = make(ResponseFamily::gaussian, yFlat.data(), weights.data(),
+                     w.data(), nan, nan, 9926);
+    flat->sampler->setWeights(zeroed.data());
+    std::vector<double> varying(n);
+    for (size_t i = 0; i < n; ++i) varying[i] = w[i] + 3.0;
+    check(flat->sampler->setForestBasisRescaled(1, varying.data(), 1) ==
+              BasisRescaleResult::rescaled &&
+            ulps(flat->sampler->forestCalibration(1, 1).basisScale,
+                 sampleSd(varying, &in), 4.0),
+          "basis rescale: rows in holding one response value re-derive");
+  }
+
+  // keeps: no row in, one row in, a column constant over the rows in
+  {
+    struct Keep {
+      const double* caseWeights;
+      const double* column;
+      BasisRescaleResult outcome;
+      const char* what;
+    };
+    const Keep keeps[] = {
+      {none.data(), dose.data(), BasisRescaleResult::keptTooFewRows,
+       "basis rescale: no row in keeps the scale and installs the column"},
+      {onlyOne.data(), dose.data(), BasisRescaleResult::keptTooFewRows,
+       "basis rescale: one row in keeps the scale and installs the column"},
+      {zeroed.data(), flatInside.data(), BasisRescaleResult::keptConstant,
+       "basis rescale: a column constant over the rows in keeps the scale "
+       "and installs the column"}};
+    for (const Keep& keep : keeps) {
+      auto made = make(ResponseFamily::gaussian, y.data(), weights.data(),
+                       w.data(), nan, nan, 9927);
+      ConstantLeafSampler& sampler = *made->sampler;
+      runSome(sampler);
+      sampler.setWeights(keep.caseWeights);
+      Snapshot before = snapshot(sampler);
+      check(sampler.setForestBasisRescaled(1, keep.column, 1) ==
+                keep.outcome &&
+              samePrior(before, snapshot(sampler)) && moved(before, sampler),
+            keep.what);
+    }
+  }
+
+  // refusals write nothing on any chain
+  {
+    std::vector<double> levels(2 * n);
+    for (size_t i = 0; i < n; ++i) {
+      levels[2 * i] = i % 3 == 0 ? 1.0 : 0.0;
+      levels[2 * i + 1] = 1.0 - levels[2 * i];
+    }
+    auto refusedCleanly = [&](ConstantLeafSampler& sampler, size_t f,
+                              const double* values, size_t numColumns) {
+      Snapshot before = snapshot(sampler);
+      return sampler.setForestBasisRescaled(f, values, numColumns) ==
+               BasisRescaleResult::refused &&
+             samePrior(before, snapshot(sampler)) &&
+             !moved(before, sampler);
+    };
+    auto stated = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(),
+                       0.4, nan, 9928);
+    runSome(*stated->sampler);
+    check(refusedCleanly(*stated->sampler, 1, dose.data(), 1),
+          "basis rescale: a forest stated at creation is refused");
+    auto written = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(),
+                        nan, nan, 9929);
+    runSome(*written->sampler);
+    check(written->sampler->setForestMapSd(1, 0.4) &&
+            refusedCleanly(*written->sampler, 1, dose.data(), 1),
+          "basis rescale: a forest stated by a later write is refused");
+    auto multiple = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(),
+                         nan, 1.5, 9930);
+    runSome(*multiple->sampler);
+    check(refusedCleanly(*multiple->sampler, 1, dose.data(), 1),
+          "basis rescale: a fixture's multiple is a statement, refused");
+    check(refusedCleanly(*written->sampler, 0, dose.data(), 1),
+          "basis rescale: a forest with no basis is refused");
+    AmplitudeSpec spec;
+    spec.forests.resize(2);
+    spec.forests[1].kind = ForestKind::levels;
+    spec.forests[1].basis = levels.data();
+    spec.forests[1].numBasisColumns = 2;
+    std::vector<ext_rng*> rngs = makeDrawRngs(numChains, 9931);
+    {
+      ConstantLeafSampler factor(x.data(), y.data(), n, p, nullptr, nullptr,
+                                 1.0, 3.0, 0.37804942330213542, options, spec,
+                                 rngs.data());
+      runSome(factor);
+      check(refusedCleanly(factor, 1, levels.data(), 2) &&
+              refusedCleanly(factor, 1, dose.data(), 1),
+            "basis rescale: a factor forest is refused");
+    }
+    destroyDrawRngs(rngs);
+    auto wide = make(ResponseFamily::gaussian, y.data(), nullptr, w.data(),
+                     nan, nan, 9932);
+    runSome(*wide->sampler);
+    std::vector<double> nonFinite(dose);
+    nonFinite[3] = std::numeric_limits<double>::infinity();
+    check(refusedCleanly(*wide->sampler, 1, levels.data(), 2) &&
+            refusedCleanly(*wide->sampler, 1, nonFinite.data(), 1),
+          "basis rescale: two columns and a value that is not finite are "
+          "refused");
+  }
+  printf("ok: a basis swap that takes a numeric forest's scale again\n");
+}
+
 /// A forest's stated sd is in the response's units, divided by the unit once
 /// at each construction and each restatement. One fixture of three forests
 /// (none, a two-level block, a column of numbers) per family, over a response
@@ -12641,6 +12977,7 @@ void runSamplerTests(ext_rng* rng) {
   testRelativeRowBound();
   testBasisColumnScale();
   testNumericMultiplierRule();
+  testBasisScaleUpdate();
   testForestSdUnit();
   testBCFCalibrationMap();
   testMoveSettingsInstall();

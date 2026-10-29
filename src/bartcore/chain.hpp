@@ -411,7 +411,9 @@ struct ForestCalibration {
   double amplitudePriorScale = std::numeric_limits<double>::quiet_NaN();
   /// A numeric column's scale as the chain holds it, taken at a first
   /// creation or handed to a re-creation; NaN on every other forest and on a
-  /// numeric one created stating its sd. No swap moves it.
+  /// numeric one created stating its sd. A plain swap does not move it; a
+  /// rescaling one takes it from the new column
+  /// (Sampler::setForestBasisRescaled).
   double basisScale = std::numeric_limits<double>::quiet_NaN();
   /// Whether that scale was read from every row because too few were in the
   /// likelihood to read it from: the status a host warns on.
@@ -1729,6 +1731,40 @@ public:
           f, entry.amplitudePrior.halfCauchyScale))
       return false;
     mapped.statement = statement;
+    mapped.entry = entry;
+    forests_[f].leaf.scale = mapLeafScale(f);
+    return true;
+  }
+
+  /// Whether map forest f takes its default scale from its column: a numeric
+  /// forest that states neither an sd nor a multiple, by creation's predicate.
+  bool restatesForestBasisScale(std::size_t f) const {
+    return f < forestMap_.size() &&
+           forestMap_[f].kind == ForestKind::numeric &&
+           std::isnan(forestMap_[f].statement.sd) &&
+           std::isnan(forestMap_[f].statement.sdMultiple);
+  }
+
+  /// Takes \p scale as numeric forest f's column scale, as creation takes the
+  /// one it reads: the map resolves the forest's own default statement again
+  /// (forestMapEntry) and its leaf scale is derived from the result
+  /// (mapLeafScale), so a chain made on a column of that scale holds the same
+  /// bits. The scale is then not one read from every row. A numeric
+  /// coefficient's prior does not depend on the scale, so no amplitude prior
+  /// moves; nor does a tree, a coefficient or another forest. False, writing
+  /// nothing, where the forest does not take its default from its column
+  /// (restatesForestBasisScale) and on a scale that is not positive and
+  /// finite.
+  bool restateForestBasisScale(std::size_t f, double scale) {
+    if (!restatesForestBasisScale(f) || !(scale > 0.0) ||
+        !std::isfinite(scale))
+      return false;
+    MapForest& mapped = forestMap_[f];
+    ForestMapEntry entry =
+      forestMapEntry(mapped.statement, mapped.kind, family_, forestSdUnit_,
+                     oneForestSize(), scale);
+    mapped.basisScale = scale;
+    mapped.basisScaleFromAllRows = false;
     mapped.entry = entry;
     forests_[f].leaf.scale = mapLeafScale(f);
     return true;

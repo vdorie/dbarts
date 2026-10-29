@@ -246,7 +246,7 @@ static R_CallMethodDef R_callMethods[] = {
   DEF_FUNC("dbarts_bartcore_setCategoryOffset", bartcore_setCategoryOffset, 2),
   DEF_FUNC("dbarts_bartcore_setCategoryTestOffset",
            bartcore_setCategoryTestOffset, 2),
-  DEF_FUNC("dbarts_bartcore_setForestBasis", bartcore_setForestBasis, 3),
+  DEF_FUNC("dbarts_bartcore_setForestBasis", bartcore_setForestBasis, 4),
   DEF_FUNC("dbarts_bartcore_setForestWeights", bartcore_setForestWeights, 3),
   DEF_FUNC("dbarts_bartcore_setActiveRows", bartcore_setActiveRows, 5),
   DEF_FUNC("dbarts_bartcore_numForests", bartcore_numForests, 1),

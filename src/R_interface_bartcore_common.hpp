@@ -324,8 +324,9 @@ struct dbarts_sampler_t {
   // initialization: a member placed anywhere else would shift every
   // initializer after it.
   bool slowCountWarned = false;
-  // whether the R setters have said that a re-derivation kept the response
-  // scale, which they say once per holder. Only the R entries read or set
+  // whether the R setters have said that a re-derivation kept a scale in
+  // force (the response's, a leaf covariate's or a numeric basis's), which
+  // they say once per holder. Only the R entries read or set
   // it: a flat entry returns its status and spends nothing.
   bool scaleKeptWarned = false;
 

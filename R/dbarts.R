@@ -2032,6 +2032,81 @@ basisScaleFallbacks <- function(sampler) {
   )
 }
 
+## Refuses $setForestBasis(updateBasisScale = TRUE) on a forest whose default is
+## not taken from its column, from the engine's raw leaf-prior row 'raw' of the
+## forest called 'name': one that states its sd and one multiplied by a factor.
+## The swap itself refuses a forest multiplied by nothing, and the engine
+## refuses all three, under a generic text.
+refuseBasisScaleUpdate <- function(raw, name) {
+  stated <- raw[[1L, "named.sd"]]
+  if (!is.nan(stated)) {
+    stop(
+      name,
+      " states its sd, ",
+      format(stated),
+      ", so it has no default to update; restate it with ",
+      "$setLeafPrior(forests = ) or leave updateBasisScale FALSE",
+      call. = FALSE
+    )
+  }
+  multiplier <- raw[[1L, "multiplier"]]
+  if (identical(multiplier, 1)) {
+    stop(
+      name,
+      " is multiplied by a factor, so its default is one unit and reads no ",
+      "column; leave updateBasisScale FALSE",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
+## Records on a sampler's data the scale the engine holds for the numeric
+## forest at 0-based 'index', overwriting the entry there: after
+## $setForestBasis(updateBasisScale = TRUE), whose scale every later creation
+## from the object is to be handed.
+recordBasisScale <- function(sampler, ptr, index) {
+  raw <- .Call(C_dbarts_bartcore_getLeafPrior, ptr, index)
+  data <- sampler$data
+  scales <- dataBasisScale(data)
+  if (is.null(scales)) {
+    scales <- vector("list", length(data@bases))
+  }
+  length(scales) <- max(length(scales), length(data@bases))
+  scales[[index + 1L]] <- raw[[1L, "basis.scale"]]
+  data@basis.scale <- scales
+  sampler$data <- data
+  invisible(NULL)
+}
+
+## The warning that $setForestBasis(updateBasisScale = TRUE) kept a numeric
+## forest's scale in force, on the bridge's answer: 1 where fewer than two of
+## the 'n' rows were in the likelihood, 'rowsIn' of them, 2 where the forest
+## 'name''s column was constant over them, each only on the sampler's first
+## keep of any scale, and 0 otherwise.
+warnBasisScaleKept <- function(answer, name, n, rowsIn) {
+  if (identical(answer, 1L)) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      "fewer than two observations are in the likelihood (",
+      rowsIn,
+      " of ",
+      n,
+      "), so the scale of ",
+      name,
+      "'s basis is kept as it was (said once per sampler)"
+    )
+  } else if (identical(answer, 2L)) {
+    warnClassed(
+      "dbartsScaleFallbackWarning",
+      name,
+      "'s basis is constant over the rows in the likelihood, so its scale ",
+      "is kept as it was (said once per sampler)"
+    )
+  }
+  invisible(NULL)
+}
+
 ## Records on a sampler's data the scale the engine holds for each numeric
 ## forest's column, where the object has no entry for that forest: a first
 ## creation's, which every later creation from the object is handed. Raises
@@ -3483,9 +3558,21 @@ dbartsSampler <- setRefClass(
       }
       invisible(NULL)
     },
-    setForestBasis = function(forest, basis, updateState = NULL) {
-      "Changes the basis the named forest's amplitudes multiply. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. It must be of the class the forest was created with, which decides what the forest multiplies and never changes. A forest of levels (created with a factor, a character vector or a logical vector) takes one of those three, matched to the forest's levels by name and not by position: the replacement may list its levels in another order or leave one out, a level of the forest that no row has is a column of zeros (a swap can leave one momentarily unobserved), and a row at a level the forest does not have, or at NA, is refused. Coefficient j multiplies level j's rows after any swap. Numbers are refused for such a forest, the level indicators the sampler stores among them; hand back the factor. A forest of numbers takes one numeric column, a vector or a matrix of one column, a column of all zeros among them (creation refuses one), and refuses several columns, a factor, a character vector and a logical vector; a forest created with no basis takes none. The sampler keeps the forest's block, in data@bases, and its levels, in data@basis.levels, each read by the forest's position (neither list has names, so a label does not index them), and not the factor it was handed: a caller that will hand a basis back keeps the factor it handed over. A state carries no levels, so one installed from a sampler whose factor has the same levels in another order goes in by position. No forest changes width, so the names the basis was created with stay, whatever names the replacement has. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved: an install leaves every one of them bitwise. A swap moves the basis and nothing else: no forest's prior moves, so a numeric forest keeps the sd per unit its creation gave it, a default one the scale of the column it was created on (data@basis.scale). The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
+    setForestBasis = function(
+      forest,
+      basis,
+      updateState = NULL,
+      updateBasisScale = FALSE
+    ) {
+      "Changes the basis the named forest's amplitudes multiply. forest is a number, the forest's position from 1, or a string, its label (forest<i> names position i), as with setForestWeights and getLeafPrior/getK (a Bayesian causal forest's basis forest is 2). basis is a value, or a one-sided formula, which is read as the basis of a forest() is, its names found where the formula was written. It must be of the class the forest was created with, which decides what the forest multiplies and never changes. A forest of levels (created with a factor, a character vector or a logical vector) takes one of those three, matched to the forest's levels by name and not by position: the replacement may list its levels in another order or leave one out, a level of the forest that no row has is a column of zeros (a swap can leave one momentarily unobserved), and a row at a level the forest does not have, or at NA, is refused. Coefficient j multiplies level j's rows after any swap. Numbers are refused for such a forest, the level indicators the sampler stores among them; hand back the factor. A forest of numbers takes one numeric column, a vector or a matrix of one column, a column of all zeros among them (creation refuses one), and refuses several columns, a factor, a character vector and a logical vector; a forest created with no basis takes none. The sampler keeps the forest's block, in data@bases, and its levels, in data@basis.levels, each read by the forest's position (neither list has names, so a label does not index them), and not the factor it was handed: a caller that will hand a basis back keeps the factor it handed over. A state carries no levels, so one installed from a sampler whose factor has the same levels in another order goes in by position. No forest changes width, so the names the basis was created with stay, whatever names the replacement has. The forest's label does not change. This is the SOLE route by which a basis changes after creation, and the amplitudes are preserved: an install leaves every one of them bitwise. A swap moves the basis and nothing else: no forest's prior moves, so a numeric forest keeps the sd per unit its creation gave it, a default one the scale of the column it was created on (data@basis.scale). updateBasisScale = TRUE, for burn-in, also takes a numeric forest's default scale again from the column installed, over the rows in the likelihood at the call (a positive weight, kept by the active-row mask; a forest's own weights are not read), which may differ from the rows the response's scale was read from at creation, and restates that forest's default sd from it from the next sweep, leaving the trees and the coefficients as they are; the new scale replaces the forest's entry of data@basis.scale, so a copy or a reload runs the new prior. Re-installing the column in force with TRUE rescales it after the weights or the mask change. Where fewer than two rows are in, or the column is constant over them, the column is installed and the scale in force kept, with a warning on the sampler's first keep. TRUE is refused on a forest that states its sd and on one multiplied by a factor, neither having a default taken from a column. The matrix is mirrored into data@bases as setWeights mirrors weights, so it survives the sampler's re-creation. updateState follows control@updateState; see setData."
       updateState <- checkUpdateState(updateState)
+      if (
+        !is.logical(updateBasisScale) ||
+          length(updateBasisScale) != 1L ||
+          is.na(updateBasisScale)
+      ) {
+        stop("'updateBasisScale' must be TRUE or FALSE", call. = FALSE)
+      }
       refuseCountsMutation(
         .self,
         "$setForestBasis",
@@ -3529,16 +3616,34 @@ dbartsSampler <- setRefClass(
       }
 
       ptr <- getPointer()
+      if (updateBasisScale) {
+        refuseBasisScaleUpdate(
+          .Call(C_dbarts_bartcore_getLeafPrior, ptr, index),
+          forestName(index + 1L, forestInfo$labels)
+        )
+      }
       selfEnv <- parent.env(environment())
 
-      oldBases <- data@bases
-      newBases <- oldBases
+      oldData <- data
+      newBases <- data@bases
       newBases[[index + 1L]] <- values
       selfEnv$data@bases <- newBases
       tryResult <- tryCatch(
-        .Call(C_dbarts_bartcore_setForestBasis, ptr, index, values),
+        {
+          kept <- .Call(
+            C_dbarts_bartcore_setForestBasis,
+            ptr,
+            index,
+            values,
+            updateBasisScale
+          )
+          if (updateBasisScale) {
+            recordBasisScale(.self, ptr, index)
+          }
+          kept
+        },
         error = function(e) {
-          selfEnv$data@bases <- oldBases
+          selfEnv$data <- oldData
           e
         }
       )
@@ -3548,6 +3653,16 @@ dbartsSampler <- setRefClass(
 
       if (resolveUpdateState(updateState, control)) {
         storeState(ptr)
+      }
+      # raised last, as warnScaleKept is: a warning turned into an error
+      # leaves the record and the stored state the update's
+      if (updateBasisScale) {
+        warnBasisScaleKept(
+          tryResult,
+          forestName(index + 1L, forestInfo$labels),
+          length(data@y),
+          sum(rowsInLikelihood(data@weights, activeRows, length(data@y)))
+        )
       }
       invisible(NULL)
     },

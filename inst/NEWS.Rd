@@ -584,7 +584,11 @@
             which \code{$setLeafPrior(forests = )} restates and
             \code{$getLeafPrior()} returns, with whether it was stated; the
             one forest of a single-forest model states its size as
-            \code{leaf.prior = normal(sd = )}.
+            \code{leaf.prior = normal(sd = )}. A numeric forest that
+            states none takes its size per standard deviation of its
+            column, read when the sampler is created, which
+            \code{$setForestBasis(updateBasisScale = TRUE)} reads again
+            from the replacement column, for burn-in.
       \item Heteroscedastic BART (Pratola et al. 2020): \code{variance = ~ x1
             + x2}, \code{variance = TRUE} or a
             \code{\link{varianceForest}} in \code{bart} and \code{dbarts}

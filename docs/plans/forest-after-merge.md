@@ -2,7 +2,8 @@
 
 Status: PLANNED 2026-10-29 on 917f02c1; amended the same day after its blind critique (verdict: build after
 amendments; report scratch/crit-fam/report.md) and the coordinator's rulings on it. Three calls held for the
-maintainer ([Open calls](#open-calls)): slice 2 waits on the first, slice 1 on the second and third. Rulings: dec-B276 (the window), dec-B265 and dec-B303 (updateBasisScale
+maintainer ([Open calls](#open-calls)): the first, for slice 2, is ruled (dec-B504); slice 1 stands as built
+on the second and third. Rulings: dec-B276 (the window), dec-B265 and dec-B303 (updateBasisScale
 and its rows), dec-B266 (the long form), with dec-B346, dec-B362, dec-B364, dec-B465, dec-B479 and dec-B488.
 
 agent: slice 1 a sonnet implementer and one sonnet review (R surface, no draw change). Slice 2 an opus
@@ -132,8 +133,8 @@ The rule, from dec-B265 and dec-B303 with the later keep rulings:
    re-derivation keep where creation falls back). The response is not read: its scale is not re-derived on a
    sampler of several forests (dec-B362). A forest's own weights (`$setForestWeights`) are not read, as creation
    does not read them.
-3. A column constant, or constant to rounding, over those rows: OPEN CALL 1. The plan is written for its
-   recommendation, the same keep and warning as item 2.
+3. A column constant, or constant to rounding, over those rows: the same keep and warning as item 2 (open
+   call 1, ruled (b), dec-B504).
 4. Refused by name, before anything is installed: a forest that states an sd ("forest 2 ('dose') states its sd,
    0.4, so it has no default to update; restate it with $setLeafPrior(forests = ) or leave updateBasisScale
    FALSE"); a forest multiplied by a factor ("... its default is one unit and reads no column"); a forest with no
@@ -391,7 +392,8 @@ Gates, on the slice's own libraries, `--preclean` on every commit:
 
 ## Open calls
 
-1. A swap with `updateBasisScale = TRUE` whose column is constant over the rows in. dec-B265 (2026-10-06): "a
+1. RULED (b) by the maintainer, 2026-10-29: "Ok, use option (b)" (dec-B504). A swap with
+   `updateBasisScale = TRUE` whose column is constant over the rows in. dec-B265 (2026-10-06): "a
    constant column is refused wherever a default would have to be derived from it, at creation with no stated
    sd and on an update". Since then dec-B346 took a constant or zero column on a swap, dec-B364 kept the
    response's scale where a re-derivation finds one value, and dec-B465 kept a leaf covariate's numbers where a

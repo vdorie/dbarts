@@ -523,7 +523,8 @@ expect_error(
     dbarts:::C_dbarts_bartcore_setForestBasis,
     direct$getPointer(),
     1L,
-    badBasis
+    badBasis,
+    FALSE
   ),
   pattern = "not finite"
 )

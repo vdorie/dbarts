@@ -17,7 +17,8 @@ SEXP bartcore_createFromHandle(SEXP control, SEXP model, SEXP data,
 SEXP bartcore_setCounts(SEXP ptr, SEXP counts);
 SEXP bartcore_setCategoryOffset(SEXP ptr, SEXP offset);
 SEXP bartcore_setCategoryTestOffset(SEXP ptr, SEXP offset);
-SEXP bartcore_setForestBasis(SEXP ptr, SEXP forest, SEXP basis);
+SEXP bartcore_setForestBasis(SEXP ptr, SEXP forest, SEXP basis,
+                             SEXP updateBasisScale);
 SEXP bartcore_setForestWeights(SEXP ptr, SEXP forest, SEXP weights);
 SEXP bartcore_setActiveRows(SEXP ptr, SEXP active, SEXP updateScale,
                             SEXP updateStandardization, SEXP tooFewUnits);
