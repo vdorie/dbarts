@@ -1,12 +1,13 @@
 # binary-k-mixing-need: does slow k mixing harm the estimands users report, and where?
 
-Status: PLANNED 2026-10-17, PRE-REGISTERED 2026-10-29. Runs after the merge to main and before 1.0-0
-(dec-B462), behind the work that stops the merge. The study dec-B462 rules, revising dec-B456 for it; its
-bar is dec-B455's; its use tiers count a logistic cell as the same cell under probit (dec-B463). Revised
-from its blind critique (scratch/kmn/crit/crit-report.md, SOUND AFTER CHANGES) and the orchestrator's calls
-on it ([Calls made in planning](#calls-made-in-planning)). Stage 0, stage 1 and the smoke ran 2026-10-29;
-the rule, bands and bars are fixed in [Pre-registration](#pre-registration). No study fit yet. One slot
-waits on the maintainer's colleagues ([Rulings and pending slots](#rulings-and-pending-slots)).
+Status: PLANNED 2026-10-17, PRE-REGISTERED 2026-10-29, amended the same day after review. Runs after the
+merge to main and before 1.0-0 (dec-B462), behind the work that stops the merge. The study dec-B462 rules,
+revising dec-B456 for it; its bar is dec-B455's; its use tiers count a logistic cell as the same cell
+under probit (dec-B463). Revised from its blind critique (scratch/kmn/crit/crit-report.md, SOUND AFTER
+CHANGES) and the orchestrator's calls on it ([Calls made in planning](#calls-made-in-planning)). Stage 0,
+stage 1 and the smoke ran 2026-10-29; the rule, bands and bars are fixed in
+[Pre-registration](#pre-registration). No study fit yet. One slot waits on the maintainer's colleagues
+([Rulings and pending slots](#rulings-and-pending-slots)).
 
 agent: one opus implementer writes the harness, runs it on the bench box and writes the finding; one
 review of the harness and smoke (the gate-only tier of the plan README); one review of the tranche 1
@@ -517,19 +518,20 @@ outside its own posterior's interval, so any sampler that reached the posterior 
   over rows, which its review judged strict); k's effective draws at least 100, the precision that places
   its 5th and 95th percentiles within about 2 percentile points, which the fixed-k arms need. k's own
   split-Rhat is reported and not required.
-- **Escalation, only where it can pass**: where the halves disagree on k or k's effective draws fall
-  short, the shipped chains continue to 100,000 recorded sweeps when the first pass's effective draws per
-  sweep, for k and for the failing quantities, project a pass at that length; otherwise the reference fails
-  at once. The shipped kernel's k needs 5,000 to 30,000 sweeps per independent draw near separation
+- **Escalation, only where it can pass** (the trigger amended in [Pre-registration](#pre-registration)):
+  where the halves disagree on k or k's effective draws fall short, the shipped chains continue to 100,000
+  recorded sweeps when the first pass's effective draws per sweep, for k and for the failing quantities,
+  project a pass at that length; otherwise the reference fails at once. The shipped kernel's k needs 5,000
+  to 30,000 sweeps per independent draw near separation
   ([k-mixing-pg-families.md](../design/k-mixing-pg-families.md)), so 8 chains of 100,000 give about 27 to
-  160 effective draws of k, which can meet 100 and could never have met the pilot's 400. A reference failing
-  after escalation does not count, and the failure is recorded as a finding (the shipped kernel does not
-  reach its own long run there).
-- **Storage and order**: full draws are kept until every reading that depends on the reference (band
-  mass and other per-draw functionals need joint draws) has been scored, and every fixed-k job waits for
-  the final acceptance. Then kept: per quantity, 1,000 quantiles of the pooled draws (single precision), k
-  and scalar estimands in full, and full draws for 20 references chosen in advance (audit); about 1.2 MB a
-  reference.
+  160 effective draws of k, which can meet 100 and could never have met the pilot's 400. A reference
+  failing after escalation does not count, and the failure is recorded as a finding (the shipped kernel
+  does not reach its own long run there).
+- **Storage and order** (the audit set amended in [Pre-registration](#pre-registration)): full draws are
+  kept until every reading that depends on the reference (band mass and other per-draw functionals need
+  joint draws) has been scored, and every fixed-k job waits for the final acceptance. Then kept: per
+  quantity, 1,000 quantiles of the pooled draws (single precision), k and scalar estimands in full, and
+  full draws for 20 references chosen in advance (audit); about 1.2 MB a reference.
 - **Check on the references as a class**: under SBC, the references' own coverage of the truth must be
   nominal within noise over a regime's reference replications; a regime where it is not shows acceptance
   passing references it should not, and its reference readings are withdrawn.
@@ -840,8 +842,9 @@ freedom fewer than a cell's passing references ([Bounds](#bounds)); the reading 
 percent pass rule and the reading against each failing replication's move half
 ([The reading of a cell](#the-reading-of-a-cell)); the tiers
 ([Reading by regime and weighing by use](#reading-by-regime-and-weighing-by-use)); reference acceptance and
-escalation ([References](#references)); the expansion rule ([Order of work](#order-of-work)); the stop at
-211 core-hours and the order of cuts under it ([Cost](#cost)).
+escalation ([References](#references)), the escalation's trigger amended below; the expansion rule
+([Order of work](#order-of-work)); the stop at 211 core-hours and the order of cuts under it
+([Cost](#cost)).
 
 **Selection bands**, the separation score's central 80 percent over the k study's simulated cells at an
 outcome rate of 0.5 whose truth-based sign agreement is within 0.03 of 0.76 (9 cells) and of 0.90 (5
@@ -887,6 +890,7 @@ time less start-up, acceptance 3.8 times as its diagnostics scale, plus the esca
 84.2 for the same parts. Stage 0, stage 1 and the smoke used about 5.5 core-hours against the plan's 4.2,
 the excess the second discrimination run and the smoke's acceptance passes. At the plan's ratio of the
 whole study to tranche 1 (141 to 88), the expected total is about 130 core-hours, under the stop at 211.
+Amended below.
 
 **Gates**, all passed ([Gates before the main run](#gates-before-the-main-run)):
 - Builds: the shipped build bit for bit equal to main on 22 paths (both links; numeric, factor and missing
@@ -899,7 +903,7 @@ whole study to tranche 1 (141 to 88), the expected total is about 130 core-hours
   (probit), 0.891 and 0.893 (logistic). The logistic default oracle sits 2.5 standard errors below
   nominal, inside the call below; a logistic G carries that offset, which D, paired with the oracle, does
   not.
-- Discrimination: as the call below.
+- Discrimination: as the call below, amended below.
 - stan4bart prior check: twenty quantiles (the BART fit, the group standard deviation, two groups'
   intercepts) within 1.6 standard errors of the harness's prior draws.
 - Selection: the bands and costs above. The pilot's stored readings: D1's shipped default reading for
@@ -921,7 +925,7 @@ whole study to tranche 1 (141 to 88), the expected total is about 130 core-hours
   Alternative: all rows, which reads outcomes the loop imputes.
 - D2: each pipeline fits its own propensity, the reference uses the shipped pipeline's, and the mixed
   pipeline is the move's propensity with the shipped outcome model. Alternative: a reference per pipeline,
-  twice the cost.
+  twice the cost. Amended below.
 - D2's TMLE estimate is not read: it is not a posterior quantity. Alternative: its interval's reference
   mass.
 - B: held-out f at the first 100 test rows of the k study's split, and its six seeds as its replications
@@ -937,13 +941,13 @@ whole study to tranche 1 (141 to 88), the expected total is about 130 core-hours
 - Under SBC, band classes are read on D alone: a band built from a draw count is not nominal by
   construction. Alternative: G as for other classes.
 - Mass readings sum the two halves' counts and never build a pooled copy. Alternative: a pooled copy,
-  about 5 GB of memory for a D1 reference.
+  about 5 GB of memory for a D1 reference. Amended below.
 - In 10-chain cells, a tail's reference without its own chain is the other kernel's half alone.
   Alternative: the pool less one chain.
 - Escalation is not built for stan4bart and dbartsSampler-loop references: one that fails acceptance stays
-  failed and counts against the 80 percent rule. Alternative: a longer rerun of its halves.
+  failed and counts against the 80 percent rule. Alternative: a longer rerun of its halves. Amended below.
 - The null run passes when every reading is within 2.81 standard errors of nominal, a 0.005 two-sided level
-  over its twelve readings. Alternative: 1.96 a reading.
+  over its twelve readings. Alternative: 1.96 a reading. Amended below.
 - A discrimination run flags when the 95 percent bound of interior f's coverage excludes 0.90. The plan's
   two runs did not both flag under both links: the outcome through the other link flags under probit
   (coverage 0.70) but not logistic (0.896), whose oracle at the true k shrinks its fit back onto the
@@ -953,7 +957,7 @@ whole study to tranche 1 (141 to 88), the expected total is about 130 core-hours
   oracle keeps the drawn k, a wrong k by a factor of 2, read on the oracle under both links (coverage 0.72
   and 0.71, both flagged); the plan's two runs are read and reported. On the shipped arm the drawn k
   absorbs most of the doubling (0.88 and 0.86, against the null run's 0.90 and 0.88). Alternative: stop
-  for a ruling on the gate.
+  for a ruling on the gate. Amended below.
 - Tranche 1 runs in a fresh run directory: the null run's S6 fits are gate fits, not study fits.
   Alternative: keep them as S6's first replications.
 - stan4bart and the loop are timed by total fit time, having no sampler-only path.
@@ -965,14 +969,106 @@ whole study to tranche 1 (141 to 88), the expected total is about 130 core-hours
 - A reference is compacted once scored: per row quantity 1,000 quantiles of the pooled draws, scalar
   estimands and k in full, band classes (joint draws of the row quantities, already scored) dropped, saved
   samplers removed; 20 references chosen in advance keep their draws. Alternative: keep the samplers of
-  the audit references, so their chains could be continued, about 40 MB a part.
+  the audit references, so their chains could be continued, about 40 MB a part. Amended below.
 - After an escalation the shipped chains are five times the move's length; the joint split-Rhat and tail
   effective draws take them thinned to the move's length over their whole run, while the halves'
   agreement uses every draw. Alternative: the halves' effective draws summed, with no joint Rhat.
+  Amended below.
 - A reference that does not escalate takes its first acceptance as final. Alternative: recompute it, about
   9 core-hours of tranche 1.
 - D1's secondary reading on the pilot's replications 1 to 10 is checked present but not yet built into the
-  reading; it is built before tranche 1 is read.
+  reading; it is built before tranche 1 is read. Amended below.
+
+**Amendment, 2026-10-29, before tranche 1**, after the review of the pre-registration and before any
+study fit: each change, what it replaces, and why. The harness is benchmarks/R/binary-k-mixing-need.R as of
+the commit that adds this amendment.
+
+- **Discrimination gate.** The link run is the gate again. The doubled-truth gate that replaced it rested
+  on a scoring bug: the link run scored the oracle's interval, on the fit link's latent scale, against the
+  truth's latent value on the other link's scale, where it should have scored it against the truth's
+  probability carried onto the fit link's scale. Rescored, the oracle's interior f covers at 0.944 under
+  probit (se 0.003) and 0.761 under logistic (se 0.006): both flag. (The review's 0.946 and 0.734 label
+  interior rows by the oracle's own interval; the harness labels them by the shipped arm's.) The doubled
+  truth read on the oracle (0.724 and 0.706, se 0.007 and 0.006) stays as a plumbing check that must flag
+  too, its shipped arm (0.879 and 0.865) reported as a contrast. The 50-tree run is dropped: the leaf prior
+  sets f's prior variance through k whatever the number of trees, so it cannot flag.
+- **Graded controls**, a new gate: on the null run's S6 designs, the oracle at k fixed at 1.25 and at 0.8
+  times the true k, read as the shipped arm is read, must read "problem" in interior f under both links.
+  It passes: D is -0.042 and -0.047 at 1.25 (probit, logistic; se 0.002) and +0.025 and +0.031 at 0.8 (se
+  0.002).
+- **Reference-path control**, a new gate: on tranche 1's count of S6 and S7 probit references (12 each,
+  full length, fresh seeds), every chain of the user's fit at k fixed at 1.25 times the reference's median
+  k, read through the reference reading as the shipped default is, must read "problem" in S6's interior f
+  and S7's unit effects. It passes: the control's S is 0.052 (se 0.0015) in S6's interior f and 0.032 (se
+  0.004) in S7's unit effects, against the shipped default's 0.002 and 0.002, both bounded. 11 of 12
+  references passed acceptance in each cell; the two that did not escalated and failed again, one on a
+  single row's halves (z 4.9 of 600 quantities, its effective draws over 15,000), one on rows' Rhat (1.04
+  at the 99th percentile). It used 1.6 core-hours. The control also runs on tranche 1's S6 and S7
+  references and is reported.
+- **Null bound.** The null run's bound is Bonferroni over its 12 readings at a two-sided 0.05: |z| at most
+  2.87, in place of 2.81. The run passes (largest |z| 2.52, the logistic default oracle). The review's 600
+  further replications put both links' oracle at 0.898 (se 0.0015), and its longer oracle shows the
+  default oracle's finite length costs about 0.2 points of coverage: the logistic offset is noise and
+  length, not a defect.
+- **Seeds.** Every seed drawn while an SBC truth is made, and every arm's seed, carries the run's tag (its
+  directory name; stage 1 has none), so tranche 1's S6 replications are fresh against the null run's gate
+  designs. Designed and real designs keep the binary interval study's seeds.
+- **Escalation.** A failing first pass escalates when the shipped chains' effective draws project a pass
+  at the escalated length, whatever else failed; the halves' agreement, k's agreement and Rhat are judged
+  at the final pass. Before, as [References](#references) has it, only a disagreement on k or a shortfall
+  of k's effective draws escalated, and only where k's and the failing quantities' effective draws
+  projected a pass. The escalated shipped half is written at the move's draw count: its chains continue at
+  five times the thinning, and the first pass's draws are thinned by five. The projection reads the first
+  pass the same way, its effective draws thinned by five, times five. Before, the projection scaled the
+  unthinned series, and the escalated half kept five times the draws: an escalated D1 reference would have
+  needed about 45 GB of memory to score.
+- **Pooling.** A pooled reference weighs its halves equally: both halves hold the same number of draws
+  (above), wherever they could differ the longer is thinned to the shorter, and pooled mass readings
+  average the halves' masses rather than summing their counts. Before, an escalated half counted five
+  times.
+- **S9's fixed-k arms** fix the propensity's k too, at the same quantile of the propensity's k in the
+  reference (recorded with every draw, through escalation). Before, the propensity's k was drawn.
+- **D2: a reference per pipeline.** The move pipeline's propensity gets its own reference; the move and
+  mixed arms are read against it, the shipped arm and the fixed-k arms against the shipped pipeline's. It
+  adds about 2.5 core-hours to tranche 1, under the 10 that would have called for one shared propensity
+  instead.
+- **stan4bart and E3 references escalate.** The smoke's first passes accepted 2 of their 4 (E1 and E3
+  probit; E2 and E3 logistic failed), at a tenth of the length; stage 1 ran no references. That is under
+  80 percent, so escalation is built: stan4bart reruns the shipped half from the same seed at the
+  escalated length and thinning (its first pass, thinned by five, a prefix of the rerun: checked and
+  recorded, exact on the forced test), and E3 continues its saved samplers, as the other tasks do. A
+  stan4bart rerun holds every iteration's fits, an estimated 8.5 GB for E1 and E2.
+- **Acceptance table.** acceptance.rds keeps the per-quantity table: the halves' largest z, joint Rhat,
+  tail effective draws and, at a first pass, the shipped half's thinned by five.
+- **D1's secondary reading** is built into the reading: the pilot's replications 1 to 10, shipped and move,
+  scored as the binary interval study scored them against the designed truth (treatment-contrast coverage,
+  M1 to M3, unit and contrast bands), with paired differences; arr1-sep is flagged.
+- **Disk.** B keeps no last fit. The audit set is capped at 1 GB of full draws rather than 20 references:
+  8, chosen in advance in a seeded order (B1:spambase probit, B2:lalonde logistic, E3 logistic 7 and
+  probit 5, S1 probit 6, S5 logistic 6, S6 probit 1, S8 probit 7). Saved samplers drop their control's
+  call, which held the data frames: the samplers were 1.7 GB of a D1 reference's 2.7 GB in flight, and an
+  S9 sampler falls from 12 MB to 0.2. One reference with 200 MB or more of draws holds them at a time (two
+  if the bench box's disk is grown). Projected over tranche 1's schedule: a peak of 6.2 GB and 5.8 GB at
+  the end (fits, designs and scores 2.0, compacted references and their readings 2.9, the audit set 1.0),
+  against 8.7 GB free once the smoke and stage 1 directories were deleted (their cited outputs copied off
+  the box); the queues stop below 2 GB free. With two large references in flight the peak is 7.9 GB, which
+  the stop would interrupt. Before, 20 audit references (about 3 GB) and two large references in flight.
+- **Memory and workers.** Measured on the box at full length: a D1 reference's fixed-k and scoring jobs
+  peak at 14.7 and 14.2 GB, its acceptance and compaction at 7.5 and 8.2, its fits at 5.1; a B1:bank
+  reference's jobs at 3.5 or less. Four D1 scoring jobs at once would need 58 GB of the box's 24. Every
+  job carries a peak-memory estimate scaled from these by its reference's size (16 GB for D1 and S3
+  scoring), and the queue starts the earliest runnable job only while the running jobs' estimates and its
+  own stay within 21 GB; a later job passes it only if it leaves the waiting job a worker and its memory
+  once the jobs started before it end. Four workers. Alternative: a worker count fixed by the largest
+  job, one, about 80 hours of wall time.
+- **Cost.** Tranche 1 projects to 83 core-hours from the timing pass's per-sweep times (60 of sampling:
+  fits 11, references 37, escalation 10, fixed k 2; plus 15 percent for shared memory bandwidth and 20 for
+  scoring and start-up) and 80 from the smoke's job times scaled to full length, against 80 and 77 before
+  the amendment (D2's second reference, stan4bart's full reruns, the reference-path control). The
+  reference-path control's S6 and S7 cells escalated 2 of 24 references, under the projection's one in
+  six. About 30 to 35 hours of wall time at four workers (23 to 27 with two large references in flight).
+  This round used about 3 core-hours, 8.5 in all before tranche 1; at the plan's ratio of the whole study
+  to tranche 1, the expected total is about 135, under the stop at 211.
 
 ## Rulings and pending slots
 
