@@ -112,7 +112,8 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
   ([variance-forest-mixture-reinstall.md](variance-forest-mixture-reinstall.md)). Run: frozen by `setControl`
   after 50 sweeps, a heteroscedastic sampler's mean and variance structures both stand for 10 sweeps, and its
   copy carries `bartcore.variance`. `Chain::setModel` does more than install the mixture: on a model with a
-  fixed sigma it puts sigma back to the fixed value, undoing a host's `setSigma`.
+  fixed sigma it puts sigma back to the model's fixed value. `$setSigma` writes that value too, so this undoes
+  only a sigma a host wrote to the engine alone, through `.Call` or the C API (run, on 7c264c37 and the branch).
 - Why some samplers refuse. A sampler whose forests carry amplitudes, a multinomial one and a DART fit refuse
   the change and roll the stored control back (run, all three; a DART fit with "changing a DART tree prior is
   not available"): `setControl` routes the mixture through
@@ -174,7 +175,7 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
    sampler whose `$setModel` refuses - one carrying amplitudes or counts
    ([`samplerCarriesAmplitudes`](../../R/bartcore.R), [`samplerCarriesCounts`](../../R/bartcore.R)) or a DART
    tree prior - and a change to `treeShift` alone on any sampler, since `$setModel` would also put a fixed sigma
-   back. One R predicate, true where `$setModel` refuses, picks the route. A refusal rolls the stored control
+   back, undoing one a host wrote through `.Call` or the C API. One R predicate, true where `$setModel` refuses, picks the route. A refusal rolls the stored control
    back on either route. The record rides with the other `bartcore.*` attributes.
 7. `format.dbartsVarianceForest` prints the two new knobs, `<control's>` where NULL.
 
@@ -316,8 +317,8 @@ tinytest, a new test-forest-move-settings.R, small n and several cuts per predic
   the mixture, the window and `treeShift` each, on one forest with a variance forest, on two forests and on a
   multinomial sampler. `setControl` to X before any run draws what creation under X draws on every kind, a DART
   fit included, `treeShift` included; on a DART fit after some sweeps it takes, where main refuses.
-- A change to `treeShift` alone on a gaussian model with a fixed sigma leaves a sigma the host set with
-  `setSigma`; with the mixture it is put back, as on main.
+- A change to `treeShift` alone on a gaussian model with a fixed sigma leaves a sigma a host wrote to the
+  engine alone, through `.Call`; with the mixture the model's value is put back, as on main.
 - No partial writes: a record of the wrong count handed straight to the move entry, and to `bartcore_setModel`
   with a changed tree prior, is refused, and the sampler then draws what a twin never handed it draws.
 - The copy, and `saveRDS` then `readRDS` after `storeState`, of each sampler above run what the live sampler
@@ -437,7 +438,7 @@ Gates, by the neutral class and the engine tier, on the branch's own libraries:
 10. `setControl` keeps its route through `$setModel(model)` for a changed mixture or window on samplers whose
     `$setModel` takes it, so its install there stays main's call for call, re-install of the model included;
     a change to `treeShift` alone, which main has no call to match, takes the move entry, since the re-install
-    is not a no-op (it puts a fixed sigma back). Alternative: the move entry for every change on every sampler,
+    is not a no-op (it puts the model's fixed sigma back over one a host wrote through `.Call` or the C API). Alternative: the move entry for every change on every sampler,
     which drops the re-install where main makes it.
 11. A control stating a mixture beside a forest's own is not refused: the forest's governs it, as a forest's
     `n.trees` governs the control's at `dbarts()`, and the control's still reaches the forests that state none.
@@ -478,7 +479,7 @@ Gates, by the neutral class and the engine tier, on the branch's own libraries:
 - stan4bart was checked by a search of its R code; the critique read its C side.
 - The sweep's cost is not measured (see [Cost](#cost)).
 - What `$setModel(model)`'s re-install inside `setControl` changes beyond the mixture is not mapped in full;
-  one effect is known (a fixed sigma put back). Call 10 keeps it only where main already makes it.
+  one effect is known (the model's fixed sigma put back over one written to the engine alone). Call 10 keeps it only where main already makes it.
 
 ## Revision from critique
 
