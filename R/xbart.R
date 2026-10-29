@@ -1355,6 +1355,7 @@ resolveKEntry <- function(entry) {
     entry <- entry()
   }
   if (!is(entry, "dbartsLeafHyperprior")) {
+    refuseQuotedK(entry)
     stop(
       "'k' must contain positive numbers and hyperprior specifications; ",
       "see ?dbartsPriors"

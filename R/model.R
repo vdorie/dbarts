@@ -570,6 +570,24 @@ refuseColliding <- function(
   invisible(NULL)
 }
 
+## The refusal of a language object given as k, which 0.9-34's bart2 took
+## (k = quote(chi) evaluated to the chi hyperprior there). Each form named
+## fits: chi() written in the call, and, for arguments held in a list
+## (do.call, bartCause's args.rsp, stan4bart's bart_args), the object from
+## dbartsPriors or its string.
+refuseQuotedK <- function(k) {
+  if (is.language(k)) {
+    stop(
+      "'k' is a quoted expression, which is not taken as a prior; write ",
+      "chi(1.25, Inf) directly in the call, or, where the arguments are held ",
+      "in a list, give dbartsPriors$chi(1.25, Inf) or the string ",
+      "\"chi(1.25, Inf)\"",
+      call. = FALSE
+    )
+  }
+  invisible(NULL)
+}
+
 ## Turn a normal prior's raw k into the model's leaf hyperprior: NULL is the
 ## family default (2 for continuous responses, chi(1.5, 2) for binary and
 ## nbinom, drawsLeafKByDefault; 'binary' carries that flag),
@@ -2439,6 +2457,7 @@ normal <- function(k = NULL, sd = NULL) {
       !is(k, "dbartsLeafHyperprior") &&
       (!is.numeric(k) || length(k) != 1L || is.na(k) || k <= 0.0)
   ) {
+    refuseQuotedK(k)
     if (is(k, "dbartsSdHyperprior")) {
       stop(
         "'k' takes a number or chi(), a hyperprior on k; invchi() is a ",

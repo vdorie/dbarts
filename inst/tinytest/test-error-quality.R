@@ -113,4 +113,61 @@ expect_error(
   "'family' should be one of"
 )
 
+# a quoted prior for k (0.9-34's bart2 took quote(chi)) is refused with the
+# forms that do work named, at every door that reads k; other wrong values
+# keep their own message
+quotedChi <- quote(chi)
+quotedChiCall <- quote(chi(1.25, Inf))
+quotedFits <- list(
+  bart = function(k) {
+    dbarts::bart(
+      testData$x,
+      testData$y,
+      k = k,
+      n.samples = 3L,
+      n.burn = 3L,
+      n.chains = 1L,
+      n.threads = 1L,
+      verbose = FALSE
+    )
+  },
+  bartBT = function(k) {
+    dbarts::bartBT(
+      testData$x,
+      testData$y,
+      k = k,
+      nskip = 3L,
+      ndpost = 3L,
+      nchain = 1L,
+      nthread = 1L,
+      verbose = FALSE
+    )
+  },
+  xbart = function(k) {
+    dbarts::xbart(testData$x, testData$y, k = k, n.reps = 2L, n.threads = 1L)
+  }
+)
+for (door in names(quotedFits)) {
+  for (quoted in list(quotedChi, quotedChiCall)) {
+    quotedMsg <- tryCatch(quotedFits[[door]](quoted), error = conditionMessage)
+    expect_true(grepl("quoted expression", quotedMsg, fixed = TRUE))
+    expect_true(grepl("chi(1.25, Inf) directly", quotedMsg, fixed = TRUE))
+    expect_true(grepl("dbartsPriors$chi(", quotedMsg, fixed = TRUE))
+    expect_true(grepl("the string \"chi(", quotedMsg, fixed = TRUE))
+  }
+  # each form the message names fits
+  for (works in list(
+    dbarts::dbartsPriors$chi(1.25, Inf),
+    "chi(1.25, Inf)"
+  )) {
+    expect_silent(quotedFits[[door]](works))
+  }
+}
+expect_error(
+  quotedFits$bart(-1),
+  "'k' must be a positive scalar or a hyperprior specification",
+  fixed = TRUE
+)
+rm(quotedChi, quotedChiCall, quotedFits, door, quoted, quotedMsg, works)
+
 rm(testData)
