@@ -1,13 +1,12 @@
 # binary-k-mixing-need: does slow k mixing harm the estimands users report, and where?
 
-Status: PLANNED 2026-10-17. Runs after the merge to main and before 1.0-0 (dec-B462), behind the work
-that stops the merge. The study dec-B462 rules, revising dec-B456 for it; its bar is dec-B455's; its use
-tiers count a logistic cell as the same cell under probit (dec-B463). Revised from its blind critique
-(scratch/kmn/crit/crit-report.md, SOUND AFTER CHANGES) and the orchestrator's calls on it
-([Calls made in planning](#calls-made-in-planning)). Not run; nothing beyond seconds-long reads of the
-binary interval study's stored outputs. Before any fit: the gates of
-[Gates before the main run](#gates-before-the-main-run). One slot waits on the maintainer's colleagues
-([Rulings and pending slots](#rulings-and-pending-slots)).
+Status: PLANNED 2026-10-17, PRE-REGISTERED 2026-10-29. Runs after the merge to main and before 1.0-0
+(dec-B462), behind the work that stops the merge. The study dec-B462 rules, revising dec-B456 for it; its
+bar is dec-B455's; its use tiers count a logistic cell as the same cell under probit (dec-B463). Revised
+from its blind critique (scratch/kmn/crit/crit-report.md, SOUND AFTER CHANGES) and the orchestrator's calls
+on it ([Calls made in planning](#calls-made-in-planning)). Stage 0, stage 1 and the smoke ran 2026-10-29;
+the rule, bands and bars are fixed in [Pre-registration](#pre-registration). No study fit yet. One slot
+waits on the maintainer's colleagues ([Rulings and pending slots](#rulings-and-pending-slots)).
 
 agent: one opus implementer writes the harness, runs it on the bench box and writes the finding; one
 review of the harness and smoke (the gate-only tier of the plan README); one review of the tranche 1
@@ -828,6 +827,153 @@ move's k split-Rhat quoted with the panel's 1.6, S5's dense truth stated.
 - **Reuse of the binary interval study's pilot**: D1's replications 1 to 10, its references as the screen's
   input, its time ratios and its frozen equal-time choice.
 
+## Pre-registration
+
+Fixed 2026-10-29, after stage 0, stage 1 and the smoke and before any study fit. The harness is
+benchmarks/R/binary-k-mixing-need.R as of the commit that adds this section; the bands below are written
+into it.
+
+**Unchanged by stage 1**: the bar, 0.02 for every class
+([Bars and where they come from](#bars-and-where-they-come-from)); the
+bounds, z 3.60 for a problem and 1.96 for no problem, Student's t at the same levels with one degree of
+freedom fewer than a cell's passing references ([Bounds](#bounds)); the reading of a cell, with its 80
+percent pass rule and the reading against each failing replication's move half
+([The reading of a cell](#the-reading-of-a-cell)); the tiers
+([Reading by regime and weighing by use](#reading-by-regime-and-weighing-by-use)); reference acceptance and
+escalation ([References](#references)); the expansion rule ([Order of work](#order-of-work)); the stop at
+211 core-hours and the order of cuts under it ([Cost](#cost)).
+
+**Selection bands**, the separation score's central 80 percent over the k study's simulated cells at an
+outcome rate of 0.5 whose truth-based sign agreement is within 0.03 of 0.76 (9 cells) and of 0.90 (5
+cells):
+
+| band | separation score |
+|---|---|
+| moderate | 0.574 to 0.807 |
+| strong | above 0.807, below 0.853 |
+| near-separated | 0.853 to 0.915 |
+| deterministic, rejected | 0.995 or more |
+
+A real dataset of B scoring above 0.915 takes the near-separated tier.
+
+**Cost per accepted replication**, on three replications a cell and link: every regime's selection costs
+less than one of its fits, so every regime runs at its planned counts.
+
+| regime | draws per accepted design, probit / logistic | seconds to select one | seconds of one shipped fit |
+|---|---|---|---|
+| S1 | 8 / 13 | 0.4 / 0.5 | 1.4 / 2.6 |
+| S2 | 13 / 9 | 0.2 / 0.3 | 1.7 / 2.9 |
+| S3 | 11 / 7 | 0.6 / 0.5 | 15 / 38 |
+| S4 | 25 / 12 | 0.4 / 0.3 | 0.7 / 1.1 |
+| S5 | 1 / 1 | 0.2 / 0.2 | 2.4 / 4.5 |
+| S6 | 2 / 2 | 0.2 / 0.2 | 1.1 / 2.2 |
+| S7 | 1 / 1 | 1.7 / 0.7 | 11 / 14 |
+| S8 | 6 / 13 | 2.4 / 1.2 | 13 / 16 |
+| S9 | 1 | 0.2 | 13 |
+| E1 | 1 | 0.8 | 5.9 |
+| E2 | 25 | 0.9 | 5.7 |
+| E3 | 3 / 1 | 0.2 / 0.2 | 4.4 / 6.1 |
+
+The near-separated band fills without deterministic draws (S1, 8 and 13 draws an acceptance).
+
+**Time ratios**, move over shipped, the median of nine paired timings a cell and link: SBC and embedded
+cells 0.98 to 1.29, mostly 1.04 to 1.14; D1, D2 and B take the binary interval study's (1.006 to 1.24).
+The plan assumed 1.006 to 1.30.
+
+**Projected cost**: tranche 1 about 80 core-hours from the timing pass's per-sweep times (58 of sampling,
+9 of them escalation, plus 15 percent for shared memory bandwidth and 20 percent for scoring and
+start-up), and about 77 from the smoke's job times scaled to full length (each job ten times its smoke
+time less start-up, acceptance 3.8 times as its diagnostics scale, plus the escalation's 9). The plan has
+84.2 for the same parts. Stage 0, stage 1 and the smoke used about 5.5 core-hours against the plan's 4.2,
+the excess the second discrimination run and the smoke's acceptance passes. At the plan's ratio of the
+whole study to tranche 1 (141 to 88), the expected total is about 130 core-hours, under the stop at 211.
+
+**Gates**, all passed ([Gates before the main run](#gates-before-the-main-run)):
+- Builds: the shipped build bit for bit equal to main on 22 paths (both links; numeric, factor and missing
+  predictors; test rows; 4 and 10 chains; offset; fixed k; the sampler loop; stan4bart probit and fixed
+  k); the move differs on every drawn-k path; fixed-k fits equal on both builds; the prefix property on
+  both, stan4bart included.
+- SBC self-consistency on all 21 regime and link designs: cut points, fits at train and test rows, k
+  handed back, k moving.
+- Null run, S6 at 100 replications a link: the oracle and long oracle cover interior f at 0.900 and 0.901
+  (probit), 0.891 and 0.893 (logistic). The logistic default oracle sits 2.5 standard errors below
+  nominal, inside the call below; a logistic G carries that offset, which D, paired with the oracle, does
+  not.
+- Discrimination: as the call below.
+- stan4bart prior check: twenty quantiles (the BART fit, the group standard deviation, two groups'
+  intercepts) within 1.6 standard errors of the harness's prior draws.
+- Selection: the bands and costs above. The pilot's stored readings: D1's shipped default reading for
+  replications 1 to 10, under both links. The binary interval study's defects, truth-blind labels and
+  scoring halves: checked, the last on the smoke.
+- The smoke: all 1,655 jobs, every cell with one replication under both links and builds at a tenth of
+  every length, ran through every reading; the compaction added after it then ran on its 81 references
+  (5.1 GB to 0.9 GB, the audit references kept). It escalated no reference, so escalation was forced on
+  an S6 and an S9 reference and now runs through acceptance, fixed k, scoring and compaction. Its single
+  replication read eleven SBC cells as problems on the binomial floor of the standard error alone, which
+  led to the minimum below.
+
+**Calls made implementing it**, each with its alternative:
+- Bands from the k study's cells at an outcome rate of 0.5 only. Alternative: every rate, whose scores
+  overlap and give no clean band.
+- Bands fixed at the bench box's values; the same computation elsewhere can differ in the third decimal.
+  Alternative: recompute where the study runs.
+- E3 draws its missing-outcome mask before the truth, and selection reads the observed rows only.
+  Alternative: all rows, which reads outcomes the loop imputes.
+- D2: each pipeline fits its own propensity, the reference uses the shipped pipeline's, and the mixed
+  pipeline is the move's propensity with the shipped outcome model. Alternative: a reference per pipeline,
+  twice the cost.
+- D2's TMLE estimate is not read: it is not a posterior quantity. Alternative: its interval's reference
+  mass.
+- B: held-out f at the first 100 test rows of the k study's split, and its six seeds as its replications
+  against its one reference. Alternative: all test rows, as the pilot; pooling problems by regime.
+- E2's states pool into the data's nine census regions. Alternative: merge two of them to make eight.
+- stan4bart references keep their fits instead of recording through the callback, since a callback fit
+  keeps no k. No alternative records k.
+- The stan4bart prior check fits one row at weight 1, all others at 0, and weights the harness's prior
+  draws by that row's likelihood: stan4bart's probit takes weights of 0 and 1 only. Alternative: a tiny
+  weight, which it refuses.
+- SBC row labels average the shipped and move long readings' 5 and 95 percent points where the move runs.
+  Alternative: pooled draws.
+- Under SBC, band classes are read on D alone: a band built from a draw count is not nominal by
+  construction. Alternative: G as for other classes.
+- Mass readings sum the two halves' counts and never build a pooled copy. Alternative: a pooled copy,
+  about 5 GB of memory for a D1 reference.
+- In 10-chain cells, a tail's reference without its own chain is the other kernel's half alone.
+  Alternative: the pool less one chain.
+- Escalation is not built for stan4bart and dbartsSampler-loop references: one that fails acceptance stays
+  failed and counts against the 80 percent rule. Alternative: a longer rerun of its halves.
+- The null run passes when every reading is within 2.81 standard errors of nominal, a 0.005 two-sided level
+  over its twelve readings. Alternative: 1.96 a reading.
+- A discrimination run flags when the 95 percent bound of interior f's coverage excludes 0.90. The plan's
+  two runs did not both flag under both links: the outcome through the other link flags under probit
+  (coverage 0.70) but not logistic (0.896), whose oracle at the true k shrinks its fit back onto the
+  truth's scale; the 50-tree truth flags under neither, its coverage equal to the null run's (0.899 and
+  0.884 against 0.902 and 0.885), since the leaf prior sets f's prior variance by k whatever the number
+  of trees, and a 75-tree fit absorbs the shape. The gate is instead a truth whose f is doubled while the
+  oracle keeps the drawn k, a wrong k by a factor of 2, read on the oracle under both links (coverage 0.72
+  and 0.71, both flagged); the plan's two runs are read and reported. On the shipped arm the drawn k
+  absorbs most of the doubling (0.88 and 0.86, against the null run's 0.90 and 0.88). Alternative: stop
+  for a ruling on the gate.
+- Tranche 1 runs in a fresh run directory: the null run's S6 fits are gate fits, not study fits.
+  Alternative: keep them as S6's first replications.
+- stan4bart and the loop are timed by total fit time, having no sampler-only path.
+- The smoke reads stage 1's measured time ratios. Alternative: a fixed ratio, which skips every cell's
+  lookup.
+- An SBC cell reads as unresolved on fewer than 20 replications: a bootstrap over so few cannot see the
+  spread between replications. Alternative: the binomial floor alone, which read the smoke's single
+  replication as problems.
+- A reference is compacted once scored: per row quantity 1,000 quantiles of the pooled draws, scalar
+  estimands and k in full, band classes (joint draws of the row quantities, already scored) dropped, saved
+  samplers removed; 20 references chosen in advance keep their draws. Alternative: keep the samplers of
+  the audit references, so their chains could be continued, about 40 MB a part.
+- After an escalation the shipped chains are five times the move's length; the joint split-Rhat and tail
+  effective draws take them thinned to the move's length over their whole run, while the halves'
+  agreement uses every draw. Alternative: the halves' effective draws summed, with no joint Rhat.
+- A reference that does not escalate takes its first acceptance as final. Alternative: recompute it, about
+  9 core-hours of tranche 1.
+- D1's secondary reading on the pilot's replications 1 to 10 is checked present but not yet built into the
+  reading; it is built before tranche 1 is read.
+
 ## Rulings and pending slots
 
 - **The link in the use tiers**: ruled, dec-B463. A logistic cell counts as the same cell under probit.
@@ -838,6 +984,9 @@ move's k split-Rhat quoted with the panel's 1.6, S5's dense truth stated.
   later, as an addition.
 
 ## Not verified
+
+Stage 1 settled the first, second and fifth items below ([Pre-registration](#pre-registration)); the
+callback is not used, since a callback fit keeps no k.
 
 - That stan4bart's bartcore branch builds against 207f740e's dbarts, that its callback can record the
   scored quantities at every iteration of a long run, and the stan4bart and imputation-loop costs
