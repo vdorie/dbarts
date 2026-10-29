@@ -1,13 +1,13 @@
 # binary-k-mixing-need: does slow k mixing harm the estimands users report, and where?
 
-Status: PLANNED 2026-10-17, PRE-REGISTERED 2026-10-29, amended the same day after review. Runs after the
-merge to main and before 1.0-0 (dec-B462), behind the work that stops the merge. The study dec-B462 rules,
-revising dec-B456 for it; its bar is dec-B455's; its use tiers count a logistic cell as the same cell
-under probit (dec-B463). Revised from its blind critique (scratch/kmn/crit/crit-report.md, SOUND AFTER
-CHANGES) and the orchestrator's calls on it ([Calls made in planning](#calls-made-in-planning)). Stage 0,
-stage 1 and the smoke ran 2026-10-29; the rule, bands and bars are fixed in
-[Pre-registration](#pre-registration). No study fit yet. One slot waits on the maintainer's colleagues
-([Rulings and pending slots](#rulings-and-pending-slots)).
+Status: PLANNED 2026-10-17, PRE-REGISTERED 2026-10-29, amended the same day after review and for sizing.
+Runs after the merge to main and before 1.0-0 (dec-B462), behind the work that stops the merge. The study
+dec-B462 rules, revising dec-B456 for it; its bar is dec-B455's; its use tiers count a logistic cell as
+the same cell under probit (dec-B463). Revised from its blind critique (scratch/kmn/crit/crit-report.md,
+SOUND AFTER CHANGES) and the orchestrator's calls on it ([Calls made in
+planning](#calls-made-in-planning)). Stage 0, stage 1 and the smoke ran 2026-10-29; the rule, bands and
+bars are fixed in [Pre-registration](#pre-registration). No study fit yet. One slot waits on the
+maintainer's colleagues ([Rulings and pending slots](#rulings-and-pending-slots)).
 
 agent: one opus implementer writes the harness, runs it on the bench box and writes the finding; one
 review of the harness and smoke (the gate-only tier of the plan README); one review of the tranche 1
@@ -17,8 +17,9 @@ branch and stan4bart installed against each.
 window: after the merge to main, before 1.0-0 (dec-B462). Its result decides whether the collapsed move,
 or any faster k move, is priced at all.
 budget: harness about 1,900 lines of R, much of it reused from the binary interval study and the SBC
-harness. Compute about 141 core-hours expected (about 40 hours of the box), 167 at most, stop at 211
-([Cost](#cost)).
+harness. Compute about 141 core-hours expected as planned (about 40 hours of the box), 167 at most,
+stop at 211 ([Cost](#cost)); sized down before tranche 1 to about 35 for tranche 1 and 0 to 17 for
+tranche 2 ([Pre-registration](#pre-registration), its second amendment).
 
 ## Summary for the maintainer
 
@@ -70,9 +71,9 @@ option; no problem is written down with triggers for reopening, and the move sta
 If no problem is shown but some common-use cells stay unresolved, the move stays parked and those cells
 come to you with what resolving each would cost.
 
-Cost: about 141 core-hours expected, about 40 hours of the box, in two tranches; the second runs only
-where the first leaves a cell outside near-separated prediction unresolved or shows a problem. The stop is
-at 211.
+Cost: sized to the questions before tranche 1: about 35 core-hours for tranche 1, about 11 hours of the
+box, and 0 to 17 for tranche 2, which runs only where tranche 1 suspects a problem or must size one. The
+plan's first estimate was 141; the stop stays at 211.
 
 ## Goal
 
@@ -1081,6 +1082,92 @@ the commit that adds this amendment.
   six. About 23 to 27 hours of wall time at four workers. This round used about 3 core-hours, 8.5 in all
   before tranche 1; at the plan's ratio of the whole study to tranche 1, the expected total is about 135,
   under the stop at 211.
+
+**Amendment 2, 2026-10-29, before tranche 1: sizing.** The maintainer asked that the study be sized to
+the questions it asks, with no run longer and no replication beyond what they need; the first question is
+whether a problem exists at all. The orchestrator adopted the review's cut, and the calls below are its,
+except those marked as the implementer's. No study fit ran for the sizing; the harness is
+benchmarks/R/binary-k-mixing-need.R as of the commit that adds this amendment. It supersedes the first
+amendment's escalation, cost and wall-time figures and the counts in [Replications and
+power](#replications-and-power) and [Cost](#cost).
+
+- **Spreads.** Sized on the shipped arm's spread, not the graded controls': the controls compare the
+  oracle with itself (the spread of D about 0.02 a replication), while the shipped arm's D spreads 0.038
+  to 0.047 a replication in S6, 0.054 to 0.135 in the interior classes of S1, S2 and S4, 0.053 in S8 and
+  0.09 to 0.37 in tails. Replications a reading needs at 90 percent power under the bounds below:
+
+  | class | spread of D | no problem, true D 0 | problem, true D 0.03 | D to 2 se of 0.01 |
+  |---|---|---|---|---|
+  | S6 interior | 0.038 to 0.047 | 49 to 75 | 40 to 62 | 58 to 89 |
+  | S8 | 0.053 | 95 | 78 | 113 |
+  | S1, S2, S4 interior | 0.054 to 0.135 | 99 to 616 | 81 to 505 | 117 to 729 |
+  | tails | 0.09 to 0.37 | 274 to 4,625 | 225 to 3,789 | 324 to 5,476 |
+
+  References: the reference-path control's 24 S6 and S7 references put a reference's spread of S at 0.004
+  to 0.006 in interior f, unit effects and scalar effects, 0.011 in S6's tails and 0.03 in bands. Six
+  references read "no problem" there below an S of about 0.011 (0.004 in tails); a single reference at
+  twice the bar is 6 to 10 of those spreads from a true 0.
+- **Looks, fixed now, none added later**, each a Bonferroni bound. A class's reading is the first look at
+  which it resolves. SBC reads at 50, 100 and 400 replications: no problem at z 2.39 (one-sided 0.025 over
+  three looks; an intersection-union test, so no correction across cells), problem at z 3.71 (0.05 over
+  480 tests), and at the first look a problem also needs G and D at 1.5 times the bar. References read at
+  6, 12 and 24: no problem at t 3.53, 2.82 and 2.58, problem at t 9.60, 5.43 and 4.40. Before: one look, no
+  problem at z 1.96 and t 2.20, problem at z 3.60.
+- **SBC counts.** 100 replications a cell and link is the floor. The look at 50 stops a cell and link only
+  when every tier 1 and 2 row class (by the class's own tier) has resolved, a problem only once its D is
+  sized to 2 standard errors of 0.01; tails (tier 3) never resolve there, and scalars are one interval a
+  replication. 400 is only for a cell and link with a tier 1 or 2 row class suspected (G and D at or past
+  the bar with one sign; D alone for bands) and unresolved, or a problem not yet sized. Unresolved classes
+  do not extend: each is reported with the replications it would need (no problem at a true D of 0, or a
+  problem at the estimate when suspected, at 90 percent power). S3 keeps its own counts, looks at 20, 40
+  and 80.
+- **Reference counts.** Six references at the guarded length first; 12 where a class is suspected and not
+  yet resolved (its S at or past the bar, or a single reference at twice it); 24 only to show a suspected
+  problem or size a shown one (S to 2 standard errors of 0.01). D2's designs are its references and follow
+  the same looks. No reference is spent on bands: the rule cannot read them, and the finding says so. B has
+  one reference a problem and D1 four a design, as before.
+- **Length guard.** References keep 5,000 sweeps of burn-in and record in blocks of 4,000. One is accepted
+  only when every check passes at two consecutive block ends, so a lucky single block cannot pass it: the
+  first job records 8,000 (the checks at 4,000 and 8,000). Any failure adds a block, to 20,000. Past 20,000
+  only the shipped half doubles, to 40,000, 80,000 and 100,000, and only while effective draws are the only
+  checks failing (at either block end) and the projection passes at 100,000; the move half stays at 20,000.
+  stan4bart reruns from the start each time, so its references run at 8,000, then 20,000, then 100,000.
+  Each half keeps its sampler, saved before its tail, so a block continues the chains without a gap. A
+  doubled half is written at the first pass's draw count (thin 40 and 80; 1,250 draws at 100,000). Before:
+  20,000 sweeps at once, escalated to 100,000.
+- **Gates on references.** D1's designs after the first wait for its first reference to pass; if it fails,
+  they do not run, and the design reads unresolved with the cost of resolving it (the length its effective
+  draws project a pass at and the core-hours of a reference that long; none when agreement or Rhat fails).
+  B's seed fits wait for its reference to pass the same way. The fixed-k arms and scoring of D1's and B's
+  first references run only when they pass.
+- **Unchanged.** The controls stand as run; the audit set stays the eight chosen in the first amendment,
+  two of which (E3 logistic's and S8 probit's seventh references) run only where their cell's first
+  reference look continues.
+- **Cost.** The review projects tranche 1 at about 40 core-hours (36 to 45) and tranche 2 at 0 to 15. This
+  harness projects tranche 1 at 35 core-hours (31 to 61) and tranche 2 at about 2 (0 to 17), from the same
+  per-sweep times as the first amendment's 83: in the central case S6 and S7 stop at 50 replications,
+  three references in four pass at 8,000 sweeps, one in five needs one to three more blocks and one in
+  twenty reaches 20,000, S1 and S4 take 12 references, and D1's first references fail as D1:arr1-mod's
+  full-length pass did; the low case stops every SBC cell outside S1, S2, S4 and S8 at 50, the high case
+  passes D1's first references and takes 12 references in the hard and costly cells. Wall time about 10 to
+  12 hours at four workers; the looks and rounds chain jobs that ran side by side before.
+- **The implementer's calls**, where the cut was silent, each with its alternative:
+  - The look at 50 reads a class's own tier (S1's regime is tier 3, which would leave it no deciding
+    class); alternative, the cell's tier.
+  - Only tier 1 and 2 row classes send a cell to 400, as only they stop it at 50; alternative, any class,
+    which tails' spread would send most cells to 400 on noise.
+  - A reference class already resolved as no problem does not send its cell to 12 on one reference at
+    twice the bar (its reading cannot change); alternative, any such reference.
+  - A doubled half's guard reads the shipped half a block short against the move half's 20,000; the
+    escalation reads the failing checks at both block ends; alternative, the last end alone.
+  - stan4bart skips the 12,000 and 16,000 rounds: reruns at every block would cost 56,000 iterations to
+    reach 20,000, against 28,000; alternative, every block.
+  - The move fit of an SBC replication's seventh to twelfth reference runs whether or not that reference
+    does, so the replication's scoring stays as pre-registered; alternative, gate it, about 6 fits a cell
+    and link.
+  - S3 keeps its pre-registered 40 and 80 replications (looks at 20, 40 and 80; references at 6 and 12,
+    where 6 and 8 were planned): its fits cost the most of any SBC regime. Alternative, the 100 floor,
+    about 2.5 more core-hours.
 
 ## Rulings and pending slots
 
