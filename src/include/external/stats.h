@@ -30,11 +30,13 @@ extern "C" {
 #define ext_densityOfNormal(_X_, _MU_, _SIGMA_) Rf_dnorm4((_X_), (_MU_), (_SIGMA_), 0)
 #define ext_cumulativeProbabilityOfNormal(_Q_, _MU_, _SIGMA_) Rf_pnorm5((_Q_), (_MU_), (_SIGMA_), 1, 0)
 #define ext_quantileOfNormal(_P_, _MU_, _SIGMA_) Rf_qnorm5((_P_), (_MU_), (_SIGMA_), 1, 0)
+#define ext_quantileOfStudentT(_P_, _NU_) Rf_qt((_P_), (_NU_), 1, 0)
 
 extern double Rf_dnorm4(double, double, double, int);
 extern double Rf_dt(double, double, int);
 extern double Rf_pnorm5(double, double, double, int, int);
 extern double Rf_qnorm5(double, double, double, int, int);
+extern double Rf_qt(double, double, int, int);
 extern double Rf_pchisq(double, double, int, int);
 extern double Rf_qchisq(double, double, int, int);
 

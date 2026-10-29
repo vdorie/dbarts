@@ -12,6 +12,7 @@
 #include <vector>
 
 #include <external/random.h>
+#include <external/stats.h>
 #include <misc/linearAlgebra.h>
 
 #include "data.hpp"
@@ -302,13 +303,17 @@ struct ForestStructureSpec {
 
 /// One forest's amplitude prior and the switch its block carries. The
 /// prior is N(0, variance) on every coordinate of the block; a positive
-/// halfCauchyScale makes variance a LIVE inverse-gamma auxiliary refreshed
-/// after the block's draw, which is bcf's half-Cauchy a (the scale mixture),
-/// while a zero leaves it the fixed variance bcf's (b0, b1) carry.
+/// mixtureScale c makes variance a LIVE inverse-gamma auxiliary v refreshed
+/// after the block's draw, one v for the whole block, so the block is
+/// marginally multivariate t with scale c, while a zero leaves it the fixed
+/// variance bcf's (b0, b1) carry. mixtureDf is the t's degrees of freedom nu,
+/// v ~ IG(nu / 2, nu c^2 / 2); NaN is bcf's half-Cauchy a, drawn by its own
+/// expressions, which nu = 1 equals in value but not in operand order.
 struct ForestAmplitudePrior {
   double variance = 1.0;
-  double halfCauchyScale = 0.0;
+  double mixtureScale = 0.0;
   bool update = true;  // false holds the whole block at its value
+  double mixtureDf = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// What a forest multiplies: nothing, the levels of a factor (one indicator
@@ -332,6 +337,10 @@ struct ForestStatement {
   /// false holds the forest's amplitudes at its kind's values: 1 for a
   /// forest with no basis, 0 and 1 for the two levels of a factor.
   bool updateAmplitude = true;
+  /// The degrees of freedom of a Student-t prior on a drawn coefficient,
+  /// finite and at least 1; not a number where none is stated, which keeps
+  /// the kind's default prior. A held forest ignores it.
+  double amplitudeDf = std::numeric_limits<double>::quiet_NaN();
 };
 
 /// One forest's entry in the K-length spec a general combining chain is built
@@ -507,6 +516,14 @@ struct ForestMapEntry {
 /// exactly: the sd multiplies the node scale with no divisor, and no mixture
 /// is drawn.
 ///
+/// A drawn forest that states a df nu (ForestStatement::amplitudeDf) takes a
+/// Student-t coefficient with nu degrees of freedom at the median its default
+/// has. With a basis its node scale and variance kappa do not move and the
+/// mixture scale is sqrt(kappa) z_.75 / t_nu,.75, so a numeric coefficient's
+/// size and a factor's difference keep the normal's median exactly. With
+/// none the scale is the forest's median over t_nu,.75; at nu = 1 that
+/// quantile is exactly 1 and the entry is the unstated one, mixtureDf NaN.
+///
 /// A stated sd is in the response's units and is DIVIDED BY THE UNIT HERE, and
 /// nowhere else: once for each construction and once for each restatement. A
 /// default, and a fixture's multiple, are already in units of s and never
@@ -516,13 +533,19 @@ struct ForestMapEntry {
 /// resolves alike when it is written and at every later construction.
 ///
 /// \throws std::invalid_argument on a stated sd that is not positive and
-/// finite, and on a numeric forest that states none with no scale that is,
-/// ForestSdUnitError on a stated sd against a unit that is not.
+/// finite, on a stated df below 1 or not finite, and on a numeric forest that
+/// states no sd with no scale that is, ForestSdUnitError on a stated sd
+/// against a unit that is not.
 inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
                                      ForestKind kind, ResponseFamily family,
                                      double unit, double oneForestSize,
                                      double basisScale) {
   bool held = !statement.updateAmplitude;
+  double df = statement.amplitudeDf;
+  bool dfStated = !std::isnan(df);
+  if (dfStated && (!(df >= 1.0) || !std::isfinite(df)))
+    throw std::invalid_argument("a coefficient's df must be finite and at "
+                                "least 1");
   bool defaulted = std::isnan(statement.sd) && std::isnan(statement.sdMultiple);
   if (kind == ForestKind::numeric && defaulted &&
       (!(basisScale > 0.0) || !std::isfinite(basisScale)))
@@ -549,16 +572,30 @@ inline ForestMapEntry forestMapEntry(const ForestStatement& statement,
   if (held) {
     entry.nodeScaleFactor = multiple;
     entry.amplitudePrior.variance = variance;
-    entry.amplitudePrior.halfCauchyScale = 0.0;
+    entry.amplitudePrior.mixtureScale = 0.0;
   } else if (kind != ForestKind::none) {
     entry.nodeScaleFactor = multiple;
     entry.nodeScaleDivisor = 0.674;  // the half-normal median
     entry.amplitudePrior.variance = variance;
-    entry.amplitudePrior.halfCauchyScale = 0.0;
+    entry.amplitudePrior.mixtureScale = 0.0;
+    if (dfStated) {
+      // the live auxiliary starts at the normal's variance, so the first draw
+      // of the block is the default's
+      const double normalUpperQuartile = 0.6744897501960817;
+      entry.amplitudePrior.mixtureDf = df;
+      entry.amplitudePrior.mixtureScale = std::sqrt(variance) *
+                                          normalUpperQuartile /
+                                          ext_quantileOfStudentT(0.75, df);
+    }
   } else {
     // the variance is the mixture's live auxiliary, which starts at 1
     entry.amplitudePrior.variance = 1.0;
-    entry.amplitudePrior.halfCauchyScale = multiple;
+    entry.amplitudePrior.mixtureScale = multiple;
+    if (dfStated && df != 1.0) {
+      entry.amplitudePrior.mixtureDf = df;
+      entry.amplitudePrior.mixtureScale =
+        multiple / ext_quantileOfStudentT(0.75, df);
+    }
   }
   return entry;
 }
@@ -803,7 +840,7 @@ struct ForestCombiner {
     return false;
   }
 
-  /// Restates forest f's half-Cauchy amplitude scale; false, writing nothing,
+  /// Restates forest f's amplitude mixture scale; false, writing nothing,
   /// when f names no forest or its amplitude prior is not a scale mixture.
   /// The live variance auxiliary is left as drawn, refreshed under the new
   /// scale after the block's next draw. Inert in the base.
@@ -1082,9 +1119,9 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
   }
 
   bool setAmplitudePriorScale(std::size_t f, double scale) override {
-    if (f >= glue_.prior.size() || !(glue_.prior[f].halfCauchyScale > 0.0))
+    if (f >= glue_.prior.size() || !(glue_.prior[f].mixtureScale > 0.0))
       return false;
-    glue_.prior[f].halfCauchyScale = scale;
+    glue_.prior[f].mixtureScale = scale;
     return true;
   }
 
@@ -1339,7 +1376,7 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
       // block, and only on the layout they name
       if (glue_.amplitudes.size() != 3 || glue_.numAmplitudes(0) != 1) return;
       if (glue_.prior[0].update) glue_.a() = state.a;
-      if (glue_.prior[0].halfCauchyScale > 0.0)
+      if (glue_.prior[0].mixtureScale > 0.0)
         glue_.aVariance() = state.aVariance;
       if (glue_.prior[1].update) {
         glue_.b0() = state.b0;
@@ -1353,7 +1390,7 @@ struct AmplitudeForestCombiner : ForestCombiner<L, ResidT> {
       if (prior.update)
         std::copy_n(state.amplitudes.data() + glue_.amplitudeOffset[f],
                     glue_.numAmplitudes(f), glue_.amplitudesOf(f));
-      if (prior.halfCauchyScale > 0.0)
+      if (prior.mixtureScale > 0.0)
         prior.variance = state.amplitudeVariances[f];
     }
   }
@@ -1378,7 +1415,10 @@ private:
   /// before it already updated. A scale-mixture prior's variance is refreshed
   /// straight after its own block, from the q-variate inverse-gamma
   /// conditional IG((1 + q)/2, (scale^2 + ||a_f||^2)/2), whose shape is 1.0 at
-  /// q = 1 and grows by a half per amplitude coordinate.
+  /// q = 1 and grows by a half per amplitude coordinate, or, where a df nu is
+  /// stated, IG((nu + q)/2, (nu scale^2 + ||a_f||^2)/2). The two are separate
+  /// expressions so that a forest stating none draws bcf's bits under any
+  /// contraction of multiply-adds.
   void drawAmplitudes(ext_rng* rng, double sigma, const double* y,
                       const double* w,
                       const std::vector<Forest<L, ResidT>>& forests) {
@@ -1387,16 +1427,24 @@ private:
       ForestAmplitudePrior& prior = glue_.prior[f];
       if (!prior.update) continue;
       drawForestAmplitude(f, rng, invSigmaSq, y, w, forests);
-      if (!(prior.halfCauchyScale > 0.0)) continue;
+      if (!(prior.mixtureScale > 0.0)) continue;
       std::size_t q = glue_.numAmplitudes(f);
       const double* amplitude = glue_.amplitudesOf(f);
       double squaredNorm = amplitude[0] * amplitude[0];
       for (std::size_t j = 1; j < q; ++j)
         squaredNorm += amplitude[j] * amplitude[j];
-      double rate = 0.5 * squaredNorm +
-                    0.5 * prior.halfCauchyScale * prior.halfCauchyScale;
-      prior.variance = 1.0 / ext_rng_simulateGamma(
-        rng, 0.5 * (1.0 + static_cast<double>(q)), 1.0 / rate);
+      if (std::isnan(prior.mixtureDf)) {
+        double rate = 0.5 * squaredNorm +
+                      0.5 * prior.mixtureScale * prior.mixtureScale;
+        prior.variance = 1.0 / ext_rng_simulateGamma(
+          rng, 0.5 * (1.0 + static_cast<double>(q)), 1.0 / rate);
+      } else {
+        double nu = prior.mixtureDf;
+        double rate = 0.5 * squaredNorm +
+                      0.5 * nu * prior.mixtureScale * prior.mixtureScale;
+        prior.variance = 1.0 / ext_rng_simulateGamma(
+          rng, 0.5 * (nu + static_cast<double>(q)), 1.0 / rate);
+      }
     }
   }
 

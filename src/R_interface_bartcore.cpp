@@ -3121,16 +3121,19 @@ const double* forestNumbers(SEXP forestsExpr, const char* name,
   return REAL(valuesExpr);
 }
 
-// What each forest states of its size, handed to the engine as written: `sd`
-// in the response's units, NA where none is stated. Nothing is derived here:
-// the engine holds the map and its defaults, and a forest's kind comes from
-// the data object (applyForestBases).
+// What each forest states of its size and its coefficient's prior, handed to
+// the engine as written: `sd` in the response's units and `amplitude.df` the
+// df of a Student-t coefficient, NA where none is stated. Nothing is derived
+// here: the engine holds the map and its defaults, and a forest's kind comes
+// from the data object (applyForestBases).
 void applyForestStatements(SEXP forestsExpr, bartcore::AmplitudeSpec& spec) {
   size_t numForests = spec.forests.size();
   const double* sds = forestNumbers(forestsExpr, "sd", numForests);
+  const double* dfs = forestNumbers(forestsExpr, "amplitude.df", numForests);
   for (size_t f = 0; f < numForests; ++f) {
     bartcore::ForestSpec& forest = spec.forests[f];
     if (sds != NULL && !ISNAN(sds[f])) forest.sd = sds[f];
+    if (dfs != NULL && !ISNAN(dfs[f])) forest.amplitudeDf = dfs[f];
   }
 }
 
@@ -5564,6 +5567,8 @@ static const char* leafModelName(bartcore::LeafModelKind kind) {
 // coefficient is held; both NaN off the map. basis.scale is the scale a
 // numeric forest holds, NaN where it holds none, and basis.scale.all.rows 1
 // where it was read from every row because too few were in the likelihood.
+// amplitude.df is the df a drawn forest states of its coefficient, NaN where
+// none is stated.
 SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
   BartcoreHolder& holder(holderFromExpression(ptrExpr));
   bartcore::SamplerShape shape = holder.sampler->shape();
@@ -5576,7 +5581,7 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
     "k.has.hyperprior", "response.scale", "response.shift",
     "amplitude.prior.variance", "amplitude.prior.scale", "basis.scale",
     "map.anchor", "k.prior.scale", "named.sd", "map.unit", "map.sd",
-    "multiplier", "amplitude.held", "basis.scale.all.rows"
+    "multiplier", "amplitude.held", "basis.scale.all.rows", "amplitude.df"
   };
   size_t numColumns = sizeof columnNames / sizeof columnNames[0];
   size_t numChains = shape.numChains;
@@ -5609,6 +5614,7 @@ SEXP bartcore_getLeafPrior(SEXP ptrExpr, SEXP forestExpr) {
       mapped ? (calibration.amplitudeHeld ? 1.0 : 0.0) : notMapped;
     result[c + 17 * numChains] =
       mapped ? (calibration.basisScaleFromAllRows ? 1.0 : 0.0) : notMapped;
+    result[c + 18 * numChains] = calibration.amplitudeDf;
   }
   SEXP dimNamesExpr = PROTECT(Rf_allocVector(VECSXP, 2));
   SET_VECTOR_ELT(dimNamesExpr, 0, R_NilValue);

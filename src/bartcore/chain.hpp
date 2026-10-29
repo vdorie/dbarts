@@ -406,9 +406,14 @@ struct ForestCalibration {
   ForestKind kind = ForestKind::none;
   bool amplitudeHeld = false;
   /// The amplitude prior, the two spellings EXCLUSIVE (ForestAmplitudePrior's
-  /// own pair) and never the mixture's LIVE variance auxiliary, which is state.
+  /// own pair) and never the mixture's LIVE variance auxiliary, which is state:
+  /// the scale on any forest whose variance is that auxiliary.
   double amplitudePriorVariance = std::numeric_limits<double>::quiet_NaN();
   double amplitudePriorScale = std::numeric_limits<double>::quiet_NaN();
+  /// The df a drawn forest states of its coefficient, as stated, including
+  /// a 1 the map resolves to the unstated mixture; NaN where none is stated
+  /// and on a held forest.
+  double amplitudeDf = std::numeric_limits<double>::quiet_NaN();
   /// A numeric column's scale as the chain holds it, taken at a first
   /// creation or handed to a re-creation; NaN on every other forest and on a
   /// numeric one created stating its sd. A plain swap does not move it; a
@@ -1651,12 +1656,14 @@ public:
       calibration.kind = mapped.kind;
       calibration.amplitudeHeld = !mapped.statement.updateAmplitude;
       const ForestAmplitudePrior& prior = mapped.entry.amplitudePrior;
-      bool scaleMixture = prior.halfCauchyScale > 0.0;
+      bool scaleMixture = prior.mixtureScale > 0.0;
       double notMapped = std::numeric_limits<double>::quiet_NaN();
       calibration.amplitudePriorVariance =
         scaleMixture ? notMapped : prior.variance;
       calibration.amplitudePriorScale =
-        scaleMixture ? prior.halfCauchyScale : notMapped;
+        scaleMixture ? prior.mixtureScale : notMapped;
+      if (mapped.statement.updateAmplitude)
+        calibration.amplitudeDf = mapped.statement.amplitudeDf;
       calibration.basisScale = mapped.basisScale;
       calibration.basisScaleFromAllRows = mapped.basisScaleFromAllRows;
       calibration.mapAnchor = nodeScaleAnchor_;
@@ -1705,9 +1712,10 @@ public:
 
   /// States map forest f's sd, response units, as a creation stating it does:
   /// the map resolves the statement again (forestMapEntry, which divides by
-  /// the unit), a drawn forest with no basis takes the result as its
-  /// half-Cauchy median, leaving its leaf scale and the live auxiliary, and a
-  /// held one, or one with a basis, re-derives its leaf scale. The forest is a stated one from then on.
+  /// the unit), keeping its df, a drawn forest with no basis takes the result
+  /// as its mixture's median, leaving its leaf scale and the live auxiliary,
+  /// and a held one, or one with a basis, re-derives its leaf scale. The
+  /// forest is a stated one from then on.
   /// Where \p sd is the sd in force (ForestCalibration::mapSd) no bit of the
   /// prior moves. False, writing nothing, off a map forest, on an sd that is
   /// not positive and finite, and where the unit is not.
@@ -1725,10 +1733,10 @@ public:
     if (sd != forestCalibration(f).mapSd)
       entry = forestMapEntry(statement, mapped.kind, family_, forestSdUnit_,
                              oneForestSize(), mapped.basisScale);
-    if (entry.amplitudePrior.halfCauchyScale !=
-          mapped.entry.amplitudePrior.halfCauchyScale &&
+    if (entry.amplitudePrior.mixtureScale !=
+          mapped.entry.amplitudePrior.mixtureScale &&
         !combiner_->setAmplitudePriorScale(
-          f, entry.amplitudePrior.halfCauchyScale))
+          f, entry.amplitudePrior.mixtureScale))
       return false;
     mapped.statement = statement;
     mapped.entry = entry;
