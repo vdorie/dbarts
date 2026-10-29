@@ -807,6 +807,15 @@ items
     (dec-B271); the default stays normal (dec-B262). Its user is a caller who redraws
     the multiplier, whose scale drifts during a run. Wanted for 1.0-0,
     built after the merge to main (VD 2026-10-06).
+  coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
+    $setLeafPrior(forests = ) changes a forest's coefficient between held
+    and drawn (dec-B254) and between the normal and student(df), and a
+    t's df, at the next sweep; a t's mixing variance starts at the
+    normal's, a return to the normal resets it. Today 'amplitude' is
+    refused there. After setmodel-parameters' slice 4 and
+    coefficient-prior-opt-in; about 400 lines. To design: the spelling
+    that returns a coefficient to the normal or releases a hold, an
+    unstated amplitude changing nothing. For 1.0-0.
   factor-basis-per-level: forest(x, basis = ~ arm) on a factor of three
     or more levels becomes shorthand for one forest for each level but
     the first, each on that level's indicator, so every level has its
