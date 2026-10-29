@@ -2010,7 +2010,11 @@ validateXTest <- function(
           toString(predictorNames[is.na(matchIndices)]),
           "' present in 'x' but not in 'test' (whose columns are '",
           toString(colnames(x.test)),
-          "')"
+          "')",
+          formulaPrefixHint(
+            predictorNames[is.na(matchIndices)],
+            colnames(x.test)
+          )
         )
       } else {
         columnIndices <- matchIndices
@@ -4210,4 +4214,34 @@ hasTopLevelColon <- function(label) {
     }
   }
   FALSE
+}
+
+## A formula that names a matrix prefixes its columns with the term (X gives
+## X.a, X.b), so a matrix of the unprefixed columns fails to match by name.
+## When every missing name is a test column's name behind one common prefix,
+## says so and says the two ways out; otherwise nothing is added.
+formulaPrefixHint <- function(missingNames, testNames) {
+  prefixes <- vapply(
+    missingNames,
+    function(name) {
+      stripped <- testNames[
+        endsWith(name, testNames) & nchar(name) > nchar(testNames)
+      ]
+      if (length(stripped) != 1L) {
+        return(NA_character_)
+      }
+      substr(name, 1L, nchar(name) - nchar(stripped))
+    },
+    ""
+  )
+  if (anyNA(prefixes) || length(unique(prefixes)) != 1L) {
+    return("")
+  }
+  paste0(
+    "; a formula prefixes the columns of a matrix with its term, here '",
+    prefixes[[1L]],
+    "', so name the columns of 'test' as the fit's (",
+    toString(missingNames),
+    "), or pass 'test' as an unnamed matrix to match by position"
+  )
 }

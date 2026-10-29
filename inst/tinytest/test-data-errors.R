@@ -108,6 +108,47 @@ expect_error(
 )
 rm(test)
 
+# a formula prefixes a matrix's columns with its term; the refusal for a
+# test matrix of the bare names says so and names both ways out, and nothing
+# of the kind is added where the names differ for another reason
+prefixX <- matrix(rnorm(40L), 20L, 2L, dimnames = list(NULL, c("a", "b")))
+prefixData <- data.frame(z = rnorm(20L))
+prefixData$X <- prefixX
+prefixMsg <- tryCatch(
+  dbarts::dbartsData(z ~ X, prefixData, test = prefixX[1:5, ]),
+  error = conditionMessage
+)
+expect_true(grepl("'X.a, X.b' present in 'x'", prefixMsg, fixed = TRUE))
+expect_true(grepl("prefixes the columns of a matrix", prefixMsg, fixed = TRUE))
+expect_true(grepl("the fit's (X.a, X.b)", prefixMsg, fixed = TRUE))
+expect_true(grepl(
+  "unnamed matrix to match by position",
+  prefixMsg,
+  fixed = TRUE
+))
+# both remedies work
+prefixNamed <- prefixX[1:5, ]
+colnames(prefixNamed) <- c("X.a", "X.b")
+expect_inherits(
+  dbarts::dbartsData(z ~ X, prefixData, test = prefixNamed),
+  "dbartsData"
+)
+expect_inherits(
+  suppressWarnings(
+    dbarts::dbartsData(z ~ X, prefixData, test = unname(prefixX[1:5, ]))
+  ),
+  "dbartsData"
+)
+prefixOther <- prefixX[1:5, ]
+colnames(prefixOther) <- c("p", "q")
+otherMsg <- tryCatch(
+  dbarts::dbartsData(z ~ X, prefixData, test = prefixOther),
+  error = conditionMessage
+)
+expect_true(grepl("do not match those of 'x'", otherMsg, fixed = TRUE))
+expect_false(grepl("prefixes", otherMsg, fixed = TRUE))
+rm(prefixX, prefixData, prefixMsg, prefixNamed, prefixOther, otherMsg)
+
 # wrong-length weights error like offset does instead of silently
 # recycling; scalars still broadcast
 expect_error(
