@@ -1,6 +1,6 @@
 # Deterministic correctness gates for the bartcore MCMC engine: the balance
 # gates (birth/death, change, swap, perturb and rule_gibbs detailed balance)
-# and the exact-posterior / reference gates (aft, bcf, categorical, hazard,
+# and the exact-posterior / reference gates (aft, bcf, blocks, categorical, hazard,
 # heteroscedastic, hurdle, linear, mask-redraw, multinomial, negbin, ordinal,
 # probit-k-scale, t, logistic, monotone), and the negbin mixing gate, which checks at realistic n that the
 # shape, started apart in the two chains, moves and agrees between them and the
@@ -144,7 +144,7 @@ jobs:
             bd-balance.R change-balance.R swap-balance.R perturb-balance.R
             rule-gibbs-balance.R
             aft-exact.R aft-hetero-pit.R backfit-exact.R bcf-exact.R bcf-exact-weak.R bcf-exact-restricted.R
-            bcf-latent-exact.R forest-prior-exact.R
+            bcf-latent-exact.R blocks-exact.R forest-prior-exact.R
             categorical-exact.R heteroscedastic-exact.R linear-exact.R
             hazard-exact.R hurdle-exact.R mask-redraw-exact.R
             multinomial-exact.R negbin-exact.R negbin-mixing.R ordinal-exact.R

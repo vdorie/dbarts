@@ -200,6 +200,13 @@ struct Forest {
   // Empty leaves every tree unrestricted, byte-for-byte the default path.
   std::vector<std::uint8_t> blockMasks;
   std::vector<std::size_t> blockOfTree;
+  /// Each group's factor on the forest's leaf scale, sqrt(m / (G m_g)) for G
+  /// groups over m trees, m_g of them in group g, so each group holds 1 / G of
+  /// the forest's prior variance whatever its tree count. Empty where the
+  /// groups hold equal counts or there are none: every tree then reads the
+  /// forest's scale and no factor is applied anywhere, so those forests run
+  /// exactly as they would without the field.
+  std::vector<double> blockScaleFactor;
 
   // k is fixed unless updateK; the two accumulators gather the leaf sum of
   // squares and count over a sweep, feeding the k hyperprior draw
@@ -259,6 +266,42 @@ struct Forest {
   std::vector<std::vector<std::uint64_t>> savedTreeMasks;
   size_t savedTreeCapacity = 0;
   size_t savedSlotBase = 0;
+};
+
+/// Tree \p t's factor on its forest's leaf scale: its group's where the
+/// forest carries blockScaleFactor, 1 otherwise.
+template <IntegrableLeafModel L, typename ResidT>
+inline double treeScaleFactor(const Forest<L, ResidT>& forest, std::size_t t) {
+  return forest.blockScaleFactor.empty()
+           ? 1.0
+           : forest.blockScaleFactor[forest.blockOfTree[t]];
+}
+
+/// Puts tree \p t's group scale on its forest's leaf for the life of the
+/// object and restores the forest's scale on leaving, an exception included,
+/// so every read inside one tree's update (the leaf model's draws and
+/// integrated likelihood, the rule scan, a prior draw) sees the tree's own
+/// scale. A forest with no blockScaleFactor is not written to at all.
+/// Nothing may write the forest's leaf scale while one is alive.
+template <IntegrableLeafModel L, typename ResidT>
+class TreeLeafScale {
+public:
+  TreeLeafScale(Forest<L, ResidT>& forest, std::size_t t)
+      : forest_(forest), scale_(forest.leaf.scale),
+        applied_(!forest.blockScaleFactor.empty()) {
+    if (applied_)
+      forest.leaf.scale = scale_ * forest.blockScaleFactor[forest.blockOfTree[t]];
+  }
+  ~TreeLeafScale() {
+    if (applied_) forest_.leaf.scale = scale_;
+  }
+  TreeLeafScale(const TreeLeafScale&) = delete;
+  TreeLeafScale& operator=(const TreeLeafScale&) = delete;
+
+private:
+  Forest<L, ResidT>& forest_;
+  double scale_;
+  bool applied_;
 };
 
 /// Per-forest calibration for a BCF sampler: the prognostic (mu) and
@@ -2041,6 +2084,9 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
   /// the uniformly absorbed shift is
   ///   prec = sum_k L_k / (m_k^2 s_k^2),  num = sum_k S_k / (m_k s_k^2),
   ///   c = -num/prec + N(0, 1)/sqrt(prec).
+  /// Under blocks() of unequal counts a leaf of tree t has sd s_k f_t, f_t the
+  /// tree's factor (treeScaleFactor), so its count and value enter L_k and S_k
+  /// weighted by 1 / f_t^2.
   /// Empty leaves are skipped: they carry no fit (sampleNodeParametersFromPrior
   /// does draw values for them, inert here). Uniform absorption is also the
   /// better mixing device than loading the whole shift onto one tree, whose
@@ -2066,12 +2112,23 @@ struct MultinomialForestCombiner : ForestCombiner<L, ResidT> {
       double s = forest.leaf.scale / forest.k;
       double invV = s > 0.0 ? 1.0 / (s * s) : 0.0;
       double leafCount = 0.0, leafSum = 0.0;
+      const bool factored = !forest.blockScaleFactor.empty();
       // the bottom lists are left in each tree's scratch for the apply pass
       for (std::size_t t = 0; t < numTreesOf(forest); ++t) {
         Tree& tree = forest.trees[t];
         const std::vector<double>& mu = forest.muByTree[t];
         tree.bottomScratch.clear();
         tree.fillBottom(0, tree.bottomScratch);
+        if (factored) {
+          const double factor = treeScaleFactor(forest, t);
+          const double weight = 1.0 / (factor * factor);
+          for (int32_t nodeIndex : tree.bottomScratch) {
+            if (tree.at(nodeIndex).numObservations() == 0) continue;
+            leafCount += weight;
+            leafSum += weight * mu[static_cast<std::size_t>(nodeIndex)];
+          }
+          continue;
+        }
         for (int32_t nodeIndex : tree.bottomScratch) {
           if (tree.at(nodeIndex).numObservations() == 0) continue;
           leafCount += 1.0;

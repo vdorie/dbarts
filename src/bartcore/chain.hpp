@@ -2136,6 +2136,9 @@ public:
         // pass per tree retires the previous tree's new fits and admits this
         // tree's old ones; totalFits is stale until rebuilt after the loop.
         for (size_t t = 0; t < forest.numTrees; ++t) {
+          // the tree's group scale under blocks() of unequal counts, for its
+          // moves and its draw
+          TreeLeafScale<L, ResidT> treeScale(forest, t);
           double* treeFits = nullptr;
           if constexpr (!leafIsConstant)
             treeFits = forest.treeFits.data() + t * n;
@@ -2940,6 +2943,7 @@ public:
           forest.kNumLeaves = 0.0;
 
           for (size_t t = 0; t < forest.numTrees; ++t) {
+            TreeLeafScale<L, ResidT> treeScale(forest, t);
             rollTreeResidual(forest, t, forestY);
 
             // grow a fresh tree from the root against tree t's residual, in
@@ -3096,6 +3100,7 @@ public:
                                  data_.numTestObservations, 0.0);
 
       for (size_t t = 0; t < forest.numTrees; ++t) {
+        TreeLeafScale<L, ResidT> treeScale(forest, t);
         Tree& tree(forest.trees[t]);
         tree.bottomScratch.clear();
         tree.fillBottom(0, tree.bottomScratch);
@@ -7094,7 +7099,8 @@ private:
   /// is constant along the fiber and the conditional of the shift is the leaf
   /// prior restricted to it.
   ///
-  /// Over tree t's occupied leaves, with the leaf prior's per-leaf sd tau_l,
+  /// Over tree t's occupied leaves, with the leaf prior's per-leaf sd tau_l
+  /// (tree t's own, its group's under blocks() of unequal counts),
   /// P_t = sum_l 1/tau_l^2 and Q_t = sum_l mu_l/tau_l^2. The log prior in c is
   /// -0.5 sum_t (P_t c_t^2 + 2 Q_t c_t) and factorizes, so the unconstrained
   /// conditional is independent per tree, u_t ~ N(-Q_t/P_t, 1/P_t), and
@@ -7152,6 +7158,8 @@ private:
         // clears the mark, which makes the fused suffstat pass eligible a
         // sweep early and moves every draw after it.
         if (forest.leafOfStale[t] != 0) continue;
+        // each leaf's prior sd is its tree's, the group's under blocks()
+        TreeLeafScale<L, ResidT> treeScale(forest, t);
         Tree& tree(forest.trees[t]);
         const std::vector<double>& mu(forest.muByTree[t]);
         assert(mu.size() >= tree.nodes.size());
@@ -7330,9 +7338,15 @@ private:
     }
   }
 
+  /// Draws tree t's leaf parameters and writes its fits. Where k is drawn each
+  /// occupied leaf's square enters the k statistic over its tree's factor
+  /// squared (treeScaleFactor), so the statistic stands on the forest's leaf
+  /// scale, the one the k draw divides by.
   void sampleParametersAndSetFits(Forest<L, ResidT>& forest, size_t t, double* fits,
                                   bool updateTestFits) {
     Tree& tree(forest.trees[t]);
+    const bool factored = !forest.blockScaleFactor.empty();
+    const double factor = treeScaleFactor(forest, t);
     std::vector<int32_t>& bottoms(tree.bottomScratch);
     bottoms.clear();
     tree.fillBottom(0, bottoms);
@@ -7348,7 +7362,10 @@ private:
           rng_, tree, forest.treeY.data(), response_->workingWeights(),
           forest.k, sigma_ * sigma_, i, fits);
         if (forest.updateK) {
-          forest.kSumSquaredParams += stats.sumSquaredParams;
+          if (factored)
+            forest.kSumSquaredParams += stats.sumSquaredParams / (factor * factor);
+          else
+            forest.kSumSquaredParams += stats.sumSquaredParams;
           forest.kNumLeaves += stats.numParams;
         }
       }
@@ -7386,7 +7403,12 @@ private:
           // a forced-zero empty leaf is not a draw from the k-scaled prior, so
           // it carries no information about k; skip it as the function path does
           if (forest.updateK && node.numObservations() > 0) {
-            forest.kSumSquaredParams += param * param;
+            if (factored) {
+              double standardized = param / factor;
+              forest.kSumSquaredParams += standardized * standardized;
+            } else {
+              forest.kSumSquaredParams += param * param;
+            }
             forest.kNumLeaves += 1.0;
           }
         }
@@ -7420,8 +7442,15 @@ private:
         if (forest.updateK && node.numObservations() > 0) {
           // every coordinate shares the scale / k prior sd, so the scaled-chi
           // posterior accumulates them all, the leaf count scaled to match
-          for (size_t j = 0; j < numParams; ++j)
-            forest.kSumSquaredParams += params[j] * params[j];
+          if (factored) {
+            for (size_t j = 0; j < numParams; ++j) {
+              double standardized = params[j] / factor;
+              forest.kSumSquaredParams += standardized * standardized;
+            }
+          } else {
+            for (size_t j = 0; j < numParams; ++j)
+              forest.kSumSquaredParams += params[j] * params[j];
+          }
           forest.kNumLeaves += static_cast<double>(numParams);
         }
 
@@ -7635,6 +7664,32 @@ private:
     for (std::size_t tt = 0; tt < forest.numTrees; ++tt)
       forest.trees[tt].setColumnMask(
         forest.blockMasks.data() + forest.blockOfTree[tt] * numPredictors);
+    installBlockScaleFactors(forest, numBlocks);
+  }
+
+  /// Gives each of the forest's numBlocks groups 1 / numBlocks of its prior
+  /// variance: a group of m_g of the m trees takes the factor
+  /// sqrt(m / (numBlocks m_g)) on the forest's leaf scale. The counts are the
+  /// trees blockOfTree assigns. Where every group holds the same count each
+  /// factor is 1 and none is stored, so the forest takes the unfactored code
+  /// throughout. A group assigned no tree has no tree to read its factor and
+  /// stores 1.
+  static void installBlockScaleFactors(Forest<L, ResidT>& forest,
+                                       std::size_t numBlocks) {
+    forest.blockScaleFactor.clear();
+    std::vector<std::size_t> counts(numBlocks, 0);
+    for (std::size_t t = 0; t < forest.numTrees; ++t)
+      ++counts[forest.blockOfTree[t]];
+    bool equal = true;
+    for (std::size_t g = 1; g < numBlocks; ++g) equal &= counts[g] == counts[0];
+    if (equal) return;
+    const double m = static_cast<double>(forest.numTrees);
+    const double numGroups = static_cast<double>(numBlocks);
+    forest.blockScaleFactor.assign(numBlocks, 1.0);
+    for (std::size_t g = 0; g < numBlocks; ++g)
+      if (counts[g] > 0)
+        forest.blockScaleFactor[g] =
+          std::sqrt(m / (numGroups * static_cast<double>(counts[g])));
   }
 
   /// Installs a forest's optional interaction constraint on every tree: a

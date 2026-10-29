@@ -615,7 +615,9 @@
             \code{interactions = \link{interactions}(max.order = , forbid =
             , groups = )} limits which predictors may interact, and
             \code{blocks = \link{blocks}(...)} makes the fit an exact sum
-            of functions of separate predictor groups. All three on
+            of functions of separate predictor groups, each group taking an
+            equal part of the forest's prior whatever its number of trees.
+            All three on
             \code{bart} and \code{dbarts}; \code{interactions} and
             \code{blocks} also hold on each category forest of a
             multinomial fit.

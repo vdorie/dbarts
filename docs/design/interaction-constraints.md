@@ -253,6 +253,11 @@ guarantee) - real but narrow value over the free adaptive idiom, built
 because VD wanted the fixed-capacity guarantee, not because the adaptive
 path was insufficient.
 
+Each group takes an equal part of the forest's prior whatever its tree count
+since dec-B506; before, every tree had the forest's leaf scale and a group's
+part followed its count. See
+[blocks(): each group an equal part](forests-shared-total.md#blocks-each-group-an-equal-part).
+
 Doors 2 and 3 ("Cost, phasing, deferred" above) are recorded as SHARPENED
 DEFER, per the critique:
 

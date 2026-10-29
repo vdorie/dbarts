@@ -414,3 +414,67 @@ expect_true(someSplit(mnTrees))
 expect_true(allConfined(mnTrees, groups))
 # the contiguous capacity holds per category forest: trees 1-5 use x1 alone
 expect_true(all(mnTrees$var[mnTrees$tree <= 5L & mnTrees$var > 0L] == 1L))
+
+# ---- unequal groups: a copy, a reload and a warm start ----------------------
+
+# each group takes an equal part of the forest's prior whatever its tree count,
+# so a forest of 5 and 15 trees gives its groups different leaf scales; a copy
+# and a reload rebuild them from the counts and continue the live sampler's
+# draws, and a warm start between two such samplers places trees by slot. A
+# sampler re-created from a state re-derives its cached fits from the leaves,
+# so the copy and the reload draw bit for bit alike and the live sampler's
+# draws to rounding: the same trees, and fits and sigma within 1e-12
+ueControl <- dbartsControl(
+  n.chains = 1L,
+  n.threads = 1L,
+  n.trees = 20L,
+  n.burn = 0L,
+  n.samples = 10L,
+  updateState = TRUE,
+  keepTrees = FALSE
+)
+ueBlocks <- dbarts::dbartsForests$blocks(
+  groups = list("x1", c("x2", "x3")),
+  trees.per.group = c(5L, 15L)
+)
+ueSampler <- dbarts(
+  y ~ x1 + x2 + x3,
+  df,
+  control = ueControl,
+  blocks = ueBlocks
+)
+invisible(ueSampler$run(40L, 0L))
+ueSampler$storeState()
+ueCopy <- ueSampler$copy()
+ueFile <- tempfile(fileext = ".rds")
+saveRDS(ueSampler, ueFile)
+ueReloaded <- readRDS(ueFile)
+unlink(ueFile)
+ueLive <- ueSampler$run(0L, 10L)
+ueCopied <- ueCopy$run(0L, 10L)
+expect_identical(ueReloaded$run(0L, 10L), ueCopied)
+expect_identical(ueCopied$varcount, ueLive$varcount)
+expect_equal(ueCopied$train, ueLive$train, tolerance = 1e-12)
+expect_equal(ueCopied$sigma, ueLive$sigma, tolerance = 1e-12)
+
+# a warm start from one unequal sampler into another installs cleanly, takes
+# the donor's trees slot for slot, and a twin target warm-started the same way
+# draws the same continuation
+ueTarget <- function() {
+  dbarts(
+    y ~ x1 + x2 + x3,
+    df,
+    control = ueControl,
+    blocks = ueBlocks,
+    seed = 2026L
+  )
+}
+ueTargetA <- ueTarget()
+ueTargetB <- ueTarget()
+expect_true(ueTargetA$installTrees(ueSampler))
+expect_true(ueTargetB$installTrees(ueSampler))
+expect_identical(
+  ueTargetA$getTrees(current = TRUE),
+  ueSampler$getTrees(current = TRUE)
+)
+expect_identical(ueTargetA$run(0L, 10L), ueTargetB$run(0L, 10L))

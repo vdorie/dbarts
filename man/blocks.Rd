@@ -32,7 +32,8 @@ blocks(groups, trees.per.group = NULL)
     \code{n.trees} trees each group receives; the entries must be positive and
     sum to \code{n.trees}. \code{NULL} (the default) distributes the trees as
     evenly as possible, with the first \code{n.trees \%\% length(groups)} groups
-    receiving one extra tree.
+    receiving one extra tree. A group's count sets how finely it divides its
+    part of the forest's prior, not the size of that part; see Details.
   }
 }
 \details{
@@ -42,6 +43,14 @@ blocks(groups, trees.per.group = NULL)
   deterministic and contiguous (the first \code{trees.per.group[1]} trees to
   group 1, the next \code{trees.per.group[2]} to group 2, and so on) and
   consumes no random numbers, so a fit is exactly reproducible.
+
+  Each of the \eqn{G} groups takes an equal part, \eqn{1/G}, of the forest's
+  prior variance, whatever its tree count: a group of \eqn{m_g} trees gives
+  each of its leaves the variance \eqn{s^2 / (G m_g)}, \eqn{s} the forest's
+  prior standard deviation, so the forest as a whole keeps the prior a forest
+  without groups has. \code{trees.per.group} says how complex each group's
+  function may be, not how much of the response it explains. With equal
+  counts every tree has the leaf prior of the same forest without groups.
 
   Unlike \code{\link{interactions}}\code{(groups = )}, which is a per-path
   allow-list that leaves un-named predictors unconstrained, \code{blocks}

@@ -318,6 +318,33 @@ struct TestPeer {
   static std::vector<double>& muByTree(Chain<L, R>& chain, std::size_t t) {
     return chain.forests_[0].muByTree[t];
   }
+  /// Forest f's tree t leaf table.
+  template <IntegrableLeafModel L, typename R>
+  static const std::vector<double>& forestMuByTree(const Chain<L, R>& chain,
+                                                   std::size_t f,
+                                                   std::size_t t) {
+    return chain.forests_[f].muByTree[t];
+  }
+  /// Forest f's blocks() group factors on its leaf scale, empty where none is
+  /// stored.
+  template <IntegrableLeafModel L, typename R>
+  static const std::vector<double>& blockScaleFactor(const Chain<L, R>& chain,
+                                                     std::size_t f) {
+    return chain.forests_[f].blockScaleFactor;
+  }
+  /// Forest f's k statistic as the last sweep left it: the sum of squares and
+  /// the leaf count the k draw reads.
+  template <IntegrableLeafModel L, typename R>
+  static std::pair<double, double> kStatistic(const Chain<L, R>& chain,
+                                              std::size_t f) {
+    return {chain.forests_[f].kSumSquaredParams, chain.forests_[f].kNumLeaves};
+  }
+  /// The combiner's after-sweep step (the multinomial grand-level shift),
+  /// drawn from \p rng against the leaf tables as they stand.
+  template <IntegrableLeafModel L, typename R>
+  static void afterCombine(Chain<L, R>& chain, ext_rng* rng) {
+    chain.combiner_->afterCombine(chain.forests_, false, 0, rng);
+  }
   /// (tree, sweep) bodies that took the fused roll + suffstat pass since the
   /// chain was built. Monotone, so tests read differences.
   template <IntegrableLeafModel L, typename R>

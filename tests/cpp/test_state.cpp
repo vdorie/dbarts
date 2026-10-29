@@ -1572,6 +1572,354 @@ static void testBlockAdditiveConfinement() {
 }
 
 // ---------------------------------------------------------------------------
+// blocks() of unequal counts gives each of its G groups 1 / G of the forest's
+// prior variance: a tree of group g reads the forest's leaf scale times
+// f_g = sqrt(m / (G m_g)). Pinned: the factor is stored only where the counts
+// differ, on the single-forest chain, a forest of a K-forest model and every
+// category forest; each tree's scale during its update and the forest's after
+// it, read through a leaf that records the scale every node draw and score
+// sees, in a sweep, a grow-from-root sweep and a prior draw; the k statistic
+// against a hand sum of (mu / f_g)^2; the level shift and the multinomial
+// grand-level shift against their closed forms with the factors.
+// RNG-neutral (restores rngState; local seeded generators).
+// ---------------------------------------------------------------------------
+namespace {
+/// A constant leaf recording, at every node draw, node score and prior draw,
+/// the tree it is called on (null for a prior draw, which names none) and the
+/// scale it reads.
+struct ScaleRecordingLeaf : ConstantGaussianLeaf {
+  static std::vector<std::pair<const Tree*, double>>& calls() {
+    static std::vector<std::pair<const Tree*, double>> recorded;
+    return recorded;
+  }
+  template <typename ResidT>
+  double logIntegratedLikelihoodForNode(const Tree& tree, const ResidT* y,
+                                        const double* weights, double k,
+                                        double residualVariance,
+                                        int32_t nodeIndex) const {
+    calls().emplace_back(&tree, scale);
+    return ConstantGaussianLeaf::logIntegratedLikelihoodForNode(
+      tree, y, weights, k, residualVariance, nodeIndex);
+  }
+  double drawFromPosteriorForNode(ext_rng* rng, const Tree& tree, double k,
+                                  double residualVariance,
+                                  int32_t nodeIndex) const {
+    calls().emplace_back(&tree, scale);
+    return ConstantGaussianLeaf::drawFromPosteriorForNode(
+      rng, tree, k, residualVariance, nodeIndex);
+  }
+  double drawFromPrior(ext_rng* rng, double k) const {
+    calls().emplace_back(nullptr, scale);
+    return ConstantGaussianLeaf::drawFromPrior(rng, k);
+  }
+};
+static_assert(ScalarLeafModel<ScaleRecordingLeaf>);
+}  // namespace
+
+static void testBlockGroupScale() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 818181u;
+
+  const size_t n = 200, p = 2, numTrees = 20, K = 3;
+  const double rawScale = 0.37804942330213542;
+  std::vector<double> x(n * p), y(n), z(n);
+  std::vector<int> counts(n * K, 0), trials(n, 1);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = runif01();
+    x[i + n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double e = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    z[i] = (i % 2 == 0) ? 1.0 : 0.0;
+    y[i] = 2.0 * x[i] + 3.0 * x[i + n] + 0.5 * z[i] + 0.3 * e;
+    size_t category = (x[i] > 0.5 ? 1u : 0u) + (x[i + n] > 0.5 ? 1u : 0u);
+    counts[category * n + i] = 1;
+  }
+  // group 0 = {x0} with 5 trees, group 1 = {x1} with 15
+  const std::vector<std::int32_t> blockOfColumn = {0, 1};
+  const std::vector<size_t> unequal = {5, 15}, equal = {10, 10};
+  const double factor[2] = {std::sqrt(20.0 / (2.0 * 5.0)),
+                            std::sqrt(20.0 / (2.0 * 15.0))};
+  auto groupOf = [](size_t t) { return t < 5 ? 0u : 1u; };
+
+  std::vector<ext_rng*> rngs;
+  auto newRng = [&](std::uint32_t seed) {
+    ext_rng* r = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(r, seed);
+    rngs.push_back(r);
+    return r;
+  };
+  auto blockOptions = [&](const std::vector<size_t>* treeCounts) {
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    if (treeCounts != nullptr) {
+      options.numBlocks = treeCounts->size();
+      options.blockOfColumn = blockOfColumn.data();
+      options.blockTreeCounts = treeCounts->data();
+    }
+    return options;
+  };
+  auto make = [&]<typename L>(const SamplerOptions& options,
+                              std::uint32_t seed) {
+    ext_rng* r = newRng(seed);
+    return std::make_unique<Sampler<L>>(x.data(), y.data(), n, p, nullptr,
+                                        nullptr, ResponseFamily::gaussian, 1.0,
+                                        3.0, rawScale, options, &r);
+  };
+  auto makeTwoForest = [&](const std::vector<size_t>& treeCounts,
+                           std::uint32_t seed) {
+    AmplitudeSpec spec;
+    spec.mu.numTrees = numTrees;
+    spec.tau.numTrees = numTrees;
+    spec.tau.numBlocks = treeCounts.size();
+    spec.tau.blockOfColumn = blockOfColumn.data();
+    spec.tau.blockTreeCounts = treeCounts.data();
+    spec.z = z.data();
+    ext_rng* r = newRng(seed);
+    return std::make_unique<Sampler<ConstantGaussianLeaf>>(
+      x.data(), y.data(), n, p, nullptr, nullptr, 1.0, 3.0, rawScale,
+      SamplerOptions(), spec, &r);
+  };
+  auto makeMultinomial = [&](const std::vector<size_t>& treeCounts,
+                             std::uint32_t seed) {
+    MultinomialSpec spec;
+    spec.numCategories = K;
+    spec.counts = counts.data();
+    spec.trials = trials.data();
+    spec.forest.numTrees = numTrees;
+    spec.forest.numBlocks = treeCounts.size();
+    spec.forest.blockOfColumn = blockOfColumn.data();
+    spec.forest.blockTreeCounts = treeCounts.data();
+    SamplerOptions options;
+    options.numTrees = numTrees;
+    ext_rng* r = newRng(seed);
+    return std::make_unique<Sampler<ConstantGaussianLeaf>>(x.data(), n, p,
+                                                           options, spec, &r);
+  };
+  auto storesFactors = [&](const std::vector<double>& stored) {
+    return stored.size() == 2 && stored[0] == factor[0] &&
+           stored[1] == factor[1];
+  };
+  Results empty;
+
+  // ---- the factor, stored only for unequal counts ----
+  using Constant = ConstantGaussianLeaf;
+  auto plain = make.operator()<Constant>(blockOptions(nullptr), 11);
+  auto even = make.operator()<Constant>(blockOptions(&equal), 12);
+  auto uneven = make.operator()<Constant>(blockOptions(&unequal), 13);
+  check(TestPeer::blockScaleFactor(plain->chain(0), 0).empty() &&
+          TestPeer::blockScaleFactor(even->chain(0), 0).empty(),
+        "blocks scale: no factor is stored without groups or for equal counts");
+  check(storesFactors(TestPeer::blockScaleFactor(uneven->chain(0), 0)),
+        "blocks scale: unequal counts store sqrt(m / (G m_g)) per group");
+  auto evenTwo = makeTwoForest(equal, 14);
+  auto unevenTwo = makeTwoForest(unequal, 15);
+  check(TestPeer::blockScaleFactor(evenTwo->chain(0), 1).empty() &&
+          TestPeer::blockScaleFactor(unevenTwo->chain(0), 0).empty() &&
+          storesFactors(TestPeer::blockScaleFactor(unevenTwo->chain(0), 1)),
+        "blocks scale: a K-forest model's forest stores its own factors");
+  auto evenCategories = makeMultinomial(equal, 16);
+  auto unevenCategories = makeMultinomial(unequal, 17);
+  bool categoriesStore = true, evenCategoriesStore = false;
+  for (size_t k = 0; k < K; ++k) {
+    categoriesStore &= storesFactors(
+      TestPeer::blockScaleFactor(unevenCategories->chain(0), k));
+    evenCategoriesStore |=
+      !TestPeer::blockScaleFactor(evenCategories->chain(0), k).empty();
+  }
+  check(categoriesStore && !evenCategoriesStore,
+        "blocks scale: every category forest stores the factors, unequal only");
+
+  // ---- each tree's scale during its update, and the forest's after ----
+  auto recording = make.operator()<ScaleRecordingLeaf>(blockOptions(&unequal),
+                                                       21);
+  auto& recordingChain = recording->chain(0);
+  const double forestScale = 0.5 / std::sqrt(static_cast<double>(numTrees));
+  auto treeIndexOf = [&](const Tree* tree) {
+    for (size_t t = 0; t < numTrees; ++t)
+      if (tree == &TestPeer::forestTree(recordingChain, 0, t)) return t;
+    return numTrees;
+  };
+  // every recorded call on a tree reads that tree's group scale; the counts
+  // say both groups were seen
+  auto everyCallOnItsGroup = [&](size_t& seen0, size_t& seen1) {
+    bool all = true;
+    seen0 = seen1 = 0;
+    for (const auto& [tree, scale] : ScaleRecordingLeaf::calls()) {
+      size_t t = treeIndexOf(tree);
+      if (t == numTrees) return false;
+      all &= scale == forestScale * factor[groupOf(t)];
+      (groupOf(t) == 0 ? seen0 : seen1) += 1;
+    }
+    return all;
+  };
+  size_t seen0 = 0, seen1 = 0;
+  ScaleRecordingLeaf::calls().clear();
+  recording->run(5, 0, empty);
+  check(everyCallOnItsGroup(seen0, seen1) && seen0 > 0 && seen1 > 0,
+        "blocks scale: every draw and score in a sweep reads its tree's group "
+        "scale");
+  check(TestPeer::leafScale(recordingChain, 0) == forestScale,
+        "blocks scale: the forest's scale stands after a sweep");
+  ScaleRecordingLeaf::calls().clear();
+  recording->growFromRoot(2);
+  check(everyCallOnItsGroup(seen0, seen1) && seen0 > 0 && seen1 > 0 &&
+          TestPeer::leafScale(recordingChain, 0) == forestScale,
+        "blocks scale: a grow-from-root sweep reads each tree's group scale");
+  // a prior draw names no tree: its calls run in tree order, one per leaf
+  ScaleRecordingLeaf::calls().clear();
+  recording->sampleNodeParametersFromPrior();
+  bool priorInOrder = true;
+  size_t call = 0;
+  const auto& priorCalls = ScaleRecordingLeaf::calls();
+  for (size_t t = 0; t < numTrees; ++t) {
+    std::vector<int32_t> bottoms;
+    TestPeer::forestTree(recordingChain, 0, t).fillBottom(0, bottoms);
+    for (size_t l = 0; l < bottoms.size(); ++l, ++call)
+      priorInOrder &= call < priorCalls.size() &&
+                      priorCalls[call].second == forestScale * factor[groupOf(t)];
+  }
+  check(priorInOrder && call == priorCalls.size() &&
+          TestPeer::leafScale(recordingChain, 0) == forestScale,
+        "blocks scale: a prior leaf draw reads each tree's group scale");
+
+  // ---- the k statistic, each leaf over its group's factor ----
+  SamplerOptions drawnK = blockOptions(&unequal);
+  drawnK.updateK = true;
+  drawnK.kHyperprior.degreesOfFreedom = 1.5;
+  drawnK.kHyperprior.scale = 2.0;
+  auto kSampler = make.operator()<Constant>(drawnK, 31);
+  kSampler->run(10, 0, empty);
+  double handSum = 0.0, handLeaves = 0.0, unfactoredSum = 0.0;
+  for (size_t t = 0; t < numTrees; ++t) {
+    const Tree& tree = TestPeer::forestTree(kSampler->chain(0), 0, t);
+    const std::vector<double>& mu =
+      TestPeer::forestMuByTree(kSampler->chain(0), 0, t);
+    std::vector<int32_t> bottoms;
+    tree.fillBottom(0, bottoms);
+    for (int32_t b : bottoms) {
+      if (tree.at(b).numObservations() == 0) continue;
+      double value = mu[static_cast<size_t>(b)];
+      double standardized = value / factor[groupOf(t)];
+      handSum += standardized * standardized;
+      unfactoredSum += value * value;
+      handLeaves += 1.0;
+    }
+  }
+  std::pair<double, double> kStat = TestPeer::kStatistic(kSampler->chain(0), 0);
+  check(std::fabs(kStat.first - handSum) <= 1e-12 * handSum &&
+          kStat.second == handLeaves &&
+          std::fabs(unfactoredSum - handSum) > 1e-6 * handSum,
+        "blocks scale: the k statistic sums (mu / f_g)^2 over occupied leaves");
+
+  // ---- the level shift's per-leaf precision ----
+  auto shiftSampler = make.operator()<Constant>(blockOptions(&unequal), 41);
+  auto& shiftChain = shiftSampler->chain(0);
+  shiftSampler->run(20, 0, empty);
+  // the shift each tree takes under per-tree leaf sds tau[t], replayed on a
+  // generator seeded as the chain's is below
+  auto replayShift = [&](const std::vector<double>& tau) {
+    ext_rng* replay = newRng(4242);
+    std::vector<double> variance(numTrees, 0.0), draw(numTrees, 0.0);
+    for (size_t t = 0; t < numTrees; ++t) {
+      const Tree& tree = TestPeer::forestTree(shiftChain, 0, t);
+      const std::vector<double>& mu = TestPeer::forestMuByTree(shiftChain, 0, t);
+      std::vector<int32_t> bottoms;
+      tree.fillBottom(0, bottoms);
+      double precisionSum = 0.0, weightedSum = 0.0;
+      for (int32_t b : bottoms) {
+        if (tree.at(b).numObservations() == 0) continue;
+        double precision = 1.0 / (tau[t] * tau[t]);
+        precisionSum += precision;
+        weightedSum += mu[static_cast<size_t>(b)] * precision;
+      }
+      variance[t] = 1.0 / precisionSum;
+      draw[t] = -weightedSum / precisionSum;
+    }
+    double sumDraw = 0.0, sumVariance = 0.0;
+    for (size_t t = 0; t < numTrees; ++t) {
+      draw[t] += std::sqrt(variance[t]) * ext_rng_simulateStandardNormal(replay);
+      sumDraw += draw[t];
+      sumVariance += variance[t];
+    }
+    std::vector<double> shift(numTrees);
+    for (size_t t = 0; t < numTrees; ++t)
+      shift[t] = draw[t] - variance[t] * (sumDraw / sumVariance);
+    return shift;
+  };
+  std::vector<double> groupTau(numTrees), forestTau(numTrees);
+  for (size_t t = 0; t < numTrees; ++t) {
+    groupTau[t] = forestScale * factor[groupOf(t)] / 2.0;
+    forestTau[t] = forestScale / 2.0;
+  }
+  std::vector<double> expectedShift = replayShift(groupTau);
+  std::vector<double> forestShift = replayShift(forestTau);
+  std::vector<double> shift(numTrees, 0.0);
+  ext_rng_setSeed(TestPeer::rng(shiftChain), 4242);
+  bool shifted = TestPeer::drawLevelShift(shiftChain, shift.data());
+  double worstGap = 0.0, forestGap = 0.0;
+  for (size_t t = 0; t < numTrees; ++t) {
+    worstGap = std::max(worstGap, std::fabs(shift[t] - expectedShift[t]));
+    forestGap = std::max(forestGap, std::fabs(shift[t] - forestShift[t]));
+  }
+  check(shifted && worstGap < 1e-12 && forestGap > 1e-6,
+        "blocks scale: the level shift weighs each leaf by its group's sd");
+
+  // ---- the multinomial grand-level shift ----
+  auto categories = makeMultinomial(unequal, 51);
+  auto& categoryChain = categories->chain(0);
+  categories->run(10, 0, empty);
+  const double m = static_cast<double>(numTrees);
+  auto replayLevel = [&](bool factored) {
+    ext_rng* replay = newRng(5151);
+    double prec = 0.0, num = 0.0;
+    for (size_t k = 0; k < K; ++k) {
+      double s = TestPeer::leafScale(categoryChain, k) / 2.0;
+      double invV = 1.0 / (s * s);
+      double leafCount = 0.0, leafSum = 0.0;
+      for (size_t t = 0; t < numTrees; ++t) {
+        const Tree& tree = TestPeer::forestTree(categoryChain, k, t);
+        const std::vector<double>& mu =
+          TestPeer::forestMuByTree(categoryChain, k, t);
+        double f = factored ? factor[groupOf(t)] : 1.0;
+        std::vector<int32_t> bottoms;
+        tree.fillBottom(0, bottoms);
+        for (int32_t b : bottoms) {
+          if (tree.at(b).numObservations() == 0) continue;
+          leafCount += 1.0 / (f * f);
+          leafSum += mu[static_cast<size_t>(b)] / (f * f);
+        }
+      }
+      prec += leafCount * invV / (m * m);
+      num += leafSum * invV / m;
+    }
+    return -num / prec + ext_rng_simulateStandardNormal(replay) / std::sqrt(prec);
+  };
+  double expectedLevel = replayLevel(true), forestLevel = replayLevel(false);
+  std::vector<double> before = TestPeer::forestMuByTree(categoryChain, 0, 0);
+  ext_rng* levelRng = newRng(5151);
+  TestPeer::afterCombine(categoryChain, levelRng);
+  const Tree& first = TestPeer::forestTree(categoryChain, 0, 0);
+  const std::vector<double>& after = TestPeer::forestMuByTree(categoryChain, 0, 0);
+  std::vector<int32_t> firstBottoms;
+  first.fillBottom(0, firstBottoms);
+  double level = std::numeric_limits<double>::quiet_NaN();
+  for (int32_t b : firstBottoms)
+    if (first.at(b).numObservations() > 0) {
+      level = (after[static_cast<size_t>(b)] - before[static_cast<size_t>(b)]) * m;
+      break;
+    }
+  check(std::fabs(level - expectedLevel) < 1e-10 * (1.0 + std::fabs(expectedLevel)) &&
+          std::fabs(level - forestLevel) > 1e-6,
+        "blocks scale: the multinomial level shift weighs each leaf by its "
+        "group's sd");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: blocks group scale (%zu and %zu group-scale reads)\n", seen0,
+         seen1);
+}
+
+// ---------------------------------------------------------------------------
 // A single forest's column list: SamplerOptions::forestColumns confines the
 // one mean forest, and MultinomialForestSpec::columns every category forest,
 // to the listed columns. The response leans hardest on x2, the excluded
@@ -7678,6 +8026,7 @@ void runStateTests(ext_rng* rng) {
   testDegenerateGridRestores(rng);
   testInteractionContainment();
   testBlockAdditiveConfinement();
+  testBlockGroupScale();
   testSingleForestColumnRestriction();
   testCrossGridWarmStart();
   testWarmStartForms();

@@ -224,7 +224,7 @@ residual shortfall persists even at the doc's longest chains.
 ## R/*-exact.R, *-balance.R - deterministic exact-posterior gates
 
 The exact-posterior gates (aft-exact, aft-hetero-pit, backfit-exact,
-bcf-exact[-weak, -restricted], bcf-latent-exact, categorical-exact,
+bcf-exact[-weak, -restricted], bcf-latent-exact, blocks-exact, categorical-exact,
 hazard-exact, heteroscedastic-exact, hurdle-exact, linear-exact,
 mask-redraw-exact, multinomial-exact, negbin-exact, ordinal-exact,
 probit-k-scale-exact, t-exact, logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
@@ -262,6 +262,17 @@ false failure once in 1400 fresh seeds for a correct sampler; an arm can be
 run alone by naming it.
 
     Rscript benchmarks/R/mask-redraw-exact.R quick probit
+
+blocks-exact is the gate for the `blocks()` prior, each group an equal part of
+its forest's prior variance whatever its tree count: one forest of three trees
+in two groups of two and one, each tree a root or its one split, enumerated
+over its 8 structures with the leaves integrated in closed form, at k = 2 and
+under k ~ chi(1.5, 2) by an outer quadrature. It compares the split
+probabilities, the fit at each cell and k at |z| 4.5; the per-tree prior,
+every leaf at the forest's leaf scale, misses the fits by over 140 standard
+errors. Quick mode is a few seconds.
+
+    Rscript benchmarks/R/blocks-exact.R quick
 
 probit-k-scale-exact is the gate for the probit rescaling step: one frozen
 tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are
