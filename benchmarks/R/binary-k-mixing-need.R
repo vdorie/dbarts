@@ -2739,7 +2739,13 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
   # the quantiles the fixed-k arms use: the pooled reference's k, or the move
   # half alone when the reference fails (flagged)
   if (isTRUE(out$final)) {
-    kPool <- if (accepted) c(as.vector(kS), as.vector(kM)) else as.vector(kM)
+    # the halves weigh equally: an escalated shipped half is thinned to the
+    # move's length
+    kPool <- if (accepted) {
+      c(as.vector(evenRows(kS, nrow(kM))), as.vector(kM))
+    } else {
+      as.vector(kM)
+    }
     out$kQuantiles <- if (is.null(kPool)) {
       NULL
     } else {
@@ -2794,10 +2800,11 @@ massOf <- function(sorted, lo, hi) {
 
 # A reading's readings against a reference made of one or both kernels'
 # halves (each half its classes and their sorted columns; a pooled reference
-# is never copied, its counts are the halves' counts summed): per class, the
-# mean reference mass at 90 and 95 percent, the location error and the width
-# ratio (for a pooled reference, against the halves' averaged percentiles), and
-# for a band class the simultaneous mass.
+# is never copied and weighs its halves equally, so an escalated shipped half
+# counts as much as the move's): per class, the mean reference mass at 90 and
+# 95 percent, the location error and the width ratio (for a pooled reference,
+# against the halves' averaged moments and percentiles), and for a band class
+# the simultaneous mass.
 massCount <- function(sorted, lo, hi) {
   vapply(
     seq_len(ncol(sorted)),
@@ -2822,7 +2829,7 @@ massReading <- function(summary, halves) {
     }
     if (isTRUE(classInfo[[nm]]$band)) {
       inside <- function(b) {
-        sum(vapply(
+        mean(vapply(
           Rs,
           function(R) {
             ok <- sweep(R, 2L, b$lo, ">=") & sweep(R, 2L, b$hi, "<=")
@@ -2832,14 +2839,13 @@ massReading <- function(summary, halves) {
               for (g in 2:6) {
                 u <- u & a[, g, , drop = FALSE]
               }
-              sum(u)
+              sum(u) / (nrow(R) * (m %/% 6L))
             } else {
-              sum(rowSums(!ok) == 0L)
+              sum(rowSums(!ok) == 0L) / nrow(R)
             }
           },
           0
-        )) /
-          (if (nm == "bandUnit") S * (m %/% 6L) else S)
+        ))
       }
       out[[nm]] <- c(
         n = 1,
@@ -2855,14 +2861,15 @@ massReading <- function(summary, halves) {
     count <- function(iv) {
       Reduce(
         `+`,
-        lapply(halves, function(h) massCount(h$sorted[[nm]], iv$lo, iv$hi))
+        lapply(halves, function(h) {
+          massCount(h$sorted[[nm]], iv$lo, iv$hi) / nrow(h$sorted[[nm]])
+        })
       ) /
-        S
+        length(halves)
     }
-    sums <- Reduce(`+`, lapply(Rs, colSums))
-    squares <- Reduce(`+`, lapply(Rs, function(R) colSums(R^2)))
-    rm <- sums / S
-    rsd <- sqrt(pmax(squares / S - rm^2, 0) * S / (S - 1))
+    rm <- Reduce(`+`, lapply(Rs, colMeans)) / length(Rs)
+    squares <- Reduce(`+`, lapply(Rs, function(R) colMeans(R^2))) / length(Rs)
+    rsd <- sqrt(pmax(squares - rm^2, 0) * S / (S - 1))
     rq <- Reduce(
       `+`,
       lapply(halves, function(h) {
@@ -3235,7 +3242,11 @@ compactReference <- function(cell, link, rep) {
     if (isTRUE(classInfo[[nm]]$band)) {
       next
     }
-    pooled <- rbind(as.matrix(cs[[nm]]), as.matrix(cm[[nm]]))
+    # the halves weigh equally, as in the readings
+    pooled <- rbind(
+      evenRows(cs[[nm]], nrow(as.matrix(cm[[nm]]))),
+      as.matrix(cm[[nm]])
+    )
     if (isTRUE(classInfo[[nm]]$row)) {
       q <- if (ncol(pooled) == 0L) {
         matrix(0, length(compactProbs), 0L)
