@@ -785,14 +785,6 @@ items
     who replaces the column of a default-sd forest stating the sd,
     and the second is R's unused-argument error. Selecting a forest
     by its label is NOT deferred.
-  per-forest-move-settings: after the merge to main (dec-B477, VD
-    2026-10-23: "Use your revised recommendation."). forest() and
-    varianceForest() take proposal.probs, n.perturb.cuts and the
-    tree-shift setting, defaulting to the control's values as n.trees
-    does; setControl changes every forest that set none of its own.
-    Until then one control object per sampler sets the move kernel of
-    every forest that took it at creation (dec-A205), and a mean forest
-    cannot be frozen alone on a heteroscedastic sampler.
   coefficient-prior-opt-in: a caller may opt a forest's drawn coefficient
     into a heavy-tailed prior (half-Cauchy; half-t(3) was measured too),
     as another value of forest()'s amplitude argument, beside fixed()

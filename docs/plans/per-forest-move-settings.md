@@ -1,10 +1,7 @@
 # per-forest-move-settings: forest() and varianceForest() take their own move settings
 
-Status: PLANNED 2026-10-29, revised the same day from its blind critique (scratch/pfm-crit/critique.md, verdict
-"revise first") and amended from its re-check (verdict "build" after three amendments, made;
-[Revision from critique](#revision-from-critique)); not built. Implements dec-B477, which
-confirms that call of dec-A205. One call is held for the maintainer ([Open calls](#open-calls)): the plan builds
-without it, and the landing waits on the answer.
+Status: LANDED 2026-10-29 (dec-A239), built in two slices with one review and its fix round; the call held for the
+maintainer was ruled (a), `varianceForest()` takes no `treeShift` (dec-B500).
 
 agent: one opus implementer for both slices; one opus review over both that runs the mutants below, the same
 reviewer checking the fix round unless the fixes change engine behavior. Tier "Changes draws"
@@ -462,7 +459,7 @@ Gates, by the neutral class and the engine tier, on the branch's own libraries:
 
 ## Open calls
 
-1. Held for the maintainer: does `varianceForest()` take `treeShift`? The ruling lists the tree-shift setting
+1. Ruled (a) by the maintainer, dec-B500. Does `varianceForest()` take `treeShift`? The ruling lists the tree-shift setting
    for both constructors, but the variance forest never takes the step: its leaves multiply, and no shift is
    built for them (run: see [What exists today](#what-exists-today)). The plan builds (a); either
    other is a few lines added after the answer, and the landing waits on it.
