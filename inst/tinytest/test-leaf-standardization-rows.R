@@ -448,7 +448,7 @@ expect_identical(recordOf(stated), list(center = 2, scale = 1))
 # words (below)
 oneRow <- paste0(
   "fewer than two distinct values of the response are in the likelihood ",
-  "(1 of 200 observations are in it), so the response's scale, the prior's ",
+  "(1 of 200 observations is in it), so the response's scale, the prior's ",
   "center and the center and scale of \"x1\" are taken from all 200"
 )
 oneRowLeafOf <- function(count) {
@@ -732,7 +732,7 @@ expect_error(
     sigest = 1,
     control = controlWith()
   )),
-  "holds one value over the rows in the likelihood (1 of 1 observations",
+  "holds one value over the rows in the likelihood (1 of 1 observation is",
   fixed = TRUE
 )
 # a probit store of two rows with one in reads both, with the warning
@@ -763,7 +763,12 @@ s <- make()
 made <- fallbacks(s$setData(dbartsData(x, yAtTwo, weights = threeIn)))
 expect_identical(
   made$warnings,
-  sub("(1 of 200", "(3 of 200", oneRow, fixed = TRUE)
+  sub(
+    "(1 of 200 observations is",
+    "(3 of 200 observations are",
+    oneRow,
+    fixed = TRUE
+  )
 )
 expectRecord(s, literal(x1), "setData deriving the range, one y in")
 # a covariate constant over every row takes the placeholder under a stated
@@ -1488,7 +1493,7 @@ expect_identical(
   )
 )
 # a fit that is not a hazard fit has no subjects: one row of one in is read
-# as rows, "all 1", not as the fit's one subject
+# as rows, "the fit's one observation", not as the fit's one subject
 s <- dbarts::dbarts(x[1:3, ], y[1:3], control = controlWith())
 made <- suppressWarnings(fallbacks(s$setData(
   dbartsData(x[1L, , drop = FALSE], y[1L], weights = 0),
@@ -1498,8 +1503,8 @@ expect_identical(
   made$warnings,
   paste0(
     "fewer than two distinct values of the response are in the likelihood (0 ",
-    "of 1 observations are in it), so the response's scale and the prior's ",
-    "center are taken from all 1"
+    "of 1 observation is in it), so the response's scale and the prior's ",
+    "center are taken from the fit's one observation"
   )
 )
 # the layout check names the first row out of it, a one-row column included

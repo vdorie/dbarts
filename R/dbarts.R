@@ -148,19 +148,10 @@ hazardGridTimes <- function(time, weights) {
   if (!any(subjectsIn)) {
     warnClassed(
       "dbartsScaleFallbackWarning",
-      "no subject is in the likelihood (0 of ",
-      length(time),
-      if (length(time) == 1L) {
-        paste0(
-          " subject is in it), so the hazard periods are taken from the ",
-          "fit's one subject"
-        )
-      } else {
-        paste0(
-          " subjects are in it), so the hazard periods are taken from all ",
-          length(time)
-        )
-      }
+      "no subject is in the likelihood (",
+      countInLikelihood(0L, length(time), "subject"),
+      "), so the hazard periods are taken from ",
+      takenFromAll(length(time), "subject")
     )
     return(time)
   }
@@ -2087,22 +2078,23 @@ recordBasisScales <- function(sampler, ptr, active = NULL) {
       ", so ",
       what,
       if (length(named) == 1L) " is" else " are",
-      " taken from all ",
-      n
+      " taken from ",
+      takenFromAll(n)
     )
   } else {
     warnClassed(
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the response are in the ",
       "likelihood (",
-      sum(rowsInLikelihood(data@weights, NULL, n)),
-      " of ",
-      n,
-      " observations are in it), so the response's scale, the prior's ",
-      "center and ",
+      countInLikelihood(
+        sum(rowsInLikelihood(data@weights, NULL, n)),
+        n,
+        "observation"
+      ),
+      "), so the response's scale, the prior's center and ",
       what,
-      " are taken from all ",
-      n
+      " are taken from ",
+      takenFromAll(n)
     )
   }
   invisible(NULL)

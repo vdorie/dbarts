@@ -3921,14 +3921,18 @@ std::string leafStandardizationMessage(
            " over the fold's training rows in the likelihood, so its center "
            "and scale cannot be taken from them; " + remedies +
            "or change the rows (the weights, subset or n.test)";
+  bool oneRow = error.numObservations == 1;
   std::string over =
     error.numRowsIn == 0
-      ? " over all " + std::to_string(error.numObservations) +
-          " observations, read because too few are in the likelihood"
+      ? (oneRow ? std::string(" over the fit's one observation")
+                : " over all " + std::to_string(error.numObservations) +
+                    " observations") +
+          ", read because too few are in the likelihood"
       : " over the rows in the likelihood (" +
           std::to_string(error.numRowsIn) + " of " +
           std::to_string(error.numObservations) +
-          " observations are in it)";
+          (oneRow ? " observation" : " observations") +
+          (error.numRowsIn == 1 || oneRow ? " is in it)" : " are in it)");
   std::string rows = "the weights, the 0/1 weights' mask, or subset";
   if (door == LeafRefusalDoor::setData)
     return "$setData: " + what + over +

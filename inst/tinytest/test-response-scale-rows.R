@@ -120,7 +120,11 @@ creationText <- function(m, n) {
     m,
     " of ",
     n,
-    " observations are in it), so the ",
+    if (m == 1L) {
+      " observations is in it), so the "
+    } else {
+      " observations are in it), so the "
+    },
     "response's scale and the prior's center are taken from all ",
     n
   )

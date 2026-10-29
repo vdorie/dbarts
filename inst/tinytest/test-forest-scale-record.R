@@ -295,7 +295,7 @@ expect_identical(
   made$warnings,
   paste0(
     "fewer than two distinct values of the response are in the likelihood ",
-    "(1 of 150 observations are in it), so the response's scale, the prior's ",
+    "(1 of 150 observations is in it), so the response's scale, the prior's ",
     "center and the scale of forest 2 ('dose')'s basis are taken from all 150"
   )
 )

@@ -192,12 +192,9 @@ scaleRowsFallBack <- function(data, family, active = NULL, warn = TRUE) {
       "dbartsScaleFallbackWarning",
       "fewer than two distinct values of the response are in the ",
       "likelihood (",
-      sum(rowsIn),
-      " of ",
-      n,
-      " observations are in it), so the response's scale and the prior's ",
-      "center are taken from all ",
-      n
+      countInLikelihood(sum(rowsIn), n, "observation"),
+      "), so the response's scale and the prior's center are taken from ",
+      takenFromAll(n)
     )
   }
   TRUE

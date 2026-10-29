@@ -1877,6 +1877,26 @@ leafCentersAndScales <- function(leaf) {
   )
 }
 
+## 'rowsIn of n units are in it', the count a fallback text gives, singular
+## where one is in or the fit has one.
+countInLikelihood <- function(rowsIn, n, unit) {
+  paste0(
+    rowsIn,
+    " of ",
+    n,
+    " ",
+    unit,
+    if (n != 1L) "s",
+    if (rowsIn == 1L || n == 1L) " is in it" else " are in it"
+  )
+}
+
+## Where a fallback text says numbers are taken from: all n rows, or the
+## fit's one.
+takenFromAll <- function(n, unit = "observation") {
+  if (n == 1L) paste0("the fit's one ", unit) else paste0("all ", n)
+}
+
 ## The opening of a fallback text where fewer than two rows are in the
 ## likelihood and nothing is read from the response: 'rowsIn' of 'n', 0 or 1,
 ## counted as rows of positive weight or, with 'byMask', as rows the
@@ -1889,16 +1909,8 @@ fewRowsInLead <- function(n, rowsIn, byMask = FALSE, subjects = FALSE) {
     return(paste0(
       if (one) "one subject is" else "no subject is",
       " in the likelihood (",
-      rowsIn,
-      " of ",
-      n,
-      if (n == 1L) {
-        " subject is in it)"
-      } else if (one) {
-        " subjects is in it)"
-      } else {
-        " subjects are in it)"
-      }
+      countInLikelihood(rowsIn, n, "subject"),
+      ")"
     ))
   }
   paste0(
@@ -1908,13 +1920,17 @@ fewRowsInLead <- function(n, rowsIn, byMask = FALSE, subjects = FALSE) {
     " of ",
     n,
     if (byMask) {
-      if (one) {
+      if (one || n == 1L) {
         " is kept by the active-row mask"
       } else {
         " are kept by the active-row mask"
       }
     } else {
-      if (one) " has a positive weight" else " have a positive weight"
+      if (one || n == 1L) {
+        " has a positive weight"
+      } else {
+        " have a positive weight"
+      }
     },
     ")"
   )
@@ -1961,10 +1977,8 @@ warnRowsFallBack <- function(
   } else {
     paste0(
       "fewer than two distinct values of the response are in the likelihood (",
-      rowsIn,
-      " of ",
-      n,
-      " observations are in it), so the response's scale",
+      countInLikelihood(rowsIn, n, "observation"),
+      "), so the response's scale",
       if (is.null(what)) {
         " and the prior's center"
       } else {
@@ -1976,11 +1990,8 @@ warnRowsFallBack <- function(
     "dbartsScaleFallbackWarning",
     lead,
     what,
-    if (subjects && n == 1L) {
-      " are taken from the fit's one subject"
-    } else {
-      paste0(" are taken from all ", n)
-    }
+    " are taken from ",
+    takenFromAll(n, if (subjects) "subject" else "observation")
   )
   invisible(NULL)
 }
