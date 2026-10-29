@@ -1,30 +1,29 @@
-# forest-after-merge: re-derive a default forest's sd from a swapped column, and the long form of a forest's sd
+# forest-after-merge: re-derive a default forest's sd from a swapped column
 
 Status: PLANNED 2026-10-29 on 917f02c1; amended the same day after its blind critique (verdict: build after
 amendments; report scratch/crit-fam/report.md) and the coordinator's rulings on it. Three calls held for the
-maintainer ([Open calls](#open-calls)): the first, for slice 2, is ruled (dec-B504); slice 1 stands as built
-on the second and third. Rulings: dec-B276 (the window), dec-B265 and dec-B303 (updateBasisScale
-and its rows), dec-B266 (the long form), with dec-B346, dec-B362, dec-B364, dec-B465, dec-B479 and dec-B488.
+maintainer ([Open calls](#open-calls)): the first, for slice 2, is ruled (dec-B504). Slice 1, the long form
+`forest(leaf.prior = normal(sd = ))`, was built and then removed under dec-B508, which has `forest()` state its
+size as `sd` alone; open calls 2 and 3 are moot. Rulings: dec-B276 (the window), dec-B265 and dec-B303
+(updateBasisScale and its rows), with dec-B346, dec-B362, dec-B364, dec-B465, dec-B479 and dec-B488.
 
-agent: slice 1 a sonnet implementer and one sonnet review (R surface, no draw change). Slice 2 an opus
+agent: slice 2 an opus
 implementer and one opus review that runs the mutants below, the same reviewer checking the fix round unless
 the fixes change engine behavior ([Process by risk](README.md#process-by-risk): the engine and a prior). The
 blind critique that tier asks for has run.
-rng: slice 1 NEUTRAL, bit for bit: the long form folds into the `sd` a forest already states. Slice 2 NEUTRAL,
+rng: slice 2 NEUTRAL,
 bit for bit, for every call main accepts (`updateBasisScale` exists on no main call, and FALSE takes today's
 path); a call with `updateBasisScale = TRUE` restates a prior the caller asked to restate, held to a forest
 created on the new column ([Tests and gates](#tests-and-gates)). No re-record.
 window: after the merge to main, before 1.0-0 (dec-B276: "For deferring, just until it lands on main"). Additive:
-both are R's unused-argument error today.
-budget: ~800 lines in the tree. Slice 1 ~220 (R ~45, help ~30, NEWS ~5, tinytest ~140). Slice 2 ~570 (engine
+`updateBasisScale` is R's unused-argument error today.
+budget: ~570 lines in the tree, slice 2 (engine
 ~80, facade ~15, bridge ~45, R ~70, help ~30, tests/cpp ~160, tinytest ~150, design note and NEWS ~25).
 Records ~40. Out of the tree, ~100 lines of scratch A/B script.
 
 ## Summary for the maintainer
 
-Two small pieces of the forest surface you deferred until after the merge.
-
-First, `setForestBasis(updateBasisScale = TRUE)`. A forest multiplied by a number takes its default size per
+One piece of the forest surface you deferred until after the merge: `setForestBasis(updateBasisScale = TRUE)`. A forest multiplied by a number takes its default size per
 standard deviation of that column, read when the sampler is created and then held. Today a swap keeps that
 number, so a caller whose first column was a placeholder samples under a prior set by the placeholder unless
 they state an sd. With the argument, the swap also reads the new column's spread, over the rows in the
@@ -33,28 +32,17 @@ response. The trees are left as they are. It is for burn-in. A forest whose sd w
 by a factor, has no column-derived default, and the argument is refused there by name. A copy or a reload
 afterwards runs the new prior.
 
-Second, `forest(x, basis = ~ dose, leaf.prior = normal(sd = 30))` is accepted as the long spelling of
-`forest(x, basis = ~ dose, sd = 30)`. The two are one statement, and giving both is refused. A k, a prior on the
-sd, or another leaf model is refused by name. Those belong on the fitting function.
+One question for you, below: what happens when a swap with the argument meets a column that is constant over
+the rows in. You ruled a refusal. Every later rule for a scale re-derived in burn-in keeps the number in force
+with one warning, and I recommend that here too (ruled so, dec-B504).
 
-Three questions for you, below. First, what happens when a swap with the argument meets a column that is
-constant over the rows in. You ruled a refusal. Every later rule for a scale re-derived in burn-in keeps the
-number in force with one warning, and I recommend that here too. Second, whether `normal()` with no sd should
-put a stated forest back to its default. I recommend leaving that out for now. Third, what the long form takes.
-You accepted it so that a prior read from a sampler can be handed back. A one-forest sampler at its default
-reads back as `normal(k = 2)`, not as an sd, so with the long form taking an sd alone that round trip works only
-for a forest whose sd was stated. I recommend keeping it to an sd: every prior a one-forest sampler reads back
-already goes back through the fitting function's `leaf.prior`, and a forest of several reads back as
-`forest(sd = )`, which goes back through `$setLeafPrior`.
-
-Neither piece moves any draw of a call that works today.
+It moves no draw of a call that works today.
 
 ## Goal
 
 `$setForestBasis(forest, basis, updateState = NULL, updateBasisScale = FALSE)` re-derives, when TRUE, a numeric
 forest's default sd from the column it installs, over the rows in the likelihood at the call, records the new
-scale where every re-creation reads it, and leaves the trees and coefficients as they are. `forest()` takes
-`leaf.prior = normal(sd = v)` wherever it is written, as the same statement as `sd = v`.
+scale where every re-creation reads it, and leaves the trees and coefficients as they are.
 
 ## What exists today
 
@@ -189,60 +177,24 @@ Out of scope: `setData(updateBasisScale = )`, which dec-B265 names, waits for `s
 refused today ([What this leaves for later, and why each is an addition](forest-multiplier.md#what-this-leaves-for-later-and-why-each-is-an-addition)).
 TODO at landing gains an entry for it, so dec-B265's third clause is not lost.
 
-### The long form (slice 1)
+### The long form (slice 1): removed
 
-R only. [`forest`](../../R/model.R) gains `leaf.prior = NULL` after `sd`, and folds it at the call: NULL is
-absent; a `normal()` whose `prior.sd` is one number becomes `sd`, the leaf prior itself not kept, so every reader
-of a forest specification ([`validateForestKnobs`](../../R/model.R), [`forestStatements`](../../R/model.R),
-[`resolveForestSpreads`](../../R/dbarts.R), the single-forest rule) sees the one statement and none changes.
-Refused at the call, by name:
-
-- both given: "forest()'s 'sd' and 'leaf.prior' are one statement, the forest's size; give one";
-- `normal(k = )`, `normal(sd = invchi())` and any other class (open call 3): "forest()'s 'leaf.prior' states the
-  forest's size as normal(sd = ); a k, a prior on the sd or another leaf model is the fitting function's
-  'leaf.prior'";
-- `normal()` with neither (open call 2), worded for both places it is met: "forest()'s 'leaf.prior' is
-  normal(sd = ) with a number; normal() states nothing. At creation leave 'leaf.prior' out for the default; in
-  $setLeafPrior(forests = ) a forest written without 'sd' or 'leaf.prior' is left as it is, stated or not".
-
-`normal` joins the vocabulary of the forest arguments: `forestConstructors` and the `forests` entry of
-[`FOREST_ARGUMENT_VOCABULARIES`](../../R/model.R), and the vocabulary [`processHit`](../../R/formulaTerms.R)
-evaluates a formula term's arguments in, so `leaf.prior = normal(sd = 30)` works in a formula, in `forests =
-list()` and in `$setLeafPrior(forests = )`, as `fixed()` does. man/forest.Rd gains the `leaf.prior` item,
-pointing to `sd`; the examples keep `sd = `, the spelling dec-B266 has the help show. NEWS, in 1.0-0's forest
-item: one clause.
+Slice 1 accepted `forest(leaf.prior = normal(sd = v))` as the long spelling of `forest(sd = v)` (dec-B266). It
+was built and reviewed, and then removed under dec-B508: `forest()` states its size as `sd` alone and takes no
+`leaf.prior`, which is R's unused-argument error, as before this plan. Nothing of it remains on the branch.
 
 ## Interaction with the two pending plans
 
 setmodel-parameters-not-structure (96bf027c):
 
-- Its refusal of a raw leaf spec out of step with the resolved slots (slice 1, item 4) reads the model's
-  `leaf.prior`. The long form never reaches a model as such: on one forest it builds the model `sd = ` builds,
-  pinned `identical()` here, and on several it is the forests' record's `sd`. No conflict.
 - `updateBasisScale` writes the data object's scale, not the model or the control, and its slice 4 routes a
   sampler with amplitudes through the tree-prior and residual installs, never the leaf-scale write. So a
   `$setModel` after an update leaves the re-derived prior in force. Whichever lands second adds the pin:
   update, `$setModel(s$model)`, then the reader's `sd` and the next draws unchanged, and a copy equal.
-- Its open door for per-forest tree priors (`$setTreePrior(forests = list(forest(base = , power = )))`) meets
-  the long form: folded, `forest(leaf.prior = normal(sd = 2))` there is an `sd` and is refused as `sd` would be.
-  Its `forests` evaluates in the widened vocabulary, `normal` included, so a bare `normal()` there reaches its
-  own refusal of a non-forest entry rather than "could not find function".
 - Both add facade virtuals (its slices 3 and 4): a textual conflict in facade.hpp, `--preclean` on each.
 
 forests-shared-total (f4b9256b):
 
-- `forest(leaf.prior = normal(sd = v))` on a forest with no basis is that forest's own size and takes it out of
-  the share, as `sd = v` does (its D4); folded, its sharer test reads it unchanged. A restated sd on a sharer
-  through `$setLeafPrior(forests = list(forest(leaf.prior = normal(sd = v))))` meets its refusal as `sd` does.
-  Whichever lands second pins both.
-- Where no forest has a basis, its item 4 has the fitting function's `leaf.prior = normal(sd = )` state the
-  group's total, while `normal(sd = )` inside a `forest()` states one forest's own size. That is the one place
-  one constructor means two sizes by where it is written; its help and this item's must say so side by side, and
-  whichever of the two lands second pins both meanings in one test: three forests with no basis, the fitting
-  function's `normal(sd = )` giving each its share, and one `forest(leaf.prior = normal(sd = ))` giving that
-  forest its own size outside the share.
-  Its D8 gives sharers a k; `forest(leaf.prior = normal(k = ))` stays refused here, and the message names the
-  fitting function, where that k lives.
 - `updateBasisScale` touches only forests with a basis, which never share. Its open call 2 (refuse a constant
   basis column at creation) and this plan's open call 1 (keep on a swap) agree with dec-B346: creation strict,
   a swap lenient.
@@ -252,33 +204,14 @@ forests-shared-total (f4b9256b):
 Order of landing, recommended: whichever of this item and forests-shared-total is green first, then the other,
 then setmodel-parameters' slice 4, which its plan already puts after forests-shared-total; setmodel's slices 1 to
 3 are independent of this item and may land in any order with it. Under dec-B494 this item merges once, after
-slice 2, and slice 2 waits on open call 1, so it must not hold forests-shared-total. Whichever lands second adds
+slice 2. Whichever lands second adds
 the pins named above and, if it is this item, passes the sharer count at its `forestMapEntry` call site.
 
 ## Slices
 
 ### Slice 1: the long form (R surface)
 
-Steps: the formal and the fold in [`forest`](../../R/model.R); the vocabulary in three places; man/forest.Rd;
-NEWS; tinytest in test-forest-arguments.R.
-
-Tests: at every door (formula term, `forests` list, `$setLeafPrior(forests = )`, on a single forest and on
-three) the long form gives `identical()` model, control record and train draws to `sd = `; on one forest also to
-the fitting function's `leaf.prior = normal(sd = )`; the reader says `sd.stated` TRUE; each refusal by its
-message, counted with `withCallingHandlers`; `leaf.prior = NULL` is absent. A bare `normal()` or
-`normal(sd = 2)` as an entry of `forests = list()`, which now resolves where it failed as "could not find
-function", is pinned to the refusal of a non-forest entry, at creation and in `$setLeafPrior(forests = )`.
-
-Mutants: the fold dropping the value; both given taken; `normal(k = 3)` taken as no statement; `normal` left out
-of the formula term's vocabulary.
-
-Gates: the touched test files, the four reproducibility snapshot files unchanged, `lintr::lint_package()`,
-`air format --check .`, `tools/check-rc-codoc.R`, `tools/check-win-drift.R`, `tools/check-doc-freshness.R`,
-each on its own exit status; `inst/NEWS.Rd` parses; `R CMD check --as-cran` from a tarball built from a clean
-copy staged outside the tree (the slice touches R/ and man/). CI: the full suite, check and sanitizers. RNG:
-neutral.
-
-Cost: ~220 lines; 1.5 agent hours to build, 1 to review and fix.
+Removed under dec-B508; see [The long form (slice 1): removed](#the-long-form-slice-1-removed).
 
 ### Slice 2: updateBasisScale (engine, bridge, R)
 
@@ -291,7 +224,7 @@ Tests and gates are below. RNG: neutral for every main call; the new path held t
 Cost: ~570 lines in the tree and ~100 of scratch A/B; 4.5 agent hours to build, 1.5 to review, 2.5 for the gate
 battery and the fix round.
 
-Both: these estimates run 1.5 to 2 times low, as plans here do; budget ~12 to 16 agent hours in all.
+These estimates run 1.5 to 2 times low, as plans here do; budget ~8 to 12 agent hours.
 
 ## Tests and gates
 
@@ -350,7 +283,7 @@ Gates, on the slice's own libraries, `--preclean` on every commit:
   flag) and 11 of 11 (multinomial-equivalence-80b1c8d4), identical, no `max |z|` line; the four snapshot files
   unchanged.
 - benchmarks/R/forest-prior-exact.R and bcf-exact.R at quick, as smoke on the touched map path.
-- The full tinytest suite in one process; the lint chain and checks of slice 1; `R CMD check --as-cran` from a
+- The full tinytest suite in one process; the lint chain and the three tools checks; `R CMD check --as-cran` from a
   clean staged tarball.
 - No `bench-sampler.R` compare: the code runs once per call, never per sweep.
 
@@ -376,12 +309,9 @@ Gates, on the slice's own libraries, `--preclean` on every commit:
 7. The new scale overwrites `data@basis.scale`, the record every re-creation reads. Alternative: a second
    record for the updated scale, which nothing else needs.
 8. `setData(updateBasisScale = )` waits for `setData` on several forests.
-9. The long form folds into `sd` at the call, so no reader changes and both pending plans read it for free.
-   Alternative: keep `leaf.prior` on the specification and resolve it at fit time, which every reader of a
-   forest would have to learn.
-10. Moved to [Open calls](#open-calls) 3.
-11. Messages that name a forest's `sd` keep saying `sd` when the caller wrote the long form. Alternative: carry
-    the spelling on the specification for messages alone.
+9. Moot under dec-B508 (the long form's fold).
+10. Moved to [Open calls](#open-calls) 3, moot.
+11. Moot under dec-B508 (the long form's messages).
 12. A design-note amendment, not a new note: the rule of the scale does not change, only who may re-derive it.
 13. A separate facade virtual and `Sampler` method for the TRUE path, today's `setForestBasis` left as it is.
     Alternative: one virtual with the flag and an outcome return, which edits the spy and table in
@@ -405,35 +335,9 @@ Gates, on the slice's own libraries, `--preclean` on every commit:
      dec-B465 do. Revises dec-B265 in part; creation keeps its refusal. Cost: a mistaken constant column is
      reported once, not stopped; and the once-per-sampler flag is shared with the too-few-rows keep, so a
      constant column met after that warning has fired is kept in silence.
-2. `forest(leaf.prior = normal())`, with no sd. The forest-multiplier plan listed "`normal()` for the default
-   back" beside the long form; no ruling names it. A forest stated at creation holds no scale, so putting its
-   default back means deriving one.
-   - (a) Recommended. Refused for now, the message worded for both places it is met: at creation, leave
-     `leaf.prior` out for the default; in `$setLeafPrior(forests = )`, a forest written without `sd` or
-     `leaf.prior` is left as it is, stated or not. Both meanings stay additions. Cost: no way to return a stated
-     forest to its default.
-   - (b) "The default": at creation the same as no statement; through `$setLeafPrior(forests = )` it returns a
-     stated forest to its default, from the recorded scale where one exists and from the column in force over
-     the rows in otherwise. Cost: ~250 more lines (an engine restatement and its rows, as slice 2), and one
-     more engine-tier review.
-   - (c) No statement everywhere, as `forest()` is. Cost: closes the spelling to (b) later.
-3. What `forest(leaf.prior = )` takes, and so which round trip it serves. dec-B266 accepts the long form "so
-   that a prior read from a sampler can be handed back". A one-forest sampler's reader returns `normal(k = 2)` at
-   the default (probed; under probit and logistic a drawn k), and `normal(sd = v)` only where an sd was stated; a
-   forest of several reads back as `forest()` or `forest(sd = v)`.
-   - (a) Recommended. `normal(sd = number)` alone, on one forest and on several (dec-B266: "the only leaf prior a
-     forest can take is a normal with an sd"). The round trip into `forest()` works for a stated forest only. Cost:
-     a one-forest default read back is refused there; it still goes back whole through the fitting function's
-     `leaf.prior`, and a forest of several through `$setLeafPrior(forests = )`, so no read is stranded.
-   - (b) On the one forest of a one-forest model, any leaf prior the fitting function takes (`normal(k = )`, a
-     drawn k, `invchi()`, `linear()`, `gp()`), carried to the fit's `leaf.prior`; on several, `normal(sd = )`
-     alone. Every one-forest read goes back through `forest()`. Cost: the fold can no longer happen at the call
-     (the model's shape is known at fit time), so the specification carries the prior and every reader of a
-     forest learns it, ~150 more lines; one argument with two meanings by model shape; and both pending plans'
-     readers of a forest's `sd` must look at it too.
-   - (c) As (a), and `normal(k = 2)` taken as no statement, as the fitting function takes it on several forests.
-     Cost: ~15 lines; a gaussian one-forest default goes back, but a probit or logistic one (a drawn k) and any
-     other k do not, and on a forest of several `normal(k = 2)` then means a default that is not k = 2.
+2. `forest(leaf.prior = normal())`, with no sd. Ruled (c) by the maintainer (dec-B507), then moot the same day:
+   dec-B508 removed the long form.
+3. What `forest(leaf.prior = )` takes. Moot under dec-B508, which removed the long form.
 
 ## Not verified
 
