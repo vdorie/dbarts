@@ -3230,8 +3230,10 @@ fixedkFile <- function(cell, link, rep) {
 
 auditCount <- 20L
 auditBudgetMB <- 1024
-refLargeMB <- 200 # a large reference's first-pass draws
-refInFlight <- 2L # large references holding draws at once
+refLargeMB <- 200 # a large reference's draws
+# large references holding draws at once: one fits the bench box's free
+# disk (KMN_REF_IN_FLIGHT=2 if it is grown; scheduling only, no draw changes)
+refInFlight <- as.integer(Sys.getenv("KMN_REF_IN_FLIGHT", "1"))
 compactProbs <- (seq_len(1000L) - 0.5) / 1000
 
 # A reference's raw columns, read from the smoke's part metadata (both links
