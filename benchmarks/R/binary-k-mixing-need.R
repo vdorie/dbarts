@@ -2729,6 +2729,9 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
     kRhat = kRhat,
     labels = labels,
     quantities = nrow(tab),
+    # per quantity: the halves' z, joint Rhat and tail effective draws (and
+    # at a first pass the shipped half's, whole and thinned)
+    table = tab,
     maxZ = max(tab$zMax, na.rm = TRUE),
     rhat99 = if (nrow(rowq)) quantile(rowq$rhat, 0.99, na.rm = TRUE) else NA,
     quick = quick
