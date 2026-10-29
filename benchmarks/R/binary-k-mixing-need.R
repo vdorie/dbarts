@@ -32,8 +32,9 @@
 #   Rscript binary-k-mixing-need.R fit <regime> <link> <rep> <arm>[,<arm>]
 #   Rscript binary-k-mixing-need.R score <regime> <link> <rep>
 #   Rscript binary-k-mixing-need.R reference run <regime> <link> <rep> <part>
-#   Rscript binary-k-mixing-need.R reference accept <regime> <link> <rep> [final]
-#   Rscript binary-k-mixing-need.R reference escalate <regime> <link> <rep> <part>
+#   Rscript binary-k-mixing-need.R reference extend <regime> <link> <rep> <part> <round>
+#   Rscript binary-k-mixing-need.R reference accept <regime> <link> <rep> <round>
+#   Rscript binary-k-mixing-need.R look sbc|ref <regime> <link> <look>
 #   Rscript binary-k-mixing-need.R fixedk <regime> <link> <rep>
 #   Rscript binary-k-mixing-need.R refscore <regime> <link> <rep>
 #   Rscript binary-k-mixing-need.R timing <regime> <link> <rep> <t>
@@ -50,7 +51,7 @@ suppressPackageStartupMessages(library(dbarts))
 
 quick <- nzchar(Sys.getenv("KMN_QUICK"))
 tenth <- function(n) {
-  if (quick) max(2L, as.integer(round(n / 10))) else as.integer(n)
+  if (quick) pmax(2L, as.integer(round(n / 10))) else as.integer(n)
 }
 
 # MCMC lengths, in sweeps. A fit runs past the default and is read at several
@@ -65,15 +66,19 @@ mcmc <- list(
   propBurn = tenth(500),
   propDraws = tenth(500),
   refBurn = tenth(5000),
-  refRecord = tenth(20000), # recorded sweeps, kept every refThin
+  # a reference records in blocks: the first job two blocks, then a block a
+  # round to refBlockMax for any failure, then the shipped half doubles along
+  # refLadder while effective draws alone fail (the second amendment)
+  refBlock = tenth(4000),
+  refFirst = tenth(8000),
+  refBlockMax = tenth(20000),
+  refLadder = tenth(c(40000, 80000, 100000)),
   refThin = 20L,
   refTail = tenth(500), # unthinned sweeps after the record: the tails
-  escalateRecord = tenth(100000),
   s4bWarmup = tenth(1000), # stan4bart's own default warmup
   s4bDefault = tenth(1000), # its default kept iterations
   s4bLong = tenth(2000),
   s4bRefWarmup = tenth(5000),
-  s4bRefIter = tenth(20500),
   timingWarm = tenth(500),
   timingRun = tenth(500)
 )
@@ -90,8 +95,19 @@ bootstrapResamples <- 4000L
 # as problems on the binomial floor alone)
 minSbcReps <- 20L
 bar <- 0.02
-zProblem <- qnorm(1 - 0.000156) # 3.60
-zNoProblem <- qnorm(0.975)
+# Sequential looks (the second amendment): a class's reading is the first look at
+# which it resolves, each look Bonferroni-bounded and none added later. No
+# problem, one-sided 0.025 over three looks (an intersection-union test, no
+# correction across cells); a problem, one-sided 0.05 over 480 tests.
+alphaNoProblem <- 0.025 / 3
+alphaProblem <- 0.05 / 480
+zProblem <- qnorm(1 - alphaProblem) # 3.71
+zNoProblem <- qnorm(1 - alphaNoProblem) # 2.39
+z95 <- qnorm(0.975) # the discrimination gate's 95 percent bound
+firstLookFactor <- 1.5 # a problem at the first look needs 1.5 times the bar
+sizingSe <- 0.005 # an early problem stop needs its D to 2 se of 0.01
+sbcLooksDefault <- c(50L, 100L, 400L)
+refLooksDefault <- c(6L, 12L, 24L)
 heldOutRows <- 100L
 deterministicScore <- 0.995
 fixedQuantiles <- c(
@@ -217,8 +233,12 @@ loadChecked <- function(path) {
 
 # A regime: its kind ("sbc" truth drawn from the prior; "designed" truth for
 # D1 and D2; "real" outcomes for B), task (how fits are made and scored),
-# links, chains, replications and references by tranche, tier (1 bulk of use,
-# 2 common in health data, 3 niche) and selection.
+# links, chains, replications and references by tranche (the most each
+# tranche can run), tier (1 bulk of use, 2 common in health data, 3 niche) and
+# selection. sbcLooks and refLooks are the replication and reference counts
+# read at each look (the second amendment): the first two looks in tranche 1,
+# the third in tranche 2. refGate: a design's later references wait for its
+# first to pass (D1).
 regime <- function(
   id,
   kind,
@@ -232,6 +252,9 @@ regime <- function(
   n = NA,
   datasets = NULL,
   big = FALSE,
+  sbcLooks = if (kind == "sbc") sbcLooksDefault,
+  refLooks = refLooksDefault,
+  refGate = FALSE,
   ...
 ) {
   list(
@@ -247,6 +270,9 @@ regime <- function(
     n = n,
     datasets = datasets,
     big = big,
+    sbcLooks = sbcLooks,
+    refLooks = refLooks,
+    refGate = refGate,
     par = list(...)
   )
 }
@@ -287,12 +313,14 @@ regimes <- list(
     both,
     4L,
     c(40L, 80L),
-    c(6L, 8L),
+    c(12L, 12L),
     2L,
     "rare",
     10000L,
     "adult",
     big = TRUE,
+    sbcLooks = c(20L, 40L, 80L),
+    refLooks = c(6L, 12L),
     ratio = TRUE
   ),
   S4 = regime(
@@ -314,8 +342,8 @@ regimes <- list(
     "prob",
     both,
     4L,
-    c(100L, 200L),
-    c(12L, 20L),
+    c(100L, 400L),
+    c(12L, 24L),
     2L,
     "none",
     1000L,
@@ -340,7 +368,7 @@ regimes <- list(
     "effect",
     both,
     10L,
-    c(100L, 300L),
+    c(100L, 400L),
     c(12L, 24L),
     1L,
     "none",
@@ -353,8 +381,8 @@ regimes <- list(
     "effect",
     both,
     10L,
-    c(100L, 200L),
-    c(12L, 20L),
+    c(100L, 400L),
+    c(12L, 24L),
     2L,
     "rare",
     1000L,
@@ -366,7 +394,7 @@ regimes <- list(
     "s9",
     "probit",
     10L,
-    c(100L, 300L),
+    c(100L, 400L),
     c(12L, 24L),
     1L,
     "overlap",
@@ -379,8 +407,8 @@ regimes <- list(
     "s4b",
     "probit",
     4L,
-    c(100L, 200L),
-    c(12L, 20L),
+    c(100L, 400L),
+    c(12L, 24L),
     1L,
     "e1",
     1000L,
@@ -393,8 +421,8 @@ regimes <- list(
     "s4b",
     "probit",
     4L,
-    c(100L, 200L),
-    c(12L, 20L),
+    c(100L, 400L),
+    c(12L, 24L),
     1L,
     "e2",
     1000L,
@@ -407,8 +435,8 @@ regimes <- list(
     "loop",
     both,
     4L,
-    c(100L, 200L),
-    c(12L, 20L),
+    c(100L, 400L),
+    c(12L, 24L),
     1L,
     "moderate",
     500L,
@@ -425,7 +453,9 @@ regimes <- list(
     c(4L, 4L),
     1L,
     cells = c("arr1-mod", "arr1-sep", "arr2-mod", "null-mod"),
-    big = TRUE
+    big = TRUE,
+    refLooks = 4L,
+    refGate = TRUE
   ),
   D2 = regime(
     "D2",
@@ -433,13 +463,23 @@ regimes <- list(
     "d2",
     "probit",
     10L,
-    c(6L, 6L),
-    c(6L, 6L),
+    c(12L, 24L),
+    c(12L, 24L),
     1L,
     cells = c("r30", "r05"),
     n = 1000L
   ),
-  B = regime("B", "real", "real", both, 4L, c(6L, 6L), c(1L, 1L), NA_integer_)
+  B = regime(
+    "B",
+    "real",
+    "real",
+    both,
+    4L,
+    c(6L, 6L),
+    c(1L, 1L),
+    NA_integer_,
+    refLooks = 1L
+  )
 )
 
 # D1's cells are the binary interval study's A6 cells; D2's are ACIC 2016
@@ -507,6 +547,13 @@ repsFor <- function(cell, tranche = 1L) cellRegime(cell)$reps[tranche]
 refsFor <- function(cell, tranche = 1L) cellRegime(cell)$refs[tranche]
 isRefRep <- function(cell, rep, tranche = 1L) {
   as.integer(rep) <= refsFor(cell, tranche)
+}
+# A reference whose own readings (its fixed-k arms and scoring) and the
+# cell's other replications wait for it to pass: D1's first, B's one (the
+# second amendment).
+refReadsGated <- function(cell, rep) {
+  reg <- cellRegime(cell)
+  as.integer(rep) == 1L && (isTRUE(reg$refGate) || reg$id == "B")
 }
 
 ## ----------------------------------------------------------- selection bands
@@ -2189,11 +2236,45 @@ refPartsPerKernel <- function(cell) {
   refChains(cellChains(cell)) %/% refPartChains
 }
 
-# One part of a reference: refPartChains chains of this build's kernel through
-# the sampler API: refBurn sweeps of burn-in, refRecord sweeps recorded every
-# refThin, then refTail sweeps unthinned (the tails). Latent single-precision
-# draws of every raw column; k; the shipped parts keep their sampler so an
-# escalation can continue the chains.
+# A reference's rounds (the second amendment): the recorded sweeps a kernel
+# half reaches after each, the first two blocks, then a block a round to
+# refBlockMax, then the shipped half alone along refLadder.
+refLengths <- function() {
+  c(
+    seq.int(mcmc$refFirst, mcmc$refBlockMax, by = mcmc$refBlock),
+    mcmc$refLadder
+  )
+}
+
+# The rounds a cell's references can run, as 0-based indices into
+# refLengths(). stan4bart cannot continue a chain, so each of its rounds
+# reruns from the start: a failing first round reruns at refBlockMax at once,
+# and the ladder goes straight to its last length.
+refRoundsFor <- function(cell) {
+  L <- refLengths()
+  r <- seq_along(L) - 1L
+  if (cellTask(cell) == "s4b") {
+    r[L %in% c(mcmc$refFirst, mcmc$refBlockMax, max(L))]
+  } else {
+    r
+  }
+}
+
+# The thinning a half is written at when it reaches L recorded sweeps: refThin
+# to refBlockMax, then doubled with each doubling of the length, so a doubled
+# half keeps the first pass's draw count (1,000 a chain; 1,250 at 100,000).
+refThinAt <- function(L) {
+  as.integer(mcmc$refThin * 2^floor(log2(max(1, L / mcmc$refBlockMax))))
+}
+
+refGoFile <- function(dir, round) file.path(dir, sprintf("go-%d", round))
+refPassedFile <- function(dir) file.path(dir, "passed")
+
+# One part of a reference, its first round: refPartChains chains of this
+# build's kernel through the sampler API: refBurn sweeps of burn-in, refFirst
+# sweeps recorded every refThin, then refTail sweeps unthinned (the tails).
+# Latent single-precision draws of every raw column; k; each half keeps its
+# sampler, saved before the tail, so a later round continues the chains.
 runReferencePart <- function(cell, link, rep, part) {
   which <- build()
   if (!which %in% c("shipped", "move")) {
@@ -2205,7 +2286,12 @@ runReferencePart <- function(cell, link, rep, part) {
   seed <- seedOf("reference", cell, link, rep, which, part)
   t0 <- proc.time()[["elapsed"]]
   if (task == "s4b") {
-    res <- referenceStan4bart(design, seed)
+    res <- referenceStan4bart(
+      design,
+      seed,
+      iter = mcmc$refFirst + mcmc$refTail,
+      thin = mcmc$refThin
+    )
   } else {
     res <- referenceSampler(design, link, task, seed, part, which, dir)
   }
@@ -2223,6 +2309,11 @@ runReferencePart <- function(cell, link, rep, part) {
   meta$dimsTail <- dim(res$tail)
   meta$which <- which
   meta$part <- as.integer(part)
+  meta$round <- 0L
+  meta$sweeps <- mcmc$refFirst
+  meta$thin <- mcmc$refThin
+  meta$secondsTotal <- res$seconds
+  meta$secondsRound <- res$seconds
   meta$lib <- find.package("dbarts")
   meta$quick <- quick
   saveAtomic(meta, file.path(dir, sprintf("%s-part%d.rds", which, part)))
@@ -2235,6 +2326,21 @@ runReferencePart <- function(cell, link, rep, part) {
     as.integer(part),
     res$seconds
   ))
+}
+
+samplerFile <- function(dir, which, part, propensity = FALSE) {
+  file.path(
+    dir,
+    sprintf("%s-part%d-%ssampler.rds", which, part, if (propensity) "p" else "")
+  )
+}
+
+# A sampler saved for a later round: the control's call holds the data frames
+# do.call inlined (a D1 sampler's 340 MB), which a continuation never reads.
+saveSampler <- function(s, path) {
+  s$control@call <- quote(bart())
+  s$storeState()
+  saveAtomic(s, path)
 }
 
 # The raw columns of a reference as chains x draws x columns: the sampler's
@@ -2251,7 +2357,7 @@ referenceSampler <- function(design, link, task, seed, part, which, dir) {
       n.chains = refPartChains,
       n.threads = 1L,
       n.burn = mcmc$refBurn,
-      n.samples = mcmc$refRecord,
+      n.samples = mcmc$refFirst,
       n.thin = mcmc$refThin,
       seed = s,
       verbose = FALSE,
@@ -2314,6 +2420,7 @@ referenceSampler <- function(design, link, task, seed, part, which, dir) {
     sp <- build1(data.frame(design$x, y = design$z), NULL, "probit", seed + 7L)
   }
   r1 <- s$run()
+  saveSampler(s, samplerFile(dir, which, part))
   ctrl <- s$control
   ctrl@n.thin <- 1L
   s$setControl(ctrl)
@@ -2323,6 +2430,7 @@ referenceSampler <- function(design, link, task, seed, part, which, dir) {
   extra <- list()
   if (!is.null(sp)) {
     p1 <- sp$run()
+    saveSampler(sp, samplerFile(dir, which, part, TRUE))
     ctrl <- sp$control
     ctrl@n.thin <- 1L
     sp$setControl(ctrl)
@@ -2334,18 +2442,6 @@ referenceSampler <- function(design, link, task, seed, part, which, dir) {
   if (!is.null(order)) {
     record <- record[order, , , drop = FALSE]
     tail <- tail[order, , , drop = FALSE]
-  }
-  if (which == "shipped") {
-    # the control's call holds the data frames do.call inlined (a D1
-    # sampler's 340 MB); a continuation never reads it
-    s$control@call <- quote(bart())
-    s$storeState()
-    saveRDS(s, file.path(dir, sprintf("shipped-part%d-sampler.rds", part)))
-    if (!is.null(sp)) {
-      sp$control@call <- quote(bart())
-      sp$storeState()
-      saveRDS(sp, file.path(dir, sprintf("shipped-part%d-psampler.rds", part)))
-    }
   }
   c(
     list(
@@ -2373,12 +2469,7 @@ abind3 <- function(a, b) {
 # refTail iterations are the tail. The plan records them through stan4bart's
 # callback; a fit with a callback keeps nothing else, k included, so the run
 # keeps its fits instead (the same draws).
-referenceStan4bart <- function(
-  design,
-  seed,
-  iter = mcmc$s4bRefIter,
-  thin = mcmc$refThin
-) {
+referenceStan4bart <- function(design, seed, iter, thin) {
   f <- fitStan4bart(
     design,
     refPartChains,
@@ -2410,143 +2501,146 @@ referenceStan4bart <- function(
   )
 }
 
-# Escalation: the shipped chains continue from their saved samplers to
-# escalateRecord recorded sweeps, then a new tail; only when the acceptance
-# projected a pass. Otherwise a no-op. The escalated half keeps the move's
-# draw count, thinned escalateFactor times as much, so an escalated reference
-# takes the first pass's disk and memory. stan4bart cannot continue a chain, so
-# its shipped parts rerun from the same seed at escalateRecord recorded
-# iterations, whose first pass is a prefix of the rerun (checked and recorded).
-escalateReferencePart <- function(cell, link, rep, part) {
-  requireBuild("shipped")
+# A later round of one part (the second amendment): this build's chains
+# continue from their saved sampler to the round's length, written at
+# refThinAt of it (the earlier record thinned to match), then a new tail; a
+# no-op unless the last acceptance opened the round, or when the part already
+# reached it. stan4bart cannot continue a chain, so its parts rerun from the
+# same seed at the round's length, the earlier record a prefix of the rerun
+# (checked and recorded). New files under new names, the metadata switched to
+# them last, so a killed job leaves the earlier round readable.
+extendReferencePart <- function(cell, link, rep, part, round) {
+  which <- build()
+  if (!which %in% c("shipped", "move")) {
+    stop("a reference is made by the two kernels' builds")
+  }
   dir <- referenceDir(cell, link, rep)
-  acc <- loadChecked(file.path(dir, "acceptance.rds"))
-  if (!identical(acc$decision, "escalate")) {
-    cat("no escalation:", acc$decision, "\n")
+  if (!file.exists(refGoFile(dir, round))) {
+    cat("no round", round, "for", cell, link, rep, "\n")
     return(invisible(NULL))
   }
-  metaPath <- file.path(dir, sprintf("shipped-part%d.rds", part))
+  metaPath <- file.path(dir, sprintf("%s-part%d.rds", which, part))
   meta <- loadChecked(metaPath)
-  if (isTRUE(meta$escalated)) {
+  if (meta$round >= round) {
     return(invisible(NULL))
   }
-  if (cellTask(cell) == "s4b") {
-    return(escalateStan4bartPart(cell, link, rep, part, dir, meta, metaPath))
-  }
-  s <- readRDS(file.path(dir, sprintf("shipped-part%d-sampler.rds", part)))
-  ctrl <- s$control
-  # the escalated half keeps the move's draw count: the continuation is kept
-  # every escalateFactor * refThin sweeps and the first pass thinned to match
-  thinEsc <- mcmc$refThin * escalateFactor
-  keepOld <- function(n) seq.int(escalateFactor, n, by = escalateFactor)
-  ctrl@n.thin <- thinEsc
-  s$setControl(ctrl)
-  more <- (mcmc$escalateRecord - mcmc$refRecord) %/% thinEsc
-  r1 <- s$run(0L, more)
-  ctrl@n.thin <- 1L
-  s$setControl(ctrl)
-  r2 <- s$run(0L, mcmc$refTail)
+  L <- refLengths()[round + 1L]
+  thin <- refThinAt(L)
+  keep <- thin %/% meta$thin
+  keepOld <- function(n) seq.int(keep, n, by = keep)
   task <- cellTask(cell)
-  pick <- function(r) {
-    if (task %in% c("prob", "loop")) {
-      if (is.null(r$test)) r$train else abind3(r$train, r$test)
-    } else {
-      r$test
+  t0 <- proc.time()[["elapsed"]]
+  if (task == "s4b") {
+    design <- blind(loadDesign(cell, link, rep))
+    seed <- seedOf("reference", cell, link, rep, which, part)
+    res <- referenceStan4bart(
+      design,
+      seed,
+      iter = L + mcmc$refTail,
+      thin = thin
+    )
+    old <- as.matrix(meta$k)
+    old <- old[keepOld(nrow(old)), , drop = FALSE]
+    meta$prefixMaxDiff <- max(abs(
+      as.matrix(res$k)[seq_len(nrow(old)), , drop = FALSE] - old
+    ))
+    rec <- res$record
+    tl <- res$tail
+    meta$k <- res$k
+    meta$kTail <- res$kTail
+  } else {
+    s <- readRDS(samplerFile(dir, which, part))
+    ctrl <- s$control
+    ctrl@n.thin <- thin
+    s$setControl(ctrl)
+    more <- (L - meta$sweeps) %/% thin
+    r1 <- s$run(0L, more)
+    saveSampler(s, samplerFile(dir, which, part))
+    ctrl@n.thin <- 1L
+    s$setControl(ctrl)
+    r2 <- s$run(0L, mcmc$refTail)
+    pick <- function(r) {
+      if (task %in% c("prob", "loop")) {
+        if (is.null(r$test)) r$train else abind3(r$train, r$test)
+      } else {
+        r$test
+      }
     }
+    recRaw <- pick(r1)
+    tailRaw <- pick(r2)
+    if (task == "loop") {
+      # E3's columns in the first round's order: observed, masked, held out
+      design <- loadDesign(cell, link, rep)
+      obs <- setdiff(seq_along(design$y), design$mask)
+      held <- if (is.null(design$xh)) 0L else nrow(design$xh)
+      ord <- order(c(obs, design$mask, length(design$y) + seq_len(held)))
+      recRaw <- recRaw[ord, , , drop = FALSE]
+      tailRaw <- tailRaw[ord, , , drop = FALSE]
+    }
+    if (task == "s9") {
+      # S9's propensity chains continue with the outcome's, their columns
+      # after the outcome's as the first round wrote them
+      sp <- readRDS(samplerFile(dir, which, part, TRUE))
+      pc <- sp$control
+      pc@n.thin <- thin
+      sp$setControl(pc)
+      p1 <- sp$run(0L, more)
+      saveSampler(sp, samplerFile(dir, which, part, TRUE))
+      pc@n.thin <- 1L
+      sp$setControl(pc)
+      p2 <- sp$run(0L, mcmc$refTail)
+      recRaw <- abind3(recRaw, p1$train)
+      tailRaw <- abind3(tailRaw, p2$train)
+      kp <- as.matrix(meta$kPs)
+      meta$kPs <- rbind(kp[keepOld(nrow(kp)), , drop = FALSE], as.matrix(p1$k))
+    }
+    new <- aperm(recRaw, c(3L, 2L, 1L))
+    old <- readSingle(file.path(dir, partFile(meta, "record")), meta$dimsRecord)
+    old <- old[, keepOld(dim(old)[2L]), , drop = FALSE]
+    rec <- array(0, c(dim(old)[1L], dim(old)[2L] + dim(new)[2L], dim(old)[3L]))
+    rec[, seq_len(dim(old)[2L]), ] <- old
+    rec[, dim(old)[2L] + seq_len(dim(new)[2L]), ] <- new
+    tl <- aperm(tailRaw, c(3L, 2L, 1L))
+    k0 <- as.matrix(meta$k)
+    meta$k <- rbind(k0[keepOld(nrow(k0)), , drop = FALSE], as.matrix(r1$k))
+    meta$kTail <- r2$k
   }
-  recRaw <- pick(r1)
-  tailRaw <- pick(r2)
-  if (task == "loop") {
-    # E3's columns in the first pass's order: observed, masked, held out
-    design <- loadDesign(cell, link, rep)
-    obs <- setdiff(seq_along(design$y), design$mask)
-    held <- if (is.null(design$xh)) 0L else nrow(design$xh)
-    ord <- order(c(obs, design$mask, length(design$y) + seq_len(held)))
-    recRaw <- recRaw[ord, , , drop = FALSE]
-    tailRaw <- tailRaw[ord, , , drop = FALSE]
-  }
-  if (task == "s9") {
-    # S9's propensity chains continue with the outcome's, their columns after
-    # the outcome's as the first pass wrote them
-    sp <- readRDS(file.path(dir, sprintf("shipped-part%d-psampler.rds", part)))
-    pc <- sp$control
-    pc@n.thin <- thinEsc
-    sp$setControl(pc)
-    p1 <- sp$run(0L, more)
-    pc@n.thin <- 1L
-    sp$setControl(pc)
-    p2 <- sp$run(0L, mcmc$refTail)
-    recRaw <- abind3(recRaw, p1$train)
-    tailRaw <- abind3(tailRaw, p2$train)
-    kp <- as.matrix(meta$kPs)
-    meta$kPs <- rbind(kp[keepOld(nrow(kp)), , drop = FALSE], as.matrix(p1$k))
-  }
-  rec <- aperm(recRaw, c(3L, 2L, 1L))
-  old <- readSingle(file.path(dir, partFile(meta, "record")), meta$dimsRecord)
-  old <- old[, keepOld(dim(old)[2L]), , drop = FALSE]
-  both <- array(0, c(dim(old)[1L], dim(old)[2L] + dim(rec)[2L], dim(old)[3L]))
-  both[, seq_len(dim(old)[2L]), ] <- old
-  both[, dim(old)[2L] + seq_len(dim(rec)[2L]), ] <- rec
-  # new files under new names, the metadata switched to them last, so a killed
-  # job leaves the first pass readable
-  meta$recordFile <- sprintf("shipped-part%d-record-esc.f32", part)
-  meta$tailFile <- sprintf("shipped-part%d-tail-esc.f32", part)
-  writeSingle(both, file.path(dir, meta$recordFile))
-  writeSingle(aperm(tailRaw, c(3L, 2L, 1L)), file.path(dir, meta$tailFile))
-  meta$dimsRecord <- dim(both)
-  meta$dimsTail <- dim(aperm(tailRaw, c(3L, 2L, 1L)))
-  k0 <- as.matrix(meta$k)
-  meta$k <- rbind(k0[keepOld(nrow(k0)), , drop = FALSE], as.matrix(r1$k))
-  meta$kTail <- r2$k
-  meta$escalated <- TRUE
-  saveAtomic(meta, metaPath)
-  # the first pass's record, thinned, is a prefix of the escalated one and its
-  # tail is superseded
-  file.remove(file.path(
+  oldFiles <- file.path(
     dir,
-    sprintf("shipped-part%d-%s.f32", part, c("record", "tail"))
-  ))
-}
-
-escalateStan4bartPart <- function(cell, link, rep, part, dir, meta, metaPath) {
-  design <- blind(loadDesign(cell, link, rep))
-  seed <- seedOf("reference", cell, link, rep, "shipped", part)
-  # kept every escalateFactor * refThin iterations, the move's draw count
-  res <- referenceStan4bart(
-    design,
-    seed,
-    iter = mcmc$escalateRecord + mcmc$refTail,
-    thin = mcmc$refThin * escalateFactor
+    c(partFile(meta, "record"), partFile(meta, "tail"))
   )
-  old <- as.matrix(meta$k)
-  old <- old[
-    seq.int(escalateFactor, nrow(old), by = escalateFactor),
-    ,
-    drop = FALSE
-  ]
-  prefix <- max(abs(as.matrix(res$k)[seq_len(nrow(old)), , drop = FALSE] - old))
-  meta$recordFile <- sprintf("shipped-part%d-record-esc.f32", part)
-  meta$tailFile <- sprintf("shipped-part%d-tail-esc.f32", part)
-  writeSingle(res$record, file.path(dir, meta$recordFile))
-  writeSingle(res$tail, file.path(dir, meta$tailFile))
-  meta$dimsRecord <- dim(res$record)
-  meta$dimsTail <- dim(res$tail)
-  meta$k <- res$k
-  meta$kTail <- res$kTail
-  meta$prefixMaxDiff <- prefix
-  meta$escalated <- TRUE
+  meta$recordFile <- sprintf("%s-part%d-record-r%d.f32", which, part, round)
+  meta$tailFile <- sprintf("%s-part%d-tail-r%d.f32", which, part, round)
+  writeSingle(rec, file.path(dir, meta$recordFile))
+  writeSingle(tl, file.path(dir, meta$tailFile))
+  meta$dimsRecord <- dim(rec)
+  meta$dimsTail <- dim(tl)
+  meta$round <- as.integer(round)
+  meta$sweeps <- L
+  meta$thin <- thin
+  seconds <- proc.time()[["elapsed"]] - t0
+  meta$secondsTotal <- meta$secondsTotal + seconds
+  meta$secondsRound <- seconds
   saveAtomic(meta, metaPath)
-  file.remove(file.path(
-    dir,
-    sprintf("shipped-part%d-%s.f32", part, c("record", "tail"))
-  ))
+  # the earlier round's record, thinned, is a prefix of this one and its
+  # tail is superseded
+  file.remove(oldFiles[file.exists(oldFiles)])
   cat(sprintf(
-    "escalate %s %s %d part %d: rerun, first pass a prefix to %.3g\n",
+    "extend %s %s %d %s part %d: round %d, %d sweeps at thin %d, %.1f s%s\n",
     cell,
     link,
     as.integer(rep),
+    which,
     as.integer(part),
-    prefix
+    as.integer(round),
+    as.integer(L),
+    thin,
+    seconds,
+    if (task == "s4b") {
+      sprintf(", rerun, earlier record a prefix to %.3g", meta$prefixMaxDiff)
+    } else {
+      ""
+    }
   ))
 }
 
@@ -2560,7 +2654,7 @@ partFile <- function(meta, what) {
 }
 
 # A reference's draws: per kernel, chains x draws x raw columns (record and
-# tail), k, and the parts' metadata.
+# tail), k, the recorded sweeps and their thinning, and the parts' seconds.
 loadReference <- function(cell, link, rep) {
   dir <- referenceDir(cell, link, rep)
   out <- list()
@@ -2570,8 +2664,16 @@ loadReference <- function(cell, link, rep) {
     ks <- list()
     kt <- list()
     kp <- list()
+    sweeps <- integer()
+    thins <- integer()
+    seconds <- 0
+    lastSeconds <- 0
     for (part in seq_len(refPartsPerKernel(cell))) {
       meta <- loadChecked(file.path(dir, sprintf("%s-part%d.rds", which, part)))
+      sweeps <- c(sweeps, meta$sweeps)
+      thins <- c(thins, meta$thin)
+      seconds <- seconds + meta$secondsTotal
+      lastSeconds <- lastSeconds + meta$secondsRound
       rec[[part]] <- readSingle(
         file.path(dir, partFile(meta, "record")),
         meta$dimsRecord
@@ -2596,15 +2698,35 @@ loadReference <- function(cell, link, rep) {
       }
       a
     }
+    if (length(unique(sweeps)) != 1L || length(unique(thins)) != 1L) {
+      stop("the ", which, " parts of ", cell, " ", link, " ", rep, " differ")
+    }
     out[[which]] <- list(
       record = bindChains(rec),
       tail = bindChains(tl),
       k = do.call(cbind, ks),
       kTail = do.call(cbind, kt),
-      kPs = if (length(kp)) do.call(cbind, kp)
+      kPs = if (length(kp)) do.call(cbind, kp),
+      sweeps = sweeps[1L],
+      thin = thins[1L],
+      seconds = seconds,
+      lastSeconds = lastSeconds
     )
   }
   out
+}
+
+# A half's record cut to its first `sweeps` recorded sweeps (an earlier block
+# end), k with it.
+cutReference <- function(ref, which, sweeps) {
+  r <- ref[[which]]
+  n <- sweeps %/% r$thin
+  r$record <- r$record[, seq_len(n), , drop = FALSE]
+  r$k <- if (!is.null(r$k)) as.matrix(r$k)[seq_len(n), , drop = FALSE]
+  r$kPs <- if (!is.null(r$kPs)) as.matrix(r$kPs)[seq_len(n), , drop = FALSE]
+  r$sweeps <- sweeps
+  ref[[which]] <- r
+  ref
 }
 
 # The reference's classes for a set of chains and draws, from the raw columns.
@@ -2665,60 +2787,36 @@ evenRows <- function(m, n) {
   m[round(seq(nrow(m) / n, nrow(m), length.out = n)), , drop = FALSE]
 }
 
-# An escalated shipped chain's length over the first pass's.
-escalateFactor <- 100000L %/% 20000L
-
-# Tail effective draws of a draws-by-chains matrix thinned by escalateFactor.
-essThin <- function(m) {
+# Tail effective draws of a draws-by-chains matrix thinned by a factor f (not
+# necessarily whole): the projection's unit.
+essThinBy <- function(m, f) {
   m <- as.matrix(m)
-  posterior::ess_tail(evenRows(m, max(4L, nrow(m) %/% escalateFactor)))
+  posterior::ess_tail(evenRows(m, max(4L, as.integer(round(nrow(m) / f)))))
 }
 
 acceptanceFile <- function(cell, link, rep) {
   file.path(referenceDir(cell, link, rep), "acceptance.rds")
 }
 
-# Acceptance (the plan's reading of dec-B462's "agree and converge"): the
-# halves agree on every scored quantity's mean, 5th and 95th percentiles and
-# on k's 5th to 95th percentiles within 4.5 combined Monte Carlo standard
-# errors; split-Rhat over all chains at most 1.01 for every scalar estimand and
-# 1.02 at the 99th percentile of row quantities; tail effective draws at least
-# 400 for scalars and at the 1st percentile of row quantities; k's tail
-# effective draws at least 100. A failing first pass escalates when its
-# effective draws project a pass at escalateRecord sweeps, whatever else
-# failed; agreement and Rhat are judged at the final pass. The projection
-# reads the shipped chains as the final pass will, thinned to the move's
-# length: their effective draws at f times the sweeps are f times those of the
-# first pass thinned by f.
-acceptReference <- function(cell, link, rep, final = FALSE) {
-  # a first pass that did not escalate is already final: the reference it
-  # read is the one the final pass would read
-  path <- acceptanceFile(cell, link, rep)
-  if (final && file.exists(path)) {
-    prev <- loadChecked(path)
-    if (isTRUE(prev$final) && !identical(prev$decision, "escalate")) {
-      cat(sprintf(
-        "accept %s %s %d: %s, final from the first pass\n",
-        cell,
-        link,
-        as.integer(rep),
-        prev$decision
-      ))
-      return(invisible(prev))
-    }
-  }
-  design <- blind(loadDesign(cell, link, rep))
-  ref <- loadReference(cell, link, rep)
-  labels <- referenceLabels(ref, design, link)
+essChecks <- c("essScalar", "essRows", "kEss")
+
+# The acceptance checks of a reference at its current lengths (the plan's
+# reading of dec-B462's "agree and converge"): the halves agree on every
+# scored quantity's mean, 5th and 95th percentiles and on k's 5th to 95th
+# percentiles within 4.5 combined Monte Carlo standard errors; split-Rhat over
+# all chains at most 1.01 for every scalar estimand and 1.02 at the 99th
+# percentile of row quantities; tail effective draws at least 400 for scalars
+# and at the 1st percentile of row quantities; k's tail effective draws at
+# least 100. With `project`, the shipped half's own effective draws, whole and
+# thinned by `project`, for the projection.
+referenceChecks <- function(ref, design, link, labels, project = NULL) {
   cs <- referenceClasses(ref, "shipped", design, link, labels)
   cm <- referenceClasses(ref, "move", design, link, labels)
   nS <- dim(ref$shipped$record)[1L]
   perChainS <- dim(ref$shipped$record)[2L]
   perChainM <- dim(ref$move$record)[2L]
-  arr3 <- function(m, chains, per) {
-    a <- array(m, c(per, chains, ncol(m)))
-    a
-  }
+  arr3 <- function(m, chains, per) array(m, c(per, chains, ncol(m)))
+  proj <- !is.null(project)
   rows <- list()
   for (nm in names(cs)) {
     if (isTRUE(classInfo[[nm]]$band) || ncol(cs[[nm]]) == 0L) {
@@ -2749,8 +2847,8 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
         zMax = max(z, na.rm = TRUE),
         rhat = posterior::rhat(both),
         essTail = posterior::ess_tail(both),
-        essS = if (final) NA_real_ else posterior::ess_tail(x),
-        essSThin = if (final) NA_real_ else essThin(x)
+        essS = if (proj) posterior::ess_tail(x) else NA_real_,
+        essSThin = if (proj) essThinBy(x, project) else NA_real_
       )
     }
   }
@@ -2774,8 +2872,8 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
     kZ <- max(abs(kDiff) / kSe)
     kBoth <- cbind(evenRows(kS, nrow(kM)), kM)
     kEss <- posterior::ess_tail(kBoth)
-    kEssS <- if (final) NA_real_ else posterior::ess_tail(kS)
-    kEssSThin <- if (final) NA_real_ else essThin(kS)
+    kEssS <- if (proj) posterior::ess_tail(kS) else NA_real_
+    kEssSThin <- if (proj) essThinBy(kS, project) else NA_real_
     kRhat <- posterior::rhat(kBoth)
   }
   scal <- tab[!tab$row, ]
@@ -2791,66 +2889,192 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
       quantile(rowq$essTail, 0.01, na.rm = TRUE) >= 400,
     kEss = kEss >= 100
   )
-  accepted <- all(checks)
-  decision <- if (accepted) {
+  list(
+    checks = checks,
+    table = tab,
+    kZ = kZ,
+    kEss = kEss,
+    kRhat = kRhat,
+    kEssS = kEssS,
+    kEssSThin = kEssSThin
+  )
+}
+
+# The projection at the ladder's end, the shipped half f times its current
+# length: the shipped half's share of the joint effective draws replaced by f
+# times that of its current record thinned by f (a half written at the
+# move's draw count).
+projectedPass <- function(cur, f) {
+  projEss <- function(total, shipped, thin) total - shipped + f * thin
+  tab <- cur$table
+  scal <- tab[!tab$row, ]
+  rowq <- tab[tab$row, ]
+  pass <- c(
+    kEss = cur$checks[["kEss"]] ||
+      projEss(cur$kEss, cur$kEssS, cur$kEssSThin) >= 100,
+    essScalar = cur$checks[["essScalar"]] ||
+      all(projEss(scal$essTail, scal$essS, scal$essSThin) >= 400, na.rm = TRUE),
+    essRows = cur$checks[["essRows"]] ||
+      quantile(
+        projEss(rowq$essTail, rowq$essS, rowq$essSThin),
+        0.01,
+        na.rm = TRUE
+      ) >=
+        400
+  )
+  all(pass)
+}
+
+# The length guard (the second amendment), from the checks at a round's last
+# two block ends, so no single lucky block passes: accepted when every check
+# passes at both; otherwise, while the next round stays within refBlockMax,
+# extend for any failure; past it, escalate only when every check failing at
+# either end counts effective draws and the projection passes at the ladder's
+# end; otherwise failed. nextL is the next round's length, NA after the last.
+guardDecision <- function(cur, prev, nextL, projected, escalating) {
+  failing <- union(names(cur)[!cur], names(prev)[!prev])
+  if (length(failing) == 0L) {
     "accepted"
-  } else if (final) {
+  } else if (is.na(nextL)) {
     "failed"
+  } else if (nextL <= mcmc$refBlockMax) {
+    "extend"
+  } else if (escalating && all(failing %in% essChecks) && isTRUE(projected)) {
+    "escalate"
   } else {
-    # projection at escalateRecord recorded sweeps: the shipped half's share
-    # of the joint effective draws replaced by f times that of its first pass
-    # thinned by f
-    projEss <- function(total, shipped, thin) {
-      total - shipped + escalateFactor * thin
-    }
-    pass <- c(
-      kEss = checks[["kEss"]] || projEss(kEss, kEssS, kEssSThin) >= 100,
-      essScalar = checks[["essScalar"]] ||
-        all(
-          projEss(scal$essTail, scal$essS, scal$essSThin) >= 400,
-          na.rm = TRUE
-        ),
-      essRows = checks[["essRows"]] ||
-        quantile(
-          projEss(rowq$essTail, rowq$essS, rowq$essSThin),
-          0.01,
-          na.rm = TRUE
-        ) >=
-          400
-    )
-    if (all(pass) && cellTask(cell) %in% escalatingTasks) {
-      "escalate"
-    } else {
-      "failed"
-    }
+    "failed"
   }
+}
+
+# A round's acceptance: the checks at the round's length and one block
+# before it (the shipped half alone on the ladder, the move half then held at
+# refBlockMax), the guard's decision, and the round's history. An open next
+# round writes its go file, a pass writes `passed`; the jobs of later rounds
+# and the readings gated on a pass read them. A failed reference records what
+# resolving it would cost: the length its effective draws project a pass at
+# and the core-hours of a reference that long, or none when agreement or
+# Rhat fails.
+acceptReference <- function(cell, link, rep, round) {
+  dir <- referenceDir(cell, link, rep)
+  if (round > 0L && !file.exists(refGoFile(dir, round))) {
+    cat("no round", round, "for", cell, link, rep, "\n")
+    return(invisible(NULL))
+  }
+  path <- acceptanceFile(cell, link, rep)
+  design <- blind(loadDesign(cell, link, rep))
+  ref <- loadReference(cell, link, rep)
+  Ls <- ref$shipped$sweeps
+  Lm <- ref$move$sweeps
+  if (Ls != refLengths()[round + 1L]) {
+    stop("the shipped half is at ", Ls, " sweeps, not round ", round, "'s")
+  }
+  labels <- referenceLabels(ref, design, link)
+  f <- max(refLengths()) / Ls
+  cur <- referenceChecks(ref, design, link, labels, project = f)
+  prevRef <- cutReference(ref, "shipped", Ls - mcmc$refBlock)
+  if (Lm == Ls) {
+    prevRef <- cutReference(prevRef, "move", Lm - mcmc$refBlock)
+  }
+  prev <- referenceChecks(prevRef, design, link, labels)
+  rm(prevRef)
+  rounds <- refRoundsFor(cell)
+  nxt <- rounds[rounds > round][1L]
+  nextL <- if (is.na(nxt)) NA_integer_ else refLengths()[nxt + 1L]
+  projected <- projectedPass(cur, f)
+  decision <- guardDecision(
+    cur$checks,
+    prev$checks,
+    nextL,
+    projected,
+    cellTask(cell) %in% escalatingTasks
+  )
+  accepted <- decision == "accepted"
+  final <- decision %in% c("accepted", "failed")
+  tab <- cur$table
+  scal <- tab[!tab$row, ]
+  rowq <- tab[tab$row, ]
+  failing <- union(
+    names(cur$checks)[!cur$checks],
+    names(prev$checks)[!prev$checks]
+  )
+  resolve <- NULL
+  if (decision == "failed") {
+    ratio <- c(
+      essScalar = if (!cur$checks[["essScalar"]]) {
+        400 / min(scal$essTail, na.rm = TRUE)
+      },
+      essRows = if (!cur$checks[["essRows"]]) {
+        400 / quantile(rowq$essTail, 0.01, na.rm = TRUE, names = FALSE)
+      },
+      kEss = if (!cur$checks[["kEss"]]) 100 / cur$kEss
+    )
+    projectable <- all(failing %in% essChecks) && length(ratio) > 0L
+    sweeps <- if (projectable) ceiling(Ls * max(ratio)) else NA_real_
+    # a rerun's cost is its whole length, a continuation's every sweep so far
+    s4b <- cellTask(cell) == "s4b"
+    secs <- if (s4b) {
+      ref$shipped$lastSeconds + ref$move$lastSeconds
+    } else {
+      ref$shipped$seconds + ref$move$seconds
+    }
+    warm <- if (s4b) mcmc$s4bRefWarmup else mcmc$refBurn
+    resolve <- list(
+      failing = failing,
+      projectable = projectable,
+      sweeps = sweeps,
+      coreHours = if (projectable) {
+        secs / 3600 * (warm + sweeps) / (warm + Ls)
+      } else {
+        NA_real_
+      }
+    )
+  }
+  old <- if (file.exists(path)) loadChecked(path) else NULL
+  history <- if (is.null(old)) {
+    list()
+  } else {
+    Filter(function(h) h$round < round, old$history)
+  }
+  history[[length(history) + 1L]] <- list(
+    round = as.integer(round),
+    shipped = Ls,
+    move = Lm,
+    checks = cur$checks,
+    checksBlockBefore = prev$checks,
+    decision = decision
+  )
   out <- list(
     cell = cell,
     link = link,
     rep = as.integer(rep),
+    round = as.integer(round),
+    sweeps = c(shipped = Ls, move = Lm),
     final = final,
     accepted = accepted,
     decision = decision,
-    checks = checks,
-    kZ = kZ,
-    kEss = kEss,
-    kRhat = kRhat,
+    checks = cur$checks,
+    checksBlockBefore = prev$checks,
+    projected = projected,
+    kZ = cur$kZ,
+    kEss = cur$kEss,
+    kRhat = cur$kRhat,
     labels = labels,
     quantities = nrow(tab),
-    # per quantity: the halves' z, joint Rhat and tail effective draws (and
-    # at a first pass the shipped half's, whole and thinned)
+    # per quantity: the halves' z, joint Rhat and tail effective draws, and
+    # the shipped half's, whole and thinned for the projection
     table = tab,
     maxZ = max(tab$zMax, na.rm = TRUE),
     rhat99 = if (nrow(rowq)) quantile(rowq$rhat, 0.99, na.rm = TRUE) else NA,
+    history = history,
+    resolve = resolve,
     quick = quick
   )
-  if (final || decision != "escalate") {
-    out$final <- TRUE
-  }
   # the quantiles the fixed-k arms use: the pooled reference's k, or the move
   # half alone when the reference fails (flagged)
-  if (isTRUE(out$final)) {
-    # the halves weigh equally: an escalated shipped half is thinned to the
+  if (final) {
+    kS <- ref$shipped$k
+    kM <- ref$move$k
+    # the halves weigh equally: a doubled shipped half is thinned to the
     # move's length
     kPool <- if (accepted) {
       c(as.vector(evenRows(kS, nrow(kM))), as.vector(kM))
@@ -2877,14 +3101,22 @@ acceptReference <- function(cell, link, rep, final = FALSE) {
     }
     out$kFromMoveHalf <- !accepted
   }
-  saveAtomic(out, acceptanceFile(cell, link, rep))
+  saveAtomic(out, path)
+  if (decision %in% c("extend", "escalate")) {
+    file.create(refGoFile(dir, nxt))
+  } else if (accepted) {
+    file.create(refPassedFile(dir))
+  }
   cat(sprintf(
-    "accept %s %s %d: %s (%s)\n",
+    "accept %s %s %d round %d (%d, %d sweeps): %s (%s)\n",
     cell,
     link,
     as.integer(rep),
+    as.integer(round),
+    as.integer(Ls),
+    as.integer(Lm),
     decision,
-    paste(names(checks)[!checks], collapse = ",")
+    paste(failing, collapse = ",")
   ))
   invisible(out)
 }
@@ -3228,8 +3460,6 @@ fixedkFile <- function(cell, link, rep) {
 # pooled runs.
 ## ------------------------------------------------------------- compaction
 
-auditCount <- 20L
-auditBudgetMB <- 1024
 refLargeMB <- 200 # a large reference's draws
 # large references holding draws at once: two fit the bench box's free disk
 # once the binary interval study's draws were archived off it (1 for a
@@ -3283,43 +3513,31 @@ refCols <- c(
 
 escalatingTasks <- c("prob", "effect", "multi", "d2", "s9", "s4b", "loop")
 
-# A reference's full draws in MiB at full length (an escalated reference keeps
-# the first pass's draw count).
+# A reference's full draws in MiB at refBlockMax (a doubled shipped half keeps
+# that draw count, 1.25 times it at the ladder's end).
 refMB <- function(cell) {
   key <- if (cell %in% names(refCols)) cell else cellRegime(cell)$id
   ch <- refChains(cellChains(cell))
   4 * ch * refCols[[key]] / 2^20 * 2 * (20000L %/% 20L + 500L)
 }
 
-# The references kept in full for audit, chosen before any study fit: all of
-# the tranche's reference replications in a seeded order, each taken while
-# the set's draws stay within auditBudgetMB, up to auditCount of them.
-auditSet <- function(tranche = 1L) {
-  keys <- character()
-  mb <- numeric()
-  for (reg in regimes) {
-    for (cell in regimeCells(reg)) {
-      for (link in reg$links) {
-        reps <- if (reg$id == "B") 1L else seq_len(refsFor(cell, tranche))
-        keys <- c(keys, paste(cell, link, reps))
-        mb <- c(mb, rep(refMB(cell), length(reps)))
-      }
-    }
-  }
-  ord <- withSeed(seedOf("audit", tranche), sample.int(length(keys)))
-  take <- logical(length(keys))
-  used <- 0
-  for (i in ord) {
-    if (sum(take) >= auditCount) {
-      break
-    }
-    if (used + mb[i] <= auditBudgetMB) {
-      take[i] <- TRUE
-      used <- used + mb[i]
-    }
-  }
-  sort(keys[take])
-}
+# The references kept in full for audit: chosen before any study fit by the
+# first amendment (the tranche's references in a seeded order, each taken
+# while the set's draws stayed within 1 GB) and kept as chosen by the second,
+# whose looks changed the counts that draw read. E3 logistic's and S8 probit's
+# seventh references run only where their cell's first reference look
+# continues.
+auditKeys <- c(
+  "B1:spambase probit 1",
+  "B2:lalonde logistic 1",
+  "E3 logistic 7",
+  "E3 probit 5",
+  "S1 probit 6",
+  "S5 logistic 6",
+  "S6 probit 1",
+  "S8 probit 7"
+)
+auditSet <- function() auditKeys
 
 compactFile <- function(cell, link, rep) {
   file.path(referenceDir(cell, link, rep), "compact.rds")
@@ -3331,7 +3549,7 @@ removeDraws <- function(dir, keep) {
   pattern <- if (keep) {
     "-p?sampler[.]rds$"
   } else {
-    "(-record(-esc)?|-tail(-esc)?)[.]f32$|-p?sampler[.]rds$"
+    "-(record|tail)(-r[0-9]+)?[.]f32$|-p?sampler[.]rds$"
   }
   gone <- list.files(dir, pattern = pattern, full.names = TRUE)
   removed <- sum(file.size(gone))
@@ -3356,7 +3574,11 @@ compactReference <- function(cell, link, rep) {
   if (!isTRUE(acc$final)) {
     stop("no final acceptance for ", cell, " ", link, " ", rep)
   }
-  loadChecked(refscoreFile(cell, link, rep))
+  # a failed reference whose readings were gated on its pass (D1's first, B's)
+  # has none
+  if (acc$accepted || !refReadsGated(cell, rep)) {
+    loadChecked(refscoreFile(cell, link, rep))
+  }
   design <- blind(loadDesign(cell, link, rep))
   ref <- loadReference(cell, link, rep)
   cs <- referenceClasses(ref, "shipped", design, link, acc$labels)
@@ -4485,21 +4707,49 @@ checkHalves <- function() {
   )
 }
 
+# The job that writes a gate file (relative to KMN_RUN): a look's go file,
+# the look before it; a reference's go file, the acceptance of the round
+# before; its `passed`, its last round's acceptance.
+gateWriter <- function(g, cellsByFile) {
+  p <- strsplit(g, "/", fixed = TRUE)[[1L]]
+  if (p[1L] == "looks") {
+    m <- regmatches(p[3L], regexec("^(.*)-(sbc|ref)-go([0-9]+)$", p[3L]))[[1L]]
+    return(paste(
+      "look",
+      m[3L],
+      m[2L],
+      p[2L],
+      as.integer(m[4L]) - 1L,
+      sep = "-"
+    ))
+  }
+  m <- regmatches(p[3L], regexec("^(.*)-r([0-9]+)$", p[3L]))[[1L]]
+  cell <- cellsByFile[[m[2L]]]
+  rep <- as.integer(m[3L])
+  if (p[4L] == "passed") {
+    return(refFinalId(cell, p[2L], rep))
+  }
+  round <- as.integer(sub("^go-", "", p[4L]))
+  rounds <- refRoundsFor(cell)
+  jobId("accept", cell, p[2L], rep, paste0("r", max(rounds[rounds < round])))
+}
+
 # The binary interval study's defects, not repeated, on a job file: every
 # replication of every phase has its jobs, propensities in the designs; every
 # dependency names an earlier job; no two jobs write one output; fixed-k and
-# reference scoring wait for the final acceptance.
+# reference scoring wait for the last round's acceptance; every gated job runs
+# after its gate's writer; a later look's replications and references, D1's
+# later designs and B's seed fits carry their gates (the second amendment).
 checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   jobs <- readJobs(jobfile)
   ids <- jobs$id
   pos <- setNames(seq_along(ids), ids)
+  deps <- lapply(jobs$deps, jobDeps)
+  gates <- lapply(jobs$gate, jobDeps)
   depBad <- ids[
     !vapply(
       seq_along(ids),
-      function(i) {
-        d <- jobDeps(jobs$deps[i])
-        all(d %in% ids) && all(pos[d] < i)
-      },
+      function(i) all(deps[[i]] %in% ids) && all(pos[deps[[i]]] < i),
       logical(1L)
     )
   ]
@@ -4509,22 +4759,67 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
   }))
   outs <- outs[nzchar(outs)]
   unique <- !anyDuplicated(outs)
+  lastRound <- paste0("-r", length(refLengths()) - 1L, "$")
   waits <- all(vapply(
     which(grepl("^(fixedk|refscore)-", ids)),
-    function(i) {
-      any(grepl("^acceptfinal-", jobDeps(jobs$deps[i])))
-    },
+    function(i) any(grepl("^accept-", deps[[i]]) & grepl(lastRound, deps[[i]])),
     logical(1L)
   )) &&
     all(vapply(
       which(grepl("^compact-", ids)),
-      function(i) any(grepl("^refscore-", jobDeps(jobs$deps[i]))),
+      function(i) any(grepl("^refscore-", deps[[i]])),
       logical(1L)
     ))
+  # every gated job runs after its gate's writer: the writer is among its
+  # dependencies, or a dependency carries the same gate
+  allCells <- unlist(lapply(regimes, regimeCells))
+  allCells <- c(allCells, paste0(allCells, movePropSuffix))
+  cellsByFile <- setNames(as.list(allCells), cellFile(allCells))
+  gateOrderBad <- character()
+  gateByJob <- setNames(gates, ids)
+  for (i in which(lengths(gates) > 0L)) {
+    for (g in gates[[i]]) {
+      w <- gateWriter(g, cellsByFile)
+      # tranche 2's gates are written by tranche 1's looks
+      ok <- (phase == "tranche2" && !w %in% ids) ||
+        w %in% deps[[i]] ||
+        any(vapply(deps[[i]], function(d) g %in% gateByJob[[d]], NA))
+      if (!ok) {
+        gateOrderBad <- c(gateOrderBad, paste(ids[i], g))
+      }
+    }
+  }
+  gateOf <- function(id) if (id %in% ids) gateByJob[[id]] else NA_character_
   missing <- character()
+  ungated <- character()
+  wantGate <- function(id, g) {
+    if (!id %in% ids) {
+      missing <<- c(missing, id)
+    } else if (!g %in% gateOf(id)) {
+      ungated <<- c(ungated, paste(id, g))
+    }
+  }
   for (reg in regimes) {
     for (cell in regimeCells(reg)) {
       for (link in reg$links) {
+        if (phase == "tranche2") {
+          if (reg$kind == "sbc" && length(reg$sbcLooks) >= 3L) {
+            g <- lookGoRel("sbc", cell, link, 3L)
+            for (rep in seqFrom(reg$sbcLooks[2L] + 1L, repsFor(cell, 2L))) {
+              wantGate(jobId("design", cell, link, rep), g)
+              wantGate(jobId("score", cell, link, rep), g)
+            }
+          }
+          if (length(reg$refLooks) >= 3L) {
+            g <- lookGoRel("ref", cell, link, 3L)
+            for (rep in seqFrom(reg$refLooks[2L] + 1L, refsFor(cell, 2L))) {
+              wantGate(jobId("fit", cell, link, rep, "move"), g)
+              wantGate(jobId("ref", cell, link, rep, "shipped", 1L), g)
+              wantGate(jobId("refscore", cell, link, rep), g)
+            }
+          }
+          next
+        }
         for (rep in seq_len(
           if (phase == "smoke") 1L else repsFor(cell, tranche)
         )) {
@@ -4539,42 +4834,122 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
               jobId("score", cell, link, rep)
             )
           }
-          if (isRefRep(cell, rep, tranche)) {
+          refRep <- isRefRep(cell, rep, tranche) &&
+            !(reg$id == "B" && rep > 1L)
+          if (refRep) {
             need <- c(
               need,
               jobId("fit", cell, link, rep, "move"),
-              jobId("acceptfinal", cell, link, rep),
+              jobId("ref", cell, link, rep, "move", 1L),
+              refFinalId(cell, link, rep),
               jobId("fixedk", cell, link, rep),
               jobId("refscore", cell, link, rep),
               jobId("compact", cell, link, rep)
             )
           }
-          if (cellRegime(cell)$id == "B" && rep > 1L) {
-            need <- setdiff(
-              need,
-              c(
-                jobId("acceptfinal", cell, link, rep),
-                jobId("fixedk", cell, link, rep),
-                jobId("refscore", cell, link, rep),
-                jobId("compact", cell, link, rep)
-              )
+          missing <- c(missing, setdiff(need, ids))
+          if (phase != "tranche1") {
+            next
+          }
+          kS <- which(rep <= reg$sbcLooks)[1L]
+          kR <- which(rep <= reg$refLooks)[1L]
+          if (reg$kind == "sbc" && kS >= 2L) {
+            wantGate(
+              jobId("design", cell, link, rep),
+              lookGoRel("sbc", cell, link, kS)
             )
           }
-          missing <- c(missing, setdiff(need, ids))
+          if (refRep && !is.na(kR) && kR >= 2L) {
+            g <- lookGoRel("ref", cell, link, kR)
+            wantGate(jobId("ref", cell, link, rep, "shipped", 1L), g)
+            wantGate(jobId("refscore", cell, link, rep), g)
+            if (reg$kind != "sbc") {
+              wantGate(jobId("design", cell, link, rep), g)
+            }
+          }
+          if (isTRUE(reg$refGate) && rep > 1L) {
+            wantGate(
+              jobId("design", cell, link, rep),
+              refGateRel(cell, link, 1L, "passed")
+            )
+          }
+          if (refReadsGated(cell, rep) && refRep) {
+            g <- refGateRel(cell, link, rep, "passed")
+            wantGate(jobId("fixedk", cell, link, rep), g)
+            wantGate(jobId("refscore", cell, link, rep), g)
+          }
+          if (reg$id == "B") {
+            wantGate(
+              jobId("fit", cell, link, rep, "shipped"),
+              refGateRel(cell, link, 1L, "passed")
+            )
+          }
+        }
+        if (phase == "tranche1") {
+          for (k in seqFrom(1L, length(reg$sbcLooks) - 1L)) {
+            if (reg$kind == "sbc" && reg$sbcLooks[k] <= repsFor(cell, 1L)) {
+              need <- lookId("sbc", cell, link, k)
+              missing <- c(missing, setdiff(need, ids))
+            }
+          }
+          for (k in seq_len(length(reg$refLooks) - 1L)) {
+            if (reg$refLooks[k] <= refsFor(cell, 1L)) {
+              missing <- c(missing, setdiff(lookId("ref", cell, link, k), ids))
+            }
+          }
         }
       }
     }
   }
+  # every later round's jobs open only on the round before's go file
+  extendBad <- character()
+  for (i in grep("reference (extend|accept) ", jobs$cmds)) {
+    a <- strsplit(sub("^@[a-z]+ ", "", jobs$cmds[i]), " ", fixed = TRUE)[[1L]]
+    round <- as.integer(a[if (a[2L] == "extend") 7L else 6L])
+    if (round > 0L) {
+      g <- refGateRel(a[3L], a[4L], as.integer(a[5L]), sprintf("go-%d", round))
+      if (!g %in% gates[[i]]) {
+        extendBad <- c(extendBad, ids[i])
+      }
+    }
+  }
+  gateKind <- function(g) {
+    ifelse(
+      grepl("-sbc-go", g),
+      "sbc look",
+      ifelse(
+        grepl("-ref-go", g),
+        "reference look",
+        ifelse(grepl("/go-", g), "round", "passed")
+      )
+    )
+  }
+  gated <- table(vapply(
+    gates[lengths(gates) > 0L],
+    function(g) paste(sort(unique(gateKind(g))), collapse = " + "),
+    ""
+  ))
   report(
     "defects",
-    depOk && unique && waits && length(missing) == 0L,
+    depOk &&
+      unique &&
+      waits &&
+      length(missing) == 0L &&
+      length(ungated) == 0L &&
+      length(gateOrderBad) == 0L &&
+      length(extendBad) == 0L,
     list(
       jobs = length(ids),
+      gatedJobs = sum(lengths(gates) > 0L),
+      gatedBy = as.list(gated),
       dependenciesEarlier = depOk,
       badDependencies = head(depBad, 10L),
       outputsUnique = unique,
       waitForFinalAcceptance = waits,
-      missing = head(missing, 20L)
+      missing = head(missing, 20L),
+      ungated = head(ungated, 20L),
+      gateBeforeWriter = head(gateOrderBad, 20L),
+      roundsUngated = head(extendBad, 10L)
     )
   )
 }
@@ -4592,9 +4967,11 @@ commandOutput <- function(cmd) {
     reference = switch(
       a[2L],
       run = key(c(a[1:6], b)),
+      extend = key(c(a[1:7], b)),
       accept = key(a[1:6]),
       ""
     ),
+    look = key(a[1:5]),
     fixedk = key(a[1:4]),
     refscore = key(a[1:4]),
     compact = key(a[1:4]),
@@ -4639,7 +5016,7 @@ checkDiscrimination <- function(reps = 100L) {
   for (r in runs) {
     tab <- sbcTable("S6", reps, arms = r[2L], discriminate = r[1L])
     tab <- tab[tab$class == "fInt", , drop = FALSE]
-    tab$flag <- abs(tab$cov90 - 0.9) - zNoProblem * tab$se90 > 0
+    tab$flag <- abs(tab$cov90 - 0.9) - z95 * tab$se90 > 0
     tab$disc <- r[1L]
     tab$role <- rep(r[3L], nrow(tab))
     out[[paste(r, collapse = " ")]] <- tab
@@ -4686,7 +5063,7 @@ checkGraded <- function(reps = 100L) {
 checkRefCtl <- function(link = "probit") {
   tab <- do.call(
     rbind,
-    lapply(refCtlRegimes, function(cell) refRows(cell, link, 1L))
+    lapply(refCtlRegimes, function(cell) refRows(cell, link, refsFor(cell)))
   )
   saveAtomic(list(table = tab, quick = quick), checkFile("refctl.rds"))
   gate <- if (is.null(tab)) {
@@ -4729,7 +5106,7 @@ checkD2Move <- function(cell = "D2:r30", link = "probit") {
   }
   fake(paste0(cell, movePropSuffix), 2L, FALSE, moveKeys)
   fake(paste0(cell, movePropSuffix), 3L, TRUE, moveKeys)
-  tab <- refRows(cell, link, 1L)
+  tab <- refRows(cell, link, refsFor(cell))
   want <- 1 / 3
   report(
     "D2 move pipeline's reference required",
@@ -4824,8 +5201,57 @@ sbcTable <- function(regimeId, reps, arms = NULL, discriminate = "") {
   do.call(rbind, rows)
 }
 
-# G and D of a regime's SBC cells, with the reading of each.
-sbcReading <- function(regimeId, reps, arm = "shipped.default") {
+# One SBC class's reading at a look (the second amendment): a problem needs
+# G and D past the bar, the same sign, both clear of zero at zProblem; at the
+# first look, past firstLookFactor times the bar. No problem: G within the
+# bar at zNoProblem, or D within the bar either side. A band class reads on D
+# alone. Suspected: the point estimates at or past the bar (the problem
+# rule's point conditions at the bar); sized: D's standard error within
+# sizingSe; need: the replications a resolution would take at 90 percent
+# power, a problem at the estimated D when suspected, no problem at D zero
+# otherwise.
+sbcClassify <- function(gEst, seG, dEst, seD, band, reps, look = NA) {
+  G <- correctedDistanceFloor(abs(gEst), seG)
+  past <- function(b) {
+    if (band) {
+      abs(dEst) >= b
+    } else {
+      G >= b && abs(dEst) >= b && sign(dEst) == sign(gEst)
+    }
+  }
+  enough <- reps >= minSbcReps
+  barP <- if (identical(as.integer(look), 1L)) firstLookFactor * bar else bar
+  problem <- enough &&
+    past(barP) &&
+    abs(dEst) - zProblem * seD > 0 &&
+    (band || abs(gEst) - zProblem * seG > 0)
+  measured <- enough &&
+    ((!band && abs(gEst) + zNoProblem * seG < bar) ||
+      (dEst - zNoProblem * seD > -bar && dEst + zNoProblem * seD < bar))
+  suspected <- past(bar)
+  sd1 <- seD * sqrt(reps)
+  need <- if (suspected) {
+    ((zProblem + qnorm(0.9)) * sd1 / abs(dEst))^2
+  } else {
+    ((zNoProblem + qnorm(0.9)) * sd1 / bar)^2
+  }
+  list(
+    G = G,
+    reading = if (problem) {
+      "problem"
+    } else if (measured) {
+      "measured"
+    } else {
+      "unresolved"
+    },
+    suspected = suspected,
+    sized = seD <= sizingSe,
+    need = as.integer(ceiling(need))
+  )
+}
+
+# G and D of a regime's SBC cells, with the reading of each at a look.
+sbcReading <- function(regimeId, reps, arm = "shipped.default", look = NA) {
   sc <- sbcScores(regimeId, reps)
   if (length(sc) == 0L) {
     return(data.frame())
@@ -4873,22 +5299,15 @@ sbcReading <- function(regimeId, reps, arm = "shipped.default") {
       floorSe <- sqrt(0.09 / sum(n[ok]))
       seG <- max(sd(bG, na.rm = TRUE), floorSe)
       seD <- max(sd(bD, na.rm = TRUE), floorSe)
-      G <- correctedDistanceFloor(abs(gEst), seG)
-      band <- isTRUE(classInfo[[cl]]$band)
-      enough <- sum(ok) >= minSbcReps
-      problem <- enough &&
-        if (band) {
-          abs(dEst) >= bar && abs(dEst) - zProblem * seD > 0
-        } else {
-          G >= bar &&
-            abs(gEst) - zProblem * seG > 0 &&
-            abs(dEst) >= bar &&
-            sign(dEst) == sign(gEst) &&
-            abs(dEst) - zProblem * seD > 0
-        }
-      measured <- enough &&
-        ((!band && abs(gEst) + zNoProblem * seG < bar) ||
-          (dEst - zNoProblem * seD > -bar && dEst + zNoProblem * seD < bar))
+      r <- sbcClassify(
+        gEst,
+        seG,
+        dEst,
+        seD,
+        isTRUE(classInfo[[cl]]$band),
+        sum(ok),
+        look
+      )
       rows[[length(rows) + 1L]] <- data.frame(
         regime = regimeId,
         cell = regimeId,
@@ -4897,17 +5316,14 @@ sbcReading <- function(regimeId, reps, arm = "shipped.default") {
         reps = sum(ok),
         coverage = gEst + 0.9,
         gSigned = gEst,
-        G = G,
+        G = r$G,
         seG = seG,
         D = dEst,
         seD = seD,
-        sbcReading = if (problem) {
-          "problem"
-        } else if (measured) {
-          "measured"
-        } else {
-          "unresolved"
-        }
+        sbcReading = r$reading,
+        suspected = r$suspected,
+        sized = r$sized,
+        need = r$need
       )
     }
   }
@@ -4936,9 +5352,10 @@ correctedDistanceFloor <- function(observed, s) {
 # default's mass against the move half), the stuck-run shortfall, the
 # transients and k's shares, over the cell's passing references (B: over its
 # six seeds against its one reference), with bootstrap standard errors and t
-# bounds; the 80 percent rule and its sensitivity reading.
-refRows <- function(cell, link, tranche) {
-  reps <- seq_len(refsFor(cell, tranche))
+# bounds; the 80 percent rule and its sensitivity reading. n: the references
+# read, the first n replications'.
+refRows <- function(cell, link, n) {
+  reps <- seq_len(n)
   rs <- list()
   fk <- list()
   for (rep in reps) {
@@ -5067,8 +5484,8 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
     stuck <- bound(per$stuck, use & !per$kFromMoveHalf)
     k <- bound(per$kShare, use)
     df <- max(1, S[["n"]] - 1)
-    tP <- qt(1 - 0.000156, df)
-    tN <- qt(0.975, df)
+    tP <- qt(1 - alphaProblem, df)
+    tN <- qt(1 - alphaNoProblem, df)
     moveTest <- is.finite(S[["est"]]) &&
       mean(per$moveS[use], na.rm = TRUE) < bar &&
       S[["est"]] >= bar
@@ -5105,6 +5522,29 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
   ctl <- if (any(is.finite(per$ctl))) decide(passing, "ctl")
   reading <- main$reading
   reason <- ""
+  # the look rule's inputs (the second amendment): suspected, the class's
+  # estimate or any single reference at or past the bar or twice it; sized,
+  # S's standard error within sizingSe; need, the references a resolution
+  # would take at 90 percent power (t taken as z)
+  sPass <- per$S[passing]
+  sPass <- sPass[is.finite(sPass)]
+  maxS <- if (length(sPass)) max(sPass) else NA_real_
+  suspected <- (is.finite(main$S[["est"]]) && main$S[["est"]] >= bar) ||
+    (is.finite(maxS) && maxS >= 2 * bar)
+  sd1 <- main$S[["se"]] * sqrt(main$S[["n"]])
+  need <- if (!is.finite(sd1)) {
+    NA_integer_
+  } else if (suspected && is.finite(main$S[["est"]]) && main$S[["est"]] > 0) {
+    as.integer(ceiling(
+      ((qnorm(1 - alphaProblem) + qnorm(0.9)) *
+        sd1 /
+        max(main$S[["est"]], bar))^2
+    ))
+  } else {
+    as.integer(ceiling(
+      ((qnorm(1 - alphaNoProblem) + qnorm(0.9)) * sd1 / bar)^2
+    ))
+  }
   if (passShare < 0.8) {
     reading <- "unresolved"
     reason <- "failed references"
@@ -5135,8 +5575,169 @@ refClassReading <- function(per, cell, link, cl, attempted, isB) {
     seCtl = if (is.null(ctl)) NA_real_ else ctl$S[["se"]],
     ctlReading = if (is.null(ctl)) NA_character_ else ctl$reading,
     refReading = reading,
-    refReason = reason
+    refReason = reason,
+    maxS = maxS,
+    suspected = suspected,
+    sized = is.finite(main$S[["se"]]) && main$S[["se"]] <= sizingSe,
+    need = need
   )
+}
+
+## ------------------------------------------------------------------ looks
+
+# Sequential looks (the second amendment). A look reads a cell and link's
+# first n replications (SBC) or references, records each class's reading and
+# whether the cell continues to the next look, and opens that look's
+# replications or references by writing its go file, which the jobs of the
+# next look are gated on. Relative to KMN_RUN, as the job file names gates.
+lookGoRel <- function(kind, cell, link, k) {
+  file.path("looks", link, sprintf("%s-%s-go%d", cellFile(cell), kind, k))
+}
+lookGoFile <- function(kind, cell, link, k) {
+  runDir(lookGoRel(kind, cell, link, k))
+}
+lookFile <- function(kind, cell, link, k) {
+  runDir("looks", link, sprintf("%s-%s-%d.rds", cellFile(cell), kind, k))
+}
+
+resolvedReadings <- c("problem", "bounded", "measured")
+
+# Per class, the reading at the first look at which it resolved, and that
+# look, over a list of looks' readings in order (col: the reading column);
+# a class never resolved reads "unresolved" with no look.
+firstResolved <- function(byLook, col) {
+  classes <- unique(unlist(lapply(byLook, function(r) r$class)))
+  out <- data.frame(
+    class = classes,
+    reading = "unresolved",
+    look = NA_integer_
+  )
+  for (i in seq_along(classes)) {
+    for (k in seq_along(byLook)) {
+      r <- byLook[[k]]
+      v <- r[[col]][r$class == classes[i]]
+      if (length(v) == 1L && v %in% resolvedReadings) {
+        out$reading[i] <- v
+        out$look[i] <- k
+        break
+      }
+    }
+  }
+  out
+}
+
+# Whether an SBC cell and link continue past look k. Only tier 1 and 2 row
+# classes decide (fTail, tier 3, never resolves at these counts; scalars are
+# one interval a replication). At the first look, the floor: continue unless
+# every deciding class resolved, a problem only once sized. At later looks,
+# continue only to show a suspected unresolved class or to size a problem.
+sbcLookDecision <- function(rows, k, prior = list()) {
+  fr <- firstResolved(c(prior, list(rows)), "sbcReading")
+  deciding <- Filter(
+    function(cl) {
+      ci <- classInfo[[cl]]
+      isTRUE(ci$row) && !isTRUE(ci$band) && ci$tier <= 2L
+    },
+    rows$class
+  )
+  why <- character()
+  for (cl in deciding) {
+    r <- fr$reading[fr$class == cl]
+    cur <- rows[rows$class == cl, , drop = FALSE]
+    if (r == "problem" && !isTRUE(cur$sized)) {
+      why <- c(why, paste(cl, "a problem not yet sized"))
+    } else if (r == "unresolved" && k == 1L) {
+      why <- c(why, paste(cl, "unresolved at the floor"))
+    } else if (r == "unresolved" && isTRUE(cur$suspected)) {
+      why <- c(why, paste(cl, "suspected"))
+    }
+  }
+  list(continue = length(why) > 0L, why = why, readings = fr)
+}
+
+# Whether a cell and link's references continue past look k: only to show a
+# suspected class not yet resolved or to size a problem. Band classes never
+# decide: the rule cannot read them, so no reference is spent on them.
+refLookDecision <- function(rows, k, prior = list()) {
+  if (is.null(rows) || nrow(rows) == 0L) {
+    return(list(continue = FALSE, why = character(), readings = NULL))
+  }
+  fr <- firstResolved(c(prior, list(rows)), "refReading")
+  deciding <- Filter(function(cl) !isTRUE(classInfo[[cl]]$band), rows$class)
+  why <- character()
+  for (cl in deciding) {
+    r <- fr$reading[fr$class == cl]
+    cur <- rows[rows$class == cl, , drop = FALSE]
+    if (r == "problem" && !isTRUE(cur$sized)) {
+      why <- c(why, paste(cl, "a problem not yet sized"))
+    } else if (r == "unresolved" && isTRUE(cur$suspected)) {
+      why <- c(why, paste(cl, "suspected"))
+    }
+  }
+  list(continue = length(why) > 0L, why = why, readings = fr)
+}
+
+runLook <- function(kind, cell, link, k) {
+  reg <- cellRegime(cell)
+  looks <- if (kind == "sbc") reg$sbcLooks else reg$refLooks
+  prior <- lapply(seq_len(k - 1L), function(j) {
+    loadChecked(lookFile(kind, cell, link, j))$rows
+  })
+  if (kind == "sbc") {
+    rows <- sbcReading(reg$id, looks[k], look = k)
+    rows <- rows[rows$link == link, , drop = FALSE]
+    dec <- sbcLookDecision(rows, k, prior)
+  } else {
+    rows <- refRows(cell, link, looks[k])
+    dec <- refLookDecision(rows, k, prior)
+  }
+  more <- dec$continue && k < length(looks)
+  saveAtomic(
+    list(
+      kind = kind,
+      cell = cell,
+      link = link,
+      look = as.integer(k),
+      count = looks[k],
+      rows = rows,
+      readings = dec$readings,
+      continue = more,
+      why = dec$why,
+      quick = quick
+    ),
+    lookFile(kind, cell, link, k)
+  )
+  if (more) {
+    file.create(lookGoFile(kind, cell, link, k + 1L))
+  }
+  cat(sprintf(
+    "look %s %s %s %d at %d: %s%s\n",
+    kind,
+    cell,
+    link,
+    as.integer(k),
+    as.integer(looks[k]),
+    if (more) "continue" else "stop",
+    if (length(dec$why)) {
+      paste0(" (", paste(dec$why, collapse = "; "), ")")
+    } else {
+      ""
+    }
+  ))
+}
+
+# The looks a cell and link ran: the first, then each whose go file the one
+# before wrote, within the tranche's count.
+looksRun <- function(kind, cell, link, looks, most) {
+  k <- 1L
+  while (
+    k < length(looks) &&
+      looks[k + 1L] <= most &&
+      file.exists(lookGoFile(kind, cell, link, k + 1L))
+  ) {
+    k <- k + 1L
+  }
+  seq_len(k)
 }
 
 # A cell's tier: the rarer of its regime's and its estimand's; a B problem
@@ -5296,22 +5897,72 @@ d1Secondary <- function(reps = 1:10) {
   if (length(rows)) do.call(rbind, rows) else NULL
 }
 
+# A cell and link's failed references among its first n: how many, and the
+# core-hours resolving them would take (NA when one cannot be projected: its
+# halves disagree or do not converge).
+refCost <- function(cell, link, n) {
+  cells <- cell
+  if (cellTask(cell) == "d2") {
+    cells <- c(cells, paste0(cell, movePropSuffix))
+  }
+  failed <- 0L
+  hours <- 0
+  for (c1 in cells) {
+    for (rep in seq_len(n)) {
+      p <- acceptanceFile(c1, link, rep)
+      if (!file.exists(p)) {
+        next
+      }
+      acc <- loadChecked(p)
+      if (isTRUE(acc$final) && !isTRUE(acc$accepted)) {
+        failed <- failed + 1L
+        hours <- hours + acc$resolve$coreHours
+      }
+    }
+  }
+  list(failed = failed, hours = hours)
+}
+
+# The tranche's readings (the second amendment): per cell, link and class,
+# each side's reading at the first look at which it resolved, its estimates
+# at the last look run, and, unresolved, the count a resolution would take;
+# the combined reading; a cell's failed references and their cost to resolve.
 runRead <- function(tranche = 1L) {
   all <- list()
   for (reg in regimes) {
-    sbc <- if (reg$kind == "sbc") {
-      sbcReading(reg$id, reg$reps[tranche])
-    } else {
-      data.frame()
-    }
+    sbcAt <- list()
     for (cell in regimeCells(reg)) {
       for (link in reg$links) {
-        ref <- refRows(cell, link, tranche)
-        s <- if (nrow(sbc)) {
-          sbc[sbc$link == link, , drop = FALSE]
+        sbcK <- if (reg$kind == "sbc") {
+          looksRun("sbc", cell, link, reg$sbcLooks, repsFor(cell, tranche))
         } else {
-          data.frame()
+          integer()
         }
+        sbcBy <- lapply(sbcK, function(k) {
+          key <- as.character(k)
+          if (is.null(sbcAt[[key]])) {
+            sbcAt[[key]] <<- sbcReading(reg$id, reg$sbcLooks[k], look = k)
+          }
+          r <- sbcAt[[key]]
+          r[r$link == link, , drop = FALSE]
+        })
+        sbcBy <- Filter(function(r) nrow(r) > 0L, sbcBy)
+        sFr <- if (length(sbcBy)) firstResolved(sbcBy, "sbcReading")
+        s <- if (length(sbcBy)) sbcBy[[length(sbcBy)]] else data.frame()
+        refK <- looksRun(
+          "ref",
+          cell,
+          link,
+          reg$refLooks,
+          refsFor(cell, tranche)
+        )
+        refBy <- Filter(
+          Negate(is.null),
+          lapply(refK, function(k) refRows(cell, link, reg$refLooks[k]))
+        )
+        rFr <- if (length(refBy)) firstResolved(refBy, "refReading")
+        ref <- if (length(refBy)) refBy[[length(refBy)]] else NULL
+        cost <- refCost(cell, link, reg$refLooks[max(refK)])
         classes <- union(
           if (nrow(s)) s$class else character(),
           if (!is.null(ref)) ref$class else character()
@@ -5327,6 +5978,8 @@ runRead <- function(tranche = 1L) {
           } else {
             NULL
           }
+          sRead <- if (is.null(sr)) NA else sFr$reading[sFr$class == cl]
+          rRead <- if (is.null(rr)) NA else rFr$reading[rFr$class == cl]
           all[[length(all) + 1L]] <- data.frame(
             regime = reg$id,
             cell = cell,
@@ -5340,7 +5993,14 @@ runRead <- function(tranche = 1L) {
             seG = if (is.null(sr)) NA else sr$seG,
             D = if (is.null(sr)) NA else sr$D,
             seD = if (is.null(sr)) NA else sr$seD,
-            sbcReading = if (is.null(sr)) NA else sr$sbcReading,
+            sbcReps = if (is.null(sr)) NA else sr$reps,
+            sbcLook = if (is.null(sr)) NA else sFr$look[sFr$class == cl],
+            sbcReading = sRead,
+            sbcNeed = if (is.null(sr) || !identical(sRead, "unresolved")) {
+              NA
+            } else {
+              sr$need
+            },
             S = if (is.null(rr)) NA else rr$S,
             seS = if (is.null(rr)) NA else rr$seS,
             stuck = if (is.null(rr)) NA else rr$stuck,
@@ -5349,18 +6009,49 @@ runRead <- function(tranche = 1L) {
             seK = if (is.null(rr)) NA else rr$seK,
             refs = if (is.null(rr)) NA else rr$refs,
             passShare = if (is.null(rr)) NA else rr$passShare,
-            refReading = if (is.null(rr)) NA else rr$refReading,
-            refReason = if (is.null(rr)) NA else rr$refReason,
-            reading = combineReading(
-              if (is.null(sr)) NA else sr$sbcReading,
-              if (is.null(rr)) NA else rr$refReading
-            )
+            refLook = if (is.null(rr)) NA else rFr$look[rFr$class == cl],
+            refReading = rRead,
+            refReason = if (is.null(rr) || !identical(rRead, "unresolved")) {
+              NA
+            } else if (isTRUE(classInfo[[cl]]$band)) {
+              "a band: the look rule cannot read it"
+            } else {
+              rr$refReason
+            },
+            refNeed = if (is.null(rr) || !identical(rRead, "unresolved")) {
+              NA
+            } else {
+              rr$need
+            },
+            refsFailed = cost$failed,
+            resolveHours = cost$hours,
+            reading = combineReading(sRead, rRead)
+          )
+        }
+        if (!length(classes) && cost$failed > 0L) {
+          # every reference failed and its readings were gated on a pass
+          all[[length(all) + 1L]] <- data.frame(
+            regime = reg$id,
+            cell = cell,
+            link = link,
+            class = NA,
+            tier = reg$tier,
+            refsFailed = cost$failed,
+            resolveHours = cost$hours,
+            reading = "unresolved"
           )
         }
       }
     }
   }
-  tab <- do.call(rbind, all)
+  cols <- names(all[[which.max(vapply(all, ncol, 0L))]])
+  tab <- do.call(
+    rbind,
+    lapply(all, function(r) {
+      r[setdiff(cols, names(r))] <- NA
+      r[cols]
+    })
+  )
   d1 <- if (tranche == 1L) d1Secondary() else NULL
   saveAtomic(
     list(table = tab, d1Secondary = d1, tranche = tranche, quick = quick),
@@ -5384,7 +6075,10 @@ runRead <- function(tranche = 1L) {
 # Job files for the box queue: one job a line, tab-separated: id, the ids it
 # waits for (comma-separated, or "-"), its peak memory in GiB (jobMem), cell
 # key, expected seconds or NA, commands joined by " ;; ", each "@<build>
-# <harness args>".
+# <harness args>", and its gates: files relative to KMN_RUN, comma-separated,
+# or "-". Once its dependencies are met, a job whose gate file is missing is
+# recorded "skipped" and counts as done (the second amendment's looks and
+# rounds).
 jobId <- function(...) {
   parts <- as.character(c(...))
   paste(gsub("[:]", "_", parts[nzchar(parts)]), collapse = "-")
@@ -5405,10 +6099,34 @@ readJobs <- function(path) {
   data.frame(
     id = vapply(parts, `[`, "", 1L),
     deps = vapply(parts, `[`, "", 2L),
-    big = vapply(parts, `[`, "", 3L),
+    mem = vapply(parts, `[`, "", 3L),
     cell = vapply(parts, `[`, "", 4L),
     est = vapply(parts, `[`, "", 5L),
-    cmds = vapply(parts, `[`, "", 6L)
+    cmds = vapply(parts, `[`, "", 6L),
+    gate = vapply(parts, `[`, "", 7L)
+  )
+}
+
+# A reference's gate files relative to KMN_RUN (its go files and `passed`),
+# and the id of its last round's acceptance, which every reading of it waits
+# for (skipped rounds count as done).
+refGateRel <- function(cell, link, rep, name) {
+  file.path("ref", link, sprintf("%s-%s", cellFile(cell), repTag(rep)), name)
+}
+refFinalId <- function(cell, link, rep) {
+  jobId("accept", cell, link, rep, paste0("r", max(refRoundsFor(cell))))
+}
+lookId <- function(kind, cell, link, k) jobId("look", kind, cell, link, k)
+
+# Conditions on jobs: gates and dependencies, merged.
+when <- function(gate = character(), deps = character()) {
+  list(gate = gate, deps = deps)
+}
+mergeWhen <- function(...) {
+  w <- Filter(Negate(is.null), list(...))
+  list(
+    gate = unique(unlist(lapply(w, `[[`, "gate"))),
+    deps = unique(unlist(lapply(w, `[[`, "deps")))
   )
 }
 
@@ -5416,6 +6134,12 @@ longOracleRegimes <- c("S1", "S5", "S6", "S7", "E1")
 longOracleReps <- 25L
 
 # The jobs of one replication of one cell and link, in dependency order.
+# whenAll gates every job of the replication (a later look's replications, D1's
+# designs after its first); whenRef the reference's first round and readings
+# (a later look's references). B's seed fits, and D1's and B's first
+# reference's readings, wait for that reference to pass. Phase "movefit": a
+# reference added to a replication run in an earlier tranche, its move fit
+# and the reference alone.
 replicationJobs <- function(
   cell,
   link,
@@ -5427,23 +6151,182 @@ replicationJobs <- function(
   longReps = longOracleReps,
   bSeeds = repsFor(cell, tranche),
   arms = NULL,
-  gate = NULL
+  inflight = NULL,
+  whenAll = NULL,
+  whenRef = NULL
 ) {
   reg <- cellRegime(cell)
   big <- reg$big
   disc <- if (nzchar(discriminate)) paste0(" ", discriminate) else ""
+  addW <- function(id, deps, cmd, w = NULL) {
+    m <- mergeWhen(whenAll, w)
+    add(id, unique(c(deps, m$deps)), big, cell, cmd, m$gate)
+  }
   design <- jobId("design", cell, link, rep, discriminate)
-  add(
-    design,
-    character(),
-    big,
-    cell,
-    sprintf("@shipped design %s %s %d%s", cell, link, rep, disc)
-  )
+  newDesign <- !"movefit" %in% phases
+  if (newDesign) {
+    addW(
+      design,
+      character(),
+      sprintf("@shipped design %s %s %d%s", cell, link, rep, disc)
+    )
+  }
+  dDeps <- if (newDesign) design else character()
   ref <- isRefRep(cell, rep, tranche) && !nzchar(discriminate)
   if (reg$id == "B" && rep > 1L) {
     # B's seeds share its one reference, made on its first replication
     ref <- FALSE
+  }
+  passedWhen <- function(refRep) {
+    if (refReadsGated(cell, refRep)) {
+      when(refGateRel(cell, link, refRep, "passed"))
+    }
+  }
+  # B's seed fits wait for its one reference to pass
+  fitWhen <- if (reg$id == "B" && "references" %in% phases) {
+    when(
+      refGateRel(cell, link, 1L, "passed"),
+      refFinalId(cell, link, 1L)
+    )
+  }
+  # a reference's rounds and acceptances; at most refInFlight large
+  # references hold their draws at once: a large reference's parts wait for
+  # the compaction (or failure) of the large one refInFlight before it
+  referenceRuns <- function(refCell, deps) {
+    parts <- seq_len(refPartsPerKernel(refCell))
+    if (!is.null(inflight) && refMB(refCell) >= refLargeMB) {
+      if (length(inflight$large) >= refInFlight) {
+        deps <- c(
+          deps,
+          paste0("~", inflight$large[length(inflight$large) - refInFlight + 1L])
+        )
+      }
+      inflight$large <- c(inflight$large, jobId("compact", refCell, link, rep))
+    }
+    prevAcc <- NULL
+    for (round in refRoundsFor(refCell)) {
+      L <- refLengths()[round + 1L]
+      halves <- if (L <= mcmc$refBlockMax) c("shipped", "move") else "shipped"
+      go <- if (round > 0L) {
+        when(refGateRel(refCell, link, rep, sprintf("go-%d", round)))
+      }
+      partIds <- character()
+      for (which in halves) {
+        for (part in parts) {
+          if (round == 0L) {
+            id <- jobId("ref", refCell, link, rep, which, part)
+            addW(
+              id,
+              deps,
+              sprintf(
+                "@%s reference run %s %s %d %d",
+                which,
+                refCell,
+                link,
+                rep,
+                part
+              ),
+              whenRef
+            )
+          } else {
+            id <- jobId(
+              "ref",
+              refCell,
+              link,
+              rep,
+              which,
+              part,
+              paste0("r", round)
+            )
+            addW(
+              id,
+              prevAcc,
+              sprintf(
+                "@%s reference extend %s %s %d %d %d",
+                which,
+                refCell,
+                link,
+                rep,
+                part,
+                round
+              ),
+              go
+            )
+          }
+          partIds <- c(partIds, id)
+        }
+      }
+      acc <- jobId("accept", refCell, link, rep, paste0("r", round))
+      addW(
+        acc,
+        partIds,
+        sprintf(
+          "@shipped reference accept %s %s %d %d",
+          refCell,
+          link,
+          rep,
+          round
+        ),
+        if (round == 0L) whenRef else go
+      )
+      prevAcc <- acc
+    }
+  }
+  # a reference's scoring and compaction; B's wait for its last seed's fits
+  scoreRef <- function(refRep, refCell = cell, fixedk = TRUE, fitIds) {
+    seedFits <- if (reg$id == "B") {
+      unlist(lapply(seq_len(bSeeds), function(r) {
+        c(
+          jobId("fit", cell, link, r, "shipped"),
+          jobId("fit", cell, link, r, "move")
+        )
+      }))
+    } else if (isMoveProp(refCell)) {
+      c(
+        jobId("fit", cell, link, refRep, "move"),
+        jobId("fit", cell, link, refRep, "mixed")
+      )
+    } else {
+      fitIds
+    }
+    addW(
+      jobId("refscore", refCell, link, refRep),
+      c(
+        refFinalId(refCell, link, refRep),
+        if (fixedk) jobId("fixedk", refCell, link, refRep),
+        seedFits
+      ),
+      sprintf(
+        "@shipped refscore %s %s %d%s",
+        refCell,
+        link,
+        refRep,
+        if (reg$id == "B") paste0(" ", bSeeds) else ""
+      ),
+      mergeWhen(whenRef, passedWhen(refRep))
+    )
+    # a failed reference whose readings were gated still compacts (its draws
+    # removed)
+    addW(
+      jobId("compact", refCell, link, refRep),
+      jobId("refscore", refCell, link, refRep),
+      sprintf("@shipped compact %s %s %d", refCell, link, refRep),
+      whenRef
+    )
+  }
+  refJobs <- function() {
+    referenceRuns(cell, dDeps)
+    addW(
+      jobId("fixedk", cell, link, rep),
+      refFinalId(cell, link, rep),
+      sprintf("@shipped fixedk %s %s %d", cell, link, rep),
+      mergeWhen(whenRef, passedWhen(rep))
+    )
+  }
+  refs <- ref && "references" %in% phases
+  if (refs && reg$id == "B") {
+    # B's reference first: its seed fits wait for it
+    refJobs()
   }
   fitIds <- character()
   if ("fits" %in% phases && !is.null(arms)) {
@@ -5451,11 +6334,9 @@ replicationJobs <- function(
     # the rescoring
     for (arm in arms) {
       id <- jobId("fit", cell, link, rep, arm, discriminate)
-      add(
+      addW(
         id,
         design,
-        big,
-        cell,
         sprintf(
           "@%s fit %s %s %d %s%s",
           armBuild[[arm]],
@@ -5468,11 +6349,9 @@ replicationJobs <- function(
       )
       fitIds <- c(fitIds, id)
     }
-    add(
+    addW(
       jobId("score", cell, link, rep, discriminate),
       fitIds,
-      FALSE,
-      cell,
       sprintf("@shipped score %s %s %d%s", cell, link, rep, disc)
     )
     phases <- setdiff(phases, "fits")
@@ -5495,11 +6374,9 @@ replicationJobs <- function(
     }
     for (arm in arms) {
       id <- jobId("fit", cell, link, rep, arm, discriminate)
-      add(
+      addW(
         id,
         design,
-        big,
-        cell,
         sprintf(
           "@%s fit %s %s %d %s%s",
           armBuild[[arm]],
@@ -5508,162 +6385,177 @@ replicationJobs <- function(
           rep,
           arm,
           disc
-        )
+        ),
+        fitWhen
       )
       fitIds <- c(fitIds, id)
     }
     if (reg$id == "D2") {
       id <- jobId("fit", cell, link, rep, "mixed")
-      add(
+      addW(
         id,
         jobId("fit", cell, link, rep, "move"),
-        big,
-        cell,
         sprintf("@shipped fit %s %s %d mixed", cell, link, rep)
       )
       fitIds <- c(fitIds, id)
     }
     if (reg$kind == "sbc") {
-      add(
+      addW(
         jobId("score", cell, link, rep, discriminate),
         fitIds,
-        FALSE,
-        cell,
         sprintf("@shipped score %s %s %d%s", cell, link, rep, disc)
       )
     }
   }
-  # a reference's scoring and compaction; B's wait for its last seed's fits
-  scoreRef <- function(refRep, refCell = cell, fixedk = TRUE) {
-    seedFits <- if (reg$id == "B") {
-      unlist(lapply(seq_len(bSeeds), function(r) {
-        c(
-          jobId("fit", cell, link, r, "shipped"),
-          jobId("fit", cell, link, r, "move")
-        )
-      }))
-    } else if (isMoveProp(refCell)) {
-      c(
-        jobId("fit", cell, link, refRep, "move"),
-        jobId("fit", cell, link, refRep, "mixed")
-      )
-    } else {
-      fitIds
-    }
-    add(
-      jobId("refscore", refCell, link, refRep),
-      c(
-        jobId("acceptfinal", refCell, link, refRep),
-        if (fixedk) jobId("fixedk", refCell, link, refRep),
-        seedFits
-      ),
-      big,
-      cell,
-      sprintf(
-        "@shipped refscore %s %s %d%s",
-        refCell,
-        link,
-        refRep,
-        if (reg$id == "B") paste0(" ", bSeeds) else ""
-      )
+  if ("movefit" %in% phases && ref) {
+    id <- jobId("fit", cell, link, rep, "move")
+    addW(
+      id,
+      character(),
+      sprintf("@move fit %s %s %d move", cell, link, rep),
+      whenRef
     )
-    add(
-      jobId("compact", refCell, link, refRep),
-      jobId("refscore", refCell, link, refRep),
-      big,
-      cell,
-      sprintf("@shipped compact %s %s %d", refCell, link, refRep)
-    )
-  }
-  # a reference's runs and acceptance; at most refInFlight large references
-  # hold their draws at once: a large reference's parts wait for the
-  # compaction (or failure) of the large one refInFlight before it
-  referenceRuns <- function(refCell, deps) {
-    parts <- seq_len(refPartsPerKernel(refCell))
-    partIds <- character()
-    if (!is.null(gate) && refMB(refCell) >= refLargeMB) {
-      if (length(gate$large) >= refInFlight) {
-        deps <- c(
-          deps,
-          paste0("~", gate$large[length(gate$large) - refInFlight + 1L])
-        )
-      }
-      gate$large <- c(gate$large, jobId("compact", refCell, link, rep))
-    }
-    for (which in c("shipped", "move")) {
-      for (part in parts) {
-        id <- jobId("ref", refCell, link, rep, which, part)
-        add(
-          id,
-          deps,
-          big,
-          cell,
-          sprintf(
-            "@%s reference run %s %s %d %d",
-            which,
-            refCell,
-            link,
-            rep,
-            part
-          )
-        )
-        partIds <- c(partIds, id)
-      }
-    }
-    acc <- jobId("accept", refCell, link, rep)
-    add(
-      acc,
-      partIds,
-      big,
-      cell,
-      sprintf("@shipped reference accept %s %s %d", refCell, link, rep)
-    )
-    escIds <- character()
-    for (part in parts) {
-      id <- jobId("escalate", refCell, link, rep, part)
-      add(
-        id,
-        acc,
-        big,
-        cell,
-        sprintf(
-          "@shipped reference escalate %s %s %d %d",
-          refCell,
-          link,
-          rep,
-          part
-        )
-      )
-      escIds <- c(escIds, id)
-    }
-    add(
-      jobId("acceptfinal", refCell, link, rep),
-      escIds,
-      big,
-      cell,
-      sprintf("@shipped reference accept %s %s %d final", refCell, link, rep)
-    )
+    fitIds <- id
   }
   if (reg$id == "B" && rep == bSeeds && rep > 1L && "references" %in% phases) {
-    scoreRef(1L)
+    scoreRef(1L, fitIds = fitIds)
   }
-  if (ref && "references" %in% phases) {
-    referenceRuns(cell, design)
-    add(
-      jobId("fixedk", cell, link, rep),
-      jobId("acceptfinal", cell, link, rep),
-      big,
-      cell,
-      sprintf("@shipped fixedk %s %s %d", cell, link, rep)
-    )
+  if (refs) {
+    if (reg$id != "B") {
+      refJobs()
+    }
     if (reg$id != "B" || bSeeds == 1L) {
-      scoreRef(rep)
+      scoreRef(rep, fitIds = fitIds)
     }
     if (reg$kind == "designed" && cellTask(cell) == "d2") {
       # the move pipeline's reference waits for the move fit's propensity
       mp <- paste0(cell, movePropSuffix)
-      referenceRuns(mp, c(design, jobId("fit", cell, link, rep, "move")))
-      scoreRef(rep, mp, fixedk = FALSE)
+      referenceRuns(mp, c(dDeps, jobId("fit", cell, link, rep, "move")))
+      scoreRef(rep, mp, fixedk = FALSE, fitIds = fitIds)
+    }
+  }
+}
+
+seqFrom <- function(from, to) if (from <= to) seq.int(from, to) else integer()
+
+# The jobs of one cell and link in a tranche (the second amendment). Tranche
+# 1: the first two looks' replications and references, each later look's
+# gated on the look before it, with the look jobs; D1's designs after its
+# first wait for that first's reference to pass. Tranche 2: the third look's
+# replications and references, gated on tranche 1's last looks.
+cellJobs <- function(cell, link, tranche, add, inflight) {
+  reg <- cellRegime(cell)
+  sbcL <- reg$sbcLooks
+  refL <- reg$refLooks
+  lookOf <- function(looks, rep) which(rep <= looks)[1L]
+  goWhen <- function(kind, k, after = TRUE) {
+    if (!is.na(k) && k >= 2L) {
+      when(
+        lookGoRel(kind, cell, link, k),
+        if (after) lookId(kind, cell, link, k - 1L)
+      )
+    }
+  }
+  designed <- reg$kind != "sbc"
+  if (tranche == 1L) {
+    for (rep in seq_len(repsFor(cell, 1L))) {
+      whenAll <- NULL
+      whenRef <- NULL
+      if (reg$kind == "sbc") {
+        whenAll <- goWhen("sbc", lookOf(sbcL, rep))
+        if (isRefRep(cell, rep, 1L)) {
+          whenRef <- goWhen("ref", lookOf(refL, rep))
+        }
+      } else if (isTRUE(reg$refGate) && rep > 1L) {
+        whenAll <- when(
+          refGateRel(cell, link, 1L, "passed"),
+          refFinalId(cell, link, 1L)
+        )
+      } else if (reg$id != "B") {
+        # a designed cell's replications are its references
+        whenAll <- goWhen("ref", lookOf(refL, rep))
+      }
+      replicationJobs(
+        cell,
+        link,
+        rep,
+        1L,
+        add,
+        inflight = inflight,
+        whenAll = whenAll,
+        whenRef = whenRef
+      )
+      k <- match(rep, sbcL)
+      if (reg$kind == "sbc" && !is.na(k) && k < length(sbcL)) {
+        from <- if (k == 1L) 1L else sbcL[k - 1L] + 1L
+        g <- goWhen("sbc", k, after = FALSE)
+        add(
+          lookId("sbc", cell, link, k),
+          c(
+            vapply(from:rep, function(r) jobId("score", cell, link, r), ""),
+            if (k > 1L) lookId("sbc", cell, link, k - 1L)
+          ),
+          FALSE,
+          cell,
+          sprintf("@shipped look sbc %s %s %d", cell, link, k),
+          g$gate
+        )
+      }
+      k <- match(rep, refL)
+      if (!is.na(k) && k < length(refL) && rep <= refsFor(cell, 1L)) {
+        from <- if (k == 1L) 1L else refL[k - 1L] + 1L
+        scores <- unlist(lapply(from:rep, function(r) {
+          c(
+            jobId("refscore", cell, link, r),
+            if (cellTask(cell) == "d2") {
+              jobId("refscore", paste0(cell, movePropSuffix), link, r)
+            }
+          )
+        }))
+        g <- goWhen("ref", k, after = FALSE)
+        add(
+          lookId("ref", cell, link, k),
+          c(scores, if (k > 1L) lookId("ref", cell, link, k - 1L)),
+          FALSE,
+          cell,
+          sprintf("@shipped look ref %s %s %d", cell, link, k),
+          g$gate
+        )
+      }
+    }
+  } else {
+    if (reg$kind == "sbc" && length(sbcL) >= 3L) {
+      for (rep in seqFrom(sbcL[2L] + 1L, min(sbcL[3L], repsFor(cell, 2L)))) {
+        replicationJobs(
+          cell,
+          link,
+          rep,
+          2L,
+          add,
+          inflight = inflight,
+          whenAll = goWhen("sbc", 3L, after = FALSE)
+        )
+      }
+    }
+    if (length(refL) >= 3L) {
+      for (rep in seqFrom(refL[2L] + 1L, min(refL[3L], refsFor(cell, 2L)))) {
+        w <- goWhen("ref", 3L, after = FALSE)
+        replicationJobs(
+          cell,
+          link,
+          rep,
+          2L,
+          add,
+          phases = if (designed) {
+            c("fits", "references")
+          } else {
+            c("movefit", "references")
+          },
+          inflight = inflight,
+          whenAll = if (designed) w,
+          whenRef = if (!designed) w
+        )
+      }
     }
   }
 }
@@ -5672,18 +6564,28 @@ replicationJobs <- function(
 # measurements at full length on D1:arr1-mod and B1:bank (2026-10-29: a D1
 # reference's fixed-k and reading jobs 14.7 and 14.2, its acceptance and
 # compaction 7.5 and 8.2, its fits 5.2): reference jobs by the reference's
-# draws, fits by the draws they keep, stan4bart parts and reruns by every
-# iteration's fits.
+# draws (an acceptance holds a second copy cut a block short; the ladder's
+# end 1.25 times the shipped draws), fits by the draws they keep, stan4bart
+# parts and reruns by every iteration's fits.
 jobMem <- function(cmd) {
   a <- strsplit(sub("^@[a-z]+ ", "", cmd), " ", fixed = TRUE)[[1L]]
-  kind <- if (a[1L] == "reference") a[2L] else a[1L]
-  cell <- if (a[1L] == "reference") a[3L] else a[2L]
+  nested <- a[1L] %in% c("reference", "look")
+  kind <- if (a[1L] == "look") {
+    "look"
+  } else if (nested) {
+    a[2L]
+  } else {
+    a[1L]
+  }
+  cell <- if (nested) a[3L] else a[2L]
   key <- if (cell %in% names(refCols)) cell else cellRegime(cell)$id
   cols <- refCols[[key]]
   r <- refMB(cell) / 1024
   s4b <- cellTask(cell) == "s4b"
   fitGB <- function(draws) 8 * cellChains(cell) * draws * cols / 2^30
   iterGB <- function(iter) 8 * refPartChains * iter * cols / 2^30
+  roundL <- function(i) refLengths()[as.integer(a[i]) + 1L]
+  ladder <- function(i) if (roundL(i) >= max(refLengths())) 1.15 else 1
   gb <- switch(
     kind,
     fit = {
@@ -5698,16 +6600,17 @@ jobMem <- function(cmd) {
       0.5 + 8.6 * fitGB(draws)
     },
     timing = 1 + 4 * fitGB(drawsPerChain(cell)),
-    run = if (s4b) 0.5 + 5 * iterGB(mcmc$s4bRefIter) else 1,
-    escalate = if (s4b) {
-      0.5 + 5 * iterGB(mcmc$escalateRecord + mcmc$refTail)
+    run = if (s4b) 0.5 + 5 * iterGB(mcmc$refFirst + mcmc$refTail) else 1,
+    extend = if (s4b) {
+      0.5 + 5 * iterGB(roundL(7L) + mcmc$refTail)
     } else {
-      1 + r
+      1 + 1.25 * r
     },
-    accept = ,
+    accept = 1 + 10.5 * r * ladder(6L),
     compact = 1 + 9.5 * r,
     fixedk = ,
     refscore = 1 + 16.5 * r,
+    look = 2,
     1
   )
   ceiling(2 * gb) / 2
@@ -5715,7 +6618,7 @@ jobMem <- function(cmd) {
 
 writeJobs <- function(phase, path, tranche = 1L) {
   jobs <- list()
-  add <- function(id, deps, big, cell, cmd) {
+  add <- function(id, deps, big, cell, cmd, gate = character()) {
     jobs[[length(jobs) + 1L]] <<- paste(
       id,
       if (length(deps)) paste(deps, collapse = ",") else "-",
@@ -5723,19 +6626,28 @@ writeJobs <- function(phase, path, tranche = 1L) {
       cell,
       "NA",
       cmd,
+      if (length(gate)) paste(gate, collapse = ",") else "-",
       sep = "\t"
     )
   }
-  gate <- new.env()
-  gate$large <- character()
+  inflight <- new.env()
+  inflight$large <- character()
   allCells <- unlist(lapply(regimes, regimeCells))
   if (phase == "smoke") {
     for (cell in allCells) {
       for (link in cellRegime(cell)$links) {
-        replicationJobs(cell, link, 1L, tranche, add, bSeeds = 1L, gate = gate)
+        replicationJobs(
+          cell,
+          link,
+          1L,
+          tranche,
+          add,
+          bSeeds = 1L,
+          inflight = inflight
+        )
       }
     }
-  } else if (phase == "tranche1") {
+  } else if (phase %in% c("tranche1", "tranche2")) {
     order <- c(
       "S6",
       "S1",
@@ -5743,9 +6655,13 @@ writeJobs <- function(phase, path, tranche = 1L) {
     )
     for (cell in order) {
       for (link in cellRegime(cell)$links) {
-        for (rep in seq_len(repsFor(cell, tranche))) {
-          replicationJobs(cell, link, rep, tranche, add, gate = gate)
-        }
+        cellJobs(
+          cell,
+          link,
+          if (phase == "tranche1") 1L else 2L,
+          add,
+          inflight
+        )
       }
     }
   } else if (phase == "null") {
@@ -5789,7 +6705,7 @@ writeJobs <- function(phase, path, tranche = 1L) {
           tranche,
           add,
           longReps = 0L,
-          gate = gate
+          inflight = inflight
         )
       }
     }
@@ -5906,13 +6822,14 @@ main <- function(args) {
         as.integer(a[4L]),
         as.integer(a[5L])
       ),
-      accept = acceptReference(
+      extend = extendReferencePart(
         a[2L],
         a[3L],
         as.integer(a[4L]),
-        identical(opt(5L), "final")
+        as.integer(a[5L]),
+        as.integer(a[6L])
       ),
-      escalate = escalateReferencePart(
+      accept = acceptReference(
         a[2L],
         a[3L],
         as.integer(a[4L]),
@@ -5920,6 +6837,7 @@ main <- function(args) {
       ),
       stop("no reference action ", a[1L])
     ),
+    look = runLook(a[1L], a[2L], a[3L], as.integer(a[4L])),
     fixedk = runFixedk(a[1L], a[2L], as.integer(a[3L])),
     compact = compactReference(a[1L], a[2L], as.integer(a[3L])),
     refscore = runRefscore(
