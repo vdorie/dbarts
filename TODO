@@ -1122,8 +1122,11 @@ release (deferred; the one ordered procedure, run when VD triggers it)
     twoStageDesignTMLE; GitHub - embarcadero, ibis.iSDM (data@x), sl3,
     mlr3extralearners (formals filtering), tidytreatment dev
     (binaryOffset), TobitBART and the macroeconomic BART template
-    (rngKind); the maintainer's own plotBart and thinkCausal get change
-    lists. This subsumes the separate lorax, WeightIt/MatchIt, countSTAR
+    (rngKind); setResponse inside a Gibbs sampler, asked to pass
+    updateScale explicitly with the value their model means (dec-B498) -
+    countSTAR, mcmcsae, nlfh, TobitBART, SURBART, nkids, sebart, nbbart,
+    sudo, mf-bavart, mf-ss; the maintainer's own plotBart and thinkCausal
+    get change lists. This subsumes the separate lorax, WeightIt/MatchIt, countSTAR
     and tmle contact items below.
   pre-release sequence (VD 2026-09-12): VD's own items before the
     merge - lorax contact, WeightIt/MatchIt contact, tmle contact, GitHub issue #80,
