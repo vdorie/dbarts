@@ -395,9 +395,7 @@ own leaf scale, sharers of unequal counts (38 and 37) among them, a forest that
 stated sd unmoved; beside a forest with a basis and on a multinomial sampler, a leaf prior difference refused by
 name; `$setModel` on amplitude and multinomial samplers taking the tree and residual priors; an unstated variance
 forest following `$setModel`'s tree prior and a stated one not (under (b), neither follows); `$setControl`'s
-routes bitwise as main; once forest-after-merge has landed (whichever lands second adds it),
-`$setTreePrior(forests = )` given a bare `normal()` refused as a non-forest entry, and
-`forest(leaf.prior = normal(sd = 2))` refused as `sd` is. The A/B adds bcf and three-forest samplers through
+routes bitwise as main. The A/B adds bcf and three-forest samplers through
 `$setModel` with an unchanged tree prior and excludes the one changed call (a heteroscedastic `$setModel` with a
 new tree prior and an unstated variance forest), which the twin oracle and the exact arm below cover. Gates as
 slice 3, plus forest-prior-exact.R (its sharer arms with the group's leaf prior installed by `$setModel` before
@@ -421,10 +419,8 @@ variance-forest-inherited-tree-prior removed. The order is call 15.
 
 With forest-after-merge (8adc5d1a), independent of this item: whichever is green first lands first. Shared file:
 [`SamplerBase`](../../src/bartcore/facade.hpp), to which both add virtuals (this plan's slices 3 and 4), a
-textual conflict, `--preclean` on each. Its long form folds into `sd`, so `$setTreePrior(forests = )` evaluates
-in its widened vocabulary, where `normal` resolves: a bare `normal()` there reaches the door's refusal of a
-non-forest entry rather than "could not find function", and `forest(leaf.prior = normal(sd = ))` is refused as
-`sd` is. Its `updateBasisScale` leaves a re-derived prior that `$setModel(s$model)` must not undo, slice 4 never
+textual conflict, `--preclean` on each. `forest()` takes no `leaf.prior` (dec-B508), so the door meets no
+leaf prior inside a forest entry. Its `updateBasisScale` leaves a re-derived prior that `$setModel(s$model)` must not undo, slice 4 never
 taking the leaf-scale write on a sampler with amplitudes; whichever lands second pins update, `$setModel(s$model)`,
 then the reader's `sd` and the next draws unchanged, and a copy equal. Its own plan names
 [`forestMapEntry`](../../src/bartcore/combiner.hpp) as its conflict with forests-shared-total; this plan does
