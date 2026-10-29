@@ -1058,12 +1058,13 @@ the commit that adds this amendment.
   8, chosen in advance in a seeded order (B1:spambase probit, B2:lalonde logistic, E3 logistic 7 and
   probit 5, S1 probit 6, S5 logistic 6, S6 probit 1, S8 probit 7). Saved samplers drop their control's
   call, which held the data frames: the samplers were 1.7 GB of a D1 reference's 2.7 GB in flight, and an
-  S9 sampler falls from 12 MB to 0.2. One reference with 200 MB or more of draws holds them at a time (two
-  if the bench box's disk is grown). Projected over tranche 1's schedule: a peak of 6.2 GB and 5.8 GB at
-  the end (fits, designs and scores 2.0, compacted references and their readings 2.9, the audit set 1.0),
-  against 8.7 GB free once the smoke and stage 1 directories were deleted (their cited outputs copied off
-  the box); the queues stop below 2 GB free. With two large references in flight the peak is 7.9 GB, which
-  the stop would interrupt. Before, 20 audit references (about 3 GB) and two large references in flight.
+  S9 sampler falls from 12 MB to 0.2. The smoke and stage 1 directories were deleted (their cited outputs
+  copied off the box), and the binary interval study's stored draws (13.5 GB; the study stopped, its
+  write-up done) archived off the box, checked file by file. Two references with 200 MB or more of draws
+  hold them at once. Projected over tranche 1's schedule: a peak of 7.9 GB and 5.8 GB at the end (fits,
+  designs and scores 2.0, compacted references and their readings 2.9, the audit set 1.0), against 16 GB
+  free; the queues stop below 2 GB free. With one large reference at a time the peak would be 6.2 GB, for
+  about 7 more hours of wall time. Before, 20 audit references (about 3 GB).
 - **Memory and workers.** Measured on the box at full length: a D1 reference's fixed-k and scoring jobs
   peak at 14.7 and 14.2 GB, its acceptance and compaction at 7.5 and 8.2, its fits at 5.1; a B1:bank
   reference's jobs at 3.5 or less; an E1 escalation, a full stan4bart rerun, at 8.2. Four D1 scoring jobs
@@ -1077,9 +1078,9 @@ the commit that adds this amendment.
   scoring and start-up) and 80 from the smoke's job times scaled to full length, against 80 and 77 before
   the amendment (D2's second reference, stan4bart's full reruns, the reference-path control). The
   reference-path control's S6 and S7 cells escalated 2 of 24 references, under the projection's one in
-  six. About 30 to 35 hours of wall time at four workers (23 to 27 with two large references in flight).
-  This round used about 3 core-hours, 8.5 in all before tranche 1; at the plan's ratio of the whole study
-  to tranche 1, the expected total is about 135, under the stop at 211.
+  six. About 23 to 27 hours of wall time at four workers. This round used about 3 core-hours, 8.5 in all
+  before tranche 1; at the plan's ratio of the whole study to tranche 1, the expected total is about 135,
+  under the stop at 211.
 
 ## Rulings and pending slots
 
