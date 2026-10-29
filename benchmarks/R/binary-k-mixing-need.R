@@ -2369,11 +2369,15 @@ abind3 <- function(a, b) {
 # refTail iterations are the tail. The plan records them through stan4bart's
 # callback; a fit with a callback keeps nothing else, k included, so the run
 # keeps its fits instead (the same draws).
-referenceStan4bart <- function(design, seed) {
+referenceStan4bart <- function(
+  design,
+  seed,
+  iter = mcmc$s4bRefIter
+) {
   f <- fitStan4bart(
     design,
     refPartChains,
-    c(mcmc$s4bRefWarmup, mcmc$s4bRefIter),
+    c(mcmc$s4bRefWarmup, iter),
     seed
   )
   a <- s4bArrays(f$fit, refPartChains)
@@ -2403,7 +2407,9 @@ referenceStan4bart <- function(design, seed) {
 
 # Escalation: the shipped chains continue from their saved samplers to
 # escalateRecord recorded sweeps, then a new tail; only when the acceptance
-# projected a pass. Otherwise a no-op.
+# projected a pass. Otherwise a no-op. stan4bart cannot continue a chain, so
+# its shipped parts rerun from the same seed at escalateRecord recorded
+# iterations, whose first pass is a prefix of the rerun (checked and recorded).
 escalateReferencePart <- function(cell, link, rep, part) {
   requireBuild("shipped")
   dir <- referenceDir(cell, link, rep)
@@ -2412,15 +2418,13 @@ escalateReferencePart <- function(cell, link, rep, part) {
     cat("no escalation:", acc$decision, "\n")
     return(invisible(NULL))
   }
-  if (cellTask(cell) == "s4b") {
-    stop(
-      "a stan4bart reference escalates by a longer rerun of its shipped half; not built"
-    )
-  }
   metaPath <- file.path(dir, sprintf("shipped-part%d.rds", part))
   meta <- loadChecked(metaPath)
   if (isTRUE(meta$escalated)) {
     return(invisible(NULL))
+  }
+  if (cellTask(cell) == "s4b") {
+    return(escalateStan4bartPart(cell, link, rep, part, dir, meta, metaPath))
   }
   s <- readRDS(file.path(dir, sprintf("shipped-part%d-sampler.rds", part)))
   ctrl <- s$control
@@ -2439,11 +2443,17 @@ escalateReferencePart <- function(cell, link, rep, part) {
       r$test
     }
   }
-  if (task == "loop") {
-    stop("E3 escalation not built")
-  }
   recRaw <- pick(r1)
   tailRaw <- pick(r2)
+  if (task == "loop") {
+    # E3's columns in the first pass's order: observed, masked, held out
+    design <- loadDesign(cell, link, rep)
+    obs <- setdiff(seq_along(design$y), design$mask)
+    held <- if (is.null(design$xh)) 0L else nrow(design$xh)
+    ord <- order(c(obs, design$mask, length(design$y) + seq_len(held)))
+    recRaw <- recRaw[ord, , , drop = FALSE]
+    tailRaw <- tailRaw[ord, , , drop = FALSE]
+  }
   if (task == "s9") {
     # S9's propensity chains continue with the outcome's, their columns after
     # the outcome's as the first pass wrote them
@@ -2481,6 +2491,41 @@ escalateReferencePart <- function(cell, link, rep, part) {
   file.remove(file.path(
     dir,
     sprintf("shipped-part%d-%s.f32", part, c("record", "tail"))
+  ))
+}
+
+escalateStan4bartPart <- function(cell, link, rep, part, dir, meta, metaPath) {
+  design <- blind(loadDesign(cell, link, rep))
+  seed <- seedOf("reference", cell, link, rep, "shipped", part)
+  res <- referenceStan4bart(
+    design,
+    seed,
+    iter = mcmc$escalateRecord + mcmc$refTail
+  )
+  old <- as.matrix(meta$k)
+  prefix <- max(abs(as.matrix(res$k)[seq_len(nrow(old)), , drop = FALSE] - old))
+  meta$recordFile <- sprintf("shipped-part%d-record-esc.f32", part)
+  meta$tailFile <- sprintf("shipped-part%d-tail-esc.f32", part)
+  writeSingle(res$record, file.path(dir, meta$recordFile))
+  writeSingle(res$tail, file.path(dir, meta$tailFile))
+  meta$dimsRecord <- dim(res$record)
+  meta$dimsTail <- dim(res$tail)
+  meta$k <- res$k
+  meta$kTail <- res$kTail
+  meta$prefixMaxDiff <- prefix
+  meta$escalated <- TRUE
+  saveAtomic(meta, metaPath)
+  file.remove(file.path(
+    dir,
+    sprintf("shipped-part%d-%s.f32", part, c("record", "tail"))
+  ))
+  cat(sprintf(
+    "escalate %s %s %d part %d: rerun, first pass a prefix to %.3g\n",
+    cell,
+    link,
+    as.integer(rep),
+    as.integer(part),
+    prefix
   ))
 }
 
@@ -3213,7 +3258,7 @@ refCols <- c(
   "B2:lalonde" = 1228
 )
 
-escalatingTasks <- c("prob", "effect", "multi", "d2", "s9")
+escalatingTasks <- c("prob", "effect", "multi", "d2", "s9", "s4b", "loop")
 
 # A reference's full draws in MiB at full length: the first pass, or the
 # escalated reference (the shipped half at escalateRecord).
@@ -5402,10 +5447,11 @@ replicationJobs <- function(
     escIds <- character()
     for (part in parts) {
       id <- jobId("escalate", refCell, link, rep, part)
+      # a stan4bart rerun keeps every iteration's fits: counted as big
       add(
         id,
         acc,
-        big,
+        big || cellTask(refCell) == "s4b",
         cell,
         sprintf(
           "@shipped reference escalate %s %s %d %d",
