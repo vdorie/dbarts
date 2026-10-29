@@ -813,16 +813,28 @@ items
     place or in a variable (tilde accepted, never required) and a character
     vector. Today forest(~ x) is refused and varianceForest(x2) fails with
     'object not found'. About 70 lines. For 1.0-0.
-  forest-list-by-label: ruled, not built (dec-B516). In
-    $setLeafPrior(forests = ) and predict(bases = ) a named entry selects
+  forest-list-by-label: ruled, not built (dec-B516; $setLeafPrior's half
+    moot under dec-B518). In predict(bases = ) a named entry selects
     its forest by label, an unnamed one its position; forests not named
     are left as they are; two entries on one forest refused; predict still
     needs every basis with newdata. About 30 lines. For 1.0-0.
-  leaf-prior-writer-by-level: ruled, not built (dec-B515). $setLeafPrior
-    takes creation's two levels on every sampler: leaf.prior, the fitting
-    function's prior for every forest stating no sd of its own, and
-    forests = list(forest(sd = )), each forest's own size; refused only
-    where creation refuses the same statement. getLeafPrior's records
+  forest-door: ruled, not built (dec-B518). A live sampler changes one
+    forest through $setForest(forest, sd = , power = , base = ,
+    amplitude = , proposal.probs = , n.perturb.cuts = ), by label or
+    position, changing only what it states and refusing structure by name;
+    $getForest(forest) gives the statement in force in the same names;
+    the variance forest has $setVarianceForest(...) and its reader;
+    setForestBasis and setForestWeights stay. $setLeafPrior and
+    $setTreePrior keep only the fitting function's level. Replaces the
+    forests = lists of setmodel slice 4's door and dec-B515's second
+    level. Open, for VD: the name, multinomial category labels, the
+    spelling that returns a forest to the fitting function's level. For
+    1.0-0, with setmodel slice 4.
+  leaf-prior-writer-by-level: ruled, not built (dec-B515; its forests =
+    level moved to forest-door by dec-B518). $setLeafPrior takes
+    leaf.prior, the fitting function's prior for every forest stating no
+    sd of its own, on every sampler; refused only where creation refuses
+    the same statement. getLeafPrior's records
     carry the same fields on every sampler (the statement in force, sd,
     sd.stated); one forest still returns one record. Today a one-forest
     sampler refuses forests = even as list(forest()). The several-forest
@@ -837,7 +849,7 @@ items
     cgm()) fitting the default depth silently. Before setmodel-parameters'
     slice 4; bartCause and stan4bart pass through. For 1.0-0.
   coefficient-prior-live: ruled, not built (dec-B511). On a live sampler,
-    $setLeafPrior(forests = ) changes a forest's coefficient between held
+    $setForest(amplitude = ) (dec-B518) changes a forest's coefficient between held
     and drawn (dec-B254) and between the normal and student(df), and a
     t's df, at the next sweep; a t's mixing variance starts at the
     normal's, a return to the normal resets it. Today 'amplitude' is
