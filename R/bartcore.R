@@ -2633,35 +2633,19 @@ setModelRefused <- function(sampler) {
     is(sampler$model@tree.prior, "dbartsDartPrior")
 }
 
-# The family a fitting function resolves "auto" to against this sampler's
-# response: counts are multinomial, a categorical response of three or more
-# levels ordinal if ordered and multinomial if not, a binary one probit, and a
-# numeric one probit when it holds exactly 0 and 1 and gaussian otherwise.
-autoFamilyFor <- function(data) {
-  if (!is.null(dataCounts(data))) {
-    return("multinomial")
-  }
-  if (identical(data@response.type, "numeric")) {
-    values <- unique(data@y)
-    binary <- length(values) == 2L && all(sort(values) == c(0, 1))
-    return(if (binary) "probit" else "gaussian")
-  }
-  if (data@response.n.levels >= 3L) {
-    return(
-      if (identical(data@response.type, "ordered factor")) {
-        "ordinal"
-      } else {
-        "multinomial"
-      }
-    )
-  }
-  "probit"
+# Whether a model states the kind of its response: a family other than
+# "auto", a family token a fitting function recorded, or degrees of freedom.
+# One that states none is read as the sampler's own.
+modelStatesFamily <- function(model) {
+  !identical(model@family, "auto") ||
+    !is.null(attr(model, "family.spec", exact = TRUE)) ||
+    !is.null(attr(model, "resid.df", exact = TRUE))
 }
 
 # The kind of response a model states: the family token a fitting function
 # recorded, else a Student-t error if the model carries degrees of freedom,
-# else the engine family, "auto" resolved against the sampler's response.
-modelFamilyKind <- function(model, data) {
+# else the engine family.
+modelFamilyKind <- function(model) {
   spec <- attr(model, "family.spec", exact = TRUE)
   if (!is.null(spec)) {
     return(spec@token)
@@ -2669,7 +2653,7 @@ modelFamilyKind <- function(model, data) {
   if (!is.null(attr(model, "resid.df", exact = TRUE))) {
     return("student")
   }
-  if (identical(model@family, "auto")) autoFamilyFor(data) else model@family
+  model@family
 }
 
 # A negative-binomial shape as the engine holds it: a positive whole number,
@@ -2690,7 +2674,6 @@ familyHasNoResidualScale <- function(family) {
 # the sampler's value and the model's.
 modelStructureRefusal <- function(sampler, newModel) {
   model <- sampler$model
-  data <- sampler$data
   differs <- function(what, own, given) {
     stop(
       "$setModel cannot change ",
@@ -2711,19 +2694,23 @@ modelStructureRefusal <- function(sampler, newModel) {
   }
   quoted <- function(value) paste0("'", value, "'")
 
-  # the family
-  family <- if (identical(newModel@family, "auto")) {
-    autoFamilyFor(data)
-  } else {
-    newModel@family
-  }
-  if (!identical(family, model@family)) {
-    differs("the response family", quoted(model@family), quoted(family))
-  }
-  ownKind <- modelFamilyKind(model, data)
-  newKind <- modelFamilyKind(newModel, data)
-  if (!identical(ownKind, newKind)) {
-    differs("the response family", quoted(ownKind), quoted(newKind))
+  # the family; a model stating none states no change
+  ownKind <- modelFamilyKind(model)
+  if (modelStatesFamily(newModel)) {
+    if (
+      !identical(newModel@family, "auto") &&
+        !identical(newModel@family, model@family)
+    ) {
+      differs(
+        "the response family",
+        quoted(model@family),
+        quoted(newModel@family)
+      )
+    }
+    newKind <- modelFamilyKind(newModel)
+    if (!identical(ownKind, newKind)) {
+      differs("the response family", quoted(ownKind), quoted(newKind))
+    }
   }
 
   # the leaf kind and its columns
@@ -2764,22 +2751,56 @@ modelStructureRefusal <- function(sampler, newModel) {
   }
 
   # interactions and blocks; an absent attribute states none
-  if (attrDiffers("interaction.max.order")) {
-    differs(
-      "the interaction limit",
-      format(attr(model, "interaction.max.order", exact = TRUE)),
-      format(attr(newModel, "interaction.max.order", exact = TRUE))
+  limitText <- function(m) {
+    limit <- attr(m, "interaction.max.order", exact = TRUE)
+    if (is.null(limit)) "none" else format(limit)
+  }
+  # the pairs are stored 0-based, one per column
+  pairsText <- function(m) {
+    pairs <- attr(m, "interaction.forbidden", exact = TRUE)
+    if (is.null(pairs) || length(pairs) == 0L) {
+      return("none")
+    }
+    pairs <- matrix(pairs, nrow = 2L) + 1L
+    paste0(
+      "pairs ",
+      paste0("(", pairs[1L, ], ", ", pairs[2L, ], ")", collapse = ", ")
     )
+  }
+  # the block of each column is stored 0-based, negative for a column in none
+  blocksText <- function(m) {
+    blockOf <- attr(m, "block.of.column", exact = TRUE)
+    counts <- attr(m, "block.tree.counts", exact = TRUE)
+    if (is.null(blockOf)) {
+      return("none")
+    }
+    groups <- vapply(
+      seq_along(counts),
+      function(g) {
+        paste0(
+          "(",
+          paste(which(blockOf == g - 1L), collapse = ", "),
+          ") in ",
+          counts[[g]],
+          " trees"
+        )
+      },
+      ""
+    )
+    paste0("columns ", paste(groups, collapse = ", "))
+  }
+  if (attrDiffers("interaction.max.order")) {
+    differs("the interaction limit", limitText(model), limitText(newModel))
   }
   if (attrDiffers("interaction.forbidden")) {
     differs(
       "the forbidden interactions",
-      "one set of pairs",
-      "another"
+      pairsText(model),
+      pairsText(newModel)
     )
   }
   if (attrDiffers("block.of.column") || attrDiffers("block.tree.counts")) {
-    differs("the blocks", "one partition", "another")
+    differs("the blocks", blocksText(model), blocksText(newModel))
   }
 
   # DART against the ordinary tree prior
@@ -2792,11 +2813,18 @@ modelStructureRefusal <- function(sampler, newModel) {
 
   # the columns a forest may split on: its trees were drawn under them
   if (attrDiffers("forest.columns")) {
-    stop(
-      "$setModel cannot change the columns a forest may split on, its ",
-      "'vars': they are fixed when a sampler is created; make a new ",
-      "sampler instead",
-      call. = FALSE
+    varsText <- function(m) {
+      columns <- attr(m, "forest.columns", exact = TRUE)
+      if (is.null(columns)) {
+        "every column"
+      } else {
+        paste0("columns ", paste(columns, collapse = ", "))
+      }
+    }
+    differs(
+      "the columns a forest may split on, its 'vars'",
+      varsText(model),
+      varsText(newModel)
     )
   }
 
@@ -2809,7 +2837,10 @@ modelStructureRefusal <- function(sampler, newModel) {
       call. = FALSE
     )
   }
-  if (identical(ownKind, "student")) {
+  if (
+    identical(ownKind, "student") &&
+      !is.null(attr(newModel, "resid.df", exact = TRUE))
+  ) {
     ownDf <- as.double(attr(model, "resid.df", exact = TRUE))
     newDf <- as.double(attr(newModel, "resid.df", exact = TRUE))
     if (!identical(ownDf, newDf)) {

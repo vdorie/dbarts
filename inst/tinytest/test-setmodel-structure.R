@@ -61,20 +61,67 @@ refused(
   build()$model,
   "response family.*'student'.*'gaussian'"
 )
-# a model written "auto" is resolved against the sampler's response as a
-# fitting function resolves it
+# a model whose family is "auto" and states no kind states no change, on any
+# response, and is stored as the sampler's own, so a copy runs what the live
+# sampler runs
 local({
-  auto <- build()$model
-  auto@family <- "auto"
-  expect_silent(build()$setModel(auto))
+  statesNone <- function(model) {
+    model@family <- "auto"
+    attr(model, "family.spec") <- NULL
+    attr(model, "resid.df") <- NULL
+    model
+  }
+  makers <- list(
+    function() build(),
+    function() build(family = student(df = 3)),
+    function() build(yBinary, family = probit()),
+    function() build(yBinary, family = gaussian()),
+    function() build(2 * yBinary, family = gaussian()),
+    function() build(yCount, family = nbinom())
+  )
+  for (make in makers) {
+    for (model in list(statesNone(make()$model), make()$model)) {
+      if (!identical(model@family, "auto")) {
+        model@family <- "auto"
+      }
+      sampler <- make()
+      twin <- make()
+      sampler$run(2L, 3L)
+      twin$run(2L, 3L)
+      expect_silent(sampler$setModel(model))
+      twin$setModel(twin$model)
+      expect_identical(sampler$model, twin$model)
+      expect_identical(sampler$run(2L, 3L)$train, twin$run(2L, 3L)$train)
+      expect_identical(
+        sampler$copy()$run(2L, 3L)$train,
+        twin$copy()$run(2L, 3L)$train
+      )
+    }
+  }
+  # "auto" beside a recorded family token states that token's kind
   auto <- build(yBinary, family = probit())$model
   auto@family <- "auto"
-  expect_silent(build(yBinary, family = probit())$setModel(auto))
-  # a gaussian fit of a 0/1 response is not what "auto" resolves it to
-  gaussianBinary <- function() build(yBinary, family = gaussian())
-  auto <- gaussianBinary()$model
-  auto@family <- "auto"
-  refused(gaussianBinary, auto, "response family.*'gaussian'.*'probit'")
+  refused(build, auto, "response family.*'gaussian'.*'probit'")
+})
+# a Student-t error stated by its degrees of freedom alone
+local({
+  model <- build()$model
+  attr(model, "family.spec") <- NULL
+  attr(model, "resid.df") <- 3
+  refused(build, model, "response family.*'gaussian'.*'student'")
+  makeStudent <- function() build(family = student(df = 3))
+  model <- makeStudent()$model
+  attr(model, "family.spec") <- NULL
+  expect_silent(makeStudent()$setModel(model))
+})
+# a hazard fit states its kind by its family token alone
+local({
+  makeHazard <- function() {
+    build(cbind(pmin(yCount, 4L) + 1L, yBinary), family = hazard(breaks = 3L))
+  }
+  model <- makeHazard()$model
+  attr(model, "family.spec") <- NULL
+  refused(makeHazard, model, "response family.*'hazard.probit'.*'probit'")
 })
 
 # the leaf kind and its columns, in each direction
@@ -109,32 +156,61 @@ refused(
 # interactions and blocks: added, removed, changed; an absent attribute is a
 # statement of none
 makeInteractions <- function() build(interactions = interactions(max.order = 2))
-refused(build, makeInteractions()$model, "interaction limit")
-refused(makeInteractions, build()$model, "interaction limit")
+refused(
+  build,
+  makeInteractions()$model,
+  "interaction limit: this sampler's is none and the model's is 2;"
+)
+refused(
+  makeInteractions,
+  build()$model,
+  "interaction limit: this sampler's is 2 and the model's is none;"
+)
 refused(
   makeInteractions,
   build(interactions = interactions(max.order = 3))$model,
-  "interaction limit"
+  "interaction limit: this sampler's is 2 and the model's is 3;"
 )
 refused(
   makeInteractions,
   build(
-    interactions = interactions(max.order = 2, forbid = list(c(1L, 2L)))
+    interactions = interactions(
+      max.order = 2,
+      forbid = list(c(1L, 2L), c(2L, 3L))
+    )
   )$model,
-  "forbidden interactions"
+  paste0(
+    "forbidden interactions: this sampler's is none and the model's is ",
+    "pairs \\(1, 2\\), \\(2, 3\\);"
+  )
 )
 makeBlocks <- function() build(blocks = blocks(list(c(1L, 2L), 3L)))
-refused(build, makeBlocks()$model, "blocks")
-refused(makeBlocks, build()$model, "blocks")
+refused(
+  build,
+  makeBlocks()$model,
+  paste0(
+    "blocks: this sampler's is none and the model's is columns ",
+    "\\(1, 2\\) in 6 trees, \\(3\\) in 6 trees;"
+  )
+)
+refused(
+  makeBlocks,
+  build()$model,
+  "blocks: this sampler's is columns .* and the model's is none;"
+)
 refused(
   makeBlocks,
   build(blocks = blocks(list(1L, c(2L, 3L))))$model,
-  "blocks"
+  paste0(
+    "blocks: this sampler's is columns \\(1, 2\\) in 6 trees, ",
+    "\\(3\\) in 6 trees and the model's is columns \\(1\\) in 6 trees, ",
+    "\\(2, 3\\) in 6 trees;"
+  )
 )
 refused(
   makeBlocks,
-  build(blocks = blocks(list(c(1L, 2L), 3L), c(8L, 4L)))$model,
-  "blocks"
+  build(blocks = blocks(list(c(1L, 2L), 3L), c(9L, 3L)))$model,
+  "blocks: .* and the model's is columns \\(1, 2\\) in 9 trees, \\(3\\) in 3"
 )
 
 # DART against the ordinary prior, in each direction
@@ -149,7 +225,15 @@ refused(
 refused(
   function() build(forests = list(forest(vars = c(1L, 2L)))),
   build()$model,
-  "columns a forest may split on"
+  paste0(
+    "columns a forest may split on, its 'vars': this sampler's is columns ",
+    "1, 2 and the model's is every column;"
+  )
+)
+refused(
+  build,
+  build(forests = list(forest(vars = c(1L, 3L))))$model,
+  "'vars': this sampler's is every column and the model's is columns 1, 3;"
 )
 
 # monotone: the bridge's message stands
@@ -222,6 +306,26 @@ local({
   }
   sampler <- make()
   expect_silent(sampler$setModel(sampler$model))
+  for (family in c("ordinal", "logistic", "nbinom")) {
+    make <- switch(
+      family,
+      ordinal = function() {
+        build(
+          cut(y, 3L, labels = c("l", "m", "h"), ordered_result = TRUE),
+          family = ordinal()
+        )
+      },
+      logistic = function() build(yBinary, family = logistic()),
+      nbinom = function() build(yCount, family = nbinom())
+    )
+    model <- make()$model
+    model@resid.prior <- chisq(10, 0.5)
+    refused(
+      make,
+      model,
+      paste0("family '", family, "' has no residual scale")
+    )
+  }
   sampler <- build()
   model <- sampler$model
   model@resid.prior <- chisq(10, 0.5)
@@ -244,6 +348,13 @@ local({
     model,
     "does not resolve"
   )
+  # a multinomial sampler reaches its wholesale refusal, not this one
+  makeCategories <- function() {
+    build(factor(c("p", "q", "r")[yCount %% 3L + 1L]), family = multinomial())
+  }
+  model <- makeCategories()$model
+  model@leaf.prior@k <- 9
+  refused(makeCategories, model, "not available on a multinomial sampler")
 })
 
 # a consistent one is taken, in each spelling

@@ -3192,6 +3192,16 @@ dbartsSampler <- setRefClass(
       ptr <- getPointer()
       selfEnv <- parent.env(environment())
 
+      # a model stating no family states the sampler's own, which a copy
+      # re-creates from
+      if (!modelStatesFamily(newModel)) {
+        attr(newModel, "family.spec") <- attr(
+          model,
+          "family.spec",
+          exact = TRUE
+        )
+        attr(newModel, "resid.df") <- attr(model, "resid.df", exact = TRUE)
+      }
       newModel@family <- model@family
       # what the sampler holds for its life stays the sampler's
       newModel <- keepModelRecords(newModel, model)

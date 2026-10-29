@@ -180,8 +180,8 @@ periods) need no refusal until the migration moves them; this item adds none for
 1. `modelStructureRefusal(sampler, newModel)` in R/bartcore.R, called first in `$setModel`, before any other
    check and before anything is stored. It compares, in order, and refuses the first difference by name with the
    sampler's value and the model's, ending "make a new sampler instead":
-   - the family: the `family` slot, a model's "auto" resolved against the sampler's response as a fitting
-     function resolves it; and the kind `family.spec` names (gaussian against student, among the rest);
+   - the family: the `family` slot, a model's "auto" stating no change (call 2); and the kind `family.spec`
+     names (gaussian against student, among the rest);
    - the leaf kind and its columns, moved up from the bridge with a message that names the leaf model (the
      bridge's check stays as a backstop);
    - a gp leaf's `max.leaf.size` (call 3);
@@ -448,8 +448,12 @@ not touch it.
 
 1. A structural difference is checked in R against the stored model before anything is stored; the bridge keeps
    its checks as a backstop. Alternative: the bridge alone, which stores first and rolls back.
-2. A model's family "auto" is resolved against the sampler's response as a fitting function would, then compared.
-   Alternative: refuse "auto", which breaks a model built by `new()`.
+2. A model's family "auto" states no change: it is read as the sampler's own family and kind, as a model with no
+   `family.spec` states no shape, and a model stating no kind at all (no `family.spec`, no `resid.df`) is stored
+   with the sampler's, so a copy runs what the live sampler runs. No call main honors is newly refused.
+   Alternatives: resolve "auto" against the sampler's response as a fitting function would, which refuses a
+   hand-built model main takes on a gaussian fit of a 0/1 response and on a negative binomial; refuse "auto",
+   which breaks a model built by `new()`.
 3. A gp's `max.leaf.size` is structure: it decides which leaves the gp covers, and the ruling lists "Gaussian-process
    settings" beside the lengthscale. Alternative: a parameter with a setter.
 4. Parameters not yet installable are refused by name in slices 1 to 3 rather than left accepted; the branch
