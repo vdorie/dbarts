@@ -68,16 +68,47 @@ Giving the excluded columns a split probability of zero needs no engine change. 
 - It makes structure ride on a parameter. Split probabilities are a parameter `setModel` may change, so a
   plain model handed to a forest confined by zeros is accepted and the confinement is gone: in the 300 sweeps
   after such a call 4099 of 8267 splits were on the excluded column.
-- It confines a forest only while some allowed column can still be split on. Where none can,
-  [`CGMTreePrior::drawSplitVariable`](../../src/bartcore/model.hpp) proposes the first column available,
-  whatever its probability, and the split is accepted. With two 0/1 columns held to one cut each beside a
-  continuous column given probability zero, that column is split on 44425 times in 2000 sweeps of 20 trees,
-  in 1995 of the sweeps; the column list gives 0 on the same fixture. On the default grid of 100 cuts a 0/1
-  column rarely runs out and the zeros mostly hold: no such split on five fixtures of six, and 3514 of them,
-  in 1335 of the 2000 sweeps, on the sixth.
+- When this was decided, a zero confined a forest only while some allowed column could still be split on.
+  Where none could, the split-variable draw proposed the first column available, whatever its probability,
+  and the split was accepted. With two 0/1 columns held to one cut each beside a continuous column given
+  probability zero, that column was split on 44425 times in 2000 sweeps of 20 trees, in 1995 of the sweeps;
+  the column list gives 0 on the same fixture. A zero now excludes its column on every path
+  ([A zero split probability](#a-zero-split-probability)).
 - DART has no split probabilities to zero, and a multi-forest fit refuses `split.probs` and DART outright, so
   one argument would have had two mechanisms and a gap.
 - The caller would read split probabilities they did not write on the stored tree prior.
+
+## A zero split probability
+
+A column of split probability zero is never split on: it is outside the forest's allowed set, as a column
+`vars` leaves out is, and a node whose remaining columns all have probability zero cannot grow. The rule
+rides the forest's column mask, so every site that asks which columns a node may split on - the prior's
+growth probability and draws, the grow-from-root builder, the rule Gibbs and change moves, a state install -
+agrees without a check of its own. The mask is the `vars` set intersected with the columns of positive
+probability ([`Chain::buildColumnMask`](../../src/bartcore/chain.hpp)), built at creation and rebuilt when
+`setModel` installs new probabilities, the block rows re-intersected with it
+([`Chain::pointTreesAtColumnMask`](../../src/bartcore/chain.hpp)). A forest whose probabilities are all
+positive, or that has none, keeps the `vars` mask alone, or none, and draws as before. Under DART nothing
+changes: its weights are drawn and never zero, and DART and `split.probs` are exclusive.
+
+[`CGMTreePrior::drawSplitVariable`](../../src/bartcore/model.hpp) returns no column where none available has
+positive probability, a case the mask keeps every caller from reaching.
+
+What follows:
+
+- `split.probs = c(0.5, 0.5, 0)` draws bit for bit what the same probabilities draw beside a `vars` naming
+  the first two columns.
+- [`dbartsSampler$setModel`](../../R/dbarts.R) refuses a zero on a column that a live tree of any chain
+  splits on, naming the column, before any chain is written
+  ([`Sampler::liveSplitOnZeroProbability`](../../src/bartcore/sampler.hpp)). It is refused rather than cut
+  back: `setModel` has no forced form, and the trees would change under a call that states a prior. Kept
+  draws are not read; they are replayed for prediction, not priced.
+- A state, a copy or a warm-start donor that splits on such a column meets the mask: declined unforced, cut
+  back forced, as for `vars`. The reported split probabilities are the ones stated.
+- A fit that states a zero draws from the prior it states, which differs from earlier releases wherever the
+  columns of positive probability run out along a path. On 150 rows with two 0/1 columns held to one cut
+  each and a continuous third that carries the signal, 2000 sweeps of 20 trees under probabilities 0.5, 0.5
+  and 0 give 27726, 27375 and 0 splits; 0.9-34 gives 40009, 39757 and 49623.
 
 ## Measurements
 
@@ -100,7 +131,5 @@ kinds of fit that state no `vars` on a single forest draw bit for bit what they 
 
 ## Left out
 
-A zero split probability still does not exclude a column once the columns with positive probability run out,
-with `split.probs` alone and no `vars`; the fix belongs with `setModel`'s treatment of a zero probability on a
-column the trees use. When the control migration gives every model a forest record, the `forest.columns`
+When the control migration gives every model a forest record, the `forest.columns`
 attribute moves into the first forest's record with the rest.

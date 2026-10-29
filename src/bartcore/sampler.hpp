@@ -2196,7 +2196,10 @@ public:
     recordedDraws_ = 0;
   }
 
-  /// Install a replacement prior on every chain; see ModelParameters.
+  /// Install a replacement prior on every chain; see ModelParameters. Split
+  /// probabilities that give zero to a column a live tree splits on must be
+  /// refused first (liveSplitOnZeroProbability): the install clears the
+  /// column from the first forest's mask and leaves the trees as they are.
   void setModel(const ModelParameters& model) {
     for (auto& chain : chains_) chain->setModel(model);
   }
@@ -2217,6 +2220,19 @@ public:
       else
         chain->setForestTreePrior(forestIndex, base, power);
     return true;
+  }
+
+  /// The lowest column \p splitProbabilities gives probability zero that a
+  /// live tree of the first forest splits on, on any chain, or -1 where there
+  /// is none. Writes nothing; kept draws are not read.
+  std::int32_t liveSplitOnZeroProbability(
+      const double* splitProbabilities) const {
+    std::vector<std::uint8_t> used(data_.numPredictors, 0);
+    for (const auto& chain : chains_) chain->markLiveSplitColumns(used.data());
+    for (std::size_t j = 0; j < used.size(); ++j)
+      if (used[j] != 0 && !(splitProbabilities[j] > 0.0))
+        return static_cast<std::int32_t>(j);
+    return -1;
   }
 
   /// Installs each forest's move settings on every chain: forestSettings

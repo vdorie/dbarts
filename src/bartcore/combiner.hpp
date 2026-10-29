@@ -178,7 +178,13 @@ struct Forest {
   // per-forest split-variable restriction materialized as a 0/1 byte per
   // predictor (1 = splittable); empty leaves every column available and the
   // trees carry a null mask, so the default availability path is unchanged.
+  // On a forest with fixed split probabilities it is allowedColumns
+  // intersected with the columns of positive probability.
   std::vector<std::uint8_t> columnMask;
+  // the columns the forest's own column list allows, 0/1 per predictor;
+  // empty for every column. The base columnMask is rebuilt from when the
+  // split probabilities change.
+  std::vector<std::uint8_t> allowedColumns;
   // per-forest interaction constraint (max-order + forbidden co-occurrence);
   // inactive by default (build not called), leaving the trees' constraint null
   // and the availability path byte-for-byte unchanged. HEAP-allocated so
@@ -207,6 +213,9 @@ struct Forest {
   /// forest's scale and no factor is applied anywhere, so those forests run
   /// exactly as they would without the field.
   std::vector<double> blockScaleFactor;
+  // each column's 0-based group, negative for a column in none; empty without
+  // blocks. The rows are re-intersected from it when columnMask changes.
+  std::vector<std::int32_t> blockOfColumn;
 
   // k is fixed unless updateK; the two accumulators gather the leaf sum of
   // squares and count over a sweep, feeding the k hyperprior draw

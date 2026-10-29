@@ -247,6 +247,14 @@
       \item The sampler's \code{$setModel} refuses a residual prior other
             than the sampler's own on a binary response, which has no
             residual scale; 0.9-34 stored it and held sigma at 1.
+      \item A split probability of zero in \code{cgm(split.probs = )}
+            excludes its column on every path, as a forest's \code{vars}
+            does. 0.9-34 split on such a column below a node where the
+            columns of positive probability were used up, so results of a
+            fit stating a zero change where that happens. A stored state
+            that splits on such a column is declined by \code{$setState}
+            unless forced, and \code{$setModel} refuses a zero on a column
+            the sampler's trees split on.
     }
   }
   \subsection{USER-VISIBLE CHANGES}{

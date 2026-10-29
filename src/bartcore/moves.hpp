@@ -1471,6 +1471,7 @@ double changeMove(const MoveContext& ctx, const L& leaf, ext_rng* rng, Tree& tre
 
   int32_t newVariableIndex =
     ctx.treePrior.drawSplitVariable(tree, ctx.data, rng, nodeToChange);
+  assert(newVariableIndex != invalidVariable);
 
   Rule newRule;
   newRule.variableIndex = newVariableIndex;

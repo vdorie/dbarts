@@ -114,6 +114,51 @@ static void testTreePriorMath() {
   printf("ok: tree prior math\n");
 }
 
+/// test_split_probs_runout: two 0/1 columns of one cut each and a third of
+/// split probability zero. Below a split on each, only the third is
+/// available: drawSplitVariable called there directly names no column, and
+/// with the column mask that clears the third the node cannot grow.
+static void testSplitProbsRunout(ext_rng* rng) {
+  const size_t n = 100;
+  std::vector<double> x(n * 3), y(n, 0.0);
+  for (size_t i = 0; i < n; ++i) {
+    x[i] = static_cast<double>(i % 2);
+    x[i + n] = static_cast<double>((i / 2) % 2);
+    x[i + 2 * n] = static_cast<double>(i) / static_cast<double>(n - 1);
+  }
+  ColumnStore store;
+  built(store.build(x.data(), n, 3, 100));
+
+  std::vector<index_t> indexBuffer(n);
+  Tree tree;
+  tree.initialize(indexBuffer.data(), n);
+  Rule rule;
+  rule.variableIndex = 0;
+  rule.setSplitIndex(0);
+  tree.birth(store, 0, rule, y.data(), nullptr);
+  int32_t left = tree.at(0).leftChild;
+  rule.variableIndex = 1;
+  tree.birth(store, left, rule, y.data(), nullptr);
+  int32_t runOut = tree.at(left).leftChild;
+
+  const double probabilities[] = {0.5, 0.5, 0.0};
+  CGMTreePrior prior;
+  prior.splitProbabilities = probabilities;
+  bool noColumn = true;
+  for (int i = 0; i < 20; ++i)
+    noColumn = noColumn &&
+      prior.drawSplitVariable(tree, store, rng, runOut) == invalidVariable;
+  check(noColumn, "split probs run-out: no column of positive probability "
+                  "is left to draw");
+
+  const std::uint8_t mask[] = {1, 1, 0};
+  tree.setColumnMask(mask);
+  check(prior.growthProbability(tree, store, runOut) == 0.0 &&
+          prior.growthProbability(tree, store, 0) > 0.0,
+        "split probs run-out: under the mask the node cannot grow");
+  printf("ok: split probs run-out\n");
+}
+
 static void testCategoricalMechanics() {
   const size_t n = 120;
   // column 0: categorical with 4 levels; column 1: continuous
@@ -1022,6 +1067,7 @@ static void testBuildOutsideInterval() {
 void runTreeTests(ext_rng* rng) {
   testTreeMechanics();
   testTreePriorMath();
+  testSplitProbsRunout(rng);
   testCategoricalMechanics();
   testCategoricalPriorMath(rng);
   testPooledMaskMechanics(rng);

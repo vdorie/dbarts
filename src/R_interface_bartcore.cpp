@@ -7133,8 +7133,8 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
 
   return unwindProtect([&, model = ParsedModel{}, moveRecord = MoveRecord{},
                         moveForests = std::vector<bartcore::MoveSettings>{},
-                        moveVariance =
-                          bartcore::MoveSettings{}]() mutable -> SEXP {
+                        moveVariance = bartcore::MoveSettings{},
+                        refusal = std::string{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
     // the tree count is fixed at creation; the R surface keeps the sampler's
     // records on the model it installs, so this is the backstop for a caller
@@ -7211,6 +7211,23 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
           Rf_getAttrib(dataExpr, Rf_install("sigma")), "sigma estimate",
           RC_LENGTH | RC_EQ, rc_asRLength(1), RC_NA | RC_YES,
           RC_VALUE | RC_GT, 0.0, RC_END);
+      }
+    }
+
+    // a zero clears its column from the forest's mask, which a live tree
+    // splitting on it would contradict; checked over every chain before any
+    // is written
+    if (parameters.splitProbabilities != NULL && !shape.usesDart) {
+      std::int32_t column =
+        sampler.liveSplitOnZeroProbability(parameters.splitProbabilities);
+      if (column >= 0) {
+        refusal = "$setModel cannot give split probability zero to the "
+                  "predictor " +
+                  bartcore_bridge::predictorColumnLabel(
+                    dataExpr, static_cast<size_t>(column)) +
+                  ": a live tree splits on it; give it a positive probability "
+                  "or make a new sampler instead";
+        Rf_error("%s", refusal.c_str());
       }
     }
 

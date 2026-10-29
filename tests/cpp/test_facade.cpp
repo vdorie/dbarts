@@ -47,7 +47,7 @@ enum class FacadeVirtual {
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
-  setModel, setForestTreePrior, setMoveSettings,
+  setModel, setForestTreePrior, liveSplitOnZeroProbability, setMoveSettings,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestBasisRescaled, setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
@@ -211,6 +211,8 @@ public:
   SPY_VOID(setModel, (const ModelParameters& m), (m))
   SPY_RET(bool, setForestTreePrior, (std::size_t f, double b, double p),
           (f, b, p))
+  SPY_RET(std::int32_t, liveSplitOnZeroProbability, (const double* p) const,
+          (p))
   SPY_RET(bool, setMoveSettings,
           (const std::vector<MoveSettings>& f, const MoveSettings* v), (f, v))
   SPY_RET(double, sumOfSquaredResiduals, (std::size_t c), (c))
@@ -1252,6 +1254,26 @@ const Row rows[] = {
     check(f.b.base().setForestTreePrior(1, 0.95, 2.0) &&
             f.v.base().setForestTreePrior(varianceForestIndex, 0.95, 2.0),
           "facade setForestTreePrior: creation's values go back");
+  }},
+  {FacadeVirtual::liveSplitOnZeroProbability, "liveSplitOnZeroProbability",
+   [](Fixtures& f) {
+    Results results;
+    f.d.impl().run(0, 5, results);
+    const double positive[] = {0.5, 0.5}, zeroFirst[] = {0.0, 1.0},
+                 zeroSecond[] = {1.0, 0.0};
+    SamplerBase& base = f.d.base();
+    check(base.liveSplitOnZeroProbability(positive) == -1,
+          "facade liveSplitOnZeroProbability: no zero names no column");
+    check(base.liveSplitOnZeroProbability(zeroFirst) ==
+              f.d.impl().liveSplitOnZeroProbability(zeroFirst) &&
+            base.liveSplitOnZeroProbability(zeroSecond) ==
+              f.d.impl().liveSplitOnZeroProbability(zeroSecond),
+          "facade liveSplitOnZeroProbability: the boundary reports the "
+          "impl's answer");
+    check(base.liveSplitOnZeroProbability(zeroFirst) == 0 ||
+            base.liveSplitOnZeroProbability(zeroSecond) == 1,
+          "facade liveSplitOnZeroProbability: a column the trees split on is "
+          "named");
   }},
   {FacadeVirtual::setMoveSettings, "setMoveSettings", [](Fixtures& f) {
     MoveSettings moved;

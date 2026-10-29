@@ -2334,6 +2334,202 @@ static void testSingleForestColumnRestriction() {
   printf("ok: single-forest column restriction\n");
 }
 
+// The columns the live trees of each chain's first forest split on, one 0/1
+// row of p per chain.
+template <typename S>
+static std::vector<std::vector<std::uint8_t>> liveSplitColumns(S& sampler,
+                                                               size_t p) {
+  SamplerStateData state;
+  sampler.getState(state);
+  std::vector<std::vector<std::uint8_t>> used(
+    state.chains.size(), std::vector<std::uint8_t>(p, 0));
+  for (size_t c = 0; c < state.chains.size(); ++c)
+    for (const std::vector<FlatNode>& tree : state.chains[c].forests[0].trees)
+      for (const FlatNode& node : tree)
+        if (node.variable != invalidVariable) used[c][node.variable] = 1;
+  return used;
+}
+
+// A zero split probability excludes its column as a column list does: the
+// forest's mask is the list intersected with the columns of positive
+// probability, built at creation, rebuilt by setModel with the block rows
+// re-intersected, and dropped where every probability is positive. The
+// refusal's query walks every chain's live trees and writes nothing.
+static void testZeroSplitProbability() {
+  std::uint64_t savedRngState = rngState;
+  rngState = 727272u;
+
+  const size_t n = 300, p = 3, numTrees = 20;
+  std::vector<double> x(n * p), y(n);
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < p; ++j) x[i + j * n] = runif01();
+    double u1 = runif01(), u2 = runif01();
+    double z = std::sqrt(-2.0 * std::log(u1)) * std::cos(6.283185307179586 * u2);
+    y[i] = x[i] + 2.0 * x[i + n] + 4.0 * x[i + 2 * n] + 0.1 * z;
+  }
+  const double zeroLast[] = {0.5, 0.5, 0.0}, zeroMiddle[] = {0.5, 0.0, 0.5},
+               positive[] = {0.2, 0.3, 0.5};
+  const std::uint8_t firstTwo[] = {1, 1, 0}, lastOnly[] = {0, 0, 1};
+  const std::vector<size_t> allowed = {0, 1}, lastTwo = {1, 2};
+  const std::vector<std::int32_t> blockOfColumn = {0, 0, 1};
+  const std::vector<size_t> blockTreeCounts = {numTrees / 2, numTrees / 2};
+  const double rawScale = 0.37804942330213542;
+
+  std::vector<ext_rng*> rngs;
+  auto make = [&](SamplerOptions options, std::uint32_t seed,
+                  size_t numChains = 1, size_t count = numTrees) {
+    options.numTrees = count;
+    options.numChains = numChains;
+    std::vector<ext_rng*> chainRngs(numChains);
+    for (size_t c = 0; c < numChains; ++c) {
+      chainRngs[c] = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+      ext_rng_setSeed(chainRngs[c], seed + static_cast<std::uint32_t>(c));
+      rngs.push_back(chainRngs[c]);
+    }
+    return std::make_unique<Sampler<ConstantGaussianLeaf>>(
+      x.data(), y.data(), n, p, nullptr, nullptr, ResponseFamily::gaussian,
+      1.0, 3.0, rawScale, options, chainRngs.data());
+  };
+  // the model creation states, but for the split probabilities
+  auto modelWith = [&](const double* splitProbabilities) {
+    ModelParameters model;
+    model.sigmaEstimate = 1.0;
+    model.sigmaDf = 3.0;
+    model.sigmaRawScale = rawScale;
+    model.splitProbabilities = splitProbabilities;
+    return model;
+  };
+  Results empty;
+  // splits outside the allowed columns over every sweep's live trees; under
+  // blocks, tree t of the two equal groups is held to column 0 in the first
+  // and column 2 in the second
+  auto sweepsOutside = [&](auto& sampler, const std::uint8_t* inside,
+                           bool blocked, size_t& total) {
+    size_t outside = 0;
+    for (size_t sweep = 0; sweep < 300; ++sweep) {
+      sampler.run(1, 0, empty);
+      SamplerStateData state;
+      sampler.getState(state);
+      const auto& trees = state.chains[0].forests[0].trees;
+      for (size_t t = 0; t < trees.size(); ++t)
+        for (const FlatNode& node : trees[t]) {
+          if (node.variable == invalidVariable) continue;
+          ++total;
+          bool ok = blocked
+            ? node.variable == (t < trees.size() / 2 ? 0 : 2)
+            : inside[node.variable] != 0;
+          outside += ok ? 0 : 1;
+        }
+    }
+    return outside;
+  };
+  auto stateAfterRun = [&](auto& sampler) {
+    sampler.run(100, 0, empty);
+    SamplerStateData state;
+    sampler.getState(state);
+    return state;
+  };
+  auto restrictTo = [](SamplerOptions& options,
+                       const std::vector<size_t>& list) {
+    options.forestColumns = list.data();
+    options.numForestColumns = list.size();
+  };
+
+  SamplerOptions plain, zeroed, listed, both, blocked, blockedZero, restricted;
+  zeroed.splitProbabilities = zeroLast;
+  listed = zeroed;
+  restrictTo(listed, allowed);
+  both.splitProbabilities = zeroMiddle;
+  restrictTo(both, lastTwo);
+  blocked.numBlocks = blockTreeCounts.size();
+  blocked.blockOfColumn = blockOfColumn.data();
+  blocked.blockTreeCounts = blockTreeCounts.data();
+  blockedZero = blocked;
+  blockedZero.splitProbabilities = zeroMiddle;
+  restrictTo(restricted, allowed);
+
+  // from the probabilities alone, with a list, and with blocks
+  size_t total = 0;
+  auto fromZero = make(zeroed, 301);
+  check(sweepsOutside(*fromZero, firstTwo, false, total) == 0 && total > 0,
+        "zero split probability: the forest stays off the zero column");
+  auto fromZeroTwin = make(zeroed, 302);
+  auto fromList = make(listed, 302);
+  check(statesAgree(stateAfterRun(*fromZeroTwin), stateAfterRun(*fromList)),
+        "zero split probability: draws what the column list draws");
+  total = 0;
+  auto fromBoth = make(both, 303);
+  check(sweepsOutside(*fromBoth, lastOnly, false, total) == 0 && total > 0,
+        "zero split probability: the list intersected with the positive set");
+  total = 0;
+  auto fromBlocks = make(blockedZero, 304);
+  check(sweepsOutside(*fromBlocks, nullptr, true, total) == 0 && total > 0,
+        "zero split probability: each block row intersected with it");
+
+  // rebuilt by setModel before any run, as creation builds it
+  auto installed = make(plain, 305);
+  installed->setModel(modelWith(zeroLast));
+  auto created = make(zeroed, 305);
+  check(statesAgree(stateAfterRun(*installed), stateAfterRun(*created)),
+        "zero split probability: setModel builds the mask creation does");
+  auto installedBlocks = make(blocked, 306);
+  installedBlocks->setModel(modelWith(zeroMiddle));
+  auto createdBlocks = make(blockedZero, 306);
+  check(statesAgree(stateAfterRun(*installedBlocks),
+                    stateAfterRun(*createdBlocks)),
+        "zero split probability: setModel re-intersects the block rows");
+  total = 0;
+  auto listedPositive = make(restricted, 307);
+  listedPositive->setModel(modelWith(positive));
+  check(sweepsOutside(*listedPositive, firstTwo, false, total) == 0 &&
+          total > 0,
+        "zero split probability: setModel keeps the column list");
+  // and dropped where every probability is positive, or none is given
+  auto dropped = make(zeroed, 308);
+  dropped->setModel(modelWith(positive));
+  SamplerOptions positiveOptions;
+  positiveOptions.splitProbabilities = positive;
+  auto positiveCreated = make(positiveOptions, 308);
+  check(statesAgree(stateAfterRun(*dropped), stateAfterRun(*positiveCreated)),
+        "zero split probability: every probability positive drops the mask");
+  auto droppedBlocks = make(blockedZero, 309);
+  droppedBlocks->setModel(modelWith(nullptr));
+  auto blockedCreated = make(blocked, 309);
+  check(statesAgree(stateAfterRun(*droppedBlocks),
+                    stateAfterRun(*blockedCreated)),
+        "zero split probability: no probabilities restore the block rows");
+
+  // the refusal's query reads every chain: a column only the second chain's
+  // live trees split on is named, and nothing is written
+  bool found = false, named = false, unchanged = false;
+  for (std::uint32_t seed = 400; seed < 600 && !found; seed += 2) {
+    auto twoChains = make(plain, seed, 2, 2);
+    twoChains->run(1, 0, empty);
+    std::vector<std::vector<std::uint8_t>> used =
+      liveSplitColumns(*twoChains, p);
+    for (size_t j = 0; j < p && !found; ++j) {
+      if (used[0][j] != 0 || used[1][j] == 0) continue;
+      found = true;
+      double probabilities[] = {1.0, 1.0, 1.0};
+      probabilities[j] = 0.0;
+      SamplerStateData before, after;
+      twoChains->getState(before);
+      named = twoChains->liveSplitOnZeroProbability(probabilities) ==
+                static_cast<std::int32_t>(j) &&
+              twoChains->liveSplitOnZeroProbability(positive) == -1;
+      twoChains->getState(after);
+      unchanged = statesAgree(before, after);
+    }
+  }
+  check(found && named && unchanged,
+        "zero split probability: the refusal's query walks every chain and "
+        "writes nothing");
+
+  for (ext_rng* r : rngs) ext_rng_destroy(r);
+  rngState = savedRngState;
+  printf("ok: zero split probability\n");
+}
+
 // Cross-grid warm start: a donor grown on a fine cut grid seeds a destination
 // on a coarser one, by force, since no such donor stands as stored. The
 // donor's trees are built and routed on its own points, a leaf none of the
@@ -8167,6 +8363,7 @@ void runStateTests(ext_rng* rng) {
   testBlockAdditiveConfinement();
   testBlockGroupScale();
   testSingleForestColumnRestriction();
+  testZeroSplitProbability();
   testCrossGridWarmStart();
   testWarmStartForms();
   testWarmStartTreeCounts();

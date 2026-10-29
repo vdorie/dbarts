@@ -421,6 +421,9 @@ public:
   /// Sampler::setForestTreePrior.
   virtual bool setForestTreePrior(std::size_t forestIndex, double base,
                                   double power) = 0;
+  /// Sampler::liveSplitOnZeroProbability.
+  virtual std::int32_t liveSplitOnZeroProbability(
+    const double* splitProbabilities) const = 0;
   /// Sampler::setMoveSettings.
   virtual bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
                                const MoveSettings* varianceSettings) = 0;
@@ -794,6 +797,10 @@ public:
   bool setForestTreePrior(std::size_t forestIndex, double base,
                           double power) override {
     return impl_.setForestTreePrior(forestIndex, base, power);
+  }
+  std::int32_t liveSplitOnZeroProbability(
+    const double* splitProbabilities) const override {
+    return impl_.liveSplitOnZeroProbability(splitProbabilities);
   }
   bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
                        const MoveSettings* varianceSettings) override {

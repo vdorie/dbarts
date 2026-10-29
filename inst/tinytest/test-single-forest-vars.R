@@ -162,9 +162,8 @@ expect_false(identical(chainsOnList$train[,, 1L], chainsOnList$train[,, 2L]))
 
 # allowed columns that run out along a path: two 0/1 columns held to one cut
 # each, which the default grid of 100 cuts would never exhaust. Below a split
-# on each, no allowed column is left. The column list still confines the
-# forest there; zero split probabilities on the same fixture do not, the first
-# column available being proposed whatever its probability
+# on each, no allowed column is left. The column list confines the forest
+# there, and so does a zero split probability on the same fixture
 x.binary <- cbind(a = rbinom(n, 1L, 0.5), b = rbinom(n, 1L, 0.5), c = x[, "c"])
 y.runout <- x.binary[, "a"] + 2 * x.binary[, "c"] + rnorm(n, 0, 0.5)
 runOut <- function(...) {
@@ -182,7 +181,8 @@ listed <- runOut(forests = restrictTo(allowed))
 expect_identical(unname(listed[3L]), 0)
 expect_true(all(listed[1:2] > 0))
 zeroed <- runOut(split.probs = c(0.5, 0.5, 0))
-expect_true(zeroed[3L] > 0)
+expect_identical(unname(zeroed[3L]), 0)
+expect_true(all(zeroed[1:2] > 0))
 expect_true(runOut()[3L] > 0)
 
 # ---- how 'vars' is stated ---------------------------------------------------

@@ -241,7 +241,7 @@ The exact-posterior gates (aft-exact, aft-hetero-pit, backfit-exact,
 bcf-exact[-weak, -restricted], bcf-latent-exact, blocks-exact, categorical-exact,
 hazard-exact, heteroscedastic-exact, hurdle-exact, linear-exact,
 mask-redraw-exact, multinomial-exact, negbin-exact, ordinal-exact,
-probit-k-scale-exact, t-exact, logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
+probit-k-scale-exact, split-probs-exact, t-exact, logistic-reference, monotone-reference) and the detailed-balance gates (bd-balance = birth/death,
 change-balance = change, swap-balance = swap, perturb-balance = perturb,
 rule-gibbs-balance = rule_gibbs) each drive a long fixed-seed MCMC run and
 compare the engine's draws to an analytic or brute-force-enumerated target with
@@ -287,6 +287,20 @@ every leaf at the forest's leaf scale, misses the fits by over 300 standard
 errors. Quick mode is about 10 seconds.
 
     Rscript benchmarks/R/blocks-exact.R quick
+
+split-probs-exact is the gate for a zero split probability: one tree over two
+0/1 columns, each used up below a split on it, and a third of probability
+zero that carries most of the signal, whose posterior over the nine trees left
+is enumerated with no growth where no column of positive probability is left.
+It compares the split-count classes and the fitted means, and fails on any
+split on the third column. The `vars` arm leaves the third column out by a
+column list instead and is held to the same enumeration. A sampler that
+proposes the first available column where none of positive probability is
+left misses by hundreds of standard errors. Quick mode is about a second an
+arm and bounds each of 10 z statistics at 4.5, a false failure once in 5400
+fresh seeds for a correct sampler.
+
+    Rscript benchmarks/R/split-probs-exact.R quick vars
 
 probit-k-scale-exact is the gate for the probit rescaling step: one frozen
 tree under probit with k ~ chi(1.5, 2), whose posterior of k and leaf means are

@@ -29,7 +29,11 @@
       \code{".default"} element), an unnamed vector assigns by position.
       Entries must be non-negative and finite, with at least one positive.
       Named or positional probabilities are matched to the data when a
-      sampler is built.
+      sampler is built. A column of probability zero is never split on, as
+      a column a forest's \code{vars} leaves out is not, on every path: where
+      the columns of positive probability are used up along a path, the node
+      cannot split. A sampler's \code{$setModel} refuses a zero on a column
+      its trees split on.
     }
     \item{\code{dart(a = 0.5, b = 1, rho = NULL,
                      alpha = 1, update.alpha = TRUE, update.delay = NULL)}}{

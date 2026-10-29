@@ -1092,17 +1092,20 @@ public:
                      family != ResponseFamily::aft) ||
                     options.sigmaIsFixed;
 
-    // A restricted forest clears the availability of every unlisted column.
-    // The mask is built ahead of the split-variable prior, which DART lays
+    // A restricted forest clears the availability of every unlisted column,
+    // and a column of split probability zero is cleared as an unlisted one
+    // is. The mask is built ahead of the split-variable prior, which DART lays
     // over the allowed columns alone, and ahead of the block rows, which
-    // intersect it; an empty list leaves the mask empty and every tree
+    // intersect it; no list and no zero leave the mask empty and every tree
     // unrestricted (the default availability path, byte-for-byte).
     if (options.forestColumns != nullptr && options.numForestColumns > 0) {
-      forest.columnMask.assign(data.numPredictors, 0);
+      forest.allowedColumns.assign(data.numPredictors, 0);
       for (size_t c = 0; c < options.numForestColumns; ++c)
-        forest.columnMask[options.forestColumns[c]] = 1;
+        forest.allowedColumns[options.forestColumns[c]] = 1;
     }
     options_.forestColumns = nullptr;  // consumed above
+    buildColumnMask(forest, data.numPredictors,
+                    options.useDart ? nullptr : options.splitProbabilities);
 
     if (options.useDart) {
       forest.dart = options.dart;
@@ -2775,6 +2778,23 @@ public:
         forest.treePrior.splitProbabilities =
           forest.fixedSplitProbabilities.data();
       }
+      // the caller has refused a zero on a column a live tree splits on
+      buildColumnMask(forest, data_.numPredictors,
+                      forest.treePrior.splitProbabilities);
+      pointTreesAtColumnMask(forest, data_.numPredictors);
+    }
+  }
+
+  /// Sets \p used[j] to 1 for every column a live tree of the first forest
+  /// splits on, leaving the other entries as they are. \p used holds one
+  /// entry per predictor. Kept draws are not read.
+  void markLiveSplitColumns(std::uint8_t* used) const {
+    std::vector<int32_t> decisionNodes;
+    for (const Tree& tree : forests_[0].trees) {
+      decisionNodes.clear();
+      tree.fillNotBottom(0, decisionNodes);
+      for (int32_t node : decisionNodes)
+        used[tree.at(node).rule.variableIndex] = 1;
     }
   }
 
@@ -7829,16 +7849,9 @@ private:
                                 const std::int32_t* blockOfColumn,
                                 const std::size_t* blockTreeCounts) {
     if (numBlocks == 0) return;
-    const bool haveBase = !forest.columnMask.empty();
+    forest.blockOfColumn.assign(blockOfColumn, blockOfColumn + numPredictors);
     forest.blockMasks.assign(numBlocks * numPredictors, 0);
-    for (std::size_t g = 0; g < numBlocks; ++g)
-      for (std::size_t j = 0; j < numPredictors; ++j) {
-        const bool inGroup = blockOfColumn[j] >= 0 &&
-          static_cast<std::size_t>(blockOfColumn[j]) == g;
-        const bool baseAllows = !haveBase || forest.columnMask[j] != 0;
-        forest.blockMasks[g * numPredictors + j] =
-          (inGroup && baseAllows) ? 1 : 0;
-      }
+    intersectBlockRows(forest, numPredictors);
     forest.blockOfTree.assign(forest.numTrees, 0);
     std::size_t t = 0;
     for (std::size_t g = 0; g < numBlocks && t < forest.numTrees; ++g)
@@ -7873,6 +7886,63 @@ private:
       if (counts[g] > 0)
         forest.blockScaleFactor[g] =
           std::sqrt(m / (numGroups * static_cast<double>(counts[g])));
+  }
+
+  /// Writes every block row as its group's columns intersected with the
+  /// forest's columnMask, when it carries one. The rows keep their storage, so
+  /// the trees' pointers into them stay valid. Requires blockOfColumn and
+  /// blockMasks sized for the forest's groups.
+  static void intersectBlockRows(Forest<L, ResidT>& forest,
+                                 std::size_t numPredictors) {
+    const bool haveBase = !forest.columnMask.empty();
+    std::size_t numBlocks = forest.blockMasks.size() / numPredictors;
+    for (std::size_t g = 0; g < numBlocks; ++g)
+      for (std::size_t j = 0; j < numPredictors; ++j) {
+        const bool inGroup = forest.blockOfColumn[j] >= 0 &&
+          static_cast<std::size_t>(forest.blockOfColumn[j]) == g;
+        const bool baseAllows = !haveBase || forest.columnMask[j] != 0;
+        forest.blockMasks[g * numPredictors + j] =
+          (inGroup && baseAllows) ? 1 : 0;
+      }
+  }
+
+  /// Builds the forest's columnMask as its allowedColumns intersected with
+  /// the columns \p splitProbabilities gives a positive probability, null
+  /// giving every column one. Left empty where that allows every column, so
+  /// a forest with no column list and no zero keeps the unrestricted path.
+  /// Does not touch the trees; see pointTreesAtColumnMask.
+  static void buildColumnMask(Forest<L, ResidT>& forest,
+                              std::size_t numPredictors,
+                              const double* splitProbabilities) {
+    const bool listed = !forest.allowedColumns.empty();
+    bool restricts = listed;
+    if (splitProbabilities != nullptr)
+      for (std::size_t j = 0; j < numPredictors && !restricts; ++j)
+        restricts = !(splitProbabilities[j] > 0.0);
+    if (!restricts) {
+      forest.columnMask.clear();
+      return;
+    }
+    forest.columnMask.assign(numPredictors, 1);
+    for (std::size_t j = 0; j < numPredictors; ++j)
+      forest.columnMask[j] =
+        (!listed || forest.allowedColumns[j] != 0) &&
+            (splitProbabilities == nullptr || splitProbabilities[j] > 0.0)
+          ? 1 : 0;
+  }
+
+  /// Points every tree of the forest at the mask columnMask now implies: its
+  /// block row, re-intersected, under blocks, else columnMask itself, or null
+  /// where columnMask is empty.
+  static void pointTreesAtColumnMask(Forest<L, ResidT>& forest,
+                                     std::size_t numPredictors) {
+    if (!forest.blockMasks.empty()) {
+      intersectBlockRows(forest, numPredictors);
+      return;
+    }
+    const std::uint8_t* mask =
+      forest.columnMask.empty() ? nullptr : forest.columnMask.data();
+    for (Tree& tree : forest.trees) tree.setColumnMask(mask);
   }
 
   /// Installs a forest's optional interaction constraint on every tree: a
@@ -7931,6 +8001,7 @@ private:
       forest.columnMask.assign(data_.numPredictors, 0);
       for (std::size_t c = 0; c < spec.numColumns; ++c)
         forest.columnMask[spec.columns[c]] = 1;
+      forest.allowedColumns = forest.columnMask;
       for (std::size_t t = 0; t < spec.numTrees; ++t)
         forest.trees[t].setColumnMask(forest.columnMask.data());
     }
@@ -7987,6 +8058,7 @@ private:
       forest.columnMask.assign(data_.numPredictors, 0);
       for (std::size_t c = 0; c < spec.numColumns; ++c)
         forest.columnMask[spec.columns[c]] = 1;
+      forest.allowedColumns = forest.columnMask;
       for (std::size_t t = 0; t < spec.numTrees; ++t)
         forest.trees[t].setColumnMask(forest.columnMask.data());
     }

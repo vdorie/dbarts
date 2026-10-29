@@ -4185,6 +4185,11 @@ struct CGMTreePrior {
     return result;
   }
 
+  /// Draws a split variable among those available at the node, in
+  /// proportion to splitProbabilities or uniformly where it is null. Returns
+  /// invalidVariable where no available column has positive probability,
+  /// which a forest's column mask, clearing every column of probability zero,
+  /// keeps every caller from reaching.
   int32_t drawSplitVariable(const Tree& tree, const ColumnStore& data,
                             ext_rng* rng, int32_t nodeIndex) const {
     availableScratch_.resize(data.numPredictors);
@@ -4206,6 +4211,7 @@ struct CGMTreePrior {
     double totalProbability = 0.0;
     for (std::size_t j = 0; j < data.numPredictors; ++j)
       if (availableScratch_[j]) totalProbability += splitProbabilities[j];
+    if (!(totalProbability > 0.0)) return invalidVariable;
 
     double cutoff = ext_rng_simulateContinuousUniform(rng) * totalProbability;
     double runningProbability = 0.0;
@@ -4336,6 +4342,7 @@ struct CGMTreePrior {
   Rule drawRuleAndVariable(Tree& tree, const ColumnStore& data,
                            ext_rng* rng, int32_t nodeIndex) const {
     int32_t variableIndex = drawSplitVariable(tree, data, rng, nodeIndex);
+    assert(variableIndex != invalidVariable);
     return drawRuleForVariable(tree, data, rng, nodeIndex, variableIndex);
   }
 };
