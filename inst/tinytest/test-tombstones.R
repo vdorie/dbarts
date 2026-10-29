@@ -600,6 +600,14 @@ expect_error(
   dbarts::xbart(xCons, yCons, n.reps = 1L, n.burn = c(2L, 1L, 1L)),
   pattern = "per-replication burn-in"
 )
+# the refusal is stated in the present tense, with no future removal date
+burnMsg <- tryCatch(
+  dbarts::xbart(xCons, yCons, n.reps = 1L, n.burn = c(2L, 1L, 1L)),
+  error = conditionMessage
+)
+expect_true(grepl("three-element form is refused", burnMsg, fixed = TRUE))
+expect_false(grepl("removed in", burnMsg, fixed = TRUE))
+rm(burnMsg)
 
 # the prior scalars dec-B116 moved onto the prior objects and the control
 for (name in dbarts:::consolidatedPriorScalars) {

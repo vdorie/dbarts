@@ -820,10 +820,8 @@ refuseThreeElementBurn <- function(n.burn) {
       "'n.burn' must be of length 1 or 2: the burn-in of a freshly started ",
       "chain and the burn-in of a warm start onto the same data split. ",
       "dbarts 0.9-x read a third element as a per-replication burn-in, and ",
-      "a chain is never carried between replications now. The three-element ",
-      "form is removed in dbarts ",
-      tombstoneExpiry,
-      ".",
+      "a chain is never carried between replications now, so the ",
+      "three-element form is refused.",
       call. = FALSE
     )
   }
