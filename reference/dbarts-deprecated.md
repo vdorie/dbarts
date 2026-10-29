@@ -155,7 +155,11 @@ in dbarts 1.1-0.
   Forwarded to
   [`bartBT`](https://vdorie.github.io/dbarts/reference/bartBT.md) after
   a once-per-session warning, when the call carries a name from
-  `bartBT`'s own formals that `bart` does not take.
+  `bartBT`'s own formals that `bart` does not take. A call that also
+  names an argument `bartBT` does not take (`data`, `n.samples`, any
+  modern spelling) fits under neither and is refused before it is
+  forwarded, naming the BayesTree names given with their modern
+  spellings and the others.
 
 - A fourth or later positional
   [`bart`](https://vdorie.github.io/dbarts/reference/bart.md) argument:
