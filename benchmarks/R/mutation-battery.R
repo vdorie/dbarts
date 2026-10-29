@@ -639,10 +639,14 @@ mutations <- c(
       "m45",
       "src/bartcore/chain.hpp",
       paste0(
+        "    mapped.statement = statement;\n",
         "    mapped.entry = entry;\n",
         "    forests_[f].leaf.scale = mapLeafScale(f);\n"
       ),
-      "    mapped.entry = entry;\n",
+      paste0(
+        "    mapped.statement = statement;\n",
+        "    mapped.entry = entry;\n"
+      ),
       kTests(
         "test-multiforest-leaf-prior-writer.R",
         "test-calibration-midchain.R",
