@@ -213,6 +213,14 @@
       when it is accepted with a message and is an error from dbarts 1.1-0 - and
       suppresses the sampler's own \eqn{\sigma} draw.
     }
+    \item{\code{student(df = 1)}}{
+      A Student-t prior with \code{df} degrees of freedom, finite and at least
+      1, on a forest's drawn coefficient, given as a forest's
+      \code{amplitude}; see \code{\link{forest}}. A bare \code{student()} means
+      \code{df = 1} here, the half-Cauchy, while the response family of the
+      same name, \code{\link{dbartsFamilies}$student}, estimates its df when
+      none is given; each is read by where it is written.
+    }
   }
 }
 \details{

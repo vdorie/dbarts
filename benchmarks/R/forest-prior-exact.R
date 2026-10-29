@@ -28,10 +28,19 @@
 # class of rows that share a cell and the basis's value, the probability that
 # each tree splits and that a drawn coefficient is within 0.5, 1 and 2.
 #
-# Not seen here: a drawn coefficient on a forest with no basis or a factor,
-# probit and logistic, subset, a numeric multiplier under logistic, and n for
-# n - 1 in a column's scale on a held arm, which the scale's literals in
-# tests/cpp and the tinytest record's 1e-12 hold.
+# The Student-t arms (amplitude = student(df)) follow: a prior arm, with
+# sigma held so large that the likelihood is flat, where a drawn
+# coefficient's size is within the closed form's quantiles of its prior with
+# the probability each names, on a numeric column, a factor's difference and a
+# forest with no basis; the drawn numeric arm under student(1) and
+# student(3), its oracle's grid on the prior's quantile scale; and a drawn
+# factor at its default and under student(3), a two-dimensional quadrature
+# over its pair. Every oracle's grid is checked against one twice as wide
+# (twice as fine on a quantile scale): its functionals agree to 1e-4.
+#
+# Not seen here: probit and logistic, subset, a numeric multiplier under
+# logistic, and n for n - 1 in a column's scale on a held arm, which the
+# scale's literals in tests/cpp and the tinytest record's 1e-12 hold.
 #
 # Usage: Rscript forest-prior-exact.R [quick]
 
@@ -315,23 +324,73 @@ fourValues <- c(0, 0.1, 0.2, 0.3)[group + 1L]
 zeroWeight <- seq_len(n) %% 5L == 3L
 weightedColumn <- ifelse(zeroWeight, 2, fourValues)
 caseWeights <- ifelse(zeroWeight, 0, 1)
-gridA <- seq(-8, 8, by = 0.005)
+thresholds <- c(0.5, 1, 2)
+normalQuartile <- qnorm(0.75)
+
+# A drawn numeric coefficient's grid under its prior: `values`, their log
+# prior weights and, for each value, the share of the mass it stands for
+# within each threshold. The normal's is uniform, -8 to 8 by 0.005, times
+# `wide`, each point standing for one step around it; a t's, prior =
+# list(df =), is the midpoints of `points` times `wide` equal shares of
+# probability, a = c qt(u, df) with c the median match's scale, z_.75 /
+# t_df,.75, each point standing for its share.
+coefficientGrid <- function(prior, wide, points = 4000L) {
+  if (is.null(prior)) {
+    values <- seq(-8 * wide, 8 * wide, by = 0.005)
+    step <- values[2L] - values[1L]
+    within <- vapply(
+      thresholds,
+      function(t) pmin(1, pmax(0, (t - abs(values)) / step + 0.5)),
+      values
+    )
+    return(list(
+      values = values,
+      logPrior = dnorm(values, log = TRUE),
+      within = within
+    ))
+  }
+  size <- points * wide
+  scale <- normalQuartile / qt(0.75, prior$df)
+  values <- scale * qt((seq_len(size) - 0.5) / size, prior$df)
+  within <- vapply(
+    thresholds,
+    function(t) {
+      inside <- pt(c(-t, t) / scale, prior$df) * size
+      pmin(
+        1,
+        pmax(
+          0,
+          pmin(seq_len(size), inside[2L]) -
+            pmax(seq_len(size) - 1L, inside[1L])
+        )
+      )
+    },
+    values
+  )
+  list(values = values, logPrior = rep(0, size), within = within)
+}
 
 # forests: a list of list(multiplier = <n-vector>, drawn = TRUE where the
-# coefficient is drawn, trees, sd = the prior sd of the forest's own fit).
-# rows: the rows in the likelihood. Returns the posterior mean of the fit in
-# each class of rows that share a cell and every multiplier, the probability
-# that each forest's tree splits, and where a coefficient is drawn the
-# probability that it is within 0.5, 1 and 2.
-numericPosterior <- function(forests, shift, rows, classes) {
+# coefficient is drawn, prior = NULL for the normal or list(df =), trees, sd
+# = the prior sd of the forest's own fit). rows: the rows in the likelihood.
+# Returns the posterior mean of the fit in each class of rows that share a
+# cell and every multiplier, the probability that each forest's tree splits,
+# and where a coefficient is drawn the probability that it is within 0.5, 1
+# and 2, on the coefficient grid `wide` times the base one.
+numericPosterior <- function(forests, shift, rows, classes, wide = 1) {
   K <- length(forests)
   counts <- as.matrix(expand.grid(lapply(forests, function(forest) {
     0:forest$trees
   })))
   residual <- (y - shift)[rows]
   drawn <- which(vapply(forests, `[[`, NA, "drawn"))
-  values <- if (length(drawn) > 0L) gridA else 1
-  logPriorA <- if (length(drawn) > 0L) dnorm(values, log = TRUE) else 0
+  grid <- if (length(drawn) > 0L) {
+    coefficientGrid(forests[[drawn]]$prior, wide)
+  } else {
+    list(values = 1, logPrior = 0)
+  }
+  values <- grid$values
+  logPriorA <- grid$logPrior
   # the design at a = 1: row i's column for forest f's cell value
   designAll <- matrix(0, n, 2L * K)
   for (f in seq_len(K)) {
@@ -404,18 +463,10 @@ numericPosterior <- function(forests, shift, rows, classes) {
   names(splits) <- paste0("split", seq_len(K))
   out <- c(out, splits)
   if (length(drawn) > 0L) {
-    # each grid point stands for the interval of one step around it, so a
-    # point at a bound counts half
-    marginal <- rowSums(weights)
-    step <- values[2L] - values[1L]
-    within <- vapply(
-      c(0.5, 1, 2),
-      function(t) {
-        sum(marginal * pmin(1, pmax(0, (t - abs(values)) / step + 0.5)))
-      },
-      0
-    )
-    names(within) <- paste0("within", c(0.5, 1, 2))
+    # each grid point stands for its share of the coefficient, part of which
+    # may lie within a bound
+    within <- colSums(rowSums(weights) * grid$within)
+    names(within) <- paste0("within", thresholds)
     out <- c(out, within)
   }
   out
@@ -448,6 +499,8 @@ numericForest <- function(spec, trees) {
   }
   if (!isTRUE(spec$drawn)) {
     arguments$amplitude <- dbarts::dbartsPriors$fixed()
+  } else if (!is.null(spec$prior)) {
+    arguments$amplitude <- dbarts::dbartsPriors$student(spec$prior$df)
   }
   if (!is.null(spec$sd)) {
     arguments$sd <- spec$sd
@@ -501,17 +554,25 @@ numericFit <- function(seed, arm, kept) {
       function(spec) if (isTRUE(spec$levels)) 2L else 1L,
       0L
     )
-    coefficient <- result$glue[sum(widths[seq_len(drawn)]), ]
-    within <- vapply(c(0.5, 1, 2), function(t) mean(abs(coefficient) < t), 0)
-    names(within) <- paste0("within", c(0.5, 1, 2))
+    last <- sum(widths[seq_len(drawn)])
+    # a factor's coefficient is the difference of its pair
+    coefficient <- if (widths[[drawn]] == 2L) {
+      result$glue[last, ] - result$glue[last - 1L, ]
+    } else {
+      result$glue[last, ]
+    }
+    within <- vapply(thresholds, function(t) mean(abs(coefficient) < t), 0)
+    names(within) <- paste0("within", thresholds)
     out <- c(out, within)
   }
   out
 }
 
 # the oracle's forests: a stated sd as written, a default by the rule, from
-# the response drawn and R's sd() over the rows in the likelihood
-numericOracle <- function(arm) {
+# the response drawn and R's sd() over the rows in the likelihood; `posterior`
+# integrates them on its grid and on one twice as wide, whose functionals
+# must agree to 1e-4
+numericOracle <- function(arm, posterior = numericPosterior) {
   sampler <- numericSampler(
     arm,
     dbartsControl(n.chains = 1L, n.threads = 1L, n.cuts = 1L)
@@ -534,11 +595,217 @@ numericOracle <- function(arm) {
     list(
       multiplier = if (is.null(spec$basis)) rep(1, n) else spec$basis,
       drawn = drawn,
+      prior = spec$prior,
       trees = arm$trees,
       sd = if (drawn) size / 0.674 else size
     )
   })
-  numericPosterior(forests, shift, rows, rowClasses(arm))
+  oracle <- posterior(forests, shift, rows, rowClasses(arm))
+  wider <- posterior(forests, shift, rows, rowClasses(arm), wide = 2)
+  if (max(abs(oracle - wider[names(oracle)])) > 1e-4) {
+    stop("an oracle's grid and one twice as wide disagree past 1e-4")
+  }
+  oracle
+}
+
+# A drawn factor beside a held forest with no basis, one tree each: given the
+# pair (b0, b1) and how many trees split, each class's fit, the forest with
+# no basis plus b_z times the factor's forest in its cell, is jointly normal,
+# and the rows reduce to their classes' means. The pair is integrated on a
+# grid of the midpoints of `points` times `wide` equal shares of each of its
+# marginal priors, N(0, 1/2) or t_df with scale sqrt(1/2) z_.75 / t_df,.75,
+# each point weighted by the pair's joint density over the product of the
+# marginals (one variance for the pair, so a bivariate t); the share of each
+# point's b1 within t of its b0 is taken on b1's scale. The grid is summed a
+# block of b1 at a time against a running maximum of the log weights.
+factorPosterior <- function(
+  forests,
+  shift,
+  rows,
+  classes,
+  wide = 1,
+  points = 600L
+) {
+  size <- points * wide
+  prior <- forests[[2L]]$prior
+  df <- if (is.null(prior)) Inf else prior$df
+  scale <- sqrt(0.5) *
+    if (is.null(prior)) 1 else normalQuartile / qt(0.75, df)
+  margin <- scale * qt((seq_len(size) - 0.5) / size, df)
+  first <- vapply(classes, `[`, 0L, 1L)
+  classCell <- cell[first]
+  classLevel <- forests[[2L]]$multiplier[first]
+  noise <- sigma^2 / lengths(classes)
+  means <- vapply(classes, function(at) mean((y - shift)[at]), 0)
+  m <- length(classes)
+  leaf <- vapply(forests, function(forest) forest$sd^2, 0)
+  configs <- as.matrix(expand.grid(0:1, 0:1))
+  # the running sums: the largest log weight seen and, scaled to it, the
+  # total weight, each class's fit, each forest's split and each threshold
+  top <- -Inf
+  sums <- numeric(1L + m + 2L + length(thresholds))
+  for (block in split(seq_len(size), ceiling(seq_len(size) / 100L))) {
+    b0 <- rep(margin, times = length(block))
+    b1 <- rep(margin[block], each = size)
+    index <- rep(block, each = size)
+    logRatio <- if (is.null(prior)) {
+      0
+    } else {
+      lgamma((df + 2) / 2) -
+        lgamma(df / 2) -
+        log(df * pi * scale^2) -
+        (df + 2) / 2 * log1p((b0^2 + b1^2) / (df * scale^2)) -
+        dt(b0 / scale, df, log = TRUE) -
+        dt(b1 / scale, df, log = TRUE) +
+        2 * log(scale)
+    }
+    within <- vapply(
+      thresholds,
+      function(t) {
+        lower <- pt((b0 - t) / scale, df) * size
+        upper <- pt((b0 + t) / scale, df) * size
+        pmin(1, pmax(0, pmin(index, upper) - pmax(index - 1L, lower)))
+      },
+      b0
+    )
+    multiplier <- lapply(classLevel, function(z) if (z == 1) b1 else b0)
+    for (r in seq_len(nrow(configs))) {
+      k <- configs[r, ]
+      # the cell values' covariance within each forest at k of its tree's
+      # splits: 1 on the diagonal and 1 - k across the cells
+      across <- function(f, g, h) {
+        leaf[f] * if (classCell[g] == classCell[h]) 1 else 1 - k[f]
+      }
+      C <- matrix(list(), m, m)
+      for (g in seq_len(m)) {
+        for (h in seq_len(g)) {
+          C[[g, h]] <- across(1L, g, h) +
+            multiplier[[g]] * multiplier[[h]] * across(2L, g, h)
+          C[[h, g]] <- C[[g, h]]
+        }
+      }
+      # the class means' covariance, C plus the noise, factored at every
+      # point: its log determinant and its inverse times the means
+      L <- matrix(list(), m, m)
+      logDet <- 0
+      for (j in seq_len(m)) {
+        d <- C[[j, j]] + noise[j]
+        for (l in seq_len(j - 1L)) {
+          d <- d - L[[j, l]]^2
+        }
+        L[[j, j]] <- sqrt(d)
+        logDet <- logDet + 2 * log(L[[j, j]])
+        for (i in seq_len(m)[seq_len(m) > j]) {
+          e <- C[[i, j]]
+          for (l in seq_len(j - 1L)) {
+            e <- e - L[[i, l]] * L[[j, l]]
+          }
+          L[[i, j]] <- e / L[[j, j]]
+        }
+      }
+      forward <- vector("list", m)
+      for (i in seq_len(m)) {
+        e <- means[i]
+        for (l in seq_len(i - 1L)) {
+          e <- e - L[[i, l]] * forward[[l]]
+        }
+        forward[[i]] <- e / L[[i, i]]
+      }
+      alpha <- vector("list", m)
+      quadratic <- 0
+      for (i in rev(seq_len(m))) {
+        e <- forward[[i]]
+        for (l in seq_len(m)[seq_len(m) > i]) {
+          e <- e - L[[l, i]] * alpha[[l]]
+        }
+        alpha[[i]] <- e / L[[i, i]]
+        quadratic <- quadratic + means[i] * alpha[[i]]
+      }
+      logWeights <- sum(dbinom(k, 1L, base, log = TRUE)) +
+        logRatio -
+        0.5 * logDet -
+        0.5 * quadratic
+      if (max(logWeights) > top) {
+        sums <- sums * exp(top - max(logWeights))
+        top <- max(logWeights)
+      }
+      weights <- exp(logWeights - top)
+      fits <- vapply(
+        seq_len(m),
+        function(g) {
+          fit <- 0
+          for (h in seq_len(m)) {
+            fit <- fit + C[[g, h]] * alpha[[h]]
+          }
+          sum(weights * fit)
+        },
+        0
+      )
+      total <- sum(weights)
+      sums <- sums +
+        c(total, fits, total * k, colSums(weights * within))
+    }
+  }
+  out <- sums[-1L] / sums[1L]
+  names(out) <- c(
+    names(classes),
+    paste0("split", 1:2),
+    paste0("within", thresholds)
+  )
+  out
+}
+
+# The prior arm's sampler: sigma held at 1e6, so the likelihood is flat to
+# 1e-9 and each drawn coefficient is a draw from its prior. `read` names the
+# glue rows of each coefficient whose size is read, the difference of a
+# factor's pair, and the prior median of that size; the functionals are the
+# probability that the size is within the prior's quantile p, which is p.
+priorProbabilities <- c(0.25, 0.5, 0.9)
+priorQuantile <- function(p, prior, median) {
+  df <- if (is.null(prior)) Inf else prior$df
+  median * qt((1 + p) / 2, df) / qt(0.75, df)
+}
+priorFit <- function(seed, arm, kept) {
+  set.seed(seed)
+  sampler <- dbarts(
+    x,
+    y,
+    family = gaussian(sigma = dbartsPriors$fixed(1e12)),
+    forests = lapply(arm$forests, numericForest, trees = 1L),
+    control = dbartsControl(
+      n.chains = 1L,
+      n.threads = 1L,
+      n.cuts = 1L,
+      updateState = FALSE
+    )
+  )
+  glue <- sampler$run(numBurn, kept)$glue
+  unlist(lapply(names(arm$read), function(name) {
+    read <- arm$read[[name]]
+    size <- abs(
+      if (length(read$rows) == 2L) {
+        glue[read$rows[2L], ] - glue[read$rows[1L], ]
+      } else {
+        glue[read$rows, ]
+      }
+    )
+    out <- vapply(
+      priorProbabilities,
+      function(p) mean(size <= priorQuantile(p, read$prior, read$median)),
+      0
+    )
+    names(out) <- paste0(name, "@", priorProbabilities)
+    out
+  }))
+}
+priorExact <- function(arm) {
+  out <- rep(priorProbabilities, length(arm$read))
+  names(out) <- paste0(
+    rep(names(arm$read), each = length(priorProbabilities)),
+    "@",
+    priorProbabilities
+  )
+  out
 }
 
 # ---- the arms ----
@@ -596,11 +863,17 @@ for (name in names(arms)) {
 
 # a numeric column at the second forest, beside a forest with no basis held
 # at 1.1 of the unit: default and stated, drawn and held
-numericArm <- function(column, drawn, sd = NULL, weights = NULL) {
+numericArm <- function(
+  column,
+  drawn,
+  sd = NULL,
+  weights = NULL,
+  prior = NULL
+) {
   list(
     forests = list(
       list(sd = 1.1 * unit),
-      list(basis = column, drawn = drawn, sd = sd)
+      list(basis = column, drawn = drawn, sd = sd, prior = prior)
     ),
     trees = 1L,
     weights = weights
@@ -659,6 +932,91 @@ for (name in names(numericArms)) {
     name,
     arm,
     exact = numericOracle(arm),
+    fit = numericFit
+  ) ||
+    anyFailure
+}
+
+# ---- the Student-t arms ----
+
+studentT <- function(df) list(df = df)
+read <- function(rows, prior, median = normalQuartile) {
+  list(rows = rows, prior = prior, median = median)
+}
+coefficientArm <- function(prior) {
+  list(
+    forests = list(
+      list(sd = 1.1 * unit),
+      list(basis = fourValues, drawn = TRUE, prior = prior),
+      list(basis = z2, levels = TRUE, drawn = TRUE, prior = prior)
+    ),
+    read = list(number = read(2L, prior), difference = read(3:4, prior))
+  )
+}
+noBasisArm <- function(prior, sd = NULL) {
+  list(
+    forests = list(
+      list(drawn = TRUE, prior = prior, sd = sd),
+      list(basis = z1, levels = TRUE)
+    ),
+    read = list(
+      coefficient = read(1L, prior, if (is.null(sd)) 2 else sd / unit)
+    )
+  )
+}
+priorArms <- list(
+  "prior: a number and a factor at the default" = coefficientArm(NULL),
+  "prior: a number and a factor under student(1)" = coefficientArm(
+    studentT(1)
+  ),
+  "prior: a number and a factor under student(3)" = coefficientArm(
+    studentT(3)
+  ),
+  "prior: no basis under student(1) at its default" = noBasisArm(studentT(1)),
+  "prior: no basis under student(3) at 0.7 of the unit" = noBasisArm(
+    studentT(3),
+    0.7 * unit
+  )
+)
+for (name in names(priorArms)) {
+  arm <- priorArms[[name]]
+  anyFailure <- runArm(name, arm, exact = priorExact(arm), fit = priorFit) ||
+    anyFailure
+}
+
+factorArm <- function(prior) {
+  list(
+    forests = list(
+      list(sd = 1.1 * unit),
+      list(basis = z1, levels = TRUE, drawn = TRUE, prior = prior)
+    ),
+    trees = 1L
+  )
+}
+studentArms <- list(
+  "four values drawn under student(1)" = numericArm(
+    fourValues,
+    TRUE,
+    prior = studentT(1)
+  ),
+  "four values drawn under student(3)" = numericArm(
+    fourValues,
+    TRUE,
+    prior = studentT(3)
+  ),
+  "a factor drawn at its default" = factorArm(NULL),
+  "a factor drawn under student(3)" = factorArm(studentT(3))
+)
+for (name in names(studentArms)) {
+  arm <- studentArms[[name]]
+  levels <- isTRUE(arm$forests[[2L]]$levels)
+  anyFailure <- runArm(
+    name,
+    arm,
+    exact = numericOracle(
+      arm,
+      if (levels) factorPosterior else numericPosterior
+    ),
     fit = numericFit
   ) ||
     anyFailure

@@ -498,6 +498,19 @@ rows in the likelihood and recorded with the data
 logistic s is the link's own fixed latent scale, sigma is PINNED, and there is
 no response sd for either quantity to be stated against.
 
+A forest that states a Student-t coefficient, `ForestStatement::amplitudeDf` nu,
+keeps its branch and adds a scale mixture to it: the coefficient block is
+N(0, v I) with one v ~ IG(nu / 2, nu c^2 / 2), drawn after the block from
+IG((nu + q) / 2, (nu c^2 + |a|^2) / 2), the mixture's `mixtureDf` nu and
+`mixtureScale` c. With a basis the node scale and the variance kappa it starts
+v at do not move and c = sqrt(kappa) z_.75 / t_nu,.75, the median match: a
+numeric coefficient's size, and a factor's difference, keep the normal's
+median exactly and only the tails move. With none, c is the forest's median
+over t_nu,.75; at nu = 1 that quantile is exactly 1 and the entry is the
+unstated one, `mixtureDf` left NaN, so the half-Cauchy's own shape and rate
+expressions draw it. A forest stating no df takes those expressions behind a
+branch on `mixtureDf`, never the nu ones at nu = 1.
+
 The divisor is CARRIED rather than derived from the prior, so a forest
 declaring a zero scale keeps the node scale its host asked for. Both
 expressions are written exactly as bcf's were, which is what keeps the K = 2

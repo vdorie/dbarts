@@ -2341,8 +2341,11 @@ reportLeafPrior <- function(sampler, raw, index) {
     sd.stated = stated,
     multiplier = multiplier
   )
+  df <- shared("amplitude.df")
   if (held) {
     statement$amplitude <- fixed()
+  } else if (!is.nan(df)) {
+    statement$amplitude <- studentPrior(df)
   }
   prior <- c(statement, prior[-1L])
   # the size the sd is of: exact where the coefficient is held, the prior

@@ -17,11 +17,11 @@ by the class of its basis ([forest-kind-by-class.md](forest-kind-by-class.md)). 
 the basis row times the forest's coefficients, times the forest's own fit F. s is the forest's `sd`
 in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
 
-| the forest multiplies | drawn | held, `amplitude = fixed()` |
-|---|---|---|
-| nothing | F has sd U, the coefficient's size half-Cauchy with median s / U | the coefficient is 1; F has sd s, exactly |
-| two levels | each level's coefficient N(0, 1/2); F has sd s / 0.674 | (0, 1); F has sd s, exactly, the second level against the first |
-| a numeric column w | the coefficient N(0, 1), starting at 1; F has sd s / 0.674, per unit of w | the coefficient is 1; F has sd s, exactly, per unit of w |
+| the forest multiplies | drawn | drawn, `amplitude = student(nu)` | held, `amplitude = fixed()` |
+|---|---|---|---|
+| nothing | F has sd U, the coefficient's size half-Cauchy with median s / U | F has sd U, the coefficient t with nu df and median size s / U; `student(1)` is the drawn default | the coefficient is 1; F has sd s, exactly |
+| two levels | each level's coefficient N(0, 1/2); F has sd s / 0.674 | the pair bivariate t with nu df, one variance, scale sqrt(1/2) z_.75 / t_nu,.75, so the difference keeps the normal's median; F has sd s / 0.674 | (0, 1); F has sd s, exactly, the second level against the first |
+| a numeric column w | the coefficient N(0, 1), starting at 1; F has sd s / 0.674, per unit of w | the coefficient t with nu df, scale z_.75 / t_nu,.75, starting at 1; F has sd s / 0.674, per unit of w | the coefficient is 1; F has sd s, exactly, per unit of w |
 
 - A held coefficient is 1, and what it multiplies is the basis (dec-B354): 1 with no basis, 0 and 1
   for a factor's two levels, the column as given for a number. It goes by the forest's kind and never
@@ -36,6 +36,10 @@ in the response's units; U is the unit ([forest-sd-unit.md](forest-sd-unit.md)).
   the engine holds it (dec-B290), and U under probit and logistic (dec-B293). A held numeric coefficient
   that states no sd takes the drawn default: right at ordinary slopes, short under probit when the slope
   is two or three times larger, which the help says.
+- `student(nu)` takes nu finite and at least 1, `student()` being nu = 1 (dec-B510); the t's median
+  is the default's, so the forest's sd keeps its meaning and only the tails move. The draw is a
+  two-block Gibbs scan, the coefficient given its variance and the variance given the coefficient,
+  exact. The prior is fixed at creation; a live change is its own item (dec-B511).
 - The variance of a coefficient is not an argument: `amplitude.prior.variance` is gone.
 - A gaussian response with no spread over the rows its scale is read from is scaled by a window of
   width one; the anchor is then a quarter of that window, which is what the one forest of a
@@ -164,8 +168,6 @@ Each later addition is an addition and not a change of a 1.0 model:
 - `leaf.prior = normal(sd = )` on `forest()`, and `normal()` for the default back: the reader already
   says stated or not, and a stated forest keeps its record, so a default put back has the creation's
   scale.
-- A heavy-tailed coefficient: `amplitude` takes `fixed()` alone today; it is one row of
-  `forestMapEntry`, and the state already carries one variance a forest.
 - A forest for each level of a factor of three or more, and several numeric columns with a size for
   each: refused today; the reader's `sd` and `basis.scale` and `extract`'s entries are vectors by
   column, named by the column, and `data@basis.scale` holds a vector for each forest.

@@ -55,10 +55,13 @@ printedColumn <- function(column, rowsIn) {
 printedForest <- function(entry, basis, rowsIn, full, label) {
   how <- if (isTRUE(entry$sd.stated)) "stated" else "default"
   size <- printedNumber(entry$sd)
-  held <- if (full && !is.null(entry[["amplitude"]])) {
+  amplitude <- entry[["amplitude"]]
+  held <- if (!full || is.null(amplitude)) {
+    ""
+  } else if (is(amplitude, "dbartsFixedPrior")) {
     "; coefficient held"
   } else {
-    ""
+    paste0("; coefficient student(", printedNumber(amplitude@df), ")")
   }
   source <- function(origin = "") {
     if (full) paste0(" (", how, origin, ")") else ""

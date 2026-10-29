@@ -1325,6 +1325,13 @@ resolveSamplerSpec <- function(
         )
       )
     )
+    # each forest's student() df, NA where none, recorded only where some
+    # forest states one
+    if (!is.null(statements$amplitude.df)) {
+      forestInfo <- attr(control, "bartcore.forests", exact = TRUE)
+      forestInfo$amplitude.df <- statements$amplitude.df
+      attr(control, "bartcore.forests") <- forestInfo
+    }
     # what builds a basis written as code again at new rows, positional
     # against the forests as data@bases is and NULL where a forest's basis
     # is a value, which has no code to build from. Inert to the run: nothing

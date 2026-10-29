@@ -1688,17 +1688,29 @@ forestMoveRecord <- function(specs, numForests, variance) {
   )
 }
 
-## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which
-## holds it at 1, the basis carrying the coding. Returns "fixed" for the hold.
-## A bare fixed is fixed(), as a constructor given where a value is.
+## A forest's 'amplitude': NULL, which draws its coefficient under its kind's
+## default prior; fixed(), which holds it at 1, the basis carrying the coding;
+## or student(df), which draws it under a Student-t prior at the default's
+## median. Returns "fixed" for the hold and the student() object as it is. A
+## bare fixed or student is the constructor called, as a constructor given
+## where a value is.
 validateForestAmplitude <- function(amplitude) {
   if (identical(amplitude, fixed)) {
     amplitude <- fixed()
+  } else if (identical(amplitude, studentPrior)) {
+    amplitude <- studentPrior()
+  }
+  if (is(amplitude, "dbartsStudentPrior")) {
+    return(amplitude)
   }
   if (!is(amplitude, "dbartsFixedPrior")) {
     stop(
-      "a forest's 'amplitude' must be fixed(), which holds its coefficient, ",
-      "or left out, which draws it"
+      "a forest's 'amplitude' is fixed(), which holds its coefficient, ",
+      "student(df), which draws it under a Student-t prior, or left out, ",
+      "which draws it under its default prior",
+      if (is(amplitude, "dbartsFamily")) {
+        "; dbartsFamilies$student is the response's family"
+      }
     )
   }
   value <- amplitude@value
@@ -1991,8 +2003,8 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   if (numForests == 1L) {
     if (!is.null(first$amplitude) && !any(hasBasis)) {
       stop(
-        "this model has one forest, which has no coefficient to hold; ",
-        "'amplitude' needs a model of several forests"
+        "this model has one forest, which has no coefficient to give a ",
+        "prior; 'amplitude' needs a model of several forests"
       )
     }
   }
@@ -2039,17 +2051,34 @@ forestParams <- function(specs, hasBasis, plain) {
   })
 }
 
-## What each forest states of its size, as the forests' record carries it to
-## the engine: `sd`, in the response's units, as written and NA where none is
-## stated.
+## What each forest states of its size and its coefficient's prior, as the
+## forests' record carries it to the engine: `sd`, in the response's units, as
+## written and NA where none is stated, and `amplitude.df`, a student()
+## coefficient's df and NA elsewhere, present only where some forest states
+## one, so that a record made without it is as it was.
 forestStatements <- function(specs) {
-  list(
+  statements <- list(
     sd = vapply(
       specs,
       function(spec) if (is.null(spec$sd)) NA_real_ else spec$sd,
       0
     )
   )
+  df <- vapply(
+    specs,
+    function(spec) {
+      if (is(spec$amplitude, "dbartsStudentPrior")) {
+        spec$amplitude@df
+      } else {
+        NA_real_
+      }
+    },
+    0
+  )
+  if (!all(is.na(df))) {
+    statements$amplitude.df <- df
+  }
+  statements
 }
 
 ## Resolve an interactions() specification against the fitted model matrix into
@@ -2586,6 +2615,33 @@ fixed <- function(value = 1.0) {
   newValidated("dbartsFixedPrior", value = value)
 }
 
+## A coefficient's Student-t prior, student(df) at a forest's 'amplitude' and
+## dbartsPriors$student outside it; its own name here, the response family
+## being student. student() is the half-Cauchy.
+studentPrior <- function(df = 1) {
+  refusal <- studentPriorRefusal(df)
+  if (!is.null(refusal)) {
+    stop(refusal, call. = FALSE)
+  }
+  new("dbartsStudentPrior", df = as.double(df))
+}
+
+## Why df is no coefficient's Student-t df, NULL where it is one.
+studentPriorRefusal <- function(df) {
+  if (
+    !is.numeric(df) ||
+      is.object(df) ||
+      length(df) != 1L ||
+      !is.finite(df) ||
+      df < 1
+  ) {
+    paste0(
+      "a coefficient's student(df) takes one finite df of 1 or more; ",
+      "student() is student(1), the half-Cauchy"
+    )
+  }
+}
+
 chi <- function(df = 1.5, scale = 2.0, degreesOfFreedom) {
   if (!missing(degreesOfFreedom)) {
     if (!missing(df)) {
@@ -3050,7 +3106,8 @@ dbartsPriors <- list(
   chisq = chisq,
   fixed = fixed,
   chi = chi,
-  invchi = invchi
+  invchi = invchi,
+  student = studentPrior
 )
 
 ## The exported face of the forest constructors, for the reason dbartsPriors
@@ -3065,15 +3122,15 @@ dbartsForests <- list(
 )
 
 ## What the arguments that take a forest constructor resolve by bare name:
-## dbartsForests and the one prior constructor a forest's 'amplitude' takes,
-## which stays under dbartsPriors for the caller who names it outside.
-forestConstructors <- c(dbartsForests, dbartsPriors["fixed"])
+## dbartsForests and the prior constructors a forest's 'amplitude' takes,
+## which stay under dbartsPriors for the caller who names them outside.
+forestConstructors <- c(dbartsForests, dbartsPriors[c("fixed", "student")])
 
 ## Each door argument taking a forest constructor, and the vocabulary it
 ## resolves over. In the order the doors forced them before they resolved by
 ## name, so that an error names the same argument.
 FOREST_ARGUMENT_VOCABULARIES <- list(
-  forests = c("forest", "interactions", "blocks", "fixed"),
+  forests = c("forest", "interactions", "blocks", "fixed", "student"),
   interactions = "interactions",
   blocks = "blocks",
   monotone = "monotone",

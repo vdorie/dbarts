@@ -584,7 +584,25 @@ forest(
   \item{amplitude}{
     The prior on this forest's coefficient: the one a forest with no
     \code{basis} carries, or one for each level of its \code{basis}. Left out,
-    it is drawn each sweep. \code{fixed()} holds it for the sampler's life,
+    it is drawn each sweep, under a normal prior on a forest with a
+    \code{basis} and, on a forest with none, a half-Cauchy prior whose median
+    is the forest's \code{sd}. \code{student(df)} draws it under a Student-t
+    prior with \code{df} degrees of freedom, finite and at least 1;
+    \code{student()} is \code{student(1)}, the half-Cauchy. With a basis the
+    t is scaled so that its median size is the normal's, so the forest's
+    \code{sd} keeps its meaning, the prior median of what the forest
+    contributes, and only the tails move: a coefficient ten times its median
+    size has prior probability 0.06 under \code{student(1)}, 0.005 under
+    \code{student(3)} and about \eqn{10^{-11}}{1e-11} under the normal. That
+    tail lets the coefficient follow a multiplier whose scale is far from what
+    the \code{sd} states, at the cost of slower mixing along the ridge the
+    coefficient shares with the forest's leaves. With no basis the
+    coefficient's size is the forest's size, its median the \code{sd} or, where
+    none is stated, the size the forest has by default, so
+    \code{student(1)} restates that default and Bayesian causal forests'
+    prognostic prior is written \code{amplitude = student(1), sd = 2 * sd(y)}.
+    The draw is exact, a normal coefficient given a variance drawn from its
+    inverse-gamma conditional. \code{fixed()} holds it for the sampler's life,
     the choice being made at creation, wherever the forest stands: a held
     coefficient is 1, and what it multiplies is the basis, so a forest with no
     \code{basis} enters at 1, a forest on a numeric column at the column as
@@ -602,9 +620,12 @@ forest(
     forest times -0.5 and 0.5. A held coefficient cannot adapt to an
     \code{sd} that is too small; where the effect may be larger, state
     \code{sd} or let the coefficient be drawn. \code{fixed} alone is taken as
-    \code{fixed()}, and no other value is. Outside the argument that takes it
-    the constructor is \code{dbartsPriors$fixed()}. It is stated for a forest
-    of a model of several; a model of one forest has no amplitude to hold.
+    \code{fixed()}, and \code{student} alone as \code{student()}; no other
+    value is, a response family among them. Outside the argument that takes
+    them the constructors are \code{dbartsPriors$fixed()} and
+    \code{dbartsPriors$student()}. The prior is stated for a forest of a model
+    of several, at creation; a model of one forest has no coefficient to give
+    a prior. \code{$getLeafPrior(f)$amplitude} reads it back.
   }
   \item{proposal.probs, n.perturb.cuts, treeShift}{
     This forest's tree moves - its proposal mixture, perturb window and

@@ -487,7 +487,12 @@ processHit <- function(hit, env) {
     lapply(
       arguments[names(arguments) %not_in% c("vars", "basis")],
       evalInForestVocabulary,
-      vocabulary = forestConstructors[c("interactions", "blocks", "fixed")],
+      vocabulary = forestConstructors[c(
+        "interactions",
+        "blocks",
+        "fixed",
+        "student"
+      )],
       evalEnv = env
     )
   )

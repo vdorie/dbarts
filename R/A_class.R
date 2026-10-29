@@ -232,6 +232,15 @@ methods::setValidity("dbartsFixedPrior", function(object) {
   TRUE
 })
 
+## A drawn coefficient's Student-t prior, amplitude = student(df) on a forest:
+## df is finite and at least 1. Not a leaf or residual prior, so no prior
+## argument but a forest's 'amplitude' takes it.
+methods::setClass("dbartsStudentPrior", slots = list(df = "numeric"))
+methods::setValidity("dbartsStudentPrior", function(object) {
+  refusal <- studentPriorRefusal(object@df)
+  if (is.null(refusal)) TRUE else refusal
+})
+
 ## A response family and the settings that ride only on it. `token` is the
 ## front-door spelling ("gaussian", "student", "hazard.probit", ...) and
 ## `settings` holds that family's own arguments - a Student-t df, a count

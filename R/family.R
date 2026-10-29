@@ -208,7 +208,7 @@ forceCallerCode <- function(
         dbartsForests = dbartsForests,
         dbartsPriors = dbartsPriors,
         dbartsFamilies = dbartsFamilies,
-        forestPriors = dbartsPriors["fixed"]
+        forestPriors = dbartsPriors[c("fixed", "student")]
       )[hintLists]
       name <- unlist(lapply(sources, names), use.names = FALSE)
       topic <- sub(
@@ -704,10 +704,14 @@ resolveFamily <- function(
   ## the prior constructors join the family vocabulary: the residual prior
   ## rides the family object, so gaussian(sigma = chisq(3, 0.9)) has to
   ## resolve 'chisq' here the same way parsePriors resolves it inside
-  ## 'resid.prior'. The two name sets are disjoint.
+  ## 'resid.prior'. The two lists share the name student, which here is the
+  ## response family, the coefficient's prior being dropped by name.
   value <- evalInVocabulary(
     expr,
-    c(dbartsFamilies, dbartsPriors),
+    c(
+      dbartsFamilies,
+      dbartsPriors[setdiff(names(dbartsPriors), names(dbartsFamilies))]
+    ),
     evalEnv,
     resolvedFamily,
     hintLists = c("dbartsFamilies", "dbartsPriors")
