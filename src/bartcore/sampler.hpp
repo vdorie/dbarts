@@ -2182,6 +2182,22 @@ public:
     for (auto& chain : chains_) chain->setModel(model);
   }
 
+  /// Installs each forest's move settings on every chain: forestSettings
+  /// holds one per mean forest, in forest order, and varianceSettings the
+  /// variance forest's, non-null exactly where the sampler has one. The
+  /// counts are checked before any chain is written, so a refused call,
+  /// returning false, changes nothing. Installed before any run it matches
+  /// creating with the settings, since nothing reads them before a sweep.
+  bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
+                       const MoveSettings* varianceSettings) {
+    if (forestSettings.size() != numForests() ||
+        (varianceSettings != nullptr) != hasVarianceForest())
+      return false;
+    for (auto& chain : chains_)
+      chain->setMoveSettings(forestSettings.data(), varianceSettings);
+    return true;
+  }
+
   double sumOfSquaredResiduals(size_t chainNum) {
     return chains_[chainNum]->sumOfSquaredResiduals();
   }

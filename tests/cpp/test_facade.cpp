@@ -47,7 +47,7 @@ enum class FacadeVirtual {
   sampleNodeParametersFromPrior, sampleVarianceForestFromPrior, growFromRoot,
   setNumThreads, setNumThin,
   setVerbose, fitScale, gpFallbackTally, slowCountTally, setTreeStorage,
-  setModel,
+  setModel, setMoveSettings,
   sumOfSquaredResiduals,
   printTrees, rng, data, latents, sigma, shapeParameter, setForestBasis,
   setForestWeights, forestCalibration, setForestNamedSd, setForestFixedK,
@@ -209,6 +209,8 @@ public:
   SPY_RET(SlowCountTally, slowCountTally, () const, ())
   SPY_VOID(setTreeStorage, (bool k, std::size_t n), (k, n))
   SPY_VOID(setModel, (const ModelParameters& m), (m))
+  SPY_RET(bool, setMoveSettings,
+          (const std::vector<MoveSettings>& f, const MoveSettings* v), (f, v))
   SPY_RET(double, sumOfSquaredResiduals, (std::size_t c), (c))
   SPY_VOID(printTrees,
            (const std::size_t* ci, std::size_t nci, const std::size_t* si,
@@ -1213,6 +1215,28 @@ const Row rows[] = {
     f.d.base().setModel(model);
     check(f.d.impl().k(0) == 5.0,
           "facade setModel: the impl's chains take the replacement prior");
+  }},
+  {FacadeVirtual::setMoveSettings, "setMoveSettings", [](Fixtures& f) {
+    MoveSettings moved;
+    moved.perturbProbability = 0.2;
+    moved.changeProbability = 0.2;
+    moved.perturbWidth = 7;
+    moved.levelGibbs = LevelGibbsMode::on;
+    check(!f.d.base().setMoveSettings({moved, moved}, nullptr),
+          "facade setMoveSettings: a count that is not the sampler's is "
+          "refused");
+    check(TestPeer::forestMoveSettings(f.d.impl().chain(0), 0).perturbWidth ==
+            1,
+          "facade setMoveSettings: a refusal writes nothing");
+    check(f.d.base().setMoveSettings({moved}, nullptr),
+          "facade setMoveSettings: the sampler's count is taken");
+    MoveSettings taken = TestPeer::forestMoveSettings(f.d.impl().chain(0), 0);
+    check(taken.perturbWidth == 7 && taken.perturbProbability == 0.2 &&
+            taken.levelGibbs == LevelGibbsMode::on,
+          "facade setMoveSettings: the impl's forest takes the settings");
+    // back to creation's, so later rows on the fixture draw as before
+    check(f.d.base().setMoveSettings({MoveSettings{}}, nullptr),
+          "facade setMoveSettings: the defaults go back");
   }},
   {FacadeVirtual::sumOfSquaredResiduals, "sumOfSquaredResiduals",
    [](Fixtures& f) {

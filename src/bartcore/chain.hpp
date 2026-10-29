@@ -44,18 +44,6 @@ struct TestFitPartitionChannel {
 };
 inline TestFitPartitionChannel testFitPartition;
 
-/// When the level-fiber Gibbs step runs (SamplerOptions::levelGibbs).
-enum class LevelGibbsMode : std::uint8_t {
-  /// Never; no generator draw is taken and the sweep is the shipped one.
-  off,
-  /// Every sweep, for every constant-leaf forest.
-  on,
-  /// Every sweep, for each forest whose structural mixture is frozen. The
-  /// step buys nothing a birth or a change does not already buy, and costs a
-  /// draw sequence, so it earns its place exactly where no structure moves.
-  automatic
-};
-
 struct SamplerOptions {
   size_t numTrees = 200;
   size_t numChains = 1;
@@ -90,14 +78,15 @@ struct SamplerOptions {
   // sum_t c_t = 0 leaves the fitted function unchanged, so the conditional of
   // the shift is the leaf prior restricted to that subspace and is closed
   // form. Three modes: on, off, and automatic, which takes the step for a
-  // forest exactly where that forest's structural mixture is frozen. The
-  // decision is PER SWEEP and PER FOREST, since setModel can move a mixture
-  // between sweeps while this option is fixed when the sampler is created.
-  // Guarded before any generator call, so a mixture that proposes structure
-  // leaves the default draw sequence byte-for-byte unchanged. Constant-leaf
-  // forests only: a vector or function leaf keeps no leaf table for the shift
-  // to write, and the variance forest's fiber is multiplicative rather than
-  // additive, so both ignore it.
+  // forest exactly where that forest's structural mixture is frozen. This is
+  // the mode every mean forest is built with (Forest::levelGibbs), which
+  // Sampler::setMoveSettings may then replace forest by forest. The decision
+  // is PER SWEEP and PER FOREST, since a forest's mixture and mode can move
+  // between sweeps. Guarded before any generator call, so a mixture that
+  // proposes structure leaves the default draw sequence byte-for-byte
+  // unchanged. Constant-leaf forests only: a vector or function leaf keeps no
+  // leaf table for the shift to write, and the variance forest's fiber is
+  // multiplicative rather than additive, so both ignore it.
   LevelGibbsMode levelGibbs = LevelGibbsMode::automatic;
   // the probit rescaling step, taken once per sweep after the level step: the
   // active latents and the occupied leaves are multiplied by one factor and k
@@ -1004,6 +993,7 @@ public:
     forest.perturbWidth = options.perturbWidth;
     forest.ruleGibbsProbability = options.ruleGibbsProbability;
     forest.birthProbability = options.birthProbability;
+    forest.levelGibbs = options.levelGibbs;
     forest.updateK = options.updateK;
     forest.kHyperprior = options.kHyperprior;
     forest.useDart = options.useDart;
@@ -2031,14 +2021,14 @@ public:
       // residual from totalFits (which the zero-sum shift leaves correct), and
       // any keepTrees record is flattened after the shift rather than around
       // it. Per forest, each forest's own shift leaving its own fits invariant
-      // whatever multiplier a combiner applies, and under the automatic mode
-      // each forest deciding on its own mixture. Guarded here, before any
+      // whatever multiplier a combiner applies, each forest under its own mode
+      // and, automatic, deciding on its own mixture. Guarded here, before any
       // generator call, so a forest that skips consumes nothing.
-      if (options_.levelGibbs != LevelGibbsMode::off) {
-        for (size_t f = 0; f < forests_.size(); ++f)
-          if (options_.levelGibbs == LevelGibbsMode::on ||
-              structureFrozenByForest_[f])
-            drawLevelShift(forests_[f]);
+      for (size_t f = 0; f < forests_.size(); ++f) {
+        const LevelGibbsMode mode = forests_[f].levelGibbs;
+        if (mode == LevelGibbsMode::on ||
+            (mode == LevelGibbsMode::automatic && structureFrozenByForest_[f]))
+          drawLevelShift(forests_[f]);
       }
 
       // the probit rescaling step, after the level step and so equally ahead
@@ -2632,9 +2622,10 @@ public:
     // the new prior; the current surface is left alone, as a homoscedastic
     // setSigmaPrior leaves the current sigma.
     //
-    // The variance forest proposes under the mean forest's mixture and perturb
-    // width, as buildVarianceForest installs them, so both are written here
-    // too; its tree prior is its own and stays.
+    // The variance forest takes the model's mixture and perturb width, as
+    // buildVarianceForest takes the options', so both are written here too;
+    // a host giving it settings of its own installs them after, through
+    // setMoveSettings. Its tree prior is its own and stays.
     if constexpr (leafSupportsVarianceForest)
       if (varianceForest_) {
         VarianceForest& vf = *varianceForest_;
@@ -2663,6 +2654,37 @@ public:
           forest.fixedSplitProbabilities.data();
       }
     }
+  }
+
+  /// Writes each mean forest's move settings, forestSettings holding one per
+  /// forest in forest order, and the variance forest's where
+  /// varianceSettings is non-null. The caller checks the counts; nothing here
+  /// can fail, and nothing else moves: no prior, tree or draw.
+  void setMoveSettings(const MoveSettings* forestSettings,
+                       const MoveSettings* varianceSettings) {
+    for (std::size_t f = 0; f < forests_.size(); ++f) {
+      Forest<L, ResidT>& forest = forests_[f];
+      const MoveSettings& settings = forestSettings[f];
+      forest.birthOrDeathProbability = settings.birthOrDeathProbability;
+      forest.swapProbability = settings.swapProbability;
+      forest.changeProbability = settings.changeProbability;
+      forest.perturbProbability = settings.perturbProbability;
+      forest.perturbWidth = settings.perturbWidth;
+      forest.ruleGibbsProbability = settings.ruleGibbsProbability;
+      forest.birthProbability = settings.birthProbability;
+      forest.levelGibbs = settings.levelGibbs;
+    }
+    if constexpr (leafSupportsVarianceForest)
+      if (varianceForest_ && varianceSettings != nullptr) {
+        VarianceForest& vf = *varianceForest_;
+        vf.birthOrDeathProbability = varianceSettings->birthOrDeathProbability;
+        vf.swapProbability = varianceSettings->swapProbability;
+        vf.changeProbability = varianceSettings->changeProbability;
+        vf.perturbProbability = varianceSettings->perturbProbability;
+        vf.perturbWidth = varianceSettings->perturbWidth;
+        vf.ruleGibbsProbability = varianceSettings->ruleGibbsProbability;
+        vf.birthProbability = varianceSettings->birthProbability;
+      }
   }
 
   /// Sum of squared working residuals, descaled to the original response
@@ -6204,8 +6226,8 @@ private:
     const double* userWeights = response_->workingWeights();
     for (std::size_t i = 0; i < n; ++i) vf.meanResidual[i] = y[i] - meanFits[i];
 
-    // the variance forest reads the same mixture as the mean forest, so an
-    // all-zero one freezes both; its leaf factors keep being drawn
+    // an all-zero mixture freezes the variance trees; their leaf factors
+    // keep being drawn
     const bool structureFrozen = structureIsFrozen(
       vf.birthOrDeathProbability, vf.swapProbability, vf.changeProbability,
       vf.perturbProbability, vf.ruleGibbsProbability);
@@ -7607,6 +7629,7 @@ private:
     forest.perturbWidth = spec.perturbWidth;
     forest.ruleGibbsProbability = spec.ruleGibbsProbability;
     forest.birthProbability = spec.birthProbability;
+    forest.levelGibbs = options_.levelGibbs;
     forest.updateK = false;
     forest.useDart = false;
     forest.k = 1.0;
@@ -7664,6 +7687,7 @@ private:
     forest.perturbWidth = spec.perturbWidth;
     forest.ruleGibbsProbability = spec.ruleGibbsProbability;
     forest.birthProbability = spec.birthProbability;
+    forest.levelGibbs = options_.levelGibbs;
     forest.updateK = false;
     forest.useDart = false;
     forest.k = k;

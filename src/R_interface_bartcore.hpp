@@ -105,6 +105,7 @@ SEXP bartcore_printTrees(SEXP ptr, SEXP chainNums, SEXP sampleNums,
                          SEXP treeNums);
 SEXP bartcore_setControl(SEXP ptr, SEXP control);
 SEXP bartcore_setModel(SEXP ptr, SEXP model, SEXP data, SEXP control);
+SEXP bartcore_setMoveSettings(SEXP ptr, SEXP control);
 SEXP bartcore_getSumsOfSquaredResiduals(SEXP ptr);
 
 }

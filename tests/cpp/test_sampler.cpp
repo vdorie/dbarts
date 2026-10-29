@@ -12196,6 +12196,362 @@ static void testLevelGibbsAutomatic() {
   printf("ok: level gibbs automatic\n");
 }
 
+// Per-forest move settings. Three sampler kinds carry more than one set of
+// move fields: one forest with a variance forest, two forests (bcf's pair) and
+// a multinomial sampler of K category forests. Each is built here over the
+// same data, two chains for the install's writes and one for its draws.
+namespace {
+
+enum class MoveKind { variance, twoForests, multinomial };
+
+struct MoveFixtureData {
+  static constexpr std::size_t n = 120, p = 2, K = 3;
+  std::vector<double> x, y, z;
+  std::vector<int> counts, trials;
+  MoveFixtureData() {
+    makeMutationData(x, y, n);
+    z.resize(n);
+    std::vector<int> labels(n);
+    for (std::size_t i = 0; i < n; ++i) {
+      z[i] = runif01() < 0.5 ? 1.0 : 0.0;
+      labels[i] = x[i] < 0.34 ? 0 : (x[i] < 0.67 ? 1 : 2);
+    }
+    oneHotCounts(labels, K, counts, trials);
+  }
+};
+
+template <typename Spec>
+void copyMixture(Spec& spec, const MoveSettings& s) {
+  spec.birthOrDeathProbability = s.birthOrDeathProbability;
+  spec.swapProbability = s.swapProbability;
+  spec.changeProbability = s.changeProbability;
+  spec.perturbProbability = s.perturbProbability;
+  spec.perturbWidth = s.perturbWidth;
+  spec.ruleGibbsProbability = s.ruleGibbsProbability;
+  spec.birthProbability = s.birthProbability;
+}
+
+/// A sampler of `kind` whose chains are seeded from seed, seed + 1, ...;
+/// `created`, where non-null, is built in at creation: the options' mixture
+/// and mode (both of the variance kind's forests), the mu and tau specs'
+/// mixtures (created[0] and created[1]) or the category forests' (created[0]).
+std::unique_ptr<ConstantLeafSampler>
+makeMoveSampler(MoveKind kind, const MoveFixtureData& d, std::size_t numChains,
+                std::uint_least32_t seed, std::vector<ext_rng*>& rngs,
+                const MoveSettings* created = nullptr,
+                LevelGibbsMode mode = LevelGibbsMode::automatic) {
+  for (std::size_t c = 0; c < numChains; ++c) {
+    ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+    ext_rng_setSeed(rng, seed + static_cast<std::uint_least32_t>(c));
+    rngs.push_back(rng);
+  }
+  ext_rng** chainRngs = rngs.data() + (rngs.size() - numChains);
+  SamplerOptions options;
+  options.numTrees = 8;
+  options.numChains = numChains;
+  options.levelGibbs = mode;
+  if (kind == MoveKind::variance) {
+    options.numVarianceTrees = 5;
+    if (created != nullptr) {
+      options.birthOrDeathProbability = created[0].birthOrDeathProbability;
+      options.swapProbability = created[0].swapProbability;
+      options.changeProbability = created[0].changeProbability;
+      options.perturbProbability = created[0].perturbProbability;
+      options.perturbWidth = created[0].perturbWidth;
+      options.ruleGibbsProbability = created[0].ruleGibbsProbability;
+      options.birthProbability = created[0].birthProbability;
+    }
+    return std::make_unique<ConstantLeafSampler>(
+      d.x.data(), d.y.data(), d.n, d.p, nullptr, nullptr,
+      ResponseFamily::gaussian, 1.0, 3.0, 0.37804942330213542, options,
+      chainRngs);
+  }
+  if (kind == MoveKind::twoForests) {
+    AmplitudeSpec spec;
+    spec.mu.numTrees = 8;
+    spec.tau.numTrees = 6;
+    spec.tau.base = 0.25;
+    spec.tau.power = 3.0;
+    spec.z = d.z.data();
+    if (created != nullptr) {
+      copyMixture(spec.mu, created[0]);
+      copyMixture(spec.tau, created[1]);
+    }
+    return std::make_unique<ConstantLeafSampler>(
+      d.x.data(), d.y.data(), d.n, d.p, nullptr, nullptr, 1.0, 3.0,
+      0.37804942330213542, options, spec, chainRngs);
+  }
+  MultinomialSpec spec;
+  spec.numCategories = d.K;
+  spec.counts = d.counts.data();
+  spec.trials = d.trials.data();
+  spec.forest.numTrees = 6;
+  if (created != nullptr) copyMixture(spec.forest, created[0]);
+  return std::make_unique<ConstantLeafSampler>(d.x.data(), d.n, d.p, options,
+                                               spec, chainRngs);
+}
+
+bool sameMoveSettings(const MoveSettings& a, const MoveSettings& b,
+                      bool readsMode = true) {
+  return a.birthOrDeathProbability == b.birthOrDeathProbability &&
+         a.swapProbability == b.swapProbability &&
+         a.changeProbability == b.changeProbability &&
+         a.perturbProbability == b.perturbProbability &&
+         a.perturbWidth == b.perturbWidth &&
+         a.ruleGibbsProbability == b.ruleGibbsProbability &&
+         a.birthProbability == b.birthProbability &&
+         (!readsMode || a.levelGibbs == b.levelGibbs);
+}
+
+/// Every forest total and the variance surface of chain 0, the bitwise
+/// record two arms are compared on.
+std::vector<double> moveRecordOf(ConstantLeafSampler& sampler) {
+  Chain<ConstantGaussianLeaf>& chain = sampler.chain(0);
+  std::vector<double> out;
+  for (std::size_t f = 0; f < chain.numForests(); ++f) {
+    const std::vector<double>& total = TestPeer::totalFitsInForest(chain, f);
+    out.insert(out.end(), total.begin(), total.end());
+  }
+  if (const double* variance = TestPeer::varianceFits(chain))
+    out.insert(out.end(), variance, variance + MoveFixtureData::n);
+  return out;
+}
+
+void destroyRngs(std::vector<ext_rng*>& rngs) {
+  for (ext_rng* rng : rngs) ext_rng_destroy(rng);
+  rngs.clear();
+}
+
+}  // namespace
+
+// The move install writes each forest's seven move fields and its mode, and
+// the variance forest's fields, on every chain; a count that is not the
+// sampler's is refused and leaves every chain as it was. A forest is built
+// with the options' mode at each of its three build sites.
+static void testMoveSettingsInstall() {
+  std::uint64_t savedRngState = rngState;
+  MoveFixtureData d;
+  MoveSettings a, b, c;
+  a.birthOrDeathProbability = 0.3; a.swapProbability = 0.1;
+  a.changeProbability = 0.2; a.perturbProbability = 0.3;
+  a.ruleGibbsProbability = 0.1; a.birthProbability = 0.4;
+  a.perturbWidth = 3; a.levelGibbs = LevelGibbsMode::on;
+  b.birthOrDeathProbability = 0.0; b.changeProbability = 0.0;
+  b.perturbWidth = 5; b.levelGibbs = LevelGibbsMode::off;
+  c.perturbProbability = 0.4; c.changeProbability = 0.0;
+  c.perturbWidth = 2;
+
+  for (MoveKind kind : {MoveKind::variance, MoveKind::twoForests,
+                        MoveKind::multinomial}) {
+    const char* name = kind == MoveKind::variance
+      ? "variance"
+      : (kind == MoveKind::twoForests ? "two forests" : "multinomial");
+    std::vector<ext_rng*> rngs;
+    std::string message;
+    auto what = [&](const char* text) {
+      message = std::string(name) + ": " + text;
+      return message.c_str();
+    };
+
+    // the options' mode at every build site, a non-default one each way
+    for (LevelGibbsMode mode : {LevelGibbsMode::on, LevelGibbsMode::off}) {
+      auto built = makeMoveSampler(kind, d, 2, 41u, rngs, nullptr, mode);
+      bool modeBuilt = true;
+      for (std::size_t ch = 0; ch < 2; ++ch)
+        for (std::size_t f = 0; f < built->numForests(); ++f)
+          modeBuilt &= TestPeer::forestMoveSettings(built->chain(ch), f)
+                         .levelGibbs == mode;
+      check(modeBuilt,
+          what("every forest is built with the options' mode"));
+    }
+
+    auto sampler = makeMoveSampler(kind, d, 2, 43u, rngs);
+    const std::size_t numForests = sampler->numForests();
+    const bool hasVariance = kind == MoveKind::variance;
+    std::vector<MoveSettings> wanted(numForests, a);
+    if (numForests > 1) wanted[1] = b;
+    if (numForests > 2) wanted[2] = c;
+
+    // refusals first: the wrong forest count, and a variance setting given
+    // or withheld against the sampler; every chain stays at creation's
+    std::vector<MoveSettings> tooMany(numForests + 1, a);
+    check(!sampler->setMoveSettings(tooMany, hasVariance ? &b : nullptr),
+          what("a forest count that is not the sampler's is refused"));
+    check(!sampler->setMoveSettings(wanted, hasVariance ? nullptr : &b),
+          what(
+            "a variance setting that does not fit the sampler is refused"));
+    bool untouched = true;
+    for (std::size_t ch = 0; ch < 2; ++ch) {
+      for (std::size_t f = 0; f < numForests; ++f)
+        untouched &= sameMoveSettings(
+          TestPeer::forestMoveSettings(sampler->chain(ch), f), MoveSettings{});
+      if (hasVariance)
+        untouched &= sameMoveSettings(
+          TestPeer::varianceMoveSettings(sampler->chain(ch)), MoveSettings{},
+          false);
+    }
+    check(untouched,
+          what("a refused install leaves every chain as it was"));
+
+    check(sampler->setMoveSettings(wanted, hasVariance ? &b : nullptr),
+          what("the sampler's own counts are taken"));
+    bool written = true;
+    for (std::size_t ch = 0; ch < 2; ++ch) {
+      for (std::size_t f = 0; f < numForests; ++f)
+        written &= sameMoveSettings(
+          TestPeer::forestMoveSettings(sampler->chain(ch), f), wanted[f]);
+      if (hasVariance)
+        written &= sameMoveSettings(
+          TestPeer::varianceMoveSettings(sampler->chain(ch)), b, false);
+    }
+    check(written,
+          what("every forest of every chain takes its own settings"));
+    sampler.reset();
+    destroyRngs(rngs);
+  }
+  rngState = savedRngState;
+  printf("ok: per-forest move install\n");
+}
+
+// Installed before any run, the move install is creating with the settings:
+// the same draws, bitwise, on every kind. Creation can state one mixture for
+// both of the variance kind's forests and one mode for every forest, so the
+// install states those.
+static void testMoveSettingsMatchCreation() {
+  std::uint64_t savedRngState = rngState;
+  MoveFixtureData d;
+  MoveSettings x, y;
+  x.birthOrDeathProbability = 0.4; x.swapProbability = 0.1;
+  x.changeProbability = 0.2; x.perturbProbability = 0.2;
+  x.ruleGibbsProbability = 0.1; x.birthProbability = 0.45;
+  x.perturbWidth = 3;
+  y.birthOrDeathProbability = 0.5; y.changeProbability = 0.2;
+  y.perturbProbability = 0.3; y.perturbWidth = 65533;
+  for (LevelGibbsMode mode : {LevelGibbsMode::on, LevelGibbsMode::off}) {
+    x.levelGibbs = mode;
+    y.levelGibbs = mode;
+    for (MoveKind kind : {MoveKind::variance, MoveKind::twoForests,
+                          MoveKind::multinomial}) {
+      const MoveSettings created[2] = {x, y};
+      std::vector<ext_rng*> rngs;
+      auto withSettings = makeMoveSampler(kind, d, 1, 77u, rngs, created, mode);
+      auto installed = makeMoveSampler(kind, d, 1, 77u, rngs);
+      std::vector<MoveSettings> forests(installed->numForests(), x);
+      if (kind == MoveKind::twoForests) forests[1] = y;
+      check(installed->setMoveSettings(
+              forests, kind == MoveKind::variance ? &x : nullptr),
+            "the install before any run is taken");
+      Results results;
+      withSettings->run(15, 5, results);
+      installed->run(15, 5, results);
+      check(moveRecordOf(*withSettings) == moveRecordOf(*installed),
+            "installed before any run, the settings draw what creating with "
+            "them draws");
+      withSettings.reset();
+      installed.reset();
+      destroyRngs(rngs);
+    }
+  }
+  rngState = savedRngState;
+  printf("ok: per-forest move install matches creation\n");
+}
+
+// The level step reads each forest's own mode: on two forests, the second
+// frozen after a common growth, (off, on) draws what (auto, auto) draws, auto
+// being off on the growing forest and on on the frozen one, and (on, on) and
+// (off, off) each differ. The step's place in the sweep is pinned against a
+// hand-taken one: a sampler whose forests are all off, given each forest's
+// step through TestPeer ahead of every one-sweep run, draws what the same
+// sampler draws with every forest on - on two forests, where a step taken in
+// the forest loop would follow the first forest's sweep, and on a drawn-k
+// probit forest, where one taken after the rescaling step would follow it.
+static void testLevelGibbsPerForest() {
+  std::uint64_t savedRngState = rngState;
+  MoveFixtureData d;
+  MoveSettings frozen;
+  frozen.birthOrDeathProbability = 0.0;
+  frozen.changeProbability = 0.0;
+  auto arm = [&](LevelGibbsMode first, LevelGibbsMode second) {
+    std::vector<ext_rng*> rngs;
+    auto sampler = makeMoveSampler(MoveKind::twoForests, d, 1, 91u, rngs);
+    Results results;
+    sampler->run(30, 0, results);
+    MoveSettings growing;
+    growing.levelGibbs = first;
+    frozen.levelGibbs = second;
+    check(sampler->setMoveSettings({growing, frozen}, nullptr),
+          "the level arm's install is taken");
+    sampler->run(20, 0, results);
+    std::vector<double> record = moveRecordOf(*sampler);
+    sampler.reset();
+    destroyRngs(rngs);
+    return record;
+  };
+  const LevelGibbsMode off = LevelGibbsMode::off, on = LevelGibbsMode::on,
+                       automatic = LevelGibbsMode::automatic;
+  std::vector<double> autoAuto = arm(automatic, automatic);
+  check(arm(off, on) == autoAuto,
+        "two forests: (off, on) draws what (auto, auto) draws, the second "
+        "frozen");
+  check(arm(on, on) != autoAuto, "two forests: (on, on) is not (auto, auto)");
+  check(arm(off, off) != autoAuto,
+        "two forests: (off, off) is not (auto, auto)");
+
+  // the step's place: ahead of the forest loop and of the rescaling step
+  for (bool probit : {false, true}) {
+    auto pinned = [&](bool byHand) {
+      std::vector<ext_rng*> rngs;
+      std::unique_ptr<ConstantLeafSampler> sampler;
+      std::vector<double> yBinary(d.n);
+      if (probit) {
+        for (std::size_t i = 0; i < d.n; ++i)
+          yBinary[i] = d.y[i] > 1.0 ? 1.0 : 0.0;
+        ext_rng* rng = ext_rng_create(EXT_RNG_ALGORITHM_MERSENNE_TWISTER, NULL);
+        ext_rng_setSeed(rng, 93u);
+        rngs.push_back(rng);
+        SamplerOptions options;
+        options.numTrees = 8;
+        options.nodeScale = 3.0;
+        options.updateK = true;
+        options.kHyperprior.degreesOfFreedom = 1.5;
+        options.kHyperprior.scale = 2.0;
+        sampler = std::make_unique<ConstantLeafSampler>(
+          d.x.data(), yBinary.data(), d.n, d.p, nullptr, nullptr,
+          ResponseFamily::probit, 1.0, 3.0, 0.37804942330213542, options,
+          rngs.data());
+      } else {
+        sampler = makeMoveSampler(MoveKind::twoForests, d, 1, 93u, rngs);
+      }
+      Results results;
+      sampler->run(30, 0, results);
+      MoveSettings mode;
+      mode.levelGibbs = byHand ? LevelGibbsMode::off : LevelGibbsMode::on;
+      check(sampler->setMoveSettings(
+              std::vector<MoveSettings>(sampler->numForests(), mode), nullptr),
+            "the pinning arm's install is taken");
+      if (probit)
+        check(TestPeer::forestRescaleApplies(sampler->chain(0)),
+              "the pinning probit forest takes the rescaling step");
+      for (std::size_t sweep = 0; sweep < 10; ++sweep) {
+        if (byHand)
+          for (std::size_t f = 0; f < sampler->numForests(); ++f)
+            TestPeer::drawForestLevelShift(sampler->chain(0), f);
+        sampler->run(1, 0, results);
+      }
+      std::vector<double> record = moveRecordOf(*sampler);
+      sampler.reset();
+      destroyRngs(rngs);
+      return record;
+    };
+    check(pinned(true) == pinned(false),
+          probit ? "the level step is taken ahead of the rescaling step"
+                 : "every forest's level step is taken ahead of the forest "
+                   "loop");
+  }
+  rngState = savedRngState;
+  printf("ok: level gibbs per forest\n");
+}
+
 void runSamplerTests(ext_rng* rng) {
   testFitsWithoutOffset();
   testBCFTauModeratorRestriction(rng);
@@ -12287,4 +12643,7 @@ void runSamplerTests(ext_rng* rng) {
   testNumericMultiplierRule();
   testForestSdUnit();
   testBCFCalibrationMap();
+  testMoveSettingsInstall();
+  testMoveSettingsMatchCreation();
+  testLevelGibbsPerForest();
 }

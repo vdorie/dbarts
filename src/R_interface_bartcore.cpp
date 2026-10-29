@@ -205,8 +205,9 @@ struct ParsedControl {
   bool keepTrainingFits = true;
   bool useQuantiles = false;
   // the level-fiber Gibbs step (control@levelGibbs, a tri-state logical: NA
-  // is the automatic mode); creation-time, like useQuantiles, so
-  // bartcore_setControl never pushes it
+  // is the automatic mode), the mode every forest is built with; a change
+  // reaches the forests through the move install (resolveMoveSettings), never
+  // through bartcore_setControl
   bartcore::LevelGibbsMode levelGibbs = bartcore::LevelGibbsMode::automatic;
   bool keepTrees = false;
   // opt-in fp32 running residual (control@storage == "single"); the
@@ -482,6 +483,20 @@ void setAttribByName(SEXP target, const char* name, SEXP value) {
   UNPROTECT(1);
 }
 
+/// A level-step mode, the tri-state logical the control's slot and a
+/// forest's own entry hold: NA is automatic. NA is a value here and not a
+/// refusal, so the logical is read raw rather than through rc_getBool, which
+/// narrows to bool and would read NA as true.
+bartcore::LevelGibbsMode parseLevelGibbs(SEXP modeExpr) {
+  rc_assertBoolConstraints(modeExpr, "level gibbs", RC_LENGTH | RC_EQ,
+                           rc_asRLength(1), RC_NA | RC_YES, RC_END);
+  int value = LOGICAL(modeExpr)[0];
+  return value == NA_LOGICAL
+    ? bartcore::LevelGibbsMode::automatic
+    : (value != 0 ? bartcore::LevelGibbsMode::on
+                  : bartcore::LevelGibbsMode::off);
+}
+
 void parseControl(ParsedControl& control, SEXP controlExpr) {
   SEXP slotExpr;
   PROTECT_INDEX slotIndex;
@@ -506,16 +521,8 @@ void parseControl(ParsedControl& control, SEXP controlExpr) {
                                     RC_LENGTH | RC_EQ, rc_asRLength(1),
                                     RC_END);
 
-  // NA is a value here and not a refusal, so the logical is read raw rather
-  // than through rc_getBool, which narrows to bool and would read NA as true
   REPROTECT_SLOT(slotExpr, controlExpr, "levelGibbs", slotIndex);
-  rc_assertBoolConstraints(slotExpr, "level gibbs", RC_LENGTH | RC_EQ,
-                           rc_asRLength(1), RC_NA | RC_YES, RC_END);
-  int levelGibbsValue = LOGICAL(slotExpr)[0];
-  control.levelGibbs = levelGibbsValue == NA_LOGICAL
-    ? bartcore::LevelGibbsMode::automatic
-    : (levelGibbsValue != 0 ? bartcore::LevelGibbsMode::on
-                            : bartcore::LevelGibbsMode::off);
+  control.levelGibbs = parseLevelGibbs(slotExpr);
 
   REPROTECT_SLOT(slotExpr, controlExpr, "categoricalExhaustiveCap", slotIndex);
   control.categoricalExhaustiveCap = static_cast<size_t>(
@@ -1654,57 +1661,81 @@ void parseData(ParsedData& data, SEXP dataExpr) {
   UNPROTECT(2);  // the slot index and the factor level tables
 }
 
-/// The tree-move mixture is a control setting: `proposal.probs` carries the six
-/// canonical names in order, resolved R-side, so the read is positional.
-void parseProposalProbs(ParsedModel& model, SEXP controlExpr) {
-  SEXP slotExpr =
-    PROTECT(Rf_getAttrib(controlExpr, Rf_install("proposal.probs")));
-  rc_assertDoubleConstraints(slotExpr, "proposal probabilities",
+/// A mixture: the six canonical probabilities in order, resolved R-side, so
+/// the read is positional. The control's slot and a forest's own entry are
+/// both read here, with the same checks.
+void parseMixture(bartcore::MoveSettings& settings, SEXP probsExpr) {
+  rc_assertDoubleConstraints(probsExpr, "proposal probabilities",
                              RC_LENGTH | RC_EQ, rc_asRLength(6), RC_END);
-  const double* probs = REAL(slotExpr);
+  const double* probs = REAL(probsExpr);
   // the five structural moves, then birth against death within a birth/death
   // move; a monotone forest is birth/death-only (birth_death == 1), permitted
   for (std::size_t i = 0; i < 5; ++i)
     if (ISNAN(probs[i]) || probs[i] < 0.0 || probs[i] > 1.0)
       Rf_error("rule proposal probabilities must be in [0, 1]");
-  model.birthOrDeathProbability = probs[0];
-  model.swapProbability = probs[1];
-  model.changeProbability = probs[2];
-  model.perturbProbability = probs[3];
-  model.ruleGibbsProbability = probs[4];
-  model.birthProbability = probs[5];
+  settings.birthOrDeathProbability = probs[0];
+  settings.swapProbability = probs[1];
+  settings.changeProbability = probs[2];
+  settings.perturbProbability = probs[3];
+  settings.ruleGibbsProbability = probs[4];
+  settings.birthProbability = probs[5];
   // all five exactly zero is the frozen mixture: no structural proposal is
   // made and the tree structures stand, so there is no share to normalize
   const double structuralProbability =
-    model.birthOrDeathProbability + model.swapProbability +
-    model.changeProbability + model.perturbProbability +
-    model.ruleGibbsProbability;
+    settings.birthOrDeathProbability + settings.swapProbability +
+    settings.changeProbability + settings.perturbProbability +
+    settings.ruleGibbsProbability;
   if (structuralProbability != 0.0 &&
       std::fabs(structuralProbability - 1.0) >= sumToOneTolerance)
     Rf_error("rule proposal probabilities must sum to 1.0");
-  if (!(model.birthProbability > 0.0) || !(model.birthProbability < 1.0))
+  if (!(settings.birthProbability > 0.0) || !(settings.birthProbability < 1.0))
     Rf_error("probability of birth in birth/death rule must be in (0, 1)");
+}
 
-  // the perturb window, a double so it can hold Inf; anything at or above
-  // the cut cap is the cap, exactly so, the window being clipped to the
-  // node's interval, and the cap keeps current + width inside int32_t
-  // an integer written into the slot after construction is taken as its value
-  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.perturb.cuts"));
-  if ((TYPEOF(slotExpr) != REALSXP && TYPEOF(slotExpr) != INTSXP) ||
-      XLENGTH(slotExpr) != 1)
+/// A perturb window, a double so it can hold Inf; anything at or above the
+/// cut cap is the cap, exactly so, the window being clipped to the node's
+/// interval, and the cap keeps current + width inside int32_t. An integer is
+/// taken as its value.
+void parsePerturbWidth(bartcore::MoveSettings& settings, SEXP widthExpr) {
+  if ((TYPEOF(widthExpr) != REALSXP && TYPEOF(widthExpr) != INTSXP) ||
+      XLENGTH(widthExpr) != 1)
     Rf_error("'n.perturb.cuts' must be a single number");
-  double width = TYPEOF(slotExpr) == REALSXP
-    ? REAL(slotExpr)[0]
-    : (INTEGER(slotExpr)[0] == NA_INTEGER
+  double width = TYPEOF(widthExpr) == REALSXP
+    ? REAL(widthExpr)[0]
+    : (INTEGER(widthExpr)[0] == NA_INTEGER
          ? NA_REAL
-         : static_cast<double>(INTEGER(slotExpr)[0]));
+         : static_cast<double>(INTEGER(widthExpr)[0]));
   if (ISNAN(width) || !(width >= 1.0) || width != std::floor(width))
     Rf_error("'n.perturb.cuts' must be a positive whole number or Inf");
-  model.perturbWidth =
+  settings.perturbWidth =
     width >= static_cast<double>(bartcore::maxNumCutsRepresentable)
       ? static_cast<int32_t>(bartcore::maxNumCutsRepresentable)
       : static_cast<int32_t>(width);
+}
+
+/// The control's mixture and perturb window, which every forest stating none
+/// of its own runs (resolveMoveSettings).
+void parseControlMoves(bartcore::MoveSettings& settings, SEXP controlExpr) {
+  SEXP slotExpr =
+    PROTECT(Rf_getAttrib(controlExpr, Rf_install("proposal.probs")));
+  parseMixture(settings, slotExpr);
+  slotExpr = Rf_getAttrib(controlExpr, Rf_install("n.perturb.cuts"));
+  parsePerturbWidth(settings, slotExpr);
   UNPROTECT(1);
+}
+
+/// The tree-move mixture and the perturb window are control settings, read
+/// onto the model the engine is built with and setModel installs.
+void parseProposalProbs(ParsedModel& model, SEXP controlExpr) {
+  bartcore::MoveSettings settings;
+  parseControlMoves(settings, controlExpr);
+  model.birthOrDeathProbability = settings.birthOrDeathProbability;
+  model.swapProbability = settings.swapProbability;
+  model.changeProbability = settings.changeProbability;
+  model.perturbProbability = settings.perturbProbability;
+  model.perturbWidth = settings.perturbWidth;
+  model.ruleGibbsProbability = settings.ruleGibbsProbability;
+  model.birthProbability = settings.birthProbability;
 }
 
 /// A monotone sampler proposes birth and death only: swap, change, perturb and
@@ -1724,6 +1755,121 @@ bool proposalMixIsRefused(bartcore::LeafModelKind kind,
 const char* const monotoneProposalMixMessage =
   "a monotone sampler proposes only birth and death moves: 'proposal.probs' "
   "must give swap, change, perturb and rule_gibbs zero probability";
+
+/// proposalMixIsRefused on one forest's resolved settings.
+bool proposalMixIsRefused(bartcore::LeafModelKind kind,
+                          const bartcore::MoveSettings& settings) {
+  return kind == bartcore::LeafModelKind::monotone &&
+         (settings.swapProbability != 0.0 ||
+          settings.changeProbability != 0.0 ||
+          settings.perturbProbability != 0.0 ||
+          settings.ruleGibbsProbability != 0.0);
+}
+
+/// A control's move settings as the bridge reads them: the control's own,
+/// which every forest stating none of its own runs, and the per-forest record
+/// attr(control, "bartcore.moves") where the R surface attached one. The
+/// record is list(forests = , variance = ), forests one entry per mean
+/// forest in forest order and variance an entry or NULL; an entry is
+/// list(proposal.probs = , n.perturb.cuts = , levelGibbs = ), each NULL where
+/// the forest states none, and a stated NA levelGibbs is automatic. Parsed
+/// whole before anything is created or written, so a malformed record raises
+/// with nothing to undo.
+struct MoveRecord {
+  bartcore::MoveSettings control;
+  bool present = false;
+  // one per entry of the record's forests list, each over the control's
+  std::vector<bartcore::MoveSettings> forests;
+  bool hasVariance = false;
+  bartcore::MoveSettings variance;
+};
+
+/// One record entry, written over the control's settings already in
+/// \p settings. The variance forest's entry carries no mode.
+void parseMoveEntry(bartcore::MoveSettings& settings, SEXP entryExpr,
+                    bool readsMode) {
+  if (!Rf_isNewList(entryExpr))
+    Rf_error("each entry of the control's 'bartcore.moves' record must be a "
+             "list");
+  SEXP probsExpr = rc_getListElement(entryExpr, "proposal.probs");
+  if (!Rf_isNull(probsExpr)) parseMixture(settings, probsExpr);
+  SEXP widthExpr = rc_getListElement(entryExpr, "n.perturb.cuts");
+  if (!Rf_isNull(widthExpr)) parsePerturbWidth(settings, widthExpr);
+  SEXP modeExpr = rc_getListElement(entryExpr, "levelGibbs");
+  if (readsMode && !Rf_isNull(modeExpr))
+    settings.levelGibbs = parseLevelGibbs(modeExpr);
+}
+
+void parseMoveRecord(MoveRecord& record, SEXP controlExpr) {
+  parseControlMoves(record.control, controlExpr);
+  SEXP slotExpr = PROTECT(Rf_getAttrib(controlExpr, Rf_install("levelGibbs")));
+  record.control.levelGibbs = parseLevelGibbs(slotExpr);
+  SEXP recordExpr =
+    PROTECT(Rf_getAttrib(controlExpr, Rf_install("bartcore.moves")));
+  record.present = !Rf_isNull(recordExpr);
+  record.forests.clear();
+  record.hasVariance = false;
+  record.variance = record.control;
+  if (record.present) {
+    SEXP forestsExpr = Rf_isNewList(recordExpr)
+      ? rc_getListElement(recordExpr, "forests") : R_NilValue;
+    if (!Rf_isNewList(forestsExpr) || XLENGTH(forestsExpr) == 0)
+      Rf_error("the control's 'bartcore.moves' record must hold a list of "
+               "forest entries");
+    record.forests.assign(static_cast<std::size_t>(XLENGTH(forestsExpr)),
+                          record.control);
+    for (R_xlen_t f = 0; f < XLENGTH(forestsExpr); ++f)
+      parseMoveEntry(record.forests[static_cast<std::size_t>(f)],
+                     VECTOR_ELT(forestsExpr, f), true);
+    SEXP varianceExpr = rc_getListElement(recordExpr, "variance");
+    record.hasVariance = !Rf_isNull(varianceExpr);
+    if (record.hasVariance)
+      parseMoveEntry(record.variance, varianceExpr, false);
+  }
+  UNPROTECT(2);
+}
+
+const char* const moveRecordMismatchMessage =
+  "the control's per-forest move settings ('bartcore.moves') do not match "
+  "this sampler's forests";
+
+/// Fits a parsed record to a sampler: \p forests receives the settings in
+/// force on each mean forest and \p variance the variance forest's, a
+/// forest's own where its entry states one and the control's otherwise. A
+/// multinomial sampler's record holds exactly one entry, which covers every
+/// category forest, and no variance entry; every other sampler's holds one
+/// entry per mean forest. Returns the refusal, or null; writes nothing to the
+/// engine.
+const char* resolveMoveSettings(std::vector<bartcore::MoveSettings>& forests,
+                                bartcore::MoveSettings& variance,
+                                const MoveRecord& record,
+                                const bartcore::SamplerShape& shape) {
+  forests.assign(shape.numForests, record.control);
+  variance = record.control;
+  if (record.present) {
+    bool multinomial = shape.supportsCountsMutation;
+    std::size_t numEntries = multinomial ? 1 : shape.numForests;
+    if (record.forests.size() != numEntries ||
+        (record.hasVariance && !shape.hasVarianceForest))
+      return moveRecordMismatchMessage;
+    for (std::size_t f = 0; f < shape.numForests; ++f)
+      forests[f] = record.forests[multinomial ? 0 : f];
+    variance = record.variance;
+  }
+  for (const bartcore::MoveSettings& settings : forests)
+    if (proposalMixIsRefused(shape.leafModel, settings))
+      return monotoneProposalMixMessage;
+  return nullptr;
+}
+
+/// Installs resolved settings on every chain. The counts were fitted to the
+/// sampler's shape by resolveMoveSettings, so this cannot be refused.
+void installMoveSettings(bartcore::SamplerBase& sampler,
+                         const std::vector<bartcore::MoveSettings>& forests,
+                         const bartcore::MoveSettings& variance) {
+  sampler.setMoveSettings(
+    forests, sampler.shape().hasVarianceForest ? &variance : nullptr);
+}
 
 /// The monotone constraint is part of the leaf model's instantiation, so a
 /// model given to setModel must carry the sampler's own: the same directions
@@ -2031,12 +2177,48 @@ void parseModel(ParsedModel& model, SEXP modelExpr, size_t numPredictors) {
   UNPROTECT(3);
 }
 
+/// Whether two forests' settings differ in anything the variance forest
+/// reads: the mixture and the window.
+bool mixtureDiffers(const bartcore::MoveSettings& a,
+                    const bartcore::MoveSettings& b) {
+  return a.birthOrDeathProbability != b.birthOrDeathProbability ||
+         a.swapProbability != b.swapProbability ||
+         a.changeProbability != b.changeProbability ||
+         a.perturbProbability != b.perturbProbability ||
+         a.ruleGibbsProbability != b.ruleGibbsProbability ||
+         a.birthProbability != b.birthProbability ||
+         a.perturbWidth != b.perturbWidth;
+}
+
+const char* levelGibbsLabel(bartcore::LevelGibbsMode mode) {
+  return mode == bartcore::LevelGibbsMode::automatic
+    ? "auto"
+    : (mode == bartcore::LevelGibbsMode::on ? "true" : "false");
+}
+
+void printForestMoves(const char* label, const bartcore::MoveSettings& s,
+                      bool printsMode) {
+  if (printsMode)
+    ext_printf("\t%s: level fiber gibbs step: %s\n", label,
+               levelGibbsLabel(s.levelGibbs));
+  ext_printf(
+    "\t%s: proposal probabilities: birth/death %.2f, swap %.2f, change %.2f, "
+    "perturb %.2f, rule_gibbs %.2f; birth %.2f; perturb window %d\n",
+    label, s.birthOrDeathProbability, s.swapProbability, s.changeProbability,
+    s.perturbProbability, s.ruleGibbsProbability, s.birthProbability,
+    static_cast<int>(s.perturbWidth));
+}
+
 // The creation-time verbose summary printed under control.verbose; the
 // quantile and scale lines reduce at creation to expressions over the raw
-// prior scale and the response range, used here directly.
+// prior scale and the response range, used here directly. The move lines
+// are forest 1's settings in force, then one line for each other forest,
+// and the variance forest, whose settings differ from forest 1's.
 void printInitialSummary(const ParsedControl& control,
                          const ParsedModel& model, const ParsedData& data,
-                         const bartcore::SamplerBase& sampler) {
+                         const bartcore::SamplerBase& sampler,
+                         const std::vector<bartcore::MoveSettings>& forests,
+                         const bartcore::MoveSettings& variance) {
   if (control.responseIsBinary)
     ext_printf("\nRunning BART with binary y\n\n");
   else
@@ -2082,18 +2264,25 @@ void printInitialSummary(const ParsedControl& control,
   }
   ext_printf("\tuse quantiles for rule cut points: %s\n",
              control.useQuantiles ? "true" : "false");
+  const bartcore::MoveSettings& first = forests[0];
   ext_printf("\tlevel fiber gibbs step: %s\n",
-             control.levelGibbs == bartcore::LevelGibbsMode::automatic
-               ? "auto"
-               : (control.levelGibbs == bartcore::LevelGibbsMode::on
-                    ? "true"
-                    : "false"));
+             levelGibbsLabel(first.levelGibbs));
   ext_printf(
     "\tproposal probabilities: birth/death %.2f, swap %.2f, change %.2f, "
     "perturb %.2f, rule_gibbs %.2f; birth %.2f\n",
-    model.birthOrDeathProbability, model.swapProbability,
-    model.changeProbability, model.perturbProbability,
-    model.ruleGibbsProbability, model.birthProbability);
+    first.birthOrDeathProbability, first.swapProbability,
+    first.changeProbability, first.perturbProbability,
+    first.ruleGibbsProbability, first.birthProbability);
+  for (std::size_t f = 1; f < forests.size(); ++f)
+    if (mixtureDiffers(forests[f], first) ||
+        forests[f].levelGibbs != first.levelGibbs) {
+      char label[32];
+      std::snprintf(label, sizeof(label), "forest %lu",
+                    static_cast<unsigned long>(f + 1));
+      printForestMoves(label, forests[f], true);
+    }
+  if (sampler.shape().hasVarianceForest && mixtureDiffers(variance, first))
+    printForestMoves("variance forest", variance, false);
 
   ext_printf("data:\n");
   ext_printf("\tnumber of training observations: %lu\n",
@@ -2823,14 +3012,14 @@ void applyAmplitudeSpec(SEXP paramsExpr, SEXP varsExpr, SEXP interactionsExpr,
     forest.forest.base = f == 0 ? model.base : params[1];
     forest.forest.power = f == 0 ? model.power : params[2];
     forest.updateAmplitude = params[3] != 0.0;
-    // The tree-move mixture is a property of the FIT, not of a forest: one
-    // control slot, so every forest of a coupling proposes from the same
-    // mixture. Carried here because the K-forest chain builds each forest from
-    // its own spec and never reads the sampler options, so a mixture left
-    // unset would silently stand at the ForestStructureSpec defaults - which
-    // are the model's own defaults, so a defaulted fit is bitwise unchanged.
-    // An all-zero mixture freezes EVERY forest's structure, the sweep reading
-    // the frozen flag per forest.
+    // Every forest is built with the control's mixture and window; a forest
+    // stating its own takes it from the move install after creation
+    // (resolveMoveSettings). Carried here because the K-forest chain builds
+    // each forest from its own spec and never reads the options' mixture, so
+    // a mixture left unset would silently stand at the ForestStructureSpec
+    // defaults - which are the model's own defaults, so a defaulted fit is
+    // bitwise unchanged. An all-zero mixture freezes that forest's structure,
+    // the sweep reading the frozen flag per forest.
     forest.forest.birthOrDeathProbability = model.birthOrDeathProbability;
     forest.forest.swapProbability = model.swapProbability;
     forest.forest.changeProbability = model.changeProbability;
@@ -3030,8 +3219,9 @@ double defaultLeafScale(bartcore::ResponseFamily family) {
 // and the test surface are left undefined, and the gaussian response
 // distribution is not the Student-t mixture. The tree-move mixture is NOT on
 // the list: every forest of the coupling is built with the control's own
-// mixture. The R surface refuses the same list ahead of this backstop, which
-// is what a direct dbarts.h consumer meets.
+// mixture, and one stating its own takes it from the move install. The R
+// surface refuses the same list ahead of this backstop, which is what a
+// direct dbarts.h consumer meets.
 void refuseUnsupportedAmplitudeComposition(
     bartcore::ResponseFamily family, const ParsedModel& model,
     const ParsedData& data, const bartcore::SamplerOptions& options) {
@@ -3970,6 +4160,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
                  ownedTestOffset = std::vector<double>{},
                  leafRefusal = std::string{},
                  noBasisScale = std::string{},
+                 moveRecord = MoveRecord{},
+                 moveForests = std::vector<bartcore::MoveSettings>{},
+                 moveVariance = bartcore::MoveSettings{},
                  rngs = std::vector<ext_rng*>{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
@@ -4051,6 +4244,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       options.activeRows = active;
     }
     options.tooFewUnitsIn = tooFewUnits;
+    // read whole before anything is created, so a malformed record has
+    // nothing to tear down
+    parseMoveRecord(moveRecord, controlExpr);
 
     // COPY-ON-SET (R_interface_bartcore_common.hpp): the engine borrows these
     // for the sampler's lifetime, so it borrows buffers the holder owns rather
@@ -4135,6 +4331,17 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
       Rf_error("%s", monotoneProposalMixMessage);
     }
+    // every forest was built with the control's settings; a record states
+    // some forest's own, installed before any run, which is creating with
+    // them. Without one nothing is written
+    if (const char* refusal = resolveMoveSettings(
+          moveForests, moveVariance, moveRecord, sampler->shape())) {
+      sampler.reset();  // borrows the rngs, so tear it down before them
+      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      Rf_error("%s", refusal);
+    }
+    if (moveRecord.present)
+      installMoveSettings(*sampler, moveForests, moveVariance);
 
     if (data.numTestObservations > 0) {
       if (data.testIsMixed) {
@@ -4154,7 +4361,9 @@ BartcoreHolder* createHolder(SEXP controlExpr, SEXP modelExpr, SEXP dataExpr,
       sampler->setTestOffset(testOffset);
     }
 
-    if (control.verbose) printInitialSummary(control, model, data, *sampler);
+    if (control.verbose)
+      printInitialSummary(control, model, data, *sampler, moveForests,
+                          moveVariance);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits};
@@ -4364,10 +4573,14 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
                  model = ParsedModel{}, rngs = std::vector<ext_rng*>{},
                  counts = std::vector<int>{}, trials = std::vector<int>{},
                  offset = std::vector<double>{},
-                 testOffset = std::vector<double>{}]() mutable -> SEXP {
+                 testOffset = std::vector<double>{},
+                 moveRecord = MoveRecord{},
+                 moveForests = std::vector<bartcore::MoveSettings>{},
+                 moveVariance = bartcore::MoveSettings{}]() mutable -> SEXP {
     bool sigmaIsFixed;
     parseMultinomialData(controlExpr, modelExpr, dataExpr, control, model, data,
                          sigmaIsFixed, numCategories);
+    parseMoveRecord(moveRecord, controlExpr);
 
     size_t n = data.numObservations;
     // The DIMENSIONS are checked, not just the length, exactly as
@@ -4402,6 +4615,16 @@ BartcoreHolder* createMultinomialCountsHolder(SEXP controlExpr, SEXP modelExpr,
       counts.data(), trials.data(),
       offset.empty() ? NULL : offset.data(),
       testOffset.empty() ? NULL : testOffset.data(), rngs);
+    // the one entry a multinomial record holds sets every category forest,
+    // installed before any run
+    if (const char* refusal = resolveMoveSettings(
+          moveForests, moveVariance, moveRecord, sampler->shape())) {
+      sampler.reset();  // borrows the rngs, so tear it down before them
+      for (ext_rng* rng : rngs) if (rng != NULL) ext_rng_destroy(rng);
+      Rf_error("%s", refusal);
+    }
+    if (moveRecord.present)
+      installMoveSettings(*sampler, moveForests, moveVariance);
 
     holder = new BartcoreHolder{std::move(sampler), std::move(rngs),
                                 control.keepTrainingFits};
@@ -4604,6 +4827,11 @@ SEXP bartcore_createFromHandle(SEXP controlExpr, SEXP modelExpr,
     R_RegisterCFinalizerEx(result, holderFinalizer,
                            static_cast<Rboolean>(FALSE));
 
+    // xbart's folds state no forest of their own, and no door hands them a
+    // control that does
+    if (!Rf_isNull(Rf_getAttrib(controlExpr, Rf_install("bartcore.moves"))))
+      Rf_error("a sampler over a data handle takes no per-forest move "
+               "settings; give them to the control instead");
     bool sigmaIsFixed;
     bartcore::ResponseFamily family = parseSamplerSpecification(
       controlExpr, modelExpr, dataExpr, familyName, control, model, data,
@@ -6769,11 +6997,20 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
     Rf_error("'control' argument to $setModel not of class "
              "'dbartsControl'");
 
-  return unwindProtect([&, model = ParsedModel{}]() mutable -> SEXP {
+  return unwindProtect([&, model = ParsedModel{}, moveRecord = MoveRecord{},
+                        moveForests = std::vector<bartcore::MoveSettings>{},
+                        moveVariance =
+                          bartcore::MoveSettings{}]() mutable -> SEXP {
     parseModel(model, modelExpr, shape.numPredictors);
     parseProposalProbs(model, controlExpr);
     if (proposalMixIsRefused(shape.leafModel, model))
       Rf_error("%s", monotoneProposalMixMessage);
+    // the settings in force on every forest after the install, resolved and
+    // checked before the engine is touched so that a refusal changes nothing
+    parseMoveRecord(moveRecord, controlExpr);
+    if (const char* refusal =
+          resolveMoveSettings(moveForests, moveVariance, moveRecord, shape))
+      Rf_error("%s", refusal);
     if (const char* refusal =
           monotoneModelChangeRefusal(shape, model, shape.numPredictors))
       Rf_error("%s", refusal);
@@ -6839,7 +7076,34 @@ SEXP bartcore_setModel(SEXP ptrExpr, SEXP modelExpr, SEXP dataExpr,
 
     // split probabilities are copied per chain before the model goes away
     sampler.setModel(parameters);
+    // setModel wrote the control's mixture and width; a forest stating its
+    // own takes it back, and every forest the control's mode or its own.
+    // Without a record this writes what setModel just wrote
+    installMoveSettings(sampler, moveForests, moveVariance);
 
+    return R_NilValue;
+  });
+}
+
+/// The move settings alone: every forest stating none of its own takes the
+/// control's mixture, perturb window and level-step mode, and a forest's own
+/// stays. No prior is installed and nothing else moves. Resolved and checked
+/// in full before any chain is written, so a refusal changes nothing.
+SEXP bartcore_setMoveSettings(SEXP ptrExpr, SEXP controlExpr) {
+  BartcoreHolder& holder(holderFromExpression(ptrExpr));
+  bartcore::SamplerBase& sampler(*holder.sampler);
+  if (!Rf_inherits(controlExpr, "dbartsControl"))
+    Rf_error("'control' argument to $setControl not of class "
+             "'dbartsControl'");
+  return unwindProtect([&, moveRecord = MoveRecord{},
+                        moveForests = std::vector<bartcore::MoveSettings>{},
+                        moveVariance =
+                          bartcore::MoveSettings{}]() mutable -> SEXP {
+    parseMoveRecord(moveRecord, controlExpr);
+    if (const char* refusal = resolveMoveSettings(
+          moveForests, moveVariance, moveRecord, sampler.shape()))
+      Rf_error("%s", refusal);
+    installMoveSettings(sampler, moveForests, moveVariance);
     return R_NilValue;
   });
 }

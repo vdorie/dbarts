@@ -2110,6 +2110,35 @@ inline bool structureIsFrozen(double birthOrDeathProbability,
          ruleGibbsProbability == 0.0;
 }
 
+/// When the level-fiber Gibbs step runs on a forest (Forest::levelGibbs).
+enum class LevelGibbsMode : std::uint8_t {
+  /// Never; no generator draw is taken and the sweep is the shipped one.
+  off,
+  /// Every sweep, on a constant-leaf forest.
+  on,
+  /// Every sweep in which the forest's structural mixture is frozen. The
+  /// step buys nothing a birth or a change does not already buy, and costs a
+  /// draw sequence, so it earns its place exactly where no structure moves.
+  automatic
+};
+
+/// One forest's move settings: the structural mixture, birth against death,
+/// the perturb window and the level-step mode, each the engine's shipped
+/// default. A sweep reads them off the forest every time, so an install
+/// between sweeps takes effect at the next one. The variance forest takes no
+/// level step and ignores the mode.
+struct MoveSettings {
+  double birthOrDeathProbability = 0.6;
+  double swapProbability = 0.0;
+  double changeProbability = 0.4;
+  double perturbProbability = 0.0;
+  /// The perturb window half-width in grid positions, at most the cut cap.
+  int32_t perturbWidth = ::bartcore::perturbWidth;
+  double ruleGibbsProbability = 0.0;
+  double birthProbability = 0.5;
+  LevelGibbsMode levelGibbs = LevelGibbsMode::automatic;
+};
+
 /// changedNode, when non-null, receives the index of the node whose subtree an
 /// ACCEPTED move repartitioned (the birthed/died node, or the changed, swapped
 /// or perturbed subtree root); untouched on rejection or no-op, so gate reads

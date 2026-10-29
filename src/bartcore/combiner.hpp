@@ -153,7 +153,7 @@ template <IntegrableLeafModel L, typename ResidT = double>
 struct Forest {
   static_assert(std::is_same_v<ResidT, double> || std::is_same_v<ResidT, float>,
                 "the residual storage type is fp64 (default) or opt-in fp32");
-  // per-forest options: tree count, tree-move probabilities, the k
+  // per-forest options: tree count, move settings (MoveSettings), the k
   // hyperprior, and whether the split selector is DART
   size_t numTrees = 200;
   double birthOrDeathProbability = 0.6;
@@ -163,6 +163,8 @@ struct Forest {
   int32_t perturbWidth = ::bartcore::perturbWidth;
   double ruleGibbsProbability = 0.0;
   double birthProbability = 0.5;
+  // when this forest takes the level step; read every sweep
+  LevelGibbsMode levelGibbs = LevelGibbsMode::automatic;
   bool updateK = false;
   ChiKHyperprior kHyperprior;
   bool useDart = false;

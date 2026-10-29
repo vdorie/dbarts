@@ -418,6 +418,9 @@ public:
   virtual SlowCountTally slowCountTally() const = 0;
   virtual void setTreeStorage(bool keepTrees, std::size_t numSamplesToStore) = 0;
   virtual void setModel(const ModelParameters& model) = 0;
+  /// Sampler::setMoveSettings.
+  virtual bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
+                               const MoveSettings* varianceSettings) = 0;
   virtual double sumOfSquaredResiduals(std::size_t chainNum) = 0;
   /// Info dump of forest forestIndex; treeIndices are read against that
   /// forest's own tree count (numTreesInForest), so a multi-forest caller
@@ -776,6 +779,10 @@ public:
   }
   void setModel(const ModelParameters& model) override {
     impl_.setModel(model);
+  }
+  bool setMoveSettings(const std::vector<MoveSettings>& forestSettings,
+                       const MoveSettings* varianceSettings) override {
+    return impl_.setMoveSettings(forestSettings, varianceSettings);
   }
   double sumOfSquaredResiduals(std::size_t chainNum) override {
     return impl_.sumOfSquaredResiduals(chainNum);

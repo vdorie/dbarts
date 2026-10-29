@@ -169,6 +169,37 @@ struct TestPeer {
   static const VarianceForest& varianceForest(const Chain<L, R>& chain) {
     return *chain.varianceForest_;
   }
+  /// Mean forest f's move settings in force, read off its fields.
+  template <IntegrableLeafModel L, typename R>
+  static MoveSettings forestMoveSettings(const Chain<L, R>& chain,
+                                         std::size_t f) {
+    const Forest<L, R>& forest = chain.forests_[f];
+    MoveSettings s;
+    s.birthOrDeathProbability = forest.birthOrDeathProbability;
+    s.swapProbability = forest.swapProbability;
+    s.changeProbability = forest.changeProbability;
+    s.perturbProbability = forest.perturbProbability;
+    s.perturbWidth = forest.perturbWidth;
+    s.ruleGibbsProbability = forest.ruleGibbsProbability;
+    s.birthProbability = forest.birthProbability;
+    s.levelGibbs = forest.levelGibbs;
+    return s;
+  }
+  /// The variance forest's move settings in force; its mode is unread and
+  /// left at the default.
+  template <IntegrableLeafModel L, typename R>
+  static MoveSettings varianceMoveSettings(const Chain<L, R>& chain) {
+    const VarianceForest& vf = *chain.varianceForest_;
+    MoveSettings s;
+    s.birthOrDeathProbability = vf.birthOrDeathProbability;
+    s.swapProbability = vf.swapProbability;
+    s.changeProbability = vf.changeProbability;
+    s.perturbProbability = vf.perturbProbability;
+    s.perturbWidth = vf.perturbWidth;
+    s.ruleGibbsProbability = vf.ruleGibbsProbability;
+    s.birthProbability = vf.birthProbability;
+    return s;
+  }
   template <IntegrableLeafModel L, typename R>
   static FunctionLeafDrawStats accountStrandedLeafKStats(
     Chain<L, R>& chain, int32_t variableIndex, int32_t splitIndex) {
@@ -181,6 +212,11 @@ struct TestPeer {
   template <IntegrableLeafModel L, typename R>
   static bool drawLevelShift(Chain<L, R>& chain, double* shiftOut) {
     return chain.drawLevelShift(chain.forests_[0], shiftOut);
+  }
+  /// The same step on forest f.
+  template <IntegrableLeafModel L, typename R>
+  static bool drawForestLevelShift(Chain<L, R>& chain, std::size_t f) {
+    return chain.drawLevelShift(chain.forests_[f]);
   }
   /// The probit rescaling step on forest 0, and its predicate; alphaOut
   /// receives the factor applied, 1 on a decline.

@@ -2583,6 +2583,13 @@ bartcoreSetModel <- function(bcSampler, model, data, control) {
   ))
 }
 
+# Installs the control's move settings on every forest that states none of its
+# own, and nothing else: the route setControl takes where the prior install is
+# refused or would do more than the change asks.
+bartcoreSetMoveSettings <- function(ptr, control) {
+  invisible(.Call(C_dbarts_bartcore_setMoveSettings, ptr, control))
+}
+
 # Drives a low-level bartcore handle (a bcSampler env holding $ptr) directly,
 # not a dbartsSampler; cf. bartcoreSamplerRun, the R-level sampler-layer entry.
 bartcoreRun <- function(bcSampler, numBurnIn = 0L, numSamples = 1L) {
