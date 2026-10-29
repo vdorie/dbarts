@@ -6,7 +6,8 @@ after the critique's re-check (verdict: build stages 0 and 1;
 ([Stages 0 and 1](#stages-0-and-1)): the move build passed its checks, and as written no candidate passed
 Part A. The maintainer ruled the criterion (dec-B502): five candidates go to the fits, under the
 [Amendment after stage 1](#amendment-after-stage-1). Stage 2 ran the same day ([Stage 2](#stage-2)): the
-long reading's check passed, and the main run re-prices at about 60 core-hours before confirmation.
+long reading's check passed, and the main run re-prices at about 60 core-hours before confirmation. The
+orchestrator ruled on its report the same day ([Amendment after stage 2](#amendment-after-stage-2)).
 Runs after the merge to main and before 1.0-0.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
@@ -867,6 +868,46 @@ solder. No fit was scored against a truth but the blind spread.
   each passing stage 0's drift test; the small-sample cells' definition, the correction's N and the two
   cuts above settled; then the smoke, the review and the pre-registration commit.
 
+## Amendment after stage 2
+
+Made 2026-10-29 on the orchestrator's rulings on stage 2's report, before any fit was scored. Where they
+differ from the text above, they govern.
+
+- **Small-sample cells.** Each is widened by the widened cells' own rule at shape 3: the dataset's center,
+  lowered only as far as the caps on the expected total and the largest mean require, in place of a mean
+  count of 5. As written, only 8 to 30 percent of rows kept a mean of at least 0.01 and one stage 2 dataset
+  was all zeros: the definition was degenerate.
+- **Narrow cells at 5 replications**, not 20 (the first cut). The narrow band's paired spread, 0.009,
+  resolves the tie margin at 5.
+- **No extension for the candidates** (the second cut). C0's run stops at its own target. A fitted
+  candidate whose weights fail, or which keeps fewer than 100 effective draws after reweighting, gets its
+  own run. Effective draws are counted as the run rule counts them (the smaller of batch means and Geyer's
+  estimate, times the weights' Kish share), in the own-run rule and in each candidate's expected coverage
+  alike.
+
+  The ruling took the cut only if the expected-coverage correction is accurate to 0.002 at the own-run
+  threshold, by a tail count of effective draws (the endpoints' indicators) or by a threshold of 100,
+  whichever costs less. Measured on 23 runs of 17 cells without extension, on 200 rows a run: an interval
+  from chains 1 and 2 (all, half and a quarter of their draws) against the other two chains' draws.
+  Coverage less 0.9 N / (N + 1), with its standard error over runs:
+
+  | effective draws | bulk count, C0 | bulk count, reweighted | tail count, C0 | tail count, reweighted |
+  |---|---|---|---|---|
+  | 50 to 75 | +0.005 (0.004) | +0.005 (0.004) | one row | +0.001 (0.008) |
+  | 75 to 100 | -0.002 (0.003) | -0.000 (0.002) | +0.014 (0.005) | +0.003 (0.006) |
+  | 100 to 150 | -0.001 (0.002) | -0.001 (0.002) | +0.004 (0.004) | +0.001 (0.002) |
+  | 150 to 200 | -0.001 (0.001) | -0.001 (0.002) | -0.002 (0.002) | -0.002 (0.002) |
+  | above 200 | -0.0015 (0.0009) | -0.0018 (0.0008) | -0.0031 (0.0011) | -0.0035 (0.0009) |
+
+  The tail count does not hold the error under 0.002: it overstates the effective draws of the rows that
+  have the most, where most rows are, and on C0's own reading it understates them at 75 to 100. The bulk
+  count holds it from 75 up, within 0.0018 in every bin. So the threshold of 100 on the bulk count is
+  taken, although it gives more own runs a replication than the tail count at 50 would (narrow 2.25
+  against 2.0, middle 0.2 against 0, wide 1.2 against 0.5, small-sample 1.9 against 1.4, of the five
+  fitted candidates).
+- **Where the main run goes.** The box, after the k study's first tranche, about 10 to 12 hours of wall
+  time from 10:30 box time on 2026-10-29. No main run on the laptop.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
@@ -904,8 +945,8 @@ updated or closed.
 7. The shape's prior (C6): recommend scoring it here with its weights fixed now, decided separately from the
    spread.
 8. Compute: set by the orchestrator's calls ([Amendment after stage 1](#amendment-after-stage-1)), about
-   62 core-hours, re-priced from stage 2, stop at about 110; the laptop through stage 2 and for the
-   cheaper cells, the box after the k study's first tranche.
+   62 core-hours, re-priced from stage 2, stop at about 110; the laptop through stage 2, the main run on
+   the box after the k study's first tranche ([Amendment after stage 2](#amendment-after-stage-2)).
 
 ## Not verified
 

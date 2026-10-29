@@ -28,8 +28,10 @@
 #   Rscript nbinom-default-study.R prior-checks
 #   Rscript nbinom-default-study.R prior <cell>
 #   Rscript nbinom-default-study.R stage2 <cell> <replication>
+#   Rscript nbinom-default-study.R correction <cell> <replication>
 #   Rscript nbinom-default-study.R summarize <stage>
-# where <stage> is drift, sbc, compare, reweight, prior or stage2.
+# where <stage> is drift, sbc, compare, reweight, prior, stage2 or
+# correction.
 #
 # BLIND. Nothing here scores a fit against a truth: the Part B scoring is
 # not written until the pre-registration commit, and no run length, weight
@@ -1879,7 +1881,7 @@ bindDraws <- function(a, b) if (is.null(a)) b else abind2(a, b)
 # 200 rows) reach the target scaled by 1 / Kish of every candidate whose
 # weights hold, or the cap. The trajectory records each chunk's numbers, from
 # which the length any other rule would have taken is read.
-stage2Run <- function(data, kPrior, seed, candidates, flat) {
+stage2Run <- function(data, kPrior, seed, candidates, flat, extend = TRUE) {
   set.seed(seed)
   control <- dbartsControl(
     n.chains = longChains,
@@ -1950,7 +1952,7 @@ stage2Run <- function(data, kPrior, seed, candidates, flat) {
       prefixed(holds, "holds:")
     )
     trajectory <- rbind(trajectory, as.data.frame(row, check.names = FALSE))
-    need <- max(c(1, 1 / kish[holds]))
+    need <- if (extend) max(c(1, 1 / kish[holds])) else 1
     if (min(essK, essMean, essRows) >= longTarget * need || swept >= longCap) {
       break
     }
@@ -2177,6 +2179,230 @@ runStage2 <- function(cell, rep) {
   ))
 }
 
+# The correction's check on a tail count, for the stage 2 ruling: runs as
+# the main run would after the ruling (no extension for the candidates) and,
+# on the check rows, reads the coverage of the other chains' draws by an
+# interval from chains 1 and 2 (all, half and a quarter of their draws)
+# against 0.9 N / (N + 1) with N counted two ways: the bulk count of the run
+# rule (batchEss of the row's log mean) and a tail count, the smaller of the
+# two endpoints' counts, each the effective draws of the indicator of a draw
+# below the endpoint (Geyer). Both are times the weights' Kish share.
+tailEss <- function(draws, ends) {
+  draws <- as.matrix(draws)
+  min(vapply(
+    ends,
+    function(e) {
+      sum(apply(draws <= e, 2L, function(z) {
+        z <- as.numeric(z)
+        tau <- iatGeyer(z)
+        if (is.na(tau)) length(z) else length(z) / max(tau, 1)
+      }))
+    },
+    0
+  ))
+}
+
+correctionCheckTail <- function(run, w) {
+  first <- 1:2
+  second <- 3:4
+  out <- NULL
+  w2 <- as.vector(w[, second])
+  if (!(sum(w2) > 0)) {
+    return(NULL)
+  }
+  for (share in c(1, 0.5, 0.25)) {
+    draws <- seq_len(floor(nrow(run$k) * share))
+    w1 <- w[draws, first, drop = FALSE]
+    if (!(sum(w1) > 0)) {
+      next
+    }
+    kish <- sum(w1)^2 / sum(w1^2) / length(w1)
+    for (i in run$checkRows) {
+      x1 <- matrix(run$train[i, draws, first], ncol = 2L)
+      ends <- weightedQuantile(as.vector(x1), as.vector(w1), c(0.05, 0.95))
+      x2 <- as.vector(run$train[i, , second])
+      out <- rbind(
+        out,
+        c(
+          share = share,
+          bulk = batchEss(x1) * kish,
+          tail = tailEss(x1, ends) * kish,
+          cover = sum(w2 * (x2 >= ends[1L] & x2 <= ends[2L])) / sum(w2)
+        )
+      )
+    }
+  }
+  as.data.frame(out)
+}
+
+runCorrection <- function(cell, rep) {
+  requireBuild("move")
+  data <- stage2Cell(cell, rep)
+  flat <- data$band == "narrow"
+  run <- stage2Run(
+    data,
+    NULL,
+    980000L + rep,
+    stage2Candidates,
+    flat,
+    extend = FALSE
+  )
+  weights <- c(
+    list(C0 = list(w = array(1, dim(run$k)), kish = 1, holds = TRUE)),
+    run$weights
+  )
+  # Each candidate's counts over the whole run, for the own-run rules: the
+  # 10th percentile over the check rows of the bulk and the tail count.
+  counts <- lapply(weights, function(w) {
+    if (!(w$kish > 0)) {
+      return(c(bulk = 0, tail = 0))
+    }
+    wv <- as.vector(w$w)
+    rows <- t(vapply(
+      run$checkRows,
+      function(i) {
+        x <- matrix(run$train[i, , ], ncol = ncol(run$k))
+        ends <- weightedQuantile(as.vector(x), wv, c(0.05, 0.95))
+        c(bulk = batchEss(x), tail = tailEss(x, ends))
+      },
+      c(bulk = 0, tail = 0)
+    ))
+    c(
+      bulk = quantile(rows[, "bulk"], 0.1, names = FALSE) * w$kish,
+      tail = quantile(rows[, "tail"], 0.1, names = FALSE) * w$kish,
+      essK = run$essK * w$kish,
+      essMean = run$essMean * w$kish
+    )
+  })
+  checks <- lapply(names(weights), function(name) {
+    w <- weights[[name]]
+    if (!w$holds) {
+      return(NULL)
+    }
+    d <- correctionCheckTail(run, w$w)
+    if (is.null(d)) NULL else cbind(d, prior = name)
+  })
+  out <- list(
+    cell = cell,
+    rep = rep,
+    band = data$band,
+    sweeps = run$sweeps,
+    seconds = run$seconds,
+    holds = vapply(weights, `[[`, NA, "holds"),
+    counts = counts,
+    check = do.call(rbind, checks)
+  )
+  saveRDS(out, outPath("correction", sprintf("%s-%d.rds", cell, rep)))
+  cat(sprintf(
+    "correction %s %d (%s): %d sweeps a chain, %.0f s\n",
+    cell,
+    rep,
+    data$band,
+    run$sweeps,
+    run$seconds
+  ))
+}
+
+summarizeCorrection <- function() {
+  files <- list.files(
+    file.path(runDir, "correction"),
+    "[.]rds$",
+    full.names = TRUE
+  )
+  runs <- lapply(files, readRDS)
+  d <- do.call(
+    rbind,
+    lapply(seq_along(runs), function(j) {
+      x <- runs[[j]]$check
+      if (is.null(x)) NULL else cbind(x, run = j)
+    })
+  )
+  cuts <- c(0, 25, 50, 75, 100, 150, 200, Inf)
+  for (count in c("bulk", "tail")) {
+    cat(sprintf("== error of 0.9 N / (N + 1), N the %s count ==\n", count))
+    n <- d[[count]]
+    d$error <- d$cover - 0.9 * n / (n + 1)
+    d$bin <- cut(n, cuts)
+    for (group in list(
+      C0 = "C0",
+      candidates = setdiff(unique(d$prior), "C0")
+    )) {
+      x <- d[d$prior %in% group, ]
+      rows <- lapply(split(x, x$bin), function(b) {
+        if (nrow(b) == 0L) {
+          return(NULL)
+        }
+        # Standard error over runs: rows within a run share its draws.
+        byRun <- tapply(b$error, b$run, mean)
+        data.frame(
+          count = levels(x$bin)[b$bin[1L]],
+          rows = nrow(b),
+          runs = length(byRun),
+          error = round(mean(b$error), 4),
+          se = round(
+            if (length(byRun) > 1L) sd(byRun) / sqrt(length(byRun)) else NA,
+            4
+          )
+        )
+      })
+      cat(
+        " ",
+        if (identical(group, "C0")) "C0" else "candidates, reweighted",
+        "\n"
+      )
+      print(do.call(rbind, rows), row.names = FALSE)
+    }
+  }
+  cat("== own runs a replication by rule (candidates whose weights hold) ==\n")
+  rules <- do.call(
+    rbind,
+    lapply(runs, function(r) {
+      counts <- r$counts[setdiff(names(r$counts), "C0")]
+      holds <- r$holds[names(counts)]
+      floor <- vapply(counts, function(cc) min(cc), 0)
+      data.frame(
+        band = r$band,
+        failing = sum(!holds),
+        tail50 = sum(
+          !holds |
+            vapply(
+              counts,
+              function(cc) {
+                min(cc[["tail"]], cc[["essK"]], cc[["essMean"]]) < 50
+              },
+              NA
+            )
+        ),
+        bulk50 = sum(
+          !holds |
+            vapply(
+              counts,
+              function(cc) {
+                min(cc[["bulk"]], cc[["essK"]], cc[["essMean"]]) < 50
+              },
+              NA
+            )
+        ),
+        bulk100 = sum(
+          !holds |
+            vapply(
+              counts,
+              function(cc) {
+                min(cc[["bulk"]], cc[["essK"]], cc[["essMean"]]) < 100
+              },
+              NA
+            )
+        ),
+        lowest = round(min(floor), 1)
+      )
+    })
+  )
+  print(
+    aggregate(cbind(failing, tail50, bulk50, bulk100) ~ band, rules, mean),
+    digits = 3
+  )
+}
+
 # The first chunk at which C0's own target was met: the length the plan's
 # rule before the amendment would have run.
 lengthC0 <- function(trajectory) {
@@ -2389,6 +2615,7 @@ switch(
   compare = runCompare(as.integer(args[2L]), as.integer(args[3L])),
   reweight = runReweight(args[2L]),
   stage2 = runStage2(args[2L], as.integer(args[3L])),
+  correction = runCorrection(args[2L], as.integer(args[3L])),
   `prior-checks` = runPriorChecks(),
   truth = switch(
     args[2L],
@@ -2403,6 +2630,7 @@ switch(
     reweight = summarizeReweight(),
     prior = summarizePrior(),
     stage2 = summarizeStage2(),
+    correction = summarizeCorrection(),
     stop("unknown stage to summarize")
   ),
   stop("unknown action; see the usage at the top of this file")
