@@ -4702,6 +4702,41 @@ checkRefCtl <- function(link = "probit") {
   )
 }
 
+# refRows on D2: a replication counts as accepted only when both pipelines'
+# references are present and accepted. Synthetic reference readings in a
+# scratch run directory: the move pipeline's missing (replication 1), failed
+# (2) and accepted (3).
+checkD2Move <- function(cell = "D2:r30", link = "probit") {
+  old <- Sys.getenv("KMN_RUN")
+  on.exit(Sys.setenv(KMN_RUN = old))
+  Sys.setenv(KMN_RUN = tempfile("kmn-d2move-"))
+  half <- function(m) list(fInt = c(mass90 = m))
+  reading <- function(m) list(vsOther = half(m), vsMove = half(m))
+  fake <- function(c, rep, accepted, keys) {
+    readings <- setNames(lapply(keys, function(k) reading(0.88)), keys)
+    f <- refscoreFile(c, link, rep)
+    dir.create(dirname(f), recursive = TRUE, showWarnings = FALSE)
+    saveAtomic(
+      list(accepted = accepted, readings = readings, quick = quick),
+      f
+    )
+  }
+  shippedKeys <- c("shipped.default", "shipped.tails", "move.tails")
+  moveKeys <- c("move.default", "move.tails")
+  for (rep in 1:3) {
+    fake(cell, rep, TRUE, shippedKeys)
+  }
+  fake(paste0(cell, movePropSuffix), 2L, FALSE, moveKeys)
+  fake(paste0(cell, movePropSuffix), 3L, TRUE, moveKeys)
+  tab <- refRows(cell, link, 1L)
+  want <- 1 / 3
+  report(
+    "D2 move pipeline's reference required",
+    !is.null(tab) && isTRUE(all.equal(tab$passShare, want)),
+    tab[, c("cell", "class", "refs", "passShare")]
+  )
+}
+
 ## ------------------------------------------------------------------- read
 
 # Pooled coverage by class over a regime's scored replications, both links,
@@ -4977,7 +5012,9 @@ refRows <- function(cell, link, tranche) {
         data.frame(
           rep = as.integer(rep),
           seed = seq_along(sh),
-          accepted = r$accepted && (is.null(rm) || rm$accepted),
+          # a D2 replication whose move pipeline's reference is missing or
+          # failed is not accepted (elsewhere rm is r)
+          accepted = isTRUE(r$accepted) && isTRUE(rm$accepted),
           S = 0.9 - sh,
           Smove = 0.9 - shMove,
           moveS = 0.9 - mv,
@@ -5917,6 +5954,7 @@ main <- function(args) {
         disc = checkDiscrimination(),
         graded = checkGraded(),
         refctl = checkRefCtl(),
+        d2move = checkD2Move(),
         stop("no check ", a[1L])
       )
       if (!isTRUE(ok)) {
