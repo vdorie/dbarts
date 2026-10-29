@@ -3011,6 +3011,105 @@ fixedkFile <- function(cell, link, rep) {
 # its quantile's share of k's posterior over its chain count), all against the
 # pooled reference. Row classes keep at most stuckRowCap quantities in the
 # pooled runs.
+## ------------------------------------------------------------- compaction
+
+auditCount <- 20L
+compactProbs <- (seq_len(1000L) - 0.5) / 1000
+
+# The references kept in full for audit, chosen before any study fit from all
+# of the tranche's reference replications.
+auditSet <- function(tranche = 1L) {
+  keys <- character()
+  for (reg in regimes) {
+    for (cell in regimeCells(reg)) {
+      for (link in reg$links) {
+        reps <- if (reg$id == "B") 1L else seq_len(refsFor(cell, tranche))
+        keys <- c(keys, paste(cell, link, reps))
+      }
+    }
+  }
+  withSeed(seedOf("audit", tranche), sort(sample(keys, auditCount)))
+}
+
+compactFile <- function(cell, link, rep) {
+  file.path(referenceDir(cell, link, rep), "compact.rds")
+}
+
+# After every reading of a reference is scored: per row quantity, 1,000
+# quantiles of the pooled draws (single precision); scalar estimands, k and
+# the tails' k in full; band classes, joint draws of the row quantities, are
+# not kept. The draws and saved samplers are then removed, except for the
+# audit set.
+compactReference <- function(cell, link, rep) {
+  dir <- referenceDir(cell, link, rep)
+  if (file.exists(compactFile(cell, link, rep))) {
+    cat("compact", cell, link, rep, ": already compact\n")
+    return(invisible(NULL))
+  }
+  acc <- loadChecked(acceptanceFile(cell, link, rep))
+  if (!isTRUE(acc$final)) {
+    stop("no final acceptance for ", cell, " ", link, " ", rep)
+  }
+  loadChecked(refscoreFile(cell, link, rep))
+  design <- blind(loadDesign(cell, link, rep))
+  ref <- loadReference(cell, link, rep)
+  cs <- referenceClasses(ref, "shipped", design, link, acc$labels)
+  cm <- referenceClasses(ref, "move", design, link, acc$labels)
+  rows <- list()
+  scalars <- list()
+  for (nm in names(cs)) {
+    if (isTRUE(classInfo[[nm]]$band)) {
+      next
+    }
+    pooled <- rbind(as.matrix(cs[[nm]]), as.matrix(cm[[nm]]))
+    if (isTRUE(classInfo[[nm]]$row)) {
+      q <- if (ncol(pooled) == 0L) {
+        matrix(0, length(compactProbs), 0L)
+      } else {
+        apply(pooled, 2L, quantile, probs = compactProbs, names = FALSE)
+      }
+      f <- sprintf("compact-%s.f32", nm)
+      writeSingle(q, file.path(dir, f))
+      rows[[nm]] <- list(file = f, dims = dim(q), cols = attr(cs[[nm]], "cols"))
+    } else {
+      scalars[[nm]] <- list(shipped = cs[[nm]], move = cm[[nm]])
+    }
+  }
+  keep <- paste(cell, link, rep) %in% auditSet()
+  out <- list(
+    cell = cell,
+    link = link,
+    rep = as.integer(rep),
+    probs = compactProbs,
+    rows = rows,
+    scalars = scalars,
+    k = lapply(ref, function(r) list(k = r$k, kTail = r$kTail)),
+    draws = dim(ref$shipped$record)[2L],
+    audit = keep,
+    quick = quick
+  )
+  saveAtomic(out, compactFile(cell, link, rep))
+  removed <- 0
+  if (!keep) {
+    gone <- list.files(
+      dir,
+      pattern = "(-record(-esc)?|-tail(-esc)?)[.]f32$|-p?sampler[.]rds$",
+      full.names = TRUE
+    )
+    removed <- sum(file.size(gone))
+    file.remove(gone)
+  }
+  cat(sprintf(
+    "compact %s %s %d: %d row classes, %s, %.0f MB removed\n",
+    cell,
+    link,
+    as.integer(rep),
+    length(rows),
+    if (keep) "kept in full for audit" else "draws removed",
+    removed / 2^20
+  ))
+}
+
 runFixedk <- function(cell, link, rep) {
   requireBuild("shipped")
   acc <- finalAcceptance(cell, link, rep)
@@ -4091,7 +4190,12 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
       any(grepl("^acceptfinal-", jobDeps(jobs$deps[i])))
     },
     logical(1L)
-  ))
+  )) &&
+    all(vapply(
+      which(grepl("^compact-", ids)),
+      function(i) any(grepl("^refscore-", jobDeps(jobs$deps[i]))),
+      logical(1L)
+    ))
   missing <- character()
   for (reg in regimes) {
     for (cell in regimeCells(reg)) {
@@ -4116,7 +4220,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
               jobId("fit", cell, link, rep, "move"),
               jobId("acceptfinal", cell, link, rep),
               jobId("fixedk", cell, link, rep),
-              jobId("refscore", cell, link, rep)
+              jobId("refscore", cell, link, rep),
+              jobId("compact", cell, link, rep)
             )
           }
           if (cellRegime(cell)$id == "B" && rep > 1L) {
@@ -4125,7 +4230,8 @@ checkDefects <- function(jobfile, phase = "tranche1", tranche = 1L) {
               c(
                 jobId("acceptfinal", cell, link, rep),
                 jobId("fixedk", cell, link, rep),
-                jobId("refscore", cell, link, rep)
+                jobId("refscore", cell, link, rep),
+                jobId("compact", cell, link, rep)
               )
             )
           }
@@ -4166,6 +4272,7 @@ commandOutput <- function(cmd) {
     ),
     fixedk = key(a[1:4]),
     refscore = key(a[1:4]),
+    compact = key(a[1:4]),
     timing = key(c(a[1:5], b)),
     ""
   )
@@ -4908,6 +5015,14 @@ replicationJobs <- function(
       ),
       last = reg$id == "B"
     )
+    add(
+      jobId("compact", cell, link, rep),
+      jobId("refscore", cell, link, rep),
+      big,
+      cell,
+      sprintf("@shipped compact %s %s %d", cell, link, rep),
+      last = reg$id == "B"
+    )
   }
 }
 
@@ -5092,6 +5207,7 @@ main <- function(args) {
       stop("no reference action ", a[1L])
     ),
     fixedk = runFixedk(a[1L], a[2L], as.integer(a[3L])),
+    compact = compactReference(a[1L], a[2L], as.integer(a[3L])),
     refscore = runRefscore(
       a[1L],
       a[2L],
