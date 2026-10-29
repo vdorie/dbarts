@@ -2001,10 +2001,18 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
 
   first <- resolved[[1L]]
   if (numForests == 1L) {
-    if (!is.null(first$amplitude) && !any(hasBasis)) {
+    if (is(first$amplitude, "dbartsStudentPrior") && !any(hasBasis)) {
       stop(
         "this model has one forest, which has no coefficient to give a ",
-        "prior; 'amplitude' needs a model of several forests"
+        "prior; a lone forest draws its size through the fitting ",
+        "function's leaf prior, as k = chi(1.5, 2) or leaf.prior = ",
+        "normal(sd = invchi(1.5, s)) with s a size in the response's units"
+      )
+    }
+    if (!is.null(first$amplitude) && !any(hasBasis)) {
+      stop(
+        "this model has one forest, which has no coefficient to hold; ",
+        "'amplitude' needs a model of several forests"
       )
     }
   }

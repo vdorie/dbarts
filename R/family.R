@@ -193,7 +193,9 @@ evalInForestVocabulary <- function(expr, vocabulary, evalEnv) {
 ## calling site actually reads constructors from. A name from an unrelated
 ## vocabulary (a family constructor forced at a prior argument, say) is left
 ## as R's own message: a name that argument could never have meant is not a
-## hint, it is noise.
+## hint, it is noise. The coefficient's student() is hinted only where a
+## forest's 'amplitude' is read, every other site taking dbartsPriors either
+## refusing it or reading the name as the response family.
 forceCallerCode <- function(
   value,
   hintLists = c("dbartsForests", "forestPriors")
@@ -206,7 +208,7 @@ forceCallerCode <- function(
     tryCatch(value, error = function(e) {
       sources <- list(
         dbartsForests = dbartsForests,
-        dbartsPriors = dbartsPriors,
+        dbartsPriors = dbartsPriors[names(dbartsPriors) != "student"],
         dbartsFamilies = dbartsFamilies,
         forestPriors = dbartsPriors[c("fixed", "student")]
       )[hintLists]

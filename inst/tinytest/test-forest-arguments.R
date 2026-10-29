@@ -257,7 +257,7 @@ for (refused in list(quote(dbartsPriors$normal()), "fixed", FALSE)) {
       ),
       control = argumentControl()
     ))),
-    "a forest's 'amplitude' must be fixed(), which holds its coefficient",
+    "a forest's 'amplitude' is fixed(), which holds its coefficient",
     fixed = TRUE
   )
 }
@@ -392,7 +392,7 @@ local({
       forest(),
       forest(basis = ~ factor(z), amplitude = fixed)
     ))),
-    "a forest's 'amplitude' must be fixed()",
+    "a forest's 'amplitude' is fixed()",
     fixed = TRUE
   )
   expect_error(
@@ -401,7 +401,7 @@ local({
       dataFrame,
       control = argumentControl()
     ),
-    "a forest's 'amplitude' must be fixed()",
+    "a forest's 'amplitude' is fixed()",
     fixed = TRUE
   )
 })

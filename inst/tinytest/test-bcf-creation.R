@@ -956,7 +956,7 @@ expect_error(
     ),
     control = control
   ),
-  "a forest's 'amplitude' must be fixed()"
+  "a forest's 'amplitude' is fixed()"
 )
 expect_error(
   dbarts(

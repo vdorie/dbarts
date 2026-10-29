@@ -222,7 +222,16 @@ refused(
 )
 refused(
   dbarts(y ~ forest(x1, amplitude = student(3)), d, control = ctl()),
-  "which has no coefficient to give a prior"
+  paste0(
+    "which has no coefficient to give a prior; a lone forest draws its size ",
+    "through the fitting function's leaf prior, as k = chi(1.5, 2) or ",
+    "leaf.prior = normal(sd = invchi(1.5, s)) with s a size in the ",
+    "response's units"
+  )
+)
+refused(
+  dbarts(y ~ forest(x1, amplitude = dbartsPriors$fixed()), d, control = ctl()),
+  "which has no coefficient to hold; 'amplitude' needs a model of several"
 )
 live <- dbarts(y ~ forest(x1 + x2) + forest(x1, basis = zf), d, control = ctl())
 refused(

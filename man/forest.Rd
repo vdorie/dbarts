@@ -625,7 +625,9 @@ forest(
     them the constructors are \code{dbartsPriors$fixed()} and
     \code{dbartsPriors$student()}. The prior is stated for a forest of a model
     of several, at creation; a model of one forest has no coefficient to give
-    a prior. \code{$getLeafPrior(f)$amplitude} reads it back.
+    a prior, and its size is drawn through the fitting function's leaf prior,
+    as \code{k = chi(1.5, 2)} or \code{leaf.prior = normal(sd = invchi(1.5,
+    s))}. \code{$getLeafPrior(f)$amplitude} reads it back.
   }
   \item{proposal.probs, n.perturb.cuts, treeShift}{
     This forest's tree moves - its proposal mixture, perturb window and
