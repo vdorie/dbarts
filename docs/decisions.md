@@ -2967,6 +2967,10 @@ Record: this register. Marked: ruled by the maintainer, 2026-10-28. [dec-B492]
 dec-B492 made main the working line without saying who lands on it; the orchestrator had pushed to bartcore and the consumers' compatibility branches under the maintainer's standing grant, never to a main. Shown pushing directly to main in dbarts and the consumers' default branches under the bartcore rules (the review and gates the risk calls for before landing, fast-forward only, no force-push, CI watched after each push, releases and CRAN the maintainer's), at the cost that a defect reaches anyone installing from GitHub until fixed and CI runs only after a commit lands, against work branches with pull requests the maintainer merges, at the cost of the maintainer in the loop for every landing. Recommended the first. The maintainer on 2026-10-28: "We can work on main from now on."
 Record: this register. Marked: ruled by the maintainer, 2026-10-28. [dec-B493]
 
+**Work stays on branches until a feature is complete; the orchestrator then merges it into main**
+Minutes after dec-B493, before any feature landed under it, the maintainer on 2026-10-28: "Actually, strike that. Let's work on branches until features are complete, tested, etc, and then you can merge them into main." Work happens on branches, pushed to origin with CI run on the branch tip; the orchestrator merges a feature into main once it is complete, reviewed, gated and green. docs/plans/README.md, Landing, carries the procedure. Revises dec-B493. See also: [dec-B492].
+Record: this register; docs/plans/README.md. Marked: ruled by the maintainer, 2026-10-28. [dec-B494]
+
 ## C. Agent-made decisions with no identified cost
 
 **C entry points register under full names**

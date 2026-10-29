@@ -153,10 +153,12 @@ tiers takes the higher.
   Status and Landing note, and TODO. The plan and design indexes and the
   design Status lines are brought up to date in batches, before the
   merge at the latest.
-- Pushes do not wait on CI: on main each commit runs in its own
-  concurrency group, so a push no longer cancels the previous commit's
-  per-push runs. An R-surface slice may land while an engine slice's CI
-  runs; engine slices stay serial with each other.
+- Work stays on its branch until the feature is complete: implemented,
+  reviewed, gated, recorded and green in CI on the branch tip; only then
+  does it merge into main (dec-B494). A feature built in several slices
+  merges once, at the end. On main each commit runs in its own
+  concurrency group, so a merge does not cancel the previous one's runs.
+  Engine features merge serially.
 
 ## Landing
 
@@ -182,15 +184,20 @@ The procedure around those edits, as practiced:
    the change's RNG class run independently of the implementer, against
    the slice's own library. `--preclean` on every engine commit: a stale
    object silently fails the bitwise gates.
-3. Push the reviewed sha, fast-forward the main checkout, then a separate
-   records commit carrying the real landed hash. Cherry-picking into an
-   integration worktree renames every commit, so records cite only hashes
-   that are ancestors of `origin/main` (`git merge-base --is-ancestor`).
+3. Records commit on the branch (a fast-forward keeps its hashes), then
+   push the branch to origin and run the per-push workflows on its tip
+   by dispatch (`gh workflow run <workflow> --ref <branch>`; their push
+   filters name only main). When they are green and the feature is
+   complete, rebase onto `origin/main` if it moved (re-gating what the
+   rebase touches) and fast-forward main to it. Records cite only hashes
+   that end up ancestors of `origin/main` (`git merge-base
+   --is-ancestor`); a rebase renames them.
 4. Clean up the worktree and its library only after the push succeeded,
    chaining with `&&`, and never through a pipe: `git merge --ff-only X |
    tail -1` reports tail's exit status, not the merge's.
-5. Watch CI to green (below). The next engine slice branches off a tip
-   whose engine CI is green; an R-surface slice need not wait.
+5. Watch CI on main to green (below), then delete the merged branch on
+   origin. The next engine feature branches off a main whose engine CI is
+   green; an R-surface feature need not wait.
 
 Independent file-disjoint slices may run in parallel worktrees off one
 base, each with its own implementer and gate run; they stack by rebase in
