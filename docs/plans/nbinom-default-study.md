@@ -7,7 +7,9 @@ after the critique's re-check (verdict: build stages 0 and 1;
 Part A. The maintainer ruled the criterion (dec-B502): five candidates go to the fits, under the
 [Amendment after stage 1](#amendment-after-stage-1). Stage 2 ran the same day ([Stage 2](#stage-2)): the
 long reading's check passed, and the main run re-prices at about 60 core-hours before confirmation. The
-orchestrator ruled on its report the same day ([Amendment after stage 2](#amendment-after-stage-2)).
+orchestrator ruled on its report the same day ([Amendment after stage 2](#amendment-after-stage-2)). C4's
+and C5's scratch build passed its drift tests, Part B is in the harness, and the smoke ran clean
+([Box readiness](#box-readiness)): about 48 core-hours expected before confirmation, about 110 at most.
 Runs after the merge to main and before 1.0-0.
 
 agent: the blind critique (opus) ran; this revision answers it. One opus implementer writes the harness,
@@ -20,10 +22,9 @@ move's predicate, about 15 lines on branch collapsed-move-main), never landed. A
 express today is checked at the default length on a scratch build carrying only its k draw.
 window: after the merge to main, before 1.0-0 (dec-B432). A change of default it supports goes back to the
 maintainer; building it is a separate, posterior-changing slice.
-budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R; stages 0 to 2, written, are
-about 2,400 as formatted), reusing the first study's prior predictive draw. Compute about 62 core-hours
-expected, stop at about 110 ([Amendment after stage 1](#amendment-after-stage-1)), re-priced from stage 2's
-full-length runs before the main run.
+budget: harness about 1,100 lines of R (benchmarks/R/nbinom-default-study.R; stages 0 to 2 and Part B,
+written, are about 4,200 as formatted), reusing the first study's prior predictive draw. Compute about 48
+core-hours expected before confirmation, stop at about 110 ([Box readiness](#box-readiness)).
 
 ## Summary for the maintainer
 
@@ -934,6 +935,68 @@ that amendment states.
   within 10 percent of the floor in 33 percent of replications, against 6 and 10 percent at 0.6 and 0.75.
   Each passes.
 
+**Part B in the harness.** The main run, its scoring and the guard's jobs, written to the plan; the calls
+it makes where the plan leaves one open, for the stage 4 review and the pre-registration:
+
+- *Cells.* 73 cells and 55 folds; the harness writes the cell table (band, rows, S_id, identified share,
+  mean count, shape, groups, replications) for the pre-registration. BCI enters no fitted cell, as
+  re-priced after stage 2. The five shape-below-1 cells take their band's count. By the band rule, D4 at
+  S 2 falls in the wide band (S_id 1.80 over the 87 percent of its rows identified) rather than with the
+  small samples, and D6 in the middle (1.48). 725 replications: 670 on truths and 55 folds.
+- *Designed cells* not run in stage 2, as their table states: D1's exposure log-uniform over 1 to 1,000 at
+  a rate of 0.05; D7's treatment drawn with probability logistic((x1 - x2) / 2), its log rate ratio
+  0.3 + 0.7 logistic(1.5 x5), and the rest scaled so that S is 1.
+- *G*: per replication, the levels of the first covariate with 2 to 10 distinct values and the quartiles
+  of the first numeric covariate with more; each group's log mean count.
+- *R*, on the designed cells only: a real dataset's truth is stored as its values at the observed rows,
+  so f(x, 1) - f(x, 0) has no truth there. Up to 200 rows a replication, each row's log rate ratio and the
+  sample-average rate ratio over them, the two weighted equally.
+- *Readings* are taken from all of a run's draws, as the correction was measured; 500 draws a run are
+  stored in single precision for later reweighting (C6 crossed with step 3's choice).
+- *Expected coverage*: the long reading against 0.9 N / (N + 1); the default reading against 0.9, since
+  what users get includes its Monte Carlo error.
+- *Bounds.* The interval score's 5 percent rule on the band-weighted average ratio, candidate over C0, at
+  the upper end of its paired bootstrap interval; the width guard per narrow cell at its ratio plus 1.96
+  bootstrap standard errors. The log score per dataset over its 5 folds, C0's less the candidate's,
+  averaged over the 11 datasets, the folds a dataset's replications in the bootstrap. P on the simulated
+  cells' held-out rows and on the folds, each dataset's folds in its as-fitted band. A close call's z is
+  (0.02 - average) / se for non-inferiority and (lead - 0.005) / se for step 3's lead, against the
+  look's boundary.
+
+**The smoke.** Every cell and fold at one replication, at a tenth of every length (100 sweeps of burn-in,
+chunks of 250, a target of 10 effective draws and an own run below 10), its long and its default reading,
+and a guard default reading of each kind (chi(4, 1.03) on today's sampler, C4 at 0.6 and 0.75 and C5 on
+the scratch build with the move off): 260 jobs on the laptop's two cores, all clean, 0.7 core-hours.
+Own runs of every kind ran (40 chi, 25 floor, 26 half-normal), and no floor run drew a k below its floor;
+crimtab widened to 3 sat at the floor, as expected. The scoring ran blind: shapes only, every class and
+guard computed for every candidate where its readings exist, no coverage missing; run with its output
+discarded, the reading as it will print after the pre-registration finished without error.
+
+The widened-to-3 truths leave few rows identified where the data are mostly zeros: 9 percent of mite's
+rows, 17 percent of D4's at S 3, 35 percent of epil's, 43 percent of solder's and 48 percent of quakes'.
+F and P read only those rows (on mite about 220 of 2,450), so these cells are thinner than their size, not
+degenerate: their totals run from 7,000 to 31,000 counts.
+
+**Sizing**, per component, at the amended sizes: stage 2's sweeps a replication by band and own-run rate
+at C0's stop (own runs priced at C0's length), the move build's cost a sweep fitted on stage 2's runs, the
+smoke's cell table, and the smoke's timing of the readings. Laptop seconds throughout.
+
+| component | count | core-hours |
+|---|---|---|
+| C0's long runs | 670 replications and 55 folds | 16.3 |
+| own runs below 100 effective draws or with failing weights | narrow 2.4, middle 0, wide 1.6, small-sample 2.05 a replication | 25.3 |
+| readings from all draws | | 1.9 |
+| C0's default readings | 725 | 2.2 |
+| the guard, one candidate's default readings | 725 | about 2.2 |
+| expected before confirmation | | about 48 |
+| a confirmation block of 5 replications | narrow 4.1, middle 2.4, wide 21.4, small-sample 3.1 | 31 a block on every band |
+| at most, two blocks on every band | | about 110, the stop |
+| the smoke, laptop, done | 260 jobs | 0.7 |
+
+By band, before confirmation: narrow 8 cells at 5, 4.1; middle 14 at 5, 2.0; wide 27 at 5 (crimtab's 10),
+21.8; small-sample 19 at 20, 12.4; the shape-below-1 cells, 1.5; the folds, 3.7. On the box's four cores
+the main run is about 12 hours of wall time; its stored outputs about 2.5 GB.
+
 ## How the result goes to the maintainer
 
 The finding is written to docs/design/nbinom-default-study.md (Status FINDING): Part A's table and verdicts
@@ -980,7 +1043,7 @@ updated or closed.
   again at stage 4.
 - Run lengths, weight failures and unsettled shares on small samples, BCI and the widened truths; stage 2
   measures them, and the costs above are projections until then.
-- The box's per-sweep times: every cost here is the laptop's.
+- The box's per-sweep times: every cost here is the laptop's. Own runs are priced at C0's length.
 - That every widened truth fits under the count rule after re-centering, and that every GAM truth converges
   under the fixed rule (the probes fitted it on all twelve).
 - That C6's per-draw weights keep enough effective draws in every cell; a cell where they do not reports C6

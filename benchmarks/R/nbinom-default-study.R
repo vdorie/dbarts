@@ -4,8 +4,8 @@
 # on the forest's spread for family = "nbinom" fits? The design, the criterion
 # and the decision rule are fixed in docs/plans/nbinom-default-study.md; this
 # file implements its stages 0 to 2 (the checks, the prior predictive and the
-# long reading's check) and decides nothing the plan leaves open except where
-# its comments say so.
+# long reading's check) and Part B's main run and scoring, and decides
+# nothing the plan leaves open except where its comments say so.
 #
 # BUILDS. One R process sees one build: whatever dbarts R_LIBS finds first,
 # named by NBS_BUILD ("today", the shipped sampler; "move", the scratch build
@@ -33,13 +33,19 @@
 #   Rscript nbinom-default-study.R prior <cell>
 #   Rscript nbinom-default-study.R stage2 <cell> <replication>
 #   Rscript nbinom-default-study.R correction <cell> <replication>
-#   Rscript nbinom-default-study.R summarize <stage>
-# where <stage> is drift, sbc, compare, reweight, prior, stage2 or
-# correction.
+#   Rscript nbinom-default-study.R plan [<look> [<band> ...]]
+#   Rscript nbinom-default-study.R long <cell> <replication>
+#   Rscript nbinom-default-study.R default <cell> <replication> [<candidate>]
+#   Rscript nbinom-default-study.R guardplan <candidate>
+#   Rscript nbinom-default-study.R summarize <stage> [<look>]
+# where <stage> is drift, identity, sbc, compare, reweight, prior, stage2,
+# correction or main, and <candidate> a fitted candidate's file code (its
+# name without spaces, parentheses or commas, as C2chi41.03).
 #
-# BLIND. Nothing here scores a fit against a truth: the Part B scoring is
-# not written until the pre-registration commit, and no run length, weight
-# or acceptance below reads a truth. The stage 0 checks compare the sampler
+# BLIND. Nothing here scores a fit against a truth until the pre-registration
+# commit sets scoringOn: before it the Part B scoring runs only on a quick
+# run's toy fits and prints only the shape of what it computed. No run
+# length, weight or acceptance below reads a truth. The stage 0 checks compare the sampler
 # with itself and with the prior, which is not scoring. One exception, the
 # amendment after stage 1's: stage2Blind computes a candidate's coverage of
 # the truth less C0's on the spread cells, under coded labels, and the
@@ -2703,6 +2709,1445 @@ summarizeStage2 <- function() {
   }
 }
 
+## ------------------------------------------------- Part B: the main run
+
+# The cells, fixed for the pre-registration: each real dataset but BCI
+# (dropped by the amendment after stage 1) with its additive truth as
+# fitted, its BART-fitted truth, and its additive truth widened to S_id 2
+# and 3 where narrower; the five datasets whose shape is below 1 at that
+# shape, the shape-below-1 guard; the small-sample cells; and the designed
+# cells. Each real outcome is scored on 5 folds.
+mainReal <- c(
+  "roaches",
+  "solder",
+  "aids",
+  "mite",
+  "Arabidopsis",
+  "grouseticks",
+  "epil",
+  "Insurance",
+  "crimtab",
+  "Traffic",
+  "quakes"
+)
+mainShapeGuard <- c("roaches", "mite", "Arabidopsis", "grouseticks", "crimtab")
+mainCellNames <- c(
+  mainReal,
+  paste0(mainReal, "-bart"),
+  paste0(setdiff(mainReal, "crimtab"), "-w2"),
+  paste0(mainReal, "-w3"),
+  paste0(mainShapeGuard, "-r"),
+  paste0(
+    rep(c("roaches", "aids", "epil", "quakes"), each = 4L),
+    c("-n30-2", "-n30-3", "-n100-2", "-n100-3")
+  ),
+  "D1",
+  "D2",
+  "D3",
+  "D4-2",
+  "D4-3",
+  "D5",
+  "D6",
+  "D7",
+  "D8"
+)
+mainFoldNames <- paste0(rep(mainReal, each = 5L), "-fold", 1:5)
+
+# Replications by band, from the amendments after stages 1 and 2; crimtab's
+# cells 10; the folds one repetition. A confirmation block adds 5.
+bandReps <- c(narrow = 5L, middle = 5L, wide = 5L, small = 20L)
+cellReps <- function(cell, band) {
+  if (grepl("-fold", cell, fixed = TRUE)) {
+    1L
+  } else if (startsWith(cell, "crimtab")) {
+    10L
+  } else {
+    bandReps[[band]]
+  }
+}
+blockReps <- 5L
+
+# The widest cells' guard: crimtab's cells and the cells widened to S_id 3.
+widestCells <- c("crimtab", "crimtab-bart", paste0(mainReal, "-w3"))
+
+designedSpecs <- list(
+  D1 = list(n = 500L, spread = 1, mean = 0.05, shape = 3, seed = 801000L),
+  D2 = list(n = 1000L, spread = 1, mean = 0.2, shape = 2, seed = 802000L),
+  D3 = list(n = 300L, spread = 1, mean = 100, shape = 10, seed = 803000L),
+  D4 = list(n = 60L, spread = NA, mean = 5, shape = 3, seed = 810000L),
+  D5 = list(n = 500L, spread = 0, mean = 5, shape = 5, seed = 850000L),
+  D6 = list(n = 5000L, spread = 1.5, mean = 2, shape = 3, seed = 806000L),
+  D7 = list(n = 1000L, spread = 1, mean = 5, shape = 3, seed = 807000L),
+  D8 = list(n = 1000L, spread = 0.3, mean = 5, shape = 3, seed = 880000L)
+)
+
+# A designed cell: covariates, offset and truth, and the truth at either
+# value of the binary column b for R. D4, D5 and D8 draw as designedCell
+# did in stage 2. D1 adds an exposure log-uniform over 1 to 1,000, its mean
+# the rate times the exposure. D7's treatment depends on the covariates and
+# its log rate ratio runs from 0.3 to 1, the rest scaled so that S is 1.
+designedBase <- function(name, spread = NULL) {
+  spec <- designedSpecs[[name]]
+  if (!is.null(spread)) {
+    spec$spread <- spread
+  }
+  set.seed(spec$seed)
+  x <- data.frame(correlatedNormals(spec$n, 5L), b = rbinom(spec$n, 1L, 0.5))
+  offset <- if (name == "D1") runif(spec$n, 0, log(1000)) else NULL
+  if (name == "D7") {
+    x$b <- rbinom(spec$n, 1L, plogis(0.5 * (x$x1 - x$x2)))
+    prognosis <- with(x, sin(x1) + 0.5 * x2 * x3 + 0.5 * x4^2)
+    prognosis <- prognosis - mean(prognosis)
+    effect <- 0.3 + 0.7 * plogis(1.5 * x$x5)
+    a <- uniroot(
+      function(a) sd(a * prognosis + x$b * effect) - spec$spread,
+      c(0, 10)
+    )$root
+    at <- function(b) a * prognosis + b * effect
+  } else {
+    g <- function(b) {
+      with(x, sin(x1) + 0.5 * x2 * x3 + 0.5 * x4^2 + 0.5 * b * x5)
+    }
+    observed <- g(x$b)
+    at <- function(b) {
+      if (spec$spread > 0) {
+        spec$spread * (g(b) - mean(observed)) / sd(observed)
+      } else {
+        rep(0, spec$n)
+      }
+    }
+  }
+  center <- log(spec$mean) - log(mean(exp(at(x$b))))
+  list(
+    x = x,
+    offset = offset,
+    truth = at(x$b) + center,
+    shape = spec$shape,
+    null = spec$spread == 0,
+    truthAt = function(b) at(b) + center
+  )
+}
+
+# A cell's fixed parts: a designed cell, or a real dataset's covariates and
+# a truth (as fitted, BART-fitted, widened, at its own shape below 1, or
+# widened on a small sample, whose rows are drawn per replication), or its
+# real outcome on one fold.
+mainBase <- function(cell) {
+  parts <- strsplit(cell, "-", fixed = TRUE)[[1L]]
+  if (grepl("^D[0-9]$", parts[1L])) {
+    spread <- if (length(parts) == 2L) as.numeric(parts[2L]) else NULL
+    return(designedBase(parts[1L], spread))
+  }
+  d <- readData(parts[1L])
+  base <- list(
+    x = d$x,
+    offset = d$offset,
+    truth = as.numeric(d$truthAdditive$eta),
+    shape = max(d$truthAdditive$theta, 1),
+    null = FALSE
+  )
+  kind <- if (length(parts) == 1L) "fitted" else sub("[0-9]+$", "", parts[2L])
+  if (kind == "bart") {
+    path <- file.path(runDir, "data", paste0(parts[1L], "-truth-bart.rds"))
+    base$truth <- as.numeric(readRDS(path)$eta)
+  } else if (kind == "r") {
+    base$shape <- d$truthAdditive$theta
+  } else if (kind == "w") {
+    target <- as.numeric(sub("w", "", parts[2L]))
+    base$truth <- widenTruth(base$truth, base$offset, target)
+  } else if (kind == "n") {
+    base$truth <- widenTruth(base$truth, base$offset, as.numeric(parts[3L]))
+    base$shape <- 3
+    base$subsample <- as.integer(sub("n", "", parts[2L]))
+  } else if (kind == "fold") {
+    base$fold <- as.integer(sub("fold", "", parts[2L]))
+    base$y <- d$y
+  } else if (kind != "fitted") {
+    stop("unknown cell ", cell)
+  }
+  base
+}
+
+# G's groups over a replication's rows: the levels of the first column with
+# 2 to 10 distinct values, and the quartiles of the first numeric column with
+# more.
+mainGroups <- function(x) {
+  distinct <- vapply(x, function(v) length(unique(v)), 0L)
+  out <- list()
+  categorical <- which(distinct >= 2L & distinct <= 10L)
+  if (length(categorical)) {
+    j <- categorical[1L]
+    out[[names(x)[j]]] <- factor(x[[j]])
+  }
+  continuous <- which(vapply(x, is.numeric, NA) & distinct > 10L)
+  if (length(continuous)) {
+    j <- continuous[1L]
+    q <- quantile(x[[j]], c(0.25, 0.5, 0.75), names = FALSE)
+    quartile <- findInterval(x[[j]], q, left.open = TRUE) + 1L
+    out[[paste(names(x)[j], "quartile")]] <- factor(quartile)
+  }
+  out
+}
+
+# One replication of a cell. Rows are ordered training then held-out
+# ("all rows"); the test rows are the held-out rows and, for a designed
+# cell, up to 200 of the rows at b = 0 and at b = 1, for R. The truth and the
+# groups are carried for the scoring, which is off until the
+# pre-registration; no run reads them.
+mainCell <- function(cell, rep) {
+  index <- match(cell, c(mainCellNames, mainFoldNames))
+  if (is.na(index)) {
+    stop("unknown cell ", cell)
+  }
+  base <- mainBase(cell)
+  isFold <- !is.null(base$fold)
+  n <- nrow(base$x)
+  set.seed(5000000L + 1000L * index + if (is.null(base$subsample)) 0L else rep)
+  rows <- if (is.null(base$subsample)) {
+    seq_len(n)
+  } else {
+    sample.int(n, base$subsample)
+  }
+  heldOut <- if (isFold) {
+    set.seed(5900000L + match(sub("-fold.*", "", cell), mainReal))
+    which(sample(rep_len(1:5, n)) == base$fold)
+  } else {
+    sample.int(length(rows), round(length(rows) / 5))
+  }
+  train <- setdiff(seq_along(rows), heldOut)
+  all <- rows[c(train, heldOut)]
+  rRows <- if (is.null(base$truthAt)) {
+    integer()
+  } else {
+    sort(sample.int(length(all), min(200L, length(all))))
+  }
+  offsetAll <- if (is.null(base$offset)) NULL else base$offset[all]
+  o <- if (is.null(offsetAll)) 0 else offsetAll
+  if (isFold) {
+    y <- base$y[all]
+  } else {
+    set.seed(6000000L + 1000L * index + rep)
+    mu <- exp(base$truth[all] + o)
+    repeat {
+      y <- rnbinom(length(all), size = base$shape, mu = mu)
+      if (max(y) <= countCap) break
+    }
+  }
+  sId <- if (base$null) 0 else spreadIdentified(base$truth, base$offset)
+  identifiedShare <- mean(
+    exp(base$truth + if (is.null(base$offset)) 0 else base$offset) >=
+      identifiedMean
+  )
+  band <- if (base$null || sId < 0.5) {
+    "narrow"
+  } else if (length(rows) <= 130L && sId >= 2 - 1e-6) {
+    "small"
+  } else if (sId < 1.5) {
+    "middle"
+  } else {
+    "wide"
+  }
+  numTrain <- length(train)
+  numHeld <- length(heldOut)
+  xAll <- base$x[all, , drop = FALSE]
+  held <- numTrain + seq_len(numHeld)
+  xTest <- xAll[held, , drop = FALSE]
+  offsetTest <- if (is.null(offsetAll)) NULL else offsetAll[held]
+  truthR <- NULL
+  if (length(rRows)) {
+    x0 <- x1 <- xAll[rRows, , drop = FALSE]
+    x0$b <- 0L
+    x1$b <- 1L
+    xTest <- rbind(xTest, x0, x1)
+    if (!is.null(offsetAll)) {
+      offsetTest <- c(offsetTest, offsetAll[rRows], offsetAll[rRows])
+    }
+    truthR <- cbind(base$truthAt(0)[all[rRows]], base$truthAt(1)[all[rRows]])
+  }
+  list(
+    cell = cell,
+    rep = rep,
+    band = band,
+    sId = sId,
+    identifiedShare = identifiedShare,
+    shape = base$shape,
+    isFold = isFold,
+    n = length(all),
+    numTrain = numTrain,
+    numHeld = numHeld,
+    rRows = rRows,
+    xTrain = xAll[seq_len(numTrain), , drop = FALSE],
+    yTrain = y[seq_len(numTrain)],
+    offsetTrain = if (is.null(offsetAll)) {
+      NULL
+    } else {
+      offsetAll[seq_len(numTrain)]
+    },
+    xTest = xTest,
+    offsetTest = offsetTest,
+    yTest = y[held],
+    offsetAll = offsetAll,
+    groups = mainGroups(xAll),
+    truth = if (isFold) NULL else base$truth[all],
+    truthR = truthR
+  )
+}
+
+# The Poisson GLM's spread for C7: main effects, the offset in the fit and
+# out of the spread; columns constant over the training rows left out.
+glmSpreadOf <- function(data) {
+  x <- data$xTrain
+  x <- x[, vapply(x, function(v) length(unique(v)) > 1L, NA), drop = FALSE]
+  o <- if (is.null(data$offsetTrain)) rep(0, nrow(x)) else data$offsetTrain
+  d <- data.frame(x, y.count = data$yTrain)
+  fit <- suppressWarnings(glm(
+    y.count ~ .,
+    data = d,
+    offset = o,
+    family = poisson()
+  ))
+  sd(as.numeric(predict(fit, type = "link")) - o)
+}
+
+# The candidates read on Part B: the five that pass Part A under dec-B502,
+# fitted, with own runs where their weights fail or keep too few draws; the
+# rest of the list, reported where their weights hold; C6 is the shape's
+# weights on C0's run (mainShapeWeights). code orders the code changes for
+# step 3's tie: C2 1, C4 2, C5 3.
+mainCandidates <- function(glmSpread) {
+  chi <- function(df, scale, fitted) {
+    list(
+      logDensity = function(k) logChiDensity(k, df, scale),
+      unbounded = scale > 2,
+      fitted = fitted,
+      own = if (fitted) list(chi = c(df, scale)) else NULL,
+      code = 1L
+    )
+  }
+  floored <- function(kFloor, fitted) {
+    list(
+      logDensity = function(k) logFloored(k, kFloor),
+      unbounded = FALSE,
+      fitted = fitted,
+      own = if (fitted) list(kprior = paste0("floor:", kFloor)) else NULL,
+      code = 2L
+    )
+  }
+  halfNormal <- function(median, fitted) {
+    list(
+      logDensity = function(k) logHalfNormalSpread(k, median),
+      unbounded = TRUE,
+      fitted = fitted,
+      own = if (fitted) list(kprior = paste0("halfnormal:", median)) else NULL,
+      code = 3L
+    )
+  }
+  c7 <- leafScale / (1.7 * max(glmSpread, 0.25) * sqrt(qchisq(0.5, 4)))
+  list(
+    `C2 chi(4,1.03)` = chi(4, 1.03, TRUE),
+    `C2 chi(5,0.9)` = chi(5, 0.9, TRUE),
+    `C4 k>=0.6` = floored(0.6, TRUE),
+    `C4 k>=0.75` = floored(0.75, TRUE),
+    `C5 hn 1.3` = halfNormal(1.3, TRUE),
+    `C2 chi(3,1.25)` = chi(3, 1.25, FALSE),
+    `C2 chi(7,0.75)` = chi(7, 0.75, FALSE),
+    `C2 chi(10,0.62)` = chi(10, 0.62, FALSE),
+    `C3 chi(1.5,3)` = chi(1.5, 3, FALSE),
+    `C4 k>=1` = floored(1, FALSE),
+    `C5 hn 1.57` = halfNormal(1.57, FALSE),
+    C7 = chi(4, c7, FALSE)
+  )
+}
+fittedNames <- c(
+  "C2 chi(4,1.03)",
+  "C2 chi(5,0.9)",
+  "C4 k>=0.6",
+  "C4 k>=0.75",
+  "C5 hn 1.3"
+)
+fileCode <- function(name) gsub("[^A-Za-z0-9.]", "", name)
+
+# C6's per-draw weights on the drawn shape, against the default's grid
+# weights.
+mainShapeWeights <- function(shape) {
+  j <- match(shape, shapeGrid)
+  array((shapeWeightsC6 / shapeWeights)[j], dim(shape))
+}
+
+# The own-run rule, from the stage 2 ruling: no extension for the
+# candidates; at C0's stop, a fitted candidate whose weights fail, or whose
+# effective draws after reweighting (the bulk count, the smaller of batch
+# means and Geyer's estimate, times the Kish share) are under 100, gets its
+# own run. At 100 or more, 0.9 N / (N + 1) predicted the coverage within
+# 0.002.
+ownBelowMain <- 100
+
+## the reading of a run: what the scoring needs, computed from all its draws
+
+readProbs <- c(0.025, 0.05, 0.1, 0.25, 0.75, 0.9, 0.95, 0.975)
+
+# Each item's (row's, group's, rate ratio's) weighted quantiles at readProbs
+# and weighted mean under every reading's weights, and its effective draws
+# (the bulk count, unweighted, times each reading's Kish share). items is
+# items x draws, the draws ordered chain by chain.
+readItems <- function(items, numChains, weights) {
+  m <- nrow(items)
+  numDraws <- ncol(items)
+  ess <- apply(items, 1L, function(x) batchEss(matrix(x, ncol = numChains)))
+  numReadings <- length(weights)
+  quantiles <- array(NA_real_, c(m, length(readProbs), numReadings))
+  means <- matrix(NA_real_, m, numReadings)
+  totals <- vapply(weights, sum, 0)
+  for (i in seq_len(m)) {
+    x <- items[i, ]
+    o <- order(x)
+    xo <- x[o]
+    for (j in seq_len(numReadings)) {
+      w <- weights[[j]]
+      cw <- cumsum(w[o]) / totals[j]
+      quantiles[i, , j] <- xo[pmin(findInterval(readProbs, cw) + 1L, numDraws)]
+      means[i, j] <- sum(w * x) / totals[j]
+    }
+  }
+  out <- lapply(seq_len(numReadings), function(j) {
+    w <- weights[[j]]
+    kish <- sum(w)^2 / sum(w^2) / length(w)
+    list(
+      quantiles = matrix(quantiles[,, j], m),
+      mean = means[, j],
+      ess = ess * kish
+    )
+  })
+  names(out) <- names(weights)
+  out
+}
+
+# The items of F, G and R from a run's draws of the log mean (offset
+# excluded), rows in mainCell's order then the test rows.
+runItems <- function(eta, data) {
+  n <- data$n
+  f <- matrix(eta[seq_len(n), , , drop = FALSE], n)
+  o <- if (is.null(data$offsetAll)) 0 else data$offsetAll
+  meanCount <- exp(f + o)
+  g <- do.call(
+    rbind,
+    lapply(names(data$groups), function(name) {
+      levels <- data$groups[[name]]
+      indicator <- t(model.matrix(~ levels - 1))
+      out <- log(indicator %*% meanCount / rowSums(indicator))
+      rownames(out) <- paste0(name, "=", levels(levels))
+      out
+    })
+  )
+  r <- NULL
+  numR <- length(data$rRows)
+  if (numR) {
+    r0 <- matrix(eta[n + seq_len(numR), , , drop = FALSE], numR)
+    r1 <- matrix(eta[n + numR + seq_len(numR), , , drop = FALSE], numR)
+    oR <- if (is.null(data$offsetAll)) 0 else data$offsetAll[data$rRows]
+    average <- log(colMeans(exp(r1 + oR))) - log(colMeans(exp(r0 + oR)))
+    r <- rbind(r1 - r0, average)
+  }
+  list(F = f, G = g, R = r)
+}
+
+# P on the held-out rows: per draw the predictive cdf at y and at y - 1 and
+# the log density at y, read under each reading as the posterior mean of
+# the cdf and the log of the mean density.
+readPredictive <- function(eta, shape, data, weights) {
+  held <- data$numTrain + seq_len(data$numHeld)
+  numDraws <- dim(eta)[2L] * dim(eta)[3L]
+  logMean <- matrix(eta[held, , , drop = FALSE], data$numHeld)
+  if (!is.null(data$offsetAll)) {
+    logMean <- logMean + data$offsetAll[held]
+  }
+  y <- rep(data$yTest, numDraws)
+  size <- rep(as.vector(shape), each = data$numHeld)
+  mu <- as.vector(exp(logMean))
+  cdf <- matrix(pnbinom(y, size = size, mu = mu), data$numHeld)
+  below <- matrix(pnbinom(y - 1, size = size, mu = mu), data$numHeld)
+  density <- matrix(dnbinom(y, size = size, mu = mu, log = TRUE), data$numHeld)
+  top <- apply(density, 1L, max)
+  lapply(weights, function(w) {
+    w <- as.vector(w) / sum(w)
+    list(
+      cdf = as.vector(cdf %*% w),
+      below = as.vector(below %*% w),
+      logDensity = top + log(as.vector(exp(density - top) %*% w))
+    )
+  })
+}
+
+# One run's readings: F, G and R items and P, under each named weight array
+# (draws x chains).
+readRun <- function(run, data, weights) {
+  eta <- abind1(run$train, run$test)
+  numChains <- dim(eta)[3L]
+  flat <- lapply(weights, as.vector)
+  items <- runItems(eta, data)
+  classes <- lapply(items, function(x) {
+    if (is.null(x)) NULL else readItems(x, numChains, flat)
+  })
+  predictive <- readPredictive(eta, run$shape, data, weights)
+  out <- lapply(names(weights), function(name) {
+    list(
+      F = classes$F[[name]],
+      G = if (is.null(classes$G)) NULL else classes$G[[name]],
+      R = if (is.null(classes$R)) NULL else classes$R[[name]],
+      P = predictive[[name]]
+    )
+  })
+  names(out) <- names(weights)
+  out
+}
+
+splitRhat <- function(draws) {
+  h <- nrow(draws) %/% 2L
+  halves <- cbind(
+    draws[seq_len(h), , drop = FALSE],
+    draws[h + seq_len(h), , drop = FALSE]
+  )
+  within <- mean(apply(halves, 2L, var))
+  between <- h * var(colMeans(halves))
+  sqrt(((h - 1) / h * within + between / h) / within)
+}
+
+# Single precision, half the storage of doubles: enough for stored draws.
+toSingle <- function(x) {
+  list(dim = dim(x), bytes = writeBin(as.numeric(x), raw(), size = 4L))
+}
+fromSingle <- function(s) {
+  array(readBin(s$bytes, "double", n = prod(s$dim), size = 4L), s$dim)
+}
+
+# A run's stored draws, 125 a chain evenly spaced (500 in all), so that any
+# prior on the spread or the shape can be read later by reweighting; and its
+# diagnostics.
+storeRun <- function(run, logWeights = NULL) {
+  numDraws <- nrow(run$k)
+  keep <- unique(round(seq(1, numDraws, length.out = min(125L, numDraws))))
+  eta <- abind1(run$train, run$test)
+  list(
+    k = run$k[keep, , drop = FALSE],
+    shape = run$shape[keep, , drop = FALSE],
+    eta = toSingle(eta[, keep, , drop = FALSE]),
+    logWeights = lapply(logWeights, function(w) w[keep, , drop = FALSE]),
+    rhatK = splitRhat(log(run$k)),
+    rhatMean = splitRhat(apply(exp(run$train), c(2L, 3L), mean)),
+    essK = run$essK,
+    essMean = run$essMean,
+    essRows = run$essRows,
+    sweeps = run$sweeps,
+    seconds = run$seconds,
+    settled = run$settled
+  )
+}
+
+# What the scoring reads beside the readings, carried so that it need not
+# rebuild the cell.
+cellRecord <- function(data) {
+  data[c(
+    "cell",
+    "rep",
+    "band",
+    "sId",
+    "identifiedShare",
+    "shape",
+    "isFold",
+    "n",
+    "numTrain",
+    "numHeld",
+    "rRows",
+    "yTest",
+    "offsetAll",
+    "groups",
+    "truth",
+    "truthR"
+  )]
+}
+
+cellIndex <- function(cell) match(cell, c(mainCellNames, mainFoldNames))
+
+# The long reading of one replication, on the kprior build with its prior
+# unset and the move on (the move build): C0's run to its own target; each
+# candidate's reading by weights where they hold and keep 100 effective
+# draws; else, for a fitted candidate, its own run (a chi prior's on this
+# build, C4's and C5's with NBS_KPRIOR set for the run).
+runLong <- function(cell, rep) {
+  requireBuild("kprior")
+  if (buildLabel != "kprior") {
+    stop("the long reading runs with NBS_KPRIOR unset and the move on")
+  }
+  started <- proc.time()[[3L]]
+  data <- mainCell(cell, rep)
+  index <- cellIndex(cell)
+  flat <- data$band == "narrow"
+  candidates <- mainCandidates(glmSpreadOf(data))
+  run <- stage2Run(
+    data,
+    NULL,
+    3000000L + 1000L * index + rep,
+    candidates,
+    flat,
+    extend = FALSE
+  )
+  base <- min(run$essK, run$essMean, run$essRows)
+  shapeWeights <- mainShapeWeights(run$shape)
+  c6 <- local({
+    w <- as.vector(shapeWeights)
+    kish <- sum(w)^2 / sum(w^2) / length(w)
+    khat <- if (length(unique(w)) > 1L) {
+      as.numeric(posterior::pareto_khat(w, tail = "right", r_eff = 1))
+    } else {
+      -Inf
+    }
+    list(
+      w = shapeWeights,
+      kish = kish,
+      khat = khat,
+      holds = kish >= kishFloor && isTRUE(khat <= khatCeiling)
+    )
+  })
+  allWeights <- c(run$weights, list(C6 = c6))
+  status <- lapply(allWeights, function(w) {
+    ess <- base * w$kish
+    list(
+      kish = w$kish,
+      khat = w$khat,
+      holds = w$holds,
+      ess = ess,
+      reweighted = w$holds && ess >= ownBelowMain
+    )
+  })
+  reweighted <- names(status)[vapply(status, `[[`, NA, "reweighted")]
+  readings <- readRun(
+    run,
+    data,
+    c(
+      list(C0 = array(1, dim(run$k))),
+      lapply(allWeights[reweighted], `[[`, "w")
+    )
+  )
+  source <- c(
+    C0 = "C0",
+    setNames(rep("weights", length(reweighted)), reweighted)
+  )
+  stored <- list(
+    C0 = storeRun(
+      run,
+      c(
+        lapply(run$weights, function(w) log(w$w)),
+        list(C6 = log(shapeWeights))
+      )
+    )
+  )
+  for (j in seq_along(fittedNames)) {
+    name <- fittedNames[j]
+    if (name %in% reweighted) {
+      next
+    }
+    own <- candidates[[name]][["own"]]
+    seed <- 4000000L + 100000L * j + 1000L * index + rep
+    if (!is.null(own$kprior)) {
+      Sys.setenv(NBS_KPRIOR = own$kprior)
+      ownRun <- tryCatch(
+        stage2Run(data, NULL, seed, list(), flat),
+        finally = Sys.unsetenv("NBS_KPRIOR")
+      )
+    } else {
+      prior <- dbartsPriors$chi(own$chi[1L], own$chi[2L])
+      ownRun <- stage2Run(data, prior, seed, list(), flat)
+    }
+    readings[[name]] <- readRun(
+      ownRun,
+      data,
+      list(own = array(1, dim(ownRun$k)))
+    )$own
+    source[[name]] <- "own"
+    stored[[name]] <- storeRun(ownRun)
+  }
+  out <- list(
+    cell = cellRecord(data),
+    reading = "long",
+    status = status,
+    source = source,
+    readings = readings,
+    stored = stored,
+    trajectory = run$trajectory,
+    flat = run$flat,
+    seconds = proc.time()[[3L]] - started
+  )
+  saveRDS(out, outPath("main", sprintf("long-%s-%d.rds", cell, rep)))
+  cat(sprintf(
+    "long %s %d (%s): %d sweeps a chain, %d own runs, %.0f s sampling, %.0f s in all\n",
+    cell,
+    rep,
+    data$band,
+    run$sweeps,
+    sum(source == "own"),
+    sum(vapply(stored, `[[`, 0, "seconds")),
+    out$seconds
+  ))
+}
+
+# The default reading: 4 chains of 500 burn-in and 500 kept at 75 trees.
+# C0's on today's sampler; for the guard, a chi candidate's on today's
+# sampler, C4's or C5's on the kprior build with the move off and its prior
+# set in NBS_KPRIOR.
+defaultBurn <- 500L
+defaultSamples <- 500L
+runDefault <- function(cell, rep, candidate = "C0") {
+  own <- if (candidate == "C0") {
+    NULL
+  } else {
+    mainCandidates(1)[[candidate]][["own"]]
+  }
+  if (is.null(own$kprior)) {
+    requireBuild("today")
+  } else {
+    requireBuild("kprior")
+    wanted <- paste0(
+      "kprior",
+      gsub("[^A-Za-z0-9.]", "", own$kprior),
+      "-moveoff"
+    )
+    if (buildLabel != wanted) {
+      stop("this default reading runs as ", wanted, ", not ", buildLabel)
+    }
+  }
+  data <- mainCell(cell, rep)
+  set.seed(8000000L + 1000L * cellIndex(cell) + rep)
+  control <- dbartsControl(
+    n.chains = longChains,
+    n.threads = 1L,
+    n.burn = defaultBurn,
+    n.samples = defaultSamples,
+    n.trees = numTrees,
+    updateState = FALSE,
+    verbose = FALSE
+  )
+  arguments <- list(
+    data$xTrain,
+    data$yTrain,
+    test = data$xTest,
+    family = "nbinom",
+    control = control
+  )
+  if (!is.null(data$offsetTrain)) {
+    arguments$offset <- data$offsetTrain
+    arguments$offset.test <- data$offsetTest
+  }
+  if (!is.null(own$chi)) {
+    arguments$leaf.prior <- dbartsPriors$normal(
+      k = dbartsPriors$chi(own$chi[1L], own$chi[2L])
+    )
+  }
+  started <- proc.time()[[3L]]
+  sampler <- do.call(dbarts, arguments)
+  fit <- sampler$run()
+  offsetTrain <- if (is.null(data$offsetTrain)) 0 else data$offsetTrain
+  offsetTest <- if (is.null(data$offsetTest)) 0 else data$offsetTest
+  run <- list(
+    k = fit$k,
+    shape = fit$shape,
+    train = fit$train - offsetTrain,
+    test = fit$test - offsetTest,
+    seconds = proc.time()[[3L]] - started,
+    sweeps = defaultBurn + defaultSamples,
+    settled = NA
+  )
+  run$essK <- batchEss(log(run$k))
+  run$essMean <- batchEss(apply(exp(run$train), c(2L, 3L), mean))
+  run$essRows <- NA_real_
+  out <- list(
+    cell = cellRecord(data),
+    reading = "default",
+    candidate = candidate,
+    readings = readRun(
+      run,
+      data,
+      setNames(list(array(1, dim(run$k))), candidate)
+    ),
+    stored = setNames(list(storeRun(run)), candidate)
+  )
+  saveRDS(
+    out,
+    outPath(
+      "main",
+      sprintf("default-%s-%s-%d.rds", fileCode(candidate), cell, rep)
+    )
+  )
+  cat(sprintf(
+    "default %s %s %d (%s): %.0f s\n",
+    candidate,
+    cell,
+    rep,
+    data$band,
+    run$seconds
+  ))
+}
+
+# The cells' table for the pre-registration (band, rows, S_id, identified
+# share, mean count, shape, replications) and the job queue for a look:
+# look 1 the main run's replications, looks 2 and 3 a block of 5 more on
+# the named bands. Builds no run.
+runPlan <- function(look = 1L, bands = names(bandReps)) {
+  cells <- do.call(
+    rbind,
+    lapply(c(mainCellNames, mainFoldNames), function(cell) {
+      data <- mainCell(cell, 1L)
+      o <- if (is.null(data$offsetAll)) 0 else data$offsetAll
+      data.frame(
+        cell = cell,
+        band = data$band,
+        n = data$n,
+        sId = round(data$sId, 2),
+        identified = round(data$identifiedShare, 2),
+        meanCount = round(mean(c(data$yTrain, data$yTest)), 2),
+        total = sum(data$yTrain),
+        shape = signif(data$shape, 3),
+        groups = length(unlist(lapply(data$groups, levels))),
+        rRows = length(data$rRows),
+        reps = cellReps(cell, data$band)
+      )
+    })
+  )
+  write.table(
+    cells,
+    outPath("main-cells.txt"),
+    quote = FALSE,
+    row.names = FALSE,
+    sep = "\t"
+  )
+  print(cells, row.names = FALSE)
+  first <- if (look == 1L) {
+    rep(1L, nrow(cells))
+  } else {
+    cells$reps + (look - 2L) * blockReps + 1L
+  }
+  last <- if (look == 1L) cells$reps else first + blockReps - 1L
+  take <- if (look == 1L) rep(TRUE, nrow(cells)) else cells$band %in% bands
+  jobs <- unlist(lapply(which(take), function(i) {
+    reps <- seq.int(first[i], last[i])
+    c(
+      sprintf("kprior long %s %d", cells$cell[i], reps),
+      sprintf("today default %s %d", cells$cell[i], reps)
+    )
+  }))
+  writeLines(jobs, outPath(sprintf("main-queue-%d.txt", look)))
+  cat(sprintf(
+    "look %d: %d replications, %d jobs\n",
+    look,
+    length(jobs) / 2L,
+    length(jobs)
+  ))
+}
+
+# The guard's queue (step 7): a candidate's default readings on every
+# replication the main run's long readings carry, named by its file code.
+runGuardPlan <- function(code) {
+  candidates <- mainCandidates(1)
+  name <- names(candidates)[match(code, fileCode(names(candidates)))]
+  if (is.na(name) || !(name %in% fittedNames)) {
+    stop("no fitted candidate has the code ", code)
+  }
+  own <- candidates[[name]][["own"]]
+  runBuild <- if (is.null(own$kprior)) {
+    "today"
+  } else {
+    paste0("kprior-off@", own$kprior)
+  }
+  files <- list.files(file.path(runDir, "main"), "^long-.*[.]rds$")
+  cells <- sub("^long-(.*)-([0-9]+)[.]rds$", "\\1 \\2", files)
+  jobs <- sprintf("%s default %s %s", runBuild, cells, code)
+  writeLines(jobs, outPath(sprintf("guard-queue-%s.txt", code)))
+  cat(sprintf("guard %s: %d jobs\n", name, length(jobs)))
+}
+
+## ------------------------------------------------- Part B: the scoring
+
+# Off until the pre-registration commit turns it on. Before that, a quick
+# run (NBS_QUICK) may exercise it on its toy runs, printing only the shape
+# of what it computed, never a value.
+scoringOn <- FALSE
+
+# The folded normal's mean at d >= 0, in units of its standard error, and
+# its inverse: a cell's distance from nominal corrected for noise, as
+# dec-B455 defines it, zero below the mean under no distance.
+foldedGrid <- seq(0, 40, by = 0.001)
+foldedMean <- sqrt(2 / pi) *
+  exp(-foldedGrid^2 / 2) +
+  foldedGrid * (1 - 2 * pnorm(-foldedGrid))
+correctedDistance <- function(observed, se) {
+  t <- observed / se
+  out <- ifelse(
+    t >= max(foldedMean),
+    observed,
+    se * approx(foldedMean, foldedGrid, pmax(t, foldedMean[1L]))$y
+  )
+  out[!is.finite(se) | se == 0] <- observed[!is.finite(se) | se == 0]
+  out
+}
+
+# One reading's scores on one replication, by class: the 90 percent
+# coverage and its expected value (0.9 N / (N + 1) on the long reading, 0.9
+# on the default), the 50, 80 and 95 percent coverages, the 90 percent
+# interval score and width; RMSE for F; P by randomized PIT, and the held-out
+# log density. F's and P's rows whose true mean is below 0.01 are apart.
+scoreReading <- function(reading, cell, expected) {
+  o <- if (is.null(cell$offsetAll)) 0 else cell$offsetAll
+  scoreItems <- function(read, truth, rows = seq_along(truth)) {
+    if (is.null(read) || length(rows) == 0L) {
+      return(NULL)
+    }
+    q <- read$quantiles[rows, , drop = FALSE]
+    truth <- truth[rows]
+    inside <- function(lower, upper) truth >= q[, lower] & truth <= q[, upper]
+    n <- read$ess[rows]
+    width <- q[, 7L] - q[, 2L]
+    score <- width +
+      20 * pmax(q[, 2L] - truth, 0) +
+      20 * pmax(truth - q[, 7L], 0)
+    c(
+      cover90 = mean(inside(2L, 7L)),
+      expected = mean(if (expected) 0.9 * n / (n + 1) else rep(0.9, length(n))),
+      cover50 = mean(inside(4L, 5L)),
+      cover80 = mean(inside(3L, 6L)),
+      cover95 = mean(inside(1L, 8L)),
+      intervalScore = mean(score),
+      width = mean(width),
+      rmse = sqrt(mean((read$mean[rows] - truth)^2)),
+      items = length(rows)
+    )
+  }
+  out <- list()
+  held <- cell$numTrain + seq_len(cell$numHeld)
+  if (!cell$isFold) {
+    identified <- exp(cell$truth + o) >= identifiedMean
+    out$F <- scoreItems(reading$F, cell$truth, which(identified))
+    out$Flow <- scoreItems(reading$F, cell$truth, which(!identified))
+    groupTruth <- unlist(lapply(cell$groups, function(levels) {
+      indicator <- t(model.matrix(~ levels - 1))
+      as.vector(log(indicator %*% exp(cell$truth + o) / rowSums(indicator)))
+    }))
+    out$G <- scoreItems(reading$G, groupTruth)
+    if (!is.null(cell$truthR)) {
+      oR <- if (is.null(cell$offsetAll)) 0 else cell$offsetAll[cell$rRows]
+      truthR <- c(
+        cell$truthR[, 2L] - cell$truthR[, 1L],
+        log(mean(exp(cell$truthR[, 2L] + oR))) -
+          log(mean(exp(cell$truthR[, 1L] + oR)))
+      )
+      numR <- length(cell$rRows)
+      perRow <- scoreItems(reading$R, truthR, seq_len(numR))
+      average <- scoreItems(reading$R, truthR, numR + 1L)
+      out$R <- (perRow + average) / 2
+    }
+  }
+  u <- reading$P$below + runif(cell$numHeld) * (reading$P$cdf - reading$P$below)
+  covered <- u >= 0.05 & u <= 0.95
+  lowP <- if (cell$isFold) {
+    rep(FALSE, cell$numHeld)
+  } else {
+    exp(cell$truth[held] + o[if (length(o) > 1L) held else 1L]) < identifiedMean
+  }
+  pScore <- function(rows) {
+    if (!any(rows)) {
+      return(NULL)
+    }
+    c(
+      cover90 = mean(covered[rows]),
+      expected = 0.9,
+      logDensity = mean(reading$P$logDensity[rows]),
+      items = sum(rows)
+    )
+  }
+  out$P <- pScore(!lowP)
+  out$Plow <- pScore(lowP)
+  out
+}
+
+# Every reading of every stored replication, scored: a long data frame of
+# cell, band, replication, reading kind (long or default), candidate, class
+# and the measures. A dataset's folds are one cell, "<dataset>-folds", each
+# fold a replication.
+scoreAll <- function() {
+  set.seed(9100000L)
+  files <- list.files(file.path(runDir, "main"), "[.]rds$", full.names = TRUE)
+  do.call(
+    rbind,
+    lapply(files, function(file) {
+      x <- readRDS(file)
+      cell <- x$cell$cell
+      rep <- x$cell$rep
+      if (x$cell$isFold) {
+        rep <- as.integer(sub(".*-fold", "", cell))
+        cell <- sub("-fold[0-9]+$", "-folds", cell)
+      }
+      do.call(
+        rbind,
+        lapply(names(x$readings), function(candidate) {
+          scores <- scoreReading(
+            x$readings[[candidate]],
+            x$cell,
+            expected = x$reading == "long"
+          )
+          do.call(
+            rbind,
+            lapply(names(scores), function(class) {
+              s <- scores[[class]]
+              if (is.null(s)) {
+                return(NULL)
+              }
+              measures <- c(
+                cover90 = NA,
+                expected = NA,
+                cover50 = NA,
+                cover80 = NA,
+                cover95 = NA,
+                intervalScore = NA,
+                width = NA,
+                rmse = NA,
+                logDensity = NA,
+                items = NA
+              )
+              measures[names(s)] <- s
+              data.frame(
+                cell = cell,
+                band = x$cell$band,
+                rep = rep,
+                kind = x$reading,
+                candidate = candidate,
+                source = if (x$reading == "long") {
+                  x$source[[candidate]]
+                } else {
+                  "default"
+                },
+                class = class,
+                t(measures),
+                check.names = FALSE
+              )
+            })
+          )
+        })
+      )
+    })
+  )
+}
+
+bootstrapReps <- 2000L
+bootstrapSeed <- 9200000L
+
+# The rows of one candidate's (or C0's) scores in one class and reading
+# kind over the given cells, paired with C0's on the replications both
+# carry, ordered by cell and replication.
+pairScores <- function(scores, candidate, class, kind, cells) {
+  pick <- function(who) {
+    s <- scores[
+      scores$candidate == who &
+        scores$class == class &
+        scores$kind == kind &
+        scores$cell %in% cells,
+    ]
+    s[order(s$cell, s$rep), ]
+  }
+  a <- pick(candidate)
+  b <- pick("C0")
+  common <- intersect(paste(a$cell, a$rep), paste(b$cell, b$rep))
+  a <- a[paste(a$cell, a$rep) %in% common, ]
+  b <- b[paste(b$cell, b$rep) %in% common, ]
+  if (nrow(a) == 0L) NULL else list(a = a, b = b)
+}
+
+# A paired bootstrap over whole replications within each cell, the same
+# draws for every candidate on the same cells (a fixed seed): statistic(a,
+# b, idx) returns one value per cell, idx NULL for the point estimate; the
+# cells are combined by combine (the mean of the bands' means by default).
+pairedBootstrap <- function(pair, statistic, combine = NULL) {
+  a <- pair$a
+  bands <- tapply(a$band, a$cell, `[`, 1L)
+  if (is.null(combine)) {
+    combine <- function(v) mean(tapply(v, bands[names(v)], mean))
+  }
+  numReps <- tapply(a$rep, a$cell, length)
+  point <- statistic(pair$a, pair$b, NULL)
+  set.seed(bootstrapSeed)
+  draws <- vapply(
+    seq_len(bootstrapReps),
+    function(i) {
+      idx <- lapply(numReps, function(m) sample.int(m, m, replace = TRUE))
+      statistic(pair$a, pair$b, idx)
+    },
+    point
+  )
+  draws <- matrix(draws, nrow = length(point))
+  rownames(draws) <- names(point)
+  combined <- apply(draws, 2L, combine)
+  list(
+    average = combine(point),
+    draws = combined,
+    interval = quantile(combined, c(0.025, 0.975), names = FALSE),
+    se = sd(combined),
+    cells = data.frame(
+      cell = names(point),
+      band = unname(bands[names(point)]),
+      value = unname(point),
+      se = unname(apply(draws, 1L, sd)),
+      row.names = NULL
+    )
+  )
+}
+
+# Per cell on replications idx: the candidate's corrected gap less C0's.
+gapDifference <- function(a, b, idx) {
+  one <- function(r) {
+    by <- split(r, r$cell)
+    vapply(
+      names(by),
+      function(cell) {
+        x <- by[[cell]]
+        if (!is.null(idx)) {
+          x <- x[idx[[cell]], ]
+        }
+        miss <- x$cover90 - x$expected
+        se <- if (nrow(x) > 1L) sd(miss) / sqrt(nrow(x)) else NA_real_
+        correctedDistance(abs(mean(miss)), se)
+      },
+      0
+    )
+  }
+  one(a) - one(b)
+}
+
+# The ratio of the band-weighted averages of a measure, candidate over C0.
+measureRatio <- function(pair, measure, combineCells = TRUE) {
+  statistic <- function(a, b, idx) {
+    one <- function(r) {
+      by <- split(r[[measure]], r$cell)
+      vapply(
+        names(by),
+        function(cell) {
+          v <- by[[cell]]
+          mean(if (is.null(idx)) v else v[idx[[cell]]])
+        },
+        0
+      )
+    }
+    ca <- one(a)
+    cb <- one(b)
+    if (combineCells) {
+      bands <- tapply(a$band, a$cell, `[`, 1L)[names(ca)]
+      c(
+        ratio = mean(tapply(ca, bands, mean)) / mean(tapply(cb, bands, mean))
+      )
+    } else {
+      ca / cb
+    }
+  }
+  pairedBootstrap(pair, statistic, combine = if (combineCells) identity)
+}
+
+# The log density per row on the real outcomes, C0's less the candidate's,
+# averaged over the datasets, each dataset's folds its replications.
+logScoreLoss <- function(pair) {
+  statistic <- function(a, b, idx) {
+    one <- function(r) {
+      by <- split(r$logDensity, r$cell)
+      vapply(
+        names(by),
+        function(cell) {
+          v <- by[[cell]]
+          mean(if (is.null(idx)) v else v[idx[[cell]]])
+        },
+        0
+      )
+    }
+    one(b) - one(a)
+  }
+  pairedBootstrap(pair, statistic, combine = mean)
+}
+
+# The decision rule on the long reading at a look: step 2 (non-inferiority,
+# the cell rule, the interval score, the width guard, the widest cells, the
+# shape-below-1 cells, the log score), step 3's order with its ties, the
+# close calls' z statistics against the look's O'Brien-Fleming boundary,
+# and step 5's guard where default readings of a candidate are stored.
+# Scoring is off until the pre-registration; a quick run prints only shapes.
+scoreClasses <- c("F", "G", "R", "P")
+lookBoundaries <- c(3.47, 2.45, 2.00)
+gapBar <- 0.02
+tieMargin <- 0.005
+logScoreBar <- 0.01
+summarizeMain <- function(look = 1L) {
+  quick <- nzchar(Sys.getenv("NBS_QUICK"))
+  if (!scoringOn && !quick) {
+    stop("the scoring is off until the pre-registration commit")
+  }
+  scores <- scoreAll()
+  truthCells <- setdiff(mainCellNames, paste0(mainShapeGuard, "-r"))
+  foldCells <- paste0(mainReal, "-folds")
+  narrowCells <- unique(scores$cell[scores$band == "narrow"])
+  classCells <- function(class) {
+    if (class == "P") c(truthCells, foldCells) else truthCells
+  }
+  readCandidate <- function(candidate, kind = "long") {
+    pairs <- lapply(scoreClasses, function(class) {
+      pairScores(scores, candidate, class, kind, classCells(class))
+    })
+    names(pairs) <- scoreClasses
+    gaps <- lapply(pairs, function(p) {
+      if (is.null(p)) NULL else pairedBootstrap(p, gapDifference)
+    })
+    if (kind == "default") {
+      return(list(gaps = gaps))
+    }
+    widest <- lapply(scoreClasses, function(class) {
+      p <- pairScores(scores, candidate, class, kind, widestCells)
+      if (is.null(p)) NULL else pairedBootstrap(p, gapDifference, mean)
+    })
+    shapeGuard <- lapply(scoreClasses, function(class) {
+      p <- pairScores(
+        scores,
+        candidate,
+        class,
+        kind,
+        paste0(mainShapeGuard, "-r")
+      )
+      if (is.null(p)) NULL else pairedBootstrap(p, gapDifference, mean)
+    })
+    intervalScore <- lapply(pairs[c("F", "G", "R")], function(p) {
+      if (is.null(p)) NULL else measureRatio(p, "intervalScore")
+    })
+    widthPair <- pairScores(scores, candidate, "F", kind, narrowCells)
+    width <- if (is.null(widthPair)) {
+      NULL
+    } else {
+      measureRatio(widthPair, "intervalScore", combineCells = FALSE)
+    }
+    logPair <- pairScores(scores, candidate, "P", kind, foldCells)
+    logScore <- if (is.null(logPair)) NULL else logScoreLoss(logPair)
+    names(widest) <- names(shapeGuard) <- scoreClasses
+    cellsWorse <- unlist(lapply(gaps, function(g) {
+      if (is.null(g)) {
+        NULL
+      } else {
+        g$cells$cell[g$cells$value - gapBar > 1.96 * g$cells$se]
+      }
+    }))
+    shapeWorse <- unlist(lapply(shapeGuard, function(g) {
+      if (is.null(g)) {
+        NULL
+      } else {
+        g$cells$cell[g$cells$value - gapBar > 1.96 * g$cells$se]
+      }
+    }))
+    upper <- function(x) if (is.null(x)) NA_real_ else x$interval[2L]
+    passes <- all(vapply(gaps, upper, 0) < gapBar, na.rm = TRUE) &&
+      length(cellsWorse) == 0L &&
+      all(vapply(intervalScore, upper, 0) <= 1.05, na.rm = TRUE) &&
+      (is.null(width) ||
+        all(width$cells$value + 1.96 * width$cells$se <= 1.1)) &&
+      all(vapply(widest, upper, 0) < gapBar, na.rm = TRUE) &&
+      length(shapeWorse) == 0L &&
+      (is.null(logScore) || logScore$interval[2L] < logScoreBar)
+    list(
+      gaps = gaps,
+      widest = widest,
+      shapeGuard = shapeGuard,
+      intervalScore = intervalScore,
+      width = width,
+      logScore = logScore,
+      cellsWorse = cellsWorse,
+      shapeWorse = shapeWorse,
+      passes = passes,
+      rank = mean(c(gaps$F$average, gaps$R$average)),
+      rankDraws = (gaps$F$draws + gaps$R$draws) / 2
+    )
+  }
+  candidates <- unique(scores$candidate[scores$kind == "long"])
+  candidates <- c(fittedNames, setdiff(candidates, c("C0", fittedNames)))
+  verdicts <- lapply(candidates, readCandidate)
+  names(verdicts) <- candidates
+  if (!scoringOn) {
+    cat(sprintf(
+      "quick: %d scored rows, %d cells, %d candidates, classes %s; %d NA coverages\n",
+      nrow(scores),
+      length(unique(scores$cell)),
+      length(unique(scores$candidate)),
+      paste(sort(unique(scores$class)), collapse = " "),
+      sum(is.na(scores$cover90))
+    ))
+    for (candidate in names(verdicts)) {
+      v <- verdicts[[candidate]]
+      cat(sprintf(
+        "  %s: cells compared by class %s; guards computed: widest %d, shape %d, width %s, log score %s\n",
+        candidate,
+        paste(
+          vapply(v$gaps, function(x) if (is.null(x)) 0L else nrow(x$cells), 0L),
+          collapse = " "
+        ),
+        sum(!vapply(v$widest, is.null, NA)),
+        sum(!vapply(v$shapeGuard, is.null, NA)),
+        !is.null(v$width),
+        !is.null(v$logScore)
+      ))
+    }
+    return(invisible(NULL))
+  }
+  saveRDS(
+    list(scores = scores, verdicts = verdicts),
+    outPath("main-scores.rds")
+  )
+  boundary <- lookBoundaries[look]
+  for (candidate in candidates) {
+    v <- verdicts[[candidate]]
+    cat(sprintf(
+      "== %s%s: step 2 %s ==\n",
+      candidate,
+      if (candidate %in% fittedNames) "" else " (reported, not read)",
+      if (v$passes) "passes" else "fails"
+    ))
+    for (class in scoreClasses) {
+      x <- v$gaps[[class]]
+      if (is.null(x)) {
+        next
+      }
+      cat(sprintf(
+        "  %s: gap less C0's %+.4f [%+.4f, %+.4f], z for %.2f: %.2f (boundary %.2f); widest %+.4f (upper %+.4f)%s\n",
+        class,
+        x$average,
+        x$interval[1L],
+        x$interval[2L],
+        gapBar,
+        (gapBar - x$average) / x$se,
+        boundary,
+        if (is.null(v$widest[[class]])) NA else v$widest[[class]]$average,
+        if (is.null(v$widest[[class]])) NA else v$widest[[class]]$interval[2L],
+        if (
+          class %in%
+            names(v$intervalScore) &&
+            !is.null(v$intervalScore[[class]])
+        ) {
+          sprintf(
+            "; interval score ratio %.3f (upper %.3f)",
+            v$intervalScore[[class]]$average,
+            v$intervalScore[[class]]$interval[2L]
+          )
+        } else {
+          ""
+        }
+      ))
+    }
+    cat(sprintf(
+      "  cells worse by the bar: %s; shape below 1: %s\n",
+      if (length(v$cellsWorse)) {
+        paste(v$cellsWorse, collapse = ", ")
+      } else {
+        "none"
+      },
+      if (length(v$shapeWorse)) paste(v$shapeWorse, collapse = ", ") else "none"
+    ))
+    if (!is.null(v$width)) {
+      w <- v$width$cells
+      cat(sprintf(
+        "  width guard, narrow cells' F interval score ratio upper: %s\n",
+        paste(
+          sprintf("%s %.3f", w$cell, w$value + 1.96 * w$se),
+          collapse = ", "
+        )
+      ))
+    }
+    if (!is.null(v$logScore)) {
+      cat(sprintf(
+        "  held-out log score, C0's less the candidate's %+.4f (upper %+.4f)\n",
+        v$logScore$average,
+        v$logScore$interval[2L]
+      ))
+    }
+  }
+  # Step 3: among fitted candidates passing step 2, the smallest average gap
+  # over F and R; within 0.005 tied, ties to the smaller code change, then
+  # the smaller interval score over the narrow band.
+  passing <- Filter(function(name) verdicts[[name]]$passes, fittedNames)
+  if (length(passing) == 0L) {
+    cat("no fitted candidate passes step 2: the default is kept\n")
+    return(invisible(NULL))
+  }
+  rank <- vapply(passing, function(name) verdicts[[name]]$rank, 0)
+  best <- min(rank)
+  tied <- passing[rank <= best + tieMargin]
+  code <- vapply(tied, function(name) mainCandidates(1)[[name]]$code, 0L)
+  tied <- tied[code == min(code)]
+  if (length(tied) > 1L) {
+    narrow <- vapply(
+      tied,
+      function(name) {
+        w <- verdicts[[name]]$width
+        if (is.null(w)) Inf else mean(w$cells$value)
+      },
+      0
+    )
+    tied <- tied[which.min(narrow)]
+  }
+  chosen <- tied[1L]
+  cat(sprintf("step 3: %s\n", chosen))
+  others <- setdiff(passing, chosen)
+  untied <- others[rank[others] > rank[chosen] + tieMargin]
+  if (length(untied)) {
+    nextName <- untied[which.min(rank[untied])]
+    lead <- verdicts[[nextName]]$rankDraws - verdicts[[chosen]]$rankDraws
+    cat(sprintf(
+      "  lead over %s %.4f (se %.4f), z for %.3f: %.2f (boundary %.2f)\n",
+      nextName,
+      rank[nextName] - rank[chosen],
+      sd(lead),
+      tieMargin,
+      (rank[nextName] - rank[chosen] - tieMargin) / sd(lead),
+      boundary
+    ))
+  }
+  margins <- vapply(
+    verdicts[[chosen]]$gaps,
+    function(x) if (is.null(x)) Inf else gapBar - x$interval[2L],
+    0
+  )
+  cat(sprintf(
+    "  step 2 margins by class: %s; a close call under %.2f\n",
+    paste(sprintf("%s %.4f", names(margins), margins), collapse = ", "),
+    gapBar / 2
+  ))
+  # Step 5: the chosen candidate's default reading against C0's.
+  if (any(scores$kind == "default" & scores$candidate == chosen)) {
+    guard <- readCandidate(chosen, "default")
+    for (class in scoreClasses) {
+      x <- guard$gaps[[class]]
+      if (!is.null(x)) {
+        cat(sprintf(
+          "  default reading, %s: gap less C0's %+.4f (upper %+.4f)\n",
+          class,
+          x$average,
+          x$interval[2L]
+        ))
+      }
+    }
+  }
+  # Reported beside, not read: rows below 0.01, 50, 80 and 95 percent
+  # coverage, RMSE.
+  beside <- scores[
+    scores$kind == "long" & scores$candidate %in% c("C0", chosen),
+  ]
+  print(
+    aggregate(
+      cbind(cover50, cover80, cover90, cover95, rmse) ~ candidate +
+        class +
+        band,
+      data = beside,
+      FUN = mean
+    ),
+    digits = 3
+  )
+}
+
 ## ------------------------------------------------------------ smoke runs
 
 # NBS_QUICK=1 shortens every run and count for a smoke run of the pipeline;
@@ -2718,6 +4163,11 @@ if (nzchar(Sys.getenv("NBS_QUICK"))) {
   priorBlockSize <- 100L
   priorMinimum <- 200L
   priorMaximum <- 400L
+  longBurn <- 100L
+  ownBelowMain <- 10
+  defaultBurn <- 50L
+  defaultSamples <- 50L
+  bootstrapReps <- 50L
 }
 
 ## ---------------------------------------------------------------- dispatch
@@ -2735,6 +4185,22 @@ switch(
   reweight = runReweight(args[2L]),
   stage2 = runStage2(args[2L], as.integer(args[3L])),
   correction = runCorrection(args[2L], as.integer(args[3L])),
+  plan = runPlan(
+    if (length(args) > 1L) as.integer(args[2L]) else 1L,
+    if (length(args) > 2L) args[-(1:2)] else names(bandReps)
+  ),
+  guardplan = runGuardPlan(args[2L]),
+  long = runLong(args[2L], as.integer(args[3L])),
+  default = runDefault(
+    args[2L],
+    as.integer(args[3L]),
+    if (length(args) > 3L) {
+      candidates <- mainCandidates(1)
+      names(candidates)[match(args[4L], fileCode(names(candidates)))]
+    } else {
+      "C0"
+    }
+  ),
   `prior-checks` = runPriorChecks(),
   truth = switch(
     args[2L],
@@ -2751,6 +4217,7 @@ switch(
     prior = summarizePrior(),
     stage2 = summarizeStage2(),
     correction = summarizeCorrection(),
+    main = summarizeMain(if (length(args) > 2L) as.integer(args[3L]) else 1L),
     stop("unknown stage to summarize")
   ),
   stop("unknown action; see the usage at the top of this file")
