@@ -649,7 +649,12 @@
             structural probabilities, holding the trees' shapes fixed while
             everything else is sampled. \code{dbartsControl(treeShift = )}
             adds a step that improves mixing of the leaf values when the
-            shapes are fixed. Binary fits under the probit link that draw
+            shapes are fixed. \code{\link{forest}} and
+            \code{\link{varianceForest}} take \code{proposal.probs} and
+            \code{n.perturb.cuts}, and \code{forest} \code{treeShift}, of
+            their own, defaulting to the control's, and a sampler's
+            \code{$setControl} changes them on the forests that state none.
+            Binary fits under the probit link that draw
             \code{k} - the default for \code{bart}, \code{dbarts},
             \code{xbart} and the hazard fit - take a further step each
             iteration that rescales the latent variables, the leaf values

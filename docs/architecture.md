@@ -280,9 +280,10 @@ conditional over the available ordinal variables and their admissible cuts,
 at acceptance one; it ships at zero pending a benefit measurement
 (docs/design/nog-gibbs.md). All five structural probabilities exactly zero
 freezes the structures: [`Chain::run`](../src/bartcore/chain.hpp)
-reads [`structureIsFrozen`](../src/bartcore/moves.hpp) once per forest and
-skips `metropolisJumpForTree` for every tree of the mean and variance
-forests, so no move is proposed and none of its randomness is drawn, while
+reads [`structureIsFrozen`](../src/bartcore/moves.hpp) once per forest, on
+that forest's own mixture or else the control's (`MoveSettings`, installed
+by `Sampler::setMoveSettings`), and skips `metropolisJumpForTree` for every
+tree of a frozen forest, mean or variance, so no move is proposed and none of its randomness is drawn, while
 leaf values, sigma and the family's latents keep sampling - a fitted forest
 re-sampled as a fixed basis.
 
@@ -315,7 +316,7 @@ calls `run` on the `SamplerBase` it holds; the facade forwards to
 
 1. Under a variance forest, form the mean weights `w_i / s^2(x_i)`
    (`formMeanWeights`); the global sigma stays fixed at 1.
-2. When the control's `treeShift` is `"always"`, or `"auto"` (the default) and that forest's
+2. When a forest's `treeShift`, its own or else the control's, is `"always"`, or `"auto"` (the default) and that forest's
    structural mixture is frozen, draw the constant-leaf forest's level shift
    (`drawLevelShift`): a constant added to every occupied leaf of a tree, the
    constants summing to zero across the forest's trees, leaving the fitted

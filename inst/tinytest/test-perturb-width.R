@@ -229,14 +229,14 @@ widenedDraws <- widened$run(0L, 20L)$train
 set.seed(4L)
 expect_false(identical(widenedDraws, narrow$run(0L, 20L)$train))
 
-# a refused install rolls the control back: a multinomial sampler's priors are
-# fixed at creation, so the install that carries the width refuses
-fixedPrior <- dbarts::dbarts(
+# a multinomial sampler's $setModel refuses, its priors being fixed at
+# creation, so the width takes the move install
+multinomial <- dbarts::dbarts(
   dbarts::dbartsData(x, counts = counts),
   family = "multinomial",
   control = widthControl()
 )
-refusedControl <- fixedPrior$control
-refusedControl@n.perturb.cuts <- 3
-expect_error(fixedPrior$setControl(refusedControl), "\\$setModel")
-expect_identical(fixedPrior$control@n.perturb.cuts, 1)
+widerMultinomial <- multinomial$control
+widerMultinomial@n.perturb.cuts <- 3
+expect_null(multinomial$setControl(widerMultinomial))
+expect_identical(multinomial$control@n.perturb.cuts, 3)

@@ -2583,6 +2583,15 @@ bartcoreSetModel <- function(bcSampler, model, data, control) {
   ))
 }
 
+# Whether $setModel refuses this sampler: its forests carry amplitudes or
+# counts, whose leaf scales are calibrated at creation, or its tree prior is
+# DART's, whose machinery is fixed then. setControl routes on it.
+setModelRefused <- function(sampler) {
+  samplerCarriesAmplitudes(sampler) ||
+    samplerCarriesCounts(sampler) ||
+    is(sampler$model@tree.prior, "dbartsDartPrior")
+}
+
 # Installs the control's move settings on every forest that states none of its
 # own, and nothing else: the route setControl takes where the prior install is
 # refused or would do more than the change asks.

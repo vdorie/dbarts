@@ -1,5 +1,5 @@
-# The level-fiber Gibbs step: the control surface, the settings it is fixed
-# against, and what the step must and must not move. The distributional gate
+# The level-fiber Gibbs step: the control surface, how it changes between
+# runs, and what the step must and must not move. The distributional gate
 # on the shift's own distribution - its mean, its covariance, and both
 # poisons - is a tests/cpp one, since the shift is not a quantity any R
 # channel reports.
@@ -48,19 +48,17 @@ onControl <- dbarts::dbartsControl(
 onSampler <- dbarts::dbarts(y ~ x, testData, control = onControl)
 expect_true(onSampler$control@levelGibbs)
 
-# ---- fixed when the sampler is created ----
+# ---- changed between runs ----
 
-# the engine reads it at creation only, so a changed value must be refused
-# rather than recorded R-side and dropped: $getPointer's re-creation branch
-# rebuilds from the control, and the flag would come back on across a save
-# and load
+# setControl installs a changed value on every forest that states none of its
+# own (test-forest-move-settings.R holds the twins), and the stored control
+# follows, so a re-creation rebuilds the value in force
 changed <- onSampler$control
 changed@levelGibbs <- FALSE
-expect_error(
-  onSampler$setControl(changed),
-  pattern = "changing 'treeShift'"
-)
-# and the same refusal from the off side
+expect_null(onSampler$setControl(changed))
+expect_false(onSampler$control@levelGibbs)
+changed@levelGibbs <- TRUE
+expect_null(onSampler$setControl(changed))
 offSampler <- dbarts::dbarts(
   y ~ x,
   testData,
@@ -71,14 +69,12 @@ offSampler <- dbarts::dbarts(
     n.samples = 5L
   )
 )
-# and the same refusal from the default, which is NA and not FALSE
+# from the default, which is NA and not FALSE
 turnedOn <- offSampler$control
 expect_true(is.na(turnedOn@levelGibbs))
 turnedOn@levelGibbs <- TRUE
-expect_error(
-  offSampler$setControl(turnedOn),
-  pattern = "changing 'treeShift'"
-)
+expect_null(offSampler$setControl(turnedOn))
+expect_true(offSampler$control@levelGibbs)
 
 # a control that only restates the value is accepted, NA against NA among
 # them - identical() reads two missing values as the same setting
@@ -157,8 +153,8 @@ rm(fitOn, fitOff, fitDefault)
 
 # ---- automatic: a frozen mixture switches the step on, and nothing else ----
 
-# the mixture is mutable between samples while the levelGibbs slot is fixed at
-# creation, so the decision is taken per sweep: a sampler grown under the
+# the mixture and the mode are both mutable between samples, so the decision
+# is taken per sweep: a sampler grown under the
 # shipped mixture takes no step, and takes one from the sweep its structures
 # are frozen at
 freeze <- function(control) {

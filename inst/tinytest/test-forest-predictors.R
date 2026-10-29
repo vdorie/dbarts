@@ -110,7 +110,10 @@ expect_identical(
       sd = NULL,
       interactions = NULL,
       blocks = NULL,
-      amplitude = NULL
+      amplitude = NULL,
+      proposal.probs = NULL,
+      n.perturb.cuts = NULL,
+      treeShift = NULL
     ),
     class = "dbartsForest"
   )
@@ -127,7 +130,10 @@ expect_identical(
     "power",
     "amplitude",
     "interactions",
-    "blocks"
+    "blocks",
+    "proposal.probs",
+    "n.perturb.cuts",
+    "treeShift"
   )
 )
 # a value handed over is kept; code is kept as code, unevaluated

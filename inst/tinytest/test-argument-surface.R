@@ -547,7 +547,8 @@ printed <- capture.output(print(dbarts::dbartsForests$varianceForest(
   n.trees = 20L
 )))
 expect_true(any(grepl("variance forest", printed)))
-expect_true(any(grepl("n.trees = 20", printed, fixed = TRUE)))
+expect_true(any(grepl("n.trees\\s*= 20", printed)))
+expect_true(any(grepl("proposal.probs\\s*= <control's>", printed)))
 expect_true(any(grepl("<all columns>", printed, fixed = TRUE)))
 formatted <- format(
   dbarts::dbartsForests$varianceForest(

@@ -380,6 +380,42 @@ perturbCutsRefusal <- function(width) {
   NULL
 }
 
+## Why a resolved mixture cannot be taken, NULL when it can: the six names in
+## order, the five structural shares in [0, 1] summing to 1 or all 0 (the
+## frozen mixture, which has no share to normalize), and birth in (0, 1). The
+## control's slot and a forest's own mixture are both held to it.
+proposalProbsRefusal <- function(proposal.probs) {
+  if (
+    length(proposal.probs) != 6L ||
+      !identical(
+        names(proposal.probs),
+        c("birth_death", "swap", "change", "perturb", "rule_gibbs", "birth")
+      )
+  ) {
+    return(paste0(
+      "'proposal.probs' must name 'birth_death', 'swap', 'change', ",
+      "'perturb', 'rule_gibbs' and 'birth', in that order"
+    ))
+  }
+  structural <- proposal.probs[
+    c("birth_death", "swap", "change", "perturb", "rule_gibbs")
+  ]
+  if (anyNA(structural) || any(structural < 0.0 | structural > 1.0)) {
+    return("rule proposal probabilities must be in [0, 1]")
+  }
+  if (
+    sum(structural) != 0.0 &&
+      abs(sum(structural) - 1.0) >= sqrt(.Machine$double.eps)
+  ) {
+    return("rule proposal probabilities must sum to 1")
+  }
+  birth <- proposal.probs[["birth"]]
+  if (is.na(birth) || birth <= 0.0 || birth >= 1.0) {
+    return("birth probability for birth/death step must be in (0, 1)")
+  }
+  NULL
+}
+
 methods::setValidity("dbartsControl", function(object) {
   if (length(object@verbose) != 1L) {
     return("'verbose' must be of length 1")
@@ -526,35 +562,9 @@ methods::setValidity("dbartsControl", function(object) {
 
   ## the tree-move mixture, resolved by dbartsControl() before it lands here
   ## and read from this slot by the bridge
-  if (
-    length(object@proposal.probs) != 6L ||
-      !identical(
-        names(object@proposal.probs),
-        c("birth_death", "swap", "change", "perturb", "rule_gibbs", "birth")
-      )
-  ) {
-    return(paste0(
-      "'proposal.probs' must name 'birth_death', 'swap', 'change', ",
-      "'perturb', 'rule_gibbs' and 'birth', in that order"
-    ))
-  }
-  proposalProbs <- object@proposal.probs[
-    c("birth_death", "swap", "change", "perturb", "rule_gibbs")
-  ]
-  if (anyNA(proposalProbs) || any(proposalProbs < 0.0 | proposalProbs > 1.0)) {
-    return("rule proposal probabilities must be in [0, 1]")
-  }
-  ## all five exactly zero is the frozen mixture: no structural proposal is
-  ## made, so there is no share to normalize
-  if (
-    sum(proposalProbs) != 0.0 &&
-      abs(sum(proposalProbs) - 1.0) >= sqrt(.Machine$double.eps)
-  ) {
-    return("rule proposal probabilities must sum to 1")
-  }
-  birth <- object@proposal.probs[["birth"]]
-  if (is.na(birth) || birth <= 0.0 || birth >= 1.0) {
-    return("birth probability for birth/death step must be in (0, 1)")
+  refusal <- proposalProbsRefusal(object@proposal.probs)
+  if (!is.null(refusal)) {
+    return(refusal)
   }
   refusal <- perturbCutsRefusal(object@n.perturb.cuts)
   if (!is.null(refusal)) {

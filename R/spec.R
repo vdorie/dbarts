@@ -817,6 +817,20 @@ resolveSamplerSpec <- function(
   # non-default one conflicts and errors.
   if (!is.null(monotoneDirections)) {
     control@proposal.probs <- monotoneProposalProbs(control@proposal.probs)
+    # a forest's own mixture was chosen, so it is never rewritten: one
+    # proposing any move but birth and death is refused, the package
+    # default's included
+    for (index in seq_along(forestSpec)) {
+      probs <- forestSpec[[index]]$proposal.probs
+      if (any(probs[c("swap", "change", "perturb", "rule_gibbs")] != 0)) {
+        stop(
+          "'monotone' forces birth/death-only proposals; ",
+          forestKnobLabel(forests, index),
+          "'s 'proposal.probs' proposes other moves",
+          call. = FALSE
+        )
+      }
+    }
   }
   validObject(control)
 
@@ -982,9 +996,19 @@ resolveSamplerSpec <- function(
   # one selector vocabulary - and its n.trees/base/power knobs land on the
   # same control attribute the C factory reads.
   varianceSpec <- if (inherits(variance, "dbartsVarianceForest")) {
-    variance
+    resolveForestMoves(variance, "varianceForest()")
   } else {
     NULL
+  }
+  # the rule_gibbs move redraws no scale leaf, so a share of it stated on
+  # the variance forest could move nothing
+  if (isTRUE(varianceSpec$proposal.probs[["rule_gibbs"]] > 0)) {
+    stop(
+      "varianceForest()'s 'proposal.probs' gives 'rule_gibbs' a positive ",
+      "share, a move that does nothing on the variance forest's leaves; give ",
+      "it 0",
+      call. = FALSE
+    )
   }
   # vars = NULL on the OBJECT means every column (resolveVarianceColumns'
   # TRUE reading), unlike variance = NULL's "no variance forest" - the two
@@ -1323,6 +1347,17 @@ resolveSamplerSpec <- function(
       }
       attr(control, "bartcore.forests") <- forestInfo
     }
+  }
+
+  # each forest's own move settings, where any forest states one; the
+  # control's slots keep the control's, which every other forest runs
+  moves <- forestMoveRecord(
+    forestSpec,
+    if (is.null(data@bases)) 1L else length(data@bases),
+    varianceSpec
+  )
+  if (!is.null(moves)) {
+    attr(control, "bartcore.moves") <- moves
   }
 
   # every resolution of "auto" is announced once, here, after the refusals

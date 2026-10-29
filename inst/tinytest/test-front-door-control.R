@@ -604,15 +604,15 @@ expect_false(isTRUE(all.equal(
 )))
 rm(xbartSeedArgs, xbartControlSeeded)
 
-# ---- a refused mixture install leaves the control where it was -------------
+# ---- a refused mixture leaves the control where it was ---------------------
 
-# The prior install carries refusals of its own (a DART prior is fixed at
-# creation); a mixture change that trips one must not leave the stored control
-# naming a mixture the engine never took.
-dartSampler <- dbarts::dbarts(
+# A mixture the sampler cannot take (a monotone sampler takes birth and death
+# alone) must not leave the stored control naming a mixture the engine never
+# took.
+monotoneSampler <- dbarts::dbarts(
   xFC,
   yFC,
-  tree.prior = dbarts::dbartsPriors$dart(),
+  monotone = dbarts::dbartsForests$monotone(c(a = 1)),
   control = dbarts::dbartsControl(
     n.chains = 1L,
     n.threads = 1L,
@@ -622,15 +622,18 @@ dartSampler <- dbarts::dbarts(
     updateState = FALSE
   )
 )
-invisible(dartSampler$run())
-movedControl <- dartSampler$control
-movedControl@proposal.probs[["birth_death"]] <- 1
-movedControl@proposal.probs[["change"]] <- 0
-expect_error(dartSampler$setControl(movedControl), "DART tree prior")
-expect_equal(dartSampler$control@proposal.probs[["birth_death"]], 0.6)
-expect_equal(dartSampler$control@proposal.probs[["change"]], 0.4)
-expect_true(all(is.finite(dartSampler$run()$train)))
-rm(dartSampler, movedControl)
+invisible(monotoneSampler$run())
+movedControl <- monotoneSampler$control
+movedControl@proposal.probs[["birth_death"]] <- 0.5
+movedControl@proposal.probs[["change"]] <- 0.5
+expect_error(
+  monotoneSampler$setControl(movedControl),
+  "forces birth/death-only proposals"
+)
+expect_equal(monotoneSampler$control@proposal.probs[["birth_death"]], 1)
+expect_equal(monotoneSampler$control@proposal.probs[["change"]], 0)
+expect_true(all(is.finite(monotoneSampler$run()$train)))
+rm(monotoneSampler, movedControl)
 
 # ---- the retired mixture beside a control that NAMED the same slot --------
 

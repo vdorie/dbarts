@@ -19,7 +19,9 @@
   \code{dbartsForests$varianceForest(...)}; see \code{\link{dbartsForests}}.
 }
 \usage{
-varianceForest(vars = NULL, n.trees = NULL, base = NULL, power = NULL)
+varianceForest(
+    vars = NULL, n.trees = NULL, base = NULL, power = NULL,
+    proposal.probs = NULL, n.perturb.cuts = NULL)
 }
 \arguments{
   \item{vars}{
@@ -39,6 +41,18 @@ varianceForest(vars = NULL, n.trees = NULL, base = NULL, power = NULL)
   \item{base, power}{
     The variance forest's tree-structure prior. \code{NULL} (the default)
     inherits the mean forest's \code{tree.prior} \code{base}/\code{power}.
+  }
+  \item{proposal.probs, n.perturb.cuts}{
+    The variance forest's proposal mixture and perturb window, as
+    \code{\link{dbartsControl}} describes each. Each one stated here governs
+    the variance forest and each one left out takes the control's:
+    \code{$setControl} changes it only where none is stated here, and one
+    stated here is fixed for the sampler's life. A stated
+    \code{proposal.probs} is a whole mixture, filled against the package
+    defaults as \code{dbartsControl()}'s is, and a positive
+    \code{"rule_gibbs"} share is refused: that move does nothing on the
+    variance forest's leaves. With these arguments \code{n =} and \code{p =}
+    no longer abbreviate a single argument.
   }
 }
 \details{

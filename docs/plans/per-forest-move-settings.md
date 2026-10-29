@@ -105,7 +105,7 @@ Read, and run on main at 7c264c37 (shipped build, arm64 macOS):
   variance forest never takes the step. The enum is defined in chain.hpp after combiner.hpp is included, so
   `Forest` cannot name it today.
 - `setControl`. [`dbartsSampler$setControl`](../../R/dbarts.R) refuses a changed `treeShift` (run:
-  ["changing 'treeShift'"](../../inst/tinytest/test-level-fiber.R)), carries every `bartcore.*` attribute of
+  "changing 'treeShift'", pinned in test-level-fiber.R before this item), carries every `bartcore.*` attribute of
   the old control onto the new one, and on a changed mixture or window calls `$setModel(model)`;
   [`bartcore_setModel`](../../src/R_interface_bartcore.cpp) re-reads the control's mixture and
   [`Chain::setModel`](../../src/bartcore/chain.hpp) writes it to the first forest and the variance forest
@@ -337,7 +337,7 @@ tinytest, a new test-forest-move-settings.R, small n and several cuts per predic
 Pins updated: `forest()`'s structure and formals in
 ["names(formals(forest))"](../../inst/tinytest/test-forest-predictors.R); the printed `varianceForest()` in
 test-argument-surface.R; the `treeShift` refusals in test-level-fiber.R become installs; the multinomial
-refusal in ["fixedPrior$setControl(refusedControl)"](../../inst/tinytest/test-perturb-width.R) becomes an
+refusal in test-perturb-width.R (`fixedPrior$setControl(refusedControl)` before this item) becomes an
 install that takes.
 
 Mutants, each to fail a named expectation: `Chain::run` reading the options' mode instead of the forest's; the

@@ -2979,14 +2979,13 @@ dbartsSampler <- setRefClass(
       # is created and never again. Accepting one here would leave the stored
       # control disagreeing with the engine, and a re-creation from that stored
       # control would then move the draws under categoricalExhaustiveCap.
-      # proposal.probs is NOT among them: the mixture is installed with the
-      # priors and has always been changeable mid-run through $setModel, so it
-      # is honored here through that same install (below).
+      # The move settings are NOT among them: a sweep reads each forest's
+      # mixture, window and tree-shift mode afresh, so a change is installed
+      # (below) on every forest that states none of its own.
       for (slotName in c(
         "n.trees",
         "n.chains",
         "useQuantiles",
-        "levelGibbs",
         "categoricalExhaustiveCap",
         "testFitParallelCutoff",
         "predictParallelCutoff",
@@ -3001,8 +3000,7 @@ dbartsSampler <- setRefClass(
         ) {
           stop(
             "changing '",
-            # the slot keeps the bridge's name; the argument is treeShift
-            if (slotName == "levelGibbs") "treeShift" else slotName,
+            slotName,
             "' is not available on an existing sampler"
           )
         }
@@ -3027,6 +3025,7 @@ dbartsSampler <- setRefClass(
         control@proposal.probs
       ) ||
         !identical(newControl@n.perturb.cuts, control@n.perturb.cuts)
+      shiftMoved <- !identical(newControl@levelGibbs, control@levelGibbs)
 
       ptr <- getPointer()
       oldControl <- control
@@ -3034,14 +3033,20 @@ dbartsSampler <- setRefClass(
       # control the one the engine still has
       .Call(C_dbarts_bartcore_setControl, ptr, newControl)
       selfEnv$control <- newControl
-      # the engine reads the mixture off the control when the priors are
-      # installed, so a changed one is pushed through the prior install and
-      # meets every refusal that install already carries. A refusal rolls the
-      # whole control back: the stored one must never name a mixture the
+      # A changed mixture or window goes through the prior install where the
+      # sampler's $setModel takes one, which writes the mode too. Everything
+      # else takes the move install, which writes no prior: any change where
+      # $setModel refuses, and a changed treeShift alone, since the prior
+      # install would also put a fixed sigma back. Either way a refusal rolls
+      # the whole control back: the stored one must never name settings the
       # engine does not have.
-      if (mixtureMoved) {
+      if (mixtureMoved || shiftMoved) {
         tryCatch(
-          .self$setModel(model),
+          if (mixtureMoved && !setModelRefused(.self)) {
+            .self$setModel(model)
+          } else {
+            bartcoreSetMoveSettings(ptr, newControl)
+          },
           error = function(e) {
             selfEnv$control <- oldControl
             .Call(C_dbarts_bartcore_setControl, ptr, oldControl)

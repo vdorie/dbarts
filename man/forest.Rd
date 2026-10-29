@@ -22,7 +22,8 @@
 forest(
     vars = NULL, basis = NULL, sd = NULL,
     n.trees = NULL, base = NULL, power = NULL, amplitude = NULL,
-    interactions = NULL, blocks = NULL)
+    interactions = NULL, blocks = NULL,
+    proposal.probs = NULL, n.perturb.cuts = NULL, treeShift = NULL)
 }
 \arguments{
   \item{vars}{
@@ -603,6 +604,21 @@ sampler$setLeafPrior(forests = list(forest(),
     \code{fixed()}, and no other value is. Outside the argument that takes it
     the constructor is \code{dbartsPriors$fixed()}. It is stated for a forest
     of a model of several; a model of one forest has no amplitude to hold.
+  }
+  \item{proposal.probs, n.perturb.cuts, treeShift}{
+    This forest's tree moves - its proposal mixture, perturb window and
+    level-shifting step - as \code{\link{dbartsControl}} describes each. Each
+    one stated here governs this forest and each one left out takes the
+    control's: \code{$setControl} changes a forest's setting only where the
+    forest states none, and one stated here is fixed for the sampler's life.
+    A stated \code{proposal.probs} is a whole mixture, filled against the
+    package defaults as \code{dbartsControl()}'s is and not edits to the
+    control's, so an omitted \code{birth} is 0.5. A forest frozen by its own
+    mixture is still grown by \code{n.grow.sweeps} and replaced by
+    \code{warm.start}, as under the control's, and \code{treeShift} acts on
+    the constant leaves of two or more trees, as the control's does. With
+    these arguments \code{n =} and \code{p =} no longer abbreviate a single
+    argument; write \code{n.trees} and \code{power} in full.
   }
 }
 \details{

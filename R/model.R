@@ -1594,6 +1594,100 @@ validateForestKnobs <- function(spec) {
   spec
 }
 
+## How a refusal names forest `index` of a `forests` list: by the list's name
+## where it gives one, by position otherwise.
+forestKnobLabel <- function(forests, index) {
+  name <- names(forests)[index]
+  if (length(name) == 1L && !is.na(name) && nzchar(name)) {
+    paste0("forest \"", name, "\"")
+  } else {
+    paste0("forest ", index)
+  }
+}
+
+## A forest's own move settings, each resolved as the control's slot is and
+## left NULL where the forest states none: a mixture filled against the
+## package defaults (not the control's) and checked whole, a window kept as a
+## double, and treeShift as the slot's tri-state logical. `label` names the
+## forest in a refusal, as forestKnobLabel's or "varianceForest()".
+resolveForestMoves <- function(spec, label) {
+  refuse <- function(knob, message) {
+    quoted <- paste0("'", knob, "'")
+    stop(
+      label,
+      "'s ",
+      if (startsWith(message, quoted)) {
+        message
+      } else {
+        paste0(quoted, ": ", message)
+      },
+      call. = FALSE
+    )
+  }
+  if (!is.null(spec$proposal.probs)) {
+    probs <- tryCatch(
+      resolveProposalProbs(spec$proposal.probs),
+      error = function(e) refuse("proposal.probs", conditionMessage(e))
+    )
+    refusal <- proposalProbsRefusal(probs)
+    if (!is.null(refusal)) {
+      refuse("proposal.probs", refusal)
+    }
+    spec$proposal.probs <- probs
+  }
+  if (!is.null(spec$n.perturb.cuts)) {
+    width <- spec$n.perturb.cuts
+    refusal <- if (!is.numeric(width) || is.object(width)) {
+      "'n.perturb.cuts' must be a single positive whole number or Inf"
+    } else {
+      perturbCutsRefusal(width)
+    }
+    if (!is.null(refusal)) {
+      refuse("n.perturb.cuts", refusal)
+    }
+    spec$n.perturb.cuts <- as.double(width)
+  }
+  if (!is.null(spec$treeShift)) {
+    spec$treeShift <- tryCatch(
+      resolveTreeShift(spec$treeShift),
+      error = function(e) refuse("treeShift", conditionMessage(e))
+    )
+  }
+  spec
+}
+
+## The record of what each forest states of its move settings, as
+## attr(control, "bartcore.moves") carries it to the bridge: `forests`, one
+## entry for each of the numForests mean forests (a multinomial model's one
+## entry setting every category forest), and `variance`, the variance
+## forest's or NULL. An entry holds proposal.probs, n.perturb.cuts and, on a
+## mean forest, levelGibbs, each NULL where the forest states none. NULL
+## where no forest states any, so a fit stating none carries no record.
+forestMoveRecord <- function(specs, numForests, variance) {
+  entry <- function(spec, mode = TRUE) {
+    out <- list(
+      proposal.probs = spec$proposal.probs,
+      n.perturb.cuts = spec$n.perturb.cuts
+    )
+    if (mode) {
+      out["levelGibbs"] <- list(spec$treeShift)
+    }
+    out
+  }
+  states <- function(e) !all(vapply(e, is.null, NA))
+  forests <- lapply(seq_len(numForests), function(index) {
+    entry(if (index <= length(specs)) specs[[index]])
+  })
+  varianceEntry <- entry(variance, FALSE)
+  if (!any(vapply(forests, states, NA)) && !states(varianceEntry)) {
+    return(NULL)
+  }
+  list(
+    forests = forests,
+    variance = if (states(varianceEntry)) varianceEntry
+  )
+}
+
 ## A forest's 'amplitude': NULL, which draws its coefficient, or fixed(), which
 ## holds it at 1, the basis carrying the coding. Returns "fixed" for the hold.
 ## A bare fixed is fixed(), as a constructor given where a value is.
@@ -1875,7 +1969,12 @@ resolveForests <- function(forests, interactions, blocks, hasBasis) {
   if (length(forests) == 0L) {
     stop("'forests' is empty; omit it to fit a single forest")
   }
-  resolved <- lapply(forests, validateForestKnobs)
+  resolved <- lapply(seq_along(forests), function(index) {
+    resolveForestMoves(
+      validateForestKnobs(forests[[index]]),
+      forestKnobLabel(forests, index)
+    )
+  })
   numForests <- length(resolved)
 
   withBasis <- vapply(
@@ -2658,7 +2757,9 @@ blocks <- function(groups, trees.per.group = NULL) {
 ## index's under probit and logistic), which the engine divides by the unit
 ## it derives at creation; amplitude = fixed() holds its coefficient at 1, the
 ## basis carrying the coding, and left out draws it; interactions and blocks are this forest's own constraints - the
-## arguments of the same names on the fitting function are the FIRST forest's.
+## arguments of the same names on the fitting function are the FIRST forest's;
+## proposal.probs, n.perturb.cuts and treeShift are its own move settings,
+## each the control's where not stated (resolveForestMoves).
 ## Every knob defaults to NULL, "not declared", which is what lets a
 ## declaration that collides with one of those arguments refuse rather than
 ## silently win. Validated at fit time, in resolveForests. Not exported, like
@@ -2673,7 +2774,10 @@ forest <- function(
   power = NULL,
   amplitude = NULL,
   interactions = NULL,
-  blocks = NULL
+  blocks = NULL,
+  proposal.probs = NULL,
+  n.perturb.cuts = NULL,
+  treeShift = NULL
 ) {
   # the arguments as the caller gave them, a forwarded '...' spelled out
   given <- match.call(function(...) NULL, sys.call(), expand.dots = FALSE)$...
@@ -2741,7 +2845,10 @@ forest <- function(
       sd = sd,
       interactions = interactions,
       blocks = blocks,
-      amplitude = amplitude
+      amplitude = amplitude,
+      proposal.probs = proposal.probs,
+      n.perturb.cuts = n.perturb.cuts,
+      treeShift = treeShift
     ),
     class = "dbartsForest"
   )
@@ -2871,16 +2978,27 @@ isLoopMachinery <- function(place, expr) {
 ## object meaning every column, distinct from variance = NULL's "no
 ## variance forest". n.trees/base/power default to NULL, "not declared",
 ## matching forest(); resolveSamplerSpec falls each back to a default when
-## NULL (40 trees; the mean forest's tree.prior base/power). Validated
-## at fit time. Not exported, like forest().
+## NULL (40 trees; the mean forest's tree.prior base/power), and
+## proposal.probs/n.perturb.cuts to the control's. It takes no treeShift: the
+## variance forest takes no level step. Validated at fit time. Not exported,
+## like forest().
 varianceForest <- function(
   vars = NULL,
   n.trees = NULL,
   base = NULL,
-  power = NULL
+  power = NULL,
+  proposal.probs = NULL,
+  n.perturb.cuts = NULL
 ) {
   structure(
-    list(vars = vars, n.trees = n.trees, base = base, power = power),
+    list(
+      vars = vars,
+      n.trees = n.trees,
+      base = base,
+      power = power,
+      proposal.probs = proposal.probs,
+      n.perturb.cuts = n.perturb.cuts
+    ),
     class = "dbartsVarianceForest"
   )
 }
@@ -2889,11 +3007,25 @@ format.dbartsVarianceForest <- function(x, ...) {
   describe <- function(value, default) {
     if (is.null(value)) default else paste(deparse(value), collapse = " ")
   }
-  c(
-    paste0("vars    = ", describe(x$vars, "<all columns>")),
-    paste0("n.trees = ", describe(x$n.trees, "<default 40>")),
-    paste0("base    = ", describe(x$base, "<mean forest's>")),
-    paste0("power   = ", describe(x$power, "<mean forest's>"))
+  knobs <- c(
+    "vars",
+    "n.trees",
+    "base",
+    "power",
+    "proposal.probs",
+    "n.perturb.cuts"
+  )
+  paste0(
+    format(knobs),
+    " = ",
+    c(
+      describe(x$vars, "<all columns>"),
+      describe(x$n.trees, "<default 40>"),
+      describe(x$base, "<mean forest's>"),
+      describe(x$power, "<mean forest's>"),
+      describe(x$proposal.probs, "<control's>"),
+      describe(x$n.perturb.cuts, "<control's>")
+    )
   )
 }
 
